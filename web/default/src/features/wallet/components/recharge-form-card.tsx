@@ -330,7 +330,7 @@ export function RechargeFormCard({
                           key={index}
                           variant='outline'
                           className={cn(
-                            'hover:border-foreground flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
+                            'hover:border-foreground flex h-auto min-h-16 flex-col items-start justify-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
                             selectedPreset === preset.value
                               ? 'border-foreground bg-foreground/5'
                               : 'border-muted'

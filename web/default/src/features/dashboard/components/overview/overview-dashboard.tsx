@@ -30,7 +30,6 @@ import {
   FileText,
   KeyRound,
   ListChecks,
-  Play,
   RadioTower,
   ShieldCheck,
   TerminalSquare,
@@ -77,7 +76,6 @@ const SETUP_GUIDE_CODE_PATTERN = [
 type DashboardActionPath =
   | '/keys'
   | '/wallet'
-  | '/playground'
   | '/channels'
   | '/usage-logs'
   | '/pricing'
@@ -484,8 +482,8 @@ export function OverviewDashboard() {
       },
       {
         title: t('Send a request'),
-        description: t('Verify routing with Playground or your client'),
-        to: '/playground',
+        description: t('Verify it works from your AI tool'),
+        to: '/keys',
         icon: TerminalSquare,
         completed: requestCount > 0,
       },
@@ -495,12 +493,6 @@ export function OverviewDashboard() {
 
   const quickActions = useMemo<QuickAction[]>(
     () => [
-      {
-        title: t('Playground'),
-        description: t('Test models and prompts from the browser'),
-        to: '/playground',
-        icon: Play,
-      },
       {
         title: t('Channels'),
         description: t('Configure upstream providers and routing.'),

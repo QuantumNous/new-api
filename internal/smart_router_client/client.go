@@ -17,7 +17,7 @@
 //
 // Env config:
 //   - SMART_ROUTER_URL          smart-router base URL (e.g. http://localhost:8001)
-//                               When empty, Route is a no-op (returns nil, nil).
+//     When empty, Route is a no-op (returns nil, nil).
 //   - SMART_ROUTER_TIMEOUT_MS   per-call timeout, default 100ms.
 package smart_router_client
 

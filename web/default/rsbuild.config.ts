@@ -22,7 +22,10 @@ export default defineConfig(({ envMode }) => {
 
   const isProd = envMode === 'production'
   const devProxy = Object.fromEntries(
-    (['/api', '/mj', '/pg'] as const).map((key) => [
+    // /v1 is proxied so the Base URL the Setup guide derives from
+    // window.location (e.g. http://localhost:17231/v1) actually reaches the
+    // gateway in dev — without it the guide shows a URL that 404s.
+    (['/api', '/mj', '/pg', '/v1'] as const).map((key) => [
       key,
       { target: serverUrl, changeOrigin: true },
     ]),

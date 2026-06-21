@@ -16,18 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute } from '@tanstack/react-router'
-import { Main } from '@/components/layout'
-import { Playground } from '@/features/playground'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
+// Playground is a developer-debugging console inherited from upstream
+// new-api. DeepRouter is a utility (account + wallet), NOT a chat
+// destination ("不做 chat 是红线", onboarding-v2 §2) — end users never use
+// it. Any hit on /playground (stray link, typed URL, stale bookmark)
+// bounces to the dashboard. The Playground feature code is kept (not
+// deleted) so it can be re-enabled behind a developer flag later if needed.
 export const Route = createFileRoute('/_authenticated/playground/')({
-  component: PlaygroundPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/dashboard' })
+  },
 })
-
-function PlaygroundPage() {
-  return (
-    <Main className='p-0'>
-      <Playground />
-    </Main>
-  )
-}

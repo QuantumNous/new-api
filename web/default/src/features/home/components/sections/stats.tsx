@@ -126,26 +126,49 @@ export function Stats(_props: StatsProps) {
 
   return (
     <div className='relative z-10 px-6'>
-      <div className='mx-auto max-w-6xl px-6 py-10 md:py-12'>
-        <div className='border-border bg-card/70 grid grid-cols-2 gap-px overflow-hidden rounded-xl border shadow-[0_12px_34px_rgb(28_28_28/0.06)] md:grid-cols-4'>
-          {stats.map((s) => (
-            <div
-              key={s.label}
-              className='bg-card/80 flex flex-col items-center px-4 py-7 text-center'
-            >
-              <span className='text-2xl font-bold tracking-normal tabular-nums md:text-3xl'>
-                <Counter
-                  end={s.end}
-                  prefix={s.prefix}
-                  suffix={s.suffix}
-                  decimals={s.decimals}
-                />
+      <div className='mx-auto max-w-7xl py-8 md:py-10'>
+        <div className='border-border/80 bg-card/70 overflow-hidden rounded-2xl border shadow-[0_16px_45px_rgb(28_28_28/0.07)] backdrop-blur'>
+          <div className='border-border/70 flex flex-col gap-2 border-b px-5 py-4 md:flex-row md:items-center md:justify-between md:px-7'>
+            <div>
+              <p className='text-muted-foreground text-xs font-semibold tracking-widest uppercase'>
+                {t('Launch ready')}
+              </p>
+              <h2 className='mt-1 text-lg font-semibold tracking-normal'>
+                {t('Everything needed to start using AI APIs today')}
+              </h2>
+            </div>
+            <div className='text-muted-foreground flex flex-wrap gap-2 text-xs'>
+              <span className='border-border bg-background/70 rounded-full border px-3 py-1'>
+                {t('Access')}
               </span>
-              <span className='text-muted-foreground mt-1.5 text-xs'>
-                {s.label}
+              <span className='border-border bg-background/70 rounded-full border px-3 py-1'>
+                {t('Billing')}
+              </span>
+              <span className='border-border bg-background/70 rounded-full border px-3 py-1'>
+                {t('Routing')}
               </span>
             </div>
-          ))}
+          </div>
+          <div className='bg-border/70 grid grid-cols-2 gap-px md:grid-cols-4'>
+            {stats.map((s) => (
+              <div
+                key={s.label}
+                className='bg-card/90 flex min-h-34 flex-col justify-center px-5 py-7'
+              >
+                <span className='text-3xl font-bold tracking-normal tabular-nums md:text-4xl'>
+                  <Counter
+                    end={s.end}
+                    prefix={s.prefix}
+                    suffix={s.suffix}
+                    decimals={s.decimals}
+                  />
+                </span>
+                <span className='text-muted-foreground mt-2 max-w-[11rem] text-sm leading-snug'>
+                  {s.label}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

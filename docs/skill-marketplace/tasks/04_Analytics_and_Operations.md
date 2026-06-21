@@ -64,12 +64,16 @@ Analytics dashboards must not read or expose `instruction_template`, `prompt_gua
 | `skill_detail_view` | Frontend | Skill Detail opened | `skill_usage_events` | Core + `metadata.source_entry_point` |
 | `skill_saved` | Frontend/Backend | User saves or unsaves Skill | `skill_usage_events` + `skill_saves` | Core + `save_type` ('saved'/'unsaved') |
 | `skill_favorited` | Frontend/Backend | User favorites or unfavorites Skill | `skill_usage_events` + `skill_saves` | Core + `favorite_flag` (true/false) |
-| `skill_downloaded` | Backend | Download zip succeeds | `skill_usage_events` + `user_enabled_skills` | Core + `skill_version_id`, `plan`, `required_plan` |
+| `skill_enabled` | Backend | Download zip succeeds (download == enable, DR-55) | `skill_usage_events` + `user_enabled_skills` | Core + `skill_version_id`, `plan` |
 | `skill_rated` | Frontend/Backend | User submits or updates rating | `skill_usage_events` + `skill_ratings` | Core + `stars` (1-5), `has_comment` |
 | `skill_reported` | Frontend/Backend | User submits report | `skill_usage_events` | Core + `report_reason` |
 | `skill_evaluation_completed` | Backend/Evaluation Pipeline | Evaluation run finishes | `skill_usage_events` + `skill_evaluations` | Core + `evaluation_status`, `score`, `triggered_by` |
 | `skill_admin_action` | Backend/Admin | Admin writes Skill state/config | `skill_audit_log` and derived `skill_usage_events` if dashboarded | `event_id`, `timestamp`, `actor_id`, `actor_role`, `skill_id`, `action`, `request_id` |
 | `skill_kids_approved` | Backend/Admin | Kids approval granted | `skill_audit_log` as source; derived analytics event optional | `event_id`, `timestamp`, `actor_id`, `actor_role`, `skill_id`, `approval_status`, `request_id` |
+
+> **Canonical download event (DR-55):** `skill_enabled` is the canonical event for download-as-enablement; it records a successful package download that writes/updates `user_enabled_skills` and does not imply permanent runtime authorization. `skill_downloaded` is not a separate V1 P0 event. (`01_Functional_Requirements.md` §4.7 FR-D4 still names it `skill_downloaded`; that FRD line is reconciled to `skill_enabled` under the D-09 alignment follow-up.)
+>
+> **Event property notes (DR-55):** `plan` is the **runner's resolved plan** (the downloading user's own plan), not the Skill's `required_plan`. `required_plan` is available from the Skill dimension table (`skills.required_plan` / `skill_versions`) and is **not duplicated into the `skill_enabled` event** in DR-55 — joins recover it when needed.
 
 **Tier 2 事件（用户账号设置授权后，本地工具回传）**
 
@@ -185,6 +189,7 @@ Use the same enum as Data/API Spec.
 | `marketplace_card` | Card impression or action from Marketplace |
 | `skill_detail` | Detail page CTA |
 | `my_skills` | My Skills page |
+| `saved_list` | Saved/Favorited Skills list |
 | `skill_package` | Execution from a downloaded Skill package via the public routing API (R2 primary execution entry) |
 | `playground_picker` | Legacy: in-platform Playground Skill Picker (historical events only) |
 | `featured` | Featured rail |
@@ -192,6 +197,7 @@ Use the same enum as Data/API Spec.
 | `new` | New rail |
 | `recommended` | Recommended Lite rail |
 | `admin_preview` | Admin preview/test execution |
+| `search_results` | Marketplace search results |
 
 V1 execution events primarily use `entry_point=skill_package` (downloaded package via the public routing API). `playground_picker` is retained only for historical events and is not produced by new V1 execution.
 
@@ -571,7 +577,7 @@ Persistence: `timestamp` maps to `skill_usage_events.occurred_at`.
   "request_id": "req_789",
   "skill_id": "22222222-2222-4222-8222-222222222222",
   "skill_version_id": "66666666-6666-4666-8666-666666666666",
-  "entry_point": "playground_picker",
+  "entry_point": "skill_package",
   "plan": "pro",
   "subscription_status": "active",
   "persona": "developer",
@@ -607,7 +613,7 @@ Persistence: `timestamp` maps to `skill_usage_events.occurred_at`.
   "request_id": "req_blocked_123",
   "skill_id": "22222222-2222-4222-8222-222222222222",
   "skill_version_id": null,
-  "entry_point": "playground_picker",
+  "entry_point": "skill_package",
   "plan": "free",
   "subscription_status": "active",
   "is_kids_session": false,
