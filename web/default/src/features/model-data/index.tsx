@@ -449,6 +449,8 @@ export function ModelDataPage() {
   const [pricingRefreshMsg, setPricingRefreshMsg] = useState<string>('')
   const [hubRefreshing, setHubRefreshing] = useState(false)
   const [hubRefreshMsg, setHubRefreshMsg] = useState<string>('')
+  const [publicRefreshing, setPublicRefreshing] = useState(false)
+  const [publicRefreshMsg, setPublicRefreshMsg] = useState<string>('')
   // modelId → true if fingerprint_enabled OR uptime_enabled (for tab dot style)
   const [tabDetectEnabled, setTabDetectEnabled] = useState<Record<string, boolean>>({})
 
@@ -591,6 +593,28 @@ export function ModelDataPage() {
       })
   }, [activeModel, hubRefreshing])
 
+  // Sync romaapi reference prices into public_model_prices (manual_group_ratio fallback).
+  const refreshPublicPrices = useCallback(() => {
+    if (publicRefreshing) return
+    setPublicRefreshing(true)
+    setPublicRefreshMsg('')
+    api
+      .post('/api/admin/model-data/refresh-public-prices')
+      .then((res) => {
+        const n = res.data?.count ?? 0
+        setPublicRefreshMsg(`已同步 ${n} 条`)
+      })
+      .catch(() => setPublicRefreshMsg('同步失败'))
+      .finally(() => {
+        api
+          .get('/api/admin/model-data', { params: { model: activeModel } })
+          .then((res) => { if (res.data?.success) setData(res.data.data ?? []) })
+          .finally(() => {
+            setPublicRefreshing(false)
+            setPublicRefreshMsg('')
+          })
+      })
+  }, [activeModel, publicRefreshing])
 
   const detectNow = useCallback((channelId: number) => {
     const key = `${channelId}-${activeModel}`
@@ -753,16 +777,25 @@ export function ModelDataPage() {
               onClick={refreshPricing}
               disabled={pricingRefreshing}
               className='inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50'
-              title='刷新当前模型下所有渠道的上游 /api/pricing 数据'
+              title='各渠道上游 /api/pricing → channel_model_pricings'
             >
               <RefreshCw className={`w-3.5 h-3.5 ${pricingRefreshing ? 'animate-spin' : ''}`} />
               {pricingRefreshing ? (pricingRefreshMsg || '刷新中…') : '刷新价格'}
             </button>
             <button
+              onClick={refreshPublicPrices}
+              disabled={publicRefreshing}
+              className='inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50'
+              title='api.romaapi.com 公开参考价 → public_model_prices（manual_group_ratio 兜底）'
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${publicRefreshing ? 'animate-spin' : ''}`} />
+              {publicRefreshing ? (publicRefreshMsg || '同步中…') : '刷新公开价'}
+            </button>
+            <button
               onClick={refreshHubPrice}
               disabled={hubRefreshing}
               className='inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50'
-              title='重新拉取 hub.romaapi.com 的聚合价格'
+              title='hub.romaapi.com 聚合价（HUB 价格列）'
             >
               <RefreshCw className={`w-3.5 h-3.5 ${hubRefreshing ? 'animate-spin' : ''}`} />
               {hubRefreshing ? (hubRefreshMsg || '刷新中…') : '刷新 Hub 价格'}
