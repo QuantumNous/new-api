@@ -21,16 +21,16 @@ func ParseImageGenerationsMultipart(c *gin.Context) (*dto.ImageRequest, error) {
 	if !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
 		return nil, fmt.Errorf("expected multipart/form-data")
 	}
-	if _, err := c.MultipartForm(); err != nil {
+	form, err := common.ParseMultipartFormReusable(c)
+	if err != nil {
 		return nil, fmt.Errorf("failed to parse image generations form: %w", err)
 	}
-	form := c.Request.PostForm
 	req := &dto.ImageRequest{
-		Model:      strings.TrimSpace(form.Get("model")),
-		Prompt:     strings.TrimSpace(form.Get("prompt")),
-		Size:       strings.TrimSpace(form.Get("size")),
-		Resolution: strings.TrimSpace(form.Get("resolution")),
-		Quality:    strings.TrimSpace(form.Get("quality")),
+		Model:      strings.TrimSpace(firstFormValue(form, "model")),
+		Prompt:     strings.TrimSpace(firstFormValue(form, "prompt")),
+		Size:       strings.TrimSpace(firstFormValue(form, "size")),
+		Resolution: strings.TrimSpace(firstFormValue(form, "resolution")),
+		Quality:    strings.TrimSpace(firstFormValue(form, "quality")),
 	}
 	if req.Model == "" {
 		return nil, fmt.Errorf("model is required")
@@ -38,13 +38,13 @@ func ParseImageGenerationsMultipart(c *gin.Context) (*dto.ImageRequest, error) {
 	if req.Prompt == "" {
 		return nil, fmt.Errorf("prompt is required")
 	}
-	if n := common.String2Int(form.Get("n")); n > 0 {
+	if n := common.String2Int(firstFormValue(form, "n")); n > 0 {
 		req.N = common.GetPointer(uint(n))
 	} else {
 		req.N = common.GetPointer(uint(1))
 	}
 
-	urls, err := imageDataURIsFromMultipart(c.Request.MultipartForm)
+	urls, err := imageDataURIsFromMultipart(form)
 	if err != nil {
 		return nil, err
 	}
@@ -103,4 +103,14 @@ func imageDataURIsFromMultipart(mf *multipart.Form) ([]string, error) {
 		out = append(out, fmt.Sprintf("data:%s;base64,%s", mime, base64.StdEncoding.EncodeToString(data)))
 	}
 	return out, nil
+}
+
+func firstFormValue(form *multipart.Form, key string) string {
+	if form == nil || form.Value == nil {
+		return ""
+	}
+	if vals := form.Value[key]; len(vals) > 0 {
+		return vals[0]
+	}
+	return ""
 }

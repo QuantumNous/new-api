@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -30,6 +31,10 @@ func TestParseImageGenerationsMultipart(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/v1/images/generations/async", body)
 	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	storage, err := common.CreateBodyStorage(body.Bytes())
+	require.NoError(t, err)
+	c.Set(common.KeyBodyStorage, storage)
+	c.Request.Body = io.NopCloser(bytes.NewReader(body.Bytes()))
 
 	req, err := ParseImageGenerationsMultipart(c)
 	require.NoError(t, err)

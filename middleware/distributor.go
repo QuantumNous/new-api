@@ -350,10 +350,11 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 	}
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
-		contentType := c.ContentType()
-		if slices.Contains([]string{gin.MIMEPOSTForm, gin.MIMEMultipartPOSTForm}, contentType) {
-			if _, err := c.MultipartForm(); err == nil {
-				modelRequest.Model = common.GetStringIfEmpty(c.Request.PostFormValue("model"), modelRequest.Model)
+		if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+			if form, err := common.ParseMultipartFormReusable(c); err == nil && form != nil {
+				if vals := form.Value["model"]; len(vals) > 0 {
+					modelRequest.Model = strings.TrimSpace(vals[0])
+				}
 			}
 		}
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
