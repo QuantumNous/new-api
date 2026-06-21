@@ -91,6 +91,21 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 				skillCtx.EntryPoint = string(ep)
 			}
 			skillrelay.Set(c, skillCtx)
+
+			// DR-68: load version snapshot, select server-authoritative model, rewrite
+			// request for stateless single-turn execution (FR-G19).
+			// Must run after Set so the context is available to downstream handlers
+			// even if this step aborts (e.g. for logging/analytics).
+			rewritten, execErrCode := skillrelay.LoadAndApply(skillCtx, request)
+			if execErrCode != "" {
+				return types.NewErrorWithStatusCode(
+					fmt.Errorf("%s", execErrCode),
+					skillRelayErrType(execErrCode),
+					errcodes.HTTPStatusFor(execErrCode),
+					types.ErrOptionWithSkipRetry(),
+				)
+			}
+			request = rewritten
 		}
 		request.Deeprouter = nil // always strip vendor extension before provider forwarding
 	}

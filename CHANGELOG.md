@@ -2,7 +2,11 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
-## 2026-06-21
+## 2026-06-21 (DR-68)
+
+- DR-68 server-side routing/model-selection + provider call rewrite：新增 `internal/skill/relay/executor.go`（`LoadAndApply`、`loadSnapshot`、`selectModel`、`rewriteForSingleTurn`）；`internal/skill/relay/context.go` 新增 `SkillVersionID` 字段；`relay/compatible_handler.go` 在 `skillrelay.Set()` 後立即呼叫 `LoadAndApply` — 從 `model_whitelist_snapshot` 選取 server-authoritative 模型（client 提供的 `model` 字段丟棄），注入 `instruction_template` 為 system message，剝除所有多輪歷史（FR-G19 stateless single-turn）；空 whitelist → `SKILL_INTERNAL_ERROR`（500），無 user 訊息 → `INVALID_REQUEST`（400）；新增 `internal/skill/relay/executor_test.go`（19 個單元測試覆蓋 `loadSnapshot`/`selectModel`/`rewriteForSingleTurn`/`loadAndApply` 所有路徑）；更新 `relay/compatible_handler_skill_test.go`（新增 `insertVersionForSkill` helper，補 SkillVersion fixture + user message 到 4 個已有測試，新增 `TestTextHelper_SkillRelay_DR68_LoadAndApply_Executed` 整合測試驗 SkillVersionID 被正確填充）；新增 `docs/tasks/dr68-routing-model-selection-prd.md`
+
+
 
 - 新增 DR-80 运行时依赖构建期守卫：version-pinned capability-type Skill package 构建前校验既有 Work Step 必须调用 DeepRouter public routing API（含 `/v1/routing/chat/completions`），离线 work step 会以 D-09 理由拒绝并记录日志；legacy unversioned 下载暂不按 capability guard 处理，避免已有 published Skill 下载回归（`internal/skill/handler/download.go`, `internal/skill/handler/download_test.go`, `docs/tasks/dr80-runtime-dependency-guard-prd.md`）
 - feat(resources): 新增站内 **Resources** 文档区（导航入口 + 路由 `/resources`、`/resources/$slug`）——对标 hao.ai integrations，渲染 `public/docs/integrations/` 下 23 个工具的接入指南（Claude Code、Cursor、Cherry Studio、SDK 等），分类侧边栏 + 索引网格 + 运行时 fetch markdown。每篇含英文 `<slug>.md` + 中文 `<slug>.zh.md`（**只译正文**，代码/`https://api.deeprouter.co`/环境变量名/品牌名/表格原样）；`useDocContent` 按界面语言自动选中/英文、缺失回退英文，加载失败显示具体原因 + Retry。导航 `Resources`（zh=资源）经 `HeaderNavModules.docs` 开关控制（`use-top-nav-links.ts`）。新文件版权头 `Copyright (C) 2026 DeepRouter`（原创文件不挂上游 QuantumNous）。`bun run build` + `typecheck` exit 0。PRD: `docs/tasks/resources-docs-prd.md`
