@@ -194,6 +194,11 @@ var (
 	GlobalApiRateLimitNum      int
 	GlobalApiRateLimitDuration int64
 
+	// Admin panel SPA (/api/admin/*) uses a separate bucket — model-data alone
+	// can fire 15+ parallel reads on mount.
+	GlobalAdminApiRateLimitNum      int
+	GlobalAdminApiRateLimitDuration int64
+
 	GlobalWebRateLimitEnable   bool
 	GlobalWebRateLimitNum      int
 	GlobalWebRateLimitDuration int64

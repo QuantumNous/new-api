@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -38,6 +39,33 @@ func GetModelDetectConfig(c *gin.Context) {
 		return
 	}
 
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": buildModelDetectConfigResponse(modelName)})
+}
+
+// BatchGetModelDetectConfig GET /api/admin/model-detect-config/batch?models=a,b,c
+func BatchGetModelDetectConfig(c *gin.Context) {
+	raw := strings.TrimSpace(c.Query("models"))
+	if raw == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "models is required"})
+		return
+	}
+
+	out := make(map[string]gin.H)
+	for _, part := range strings.Split(raw, ",") {
+		modelName := strings.TrimSpace(part)
+		if modelName == "" {
+			continue
+		}
+		out[modelName] = buildModelDetectConfigResponse(modelName)
+	}
+	if len(out) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "models is required"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
+}
+
+func buildModelDetectConfigResponse(modelName string) gin.H {
 	var opt model.Option
 	err := model.DB.Where("key = ?", detectConfigKey(modelName)).First(&opt).Error
 	cfg := defaultDetectConfig()
@@ -47,10 +75,7 @@ func GetModelDetectConfig(c *gin.Context) {
 		}
 	}
 
-	// Compute next-tick timestamps so the UI can show "下次 18:42" next to each switch.
-	// Logic: next = max(detect_time across all channels for this model+source) + interval.
-	// If we've never run, surface time.Now() so the UI shows "即将" (the 1-minute master tick will pick it up).
-	resp := gin.H{
+	return gin.H{
 		"fingerprint_enabled":          cfg.FingerprintEnabled,
 		"fingerprint_interval_minutes": cfg.FingerprintIntervalMinutes,
 		"uptime_enabled":               cfg.UptimeEnabled,
@@ -58,7 +83,6 @@ func GetModelDetectConfig(c *gin.Context) {
 		"next_fingerprint_at":          nextDetectAt(modelName, "auto", cfg.FingerprintEnabled, cfg.FingerprintIntervalMinutes),
 		"next_uptime_at":               nextDetectAt(modelName, "uptime", cfg.UptimeEnabled, cfg.UptimeIntervalMinutes),
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": resp})
 }
 
 // nextDetectAt returns the next predicted detect timestamp (unix sec) for a

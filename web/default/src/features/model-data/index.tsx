@@ -454,22 +454,29 @@ export function ModelDataPage() {
 
   // Fetch detect config for all tabs once on mount to show filled/hollow dots
   useEffect(() => {
-    Promise.all(
-      MODEL_TABS.map((tab) =>
-        api
-          .get('/api/admin/model-detect-config', {
-            params: { model: tab.modelId },
-            skipErrorHandler: true,
-          } as Parameters<typeof api.get>[1])
-          .then((res) => ({
-            modelId: tab.modelId,
-            enabled: !!(res.data?.data?.fingerprint_enabled || res.data?.data?.uptime_enabled),
-          }))
-          .catch(() => ({ modelId: tab.modelId, enabled: false }))
-      )
-    ).then((results) => {
-      setTabDetectEnabled(Object.fromEntries(results.map((r) => [r.modelId, r.enabled])))
-    })
+    const models = MODEL_TABS.map((tab) => tab.modelId).join(',')
+    api
+      .get('/api/admin/model-detect-config/batch', {
+        params: { models },
+        skipErrorHandler: true,
+      } as Parameters<typeof api.get>[1])
+      .then((res) => {
+        const batch = (res.data?.data ?? {}) as Record<string, DetectConfig>
+        setTabDetectEnabled(
+          Object.fromEntries(
+            MODEL_TABS.map((tab) => [
+              tab.modelId,
+              !!(
+                batch[tab.modelId]?.fingerprint_enabled ||
+                batch[tab.modelId]?.uptime_enabled
+              ),
+            ])
+          )
+        )
+      })
+      .catch(() => {
+        setTabDetectEnabled(Object.fromEntries(MODEL_TABS.map((tab) => [tab.modelId, false])))
+      })
   }, [])
 
   // Per-channel detecting state: "channelId-modelId" → true while in-flight

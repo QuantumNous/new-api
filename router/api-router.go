@@ -243,6 +243,7 @@ func SetApiRouter(router *gin.Engine) {
 			adminRoute.POST("/model-data/refresh-public-prices", controller.RefreshPublicModelPrices)
 			adminRoute.POST("/model-data/detect-now", controller.DetectChannelNow)
 			adminRoute.POST("/model-data/ping-now", controller.PingChannelNow)
+			adminRoute.GET("/model-detect-config/batch", controller.BatchGetModelDetectConfig)
 			adminRoute.GET("/model-detect-config", controller.GetModelDetectConfig)
 			adminRoute.POST("/model-detect-config", controller.SaveModelDetectConfig)
 			adminRoute.GET("/user-dashboard-stats", controller.GetUserDashboardStats)

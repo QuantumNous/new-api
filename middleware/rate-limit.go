@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -95,10 +96,18 @@ func GlobalWebRateLimit() func(c *gin.Context) {
 }
 
 func GlobalAPIRateLimit() func(c *gin.Context) {
-	if common.GlobalApiRateLimitEnable {
-		return rateLimitFactory(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "GA")
+	if !common.GlobalApiRateLimitEnable {
+		return defNext
 	}
-	return defNext
+	publicLimiter := rateLimitFactory(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "GA")
+	adminLimiter := rateLimitFactory(common.GlobalAdminApiRateLimitNum, common.GlobalAdminApiRateLimitDuration, "GAD")
+	return func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/admin/") {
+			adminLimiter(c)
+			return
+		}
+		publicLimiter(c)
+	}
 }
 
 func CriticalRateLimit() func(c *gin.Context) {
