@@ -830,14 +830,20 @@ func ToggleChannelStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	// When re-enabling, also lift an auto-disable (status=3) on the channel so
-	// the admin action actually takes effect in routing. Resets the recovery
-	// counter so fingerprint auto-disable starts fresh.
+	// When re-enabling, also bring the channel back to enabled regardless of how
+	// it was disabled — both fingerprint auto-disable (status=3) AND operator
+	// manual-disable (status=2). An explicit "enable" here means "make this
+	// usable"; without lifting status=2 the button silently no-ops on
+	// manually-disabled channels. Resets the recovery counter so fingerprint
+	// auto-disable starts fresh.
 	if enabled {
 		model.DB.Table("channels").
-			Where("id = ? AND status = 3", req.ChannelID).
-			Updates(map[string]any{"status": 1, "consecutive_fingerprint_pass": 0})
+			Where("id = ? AND status <> ?", req.ChannelID, common.ChannelStatusEnabled).
+			Updates(map[string]any{"status": common.ChannelStatusEnabled, "consecutive_fingerprint_pass": 0})
 	}
+	// Refresh the in-memory/Redis routing cache so the toggle takes effect
+	// immediately — every channel mutation in controller/channel.go does this.
+	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
