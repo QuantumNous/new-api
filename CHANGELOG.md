@@ -4,6 +4,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-21
 
+- feat(resources): 新增站内 **Resources** 文档区（导航入口 + 路由 `/resources`、`/resources/$slug`）——对标 hao.ai integrations，渲染 `public/docs/integrations/` 下 23 个工具的接入指南（Claude Code、Cursor、Cherry Studio、SDK 等），分类侧边栏 + 索引网格 + 运行时 fetch markdown。每篇含英文 `<slug>.md` + 中文 `<slug>.zh.md`（**只译正文**，代码/`https://api.deeprouter.co`/环境变量名/品牌名/表格原样）；`useDocContent` 按界面语言自动选中/英文、缺失回退英文，加载失败显示具体原因 + Retry。导航 `Resources`（zh=资源）经 `HeaderNavModules.docs` 开关控制（`use-top-nav-links.ts`）。新文件版权头 `Copyright (C) 2026 DeepRouter`（原创文件不挂上游 QuantumNous）。`bun run build` + `typecheck` exit 0。PRD: `docs/tasks/resources-docs-prd.md`
 - DR-64 修復 pass-through 洩漏：`relay/compatible_handler.go` 的 pass-through 守衛從「僅攔截已 resolve 的 skill 請求」擴展為「攔截任何帶 deeprouter 擴展的請求（含無 skill_id 的 partial extension）」，防止 `deeprouter` vendor extension 透過 raw BodyStorage 路徑洩漏給上游 provider；新增 `TestTextHelper_SkillRelay_PartialExtension_PassThrough_Rejected` 覆蓋此路徑
 - feat(R2/D-09): 新增 package-facing public routing API `/v1/routing/chat/completions`，复用 runner key 的 `TokenAuth` 身份解析，要求 `deeprouter.skill_id`，并强制 `entry_point=skill_package`；包内提供的 identity / entry point 不被信任 (`router/relay-router.go`, `relay/compatible_handler.go`)
 - DR-64 安全修復：`internal/skill/relay/resolver.go` 在 DB 查詢後立即驗證 `skill.Status == Published`，並檢查 `ActiveVersionID != nil`——草稿/已封存/已棄用的 skill 和無可執行版本的 published skill 均回傳 `SKILL_NOT_PUBLISHED`（HTTP 403），防止未發布 skill 進入 relay 路徑 (DR-88 nil deref 提前擋住)
