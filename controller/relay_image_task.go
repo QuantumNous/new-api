@@ -104,6 +104,9 @@ func RelayImageTask(c *gin.Context) {
 	if contentType == "" {
 		contentType = "application/json"
 	}
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		body = service.RewriteImageResponseBody(body)
+	}
 	c.Data(resp.StatusCode, contentType, body)
 }
 

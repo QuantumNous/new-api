@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 
@@ -561,42 +561,6 @@ func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.R
 	return err
 }
 
-// cacheImageLocally downloads an image URL and stores it under /opt/imgs/, returning an apimaster.ai URL.
-// Falls back to the original URL on any error so callers always get a usable URL.
-func cacheImageLocally(imageURL string) string {
-	const imgDir = "/opt/imgs"
-	const publicBase = "https://apimaster.ai/imgs/"
-
-	resp, err := http.Get(imageURL)
-	if err != nil {
-		return imageURL
-	}
-	defer resp.Body.Close()
-
-	ext := ".png"
-	ct := resp.Header.Get("Content-Type")
-	if strings.Contains(ct, "jpeg") || strings.Contains(ct, "jpg") {
-		ext = ".jpg"
-	} else if strings.Contains(ct, "webp") {
-		ext = ".webp"
-	}
-
-	filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
-	fpath := imgDir + "/" + filename
-
-	f, err := os.Create(fpath)
-	if err != nil {
-		return imageURL
-	}
-	defer f.Close()
-
-	if _, err = io.Copy(f, resp.Body); err != nil {
-		os.Remove(fpath)
-		return imageURL
-	}
-	return publicBase + filename
-}
-
 // imagePollDeadlineContextKey stores server-side poll budget (seconds) for async image tasks.
 const imagePollDeadlineContextKey = "image_poll_deadline_sec"
 
@@ -784,7 +748,7 @@ func pollAsyncImageTask(c *gin.Context, taskID string) []byte {
 				return nil
 			}
 			// cache on our server so callers never see the upstream provider URL
-			cachedURL := cacheImageLocally(imageURL)
+			cachedURL := service.CacheImageLocally(imageURL)
 			openaiResp, _ := common.Marshal(map[string]interface{}{
 				"created": time.Now().Unix(),
 				"data":    []map[string]string{{"url": cachedURL}},
@@ -861,6 +825,11 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	err = common.Unmarshal(responseBody, &usageResp)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	// Rewrite upstream image URLs before returning to client (sync responses).
+	if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {
+		responseBody = service.RewriteImageResponseBody(responseBody)
 	}
 
 	// 写入新的 response body
