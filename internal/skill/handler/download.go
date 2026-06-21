@@ -213,8 +213,7 @@ func extractSkillWorkStep(skillMD string) string {
 	inWorkStep := false
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		lower := strings.ToLower(trimmed)
-		if strings.HasPrefix(lower, "#") && strings.Contains(lower, "work step") {
+		if isSkillWorkStepHeading(trimmed) {
 			inWorkStep = true
 			continue
 		}
@@ -227,6 +226,17 @@ func extractSkillWorkStep(skillMD string) string {
 		}
 	}
 	return out.String()
+}
+
+func isSkillWorkStepHeading(line string) bool {
+	if !strings.HasPrefix(line, "#") {
+		return false
+	}
+	heading := strings.TrimSpace(strings.TrimLeft(line, "#"))
+	lower := strings.ToLower(heading)
+	return lower == "work step" ||
+		strings.HasPrefix(lower, "work step (") ||
+		strings.HasPrefix(lower, "work step:")
 }
 
 func hasDeepRouterRoutingCall(workStep string) bool {

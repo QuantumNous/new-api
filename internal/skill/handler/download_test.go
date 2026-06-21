@@ -151,6 +151,100 @@ Call DeepRouter at POST https://api.deeprouter.ai/v1/chat/completions with the r
 	assert.NotEmpty(t, zipBytes)
 }
 
+func TestValidateSkillPackageRuntimeDependency_Regressions(t *testing.T) {
+	cases := []struct {
+		name    string
+		kind    skillPackageKind
+		skillMD string
+		wantErr string
+	}{
+		{
+			name: "deeprouter marker outside work step is rejected",
+			kind: skillPackageKindCapability,
+			skillMD: `# Misleading Skill
+
+Mentions https://api.deeprouter.ai/v1/chat/completions in setup text.
+
+### Work Step
+
+Summarize local files without making any network call.
+`,
+			wantErr: "no DeepRouter public routing API call",
+		},
+		{
+			name: "missing work step is rejected",
+			kind: skillPackageKindCapability,
+			skillMD: `# No Work Step
+
+Call DeepRouter at https://api.deeprouter.ai/v1/chat/completions somewhere in prose.
+`,
+			wantErr: "no DeepRouter public routing API call",
+		},
+		{
+			name:    "empty skill md is rejected",
+			kind:    skillPackageKindCapability,
+			skillMD: "  \n\t",
+			wantErr: "missing SKILL.md work step",
+		},
+		{
+			name: "non capability package skips guard",
+			kind: skillPackageKind("reference"),
+			skillMD: `# Reference Package
+
+No runtime work step.
+`,
+			wantErr: "",
+		},
+		{
+			name: "responses endpoint in work step is accepted",
+			kind: skillPackageKindCapability,
+			skillMD: `# Responses Skill
+
+### Work Step
+
+Call DeepRouter with POST https://api.deeprouter.ai/v1/responses using the runner key.
+`,
+			wantErr: "",
+		},
+		{
+			name: "parenthetical work step heading is accepted",
+			kind: skillPackageKindCapability,
+			skillMD: `# D09 Skill
+
+### Work Step (D-09)
+
+Call DeepRouter with POST https://api.deeprouter.ai/v1/chat/completions using the runner key.
+`,
+			wantErr: "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateSkillPackageRuntimeDependency(tc.kind, []skillPackageFile{
+				{Name: "SKILL.md", Content: []byte(tc.skillMD)},
+			})
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "D-09")
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+func TestValidateSkillPackageRuntimeDependency_RejectsMissingSkillMD(t *testing.T) {
+	err := validateSkillPackageRuntimeDependency(skillPackageKindCapability, []skillPackageFile{
+		{Name: "manifest.json", Content: []byte(`{"schema_version":"1.0"}`)},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "D-09")
+	assert.Contains(t, err.Error(), "missing SKILL.md work step")
+}
+
 // TestDownloadSkillPackage_ManifestIncludesSkillVersionID verifies that when a skill
 // has active_version_id set, the manifest includes skill_version_id (DR-41 path).
 func TestDownloadSkillPackage_ManifestIncludesSkillVersionID(t *testing.T) {
