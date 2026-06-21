@@ -249,12 +249,12 @@ func sizeToApimart(size string) (resolution, aspect string) {
 		aspect = "9:16"
 	case "1280x720", "16:9", "landscape":
 		aspect = "16:9"
-	case "1792x1024", "1024x1792":
+	case "1792x1024":
+		resolution = "1024p"
 		aspect = "16:9"
-		if size == "1024x1792" {
-			aspect = "9:16"
-		}
-		resolution = "1080p"
+	case "1024x1792":
+		resolution = "1024p"
+		aspect = "9:16"
 	}
 	return resolution, aspect
 }
