@@ -74,13 +74,21 @@ jobs:
           docker push "$REGISTRY/$ECR_REPOSITORY:latest"
 
       - name: Roll the stack via SSM
+        # Roll ONLY the new-api service to the image this workflow just pushed.
+        # The previous box-side ci-deploy.sh ran `docker compose pull` for the
+        # WHOLE stack and bailed (skip-roll, exit 0) whenever any other image
+        # (e.g. smart-router, owned by a different repo/CI) wasn't pullable from
+        # ECR — so a green deploy could leave the box on the old image. This
+        # repo only ships new-api, so pull+recreate just that service, pinned to
+        # the :latest tag pushed above, regardless of the box .env's pin.
         run: |
           set -euo pipefail
+          ROLL='set -e; cd /opt/deeprouter; REG=180294203030.dkr.ecr.ap-southeast-2.amazonaws.com; aws ecr get-login-password --region ap-southeast-2 | docker login --username AWS --password-stdin $REG; IMG=$REG/deeprouter:latest; DEEPROUTER_IMAGE=$IMG docker compose -f docker-compose.prod.yml pull new-api; DEEPROUTER_IMAGE=$IMG docker compose -f docker-compose.prod.yml up -d --force-recreate new-api; docker image prune -af || true'
           CMD_ID=$(aws ssm send-command \
             --targets "Key=tag:Name,Values=$INSTANCE_TAG" \
             --document-name "AWS-RunShellScript" \
             --comment "deploy deeprouter ${GITHUB_SHA::7}" \
-            --parameters 'commands=["bash /opt/deeprouter/ci-deploy.sh"]' \
+            --parameters "commands=[$(printf '%s' "$ROLL" | jq -Rs .)]" \
             --query "Command.CommandId" --output text)
           echo "SSM command: $CMD_ID"
           STATUS=Pending; INSTID=
