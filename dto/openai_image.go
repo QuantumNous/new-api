@@ -16,6 +16,7 @@ type ImageRequest struct {
 	Prompt            string          `json:"prompt" binding:"required"`
 	N                 *uint           `json:"n,omitempty"`
 	Size              string          `json:"size,omitempty"`
+	Resolution        string          `json:"resolution,omitempty"`
 	Quality           string          `json:"quality,omitempty"`
 	ResponseFormat    string          `json:"response_format,omitempty"`
 	Style             json.RawMessage `json:"style,omitempty"`

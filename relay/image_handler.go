@@ -154,6 +154,12 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if imageN > 0 {
 		logContent = append(logContent, fmt.Sprintf("生成数量 %d", imageN))
 	}
+	if len(request.ImageUrls) > 0 {
+		logContent = append(logContent, fmt.Sprintf("参考图 %d 张", len(request.ImageUrls)))
+	}
+	if taskID := c.GetString("image_poll_task_id"); taskID != "" {
+		logContent = append(logContent, fmt.Sprintf("task_id %s", taskID))
+	}
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
 	return nil

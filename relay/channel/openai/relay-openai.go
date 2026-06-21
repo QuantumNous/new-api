@@ -645,15 +645,17 @@ func imagePollTierFromSize(size string) int {
 func imagePollDeadlineSeconds(req dto.ImageRequest) int {
 	tier := imagePollTierFromSize(req.Size)
 
-	resolution := ""
+	resolution := strings.ToLower(strings.TrimSpace(req.Resolution))
 	quality := strings.ToLower(strings.TrimSpace(req.Quality))
-	for key, raw := range req.Extra {
-		if strings.EqualFold(key, "resolution") {
-			var s string
-			if common.Unmarshal(raw, &s) == nil {
-				resolution = strings.ToLower(s)
+	if resolution == "" {
+		for key, raw := range req.Extra {
+			if strings.EqualFold(key, "resolution") {
+				var s string
+				if common.Unmarshal(raw, &s) == nil {
+					resolution = strings.ToLower(s)
+				}
+				break
 			}
-			break
 		}
 	}
 
@@ -807,6 +809,20 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+
+	// Client async submit: capture task_id for consume logs / poll channel affinity.
+	if isClientAsyncImageGenerationsPath(c) {
+		var asyncCheck struct {
+			Data []struct {
+				TaskID string `json:"task_id"`
+			} `json:"data"`
+		}
+		if common.Unmarshal(responseBody, &asyncCheck) == nil &&
+			len(asyncCheck.Data) > 0 &&
+			strings.TrimSpace(asyncCheck.Data[0].TaskID) != "" {
+			c.Set(imagePollTaskIDContextKey, asyncCheck.Data[0].TaskID)
+		}
 	}
 
 	// Detect async image task response and poll upstream until done (sync API only).

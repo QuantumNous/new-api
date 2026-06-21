@@ -142,6 +142,18 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 	imageRequest := &dto.ImageRequest{}
 
 	switch relayMode {
+	case relayconstant.RelayModeImagesGenerations:
+		if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+			req, err := ParseImageGenerationsMultipart(c)
+			if err != nil {
+				return nil, err
+			}
+			if strings.Contains(req.Size, "×") {
+				return nil, errors.New("size an unexpected error occurred in the parameter, please use 'x' instead of the multiplication sign '×'")
+			}
+			return req, nil
+		}
+		fallthrough
 	case relayconstant.RelayModeImagesEdits:
 		if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
 			_, err := c.MultipartForm()
