@@ -38,21 +38,18 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 
-vi.mock('@/components/layout', () => ({
-  SectionPageLayout: ({
-    children,
-    header,
-  }: {
-    children: ReactNode
-    header: { title: string; description: string }
-  }) => (
-    <div>
-      <h1>{header.title}</h1>
-      <p>{header.description}</p>
-      {children}
-    </div>
-  ),
-}))
+vi.mock('@/components/layout', () => {
+  const Title = ({ children }: { children?: ReactNode }) => <h1>{children}</h1>
+  const Description = ({ children }: { children?: ReactNode }) => <p>{children}</p>
+  const Content = ({ children }: { children?: ReactNode }) => <>{children}</>
+  const Actions = ({ children }: { children?: ReactNode }) => <>{children}</>
+  const Layout = ({ children }: { children: ReactNode }) => <div>{children}</div>
+  Layout.Title = Title
+  Layout.Description = Description
+  Layout.Content = Content
+  Layout.Actions = Actions
+  return { SectionPageLayout: Layout }
+})
 
 vi.mock('@/components/page-transition', () => ({
   StaggerContainer: ({

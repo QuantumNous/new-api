@@ -1,16 +1,16 @@
 # DR-76 Ops Overview Dashboard — PRD
 
-**Status:** In Progress  
-**Priority:** P0  
-**Author:** DeepRouter Engineering  
-**Created:** 2026-06-21  
+**Status:** In Progress
+**Priority:** P0
+**Author:** DeepRouter Engineering
+**Created:** 2026-06-21
 **Branch:** feat/dr-76-ops-overview-dashboard
 
 ---
 
 ## 1. Background
 
-DR-75 will expose a `/api/v1/admin/skill-analytics/overview` aggregation API
+DR-75 will expose a `/api/v1/ops/skill-analytics/overview` aggregation API
 (status: To Do). DR-76 is the operator-facing dashboard UI that renders those
 metrics. Platform operators (Operation, Product/Growth roles) need a single-pane
 view of skill health so they can detect engagement drops, block-rate spikes, or
@@ -104,7 +104,7 @@ Auth:  admin session (same as other /api/v1/admin/* endpoints)
 
 ## 7. Date Range Control
 
-Presets: **24h** / **7d** (default) / **30d**.  
+Presets: **24h** / **7d** (default) / **30d**.
 Custom date picker: P1 — render as disabled button for now.
 
 The control computes `start`/`end` in the browser at query time (not cached).

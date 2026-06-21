@@ -53,7 +53,8 @@ export function SkillAnalyticsDashboard() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['skill-analytics', 'overview', range.start, range.end],
-    queryFn: () => getSkillAnalyticsOverview(range),
+    queryFn: ({ queryKey }) =>
+      getSkillAnalyticsOverview({ start: queryKey[2] as string, end: queryKey[3] as string }),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   })
@@ -125,12 +126,12 @@ export function SkillAnalyticsDashboard() {
   ]
 
   return (
-    <SectionPageLayout
-      header={{
-        title: t('Skill Analytics'),
-        description: t('Skill analytics overview for the operator'),
-      }}
-    >
+    <SectionPageLayout>
+      <SectionPageLayout.Title>{t('Skill Analytics')}</SectionPageLayout.Title>
+      <SectionPageLayout.Description>
+        {t('Skill analytics overview for the operator')}
+      </SectionPageLayout.Description>
+      <SectionPageLayout.Content>
       <div className='flex flex-col gap-6'>
         {/* Date range control */}
         <div className='flex items-center justify-between gap-3 flex-wrap'>
@@ -188,6 +189,7 @@ export function SkillAnalyticsDashboard() {
           ))}
         </StaggerContainer>
       </div>
+      </SectionPageLayout.Content>
     </SectionPageLayout>
   )
 }
