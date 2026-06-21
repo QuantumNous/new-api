@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { ChangeEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as z from 'zod'
 import axios from 'axios'
@@ -32,6 +33,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -69,6 +71,8 @@ const oauthSchema = z.object({
     authorization_endpoint: z.string(),
     token_endpoint: z.string(),
     user_info_endpoint: z.string(),
+    display_name: z.string(),
+    logo: z.string(),
   }),
   TelegramOAuthEnabled: z.boolean(),
   TelegramBotToken: z.string(),
@@ -99,6 +103,8 @@ type FlatOAuthDefaults = {
   'oidc.authorization_endpoint': string
   'oidc.token_endpoint': string
   'oidc.user_info_endpoint': string
+  'oidc.display_name': string
+  'oidc.logo': string
   TelegramOAuthEnabled: boolean
   TelegramBotToken: string
   TelegramBotName: string
@@ -114,6 +120,10 @@ type FlatOAuthDefaults = {
 
 const oauthTabContentClassName =
   'grid min-w-0 gap-x-5 gap-y-6 lg:grid-cols-2 [&>[data-slot=form-item]]:min-w-0 lg:[&>[data-slot=form-item]:has([data-slot=switch])]:col-span-2'
+
+// OIDC 登录按钮 logo 上传限制（base64 存储在 options 中，需控制体积）
+const OIDC_LOGO_MAX_SIZE = 200 * 1024
+const OIDC_LOGO_ACCEPT = 'image/png,image/jpeg,image/svg+xml,image/webp,image/gif'
 
 const buildFormDefaults = (defaults: FlatOAuthDefaults): OAuthFormValues => ({
   GitHubOAuthEnabled: defaults.GitHubOAuthEnabled,
@@ -132,6 +142,8 @@ const buildFormDefaults = (defaults: FlatOAuthDefaults): OAuthFormValues => ({
     authorization_endpoint: defaults['oidc.authorization_endpoint'] ?? '',
     token_endpoint: defaults['oidc.token_endpoint'] ?? '',
     user_info_endpoint: defaults['oidc.user_info_endpoint'] ?? '',
+    display_name: defaults['oidc.display_name'] ?? '',
+    logo: defaults['oidc.logo'] ?? '',
   },
   TelegramOAuthEnabled: defaults.TelegramOAuthEnabled,
   TelegramBotToken: defaults.TelegramBotToken ?? '',
@@ -160,6 +172,8 @@ const normalizeFormValues = (values: OAuthFormValues): FlatOAuthDefaults => ({
   'oidc.authorization_endpoint': values.oidc.authorization_endpoint,
   'oidc.token_endpoint': values.oidc.token_endpoint,
   'oidc.user_info_endpoint': values.oidc.user_info_endpoint,
+  'oidc.display_name': values.oidc.display_name,
+  'oidc.logo': values.oidc.logo,
   TelegramOAuthEnabled: values.TelegramOAuthEnabled,
   TelegramBotToken: values.TelegramBotToken,
   TelegramBotName: values.TelegramBotName,
@@ -181,6 +195,7 @@ export function OAuthSection(props: OAuthSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [activeTab, setActiveTab] = useState('github')
+  const oidcLogoInputRef = useRef<HTMLInputElement>(null)
 
   const formDefaults = useMemo(
     () => buildFormDefaults(props.defaultValues),
@@ -191,6 +206,29 @@ export function OAuthSection(props: OAuthSectionProps) {
     resolver: zodResolver(oauthSchema),
     defaultValues: formDefaults,
   })
+
+  const handleOidcLogoChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (file.size > OIDC_LOGO_MAX_SIZE) {
+      toast.error(t('Logo file must be 200 KB or smaller'))
+      event.target.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.addEventListener('load', () => {
+      if (typeof reader.result === 'string') {
+        form.setValue('oidc.logo', reader.result, {
+          shouldDirty: true,
+          shouldValidate: true,
+        })
+      }
+    })
+    reader.readAsDataURL(file)
+    event.target.value = ''
+  }
 
   const baselineRef = useRef<FlatOAuthDefaults>(props.defaultValues)
   const baselineSerializedRef = useRef<string>(
@@ -466,6 +504,94 @@ export function OAuthSection(props: OAuthSectionProps) {
                         />
                       </FormControl>
                     </SettingsSwitchItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='oidc.display_name'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Display Name')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('OIDC')}
+                          autoComplete='off'
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Name shown on the login button (defaults to OIDC)')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='oidc.logo'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Logo')}</FormLabel>
+                      <div className='flex items-center gap-3'>
+                        {field.value ? (
+                          <img
+                            src={field.value}
+                            alt={t('Logo')}
+                            className='h-10 w-10 rounded border object-contain p-1'
+                          />
+                        ) : (
+                          <div className='bg-muted text-muted-foreground flex h-10 w-10 items-center justify-center rounded border text-xs'>
+                            {t('Logo')}
+                          </div>
+                        )}
+                        <div className='flex gap-2'>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            onClick={() => oidcLogoInputRef.current?.click()}
+                          >
+                            {t('Upload')}
+                          </Button>
+                          {field.value ? (
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              size='sm'
+                              onClick={() =>
+                                form.setValue('oidc.logo', '', {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                })
+                              }
+                            >
+                              {t('Remove')}
+                            </Button>
+                          ) : null}
+                        </div>
+                        <input
+                          ref={oidcLogoInputRef}
+                          type='file'
+                          accept={OIDC_LOGO_ACCEPT}
+                          className='hidden'
+                          onChange={handleOidcLogoChange}
+                        />
+                      </div>
+                      <FormDescription>
+                        {t(
+                          'Icon shown on the login button. Supports image and SVG, up to 200 KB'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
                   )}
                 />
 
