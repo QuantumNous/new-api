@@ -10,6 +10,7 @@ const sueEventTypeCheckExpr = "event_type IN ('skill_impression','skill_detail_v
 const sueEntryPointCheckExpr = "entry_point IN ('marketplace_card','skill_detail','my_skills','saved_list','playground_picker','featured','popular','new','recommended','admin_preview','search_results','skill_package')"
 const suePlanCheckExpr = "plan IS NULL OR plan IN ('free','pro','enterprise')"
 const sueBlockReasonCheckExpr = "block_reason IS NULL OR block_reason IN ('auth_required','skill_not_found','skill_not_published','skill_not_enabled','plan_required','subscription_inactive','evaluation_not_passed','quota_exceeded','kids_mode_blocked','context_too_long','rate_limited','timeout','safety_violation','internal_error')"
+
 // sueKidsPrivacyCheckExpr requires that Kids session events carry neither user_id
 // nor tenant_id (V1: tenant_id == user_id, so either field persists the child's
 // real identifier). A non-empty session_id (HMAC pseudo-ID) is mandatory instead.
@@ -34,6 +35,19 @@ const sueRestrictedMetadataJSONPaths = "'$.instruction_template', '$.prompt', '$
 func MigrateSkillUsageEvents(db *gorm.DB) error {
 	if db.Dialector.Name() == "sqlite" {
 		return migrateSkillUsageEventsSQLite(db)
+	}
+	// PG idempotency: the SkillUsageEvent struct tags metadata as type:text, but
+	// createSUEJSONBColumns (below) upgrades the column to jsonb. On subsequent runs
+	// AutoMigrate sees the jsonb column and the type:text tag, and issues
+	// ALTER COLUMN metadata TYPE text. PostgreSQL optimizes away the explicit ::jsonb
+	// cast in the stored constraint expression (since the column was jsonb at add-time),
+	// leaving jsonb_typeof(metadata) — which fails as "function jsonb_typeof(text)"
+	// when the column type changes. Drop the jsonb-specific constraints before
+	// AutoMigrate; migrateSUEConstraints re-adds them after createSUEJSONBColumns
+	// upgrades the column back to jsonb.
+	if db.Dialector.Name() == "postgres" && db.Migrator().HasTable(&SkillUsageEvent{}) {
+		db.Exec("ALTER TABLE skill_usage_events DROP CONSTRAINT IF EXISTS chk_sue_metadata_object")
+		db.Exec("ALTER TABLE skill_usage_events DROP CONSTRAINT IF EXISTS chk_sue_metadata_no_restricted_keys")
 	}
 	if err := db.AutoMigrate(&SkillUsageEvent{}); err != nil {
 		return fmt.Errorf("AutoMigrate SkillUsageEvent: %w", err)
@@ -163,12 +177,15 @@ func migrateSUEConstraints(db *gorm.DB) error {
 			{"chk_sue_metadata_no_restricted_keys", "NOT (metadata::jsonb ?| array['instruction_template','prompt','system_prompt','raw_messages','provider_payload','kids_raw_input','full_user_input','raw_output','model_output'])"},
 		}
 	case "mysql":
+		// MySQL 8.0.16+ rejects CASE WHEN expressions in CHECK constraints (Error 3812)
+		// because CASE WHEN is not recognised as a boolean predicate. Use AND form:
+		// JSON_VALID short-circuits to 0 for invalid JSON, rejecting it correctly.
 		metadataConstraints = []struct {
 			name string
 			expr string
 		}{
-			{"chk_sue_metadata_object", "CASE WHEN JSON_VALID(metadata) THEN JSON_TYPE(metadata) = 'OBJECT' ELSE FALSE END"},
-			{"chk_sue_metadata_no_restricted_keys", "CASE WHEN JSON_VALID(metadata) THEN NOT JSON_CONTAINS_PATH(metadata, 'one', " + sueRestrictedMetadataJSONPaths + ") ELSE FALSE END"},
+			{"chk_sue_metadata_object", "JSON_VALID(metadata) AND (JSON_TYPE(metadata) = 'OBJECT')"},
+			{"chk_sue_metadata_no_restricted_keys", "JSON_VALID(metadata) AND NOT JSON_CONTAINS_PATH(metadata, 'one', " + sueRestrictedMetadataJSONPaths + ")"},
 		}
 	}
 	for _, c := range metadataConstraints {
