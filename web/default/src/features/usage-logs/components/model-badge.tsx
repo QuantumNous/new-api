@@ -104,7 +104,7 @@ function resolveModelProvider(modelName: string): ModelProvider | null {
     return { icon: 'InternLM.Color', label: 'InternLM' }
   }
   if (hasAny(['step-'])) {
-    return { icon: 'StepFun.Color', label: 'StepFun' }
+    return { icon: 'Stepfun.Color', label: 'StepFun' }
   }
   if (hasAny(['yi-'])) {
     return { icon: 'Yi.Color', label: 'Yi' }
