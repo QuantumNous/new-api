@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { CreditCard, MessageCircle, Sparkles, X } from 'lucide-react'
+import { CreditCard, Sparkles, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
@@ -156,28 +156,26 @@ export function OnboardingStatusBanner() {
           icon={<Sparkles className='size-4' aria-hidden='true' />}
           title={t("You haven't called the API yet.")}
           description={t(
-            'Your trial credit is sitting unused. Try a 1-click playground request or follow the setup guide for your client.'
+            'Your trial credit is sitting unused. Follow the setup guide to paste your key into your AI tool.'
           )}
           actions={
-            <>
-              <Button size='sm' variant='outline' render={<Link to='/playground' />}>
-                <MessageCircle className='mr-1.5 size-3.5' aria-hidden='true' />
-                {t('Try Playground')}
+            preferredClient ? (
+              <Button
+                size='sm'
+                render={
+                  <Link
+                    to='/onboarding/$slug'
+                    params={{ slug: preferredClient }}
+                  />
+                }
+              >
+                {t('Open setup guide')}
               </Button>
-              {preferredClient && (
-                <Button
-                  size='sm'
-                  render={
-                    <Link
-                      to='/onboarding/$slug'
-                      params={{ slug: preferredClient }}
-                    />
-                  }
-                >
-                  {t('Open setup guide')}
-                </Button>
-              )}
-            </>
+            ) : (
+              <Button size='sm' render={<Link to='/keys' />}>
+                {t('View your key & setup')}
+              </Button>
+            )
           }
           onDismiss={() => {
             setNeverCalledDismissed(true)

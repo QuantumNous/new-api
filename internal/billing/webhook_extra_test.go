@@ -1,10 +1,11 @@
 // Additional coverage tests for internal/billing.
 //
 // Gaps filled (relative to webhook_test.go):
-//   sanitizeURLError — direct unit tests (nil, non-url.Error, nested chain)
-//   Send — 429 transient, 3xx retried, body identical across retries, Content-Type, exhausted retries
-//   Event JSON — stars/routed_from/family_id/product_line/kid_profile_id omitempty, image_count always present
-//   SignPayload — empty payload, empty secret edge cases
+//
+//	sanitizeURLError — direct unit tests (nil, non-url.Error, nested chain)
+//	Send — 429 transient, 3xx retried, body identical across retries, Content-Type, exhausted retries
+//	Event JSON — stars/routed_from/family_id/product_line/kid_profile_id omitempty, image_count always present
+//	SignPayload — empty payload, empty secret edge cases
 package billing
 
 import (

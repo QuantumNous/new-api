@@ -62,7 +62,7 @@ func DownloadSkillPackage(c *gin.Context) {
 	// DR-55 contract: download creates a download/enablement state record, NOT a
 	// standalone execution grant. This row may be used by Relay as one runtime
 	// eligibility input, but is never sufficient to authorize execution by itself
-	// — runner key + current subscription/entitlement + quota + Kids + lifecycle
+	// - runner key + current subscription/entitlement + quota + Kids + lifecycle
 	// are all still checked at use time (owned by DR-64/DR-68/M05). No runtime
 	// grant / runner token / entitlement override / credential is issued here.
 	if err := skillmodel.EnableSkillForUser(db, userID, userID, s.ID, "skill_package"); err != nil {
@@ -115,7 +115,7 @@ func downloadPlanLevel(p enums.RequiredPlan) int {
 	}
 }
 
-// ─── Zip builder ─────────────────────────────────────────────────────────────
+// Zip builder.
 
 type skillManifest struct {
 	SchemaVersion         string `json:"schema_version"`
@@ -128,14 +128,23 @@ type skillManifest struct {
 	RequiresDeepRouterKey bool   `json:"requires_deeprouter_key"`
 }
 
+type skillPackageKind string
+
+const (
+	skillPackageKindLegacy     skillPackageKind = "legacy"
+	skillPackageKindCapability skillPackageKind = "capability"
+)
+
+type skillPackageFile struct {
+	Name    string
+	Content []byte
+}
+
 func buildSkillPackage(db *gorm.DB, s skillmodel.Skill) ([]byte, error) {
 	version, err := activeSkillVersionForPackage(db, s)
 	if err != nil {
 		return nil, err
 	}
-
-	buf := new(bytes.Buffer)
-	w := zip.NewWriter(buf)
 
 	manifest := skillManifest{
 		SchemaVersion:         "1.0",
@@ -151,20 +160,36 @@ func buildSkillPackage(db *gorm.DB, s skillmodel.Skill) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := addZipEntry(w, "manifest.json", manifestJSON); err != nil {
+
+	files := []skillPackageFile{
+		{Name: "manifest.json", Content: manifestJSON},
+		{Name: "SKILL.md", Content: []byte(buildSkillMD(s))},
+		{Name: "instruction_template.md", Content: []byte(version.InstructionTemplate)},
+		{Name: "runtime/deeprouter_skill_runner.py", Content: packageassets.RuntimeClient()},
+		{Name: "runtime/README.md", Content: packageassets.RuntimeREADME()},
+	}
+	return buildSkillPackageZip(skillPackageKindFor(s), files)
+}
+
+func skillPackageKindFor(s skillmodel.Skill) skillPackageKind {
+	if s.ActiveVersionID == nil {
+		return skillPackageKindLegacy
+	}
+	return skillPackageKindCapability
+}
+
+func buildSkillPackageZip(kind skillPackageKind, files []skillPackageFile) ([]byte, error) {
+	if err := validateSkillPackageRuntimeDependency(kind, files); err != nil {
+		common.SysLog("Skill package build rejected: " + err.Error())
 		return nil, err
 	}
-	if err := addZipEntry(w, "SKILL.md", []byte(buildSkillMD(s))); err != nil {
-		return nil, err
-	}
-	if err := addZipEntry(w, "instruction_template.md", []byte(version.InstructionTemplate)); err != nil {
-		return nil, err
-	}
-	if err := addZipEntry(w, "runtime/deeprouter_skill_runner.py", packageassets.RuntimeClient()); err != nil {
-		return nil, err
-	}
-	if err := addZipEntry(w, "runtime/README.md", packageassets.RuntimeREADME()); err != nil {
-		return nil, err
+
+	buf := new(bytes.Buffer)
+	w := zip.NewWriter(buf)
+	for _, file := range files {
+		if err := addZipEntry(w, file.Name, file.Content); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := w.Close(); err != nil {
@@ -223,6 +248,80 @@ func addZipEntry(w *zip.Writer, name string, content []byte) error {
 	return err
 }
 
+func validateSkillPackageRuntimeDependency(kind skillPackageKind, files []skillPackageFile) error {
+	if kind != skillPackageKindCapability {
+		return nil
+	}
+
+	var skillMD string
+	for _, file := range files {
+		if file.Name == "SKILL.md" {
+			skillMD = string(file.Content)
+			break
+		}
+	}
+	if strings.TrimSpace(skillMD) == "" {
+		return fmt.Errorf("D-09 runtime dependency guard rejected capability package: missing SKILL.md work step")
+	}
+
+	workStep := extractSkillWorkStep(skillMD)
+	if !hasDeepRouterRoutingCall(workStep) {
+		return fmt.Errorf("D-09 runtime dependency guard rejected capability package: work step has no DeepRouter public routing API call")
+	}
+	return nil
+}
+
+func extractSkillWorkStep(skillMD string) string {
+	lines := strings.Split(strings.ReplaceAll(skillMD, "\r\n", "\n"), "\n")
+	var out strings.Builder
+	inWorkStep := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if isSkillWorkStepHeading(trimmed) {
+			inWorkStep = true
+			continue
+		}
+		if inWorkStep && strings.HasPrefix(trimmed, "#") {
+			break
+		}
+		if inWorkStep {
+			out.WriteString(line)
+			out.WriteByte('\n')
+		}
+	}
+	return out.String()
+}
+
+func isSkillWorkStepHeading(line string) bool {
+	if !strings.HasPrefix(line, "#") {
+		return false
+	}
+	heading := strings.TrimSpace(strings.TrimLeft(line, "#"))
+	lower := strings.ToLower(heading)
+	return lower == "work step" ||
+		strings.HasPrefix(lower, "work step (") ||
+		strings.HasPrefix(lower, "work step:")
+}
+
+func hasDeepRouterRoutingCall(workStep string) bool {
+	lower := strings.ToLower(workStep)
+	if !strings.Contains(lower, "deeprouter") {
+		return false
+	}
+	for _, marker := range []string{
+		"/v1/routing/chat/completions",
+		"/v1/chat/completions",
+		"/v1/responses",
+		"/v1/messages",
+		"/v1/embeddings",
+	} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 // buildSkillMD emits a Claude-compatible wrapper that points runners at the
 // packaged DeepRouter runtime client instead of describing a local-only skill.
 func buildSkillMD(s skillmodel.Skill) string {
@@ -251,6 +350,9 @@ func buildSkillMD(s skillmodel.Skill) string {
 	sb.WriteString("```bash\n")
 	sb.WriteString("python3 runtime/deeprouter_skill_runner.py --input \"...\"\n")
 	sb.WriteString("```\n\n")
+	sb.WriteString("### Work Step\n\n")
+	sb.WriteString("Use `runtime/deeprouter_skill_runner.py` to call DeepRouter with the runner's own credential at POST https://api.deeprouter.ai/v1/routing/chat/completions (or another approved DeepRouter public routing endpoint configured via `DEEPROUTER_EXECUTION_API_URL`).\n")
+	sb.WriteString("The request must use `manifest.json` for `deeprouter.skill_id` and `deeprouter.skill_version_id`, then base the final answer on the routed DeepRouter response instead of a local-only prompt execution.\n\n")
 	sb.WriteString("### Runtime Behavior\n\n")
 	sb.WriteString("- The runtime client reads `manifest.json` and `instruction_template.md` from this package.\n")
 	sb.WriteString("- The work step must call the DeepRouter execution API using the runner's own credential.\n")

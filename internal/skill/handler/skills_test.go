@@ -591,7 +591,7 @@ func testSkill(slug string, status string) skillmodel.Skill {
 		DefaultLocale:        "en",
 		Name:                 slug,
 		ShortDescription:     "short",
-		Description:          "long",
+		Description:          "long\n\n" + routedWorkStepFixture(),
 		InputHints:           skillmodel.SkillJSONB(`[]`),
 		ExampleInputs:        skillmodel.SkillJSONB(`[]`),
 		ExampleOutputs:       skillmodel.SkillJSONB(`[]`),
@@ -604,4 +604,8 @@ func testSkill(slug string, status string) skillmodel.Skill {
 		CreatedBy:            1,
 		PublishedAt:          &now,
 	}
+}
+
+func routedWorkStepFixture() string {
+	return "### Work Step\n\nCall DeepRouter at POST https://api.deeprouter.ai/v1/routing/chat/completions with the runner's own key, then base the final answer on the returned routing result."
 }

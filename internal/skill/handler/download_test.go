@@ -116,6 +116,8 @@ func TestDownloadSkillPackage_ZipContainsManifestAndSkillMD(t *testing.T) {
 	assert.Contains(t, skillMD, "Zip Skill")
 	assert.Contains(t, skillMD, "A full description.")
 	assert.Equal(t, "System template for zip skill.", string(files["instruction_template.md"]))
+	assert.Contains(t, skillMD, "### Work Step")
+	assert.Contains(t, skillMD, "https://api.deeprouter.ai/v1/routing/chat/completions")
 }
 
 func TestDownloadSkillPackage_SKILLMDIsRuntimeWrapper(t *testing.T) {
@@ -154,6 +156,8 @@ func TestDownloadSkillPackage_SKILLMDIsRuntimeWrapper(t *testing.T) {
 	assert.Contains(t, skillMD, "DEEPROUTER_EXECUTION_API_URL")
 	assert.Contains(t, skillMD, "DeepRouter")
 	assert.Contains(t, skillMD, "Do not execute this package as a standalone local-only prompt")
+	assert.Contains(t, skillMD, "### Work Step")
+	assert.Contains(t, skillMD, "https://api.deeprouter.ai/v1/routing/chat/completions")
 }
 
 // TestDownloadSkillPackage_ManifestIncludesSkillVersionID verifies that when a skill
@@ -899,6 +903,141 @@ func TestDownloadedPackageRunner_MockAuthRequiredErrorMapping(t *testing.T) {
 	assert.NotContains(t, string(out), "test-runner-key")
 }
 
+func TestBuildSkillPackageZip_RejectsOfflineCapabilityWorkStep(t *testing.T) {
+	_, err := buildSkillPackageZip(skillPackageKindCapability, []skillPackageFile{
+		{Name: "manifest.json", Content: []byte(`{"schema_version":"1.0"}`)},
+		{Name: "SKILL.md", Content: []byte(`# Offline Skill
+
+### Work Step
+
+Read the local files, summarize them, and produce the final answer without any network call.
+`)},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "D-09")
+	assert.Contains(t, err.Error(), "no DeepRouter public routing API call")
+}
+
+func TestBuildSkillPackageZip_AllowsDeepRouterCapabilityWorkStep(t *testing.T) {
+	zipBytes, err := buildSkillPackageZip(skillPackageKindCapability, []skillPackageFile{
+		{Name: "manifest.json", Content: []byte(`{"schema_version":"1.0"}`)},
+		{Name: "SKILL.md", Content: []byte(`# Routed Skill
+
+### Work Step
+
+Call DeepRouter at POST https://api.deeprouter.ai/v1/routing/chat/completions with the runner's own key, then base the final answer on the routed response.
+`)},
+	})
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, zipBytes)
+}
+
+func TestValidateSkillPackageRuntimeDependency_Regressions(t *testing.T) {
+	cases := []struct {
+		name    string
+		kind    skillPackageKind
+		skillMD string
+		wantErr string
+	}{
+		{
+			name: "deeprouter marker outside work step is rejected",
+			kind: skillPackageKindCapability,
+			skillMD: `# Misleading Skill
+
+Mentions https://api.deeprouter.ai/v1/chat/completions in setup text.
+
+### Work Step
+
+Summarize local files without making any network call.
+`,
+			wantErr: "no DeepRouter public routing API call",
+		},
+		{
+			name: "missing work step is rejected",
+			kind: skillPackageKindCapability,
+			skillMD: `# No Work Step
+
+Call DeepRouter at https://api.deeprouter.ai/v1/chat/completions somewhere in prose.
+`,
+			wantErr: "no DeepRouter public routing API call",
+		},
+		{
+			name:    "empty skill md is rejected",
+			kind:    skillPackageKindCapability,
+			skillMD: "  \n\t",
+			wantErr: "missing SKILL.md work step",
+		},
+		{
+			name: "non capability package skips guard",
+			kind: skillPackageKind("reference"),
+			skillMD: `# Reference Package
+
+No runtime work step.
+`,
+			wantErr: "",
+		},
+		{
+			name: "responses endpoint in work step is accepted",
+			kind: skillPackageKindCapability,
+			skillMD: `# Responses Skill
+
+### Work Step
+
+Call DeepRouter with POST https://api.deeprouter.ai/v1/responses using the runner key.
+`,
+			wantErr: "",
+		},
+		{
+			name: "routing chat completions endpoint in work step is accepted",
+			kind: skillPackageKindCapability,
+			skillMD: `# Routing Skill
+
+### Work Step
+
+Call DeepRouter with POST https://api.deeprouter.ai/v1/routing/chat/completions using the runner key.
+`,
+			wantErr: "",
+		},
+		{
+			name: "parenthetical work step heading is accepted",
+			kind: skillPackageKindCapability,
+			skillMD: `# D09 Skill
+
+### Work Step (D-09)
+
+Call DeepRouter with POST https://api.deeprouter.ai/v1/chat/completions using the runner key.
+`,
+			wantErr: "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateSkillPackageRuntimeDependency(tc.kind, []skillPackageFile{
+				{Name: "SKILL.md", Content: []byte(tc.skillMD)},
+			})
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "D-09")
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+func TestValidateSkillPackageRuntimeDependency_RejectsMissingSkillMD(t *testing.T) {
+	err := validateSkillPackageRuntimeDependency(skillPackageKindCapability, []skillPackageFile{
+		{Name: "manifest.json", Content: []byte(`{"schema_version":"1.0"}`)},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "D-09")
+	assert.Contains(t, err.Error(), "missing SKILL.md work step")
+}
 func createPublishedSkillWithActiveVersion(t *testing.T, db *gorm.DB, slug string, template string) skillmodel.Skill {
 	t.Helper()
 	return createPublishedSkillWithActiveVersionFromSkill(t, db, testSkill(slug, "published"), template)

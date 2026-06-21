@@ -144,10 +144,12 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Rankings'), href: '/rankings', disabled })
   }
 
-  // DeepRouter: Docs link removed from top nav (upstream had it pointing at
-  // docs.newapi.pro). When DeepRouter has its own docs site, re-add by
-  // setting HeaderNavModules.docs in admin System Settings → Site, or
-  // restore this block.
+  // Resources — DeepRouter's own in-app docs site at /resources (integration
+  // guides). Upstream pointed Docs at docs.newapi.pro; we now have our own, so
+  // this slot is re-enabled. Operators can hide it via HeaderNavModules.docs.
+  if (modules?.docs !== false) {
+    links.push({ title: t('Resources'), href: '/resources' })
+  }
 
   // About
   if (modules?.about !== false) {
