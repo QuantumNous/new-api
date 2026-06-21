@@ -120,6 +120,9 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	//      for V1 (DR-68 PRD §kids-session); the Distribute path's rewrite is applied
 	//      before channel model_mapping so a kids_mode whitelist entry for a real model
 	//      name is still honoured once smart-router resolves the virtual alias.
+	//      TODO(DR-68-kids): assert that no virtual alias (e.g. "deeprouter-auto")
+	//      appears in kids_mode_models to prevent a misconfigured whitelist bypassing
+	//      the kids-safe constraint via smart-router resolution.
 	if d, ok := common.GetContextKey(c, constant.ContextKeyPolicyDecision); ok {
 		if decision, castOk := d.(policy.Decision); castOk {
 			if reject := applyAirbotixPolicy(decision, info.ChannelType, request); reject != "" {
@@ -151,6 +154,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			)
 		}
 		request = rewritten
+		// Explicit re-store: LoadAndApply mutated skillCtx.SkillVersionID through the
+		// pointer. Re-calling Set makes the update safe against any future refactor of
+		// skillrelay.Get that returns a copy instead of the stored pointer.
+		skillrelay.Set(c, skillCtx)
 	}
 
 	err = helper.ModelMappedHelper(c, info, request)

@@ -136,10 +136,18 @@ func rewriteForSingleTurn(request *dto.GeneralOpenAIRequest, instructionTemplate
 		return nil, errcodes.ErrInvalidRequest
 	}
 
+	// TODO(DR-67): add a server-side MaxTokens ceiling here to bound output cost.
+	// MaxTokens/MaxCompletionTokens are intentionally NOT forwarded: client-supplied
+	// token ceilings would allow cost manipulation via crafted skill requests.
 	built := &dto.GeneralOpenAIRequest{
-		Model:         model,
-		Stream:        request.Stream,
-		StreamOptions: request.StreamOptions,
+		Model:  model,
+		Stream: request.Stream,
+	}
+	// Deep-copy StreamOptions so future in-place mutations of built.StreamOptions
+	// do not affect the caller's original request.StreamOptions via shared pointer.
+	if request.StreamOptions != nil {
+		so := *request.StreamOptions
+		built.StreamOptions = &so
 	}
 
 	systemMsg := dto.Message{Role: "system"}

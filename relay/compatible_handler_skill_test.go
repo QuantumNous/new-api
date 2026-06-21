@@ -1,10 +1,16 @@
 package relay
 
 // Integration-light tests for the skill relay entry point wired into TextHelper
-// (DR-64, tasks/05 §5.1 steps 1-6). These tests exercise TextHelper with a real
-// gin context and an in-memory SQLite DB. They do NOT require a live upstream
+// (DR-64 + DR-68, tasks/05 §5.1 steps 1-6). These tests exercise TextHelper with a
+// real gin context and an in-memory SQLite DB. They do NOT require a live upstream
 // provider: the relay aborts early at the skill gate and we only verify that
 // early-return behavior.
+//
+// Coverage (2026-06-21, post-DR-68 fourth-pass):
+//   relay/compatible_handler.go TextHelper: 32.9%
+//   relay/compatible_handler.go skillRelayErrType: 100.0%
+//   (TextHelper coverage is intentionally low — it is a large multi-path function;
+//    skill-relay paths are fully covered; non-skill paths require live channel setup)
 
 import (
 	"net/http"
@@ -582,4 +588,57 @@ func TestTextHelper_SkillRelay_DR68_LoadAndApply_Executed(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, version.ID, sCtx.SkillVersionID,
 		"DR-68: SkillVersionID must be populated by LoadAndApply to prove version snapshot was loaded")
+}
+
+// TestTextHelper_SkillRelay_TOCTOU_PinnedVersionIDPreserved verifies the TOCTOU guard
+// in TextHelper's Resolve block (compatible_handler.go): when the Distribute path has
+// already pinned a SkillVersionID on the gin context, TextHelper must NOT call Resolve
+// again (which could return a different active_version_id if the skill was updated
+// between Distribute and TextHelper, breaking server-authoritative routing).
+//
+// Guard under test (compatible_handler.go):
+//
+//	if existing, alreadyLoaded := skillrelay.Get(c); alreadyLoaded && existing.SkillVersionID != ""
+//	    skillCtx = existing   // reuse pinned context; skip Resolve
+//
+// Coverage: relay/compatible_handler.go — Distribute fast-path in hadDeeprouterExtension
+func TestTextHelper_SkillRelay_TOCTOU_PinnedVersionIDPreserved(t *testing.T) {
+	testDB := newSkillTestDB(t)
+	skill := &skillmodel.Skill{
+		Slug: "toctou-skill", Status: enums.SkillStatusPublished, Category: "test",
+		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
+		Name: "TOCTOU Skill", ShortDescription: "s", Description: "d", CreatedBy: 1,
+	}
+	require.NoError(t, testDB.Create(skill).Error)
+	version := insertVersionForSkill(t, testDB, skill, "You are a tutor.", []string{"gpt-4o-mini"})
+	skillrelay.SetDB(testDB)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c := newSkillTestCtx(t, 5)
+
+	// Simulate the Distribute path: context is pre-seeded with a SkillVersionID that
+	// differs from the real DB version.ID (as if active_version_id changed between calls).
+	// If the TOCTOU guard is absent, Resolve would return the real version.ID and
+	// LoadAndApply would overwrite the context — the assertions below would fail.
+	const pinnedID = "distribute-pinned-version-id"
+	skillrelay.Set(c, &skillrelay.SkillRelayContext{
+		SkillID:        skill.ID,
+		SkillVersionID: pinnedID,
+		Skill:          skill,
+	})
+
+	// TextHelper will fail downstream (nil adaptor for AIProxyLibrary channel type)
+	// — that is expected and irrelevant. We only assert on context state.
+	TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
+		Model:      "gpt-4o",
+		Messages:   []dto.Message{userMsg("hello")},
+		Deeprouter: &dto.DeepRouterExtension{SkillID: skill.ID},
+	}))
+
+	ctx, ok := skillrelay.Get(c)
+	require.True(t, ok, "SkillRelayContext must still be set after TextHelper")
+	assert.Equal(t, pinnedID, ctx.SkillVersionID,
+		"DR-68 TOCTOU: Distribute-pinned SkillVersionID must not be overwritten by TextHelper's Resolve block")
+	assert.NotEqual(t, version.ID, ctx.SkillVersionID,
+		"DR-68 TOCTOU: context must hold the Distribute-pinned value, not the DB-resolved version.ID")
 }

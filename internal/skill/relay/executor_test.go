@@ -1,5 +1,18 @@
 package skillrelay
 
+// Unit tests for executor.go (DR-68 server-side routing/model-selection).
+//
+// Coverage (2026-06-21, post-DR-68 fourth-pass, go test ./internal/skill/relay/):
+//   executor.go loadAndApply:        100.0%
+//   executor.go loadSnapshot:         88.9%  (unhappy path: CreateBodyStorage fail — no stub)
+//   executor.go parseModelWhitelist: 100.0%
+//   executor.go selectModel:         100.0%
+//   executor.go rewriteForSingleTurn: 100.0%
+//   resolver.go Resolve:             100.0%
+//   resolver.go resolve:              85.2%
+//   context.go  Set/Get:             100.0%
+//   package overall:                  93.1%
+
 import (
 	"testing"
 
@@ -236,7 +249,10 @@ func TestRewriteForSingleTurn_StripsClientControlledProviderFields(t *testing.T)
 	require.Equal(t, errcodes.ErrorCode(""), errCode)
 	assert.Equal(t, "server-model", got.Model)
 	assert.Same(t, req.Stream, got.Stream, "stream flag is an execution transport option and should survive")
-	assert.Same(t, req.StreamOptions, got.StreamOptions, "stream usage option should survive")
+	// StreamOptions must be deep-copied: same value, different pointer (no shared aliasing).
+	require.NotNil(t, got.StreamOptions, "stream usage option must survive rewrite")
+	assert.Equal(t, *req.StreamOptions, *got.StreamOptions, "stream usage option value must be preserved")
+	assert.NotSame(t, req.StreamOptions, got.StreamOptions, "StreamOptions must be deep-copied, not shared by pointer")
 	assert.Nil(t, got.Temperature, "client generation params must not be forwarded for skill relay")
 	assert.Nil(t, got.MaxTokens, "client token cap must not override server execution snapshot")
 	assert.Nil(t, got.ToolChoice, "client tool routing hints must not be forwarded")

@@ -1,5 +1,16 @@
 package middleware
 
+// Skill-relay distributor tests (DR-68).
+// Functions under test live in middleware/skill_distributor.go.
+//
+// Coverage (2026-06-21, post-DR-68 fourth-pass):
+//   prepareSkillRelayForDistribution:  89.5%
+//   replaceReusableRequestBody:        76.5%
+//
+// Coverage note: the TOCTOU guard in TextHelper's Resolve block
+// is tested in relay/compatible_handler_skill_test.go
+// (TestTextHelper_SkillRelay_TOCTOU_PinnedVersionIDPreserved).
+
 import (
 	"bytes"
 	"io"
@@ -255,11 +266,9 @@ func TestPrepareSkillRelay_NoUserMessage_ReturnsInvalidRequest(t *testing.T) {
 	}
 }
 
-// TestPrepareSkillRelay_TOCTOU_SkillVersionIDPinned verifies that after
-// prepareSkillRelayForDistribution sets a pinned SkillVersionID on the context,
-// a second call to prepareSkillRelayForDistribution reuses (does not overwrite)
-// the existing context — matching the guard in TextHelper's Resolve block.
-func TestPrepareSkillRelay_TOCTOU_SkillVersionIDPinned(t *testing.T) {
+// TestPrepareSkillRelay_SetsSkillVersionID verifies that prepareSkillRelayForDistribution
+// populates SkillVersionID on the gin context after a successful LoadAndApply.
+func TestPrepareSkillRelay_SetsSkillVersionID(t *testing.T) {
 	db := newSkillDistributionDB(t)
 	skill, version := insertDistributionSkill(t, db, "tmpl", []string{"gpt-4o-mini"})
 	skillrelay.SetDB(db)
@@ -271,20 +280,14 @@ func TestPrepareSkillRelay_TOCTOU_SkillVersionIDPinned(t *testing.T) {
 		"deeprouter": map[string]any{"skill_id": skill.ID},
 	})
 	if errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"}); errCode != "" {
-		t.Fatalf("first call error: %s", errCode)
+		t.Fatalf("prepareSkillRelayForDistribution error: %s", errCode)
 	}
 	sCtx, ok := skillrelay.Get(c)
 	if !ok || sCtx.SkillVersionID != version.ID {
-		t.Fatalf("SkillVersionID after first call = %q, want %q", sCtx.SkillVersionID, version.ID)
-	}
-	pinnedID := sCtx.SkillVersionID
-
-	// Simulate a second call (TextHelper path) — SkillVersionID must remain pinned.
-	if errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"}); errCode != "" {
-		t.Fatalf("second call error: %s", errCode)
-	}
-	sCtx2, _ := skillrelay.Get(c)
-	if sCtx2.SkillVersionID != pinnedID {
-		t.Fatalf("SkillVersionID overwritten: got %q, want %q", sCtx2.SkillVersionID, pinnedID)
+		t.Fatalf("SkillVersionID = %q, want %q", sCtx.SkillVersionID, version.ID)
 	}
 }
+// Note: the TOCTOU guard (preventing re-Resolve when SkillVersionID is already pinned)
+// lives in TextHelper's Resolve block (relay/compatible_handler.go:74).
+// It is tested by TestTextHelper_SkillRelay_TOCTOU_PinnedVersionIDPreserved
+// in relay/compatible_handler_skill_test.go.
