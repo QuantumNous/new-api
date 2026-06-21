@@ -1,8 +1,8 @@
 package relay
 
 // Integration-light tests for the skill relay entry point wired into TextHelper
-// (DR-64, tasks/05 §5.1 steps 1-6). These tests exercise TextHelper with a real
-// gin context and an in-memory SQLite DB. They do NOT require a live upstream
+// (DR-64, tasks/05 section 5.1 steps 1-6). These tests exercise TextHelper with a real
+// gin context and an in-memory SQLite DB. They do not require a live upstream
 // provider: the relay aborts early at the skill gate and we only verify that
 // early-return behavior.
 
@@ -27,10 +27,10 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// ── test helpers ──────────────────────────────────────────────────────────────
+// Test helpers.
 
 // newSkillTestDB creates an in-memory SQLite DB with the Skill table migrated.
-// Only the Skill table is created — the User is supplied via gin context (fast path)
+// Only the Skill table is created - the User is supplied via gin context (fast path)
 // so no Users table is needed.
 func newSkillTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -38,7 +38,7 @@ func newSkillTestDB(t *testing.T) *gorm.DB {
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}))
+	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}))
 	return database
 }
 
@@ -55,7 +55,7 @@ func newSkillTestCtx(t *testing.T, userID int) *gin.Context {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-	// ChannelTypeAIProxyLibrary → APITypeAIProxyLibrary → GetAdaptor returns nil.
+	// ChannelTypeAIProxyLibrary -> APITypeAIProxyLibrary -> GetAdaptor returns nil.
 	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeAIProxyLibrary)
 	if userID != 0 {
 		user := &platformmodel.User{
@@ -74,13 +74,32 @@ func newSkillRelayInfo(req *dto.GeneralOpenAIRequest) *relaycommon.RelayInfo {
 	return &relaycommon.RelayInfo{Request: req}
 }
 
-// ── TextHelper skill relay guard tests ───────────────────────────────────────
+func insertActiveSkillVersionForTest(t *testing.T, database *gorm.DB, skill *skillmodel.Skill, versionID string) {
+	t.Helper()
+	maxTokens := 4096
+	version := &skillmodel.SkillVersion{
+		ID:                        versionID,
+		SkillID:                   skill.ID,
+		VersionNumber:             1,
+		Status:                    enums.SkillVersionStatusActive,
+		InstructionTemplate:       "You are the immutable skill executor.",
+		InstructionTemplateSHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		ModelWhitelistSnapshot:    skillmodel.SkillJSONB(`["gpt-4o"]`),
+		RequiredPlanSnapshot:      skill.RequiredPlan,
+		MonetizationSnapshot:      skillmodel.SkillJSONB(`{"mode":"free"}`),
+		MaxInputTokensSnapshot:    &maxTokens,
+		CreatedBy:                 1,
+	}
+	require.NoError(t, database.Create(version).Error)
+}
+
+// TextHelper skill relay guard tests.
 
 // TestTextHelper_SkillRelay_Anonymous_Returns401 verifies that an anonymous request
-// carrying deeprouter.skill_id is rejected at relay entry (step 3 of tasks/05 §5.1)
+// carrying deeprouter.skill_id is rejected at relay entry (step 3 of tasks/05 section 5.1)
 // with HTTP 401 AUTH_REQUIRED, before any model mapping or adaptor lookup.
 func TestTextHelper_SkillRelay_Anonymous_Returns401(t *testing.T) {
-	c := newSkillTestCtx(t, 0) // userID=0 → anonymous
+	c := newSkillTestCtx(t, 0) // userID=0 -> anonymous
 
 	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
 		Deeprouter: &dto.DeepRouterExtension{SkillID: "any-skill-id"},
@@ -114,7 +133,7 @@ func TestTextHelper_SkillRelay_SkillNotFound_Returns404(t *testing.T) {
 
 // TestTextHelper_SkillRelay_SkillFound_ContextSet verifies that when a skill is found,
 // TextHelper stores a non-nil SkillRelayContext in the gin context before the relay
-// continues. TextHelper may fail downstream (no channel/provider in tests) — that is
+// continues. TextHelper may fail downstream (no channel/provider in tests) - that is
 // expected; we only assert the relay-entry contract here.
 func TestTextHelper_SkillRelay_SkillFound_ContextSet(t *testing.T) {
 	testDB := newSkillTestDB(t)
@@ -132,13 +151,14 @@ func TestTextHelper_SkillRelay_SkillFound_ContextSet(t *testing.T) {
 		ActiveVersionID:  &versionID,
 	}
 	require.NoError(t, testDB.Create(skill).Error)
+	insertActiveSkillVersionForTest(t, testDB, skill, versionID)
 
 	skillrelay.SetDB(testDB)
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 7)
 
-	// TextHelper may return an error (no adaptor) — we don't assert on it here.
+	// TextHelper may return an error (no adaptor) - we do not assert on it here.
 	TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
 		Model:      "gpt-4o",
 		Deeprouter: &dto.DeepRouterExtension{SkillID: skill.ID},
@@ -162,13 +182,13 @@ func TestTextHelper_SkillRelay_NilDeepRouter_NotAffected(t *testing.T) {
 
 	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
 		Model: "gpt-4o",
-		// Deeprouter: nil — normal request
+		// Deeprouter: nil - normal request
 	}))
 
 	_, hasCtx := skillrelay.Get(c)
 	assert.False(t, hasCtx, "non-skill request must not set SkillRelayContext")
 
-	// Any error must come from the relay infrastructure, NOT the skill gate.
+	// Any error must come from the relay infrastructure, not the skill gate.
 	if apiErr != nil {
 		assert.NotEqual(t, http.StatusUnauthorized, apiErr.StatusCode,
 			"relay infra error must not be 401 AUTH_REQUIRED")
@@ -180,7 +200,7 @@ func TestTextHelper_SkillRelay_NilDeepRouter_NotAffected(t *testing.T) {
 }
 
 // TestTextHelper_SkillRelay_EmptySkillID_NotAffected verifies that a request with
-// deeprouter: {"skill_id": ""} is treated as a normal relay request — the guard
+// deeprouter: {"skill_id": ""} is treated as a normal relay request - the guard
 // condition `request.Deeprouter != nil && request.Deeprouter.SkillID != ""` must
 // correctly ignore the empty-string case.
 func TestTextHelper_SkillRelay_EmptySkillID_NotAffected(t *testing.T) {
@@ -196,7 +216,7 @@ func TestTextHelper_SkillRelay_EmptySkillID_NotAffected(t *testing.T) {
 
 // TestTextHelper_SkillRelay_EntryPoint_DefaultIsPlaygroundPicker verifies that
 // when deeprouter.entry_point is absent, SkillRelayContext.EntryPoint defaults
-// to "playground_picker" per tasks/03 §9 V1 spec (Playground-only execution).
+// to "playground_picker" per tasks/03 section 9 V1 spec (Playground-only execution).
 func TestTextHelper_SkillRelay_EntryPoint_DefaultIsPlaygroundPicker(t *testing.T) {
 	testDB := newSkillTestDB(t)
 	versionID2 := "aaaaaaaa-bbbb-cccc-dddd-000000000002"
@@ -207,6 +227,7 @@ func TestTextHelper_SkillRelay_EntryPoint_DefaultIsPlaygroundPicker(t *testing.T
 		ActiveVersionID: &versionID2,
 	}
 	require.NoError(t, testDB.Create(skill).Error)
+	insertActiveSkillVersionForTest(t, testDB, skill, versionID2)
 	skillrelay.SetDB(testDB)
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
@@ -220,7 +241,7 @@ func TestTextHelper_SkillRelay_EntryPoint_DefaultIsPlaygroundPicker(t *testing.T
 	sCtx, ok := skillrelay.Get(c)
 	require.True(t, ok)
 	assert.Equal(t, string(enums.EntryPointPlaygroundPicker), sCtx.EntryPoint,
-		"missing entry_point must default to playground_picker per §9")
+		"missing entry_point must default to playground_picker per section 9")
 }
 
 // TestTextHelper_SkillRelay_InvalidEntryPoint_Returns400 verifies that an unknown
@@ -236,6 +257,7 @@ func TestTextHelper_SkillRelay_InvalidEntryPoint_Returns400(t *testing.T) {
 		ActiveVersionID: &versionID3,
 	}
 	require.NoError(t, testDB.Create(skill).Error)
+	insertActiveSkillVersionForTest(t, testDB, skill, versionID3)
 	skillrelay.SetDB(testDB)
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
@@ -253,14 +275,14 @@ func TestTextHelper_SkillRelay_InvalidEntryPoint_Returns400(t *testing.T) {
 		"invalid entry_point must return HTTP 400")
 
 	_, hasCtx := skillrelay.Get(c)
-	assert.False(t, hasCtx, "SkillRelayContext must NOT be stored when entry_point is invalid")
+	assert.False(t, hasCtx, "SkillRelayContext must not be stored when entry_point is invalid")
 }
 
 // TestTextHelper_SkillRelay_PartialExtension_NoSkillIDStripped verifies that a partial
-// deeprouter extension (no skill_id) does NOT activate the skill gate and does NOT store
+// deeprouter extension (no skill_id) does not activate the skill gate and does not store
 // a SkillRelayContext in the normal (non-pass-through) relay path. The vendor extension
 // is stripped from the Go struct (request.Deeprouter = nil) before the request is
-// serialised for upstream. The pass-through path is covered by
+// serialized for upstream. The pass-through path is covered by
 // TestTextHelper_SkillRelay_PartialExtension_PassThrough_Rejected.
 func TestTextHelper_SkillRelay_PartialExtension_NoSkillIDStripped(t *testing.T) {
 	for _, ext := range []*dto.DeepRouterExtension{
@@ -287,7 +309,7 @@ func TestTextHelper_SkillRelay_PartialExtension_NoSkillIDStripped(t *testing.T) 
 }
 
 // TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField verifies that when
-// deeprouter.entry_point is set (e.g. "skill_package" by an external package client),
+// deeprouter.entry_point is set (for example, "skill_package" by an external package client),
 // SkillRelayContext.EntryPoint carries that value through for analytics.
 func TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField(t *testing.T) {
 	testDB := newSkillTestDB(t)
@@ -299,6 +321,7 @@ func TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField(t *testing.T) {
 		ActiveVersionID: &versionID4,
 	}
 	require.NoError(t, testDB.Create(skill).Error)
+	insertActiveSkillVersionForTest(t, testDB, skill, versionID4)
 	skillrelay.SetDB(testDB)
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
@@ -321,7 +344,7 @@ func TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField(t *testing.T) {
 // pass-through mode is rejected when the original request carried any deeprouter
 // extension, even a partial one without a skill_id. This prevents the vendor
 // extension from leaking to upstream providers via the raw BodyStorage path that
-// bypasses the Go struct sanitisation.
+// bypasses the Go struct sanitization.
 func TestTextHelper_SkillRelay_PartialExtension_PassThrough_Rejected(t *testing.T) {
 	rawBody := []byte(`{"model":"gpt-4o","messages":[],"deeprouter":{"entry_point":"skill_package"}}`)
 	bs, err := common.CreateBodyStorage(rawBody)
@@ -373,6 +396,7 @@ func TestTextHelper_SkillRelay_PublicRoutingAPI_ForcePackageEntryAndCredentialId
 		ActiveVersionID: &versionID,
 	}
 	require.NoError(t, testDB.Create(skill).Error)
+	insertActiveSkillVersionForTest(t, testDB, skill, versionID)
 	skillrelay.SetDB(testDB)
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
@@ -393,6 +417,8 @@ func TestTextHelper_SkillRelay_PublicRoutingAPI_ForcePackageEntryAndCredentialId
 	sCtx, ok := skillrelay.Get(c)
 	require.True(t, ok)
 	assert.Equal(t, 13, sCtx.UserID, "identity must come from the verified credential context")
+	assert.Equal(t, versionID, sCtx.SkillVersionID, "client-supplied skill_version_id must be ignored in favor of the active server-bound version")
+	assert.Equal(t, versionID, sCtx.SkillVersion.ID)
 	assert.Equal(t, string(enums.EntryPointSkillPackage), sCtx.EntryPoint,
 		"public routing API must force package entry point over package-provided values")
 }

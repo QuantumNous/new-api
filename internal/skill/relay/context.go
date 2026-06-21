@@ -8,22 +8,39 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SkillRelayContext holds the server-resolved identity and skill reference
-// established at relay entry (tasks/05 §5.1 steps 1-6).
+// SkillRelayContext holds the server-resolved identity, skill reference, and
+// immutable execution snapshot established exactly once at relay request entry.
+//
+// SkillVersion is the authoritative request-entry snapshot for the lifetime of
+// the request. Once Resolve succeeds, downstream code must consume this bound
+// snapshot and must not re-query the mutable active skill_version pointer.
 //
 // Downstream handlers read from this context:
 //   - DR-67 (entitlement): calls availability.Resolve with Skill + identity fields
-//   - DR-88 (prompt injection): reads Skill.ActiveVersionID to load instruction template
-//     and EntryPoint to record the correct analytics entry_point (tasks/03 §9)
+//   - DR-88 (prompt injection): reads SkillVersion snapshot fields instead of
+//     re-resolving mutable Skill state later in the request
+//
+// The snapshot contract covers at least:
+//   - SkillVersionID
+//   - InstructionTemplate
+//   - ModelWhitelistSnapshot
+//   - RequiredPlanSnapshot
+//   - MonetizationSnapshot
+//   - MaxInputTokensSnapshot
+//
+// Even if another request activates a new skill_version mid-flight, an already
+// returned SkillRelayContext must continue using the original bound snapshot.
 type SkillRelayContext struct {
-	RequestID     string
-	SkillID       string
-	UserID        int
-	IsKidsSession bool
-	Plan          enums.RequiredPlan
-	SubActive     bool
-	Skill         *skillmodel.Skill
-	EntryPoint    string // enums.EntryPoint value; set by TextHelper from deeprouter.entry_point
+	RequestID      string
+	SkillID        string
+	SkillVersionID string
+	UserID         int
+	IsKidsSession  bool
+	Plan           enums.RequiredPlan
+	SubActive      bool
+	Skill          *skillmodel.Skill
+	SkillVersion   *skillmodel.SkillVersion
+	EntryPoint     string // enums.EntryPoint value; set by TextHelper from deeprouter.entry_point
 }
 
 // Set stores ctx in the gin context under ContextKeySkillRelayCtx.
