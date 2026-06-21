@@ -63,14 +63,27 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	hadDeeprouterExtension := request.Deeprouter != nil
 	if hadDeeprouterExtension {
 		if request.Deeprouter.SkillID != "" {
-			skillCtx, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
-			if errCode != "" {
-				return types.NewErrorWithStatusCode(
-					fmt.Errorf("%s", errCode),
-					skillRelayErrType(errCode),
-					errcodes.HTTPStatusFor(errCode),
-					types.ErrOptionWithSkipRetry(),
-				)
+			// TOCTOU guard: if Distribute's prepareSkillRelayForDistribution already
+			// ran, SkillRelayContext has a pinned SkillVersionID. Re-calling Resolve
+			// would return a fresh zero-SkillVersionID context; skillrelay.Set below
+			// would overwrite the pin, causing the LoadAndApply block to re-load the
+			// snapshot — which may differ from the one used for channel selection if
+			// active_version_id changed between Distribute and TextHelper.
+			// Direct path (unit tests / non-Distribute callers): no context exists yet.
+			var skillCtx *skillrelay.SkillRelayContext
+			if existing, alreadyLoaded := skillrelay.Get(c); alreadyLoaded && existing.SkillVersionID != "" {
+				skillCtx = existing // Distribute path: reuse pinned context
+			} else {
+				resolved, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
+				if errCode != "" {
+					return types.NewErrorWithStatusCode(
+						fmt.Errorf("%s", errCode),
+						skillRelayErrType(errCode),
+						errcodes.HTTPStatusFor(errCode),
+						types.ErrOptionWithSkipRetry(),
+					)
+				}
+				skillCtx = resolved
 			}
 			// Carry entry_point into relay context for analytics (tasks/03 §9).
 			// Package routing API forces skill_package so package-provided values
@@ -95,16 +108,56 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		request.Deeprouter = nil // always strip vendor extension before provider forwarding
 	}
 
-	// Airbotix / DeepRouter policy: checked against the client-requested model
-	// name BEFORE channel model_mapping so that a kids_mode whitelist entry like
-	// "gpt-4o-mini" is honoured even when the channel remaps it to a different
-	// upstream model name (e.g. llama-3.1-8b-instant on Groq).
+	// Airbotix / DeepRouter policy check.
+	// Two paths reach here:
+	//   a) Direct (unit tests / non-Distribute callers): request.Model is still the
+	//      client-supplied model, so policy sees the original client model name. The
+	//      LoadAndApply block below then overwrites it with the server snapshot model.
+	//   b) Distribute (public routing API): prepareSkillRelayForDistribution already
+	//      called LoadAndApply and replaced the request body, so request.Model is the
+	//      server whitelist model (e.g. "deeprouter-auto") by the time we reach here.
+	//      Kids-mode filtering against virtual alias names is intentionally out of scope
+	//      for V1 (DR-68 PRD §kids-session); the Distribute path's rewrite is applied
+	//      before channel model_mapping so a kids_mode whitelist entry for a real model
+	//      name is still honoured once smart-router resolves the virtual alias.
+	//      TODO(DR-68-kids): assert that no virtual alias (e.g. "deeprouter-auto")
+	//      appears in kids_mode_models to prevent a misconfigured whitelist bypassing
+	//      the kids-safe constraint via smart-router resolution.
 	if d, ok := common.GetContextKey(c, constant.ContextKeyPolicyDecision); ok {
 		if decision, castOk := d.(policy.Decision); castOk {
 			if reject := applyAirbotixPolicy(decision, info.ChannelType, request); reject != "" {
 				return types.NewErrorWithStatusCode(fmt.Errorf("%s", reject), types.ErrorCodeChannelModelMappedError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			}
 		}
+	}
+
+	// DR-68: for skill relay requests, load version snapshot and rewrite request
+	// (server-authoritative model selection + FR-G19 single-turn enforcement).
+	//
+	// Two paths:
+	//   a) Direct (unit tests / non-Distribute callers): SkillVersionID is empty.
+	//      LoadAndApply fetches the snapshot and rewrites the request here.
+	//      Runs after applyAirbotixPolicy so kids-mode sees the original client model.
+	//   b) Distribute path: prepareSkillRelayForDistribution already called LoadAndApply
+	//      and set SkillVersionID. Re-loading here would be a TOCTOU race — if
+	//      active_version_id changed between Distribute and TextHelper, the provider
+	//      payload would be rebuilt from a different snapshot than the channel was
+	//      selected for, breaking server-authoritative routing. Skip the reload.
+	if skillCtx, isSkill := skillrelay.Get(c); isSkill && skillCtx.SkillVersionID == "" {
+		rewritten, execErrCode := skillrelay.LoadAndApply(skillCtx, request)
+		if execErrCode != "" {
+			return types.NewErrorWithStatusCode(
+				fmt.Errorf("%s", execErrCode),
+				skillRelayErrType(execErrCode),
+				errcodes.HTTPStatusFor(execErrCode),
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
+		request = rewritten
+		// Explicit re-store: LoadAndApply mutated skillCtx.SkillVersionID through the
+		// pointer. Re-calling Set makes the update safe against any future refactor of
+		// skillrelay.Get that returns a copy instead of the stored pointer.
+		skillrelay.Set(c, skillCtx)
 	}
 
 	err = helper.ModelMappedHelper(c, info, request)
@@ -194,41 +247,45 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 
 		if info.ChannelSetting.SystemPrompt != "" {
-			// Inject channel-level system prompt if configured.
-			request, ok := convertedRequest.(*dto.GeneralOpenAIRequest)
-			if ok {
-				containSystemPrompt := false
-				for _, message := range request.Messages {
-					if message.Role == request.GetSystemRoleName() {
-						containSystemPrompt = true
-						break
-					}
-				}
-				if !containSystemPrompt {
-					// No system message yet: prepend one.
-					systemMessage := dto.Message{
-						Role:    request.GetSystemRoleName(),
-						Content: info.ChannelSetting.SystemPrompt,
-					}
-					request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
-				} else if info.ChannelSetting.SystemPromptOverride {
-					common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
-					// System prompt override enabled: prepend channel prompt ahead of the existing one.
-					for i, message := range request.Messages {
+			// Skill relay: instruction_template from the SkillVersion snapshot is the
+			// authoritative system message (DR-68); channel-level SystemPrompt must not
+			// prepend or override it. For non-skill relay requests, inject as usual.
+			if _, isSkillRelay := skillrelay.Get(c); !isSkillRelay {
+				request, ok := convertedRequest.(*dto.GeneralOpenAIRequest)
+				if ok {
+					containSystemPrompt := false
+					for _, message := range request.Messages {
 						if message.Role == request.GetSystemRoleName() {
-							if message.IsStringContent() {
-								request.Messages[i].SetStringContent(info.ChannelSetting.SystemPrompt + "\n" + message.StringContent())
-							} else {
-								contents := message.ParseContent()
-								contents = append([]dto.MediaContent{
-									{
-										Type: dto.ContentTypeText,
-										Text: info.ChannelSetting.SystemPrompt,
-									},
-								}, contents...)
-								request.Messages[i].Content = contents
-							}
+							containSystemPrompt = true
 							break
+						}
+					}
+					if !containSystemPrompt {
+						// No system message yet: prepend one.
+						systemMessage := dto.Message{
+							Role:    request.GetSystemRoleName(),
+							Content: info.ChannelSetting.SystemPrompt,
+						}
+						request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
+					} else if info.ChannelSetting.SystemPromptOverride {
+						common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
+						// System prompt override enabled: prepend channel prompt ahead of the existing one.
+						for i, message := range request.Messages {
+							if message.Role == request.GetSystemRoleName() {
+								if message.IsStringContent() {
+									request.Messages[i].SetStringContent(info.ChannelSetting.SystemPrompt + "\n" + message.StringContent())
+								} else {
+									contents := message.ParseContent()
+									contents = append([]dto.MediaContent{
+										{
+											Type: dto.ContentTypeText,
+											Text: info.ChannelSetting.SystemPrompt,
+										},
+									}, contents...)
+									request.Messages[i].Content = contents
+								}
+								break
+							}
 						}
 					}
 				}

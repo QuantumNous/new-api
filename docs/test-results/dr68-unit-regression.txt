@@ -1,0 +1,362 @@
+# DR-68 Unit + Regression Test Results
+# Generated: 2026-06-21 (fourth-pass deep review — Rule8/TOCTOU/StreamOptions/MaxTokens fixes)
+# Branch: feat/dr-68-routing-model-selection
+# Packages: ./internal/skill/relay/ ./middleware/ ./relay/
+# Command:  go test -count=1 -p 1 -v
+# Result: 154 PASS / 0 FAIL
+#
+# Coverage (per-function, key DR-68 files):
+#   internal/skill/relay/executor.go  loadAndApply:           100.0%
+#   internal/skill/relay/executor.go  loadSnapshot:            88.9%
+#   internal/skill/relay/executor.go  parseModelWhitelist:    100.0%
+#   internal/skill/relay/executor.go  selectModel:            100.0%
+#   internal/skill/relay/executor.go  rewriteForSingleTurn:   100.0%
+#   internal/skill/relay/resolver.go  Resolve:                100.0%
+#   internal/skill/relay/resolver.go  resolve:                 85.2%
+#   internal/skill/relay/context.go   Set/Get:                100.0%
+#   middleware/skill_distributor.go   prepareSkillRelay…:      89.5%
+#   middleware/skill_distributor.go   replaceReusableBody:     76.5%
+#   relay/compatible_handler.go       skillRelayErrType:      100.0%
+#   relay/compatible_handler.go       TextHelper:              32.9% (skill paths fully covered)
+#   internal/skill/relay/ overall:    93.1%
+#
+=== RUN   TestLoadSnapshot_HappyPath
+--- PASS: TestLoadSnapshot_HappyPath (0.01s)
+=== RUN   TestLoadSnapshot_NilSkill_ReturnsInternalError
+--- PASS: TestLoadSnapshot_NilSkill_ReturnsInternalError (0.00s)
+=== RUN   TestLoadSnapshot_NilActiveVersionID_ReturnsInternalError
+--- PASS: TestLoadSnapshot_NilActiveVersionID_ReturnsInternalError (0.00s)
+=== RUN   TestLoadSnapshot_VersionNotFound_ReturnsInternalError
+--- PASS: TestLoadSnapshot_VersionNotFound_ReturnsInternalError (0.00s)
+=== RUN   TestSelectModel_ReturnsFirstNonEmpty
+--- PASS: TestSelectModel_ReturnsFirstNonEmpty (0.00s)
+=== RUN   TestSelectModel_EmptyWhitelist_ReturnsInternalError
+--- PASS: TestSelectModel_EmptyWhitelist_ReturnsInternalError (0.00s)
+=== RUN   TestSelectModel_NilWhitelist_ReturnsInternalError
+--- PASS: TestSelectModel_NilWhitelist_ReturnsInternalError (0.00s)
+=== RUN   TestSelectModel_SkipsEmptyStrings
+--- PASS: TestSelectModel_SkipsEmptyStrings (0.00s)
+=== RUN   TestRewriteForSingleTurn_InjectsTemplateAndModel
+--- PASS: TestRewriteForSingleTurn_InjectsTemplateAndModel (0.00s)
+=== RUN   TestRewriteForSingleTurn_StripsHistory_KeepsLastUserMessage
+--- PASS: TestRewriteForSingleTurn_StripsHistory_KeepsLastUserMessage (0.00s)
+=== RUN   TestRewriteForSingleTurn_NoUserMessage_ReturnsInvalidRequest
+--- PASS: TestRewriteForSingleTurn_NoUserMessage_ReturnsInvalidRequest (0.00s)
+=== RUN   TestRewriteForSingleTurn_EmptyMessages_ReturnsInvalidRequest
+--- PASS: TestRewriteForSingleTurn_EmptyMessages_ReturnsInvalidRequest (0.00s)
+=== RUN   TestRewriteForSingleTurn_DoesNotMutateOriginalRequest
+--- PASS: TestRewriteForSingleTurn_DoesNotMutateOriginalRequest (0.00s)
+=== RUN   TestRewriteForSingleTurn_StripsClientControlledProviderFields
+--- PASS: TestRewriteForSingleTurn_StripsClientControlledProviderFields (0.00s)
+=== RUN   TestLoadAndApply_HappyPath
+--- PASS: TestLoadAndApply_HappyPath (0.00s)
+=== RUN   TestLoadAndApply_NilDB_ReturnsInternalError
+--- PASS: TestLoadAndApply_NilDB_ReturnsInternalError (0.00s)
+=== RUN   TestLoadAndApply_EmptyWhitelist_ReturnsInternalError
+--- PASS: TestLoadAndApply_EmptyWhitelist_ReturnsInternalError (0.00s)
+=== RUN   TestLoadAndApply_NoUserMessage_ReturnsInvalidRequest
+--- PASS: TestLoadAndApply_NoUserMessage_ReturnsInvalidRequest (0.00s)
+=== RUN   TestLoadAndApply_VersionNotInDB_ReturnsInternalError
+--- PASS: TestLoadAndApply_VersionNotInDB_ReturnsInternalError (0.00s)
+=== RUN   TestParseModelWhitelist_ValidArray
+--- PASS: TestParseModelWhitelist_ValidArray (0.00s)
+=== RUN   TestParseModelWhitelist_EmptyArray
+--- PASS: TestParseModelWhitelist_EmptyArray (0.00s)
+=== RUN   TestParseModelWhitelist_MalformedJSON_ReturnsError
+--- PASS: TestParseModelWhitelist_MalformedJSON_ReturnsError (0.00s)
+=== RUN   TestParseModelWhitelist_ZeroLength_ReturnsNil
+--- PASS: TestParseModelWhitelist_ZeroLength_ReturnsNil (0.00s)
+=== RUN   TestRewriteForSingleTurn_EmptyTemplate_IsAllowed
+--- PASS: TestRewriteForSingleTurn_EmptyTemplate_IsAllowed (0.00s)
+=== RUN   TestRewriteForSingleTurn_AssistantOnlyMessages_ReturnsInvalidRequest
+--- PASS: TestRewriteForSingleTurn_AssistantOnlyMessages_ReturnsInvalidRequest (0.00s)
+=== RUN   TestRewriteForSingleTurn_ContentPartTextExtracted
+--- PASS: TestRewriteForSingleTurn_ContentPartTextExtracted (0.00s)
+=== RUN   TestRewriteForSingleTurn_ContentPartOnlyImage_ReturnsInvalidRequest
+--- PASS: TestRewriteForSingleTurn_ContentPartOnlyImage_ReturnsInvalidRequest (0.00s)
+=== RUN   TestLoadSnapshot_MalformedWhitelist_ReturnsInternalError
+--- PASS: TestLoadSnapshot_MalformedWhitelist_ReturnsInternalError (0.00s)
+=== RUN   TestGroupToPlan_Pro
+--- PASS: TestGroupToPlan_Pro (0.00s)
+=== RUN   TestGroupToPlan_Enterprise
+--- PASS: TestGroupToPlan_Enterprise (0.00s)
+=== RUN   TestGroupToPlan_Default
+--- PASS: TestGroupToPlan_Default (0.00s)
+=== RUN   TestGroupToPlan_Empty
+--- PASS: TestGroupToPlan_Empty (0.00s)
+=== RUN   TestGroupToPlan_Unknown
+--- PASS: TestGroupToPlan_Unknown (0.00s)
+=== RUN   TestSetGet_RoundTrip
+--- PASS: TestSetGet_RoundTrip (0.00s)
+=== RUN   TestGet_Missing
+--- PASS: TestGet_Missing (0.00s)
+=== RUN   TestResolve_AnonymousUser_ReturnsAuthRequired
+--- PASS: TestResolve_AnonymousUser_ReturnsAuthRequired (0.00s)
+=== RUN   TestResolve_DBNilWithNoContextUser_ReturnsInternalError
+--- PASS: TestResolve_DBNilWithNoContextUser_ReturnsInternalError (0.00s)
+=== RUN   TestResolve_DisabledUser_ReturnsAuthRequired
+--- PASS: TestResolve_DisabledUser_ReturnsAuthRequired (0.00s)
+=== RUN   TestResolve_SkillNotFound_ReturnsNotFound
+--- PASS: TestResolve_SkillNotFound_ReturnsNotFound (0.00s)
+=== RUN   TestResolve_DBNilAfterUserResolved_ReturnsInternalError
+--- PASS: TestResolve_DBNilAfterUserResolved_ReturnsInternalError (0.00s)
+=== RUN   TestResolve_DraftSkill_ReturnsNotPublished
+--- PASS: TestResolve_DraftSkill_ReturnsNotPublished (0.00s)
+=== RUN   TestResolve_ArchivedSkill_ReturnsNotPublished
+--- PASS: TestResolve_ArchivedSkill_ReturnsNotPublished (0.00s)
+=== RUN   TestResolve_DeprecatedSkill_ReturnsNotPublished
+--- PASS: TestResolve_DeprecatedSkill_ReturnsNotPublished (0.00s)
+=== RUN   TestResolve_NilActiveVersionID_ReturnsNotPublished
+--- PASS: TestResolve_NilActiveVersionID_ReturnsNotPublished (0.00s)
+=== RUN   TestResolve_Success_FreePlan
+--- PASS: TestResolve_Success_FreePlan (0.00s)
+=== RUN   TestResolve_FreePlan_UserNotSkill
+--- PASS: TestResolve_FreePlan_UserNotSkill (0.00s)
+=== RUN   TestResolve_Success_ProPlan
+--- PASS: TestResolve_Success_ProPlan (0.00s)
+=== RUN   TestResolve_Success_EnterprisePlan
+--- PASS: TestResolve_Success_EnterprisePlan (0.00s)
+=== RUN   TestResolve_KidsSession_Propagated
+--- PASS: TestResolve_KidsSession_Propagated (0.00s)
+=== RUN   TestResolve_NonKidsSession_Propagated
+--- PASS: TestResolve_NonKidsSession_Propagated (0.00s)
+=== RUN   TestResolve_SubActiveAlwaysTrue
+--- PASS: TestResolve_SubActiveAlwaysTrue (0.00s)
+=== RUN   TestResolve_RequestIDNotEmpty
+--- PASS: TestResolve_RequestIDNotEmpty (0.00s)
+=== RUN   TestResolve_TwoRequestsGetDistinctRequestIDs
+--- PASS: TestResolve_TwoRequestsGetDistinctRequestIDs (0.00s)
+=== RUN   TestResolve_ContextFieldsPopulated
+--- PASS: TestResolve_ContextFieldsPopulated (0.00s)
+=== RUN   TestResolve_UserFromDB
+--- PASS: TestResolve_UserFromDB (0.00s)
+=== RUN   TestResolve_T21_UserIDFromContextOnly
+--- PASS: TestResolve_T21_UserIDFromContextOnly (0.00s)
+=== RUN   TestResolve_ExportedWrapper_NilPackageDB
+--- PASS: TestResolve_ExportedWrapper_NilPackageDB (0.00s)
+=== RUN   TestResolveReturnInvariant
+=== RUN   TestResolveReturnInvariant/anonymous_user
+=== RUN   TestResolveReturnInvariant/nil_db,_no_context_user
+=== RUN   TestResolveReturnInvariant/disabled_user
+=== RUN   TestResolveReturnInvariant/skill_not_found
+=== RUN   TestResolveReturnInvariant/nil_db_after_user_resolved
+=== RUN   TestResolveReturnInvariant/success_path
+--- PASS: TestResolveReturnInvariant (0.00s)
+    --- PASS: TestResolveReturnInvariant/anonymous_user (0.00s)
+    --- PASS: TestResolveReturnInvariant/nil_db,_no_context_user (0.00s)
+    --- PASS: TestResolveReturnInvariant/disabled_user (0.00s)
+    --- PASS: TestResolveReturnInvariant/skill_not_found (0.00s)
+    --- PASS: TestResolveReturnInvariant/nil_db_after_user_resolved (0.00s)
+    --- PASS: TestResolveReturnInvariant/success_path (0.00s)
+=== RUN   TestSetDB_Wiring
+--- PASS: TestSetDB_Wiring (0.00s)
+PASS
+ok  	github.com/QuantumNous/new-api/internal/skill/relay	0.179s
+=== RUN   TestResolveAutoModel_SkillRelayUsesServerSnapshotBeforeSmartRouter
+--- PASS: TestResolveAutoModel_SkillRelayUsesServerSnapshotBeforeSmartRouter (0.01s)
+=== RUN   TestPrepareSkillRelay_NilModelRequest_ReturnsEmpty
+--- PASS: TestPrepareSkillRelay_NilModelRequest_ReturnsEmpty (0.00s)
+=== RUN   TestPrepareSkillRelay_NonChatPath_ReturnsEmpty
+--- PASS: TestPrepareSkillRelay_NonChatPath_ReturnsEmpty (0.00s)
+=== RUN   TestPrepareSkillRelay_NoSkillID_ReturnsEmpty
+--- PASS: TestPrepareSkillRelay_NoSkillID_ReturnsEmpty (0.00s)
+=== RUN   TestPrepareSkillRelay_UnknownSkillID_ReturnsError
+--- PASS: TestPrepareSkillRelay_UnknownSkillID_ReturnsError (0.00s)
+=== RUN   TestPrepareSkillRelay_EmptyWhitelist_ReturnsInternalError
+--- PASS: TestPrepareSkillRelay_EmptyWhitelist_ReturnsInternalError (0.00s)
+=== RUN   TestPrepareSkillRelay_NoUserMessage_ReturnsInvalidRequest
+--- PASS: TestPrepareSkillRelay_NoUserMessage_ReturnsInvalidRequest (0.00s)
+=== RUN   TestPrepareSkillRelay_SetsSkillVersionID
+--- PASS: TestPrepareSkillRelay_SetsSkillVersionID (0.00s)
+=== RUN   TestInternalToken_MissingEnv
+--- PASS: TestInternalToken_MissingEnv (0.00s)
+=== RUN   TestInternalToken_MissingHeader
+--- PASS: TestInternalToken_MissingHeader (0.00s)
+=== RUN   TestInternalToken_WrongToken
+--- PASS: TestInternalToken_WrongToken (0.00s)
+=== RUN   TestInternalToken_Pass
+--- PASS: TestInternalToken_Pass (0.00s)
+=== RUN   TestInternalToken_NonBearer
+--- PASS: TestInternalToken_NonBearer (0.00s)
+=== RUN   TestInternalToken_EnvHotChange
+--- PASS: TestInternalToken_EnvHotChange (0.00s)
+=== RUN   TestAirbotixPolicy_DBErrorFallsThrough
+[WARN] 2026/06/21 - 22:13:35 | SYSTEM | airbotix policy: GetUserById failed: simulated DB error 
+--- PASS: TestAirbotixPolicy_DBErrorFallsThrough (0.00s)
+=== RUN   TestAirbotixPolicy_ZeroUserIdPassesThrough
+--- PASS: TestAirbotixPolicy_ZeroUserIdPassesThrough (0.00s)
+=== RUN   TestSkillRootAuth_NoAuth_Returns401
+--- PASS: TestSkillRootAuth_NoAuth_Returns401 (0.00s)
+=== RUN   TestSkillAdminAuth_NoAuth_Returns401
+--- PASS: TestSkillAdminAuth_NoAuth_Returns401 (0.00s)
+=== RUN   TestSkillRootAuth_AdminRole_Returns403
+--- PASS: TestSkillRootAuth_AdminRole_Returns403 (0.00s)
+=== RUN   TestSkillAdminAuth_CommonRole_Returns403
+--- PASS: TestSkillAdminAuth_CommonRole_Returns403 (0.00s)
+=== RUN   TestSkillRootAuth_RootRole_Passes
+--- PASS: TestSkillRootAuth_RootRole_Passes (0.00s)
+=== RUN   TestSkillAdminAuth_AdminRole_Passes
+--- PASS: TestSkillAdminAuth_AdminRole_Passes (0.00s)
+=== RUN   TestSkillRootAuth_InvalidToken_Returns401
+
+2026/06/21 22:13:35 [31;1mC:/Users/USER/vs_project/light_man_DR/deeprouter-dr68/model/user.go:847 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `users` WHERE access_token = "invalid-test-token-xyz" AND `users`.`deleted_at` IS NULL ORDER BY `users`.`id` LIMIT 1
+--- PASS: TestSkillRootAuth_InvalidToken_Returns401 (0.00s)
+=== RUN   TestResolveAutoModel_NotAutoModel
+--- PASS: TestResolveAutoModel_NotAutoModel (0.00s)
+=== RUN   TestResolveAutoModel_DisabledClient
+--- PASS: TestResolveAutoModel_DisabledClient (0.00s)
+=== RUN   TestResolveAutoModel_NoMessages
+--- PASS: TestResolveAutoModel_NoMessages (0.00s)
+=== RUN   TestResolveAutoModel_Success
+--- PASS: TestResolveAutoModel_Success (0.00s)
+=== RUN   TestResolveAutoModel_SmartRouterError
+[SYS] 2026/06/21 - 22:13:35 | smart-router call failed: smart-router status=500 
+--- PASS: TestResolveAutoModel_SmartRouterError (0.00s)
+=== RUN   TestResolveAutoModel_NoDecision
+--- PASS: TestResolveAutoModel_NoDecision (0.00s)
+=== RUN   TestResolveAutoModel_HeadersAlwaysSet
+=== RUN   TestResolveAutoModel_HeadersAlwaysSet/disabled
+=== RUN   TestResolveAutoModel_HeadersAlwaysSet/no_messages
+--- PASS: TestResolveAutoModel_HeadersAlwaysSet (0.00s)
+    --- PASS: TestResolveAutoModel_HeadersAlwaysSet/disabled (0.00s)
+    --- PASS: TestResolveAutoModel_HeadersAlwaysSet/no_messages (0.00s)
+PASS
+ok  	github.com/QuantumNous/new-api/middleware	0.119s
+=== RUN   TestIntegration_OpenAIStream_WebhookFired
+[INFO] 2026/06/21 - 22:13:37 | SYSTEM | stream ended: reason=done 
+--- PASS: TestIntegration_OpenAIStream_WebhookFired (0.01s)
+=== RUN   TestIntegration_OpenAINonStream_WebhookFired
+--- PASS: TestIntegration_OpenAINonStream_WebhookFired (0.01s)
+=== RUN   TestIntegration_AnthropicStream_WebhookFired
+[INFO] 2026/06/21 - 22:13:37 | SYSTEM | stream ended: reason=done 
+--- PASS: TestIntegration_AnthropicStream_WebhookFired (0.01s)
+=== RUN   TestIntegration_AnthropicNonStream_WebhookFired
+--- PASS: TestIntegration_AnthropicNonStream_WebhookFired (0.01s)
+=== RUN   TestIntegration_DeepRouterAuto_RoutedFromFilled
+[INFO] 2026/06/21 - 22:13:37 | SYSTEM | stream ended: reason=done 
+--- PASS: TestIntegration_DeepRouterAuto_RoutedFromFilled (0.01s)
+=== RUN   TestIntegration_NilUsage_WebhookNotFired
+[ERR] 2026/06/21 - 22:13:37 | SYSTEM | total tokens is 0, cannot consume quota, userId 0, channelId 0, tokenId 0, model gpt-4o-mini， pre-consumed quota 0 
+--- PASS: TestIntegration_NilUsage_WebhookNotFired (0.15s)
+=== RUN   TestIntegration_ZeroTokenUsage_WebhookNotFired
+[ERR] 2026/06/21 - 22:13:37 | SYSTEM | total tokens is 0, cannot consume quota, userId 0, channelId 0, tokenId 0, model gpt-4o-mini， pre-consumed quota 0 
+--- PASS: TestIntegration_ZeroTokenUsage_WebhookNotFired (0.15s)
+=== RUN   TestIntegration_FailedRelay_NoWebhook
+--- PASS: TestIntegration_FailedRelay_NoWebhook (0.15s)
+=== RUN   TestCollectAnyText_NestedStringsAndContentMaps
+--- PASS: TestCollectAnyText_NestedStringsAndContentMaps (0.00s)
+=== RUN   TestCollectGeneralOpenAIInputTexts_UserMessagesPromptInputInstruction
+--- PASS: TestCollectGeneralOpenAIInputTexts_UserMessagesPromptInputInstruction (0.00s)
+=== RUN   TestCollectClaudeInputTexts_PromptAndUserMessages
+--- PASS: TestCollectClaudeInputTexts_PromptAndUserMessages (0.00s)
+=== RUN   TestCollectResponsesInputTexts_StringAndStructuredInputs
+--- PASS: TestCollectResponsesInputTexts_StringAndStructuredInputs (0.00s)
+=== RUN   TestCollectGeminiInputTexts_UserPartsOnly
+--- PASS: TestCollectGeminiInputTexts_UserPartsOnly (0.00s)
+=== RUN   TestApplyAirbotixPolicy_Passthrough
+--- PASS: TestApplyAirbotixPolicy_Passthrough (0.00s)
+=== RUN   TestApplyAirbotixPolicy_KidsModeBlocksDisallowedModel
+--- PASS: TestApplyAirbotixPolicy_KidsModeBlocksDisallowedModel (0.00s)
+=== RUN   TestApplyAirbotixPolicy_KidsModeAllowedModelMutates
+--- PASS: TestApplyAirbotixPolicy_KidsModeAllowedModelMutates (0.00s)
+=== RUN   TestApplyAirbotixPolicy_KidsModeReplacesExistingSystemPrompt
+--- PASS: TestApplyAirbotixPolicy_KidsModeReplacesExistingSystemPrompt (0.00s)
+=== RUN   TestApplyAirbotixPolicy_KidsModeNonOpenAIChannelSkipsZDR
+--- PASS: TestApplyAirbotixPolicy_KidsModeNonOpenAIChannelSkipsZDR (0.00s)
+=== RUN   TestApplyAirbotixPolicy_KidSafeProfileSoftPrepend
+--- PASS: TestApplyAirbotixPolicy_KidSafeProfileSoftPrepend (0.00s)
+=== RUN   TestApplyAirbotixPolicy_AdultProfilePromptAndFilter
+--- PASS: TestApplyAirbotixPolicy_AdultProfilePromptAndFilter (0.00s)
+=== RUN   TestApplyAirbotixPolicy_SystemPromptGateUsesDecisionFlag
+--- PASS: TestApplyAirbotixPolicy_SystemPromptGateUsesDecisionFlag (0.00s)
+=== RUN   TestApplyAirbotixPolicy_KidsModeOverrideUsesKidSafeFilter
+--- PASS: TestApplyAirbotixPolicy_KidsModeOverrideUsesKidSafeFilter (0.00s)
+=== RUN   TestCheckAirbotixModelWhitelist_NoDecisionAllows
+--- PASS: TestCheckAirbotixModelWhitelist_NoDecisionAllows (0.00s)
+=== RUN   TestCheckAirbotixModelWhitelist_PassthroughAllows
+--- PASS: TestCheckAirbotixModelWhitelist_PassthroughAllows (0.00s)
+=== RUN   TestCheckAirbotixModelWhitelist_KidsModeAllowsListed
+--- PASS: TestCheckAirbotixModelWhitelist_KidsModeAllowsListed (0.00s)
+=== RUN   TestCheckAirbotixModelWhitelist_KidsModeRejectsUnlisted
+--- PASS: TestCheckAirbotixModelWhitelist_KidsModeRejectsUnlisted (0.00s)
+=== RUN   TestApplyAirbotixPolicyToClaude_Passthrough
+--- PASS: TestApplyAirbotixPolicyToClaude_Passthrough (0.00s)
+=== RUN   TestApplyAirbotixPolicyToClaude_KidsModeRejectsDisallowed
+--- PASS: TestApplyAirbotixPolicyToClaude_KidsModeRejectsDisallowed (0.00s)
+=== RUN   TestApplyAirbotixPolicyToClaude_KidsModeReplacesSystemAndClearsMetadata
+--- PASS: TestApplyAirbotixPolicyToClaude_KidsModeReplacesSystemAndClearsMetadata (0.00s)
+=== RUN   TestApplyAirbotixPolicyToClaude_KidSafeSoftFillEmpty
+--- PASS: TestApplyAirbotixPolicyToClaude_KidSafeSoftFillEmpty (0.00s)
+=== RUN   TestApplyAirbotixPolicyToClaude_NoDecisionIsNoOp
+--- PASS: TestApplyAirbotixPolicyToClaude_NoDecisionIsNoOp (0.00s)
+=== RUN   TestApplyAirbotixPolicyToResponses_KidsModeMutates
+--- PASS: TestApplyAirbotixPolicyToResponses_KidsModeMutates (0.00s)
+=== RUN   TestApplyAirbotixPolicyToResponses_KidsModeRejectsDisallowed
+--- PASS: TestApplyAirbotixPolicyToResponses_KidsModeRejectsDisallowed (0.00s)
+=== RUN   TestApplyAirbotixPolicyToResponses_NonOpenAISkipsZDR
+--- PASS: TestApplyAirbotixPolicyToResponses_NonOpenAISkipsZDR (0.00s)
+=== RUN   TestApplyAirbotixPolicyToGemini_KidsModeReplacesSystemInstructions
+--- PASS: TestApplyAirbotixPolicyToGemini_KidsModeReplacesSystemInstructions (0.00s)
+=== RUN   TestApplyAirbotixPolicyToGemini_KidsModeRejectsDisallowedModel
+--- PASS: TestApplyAirbotixPolicyToGemini_KidsModeRejectsDisallowedModel (0.00s)
+=== RUN   TestApplyAirbotixPolicyToGemini_KidSafeFillsWhenNil
+--- PASS: TestApplyAirbotixPolicyToGemini_KidSafeFillsWhenNil (0.00s)
+=== RUN   TestClampUint_Nil
+--- PASS: TestClampUint_Nil (0.00s)
+=== RUN   TestClampUint_BelowCeiling
+--- PASS: TestClampUint_BelowCeiling (0.00s)
+=== RUN   TestClampUint_AtCeiling
+--- PASS: TestClampUint_AtCeiling (0.00s)
+=== RUN   TestClampUint_AboveCeiling
+--- PASS: TestClampUint_AboveCeiling (0.00s)
+=== RUN   TestApplyAirbotixPolicy_ClampsMaxTokens
+--- PASS: TestApplyAirbotixPolicy_ClampsMaxTokens (0.00s)
+=== RUN   TestApplyAirbotixPolicyToClaude_ClampsMaxTokens
+--- PASS: TestApplyAirbotixPolicyToClaude_ClampsMaxTokens (0.00s)
+=== RUN   TestApplyAirbotixPolicyToResponses_ClampsMaxOutputTokens
+--- PASS: TestApplyAirbotixPolicyToResponses_ClampsMaxOutputTokens (0.00s)
+=== RUN   TestApplyAirbotixPolicyToGemini_ClampsMaxOutputTokens
+--- PASS: TestApplyAirbotixPolicyToGemini_ClampsMaxOutputTokens (0.00s)
+=== RUN   TestTextHelper_SkillRelay_Anonymous_Returns401
+--- PASS: TestTextHelper_SkillRelay_Anonymous_Returns401 (0.00s)
+=== RUN   TestTextHelper_SkillRelay_SkillNotFound_Returns404
+--- PASS: TestTextHelper_SkillRelay_SkillNotFound_Returns404 (0.00s)
+=== RUN   TestTextHelper_SkillRelay_SkillFound_ContextSet
+--- PASS: TestTextHelper_SkillRelay_SkillFound_ContextSet (0.00s)
+=== RUN   TestTextHelper_SkillRelay_NilDeepRouter_NotAffected
+--- PASS: TestTextHelper_SkillRelay_NilDeepRouter_NotAffected (0.00s)
+=== RUN   TestTextHelper_SkillRelay_EmptySkillID_NotAffected
+--- PASS: TestTextHelper_SkillRelay_EmptySkillID_NotAffected (0.00s)
+=== RUN   TestTextHelper_SkillRelay_EntryPoint_DefaultIsPlaygroundPicker
+--- PASS: TestTextHelper_SkillRelay_EntryPoint_DefaultIsPlaygroundPicker (0.00s)
+=== RUN   TestTextHelper_SkillRelay_InvalidEntryPoint_Returns400
+--- PASS: TestTextHelper_SkillRelay_InvalidEntryPoint_Returns400 (0.00s)
+=== RUN   TestTextHelper_SkillRelay_PartialExtension_NoSkillIDStripped
+--- PASS: TestTextHelper_SkillRelay_PartialExtension_NoSkillIDStripped (0.00s)
+=== RUN   TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField
+--- PASS: TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField (0.00s)
+=== RUN   TestTextHelper_SkillRelay_PartialExtension_PassThrough_Rejected
+--- PASS: TestTextHelper_SkillRelay_PartialExtension_PassThrough_Rejected (0.00s)
+=== RUN   TestTextHelper_SkillRelay_PublicRoutingAPI_RequiresSkillID
+--- PASS: TestTextHelper_SkillRelay_PublicRoutingAPI_RequiresSkillID (0.00s)
+=== RUN   TestTextHelper_SkillRelay_PublicRoutingAPI_ForcePackageEntryAndCredentialIdentity
+--- PASS: TestTextHelper_SkillRelay_PublicRoutingAPI_ForcePackageEntryAndCredentialIdentity (0.00s)
+=== RUN   TestTextHelper_SkillRelay_DR68_EmptyWhitelist_Returns500
+--- PASS: TestTextHelper_SkillRelay_DR68_EmptyWhitelist_Returns500 (0.00s)
+=== RUN   TestTextHelper_SkillRelay_DR68_NoUserMessage_Returns400
+--- PASS: TestTextHelper_SkillRelay_DR68_NoUserMessage_Returns400 (0.00s)
+=== RUN   TestApplySystemPromptIfNeeded_SkippedForSkillRelay
+--- PASS: TestApplySystemPromptIfNeeded_SkippedForSkillRelay (0.00s)
+=== RUN   TestApplySystemPromptIfNeeded_InjectsForNonSkillRelay
+--- PASS: TestApplySystemPromptIfNeeded_InjectsForNonSkillRelay (0.00s)
+=== RUN   TestTextHelper_SkillRelay_DR68_LoadAndApply_Executed
+--- PASS: TestTextHelper_SkillRelay_DR68_LoadAndApply_Executed (0.00s)
+=== RUN   TestTextHelper_SkillRelay_TOCTOU_PinnedVersionIDPreserved
+--- PASS: TestTextHelper_SkillRelay_TOCTOU_PinnedVersionIDPreserved (0.00s)
+=== RUN   TestKidsModeCoverageMatrix
+--- PASS: TestKidsModeCoverageMatrix (0.04s)
+=== RUN   TestKidsModeCoverageMatrixRequiredScope
+--- PASS: TestKidsModeCoverageMatrixRequiredScope (0.00s)
+PASS
+ok  	github.com/QuantumNous/new-api/relay	0.697s
