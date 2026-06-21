@@ -287,6 +287,7 @@ func TestPrepareSkillRelay_SetsSkillVersionID(t *testing.T) {
 		t.Fatalf("SkillVersionID = %q, want %q", sCtx.SkillVersionID, version.ID)
 	}
 }
+
 // Note: the TOCTOU guard (preventing re-Resolve when SkillVersionID is already pinned)
 // lives in TextHelper's Resolve block (relay/compatible_handler.go:74).
 // It is tested by TestTextHelper_SkillRelay_TOCTOU_PinnedVersionIDPreserved
