@@ -28,9 +28,11 @@ export {
   StaticDataTable,
   type StaticDataTableColumn,
 } from './static/static-data-table'
+export { StaticRowActions } from './static/static-row-actions'
 export { staticDataTableClassNames } from './static/static-data-table-classnames'
 export {
   DataTableRow,
+  DataTableRowActionMenu,
   DataTableView,
   type DataTableColumnClassName,
   type DataTablePinnedColumn,

@@ -31,7 +31,7 @@
     ],
     "import/first": "warn",
     "import/newline-after-import": "warn",
-    "import/no-cycle": "warn",
+    "import/no-cycle": "error",
     "import/no-duplicates": [
       "error",
       {
