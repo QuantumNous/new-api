@@ -40,41 +40,11 @@ export default function SettingsSidebarModulesAdmin(props) {
   const [statusState, statusDispatch] = useContext(StatusContext);
 
   // 左侧边栏模块管理状态（管理员全局控制）
-  const [sidebarModulesAdmin, setSidebarModulesAdmin] = useState({
-    chat: {
-      enabled: true,
-      playground: true,
-      chat: true,
-    },
-    console: {
-      enabled: true,
-      detail: true,
-      token: true,
-      log: true,
-      midjourney: true,
-      task: true,
-    },
-    personal: {
-      enabled: true,
-      topup: true,
-      personal: true,
-      myfeedback: true,
-    },
-    admin: {
-      enabled: true,
-      channel: true,
-      models: true,
-      deployment: true,
-      redemption: true,
-      user: true,
-      feedback: true,
-      kyc: true,
-      enterprise: true,
-      subscription: true,
-      reconcile: true,
-      setting: true,
-    },
-  });
+  // 默认值统一来自 useSidebar 的 DEFAULT_ADMIN_CONFIG（mergeAdminConfig(null) 返回其深拷贝），
+  // 避免在本组件内重复维护默认配置导致新增模块时遗漏同步。
+  const [sidebarModulesAdmin, setSidebarModulesAdmin] = useState(() =>
+    mergeAdminConfig(null),
+  );
 
   // 处理区域级别开关变更
   function handleSectionChange(sectionKey) {
@@ -106,42 +76,7 @@ export default function SettingsSidebarModulesAdmin(props) {
 
   // 重置为默认配置
   function resetSidebarModules() {
-    const defaultModules = {
-      chat: {
-        enabled: true,
-        playground: true,
-        chat: true,
-      },
-      console: {
-        enabled: true,
-        detail: true,
-        token: true,
-        log: true,
-        midjourney: true,
-        task: true,
-      },
-      personal: {
-        enabled: true,
-        topup: true,
-        personal: true,
-        myfeedback: true,
-      },
-      admin: {
-        enabled: true,
-        channel: true,
-        models: true,
-        deployment: true,
-        redemption: true,
-        user: true,
-        feedback: true,
-        kyc: true,
-        enterprise: true,
-        subscription: true,
-        reconcile: true,
-        setting: true,
-      },
-    };
-    setSidebarModulesAdmin(defaultModules);
+    setSidebarModulesAdmin(mergeAdminConfig(null));
     showSuccess(t('已重置为默认配置'));
   }
 
@@ -192,38 +127,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         setSidebarModulesAdmin(modules);
       } catch (error) {
         // 使用默认配置
-        const defaultModules = {
-          chat: { enabled: true, playground: true, chat: true },
-          console: {
-            enabled: true,
-            detail: true,
-            token: true,
-            log: true,
-            midjourney: true,
-            task: true,
-          },
-          personal: {
-            enabled: true,
-            topup: true,
-            personal: true,
-            myfeedback: true,
-          },
-          admin: {
-            enabled: true,
-            channel: true,
-            models: true,
-            deployment: true,
-            redemption: true,
-            user: true,
-            feedback: true,
-            kyc: true,
-            enterprise: true,
-            subscription: true,
-            reconcile: true,
-            setting: true,
-          },
-        };
-        setSidebarModulesAdmin(defaultModules);
+        setSidebarModulesAdmin(mergeAdminConfig(null));
       }
     }
   }, [props.options]);
@@ -319,6 +223,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           key: 'enterprise',
           title: t('企业认证'),
           description: t('企业认证审核管理'),
+        },
+        {
+          key: 'bankTransfer',
+          title: t('对公转账'),
+          description: t('对公转账与发票审核管理'),
         },
         {
           key: 'setting',
