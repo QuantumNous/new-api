@@ -1,9 +1,9 @@
 package skillrelay
 
 import (
-	"encoding/json"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
@@ -31,7 +31,7 @@ func makeWhitelistJSON(models []string) skillmodel.SkillJSONB {
 	if len(models) == 0 {
 		return skillmodel.SkillJSONB("[]")
 	}
-	b, _ := json.Marshal(models)
+	b, _ := common.Marshal(models)
 	return skillmodel.SkillJSONB(b)
 }
 
@@ -228,8 +228,8 @@ func TestRewriteForSingleTurn_StripsClientControlledProviderFields(t *testing.T)
 	req.MaxTokens = &maxTokens
 	req.ToolChoice = "required"
 	req.ResponseFormat = &dto.ResponseFormat{Type: "json_object"}
-	req.User = json.RawMessage(`{"user_id":999,"tenant_id":"evil"}`)
-	req.Metadata = json.RawMessage(`{"route_hint":"expensive"}`)
+	req.User = []byte(`{"user_id":999,"tenant_id":"evil"}`)
+	req.Metadata = []byte(`{"route_hint":"expensive"}`)
 
 	got, errCode := rewriteForSingleTurn(req, "server template", "server-model")
 
@@ -416,7 +416,7 @@ func TestLoadSnapshot_MalformedWhitelist_ReturnsInternalError(t *testing.T) {
 		    (id, skill_id, version_number, status, instruction_template,
 		     instruction_template_sha256, model_whitelist_snapshot,
 		     required_plan_snapshot, monetization_snapshot, created_by, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
 		vID, skill.ID, 1, string(enums.SkillVersionStatusActive),
 		"template", "aabbccdd",
 		`not-valid-json`,

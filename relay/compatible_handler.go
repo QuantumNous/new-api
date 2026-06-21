@@ -63,14 +63,27 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	hadDeeprouterExtension := request.Deeprouter != nil
 	if hadDeeprouterExtension {
 		if request.Deeprouter.SkillID != "" {
-			skillCtx, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
-			if errCode != "" {
-				return types.NewErrorWithStatusCode(
-					fmt.Errorf("%s", errCode),
-					skillRelayErrType(errCode),
-					errcodes.HTTPStatusFor(errCode),
-					types.ErrOptionWithSkipRetry(),
-				)
+			// TOCTOU guard: if Distribute's prepareSkillRelayForDistribution already
+			// ran, SkillRelayContext has a pinned SkillVersionID. Re-calling Resolve
+			// would return a fresh zero-SkillVersionID context; skillrelay.Set below
+			// would overwrite the pin, causing the LoadAndApply block to re-load the
+			// snapshot — which may differ from the one used for channel selection if
+			// active_version_id changed between Distribute and TextHelper.
+			// Direct path (unit tests / non-Distribute callers): no context exists yet.
+			var skillCtx *skillrelay.SkillRelayContext
+			if existing, alreadyLoaded := skillrelay.Get(c); alreadyLoaded && existing.SkillVersionID != "" {
+				skillCtx = existing // Distribute path: reuse pinned context
+			} else {
+				resolved, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
+				if errCode != "" {
+					return types.NewErrorWithStatusCode(
+						fmt.Errorf("%s", errCode),
+						skillRelayErrType(errCode),
+						errcodes.HTTPStatusFor(errCode),
+						types.ErrOptionWithSkipRetry(),
+					)
+				}
+				skillCtx = resolved
 			}
 			// Carry entry_point into relay context for analytics (tasks/03 §9).
 			// Package routing API forces skill_package so package-provided values
@@ -91,9 +104,6 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 				skillCtx.EntryPoint = string(ep)
 			}
 			skillrelay.Set(c, skillCtx)
-			// DR-68 may already have prepared skill routing in Distribute so channel
-			// selection sees the server snapshot model. TextHelper still re-applies below
-			// as a defense-in-depth path and for direct unit tests.
 		}
 		request.Deeprouter = nil // always strip vendor extension before provider forwarding
 	}

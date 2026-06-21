@@ -252,14 +252,16 @@ func replaceReusableRequestBody(c *gin.Context, request *dto.GeneralOpenAIReques
 	if err != nil {
 		return errcodes.ErrSkillInternalError
 	}
+	// Seek before closing old storage: if Seek fails, old storage remains valid
+	// so any retry or panic-recovery path can still read from it.
+	if _, err := storage.Seek(0, io.SeekStart); err != nil {
+		_ = storage.Close()
+		return errcodes.ErrSkillInternalError
+	}
 	if old, exists := c.Get(common.KeyBodyStorage); exists {
 		if oldStorage, ok := old.(common.BodyStorage); ok && oldStorage != nil {
 			_ = oldStorage.Close()
 		}
-	}
-	if _, err := storage.Seek(0, io.SeekStart); err != nil {
-		_ = storage.Close()
-		return errcodes.ErrSkillInternalError
 	}
 	c.Set(common.KeyBodyStorage, storage)
 	c.Request.Body = io.NopCloser(storage)

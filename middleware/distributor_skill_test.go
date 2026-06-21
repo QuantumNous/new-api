@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -54,7 +53,7 @@ func insertDistributionSkill(t *testing.T, db *gorm.DB, template string, whiteli
 	if err := db.Create(skill).Error; err != nil {
 		t.Fatalf("create skill: %v", err)
 	}
-	wl, err := json.Marshal(whitelist)
+	wl, err := common.Marshal(whitelist)
 	if err != nil {
 		t.Fatalf("marshal whitelist: %v", err)
 	}
@@ -81,7 +80,7 @@ func insertDistributionSkill(t *testing.T, db *gorm.DB, template string, whiteli
 
 func newSkillDistributionCtx(t *testing.T, body any) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
-	buf, err := json.Marshal(body)
+	buf, err := common.Marshal(body)
 	if err != nil {
 		t.Fatalf("marshal body: %v", err)
 	}
@@ -159,11 +158,12 @@ func TestResolveAutoModel_SkillRelayUsesServerSnapshotBeforeSmartRouter(t *testi
 		if !strings.Contains(payload, "server snapshot template") || !strings.Contains(payload, "last user turn") {
 			t.Fatalf("smart-router did not receive server snapshot context: %s", payload)
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		data, _ := common.Marshal(map[string]any{
 			"primary":        "server-routed-model",
 			"fallback_chain": []string{"gpt-4o-mini"},
 			"reason":         "skill_snapshot_context",
 		})
+		_, _ = w.Write(data)
 	})
 	defer cleanup()
 
@@ -172,5 +172,119 @@ func TestResolveAutoModel_SkillRelayUsesServerSnapshotBeforeSmartRouter(t *testi
 	}
 	if modelRequest.Model != "server-routed-model" {
 		t.Fatalf("modelRequest.Model after smart-router = %q, want server-routed-model", modelRequest.Model)
+	}
+}
+
+// ── prepareSkillRelayForDistribution error-branch tests ──────────────────────
+
+func TestPrepareSkillRelay_NilModelRequest_ReturnsEmpty(t *testing.T) {
+	c, _ := newSkillDistributionCtx(t, map[string]any{"model": "gpt-4o", "messages": []map[string]string{{"role": "user", "content": "hi"}}})
+	if errCode := prepareSkillRelayForDistribution(c, nil); errCode != "" {
+		t.Fatalf("nil modelRequest must return empty, got %s", errCode)
+	}
+}
+
+func TestPrepareSkillRelay_NonChatPath_ReturnsEmpty(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	// /v1/completions is not RelayModeChatCompletions
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/completions", bytes.NewReader([]byte(`{"model":"gpt-4o"}`)))
+	c.Request.Header.Set("Content-Type", "application/json")
+	if errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"}); errCode != "" {
+		t.Fatalf("non-chat path must return empty, got %s", errCode)
+	}
+}
+
+func TestPrepareSkillRelay_NoSkillID_ReturnsEmpty(t *testing.T) {
+	c, _ := newSkillDistributionCtx(t, map[string]any{
+		"model":    "gpt-4o",
+		"messages": []map[string]string{{"role": "user", "content": "hi"}},
+	})
+	if errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"}); errCode != "" {
+		t.Fatalf("no skill_id must return empty, got %s", errCode)
+	}
+}
+
+func TestPrepareSkillRelay_UnknownSkillID_ReturnsError(t *testing.T) {
+	db := newSkillDistributionDB(t)
+	skillrelay.SetDB(db)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c, _ := newSkillDistributionCtx(t, map[string]any{
+		"model":      "gpt-4o",
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"deeprouter": map[string]any{"skill_id": "does-not-exist"},
+	})
+	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
+	if errCode == "" {
+		t.Fatal("unknown skill_id must return an error code")
+	}
+}
+
+func TestPrepareSkillRelay_EmptyWhitelist_ReturnsInternalError(t *testing.T) {
+	db := newSkillDistributionDB(t)
+	skill, _ := insertDistributionSkill(t, db, "tmpl", []string{}) // empty whitelist
+	skillrelay.SetDB(db)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c, _ := newSkillDistributionCtx(t, map[string]any{
+		"model":      "gpt-4o",
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"deeprouter": map[string]any{"skill_id": skill.ID},
+	})
+	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
+	if errCode == "" {
+		t.Fatal("empty whitelist must return an error code")
+	}
+}
+
+func TestPrepareSkillRelay_NoUserMessage_ReturnsInvalidRequest(t *testing.T) {
+	db := newSkillDistributionDB(t)
+	skill, _ := insertDistributionSkill(t, db, "tmpl", []string{"gpt-4o-mini"})
+	skillrelay.SetDB(db)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c, _ := newSkillDistributionCtx(t, map[string]any{
+		"model":      "gpt-4o",
+		"messages":   []map[string]string{{"role": "system", "content": "sys"}},
+		"deeprouter": map[string]any{"skill_id": skill.ID},
+	})
+	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
+	if errCode == "" {
+		t.Fatal("no user message must return an error code")
+	}
+}
+
+// TestPrepareSkillRelay_TOCTOU_SkillVersionIDPinned verifies that after
+// prepareSkillRelayForDistribution sets a pinned SkillVersionID on the context,
+// a second call to prepareSkillRelayForDistribution reuses (does not overwrite)
+// the existing context — matching the guard in TextHelper's Resolve block.
+func TestPrepareSkillRelay_TOCTOU_SkillVersionIDPinned(t *testing.T) {
+	db := newSkillDistributionDB(t)
+	skill, version := insertDistributionSkill(t, db, "tmpl", []string{"gpt-4o-mini"})
+	skillrelay.SetDB(db)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c, _ := newSkillDistributionCtx(t, map[string]any{
+		"model":      "gpt-4o",
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"deeprouter": map[string]any{"skill_id": skill.ID},
+	})
+	if errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"}); errCode != "" {
+		t.Fatalf("first call error: %s", errCode)
+	}
+	sCtx, ok := skillrelay.Get(c)
+	if !ok || sCtx.SkillVersionID != version.ID {
+		t.Fatalf("SkillVersionID after first call = %q, want %q", sCtx.SkillVersionID, version.ID)
+	}
+	pinnedID := sCtx.SkillVersionID
+
+	// Simulate a second call (TextHelper path) — SkillVersionID must remain pinned.
+	if errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"}); errCode != "" {
+		t.Fatalf("second call error: %s", errCode)
+	}
+	sCtx2, _ := skillrelay.Get(c)
+	if sCtx2.SkillVersionID != pinnedID {
+		t.Fatalf("SkillVersionID overwritten: got %q, want %q", sCtx2.SkillVersionID, pinnedID)
 	}
 }

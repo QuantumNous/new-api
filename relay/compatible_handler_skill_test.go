@@ -7,7 +7,6 @@ package relay
 // early-return behavior.
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -46,7 +45,7 @@ func newSkillTestDB(t *testing.T) *gorm.DB {
 // Returns the inserted version. Used by tests that reach LoadAndApply (DR-68).
 func insertVersionForSkill(t *testing.T, db *gorm.DB, skill *skillmodel.Skill, template string, whitelist []string) *skillmodel.SkillVersion {
 	t.Helper()
-	wl, err := json.Marshal(whitelist)
+	wl, err := common.Marshal(whitelist)
 	require.NoError(t, err)
 	version := &skillmodel.SkillVersion{
 		SkillID:                   skill.ID,
