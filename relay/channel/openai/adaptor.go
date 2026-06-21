@@ -170,10 +170,16 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		}
 		requestPath := info.RequestURLPath
 		if info.RelayMode == relayconstant.RelayModeImagesGenerations &&
-			common.UsesAsyncImageTaskUpstream(info.OriginModelName) &&
-			strings.HasSuffix(requestPath, "/images/generations") &&
-			!strings.HasSuffix(requestPath, "/images/generations/async") {
-			requestPath = requestPath + "/async"
+			common.UsesAsyncImageTaskUpstream(info.OriginModelName) {
+			if strings.HasSuffix(requestPath, "/images/generations/async") {
+				// APIMart (and similar OpenAI-compatible hubs) return task_id from the sync
+				// /v1/images/generations path; /async is not implemented (404).
+				if strings.Contains(strings.ToLower(info.ChannelBaseUrl), "apimart.ai") {
+					requestPath = strings.TrimSuffix(requestPath, "/async")
+				}
+			} else if strings.HasSuffix(requestPath, "/images/generations") {
+				requestPath = requestPath + "/async"
+			}
 		}
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, requestPath, info.ChannelType), nil
 	}
