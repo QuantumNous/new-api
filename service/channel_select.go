@@ -88,8 +88,8 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	pickFilter := ChannelPickFilter(param.Ctx, param.ModelName)
 
 	// Routing algorithm 0.1 (auto-cheapest / token group "default"):
-	//   retry 0–1: walk the price ladder upward from cheapest (see distributor + retry 1)
-	//   retry ≥ 2: pick the most expensive remaining channel (premium fallback)
+	//   retry 0: cheapest (distributor)
+	//   retry ≥ 1: most expensive remaining channel (premium fallback)
 	if param.TokenGroup == AutoCheapestGroup {
 		var (
 			ch       *model.Channel

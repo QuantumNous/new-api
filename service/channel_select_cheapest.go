@@ -13,13 +13,13 @@ import (
 
 // AutoCheapestGroup is the magic token group name that activates routing
 // algorithm 0.1:
-//   - attempt 0 + retry 1: cheapest enabled channel, then next cheapest
-//   - retry >= 2: most expensive among remaining (premium fallback)
+//   - retry 0: cheapest enabled channel (distributor + first attempt)
+//   - retry >= 1: most expensive among remaining (premium fallback)
 const AutoCheapestGroup = "default"
 
 // autoCheapestPremiumFallbackRetry is the relay retry index at which
 // auto-cheapest switches from price-ascending to price-descending selection.
-const autoCheapestPremiumFallbackRetry = 2
+const autoCheapestPremiumFallbackRetry = 1
 
 // SelectCheapestEnabledChannel returns the channel with the lowest user price
 // for modelName, using the exact same formula shown on the Model Data admin page:
