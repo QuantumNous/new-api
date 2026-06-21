@@ -11,6 +11,9 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/internal/policy"
+	"github.com/QuantumNous/new-api/internal/skill/enums"
+	"github.com/QuantumNous/new-api/internal/skill/errcodes"
+	skillrelay "github.com/QuantumNous/new-api/internal/skill/relay"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -39,6 +42,57 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	if request.WebSearchOptions != nil {
 		c.Set("chat_completion_web_search_context_size", request.WebSearchOptions.SearchContextSize)
+	}
+
+	// DR-64: skill relay entry point — resolve user identity and load the target Skill
+	// for requests that carry deeprouter.skill_id (tasks/05 §5.1 steps 1-6).
+	// Anonymous callers are rejected here with AUTH_REQUIRED before any prompt load.
+	publicRoutingAPI := common.GetContextKeyBool(c, constant.ContextKeySkillPublicRoutingAPI)
+	if publicRoutingAPI && (request.Deeprouter == nil || request.Deeprouter.SkillID == "") {
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("deeprouter.skill_id is required"),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
+	}
+
+	// Track whether the original request carried any deeprouter extension before stripping,
+	// so the pass-through guard below can block raw-body forwarding for partial extensions
+	// (e.g. {entry_point: "skill_package"} with no skill_id) just as it does for full ones.
+	hadDeeprouterExtension := request.Deeprouter != nil
+	if hadDeeprouterExtension {
+		if request.Deeprouter.SkillID != "" {
+			skillCtx, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
+			if errCode != "" {
+				return types.NewErrorWithStatusCode(
+					fmt.Errorf("%s", errCode),
+					skillRelayErrType(errCode),
+					errcodes.HTTPStatusFor(errCode),
+					types.ErrOptionWithSkipRetry(),
+				)
+			}
+			// Carry entry_point into relay context for analytics (tasks/03 §9).
+			// Package routing API forces skill_package so package-provided values
+			// cannot spoof analytics surfaces; regular relay keeps the explicit enum.
+			skillCtx.EntryPoint = string(enums.EntryPointPlaygroundPicker)
+			if forcedEntryPoint := common.GetContextKeyString(c, constant.ContextKeySkillRelayEntryPoint); forcedEntryPoint != "" {
+				skillCtx.EntryPoint = forcedEntryPoint
+			} else if request.Deeprouter.EntryPoint != "" {
+				ep := enums.EntryPoint(request.Deeprouter.EntryPoint)
+				if !ep.Valid() {
+					return types.NewErrorWithStatusCode(
+						fmt.Errorf("invalid entry_point: %q", request.Deeprouter.EntryPoint),
+						types.ErrorCodeInvalidRequest,
+						http.StatusBadRequest,
+						types.ErrOptionWithSkipRetry(),
+					)
+				}
+				skillCtx.EntryPoint = string(ep)
+			}
+			skillrelay.Set(c, skillCtx)
+		}
+		request.Deeprouter = nil // always strip vendor extension before provider forwarding
 	}
 
 	// Airbotix / DeepRouter policy: checked against the client-requested model
@@ -109,6 +163,19 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	var requestBody io.Reader
 
 	if passThroughGlobal || info.ChannelSetting.PassThroughBodyEnabled {
+		// Pass-through sends raw BodyStorage bytes directly to the provider, bypassing
+		// the Go struct. The request.Deeprouter = nil strip above has no effect on the
+		// already-buffered raw body, so any deeprouter vendor extension — including
+		// partial extensions without a skill_id — would be forwarded upstream unchanged.
+		// Reject any request that carried a deeprouter extension.
+		if hadDeeprouterExtension {
+			return types.NewErrorWithStatusCode(
+				fmt.Errorf("%s", errcodes.ErrSkillInternalError),
+				types.ErrorCodeDoRequestFailed,
+				http.StatusInternalServerError,
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -227,4 +294,19 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	}
 	return nil
+}
+
+// skillRelayErrType maps a skill errcodes.ErrorCode to the appropriate
+// types.ErrorCode (OpenAI error envelope "type" field), keyed by HTTP status
+// category. Using access_denied for 404 or 500 would mislead OpenAI-compatible
+// clients that inspect the type field to categorise errors.
+func skillRelayErrType(errCode errcodes.ErrorCode) types.ErrorCode {
+	switch errcodes.HTTPStatusFor(errCode) {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return types.ErrorCodeAccessDenied
+	case http.StatusNotFound, http.StatusBadRequest:
+		return types.ErrorCodeInvalidRequest
+	default: // 429, 500, 504, …
+		return types.ErrorCodeDoRequestFailed
+	}
 }

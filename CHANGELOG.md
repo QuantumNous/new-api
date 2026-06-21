@@ -4,6 +4,11 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-21
 
+- DR-64 修復 pass-through 洩漏：`relay/compatible_handler.go` 的 pass-through 守衛從「僅攔截已 resolve 的 skill 請求」擴展為「攔截任何帶 deeprouter 擴展的請求（含無 skill_id 的 partial extension）」，防止 `deeprouter` vendor extension 透過 raw BodyStorage 路徑洩漏給上游 provider；新增 `TestTextHelper_SkillRelay_PartialExtension_PassThrough_Rejected` 覆蓋此路徑
+- feat(R2/D-09): 新增 package-facing public routing API `/v1/routing/chat/completions`，复用 runner key 的 `TokenAuth` 身份解析，要求 `deeprouter.skill_id`，并强制 `entry_point=skill_package`；包内提供的 identity / entry point 不被信任 (`router/relay-router.go`, `relay/compatible_handler.go`)
+- DR-64 安全修復：`internal/skill/relay/resolver.go` 在 DB 查詢後立即驗證 `skill.Status == Published`，並檢查 `ActiveVersionID != nil`——草稿/已封存/已棄用的 skill 和無可執行版本的 published skill 均回傳 `SKILL_NOT_PUBLISHED`（HTTP 403），防止未發布 skill 進入 relay 路徑 (DR-88 nil deref 提前擋住)
+- DR-64 relay 入口修復：`relay/compatible_handler.go` 中 `request.Deeprouter = nil`（vendor extension 清除）移到 `SkillID` 檢查外層，確保所有帶 `deeprouter` 字段的請求（含 `skill_id` 為空的情況）在轉發上游前都會清除 vendor extension，避免 provider 端拒絕識別 unknown field
+- 補充測試：`resolver_test.go` 新增 Draft / Archived / Deprecated / NilActiveVersionID 四個 negative test；`compatible_handler_skill_test.go` 所有 skill 測試 fixture 加上 `ActiveVersionID`
 - 更新 2026 H1 模型定价目录：修正部分现有模型输入/输出倍率，新增 OpenAI、Anthropic、Gemini、DeepSeek、Qwen、GLM、Kimi、Doubao、MiniMax、Grok 等模型定价与 Quick Import 预设，并补充任务 PRD（`setting/ratio_setting/`, `web/default/src/features/channels/lib/provider-presets.ts`, `web/default/src/features/models/lib/model-presets.ts`, `docs/tasks/pricing-catalog-2026h1-prd.md`）
 
 ## 2026-06-20
