@@ -7,7 +7,7 @@ Status: v2 draft after design audit
 Related documents:
 
 - `docs/channel-flow-control-queue-design.md`
-- `/Users/laiyouxu/.gemini/antigravity-cli/brain/fdf12fcb-bc0f-48af-9f54-2dc1902d1eb9/flow-control-design-audit.md`
+- `docs/flow-control-design-audit.md` (internal audit document)
 
 ## 1. v2 Executive Summary
 

@@ -7,7 +7,7 @@ Status: v3 design draft for external AI review
 Review target:
 
 - `docs/channel-flow-control-queue-design-v2.md`
-- `/Users/laiyouxu/.gemini/antigravity-cli/brain/fdf12fcb-bc0f-48af-9f54-2dc1902d1eb9/flow-control-v2-review.md`
+- `docs/flow-control-v2-review.md` (internal audit document)
 
 Local reference code:
 
@@ -17,8 +17,8 @@ Local reference code:
 - `service/billing_session.go`
 - `middleware/rate-limit.go`
 - `middleware/model-rate-limit.go`
-- `/Users/laiyouxu/IdeaProjects/gateway/boom-gateway/boom-flowcontrol/src/lib.rs`
-- `/Users/laiyouxu/IdeaProjects/gateway/boom-gateway/boom-routing/src/policy/load_helpers.rs`
+- `../boom-gateway/boom-flowcontrol/src/lib.rs` (gateway reference)
+- `../boom-gateway/boom-routing/src/policy/load_helpers.rs` (gateway reference)
 
 Official product references used for the market survey:
 

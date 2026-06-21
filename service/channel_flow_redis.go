@@ -408,25 +408,30 @@ func (b *redisFlowBackend) tryAcquireOnce(
 }
 
 func (b *redisFlowBackend) isEligibleWaitingRequest(ctx context.Context, tx *redis.Tx, keys redisFlowKeys, req AcquireRequest) (bool, error) {
-	waiting, err := tx.ZRange(ctx, keys.Waiting, 0, redisFlowCleanupBatch-1).Result()
-	if err != nil {
-		return false, err
-	}
-	for _, requestID := range waiting {
-		userID, err := b.requestIntFromTx(ctx, tx, keys, requestID, "user_id")
+	for start := int64(0); ; start += redisFlowCleanupBatch {
+		waiting, err := tx.ZRange(ctx, keys.Waiting, start, start+redisFlowCleanupBatch-1).Result()
 		if err != nil {
 			return false, err
 		}
-		if req.Pool.MaxInflightPerUser > 0 && userID > 0 {
-			userRunning, err := tx.ZCard(ctx, keys.userRunning(userID)).Result()
+		for _, requestID := range waiting {
+			userID, err := b.requestIntFromTx(ctx, tx, keys, requestID, "user_id")
 			if err != nil {
 				return false, err
 			}
-			if userRunning >= int64(req.Pool.MaxInflightPerUser) {
-				continue
+			if req.Pool.MaxInflightPerUser > 0 && userID > 0 {
+				userRunning, err := tx.ZCard(ctx, keys.userRunning(userID)).Result()
+				if err != nil {
+					return false, err
+				}
+				if userRunning >= int64(req.Pool.MaxInflightPerUser) {
+					continue
+				}
 			}
+			return requestID == req.RequestID, nil
 		}
-		return requestID == req.RequestID, nil
+		if len(waiting) < redisFlowCleanupBatch {
+			break
+		}
 	}
 	return false, nil
 }
@@ -521,8 +526,8 @@ func (b *redisFlowBackend) cleanupExpired(ctx context.Context, rdb *redis.Client
 	}
 	if len(expiredRunning) > 0 {
 		pipe := rdb.TxPipeline()
-		pipe.ZRemRangeByScore(ctx, keys.Running, "-inf", strconv.FormatInt(nowMs, 10))
 		for _, requestID := range expiredRunning {
+			pipe.ZRem(ctx, keys.Running, requestID)
 			userID, _ := b.requestInt(ctx, rdb, keys, requestID, "user_id")
 			if pool.MaxInflightPerUser > 0 && userID > 0 {
 				pipe.ZRem(ctx, keys.userRunning(userID), requestID)

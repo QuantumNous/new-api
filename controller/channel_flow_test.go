@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
+	"github.com/stretchr/testify/require"
 )
 
 func TestChannelFlowPoolFromRequestIncludesMaxInflightPerUser(t *testing.T) {
@@ -16,7 +17,5 @@ func TestChannelFlowPoolFromRequestIncludesMaxInflightPerUser(t *testing.T) {
 		OnLimit:            model.ChannelFlowOnLimitQueue,
 	}, nil)
 
-	if pool.MaxInflightPerUser != 2 {
-		t.Fatalf("expected max_inflight_per_user to be copied from request, got %d", pool.MaxInflightPerUser)
-	}
+	require.Equal(t, 2, pool.MaxInflightPerUser, "max_inflight_per_user should be copied from request")
 }

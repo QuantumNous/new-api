@@ -1,5 +1,7 @@
 # Channel Flow Control and Queue Design Report
 
+> **Superseded** — This document is historical context only. The implementation follows [channel-flow-control-queue-design-v3.md](./channel-flow-control-queue-design-v3.md).
+
 Date: 2026-06-13
 
 Status: draft for architecture and product review
@@ -206,17 +208,17 @@ Takeaway for new-api:
 
 ## 5. Local Reference: gateway Project
 
-The local `/Users/laiyouxu/IdeaProjects/gateway` project already implements a closely related flow control pattern.
+The gateway project at `../boom-gateway/` implements a closely related flow control pattern.
 
 Relevant files:
 
-- `/Users/laiyouxu/IdeaProjects/gateway/config.example.yaml`
-- `/Users/laiyouxu/IdeaProjects/gateway/boom-gateway/boom-config/src/lib.rs`
-- `/Users/laiyouxu/IdeaProjects/gateway/boom-gateway/boom-flowcontrol/src/lib.rs`
-- `/Users/laiyouxu/IdeaProjects/gateway/boom-gateway/boom-main/src/routes.rs`
-- `/Users/laiyouxu/IdeaProjects/gateway/boom-gateway/boom-main/src/state.rs`
-- `/Users/laiyouxu/IdeaProjects/gateway/boom-gateway/boom-routing/src/policy/load_helpers.rs`
-- `/Users/laiyouxu/IdeaProjects/gateway/boom-gateway/boom-dashboard/src/handlers_admin.rs`
+- `../boom-gateway/config.example.yaml`
+- `../boom-gateway/boom-config/src/lib.rs`
+- `../boom-gateway/boom-flowcontrol/src/lib.rs`
+- `../boom-gateway/boom-main/src/routes.rs`
+- `../boom-gateway/boom-main/src/state.rs`
+- `../boom-gateway/boom-routing/src/policy/load_helpers.rs`
+- `../boom-gateway/boom-dashboard/src/handlers_admin.rs`
 
 ### 5.1 What gateway Does Well
 

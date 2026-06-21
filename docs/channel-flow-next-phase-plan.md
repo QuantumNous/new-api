@@ -644,7 +644,7 @@ pkg/channel_flow_metrics/metrics_test.go
 本地管理员账号：
 
 ```text
-root / codexAdmin123
+admin_user / example_password
 ```
 
 检查项：

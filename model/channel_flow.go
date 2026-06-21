@@ -50,7 +50,7 @@ type ChannelFlowPool struct {
 	PoolKey            string `json:"pool_key" gorm:"type:varchar(64);uniqueIndex"`
 	Name               string `json:"name" gorm:"type:varchar(128);index"`
 	Description        string `json:"description" gorm:"type:text"`
-	Enabled            bool   `json:"enabled" gorm:"default:true"`
+	Enabled            bool   `json:"enabled"`
 	Backend            string `json:"backend" gorm:"type:varchar(32);default:'memory'"`
 	MaxInflight        int    `json:"max_inflight" gorm:"default:0"`
 	MaxInflightPerUser int    `json:"max_inflight_per_user" gorm:"default:0"`
@@ -87,7 +87,7 @@ type ChannelFlowPoolBinding struct {
 	ChannelId     int    `json:"channel_id" gorm:"index"`
 	UpstreamModel string `json:"upstream_model" gorm:"type:varchar(191);default:''"`
 	MatchMode     string `json:"match_mode" gorm:"type:varchar(32);default:'channel'"`
-	Enabled       bool   `json:"enabled" gorm:"default:true"`
+	Enabled       bool   `json:"enabled"`
 	CreatedTime   int64  `json:"created_time" gorm:"bigint"`
 	UpdatedTime   int64  `json:"updated_time" gorm:"bigint"`
 }

@@ -635,14 +635,14 @@ func (b *memoryFlowBackend) Acquire(ctx context.Context, req AcquireRequest) (Fl
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
-		waitedMs, runningNow, queuedNow := slot.cancelWaiting(request.id)
+		waitedMs, runningNow, queuedNow, _ := slot.cancelWaiting(request.id)
 		decision.WaitedMs = waitedMs
 		decision.RunningNow = runningNow
 		decision.QueuedNow = queuedNow
 		decision.RejectCode = FlowDecisionRejectQueueTimeout
 		return nil, decision, ctx.Err()
 	case <-timer.C:
-		waitedMs, runningNow, queuedNow := slot.cancelWaiting(request.id)
+		waitedMs, runningNow, queuedNow, _ := slot.cancelWaiting(request.id)
 		decision.WaitedMs = waitedMs
 		decision.RunningNow = runningNow
 		decision.QueuedNow = queuedNow
@@ -826,22 +826,29 @@ func (s *memoryFlowSlot) userWaitingLocked(userID int) int {
 	return count
 }
 
-func (s *memoryFlowSlot) cancelWaiting(requestID string) (waitedMs int64, runningNow int, queuedNow int) {
+func (s *memoryFlowSlot) cancelWaiting(requestID string) (waitedMs int64, runningNow int, queuedNow int, wasRunning bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
 	for _, req := range s.queue {
-		if req.id == requestID && req.state == memoryFlowStateWaiting && !req.cancelled {
-			req.cancelled = true
-			req.state = memoryFlowStateReleased
-			waitedMs = now.Sub(req.enqueuedAt).Milliseconds()
+		if req.id == requestID && !req.cancelled {
+			switch req.state {
+			case memoryFlowStateWaiting:
+				req.cancelled = true
+				req.state = memoryFlowStateReleased
+				waitedMs = now.Sub(req.enqueuedAt).Milliseconds()
+			case memoryFlowStateRunning:
+				req.state = memoryFlowStateReleased
+				req.cancelled = true
+				wasRunning = true
+			}
 			break
 		}
 	}
 	s.compactIfNeededLocked()
 	s.dispatchLocked(now)
 	runningNow, queuedNow, _ = s.statsLocked(now)
-	return waitedMs, runningNow, queuedNow
+	return waitedMs, runningNow, queuedNow, wasRunning
 }
 
 func (s *memoryFlowSlot) release(requestID string) error {
