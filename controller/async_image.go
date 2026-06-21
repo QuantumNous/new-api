@@ -583,7 +583,8 @@ func updateAsyncTaskStatus(userId int, taskId string, fromStatus, toStatus model
 }
 
 // sendCallback POSTs the task result to the callback_url (if configured).
-// Non-blocking: failures are logged but never propagated.
+// Retries at 5s, 13s, 34s on failure (network error or HTTP >= 500).
+// HTTP 4xx is NOT retried (client error — e.g. invalid URL, bad auth).
 func sendCallback(c *gin.Context, callbackURL string, taskID string, status string, data any, failReason string) {
 	if callbackURL == "" {
 		return
@@ -607,16 +608,36 @@ func sendCallback(c *gin.Context, callbackURL string, taskID string, status stri
 		return
 	}
 
+	retryIntervals := []time.Duration{5 * time.Second, 13 * time.Second, 34 * time.Second}
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Post(callbackURL, "application/json", bytes.NewReader(body))
-	if err != nil {
-		logger.LogWarn(c, fmt.Sprintf("callback: POST to %s failed for task %s: %s", callbackURL, taskID, err.Error()))
-		return
-	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode >= 400 {
+	for attempt := 0; attempt <= len(retryIntervals); attempt++ {
+		if attempt > 0 {
+			time.Sleep(retryIntervals[attempt-1])
+		}
+
+		resp, err := client.Post(callbackURL, "application/json", bytes.NewReader(body))
+		if err != nil {
+			logger.LogWarn(c, fmt.Sprintf("callback: attempt %d POST to %s failed for task %s: %s", attempt+1, callbackURL, taskID, err.Error()))
+			continue
+		}
 		respBody, _ := io.ReadAll(resp.Body)
-		logger.LogWarn(c, fmt.Sprintf("callback: POST to %s returned HTTP %d for task %s: %s", callbackURL, resp.StatusCode, taskID, common.LocalLogPreview(string(respBody))))
+		resp.Body.Close()
+
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			logger.LogInfo(c, fmt.Sprintf("callback: delivered task %s to %s (HTTP %d)", taskID, callbackURL, resp.StatusCode))
+			return
+		}
+
+		// 4xx — don't retry (client fault)
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+			logger.LogWarn(c, fmt.Sprintf("callback: POST to %s returned HTTP %d for task %s (not retrying): %s", callbackURL, resp.StatusCode, taskID, common.LocalLogPreview(string(respBody))))
+			return
+		}
+
+		// 5xx — retry
+		logger.LogWarn(c, fmt.Sprintf("callback: attempt %d POST to %s returned HTTP %d for task %s, will retry", attempt+1, callbackURL, resp.StatusCode, taskID))
 	}
+
+	logger.LogWarn(c, fmt.Sprintf("callback: all attempts exhausted for task %s to %s", taskID, callbackURL))
 }
