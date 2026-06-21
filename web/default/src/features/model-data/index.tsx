@@ -111,7 +111,6 @@ const MODEL_TABS: ModelTab[] = [
   { label: 'Sonnet 4.6',      modelId: 'claude-sonnet-4-6', accent: '#a855f7' },
   { label: 'Opus 4.7',        modelId: 'claude-opus-4-7',   accent: '#a855f7' },
   { label: 'Opus 4.8',        modelId: 'claude-opus-4-8',   accent: '#a855f7' },
-  { label: 'Fable 5',         modelId: 'claude-fable-5',    accent: '#a855f7' },
   { label: 'Haiku 4.5',       modelId: 'claude-haiku-4-5',  accent: '#a855f7' },
   { label: 'DeepSeek Flash',  modelId: 'deepseek-v4-flash', accent: '#a78bfa' },
   { label: 'DeepSeek Pro',    modelId: 'deepseek-v4-pro',   accent: '#a78bfa' },
