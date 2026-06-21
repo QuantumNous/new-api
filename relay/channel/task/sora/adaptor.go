@@ -121,10 +121,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 
 	ratios := map[string]float64{
 		"seconds": float64(seconds),
-		"size":    1,
-	}
-	if size == "1792x1024" || size == "1024x1792" {
-		ratios["size"] = 1.666667
+		"size":    taskcommon.VideoOpenAISizeRatio(size),
 	}
 	return ratios
 }

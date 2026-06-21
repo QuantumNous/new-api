@@ -146,10 +146,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 			resolution = v
 		}
 	}
-	ratio := 1.0
-	if strings.EqualFold(resolution, "1080p") || strings.EqualFold(resolution, "1024p") {
-		ratio = 1.666667
-	}
+	ratio := taskcommon.VideoResolutionSizeRatio(resolution)
 	return map[string]float64{
 		"seconds": float64(seconds),
 		"size":    ratio,

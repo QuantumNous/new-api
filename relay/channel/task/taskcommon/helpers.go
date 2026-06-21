@@ -102,7 +102,31 @@ func ApplyVideoResultURL(task *model.Task, upstreamURL string) {
 	task.PrivateData.ResultURL = upstreamURL
 }
 
-// Status-to-progress mapping constants for polling updates.
+// VideoResolutionSizeRatio maps resolution to a billing multiplier against the 720p per-second base.
+// Official list prices (80% on APIMaster): sora-2 720p $0.08/s; sora-2-pro 720p $0.24/s, 1024p $0.40/s, 1080p $0.56/s.
+func VideoResolutionSizeRatio(resolution string) float64 {
+	switch strings.ToLower(strings.TrimSpace(resolution)) {
+	case "1080p":
+		return 2.333333 // 0.56 / 0.24
+	case "1024p":
+		return 1.666667 // 0.40 / 0.24
+	default:
+		return 1.0
+	}
+}
+
+// VideoOpenAISizeRatio maps OpenAI-style size strings to the same billing multipliers.
+func VideoOpenAISizeRatio(size string) float64 {
+	switch size {
+	case "1920x1080", "1080x1920":
+		return VideoResolutionSizeRatio("1080p")
+	case "1792x1024", "1024x1792":
+		return VideoResolutionSizeRatio("1024p")
+	default:
+		return 1.0
+	}
+}
+
 const (
 	ProgressSubmitted  = "10%"
 	ProgressQueued     = "20%"

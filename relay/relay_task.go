@@ -126,10 +126,7 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 				info.PriceData.OtherRatios = map[string]float64{}
 			}
 			info.PriceData.OtherRatios["seconds"] = float64(seconds)
-			info.PriceData.OtherRatios["size"] = 1
-			if sizeStr == "1792x1024" || sizeStr == "1024x1792" {
-				info.PriceData.OtherRatios["size"] = 1.666667
-			}
+			info.PriceData.OtherRatios["size"] = taskcommon.VideoOpenAISizeRatio(sizeStr)
 		}
 	}
 
