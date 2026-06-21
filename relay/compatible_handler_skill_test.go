@@ -256,6 +256,35 @@ func TestTextHelper_SkillRelay_InvalidEntryPoint_Returns400(t *testing.T) {
 	assert.False(t, hasCtx, "SkillRelayContext must NOT be stored when entry_point is invalid")
 }
 
+// TestTextHelper_SkillRelay_PartialExtension_NoSkillIDStripped verifies that a partial
+// deeprouter extension (no skill_id, e.g. {"deeprouter": {"entry_point": "skill_package"}}
+// or {"deeprouter": {}}) does NOT activate the skill gate and does NOT store a
+// SkillRelayContext. The vendor extension must be stripped regardless so it is never
+// forwarded to upstream providers.
+func TestTextHelper_SkillRelay_PartialExtension_NoSkillIDStripped(t *testing.T) {
+	for _, ext := range []*dto.DeepRouterExtension{
+		{},                                // {"deeprouter": {}}
+		{EntryPoint: "skill_package"},     // {"deeprouter": {"entry_point": "skill_package"}}
+		{EntryPoint: "playground_picker"}, // valid enum, no skill_id
+	} {
+		c := newSkillTestCtx(t, 1)
+		apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
+			Model:      "gpt-4o",
+			Deeprouter: ext,
+		}))
+
+		_, hasCtx := skillrelay.Get(c)
+		assert.False(t, hasCtx, "partial deeprouter (no skill_id) must not set SkillRelayContext")
+
+		// Must not return a skill-gate error (401/403/404).
+		if apiErr != nil {
+			assert.NotEqual(t, http.StatusUnauthorized, apiErr.StatusCode)
+			assert.NotEqual(t, http.StatusForbidden, apiErr.StatusCode)
+			assert.NotEqual(t, http.StatusNotFound, apiErr.StatusCode)
+		}
+	}
+}
+
 // TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField verifies that when
 // deeprouter.entry_point is set (e.g. "skill_package" by an external package client),
 // SkillRelayContext.EntryPoint carries that value through for analytics.
@@ -285,4 +314,56 @@ func TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, string(enums.EntryPointSkillPackage), sCtx.EntryPoint,
 		"explicit entry_point from deeprouter field must be preserved in SkillRelayContext")
+}
+
+func TestTextHelper_SkillRelay_PublicRoutingAPI_RequiresSkillID(t *testing.T) {
+	c := newSkillTestCtx(t, 12)
+	common.SetContextKey(c, constant.ContextKeySkillPublicRoutingAPI, true)
+	common.SetContextKey(c, constant.ContextKeySkillRelayEntryPoint, string(enums.EntryPointSkillPackage))
+
+	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
+		Model:      "gpt-4o",
+		Deeprouter: &dto.DeepRouterExtension{EntryPoint: string(enums.EntryPointSkillPackage)},
+	}))
+
+	require.NotNil(t, apiErr, "public routing API must require deeprouter.skill_id")
+	assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
+	assert.Contains(t, apiErr.Err.Error(), "deeprouter.skill_id")
+
+	_, hasCtx := skillrelay.Get(c)
+	assert.False(t, hasCtx, "missing skill_id must not create SkillRelayContext")
+}
+
+func TestTextHelper_SkillRelay_PublicRoutingAPI_ForcePackageEntryAndCredentialIdentity(t *testing.T) {
+	testDB := newSkillTestDB(t)
+	versionID := "aaaaaaaa-bbbb-cccc-dddd-000000000005"
+	skill := &skillmodel.Skill{
+		Slug: "public-routing", Status: enums.SkillStatusPublished, Category: "test",
+		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
+		Name: "Public Routing", ShortDescription: "s", Description: "d", CreatedBy: 1,
+		ActiveVersionID: &versionID,
+	}
+	require.NoError(t, testDB.Create(skill).Error)
+	skillrelay.SetDB(testDB)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c := newSkillTestCtx(t, 13)
+	common.SetContextKey(c, constant.ContextKeySkillPublicRoutingAPI, true)
+	common.SetContextKey(c, constant.ContextKeySkillRelayEntryPoint, string(enums.EntryPointSkillPackage))
+
+	TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
+		Model: "gpt-4o",
+		User:  []byte(`{"user_id":999,"tenant_id":"evil"}`),
+		Deeprouter: &dto.DeepRouterExtension{
+			SkillID:        skill.ID,
+			SkillVersionID: "package-supplied-version-is-not-authoritative",
+			EntryPoint:     string(enums.EntryPointAdminPreview),
+		},
+	}))
+
+	sCtx, ok := skillrelay.Get(c)
+	require.True(t, ok)
+	assert.Equal(t, 13, sCtx.UserID, "identity must come from the verified credential context")
+	assert.Equal(t, string(enums.EntryPointSkillPackage), sCtx.EntryPoint,
+		"public routing API must force package entry point over package-provided values")
 }

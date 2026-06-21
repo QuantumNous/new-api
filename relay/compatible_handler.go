@@ -47,6 +47,16 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	// DR-64: skill relay entry point — resolve user identity and load the target Skill
 	// for requests that carry deeprouter.skill_id (tasks/05 §5.1 steps 1-6).
 	// Anonymous callers are rejected here with AUTH_REQUIRED before any prompt load.
+	publicRoutingAPI := common.GetContextKeyBool(c, constant.ContextKeySkillPublicRoutingAPI)
+	if publicRoutingAPI && (request.Deeprouter == nil || request.Deeprouter.SkillID == "") {
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("deeprouter.skill_id is required"),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
+	}
+
 	if request.Deeprouter != nil {
 		if request.Deeprouter.SkillID != "" {
 			skillCtx, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
@@ -59,9 +69,12 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 				)
 			}
 			// Carry entry_point into relay context for analytics (tasks/03 §9).
-			// Default to playground_picker per V1 spec; package clients set skill_package explicitly.
+			// Package routing API forces skill_package so package-provided values
+			// cannot spoof analytics surfaces; regular relay keeps the explicit enum.
 			skillCtx.EntryPoint = string(enums.EntryPointPlaygroundPicker)
-			if request.Deeprouter.EntryPoint != "" {
+			if forcedEntryPoint := common.GetContextKeyString(c, constant.ContextKeySkillRelayEntryPoint); forcedEntryPoint != "" {
+				skillCtx.EntryPoint = forcedEntryPoint
+			} else if request.Deeprouter.EntryPoint != "" {
 				ep := enums.EntryPoint(request.Deeprouter.EntryPoint)
 				if !ep.Valid() {
 					return types.NewErrorWithStatusCode(

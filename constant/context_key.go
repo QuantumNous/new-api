@@ -99,4 +99,8 @@ const (
 	// relay entry (DR-64) for requests carrying deeprouter.skill_id.
 	// Read by DR-67 (entitlement check) and DR-88 (prompt injection).
 	ContextKeySkillRelayCtx ContextKey = "skill_relay_ctx"
+	// ContextKeySkillPublicRoutingAPI marks the package-facing public routing API.
+	// That surface requires deeprouter.skill_id and forces entry_point=skill_package.
+	ContextKeySkillPublicRoutingAPI ContextKey = "skill_public_routing_api"
+	ContextKeySkillRelayEntryPoint  ContextKey = "skill_relay_entry_point"
 )
