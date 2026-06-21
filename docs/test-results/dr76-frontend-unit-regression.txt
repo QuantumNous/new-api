@@ -1,0 +1,45 @@
+DR-76 Ops Overview Dashboard — Frontend Unit & Integration Test Results
+Generated: 2026-06-21
+Branch: feat/dr-76-ops-overview-dashboard
+
+Test runner: Vitest 4.1.9 + @testing-library/react 16.3.2
+Environment: jsdom
+
+═══════════════════════════════════════════════════════════════════════════════
+RESULTS
+═══════════════════════════════════════════════════════════════════════════════
+Test Files  4 passed (4)
+Tests       47 passed / 0 failed (47 total)
+
+FILE BREAKDOWN:
+  types.test.ts               11 passed   (pure functions: getDateRange, formatBlockReason)
+  metric-card.test.tsx         8 passed   (component: loading / no-data / tracking-failed / normal)
+  date-range-control.test.tsx  7 passed   (component: presets, active state, onChange, disabled)
+  dashboard.integration.test.tsx 21 passed (full page: data, error, tracking, date range switch)
+
+═══════════════════════════════════════════════════════════════════════════════
+COVERAGE — src/features/skill-analytics/**
+═══════════════════════════════════════════════════════════════════════════════
+                   | % Stmts | % Branch | % Funcs | % Lines | Notes
+-------------------|---------|-----------|---------|---------|-----------------
+All files          |   95.23 |    98.24  |   93.33 |   94.73 |
+ index.tsx         |  100.00 |   100.00  |  100.00 |  100.00 | (all branches hit)
+ types.ts          |  100.00 |    83.33  |  100.00 |  100.00 | L62: unreachable fallback
+ api.ts            |    0.00 |   100.00  |    0.00 |    0.00 | intentionally mocked
+ components/metric-card.tsx        | 100.00 | 100.00 | 100.00 | 100.00 |
+ components/date-range-control.tsx | 100.00 | 100.00 | 100.00 | 100.00 |
+
+Notes:
+  api.ts L12-16: the real api.get() call is correctly mocked in all tests;
+    0% coverage is expected and intentional (tested at integration boundary).
+  types.ts L62: `?? reason` fallback in formatBlockReason is unreachable with
+    the current BlockReason union type — all 6 variants are covered.
+
+═══════════════════════════════════════════════════════════════════════════════
+KEY BUGS FOUND AND FIXED DURING TESTING
+═══════════════════════════════════════════════════════════════════════════════
+1. INFINITE RE-FETCH BUG (production bug, caught by tests):
+   getDateRange(preset) called new Date() directly in render. The returned
+   range object (and thus queryKey strings) changed on every render, causing
+   TanStack Query to fire a new fetch on every data-arrival re-render.
+   Fix: useMemo(() => getDateRange(preset), [preset]) in index.tsx.

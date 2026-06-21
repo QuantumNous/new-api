@@ -2,7 +2,7 @@
 Copyright (C) 2026 DeepRouter
 SPDX-License-Identifier: AGPL-3.0-or-later
 */
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Users,
@@ -47,7 +47,9 @@ function formatUsd(value: number | null): string | null {
 export function SkillAnalyticsDashboard() {
   const { t } = useTranslation()
   const [preset, setPreset] = useState<DateRangePreset>('7d')
-  const range = getDateRange(preset)
+  // useMemo prevents getDateRange() from creating new Date() objects on every
+  // render, which would change the queryKey and trigger an infinite re-fetch.
+  const range = useMemo(() => getDateRange(preset), [preset])
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['skill-analytics', 'overview', range.start, range.end],
