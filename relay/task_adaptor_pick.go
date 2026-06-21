@@ -37,8 +37,8 @@ func ResolveTaskPlatform(c *gin.Context, platform constant.TaskPlatform, info *r
 }
 
 func peekTaskModel(c *gin.Context) string {
-	if c.Request != nil && c.Request.PostForm != nil {
-		if m := strings.TrimSpace(c.PostForm.Get("model")); m != "" {
+	if c.Request != nil {
+		if m := strings.TrimSpace(c.PostForm("model")); m != "" {
 			return m
 		}
 	}
