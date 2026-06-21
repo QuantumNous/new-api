@@ -275,29 +275,22 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 	}
 	// DeepSeek returns balance_infos with per-currency entries.
 	// Domestic accounts return CNY; international accounts return USD.
-	// Prefer USD, fall back to CNY with exchange rate conversion.
-	var balance float64
-	var found bool
 	for _, info := range response.BalanceInfos {
 		switch info.Currency {
 		case "USD":
-			if balance, err = strconv.ParseFloat(info.TotalBalance, 64); err == nil {
-				found = true
+			if balance, err := strconv.ParseFloat(info.TotalBalance, 64); err == nil {
 				channel.UpdateBalance(balance)
 				return balance, nil
 			}
 		case "CNY":
-			if cny, e := strconv.ParseFloat(info.TotalBalance, 64); e == nil {
-				balance = cny / operation_setting.USDExchangeRate
-				found = true
+			if cny, err := strconv.ParseFloat(info.TotalBalance, 64); err == nil {
+				balance := cny / operation_setting.USDExchangeRate
+				channel.UpdateBalance(balance)
+				return balance, nil
 			}
 		}
 	}
-	if !found {
-		return 0, errors.New("no USD or CNY balance found")
-	}
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return 0, errors.New("no USD or CNY balance found")
 }
 
 func updateChannelAIGC2DBalance(channel *model.Channel) (float64, error) {
