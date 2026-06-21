@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -241,7 +242,8 @@ func updateChannelAPI2GPTBalance(channel *model.Channel) (float64, error) {
 }
 
 func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
-	url := "https://api.siliconflow.cn/v1/user/info"
+	baseURL := channel.GetBaseURL()
+	url := fmt.Sprintf("%s/v1/user/info", baseURL)
 	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err
@@ -258,10 +260,12 @@ func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	// SiliconFlow API returns balance in RMB. Convert to USD.
-	rate := operation_setting.USDExchangeRate
-	if rate > 0 {
-		balance = balance / rate
+	// SiliconFlow .cn returns RMB; .com returns USD.
+	// Determine currency from the channel base_url domain.
+	if strings.Contains(baseURL, ".cn") {
+		if rate := operation_setting.USDExchangeRate; rate > 0 {
+			balance = balance / rate
+		}
 	}
 	channel.UpdateBalance(balance)
 	return balance, nil
@@ -333,7 +337,8 @@ func updateChannelOpenRouterBalance(channel *model.Channel) (float64, error) {
 }
 
 func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
-	url := "https://api.moonshot.cn/v1/users/me/balance"
+	baseURL := channel.GetBaseURL()
+	url := fmt.Sprintf("%s/v1/users/me/balance", baseURL)
 	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err
@@ -360,14 +365,18 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 	if !response.Status || response.Code != 0 {
 		return 0, fmt.Errorf("failed to update moonshot balance, status: %v, code: %d, scode: %s", response.Status, response.Code, response.Scode)
 	}
-	availableBalanceCny := response.Data.AvailableBalance
-	rate := operation_setting.USDExchangeRate
-	if rate <= 0 {
-		rate = 1
+	// Moonshot .cn returns CNY (元); .ai returns USD.
+	// Determine currency from the channel base_url domain.
+	balance := response.Data.AvailableBalance
+	if strings.Contains(baseURL, ".cn") {
+		rate := operation_setting.USDExchangeRate
+		if rate <= 0 {
+			rate = 1
+		}
+		balance = decimal.NewFromFloat(balance).Div(decimal.NewFromFloat(rate)).InexactFloat64()
 	}
-	availableBalanceUsd := decimal.NewFromFloat(availableBalanceCny).Div(decimal.NewFromFloat(rate)).InexactFloat64()
-	channel.UpdateBalance(availableBalanceUsd)
-	return availableBalanceUsd, nil
+	channel.UpdateBalance(balance)
+	return balance, nil
 }
 
 func updateChannelBalance(channel *model.Channel) (float64, error) {
