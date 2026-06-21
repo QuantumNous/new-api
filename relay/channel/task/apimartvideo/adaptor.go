@@ -296,8 +296,12 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 
 	if strings.Contains(c.Request.URL.Path, "/videos/generations") {
 		env.Data[0].TaskID = info.PublicTaskID
-		out, _ := common.Marshal(env)
-		c.JSON(http.StatusOK, out)
+		out, err := common.Marshal(env)
+		if err != nil {
+			taskErr = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
+			return
+		}
+		c.Data(http.StatusOK, "application/json; charset=utf-8", out)
 		taskData = out
 		return upstreamID, taskData, nil
 	}
