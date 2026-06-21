@@ -422,7 +422,7 @@ export function PrefillGroupManagementDialog({
                 {
                   id: 'actions',
                   header: t('Actions'),
-                  className: 'w-[120px] text-right',
+                  className: 'text-right',
                   cellClassName: 'align-top',
                   cell: ({ group }) => (
                     <div className='flex justify-end gap-2'>

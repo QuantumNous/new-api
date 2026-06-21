@@ -319,7 +319,6 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
             {
               id: 'actions',
               header: t('Actions'),
-              className: 'w-32',
               cell: (group) => (
                 <div className='flex gap-2'>
                   <Button

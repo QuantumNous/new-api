@@ -302,7 +302,6 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
             {
               id: 'actions',
               header: t('Actions'),
-              className: 'w-32',
               cell: (faq) => (
                 <div className='flex gap-2'>
                   <Button

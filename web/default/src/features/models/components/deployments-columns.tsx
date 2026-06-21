@@ -298,7 +298,6 @@ export function useDeploymentsColumns(opts: {
           </div>
         )
       },
-      size: 180,
       meta: { pinned: 'right' as const },
     },
   ]

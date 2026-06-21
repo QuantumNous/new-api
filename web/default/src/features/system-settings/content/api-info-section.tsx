@@ -369,7 +369,6 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
             {
               id: 'actions',
               header: t('Actions'),
-              className: 'w-32',
               cell: (apiInfo) => (
                 <div className='flex gap-2'>
                   <Button

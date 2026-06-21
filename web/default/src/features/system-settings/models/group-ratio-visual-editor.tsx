@@ -929,7 +929,7 @@ function GroupPricingTable({
               {
                 id: 'actions',
                 header: t('Actions'),
-                className: 'w-16 text-right',
+                className: 'text-right',
                 cellClassName: 'text-right',
                 cell: (row) => (
                   <Button

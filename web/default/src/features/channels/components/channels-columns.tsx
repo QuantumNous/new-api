@@ -1108,7 +1108,6 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
 
           return <DataTableRowActions row={row} />
         },
-        size: 132,
         enableSorting: false,
         enableHiding: false,
         meta: { pinned: 'right' as const },
