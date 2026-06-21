@@ -91,21 +91,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 				skillCtx.EntryPoint = string(ep)
 			}
 			skillrelay.Set(c, skillCtx)
-
-			// DR-68: load version snapshot, select server-authoritative model, rewrite
-			// request for stateless single-turn execution (FR-G19).
-			// Must run after Set so the context is available to downstream handlers
-			// even if this step aborts (e.g. for logging/analytics).
-			rewritten, execErrCode := skillrelay.LoadAndApply(skillCtx, request)
-			if execErrCode != "" {
-				return types.NewErrorWithStatusCode(
-					fmt.Errorf("%s", execErrCode),
-					skillRelayErrType(execErrCode),
-					errcodes.HTTPStatusFor(execErrCode),
-					types.ErrOptionWithSkipRetry(),
-				)
-			}
-			request = rewritten
+			// DR-68 LoadAndApply is deferred to after the policy check below so that
+			// applyAirbotixPolicy sees the client-requested model name, not the
+			// server-selected whitelist model — preserving the invariant in the comment
+			// below (line ~113: "checked against the client-requested model name").
 		}
 		request.Deeprouter = nil // always strip vendor extension before provider forwarding
 	}
@@ -114,12 +103,31 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	// name BEFORE channel model_mapping so that a kids_mode whitelist entry like
 	// "gpt-4o-mini" is honoured even when the channel remaps it to a different
 	// upstream model name (e.g. llama-3.1-8b-instant on Groq).
+	// For skill relay: LoadAndApply has not yet run at this point, so request.Model
+	// is still the client-supplied model — kids.IsModelEligible checks the right value.
 	if d, ok := common.GetContextKey(c, constant.ContextKeyPolicyDecision); ok {
 		if decision, castOk := d.(policy.Decision); castOk {
 			if reject := applyAirbotixPolicy(decision, info.ChannelType, request); reject != "" {
 				return types.NewErrorWithStatusCode(fmt.Errorf("%s", reject), types.ErrorCodeChannelModelMappedError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			}
 		}
+	}
+
+	// DR-68: for skill relay requests, load version snapshot and rewrite request
+	// (server-authoritative model selection + FR-G19 single-turn enforcement).
+	// Runs AFTER applyAirbotixPolicy so kids-mode model eligibility is checked against
+	// the client model, then the server-selected whitelist model takes over for forwarding.
+	if skillCtx, isSkill := skillrelay.Get(c); isSkill {
+		rewritten, execErrCode := skillrelay.LoadAndApply(skillCtx, request)
+		if execErrCode != "" {
+			return types.NewErrorWithStatusCode(
+				fmt.Errorf("%s", execErrCode),
+				skillRelayErrType(execErrCode),
+				errcodes.HTTPStatusFor(execErrCode),
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
+		request = rewritten
 	}
 
 	err = helper.ModelMappedHelper(c, info, request)
@@ -209,41 +217,45 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 
 		if info.ChannelSetting.SystemPrompt != "" {
-			// Inject channel-level system prompt if configured.
-			request, ok := convertedRequest.(*dto.GeneralOpenAIRequest)
-			if ok {
-				containSystemPrompt := false
-				for _, message := range request.Messages {
-					if message.Role == request.GetSystemRoleName() {
-						containSystemPrompt = true
-						break
-					}
-				}
-				if !containSystemPrompt {
-					// No system message yet: prepend one.
-					systemMessage := dto.Message{
-						Role:    request.GetSystemRoleName(),
-						Content: info.ChannelSetting.SystemPrompt,
-					}
-					request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
-				} else if info.ChannelSetting.SystemPromptOverride {
-					common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
-					// System prompt override enabled: prepend channel prompt ahead of the existing one.
-					for i, message := range request.Messages {
+			// Skill relay: instruction_template from the SkillVersion snapshot is the
+			// authoritative system message (DR-68); channel-level SystemPrompt must not
+			// prepend or override it. For non-skill relay requests, inject as usual.
+			if _, isSkillRelay := skillrelay.Get(c); !isSkillRelay {
+				request, ok := convertedRequest.(*dto.GeneralOpenAIRequest)
+				if ok {
+					containSystemPrompt := false
+					for _, message := range request.Messages {
 						if message.Role == request.GetSystemRoleName() {
-							if message.IsStringContent() {
-								request.Messages[i].SetStringContent(info.ChannelSetting.SystemPrompt + "\n" + message.StringContent())
-							} else {
-								contents := message.ParseContent()
-								contents = append([]dto.MediaContent{
-									{
-										Type: dto.ContentTypeText,
-										Text: info.ChannelSetting.SystemPrompt,
-									},
-								}, contents...)
-								request.Messages[i].Content = contents
-							}
+							containSystemPrompt = true
 							break
+						}
+					}
+					if !containSystemPrompt {
+						// No system message yet: prepend one.
+						systemMessage := dto.Message{
+							Role:    request.GetSystemRoleName(),
+							Content: info.ChannelSetting.SystemPrompt,
+						}
+						request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
+					} else if info.ChannelSetting.SystemPromptOverride {
+						common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
+						// System prompt override enabled: prepend channel prompt ahead of the existing one.
+						for i, message := range request.Messages {
+							if message.Role == request.GetSystemRoleName() {
+								if message.IsStringContent() {
+									request.Messages[i].SetStringContent(info.ChannelSetting.SystemPrompt + "\n" + message.StringContent())
+								} else {
+									contents := message.ParseContent()
+									contents = append([]dto.MediaContent{
+										{
+											Type: dto.ContentTypeText,
+											Text: info.ChannelSetting.SystemPrompt,
+										},
+									}, contents...)
+									request.Messages[i].Content = contents
+								}
+								break
+							}
 						}
 					}
 				}

@@ -12,7 +12,6 @@ package skillrelay
 
 import (
 	"encoding/json"
-	"errors"
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
@@ -76,11 +75,8 @@ func loadSnapshot(database *gorm.DB, skill *skillmodel.Skill) (*versionSnapshot,
 		Select([]string{"id", "instruction_template", "model_whitelist_snapshot"}).
 		Where("id = ?", *skill.ActiveVersionID).
 		Take(&version).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// ActiveVersionID in skills table points to a non-existent version row:
-			// publish/activate validation should have prevented this, but guard here.
-			return nil, errcodes.ErrSkillInternalError
-		}
+		// ActiveVersionID points to a non-existent or corrupt version row —
+		// publish/activate validation should have prevented this, but guard here.
 		return nil, errcodes.ErrSkillInternalError
 	}
 
@@ -127,6 +123,9 @@ func selectModel(whitelist []string) (string, errcodes.ErrorCode) {
 //
 // All prior-turn messages are dropped — the provider sees exactly one user turn.
 func rewriteForSingleTurn(request *dto.GeneralOpenAIRequest, instructionTemplate, model string) (*dto.GeneralOpenAIRequest, errcodes.ErrorCode) {
+	// V1 skills are text-only. StringContent() returns "" for pure-image ContentPart
+	// arrays (no text type), which is treated the same as a missing user message.
+	// Callers that need multimodal support must wait for a future version of this API.
 	userContent := ""
 	for i := len(request.Messages) - 1; i >= 0; i-- {
 		if request.Messages[i].Role == "user" {
