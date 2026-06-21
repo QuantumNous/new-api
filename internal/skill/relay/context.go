@@ -17,8 +17,10 @@ import (
 //
 // Downstream handlers read from this context:
 //   - DR-67 (entitlement): calls availability.Resolve with Skill + identity fields
-//   - DR-88 (prompt injection): reads SkillVersion snapshot fields instead of
-//     re-resolving mutable Skill state later in the request
+//   - DR-68 (routing): LoadAndApply populates SkillVersionID, consumes SkillVersion,
+//     and rewrites the request from the server-bound snapshot
+//   - DR-88 (prompt injection, superseded by DR-68 request rewrite): must not
+//     re-resolve mutable Skill state later in the request
 //
 // The snapshot contract covers at least:
 //   - SkillVersionID

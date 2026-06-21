@@ -17,6 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 @import 'tailwindcss';
+/* Typography plugin — powers the `prose`/`prose-*` classes used by the Resources
+   docs renderer (src/features/docs). Without it those classes are no-ops and
+   markdown renders unstyled. Tailwind v4 registers plugins via @plugin. */
+@plugin '@tailwindcss/typography';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/plus-jakarta-sans';

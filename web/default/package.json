@@ -77,6 +77,7 @@
     "@eslint/js": "^10.0.1",
     "@rsbuild/core": "^2.0.1",
     "@rsbuild/plugin-react": "^2.0.0",
+    "@tailwindcss/typography": "^0.5.20",
     "@tanstack/eslint-plugin-query": "^5.95.2",
     "@tanstack/react-query-devtools": "^5.95.2",
     "@tanstack/react-router-devtools": "^1.166.13",
