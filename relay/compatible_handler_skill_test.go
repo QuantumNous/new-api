@@ -428,6 +428,120 @@ func TestTextHelper_SkillRelay_PublicRoutingAPI_ForcePackageEntryAndCredentialId
 		"public routing API must force package entry point over package-provided values")
 }
 
+// ── DR-68 specific integration tests ─────────────────────────────────────────
+
+// TestTextHelper_SkillRelay_DR68_EmptyWhitelist_Returns500 verifies that a skill
+// whose active version has an empty model_whitelist_snapshot causes LoadAndApply to
+// fail with SKILL_INTERNAL_ERROR (HTTP 500). An empty whitelist means selectModel has
+// nothing to return — the request must be aborted, not forwarded with a blank model.
+func TestTextHelper_SkillRelay_DR68_EmptyWhitelist_Returns500(t *testing.T) {
+	testDB := newSkillTestDB(t)
+	skill := &skillmodel.Skill{
+		Slug: "empty-wl", Status: enums.SkillStatusPublished, Category: "test",
+		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
+		Name: "Empty WL Skill", ShortDescription: "s", Description: "d", CreatedBy: 1,
+	}
+	require.NoError(t, testDB.Create(skill).Error)
+	insertVersionForSkill(t, testDB, skill, "template", []string{}) // empty whitelist
+	skillrelay.SetDB(testDB)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c := newSkillTestCtx(t, 5)
+	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
+		Model:      "gpt-4o",
+		Messages:   []dto.Message{userMsg("hello")},
+		Deeprouter: &dto.DeepRouterExtension{SkillID: skill.ID},
+	}))
+
+	require.NotNil(t, apiErr, "empty whitelist must abort with an error")
+	assert.Equal(t, http.StatusInternalServerError, apiErr.StatusCode,
+		"empty whitelist must return HTTP 500 SKILL_INTERNAL_ERROR")
+	assert.Equal(t, "SKILL_INTERNAL_ERROR", apiErr.Err.Error())
+}
+
+// TestTextHelper_SkillRelay_DR68_NoUserMessage_Returns400 verifies that a skill relay
+// request whose message array contains no user-role message is rejected with HTTP 400
+// INVALID_REQUEST. FR-G19 requires a user message to form the stateless single-turn pair.
+func TestTextHelper_SkillRelay_DR68_NoUserMessage_Returns400(t *testing.T) {
+	testDB := newSkillTestDB(t)
+	skill := &skillmodel.Skill{
+		Slug: "no-user-msg", Status: enums.SkillStatusPublished, Category: "test",
+		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
+		Name: "No User Msg", ShortDescription: "s", Description: "d", CreatedBy: 1,
+	}
+	require.NoError(t, testDB.Create(skill).Error)
+	insertVersionForSkill(t, testDB, skill, "template", []string{"deeprouter-auto"})
+	skillrelay.SetDB(testDB)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	sys := dto.Message{Role: "system"}
+	sys.SetStringContent("system only — no user message")
+	c := newSkillTestCtx(t, 5)
+	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
+		Model:      "gpt-4o",
+		Messages:   []dto.Message{sys}, // no user role
+		Deeprouter: &dto.DeepRouterExtension{SkillID: skill.ID},
+	}))
+
+	require.NotNil(t, apiErr, "missing user message must abort with an error")
+	assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode,
+		"no user message must return HTTP 400 INVALID_REQUEST")
+	assert.Equal(t, "INVALID_REQUEST", apiErr.Err.Error())
+}
+
+// TestApplySystemPromptIfNeeded_SkippedForSkillRelay verifies D4 fix (Responses path):
+// applySystemPromptIfNeeded must be a no-op when a SkillRelayContext is active.
+// The channel-level SystemPrompt must not prepend or override instruction_template.
+func TestApplySystemPromptIfNeeded_SkippedForSkillRelay(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	skillrelay.Set(c, &skillrelay.SkillRelayContext{SkillID: "skill-x"})
+
+	info := &relaycommon.RelayInfo{}
+	info.ChannelMeta = &relaycommon.ChannelMeta{}
+	info.ChannelSetting.SystemPrompt = "DO NOT INJECT THIS"
+	info.ChannelSetting.SystemPromptOverride = true
+
+	// Simulate the post-LoadAndApply state: [system: instruction_template, user: msg]
+	sysMsg := dto.Message{Role: "system"}
+	sysMsg.SetStringContent("skill instruction_template")
+	uMsg := dto.Message{Role: "user"}
+	uMsg.SetStringContent("user question")
+	req := &dto.GeneralOpenAIRequest{Messages: []dto.Message{sysMsg, uMsg}}
+
+	applySystemPromptIfNeeded(c, info, req)
+
+	require.Len(t, req.Messages, 2,
+		"D4 (Responses path): channel SystemPrompt must not be injected for skill relay")
+	assert.Equal(t, "skill instruction_template", req.Messages[0].StringContent(),
+		"instruction_template must be preserved unchanged")
+}
+
+// TestApplySystemPromptIfNeeded_InjectsForNonSkillRelay verifies that the D4 guard
+// does not break normal (non-skill) requests: channel SystemPrompt must still be
+// injected when there is no SkillRelayContext in the gin context.
+func TestApplySystemPromptIfNeeded_InjectsForNonSkillRelay(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	// No skillrelay.Set → non-skill relay request.
+
+	info := &relaycommon.RelayInfo{}
+	info.ChannelMeta = &relaycommon.ChannelMeta{}
+	info.ChannelSetting.SystemPrompt = "Be concise."
+
+	req := &dto.GeneralOpenAIRequest{Messages: []dto.Message{userMsg("hello")}}
+
+	applySystemPromptIfNeeded(c, info, req)
+
+	require.Len(t, req.Messages, 2,
+		"channel SystemPrompt must be prepended for non-skill relay")
+	assert.Equal(t, "system", req.Messages[0].Role)
+	assert.Equal(t, "Be concise.", req.Messages[0].StringContent())
+	assert.Equal(t, "hello", req.Messages[1].StringContent())
+}
+
 // TestTextHelper_SkillRelay_DR68_LoadAndApply_Executed verifies the DR-68 integration
 // end-to-end within TextHelper: LoadAndApply must be called, must succeed (SkillVersionID
 // populated on ctx), and the relay must NOT abort with a skill-gate error (401/403/404/500

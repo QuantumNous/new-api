@@ -274,3 +274,127 @@ func TestLoadAndApply_VersionNotInDB_ReturnsInternalError(t *testing.T) {
 	_, errCode := loadAndApply(testDB, ctx, userOnlyRequest("hi"))
 	assert.Equal(t, errcodes.ErrSkillInternalError, errCode)
 }
+
+// ── parseModelWhitelist tests ─────────────────────────────────────────────────
+
+func TestParseModelWhitelist_ValidArray(t *testing.T) {
+	raw := skillmodel.SkillJSONB(`["deeprouter-auto","gpt-4o-mini"]`)
+	models, err := parseModelWhitelist(raw)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"deeprouter-auto", "gpt-4o-mini"}, models)
+}
+
+func TestParseModelWhitelist_EmptyArray(t *testing.T) {
+	raw := skillmodel.SkillJSONB(`[]`)
+	models, err := parseModelWhitelist(raw)
+	require.NoError(t, err)
+	assert.Empty(t, models, "empty JSON array must result in zero-length slice")
+}
+
+func TestParseModelWhitelist_MalformedJSON_ReturnsError(t *testing.T) {
+	raw := skillmodel.SkillJSONB(`not-valid-json`)
+	_, err := parseModelWhitelist(raw)
+	assert.Error(t, err, "malformed JSON must return an error")
+}
+
+func TestParseModelWhitelist_ZeroLength_ReturnsNil(t *testing.T) {
+	// Defensive guard: len(raw)==0 is unreachable after a DB round-trip
+	// (normalizeSkillJSONB guarantees minimum "[]") but protects direct callers
+	// in tests that bypass BeforeCreate.
+	models, err := parseModelWhitelist(skillmodel.SkillJSONB(""))
+	require.NoError(t, err, "zero-length raw must not error")
+	assert.Nil(t, models, "zero-length raw must return nil, not an error")
+}
+
+// ── additional rewriteForSingleTurn tests ────────────────────────────────────
+
+func TestRewriteForSingleTurn_EmptyTemplate_IsAllowed(t *testing.T) {
+	// An empty instruction_template is valid — produces an empty system message.
+	// Whitelist / template validation is the publisher's job; executor accepts any string.
+	got, errCode := rewriteForSingleTurn(userOnlyRequest("hello"), "", "deeprouter-auto")
+
+	require.Equal(t, errcodes.ErrorCode(""), errCode)
+	require.Len(t, got.Messages, 2)
+	assert.Equal(t, "system", got.Messages[0].Role)
+	assert.Equal(t, "", got.Messages[0].StringContent(), "empty template → empty system message")
+	assert.Equal(t, "hello", got.Messages[1].StringContent())
+}
+
+func TestRewriteForSingleTurn_AssistantOnlyMessages_ReturnsInvalidRequest(t *testing.T) {
+	a := dto.Message{Role: "assistant"}
+	a.SetStringContent("I can help you.")
+	req := &dto.GeneralOpenAIRequest{Model: "gpt-4o", Messages: []dto.Message{a}}
+
+	_, errCode := rewriteForSingleTurn(req, "template", "deeprouter-auto")
+	assert.Equal(t, errcodes.ErrInvalidRequest, errCode,
+		"messages with no user role must return INVALID_REQUEST")
+}
+
+func TestRewriteForSingleTurn_ContentPartTextExtracted(t *testing.T) {
+	// Mixed text+image ContentPart: V1 extracts text content; image is silently
+	// dropped (documented text-only limitation — see comment in rewriteForSingleTurn).
+	msg := dto.Message{Role: "user"}
+	msg.Content = []any{
+		map[string]any{"type": "text", "text": "describe this image"},
+		map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:image/png;base64,abc"}},
+	}
+	req := &dto.GeneralOpenAIRequest{Model: "gpt-4o", Messages: []dto.Message{msg}}
+
+	got, errCode := rewriteForSingleTurn(req, "You are a vision assistant.", "deeprouter-auto")
+
+	require.Equal(t, errcodes.ErrorCode(""), errCode)
+	require.Len(t, got.Messages, 2)
+	assert.Equal(t, "describe this image", got.Messages[1].StringContent(),
+		"text part must be extracted; image_url is dropped in V1")
+}
+
+func TestRewriteForSingleTurn_ContentPartOnlyImage_ReturnsInvalidRequest(t *testing.T) {
+	// Pure-image ContentPart: StringContent() returns "" (no text type found).
+	// V1 skills are text-only; this is treated identically to a missing user message.
+	msg := dto.Message{Role: "user"}
+	msg.Content = []any{
+		map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:image/png;base64,abc"}},
+	}
+	req := &dto.GeneralOpenAIRequest{Model: "gpt-4o", Messages: []dto.Message{msg}}
+
+	_, errCode := rewriteForSingleTurn(req, "template", "deeprouter-auto")
+	assert.Equal(t, errcodes.ErrInvalidRequest, errCode,
+		"V1 skills must reject pure-image messages (StringContent() returns \"\" for ContentPart-only arrays)")
+}
+
+// ── loadSnapshot edge-case tests ─────────────────────────────────────────────
+
+func TestLoadSnapshot_MalformedWhitelist_ReturnsInternalError(t *testing.T) {
+	db := newExecutorTestDB(t)
+	// Insert a version with malformed JSON in model_whitelist_snapshot via raw SQL,
+	// bypassing the GORM BeforeCreate hook (normalizeSkillJSONB) that would fix it.
+	vID := "00000000-0000-0000-0000-000000000042"
+	skill := &skillmodel.Skill{
+		ID:               "malformed-wl-skill",
+		ActiveVersionID:  &vID,
+		Status:           enums.SkillStatusPublished,
+		Category:         "test",
+		RequiredPlan:     enums.RequiredPlanFree,
+		MonetizationType: enums.MonetizationTypeFree,
+		Name:             "Malformed WL",
+		ShortDescription: "s",
+		Description:      "d",
+		CreatedBy:        1,
+	}
+	require.NoError(t, db.Create(skill).Error)
+	require.NoError(t, db.Exec(
+		`INSERT INTO skill_versions
+		    (id, skill_id, version_number, status, instruction_template,
+		     instruction_template_sha256, model_whitelist_snapshot,
+		     required_plan_snapshot, monetization_snapshot, created_by, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+		vID, skill.ID, 1, string(enums.SkillVersionStatusActive),
+		"template", "aabbccdd",
+		`not-valid-json`,
+		string(enums.RequiredPlanFree), "{}", 1,
+	).Error)
+
+	_, errCode := loadSnapshot(db, skill)
+	assert.Equal(t, errcodes.ErrSkillInternalError, errCode,
+		"malformed JSON in model_whitelist_snapshot must return SKILL_INTERNAL_ERROR")
+}
