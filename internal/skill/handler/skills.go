@@ -518,3 +518,147 @@ func writeDBError(c *gin.Context, err error) {
 	}
 	skillapi.Error(c, errcodes.ErrSkillInternalError, http.StatusText(http.StatusInternalServerError), nil)
 }
+
+type createSkillRequest struct {
+	Slug              string                 `json:"slug"`
+	Name              string                 `json:"name"`
+	ShortDescription  string                 `json:"short_description"`
+	Description       string                 `json:"description"`
+	Category          string                 `json:"category"`
+	RequiredPlan      enums.RequiredPlan     `json:"required_plan"`
+	MonetizationType  enums.MonetizationType `json:"monetization_type"`
+	FreeQuotaPerMonth *int                   `json:"free_quota_per_month"`
+	MaxInputTokens    *int                   `json:"max_input_tokens"`
+}
+
+// CreateAdminSkill serves POST /api/v1/admin/skills (Super Admin only).
+// Creates a draft Skill shell; instruction templates are managed via version APIs.
+func CreateAdminSkill(c *gin.Context) {
+	var req createSkillRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeCreateSkillValidationError(c, "INVALID_JSON", "Invalid JSON request body.")
+		return
+	}
+	normalizeCreateSkillRequest(&req)
+	if reason := validateCreateSkillRequest(req); reason != "" {
+		writeCreateSkillValidationError(c, reason, "Invalid skill create request.")
+		return
+	}
+
+	db, ok := skillDB(c)
+	if !ok {
+		return
+	}
+
+	var existing int64
+	if err := db.Model(&skillmodel.Skill{}).Where("slug = ?", req.Slug).Count(&existing).Error; err != nil {
+		writeDBError(c, err)
+		return
+	}
+	if existing > 0 {
+		writeSkillConflict(c, "Skill slug already exists.")
+		return
+	}
+
+	creatorID := int64(c.GetInt("id"))
+	s := skillmodel.Skill{
+		Slug:                 req.Slug,
+		Status:               enums.SkillStatusDraft,
+		Category:             req.Category,
+		Tags:                 skillmodel.SkillJSONB(`[]`),
+		DefaultLocale:        "en",
+		Name:                 req.Name,
+		ShortDescription:     req.ShortDescription,
+		Description:          req.Description,
+		InputHints:           skillmodel.SkillJSONB(`[]`),
+		ExampleInputs:        skillmodel.SkillJSONB(`[]`),
+		ExampleOutputs:       skillmodel.SkillJSONB(`[]`),
+		RequiredPlan:         req.RequiredPlan,
+		MonetizationType:     req.MonetizationType,
+		FreeQuotaPerMonth:    req.FreeQuotaPerMonth,
+		MaxInputTokens:       req.MaxInputTokens,
+		ModelWhitelist:       skillmodel.SkillJSONB(`[]`),
+		TimeoutSeconds:       45,
+		KidsApprovalStatus:   enums.KidsApprovalStatusNotRequired,
+		AIDisclosureRequired: true,
+		CreatedBy:            creatorID,
+	}
+	if err := db.Create(&s).Error; err != nil {
+		if isUniqueConstraintError(err) {
+			writeSkillConflict(c, "Skill slug already exists.")
+			return
+		}
+		writeDBError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, skillapi.SuccessEnvelope{
+		Data: adminSkillFromModel(s),
+		Meta: skillapi.Meta{RequestID: skillapi.RequestID(c)},
+	})
+}
+
+func normalizeCreateSkillRequest(req *createSkillRequest) {
+	req.Slug = strings.TrimSpace(req.Slug)
+	req.Name = strings.TrimSpace(req.Name)
+	req.ShortDescription = strings.TrimSpace(req.ShortDescription)
+	req.Description = strings.TrimSpace(req.Description)
+	req.Category = strings.TrimSpace(req.Category)
+	req.RequiredPlan = enums.RequiredPlan(strings.TrimSpace(string(req.RequiredPlan)))
+	req.MonetizationType = enums.MonetizationType(strings.TrimSpace(string(req.MonetizationType)))
+}
+
+func validateCreateSkillRequest(req createSkillRequest) string {
+	switch {
+	case req.Slug == "":
+		return "MISSING_SLUG"
+	case req.Name == "":
+		return "MISSING_NAME"
+	case req.ShortDescription == "":
+		return "MISSING_SHORT_DESCRIPTION"
+	case req.Description == "":
+		return "MISSING_DESCRIPTION"
+	case req.Category == "":
+		return "MISSING_CATEGORY"
+	case !req.RequiredPlan.Valid():
+		return "INVALID_REQUIRED_PLAN"
+	case !req.MonetizationType.Valid():
+		return "INVALID_MONETIZATION_TYPE"
+	case req.FreeQuotaPerMonth != nil && *req.FreeQuotaPerMonth < 0:
+		return "INVALID_FREE_QUOTA_PER_MONTH"
+	case req.MaxInputTokens != nil && *req.MaxInputTokens <= 0:
+		return "INVALID_MAX_INPUT_TOKENS"
+	case createSkillRequiresMaxInputTokens(req) && req.MaxInputTokens == nil:
+		return "MAX_INPUT_TOKENS_REQUIRED"
+	default:
+		return ""
+	}
+}
+
+func createSkillRequiresMaxInputTokens(req createSkillRequest) bool {
+	return req.RequiredPlan == enums.RequiredPlanFree ||
+		req.MonetizationType == enums.MonetizationTypeFree ||
+		req.FreeQuotaPerMonth != nil
+}
+
+func writeCreateSkillValidationError(c *gin.Context, reason string, message string) {
+	skillapi.Error(c, errcodes.ErrInvalidRequest, message, gin.H{"reason": reason})
+}
+
+func writeSkillConflict(c *gin.Context, message string) {
+	c.JSON(http.StatusConflict, skillapi.ErrorEnvelope{
+		Error: skillapi.ErrorBody{
+			Code:      errcodes.ErrInvalidRequest,
+			Message:   message,
+			Detail:    gin.H{"reason": "DUPLICATE_SLUG"},
+			RequestID: skillapi.RequestID(c),
+		},
+	})
+}
+
+func isUniqueConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unique") || strings.Contains(msg, "duplicate")
+}

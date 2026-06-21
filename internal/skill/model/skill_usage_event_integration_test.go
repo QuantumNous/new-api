@@ -140,9 +140,16 @@ func TestSkillUsageEvents_SQLite_ChecksEnforced(t *testing.T) {
 	if err := db.Exec(
 		`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, entry_point, is_kids_session, user_id, session_id, metadata)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		"bad-kids-privacy", "skill_used", testTS, "skill_detail", true, 123, "pseudo", `{}`,
+		"bad-kids-user-id", "skill_used", testTS, "skill_detail", true, 123, "pseudo", `{}`,
 	).Error; err == nil {
 		t.Error("kids privacy CHECK must reject real user_id")
+	}
+	if err := db.Exec(
+		`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, entry_point, is_kids_session, tenant_id, session_id, metadata)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"bad-kids-tenant-id", "skill_used", testTS, "skill_detail", true, 456, "pseudo", `{}`,
+	).Error; err == nil {
+		t.Error("kids privacy CHECK must reject real tenant_id (V1: tenant_id == user_id)")
 	}
 }
 
@@ -205,6 +212,22 @@ func TestSkillUsageEvent_KidsSessionPrivacy(t *testing.T) {
 		t.Fatalf("kids pseudo id must be sha256 hex, got %q", pseudo)
 	}
 
+	// Verify app layer also rejects real tenant_id on kids sessions.
+	tenantUID := int64(456)
+	tenantOnlyErr := db.Create(&SkillUsageEvent{
+		EventID:       uuid.New().String(),
+		EventType:     enums.SkillUsageEventTypeUsed,
+		OccurredAt:    time.Now().UTC(),
+		TenantID:      &tenantUID,
+		EntryPoint:    enums.EntryPointSkillDetail,
+		IsKidsSession: true,
+		SessionID:     &pseudo,
+		Metadata:      SkillJSONB(`{}`),
+	}).Error
+	if tenantOnlyErr == nil {
+		t.Fatal("kids session analytics must reject real tenant_id (V1: tenant_id == user_id)")
+	}
+
 	event := SkillUsageEvent{
 		EventType:  enums.SkillUsageEventTypeUsed,
 		EntryPoint: enums.EntryPointSkillDetail,
@@ -215,6 +238,9 @@ func TestSkillUsageEvent_KidsSessionPrivacy(t *testing.T) {
 	}
 	if event.UserID != nil {
 		t.Fatal("ApplyKidsSessionAnalyticsIdentity must clear real user_id")
+	}
+	if event.TenantID != nil {
+		t.Fatal("ApplyKidsSessionAnalyticsIdentity must clear tenant_id (V1: tenant_id == user_id)")
 	}
 	if event.SessionID == nil || *event.SessionID != pseudo {
 		t.Fatal("ApplyKidsSessionAnalyticsIdentity must set HMAC session_id")
@@ -262,5 +288,51 @@ func TestEmitSkillUsageEvent_ValidatesEnums(t *testing.T) {
 	badBlockReason.BlockReason = &blockReason
 	if err := EmitSkillUsageEvent(db, badBlockReason); err == nil {
 		t.Fatal("EmitSkillUsageEvent must reject invalid block_reason")
+	}
+}
+
+// TestSUEMetadataDBConstraintTopLevelOnly documents the boundary between the
+// application-layer and DB-layer metadata key enforcement.
+//
+// The DB CHECK constraint (chk_sue_metadata_no_restricted_keys) uses json_extract
+// with top-level JSON paths ($.key) and cannot recursively inspect nested objects.
+// Direct SQL can therefore insert metadata like {"safe":{"prompt":"..."}} without
+// triggering the constraint.
+//
+// The APPLICATION write path (BeforeCreate → validateSUEEventMetadata →
+// jsonContainsRestrictedMetadataKey) is the authoritative recursive guard and
+// always executes before the DB constraint via the GORM BeforeCreate hook.
+func TestSUEMetadataDBConstraintTopLevelOnly(t *testing.T) {
+	db := openSQLiteDB(t)
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatalf("MigrateSkillUsageEvents: %v", err)
+	}
+
+	// Application layer catches nested restricted keys before they reach the DB.
+	ormErr := db.Create(&SkillUsageEvent{
+		EventID:    uuid.New().String(),
+		EventType:  enums.SkillUsageEventTypeUsed,
+		OccurredAt: time.Now().UTC(),
+		EntryPoint: enums.EntryPointSkillDetail,
+		Metadata:   SkillJSONB(`{"safe":{"prompt":"nested restricted key"}}`),
+	}).Error
+	if ormErr == nil {
+		t.Fatal("application BeforeCreate must reject nested restricted metadata key")
+	}
+	if !strings.Contains(ormErr.Error(), "prompt") {
+		t.Fatalf("expected error mentioning restricted key, got: %v", ormErr)
+	}
+
+	// DB CHECK constraint is top-level only: direct SQL with a nested restricted key
+	// succeeds because json_extract('$.prompt') evaluates to NULL (key not at root).
+	// This is a documented limitation; the application write path is authoritative.
+	sqlErr := db.Exec(
+		`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, entry_point, metadata)
+		 VALUES (?, ?, ?, ?, ?)`,
+		uuid.New().String(), "skill_used", testTS, "skill_detail",
+		`{"safe":{"prompt":"nested restricted key bypasses DB CHECK — app layer is the guard"}}`,
+	).Error
+	if sqlErr != nil {
+		t.Errorf("unexpected: DB rejected nested restricted key (constraint stricter than documented): %v", sqlErr)
 	}
 }

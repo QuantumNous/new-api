@@ -4,11 +4,11 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	enums "github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -17,7 +17,10 @@ import (
 // SkillUsageEvent records a Tier-1 platform event in skill_usage_events (tasks/03 §4.4).
 //
 // user_id and tenant_id store platform int64 IDs, not UUIDs (D1 deviation matching UES).
-// For V1: tenant_id == user_id (no separate tenant entity).
+// For V1: tenant_id == user_id (no separate tenant entity). For Kids sessions
+// (is_kids_session=true) BOTH user_id AND tenant_id must be nil — since V1 tenant_id
+// equals user_id, writing either field persists the real child identifier.
+// Use ApplyKidsSessionAnalyticsIdentity to set the HMAC pseudonymous session_id instead.
 // event_id is CHAR(36) UUID generated at emit time.
 // metadata stores SkillJSONB object; restricted keys (instruction_template, prompt, etc.)
 // must never be written here — see spec rule in §4.4.
@@ -87,9 +90,12 @@ func (e *SkillUsageEvent) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+// validateSUEEventMetadata is the authoritative recursive guard against restricted
+// metadata keys. The DB CHECK constraint (chk_sue_metadata_no_restricted_keys) only
+// checks top-level JSON paths; this function must always run first via BeforeCreate.
 func validateSUEEventMetadata(metadata SkillJSONB) error {
 	var decoded any
-	if err := json.Unmarshal(metadata, &decoded); err != nil {
+	if err := common.Unmarshal(metadata, &decoded); err != nil {
 		return fmt.Errorf("skill_usage_events: invalid metadata JSON: %w", err)
 	}
 	if _, ok := decoded.(map[string]any); !ok {
@@ -129,6 +135,10 @@ func validateSUEKidsSessionPrivacy(e *SkillUsageEvent) error {
 	if e.UserID != nil {
 		return fmt.Errorf("skill_usage_events: kids session analytics must not store user_id")
 	}
+	// V1: tenant_id == user_id, so persisting tenant_id leaks the real child identifier.
+	if e.TenantID != nil {
+		return fmt.Errorf("skill_usage_events: kids session analytics must not store tenant_id")
+	}
 	if e.SessionID == nil || *e.SessionID == "" {
 		return fmt.Errorf("skill_usage_events: kids session analytics requires pseudonymous session_id")
 	}
@@ -151,14 +161,17 @@ func KidsSessionPseudoID(userID, tenantID int64, saltVersion string, dailySalt [
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// ApplyKidsSessionAnalyticsIdentity anonymizes identity fields for a Kids session event.
+// Both user_id and tenant_id are cleared (V1: tenant_id == user_id, so either field
+// would persist the real child identifier). The tenantID parameter contributes to the
+// HMAC pseudo-ID computation but is never stored directly.
 func (e *SkillUsageEvent) ApplyKidsSessionAnalyticsIdentity(realUserID, tenantID int64, saltVersion string, dailySalt []byte) error {
 	sessionID, err := KidsSessionPseudoID(realUserID, tenantID, saltVersion, dailySalt)
 	if err != nil {
 		return err
 	}
-	tid := tenantID
 	e.UserID = nil
-	e.TenantID = &tid
+	e.TenantID = nil
 	e.SessionID = &sessionID
 	e.IsKidsSession = true
 	return nil

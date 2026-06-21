@@ -10,7 +10,17 @@ const sueEventTypeCheckExpr = "event_type IN ('skill_impression','skill_detail_v
 const sueEntryPointCheckExpr = "entry_point IN ('marketplace_card','skill_detail','my_skills','saved_list','playground_picker','featured','popular','new','recommended','admin_preview','search_results','skill_package')"
 const suePlanCheckExpr = "plan IS NULL OR plan IN ('free','pro','enterprise')"
 const sueBlockReasonCheckExpr = "block_reason IS NULL OR block_reason IN ('auth_required','skill_not_found','skill_not_published','skill_not_enabled','plan_required','subscription_inactive','evaluation_not_passed','quota_exceeded','kids_mode_blocked','context_too_long','rate_limited','timeout','safety_violation','internal_error')"
-const sueKidsPrivacyCheckExpr = "is_kids_session = false OR (user_id IS NULL AND session_id IS NOT NULL AND session_id <> '')"
+// sueKidsPrivacyCheckExpr requires that Kids session events carry neither user_id
+// nor tenant_id (V1: tenant_id == user_id, so either field persists the child's
+// real identifier). A non-empty session_id (HMAC pseudo-ID) is mandatory instead.
+const sueKidsPrivacyCheckExpr = "is_kids_session = false OR (user_id IS NULL AND tenant_id IS NULL AND session_id IS NOT NULL AND session_id <> '')"
+
+// sueRestrictedMetadataJSONPaths lists the top-level JSON paths checked by the DB
+// metadata constraint (chk_sue_metadata_no_restricted_keys). DB CHECK constraints
+// can only inspect top-level JSON keys — nested restricted keys (e.g.
+// {"safe":{"prompt":"..."}}) bypass the DB check. The application write path
+// (validateSUEEventMetadata / jsonContainsRestrictedMetadataKey) is the authoritative
+// recursive guard and always runs before the DB constraint via BeforeCreate.
 const sueRestrictedMetadataJSONPaths = "'$.instruction_template', '$.prompt', '$.system_prompt', '$.raw_messages', '$.provider_payload', '$.kids_raw_input', '$.full_user_input', '$.raw_output', '$.model_output'"
 
 // MigrateSkillUsageEvents creates and configures the skill_usage_events table.
@@ -81,6 +91,7 @@ func migrateSkillUsageEventsSQLite(db *gorm.DB) error {
 			CONSTRAINT "chk_sue_block_reason" CHECK (` + sueBlockReasonCheckExpr + `),
 			CONSTRAINT "chk_sue_kids_privacy" CHECK (` + sueKidsPrivacyCheckExpr + `),
 			CONSTRAINT "chk_sue_metadata_object" CHECK (json_valid("metadata") AND json_type("metadata") = 'object'),
+			-- top-level keys only; nested restricted keys require the application BeforeCreate guard
 			CONSTRAINT "chk_sue_metadata_no_restricted_keys" CHECK (
 				json_extract("metadata", '$.instruction_template') IS NULL AND
 				json_extract("metadata", '$.prompt') IS NULL AND

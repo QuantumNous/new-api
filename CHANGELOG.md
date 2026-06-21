@@ -2,6 +2,13 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-06-21
+
+- DR-46 (M02) `POST /api/v1/admin/skills`：实现草稿 Skill 创建端点（Super Admin only）。新增 `CreateAdminSkill` handler 及全部辅助函数（`internal/skill/handler/skills.go`），注册 `adminRoute.POST("/skills", ...)` 路由（`router/skill-router.go`），修复 `newSkillTestRouter` 缺失 `platformmodel.DB` 设置导致的路由器 panic（`router/skill-router_test.go`）。Status 强制为 draft、created_by 取自 auth context、slug 唯一性双重校验（COUNT + DB unique constraint → 409）、Free/free-quota 配置缺 `max_input_tokens` → 400 `MAX_INPUT_TOKENS_REQUIRED`；draft 对 marketplace 不可见（DR-46)
+- DR-43 review fix — Kids session privacy：`ApplyKidsSessionAnalyticsIdentity` 原本只清空 `user_id`，仍写入 `tenant_id`（V1 两者相等→等同泄露真实 child ID）。现改为同时清空 `user_id` 和 `tenant_id`；`validateSUEKidsSessionPrivacy` 同步添加 `tenant_id IS NULL` 校验；DB CHECK `chk_sue_kids_privacy` 约束表达式更新为同时约束 `user_id IS NULL AND tenant_id IS NULL`；`download_test.go` 中断言 `TenantID != nil` 的旧错误行为已修正为 `assert.Nil`（`internal/skill/model/skill_usage_event.go`, `sue_event_migrate.go`, `skill_usage_event_integration_test.go`, `internal/skill/handler/download_test.go`）
+- DR-43 review fix — JSON wrapper rule：`skill_usage_event.go` 将 `encoding/json` 直接调用替换为 `common.Unmarshal`（AGENTS Rule 1）
+- DR-43 review fix — DB metadata 约束仅检查顶层 key：新增代码注释（`sueRestrictedMetadataJSONPaths`、`validateSUEEventMetadata`、SQLite DDL）说明 DB CHECK 约束为顶层 only、应用层 `BeforeCreate → jsonContainsRestrictedMetadataKey` 为权威递归守卫；新增 `TestSUEMetadataDBConstraintTopLevelOnly` 测试记录边界行为
+
 ## 2026-06-20
 
 - 新增 `skill_versions` 表启动迁移接入、MySQL one-active-version 集成测试、SQLite 删除限制测试、DR-41 PRD，并将版本外键更新/删除策略改为 RESTRICT；MySQL 建表路径现在内建 generated column，避免后续 ALTER 触发 FK 重建失败（`model/main.go`, `internal/skill/model/`, `docs/tasks/skill-versions-table-migration-prd.md`）(DR-41)
