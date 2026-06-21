@@ -79,7 +79,7 @@ type BindingFormSheetProps = {
   onSubmit: (values: ChannelFlowBindingFormValues) => void
 }
 
-const CHANNEL_SELECTOR_PAGE_SIZE = 200
+const CHANNEL_SELECTOR_PAGE_SIZE = 1000
 
 export function BindingFormSheet(props: BindingFormSheetProps) {
   const { t } = useTranslation()

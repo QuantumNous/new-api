@@ -3132,7 +3132,7 @@
     "Polling": "轮询",
     "Polling mode requires Redis and memory cache, otherwise performance will be significantly degraded": "轮询模式需要 Redis 和内存缓存，否则性能将显著下降",
     "Pool ID": "资源池 ID",
-    "Pool name": "Pool 名称",
+    "Pool name": "资源池名称",
     "Pool: {{name}}": "资源池：{{name}}",
     "Poor": "差",
     "Port": "端口",

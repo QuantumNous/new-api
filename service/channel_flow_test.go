@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/require"
 )
 
 func testFlowPool() model.ChannelFlowPool {
@@ -31,18 +32,14 @@ func TestMemoryFlowBackendReleaseDispatchesWaitingRequest(t *testing.T) {
 	backend := NewMemoryFlowBackend()
 	pool := testFlowPool()
 
-	guard1, decision1, err := backend.Acquire(context.Background(), AcquireRequest{
+	guard1, _, err := backend.Acquire(context.Background(), AcquireRequest{
 		RequestID:      "req-1",
 		Pool:           pool,
 		UserID:         1,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err != nil {
-		t.Fatalf("first acquire failed: %v", err)
-	}
-	if guard1 == nil || decision1 == nil || !decision1.Admitted {
-		t.Fatalf("first acquire should be admitted immediately, decision=%+v guard=%v", decision1, guard1)
-	}
+	require.NoError(t, err, "first acquire failed")
+	require.NotNil(t, guard1, "first acquire should be admitted immediately")
 
 	resultCh := make(chan error, 1)
 	go func() {
@@ -71,9 +68,7 @@ func TestMemoryFlowBackendReleaseDispatchesWaitingRequest(t *testing.T) {
 
 	select {
 	case err := <-resultCh:
-		if err != nil {
-			t.Fatalf("waiting acquire failed: %v", err)
-		}
+		require.NoError(t, err, "waiting acquire failed")
 	case <-time.After(time.Second):
 		t.Fatal("waiting acquire was not dispatched after release")
 	}
@@ -89,9 +84,7 @@ func TestMemoryFlowBackendRejectsWhenQueueFull(t *testing.T) {
 		UserID:         1,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err != nil {
-		t.Fatalf("first acquire failed: %v", err)
-	}
+	require.NoError(t, err, "first acquire failed")
 	defer guard1.Release(context.Background())
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -115,9 +108,7 @@ func TestMemoryFlowBackendRejectsWhenQueueFull(t *testing.T) {
 		UserID:         3,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err == nil {
-		t.Fatal("third acquire should fail when queue is full")
-	}
+	require.Error(t, err, "third acquire should fail when queue is full")
 	if decision == nil || decision.RejectCode != FlowDecisionRejectQueueFull {
 		t.Fatalf("unexpected decision: %+v", decision)
 	}
@@ -135,9 +126,7 @@ func TestMemoryFlowBackendAllowsQueueUpToMaxQueueSize(t *testing.T) {
 		UserID:         1,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err != nil {
-		t.Fatalf("first acquire failed: %v", err)
-	}
+	require.NoError(t, err, "first acquire failed")
 	defer guard1.Release(context.Background())
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -164,9 +153,7 @@ func TestMemoryFlowBackendAllowsQueueUpToMaxQueueSize(t *testing.T) {
 		UserID:         4,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err == nil {
-		t.Fatal("fourth acquire should fail when total queue is full")
-	}
+	require.Error(t, err, "fourth acquire should fail when total queue is full")
 	if decision == nil || decision.RejectCode != FlowDecisionRejectQueueFull {
 		t.Fatalf("unexpected decision: %+v", decision)
 	}
@@ -187,9 +174,7 @@ func TestMemoryFlowBackendRejectsWhenPerUserQueueFull(t *testing.T) {
 		UserID:         1,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err != nil {
-		t.Fatalf("first acquire failed: %v", err)
-	}
+	require.NoError(t, err, "first acquire failed")
 	defer guard1.Release(context.Background())
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -213,9 +198,7 @@ func TestMemoryFlowBackendRejectsWhenPerUserQueueFull(t *testing.T) {
 		UserID:         1,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err == nil {
-		t.Fatal("third acquire should fail when per-user queue is full")
-	}
+	require.Error(t, err, "third acquire should fail when per-user queue is full")
 	if decision == nil || decision.RejectCode != FlowDecisionRejectPerUserQueueFull {
 		t.Fatalf("unexpected decision: %+v", decision)
 	}
@@ -234,15 +217,11 @@ func TestRedisLocalMemoryFallbackStatusUsesMemoryBackend(t *testing.T) {
 		UserID:         1,
 		QueueTimeoutMs: fallbackPool.QueueTimeoutMs,
 	})
-	if err != nil {
-		t.Fatalf("fallback acquire failed: %v", err)
-	}
+	require.NoError(t, err, "fallback acquire failed")
 	defer guard.Release(context.Background())
 
 	status, err := GetChannelFlowPoolStatus(context.Background(), pool)
-	if err != nil {
-		t.Fatalf("status failed: %v", err)
-	}
+	require.NoError(t, err, "status failed")
 	if status.Backend != model.ChannelFlowBackendMemory {
 		t.Fatalf("status should report effective memory backend, got %+v", status)
 	}
@@ -256,18 +235,14 @@ func TestRedisFlowBackendReleaseDispatchesWaitingRequest(t *testing.T) {
 	defer cleanup()
 	pool.MaxQueueSize = 2
 
-	guard1, decision1, err := backend.Acquire(context.Background(), AcquireRequest{
+	guard1, _, err := backend.Acquire(context.Background(), AcquireRequest{
 		RequestID:      "redis-req-1",
 		Pool:           pool,
 		UserID:         1,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err != nil {
-		t.Fatalf("first redis acquire failed: %v", err)
-	}
-	if guard1 == nil || decision1 == nil || !decision1.Admitted {
-		t.Fatalf("first redis acquire should be admitted, decision=%+v guard=%v", decision1, guard1)
-	}
+	require.NoError(t, err, "first redis acquire failed")
+	require.NotNil(t, guard1, "first redis acquire should be admitted")
 
 	resultCh := make(chan error, 1)
 	go func() {
@@ -299,9 +274,7 @@ func TestRedisFlowBackendReleaseDispatchesWaitingRequest(t *testing.T) {
 
 	select {
 	case err := <-resultCh:
-		if err != nil {
-			t.Fatalf("waiting redis acquire failed: %v", err)
-		}
+		require.NoError(t, err, "waiting redis acquire failed")
 	case <-time.After(2 * time.Second):
 		t.Fatal("waiting redis acquire was not dispatched after release")
 	}
@@ -318,9 +291,7 @@ func TestRedisFlowBackendAllowsQueueUpToMaxQueueSize(t *testing.T) {
 		UserID:         1,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err != nil {
-		t.Fatalf("first redis acquire failed: %v", err)
-	}
+	require.NoError(t, err, "first redis acquire failed")
 	defer guard1.Release(context.Background())
 
 	waitCtx, cancel := context.WithCancel(context.Background())
@@ -355,9 +326,7 @@ func TestRedisFlowBackendAllowsQueueUpToMaxQueueSize(t *testing.T) {
 		UserID:         4,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err == nil {
-		t.Fatal("fourth redis acquire should fail when total queue is full")
-	}
+	require.Error(t, err, "fourth redis acquire should fail when total queue is full")
 	if decision == nil || decision.RejectCode != FlowDecisionRejectQueueFull {
 		t.Fatalf("unexpected redis decision: %+v", decision)
 	}
@@ -369,9 +338,7 @@ func TestRedisFlowBackendAllowsQueueUpToMaxQueueSize(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		select {
 		case err := <-resultCh:
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 		case <-time.After(2 * time.Second):
 			t.Fatal("queued redis acquire did not exit after cancellation")
 		}
@@ -390,9 +357,7 @@ func TestRedisFlowBackendRejectsWhenPerUserQueueFull(t *testing.T) {
 		UserID:         1,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err != nil {
-		t.Fatalf("first redis acquire failed: %v", err)
-	}
+	require.NoError(t, err, "first redis acquire failed")
 	defer guard1.Release(context.Background())
 
 	waitCtx, cancel := context.WithCancel(context.Background())
@@ -415,9 +380,7 @@ func TestRedisFlowBackendRejectsWhenPerUserQueueFull(t *testing.T) {
 		UserID:         1,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err == nil {
-		t.Fatal("third redis acquire should fail when per-user queue is full")
-	}
+	require.Error(t, err, "third redis acquire should fail when per-user queue is full")
 	if decision == nil || decision.RejectCode != FlowDecisionRejectPerUserQueueFull {
 		t.Fatalf("unexpected redis decision: %+v", decision)
 	}
@@ -430,9 +393,7 @@ func newRedisFlowBackendForTest(t *testing.T) (*redisFlowBackend, model.ChannelF
 		t.Skip("REDIS_CONN_STRING is not set")
 	}
 	opt, err := redis.ParseURL(redisURL)
-	if err != nil {
-		t.Fatalf("parse redis url: %v", err)
-	}
+	require.NoError(t, err, "parse redis url")
 	client := redis.NewClient(opt)
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		_ = client.Close()
@@ -469,9 +430,7 @@ func cleanupRedisFlowKeys(t *testing.T, client *redis.Client, pool model.Channel
 	var cursor uint64
 	for {
 		found, nextCursor, err := client.Scan(ctx, cursor, pattern, 100).Result()
-		if err != nil {
-			t.Fatalf("scan redis flow keys: %v", err)
-		}
+		require.NoError(t, err, "scan redis flow keys")
 		cursor = nextCursor
 		if len(found) > 0 {
 			if err := client.Del(ctx, found...).Err(); err != nil {
@@ -516,9 +475,7 @@ func TestMemoryFlowGuardReleaseIdempotent(t *testing.T) {
 		UserID:         1,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err != nil {
-		t.Fatalf("acquire failed: %v", err)
-	}
+	require.NoError(t, err, "acquire failed")
 	if !decision.Admitted {
 		t.Fatalf("should be admitted immediately")
 	}
@@ -545,9 +502,7 @@ func TestMemoryFlowGuardReleaseIdempotent(t *testing.T) {
 		UserID:         2,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err != nil {
-		t.Fatalf("acquire after idempotent releases failed: %v", err)
-	}
+	require.NoError(t, err, "acquire after idempotent releases failed")
 	if !decision2.Admitted {
 		t.Fatalf("capacity should be available after release")
 	}
@@ -565,9 +520,7 @@ func TestMemoryFlowBackendClientAbortReleasesCapacity(t *testing.T) {
 		UserID:         1,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err != nil {
-		t.Fatalf("first acquire failed: %v", err)
-	}
+	require.NoError(t, err, "first acquire failed")
 	defer guard1.Release(context.Background())
 
 	// Create cancellable context to simulate client abort
@@ -588,9 +541,7 @@ func TestMemoryFlowBackendClientAbortReleasesCapacity(t *testing.T) {
 
 	// Verify queued
 	status, err := backend.Status(context.Background(), pool)
-	if err != nil {
-		t.Fatalf("status failed: %v", err)
-	}
+	require.NoError(t, err, "status failed")
 	if status.Queued != 1 {
 		t.Fatalf("expected 1 queued, got %d", status.Queued)
 	}
@@ -600,18 +551,14 @@ func TestMemoryFlowBackendClientAbortReleasesCapacity(t *testing.T) {
 
 	select {
 	case err := <-resultCh:
-		if err == nil {
-			t.Fatal("acquire should return error on client abort")
-		}
+		require.Error(t, err, "acquire should return error on client abort")
 	case <-time.After(time.Second):
 		t.Fatal("acquire did not return after client abort")
 	}
 
 	// After abort, queued count should be 0
 	status, err = backend.Status(context.Background(), pool)
-	if err != nil {
-		t.Fatalf("status after abort failed: %v", err)
-	}
+	require.NoError(t, err, "status after abort failed")
 	if status.Queued != 0 {
 		t.Fatalf("expected 0 queued after abort, got %d", status.Queued)
 	}
@@ -672,9 +619,7 @@ func TestMemoryFlowBackendMaxInflightPerUser(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 	status, err := backend.Status(context.Background(), pool)
-	if err != nil {
-		t.Fatalf("status failed: %v", err)
-	}
+	require.NoError(t, err, "status failed")
 	if status.Queued != 1 {
 		t.Fatalf("expected user1 third request to queue at per-user inflight limit, got queued=%d", status.Queued)
 	}
@@ -696,9 +641,7 @@ func TestMemoryFlowBackendMaxInflightPerUser(t *testing.T) {
 	}
 	select {
 	case err := <-user1Third:
-		if err != nil {
-			t.Fatalf("user1 queued request should be admitted after release: %v", err)
-		}
+		require.NoError(t, err, "user1 queued request should be admitted after release")
 	case <-time.After(time.Second):
 		t.Fatal("user1 queued request was not admitted after release")
 	}
@@ -718,9 +661,7 @@ func TestMemoryFlowBackendDispatchRespectsMaxInflightPerUser(t *testing.T) {
 		UserID:         1,
 		QueueTimeoutMs: 5000,
 	})
-	if err != nil {
-		t.Fatalf("user1 req1 acquire failed: %v", err)
-	}
+	require.NoError(t, err, "user1 req1 acquire failed")
 
 	// User 2: fill another inflight slot
 	guard2, _, err := backend.Acquire(context.Background(), AcquireRequest{
@@ -729,9 +670,7 @@ func TestMemoryFlowBackendDispatchRespectsMaxInflightPerUser(t *testing.T) {
 		UserID:         2,
 		QueueTimeoutMs: 5000,
 	})
-	if err != nil {
-		t.Fatalf("user2 req1 acquire failed: %v", err)
-	}
+	require.NoError(t, err, "user2 req1 acquire failed")
 
 	// User 1: queued (2nd request, user1 already has 1 running)
 	ch1 := make(chan error, 1)
@@ -769,9 +708,7 @@ func TestMemoryFlowBackendDispatchRespectsMaxInflightPerUser(t *testing.T) {
 
 	select {
 	case err := <-ch3:
-		if err != nil {
-			t.Fatalf("user3 should be admitted after release: %v", err)
-		}
+		require.NoError(t, err, "user3 should be admitted after release")
 	case <-time.After(time.Second):
 		t.Fatal("user3 was not dispatched after release — dispatch may be blocked by user1's per-user limit")
 	}
@@ -799,9 +736,7 @@ func TestRedisFlowGuardReleaseIdempotent(t *testing.T) {
 		UserID:         1,
 		QueueTimeoutMs: pool.QueueTimeoutMs,
 	})
-	if err != nil {
-		t.Fatalf("redis acquire failed: %v", err)
-	}
+	require.NoError(t, err, "redis acquire failed")
 	if !decision.Admitted {
 		t.Fatalf("should be admitted immediately")
 	}
@@ -918,9 +853,7 @@ func TestRedisFlowBackendMaxInflightPerUser(t *testing.T) {
 
 	select {
 	case err := <-user3Ch:
-		if err != nil {
-			t.Fatalf("user3 should be admitted after release: %v", err)
-		}
+		require.NoError(t, err, "user3 should be admitted after release")
 	case <-time.After(3 * time.Second):
 		t.Fatal("user3 was not promoted — dispatch may be blocked by per-user inflight limit")
 	}

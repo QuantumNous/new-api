@@ -95,7 +95,7 @@ export function PoolStatusPanel(props: PoolStatusPanelProps) {
   const totals = props.trendTotals
   const requestCount = totals?.request_count ?? 0
   const succeededCount = totals?.succeeded_count ?? 0
-  const scheduleActive = status?.schedule_active ?? props.pool.enabled
+  const scheduleActive = status?.schedule_active ?? false
   const selectedRefreshLabel =
     props.statusRefreshOptions.find(
       (option) => option.ms === props.statusRefreshMs

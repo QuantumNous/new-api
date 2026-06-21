@@ -150,7 +150,10 @@ export function ChannelFlowPools() {
 
   const statusQuery = useQuery({
     queryKey: channelFlowQueryKeys.status(selectedPool?.id ?? 0),
-    queryFn: () => getChannelFlowPoolStatus(selectedPool!.id),
+    queryFn: () => {
+      if (!selectedPool) return Promise.reject(new Error('No pool selected'))
+      return getChannelFlowPoolStatus(selectedPool.id)
+    },
     enabled: Boolean(selectedPool),
     refetchInterval: statusRefreshMs > 0 ? statusRefreshMs : false,
   })
@@ -160,14 +163,20 @@ export function ChannelFlowPools() {
       selectedPool?.id ?? 0,
       trendRangeMinutes
     ),
-    queryFn: () => getChannelFlowPoolTrend(selectedPool!.id, trendRangeMinutes),
+    queryFn: () => {
+      if (!selectedPool) return Promise.reject(new Error('No pool selected'))
+      return getChannelFlowPoolTrend(selectedPool.id, trendRangeMinutes)
+    },
     enabled: Boolean(selectedPool),
     refetchInterval: FLOW_TREND_REFETCH_MS,
   })
 
   const bindingsQuery = useQuery({
     queryKey: channelFlowQueryKeys.bindings(selectedPool?.id ?? 0),
-    queryFn: () => listChannelFlowPoolBindings(selectedPool!.id),
+    queryFn: () => {
+      if (!selectedPool) return Promise.reject(new Error('No pool selected'))
+      return listChannelFlowPoolBindings(selectedPool.id)
+    },
     enabled: Boolean(selectedPool),
   })
 

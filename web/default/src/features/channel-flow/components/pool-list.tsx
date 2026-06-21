@@ -38,6 +38,18 @@ type PoolListProps = {
 export function PoolList(props: PoolListProps) {
   const { t } = useTranslation()
 
+  const getPoolActivityLabel = (enabled: boolean, scheduleActive: boolean): string => {
+    if (!enabled) return t('Disabled')
+    if (scheduleActive) return t('Active now')
+    return t('Inactive now')
+  }
+
+  const getOnLimitLabel = (onLimit: string): string => {
+    if (onLimit === 'queue') return t('Queue on limit')
+    if (onLimit === 'fallback') return t('Fallback on limit')
+    return t('Reject on limit')
+  }
+
   if (props.loading) {
     return (
       <div className='space-y-2'>
@@ -131,11 +143,7 @@ export function PoolList(props: PoolListProps) {
                   )}
                 />
                 <span className='truncate text-xs font-medium'>
-                  {!pool.enabled
-                    ? t('Disabled')
-                    : isScheduleActive
-                      ? t('Active now')
-                      : t('Inactive now')}
+                  {getPoolActivityLabel(pool.enabled, isScheduleActive)}
                 </span>
               </div>
               <div
@@ -154,11 +162,7 @@ export function PoolList(props: PoolListProps) {
                 {backendLabel}
               </Badge>
               <Badge variant='outline'>
-                {pool.on_limit === 'queue'
-                  ? t('Queue on limit')
-                  : pool.on_limit === 'fallback'
-                    ? t('Fallback on limit')
-                    : t('Reject on limit')}
+                {getOnLimitLabel(pool.on_limit)}
               </Badge>
               <Badge variant='secondary'>
                 {t('Capacity')} {formatLimit(pool.max_inflight)}+
