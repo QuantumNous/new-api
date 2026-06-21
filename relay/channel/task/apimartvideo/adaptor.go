@@ -399,22 +399,17 @@ func extractVideoURL(env *taskEnvelope) string {
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
-	data := task.Data
-	if len(data) == 0 {
-		data = []byte("{}")
+	out := map[string]any{
+		"id":     task.TaskID,
+		"object": "video",
+		"model":  task.Properties.OriginModelName,
+		"status": task.Status.ToVideoStatus(),
 	}
-	var err error
-	if data, err = sjson.SetBytes(data, "id", task.TaskID); err != nil {
-		return nil, errors.Wrap(err, "set id failed")
-	}
-	status := task.Status.ToVideoStatus()
-	if data, err = sjson.SetBytes(data, "status", status); err != nil {
-		return nil, errors.Wrap(err, "set status failed")
+	if task.Progress != "" {
+		out["progress"] = task.Progress
 	}
 	if task.Status == model.TaskStatusSuccess {
-		if data, err = sjson.SetBytes(data, "url", task.GetResultURL()); err != nil {
-			return nil, errors.Wrap(err, "set url failed")
-		}
+		out["url"] = task.GetResultURL()
 	}
-	return data, nil
+	return common.Marshal(out)
 }
