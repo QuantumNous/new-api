@@ -121,10 +121,19 @@ type skillManifest struct {
 	RequiresDeepRouterKey bool    `json:"requires_deeprouter_key"`
 }
 
-func buildSkillPackage(s skillmodel.Skill) ([]byte, error) {
-	buf := new(bytes.Buffer)
-	w := zip.NewWriter(buf)
+type skillPackageKind string
 
+const (
+	skillPackageKindLegacy     skillPackageKind = "legacy"
+	skillPackageKindCapability skillPackageKind = "capability"
+)
+
+type skillPackageFile struct {
+	Name    string
+	Content []byte
+}
+
+func buildSkillPackage(s skillmodel.Skill) ([]byte, error) {
 	manifest := skillManifest{
 		SchemaVersion:         "1.0",
 		SkillID:               s.ID,
@@ -139,11 +148,33 @@ func buildSkillPackage(s skillmodel.Skill) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := addZipEntry(w, "manifest.json", manifestJSON); err != nil {
+
+	files := []skillPackageFile{
+		{Name: "manifest.json", Content: manifestJSON},
+		{Name: "SKILL.md", Content: []byte(buildSkillMD(s))},
+	}
+	return buildSkillPackageZip(skillPackageKindFor(s), files)
+}
+
+func skillPackageKindFor(s skillmodel.Skill) skillPackageKind {
+	if s.ActiveVersionID == nil {
+		return skillPackageKindLegacy
+	}
+	return skillPackageKindCapability
+}
+
+func buildSkillPackageZip(kind skillPackageKind, files []skillPackageFile) ([]byte, error) {
+	if err := validateSkillPackageRuntimeDependency(kind, files); err != nil {
+		common.SysLog("Skill package build rejected: " + err.Error())
 		return nil, err
 	}
-	if err := addZipEntry(w, "SKILL.md", []byte(buildSkillMD(s))); err != nil {
-		return nil, err
+
+	buf := new(bytes.Buffer)
+	w := zip.NewWriter(buf)
+	for _, file := range files {
+		if err := addZipEntry(w, file.Name, file.Content); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := w.Close(); err != nil {
@@ -159,6 +190,80 @@ func addZipEntry(w *zip.Writer, name string, content []byte) error {
 	}
 	_, err = f.Write(content)
 	return err
+}
+
+func validateSkillPackageRuntimeDependency(kind skillPackageKind, files []skillPackageFile) error {
+	if kind != skillPackageKindCapability {
+		return nil
+	}
+
+	var skillMD string
+	for _, file := range files {
+		if file.Name == "SKILL.md" {
+			skillMD = string(file.Content)
+			break
+		}
+	}
+	if strings.TrimSpace(skillMD) == "" {
+		return fmt.Errorf("D-09 runtime dependency guard rejected capability package: missing SKILL.md work step")
+	}
+
+	workStep := extractSkillWorkStep(skillMD)
+	if !hasDeepRouterRoutingCall(workStep) {
+		return fmt.Errorf("D-09 runtime dependency guard rejected capability package: work step has no DeepRouter public routing API call")
+	}
+	return nil
+}
+
+func extractSkillWorkStep(skillMD string) string {
+	lines := strings.Split(strings.ReplaceAll(skillMD, "\r\n", "\n"), "\n")
+	var out strings.Builder
+	inWorkStep := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if isSkillWorkStepHeading(trimmed) {
+			inWorkStep = true
+			continue
+		}
+		if inWorkStep && strings.HasPrefix(trimmed, "#") {
+			break
+		}
+		if inWorkStep {
+			out.WriteString(line)
+			out.WriteByte('\n')
+		}
+	}
+	return out.String()
+}
+
+func isSkillWorkStepHeading(line string) bool {
+	if !strings.HasPrefix(line, "#") {
+		return false
+	}
+	heading := strings.TrimSpace(strings.TrimLeft(line, "#"))
+	lower := strings.ToLower(heading)
+	return lower == "work step" ||
+		strings.HasPrefix(lower, "work step (") ||
+		strings.HasPrefix(lower, "work step:")
+}
+
+func hasDeepRouterRoutingCall(workStep string) bool {
+	lower := strings.ToLower(workStep)
+	if !strings.Contains(lower, "deeprouter") {
+		return false
+	}
+	for _, marker := range []string{
+		"/v1/routing/chat/completions",
+		"/v1/chat/completions",
+		"/v1/responses",
+		"/v1/messages",
+		"/v1/embeddings",
+	} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // buildSkillMD assembles a SKILL.md from the skills table fields available before
