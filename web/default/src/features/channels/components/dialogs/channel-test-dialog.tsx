@@ -16,7 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ChangeEvent, useCallback, useMemo, useRef, useState } from 'react'
+import {
+  type ChangeEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   type ColumnDef,
@@ -78,15 +85,17 @@ import {
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
 import { StatusBadge } from '@/components/status-badge'
-import { updateChannel } from '../../api'
+import { disableMultiKey, getMultiKeyStatus, updateChannel } from '../../api'
 import {
   channelsQueryKeys,
   formatResponseTime,
   handleTestChannel,
 } from '../../lib'
+import { getMultiKeyStatusConfig } from '../../lib/multi-key-utils'
 import type {
   Channel,
   GetChannelsResponse,
+  KeyStatus,
   SearchChannelsResponse,
 } from '../../types'
 import { useChannels } from '../channels-provider'
@@ -320,6 +329,13 @@ function ChannelTestDialogContent({
   const batchStopRequestedRef = useRef(false)
   const [endpointType, setEndpointType] = useState('auto')
   const [isStreamTest, setIsStreamTest] = useState(false)
+  const [selectedTestKeyIndex, setSelectedTestKeyIndex] = useState('auto')
+  const [modelTestKeyStatuses, setModelTestKeyStatuses] = useState<KeyStatus[]>(
+    []
+  )
+  const [modelTestKeyStatusLoading, setModelTestKeyStatusLoading] =
+    useState(false)
+  const [disableTestKeyLoading, setDisableTestKeyLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({})
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -349,11 +365,43 @@ function ChannelTestDialogContent({
       })),
     [t]
   )
+  const isMultiKeyChannel = Boolean(currentRow.channel_info?.is_multi_key)
+  const selectedKeyIndex =
+    selectedTestKeyIndex === 'auto' ? undefined : Number(selectedTestKeyIndex)
+  const selectedResultKeyPart =
+    typeof selectedKeyIndex === 'number' && Number.isFinite(selectedKeyIndex)
+      ? `key-${selectedKeyIndex}`
+      : 'auto'
+  const keySelectItems = useMemo(
+    () => [
+      { value: 'auto', label: t('Auto select'), disabled: false },
+      ...modelTestKeyStatuses.map((item) => {
+        const statusConfig = getMultiKeyStatusConfig(item.status)
+        return {
+          value: String(item.index),
+          label: `#${item.index} · ${item.key_preview || '-'} · ${t(
+            statusConfig.label
+          )}`,
+          disabled: item.status !== 1,
+        }
+      }),
+    ],
+    [modelTestKeyStatuses, t]
+  )
+
+  const getModelTestResultKey = useCallback(
+    (model: string) => `${selectedResultKeyPart}-${model}`,
+    [selectedResultKeyPart]
+  )
 
   const resetState = useCallback(() => {
     batchStopRequestedRef.current = true
     setEndpointType('auto')
     setIsStreamTest(false)
+    setSelectedTestKeyIndex('auto')
+    setModelTestKeyStatuses([])
+    setModelTestKeyStatusLoading(false)
+    setDisableTestKeyLoading(false)
     setSearchTerm('')
     setTestResults({})
     setRowSelection({})
@@ -407,13 +455,20 @@ function ChannelTestDialogContent({
   )
 
   const successModels = useMemo(
-    () => models.filter((model) => testResults[model]?.status === 'success'),
-    [models, testResults]
+    () =>
+      models.filter(
+        (model) =>
+          testResults[getModelTestResultKey(model)]?.status === 'success'
+      ),
+    [getModelTestResultKey, models, testResults]
   )
 
   const failedModels = useMemo(
-    () => models.filter((model) => testResults[model]?.status === 'error'),
-    [models, testResults]
+    () =>
+      models.filter(
+        (model) => testResults[getModelTestResultKey(model)]?.status === 'error'
+      ),
+    [getModelTestResultKey, models, testResults]
   )
 
   const filteredModels = useMemo(() => {
@@ -495,6 +550,76 @@ function ChannelTestDialogContent({
     [queryClient, updateChannelTestCache]
   )
 
+  const loadModelTestKeyStatuses = useCallback(async () => {
+    if (!isMultiKeyChannel) {
+      setModelTestKeyStatuses([])
+      setSelectedTestKeyIndex('auto')
+      return
+    }
+
+    setModelTestKeyStatusLoading(true)
+    try {
+      const pageSize = Math.max(
+        currentRow.channel_info?.multi_key_size ?? 50,
+        50
+      )
+      const response = await getMultiKeyStatus(currentRow.id, 1, pageSize)
+      if (response.success) {
+        setModelTestKeyStatuses(response.data?.keys ?? [])
+      } else {
+        toast.error(response.message || t('Failed to get key status'))
+      }
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to get key status')
+      )
+    } finally {
+      setModelTestKeyStatusLoading(false)
+    }
+  }, [
+    currentRow.channel_info?.multi_key_size,
+    currentRow.id,
+    isMultiKeyChannel,
+    t,
+  ])
+
+  useEffect(() => {
+    if (!open) return
+    void loadModelTestKeyStatuses()
+  }, [loadModelTestKeyStatuses, open])
+
+  const disableSelectedTestKey = useCallback(async () => {
+    if (typeof selectedKeyIndex !== 'number') {
+      toast.error(t('Please select a key to disable'))
+      return
+    }
+
+    setDisableTestKeyLoading(true)
+    try {
+      const response = await disableMultiKey(currentRow.id, selectedKeyIndex)
+      if (response.success) {
+        toast.success(t('Key disabled'))
+        setSelectedTestKeyIndex('auto')
+        await loadModelTestKeyStatuses()
+        refreshChannelLists()
+      } else {
+        toast.error(response.message || t('Failed to disable key'))
+      }
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to disable key')
+      )
+    } finally {
+      setDisableTestKeyLoading(false)
+    }
+  }, [
+    currentRow.id,
+    loadModelTestKeyStatuses,
+    refreshChannelLists,
+    selectedKeyIndex,
+    t,
+  ])
+
   const testSingleModel = useCallback(
     async (
       model: string,
@@ -503,8 +628,9 @@ function ChannelTestDialogContent({
     ): Promise<TestResult | undefined> => {
       if (!currentRow) return
 
-      markModelTesting(model, true)
-      updateTestResult(model, { status: 'testing' })
+      const testResultKey = getModelTestResultKey(model)
+      markModelTesting(testResultKey, true)
+      updateTestResult(testResultKey, { status: 'testing' })
       let finalResult: TestResult | undefined
 
       try {
@@ -515,6 +641,7 @@ function ChannelTestDialogContent({
             testModel: model,
             endpointType: endpointType === 'auto' ? undefined : endpointType,
             stream: effectiveStreamTest || undefined,
+            keyIndex: selectedKeyIndex,
             silent,
           },
           (success, responseTime, error, errorCode) => {
@@ -526,7 +653,7 @@ function ChannelTestDialogContent({
               error,
               errorCode,
             }
-            updateTestResult(model, finalResult)
+            updateTestResult(testResultKey, finalResult)
           }
         )
       } catch (error: unknown) {
@@ -535,9 +662,9 @@ function ChannelTestDialogContent({
           completedAt: Date.now(),
           error: error instanceof Error ? error.message : t('Test failed'),
         }
-        updateTestResult(model, finalResult)
+        updateTestResult(testResultKey, finalResult)
       } finally {
-        markModelTesting(model, false)
+        markModelTesting(testResultKey, false)
         if (refreshList) {
           refreshChannelLists(
             createChannelTestCachePatch(
@@ -553,8 +680,10 @@ function ChannelTestDialogContent({
       currentRow,
       endpointType,
       effectiveStreamTest,
+      getModelTestResultKey,
       markModelTesting,
       refreshChannelLists,
+      selectedKeyIndex,
       t,
       updateTestResult,
     ]
@@ -627,17 +756,18 @@ function ChannelTestDialogContent({
             startIndex + BATCH_TEST_CONCURRENCY
           )
           const batchPromises = batch.map(async (modelName) => {
+            const testResultKey = getModelTestResultKey(modelName)
             try {
               const result = await testSingleModel(modelName, true, false)
               const finalResult = result ?? createFallbackResult()
               if (!result) {
-                updateTestResult(modelName, finalResult)
+                updateTestResult(testResultKey, finalResult)
               }
               recordBatchResult(finalResult)
               return finalResult
             } catch (error: unknown) {
               const fallbackResult = createFallbackResult(error)
-              updateTestResult(modelName, fallbackResult)
+              updateTestResult(testResultKey, fallbackResult)
               recordBatchResult(fallbackResult)
               return fallbackResult
             }
@@ -697,7 +827,13 @@ function ChannelTestDialogContent({
         refreshChannelLists(resultPatch)
       }
     },
-    [refreshChannelLists, t, testSingleModel, updateTestResult]
+    [
+      getModelTestResultKey,
+      refreshChannelLists,
+      t,
+      testSingleModel,
+      updateTestResult,
+    ]
   )
 
   const handleSelectSuccessfulModels = useCallback(() => {
@@ -712,7 +848,7 @@ function ChannelTestDialogContent({
 
   const handleDeleteFailedModels = useCallback(async () => {
     const failed = models.filter(
-      (model) => testResults[model]?.status === 'error'
+      (model) => testResults[getModelTestResultKey(model)]?.status === 'error'
     )
     if (!failed.length) {
       setIsDeleteFailedDialogOpen(false)
@@ -735,7 +871,7 @@ function ChannelTestDialogContent({
         })
         setTestResults((prev) => {
           const next = { ...prev }
-          for (const model of failed) delete next[model]
+          for (const model of failed) delete next[getModelTestResultKey(model)]
           return next
         })
         setRowSelection((prev) => {
@@ -760,7 +896,14 @@ function ChannelTestDialogContent({
     } finally {
       setIsDeletingFailed(false)
     }
-  }, [currentRow.id, models, refreshChannelLists, t, testResults])
+  }, [
+    currentRow.id,
+    getModelTestResultKey,
+    models,
+    refreshChannelLists,
+    t,
+    testResults,
+  ])
 
   const handleClose = useCallback(() => {
     resetState()
@@ -838,11 +981,19 @@ function ChannelTestDialogContent({
         header: t('Status'),
         cell: ({ row }) => {
           const model = row.original.model
-          const result = testResults[model]
+          const testResultKey = getModelTestResultKey(model)
+          const result = testResults[testResultKey]
           return (
             <TestStatusCell
               result={result}
-              model={model}
+              model={testResultKey}
+              canDisableTestKey={
+                isMultiKeyChannel &&
+                typeof selectedKeyIndex === 'number' &&
+                result?.status === 'error'
+              }
+              disableTestKeyLoading={disableTestKeyLoading}
+              onDisableTestKey={disableSelectedTestKey}
               onOpenDetails={setFailureDetails}
             />
           )
@@ -855,7 +1006,7 @@ function ChannelTestDialogContent({
         header: t('Actions'),
         cell: ({ row }) => {
           const model = row.original.model
-          const isTestingModel = testingModels.has(model)
+          const isTestingModel = testingModels.has(getModelTestResultKey(model))
 
           return (
             <Button
@@ -877,7 +1028,12 @@ function ChannelTestDialogContent({
     ],
     [
       defaultTestModel,
+      disableSelectedTestKey,
+      disableTestKeyLoading,
+      getModelTestResultKey,
       isBatchTesting,
+      isMultiKeyChannel,
+      selectedKeyIndex,
       t,
       testResults,
       testingModels,
@@ -923,7 +1079,13 @@ function ChannelTestDialogContent({
         }
       >
         <div className='max-h-[78vh] space-y-4 overflow-y-auto py-4 pr-1'>
-          <div className='grid gap-4 md:grid-cols-2'>
+          <div
+            className={
+              isMultiKeyChannel
+                ? 'grid gap-4 md:grid-cols-3'
+                : 'grid gap-4 md:grid-cols-2'
+            }
+          >
             <div className='grid gap-2'>
               <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
               <Select
@@ -948,7 +1110,7 @@ function ChannelTestDialogContent({
                         value={option.value}
                         className={endpointSelectItemClass}
                       >
-                        <span className='min-w-0 whitespace-normal break-words leading-snug'>
+                        <span className='min-w-0 leading-snug break-words whitespace-normal'>
                           {option.label}
                         </span>
                       </SelectItem>
@@ -962,6 +1124,53 @@ function ChannelTestDialogContent({
                 )}
               </p>
             </div>
+            {isMultiKeyChannel && (
+              <div className='grid gap-2'>
+                <Label htmlFor='test-key'>{t('Test Key')}</Label>
+                <Select
+                  items={keySelectItems}
+                  value={selectedTestKeyIndex}
+                  onValueChange={(value) => {
+                    if (value !== null) {
+                      setSelectedTestKeyIndex(value)
+                    }
+                  }}
+                >
+                  <SelectTrigger
+                    id='test-key'
+                    className='w-full min-w-0'
+                    disabled={modelTestKeyStatusLoading}
+                  >
+                    <SelectValue
+                      className='min-w-0 truncate'
+                      placeholder={t('Auto select')}
+                    />
+                  </SelectTrigger>
+                  <SelectContent
+                    alignItemWithTrigger={false}
+                    className={endpointSelectContentClass}
+                  >
+                    <SelectGroup>
+                      {keySelectItems.map((option) => (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}
+                          disabled={option.disabled}
+                          className={endpointSelectItemClass}
+                        >
+                          <span className='min-w-0 leading-snug break-words whitespace-normal'>
+                            {option.label}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <p className='text-muted-foreground text-xs'>
+                  {t('Choose a specific enabled key for this test.')}
+                </p>
+              </div>
+            )}
             <div className='grid gap-2'>
               <Label htmlFor='stream-toggle'>{t('Stream Mode')}</Label>
               <div className='flex items-center gap-2'>
@@ -1165,10 +1374,16 @@ function BatchProgressSummary({
 function TestStatusCell({
   result,
   model,
+  canDisableTestKey,
+  disableTestKeyLoading,
+  onDisableTestKey,
   onOpenDetails,
 }: {
   result?: TestResult
   model: string
+  canDisableTestKey: boolean
+  disableTestKeyLoading: boolean
+  onDisableTestKey: () => void
   onOpenDetails: (details: FailureDetailsState) => void
 }) {
   const { t } = useTranslation()
@@ -1205,6 +1420,9 @@ function TestStatusCell({
     <FailureStatusContent
       result={result}
       model={model}
+      canDisableTestKey={canDisableTestKey}
+      disableTestKeyLoading={disableTestKeyLoading}
+      onDisableTestKey={onDisableTestKey}
       onOpenDetails={onOpenDetails}
     />
   )
@@ -1213,10 +1431,16 @@ function TestStatusCell({
 function FailureStatusContent({
   result,
   model,
+  canDisableTestKey,
+  disableTestKeyLoading,
+  onDisableTestKey,
   onOpenDetails,
 }: {
   result: TestResult
   model: string
+  canDisableTestKey: boolean
+  disableTestKeyLoading: boolean
+  onDisableTestKey: () => void
   onOpenDetails: (details: FailureDetailsState) => void
 }) {
   const { t } = useTranslation()
@@ -1262,6 +1486,20 @@ function FailureStatusContent({
           >
             <Info className='mr-1 h-3 w-3 shrink-0' />
             {t('Details')}
+          </Button>
+        )}
+        {canDisableTestKey && (
+          <Button
+            variant='destructive'
+            size='sm'
+            className='h-7 w-fit px-2 text-xs'
+            disabled={disableTestKeyLoading}
+            onClick={onDisableTestKey}
+          >
+            {disableTestKeyLoading && (
+              <Loader2 className='animate-spin' data-icon='inline-start' />
+            )}
+            {t('Disable current key')}
           </Button>
         )}
       </div>
@@ -1343,11 +1581,7 @@ function FailureDetailsSheet({
   )
 }
 
-function TestModelsBulkActions({
-  table,
-}: {
-  table: TanStackTable<ModelRow>
-}) {
+function TestModelsBulkActions({ table }: { table: TanStackTable<ModelRow> }) {
   const { t } = useTranslation()
   const { copyToClipboard } = useCopyToClipboard()
   const selectedRows = table.getFilteredSelectedRowModel().rows

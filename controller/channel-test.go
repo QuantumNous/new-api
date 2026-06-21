@@ -74,7 +74,7 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 	return rootUser.Id, nil
 }
 
-func testChannel(channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+func testChannel(channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, keyIndex *int) testResult {
 	tik := time.Now()
 	var unsupportedTestChannelTypes = []int{
 		constant.ChannelTypeMidjourney,
@@ -176,6 +176,9 @@ func testChannel(channel *model.Channel, testUserID int, testModel string, endpo
 	c.Set("base_url", channel.GetBaseURL())
 	group, _ := model.GetUserGroup(testUserID, false)
 	c.Set("group", group)
+	if keyIndex != nil {
+		middleware.SetChannelTestMultiKeyIndex(c, *keyIndex)
+	}
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, testModel)
 	if newAPIError != nil {
@@ -851,13 +854,27 @@ func TestChannel(c *gin.Context) {
 	testModel := c.Query("model")
 	endpointType := c.Query("endpoint_type")
 	isStream, _ := strconv.ParseBool(c.Query("stream"))
+	var keyIndex *int
+	keyIndexText := strings.TrimSpace(c.Query("key_index"))
+	if keyIndexText != "" {
+		parsedKeyIndex, err := strconv.Atoi(keyIndexText)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "key_index must be an integer",
+				"time":    0.0,
+			})
+			return
+		}
+		keyIndex = &parsedKeyIndex
+	}
 	testUserID, err := resolveChannelTestUserID(c)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	tik := time.Now()
-	result := testChannel(channel, testUserID, testModel, endpointType, isStream)
+	result := testChannel(channel, testUserID, testModel, endpointType, isStream, keyIndex)
 	if result.localErr != nil {
 		resp := gin.H{
 			"success": false,
@@ -928,7 +945,7 @@ func testAllChannels(notify bool) error {
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 			tik := time.Now()
-			result := testChannel(channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+			result := testChannel(channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel), nil)
 			tok := time.Now()
 			milliseconds := tok.Sub(tik).Milliseconds()
 

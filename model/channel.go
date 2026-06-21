@@ -282,6 +282,26 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	}
 }
 
+func (channel *Channel) GetEnabledKeyByIndex(index int) (string, int, string, bool) {
+	if index < 0 {
+		return "", index, "invalid_key_index", false
+	}
+
+	keys := channel.GetKeys()
+	if index >= len(keys) {
+		return "", index, "key_index_out_of_range", false
+	}
+
+	statusList := channel.ChannelInfo.MultiKeyStatusList
+	if statusList != nil {
+		if status, ok := statusList[index]; ok && status != common.ChannelStatusEnabled {
+			return "", index, fmt.Sprintf("key_status_%d", status), false
+		}
+	}
+
+	return keys[index], index, "", true
+}
+
 func (channel *Channel) SaveChannelInfo() error {
 	return DB.Model(channel).Update("channel_info", channel.ChannelInfo).Error
 }

@@ -440,6 +440,21 @@ func getTaskOriginModelName(c *gin.Context) string {
 	return ""
 }
 
+const ginKeyChannelTestMultiKeyIndex = "channel_test_multi_key_index"
+
+func SetChannelTestMultiKeyIndex(c *gin.Context, index int) {
+	c.Set(ginKeyChannelTestMultiKeyIndex, index)
+}
+
+func getChannelTestMultiKeyIndex(c *gin.Context) (int, bool) {
+	value, ok := c.Get(ginKeyChannelTestMultiKeyIndex)
+	if !ok {
+		return 0, false
+	}
+	index, ok := value.(int)
+	return index, ok
+}
+
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {
 	c.Set("original_model", modelName) // for retry
 	if channel == nil {
@@ -465,9 +480,27 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelModelMapping, channel.GetModelMapping())
 	common.SetContextKey(c, constant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
 
-	key, index, newAPIError := channel.GetNextEnabledKey()
-	if newAPIError != nil {
-		return newAPIError
+	var key string
+	var index int
+	var newAPIError *types.NewAPIError
+	if testKeyIndex, ok := getChannelTestMultiKeyIndex(c); ok {
+		if !channel.ChannelInfo.IsMultiKey {
+			return types.NewError(errors.New("key_index is only supported for multi-key channels"), types.ErrorCodeChannelNoAvailableKey, types.ErrOptionWithSkipRetry())
+		}
+		selectedKey, selectedIndex, reason, valid := channel.GetEnabledKeyByIndex(testKeyIndex)
+		if !valid {
+			if reason == "" {
+				reason = "specified_key_unavailable"
+			}
+			return types.NewError(fmt.Errorf("specified key unavailable: %s", reason), types.ErrorCodeChannelNoAvailableKey, types.ErrOptionWithSkipRetry())
+		}
+		key = selectedKey
+		index = selectedIndex
+	} else {
+		key, index, newAPIError = channel.GetNextEnabledKey()
+		if newAPIError != nil {
+			return newAPIError
+		}
 	}
 	if channel.ChannelInfo.IsMultiKey {
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)
