@@ -12,8 +12,14 @@ import (
 )
 
 // AutoCheapestGroup is the magic token group name that activates routing
-// algorithm 0.1 (cheapest enabled channel first, fallback to next cheapest).
+// algorithm 0.1:
+//   - attempt 0 + retry 1: cheapest enabled channel, then next cheapest
+//   - retry >= 2: most expensive among remaining (premium fallback)
 const AutoCheapestGroup = "default"
+
+// autoCheapestPremiumFallbackRetry is the relay retry index at which
+// auto-cheapest switches from price-ascending to price-descending selection.
+const autoCheapestPremiumFallbackRetry = 2
 
 // SelectCheapestEnabledChannel returns the channel with the lowest user price
 // for modelName, using the exact same formula shown on the Model Data admin page:
@@ -52,6 +58,33 @@ func SelectCheapestEnabledChannel(c *gin.Context, modelName string) (*model.Chan
 // caller can map it to "no available channel" without parsing the error string.
 var ErrNoCheapestChannel = errors.New("no enabled channel for cheapest routing")
 
+// ErrNoMostExpensiveChannel is returned when no enabled channel qualifies for
+// premium (descending price) fallback routing.
+var ErrNoMostExpensiveChannel = errors.New("no enabled channel for premium routing")
+
+// SelectMostExpensiveEnabledChannel picks the highest user-priced enabled
+// channel for modelName, excluding channels already recorded in use_channel.
+func SelectMostExpensiveEnabledChannel(c *gin.Context, modelName string) (*model.Channel, error) {
+	bannedIDs := bannedChannelIDsFromContext(c)
+	filter := ChannelPickFilter(c, modelName)
+	const maxAttempts = 32
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		pickedID := selectMostExpensiveChannelID(modelName, bannedIDs)
+		if pickedID == 0 {
+			return nil, ErrNoMostExpensiveChannel
+		}
+		ch, err := model.GetChannelById(pickedID, true)
+		if err != nil {
+			return nil, fmt.Errorf("auto-cheapest premium load channel %d: %w", pickedID, err)
+		}
+		if filter == nil || filter(ch) {
+			return ch, nil
+		}
+		bannedIDs = append(bannedIDs, pickedID)
+	}
+	return nil, ErrNoMostExpensiveChannel
+}
+
 // selectCheapestChannelID returns the channel ID with the lowest user price,
 // using a single SQL query that mirrors the Model Data page price calculation.
 //
@@ -62,13 +95,19 @@ var ErrNoCheapestChannel = errors.New("no enabled channel for cheapest routing")
 //
 // Channels with neither a pricing row nor a global price are excluded.
 func selectCheapestChannelID(modelName string, bannedIDs []int) int {
-	// Global fallback price from System Settings (used when no channel_model_pricings row exists)
+	return selectPricedChannelID(modelName, bannedIDs, true)
+}
+
+func selectMostExpensiveChannelID(modelName string, bannedIDs []int) int {
+	return selectPricedChannelID(modelName, bannedIDs, false)
+}
+
+func selectPricedChannelID(modelName string, bannedIDs []int, ascending bool) int {
 	globalInputUSD, _, _, _, hasGlobal := GlobalModelPricingUSD(modelName)
 	if !hasGlobal || globalInputUSD <= 0 {
 		globalInputUSD = 0
 	}
 
-	// Candidate model names: canonical + known aliases + model_mapping targets
 	candidates := ModelPricingLookupNames(modelName)
 
 	modelsCol := "c.models"
@@ -82,9 +121,6 @@ func selectCheapestChannelID(modelName string, bannedIDs []int) int {
 	}
 	var row result
 
-	// Single query matching Model Data formula:
-	//   COALESCE(best channel pricing row, global fallback) × rates
-	// Channels with no pricing source are filtered out by the HAVING / WHERE condition.
 	q := model.DB.Table("channels c").
 		Select(`c.id AS channel_id`).
 		Joins("LEFT JOIN channel_model_pricings p ON p.channel_id = c.id AND p.model_name IN ? AND p.input_price > 0", candidates).
@@ -94,21 +130,24 @@ func selectCheapestChannelID(modelName string, bannedIDs []int) int {
 		Where("COALESCE(a.enabled, true) = true")
 
 	if globalInputUSD <= 0 {
-		// No global fallback — only channels with an actual pricing row qualify
 		q = q.Where("p.channel_id IS NOT NULL")
 	}
-	// When globalInputUSD > 0, channels without a pricing row fall back to it — no extra filter needed.
 
 	if len(bannedIDs) > 0 {
 		q = q.Where("c.id NOT IN ?", bannedIDs)
 	}
 
-	// GORM Order() does not bind ? parameters — embed the float literal directly.
-	// globalInputUSD is computed from internal System Settings, not user input.
-	orderExpr := fmt.Sprintf(
-		"(COALESCE(p.input_price, %f) * COALESCE(c.recharge_rate, 1) * COALESCE(c.apimaster_price_ratio, 1)) ASC, COALESCE(c.priority, 0) DESC",
+	priceExpr := fmt.Sprintf(
+		"(COALESCE(p.input_price, %f) * COALESCE(c.recharge_rate, 1) * COALESCE(c.apimaster_price_ratio, 1))",
 		globalInputUSD,
 	)
+	direction := "DESC"
+	tieBreak := "ASC"
+	if ascending {
+		direction = "ASC"
+		tieBreak = "DESC"
+	}
+	orderExpr := fmt.Sprintf("%s %s, COALESCE(c.priority, 0) %s", priceExpr, direction, tieBreak)
 	q = q.Order(orderExpr).Limit(1)
 
 	if err := q.Scan(&row).Error; err != nil || row.ChannelID == 0 {

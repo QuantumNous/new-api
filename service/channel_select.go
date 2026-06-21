@@ -87,20 +87,26 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 	pickFilter := ChannelPickFilter(param.Ctx, param.ModelName)
 
-	// Routing algorithm 0.1: when the token group is "auto-cheapest", bypass the
-	// priority/weight random selector and always pick the lowest-priced enabled
-	// channel. The retry loop in controller/relay.go re-enters here on failure;
-	// we read the addUsedChannel() history via context so each retry walks one
-	// step further down the price ladder.
+	// Routing algorithm 0.1 (auto-cheapest / token group "default"):
+	//   retry 0–1: walk the price ladder upward from cheapest (see distributor + retry 1)
+	//   retry ≥ 2: pick the most expensive remaining channel (premium fallback)
 	if param.TokenGroup == AutoCheapestGroup {
-		ch, cheapErr := SelectCheapestEnabledChannel(param.Ctx, param.ModelName)
-		if cheapErr != nil {
-			if errors.Is(cheapErr, ErrNoCheapestChannel) {
+		var (
+			ch       *model.Channel
+			selectErr error
+		)
+		if param.GetRetry() >= autoCheapestPremiumFallbackRetry {
+			ch, selectErr = SelectMostExpensiveEnabledChannel(param.Ctx, param.ModelName)
+		} else {
+			ch, selectErr = SelectCheapestEnabledChannel(param.Ctx, param.ModelName)
+		}
+		if selectErr != nil {
+			if errors.Is(selectErr, ErrNoCheapestChannel) || errors.Is(selectErr, ErrNoMostExpensiveChannel) {
 				if policyErr := ClientPolicyChannelError(param.Ctx, param.ModelName); policyErr != nil && RequiresClientExclusivePolicy(param.ModelName) {
 					return nil, AutoCheapestGroup, policyErr
 				}
 			}
-			return nil, AutoCheapestGroup, cheapErr
+			return nil, AutoCheapestGroup, selectErr
 		}
 		return ch, AutoCheapestGroup, nil
 	}
