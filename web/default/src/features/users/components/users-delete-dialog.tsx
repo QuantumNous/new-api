@@ -19,16 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { deleteUser } from '../api'
 import { ERROR_MESSAGES } from '../constants'
 import { getUserActionMessage } from '../lib'
@@ -60,32 +51,21 @@ export function UsersDeleteDialog() {
   }
 
   return (
-    <AlertDialog
+    <ConfirmDialog
       open={open === 'delete'}
       onOpenChange={(open) => !open && setOpen(null)}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {t('This will permanently delete user')}{' '}
-            <span className='font-semibold'>{currentRow?.username}</span>
-            {t('. This action cannot be undone.')}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>
-            {t('Cancel')}
-          </AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
-          >
-            {isDeleting ? t('Deleting...') : t('Delete')}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      title={t('Are you sure?')}
+      desc={
+        <>
+          {t('This will permanently delete user')}{' '}
+          <span className='font-semibold'>{currentRow?.username}</span>
+          {t('. This action cannot be undone.')}
+        </>
+      }
+      confirmText={isDeleting ? t('Deleting...') : t('Delete')}
+      destructive
+      isLoading={isDeleting}
+      handleConfirm={handleDelete}
+    />
   )
 }

@@ -455,7 +455,10 @@ export function LogSettingsSection({
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
-                      <AlertDialogAction onClick={cleanupServerLogFiles}>
+                      <AlertDialogAction
+                        variant='destructive'
+                        onClick={cleanupServerLogFiles}
+                      >
                         {t('Confirm Cleanup')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
@@ -494,7 +497,11 @@ export function LogSettingsSection({
             <AlertDialogCancel disabled={isCleaning}>
               {t('Cancel')}
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleCleanLogs} disabled={isCleaning}>
+            <AlertDialogAction
+              variant='destructive'
+              onClick={handleCleanLogs}
+              disabled={isCleaning}
+            >
               {isCleaning ? t('Cleaning...') : t('Delete logs')}
             </AlertDialogAction>
           </AlertDialogFooter>
