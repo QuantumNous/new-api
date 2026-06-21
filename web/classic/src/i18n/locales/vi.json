@@ -4380,6 +4380,7 @@
     "确认重置该认证？用户认证状态将清空，需重新提交所有信息（含营业执照与法人证件图片）。": "Đặt lại xác minh này? Trạng thái người dùng sẽ bị xóa và phải gửi lại toàn bộ thông tin (bao gồm giấy phép kinh doanh và ảnh CMND/CCCD người đại diện).",
     "企业认证状态": "Trạng thái xác minh doanh nghiệp",
     "企业认证审核管理": "Quản lý xét duyệt xác minh doanh nghiệp",
+    "对公转账与发票审核管理": "Quản lý chuyển khoản ngân hàng và xét duyệt hóa đơn",
     "留空则使用内置默认拒绝文案": "Để trống để sử dụng thông báo từ chối mặc định tích hợp",
     "对公转账": "Chuyển khoản ngân hàng",
     "对公转账设置": "Cài đặt chuyển khoản ngân hàng",

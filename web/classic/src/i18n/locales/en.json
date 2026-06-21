@@ -4040,6 +4040,7 @@
     "确认重置该认证？用户认证状态将清空，需重新提交所有信息（含营业执照与法人证件图片）。": "Reset this certification? The user's status will be cleared and all info (including the business license and legal-rep ID images) must be resubmitted.",
     "企业认证状态": "Enterprise Certification Status",
     "企业认证审核管理": "Enterprise certification review management",
+    "对公转账与发票审核管理": "Bank transfer and invoice review management",
     "留空则使用内置默认拒绝文案": "Leave blank to use the built-in default refusal message",
     "对公转账": "Bank Transfer",
     "对公转账设置": "Bank Transfer Settings",
