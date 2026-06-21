@@ -807,6 +807,7 @@ func TestRedisFlowBackendMaxInflightPerUser(t *testing.T) {
 	defer cleanup()
 	pool.MaxInflight = 3
 	pool.MaxInflightPerUser = 2
+	pool.MaxQueueSize = 0
 
 	// User 1: 2 requests admitted
 	guard1a, d1a, err := backend.Acquire(context.Background(), AcquireRequest{
