@@ -90,6 +90,10 @@ func (b *redisFlowBackend) Acquire(ctx context.Context, req AcquireRequest) (Flo
 		decision.RejectCode = FlowDecisionRejectContextExceeded
 		return nil, decision, fmt.Errorf("request context tokens %d exceeds flow pool max_context_tokens %d", req.ContextTokens, req.Pool.MaxContextTokens)
 	}
+	if req.Pool.MaxContextChars > 0 && req.ContextChars > req.Pool.MaxContextChars {
+		decision.RejectCode = FlowDecisionRejectContextExceeded
+		return nil, decision, fmt.Errorf("request context chars %d exceeds flow pool max_context_chars %d", req.ContextChars, req.Pool.MaxContextChars)
+	}
 
 	rdb, err := b.client()
 	if err != nil {

@@ -105,15 +105,15 @@ export function BindingFormSheet(props: BindingFormSheetProps) {
     enabled: props.open,
   })
 
-  const channels = channelsQuery.data?.data?.items ?? []
   const availableChannels = useMemo(() => {
+    const rawChannels = channelsQuery.data?.data?.items ?? []
     const boundChannelIds = new Set(
       props.bindings
         .filter((binding) => binding.enabled)
         .map((binding) => binding.channel_id)
     )
-    return channels.filter((channel) => !boundChannelIds.has(channel.id))
-  }, [channels, props.bindings])
+    return rawChannels.filter((channel) => !boundChannelIds.has(channel.id))
+  }, [channelsQuery.data, props.bindings])
 
   useEffect(() => {
     if (!props.open) return

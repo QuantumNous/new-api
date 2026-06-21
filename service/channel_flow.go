@@ -207,6 +207,9 @@ func AcquireChannelFlowGuard(c *gin.Context, channelID int, info *relaycommon.Re
 	}
 	guard, decision, acquireErr := GetChannelFlowController().Acquire(c.Request.Context(), req)
 	if acquireErr != nil {
+		if req.Pool.OnLimit == model.ChannelFlowOnLimitFallback {
+			return nil, nil, nil
+		}
 		if passThrough, fallbackPool, apiErr := handleRedisFlowAcquireError(c.Request.Context(), *pool, decision, acquireErr); apiErr != nil || passThrough {
 			if apiErr != nil {
 				recordChannelFlowMetric(req, channelFlowEventTypeFromDecision(decision), decision, true, decisionWaitMs(decision), 0)
@@ -578,6 +581,11 @@ func (b *memoryFlowBackend) Acquire(ctx context.Context, req AcquireRequest) (Fl
 		decision.RejectCode = FlowDecisionRejectContextExceeded
 		slot.mu.Unlock()
 		return nil, decision, fmt.Errorf("request context tokens %d exceeds flow pool max_context_tokens %d", req.ContextTokens, req.Pool.MaxContextTokens)
+	}
+	if req.Pool.MaxContextChars > 0 && req.ContextChars > req.Pool.MaxContextChars {
+		decision.RejectCode = FlowDecisionRejectContextExceeded
+		slot.mu.Unlock()
+		return nil, decision, fmt.Errorf("request context chars %d exceeds flow pool max_context_chars %d", req.ContextChars, req.Pool.MaxContextChars)
 	}
 	userInflightFull := req.Pool.MaxInflightPerUser > 0 && req.UserID > 0 &&
 		slot.userRunningLocked(req.UserID) >= req.Pool.MaxInflightPerUser

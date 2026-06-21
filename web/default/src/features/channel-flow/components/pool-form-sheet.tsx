@@ -67,6 +67,7 @@ type PoolFormSheetProps = {
   onSubmit: (values: ChannelFlowPoolFormValues) => void
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const numberFields = [
   'max_inflight',
   'max_inflight_per_user',

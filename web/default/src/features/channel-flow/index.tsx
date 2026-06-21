@@ -102,7 +102,7 @@ export function ChannelFlowPools() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [keyword, setKeyword] = useState('')
-  const [selectedPoolId, setSelectedPoolId] = useState<number | undefined>()
+  const [userSelectedPoolId, setUserSelectedPoolId] = useState<number | undefined>()
   const [editingPool, setEditingPool] = useState<ChannelFlowPool | null>(null)
   const [poolSheetOpen, setPoolSheetOpen] = useState(false)
   const [bindingSheetOpen, setBindingSheetOpen] = useState(false)
@@ -126,19 +126,17 @@ export function ChannelFlowPools() {
     queryFn: () => listChannelFlowPools(listParams),
   })
 
-  const pools = poolsQuery.data?.data?.items ?? []
-  const selectedPool =
-    pools.find((pool) => pool.id === selectedPoolId) ?? pools[0] ?? null
-
-  useEffect(() => {
-    if (pools.length === 0) {
-      setSelectedPoolId(undefined)
-      return
+  const pools = useMemo(
+    () => poolsQuery.data?.data?.items ?? [],
+    [poolsQuery.data]
+  )
+  const selectedPool = useMemo(() => {
+    if (pools.length === 0) return null
+    if (userSelectedPoolId) {
+      return pools.find((pool) => pool.id === userSelectedPoolId) ?? pools[0] ?? null
     }
-    if (!selectedPoolId || !pools.some((pool) => pool.id === selectedPoolId)) {
-      setSelectedPoolId(pools[0].id)
-    }
-  }, [pools, selectedPoolId])
+    return pools[0] ?? null
+  }, [pools, userSelectedPoolId])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -149,7 +147,7 @@ export function ChannelFlowPools() {
   }, [statusRefreshMs])
 
   const statusQuery = useQuery({
-    queryKey: channelFlowQueryKeys.status(selectedPool?.id ?? 0),
+    queryKey: [...channelFlowQueryKeys.status(selectedPool?.id ?? 0), selectedPool],
     queryFn: () => {
       if (!selectedPool) return Promise.reject(new Error('No pool selected'))
       return getChannelFlowPoolStatus(selectedPool.id)
@@ -159,10 +157,10 @@ export function ChannelFlowPools() {
   })
 
   const trendQuery = useQuery({
-    queryKey: channelFlowQueryKeys.trend(
+    queryKey: [...channelFlowQueryKeys.trend(
       selectedPool?.id ?? 0,
       trendRangeMinutes
-    ),
+    ), selectedPool],
     queryFn: () => {
       if (!selectedPool) return Promise.reject(new Error('No pool selected'))
       return getChannelFlowPoolTrend(selectedPool.id, trendRangeMinutes)
@@ -172,7 +170,7 @@ export function ChannelFlowPools() {
   })
 
   const bindingsQuery = useQuery({
-    queryKey: channelFlowQueryKeys.bindings(selectedPool?.id ?? 0),
+    queryKey: [...channelFlowQueryKeys.bindings(selectedPool?.id ?? 0), selectedPool],
     queryFn: () => {
       if (!selectedPool) return Promise.reject(new Error('No pool selected'))
       return listChannelFlowPoolBindings(selectedPool.id)
@@ -198,7 +196,7 @@ export function ChannelFlowPools() {
       setPoolSheetOpen(false)
       setEditingPool(null)
       if (savedPool?.id) {
-        setSelectedPoolId(savedPool.id)
+        setUserSelectedPoolId(savedPool.id)
         queryClient.setQueriesData<ApiResponse<PageResponse<ChannelFlowPool>>>(
           { queryKey: channelFlowQueryKeys.lists() },
           (oldData) => {
@@ -341,7 +339,7 @@ export function ChannelFlowPools() {
                   pools={pools}
                   selectedPoolId={selectedPool?.id}
                   loading={poolsQuery.isLoading}
-                  onSelect={(pool) => setSelectedPoolId(pool.id)}
+                  onSelect={(pool) => setUserSelectedPoolId(pool.id)}
                   onEdit={(pool) => {
                     setEditingPool(pool)
                     setPoolSheetOpen(true)
