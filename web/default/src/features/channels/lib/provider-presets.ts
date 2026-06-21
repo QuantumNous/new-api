@@ -61,7 +61,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     type: 14,
     modality: 'chat',
     models:
-      'claude-fable-5,claude-opus-4-8,claude-sonnet-4-6,claude-haiku-4-5-20251001',
+      'claude-opus-4-8,claude-sonnet-4-6,claude-haiku-4-5-20251001',
     testModel: 'claude-haiku-4-5-20251001',
     docsUrl: 'https://console.anthropic.com/settings/keys',
     description: '对话 / Opus 4.8 · Sonnet 4.5 · Haiku 4.5',
