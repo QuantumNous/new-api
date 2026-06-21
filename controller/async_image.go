@@ -343,6 +343,7 @@ func RelayAsyncImage(c *gin.Context) {
 	task.PrivateData.BillingSource = relayInfo.BillingSource
 	task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 	task.PrivateData.TokenId = relayInfo.TokenId
+	task.PrivateData.CallbackURL = relayInfo.CallbackURL
 	task.PrivateData.BillingContext = &model.TaskBillingContext{
 		ModelPrice:      relayInfo.PriceData.ModelPrice,
 		GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
@@ -420,6 +421,9 @@ func RelayAsyncImage(c *gin.Context) {
 				service.ChargeViolationFeeIfNeeded(c, &relayInfoCopy, helperErr)
 			}
 
+			// Send callback on failure
+			sendCallback(c, relayInfoCopy.CallbackURL, taskID, "failed", nil, helperErr.Error())
+
 			gopool.Go(func() {
 				perfmetrics.RecordRelaySample(&relayInfoCopy, false, 0)
 			})
@@ -458,6 +462,9 @@ func RelayAsyncImage(c *gin.Context) {
 			common.SysError("settle async image billing error: " + settleErr.Error())
 		}
 		service.LogTaskConsumption(c, &relayInfoCopy)
+
+		// Send callback on success
+		sendCallback(c, relayInfoCopy.CallbackURL, taskID, "succeeded", imageResp, "")
 
 		gopool.Go(func() {
 			perfmetrics.RecordRelaySample(&relayInfoCopy, true, 0)
@@ -573,4 +580,43 @@ func updateAsyncTaskStatus(userId int, taskId string, fromStatus, toStatus model
 		return false, result.Error
 	}
 	return result.RowsAffected > 0, nil
+}
+
+// sendCallback POSTs the task result to the callback_url (if configured).
+// Non-blocking: failures are logged but never propagated.
+func sendCallback(c *gin.Context, callbackURL string, taskID string, status string, data any, failReason string) {
+	if callbackURL == "" {
+		return
+	}
+
+	payload := map[string]any{
+		"task_id": taskID,
+		"status":  status,
+	}
+	if status == "succeeded" {
+		payload["data"] = data
+	} else if status == "failed" {
+		payload["error"] = map[string]any{
+			"message": failReason,
+		}
+	}
+
+	body, err := common.Marshal(payload)
+	if err != nil {
+		logger.LogWarn(c, fmt.Sprintf("callback: failed to marshal payload for task %s: %s", taskID, err.Error()))
+		return
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(callbackURL, "application/json", bytes.NewReader(body))
+	if err != nil {
+		logger.LogWarn(c, fmt.Sprintf("callback: POST to %s failed for task %s: %s", callbackURL, taskID, err.Error()))
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		logger.LogWarn(c, fmt.Sprintf("callback: POST to %s returned HTTP %d for task %s: %s", callbackURL, resp.StatusCode, taskID, common.LocalLogPreview(string(respBody))))
+	}
 }
