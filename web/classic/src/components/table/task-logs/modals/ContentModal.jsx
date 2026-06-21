@@ -24,70 +24,42 @@ import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
-const isSameOriginProxyPath = (url) =>
-  typeof url === 'string' && url.startsWith('/v1/videos/');
-
 const ContentModal = ({
   isModalOpen,
   setIsModalOpen,
   modalContent,
+  fallbackContent = '',
   isVideo,
 }) => {
   const { t } = useTranslation();
   const [videoError, setVideoError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [videoSrc, setVideoSrc] = useState('');
+  const [openUrl, setOpenUrl] = useState('');
 
   useEffect(() => {
     if (!isModalOpen || !isVideo || !modalContent) {
       setVideoSrc('');
+      setOpenUrl('');
       setVideoError(false);
       setIsLoading(false);
-      return undefined;
+      return;
     }
 
     setVideoError(false);
     setIsLoading(true);
-
-    if (!isSameOriginProxyPath(modalContent)) {
-      setVideoSrc(modalContent);
-      return undefined;
-    }
-
-    let objectUrl = '';
-    const controller = new AbortController();
-
-    fetch(modalContent, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        return response.blob();
-      })
-      .then((blob) => {
-        objectUrl = URL.createObjectURL(blob);
-        setVideoSrc(objectUrl);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setVideoError(true);
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      controller.abort();
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [isModalOpen, isVideo, modalContent]);
+    setVideoSrc(modalContent);
+    setOpenUrl(modalContent);
+  }, [isModalOpen, isVideo, modalContent, fallbackContent]);
 
   const handleVideoError = () => {
+    if (fallbackContent && videoSrc !== fallbackContent) {
+      setVideoSrc(fallbackContent);
+      setOpenUrl(fallbackContent);
+      setVideoError(false);
+      setIsLoading(true);
+      return;
+    }
     setVideoError(true);
     setIsLoading(false);
   };
@@ -97,11 +69,11 @@ const ContentModal = ({
   };
 
   const handleCopyUrl = () => {
-    navigator.clipboard.writeText(modalContent);
+    navigator.clipboard.writeText(openUrl || modalContent);
   };
 
   const handleOpenInNewTab = () => {
-    window.open(modalContent, '_blank');
+    window.open(openUrl || modalContent, '_blank');
   };
 
   const renderVideoContent = () => {
@@ -158,7 +130,7 @@ const ContentModal = ({
               type='tertiary'
               style={{ fontSize: '10px', wordBreak: 'break-all' }}
             >
-              {modalContent}
+              {openUrl || modalContent}
             </Text>
           </div>
         </div>
@@ -182,6 +154,7 @@ const ContentModal = ({
         )}
         {videoSrc ? (
           <video
+            key={videoSrc}
             src={videoSrc}
             controls
             style={{
@@ -193,7 +166,7 @@ const ContentModal = ({
             }}
             onError={handleVideoError}
             onLoadedData={handleVideoLoaded}
-            onLoadStart={() => setIsLoading(true)}
+            onCanPlay={handleVideoLoaded}
           />
         ) : null}
       </div>

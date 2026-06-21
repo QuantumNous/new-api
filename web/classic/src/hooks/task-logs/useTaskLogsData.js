@@ -29,6 +29,7 @@ import {
   timestamp2string,
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
+import { resolveTaskVideoPreview } from '../../helpers/taskVideoPreview';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 
 export const useTaskLogsData = () => {
@@ -71,6 +72,7 @@ export const useTaskLogsData = () => {
   // 新增：视频预览弹窗状态
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
+  const [videoFallbackUrl, setVideoFallbackUrl] = useState('');
 
   // Audio preview modal state
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
@@ -275,9 +277,10 @@ export const useTaskLogsData = () => {
     setIsModalOpen(true);
   };
 
-  // 新增：打开视频预览弹窗
-  const openVideoModal = (url) => {
-    setVideoUrl(url);
+  const openVideoModal = (record) => {
+    const { primary, fallback } = resolveTaskVideoPreview(record);
+    setVideoUrl(primary);
+    setVideoFallbackUrl(fallback);
     setIsVideoModalOpen(true);
   };
 
@@ -327,6 +330,7 @@ export const useTaskLogsData = () => {
     isVideoModalOpen,
     setIsVideoModalOpen,
     videoUrl,
+    videoFallbackUrl,
 
     // Audio preview modal
     isAudioModalOpen,

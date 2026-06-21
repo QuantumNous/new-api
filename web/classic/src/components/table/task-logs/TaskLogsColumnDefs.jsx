@@ -416,13 +416,12 @@ export const getTaskLogsColumns = ({
           record.action === TASK_ACTION_REMIX_GENERATE;
         const isSuccess = record.status === 'SUCCESS';
         if (isSuccess && isVideoTask && record.task_id) {
-          const videoUrl = `/v1/videos/${record.task_id}/content`;
           return (
             <a
               href='#'
               onClick={(e) => {
                 e.preventDefault();
-                openVideoModal(videoUrl);
+                openVideoModal(record);
               }}
             >
               {t('点击预览视频')}

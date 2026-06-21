@@ -44,6 +44,7 @@ const TaskLogsPage = () => {
         isModalOpen={taskLogsData.isVideoModalOpen}
         setIsModalOpen={taskLogsData.setIsVideoModalOpen}
         modalContent={taskLogsData.videoUrl}
+        fallbackContent={taskLogsData.videoFallbackUrl}
         isVideo={true}
       />
       <AudioPreviewModal
