@@ -57,7 +57,11 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		)
 	}
 
-	if request.Deeprouter != nil {
+	// Track whether the original request carried any deeprouter extension before stripping,
+	// so the pass-through guard below can block raw-body forwarding for partial extensions
+	// (e.g. {entry_point: "skill_package"} with no skill_id) just as it does for full ones.
+	hadDeeprouterExtension := request.Deeprouter != nil
+	if hadDeeprouterExtension {
 		if request.Deeprouter.SkillID != "" {
 			skillCtx, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
 			if errCode != "" {
@@ -160,10 +164,11 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	if passThroughGlobal || info.ChannelSetting.PassThroughBodyEnabled {
 		// Pass-through sends raw BodyStorage bytes directly to the provider, bypassing
-		// the Go struct. For skill requests, request.Deeprouter = nil has no effect on
-		// the already-buffered raw body, so deeprouter.skill_id would be forwarded.
-		// Reject early: skill channels must never have PassThroughBodyEnabled set.
-		if _, isSkill := skillrelay.Get(c); isSkill {
+		// the Go struct. The request.Deeprouter = nil strip above has no effect on the
+		// already-buffered raw body, so any deeprouter vendor extension — including
+		// partial extensions without a skill_id — would be forwarded upstream unchanged.
+		// Reject any request that carried a deeprouter extension.
+		if hadDeeprouterExtension {
 			return types.NewErrorWithStatusCode(
 				fmt.Errorf("%s", errcodes.ErrSkillInternalError),
 				types.ErrorCodeDoRequestFailed,

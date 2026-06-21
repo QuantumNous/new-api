@@ -257,10 +257,11 @@ func TestTextHelper_SkillRelay_InvalidEntryPoint_Returns400(t *testing.T) {
 }
 
 // TestTextHelper_SkillRelay_PartialExtension_NoSkillIDStripped verifies that a partial
-// deeprouter extension (no skill_id, e.g. {"deeprouter": {"entry_point": "skill_package"}}
-// or {"deeprouter": {}}) does NOT activate the skill gate and does NOT store a
-// SkillRelayContext. The vendor extension must be stripped regardless so it is never
-// forwarded to upstream providers.
+// deeprouter extension (no skill_id) does NOT activate the skill gate and does NOT store
+// a SkillRelayContext in the normal (non-pass-through) relay path. The vendor extension
+// is stripped from the Go struct (request.Deeprouter = nil) before the request is
+// serialised for upstream. The pass-through path is covered by
+// TestTextHelper_SkillRelay_PartialExtension_PassThrough_Rejected.
 func TestTextHelper_SkillRelay_PartialExtension_NoSkillIDStripped(t *testing.T) {
 	for _, ext := range []*dto.DeepRouterExtension{
 		{},                                // {"deeprouter": {}}
@@ -314,6 +315,34 @@ func TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, string(enums.EntryPointSkillPackage), sCtx.EntryPoint,
 		"explicit entry_point from deeprouter field must be preserved in SkillRelayContext")
+}
+
+// TestTextHelper_SkillRelay_PartialExtension_PassThrough_Rejected verifies that
+// pass-through mode is rejected when the original request carried any deeprouter
+// extension, even a partial one without a skill_id. This prevents the vendor
+// extension from leaking to upstream providers via the raw BodyStorage path that
+// bypasses the Go struct sanitisation.
+func TestTextHelper_SkillRelay_PartialExtension_PassThrough_Rejected(t *testing.T) {
+	rawBody := []byte(`{"model":"gpt-4o","messages":[],"deeprouter":{"entry_point":"skill_package"}}`)
+	bs, err := common.CreateBodyStorage(rawBody)
+	require.NoError(t, err)
+	defer bs.Close()
+
+	c := newSkillTestCtx(t, 1)
+	c.Set(common.KeyBodyStorage, bs)
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: true})
+
+	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
+		Model:      "gpt-4o",
+		Deeprouter: &dto.DeepRouterExtension{EntryPoint: string(enums.EntryPointSkillPackage)},
+	}))
+
+	require.NotNil(t, apiErr, "deeprouter extension with pass-through must be rejected")
+	assert.Equal(t, http.StatusInternalServerError, apiErr.StatusCode,
+		"must reject with 500 to prevent vendor extension leak in pass-through mode")
+
+	_, hasCtx := skillrelay.Get(c)
+	assert.False(t, hasCtx, "no SkillRelayContext should be stored when pass-through is rejected")
 }
 
 func TestTextHelper_SkillRelay_PublicRoutingAPI_RequiresSkillID(t *testing.T) {
