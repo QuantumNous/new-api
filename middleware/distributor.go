@@ -353,7 +353,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		contentType := c.ContentType()
 		if slices.Contains([]string{gin.MIMEPOSTForm, gin.MIMEMultipartPOSTForm}, contentType) {
 			if _, err := c.MultipartForm(); err == nil {
-				modelRequest.Model = common.GetStringIfEmpty(c.PostFormValue("model"), modelRequest.Model)
+				modelRequest.Model = common.GetStringIfEmpty(c.Request.PostFormValue("model"), modelRequest.Model)
 			}
 		}
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
