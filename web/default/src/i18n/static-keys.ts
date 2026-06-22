@@ -30,6 +30,9 @@ export const STATIC_I18N_KEYS = [
   // Sidebar views (drill-in workspaces)
   'System Settings',
   'Back to Dashboard',
+  'Auto-disable rules',
+  'Channel health checks',
+  'Request retry',
 
   // System settings sidebar
   'System Administration',
@@ -39,6 +42,7 @@ export const STATIC_I18N_KEYS = [
   'Content',
   'Integrations',
   'Models',
+  'Routing Reliability',
   'Maintenance',
 
   // Pricing constants
@@ -341,6 +345,7 @@ export const STATIC_I18N_KEYS = [
 
   // Subscription management
   'Subscription Management',
+  'Subscriptions',
   'Stripe/Creem requires creating products on the third-party platform and entering the ID',
   'Create Plan',
   'Active',
@@ -350,6 +355,10 @@ export const STATIC_I18N_KEYS = [
   'Priority',
   'Payment Channel',
   'No Upgrade',
+  'Downgrade to pre-purchase group',
+  'Downgrade Group',
+  'Downgrade to this group after the subscription expires',
+  'Allow wallet balance after quota used up',
   'Unlimited',
   'Update plan info',
   'Create new subscription plan',
@@ -361,6 +370,10 @@ export const STATIC_I18N_KEYS = [
   'Plan Subtitle',
   'e.g. Suitable for light usage',
   'Actual Amount',
+  'Plan Price',
+  'Amount the user pays to purchase this plan; the actual currency depends on the payment gateway.',
+  'Plan Quota',
+  'Total quota included in the plan, usable per billing period. 0 means unlimited.',
   'Total Quota',
   '0 means unlimited',
   'Sort Order',
@@ -423,6 +436,10 @@ export const STATIC_I18N_KEYS = [
   'Data management and log viewing',
   'Dashboard',
   'System data statistics',
+  'Flow',
+  'Flow Filters',
+  'Filter the traffic flow view by time range and user.',
+  'Requests',
   'Token Management',
   'API token management',
   'Usage Logs',
@@ -477,6 +494,20 @@ export const STATIC_I18N_KEYS = [
   'Detection complete: {{add}} to add, {{remove}} to remove',
   'Batch detection failed',
   'Batch detection complete: {{channels}} channels, {{add}} to add, {{remove}} to remove, {{fails}} failed',
+
+  // Dashboard flow stages (labels/descriptions passed to t at runtime)
+  'User',
+  'Node',
+  'Token',
+  'Group',
+  'Model',
+  'Channel',
+  'The user who made the requests',
+  'The deployment node that handled the requests',
+  'The API key used for the requests',
+  'The user group applied to the requests',
+  'The model that was requested',
+  'The upstream channel that served the requests',
 
   // Misc
   'Cancel',

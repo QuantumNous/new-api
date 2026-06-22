@@ -1,3 +1,8 @@
+import type {
+  ColumnDef,
+  Row,
+  Table as TanstackTable,
+} from '@tanstack/react-table'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,14 +22,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
-import {
-  type ColumnDef,
-  type Row,
-  type Table as TanstackTable,
-} from '@tanstack/react-table'
+
+import { PageFooterPortal } from '@/components/layout'
 import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
-import { PageFooterPortal } from '@/components/layout'
+
 import {
   DataTableView,
   type DataTableColumnClassName,
@@ -32,7 +34,14 @@ import {
   type DataTableRenderRowHelpers,
 } from '../core/data-table-view'
 import { DataTablePagination } from '../core/pagination'
+import {
+  DATA_TABLE_VIEW_MODES,
+  useDataTableViewMode,
+  type DataTableViewMode,
+} from '../hooks/use-data-table-view-mode'
 import { DataTableToolbar } from '../toolbar/toolbar'
+import { DataTableViewModeToggle } from '../toolbar/view-mode-toggle'
+import { DataTableCardGrid } from './card-grid'
 import { MobileCardList } from './mobile-card-list'
 
 /**
@@ -209,6 +218,54 @@ export type DataTablePageProps<TData> = {
    * outside the scrollable body automatically.
    */
   tableHeaderClassName?: string
+
+  /**
+   * Opt into the table/card view toggle. Defaults to `false`, so existing
+   * pages render the table only and behave exactly as before. When enabled, a
+   * {@link DataTableViewModeToggle} is injected into the default toolbar
+   * (requires `toolbarProps`; ignored when a fully custom `toolbar` is used)
+   * and the view switches between the table and a card grid on desktop and
+   * mobile. Mobile card mode reuses the same card renderer in a single column.
+   */
+  enableCardView?: boolean
+
+  /**
+   * Controlled view mode. When provided, `onViewModeChange` should update it.
+   * Leave unset to let the page manage view mode internally (optionally
+   * persisted via `viewModeStorageKey`).
+   */
+  viewMode?: DataTableViewMode
+
+  /**
+   * Change handler for the controlled `viewMode`.
+   */
+  onViewModeChange?: (mode: DataTableViewMode) => void
+
+  /**
+   * localStorage key for persisting the (uncontrolled) view mode per table.
+   * Ignored when `viewMode` is controlled.
+   */
+  viewModeStorageKey?: string
+
+  /**
+   * Initial (uncontrolled) view mode. When unset, defaults to `'card'` if
+   * `enableCardView` is `true`, otherwise `'table'`. A persisted selection
+   * (via `viewModeStorageKey`) always takes precedence over this default.
+   */
+  defaultViewMode?: DataTableViewMode
+
+  /**
+   * Custom card renderer for card view. When omitted, cards are generated
+   * generically from the column definitions (driven by column meta).
+   */
+  renderCard?: React.ComponentProps<
+    typeof DataTableCardGrid<TData>
+  >['renderCard']
+
+  /**
+   * Responsive grid className override for the card view.
+   */
+  cardGridClassName?: string
 }
 
 /**
@@ -236,9 +293,26 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
   const isMobile = useMediaQuery('(max-width: 640px)')
   const showMobile = isMobile && !props.hideMobile
 
-  const toolbarNode = renderToolbar(props)
-  const mobileNode = renderMobile(props, showMobile)
-  const desktopNode = renderDesktop(props, showMobile)
+  const [internalViewMode, setInternalViewMode] = useDataTableViewMode({
+    storageKey: props.viewModeStorageKey,
+    // When card view is enabled, prefer it as the default unless the consumer
+    // explicitly opts into a different initial mode. A persisted choice (via
+    // `viewModeStorageKey`) still takes precedence over this default.
+    defaultMode:
+      props.defaultViewMode ??
+      (props.enableCardView ? DATA_TABLE_VIEW_MODES.CARD : undefined),
+  })
+  const viewMode = props.viewMode ?? internalViewMode
+  const setViewMode = props.onViewModeChange ?? setInternalViewMode
+  const cardViewActive = !!props.enableCardView
+
+  const viewToggle = cardViewActive ? (
+    <DataTableViewModeToggle value={viewMode} onChange={setViewMode} />
+  ) : undefined
+
+  const toolbarNode = renderToolbar(props, viewToggle)
+  const mobileNode = renderMobile(props, showMobile, cardViewActive, viewMode)
+  const desktopNode = renderDesktop(props, showMobile, cardViewActive, viewMode)
   const paginationNode = renderPagination(props)
 
   return (
@@ -267,16 +341,24 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
 }
 
 function renderToolbar<TData>(
-  props: DataTablePageProps<TData>
+  props: DataTablePageProps<TData>,
+  viewToggle: React.ReactNode
 ): React.ReactNode {
   if (props.toolbar !== undefined) {
+    // Fully custom toolbar: the consumer owns layout, including any toggle.
     return props.toolbar
   }
   if (props.toolbarProps === null) {
     return null
   }
   if (props.toolbarProps) {
-    return <DataTableToolbar table={props.table} {...props.toolbarProps} />
+    return (
+      <DataTableToolbar
+        table={props.table}
+        {...props.toolbarProps}
+        viewToggle={props.toolbarProps.viewToggle ?? viewToggle}
+      />
+    )
   }
   return null
 }
@@ -284,7 +366,9 @@ function renderToolbar<TData>(
 function renderPagination<TData>(
   props: DataTablePageProps<TData>
 ): React.ReactNode {
-  if (props.showPagination === false) return null
+  if (props.showPagination === false) {
+    return null
+  }
 
   const pagination = <DataTablePagination table={props.table} />
 
@@ -297,38 +381,122 @@ function renderPagination<TData>(
 
 function renderMobile<TData>(
   props: DataTablePageProps<TData>,
-  showMobile: boolean
+  showMobile: boolean,
+  cardViewActive: boolean,
+  viewMode: DataTableViewMode
 ): React.ReactNode {
-  if (!showMobile) return null
+  if (!showMobile) {
+    return null
+  }
 
+  const isFetchingOnly = props.isFetching && !props.isLoading
   const ownGetRowClassName = props.getRowClassName
   const mobileGetRowClassName =
     props.mobileProps?.getRowClassName ??
     (ownGetRowClassName
       ? (row: Row<TData>) => ownGetRowClassName(row, { isMobile: true })
       : undefined)
-  const mobileContent = props.mobile ?? (
-    <MobileCardList
-      table={props.table}
-      isLoading={props.isLoading}
-      emptyTitle={props.emptyTitle}
-      emptyDescription={props.emptyDescription}
-      getRowKey={props.mobileProps?.getRowKey}
-      getRowClassName={mobileGetRowClassName}
-    />
-  )
+
+  let mobileContent = props.mobile
+  if (mobileContent === undefined) {
+    if (cardViewActive && viewMode === DATA_TABLE_VIEW_MODES.TABLE) {
+      mobileContent = (
+        <DataTableView
+          table={props.table}
+          isLoading={props.isLoading}
+          emptyTitle={props.emptyTitle}
+          emptyDescription={props.emptyDescription}
+          emptyIcon={props.emptyIcon}
+          emptyAction={props.emptyAction}
+          skeletonKeyPrefix={props.skeletonKeyPrefix}
+          renderRow={props.renderRow}
+          applyHeaderSize={props.applyHeaderSize}
+          tableHeaderClassName={cn(
+            '[background-color:var(--table-header)]',
+            props.tableHeaderClassName
+          )}
+          getColumnClassName={props.getColumnClassName}
+          pinnedColumns={props.pinnedColumns}
+          containerClassName={cn(
+            'transition-opacity duration-150',
+            isFetchingOnly && 'pointer-events-none opacity-60',
+            props.tableClassName
+          )}
+          getRowClassName={(row) =>
+            props.getRowClassName?.(row, { isMobile: false })
+          }
+        />
+      )
+    } else if (cardViewActive) {
+      mobileContent = (
+        <DataTableCardGrid
+          table={props.table}
+          isLoading={props.isLoading}
+          emptyTitle={props.emptyTitle}
+          emptyDescription={props.emptyDescription}
+          emptyIcon={props.emptyIcon}
+          renderCard={props.renderCard}
+          gridClassName={props.cardGridClassName ?? 'grid grid-cols-1 gap-3'}
+          skeletonKeyPrefix={props.skeletonKeyPrefix}
+          getRowKey={props.mobileProps?.getRowKey}
+          getRowClassName={mobileGetRowClassName}
+        />
+      )
+    } else {
+      mobileContent = (
+        <MobileCardList
+          table={props.table}
+          isLoading={props.isLoading}
+          emptyTitle={props.emptyTitle}
+          emptyDescription={props.emptyDescription}
+          getRowKey={props.mobileProps?.getRowKey}
+          getRowClassName={mobileGetRowClassName}
+        />
+      )
+    }
+  }
 
   return <div className='min-h-0 flex-1 overflow-y-auto'>{mobileContent}</div>
 }
 
 function renderDesktop<TData>(
   props: DataTablePageProps<TData>,
-  showMobile: boolean
+  showMobile: boolean,
+  cardViewActive: boolean,
+  viewMode: DataTableViewMode
 ): React.ReactNode {
-  if (showMobile) return null
+  if (showMobile) {
+    return null
+  }
 
   const isFetchingOnly = props.isFetching && !props.isLoading
   const fixedHeight = props.fixedHeight !== false
+
+  if (cardViewActive && viewMode === DATA_TABLE_VIEW_MODES.CARD) {
+    return (
+      <div
+        className={cn(
+          fixedHeight && 'min-h-0 flex-1 overflow-y-auto',
+          'transition-opacity duration-150',
+          isFetchingOnly && 'pointer-events-none opacity-60'
+        )}
+      >
+        <DataTableCardGrid
+          table={props.table}
+          isLoading={props.isLoading}
+          emptyTitle={props.emptyTitle}
+          emptyDescription={props.emptyDescription}
+          emptyIcon={props.emptyIcon}
+          renderCard={props.renderCard}
+          gridClassName={props.cardGridClassName}
+          skeletonKeyPrefix={props.skeletonKeyPrefix}
+          getRowClassName={(row) =>
+            props.getRowClassName?.(row, { isMobile: false })
+          }
+        />
+      </div>
+    )
+  }
 
   return (
     <DataTableView
@@ -344,7 +512,7 @@ function renderDesktop<TData>(
       splitHeader={fixedHeight}
       tableContainerClassName={fixedHeight ? 'h-full min-h-0' : undefined}
       tableHeaderClassName={cn(
-        fixedHeight && 'bg-muted/30',
+        fixedHeight && '[background-color:var(--table-header)]',
         props.tableHeaderClassName
       )}
       getColumnClassName={props.getColumnClassName}

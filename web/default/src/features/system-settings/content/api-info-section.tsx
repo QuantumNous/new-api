@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -54,7 +54,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { StaticDataTable } from '@/components/data-table'
+import { BadgeCell, StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { SettingsSwitchField } from '../components/settings-form-layout'
@@ -103,18 +103,37 @@ const colorOptions = [
   { value: 'slate', label: 'Slate' },
 ]
 
+function parseApiInfoList(data: string): ApiInfo[] {
+  try {
+    const parsed = JSON.parse(data || '[]')
+    if (!Array.isArray(parsed)) return []
+
+    return parsed.map((item, idx) => ({
+      ...item,
+      id: item.id || idx + 1,
+    }))
+  } catch {
+    return []
+  }
+}
+
 export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const apiInfoSchema = createApiInfoSchema(t)
-  const [apiInfoList, setApiInfoList] = useState<ApiInfo[]>([])
-  const [isEnabled, setIsEnabled] = useState(enabled)
-  const [hasChanges, setHasChanges] = useState(false)
+  const parsedApiInfoList = useMemo(() => parseApiInfoList(data), [data])
+  const [draftApiInfoList, setDraftApiInfoList] = useState<ApiInfo[] | null>(
+    null
+  )
+  const [isEnabledDraft, setIsEnabledDraft] = useState<boolean | null>(null)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [showDialog, setShowDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [editingApiInfo, setEditingApiInfo] = useState<ApiInfo | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<'single' | 'batch'>('single')
+  const apiInfoList = draftApiInfoList ?? parsedApiInfoList
+  const isEnabled = isEnabledDraft ?? enabled
+  const hasChanges = draftApiInfoList !== null
 
   const form = useForm<ApiInfoFormValues>({
     resolver: zodResolver(apiInfoSchema),
@@ -126,33 +145,13 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
     },
   })
 
-  useEffect(() => {
-    try {
-      const parsed = JSON.parse(data || '[]')
-      if (Array.isArray(parsed)) {
-        setApiInfoList(
-          parsed.map((item, idx) => ({
-            ...item,
-            id: item.id || idx + 1,
-          }))
-        )
-      }
-    } catch {
-      setApiInfoList([])
-    }
-  }, [data])
-
-  useEffect(() => {
-    setIsEnabled(enabled)
-  }, [enabled])
-
   const handleToggleEnabled = async (checked: boolean) => {
     try {
       await updateOption.mutateAsync({
         key: 'console_setting.api_info_enabled',
         value: checked,
       })
-      setIsEnabled(checked)
+      setIsEnabledDraft(checked)
       toast.success(t('Setting saved'))
     } catch {
       toast.error(t('Failed to update setting'))
@@ -198,17 +197,15 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
 
   const confirmDelete = () => {
     if (deleteTarget === 'single' && editingApiInfo) {
-      setApiInfoList((prev) =>
-        prev.filter((item) => item.id !== editingApiInfo.id)
+      setDraftApiInfoList(
+        apiInfoList.filter((item) => item.id !== editingApiInfo.id)
       )
-      setHasChanges(true)
       toast.success(t('API info deleted. Click "Save Settings" to apply.'))
     } else if (deleteTarget === 'batch') {
-      setApiInfoList((prev) =>
-        prev.filter((item) => !selectedIds.includes(item.id))
+      setDraftApiInfoList(
+        apiInfoList.filter((item) => !selectedIds.includes(item.id))
       )
       setSelectedIds([])
-      setHasChanges(true)
       toast.success(
         t('{{count}} API entries deleted. Click "Save Settings" to apply.', {
           count: selectedIds.length,
@@ -221,18 +218,17 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
 
   const handleSubmitForm = (values: ApiInfoFormValues) => {
     if (editingApiInfo) {
-      setApiInfoList((prev) =>
-        prev.map((item) =>
+      setDraftApiInfoList(
+        apiInfoList.map((item) =>
           item.id === editingApiInfo.id ? { ...item, ...values } : item
         )
       )
       toast.success(t('API info updated. Click "Save Settings" to apply.'))
     } else {
       const newId = Math.max(...apiInfoList.map((item) => item.id), 0) + 1
-      setApiInfoList((prev) => [...prev, { id: newId, ...values }])
+      setDraftApiInfoList([...apiInfoList, { id: newId, ...values }])
       toast.success(t('API info added. Click "Save Settings" to apply.'))
     }
-    setHasChanges(true)
     setShowDialog(false)
   }
 
@@ -243,7 +239,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
         value: JSON.stringify(apiInfoList),
       })
       if (result.success) {
-        setHasChanges(false)
+        setDraftApiInfoList(null)
       }
     } catch {
       toast.error(t('Failed to save API info'))
@@ -295,7 +291,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
             checked={isEnabled}
             onCheckedChange={handleToggleEnabled}
             label={t('Enabled')}
-            className='border-b-0 py-0'
+            className='py-0'
           />
         </div>
 
@@ -330,22 +326,26 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
               header: t('URL'),
               cellClassName: 'max-w-xs truncate font-mono text-sm',
               cell: (apiInfo) => (
-                <StatusBadge
-                  label={apiInfo.url}
-                  variant='neutral'
-                  copyable={false}
-                />
+                <BadgeCell>
+                  <StatusBadge
+                    label={apiInfo.url}
+                    variant='neutral'
+                    copyable={false}
+                  />
+                </BadgeCell>
               ),
             },
             {
               id: 'route',
               header: t('Route'),
               cell: (apiInfo) => (
-                <StatusBadge
-                  label={apiInfo.route}
-                  variant='neutral'
-                  copyable={false}
-                />
+                <BadgeCell>
+                  <StatusBadge
+                    label={apiInfo.route}
+                    variant='neutral'
+                    copyable={false}
+                  />
+                </BadgeCell>
               ),
             },
             {
@@ -475,8 +475,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                 <FormItem>
                   <FormLabel>{t('Badge Color')}</FormLabel>
                   <Select
-                    items={[
-                      ...colorOptions.map((option) => ({
+                    items={colorOptions.map((option) => ({
                         value: option.value,
                         label: (
                           <div className='flex items-center gap-2'>
@@ -486,8 +485,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                             {option.label}
                           </div>
                         ),
-                      })),
-                    ]}
+                      }))}
                     onValueChange={field.onChange}
                     value={field.value}
                   >

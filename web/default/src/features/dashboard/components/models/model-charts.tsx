@@ -100,17 +100,9 @@ export function ModelCharts(props: ModelChartsProps) {
         props.loading ? [] : props.data,
         timeGranularity,
         t,
-        customization.preset,
         chartRadius
       ),
-    [
-      props.data,
-      props.loading,
-      timeGranularity,
-      t,
-      customization.preset,
-      chartRadius,
-    ]
+    [props.data, props.loading, timeGranularity, t, chartRadius]
   )
 
   const spec = chartData[CHART_SPEC_KEYS[activeTab]]

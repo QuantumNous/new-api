@@ -187,7 +187,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
   if (pageLoading || loading) {
     return (
-      <Card className='gap-0 overflow-hidden py-0'>
+      <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
         <CardHeader className='p-3 sm:p-5'>
           <Skeleton className='h-6 w-48' />
           <Skeleton className='mt-2 h-4 w-64' />
@@ -208,7 +208,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
   return (
     <>
-      <Card className='gap-0 overflow-hidden py-0'>
+      <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
         <CardHeader className='p-3 sm:p-5'>
           <CardTitle className='text-lg tracking-tight sm:text-xl'>
             {t('Passkey Login')}
@@ -310,7 +310,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                         {t('Cancel')}
                       </AlertDialogCancel>
                       <AlertDialogAction
-                        className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                        className='bg-destructive text-destructive-foreground'
                         disabled={removing}
                         onClick={(event) => {
                           event.preventDefault()

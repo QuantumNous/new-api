@@ -31,5 +31,11 @@ func GetMonitorSetting() *MonitorSetting {
 			monitorSetting.AutoTestChannelMinutes = float64(frequency)
 		}
 	}
+	if enabled, ok := os.LookupEnv("CHANNEL_TEST_ENABLED"); ok {
+		parsed, err := strconv.ParseBool(enabled)
+		if err == nil {
+			monitorSetting.AutoTestChannelEnabled = parsed
+		}
+	}
 	return &monitorSetting
 }

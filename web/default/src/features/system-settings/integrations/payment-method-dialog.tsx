@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -34,12 +34,13 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Dialog } from '@/components/dialog'
+import { ReactIconByName } from '@/components/react-icon-by-name'
 
 const createPaymentMethodDialogSchema = (t: (key: string) => string) =>
   z.object({
     name: z.string().min(1, t('Payment method name is required')),
-    type: z.string().min(1, t('Payment method type is required')),
-    color: z.string().min(1, t('Color is required')),
+    type: z.string().min(1, t('Payment type key is required')),
+    icon: z.string().optional(),
     min_topup: z.string().optional(),
   })
 
@@ -52,8 +53,9 @@ const PAYMENT_METHOD_FORM_ID = 'payment-method-form'
 export type PaymentMethodData = {
   name: string
   type: string
-  color: string
+  icon?: string
   min_topup?: string
+  color?: string
 }
 
 type PaymentMethodDialogProps = {
@@ -63,42 +65,14 @@ type PaymentMethodDialogProps = {
   editData?: PaymentMethodData | null
 }
 
-const PAYMENT_TYPES = [
-  { value: 'alipay', label: 'Alipay' },
-  { value: 'wxpay', label: 'WeChat Pay' },
-  { value: 'stripe', label: 'Stripe' },
-]
-
-const getColorPreview = (color: string) => {
-  if (color.includes('var(--')) {
-    return null
-  }
-  return color
+const PAYMENT_TYPE_ICON_NAMES: Record<string, string> = {
+  alipay: 'SiAlipay',
+  stripe: 'SiStripe',
+  waffo_pancake: 'LuCreditCard',
+  wxpay: 'SiWechat',
 }
 
-const COLOR_PRESETS = [
-  { value: '#1677FF', label: 'Blue (Alipay)' },
-  { value: '#07C160', label: 'Green (WeChat)' },
-  { value: '#635BFF', label: 'Purple (Stripe)' },
-  { value: '#1890FF', label: 'Sky Blue' },
-  { value: '#52C41A', label: 'Lime Green' },
-  { value: 'black', label: 'Black' },
-  { value: '#FF4D4F', label: 'Red' },
-  { value: '#FFA940', label: 'Orange' },
-].map((preset) => {
-  const previewColor = getColorPreview(preset.value)
-  return {
-    ...preset,
-    icon: previewColor ? (
-      <div
-        className='size-4 rounded border'
-        style={{ backgroundColor: previewColor }}
-      />
-    ) : (
-      <div className='bg-muted size-4 rounded border' />
-    ),
-  }
-})
+const getDefaultIconName = (type: string) => PAYMENT_TYPE_ICON_NAMES[type] ?? ''
 
 export function PaymentMethodDialog({
   open,
@@ -109,41 +83,60 @@ export function PaymentMethodDialog({
   const { t } = useTranslation()
   const isEditMode = !!editData
   const paymentMethodDialogSchema = createPaymentMethodDialogSchema(t)
+  const paymentTypeOptions = [
+    {
+      iconName: 'SiAlipay',
+      label: `${t('Alipay')} (Epay: alipay)`,
+      name: t('Alipay'),
+      value: 'alipay',
+    },
+    {
+      iconName: 'SiWechat',
+      label: `${t('WeChat Pay')} (Epay: wxpay)`,
+      name: t('WeChat Pay'),
+      value: 'wxpay',
+    },
+    {
+      iconName: 'SiStripe',
+      label: `${t('Stripe')} (stripe)`,
+      name: t('Stripe'),
+      value: 'stripe',
+    },
+    {
+      iconName: 'LuCreditCard',
+      label: 'Waffo Pancake (waffo_pancake)',
+      name: 'Waffo Pancake',
+      value: 'waffo_pancake',
+    },
+  ]
+  const getPaymentTypeOption = (value: string) =>
+    paymentTypeOptions.find((option) => option.value === value)
 
   const form = useForm<PaymentMethodDialogFormValues>({
     resolver: zodResolver(paymentMethodDialogSchema),
     defaultValues: {
       name: '',
       type: '',
-      color: '',
+      icon: '',
       min_topup: '',
     },
   })
 
-  const colorValue = form.watch('color')
-
-  const colorPreview = useMemo(() => {
-    if (!colorValue) return null
-    try {
-      // For CSS variables like rgba(var(--semi-blue-5), 1), we can't preview accurately
-      // but we can detect common patterns
-      if (colorValue.includes('var(--')) {
-        return null // Can't preview CSS variables reliably
-      }
-      return colorValue
-    } catch {
-      return null
-    }
-  }, [colorValue])
+  const iconValue = form.watch('icon')
 
   useEffect(() => {
     if (editData) {
-      form.reset(editData)
+      form.reset({
+        name: editData.name,
+        type: editData.type,
+        icon: editData.icon ?? getDefaultIconName(editData.type),
+        min_topup: editData.min_topup ?? '',
+      })
     } else {
       form.reset({
         name: '',
         type: '',
-        color: '',
+        icon: '',
         min_topup: '',
       })
     }
@@ -153,7 +146,9 @@ export function PaymentMethodDialog({
     const data: PaymentMethodData = {
       name: values.name,
       type: values.type,
-      color: values.color,
+    }
+    if (values.icon && values.icon.trim() !== '') {
+      data.icon = values.icon.trim()
     }
     if (values.min_topup && values.min_topup.trim() !== '') {
       data.min_topup = values.min_topup
@@ -215,19 +210,46 @@ export function PaymentMethodDialog({
             name='type'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Type')}</FormLabel>
+                <FormLabel>{t('Payment type key')}</FormLabel>
                 <FormControl>
                   <Combobox
-                    options={PAYMENT_TYPES}
+                    options={paymentTypeOptions}
                     value={field.value}
-                    onValueChange={field.onChange}
-                    placeholder={t('Select or enter payment type')}
-                    searchPlaceholder={t('Search payment types...')}
+                    onValueChange={(value) => {
+                      if (value === null) return
+                      const currentIcon = form.getValues('icon')?.trim()
+                      const currentName = form.getValues('name')?.trim()
+                      const previousOption = getPaymentTypeOption(field.value)
+                      const nextOption = getPaymentTypeOption(value)
+
+                      field.onChange(value)
+                      if (
+                        nextOption?.iconName &&
+                        (!currentIcon ||
+                          currentIcon === previousOption?.iconName)
+                      ) {
+                        form.setValue('icon', nextOption.iconName, {
+                          shouldDirty: true,
+                        })
+                      }
+                      if (
+                        nextOption?.name &&
+                        (!currentName || currentName === previousOption?.name)
+                      ) {
+                        form.setValue('name', nextOption.name, {
+                          shouldDirty: true,
+                        })
+                      }
+                    }}
+                    placeholder={t('Select or enter payment type key')}
+                    searchPlaceholder={t('Search payment type keys...')}
                     allowCustomValue
                   />
                 </FormControl>
-                <FormDescription>
-                  {t('Select from presets or type custom identifier.')}
+                <FormDescription className='leading-relaxed'>
+                  {t(
+                    'Used to decide the payment flow. Built-in keys include stripe for Stripe and waffo_pancake for Waffo Pancake; other values are sent to Epay as the type parameter.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -236,32 +258,30 @@ export function PaymentMethodDialog({
 
           <FormField
             control={form.control}
-            name='color'
+            name='icon'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Color')}</FormLabel>
+                <FormLabel>{t('Icon')}</FormLabel>
                 <FormControl>
                   <div className='flex items-center gap-2'>
-                    <Combobox
-                      options={COLOR_PRESETS}
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      placeholder={t('Select or enter color value')}
-                      searchPlaceholder={t('Search colors...')}
-                      allowCustomValue
+                    <Input
+                      placeholder={t('e.g., SiAlipay')}
+                      {...field}
                       className='flex-1'
                     />
-                    {colorPreview && (
-                      <div
-                        className='size-9 shrink-0 rounded border'
-                        style={{ backgroundColor: colorPreview }}
-                        title={colorPreview}
+                    {iconValue && (
+                      <ReactIconByName
+                        name={iconValue}
+                        className='text-muted-foreground size-5 shrink-0'
+                        title={iconValue}
                       />
                     )}
                   </div>
                 </FormControl>
                 <FormDescription>
-                  {t('Select preset or enter custom CSS color value.')}
+                  {t(
+                    'Enter a react-icons component name. Invalid names show no icon.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

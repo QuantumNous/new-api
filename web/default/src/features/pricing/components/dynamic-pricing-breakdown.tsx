@@ -322,13 +322,11 @@ export function DynamicPricingBreakdown({
                 className: 'text-muted-foreground py-2 font-medium',
                 cellClassName: 'py-2.5 align-top',
                 cell: (tier) => {
-                  const condSummary = formatConditionSummary(
-                    tier.conditions,
-                    t
-                  )
+                  const condSummary = formatConditionSummary(tier.conditions, t)
                   const isMatched =
                     normalizedMatchedTierLabel !== '' &&
-                    normalizeTierLabel(tier.label) === normalizedMatchedTierLabel
+                    normalizeTierLabel(tier.label) ===
+                      normalizedMatchedTierLabel
                   return (
                     <>
                       <div className='flex flex-wrap items-center gap-1.5'>

@@ -18,10 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
 import { useState, type ReactNode } from 'react'
-import { type Table } from '@tanstack/react-table'
+import type { Table } from '@tanstack/react-table'
+import { useDebounce } from '@/hooks'
 import { ChevronDown, Loader2, X as Cross2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useDebounce } from '@/hooks'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,6 +39,11 @@ type FilterDef = {
     count?: number
   }[]
   singleSelect?: boolean
+}
+
+type SearchDraft = {
+  baseValue: string
+  value: string
 }
 
 export type DataTableToolbarProps<TData> = {
@@ -111,6 +116,12 @@ export type DataTableToolbarProps<TData> = {
    */
   hideViewOptions?: boolean
   /**
+   * Optional view-mode toggle (e.g. table vs. card) rendered in the right
+   * action cluster, before the View Options dropdown. Typically a
+   * {@link DataTableViewModeToggle}. Omitted by default.
+   */
+  viewToggle?: ReactNode
+  /**
    * Content rendered on the LEFT side of the secondary action row. When
    * provided the toolbar splits into two visual rows:
    *   Row 1: search inputs / filter chips …… Expand
@@ -141,8 +152,7 @@ export type DataTableToolbarProps<TData> = {
 export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
-  const isSearchComposingRef = React.useRef(false)
-  const lastCommittedSearchValueRef = React.useRef('')
+  const [isSearchComposing, setIsSearchComposing] = useState(false)
 
   const filters = props.filters ?? []
   const hasExpandable = props.expandable != null
@@ -159,30 +169,21 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
       '')
     : ((props.table.getState().globalFilter as string | undefined) ?? '')
 
-  const [searchValue, setSearchValue] = useState(currentSearchValue)
-  const [pendingSearchValue, setPendingSearchValue] =
-    useState(currentSearchValue)
+  const [searchDraft, setSearchDraft] = useState<SearchDraft | null>(null)
+  const activeSearchDraft =
+    searchDraft &&
+    (isSearchComposing || searchDraft.baseValue === currentSearchValue)
+      ? searchDraft
+      : null
+  const searchValue = activeSearchDraft?.value ?? currentSearchValue
   const searchDebounceMs = Math.max(0, props.searchDebounceMs ?? 0)
-  const debouncedSearchValue = useDebounce(
-    pendingSearchValue,
-    searchDebounceMs
-  )
-
-  React.useEffect(() => {
-    lastCommittedSearchValueRef.current = currentSearchValue
-    if (!isSearchComposingRef.current) {
-      setSearchValue(currentSearchValue)
-    }
-    setPendingSearchValue(currentSearchValue)
-  }, [currentSearchValue])
+  const debouncedSearchValue = useDebounce(searchValue, searchDebounceMs)
 
   const commitSearchValue = React.useCallback(
     (value: string) => {
-      if (value === lastCommittedSearchValueRef.current) {
+      if (value === currentSearchValue) {
         return
       }
-
-      lastCommittedSearchValueRef.current = value
 
       if (props.searchKey) {
         props.table.getColumn(props.searchKey)?.setFilterValue(value)
@@ -191,14 +192,14 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
 
       props.table.setGlobalFilter(value)
     },
-    [props.searchKey, props.table]
+    [currentSearchValue, props.searchKey, props.table]
   )
 
   React.useEffect(() => {
     if (
       searchDebounceMs <= 0 ||
-      isSearchComposingRef.current ||
-      debouncedSearchValue !== pendingSearchValue
+      isSearchComposing ||
+      debouncedSearchValue !== searchValue
     ) {
       return
     }
@@ -207,13 +208,12 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   }, [
     commitSearchValue,
     debouncedSearchValue,
-    pendingSearchValue,
+    isSearchComposing,
     searchDebounceMs,
+    searchValue,
   ])
 
   const queueSearchValue = (value: string) => {
-    setPendingSearchValue(value)
-
     if (searchDebounceMs <= 0) {
       commitSearchValue(value)
     }
@@ -221,36 +221,27 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value
-    setSearchValue(value)
+    setSearchDraft({ baseValue: currentSearchValue, value })
 
-    if (!isSearchComposingRef.current) {
+    if (!isSearchComposing) {
       queueSearchValue(value)
     }
   }
 
   const handleSearchCompositionStart = () => {
-    isSearchComposingRef.current = true
+    setIsSearchComposing(true)
   }
 
   const handleSearchCompositionEnd = (
     event: React.CompositionEvent<HTMLInputElement>
   ) => {
-    isSearchComposingRef.current = false
+    setIsSearchComposing(false)
     const value = event.currentTarget.value
-    setSearchValue(value)
+    setSearchDraft({ baseValue: currentSearchValue, value })
     queueSearchValue(value)
   }
 
-  const searchInput = props.searchKey ? (
-    <Input
-      placeholder={placeholder}
-      value={searchValue}
-      onChange={handleSearchChange}
-      onCompositionStart={handleSearchCompositionStart}
-      onCompositionEnd={handleSearchCompositionEnd}
-      className='w-full sm:w-[200px] lg:w-[240px]'
-    />
-  ) : (
+  const searchInput = (
     <Input
       placeholder={placeholder}
       value={searchValue}
@@ -261,25 +252,28 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
     />
   )
 
-  const filterChips = filters.map((filter) => {
-    const column = props.table.getColumn(filter.columnId)
-    if (!column) return null
-    return (
-      <DataTableFacetedFilter
-        key={filter.columnId}
-        column={column}
-        title={filter.title}
-        options={filter.options}
-        singleSelect={filter.singleSelect}
-      />
-    )
-  })
+  const filterChips = React.useMemo(
+    () =>
+      filters.map((filter) => {
+        const column = props.table.getColumn(filter.columnId)
+        if (!column) return null
+        return (
+          <DataTableFacetedFilter
+            key={filter.columnId}
+            column={column}
+            title={filter.title}
+            options={filter.options}
+            singleSelect={filter.singleSelect}
+          />
+        )
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [props.filters, props.table]
+  )
 
   const handleReset = () => {
-    isSearchComposingRef.current = false
-    setSearchValue('')
-    setPendingSearchValue('')
-    lastCommittedSearchValueRef.current = ''
+    setIsSearchComposing(false)
+    setSearchDraft(null)
     props.table.resetColumnFilters()
     props.table.setGlobalFilter('')
     props.onReset?.()
@@ -288,20 +282,25 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   // Reset: outline text-only for form mode (always visible, disabled when
   // nothing to reset); ghost text + X for filter-as-you-type mode (only
   // visible when active filters exist).
-  const resetButton = hasSearch ? (
-    <Button variant='outline' onClick={handleReset} disabled={!isFiltered}>
-      {t('Reset')}
-    </Button>
-  ) : isFiltered ? (
-    <Button
-      variant='ghost'
-      onClick={handleReset}
-      className='text-muted-foreground hover:text-foreground gap-1 px-2'
-    >
-      {t('Reset')}
-      <Cross2Icon />
-    </Button>
-  ) : null
+  let resetButton: ReactNode = null
+  if (hasSearch) {
+    resetButton = (
+      <Button variant='outline' onClick={handleReset} disabled={!isFiltered}>
+        {t('Reset')}
+      </Button>
+    )
+  } else if (isFiltered) {
+    resetButton = (
+      <Button
+        variant='ghost'
+        onClick={handleReset}
+        className='text-muted-foreground hover:text-foreground gap-1 px-2'
+      >
+        {t('Reset')}
+        <Cross2Icon />
+      </Button>
+    )
+  }
 
   const searchButton = hasSearch ? (
     <Button onClick={props.onSearch} disabled={props.searchLoading}>
@@ -313,6 +312,8 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   const viewOptionsNode = !props.hideViewOptions ? (
     <DataTableViewOptions table={props.table} />
   ) : null
+
+  const viewToggleNode = props.viewToggle ?? null
 
   const expandToggle = hasExpandable ? (
     <Button
@@ -362,6 +363,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
             {props.preActions}
             {resetButton}
             {searchButton}
+            {viewToggleNode}
             {viewOptionsNode}
           </div>
         </div>
@@ -385,6 +387,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
         {props.preActions}
         {resetButton}
         {searchButton}
+        {viewToggleNode}
         {viewOptionsNode}
         {expandToggle}
       </div>

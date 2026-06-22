@@ -350,7 +350,7 @@ export function AccountBindingsTab({
                     <Button
                       variant='ghost'
                       size='sm'
-                      className='text-destructive hover:text-destructive h-7 shrink-0 px-2.5 text-xs'
+                      className='text-destructive h-7 shrink-0 px-2.5 text-xs'
                       onClick={() => setUnbindTarget(binding)}
                     >
                       <Unlink className='mr-1 h-3 w-3' />

@@ -159,7 +159,7 @@ export async function listWaffoPancakeSubscriptionProductOptions(): Promise<
     products: { id: string; name: string; status: string }[]
   }>
 > {
-  const res = await api.post(
+  const res = await api.get(
     '/api/option/waffo-pancake/subscription-product-options'
   )
   return res.data

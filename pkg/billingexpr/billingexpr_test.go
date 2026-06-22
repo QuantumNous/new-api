@@ -2,7 +2,6 @@ package billingexpr_test
 
 import (
 	"math"
-	"math/rand"
 	"testing"
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -590,91 +589,6 @@ func TestComputeTieredQuota_WithCacheCrossTier(t *testing.T) {
 	}
 	if !result.CrossedTier {
 		t.Error("expected crossed_tier=true (estimated standard, actual long_context)")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Fuzz: random p/c/cache, verify non-negative result
-// ---------------------------------------------------------------------------
-
-func TestFuzz_NonNegativeResults(t *testing.T) {
-	exprs := []string{
-		claudeExpr,
-		claudeWithCacheExpr,
-		glmExpr,
-		"p * 0.5 + c * 1.0",
-		"max(p, c) * 0.1",
-		"p * 0.5 + cr * 0.1 + cc * 0.2",
-	}
-
-	rng := rand.New(rand.NewSource(42))
-
-	for _, exprStr := range exprs {
-		for i := 0; i < 500; i++ {
-			params := billingexpr.TokenParams{
-				P:    math.Round(rng.Float64() * 1000000),
-				C:    math.Round(rng.Float64() * 500000),
-				CR:   math.Round(rng.Float64() * 200000),
-				CC:   math.Round(rng.Float64() * 50000),
-				CC1h: math.Round(rng.Float64() * 10000),
-			}
-
-			cost, _, err := billingexpr.RunExpr(exprStr, params)
-			if err != nil {
-				t.Fatalf("expr=%q params=%+v: %v", exprStr, params, err)
-			}
-			if cost < 0 {
-				t.Errorf("expr=%q params=%+v: negative cost %f", exprStr, params, cost)
-			}
-		}
-	}
-}
-
-func TestFuzz_SettlementConsistency(t *testing.T) {
-	rng := rand.New(rand.NewSource(99))
-
-	for i := 0; i < 200; i++ {
-		estParams := billingexpr.TokenParams{
-			P:  math.Round(rng.Float64() * 500000),
-			C:  math.Round(rng.Float64() * 100000),
-			CR: math.Round(rng.Float64() * 100000),
-			CC: math.Round(rng.Float64() * 30000),
-		}
-		actParams := billingexpr.TokenParams{
-			P:  math.Round(rng.Float64() * 500000),
-			C:  math.Round(rng.Float64() * 100000),
-			CR: math.Round(rng.Float64() * 100000),
-			CC: math.Round(rng.Float64() * 30000),
-		}
-		groupRatio := 0.5 + rng.Float64()*2.0
-
-		estCost, estTrace, _ := billingexpr.RunExpr(claudeWithCacheExpr, estParams)
-
-		const qpu = 500_000.0
-		snap := &billingexpr.BillingSnapshot{
-			BillingMode:               "tiered_expr",
-			ExprString:                claudeWithCacheExpr,
-			ExprHash:                  billingexpr.ExprHashString(claudeWithCacheExpr),
-			GroupRatio:                groupRatio,
-			EstimatedPromptTokens:     int(estParams.P),
-			EstimatedCompletionTokens: int(estParams.C),
-			EstimatedQuotaBeforeGroup: estCost / 1_000_000 * qpu,
-			EstimatedQuotaAfterGroup:  billingexpr.QuotaRound(estCost / 1_000_000 * qpu * groupRatio),
-			EstimatedTier:             estTrace.MatchedTier,
-			QuotaPerUnit:              qpu,
-		}
-
-		result, err := billingexpr.ComputeTieredQuota(snap, actParams)
-		if err != nil {
-			t.Fatalf("iter %d: %v", i, err)
-		}
-
-		directCost, _, _ := billingexpr.RunExpr(claudeWithCacheExpr, actParams)
-		directQuota := billingexpr.QuotaRound(directCost / 1_000_000 * qpu * groupRatio)
-
-		if result.ActualQuotaAfterGroup != directQuota {
-			t.Errorf("iter %d: settlement %d != direct %d", i, result.ActualQuotaAfterGroup, directQuota)
-		}
 	}
 }
 

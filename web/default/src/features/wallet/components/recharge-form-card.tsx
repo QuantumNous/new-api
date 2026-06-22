@@ -139,7 +139,7 @@ export function RechargeFormCard({
 
   if (loading) {
     return (
-      <Card className='gap-0 overflow-hidden py-0'>
+      <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
         <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>
           <Skeleton className='h-6 w-32' />
           <Skeleton className='mt-2 h-4 w-48' />
@@ -191,6 +191,7 @@ export function RechargeFormCard({
       title={t('Add Funds')}
       description={t('Choose an amount and payment method')}
       icon={<WalletCards className='h-4 w-4' />}
+      disableHoverEffect
       action={
         onOpenBilling ? (
           <Button
@@ -238,7 +239,7 @@ export function RechargeFormCard({
                           key={index}
                           variant='outline'
                           className={cn(
-                            'hover:border-foreground flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
+                            'flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
                             selectedPreset === preset.value
                               ? 'border-foreground bg-foreground/5 dark:border-foreground dark:bg-foreground/10'
                               : 'border-muted'
@@ -312,6 +313,14 @@ export function RechargeFormCard({
                     {topupInfo?.pay_methods?.map((method) => {
                       const minTopup = method.min_topup || 0
                       const disabled = minTopup > topupAmount
+                      const disabledReason = disabled
+                        ? t('Minimum topup amount: {{amount}}', {
+                            amount: minTopup,
+                          })
+                        : undefined
+                      const disabledLabel = disabled
+                        ? `${t('Minimum:')} ${minTopup}`
+                        : undefined
 
                       const button = (
                         <Button
@@ -319,7 +328,13 @@ export function RechargeFormCard({
                           variant='outline'
                           onClick={() => onPaymentMethodSelect(method)}
                           disabled={disabled || !!paymentLoading}
-                          className='h-9 min-w-0 justify-start gap-2 rounded-lg px-3'
+                          title={disabledReason}
+                          aria-label={
+                            disabledReason
+                              ? `${method.name}. ${disabledReason}`
+                              : method.name
+                          }
+                          className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left'
                         >
                           {paymentLoading === method.type ? (
                             <Loader2 className='h-4 w-4 animate-spin' />
@@ -331,7 +346,16 @@ export function RechargeFormCard({
                               method.name
                             )
                           )}
-                          <span className='truncate'>{method.name}</span>
+                          <span className='flex min-w-0 flex-col items-start gap-0.5'>
+                            <span className='max-w-full truncate'>
+                              {method.name}
+                            </span>
+                            {disabledLabel && (
+                              <span className='text-muted-foreground max-w-full truncate text-[11px] leading-4 font-normal'>
+                                {disabledLabel}
+                              </span>
+                            )}
+                          </span>
                         </Button>
                       )
 
@@ -339,11 +363,7 @@ export function RechargeFormCard({
                         <TooltipProvider key={method.type}>
                           <Tooltip>
                             <TooltipTrigger render={button}></TooltipTrigger>
-                            <TooltipContent>
-                              {t('Minimum topup amount: {{amount}}', {
-                                amount: minTopup,
-                              })}
-                            </TooltipContent>
+                            <TooltipContent>{disabledReason}</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       ) : (
@@ -374,6 +394,14 @@ export function RechargeFormCard({
                         const loadingKey = `waffo-${index}`
                         const waffoMin = waffoMinTopup || 0
                         const belowMin = waffoMin > topupAmount
+                        const disabledReason = belowMin
+                          ? t('Minimum topup amount: {{amount}}', {
+                              amount: waffoMin,
+                            })
+                          : undefined
+                        const disabledLabel = belowMin
+                          ? `${t('Minimum:')} ${waffoMin}`
+                          : undefined
 
                         const button = (
                           <Button
@@ -381,7 +409,13 @@ export function RechargeFormCard({
                             variant='outline'
                             onClick={() => onWaffoMethodSelect(method, index)}
                             disabled={belowMin || !!paymentLoading}
-                            className='h-9 min-w-0 justify-start gap-2 rounded-lg px-3'
+                            title={disabledReason}
+                            aria-label={
+                              disabledReason
+                                ? `${method.name}. ${disabledReason}`
+                                : method.name
+                            }
+                            className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left'
                           >
                             {paymentLoading === loadingKey ? (
                               <Loader2 className='h-4 w-4 animate-spin' />
@@ -394,7 +428,16 @@ export function RechargeFormCard({
                             ) : (
                               getPaymentIcon('waffo')
                             )}
-                            <span className='truncate'>{method.name}</span>
+                            <span className='flex min-w-0 flex-col items-start gap-0.5'>
+                              <span className='max-w-full truncate'>
+                                {method.name}
+                              </span>
+                              {disabledLabel && (
+                                <span className='text-muted-foreground max-w-full truncate text-[11px] leading-4 font-normal'>
+                                  {disabledLabel}
+                                </span>
+                              )}
+                            </span>
                           </Button>
                         )
 
@@ -402,11 +445,7 @@ export function RechargeFormCard({
                           <TooltipProvider key={`${method.name}-${index}`}>
                             <Tooltip>
                               <TooltipTrigger render={button}></TooltipTrigger>
-                              <TooltipContent>
-                                {t('Minimum topup amount: {{amount}}', {
-                                  amount: waffoMin,
-                                })}
-                              </TooltipContent>
+                              <TooltipContent>{disabledReason}</TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         ) : (

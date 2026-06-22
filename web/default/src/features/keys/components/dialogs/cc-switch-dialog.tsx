@@ -151,7 +151,9 @@ export function CCSwitchDialog(props: Props) {
       title={t('Import to CC Switch')}
       contentClassName='sm:max-w-md'
       contentHeight='auto'
-      bodyClassName='space-y-4'
+      bodyClassName={
+        currentConfig.modelFields.length === 1 ? 'space-y-4 pb-52' : 'space-y-4'
+      }
       footer={
         <>
           <Button variant='outline' onClick={() => props.onOpenChange(false)}>

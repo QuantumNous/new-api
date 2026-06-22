@@ -138,7 +138,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   }
 
   return (
-    <>
+    <div className='-ml-2'>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -314,6 +314,6 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         onOpenChange={setTokenManagerOpen}
         user={{ id: user.id, username: user.username }}
       />
-    </>
+    </div>
   )
 }

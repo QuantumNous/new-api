@@ -30,10 +30,10 @@ import type {
 import { PanelWrapper } from '../ui/panel-wrapper'
 
 const STATUS_COLOR_MAP: Record<number, string> = {
-  1: 'bg-success',
-  0: 'bg-destructive',
-  2: 'bg-warning',
-  3: 'bg-info',
+  1: 'bg-emerald-500',
+  0: 'bg-red-500',
+  2: 'bg-amber-500',
+  3: 'bg-blue-500',
 }
 const DEFAULT_STATUS_COLOR = 'bg-muted-foreground/40'
 

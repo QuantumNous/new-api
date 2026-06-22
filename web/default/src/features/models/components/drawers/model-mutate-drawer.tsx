@@ -123,7 +123,8 @@ export function ModelMutateDrawer({
 }: ModelMutateDrawerProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const isEditing = Boolean(currentRow?.id)
+  const currentModelId = currentRow?.id
+  const isEditing = Boolean(currentModelId)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [pricingMode, setPricingMode] = useState<PricingMode>('per-token')
   const [pricingSubMode, setPricingSubMode] = useState<PricingSubMode>('ratio')
@@ -143,8 +144,13 @@ export function ModelMutateDrawer({
 
   // Fetch model detail if editing
   const { data: modelData } = useQuery({
-    queryKey: modelsQueryKeys.detail(currentRow?.id || 0),
-    queryFn: () => getModel(currentRow!.id),
+    queryKey: modelsQueryKeys.detail(currentModelId || 0),
+    queryFn: () => {
+      if (!currentModelId) {
+        throw new Error('Model ID is required')
+      }
+      return getModel(currentModelId)
+    },
     enabled: open && isEditing,
   })
 
@@ -194,6 +200,16 @@ export function ModelMutateDrawer({
       'group_ratio_setting.group_special_usable_group': '{}',
       'grok.violation_deduction_enabled': false,
       'grok.violation_deduction_amount': 0,
+      RetryTimes: 0,
+      ChannelDisableThreshold: '',
+      AutomaticDisableChannelEnabled: false,
+      AutomaticEnableChannelEnabled: false,
+      AutomaticDisableKeywords: '',
+      AutomaticDisableStatusCodes: '401',
+      AutomaticRetryStatusCodes:
+        '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
+      'monitor_setting.auto_test_channel_enabled': false,
+      'monitor_setting.auto_test_channel_minutes': 10,
       'channel_affinity_setting.enabled': false,
       'channel_affinity_setting.switch_on_success': true,
       'channel_affinity_setting.keep_on_channel_disabled': false,
@@ -230,13 +246,13 @@ export function ModelMutateDrawer({
 
   const validateNumber = (value: string) => {
     if (value === '') return true
-    return !isNaN(parseFloat(value))
+    return !Number.isNaN(Number.parseFloat(value))
   }
 
   const handlePromptPriceChange = (value: string) => {
     setPromptPrice(value)
-    if (value && !isNaN(parseFloat(value))) {
-      const ratio = parseFloat(value) / 2
+    if (value && !Number.isNaN(Number.parseFloat(value))) {
+      const ratio = Number.parseFloat(value) / 2
       form.setValue('ratio', ratio.toString())
     } else {
       form.setValue('ratio', '')
@@ -247,12 +263,12 @@ export function ModelMutateDrawer({
     setCompletionPrice(value)
     if (
       value &&
-      !isNaN(parseFloat(value)) &&
+      !Number.isNaN(Number.parseFloat(value)) &&
       promptPrice &&
-      !isNaN(parseFloat(promptPrice)) &&
-      parseFloat(promptPrice) > 0
+      !Number.isNaN(Number.parseFloat(promptPrice)) &&
+      Number.parseFloat(promptPrice) > 0
     ) {
-      const completionRatio = parseFloat(value) / parseFloat(promptPrice)
+      const completionRatio = Number.parseFloat(value) / Number.parseFloat(promptPrice)
       form.setValue('completionRatio', completionRatio.toString())
     } else {
       form.setValue('completionRatio', '')
@@ -398,7 +414,7 @@ export function ModelMutateDrawer({
       try {
         const submitData = {
           ...values,
-          id: isEditing ? currentRow!.id : undefined,
+          id: isEditing ? currentModelId : undefined,
           tags: Array.isArray(values.tags) ? values.tags.join(',') : '',
           status: values.status ? 1 : 0,
           sync_official: values.sync_official ? 1 : 0,
@@ -416,9 +432,10 @@ export function ModelMutateDrawer({
           ...modelData
         } = submitData
 
-        const response = isEditing
-          ? await updateModel({ ...modelData, id: currentRow!.id })
-          : await createModel(modelData)
+        const response =
+          isEditing && currentModelId
+            ? await updateModel({ ...modelData, id: currentModelId })
+            : await createModel(modelData)
 
         if (response.success) {
           // Handle ratio configuration updates in system settings
@@ -496,30 +513,30 @@ export function ModelMutateDrawer({
                 values.price &&
                 values.price !== ''
               ) {
-                priceMap[finalModelName] = parseFloat(values.price)
+                priceMap[finalModelName] = Number.parseFloat(values.price)
               } else if (pricingMode === 'per-token') {
                 if (values.ratio && values.ratio !== '') {
-                  ratioMap[finalModelName] = parseFloat(values.ratio)
+                  ratioMap[finalModelName] = Number.parseFloat(values.ratio)
                 }
                 if (values.cacheRatio && values.cacheRatio !== '') {
-                  cacheMap[finalModelName] = parseFloat(values.cacheRatio)
+                  cacheMap[finalModelName] = Number.parseFloat(values.cacheRatio)
                 }
                 if (values.completionRatio && values.completionRatio !== '') {
-                  completionMap[finalModelName] = parseFloat(
+                  completionMap[finalModelName] = Number.parseFloat(
                     values.completionRatio
                   )
                 }
                 if (values.imageRatio && values.imageRatio !== '') {
-                  imageMap[finalModelName] = parseFloat(values.imageRatio)
+                  imageMap[finalModelName] = Number.parseFloat(values.imageRatio)
                 }
                 if (values.audioRatio && values.audioRatio !== '') {
-                  audioMap[finalModelName] = parseFloat(values.audioRatio)
+                  audioMap[finalModelName] = Number.parseFloat(values.audioRatio)
                 }
                 if (
                   values.audioCompletionRatio &&
                   values.audioCompletionRatio !== ''
                 ) {
-                  audioCompletionMap[finalModelName] = parseFloat(
+                  audioCompletionMap[finalModelName] = Number.parseFloat(
                     values.audioCompletionRatio
                   )
                 }
@@ -615,7 +632,7 @@ export function ModelMutateDrawer({
     },
     [
       isEditing,
-      currentRow,
+      currentModelId,
       queryClient,
       onOpenChange,
       pricingMode,
@@ -728,14 +745,14 @@ export function ModelMutateDrawer({
                   <FormItem>
                     <FormLabel>{t('Vendor')}</FormLabel>
                     <Select
-                      items={[
-                        ...vendors.map((vendor) => ({
+                      items={vendors.map((vendor) => ({
                           value: String(vendor.id),
                           label: vendor.name,
-                        })),
-                      ]}
+                        }))}
                       onValueChange={(value) =>
-                        field.onChange(value ? parseInt(value) : undefined)
+                        field.onChange(
+                          value ? Number.parseInt(value) : undefined
+                        )
                       }
                       value={field.value ? String(field.value) : undefined}
                     >
@@ -797,7 +814,7 @@ export function ModelMutateDrawer({
                     <FormControl>
                       <RadioGroup
                         onValueChange={(value) =>
-                          field.onChange(parseInt(value))
+                          field.onChange(Number.parseInt(value))
                         }
                         value={String(field.value)}
                         className='grid grid-cols-2 gap-4'
@@ -835,12 +852,10 @@ export function ModelMutateDrawer({
               <div className='flex items-center justify-between'>
                 <h3 className='text-sm font-semibold'>{t('Endpoints')}</h3>
                 <Select<string>
-                  items={[
-                    ...Object.keys(ENDPOINT_TEMPLATES).map((key) => ({
+                  items={Object.keys(ENDPOINT_TEMPLATES).map((key) => ({
                       value: key,
                       label: key,
-                    })),
-                  ]}
+                    }))}
                   onValueChange={(v) =>
                     v !== null && handleFillEndpointTemplate(v)
                   }
@@ -991,7 +1006,7 @@ export function ModelMutateDrawer({
                                     field.onChange(value)
                                     if (value) {
                                       setPromptPrice(
-                                        (parseFloat(value) * 2).toString()
+                                        (Number.parseFloat(value) * 2).toString()
                                       )
                                     } else {
                                       setPromptPrice('')
@@ -1001,8 +1016,8 @@ export function ModelMutateDrawer({
                               />
                             </FormControl>
                             <FormDescription>
-                              {field.value && !isNaN(parseFloat(field.value))
-                                ? `Calculated price: $${(parseFloat(field.value) * 2).toFixed(4)} per 1M tokens`
+                              {field.value && !Number.isNaN(Number.parseFloat(field.value))
+                                ? `Calculated price: $${(Number.parseFloat(field.value) * 2).toFixed(4)} per 1M tokens`
                                 : t('Multiplier for prompt tokens.')}
                             </FormDescription>
                             <FormMessage />
@@ -1028,9 +1043,9 @@ export function ModelMutateDrawer({
                                     const ratio = form.getValues('ratio')
                                     if (value && ratio) {
                                       const compPrice =
-                                        parseFloat(ratio) *
+                                        Number.parseFloat(ratio) *
                                         2 *
-                                        parseFloat(value)
+                                        Number.parseFloat(value)
                                       setCompletionPrice(compPrice.toString())
                                     } else {
                                       setCompletionPrice('')
@@ -1041,10 +1056,10 @@ export function ModelMutateDrawer({
                             </FormControl>
                             <FormDescription>
                               {field.value &&
-                              !isNaN(parseFloat(field.value)) &&
+                              !Number.isNaN(Number.parseFloat(field.value)) &&
                               promptPrice &&
-                              !isNaN(parseFloat(promptPrice))
-                                ? `Calculated price: $${(parseFloat(promptPrice) * parseFloat(field.value)).toFixed(4)} per 1M tokens`
+                              !Number.isNaN(Number.parseFloat(promptPrice))
+                                ? `Calculated price: $${(Number.parseFloat(promptPrice) * Number.parseFloat(field.value)).toFixed(4)} per 1M tokens`
                                 : t('Multiplier for completion tokens.')}
                             </FormDescription>
                             <FormMessage />
@@ -1053,8 +1068,7 @@ export function ModelMutateDrawer({
                       />
                     </>
                   ) : (
-                    <>
-                      <div className='space-y-4'>
+                    <div className='space-y-4'>
                         <div className='space-y-2'>
                           <Label>{t('Prompt price ($/1M tokens)')}</Label>
                           <Input
@@ -1066,8 +1080,8 @@ export function ModelMutateDrawer({
                             }
                           />
                           <p className='text-muted-foreground text-sm'>
-                            {promptPrice && !isNaN(parseFloat(promptPrice))
-                              ? `Calculated ratio: ${(parseFloat(promptPrice) / 2).toFixed(4)}`
+                            {promptPrice && !Number.isNaN(Number.parseFloat(promptPrice))
+                              ? `Calculated ratio: ${(Number.parseFloat(promptPrice) / 2).toFixed(4)}`
                               : t('Enter Input price to calculate ratio')}
                           </p>
                         </div>
@@ -1084,16 +1098,15 @@ export function ModelMutateDrawer({
                           />
                           <p className='text-muted-foreground text-sm'>
                             {completionPrice &&
-                            !isNaN(parseFloat(completionPrice)) &&
+                            !Number.isNaN(Number.parseFloat(completionPrice)) &&
                             promptPrice &&
-                            !isNaN(parseFloat(promptPrice)) &&
-                            parseFloat(promptPrice) > 0
-                              ? `Calculated ratio: ${(parseFloat(completionPrice) / parseFloat(promptPrice)).toFixed(4)}`
+                            !Number.isNaN(Number.parseFloat(promptPrice)) &&
+                            Number.parseFloat(promptPrice) > 0
+                              ? `Calculated ratio: ${(Number.parseFloat(completionPrice) / Number.parseFloat(promptPrice)).toFixed(4)}`
                               : t('Enter Completion price to calculate ratio')}
                           </p>
                         </div>
-                      </div>
-                    </>
+                    </div>
                   )}
 
                   <Collapsible

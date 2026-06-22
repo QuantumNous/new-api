@@ -53,7 +53,7 @@ type DataTableFacetedFilterProps<TData, TValue> = {
   singleSelect?: boolean
 }
 
-export function DataTableFacetedFilter<TData, TValue>({
+function DataTableFacetedFilterInner<TData, TValue>({
   column,
   title,
   options,
@@ -63,6 +63,18 @@ export function DataTableFacetedFilter<TData, TValue>({
   const facets = column?.getFacetedUniqueValues()
   const filterValue = column?.getFilterValue() as string[] | undefined
   const selectedValues = new Set(filterValue)
+
+  const handleOptionSelect = (optionValue: string) => {
+    const nextSelectedValues = getNextSelectedValues(
+      selectedValues,
+      optionValue,
+      singleSelect
+    )
+
+    column?.setFilterValue(
+      nextSelectedValues.length ? nextSelectedValues : undefined
+    )
+  }
 
   return (
     <Popover>
@@ -118,29 +130,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                 return (
                   <CommandItem
                     key={option.value}
-                    onSelect={() => {
-                      if (singleSelect) {
-                        // Single select mode: toggle or switch selection
-                        if (isSelected) {
-                          // Deselect if clicking the same option
-                          column?.setFilterValue(undefined)
-                        } else {
-                          // Select only this option
-                          column?.setFilterValue([option.value])
-                        }
-                      } else {
-                        // Multi-select mode: original behavior
-                        if (isSelected) {
-                          selectedValues.delete(option.value)
-                        } else {
-                          selectedValues.add(option.value)
-                        }
-                        const filterValues = Array.from(selectedValues)
-                        column?.setFilterValue(
-                          filterValues.length ? filterValues : undefined
-                        )
-                      }
-                    }}
+                    onSelect={() => handleOptionSelect(option.value)}
                   >
                     <div
                       className={cn(
@@ -196,4 +186,27 @@ export function DataTableFacetedFilter<TData, TValue>({
       </PopoverContent>
     </Popover>
   )
+}
+
+export const DataTableFacetedFilter = React.memo(
+  DataTableFacetedFilterInner
+) as typeof DataTableFacetedFilterInner
+
+function getNextSelectedValues(
+  selectedValues: Set<string>,
+  optionValue: string,
+  singleSelect: boolean
+): string[] {
+  if (singleSelect) {
+    return selectedValues.has(optionValue) ? [] : [optionValue]
+  }
+
+  const nextSelectedValues = new Set(selectedValues)
+  if (nextSelectedValues.has(optionValue)) {
+    nextSelectedValues.delete(optionValue)
+  } else {
+    nextSelectedValues.add(optionValue)
+  }
+
+  return Array.from(nextSelectedValues)
 }
