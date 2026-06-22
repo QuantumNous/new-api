@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
 	appmodel "github.com/QuantumNous/new-api/model"
+	platformmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -370,6 +371,185 @@ func TestGetMarketplaceSkill_NonPublishedReturns404(t *testing.T) {
 			assert.Contains(t, w.Body.String(), `"code":"SKILL_NOT_FOUND"`)
 		})
 	}
+}
+
+func TestListMySkillsReturnsCallerEnabledSkillsWithAvailability(t *testing.T) {
+	db := testMySkillDB(t)
+	SetDB(db)
+
+	published := testSkill("published-enabled", "published")
+	deprecated := testSkill("deprecated-enabled", "deprecated")
+	archived := testSkill("archived-enabled", "archived")
+	disabled := testSkill("disabled-skill", "published")
+	otherUser := testSkill("other-user-skill", "published")
+	for _, s := range []*skillmodel.Skill{&published, &deprecated, &archived, &disabled, &otherUser} {
+		require.NoError(t, db.Create(s).Error)
+	}
+
+	enabledAt := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+	lastUsedAt := enabledAt.Add(2 * time.Hour)
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:     42,
+		TenantID:   42,
+		SkillID:    published.ID,
+		Enabled:    true,
+		EnabledAt:  enabledAt,
+		LastUsedAt: &lastUsedAt,
+		Source:     "marketplace",
+	}).Error)
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:    42,
+		TenantID:  42,
+		SkillID:   deprecated.ID,
+		Enabled:   true,
+		EnabledAt: enabledAt.Add(-time.Hour),
+		Source:    "marketplace",
+	}).Error)
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:    42,
+		TenantID:  42,
+		SkillID:   archived.ID,
+		Enabled:   true,
+		EnabledAt: enabledAt.Add(-2 * time.Hour),
+		Source:    "marketplace",
+	}).Error)
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:    42,
+		TenantID:  42,
+		SkillID:   disabled.ID,
+		Enabled:   true,
+		EnabledAt: enabledAt,
+		Source:    "marketplace",
+	}).Error)
+	require.NoError(t, skillmodel.DisableSkillForUser(db, 42, 42, disabled.ID))
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:    99,
+		TenantID:  99,
+		SkillID:   otherUser.ID,
+		Enabled:   true,
+		EnabledAt: enabledAt,
+		Source:    "marketplace",
+	}).Error)
+
+	c, w := testContext("/api/v1/marketplace/my-skills")
+	c.Set("id", 42)
+	c.Set("group", "default")
+
+	ListMySkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			SkillID      string             `json:"skill_id"`
+			Slug         string             `json:"slug"`
+			Name         string             `json:"name"`
+			SkillStatus  enums.SkillStatus  `json:"skill_status"`
+			RequiredPlan enums.RequiredPlan `json:"required_plan"`
+			Enabled      bool               `json:"enabled"`
+			EnabledAt    time.Time          `json:"enabled_at"`
+			LastUsedAt   *time.Time         `json:"last_used_at"`
+			Availability struct {
+				Executable bool    `json:"executable"`
+				Locked     bool    `json:"locked"`
+				LockCode   *string `json:"lock_code"`
+				CTA        string  `json:"cta"`
+			} `json:"availability"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 3)
+
+	bySlug := map[string]struct {
+		Status     enums.SkillStatus
+		Executable bool
+		Locked     bool
+		LockCode   *string
+		CTA        string
+		LastUsedAt *time.Time
+	}{}
+	for _, item := range got.Data {
+		assert.True(t, item.Enabled)
+		assert.NotZero(t, item.EnabledAt)
+		bySlug[item.Slug] = struct {
+			Status     enums.SkillStatus
+			Executable bool
+			Locked     bool
+			LockCode   *string
+			CTA        string
+			LastUsedAt *time.Time
+		}{
+			Status:     item.SkillStatus,
+			Executable: item.Availability.Executable,
+			Locked:     item.Availability.Locked,
+			LockCode:   item.Availability.LockCode,
+			CTA:        item.Availability.CTA,
+			LastUsedAt: item.LastUsedAt,
+		}
+	}
+
+	assert.Contains(t, bySlug, "published-enabled")
+	assert.Contains(t, bySlug, "deprecated-enabled")
+	assert.Contains(t, bySlug, "archived-enabled")
+	assert.NotContains(t, bySlug, "disabled-skill")
+	assert.NotContains(t, bySlug, "other-user-skill")
+
+	assert.True(t, bySlug["published-enabled"].Executable)
+	assert.False(t, bySlug["published-enabled"].Locked)
+	assert.Nil(t, bySlug["published-enabled"].LockCode)
+	assert.Equal(t, "use", bySlug["published-enabled"].CTA)
+	require.NotNil(t, bySlug["published-enabled"].LastUsedAt)
+	assert.Equal(t, lastUsedAt, *bySlug["published-enabled"].LastUsedAt)
+
+	assert.True(t, bySlug["deprecated-enabled"].Executable, "deprecated but still enabled skills remain executable")
+	assert.Equal(t, enums.SkillStatusDeprecated, bySlug["deprecated-enabled"].Status)
+
+	require.NotNil(t, bySlug["archived-enabled"].LockCode)
+	assert.False(t, bySlug["archived-enabled"].Executable)
+	assert.True(t, bySlug["archived-enabled"].Locked)
+	assert.Equal(t, "SKILL_NOT_PUBLISHED", *bySlug["archived-enabled"].LockCode)
+	assert.Equal(t, "unavailable", bySlug["archived-enabled"].CTA)
+}
+
+func TestListMySkillsPlanLockUsesAvailabilityResolver(t *testing.T) {
+	db := testMySkillDB(t)
+	SetDB(db)
+
+	pro := testSkill("pro-enabled", "published")
+	pro.RequiredPlan = enums.RequiredPlanPro
+	require.NoError(t, db.Create(&pro).Error)
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:    42,
+		TenantID:  42,
+		SkillID:   pro.ID,
+		Enabled:   true,
+		EnabledAt: time.Now().UTC(),
+		Source:    "marketplace",
+	}).Error)
+
+	c, w := testContext("/api/v1/marketplace/my-skills")
+	c.Set("id", 42)
+	c.Set("group", "default")
+
+	ListMySkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Availability struct {
+				Executable bool    `json:"executable"`
+				Locked     bool    `json:"locked"`
+				LockCode   *string `json:"lock_code"`
+				CTA        string  `json:"cta"`
+			} `json:"availability"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 1)
+	assert.False(t, got.Data[0].Availability.Executable)
+	assert.True(t, got.Data[0].Availability.Locked)
+	require.NotNil(t, got.Data[0].Availability.LockCode)
+	assert.Equal(t, "SKILL_PLAN_REQUIRED", *got.Data[0].Availability.LockCode)
+	assert.Equal(t, "upgrade", got.Data[0].Availability.CTA)
 }
 
 // ---------------------------------------------------------------------------
@@ -884,6 +1064,22 @@ func testSkillDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+func testMySkillDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db := testSkillDB(t)
+	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
+	require.NoError(t, db.AutoMigrate(&platformmodel.User{}))
+	require.NoError(t, db.Create(&platformmodel.User{
+		Id:       42,
+		Username: "skill-user",
+		Password: "password123",
+		Role:     1,
+		Status:   1,
+		Group:    "default",
+	}).Error)
+	return db
+}
+
 func testContext(url string) (*gin.Context, *httptest.ResponseRecorder) {
 	return testContextWithMethod(http.MethodGet, url, "")
 }
@@ -925,7 +1121,7 @@ func testSkill(slug string, status string) skillmodel.Skill {
 }
 
 func routedWorkStepFixture() string {
-	return "### Work Step\n\nCall DeepRouter at POST https://api.deeprouter.ai/v1/routing/chat/completions with the runner's own key, then base the final answer on the returned routing result."
+	return "### Work Step\n\nCall DeepRouter at POST https://api.deeprouter.co/v1/routing/chat/completions with the runner's own key, then base the final answer on the returned routing result."
 }
 
 func validHandlerSkillVersion(skillID string, versionNumber int) skillmodel.SkillVersion {

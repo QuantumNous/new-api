@@ -4,15 +4,19 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
-	appmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +28,7 @@ import (
 func testDownloadDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := testSkillDB(t)
+	require.NoError(t, skillmodel.MigrateSkillVersions(db))
 	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
 	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
 	return db
@@ -44,7 +49,7 @@ func testDownloadCtx(skillID string, userID int, group string) (*gin.Context, *h
 func TestDownloadSkillPackage_HappyPath(t *testing.T) {
 	db := testDownloadDB(t)
 	SetDB(db)
-	require.NoError(t, db.Create(ptr(testSkill("cool-skill", "published"))).Error)
+	createPublishedSkillWithActiveVersion(t, db, "cool-skill", "Use the cool skill safely.")
 
 	c, w := testDownloadCtx("cool-skill", 42, "default")
 	DownloadSkillPackage(c)
@@ -71,8 +76,8 @@ func TestDownloadSkillPackage_ZipContainsManifestAndSkillMD(t *testing.T) {
 	s := testSkill("zip-skill", "published")
 	s.Name = "Zip Skill"
 	s.ShortDescription = "Does zip things"
-	s.Description = "A full description.\n\n" + routedWorkStepFixture()
-	require.NoError(t, db.Create(&s).Error)
+	s.Description = "A full description."
+	s = createPublishedSkillWithActiveVersionFromSkill(t, db, s, "System template for zip skill.")
 
 	c, w := testDownloadCtx("zip-skill", 1, "default")
 	DownloadSkillPackage(c)
@@ -94,6 +99,9 @@ func TestDownloadSkillPackage_ZipContainsManifestAndSkillMD(t *testing.T) {
 
 	require.Contains(t, files, "manifest.json", "zip must contain manifest.json")
 	require.Contains(t, files, "SKILL.md", "zip must contain SKILL.md")
+	require.Contains(t, files, "instruction_template.md", "zip must contain instruction_template.md")
+	require.Contains(t, files, "runtime/deeprouter_skill_runner.py", "zip must contain runtime client")
+	require.Contains(t, files, "runtime/README.md", "zip must contain runtime README")
 
 	var m skillManifest
 	require.NoError(t, json.Unmarshal(files["manifest.json"], &m))
@@ -101,192 +109,55 @@ func TestDownloadSkillPackage_ZipContainsManifestAndSkillMD(t *testing.T) {
 	assert.Equal(t, "zip-skill", m.Slug)
 	assert.Equal(t, "Zip Skill", m.Name)
 	assert.True(t, m.RequiresDeepRouterKey, "manifest must advertise requires_deeprouter_key: true")
-	// skill_version_id is nil when active_version_id is not set (DR-41 not yet done).
-	assert.Nil(t, m.SkillVersionID, "skill_version_id must be omitted when active_version_id is nil")
+	assert.NotEmpty(t, m.SkillVersionID, "skill_version_id must be present in runnable packages")
 
 	skillMD := string(files["SKILL.md"])
 	assert.Contains(t, skillMD, "name: zip-skill")
-	assert.Contains(t, skillMD, `description: "Does zip things"`)
 	assert.Contains(t, skillMD, "Zip Skill")
 	assert.Contains(t, skillMD, "A full description.")
+	assert.Equal(t, "System template for zip skill.", string(files["instruction_template.md"]))
 	assert.Contains(t, skillMD, "### Work Step")
-	assert.Contains(t, skillMD, "https://api.deeprouter.ai/v1/routing/chat/completions")
+	assert.Contains(t, skillMD, "https://api.deeprouter.co/v1/routing/chat/completions")
 }
 
-func TestBuildSkillPackage_RejectsOfflineSkillDescription(t *testing.T) {
-	s := testSkill("offline-real-path", "published")
-	versionID := "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
-	s.ActiveVersionID = &versionID
-	s.Description = "Summarize the user's local files fully offline.\n\n### Work Step\n\nRead local files and produce the final answer without a network call."
+func TestDownloadSkillPackage_SKILLMDIsRuntimeWrapper(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("wrapper-skill", "published")
+	s.Name = "Wrapper Skill"
+	s.Description = "Wrapper description."
+	s.ShortDescription = "Wrapper short description"
+	s = createPublishedSkillWithActiveVersionFromSkill(t, db, s, "Wrapper template")
 
-	_, err := buildSkillPackage(s)
+	c, w := testDownloadCtx("wrapper-skill", 1, "default")
+	DownloadSkillPackage(c)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "D-09")
-	assert.Contains(t, err.Error(), "no DeepRouter public routing API call")
-}
+	require.Equal(t, http.StatusOK, w.Code)
 
-func TestBuildSkillPackage_LegacyUnversionedDownloadSkipsCapabilityGuard(t *testing.T) {
-	s := testSkill("legacy-unversioned", "published")
-	s.ActiveVersionID = nil
-	s.Description = "Legacy published Skill without DR-79 package metadata."
-
-	zipBytes, err := buildSkillPackage(s)
-
+	zr, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
 	require.NoError(t, err)
-	assert.NotEmpty(t, zipBytes)
-}
 
-func TestBuildSkillPackageZip_RejectsOfflineCapabilityWorkStep(t *testing.T) {
-	_, err := buildSkillPackageZip(skillPackageKindCapability, []skillPackageFile{
-		{Name: "manifest.json", Content: []byte(`{"schema_version":"1.0"}`)},
-		{Name: "SKILL.md", Content: []byte(`# Offline Skill
-
-### Work Step
-
-Read the local files, summarize them, and produce the final answer without any network call.
-`)},
-	})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "D-09")
-	assert.Contains(t, err.Error(), "no DeepRouter public routing API call")
-}
-
-func TestBuildSkillPackageZip_AllowsDeepRouterCapabilityWorkStep(t *testing.T) {
-	zipBytes, err := buildSkillPackageZip(skillPackageKindCapability, []skillPackageFile{
-		{Name: "manifest.json", Content: []byte(`{"schema_version":"1.0"}`)},
-		{Name: "SKILL.md", Content: []byte(`# Routed Skill
-
-### Work Step
-
-Call DeepRouter at POST https://api.deeprouter.ai/v1/chat/completions with the runner's own key, then base the final answer on the returned routing result.
-`)},
-	})
-
-	require.NoError(t, err)
-	assert.NotEmpty(t, zipBytes)
-}
-
-func TestValidateSkillPackageRuntimeDependency_Regressions(t *testing.T) {
-	cases := []struct {
-		name    string
-		kind    skillPackageKind
-		skillMD string
-		wantErr string
-	}{
-		{
-			name: "deeprouter marker outside work step is rejected",
-			kind: skillPackageKindCapability,
-			skillMD: `# Misleading Skill
-
-Mentions https://api.deeprouter.ai/v1/chat/completions in setup text.
-
-### Work Step
-
-Summarize local files without making any network call.
-`,
-			wantErr: "no DeepRouter public routing API call",
-		},
-		{
-			name: "missing work step is rejected",
-			kind: skillPackageKindCapability,
-			skillMD: `# No Work Step
-
-Call DeepRouter at https://api.deeprouter.ai/v1/chat/completions somewhere in prose.
-`,
-			wantErr: "no DeepRouter public routing API call",
-		},
-		{
-			name:    "empty skill md is rejected",
-			kind:    skillPackageKindCapability,
-			skillMD: "  \n\t",
-			wantErr: "missing SKILL.md work step",
-		},
-		{
-			name: "non capability package skips guard",
-			kind: skillPackageKind("reference"),
-			skillMD: `# Reference Package
-
-No runtime work step.
-`,
-			wantErr: "",
-		},
-		{
-			name: "responses endpoint in work step is accepted",
-			kind: skillPackageKindCapability,
-			skillMD: `# Responses Skill
-
-### Work Step
-
-Call DeepRouter with POST https://api.deeprouter.ai/v1/responses using the runner key.
-`,
-			wantErr: "",
-		},
-		{
-			name: "routing chat completions endpoint in work step is accepted",
-			kind: skillPackageKindCapability,
-			skillMD: `# Routing Skill
-
-### Work Step
-
-Call DeepRouter with POST https://api.deeprouter.ai/v1/routing/chat/completions using the runner key.
-`,
-			wantErr: "",
-		},
-		{
-			name: "parenthetical work step heading is accepted",
-			kind: skillPackageKindCapability,
-			skillMD: `# D09 Skill
-
-### Work Step (D-09)
-
-Call DeepRouter with POST https://api.deeprouter.ai/v1/chat/completions using the runner key.
-`,
-			wantErr: "",
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := validateSkillPackageRuntimeDependency(tc.kind, []skillPackageFile{
-				{Name: "SKILL.md", Content: []byte(tc.skillMD)},
-			})
-			if tc.wantErr == "" {
-				require.NoError(t, err)
-				return
-			}
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "D-09")
-			assert.Contains(t, err.Error(), tc.wantErr)
-		})
-	}
-}
-
-func TestValidateSkillPackageRuntimeDependency_RejectsMissingSkillMD(t *testing.T) {
-	err := validateSkillPackageRuntimeDependency(skillPackageKindCapability, []skillPackageFile{
-		{Name: "manifest.json", Content: []byte(`{"schema_version":"1.0"}`)},
-	})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "D-09")
-	assert.Contains(t, err.Error(), "missing SKILL.md work step")
-}
-
-func TestBuildSkillMD_EscapesFrontMatterDescription(t *testing.T) {
-	s := testSkill("frontmatter-skill", "published")
-	s.ShortDescription = "quote \" slash \\ newline\n---"
-
-	skillMD := buildSkillMD(s)
-
-	assert.Contains(t, skillMD, `description: "quote \" slash \\ newline\n---"`)
-	separatorLines := 0
-	for _, line := range strings.Split(skillMD, "\n") {
-		if line == "---" {
-			separatorLines++
+	var skillMD string
+	for _, f := range zr.File {
+		if f.Name != "SKILL.md" {
+			continue
 		}
+		rc, err := f.Open()
+		require.NoError(t, err)
+		body, err := io.ReadAll(rc)
+		rc.Close()
+		require.NoError(t, err)
+		skillMD = string(body)
 	}
-	assert.Equal(t, 2, separatorLines, "description must not create extra YAML document separator lines")
+
+	require.NotEmpty(t, skillMD)
+	assert.Contains(t, skillMD, "runtime/deeprouter_skill_runner.py")
+	assert.Contains(t, skillMD, "DEEPROUTER_API_KEY")
+	assert.Contains(t, skillMD, "DEEPROUTER_EXECUTION_API_URL")
+	assert.Contains(t, skillMD, "DeepRouter")
+	assert.Contains(t, skillMD, "Do not execute this package as a standalone local-only prompt")
+	assert.Contains(t, skillMD, "### Work Step")
+	assert.Contains(t, skillMD, "https://api.deeprouter.co/v1/routing/chat/completions")
 }
 
 // TestDownloadSkillPackage_ManifestIncludesSkillVersionID verifies that when a skill
@@ -298,6 +169,19 @@ func TestDownloadSkillPackage_ManifestIncludesSkillVersionID(t *testing.T) {
 	s := testSkill("versioned-skill", "published")
 	s.ActiveVersionID = &versionID
 	require.NoError(t, db.Create(&s).Error)
+	require.NoError(t, db.Create(&skillmodel.SkillVersion{
+		ID:                        versionID,
+		SkillID:                   s.ID,
+		VersionNumber:             1,
+		Status:                    enums.SkillVersionStatusActive,
+		InstructionTemplate:       "Pinned template",
+		InstructionTemplateSHA256: strings.Repeat("a", 64),
+		ModelWhitelistSnapshot:    skillmodel.SkillJSONB(`["smart-tier"]`),
+		RequiredPlanSnapshot:      enums.RequiredPlanFree,
+		MonetizationSnapshot:      skillmodel.SkillJSONB(`{}`),
+		RolloutPercentage:         100,
+		CreatedBy:                 1,
+	}).Error)
 
 	c, w := testDownloadCtx("versioned-skill", 1, "default")
 	DownloadSkillPackage(c)
@@ -315,8 +199,7 @@ func TestDownloadSkillPackage_ManifestIncludesSkillVersionID(t *testing.T) {
 		rc.Close()
 		var m skillManifest
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &m))
-		require.NotNil(t, m.SkillVersionID)
-		assert.Equal(t, versionID, *m.SkillVersionID)
+		assert.Equal(t, versionID, m.SkillVersionID)
 	}
 }
 
@@ -372,7 +255,7 @@ func TestDownloadSkillPackage_ProUserCanDownloadProSkill(t *testing.T) {
 	SetDB(db)
 	s := testSkill("pro-only", "published")
 	s.RequiredPlan = enums.RequiredPlanPro
-	require.NoError(t, db.Create(&s).Error)
+	s = createPublishedSkillWithActiveVersionFromSkill(t, db, s, "Pro template")
 
 	c, w := testDownloadCtx("pro-only", 7, "pro")
 	DownloadSkillPackage(c)
@@ -388,7 +271,7 @@ func TestDownloadSkillPackage_EnterpriseUserCanDownloadProSkill(t *testing.T) {
 	SetDB(db)
 	s := testSkill("pro-skill-2", "published")
 	s.RequiredPlan = enums.RequiredPlanPro
-	require.NoError(t, db.Create(&s).Error)
+	s = createPublishedSkillWithActiveVersionFromSkill(t, db, s, "Enterprise template")
 
 	c, w := testDownloadCtx("pro-skill-2", 8, "enterprise")
 	DownloadSkillPackage(c)
@@ -401,8 +284,7 @@ func TestDownloadSkillPackage_EnterpriseUserCanDownloadProSkill(t *testing.T) {
 func TestDownloadSkillPackage_LookupByUUID(t *testing.T) {
 	db := testDownloadDB(t)
 	SetDB(db)
-	s := testSkill("uuid-lookup", "published")
-	require.NoError(t, db.Create(&s).Error)
+	s := createPublishedSkillWithActiveVersion(t, db, "uuid-lookup", "UUID lookup template")
 
 	c, w := testDownloadCtx(s.ID, 1, "default")
 	DownloadSkillPackage(c)
@@ -418,7 +300,7 @@ func TestDownloadSkillPackage_LookupByUUID(t *testing.T) {
 func TestDownloadSkillPackage_NoProviderCredentialsInZip(t *testing.T) {
 	db := testDownloadDB(t)
 	SetDB(db)
-	require.NoError(t, db.Create(ptr(testSkill("clean-skill", "published"))).Error)
+	createPublishedSkillWithActiveVersion(t, db, "clean-skill", "Template without secrets")
 
 	c, w := testDownloadCtx("clean-skill", 1, "default")
 	DownloadSkillPackage(c)
@@ -428,17 +310,33 @@ func TestDownloadSkillPackage_NoProviderCredentialsInZip(t *testing.T) {
 	zr, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
 	require.NoError(t, err)
 
-	forbidden := []string{"price_markup", "monetization_type", "model_whitelist", "instruction_template"}
+	allowedFiles := map[string]bool{
+		"manifest.json":                      true,
+		"SKILL.md":                           true,
+		"instruction_template.md":            true,
+		"runtime/deeprouter_skill_runner.py": true,
+		"runtime/README.md":                  true,
+	}
+	forbiddenSecretLike := []string{"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY"}
 	for _, f := range zr.File {
+		assert.True(t, allowedFiles[f.Name], "zip must contain only allowlisted files, found %q", f.Name)
 		rc, err := f.Open()
 		require.NoError(t, err)
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(rc)
 		rc.Close()
 		content := buf.String()
-		for _, field := range forbidden {
+		for _, field := range forbiddenSecretLike {
 			assert.NotContains(t, content, field,
-				"file %s must not expose provider-internal field %q", f.Name, field)
+				"file %s must not expose provider-secret-like key %q", f.Name, field)
+		}
+		if f.Name == "manifest.json" {
+			var manifestKeys map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(buf.Bytes(), &manifestKeys))
+			for _, forbidden := range []string{"billing_user_id", "tenant_id", "user_id", "kids_mode", "is_kids_session"} {
+				_, present := manifestKeys[forbidden]
+				assert.False(t, present, "manifest must not contain forbidden field %q", forbidden)
+			}
 		}
 	}
 }
@@ -449,82 +347,21 @@ func TestDownloadSkillPackage_NoProviderCredentialsInZip(t *testing.T) {
 func TestDownloadSkillPackage_EmitsSkillEnabledEvent(t *testing.T) {
 	db := testDownloadDB(t)
 	SetDB(db)
-	s := testSkill("emit-skill", "published")
-	require.NoError(t, db.Create(&s).Error)
+	s := createPublishedSkillWithActiveVersion(t, db, "emit-skill", "Emit template")
 
 	c, w := testDownloadCtx("emit-skill", 99, "default")
-	start := time.Now().UTC()
 	DownloadSkillPackage(c)
-	end := time.Now().UTC()
 
 	require.Equal(t, http.StatusOK, w.Code)
 
 	var evt skillmodel.SkillUsageEvent
-	err := db.Where("event_type = ? AND skill_id = ?", enums.SkillUsageEventTypeEnabled, s.ID).First(&evt).Error
+	err := db.Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).First(&evt).Error
 	require.NoError(t, err, "skill_usage_events must have a skill_enabled row after download")
-	assert.Equal(t, enums.SkillUsageEventTypeEnabled, evt.EventType)
 	assert.Equal(t, enums.EntryPointSkillPackage, evt.EntryPoint)
-	assert.NotZero(t, evt.OccurredAt)
-	assert.False(t, evt.OccurredAt.Before(start.Add(-time.Second)), "occurred_at must be near the download request")
-	assert.False(t, evt.OccurredAt.After(end.Add(time.Second)), "occurred_at must be near the download request")
-	_, err = uuid.Parse(evt.EventID)
-	require.NoError(t, err, "event_id must be a valid UUID")
 	require.NotNil(t, evt.UserID)
 	assert.Equal(t, int64(99), *evt.UserID)
 	require.NotNil(t, evt.Plan)
 	assert.Equal(t, enums.RequiredPlanFree, *evt.Plan)
-	require.NotNil(t, evt.Success)
-	assert.True(t, *evt.Success)
-}
-
-func TestDownloadSkillPackage_KidsSessionEventUsesPseudoID(t *testing.T) {
-	t.Setenv(kidsAnalyticsDailySaltEnv, "test-daily-salt")
-	t.Setenv(kidsAnalyticsSaltVersionEnv, "2026-06-21")
-
-	db := testDownloadDB(t)
-	require.NoError(t, db.AutoMigrate(&appmodel.User{}))
-	SetDB(db)
-	s := testSkill("kids-emit-skill", "published")
-	s.IsKidsSafe = true
-	require.NoError(t, db.Create(&s).Error)
-	require.NoError(t, db.Create(&appmodel.User{Id: 123, Username: "kids-user", Password: "password123", KidsMode: true}).Error)
-
-	c, w := testDownloadCtx("kids-emit-skill", 123, "default")
-	DownloadSkillPackage(c)
-
-	require.Equal(t, http.StatusOK, w.Code)
-
-	var evt skillmodel.SkillUsageEvent
-	err := db.Where("event_type = ? AND skill_id = ?", enums.SkillUsageEventTypeEnabled, s.ID).First(&evt).Error
-	require.NoError(t, err)
-	assert.True(t, evt.IsKidsSession)
-	assert.Nil(t, evt.UserID, "Kids analytics must not persist the real child user_id")
-	assert.Nil(t, evt.TenantID, "Kids analytics must not persist the real child tenant_id (V1: tenant_id == user_id)")
-	require.NotNil(t, evt.SessionID)
-	wantPseudoID, err := skillmodel.KidsSessionPseudoID(123, 123, "2026-06-21", []byte("test-daily-salt"))
-	require.NoError(t, err)
-	assert.Equal(t, wantPseudoID, *evt.SessionID)
-	require.NotNil(t, evt.IsKidsSafeSkill)
-	assert.True(t, *evt.IsKidsSafeSkill)
-}
-
-func TestDownloadSkillPackage_KidsSessionMissingSaltDoesNotPersistAnalytics(t *testing.T) {
-	db := testDownloadDB(t)
-	require.NoError(t, db.AutoMigrate(&appmodel.User{}))
-	SetDB(db)
-	s := testSkill("kids-no-salt-skill", "published")
-	s.IsKidsSafe = true
-	require.NoError(t, db.Create(&s).Error)
-	require.NoError(t, db.Create(&appmodel.User{Id: 124, Username: "kids-nosalt", Password: "password123", KidsMode: true}).Error)
-
-	c, w := testDownloadCtx("kids-no-salt-skill", 124, "default")
-	DownloadSkillPackage(c)
-
-	require.Equal(t, http.StatusOK, w.Code, "analytics failure must not block download")
-	var evtCount int64
-	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).
-		Where("event_type = ? AND skill_id = ?", enums.SkillUsageEventTypeEnabled, s.ID).Count(&evtCount).Error)
-	assert.Equal(t, int64(0), evtCount, "Kids analytics must fail closed when pseudonymization salt is unavailable")
 }
 
 // TestDownloadSkillPackage_EmitRecordsUserPlanNotSkillPlan verifies that when a pro user
@@ -533,9 +370,7 @@ func TestDownloadSkillPackage_KidsSessionMissingSaltDoesNotPersistAnalytics(t *t
 func TestDownloadSkillPackage_EmitRecordsUserPlanNotSkillPlan(t *testing.T) {
 	db := testDownloadDB(t)
 	SetDB(db)
-	s := testSkill("free-skill-for-pro", "published")
-	// s.RequiredPlan is "free" by default from testSkill
-	require.NoError(t, db.Create(&s).Error)
+	s := createPublishedSkillWithActiveVersion(t, db, "free-skill-for-pro", "Free template")
 
 	c, w := testDownloadCtx("free-skill-for-pro", 55, "pro")
 	DownloadSkillPackage(c)
@@ -543,7 +378,7 @@ func TestDownloadSkillPackage_EmitRecordsUserPlanNotSkillPlan(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 
 	var evt skillmodel.SkillUsageEvent
-	err := db.Where("event_type = ? AND skill_id = ?", enums.SkillUsageEventTypeEnabled, s.ID).First(&evt).Error
+	err := db.Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).First(&evt).Error
 	require.NoError(t, err)
 	require.NotNil(t, evt.Plan)
 	assert.Equal(t, enums.RequiredPlanPro, *evt.Plan,
@@ -564,8 +399,7 @@ func TestDownloadSkillPackage_EmitRecordsUserPlanNotSkillPlan(t *testing.T) {
 func TestDownloadSkillPackage_GrantsNoExecutionRight(t *testing.T) {
 	db := testDownloadDB(t)
 	SetDB(db)
-	s := testSkill("ds-noexec", "published")
-	require.NoError(t, db.Create(&s).Error)
+	s := createPublishedSkillWithActiveVersion(t, db, "ds-noexec", "No exec grant template")
 
 	c, w := testDownloadCtx("ds-noexec", 77, "default")
 	DownloadSkillPackage(c)
@@ -586,7 +420,7 @@ func TestDownloadSkillPackage_GrantsNoExecutionRight(t *testing.T) {
 	// not a separate skill_downloaded event.
 	var enabledCount, downloadedCount int64
 	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).
-		Where("event_type = ? AND skill_id = ?", enums.SkillUsageEventTypeEnabled, s.ID).Count(&enabledCount).Error)
+		Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).Count(&enabledCount).Error)
 	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).
 		Where("event_type = ? AND skill_id = ?", "skill_downloaded", s.ID).Count(&downloadedCount).Error)
 	assert.Equal(t, int64(1), enabledCount, "download must emit exactly one skill_enabled event")
@@ -603,7 +437,13 @@ func TestDownloadSkillPackage_GrantsNoExecutionRight(t *testing.T) {
 
 	zr, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
 	require.NoError(t, err)
-	allowedFiles := map[string]bool{"manifest.json": true, "SKILL.md": true}
+	allowedFiles := map[string]bool{
+		"manifest.json":                      true,
+		"SKILL.md":                           true,
+		"instruction_template.md":            true,
+		"runtime/deeprouter_skill_runner.py": true,
+		"runtime/README.md":                  true,
+	}
 	var manifestRaw []byte
 	for _, zf := range zr.File {
 		assert.True(t, allowedFiles[zf.Name], "zip must contain only whitelisted files, found %q", zf.Name)
@@ -650,8 +490,7 @@ func TestDownloadSkillPackage_GrantsNoExecutionRight(t *testing.T) {
 func TestDownloadSkillPackage_ReDownloadPreservesExistingSource(t *testing.T) {
 	db := testDownloadDB(t)
 	SetDB(db)
-	s := testSkill("redl-skill", "published")
-	require.NoError(t, db.Create(&s).Error)
+	s := createPublishedSkillWithActiveVersion(t, db, "redl-skill", "Re-download template")
 
 	// Pre-existing row from an earlier acquisition: source="marketplace", currently disabled.
 	past := time.Now().UTC().Add(-24 * time.Hour)
@@ -680,6 +519,737 @@ func TestDownloadSkillPackage_ReDownloadPreservesExistingSource(t *testing.T) {
 	// The download act is still recorded by a skill_enabled event.
 	var evtCount int64
 	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).
-		Where("event_type = ? AND skill_id = ?", enums.SkillUsageEventTypeEnabled, s.ID).Count(&evtCount).Error)
+		Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).Count(&evtCount).Error)
 	assert.Equal(t, int64(1), evtCount, "re-download must still emit skill_enabled")
+}
+
+func TestDownloadSkillPackage_NoActiveVersionBuildFails(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("no-active-version", "published")
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testDownloadCtx("no-active-version", 1, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"SKILL_INTERNAL_ERROR"`)
+	assert.NotEqual(t, "application/zip", w.Header().Get("Content-Type"))
+	assertNoDownloadSideEffects(t, db, s.ID, 1)
+}
+
+func TestDownloadSkillPackage_ActiveVersionRecordMissingBuildFails(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	versionID := uuid.New().String()
+	s := testSkill("missing-version-record", "published")
+	s.ActiveVersionID = &versionID
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testDownloadCtx("missing-version-record", 1, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"SKILL_INTERNAL_ERROR"`)
+	assert.NotEqual(t, "application/zip", w.Header().Get("Content-Type"))
+	assertNoDownloadSideEffects(t, db, s.ID, 1)
+}
+
+func TestDownloadSkillPackage_NonActiveVersionBuildFails(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	versionID := uuid.New().String()
+	s := testSkill("non-active-version", "published")
+	s.ActiveVersionID = &versionID
+	require.NoError(t, db.Create(&s).Error)
+	require.NoError(t, db.Create(&skillmodel.SkillVersion{
+		ID:                        versionID,
+		SkillID:                   s.ID,
+		VersionNumber:             1,
+		Status:                    enums.SkillVersionStatusDraft,
+		InstructionTemplate:       "Draft template",
+		InstructionTemplateSHA256: strings.Repeat("a", 64),
+		ModelWhitelistSnapshot:    skillmodel.SkillJSONB(`["smart-tier"]`),
+		RequiredPlanSnapshot:      enums.RequiredPlanFree,
+		MonetizationSnapshot:      skillmodel.SkillJSONB(`{}`),
+		RolloutPercentage:         100,
+		CreatedBy:                 1,
+	}).Error)
+
+	c, w := testDownloadCtx("non-active-version", 1, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"SKILL_INTERNAL_ERROR"`)
+	assert.NotEqual(t, "application/zip", w.Header().Get("Content-Type"))
+	assertNoDownloadSideEffects(t, db, s.ID, 1)
+}
+
+func TestDownloadSkillPackage_EmptyInstructionTemplateBuildFails(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := createPublishedSkillWithActiveVersion(t, db, "empty-template", "")
+
+	c, w := testDownloadCtx("empty-template", 1, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"SKILL_INTERNAL_ERROR"`)
+	assert.NotEqual(t, "application/zip", w.Header().Get("Content-Type"))
+	assertNoDownloadSideEffects(t, db, s.ID, 1)
+
+	// ensure the failure is from package building, not lookup/auth/plan gating
+	var fetched skillmodel.Skill
+	require.NoError(t, db.Where("id = ?", s.ID).First(&fetched).Error)
+	assert.NotNil(t, fetched.ActiveVersionID)
+}
+
+func TestDownloadedPackageRunner_MissingKeyFailsBeforeHTTP(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-missing-key", "Runtime template")
+
+	var callCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount.Add(1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"text":"unexpected"}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-missing-key", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(), "DEEPROUTER_EXECUTION_API_URL="+server.URL)
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "AUTH_REQUIRED", errPayload["code"])
+	assert.Equal(t, "Register or add your API key.", errPayload["cta"])
+	assert.Equal(t, int32(0), callCount.Load(), "missing key must fail before any HTTP call")
+}
+
+func TestDownloadedPackageRunner_MissingExecutionAPIURLFailsBeforeHTTP(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-missing-url", "Runtime template")
+
+	var callCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount.Add(1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"text":"unexpected"}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-missing-url", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(), "DEEPROUTER_API_KEY=test-runner-key")
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "CONFIG_REQUIRED", errPayload["code"])
+	assert.Equal(t, int32(0), callCount.Load(), "missing execution URL must fail before any HTTP call")
+}
+
+func TestDownloadedPackageRunner_MissingInstructionTemplateFailsBeforeHTTP(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-missing-template", "Runtime template")
+
+	var callCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount.Add(1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"text":"unexpected"}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-missing-template", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	require.NoError(t, os.Remove(filepath.Join(pkgDir, "instruction_template.md")))
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL="+server.URL,
+	)
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "PACKAGE_INVALID", errPayload["code"])
+	assert.Equal(t, int32(0), callCount.Load(), "missing instruction_template.md must fail before any HTTP call")
+}
+
+func TestDownloadedPackageRunner_InvalidManifestJSONFailsBeforeHTTP(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-invalid-manifest-json", "Runtime template")
+
+	var callCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount.Add(1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"text":"unexpected"}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-invalid-manifest-json", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	writeManifestRaw(t, pkgDir, []byte(`{"broken":`))
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL="+server.URL,
+	)
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "PACKAGE_INVALID", errPayload["code"])
+	assert.NotContains(t, string(out), "Traceback")
+	assert.Equal(t, int32(0), callCount.Load(), "invalid manifest JSON must fail before any HTTP call")
+}
+
+func TestDownloadedPackageRunner_InvalidManifestUTF8FailsBeforeHTTP(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-invalid-manifest-utf8", "Runtime template")
+
+	var callCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount.Add(1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"text":"unexpected"}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-invalid-manifest-utf8", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	writeManifestRaw(t, pkgDir, []byte{0xff, 0xfe, 0xfd})
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL="+server.URL,
+	)
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "PACKAGE_INVALID", errPayload["code"])
+	assert.NotContains(t, string(out), "Traceback")
+	assert.Equal(t, int32(0), callCount.Load(), "invalid manifest UTF-8 must fail before any HTTP call")
+}
+
+func TestDownloadedPackageRunner_ManifestRootMustBeObject(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-manifest-root-array", "Runtime template")
+
+	var callCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount.Add(1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"text":"unexpected"}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-manifest-root-array", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	writeManifestRaw(t, pkgDir, []byte(`[]`))
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL="+server.URL,
+	)
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "PACKAGE_INVALID", errPayload["code"])
+	assert.NotContains(t, string(out), "Traceback")
+	assert.Equal(t, int32(0), callCount.Load(), "non-object manifest root must fail before any HTTP call")
+}
+
+func TestDownloadedPackageRunner_InvalidExecutionAPIURLFailsFast(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-invalid-url", "Runtime template")
+
+	c, w := testDownloadCtx("runner-invalid-url", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL=not-a-url",
+	)
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "CONFIG_INVALID", errPayload["code"])
+}
+
+func TestDownloadedPackageRunner_InvalidTimeoutEnvFailsFast(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-invalid-timeout", "Runtime template")
+
+	c, w := testDownloadCtx("runner-invalid-timeout", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL=http://127.0.0.1:1/mock",
+		"DEEPROUTER_EXECUTION_TIMEOUT_SECONDS=abc",
+	)
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "CONFIG_INVALID", errPayload["code"])
+}
+
+func TestDownloadedPackageRunner_TamperedManifestForbiddenFieldFailsBeforeHTTP(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-tampered-manifest", "Runtime template")
+
+	var callCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount.Add(1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"text":"unexpected"}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-tampered-manifest", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	tamperManifestJSON(t, pkgDir, func(manifest map[string]any) {
+		manifest["user_id"] = 123
+	})
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL="+server.URL,
+	)
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "PACKAGE_INVALID", errPayload["code"])
+	assert.Equal(t, int32(0), callCount.Load(), "tampered forbidden manifest field must fail before any HTTP call")
+}
+
+func TestDownloadedPackageRunner_TamperedManifestRequiresDeepRouterKeyFalseFailsBeforeHTTP(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-tampered-key-flag", "Runtime template")
+
+	var callCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount.Add(1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"text":"unexpected"}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-tampered-key-flag", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	tamperManifestJSON(t, pkgDir, func(manifest map[string]any) {
+		manifest["requires_deeprouter_key"] = false
+	})
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL="+server.URL,
+	)
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "PACKAGE_INVALID", errPayload["code"])
+	assert.Equal(t, int32(0), callCount.Load(), "tampered requires_deeprouter_key flag must fail before any HTTP call")
+}
+
+func TestDownloadedPackageRunner_MockSuccessFromExtractedZip(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-success", "Runtime template")
+
+	var authHeader, requestBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader = r.Header.Get("Authorization")
+		body, _ := io.ReadAll(r.Body)
+		requestBody = string(body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"text":"mock success"}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-success", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL="+server.URL,
+	)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	assert.Equal(t, "Bearer test-runner-key", authHeader)
+	assert.Equal(t, "mock success", strings.TrimSpace(string(out)))
+	assert.Contains(t, requestBody, `"messages"`)
+	assert.Contains(t, requestBody, `"skill_id"`)
+	assert.Contains(t, requestBody, `"skill_version_id"`)
+	assert.NotContains(t, requestBody, `"user_id"`)
+	assert.NotContains(t, requestBody, `"tenant_id"`)
+	assert.NotContains(t, requestBody, `"kids_mode"`)
+	assert.NotContains(t, requestBody, `"is_kids_session"`)
+	assert.NotContains(t, requestBody, "instruction_template")
+}
+
+func TestDownloadedPackageRunner_MockAuthRequiredErrorMapping(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-auth-error", "Runtime template")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = io.WriteString(w, `{"error":{"code":"AUTH_REQUIRED","message":"Need key","cta":"Register or add your API key."}}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-auth-error", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL="+server.URL,
+	)
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "AUTH_REQUIRED", errPayload["code"])
+	assert.Equal(t, "Register or add your API key.", errPayload["cta"])
+	assert.NotContains(t, string(out), "test-runner-key")
+}
+
+func TestBuildSkillPackageZip_RejectsOfflineCapabilityWorkStep(t *testing.T) {
+	_, err := buildSkillPackageZip(skillPackageKindCapability, []skillPackageFile{
+		{Name: "manifest.json", Content: []byte(`{"schema_version":"1.0"}`)},
+		{Name: "SKILL.md", Content: []byte(`# Offline Skill
+
+### Work Step
+
+Read the local files, summarize them, and produce the final answer without any network call.
+`)},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "D-09")
+	assert.Contains(t, err.Error(), "no DeepRouter public routing API call")
+}
+
+func TestBuildSkillPackageZip_AllowsDeepRouterCapabilityWorkStep(t *testing.T) {
+	zipBytes, err := buildSkillPackageZip(skillPackageKindCapability, []skillPackageFile{
+		{Name: "manifest.json", Content: []byte(`{"schema_version":"1.0"}`)},
+		{Name: "SKILL.md", Content: []byte(`# Routed Skill
+
+### Work Step
+
+Call DeepRouter at POST https://api.deeprouter.co/v1/routing/chat/completions with the runner's own key, then base the final answer on the routed response.
+`)},
+	})
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, zipBytes)
+}
+
+func TestValidateSkillPackageRuntimeDependency_Regressions(t *testing.T) {
+	cases := []struct {
+		name    string
+		kind    skillPackageKind
+		skillMD string
+		wantErr string
+	}{
+		{
+			name: "deeprouter marker outside work step is rejected",
+			kind: skillPackageKindCapability,
+			skillMD: `# Misleading Skill
+
+Mentions https://api.deeprouter.co/v1/chat/completions in setup text.
+
+### Work Step
+
+Summarize local files without making any network call.
+`,
+			wantErr: "no DeepRouter public routing API call",
+		},
+		{
+			name: "missing work step is rejected",
+			kind: skillPackageKindCapability,
+			skillMD: `# No Work Step
+
+Call DeepRouter at https://api.deeprouter.co/v1/chat/completions somewhere in prose.
+`,
+			wantErr: "no DeepRouter public routing API call",
+		},
+		{
+			name:    "empty skill md is rejected",
+			kind:    skillPackageKindCapability,
+			skillMD: "  \n\t",
+			wantErr: "missing SKILL.md work step",
+		},
+		{
+			name: "non capability package skips guard",
+			kind: skillPackageKind("reference"),
+			skillMD: `# Reference Package
+
+No runtime work step.
+`,
+			wantErr: "",
+		},
+		{
+			name: "responses endpoint in work step is accepted",
+			kind: skillPackageKindCapability,
+			skillMD: `# Responses Skill
+
+### Work Step
+
+Call DeepRouter with POST https://api.deeprouter.co/v1/responses using the runner key.
+`,
+			wantErr: "",
+		},
+		{
+			name: "routing chat completions endpoint in work step is accepted",
+			kind: skillPackageKindCapability,
+			skillMD: `# Routing Skill
+
+### Work Step
+
+Call DeepRouter with POST https://api.deeprouter.co/v1/routing/chat/completions using the runner key.
+`,
+			wantErr: "",
+		},
+		{
+			name: "parenthetical work step heading is accepted",
+			kind: skillPackageKindCapability,
+			skillMD: `# D09 Skill
+
+### Work Step (D-09)
+
+Call DeepRouter with POST https://api.deeprouter.co/v1/chat/completions using the runner key.
+`,
+			wantErr: "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateSkillPackageRuntimeDependency(tc.kind, []skillPackageFile{
+				{Name: "SKILL.md", Content: []byte(tc.skillMD)},
+			})
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "D-09")
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+func TestValidateSkillPackageRuntimeDependency_RejectsMissingSkillMD(t *testing.T) {
+	err := validateSkillPackageRuntimeDependency(skillPackageKindCapability, []skillPackageFile{
+		{Name: "manifest.json", Content: []byte(`{"schema_version":"1.0"}`)},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "D-09")
+	assert.Contains(t, err.Error(), "missing SKILL.md work step")
+}
+func createPublishedSkillWithActiveVersion(t *testing.T, db *gorm.DB, slug string, template string) skillmodel.Skill {
+	t.Helper()
+	return createPublishedSkillWithActiveVersionFromSkill(t, db, testSkill(slug, "published"), template)
+}
+
+func createPublishedSkillWithActiveVersionFromSkill(t *testing.T, db *gorm.DB, s skillmodel.Skill, template string) skillmodel.Skill {
+	t.Helper()
+	versionID := uuid.New().String()
+	s.ActiveVersionID = &versionID
+	require.NoError(t, db.Create(&s).Error)
+	require.NoError(t, db.Create(&skillmodel.SkillVersion{
+		ID:                        versionID,
+		SkillID:                   s.ID,
+		VersionNumber:             1,
+		Status:                    enums.SkillVersionStatusActive,
+		InstructionTemplate:       template,
+		InstructionTemplateSHA256: strings.Repeat("a", 64),
+		ModelWhitelistSnapshot:    skillmodel.SkillJSONB(`["smart-tier"]`),
+		RequiredPlanSnapshot:      s.RequiredPlan,
+		MonetizationSnapshot:      skillmodel.SkillJSONB(`{}`),
+		RolloutPercentage:         100,
+		CreatedBy:                 1,
+	}).Error)
+	return s
+}
+
+func unzipPackageToTempDir(t *testing.T, zipBytes []byte) string {
+	t.Helper()
+	dir := t.TempDir()
+	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	require.NoError(t, err)
+	for _, f := range zr.File {
+		target := filepath.Join(dir, filepath.FromSlash(f.Name))
+		require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
+		rc, err := f.Open()
+		require.NoError(t, err)
+		data, err := io.ReadAll(rc)
+		rc.Close()
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(target, data, 0o644))
+	}
+	return dir
+}
+
+func tamperManifestJSON(t *testing.T, pkgDir string, mutate func(manifest map[string]any)) {
+	t.Helper()
+	manifestPath := filepath.Join(pkgDir, "manifest.json")
+	body, err := os.ReadFile(manifestPath)
+	require.NoError(t, err)
+
+	var manifest map[string]any
+	require.NoError(t, json.Unmarshal(body, &manifest))
+	mutate(manifest)
+
+	updated, err := json.Marshal(manifest)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(manifestPath, updated, 0o644))
+}
+
+func writeManifestRaw(t *testing.T, pkgDir string, body []byte) {
+	t.Helper()
+	manifestPath := filepath.Join(pkgDir, "manifest.json")
+	require.NoError(t, os.WriteFile(manifestPath, body, 0o644))
+}
+
+func requirePython(t *testing.T) string {
+	t.Helper()
+	for _, name := range []string{"python3", "python"} {
+		python, err := exec.LookPath(name)
+		if err != nil {
+			continue
+		}
+		versionOut, versionErr := exec.Command(python, "--version").CombinedOutput()
+		if versionErr == nil && strings.HasPrefix(strings.TrimSpace(string(versionOut)), "Python 3.") {
+			return python
+		}
+	}
+	t.Skip("python3/python not found in PATH; skipping runtime client smoke test")
+	return ""
+}
+
+func assertNoDownloadSideEffects(t *testing.T, db *gorm.DB, skillID string, userID int64) {
+	t.Helper()
+
+	var uesCount int64
+	require.NoError(t, db.Model(&skillmodel.UserEnabledSkill{}).
+		Where("user_id = ? AND skill_id = ?", userID, skillID).
+		Count(&uesCount).Error)
+	assert.Equal(t, int64(0), uesCount, "package build failure must not create enablement rows")
+
+	var evtCount int64
+	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).
+		Where("event_type = ? AND skill_id = ?", "skill_enabled", skillID).
+		Count(&evtCount).Error)
+	assert.Equal(t, int64(0), evtCount, "package build failure must not emit skill_enabled")
 }

@@ -17,6 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo, useState } from 'react'
+import {
+  BadgeDollarSign,
+  Code2,
+  FileText,
+  Gauge,
+  Languages,
+  MessageSquareText,
+  ShieldCheck,
+  WalletCards,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
@@ -108,6 +118,29 @@ export function Pricing() {
     clearSearch()
   }, [clearFilters, clearSearch])
 
+  const quickUseCases = [
+    {
+      icon: MessageSquareText,
+      label: t('Writing / chat'),
+      models: 'Claude Sonnet · GPT-4o',
+    },
+    {
+      icon: Languages,
+      label: t('Translation'),
+      models: 'DeepSeek V3 · Gemini Flash',
+    },
+    {
+      icon: Code2,
+      label: t('Math / code'),
+      models: 'o4-mini · DeepSeek R1',
+    },
+    {
+      icon: FileText,
+      label: t('Long docs'),
+      models: 'Gemini 2 Pro · Claude Opus · Kimi K2',
+    },
+  ]
+
   const renderPricingContent = () => {
     if (filteredModels.length === 0) {
       return (
@@ -156,80 +189,97 @@ export function Pricing() {
 
   return (
     <PublicLayout showMainContainer={false}>
-      <div className='relative'>
-        <div
-          aria-hidden
-          className='pointer-events-none absolute inset-x-0 top-0 h-[600px] opacity-20 dark:opacity-[0.10]'
-          style={{
-            background: [
-              'radial-gradient(ellipse 60% 50% at 20% 20%, oklch(0.72 0.18 250 / 80%) 0%, transparent 70%)',
-              'radial-gradient(ellipse 50% 40% at 80% 15%, oklch(0.65 0.15 200 / 60%) 0%, transparent 70%)',
-              'radial-gradient(ellipse 40% 35% at 50% 70%, oklch(0.70 0.12 280 / 40%) 0%, transparent 70%)',
-            ].join(', '),
-            maskImage:
-              'linear-gradient(to bottom, black 40%, transparent 100%)',
-            WebkitMaskImage:
-              'linear-gradient(to bottom, black 40%, transparent 100%)',
-          }}
-        />
+      <div className='bg-background relative min-h-dvh'>
+        <div className='pointer-events-none absolute inset-x-0 top-0 h-px bg-border' />
         <PageTransition className='relative mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
-          <header className='mx-auto mb-5 max-w-3xl pt-5 text-center sm:mb-10 sm:pt-10'>
-            <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
-              {t('Models Directory')}
-            </p>
-            <h1 className='text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'>
-              {t('Pricing')}
-            </h1>
-            <p className='text-muted-foreground/80 mt-3 text-sm sm:mt-4 sm:text-base'>
-              {t('This site currently has {{count}} models enabled', {
-                count: models?.length || 0,
-              })}
-            </p>
-            <p className='text-muted-foreground/60 mx-auto mt-2 max-w-2xl text-xs leading-relaxed sm:text-sm'>
-              {t(
-                'Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.'
-              )}
-            </p>
-            {/* "Which model should I use?" quick-pick hints — onboarding-v2
-              * §7.9. Informational only (no filter side-effect); helps
-              * non-tech users orient before scrolling the full table. */}
-            <div className='bg-muted/30 mx-auto mt-5 grid max-w-2xl grid-cols-1 gap-x-4 gap-y-1.5 rounded-lg border px-4 py-3 text-left text-xs sm:grid-cols-2 sm:text-sm'>
-              <div className='text-foreground sm:col-span-2 mb-0.5 text-xs font-medium tracking-wider uppercase'>
-                {t('Not sure which model?')}
+          <header className='mb-5 pt-5 sm:mb-8 sm:pt-8'>
+            <div className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch'>
+              <div className='border-border/80 bg-card/80 flex min-h-[300px] flex-col justify-between rounded-xl border px-5 py-5 shadow-[0_12px_34px_rgba(28,28,28,0.06)] sm:px-7 sm:py-7'>
+                <div>
+                  <div className='mb-4 inline-flex items-center gap-2 rounded-full border border-blue-500/15 bg-blue-500/8 px-3 py-1 text-xs font-semibold text-blue-600 dark:text-blue-300'>
+                    <BadgeDollarSign className='size-3.5' />
+                    {t('Models Directory')}
+                  </div>
+                  <h1 className='max-w-4xl text-[clamp(2rem,4.8vw,3.5rem)] leading-[1.08] font-semibold'>
+                    {t('Pricing')}
+                  </h1>
+                  <p className='text-muted-foreground mt-4 max-w-2xl text-sm leading-6 sm:text-base'>
+                    {t(
+                      'Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.'
+                    )}
+                  </p>
+                </div>
+
+                <div className='mt-6 grid gap-2 sm:grid-cols-3'>
+                  <div className='rounded-lg border bg-background/70 px-3 py-3'>
+                    <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium'>
+                      <Gauge className='size-3.5 text-blue-600' />
+                      {t('Enabled models')}
+                    </div>
+                    <div className='mt-2 text-2xl font-semibold tabular-nums'>
+                      {(models?.length || 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className='rounded-lg border bg-background/70 px-3 py-3'>
+                    <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium'>
+                      <WalletCards className='size-3.5 text-blue-600' />
+                      {t('Price view')}
+                    </div>
+                    <div className='mt-2 text-sm font-semibold'>
+                      {showRechargePrice ? t('Recharge') : t('Standard')}
+                    </div>
+                  </div>
+                  <div className='rounded-lg border bg-background/70 px-3 py-3'>
+                    <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium'>
+                      <ShieldCheck className='size-3.5 text-blue-600' />
+                      {t('Compare by')}
+                    </div>
+                    <div className='mt-2 text-sm font-semibold'>
+                      {tokenUnit === 'M' ? '/1M' : '/1K'}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <span className='text-muted-foreground'>
-                  📝 {t('Writing / chat')}:{' '}
-                </span>
-                <span className='text-foreground font-medium'>
-                  Claude Sonnet · GPT-4o
-                </span>
-              </div>
-              <div>
-                <span className='text-muted-foreground'>
-                  🌐 {t('Translation')}:{' '}
-                </span>
-                <span className='text-foreground font-medium'>
-                  DeepSeek V3 · Gemini Flash
-                </span>
-              </div>
-              <div>
-                <span className='text-muted-foreground'>
-                  🧮 {t('Math / code')}:{' '}
-                </span>
-                <span className='text-foreground font-medium'>
-                  o4-mini · DeepSeek R1
-                </span>
-              </div>
-              <div>
-                <span className='text-muted-foreground'>
-                  📄 {t('Long docs')}:{' '}
-                </span>
-                <span className='text-foreground font-medium'>
-                  Gemini 2 Pro · Claude Opus · Kimi K2
-                </span>
+
+              <div className='border-border/80 bg-card/80 rounded-xl border px-4 py-4 shadow-[0_12px_34px_rgba(28,28,28,0.06)] sm:px-5 sm:py-5'>
+                <div className='mb-3'>
+                  <h2 className='text-base font-semibold'>
+                    {t('Not sure which model?')}
+                  </h2>
+                  <p className='text-muted-foreground mt-1 text-xs leading-5'>
+                    {t(
+                      'Start with a common task, then open a model to inspect the full price breakdown.'
+                    )}
+                  </p>
+                </div>
+                <div className='grid gap-2'>
+                  {quickUseCases.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <div
+                        key={item.label}
+                        className='rounded-lg border bg-background/70 p-3'
+                      >
+                        <div className='flex items-start gap-3'>
+                          <div className='mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600'>
+                            <Icon className='size-4' />
+                          </div>
+                          <div className='min-w-0'>
+                            <div className='text-sm font-semibold'>
+                              {item.label}
+                            </div>
+                            <div className='text-muted-foreground mt-0.5 truncate text-xs'>
+                              {item.models}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             </div>
+
             <SearchBar
               value={searchInput}
               onChange={setSearchInput}
@@ -237,7 +287,7 @@ export function Pricing() {
               placeholder={t(
                 'Search model name, provider, endpoint, or tag...'
               )}
-              className='mx-auto mt-4 max-w-2xl sm:mt-6'
+              className='mt-4 max-w-3xl sm:mt-5'
             />
           </header>
 
