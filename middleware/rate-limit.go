@@ -108,6 +108,10 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+func FeishuInitWebhookRateLimit() func(c *gin.Context) {
+	return rateLimitFactory(100, 1, "FIW")
+}
+
 func DownloadRateLimit() func(c *gin.Context) {
 	return rateLimitFactory(common.DownloadRateLimitNum, common.DownloadRateLimitDuration, "DW")
 }
