@@ -5124,7 +5124,7 @@
     "all (every group)": "all (every group)",
     "{{count}} groups": "{{count}} groups",
     "Bonus is granted only to the selected user groups. Leave groups empty to grant to nobody; pick \"all\" to grant to every group.": "Bonus is granted only to the selected user groups. Leave groups empty to grant to nobody; pick \"all\" to grant to every group.",
-    "Tip: set eligible user groups directly in the table row above after adding a tier.": "Tip: set eligible user groups directly in the table row above after adding a tier.",
+    "Tip: pick eligible user groups here, or change them later directly in the table row.": "Tip: pick eligible user groups here, or change them later directly in the table row.",
     "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group."
   }
 }

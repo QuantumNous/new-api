@@ -205,6 +205,7 @@ export function AmountBonusVisualEditor({
   const [amount, setAmount] = useState('')
   const [bonusAmount, setBonusAmount] = useState('')
   const [claimLimit, setClaimLimit] = useState('')
+  const [draftGroups, setDraftGroups] = useState<string[]>([])
   const [editData, setEditData] = useState<AmountBonusTier | null>(null)
 
   const tiers = useMemo(() => parseAmountBonusJson(value), [value])
@@ -242,6 +243,7 @@ export function AmountBonusVisualEditor({
     setAmount('')
     setBonusAmount('')
     setClaimLimit('')
+    setDraftGroups([])
     setEditData(null)
   }
 
@@ -256,20 +258,16 @@ export function AmountBonusVisualEditor({
         bonusAmount: bonusAmountNumber,
       })
     )
-    // 编辑时若改了充值金额，把旧金额的限次/白名单迁移到新档位 key（与新增 tier 对称），
-    // 避免「改金额」静默丢弃该档位已配的白名单导致赠送对所有人停发。
+    // 编辑时若改了充值金额，先清掉旧金额遗留的限次/白名单 key，避免孤儿残留。
     let nextLimit = limitValue
     let nextGroups = groupsValue
     if (editData && editData.amount !== amountNumber) {
-      const movedGroups = groupsByTier[editData.amount]
       nextLimit = setAmountBonusLimit(nextLimit, editData.amount, 0)
       nextGroups = removeAmountBonusGroups(nextGroups, editData.amount)
-      if (movedGroups) {
-        nextGroups = setAmountBonusGroups(nextGroups, amountNumber, movedGroups)
-      }
     }
     onLimitChange?.(setAmountBonusLimit(nextLimit, amountNumber, claimLimitNumber))
-    onGroupsChange?.(nextGroups)
+    // 用草稿里选好的用户组写入该档位白名单（新增/编辑统一）。
+    onGroupsChange?.(setAmountBonusGroups(nextGroups, amountNumber, draftGroups))
     resetDraft()
   }
 
@@ -292,6 +290,7 @@ export function AmountBonusVisualEditor({
     setBonusAmount(String(tier.bonusAmount))
     const existingLimit = limits[tier.amount]
     setClaimLimit(existingLimit ? String(existingLimit) : '')
+    setDraftGroups(groupsByTier[tier.amount] ?? [])
   }
 
   return (
@@ -430,6 +429,14 @@ export function AmountBonusVisualEditor({
             placeholder={t('0 = unlimited')}
           />
         </div>
+        <div>
+          <Label className='mb-2 block'>{t('Eligible user groups')}</Label>
+          <TierGroupSelect
+            selected={draftGroups}
+            options={userGroups}
+            onChange={setDraftGroups}
+          />
+        </div>
         <Button
           type='button'
           onClick={(event) => {
@@ -446,7 +453,7 @@ export function AmountBonusVisualEditor({
       </div>
       <p className='text-muted-foreground text-xs'>
         {t(
-          'Tip: set eligible user groups directly in the table row above after adding a tier.'
+          'Tip: pick eligible user groups here, or change them later directly in the table row.'
         )}
       </p>
     </div>

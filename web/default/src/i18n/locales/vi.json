@@ -5124,7 +5124,7 @@
     "all (every group)": "all (mọi nhóm)",
     "{{count}} groups": "{{count}} nhóm",
     "Bonus is granted only to the selected user groups. Leave groups empty to grant to nobody; pick \"all\" to grant to every group.": "Tiền thưởng chỉ được tặng cho các nhóm người dùng đã chọn. Để trống nghĩa là không tặng cho ai; chọn “all” để tặng cho mọi nhóm.",
-    "Tip: set eligible user groups directly in the table row above after adding a tier.": "Mẹo: đặt nhóm người dùng đủ điều kiện trực tiếp trong hàng của bảng phía trên sau khi thêm một mức.",
+    "Tip: pick eligible user groups here, or change them later directly in the table row.": "Mẹo: chọn nhóm người dùng đủ điều kiện tại đây, hoặc thay đổi sau trực tiếp trong hàng của bảng.",
     "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "Danh sách trắng các nhóm đủ điều kiện nhận thưởng theo từng mức (đối tượng JSON). Mảng rỗng = không ai; [\"all\"] = mọi nhóm."
   }
 }
