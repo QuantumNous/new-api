@@ -27,8 +27,6 @@ import {
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
-import { useOnboardingStore } from '@/stores/onboarding-store'
-import { useSystemConfigStore } from '@/stores/system-config-store'
 import { api, getSelf } from '@/lib/api'
 import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
 import { trackAdsFunnelEvent, trackSignupConversion } from '@/lib/analytics/gtag'
@@ -42,26 +40,6 @@ import {
 
 type OAuthRequestConfig = AxiosRequestConfig & {
   skipBusinessError?: boolean
-}
-
-/**
- * Resolve whether the card-bind onboarding feature is enabled. The OAuth callback runs outside
- * the authenticated layout, so the system-config store may not have loaded yet
- * (enableStripeCardBind === undefined). In that case fall back to a direct /api/status fetch
- * rather than treating "not loaded" as "disabled" — otherwise brand-new OAuth users would
- * silently miss onboarding. Returns false only when the feature is genuinely off.
- */
-async function resolveCardBindEnabled(): Promise<boolean> {
-  const cached = useSystemConfigStore.getState().config.enableStripeCardBind
-  if (typeof cached === 'boolean') return cached
-  try {
-    const res = await fetch('/api/status')
-    if (!res.ok) return false
-    const body = await res.json()
-    return body?.data?.enable_stripe_card_bind === true
-  } catch {
-    return false
-  }
 }
 
 function OAuthCallback() {
@@ -82,7 +60,21 @@ function OAuthCallback() {
   useEffect(() => {
     ;(async () => {
       const safeNavigate = (target: string) => {
-        navigate({ to: target as never, replace: true })
+        const parsed = new URL(target, window.location.origin)
+        const search = parsed.search
+          ? Object.fromEntries(parsed.searchParams)
+          : undefined
+        const hash = parsed.hash ? parsed.hash.slice(1) : undefined
+        if (search || hash) {
+          navigate({
+            to: parsed.pathname as never,
+            search: search as never,
+            hash,
+            replace: true,
+          })
+        } else {
+          navigate({ to: parsed.pathname as never, replace: true })
+        }
         if (typeof window !== 'undefined') {
           setTimeout(() => {
             const normalizedTarget = target.startsWith('/')
@@ -299,20 +291,12 @@ function OAuthCallback() {
               void _error
             }
             trackOAuthResult('success')
-            // Brand-new OAuth registrations get the first-login onboarding dialog, mirroring
-            // the password-register flow (use-auth-redirect.ts): only when the card-bind
-            // feature is enabled and the user hasn't already bound a card.
-            //
-            // This callback route lives outside the authenticated layout, so the system config
-            // store may not have been populated yet (enableStripeCardBind === undefined). Don't
-            // let an unloaded config silently suppress onboarding — fetch /api/status as a
-            // fallback so a brand-new user reliably gets the dialog.
-            if (isNewUser && loginUser.stripe_card_bound !== true) {
-              void resolveCardBindEnabled().then((enabled) => {
-                if (enabled) {
-                  useOnboardingStore.getState().openOnboarding()
-                }
-              })
+            // Brand-new standard OAuth registrations follow the same activation-first
+            // contract as password sign-up: land in Playground first-run once, before
+            // any card-bind/top-up prompt can compete for attention.
+            if (isNewUser) {
+              redirectAfterLogin('/playground?first=1')
+              return
             }
             redirectAfterLogin()
             return

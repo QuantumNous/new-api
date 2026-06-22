@@ -73,6 +73,7 @@ func WeChatAuth(c *gin.Context) {
 	user := model.User{
 		WeChatId: wechatId,
 	}
+	isNewUser := false
 	if model.IsWeChatIdAlreadyTaken(wechatId) {
 		err := user.FillUserByWeChatId()
 		if err != nil {
@@ -103,6 +104,7 @@ func WeChatAuth(c *gin.Context) {
 				})
 				return
 			}
+			isNewUser = true
 		} else {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -119,7 +121,7 @@ func WeChatAuth(c *gin.Context) {
 		})
 		return
 	}
-	setupLogin(&user, c)
+	setupLogin(&user, c, isNewUser)
 }
 
 type wechatBindRequest struct {

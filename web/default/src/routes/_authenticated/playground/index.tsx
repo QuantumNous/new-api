@@ -21,16 +21,20 @@ import { isSidebarModuleEnabled } from '@/lib/nav-modules'
 import { Main } from '@/components/layout'
 import { Playground } from '@/features/playground'
 
+export function validatePlaygroundSearch(
+  search: Record<string, unknown>
+): { first?: 1 } {
+  // `?first=1` marks the post-registration first-run onboarding experience.
+  // Keep the serialized URL stable as `first=1`; boolean values serialize as
+  // `first=true`, while string values serialize with quotes.
+  const first = search.first
+  const isFirstRun =
+    first === '1' || first === 1 || first === true || first === 'true'
+  return isFirstRun ? { first: 1 } : {}
+}
+
 export const Route = createFileRoute('/_authenticated/playground/')({
-  validateSearch: (
-    search: Record<string, unknown>
-  ): { first?: boolean } => {
-    // `?first=1` marks the post-registration first-run onboarding experience.
-    const first = search.first
-    return {
-      first: first === '1' || first === 1 || first === true || first === 'true',
-    }
-  },
+  validateSearch: validatePlaygroundSearch,
   beforeLoad: () => {
     if (!isSidebarModuleEnabled('chat', 'playground')) {
       throw redirect({ to: '/dashboard' })
@@ -43,7 +47,7 @@ function PlaygroundPage() {
   const { first } = Route.useSearch()
   return (
     <Main className='p-0'>
-      <Playground firstRun={first} />
+      <Playground firstRun={first === 1} />
     </Main>
   )
 }
