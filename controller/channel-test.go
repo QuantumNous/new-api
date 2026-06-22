@@ -681,7 +681,10 @@ func validateNonStreamTestResponseBody(respBody []byte) error {
 	if !choicesVal.Exists() || choicesVal.Type == gjson.Null {
 		return errors.New("response choices is missing or null, upstream may have returned a business error")
 	}
-	if choicesVal.IsArray() && len(choicesVal.Array()) == 0 {
+	if !choicesVal.IsArray() {
+		return errors.New("response choices is not an array, upstream may have returned a malformed response")
+	}
+	if len(choicesVal.Array()) == 0 {
 		return errors.New("response choices array is empty")
 	}
 	return nil
