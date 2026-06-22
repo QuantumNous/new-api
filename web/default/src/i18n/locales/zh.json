@@ -5117,6 +5117,14 @@
     "Get my API key": "获取我的 API 密钥",
     "View quickstart": "查看快速开始",
     "Dismiss": "关闭",
-    "Account created!": "账号创建成功！"
+    "Account created!": "账号创建成功！",
+    "Eligible user groups": "生效用户组",
+    "All user groups": "全部用户组",
+    "No groups (not granted)": "未选择用户组（不发放）",
+    "all (every group)": "all（全部用户组）",
+    "{{count}} groups": "{{count}} 个用户组",
+    "Bonus is granted only to the selected user groups. Leave groups empty to grant to nobody; pick \"all\" to grant to every group.": "赠送仅发放给所选用户组。不选任何组表示对所有人都不发放；选择“all”表示对所有用户组发放。",
+    "Tip: set eligible user groups directly in the table row above after adding a tier.": "提示：添加档位后，可直接在上方表格行内设置生效用户组。",
+    "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "各档位可享赠送的用户组白名单（JSON 对象）。空数组 = 谁都不发；[\"all\"] = 所有用户组。"
   }
 }

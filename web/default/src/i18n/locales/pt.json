@@ -5117,6 +5117,14 @@
     "Get my API key": "Obter minha chave de API",
     "View quickstart": "Ver início rápido",
     "Dismiss": "Dispensar",
-    "Account created!": "Conta criada!"
+    "Account created!": "Conta criada!",
+    "Eligible user groups": "Grupos de usuários elegíveis",
+    "All user groups": "Todos os grupos de usuários",
+    "No groups (not granted)": "Nenhum grupo (não concedido)",
+    "all (every group)": "all (todos os grupos)",
+    "{{count}} groups": "{{count}} grupos",
+    "Bonus is granted only to the selected user groups. Leave groups empty to grant to nobody; pick \"all\" to grant to every group.": "O bônus é concedido apenas aos grupos de usuários selecionados. Deixe vazio para não conceder a ninguém; escolha “all” para conceder a todos os grupos.",
+    "Tip: set eligible user groups directly in the table row above after adding a tier.": "Dica: defina os grupos elegíveis diretamente na linha da tabela acima após adicionar um nível.",
+    "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "Lista de permissões de grupos elegíveis ao bônus por nível (objeto JSON). Array vazio = ninguém; [\"all\"] = todos os grupos."
   }
 }
