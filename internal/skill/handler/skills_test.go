@@ -698,6 +698,104 @@ func TestActivateAdminSkillVersion_DemotesPriorActiveAndAudits(t *testing.T) {
 	assert.Equal(t, string(enums.SkillVersionStatusActive), after["status"])
 }
 
+func TestPublishAdminSkill_PublishesAndEmitsAuditAndEvent(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s, version := createPublishReadySkill(t, db, "publish-ready")
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/publish", `{"reason":"minimal checklist complete"}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
+	c.Set("id", 42)
+	c.Set("role", 100)
+
+	PublishAdminSkill(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data struct {
+			Skill struct {
+				Status          string  `json:"status"`
+				ActiveVersionID *string `json:"active_version_id"`
+			} `json:"skill"`
+			Checklist []PublishChecklistItem `json:"checklist"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	assert.Equal(t, string(enums.SkillStatusPublished), got.Data.Skill.Status)
+	require.NotNil(t, got.Data.Skill.ActiveVersionID)
+	assert.Equal(t, version.ID, *got.Data.Skill.ActiveVersionID)
+	for _, item := range got.Data.Checklist {
+		assert.True(t, item.Passed, item.Key)
+	}
+
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "id = ?", s.ID).Error)
+	assert.Equal(t, enums.SkillStatusPublished, persisted.Status)
+	require.NotNil(t, persisted.PublishedAt)
+	require.NotNil(t, persisted.ActiveVersionID)
+	assert.Equal(t, version.ID, *persisted.ActiveVersionID)
+
+	var audit skillmodel.SkillAuditLog
+	require.NoError(t, db.Where("skill_id = ? AND action = ?", s.ID, "publish").First(&audit).Error)
+	require.NotNil(t, audit.ActionReason)
+	assert.Equal(t, "minimal checklist complete", *audit.ActionReason)
+	require.NotNil(t, audit.SkillVersionID)
+	assert.Equal(t, version.ID, *audit.SkillVersionID)
+
+	var event skillmodel.SkillUsageEvent
+	require.NoError(t, db.Where("skill_id = ? AND event_type = ?", s.ID, enums.SkillUsageEventTypeAdminAction).First(&event).Error)
+	assert.Equal(t, enums.EntryPointAdminPreview, event.EntryPoint)
+	require.NotNil(t, event.Success)
+	assert.True(t, *event.Success)
+	assert.Contains(t, string(event.Metadata), "minimal checklist complete")
+
+	marketplaceCtx, marketplaceW := testContext("/api/v1/marketplace/skills?page=1&limit=20")
+	ListMarketplaceSkills(marketplaceCtx)
+	require.Equal(t, http.StatusOK, marketplaceW.Code)
+	assert.Contains(t, marketplaceW.Body.String(), "publish-ready")
+}
+
+func TestPublishAdminSkill_RequiresReason(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s, _ := createPublishReadySkill(t, db, "publish-no-reason")
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/publish", `{"reason":"  "}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
+
+	PublishAdminSkill(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "MISSING_REASON")
+
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "id = ?", s.ID).Error)
+	assert.Equal(t, enums.SkillStatusDraft, persisted.Status)
+}
+
+func TestPublishAdminSkill_BlocksWhenChecklistFails(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s, _ := createPublishReadySkill(t, db, "publish-missing-examples")
+	require.NoError(t, db.Model(&skillmodel.Skill{}).Where("id = ?", s.ID).Updates(map[string]any{
+		"example_inputs":  skillmodel.SkillJSONB(`[]`),
+		"example_outputs": skillmodel.SkillJSONB(`[]`),
+	}).Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/publish", `{"reason":"try publish"}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
+
+	PublishAdminSkill(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "PUBLISH_CHECKLIST_FAILED")
+	assert.Contains(t, w.Body.String(), "examples")
+
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "id = ?", s.ID).Error)
+	assert.Equal(t, enums.SkillStatusDraft, persisted.Status)
+}
+
 func TestSkillVersionNumberConflictDetection(t *testing.T) {
 	err := fmt.Errorf("UNIQUE constraint failed: skill_versions.skill_id, skill_versions.version_number")
 	assert.True(t, isSkillVersionNumberConflict(err))
@@ -728,6 +826,7 @@ func testSkillDB(t *testing.T) *gorm.DB {
 	require.NoError(t, skillmodel.MigrateSkills(db))
 	require.NoError(t, skillmodel.MigrateSkillVersions(db))
 	require.NoError(t, skillmodel.MigrateSkillAuditLog(db))
+	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
 	return db
 }
 
@@ -773,6 +872,29 @@ func testSkill(slug string, status string) skillmodel.Skill {
 
 func routedWorkStepFixture() string {
 	return "### Work Step\n\nCall DeepRouter at POST https://api.deeprouter.co/v1/routing/chat/completions with the runner's own key, then base the final answer on the returned routing result."
+}
+
+func createPublishReadySkill(t *testing.T, db *gorm.DB, slug string) (skillmodel.Skill, skillmodel.SkillVersion) {
+	t.Helper()
+	icon := "https://cdn.example.test/icon.png"
+	maxInput := 2048
+	s := testSkill(slug, "draft")
+	s.PublishedAt = nil
+	s.IconURL = &icon
+	s.Tags = skillmodel.SkillJSONB(`["writing"]`)
+	s.ExampleInputs = skillmodel.SkillJSONB(`[{"topic":"contracts"}]`)
+	s.ExampleOutputs = skillmodel.SkillJSONB(`[{"summary":"A short answer"}]`)
+	s.MaxInputTokens = &maxInput
+	require.NoError(t, db.Create(&s).Error)
+
+	version := validHandlerSkillVersion(s.ID, 1)
+	version.Status = enums.SkillVersionStatusActive
+	now := time.Now().UTC()
+	version.ActivatedAt = &now
+	require.NoError(t, db.Create(&version).Error)
+	require.NoError(t, db.Model(&skillmodel.Skill{}).Where("id = ?", s.ID).Update("active_version_id", version.ID).Error)
+	s.ActiveVersionID = &version.ID
+	return s, version
 }
 
 func validHandlerSkillVersion(skillID string, versionNumber int) skillmodel.SkillVersion {
