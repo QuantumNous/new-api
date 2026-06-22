@@ -4,7 +4,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -28,6 +30,7 @@ func openPGDB(t *testing.T) *gorm.DB {
 		t.Fatalf("open PG: %v", err)
 	}
 	t.Cleanup(func() {
+		db.Exec("DROP TABLE IF EXISTS skill_usage_events")
 		db.Exec("DROP TABLE IF EXISTS skill_versions")
 		db.Exec("DROP TABLE IF EXISTS skills")
 	})
@@ -52,6 +55,7 @@ func openMySQLDB(t *testing.T) *gorm.DB {
 		t.Fatalf("open MySQL: %v", err)
 	}
 	t.Cleanup(func() {
+		db.Exec("DROP TABLE IF EXISTS skill_usage_events")
 		db.Exec("DROP TABLE IF EXISTS skill_versions")
 		db.Exec("DROP TABLE IF EXISTS skills")
 	})
@@ -64,6 +68,86 @@ func TestMigrateSkills_PG_SucceedsFromEmptyDB(t *testing.T) {
 	db := openPGDB(t)
 	if err := MigrateSkills(db); err != nil {
 		t.Fatalf("MigrateSkills on empty PG DB: %v", err)
+	}
+}
+
+func TestMigrateSkillUsageEvents_PG_SucceedsFromEmptyDB(t *testing.T) {
+	db := openPGDB(t)
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatalf("MigrateSkillUsageEvents on empty PG DB: %v", err)
+	}
+	if !db.Migrator().HasTable(&SkillUsageEvent{}) {
+		t.Fatal("skill_usage_events table must exist after migration")
+	}
+}
+
+func TestMigrateSkillUsageEvents_PG_Idempotent(t *testing.T) {
+	db := openPGDB(t)
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatalf("first MigrateSkillUsageEvents on PG: %v", err)
+	}
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatalf("second MigrateSkillUsageEvents on PG: %v", err)
+	}
+}
+
+func TestSUE_PG_MetadataConstraintEnforced(t *testing.T) {
+	db := openPGDB(t)
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatal(err)
+	}
+
+	err := db.Exec(
+		`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, entry_point, metadata)
+		 VALUES (?, ?, ?, ?, CAST(? AS jsonb))`,
+		uuid.New().String(), "skill_used", testTS, "skill_detail", `{"instruction_template":"blocked"}`,
+	).Error
+	if err == nil {
+		t.Fatal("PG must reject metadata containing instruction_template")
+	}
+}
+
+func TestSUE_PG_EnumConstraintsEnforced(t *testing.T) {
+	db := openPGDB(t)
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name        string
+		eventType   string
+		entryPoint  string
+		plan        any
+		blockReason any
+	}{
+		{"bad-event-type", "skill_Used", "skill_detail", "free", nil},
+		{"bad-entry-point", "skill_used", "skill_Detail", "free", nil},
+		{"bad-plan", "skill_used", "skill_detail", "gold", nil},
+		{"bad-block-reason", "skill_used", "skill_detail", "free", "skill_plan_required"},
+	}
+	for _, tc := range cases {
+		err := db.Exec(
+			`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, entry_point, plan, block_reason, metadata)
+			 VALUES (?, ?, ?, ?, ?, ?, CAST(? AS jsonb))`,
+			uuid.New().String(), tc.eventType, testTS, tc.entryPoint, tc.plan, tc.blockReason, `{}`,
+		).Error
+		if err == nil {
+			t.Fatalf("%s: PG must reject invalid enum value", tc.name)
+		}
+	}
+}
+
+func TestSUE_PG_MetadataIsJSONB(t *testing.T) {
+	db := openPGDB(t)
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatal(err)
+	}
+	isJSONB, err := isPGColumnJSONB(db, "skill_usage_events", "metadata")
+	if err != nil {
+		t.Fatalf("check skill_usage_events metadata jsonb: %v", err)
+	}
+	if !isJSONB {
+		t.Fatal("skill_usage_events.metadata must be jsonb after migration")
 	}
 }
 
@@ -226,6 +310,76 @@ func TestMigrateSkills_MySQL_SucceedsFromEmptyDB(t *testing.T) {
 	db := openMySQLDB(t)
 	if err := MigrateSkills(db); err != nil {
 		t.Fatalf("MigrateSkills on empty MySQL DB: %v", err)
+	}
+}
+
+func TestMigrateSkillUsageEvents_MySQL_SucceedsFromEmptyDB(t *testing.T) {
+	db := openMySQLDB(t)
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatalf("MigrateSkillUsageEvents on empty MySQL DB: %v", err)
+	}
+	if !db.Migrator().HasTable(&SkillUsageEvent{}) {
+		t.Fatal("skill_usage_events table must exist after migration")
+	}
+}
+
+func TestMigrateSkillUsageEvents_MySQL_Idempotent(t *testing.T) {
+	db := openMySQLDB(t)
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatalf("first MigrateSkillUsageEvents on MySQL: %v", err)
+	}
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatalf("second MigrateSkillUsageEvents on MySQL: %v", err)
+	}
+}
+
+func TestSUE_MySQL_BeforeCreateRejectsRestrictedMetadataKey(t *testing.T) {
+	db := openMySQLDB(t)
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatal(err)
+	}
+	err := db.Create(&SkillUsageEvent{
+		EventID:    uuid.New().String(),
+		EventType:  "skill_used",
+		OccurredAt: time.Now().UTC(),
+		EntryPoint: "skill_detail",
+		Metadata:   SkillJSONB(`{"instruction_template":"blocked"}`),
+	}).Error
+	if err == nil {
+		t.Fatal("BeforeCreate must reject restricted metadata keys on MySQL")
+	}
+}
+
+func TestSUE_MySQL_MetadataChecksRejectInvalidJSON(t *testing.T) {
+	db := openMySQLDB(t)
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatal(err)
+	}
+
+	ok, err := isMySQLAtLeast8016DB(db)
+	if err != nil {
+		t.Fatalf("isMySQLAtLeast8016DB: %v", err)
+	}
+	if !ok {
+		t.Skip("MySQL < 8.0.16: CHECK constraints are skipped; app-layer hook is the guard")
+	}
+
+	for _, tc := range []struct {
+		name     string
+		metadata string
+	}{
+		{"invalid-json", `{`},
+		{"array-json", `[]`},
+		{"restricted-key", `{"kids_raw_input":"blocked"}`},
+	} {
+		err := db.Exec(
+			`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, entry_point, metadata)
+			 VALUES (?, ?, ?, ?, ?)`,
+			uuid.New().String(), "skill_used", testTS, "skill_detail", tc.metadata,
+		).Error
+		if err == nil {
+			t.Fatalf("%s: MySQL CHECK must reject invalid metadata", tc.name)
+		}
 	}
 }
 

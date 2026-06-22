@@ -1,0 +1,96 @@
+DR-76 Ops Overview Dashboard — Frontend Unit & Integration Test Results
+Generated: 2026-06-21
+Branch: feat/dr-76-ops-overview-dashboard
+
+Test runner: Vitest 4.1.9 + @testing-library/react 16.3.2
+Environment: jsdom (bun run test:coverage)
+
+═══════════════════════════════════════════════════════════════════════════════
+RESULTS
+═══════════════════════════════════════════════════════════════════════════════
+Test Files  4 passed (4)
+Tests       48 passed / 0 failed (48 total)
+
+FILE BREAKDOWN:
+  __tests__/types.test.ts                  11 passed
+    getDateRange — 24h/7d/30d range, ISO8601 strings, start < end
+    getBlockReasonLabelKey — all 6 BlockReason values
+
+  __tests__/metric-card.test.tsx            8 passed
+    loading state (skeletons shown, value absent)
+    null value -> "—" + "No data in this period"
+    trackingFailed=true -> "—" + "Tracking unavailable" (overrides value)
+    normal state -> value + description rendered
+    12 sparkline bars rendered
+
+  __tests__/date-range-control.test.tsx     7 passed
+    24h/7d/30d preset buttons rendered
+    active preset -> variant="default"
+    inactive presets -> variant="outline"
+    onChange called with correct preset ID on click
+    Custom range button is disabled, onChange not called
+
+  __tests__/dashboard.integration.test.tsx 22 passed
+    renders page title and description
+    shows skeleton cards while loading
+    renders all 9 P0 card titles when charging_enabled=true
+    renders WASU count value (formatNumber mock)
+    renders Enable Rate as percentage (61.9%)
+    renders block_rate as percentage (3.0%)
+    renders translated top_block_reason label
+    renders revenue_attribution_usd as formatted USD ($1,234.56)
+    shows "—" and "No data in this period" when all metrics are null
+    hides Revenue Attribution card when charging_enabled=false
+    shows Revenue Attribution card when charging_enabled=true
+    shows orange tracking-failed banner when data_freshness=failed
+    shows yellow delayed banner when data_freshness=delayed
+    all metric cards show "—" when tracking is failed (>=9 dashes)
+    shows "Tracking unavailable" on all cards when tracking failed
+    no tracking banner when data_freshness=ok
+    shows error banner when API call rejects
+    renders the date range preset buttons
+    switching to 24h triggers a new API call with a ~24h window
+    API is called with the correct date range on first render (7d default)
+    refreshes rolling date range after the dashboard stays mounted
+    shows skeleton cards while loading (loading state)
+
+═══════════════════════════════════════════════════════════════════════════════
+COVERAGE — src/features/skill-analytics/**  (from coverage-summary.json)
+═══════════════════════════════════════════════════════════════════════════════
+File                              | % Stmts | % Branch | % Funcs | % Lines
+----------------------------------|---------|----------|---------|----------
+index.tsx                         |  100.00 |   100.00 |  100.00 |   100.00
+types.ts                          |  100.00 |    83.33 |  100.00 |   100.00
+components/metric-card.tsx        |  100.00 |   100.00 |  100.00 |   100.00
+components/date-range-control.tsx |  100.00 |   100.00 |  100.00 |   100.00
+api.ts                            |    0.00 |   100.00 |    0.00 |     0.00
+----------------------------------|---------|----------|---------|----------
+ALL FILES                         |   95.23 |    98.24 |   93.33 |    94.73
+
+Raw: 40/42 stmts, 56/57 branches, 14/15 funcs, 36/38 lines
+
+Notes:
+  api.ts L12-16: real api.get() call is intentionally mocked at the
+    integration boundary -- 0% coverage is expected and correct.
+  types.ts branch 83.33%: the fallback in getBlockReasonLabelKey
+    is unreachable with the current BlockReason union (all 6 variants
+    are exhaustively covered in the labels map).
+
+═══════════════════════════════════════════════════════════════════════════════
+PRODUCTION BUGS FOUND AND FIXED DURING TESTING
+═══════════════════════════════════════════════════════════════════════════════
+Bug: INFINITE RE-FETCH LOOP / FROZEN ROLLING WINDOW
+  Root cause: getDateRange(preset) called new Date() directly in render.
+    range.start / range.end changed every render -> new queryKey -> new
+    fetch -> data arrives -> re-render -> repeat indefinitely. The first
+    mitigation memoized the range by preset, but that froze rolling windows
+    after mount.
+  Fix: use a stable query key based on preset + a 1-minute refresh tick, and
+    compute getDateRange(preset) inside queryFn when that key intentionally
+    advances.
+  Impact: dashboard avoids continuous API hammering while keeping 24h/7d/30d
+    windows rolling for long-lived operator sessions.
+
+Re-review fixes covered:
+  - Top Block Reason renders through i18n keys, with en/zh translations.
+  - PRD Section 5 API contract uses /api/v1/ops/skill-analytics/overview.

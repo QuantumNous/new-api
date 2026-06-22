@@ -13,6 +13,7 @@ import (
 	skillhandler "github.com/QuantumNous/new-api/internal/skill/handler"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
 	"github.com/QuantumNous/new-api/middleware"
+	platformmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -83,6 +84,16 @@ func TestSkillRouterOpsAuthFailureUsesEnvelope(t *testing.T) {
 	assert.NotContains(t, w.Body.String(), `"success":false`)
 }
 
+func TestSkillRouterMySkillsRequiresAuth(t *testing.T) {
+	engine := newSkillTestRouter(t, false)
+
+	w := performSkillRequest(engine, http.MethodGet, "/api/v1/marketplace/my-skills", "")
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"AUTH_REQUIRED"`)
+	assert.Contains(t, w.Body.String(), `"request_id":`)
+}
+
 func TestSkillRouterRateLimitUsesEnvelopeAndRetryAfter(t *testing.T) {
 	engine := newSkillTestRouter(t, true)
 
@@ -102,6 +113,9 @@ func newSkillTestRouter(t *testing.T, enableRateLimit bool) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	restoreSkillRouterGlobals(t, enableRateLimit)
 	db := newSkillRouterTestDB(t)
+	oldDB := platformmodel.DB
+	platformmodel.DB = db
+	t.Cleanup(func() { platformmodel.DB = oldDB })
 	skillhandler.SetDB(db)
 
 	engine := gin.New()

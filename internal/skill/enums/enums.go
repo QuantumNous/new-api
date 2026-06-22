@@ -138,6 +138,7 @@ const (
 	BlockReasonSkillNotEnabled      BlockReason = "skill_not_enabled"
 	BlockReasonPlanRequired         BlockReason = "plan_required"
 	BlockReasonSubscriptionInactive BlockReason = "subscription_inactive"
+	BlockReasonEvaluationNotPassed  BlockReason = "evaluation_not_passed"
 	BlockReasonQuotaExceeded        BlockReason = "quota_exceeded"
 	BlockReasonKidsModeBlocked      BlockReason = "kids_mode_blocked"
 	BlockReasonContextTooLong       BlockReason = "context_too_long"
@@ -154,6 +155,7 @@ var validBlockReasons = map[BlockReason]struct{}{
 	BlockReasonSkillNotEnabled:      {},
 	BlockReasonPlanRequired:         {},
 	BlockReasonSubscriptionInactive: {},
+	BlockReasonEvaluationNotPassed:  {},
 	BlockReasonQuotaExceeded:        {},
 	BlockReasonKidsModeBlocked:      {},
 	BlockReasonContextTooLong:       {},
@@ -164,6 +166,49 @@ var validBlockReasons = map[BlockReason]struct{}{
 }
 
 func (b BlockReason) Valid() bool { _, ok := validBlockReasons[b]; return ok }
+
+// SkillUsageEventType is the analytics event name stored in skill_usage_events.event_type.
+type SkillUsageEventType string
+
+const (
+	SkillUsageEventTypeImpression          SkillUsageEventType = "skill_impression"
+	SkillUsageEventTypeDetailView          SkillUsageEventType = "skill_detail_view"
+	SkillUsageEventTypeSaved               SkillUsageEventType = "skill_saved"
+	SkillUsageEventTypeFavorited           SkillUsageEventType = "skill_favorited"
+	SkillUsageEventTypeEnabled             SkillUsageEventType = "skill_enabled"
+	SkillUsageEventTypeRated               SkillUsageEventType = "skill_rated"
+	SkillUsageEventTypeReported            SkillUsageEventType = "skill_reported"
+	SkillUsageEventTypeEvaluationCompleted SkillUsageEventType = "skill_evaluation_completed"
+	SkillUsageEventTypeAdminAction         SkillUsageEventType = "skill_admin_action"
+	SkillUsageEventTypeKidsApproved        SkillUsageEventType = "skill_kids_approved"
+	SkillUsageEventTypeInstalled           SkillUsageEventType = "skill_installed"
+	SkillUsageEventTypeUsedLocal           SkillUsageEventType = "skill_used_local"
+	SkillUsageEventTypeUsed                SkillUsageEventType = "skill_used"
+	SkillUsageEventTypeBlocked             SkillUsageEventType = "skill_blocked"
+	SkillUsageEventTypeFirstUse            SkillUsageEventType = "skill_first_use"
+	SkillUsageEventTypeRepeatUse           SkillUsageEventType = "skill_repeat_use"
+)
+
+var validSkillUsageEventTypes = map[SkillUsageEventType]struct{}{
+	SkillUsageEventTypeImpression:          {},
+	SkillUsageEventTypeDetailView:          {},
+	SkillUsageEventTypeSaved:               {},
+	SkillUsageEventTypeFavorited:           {},
+	SkillUsageEventTypeEnabled:             {},
+	SkillUsageEventTypeRated:               {},
+	SkillUsageEventTypeReported:            {},
+	SkillUsageEventTypeEvaluationCompleted: {},
+	SkillUsageEventTypeAdminAction:         {},
+	SkillUsageEventTypeKidsApproved:        {},
+	SkillUsageEventTypeInstalled:           {},
+	SkillUsageEventTypeUsedLocal:           {},
+	SkillUsageEventTypeUsed:                {},
+	SkillUsageEventTypeBlocked:             {},
+	SkillUsageEventTypeFirstUse:            {},
+	SkillUsageEventTypeRepeatUse:           {},
+}
+
+func (e SkillUsageEventType) Valid() bool { _, ok := validSkillUsageEventTypes[e]; return ok }
 
 // EntryPoint identifies the surface from which a Skill interaction originated.
 // Must be recorded in every skill_usage_events.entry_point (tasks/03 §3).

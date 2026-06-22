@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,8 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	platformmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -215,6 +220,185 @@ func TestGetMarketplaceSkill_NonPublishedReturns404(t *testing.T) {
 			assert.Contains(t, w.Body.String(), `"code":"SKILL_NOT_FOUND"`)
 		})
 	}
+}
+
+func TestListMySkillsReturnsCallerEnabledSkillsWithAvailability(t *testing.T) {
+	db := testMySkillDB(t)
+	SetDB(db)
+
+	published := testSkill("published-enabled", "published")
+	deprecated := testSkill("deprecated-enabled", "deprecated")
+	archived := testSkill("archived-enabled", "archived")
+	disabled := testSkill("disabled-skill", "published")
+	otherUser := testSkill("other-user-skill", "published")
+	for _, s := range []*skillmodel.Skill{&published, &deprecated, &archived, &disabled, &otherUser} {
+		require.NoError(t, db.Create(s).Error)
+	}
+
+	enabledAt := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+	lastUsedAt := enabledAt.Add(2 * time.Hour)
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:     42,
+		TenantID:   42,
+		SkillID:    published.ID,
+		Enabled:    true,
+		EnabledAt:  enabledAt,
+		LastUsedAt: &lastUsedAt,
+		Source:     "marketplace",
+	}).Error)
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:    42,
+		TenantID:  42,
+		SkillID:   deprecated.ID,
+		Enabled:   true,
+		EnabledAt: enabledAt.Add(-time.Hour),
+		Source:    "marketplace",
+	}).Error)
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:    42,
+		TenantID:  42,
+		SkillID:   archived.ID,
+		Enabled:   true,
+		EnabledAt: enabledAt.Add(-2 * time.Hour),
+		Source:    "marketplace",
+	}).Error)
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:    42,
+		TenantID:  42,
+		SkillID:   disabled.ID,
+		Enabled:   true,
+		EnabledAt: enabledAt,
+		Source:    "marketplace",
+	}).Error)
+	require.NoError(t, skillmodel.DisableSkillForUser(db, 42, 42, disabled.ID))
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:    99,
+		TenantID:  99,
+		SkillID:   otherUser.ID,
+		Enabled:   true,
+		EnabledAt: enabledAt,
+		Source:    "marketplace",
+	}).Error)
+
+	c, w := testContext("/api/v1/marketplace/my-skills")
+	c.Set("id", 42)
+	c.Set("group", "default")
+
+	ListMySkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			SkillID      string             `json:"skill_id"`
+			Slug         string             `json:"slug"`
+			Name         string             `json:"name"`
+			SkillStatus  enums.SkillStatus  `json:"skill_status"`
+			RequiredPlan enums.RequiredPlan `json:"required_plan"`
+			Enabled      bool               `json:"enabled"`
+			EnabledAt    time.Time          `json:"enabled_at"`
+			LastUsedAt   *time.Time         `json:"last_used_at"`
+			Availability struct {
+				Executable bool    `json:"executable"`
+				Locked     bool    `json:"locked"`
+				LockCode   *string `json:"lock_code"`
+				CTA        string  `json:"cta"`
+			} `json:"availability"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 3)
+
+	bySlug := map[string]struct {
+		Status     enums.SkillStatus
+		Executable bool
+		Locked     bool
+		LockCode   *string
+		CTA        string
+		LastUsedAt *time.Time
+	}{}
+	for _, item := range got.Data {
+		assert.True(t, item.Enabled)
+		assert.NotZero(t, item.EnabledAt)
+		bySlug[item.Slug] = struct {
+			Status     enums.SkillStatus
+			Executable bool
+			Locked     bool
+			LockCode   *string
+			CTA        string
+			LastUsedAt *time.Time
+		}{
+			Status:     item.SkillStatus,
+			Executable: item.Availability.Executable,
+			Locked:     item.Availability.Locked,
+			LockCode:   item.Availability.LockCode,
+			CTA:        item.Availability.CTA,
+			LastUsedAt: item.LastUsedAt,
+		}
+	}
+
+	assert.Contains(t, bySlug, "published-enabled")
+	assert.Contains(t, bySlug, "deprecated-enabled")
+	assert.Contains(t, bySlug, "archived-enabled")
+	assert.NotContains(t, bySlug, "disabled-skill")
+	assert.NotContains(t, bySlug, "other-user-skill")
+
+	assert.True(t, bySlug["published-enabled"].Executable)
+	assert.False(t, bySlug["published-enabled"].Locked)
+	assert.Nil(t, bySlug["published-enabled"].LockCode)
+	assert.Equal(t, "use", bySlug["published-enabled"].CTA)
+	require.NotNil(t, bySlug["published-enabled"].LastUsedAt)
+	assert.Equal(t, lastUsedAt, *bySlug["published-enabled"].LastUsedAt)
+
+	assert.True(t, bySlug["deprecated-enabled"].Executable, "deprecated but still enabled skills remain executable")
+	assert.Equal(t, enums.SkillStatusDeprecated, bySlug["deprecated-enabled"].Status)
+
+	require.NotNil(t, bySlug["archived-enabled"].LockCode)
+	assert.False(t, bySlug["archived-enabled"].Executable)
+	assert.True(t, bySlug["archived-enabled"].Locked)
+	assert.Equal(t, "SKILL_NOT_PUBLISHED", *bySlug["archived-enabled"].LockCode)
+	assert.Equal(t, "unavailable", bySlug["archived-enabled"].CTA)
+}
+
+func TestListMySkillsPlanLockUsesAvailabilityResolver(t *testing.T) {
+	db := testMySkillDB(t)
+	SetDB(db)
+
+	pro := testSkill("pro-enabled", "published")
+	pro.RequiredPlan = enums.RequiredPlanPro
+	require.NoError(t, db.Create(&pro).Error)
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:    42,
+		TenantID:  42,
+		SkillID:   pro.ID,
+		Enabled:   true,
+		EnabledAt: time.Now().UTC(),
+		Source:    "marketplace",
+	}).Error)
+
+	c, w := testContext("/api/v1/marketplace/my-skills")
+	c.Set("id", 42)
+	c.Set("group", "default")
+
+	ListMySkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Availability struct {
+				Executable bool    `json:"executable"`
+				Locked     bool    `json:"locked"`
+				LockCode   *string `json:"lock_code"`
+				CTA        string  `json:"cta"`
+			} `json:"availability"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 1)
+	assert.False(t, got.Data[0].Availability.Executable)
+	assert.True(t, got.Data[0].Availability.Locked)
+	require.NotNil(t, got.Data[0].Availability.LockCode)
+	assert.Equal(t, "SKILL_PLAN_REQUIRED", *got.Data[0].Availability.LockCode)
+	assert.Equal(t, "upgrade", got.Data[0].Availability.CTA)
 }
 
 // ---------------------------------------------------------------------------
@@ -548,6 +732,159 @@ func TestListAdminSkills_SortByUpdatedAt(t *testing.T) {
 	assert.Equal(t, "newer-skill", got.Data[0].Slug)
 }
 
+func TestCreateAdminSkillVersion_CreatesDraftSnapshotAndAudit(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	maxInput := 4096
+	s := testSkill("version-create", "draft")
+	s.RequiredPlan = enums.RequiredPlanPro
+	s.MonetizationType = enums.MonetizationTypeTokenMarkup
+	s.PriceMarkup = 0.25
+	s.FreeQuotaPerMonth = ptr(12)
+	s.MaxInputTokens = &maxInput
+	s.ModelWhitelist = skillmodel.SkillJSONB(`["smart-tier","fast-tier"]`)
+	require.NoError(t, db.Create(&s).Error)
+
+	body := `{"instruction_template":"Use private rubric v1","prompt_guard_template":"guard v1","output_schema":{"type":"object"}}`
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/versions", body)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
+	c.Set("id", 99)
+	c.Set("role", 100)
+
+	CreateAdminSkillVersion(c)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	var got struct {
+		Data SkillVersionMetadata `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	assert.Equal(t, enums.SkillVersionStatusDraft, got.Data.Status)
+	assert.Equal(t, 1, got.Data.VersionNumber)
+	sum := sha256.Sum256([]byte("Use private rubric v1"))
+	assert.Equal(t, hex.EncodeToString(sum[:]), got.Data.InstructionTemplateSHA256)
+	assert.Equal(t, json.RawMessage(`["smart-tier","fast-tier"]`), got.Data.ModelWhitelistSnapshot)
+	assert.Equal(t, enums.RequiredPlanPro, got.Data.RequiredPlanSnapshot)
+	assert.Equal(t, &maxInput, got.Data.MaxInputTokensSnapshot)
+	assert.NotContains(t, w.Body.String(), `"instruction_template":"`)
+	assert.NotContains(t, w.Body.String(), "Use private rubric v1")
+
+	var version skillmodel.SkillVersion
+	require.NoError(t, db.First(&version, "id = ?", got.Data.ID).Error)
+	assert.Equal(t, "Use private rubric v1", version.InstructionTemplate)
+	assert.Equal(t, "guard v1", *version.PromptGuardTemplate)
+	require.NotNil(t, version.OutputSchema)
+	assert.JSONEq(t, `{"type":"object"}`, string(*version.OutputSchema))
+	assert.JSONEq(t, `{"type":"token_markup","price_markup":0.25,"free_quota_per_month":12}`, string(version.MonetizationSnapshot))
+
+	var audit skillmodel.SkillAuditLog
+	require.NoError(t, db.First(&audit, "skill_version_id = ? AND action = ?", version.ID, "version_created").Error)
+	require.NotNil(t, audit.AfterValue)
+	assert.NotContains(t, string(*audit.AfterValue), "Use private rubric v1")
+	assert.NotContains(t, string(*audit.AfterValue), "guard v1")
+	assert.Contains(t, string(*audit.AfterValue), version.InstructionTemplateSHA256)
+}
+
+func TestListAdminSkillVersions_MetadataOnly(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s := testSkill("version-list", "draft")
+	require.NoError(t, db.Create(&s).Error)
+	version := validHandlerSkillVersion(s.ID, 1)
+	version.InstructionTemplate = "private list template"
+	require.NoError(t, db.Create(&version).Error)
+
+	c, w := testContext("/api/v1/admin/skills/" + s.ID + "/versions")
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
+
+	ListAdminSkillVersions(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"instruction_template_sha256"`)
+	assert.NotContains(t, w.Body.String(), `"instruction_template":"`)
+	assert.NotContains(t, w.Body.String(), "private list template")
+}
+
+func TestGetAdminSkillVersion_ReturnsTemplateForSuperAdminDetail(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s := testSkill("version-detail", "draft")
+	require.NoError(t, db.Create(&s).Error)
+	version := validHandlerSkillVersion(s.ID, 1)
+	version.InstructionTemplate = "detail-only template"
+	require.NoError(t, db.Create(&version).Error)
+
+	c, w := testContext("/api/v1/admin/skills/" + s.ID + "/versions/" + version.ID)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}, {Key: "version_id", Value: version.ID}}
+
+	GetAdminSkillVersion(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"instruction_template":"detail-only template"`)
+}
+
+func TestActivateAdminSkillVersion_DemotesPriorActiveAndAudits(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s := testSkill("version-activate", "published")
+	require.NoError(t, db.Create(&s).Error)
+	v1 := validHandlerSkillVersion(s.ID, 1)
+	v1.Status = enums.SkillVersionStatusActive
+	require.NoError(t, db.Create(&v1).Error)
+	v2 := validHandlerSkillVersion(s.ID, 2)
+	require.NoError(t, db.Create(&v2).Error)
+	require.NoError(t, db.Model(&skillmodel.Skill{}).Where("id = ?", s.ID).Update("active_version_id", v1.ID).Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/versions/"+v2.ID+"/activate", `{"reason":"publish vetted template"}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}, {Key: "version_id", Value: v2.ID}}
+	c.Set("id", 101)
+	c.Set("role", 100)
+
+	ActivateAdminSkillVersion(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var gotV1, gotV2 skillmodel.SkillVersion
+	require.NoError(t, db.First(&gotV1, "id = ?", v1.ID).Error)
+	require.NoError(t, db.First(&gotV2, "id = ?", v2.ID).Error)
+	assert.Equal(t, enums.SkillVersionStatusInactive, gotV1.Status)
+	assert.Equal(t, enums.SkillVersionStatusActive, gotV2.Status)
+	assert.NotNil(t, gotV2.ActivatedAt)
+
+	var skill skillmodel.Skill
+	require.NoError(t, db.First(&skill, "id = ?", s.ID).Error)
+	require.NotNil(t, skill.ActiveVersionID)
+	assert.Equal(t, v2.ID, *skill.ActiveVersionID)
+
+	var activeCount int64
+	require.NoError(t, db.Model(&skillmodel.SkillVersion{}).
+		Where("skill_id = ? AND status = ?", s.ID, enums.SkillVersionStatusActive).
+		Count(&activeCount).Error)
+	assert.Equal(t, int64(1), activeCount)
+
+	var audit skillmodel.SkillAuditLog
+	require.NoError(t, db.First(&audit, "skill_version_id = ? AND action = ?", v2.ID, "version_activated").Error)
+	require.NotNil(t, audit.AfterValue)
+	require.NotNil(t, audit.BeforeValue)
+	assert.NotContains(t, string(*audit.AfterValue), gotV2.InstructionTemplate)
+	assert.Contains(t, string(*audit.AfterValue), gotV2.InstructionTemplateSHA256)
+
+	var before map[string]any
+	require.NoError(t, json.Unmarshal(*audit.BeforeValue, &before))
+	assert.Equal(t, v2.ID, before["skill_version_id"], "before_value must describe the version being activated, not the prior active version")
+	assert.Equal(t, string(enums.SkillVersionStatusDraft), before["status"])
+
+	var after map[string]any
+	require.NoError(t, json.Unmarshal(*audit.AfterValue, &after))
+	assert.Equal(t, v2.ID, after["skill_version_id"])
+	assert.Equal(t, v1.ID, after["previous_active_version_id"])
+	assert.Equal(t, string(enums.SkillVersionStatusActive), after["status"])
+}
+
+func TestSkillVersionNumberConflictDetection(t *testing.T) {
+	err := fmt.Errorf("UNIQUE constraint failed: skill_versions.skill_id, skill_versions.version_number")
+	assert.True(t, isSkillVersionNumberConflict(err))
+	assert.False(t, isSkillVersionNumberConflict(fmt.Errorf("UNIQUE constraint failed: other_table.id")))
+}
+
 // listResponse is a typed helper for unmarshalling the List envelope in tests.
 type listResponse struct {
 	Data []struct {
@@ -570,14 +907,39 @@ func testSkillDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, skillmodel.MigrateSkills(db))
+	require.NoError(t, skillmodel.MigrateSkillVersions(db))
+	require.NoError(t, skillmodel.MigrateSkillAuditLog(db))
+	return db
+}
+
+func testMySkillDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db := testSkillDB(t)
+	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
+	require.NoError(t, db.AutoMigrate(&platformmodel.User{}))
+	require.NoError(t, db.Create(&platformmodel.User{
+		Id:       42,
+		Username: "skill-user",
+		Password: "password123",
+		Role:     1,
+		Status:   1,
+		Group:    "default",
+	}).Error)
 	return db
 }
 
 func testContext(url string) (*gin.Context, *httptest.ResponseRecorder) {
+	return testContextWithMethod(http.MethodGet, url, "")
+}
+
+func testContextWithMethod(method, url, body string) (*gin.Context, *httptest.ResponseRecorder) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, url, nil)
+	c.Request = httptest.NewRequest(method, url, bytes.NewBufferString(body))
+	if body != "" {
+		c.Request.Header.Set("Content-Type", "application/json")
+	}
 	return c, w
 }
 
@@ -607,5 +969,25 @@ func testSkill(slug string, status string) skillmodel.Skill {
 }
 
 func routedWorkStepFixture() string {
-	return "### Work Step\n\nCall DeepRouter at POST https://api.deeprouter.ai/v1/routing/chat/completions with the runner's own key, then base the final answer on the returned routing result."
+	return "### Work Step\n\nCall DeepRouter at POST https://api.deeprouter.co/v1/routing/chat/completions with the runner's own key, then base the final answer on the returned routing result."
+}
+
+func validHandlerSkillVersion(skillID string, versionNumber int) skillmodel.SkillVersion {
+	maxInput := 2048
+	schema := skillmodel.SkillJSONB(`{"type":"object"}`)
+	sum := sha256.Sum256([]byte("handler version template"))
+	return skillmodel.SkillVersion{
+		SkillID:                   skillID,
+		VersionNumber:             versionNumber,
+		Status:                    enums.SkillVersionStatusDraft,
+		InstructionTemplate:       "handler version template",
+		InstructionTemplateSHA256: hex.EncodeToString(sum[:]),
+		OutputSchema:              &schema,
+		ModelWhitelistSnapshot:    skillmodel.SkillJSONB(`["smart-tier"]`),
+		RequiredPlanSnapshot:      enums.RequiredPlanFree,
+		MonetizationSnapshot:      skillmodel.SkillJSONB(`{"type":"free","price_markup":0}`),
+		MaxInputTokensSnapshot:    &maxInput,
+		RolloutPercentage:         100,
+		CreatedBy:                 1,
+	}
 }

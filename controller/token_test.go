@@ -506,6 +506,59 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 	}
 }
 
+func TestUpdateTokenPersistsStatusAndRateLimits(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 1, "limited-token", "limit1234token5678")
+
+	statusBody := map[string]any{
+		"id":     token.Id,
+		"status": common.TokenStatusDisabled,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/?status_only=1", statusBody, 1)
+	UpdateToken(ctx)
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected status update success, got message: %s", response.Message)
+	}
+
+	var disabled model.Token
+	if err := db.First(&disabled, "id = ?", token.Id).Error; err != nil {
+		t.Fatalf("load disabled token: %v", err)
+	}
+	if disabled.Status != common.TokenStatusDisabled {
+		t.Fatalf("expected status %d, got %d", common.TokenStatusDisabled, disabled.Status)
+	}
+
+	limitBody := map[string]any{
+		"id":                   token.Id,
+		"name":                 "limited-token-updated",
+		"expired_time":         -1,
+		"remain_quota":         100,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+		"rpm_limit":            7,
+		"tpm_limit":            77,
+		"monthly_limit":        777,
+	}
+	ctx, recorder = newAuthenticatedContext(t, http.MethodPut, "/api/token/", limitBody, 1)
+	UpdateToken(ctx)
+	response = decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected limit update success, got message: %s", response.Message)
+	}
+
+	var limited model.Token
+	if err := db.First(&limited, "id = ?", token.Id).Error; err != nil {
+		t.Fatalf("load limited token: %v", err)
+	}
+	if limited.RpmLimit != 7 || limited.TpmLimit != 77 || limited.MonthlyLimit != 777 {
+		t.Fatalf("expected rate limits 7/77/777, got %d/%d/%d", limited.RpmLimit, limited.TpmLimit, limited.MonthlyLimit)
+	}
+}
+
 func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 	token := seedToken(t, db, 1, "owned-token", "owner1234token5678")
