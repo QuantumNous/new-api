@@ -5,6 +5,9 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 ## 2026-06-22
 
 - DR-43 review fix — SQLite upgrade regression test：新增 `TestMigrateSkillUsageEvents_SQLite_UpgradesPreDR43Table`，构造 pre-DR-43 最简 schema（缺少 `tenant_id`、`metadata`、kids safety 列及全部 CHECK 约束），预埋一行旧数据，调用 `MigrateSkillUsageEvents` 后校验：全部 30 个 DR-43 列存在；全部 7 个索引存在；重建后 DDL 含 `chk_sue_kids_privacy`/`chk_sue_metadata_*`/`chk_sue_event_type`/`chk_sue_entry_point`；旧行保留；ORM 层 Kids 隐私守卫与 metadata 受限 key 守卫仍拒绝违规写入；DB 层 CHECK 约束对 raw SQL 仍生效（`internal/skill/model/skill_usage_event_integration_test.go`）
+- 修复 DR-47 PR review 阻断问题：`version_activated` 审计 before_value 改为目标版本自身的激活前状态，after_value 增加 `previous_active_version_id`；创建版本号增加事务锁与唯一冲突重试，避免并发创建冒成 500（`internal/skill/handler/versions.go`）
+- 新增 DR-47 Skill version API：Super Admin 可创建 draft 版本、查看版本列表/详情、激活版本并自动降级旧 active；版本写入 instruction_template sha256 与执行 snapshot，并新增不含 prompt 正文的 skill_audit_log 审计记录（`internal/skill/handler/versions.go`, `internal/skill/model/skill_audit_log.go`, `router/skill-router.go`）
+- 新增 DR-47 Skill version API 任务 PRD，定义版本创建、列表、详情、激活与审计日志范围（`docs/tasks/dr47-skill-version-api-prd.md`）
 - 新增 DR-82 public routing API abuse controls：`/v1/routing/chat/completions` 在通道选择前执行 public API 专用 abuse gate，按 runner credential 做默认 RPM 限流，DB 强校验 revoked/expired/exhausted key fail-closed，并对共享凭据 IP/User-Agent fanout 写入 flags、响应头和系统日志；补 `model.Token.Update()` 持久化 `status` 与 DR-13 limit 字段；补 Redis failure fail-closed 测试、env-gated Redis 路径测试说明、fanout 运营消费说明，并将 Redis integration cleanup 收敛为只删除本测试 token/bucket keys；新增任务 PRD 与聚焦测试（`internal/abuse`, `middleware/public_routing_abuse.go`, `router/relay-router.go`, `model/token.go`, `docs/tasks/dr82-public-api-abuse-controls-prd.md`）
 
 ## 2026-06-21
