@@ -17,9 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import autoprefixer from 'autoprefixer';
+import tailwindcss from 'tailwindcss';
+
 export default {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
+  plugins: [tailwindcss(), autoprefixer()],
 };
