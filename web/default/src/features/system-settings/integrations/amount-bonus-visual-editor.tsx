@@ -232,13 +232,20 @@ export function AmountBonusVisualEditor({
   const amountNumber = Number(amount)
   const bonusAmountNumber = Number(bonusAmount)
   const claimLimitNumber = claimLimit.trim() === '' ? 0 : Number(claimLimit)
+  // 编辑某档位时把充值金额改成另一个「已存在」档位，会覆盖目标档位的赠送/限次/白名单，
+  // 属于误操作——禁止保存。新增模式不算冲突：输入已存在金额是正常的 upsert（更新该档位）。
+  const amountConflict =
+    !!editData &&
+    editData.amount !== amountNumber &&
+    tiers.some((tier) => tier.amount === amountNumber)
   const canSave =
     Number.isInteger(amountNumber) &&
     amountNumber > 0 &&
     Number.isInteger(bonusAmountNumber) &&
     bonusAmountNumber > 0 &&
     Number.isInteger(claimLimitNumber) &&
-    claimLimitNumber >= 0
+    claimLimitNumber >= 0 &&
+    !amountConflict
 
   const resetDraft = () => {
     setAmount('')
@@ -412,6 +419,11 @@ export function AmountBonusVisualEditor({
             onChange={(event) => setAmount(event.target.value)}
             placeholder={t('e.g., 20')}
           />
+          {amountConflict && (
+            <p className='text-destructive mt-1 text-xs'>
+              {t('A bonus tier with this recharge amount already exists.')}
+            </p>
+          )}
         </div>
         <div>
           <Label htmlFor='amount-bonus-credit' className='mb-2 block'>
