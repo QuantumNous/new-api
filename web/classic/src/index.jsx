@@ -1,4 +1,5 @@
 import '@douyinfe/semi-ui/react19-adapter';
+import './lib/visactor-env';
 
 /*
 Copyright (C) 2025 QuantumNous
