@@ -23,9 +23,11 @@ import { Activity } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
-import { computeTimeRange } from '@/lib/time'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDates } from '@/features/dashboard/api'
+import { useOpsRollingTimeRange } from '@/features/dashboard/hooks/use-ops-rolling-time-range'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import { StatCard } from '../ui/stat-card'
 import { COCKPIT_STAT_CARD_CLASS } from './cockpit-display'
@@ -59,22 +61,28 @@ function buildRequestSparkline(
 
 export function CockpitCallTrend() {
   const { t } = useTranslation()
-  const summaryTimeRange = useMemo(() => computeTimeRange(1), [])
+  const user = useAuthStore((state) => state.auth.user)
+  const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
+  const summaryTimeRange = useOpsRollingTimeRange(1)
 
   const usageTrendQuery = useQuery({
     queryKey: [
       'dashboard',
       'overview',
       'summary-sparklines',
+      isAdmin,
       summaryTimeRange.start_timestamp,
       summaryTimeRange.end_timestamp,
     ],
     queryFn: async () =>
-      getUserQuotaDates({
-        start_timestamp: summaryTimeRange.start_timestamp,
-        end_timestamp: summaryTimeRange.end_timestamp,
-        default_time: 'hour',
-      }),
+      getUserQuotaDates(
+        {
+          start_timestamp: summaryTimeRange.start_timestamp,
+          end_timestamp: summaryTimeRange.end_timestamp,
+          default_time: 'hour',
+        },
+        isAdmin
+      ),
     staleTime: 60 * 1000,
     ...opsLiveDataQueryOptions,
   })

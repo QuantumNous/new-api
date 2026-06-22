@@ -99,6 +99,7 @@ export function PerformanceHealthPanel(props: PerformanceHealthPanelProps) {
 
   const topModels = useMemo(() => models.slice(0, TOP_MODEL_LIMIT), [models])
   const loading = metricsQuery.isLoading
+  const isError = metricsQuery.isError
   const hasData = models.length > 0
 
   return (
@@ -177,6 +178,15 @@ export function PerformanceHealthPanel(props: PerformanceHealthPanelProps) {
               />
             ))}
           </div>
+        ) : isError ? (
+          <p
+            className={cn(
+              'text-xs',
+              isCockpit ? 'text-amber-700' : 'text-warning'
+            )}
+          >
+            {t('Dashboard perf metrics unavailable')}
+          </p>
         ) : hasData ? (
           <div>
             {!isCockpit && (

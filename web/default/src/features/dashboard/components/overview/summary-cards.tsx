@@ -32,11 +32,12 @@ import {
   Flame,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
+import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import { formatNumber } from '@/lib/format'
-import { computeTimeRange } from '@/lib/time'
+import { formatDate, formatDateTimeObject } from '@/lib/time'
 import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
+import { getSelf } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
@@ -49,6 +50,7 @@ import {
   countActiveAccountsFromQuotaData,
   isAccountActiveInQuotaData,
 } from '@/features/dashboard/lib/stats'
+import { useOpsRollingTimeRange } from '@/features/dashboard/hooks/use-ops-rolling-time-range'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import {
@@ -172,10 +174,25 @@ function simpleAverageLatency(rows: { avg_latency_ms: number }[]): number {
 export function SummaryCards() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
+  const setUser = useAuthStore((state) => state.auth.setUser)
   const { loading: statusLoading } = useStatus()
   const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
 
-  const summaryTimeRange = useMemo(() => computeTimeRange(1), [])
+  const summaryTimeRange = useOpsRollingTimeRange(1)
+
+  useQuery({
+    queryKey: ['dashboard', 'overview', 'user-self'],
+    queryFn: async () => {
+      const response = await getSelf()
+      if (!response?.success || !response.data) {
+        throw new Error('Failed to load current user')
+      }
+      setUser(response.data as AuthUser)
+      return response.data
+    },
+    staleTime: 60 * 1000,
+    ...opsLiveDataQueryOptions,
+  })
 
   const enabledChannelsQuery = useQuery({
     queryKey: ['dashboard', 'overview', 'enabled-channels-count'],
@@ -225,15 +242,19 @@ export function SummaryCards() {
       'dashboard',
       'overview',
       'summary-sparklines',
+      isAdmin,
       summaryTimeRange.start_timestamp,
       summaryTimeRange.end_timestamp,
     ],
     queryFn: async () =>
-      getUserQuotaDates({
-        start_timestamp: summaryTimeRange.start_timestamp,
-        end_timestamp: summaryTimeRange.end_timestamp,
-        default_time: 'hour',
-      }),
+      getUserQuotaDates(
+        {
+          start_timestamp: summaryTimeRange.start_timestamp,
+          end_timestamp: summaryTimeRange.end_timestamp,
+          default_time: 'hour',
+        },
+        isAdmin
+      ),
     staleTime: 60 * 1000,
     ...opsLiveDataQueryOptions,
   })
@@ -287,6 +308,24 @@ export function SummaryCards() {
   const runwayDays = getRunwayDays(remainQuota, recentUsage)
 
   const kpiLoading = usageTrendQuery.isLoading || statusLoading
+
+  const dataFreshnessLabel = useMemo(() => {
+    const updatedAt = usageTrendQuery.dataUpdatedAt
+    const timeLabel =
+      updatedAt > 0
+        ? formatDateTimeObject(new Date(updatedAt))
+        : t('Loading')
+    const windowLabel = `${formatDate(summaryTimeRange.start_timestamp)} – ${formatDate(summaryTimeRange.end_timestamp)}`
+    return {
+      asOf: t('Dashboard data as of', { time: timeLabel }),
+      window: `${t('Dashboard KPI rolling window hint')} (${windowLabel})`,
+    }
+  }, [
+    summaryTimeRange.end_timestamp,
+    summaryTimeRange.start_timestamp,
+    t,
+    usageTrendQuery.dataUpdatedAt,
+  ])
 
   const successRate = simpleAverageSuccessRate(perfModels)
   const avgLatencyMs = simpleAverageLatency(perfModels)
@@ -393,6 +432,9 @@ export function SummaryCards() {
             </h3>
             <p className='text-sm text-slate-600'>
               {t('Dashboard KPI section description')}
+            </p>
+            <p className='text-xs text-slate-500'>
+              {dataFreshnessLabel.window} · {dataFreshnessLabel.asOf}
             </p>
           </div>
 

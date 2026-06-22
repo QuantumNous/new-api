@@ -16,17 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { memo, useEffect, useState } from 'react'
+import { memo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { opsLiveDataQueryOptions } from '@/lib/query-polling'
 import { Activity, RotateCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { getUptimeStatus } from '@/features/dashboard/api'
-import type {
-  UptimeGroupResult,
-  UptimeMonitor,
-} from '@/features/dashboard/types'
+import type { UptimeMonitor } from '@/features/dashboard/types'
 import { PanelWrapper } from '../ui/panel-wrapper'
 
 const STATUS_COLOR_MAP: Record<number, string> = {
@@ -49,51 +48,23 @@ interface UptimePanelProps {
 export function UptimePanel(props: UptimePanelProps) {
   const { t } = useTranslation()
   const isCockpit = props.variant === 'cockpit'
-  const [groups, setGroups] = useState<UptimeGroupResult[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => {
-    const abortController = new AbortController()
+  const uptimeQuery = useQuery({
+    queryKey: ['dashboard', 'uptime-status'],
+    queryFn: async () => {
+      const response = await getUptimeStatus()
+      return response?.data ?? []
+    },
+    staleTime: 60 * 1000,
+    ...opsLiveDataQueryOptions,
+  })
 
-    getUptimeStatus()
-      .then((res) => {
-        if (abortController.signal.aborted) return
-        setGroups(res?.data || [])
-      })
-      .catch(() => {
-        if (abortController.signal.aborted) return
-        setGroups([])
-      })
-      .finally(() => {
-        if (!abortController.signal.aborted) {
-          setLoading(false)
-        }
-      })
-
-    return () => {
-      abortController.abort()
-    }
-  }, [])
+  const groups = uptimeQuery.data ?? []
+  const loading = uptimeQuery.isLoading
+  const refreshing = uptimeQuery.isFetching && !uptimeQuery.isLoading
 
   const handleRefresh = () => {
-    const abortController = new AbortController()
-    setRefreshing(true)
-
-    getUptimeStatus()
-      .then((res) => {
-        if (abortController.signal.aborted) return
-        setGroups(res?.data || [])
-      })
-      .catch(() => {
-        if (abortController.signal.aborted) return
-        setGroups([])
-      })
-      .finally(() => {
-        if (!abortController.signal.aborted) {
-          setRefreshing(false)
-        }
-      })
+    void uptimeQuery.refetch()
   }
 
   return (
