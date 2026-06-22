@@ -55,7 +55,7 @@ import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import {
   getAffiliateCode,
   saveAffiliateCode,
-  setPendingOnboarding,
+  setPendingPlaygroundFirstRun,
 } from '@/features/auth/lib/storage'
 
 export function SignUpForm({
@@ -188,23 +188,26 @@ export function SignUpForm({
         })
         if (emailVerificationRequired) {
           // Email verification on: the backend does NOT auto-login the new user.
-          // Arm the legacy first-login card-bind onboarding so it can trigger after
-          // they sign in manually (handleLoginSuccess opens it only when there is no
-          // explicit redirect and the feature is enabled).
-          setPendingOnboarding()
+          // Preserve #196 activation-first behavior by arming a one-shot Playground
+          // first-run redirect for the next successful manual login. Registration-time
+          // redirects intentionally do not win over this new-user activation path.
+          setPendingPlaygroundFirstRun({
+            email: data.email,
+            username: data.username,
+          })
           toast.success(t('Account created! Please sign in'))
-          redirectToLogin(redirectTo)
+          redirectToLogin()
         } else {
           // Auto-logged-in (session cookie set by setupLogin). Activation-first: land
           // them in the Playground first-run so they make their first API call with
           // zero config. We intentionally do NOT arm the card-bind promo dialog here —
           // top-up is surfaced later via the low-balance banner, once the user has
-          // experienced value. An explicit redirectTo (e.g. ?redirect=/keys from
-          // "Get API Key") still wins.
+          // experienced value. Registration-time redirects intentionally do not win
+          // over this new-user activation path.
           toast.success(t('Account created!'))
           await handleLoginSuccess(
             res.data as { id?: number } | null,
-            redirectTo || '/playground?first=1'
+            '/playground?first=1'
           )
         }
       } else {

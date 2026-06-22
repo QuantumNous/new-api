@@ -25,6 +25,7 @@ import { getSelf } from '@/lib/api'
 import type { User } from '@/features/users/types'
 import {
   consumePendingOnboarding,
+  consumePendingPlaygroundFirstRun,
   isSafeInternalPath,
   saveUserId,
 } from '../lib/storage'
@@ -93,20 +94,28 @@ export function useAuthRedirect() {
       console.error('Failed to fetch user data:', error)
     }
 
-    // Always consume the pending-onboarding flag so it can never leak into a later
-    // login (e.g. when this login carried a redirectTo and skipped onboarding).
+    // Always consume legacy onboarding so it can never leak into a later login.
+    // Playground first-run is account-bound: only the newly registered account
+    // may consume it, so an existing-account login cannot be hijacked.
     const pendingOnboarding = consumePendingOnboarding()
+    const pendingPlaygroundFirstRun = consumePendingPlaygroundFirstRun({
+      email: freshUser?.email,
+      username: freshUser?.username,
+    })
 
-    // Navigate to target page. First-time registrants land on the dashboard with
-    // the card-binding onboarding dialog opened over it (unless they already bound
-    // a card), as long as the feature is enabled. An explicit redirectTo always wins.
+    // Navigate to target page. New registrants with the dedicated Playground
+    // first-run flag always land on the activation flow, even when registration
+    // carried a redirect. For non-first-run logins, existing redirect behavior and
+    // legacy card-bind/top-up onboarding are unchanged.
     // redirectTo originates from the ?redirect= URL param, so validate it as an internal
     // path before navigating to avoid an open-redirect. Treat an invalid redirect as "no
     // redirect" everywhere (not just for navigation) so it can't suppress the onboarding
     // dialog while silently consuming the pending-onboarding flag.
     const safeRedirectTo = isSafeInternalPath(redirectTo) ? redirectTo : undefined
-    const targetPath = safeRedirectTo || '/dashboard'
-    if (!safeRedirectTo && pendingOnboarding) {
+    const targetPath = pendingPlaygroundFirstRun
+      ? '/playground?first=1'
+      : safeRedirectTo || '/dashboard'
+    if (!pendingPlaygroundFirstRun && !safeRedirectTo && pendingOnboarding) {
       const cardBindEnabled =
         useSystemConfigStore.getState().config.enableStripeCardBind === true
       // Read the freshly fetched user (the closed-over auth.user is the pre-login

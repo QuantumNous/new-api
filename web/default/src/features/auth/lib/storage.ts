@@ -29,11 +29,51 @@ const STORAGE_KEYS = {
   AFFILIATE: 'aff',
   STATUS: 'status',
   PENDING_ONBOARDING: 'pending_onboarding',
+  PENDING_PLAYGROUND_FIRST_RUN: 'pending_playground_first_run',
   // Post-login destination to honor after an OAuth round-trip. Lives in sessionStorage
   // (tab-scoped) because OAuth providers redirect to a fixed redirect_uri (/oauth/<p>)
   // that can't carry our ?redirect=... param, so the URL alone would lose the intent.
   POST_LOGIN_REDIRECT: 'auth_post_login_redirect',
 } as const
+
+const PENDING_PLAYGROUND_FIRST_RUN_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+export type PendingPlaygroundFirstRunIdentity = {
+  email?: string
+  username?: string
+}
+
+type PendingPlaygroundFirstRunPayload = PendingPlaygroundFirstRunIdentity & {
+  createdAt: number
+}
+
+function normalizePendingPlaygroundFirstRunIdentifier(
+  value: string | null | undefined
+): string | undefined {
+  const normalized = value?.trim().toLowerCase()
+  return normalized || undefined
+}
+
+function parsePendingPlaygroundFirstRunPayload(
+  value: string | null
+): PendingPlaygroundFirstRunPayload | null {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(value) as Partial<PendingPlaygroundFirstRunPayload>
+    const email = normalizePendingPlaygroundFirstRunIdentifier(parsed.email)
+    const username = normalizePendingPlaygroundFirstRunIdentifier(
+      parsed.username
+    )
+    const createdAt =
+      typeof parsed.createdAt === 'number' && Number.isFinite(parsed.createdAt)
+        ? parsed.createdAt
+        : 0
+    if (!createdAt || (!email && !username)) return null
+    return { email, username, createdAt }
+  } catch {
+    return null
+  }
+}
 
 // Only allow same-origin, absolute internal paths — never an external URL. Rejects
 // protocol-relative ("//host"), backslash forms (browsers normalize "\" -> "/", so
@@ -127,6 +167,83 @@ export function consumePendingOnboarding(): boolean {
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to consume pending onboarding flag:', error)
+  }
+  return false
+}
+
+/**
+ * Mark that the user just registered and should land in Playground first-run
+ * on their next successful login.
+ */
+export function setPendingPlaygroundFirstRun(
+  identity: PendingPlaygroundFirstRunIdentity
+): void {
+  if (typeof window === 'undefined') return
+  const email = normalizePendingPlaygroundFirstRunIdentifier(identity.email)
+  const username = normalizePendingPlaygroundFirstRunIdentifier(
+    identity.username
+  )
+  if (!email && !username) return
+  try {
+    const payload: PendingPlaygroundFirstRunPayload = {
+      email,
+      username,
+      createdAt: Date.now(),
+    }
+    window.localStorage.setItem(
+      STORAGE_KEYS.PENDING_PLAYGROUND_FIRST_RUN,
+      JSON.stringify(payload)
+    )
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to set pending Playground first-run flag:', error)
+  }
+}
+
+/**
+ * Consume the pending Playground first-run flag only when the logged-in user
+ * matches the account that just registered. A mismatch leaves the unexpired
+ * flag in place so the intended new account can still receive first-run later.
+ */
+export function consumePendingPlaygroundFirstRun(
+  identity: PendingPlaygroundFirstRunIdentity
+): boolean {
+  if (typeof window === 'undefined') return false
+  const currentEmail = normalizePendingPlaygroundFirstRunIdentifier(
+    identity.email
+  )
+  const currentUsername = normalizePendingPlaygroundFirstRunIdentifier(
+    identity.username
+  )
+  try {
+    const payload = parsePendingPlaygroundFirstRunPayload(
+      window.localStorage.getItem(STORAGE_KEYS.PENDING_PLAYGROUND_FIRST_RUN)
+    )
+    if (!payload) {
+      window.localStorage.removeItem(STORAGE_KEYS.PENDING_PLAYGROUND_FIRST_RUN)
+      return false
+    }
+    const now = Date.now()
+    const isExpired =
+      payload.createdAt > now ||
+      now - payload.createdAt > PENDING_PLAYGROUND_FIRST_RUN_TTL_MS
+    if (isExpired) {
+      window.localStorage.removeItem(STORAGE_KEYS.PENDING_PLAYGROUND_FIRST_RUN)
+      return false
+    }
+    const matchesUsername =
+      payload.username !== undefined && payload.username === currentUsername
+    const matchesEmail =
+      payload.email === undefined ||
+      currentEmail === undefined ||
+      payload.email === currentEmail
+    if (matchesUsername && matchesEmail) {
+      window.localStorage.removeItem(STORAGE_KEYS.PENDING_PLAYGROUND_FIRST_RUN)
+      return true
+    }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to consume pending Playground first-run flag:', error)
   }
   return false
 }
