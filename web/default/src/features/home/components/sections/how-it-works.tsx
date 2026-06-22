@@ -36,7 +36,7 @@ export function HowItWorks() {
     {
       num: '2',
       title: t('Top up'),
-      desc: t('From ¥5 via WeChat Pay or Alipay. No overseas card.'),
+      desc: t('From $5 via WeChat Pay or Alipay. No overseas card.'),
       icon: <Wallet className='size-6' strokeWidth={1.5} />,
     },
     {

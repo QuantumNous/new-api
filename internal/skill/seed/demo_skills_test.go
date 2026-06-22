@@ -3,11 +3,11 @@ package seed
 import (
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
-	"github.com/QuantumNous/new-api/internal/skill/packaging"
 	"github.com/QuantumNous/new-api/internal/skill/tiers"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -88,7 +88,15 @@ func TestSeedDemoSkills_CreatesFourPublishedPackagedSkills(t *testing.T) {
 			t.Fatalf("%s: whitelist %v contains a non-tier alias", s.Slug, wl)
 		}
 
-		// Active version exists, is active, has a sha, and packages cleanly.
+		// Description carries the "## Work step" routing call so main's download
+		// D-09 guard accepts the capability package (downloadability verified
+		// end-to-end in internal/skill/handler seed→download test).
+		if !strings.Contains(s.Description, "## Work step") || !strings.Contains(strings.ToLower(s.Description), "deeprouter") {
+			t.Fatalf("%s: description missing DeepRouter work step", s.Slug)
+		}
+
+		// Active version exists, is active, sha matches the stored template, and
+		// the execution-critical snapshot fields are populated (DR-47).
 		var v skillmodel.SkillVersion
 		if err := db.Where("id = ?", *s.ActiveVersionID).First(&v).Error; err != nil {
 			t.Fatalf("%s: load active version: %v", s.Slug, err)
@@ -96,11 +104,23 @@ func TestSeedDemoSkills_CreatesFourPublishedPackagedSkills(t *testing.T) {
 		if v.Status != enums.SkillVersionStatusActive {
 			t.Fatalf("%s: active version status is %q", s.Slug, v.Status)
 		}
-		if v.InstructionTemplateSHA256 != skillmodel.ComputeTemplateSHA256(v.InstructionTemplate) {
+		if v.InstructionTemplateSHA256 != computeTemplateSHA256(v.InstructionTemplate) {
 			t.Fatalf("%s: sha mismatch", s.Slug)
 		}
-		if _, err := packaging.BuildPackage(s, v); err != nil {
-			t.Fatalf("%s: BuildPackage failed (guard or build): %v", s.Slug, err)
+		if v.RequiredPlanSnapshot != s.RequiredPlan {
+			t.Fatalf("%s: required_plan_snapshot %q != skill plan %q", s.Slug, v.RequiredPlanSnapshot, s.RequiredPlan)
+		}
+		if !sameStringList(v.ModelWhitelistSnapshot, wl) {
+			t.Fatalf("%s: model_whitelist_snapshot does not match skill whitelist", s.Slug)
+		}
+		if v.MaxInputTokensSnapshot == nil || *v.MaxInputTokensSnapshot <= 0 {
+			t.Fatalf("%s: missing max_input_tokens_snapshot", s.Slug)
+		}
+		if v.OutputSchema == nil || !strings.Contains(string(*v.OutputSchema), "properties") {
+			t.Fatalf("%s: output_schema not populated", s.Slug)
+		}
+		if !strings.Contains(string(v.MonetizationSnapshot), "monetization_type") {
+			t.Fatalf("%s: monetization_snapshot missing fields", s.Slug)
 		}
 	}
 	for slug, seen := range wantSlugs {
@@ -135,6 +155,31 @@ func TestSeedDemoSkills_Idempotent(t *testing.T) {
 	}
 	if versionCount != 4 {
 		t.Fatalf("expected 4 versions after re-seed (no churn), got %d", versionCount)
+	}
+}
+
+func TestMonetizationSnapshot_QuotaBranches(t *testing.T) {
+	quota := 50
+	withQuota, err := monetizationSnapshot(skillmodel.Skill{
+		MonetizationType:  enums.MonetizationTypeTokenMarkup,
+		PriceMarkup:       1.25,
+		FreeQuotaPerMonth: &quota,
+	})
+	if err != nil {
+		t.Fatalf("monetizationSnapshot: %v", err)
+	}
+	for _, want := range []string{"token_markup", "1.25", "free_quota_per_month", "50"} {
+		if !strings.Contains(string(withQuota), want) {
+			t.Fatalf("snapshot %q missing %q", string(withQuota), want)
+		}
+	}
+
+	noQuota, err := monetizationSnapshot(skillmodel.Skill{MonetizationType: enums.MonetizationTypeFree})
+	if err != nil {
+		t.Fatalf("monetizationSnapshot: %v", err)
+	}
+	if strings.Contains(string(noQuota), "free_quota_per_month") {
+		t.Fatalf("nil quota must be omitted, got %s", string(noQuota))
 	}
 }
 

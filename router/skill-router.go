@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/QuantumNous/new-api/common"
 	skillhandler "github.com/QuantumNous/new-api/internal/skill/handler"
+	skillrelay "github.com/QuantumNous/new-api/internal/skill/relay"
 	"github.com/QuantumNous/new-api/middleware"
 	platformmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-contrib/gzip"
@@ -12,6 +13,7 @@ import (
 func SetSkillRouter(router *gin.Engine) {
 	if platformmodel.DB != nil {
 		skillhandler.SetDB(platformmodel.DB)
+		skillrelay.SetDB(platformmodel.DB)
 	}
 
 	v1 := router.Group("/api/v1")
@@ -29,16 +31,13 @@ func SetSkillRouter(router *gin.Engine) {
 			marketplaceRoute.GET("/skills/:id", skillhandler.GetMarketplaceSkill)
 		}
 
-		// Download requires an authenticated, entitled user (DR-81): a separate
-		// /marketplace group with required auth (SkillUserAuth) so an anonymous
-		// caller is rejected with AUTH_REQUIRED instead of TryUserAuth's pass-through.
-		marketplaceAuthRoute := v1.Group("/marketplace")
-		marketplaceAuthRoute.Use(middleware.SkillUserAuth())
+		downloadRoute := v1.Group("/marketplace")
+		downloadRoute.Use(middleware.SkillUserAuth())
 		if common.GlobalApiRateLimitEnable {
-			marketplaceAuthRoute.Use(middleware.SkillUserRateLimit(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "SKD"))
+			downloadRoute.Use(middleware.SkillRateLimit(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "SKD"))
 		}
 		{
-			marketplaceAuthRoute.GET("/skills/:id/download", skillhandler.DownloadSkillPackage)
+			downloadRoute.GET("/skills/:id/download", skillhandler.DownloadSkillPackage)
 		}
 
 		adminRoute := v1.Group("/admin")

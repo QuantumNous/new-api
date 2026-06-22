@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
-import { Check, Copy, ExternalLink, X } from 'lucide-react'
+import { Check, Copy, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -30,24 +30,6 @@ function defaultBaseUrl(): string {
   const { protocol, host } = window.location
   return `${protocol}//${host}/v1`
 }
-
-const CLIENTS: Array<{ name: string; tagline: string; href: string }> = [
-  {
-    name: 'Cherry Studio',
-    tagline: 'Chat / writing — Mac / Win / Linux',
-    href: 'https://cherry-ai.com',
-  },
-  {
-    name: 'Chatbox',
-    tagline: 'Lightweight desktop chat client',
-    href: 'https://chatboxai.app',
-  },
-  {
-    name: 'Claude Code',
-    tagline: 'Terminal AI coding agent',
-    href: 'https://docs.claude.com/en/docs/claude-code',
-  },
-]
 
 /**
  * Persistent tutorial card for casual users on /keys. Existing UX only
@@ -165,25 +147,6 @@ export function ApiKeysTutorialCard() {
                 'Find the "API key" and "Base URL" (sometimes called "Endpoint") fields in your client\'s settings, paste both, and save.'
               )}
             </p>
-            <div className='mt-2 grid gap-2 sm:grid-cols-3'>
-              {CLIENTS.map((c) => (
-                <a
-                  key={c.name}
-                  href={c.href}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='group bg-background hover:border-foreground/40 flex flex-col rounded-md border p-2 transition-colors'
-                >
-                  <span className='flex items-center justify-between text-[11px] font-medium'>
-                    {c.name}
-                    <ExternalLink className='text-muted-foreground group-hover:text-foreground h-3 w-3' />
-                  </span>
-                  <span className='text-muted-foreground text-[10px]'>
-                    {c.tagline}
-                  </span>
-                </a>
-              ))}
-            </div>
           </div>
         </li>
       </ol>

@@ -15,7 +15,7 @@ are derived verbatim from the CHECK constraints in
 | `ReviewStatus` | open, assigned, escalated, resolved, reopened | skill_reviews.status |
 | `KidsApprovalStatus` | not_required, pending, approved, emergency_approved, rejected, revoked | skills.kids_approval_status |
 | `BlockReason` | see below | skill_usage_events.block_reason |
-| `EntryPoint` | marketplace_card, skill_detail, my_skills, playground_picker, featured, popular, new, recommended, admin_preview | skill_usage_events.entry_point |
+| `EntryPoint` | marketplace_card, skill_detail, my_skills, saved_list, featured, popular, new, recommended, admin_preview, search_results, skill_package, playground_picker (legacy only) | skill_usage_events.entry_point |
 
 ## BlockReason naming
 
@@ -43,6 +43,12 @@ if !br.Valid() {
 
 For the mapping between `BlockReason` and the API `ErrorCode`, see
 `internal/skill/errcodes`.
+
+## EntryPoint lifecycle
+
+`skill_package` is the primary R2 execution entry point for downloaded Skill
+packages calling the public routing API. `playground_picker` remains valid for
+historical analytics rows only; new execution producers must not emit it.
 
 ## Relationship to errcodes
 

@@ -5,13 +5,33 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestBuildTestRequestForElevenLabsIsAudioSpeech(t *testing.T) {
+	elevenLabs := &model.Channel{Type: constant.ChannelTypeElevenLabs}
+	require.True(t, isAudioSpeechOnlyChannel(elevenLabs))
+
+	// TTS-only channels must be probed via an AudioRequest, not chat completions.
+	req := buildTestRequest("eleven_multilingual_v2", "", elevenLabs, false)
+	audioReq, ok := req.(*dto.AudioRequest)
+	require.True(t, ok, "expected *dto.AudioRequest, got %T", req)
+	require.Equal(t, "eleven_multilingual_v2", audioReq.Model)
+	require.NotEmpty(t, audioReq.Input)
+
+	// A normal chat channel must still get a chat-completions request.
+	openAI := &model.Channel{Type: constant.ChannelTypeOpenAI}
+	require.False(t, isAudioSpeechOnlyChannel(openAI))
+	_, ok = buildTestRequest("gpt-4o-mini", "", openAI, false).(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+}
 
 func TestSettleTestQuotaUsesTieredBilling(t *testing.T) {
 	info := &relaycommon.RelayInfo{

@@ -15,7 +15,10 @@
     "copyright:check": "node scripts/add-copyright.mjs --check",
     "copyright": "node scripts/add-copyright.mjs",
     "i18n:sync": "node scripts/sync-i18n.mjs",
-    "knip": "knip"
+    "knip": "knip",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -77,25 +80,32 @@
     "@eslint/js": "^10.0.1",
     "@rsbuild/core": "^2.0.1",
     "@rsbuild/plugin-react": "^2.0.0",
+    "@tailwindcss/typography": "^0.5.20",
     "@tanstack/eslint-plugin-query": "^5.95.2",
     "@tanstack/react-query-devtools": "^5.95.2",
     "@tanstack/react-router-devtools": "^1.166.13",
     "@tanstack/router-plugin": "^1.167.23",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.1.9",
     "@xyflow/react": "^12.10.2",
     "embla-carousel-react": "^8.6.0",
     "eslint": "^10.1.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
+    "jsdom": "^29.1.1",
     "knip": "^6.0.6",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "shadcn": "^3.7.0",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.57.2"
+    "typescript-eslint": "^8.57.2",
+    "vitest": "^4.1.9"
   }
 }

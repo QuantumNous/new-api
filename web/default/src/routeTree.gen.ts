@@ -16,9 +16,11 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
+import { Route as ResourcesIndexRouteImport } from './routes/resources/index'
 import { Route as RankingsIndexRouteImport } from './routes/rankings/index'
 import { Route as PricingIndexRouteImport } from './routes/pricing/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
+import { Route as ResourcesSlugRouteImport } from './routes/resources/$slug'
 import { Route as OnboardingSlugRouteImport } from './routes/onboarding/$slug'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
 import { Route as ConsoleTopupRouteImport } from './routes/console/topup'
@@ -43,6 +45,7 @@ import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedSystemSettingsIndexRouteImport } from './routes/_authenticated/system-settings/index'
 import { Route as AuthenticatedSubscriptionsIndexRouteImport } from './routes/_authenticated/subscriptions/index'
 import { Route as AuthenticatedSkillsIndexRouteImport } from './routes/_authenticated/skills/index'
+import { Route as AuthenticatedSkillAnalyticsIndexRouteImport } from './routes/_authenticated/skill-analytics/index'
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
@@ -108,6 +111,11 @@ const SetupIndexRoute = SetupIndexRouteImport.update({
   path: '/setup/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResourcesIndexRoute = ResourcesIndexRouteImport.update({
+  id: '/resources/',
+  path: '/resources/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RankingsIndexRoute = RankingsIndexRouteImport.update({
   id: '/rankings/',
   path: '/rankings/',
@@ -121,6 +129,11 @@ const PricingIndexRoute = PricingIndexRouteImport.update({
 const AboutIndexRoute = AboutIndexRouteImport.update({
   id: '/about/',
   path: '/about/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResourcesSlugRoute = ResourcesSlugRouteImport.update({
+  id: '/resources/$slug',
+  path: '/resources/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingSlugRoute = OnboardingSlugRouteImport.update({
@@ -247,6 +260,12 @@ const AuthenticatedSkillsIndexRoute =
   AuthenticatedSkillsIndexRouteImport.update({
     id: '/skills/',
     path: '/skills/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSkillAnalyticsIndexRoute =
+  AuthenticatedSkillAnalyticsIndexRouteImport.update({
+    id: '/skill-analytics/',
+    path: '/skill-analytics/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedRedemptionCodesIndexRoute =
@@ -453,9 +472,11 @@ export interface FileRoutesByFullPath {
   '/console/topup': typeof ConsoleTopupRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/onboarding/$slug': typeof OnboardingSlugRoute
+  '/resources/$slug': typeof ResourcesSlugRoute
   '/about/': typeof AboutIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/rankings/': typeof RankingsIndexRoute
+  '/resources/': typeof ResourcesIndexRoute
   '/setup/': typeof SetupIndexRoute
   '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
@@ -473,6 +494,7 @@ export interface FileRoutesByFullPath {
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/skill-analytics/': typeof AuthenticatedSkillAnalyticsIndexRoute
   '/skills/': typeof AuthenticatedSkillsIndexRoute
   '/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
@@ -517,9 +539,11 @@ export interface FileRoutesByTo {
   '/console/topup': typeof ConsoleTopupRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/onboarding/$slug': typeof OnboardingSlugRoute
+  '/resources/$slug': typeof ResourcesSlugRoute
   '/about': typeof AboutIndexRoute
   '/pricing': typeof PricingIndexRoute
   '/rankings': typeof RankingsIndexRoute
+  '/resources': typeof ResourcesIndexRoute
   '/setup': typeof SetupIndexRoute
   '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
@@ -537,6 +561,7 @@ export interface FileRoutesByTo {
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/skill-analytics': typeof AuthenticatedSkillAnalyticsIndexRoute
   '/skills': typeof AuthenticatedSkillsIndexRoute
   '/subscriptions': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
@@ -585,9 +610,11 @@ export interface FileRoutesById {
   '/console/topup': typeof ConsoleTopupRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/onboarding/$slug': typeof OnboardingSlugRoute
+  '/resources/$slug': typeof ResourcesSlugRoute
   '/about/': typeof AboutIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/rankings/': typeof RankingsIndexRoute
+  '/resources/': typeof ResourcesIndexRoute
   '/setup/': typeof SetupIndexRoute
   '/(auth)/user/reset': typeof authUserResetRoute
   '/_authenticated/chat/$chatId': typeof AuthenticatedChatChatIdRoute
@@ -605,6 +632,7 @@ export interface FileRoutesById {
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/_authenticated/skill-analytics/': typeof AuthenticatedSkillAnalyticsIndexRoute
   '/_authenticated/skills/': typeof AuthenticatedSkillsIndexRoute
   '/_authenticated/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/_authenticated/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
@@ -652,9 +680,11 @@ export interface FileRouteTypes {
     | '/console/topup'
     | '/oauth/$provider'
     | '/onboarding/$slug'
+    | '/resources/$slug'
     | '/about/'
     | '/pricing/'
     | '/rankings/'
+    | '/resources/'
     | '/setup/'
     | '/user/reset'
     | '/chat/$chatId'
@@ -672,6 +702,7 @@ export interface FileRouteTypes {
     | '/playground/'
     | '/profile/'
     | '/redemption-codes/'
+    | '/skill-analytics/'
     | '/skills/'
     | '/subscriptions/'
     | '/system-settings/'
@@ -716,9 +747,11 @@ export interface FileRouteTypes {
     | '/console/topup'
     | '/oauth/$provider'
     | '/onboarding/$slug'
+    | '/resources/$slug'
     | '/about'
     | '/pricing'
     | '/rankings'
+    | '/resources'
     | '/setup'
     | '/user/reset'
     | '/chat/$chatId'
@@ -736,6 +769,7 @@ export interface FileRouteTypes {
     | '/playground'
     | '/profile'
     | '/redemption-codes'
+    | '/skill-analytics'
     | '/skills'
     | '/subscriptions'
     | '/system-settings'
@@ -783,9 +817,11 @@ export interface FileRouteTypes {
     | '/console/topup'
     | '/oauth/$provider'
     | '/onboarding/$slug'
+    | '/resources/$slug'
     | '/about/'
     | '/pricing/'
     | '/rankings/'
+    | '/resources/'
     | '/setup/'
     | '/(auth)/user/reset'
     | '/_authenticated/chat/$chatId'
@@ -803,6 +839,7 @@ export interface FileRouteTypes {
     | '/_authenticated/playground/'
     | '/_authenticated/profile/'
     | '/_authenticated/redemption-codes/'
+    | '/_authenticated/skill-analytics/'
     | '/_authenticated/skills/'
     | '/_authenticated/subscriptions/'
     | '/_authenticated/system-settings/'
@@ -843,9 +880,11 @@ export interface RootRouteChildren {
   ConsoleTopupRoute: typeof ConsoleTopupRoute
   OauthProviderRoute: typeof OauthProviderRoute
   OnboardingSlugRoute: typeof OnboardingSlugRoute
+  ResourcesSlugRoute: typeof ResourcesSlugRoute
   AboutIndexRoute: typeof AboutIndexRoute
   PricingIndexRoute: typeof PricingIndexRoute
   RankingsIndexRoute: typeof RankingsIndexRoute
+  ResourcesIndexRoute: typeof ResourcesIndexRoute
   SetupIndexRoute: typeof SetupIndexRoute
   PricingModelIdIndexRoute: typeof PricingModelIdIndexRoute
 }
@@ -901,6 +940,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/resources/': {
+      id: '/resources/'
+      path: '/resources'
+      fullPath: '/resources/'
+      preLoaderRoute: typeof ResourcesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rankings/': {
       id: '/rankings/'
       path: '/rankings'
@@ -920,6 +966,13 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about/'
       preLoaderRoute: typeof AboutIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/resources/$slug': {
+      id: '/resources/$slug'
+      path: '/resources/$slug'
+      fullPath: '/resources/$slug'
+      preLoaderRoute: typeof ResourcesSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboarding/$slug': {
@@ -1088,6 +1141,13 @@ declare module '@tanstack/react-router' {
       path: '/skills'
       fullPath: '/skills/'
       preLoaderRoute: typeof AuthenticatedSkillsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/skill-analytics/': {
+      id: '/_authenticated/skill-analytics/'
+      path: '/skill-analytics'
+      fullPath: '/skill-analytics/'
+      preLoaderRoute: typeof AuthenticatedSkillAnalyticsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/redemption-codes/': {
@@ -1409,6 +1469,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPlaygroundIndexRoute: typeof AuthenticatedPlaygroundIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
   AuthenticatedRedemptionCodesIndexRoute: typeof AuthenticatedRedemptionCodesIndexRoute
+  AuthenticatedSkillAnalyticsIndexRoute: typeof AuthenticatedSkillAnalyticsIndexRoute
   AuthenticatedSkillsIndexRoute: typeof AuthenticatedSkillsIndexRoute
   AuthenticatedSubscriptionsIndexRoute: typeof AuthenticatedSubscriptionsIndexRoute
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
@@ -1437,6 +1498,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
   AuthenticatedRedemptionCodesIndexRoute:
     AuthenticatedRedemptionCodesIndexRoute,
+  AuthenticatedSkillAnalyticsIndexRoute: AuthenticatedSkillAnalyticsIndexRoute,
   AuthenticatedSkillsIndexRoute: AuthenticatedSkillsIndexRoute,
   AuthenticatedSubscriptionsIndexRoute: AuthenticatedSubscriptionsIndexRoute,
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
@@ -1464,9 +1526,11 @@ const rootRouteChildren: RootRouteChildren = {
   ConsoleTopupRoute: ConsoleTopupRoute,
   OauthProviderRoute: OauthProviderRoute,
   OnboardingSlugRoute: OnboardingSlugRoute,
+  ResourcesSlugRoute: ResourcesSlugRoute,
   AboutIndexRoute: AboutIndexRoute,
   PricingIndexRoute: PricingIndexRoute,
   RankingsIndexRoute: RankingsIndexRoute,
+  ResourcesIndexRoute: ResourcesIndexRoute,
   SetupIndexRoute: SetupIndexRoute,
   PricingModelIdIndexRoute: PricingModelIdIndexRoute,
 }

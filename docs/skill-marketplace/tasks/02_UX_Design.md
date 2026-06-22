@@ -573,7 +573,8 @@ Quota-exceeded copy may add a reset date/time and a Pro upgrade CTA only when th
 | Marketplace CTA | `skill_detail_view` or `skill_enabled` with source |
 | Skill Detail CTA | Existing events only: `skill_enabled`, `skill_blocked`; upgrade clicks use billing/growth event only if already defined |
 | My Skills Use | `skill_used` with `entry_point=my_skills` after execution |
-| Playground Picker | Do not introduce `skill_selected` in P0; include `entry_point=playground_picker` in execution/block events |
+| Skill Package execution | `skill_used` / `skill_blocked` with `entry_point=skill_package` |
+| Playground Picker | Legacy/historical analytics value only; new flows do not emit `entry_point=playground_picker` |
 | Locked CTA | `skill_blocked` and upgrade/contact-sales click |
 | Admin Publish | `skill_admin_action` |
 | Review Action | P1; requires Analytics event approval |

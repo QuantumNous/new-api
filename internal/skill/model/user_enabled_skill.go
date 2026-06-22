@@ -9,6 +9,14 @@ import (
 // UserEnabledSkill tracks per-(user, tenant, skill) enablement state.
 // Re-enable updates the same row via atomic UPSERT; do not read-then-insert.
 //
+// DR-55 contract: a row here is a download/enablement state record, NOT a
+// standalone execution grant. It is a necessary-but-not-sufficient runtime
+// eligibility input: Relay may read enabled/lifecycle state, but execution is
+// authorized per call only after runner key + current subscription/entitlement
+// + quota + Kids + lifecycle checks (use-time enforcement owned by
+// DR-64/DR-68/M05). This table holds no execution grant / runner token /
+// entitlement override / credential, by design.
+//
 // user_id and tenant_id store the platform's int64 user IDs, not UUIDs (D1).
 // For V1, tenant_id == user_id (no separate tenant entity in the platform).
 // skill_id is CHAR(36) matching skills.id (DR-40 D1: CHAR(36) all DBs).

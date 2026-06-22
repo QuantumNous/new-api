@@ -24,7 +24,6 @@ import {
   Code,
   Copy,
   MessageCircle,
-  PlayCircle,
   Sparkles,
   Terminal,
   type LucideIcon,
@@ -124,12 +123,6 @@ export function OnboardingTutorial() {
           <p className='text-muted-foreground mt-1 text-sm'>
             {t(tutorial.descriptionKey)}
           </p>
-          <div className='mt-3 flex flex-wrap gap-2'>
-            <Button size='sm' render={<Link to='/playground' />}>
-              <PlayCircle className='mr-1.5 h-4 w-4' />
-              {t('Try in Playground')}
-            </Button>
-          </div>
         </div>
       </div>
 

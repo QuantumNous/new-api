@@ -74,13 +74,27 @@ jobs:
           docker push "$REGISTRY/$ECR_REPOSITORY:latest"
 
       - name: Roll the stack via SSM
+        # Roll ONLY the new-api service to the image this workflow just pushed.
+        # The previous box-side ci-deploy.sh ran `docker compose pull` for the
+        # WHOLE stack and bailed (skip-roll, exit 0) whenever any other image
+        # (e.g. smart-router, owned by a different repo/CI) wasn't pullable from
+        # ECR — so a green deploy could leave the box on the old image. This
+        # repo only ships new-api, so pull+recreate just that service, pinned to
+        # the :latest tag pushed above, regardless of the box .env's pin.
         run: |
           set -euo pipefail
+          # The box .env is missing SMART_ROUTER_IMAGE, and the compose file
+          # declares smart-router.image: ${SMART_ROUTER_IMAGE:?...}, so ANY
+          # `docker compose` call fails at interpolation before doing anything.
+          # We only roll new-api, so supply BOTH image vars inline (a valid
+          # smart-router ref is enough — it is never pulled/recreated here) and
+          # pass --no-deps so only new-api is touched.
+          ROLL='set -e; cd /opt/deeprouter; REG=180294203030.dkr.ecr.ap-southeast-2.amazonaws.com; aws ecr get-login-password --region ap-southeast-2 | docker login --username AWS --password-stdin $REG; export DEEPROUTER_IMAGE=$REG/deeprouter:latest; export SMART_ROUTER_IMAGE=$REG/smart-router:latest; docker compose -f docker-compose.prod.yml pull new-api; docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate new-api; docker image prune -af || true'
           CMD_ID=$(aws ssm send-command \
             --targets "Key=tag:Name,Values=$INSTANCE_TAG" \
             --document-name "AWS-RunShellScript" \
             --comment "deploy deeprouter ${GITHUB_SHA::7}" \
-            --parameters 'commands=["bash /opt/deeprouter/ci-deploy.sh"]' \
+            --parameters "commands=[$(printf '%s' "$ROLL" | jq -Rs .)]" \
             --query "Command.CommandId" --output text)
           echo "SSM command: $CMD_ID"
           STATUS=Pending; INSTID=

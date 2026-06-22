@@ -10,8 +10,9 @@
 //
 // Spec: DeepRouter PRD §7.3 (webhook protocol).
 // DR-25: schema extended with started_at / finished_at / policy_violations /
-//         routed_from. DRS-8 will own future schema evolution; fields added
-//         here are the DR-25 minimum required set.
+//
+//	routed_from. DRS-8 will own future schema evolution; fields added
+//	here are the DR-25 minimum required set.
 //
 // Wire format guarantees:
 //   - POST to tenant.BillingWebhookURL
@@ -187,7 +188,7 @@ func NewDispatcher() *Dispatcher {
 //   - attempt 1 : sleep 200 ms
 //   - attempt 2 : sleep 400 ms
 //   - attempt 3 : sleep 800 ms
-//   Total wall time for full failure: ≈ 1.4 s + 4 × network RTT
+//     Total wall time for full failure: ≈ 1.4 s + 4 × network RTT
 func (d *Dispatcher) Send(url string, secret []byte, ev *Event) (int, error) {
 	if url == "" {
 		// No webhook configured for this tenant: a deliberate no-op, not an

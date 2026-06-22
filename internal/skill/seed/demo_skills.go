@@ -7,6 +7,8 @@
 package seed
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -16,6 +18,19 @@ import (
 	"github.com/QuantumNous/new-api/internal/skill/tiers"
 	"gorm.io/gorm"
 )
+
+// workStepSection is appended to each seeded Skill's Description so the SKILL.md
+// rendered by the download packager (internal/skill/handler buildSkillMD, which
+// reads only Description) contains a "## Work step" with a DeepRouter routing
+// call. This satisfies main's D-09 runtime-dependency guard
+// (validateSkillPackageRuntimeDependency) so capability Skills are downloadable,
+// and it is literally true: the work step routes through DeepRouter.
+const workStepSection = "\n\n## Work step\n\n" +
+	"DeepRouter performs the work step: the downloaded client calls the DeepRouter " +
+	"public routing API (POST /v1/chat/completions) using the runner's own key. " +
+	"DeepRouter selects the best model for the declared tier from the input and " +
+	"returns the result, billed to the runner. Delete this call and the Skill loses " +
+	"its routing power.\n"
 
 // Outcome reports what SeedDemoSkills did for one Skill.
 type Outcome struct {
@@ -52,7 +67,7 @@ func SeedDemoSkills(db *gorm.DB, createdBy int64) (*Result, error) {
 
 func seedOne(db *gorm.DB, d DemoSkillDef, createdBy int64) (Outcome, error) {
 	outcome := Outcome{Slug: d.Slug}
-	sha := skillmodel.ComputeTemplateSHA256(d.InstructionTemplate)
+	sha := computeTemplateSHA256(d.InstructionTemplate)
 
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// Limit(1).Find (not First) so an absent slug is not logged as an
@@ -232,7 +247,7 @@ func applyMetadata(skill *skillmodel.Skill, d DemoSkillDef, actor int64) error {
 	skill.Category = d.Category
 	skill.Name = d.Name
 	skill.ShortDescription = d.ShortDescription
-	skill.Description = d.Description
+	skill.Description = d.Description + workStepSection
 	skill.Tags = tagsJSON
 	skill.InputHints = inputJSON
 	skill.ExampleInputs = exInJSON
@@ -254,6 +269,10 @@ func buildVersion(skill skillmodel.Skill, d DemoSkillDef, sha string, createdBy 
 	if err != nil {
 		return skillmodel.SkillVersion{}, err
 	}
+	monJSON, err := monetizationSnapshot(skill)
+	if err != nil {
+		return skillmodel.SkillVersion{}, err
+	}
 	maxTok := d.MaxInputTokens
 	return skillmodel.SkillVersion{
 		SkillID:                   skill.ID,
@@ -261,14 +280,38 @@ func buildVersion(skill skillmodel.Skill, d DemoSkillDef, sha string, createdBy 
 		Status:                    enums.SkillVersionStatusDraft,
 		InstructionTemplate:       d.InstructionTemplate,
 		InstructionTemplateSHA256: sha,
-		OutputSchema:              outputJSON,
-		ModelWhitelistSnapshot:    wlJSON,
-		RequiredPlanSnapshot:      string(skill.RequiredPlan),
-		MonetizationSnapshot:      skillmodel.MonetizationSnapshotJSON(string(skill.MonetizationType), skill.PriceMarkup, skill.FreeQuotaPerMonth),
-		MaxInputTokensSnapshot:    &maxTok,
-		RolloutPercentage:         100,
-		CreatedBy:                 createdBy,
+		// main's SkillVersion.OutputSchema is *SkillJSONB (nil = no schema); our
+		// demo skills all declare one, so take the address of the encoded object.
+		OutputSchema:           &outputJSON,
+		ModelWhitelistSnapshot: wlJSON,
+		RequiredPlanSnapshot:   skill.RequiredPlan,
+		MonetizationSnapshot:   monJSON,
+		MaxInputTokensSnapshot: &maxTok,
+		RolloutPercentage:      100,
+		CreatedBy:              createdBy,
 	}, nil
+}
+
+// monetizationSnapshot builds the version's monetization snapshot object
+// (main's SkillVersion has no MonetizationSnapshotJSON helper; build it here).
+// free_quota_per_month is included only when set.
+func monetizationSnapshot(skill skillmodel.Skill) (skillmodel.SkillJSONB, error) {
+	payload := map[string]any{
+		"monetization_type": string(skill.MonetizationType),
+		"price_markup":      skill.PriceMarkup,
+	}
+	if skill.FreeQuotaPerMonth != nil {
+		payload["free_quota_per_month"] = *skill.FreeQuotaPerMonth
+	}
+	return toJSONB(payload)
+}
+
+// computeTemplateSHA256 returns the lowercase hex SHA-256 of the instruction
+// template. main's SkillVersion.BeforeCreate does NOT compute this, so the seeder
+// sets it explicitly (integrity check, R2/D-09).
+func computeTemplateSHA256(template string) string {
+	sum := sha256.Sum256([]byte(template))
+	return hex.EncodeToString(sum[:])
 }
 
 func toJSONB(v any) (skillmodel.SkillJSONB, error) {

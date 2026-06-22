@@ -321,16 +321,6 @@ export function UserAuthForm({
           )}
         />
 
-        {/* Submit Button */}
-        <Button
-          type='submit'
-          className='mt-2 w-full justify-center gap-2'
-          disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
-        >
-          {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
-          {t('Sign in')}
-        </Button>
-
         {/* Turnstile */}
         {isTurnstileEnabled && (
           <div className='mt-2'>
@@ -341,12 +331,24 @@ export function UserAuthForm({
           </div>
         )}
 
+        {/* Legal consent — must sit ABOVE the submit button so the user can
+            see what gates the (disabled-until-checked) Sign in button. */}
         <LegalConsent
           status={status}
           checked={agreedToLegal}
           onCheckedChange={setAgreedToLegal}
           className='mt-1'
         />
+
+        {/* Submit Button */}
+        <Button
+          type='submit'
+          className='mt-2 w-full justify-center gap-2'
+          disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
+        >
+          {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
+          {t('Sign in')}
+        </Button>
 
         {passkeyLoginEnabled && (
           <div className='mt-2 space-y-1'>
