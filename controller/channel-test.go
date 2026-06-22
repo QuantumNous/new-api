@@ -660,6 +660,30 @@ func validateTestResponseBody(respBody []byte, isStream bool) error {
 	if isStream {
 		return validateStreamTestResponseBody(respBody)
 	}
+	// For non-stream responses, verify that choices is present and non-empty.
+	// Some providers (e.g. MiniMax) return HTTP 200 with valid JSON but
+	// "choices": null when the request fails at the business layer.
+	if err := validateNonStreamTestResponseBody(respBody); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateNonStreamTestResponseBody(respBody []byte) error {
+	b := bytes.TrimSpace(respBody)
+	if len(b) == 0 {
+		return errors.New("response body is empty")
+	}
+	if b[0] != '{' {
+		return nil
+	}
+	choicesVal := gjson.GetBytes(b, "choices")
+	if !choicesVal.Exists() || choicesVal.Type == gjson.Null {
+		return errors.New("response choices is missing or null, upstream may have returned a business error")
+	}
+	if choicesVal.IsArray() && len(choicesVal.Array()) == 0 {
+		return errors.New("response choices array is empty")
+	}
 	return nil
 }
 
@@ -676,6 +700,21 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	}
 	errVal := gjson.GetBytes(jsonBytes, "error")
 	if !errVal.Exists() || errVal.Type == gjson.Null {
+		// Check for MiniMax-style base_resp error (status_code != 0 indicates error)
+		baseResp := gjson.GetBytes(jsonBytes, "base_resp")
+		if baseResp.Exists() && baseResp.Type == gjson.Null {
+			return ""
+		}
+		if baseResp.Exists() {
+			statusCode := gjson.Get(baseResp.Raw, "status_code")
+			if statusCode.Exists() && statusCode.Int() != 0 {
+				statusMsg := gjson.Get(baseResp.Raw, "status_msg")
+				if statusMsg.Exists() && statusMsg.String() != "" {
+					return fmt.Sprintf("minimax error %d: %s", statusCode.Int(), statusMsg.String())
+				}
+				return fmt.Sprintf("minimax error %d", statusCode.Int())
+			}
+		}
 		return ""
 	}
 
