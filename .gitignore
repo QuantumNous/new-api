@@ -42,3 +42,6 @@ MEMORY.md
 docs/
 .air.toml
 tmp/
+
+# air 热重载构建日志
+build-errors.log
