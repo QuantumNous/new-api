@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
+import { MessageSquare } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -57,6 +59,7 @@ import {
   playgroundSaveButtonClassName,
   playgroundSaveSubmitButtonClassName,
   playgroundShellClassName,
+  playgroundEmptyStateClassName,
   playgroundUserMessageClassName,
 } from '../lib/playground-ui-styles'
 import { parseThinkTags } from '../lib/message-utils'
@@ -89,6 +92,7 @@ export function PlaygroundChat({
   onCancelEdit,
   onSaveEditAndSubmit,
 }: PlaygroundChatProps) {
+  const { t } = useTranslation()
   const [editText, setEditText] = useState('')
   const [originalText, setOriginalText] = useState('')
 
@@ -109,10 +113,30 @@ export function PlaygroundChat({
     [editText, originalText]
   )
   return (
-    <Conversation className={playgroundShellClassName}>
+    <Conversation className={cn('flex min-h-0 flex-1 flex-col', playgroundShellClassName)}>
       {/* Remove outer padding; apply padding to inner centered container to align with input */}
-      <ConversationContent className='p-0'>
-        <div className='mx-auto w-full max-w-4xl px-4 py-4'>
+      <ConversationContent className='flex min-h-0 flex-1 flex-col p-0'>
+        <div
+          className={cn(
+            'mx-auto flex w-full max-w-3xl flex-1 flex-col px-3 py-3 sm:px-4 sm:py-4',
+            messages.length === 0 && 'justify-center'
+          )}
+        >
+          {messages.length === 0 ? (
+            <div className={playgroundEmptyStateClassName}>
+              <span className='flex size-11 items-center justify-center rounded-full bg-blue-50 text-blue-600'>
+                <MessageSquare className='size-5' aria-hidden='true' />
+              </span>
+              <div className='space-y-1'>
+                <p className='text-base font-semibold text-slate-900'>
+                  {t('Playground empty title')}
+                </p>
+                <p className='max-w-sm text-sm leading-relaxed text-slate-500'>
+                  {t('Playground empty description')}
+                </p>
+              </div>
+            </div>
+          ) : null}
           {messages.map((message, messageIndex) => {
             const { versions = [] } = message
             const isLastAssistantMessage =
@@ -244,8 +268,8 @@ export function PlaygroundChat({
                                   {showLoader && (
                                     <div className='flex items-center gap-2 py-2'>
                                       <Loader />
-                                      <Shimmer className='text-sm' duration={1}>
-                                        Responding...
+                                      <Shimmer className='text-sm text-slate-600' duration={1}>
+                                        {t('Playground responding')}
                                       </Shimmer>
                                     </div>
                                   )}

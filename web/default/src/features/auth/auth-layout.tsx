@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { opsAuthPageShellClassName } from '@/lib/ops-ui-styles'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -33,17 +34,11 @@ export function AuthLayout({ children, sidebar }: AuthLayoutProps) {
 
   if (sidebar) {
     return (
-      <div
-        className={cn(
-          'relative flex min-h-svh flex-col',
-          'bg-slate-950 bg-gradient-to-br from-slate-950 via-indigo-950 to-violet-950',
-          'lg:grid lg:grid-cols-2 lg:gap-0'
-        )}
-      >
+      <div className={opsAuthPageShellClassName}>
         <div className='flex flex-col justify-center px-6 py-10 sm:px-10 lg:px-14 lg:py-16'>
           {sidebar}
         </div>
-        <div className='flex flex-1 items-center justify-center px-4 py-8 lg:px-10 lg:py-16'>
+        <div className='flex flex-1 items-center justify-center border-t border-[#DBEAFE]/80 px-4 py-8 lg:border-t-0 lg:border-l lg:px-10 lg:py-16'>
           <div className='w-full max-w-md'>{children}</div>
         </div>
       </div>
@@ -51,7 +46,7 @@ export function AuthLayout({ children, sidebar }: AuthLayoutProps) {
   }
 
   return (
-    <div className='relative grid h-svh max-w-none'>
+    <div className={cn(opsAuthPageShellClassName, 'grid h-svh max-w-none lg:grid-cols-1')}>
       <Link
         to='/'
         className='absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'

@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
 import {
-  opsConsoleDashboardOverviewWrapClassName,
   opsConsoleDashboardShellClassName,
 } from '@/lib/ops-ui-styles'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -235,22 +234,19 @@ export function Dashboard() {
   return (
     <div className={opsConsoleDashboardShellClassName}>
       <SectionPageLayout>
-        <SectionPageLayout.Title>
-          <span className='text-slate-900'>{t(meta.titleKey)}</span>
-          {activeSection === 'overview' ? (
-            <span className='mt-1 block text-sm font-normal text-slate-600'>
-              {t('Dashboard overview page subtitle')}
-            </span>
-          ) : null}
-        </SectionPageLayout.Title>
       {activeSection !== 'overview' ? (
-        <SectionPageLayout.Description>
-          {t(meta.descriptionKey)}
-        </SectionPageLayout.Description>
+        <>
+          <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
+          <SectionPageLayout.Description>
+            {t(meta.descriptionKey)}
+          </SectionPageLayout.Description>
+        </>
       ) : null}
       <SectionPageLayout.Content>
-        <div className='space-y-3 sm:space-y-4'>
-          {activeSection !== 'overview' && (
+        {activeSection === 'overview' ? (
+          <OverviewDashboard />
+        ) : (
+          <div className='space-y-3 sm:space-y-4'>
             <div className='flex flex-wrap items-center justify-between gap-1.5 sm:gap-2'>
               {showSectionTabs ? (
                 <Tabs value={activeSection} onValueChange={handleSectionChange}>
@@ -278,65 +274,60 @@ export function Dashboard() {
                 </div>
               )}
             </div>
-          )}
-          {activeSection === 'overview' && (
-            <div className={opsConsoleDashboardOverviewWrapClassName}>
-              <OverviewDashboard />
-            </div>
-          )}
-          {activeSection === 'models' && (
-            <>
-              <FadeIn>
-                <Suspense fallback={<LogStatCardsFallback />}>
-                  <LazyLogStatCards
-                    filters={modelFilters}
-                    onDataUpdate={handleDataUpdate}
-                  />
-                </Suspense>
-              </FadeIn>
-              {isAdmin && (
-                <FadeIn delay={0.05}>
-                  <Suspense fallback={<PerformanceOverviewFallback />}>
-                    <LazyPerformanceOverview />
+            {activeSection === 'models' && (
+              <>
+                <FadeIn>
+                  <Suspense fallback={<LogStatCardsFallback />}>
+                    <LazyLogStatCards
+                      filters={modelFilters}
+                      onDataUpdate={handleDataUpdate}
+                    />
                   </Suspense>
                 </FadeIn>
-              )}
-              <FadeIn delay={0.1}>
+                {isAdmin && (
+                  <FadeIn delay={0.05}>
+                    <Suspense fallback={<PerformanceOverviewFallback />}>
+                      <LazyPerformanceOverview />
+                    </Suspense>
+                  </FadeIn>
+                )}
+                <FadeIn delay={0.1}>
+                  <Suspense fallback={<ModelChartsFallback />}>
+                    <LazyConsumptionDistributionChart
+                      data={modelData}
+                      loading={dataLoading}
+                      defaultChartType={
+                        chartPreferences.consumptionDistributionChart
+                      }
+                      timeGranularity={
+                        modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
+                      }
+                    />
+                  </Suspense>
+                </FadeIn>
+                <FadeIn delay={0.15}>
+                  <Suspense fallback={<ModelChartsFallback />}>
+                    <LazyModelCharts
+                      data={modelData}
+                      loading={dataLoading}
+                      defaultChartTab={chartPreferences.modelAnalyticsChart}
+                      timeGranularity={
+                        modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
+                      }
+                    />
+                  </Suspense>
+                </FadeIn>
+              </>
+            )}
+            {activeSection === 'users' && (
+              <FadeIn>
                 <Suspense fallback={<ModelChartsFallback />}>
-                  <LazyConsumptionDistributionChart
-                    data={modelData}
-                    loading={dataLoading}
-                    defaultChartType={
-                      chartPreferences.consumptionDistributionChart
-                    }
-                    timeGranularity={
-                      modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
-                    }
-                  />
+                  <LazyUserCharts />
                 </Suspense>
               </FadeIn>
-              <FadeIn delay={0.15}>
-                <Suspense fallback={<ModelChartsFallback />}>
-                  <LazyModelCharts
-                    data={modelData}
-                    loading={dataLoading}
-                    defaultChartTab={chartPreferences.modelAnalyticsChart}
-                    timeGranularity={
-                      modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
-                    }
-                  />
-                </Suspense>
-              </FadeIn>
-            </>
-          )}
-          {activeSection === 'users' && (
-            <FadeIn>
-              <Suspense fallback={<ModelChartsFallback />}>
-                <LazyUserCharts />
-              </Suspense>
-            </FadeIn>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </SectionPageLayout.Content>
       </SectionPageLayout>
     </div>

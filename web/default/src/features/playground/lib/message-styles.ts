@@ -22,27 +22,19 @@ For commercial licensing, please contact support@quantumnous.com
  */
 export function getMessageContentStyles() {
   return [
-    // Assistant content fills the row; user bubble auto-width
     'group-[.is-assistant]:w-full',
     'group-[.is-assistant]:max-w-none',
     'group-[.is-user]:w-fit',
-    // User bubble: rounded and themed background
-    'group-[.is-user]:text-foreground',
-    'group-[.is-user]:bg-secondary',
-    'dark:group-[.is-user]:bg-muted',
+    'group-[.is-user]:text-slate-900',
     'group-[.is-user]:rounded-3xl',
-    // Assistant bubble: flat serif style (one-sided style)
-    'group-[.is-assistant]:text-slate-100',
-    'dark:group-[.is-assistant]:text-slate-100',
+    'group-[.is-assistant]:text-slate-800',
     'group-[.is-assistant]:bg-transparent',
     'group-[.is-assistant]:p-0',
-    'group-[.is-assistant]:font-serif',
-    // Preferred readable widths and wrapping
-    'leading-relaxed',
+    'group-[.is-assistant]:font-sans',
+    'text-[15px] leading-relaxed',
     'break-words',
     'whitespace-pre-wrap',
-    'sm:leading-7',
-    // Cap user bubble width so it does not look like a banner
+    'sm:text-base sm:leading-7',
     'group-[.is-user]:max-w-[85%]',
     'sm:group-[.is-user]:max-w-[62ch]',
     'md:group-[.is-user]:max-w-[68ch]',

@@ -16,52 +16,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useTranslation } from 'react-i18next'
-import { CardStaggerContainer, CardStaggerItem } from '@/components/page-transition'
-import { CockpitCallTrend } from './cockpit-call-trend'
+import { Cockpit24hOverview } from './cockpit-24h-overview'
+import { CockpitChannelHealthTable } from './cockpit-channel-health-table'
+import { CockpitOperationsTrend } from './cockpit-operations-trend'
 import { CockpitTenantRanking } from './cockpit-tenant-ranking'
-import { PerformanceHealthPanel } from './performance-health-panel'
-import { UptimePanel } from './uptime-panel'
+import {
+  OVERVIEW_BOTTOM_ROW_CLASS,
+  OVERVIEW_MIDDLE_ROW_CLASS,
+} from './overview-reference-styles'
 
-interface CockpitChartsGridProps {
-  isAdmin: boolean
-}
-
-export function CockpitChartsGrid(props: CockpitChartsGridProps) {
-  const { t } = useTranslation()
-
+export function CockpitChartsGrid() {
   return (
-    <section className='flex flex-col gap-3'>
-      <div className='flex flex-col gap-1 px-0.5'>
-        <h3 className='text-sm font-semibold text-slate-900'>
-          {t('Dashboard charts section title')}
-        </h3>
-        <p className='text-xs text-slate-600'>
-          {t('Dashboard charts section description')}
-        </p>
+    <section className='flex flex-col gap-2'>
+      <div className={OVERVIEW_MIDDLE_ROW_CLASS}>
+        <CockpitOperationsTrend />
+        <CockpitChannelHealthTable />
       </div>
 
-      <CardStaggerContainer className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
-        <CardStaggerItem>
-          <CockpitCallTrend />
-        </CardStaggerItem>
-
-        {props.isAdmin ? (
-          <CardStaggerItem>
-            <PerformanceHealthPanel variant='cockpit-ranking' />
-          </CardStaggerItem>
-        ) : null}
-
-        <CardStaggerItem>
-          <UptimePanel variant='cockpit' />
-        </CardStaggerItem>
-
-        {props.isAdmin ? (
-          <CardStaggerItem>
-            <CockpitTenantRanking />
-          </CardStaggerItem>
-        ) : null}
-      </CardStaggerContainer>
+      <div className={OVERVIEW_BOTTOM_ROW_CLASS}>
+        <Cockpit24hOverview />
+        <CockpitTenantRanking />
+      </div>
     </section>
   )
 }

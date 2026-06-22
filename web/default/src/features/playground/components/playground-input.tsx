@@ -62,7 +62,6 @@ import {
   playgroundPromptOutlineButtonClassName,
   playgroundPromptSendButtonClassName,
   playgroundPromptTextareaClassName,
-  playgroundShellClassName,
 } from '../lib/playground-ui-styles'
 import type { ModelOption, GroupOption } from '../types'
 
@@ -133,7 +132,7 @@ export function PlaygroundInput({
     PLAYGROUND_ATTACHMENT_TOOLS_VISIBLE || PLAYGROUND_SEARCH_VISIBLE
 
   return (
-    <div className={cn('grid shrink-0 gap-4 px-1 md:pb-4', playgroundShellClassName)}>
+    <div className='grid shrink-0 gap-3 px-1'>
       <PromptInput
         groupClassName={playgroundPromptInputGroupClassName}
         onSubmit={handleSubmit}

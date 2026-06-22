@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { opsConsoleOutlineButtonClassName } from '@/lib/ops-ui-styles'
 import { MESSAGE_STATUS } from '../constants'
 import {
   PLAYGROUND_BILLING_MODEL_PRICING_PATH,
@@ -35,20 +36,20 @@ interface MessageErrorProps {
 }
 
 const chatErrorCardClassName =
-  'rounded-lg border px-4 py-3 text-sm shadow-inner shadow-black/20'
+  'rounded-lg border px-4 py-3 text-sm shadow-sm'
 
 const chatErrorModelPriceClassName = cn(
   chatErrorCardClassName,
-  'border-amber-300/20 bg-slate-950/80 text-slate-100'
+  'border-amber-200 bg-amber-50 text-amber-950'
 )
 
 const chatErrorGenericClassName = cn(
   chatErrorCardClassName,
-  'border-red-400/20 bg-slate-950/80 text-slate-100'
+  'border-red-200 bg-red-50 text-red-950'
 )
 
 /**
- * Chat-only error card (dark theme). Does not use the global Alert card styles.
+ * Chat-only error card (light ops theme).
  */
 export function MessageError({ message, className = '' }: MessageErrorProps) {
   const { t } = useTranslation()
@@ -71,10 +72,10 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
         className={cn(chatErrorModelPriceClassName, className)}
       >
         <div className='flex gap-2'>
-          <AlertTriangle className='mt-0.5 size-4 shrink-0 text-amber-400' />
+          <AlertTriangle className='mt-0.5 size-4 shrink-0 text-amber-600' />
           <div className='min-w-0 flex-1 space-y-2'>
-            <p className='font-medium text-amber-200/95'>{errorTitle}</p>
-            <div className='space-y-2 text-slate-300'>
+            <p className='font-medium text-amber-900'>{errorTitle}</p>
+            <div className='space-y-2 text-amber-900/85'>
               {(paragraphs.length > 0 ? paragraphs : [errorContent]).map(
                 (paragraph) => (
                   <p key={paragraph} className='leading-relaxed'>
@@ -84,7 +85,7 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
               )}
             </div>
             {requestId ? (
-              <p className='text-xs text-slate-400'>
+              <p className='text-xs text-amber-800/70'>
                 {t('Playground request id label', { id: requestId })}
               </p>
             ) : null}
@@ -92,7 +93,7 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
               <Button
                 variant='outline'
                 size='sm'
-                className='border-white/15 bg-slate-900/85 text-slate-100 hover:bg-slate-800 hover:text-slate-50'
+                className={opsConsoleOutlineButtonClassName}
                 onClick={() =>
                   window.open(PLAYGROUND_BILLING_MODEL_PRICING_PATH, '_blank')
                 }
@@ -110,10 +111,10 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
   return (
     <div role='alert' className={cn(chatErrorGenericClassName, className)}>
       <div className='flex gap-2'>
-        <AlertCircle className='mt-0.5 size-4 shrink-0 text-red-400' />
+        <AlertCircle className='mt-0.5 size-4 shrink-0 text-red-600' />
         <div className='min-w-0 flex-1 space-y-2'>
-          <p className='font-medium text-slate-100'>{errorTitle}</p>
-          <div className='space-y-2 text-slate-300'>
+          <p className='font-medium text-red-900'>{errorTitle}</p>
+          <div className='space-y-2 text-red-900/85'>
             {(paragraphs.length > 0 ? paragraphs : [errorContent]).map(
               (paragraph) => (
                 <p key={paragraph} className='leading-relaxed'>
@@ -123,7 +124,7 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
             )}
           </div>
           {requestId ? (
-            <p className='text-xs text-slate-400'>
+            <p className='text-xs text-red-800/70'>
               {t('Playground request id label', { id: requestId })}
             </p>
           ) : null}

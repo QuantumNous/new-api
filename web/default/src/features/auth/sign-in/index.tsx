@@ -19,7 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link, useSearch } from '@tanstack/react-router'
 import { Coins, Plug, ShieldCheck, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+import {
+  opsAuthBrandDescriptionClassName,
+  opsAuthBrandTitleClassName,
+  opsAuthCapabilityIconClassName,
+  opsAuthCapabilityItemClassName,
+  opsAuthCapabilityLabelClassName,
+  opsAuthCardClassName,
+} from '@/lib/ops-ui-styles'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { useStatus } from '@/hooks/use-status'
 import { Card, CardContent } from '@/components/ui/card'
@@ -52,16 +59,16 @@ export function SignIn() {
               <img
                 src={logo}
                 alt={t('Logo')}
-                className='h-11 w-11 rounded-xl object-cover ring-1 ring-white/20'
+                className='h-11 w-11 rounded-xl object-cover ring-1 ring-[#DBEAFE]'
               />
             )}
           </div>
         </div>
         <div className='space-y-3'>
-          <h1 className='text-2xl font-semibold tracking-tight text-white sm:text-3xl'>
+          <h1 className={opsAuthBrandTitleClassName}>
             {t('Yunhe Xingze Token Operations Center')}
           </h1>
-          <p className='text-sm leading-relaxed text-slate-300 sm:text-base'>
+          <p className={opsAuthBrandDescriptionClassName}>
             {t(
               'Integrated model services and AI resource operations platform for government and enterprise'
             )}
@@ -73,12 +80,12 @@ export function SignIn() {
         {CAPABILITY_ITEMS.map(({ icon: Icon, labelKey }) => (
           <li
             key={labelKey}
-            className='flex items-start gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-3 backdrop-blur-sm'
+            className={opsAuthCapabilityItemClassName}
           >
-            <span className='mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-indigo-500/20 text-indigo-200'>
+            <span className={opsAuthCapabilityIconClassName}>
               <Icon className='size-4' aria-hidden />
             </span>
-            <span className='text-sm leading-snug text-slate-100'>
+            <span className={opsAuthCapabilityLabelClassName}>
               {t(labelKey)}
             </span>
           </li>
@@ -89,12 +96,7 @@ export function SignIn() {
 
   return (
     <AuthLayout sidebar={sidebar}>
-      <Card
-        className={cn(
-          'border-white/15 bg-card/95 shadow-2xl shadow-indigo-950/40 backdrop-blur-md',
-          'ring-1 ring-white/10'
-        )}
-      >
+      <Card className={opsAuthCardClassName}>
         <CardContent className='space-y-8 p-6 sm:p-8'>
           <div className='space-y-2'>
             <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>

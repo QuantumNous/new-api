@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { opsLiveDataQueryOptions } from '@/lib/query-polling'
-import { Gauge, HeartPulse, Timer } from 'lucide-react'
+import { Gauge, HeartPulse, Timer, LineChart } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -30,6 +30,7 @@ import {
   formatUptimePct,
 } from '@/features/performance-metrics/lib/format'
 import type { PerfModelSummary } from '@/features/performance-metrics/types'
+import { OverviewEmptyState } from './overview-empty-state'
 import { COCKPIT_CARD_CLASS, COCKPIT_INSET_SURFACE_CLASS } from './cockpit-display'
 
 const PERFORMANCE_WINDOW_HOURS = 24
@@ -102,6 +103,26 @@ export function PerformanceHealthPanel(props: PerformanceHealthPanelProps) {
   const isError = metricsQuery.isError
   const hasData = models.length > 0
 
+  const successRateDisplay = isError
+    ? t('Unavailable')
+    : hasData
+      ? formatUptimePct(summary.successRate)
+      : t('Dashboard perf no data')
+
+  const latencyDisplay = isError
+    ? t('Unavailable')
+    : hasData
+      ? formatLatency(summary.avgLatencyMs)
+      : t('Dashboard perf no data')
+
+  const throughputDisplay = isError
+    ? t('Unavailable')
+    : hasData
+      ? formatThroughput(summary.avgTps)
+      : t('Dashboard perf no data')
+
+  const metricMuted = !loading && (!hasData || isError)
+
   return (
     <section
       className={cn(
@@ -147,21 +168,24 @@ export function PerformanceHealthPanel(props: PerformanceHealthPanelProps) {
             <MetricCell
               icon={HeartPulse}
               label={t('Success rate')}
-              value={formatUptimePct(summary.successRate)}
+              value={successRateDisplay}
               loading={loading}
-              valueClassName={rateTextClass(summary.successRate)}
+              valueMuted={metricMuted}
+              valueClassName={hasData ? rateTextClass(summary.successRate) : undefined}
             />
             <MetricCell
               icon={Timer}
               label={t('Average latency')}
-              value={formatLatency(summary.avgLatencyMs)}
+              value={latencyDisplay}
               loading={loading}
+              valueMuted={metricMuted}
             />
             <MetricCell
               icon={Gauge}
               label={t('Throughput')}
-              value={formatThroughput(summary.avgTps)}
+              value={throughputDisplay}
               loading={loading}
+              valueMuted={metricMuted}
             />
           </div>
         )}
@@ -233,14 +257,17 @@ export function PerformanceHealthPanel(props: PerformanceHealthPanelProps) {
             </div>
           </div>
         ) : (
-          <p
-            className={cn(
-              'text-xs',
-              isCockpit ? 'text-slate-500' : 'text-muted-foreground'
-            )}
-          >
-            {t('No data available')}
-          </p>
+          <OverviewEmptyState
+            icon={LineChart}
+            title={
+              isError
+                ? t('Dashboard perf metrics unavailable')
+                : t('Dashboard perf no data')
+            }
+            description={isError ? undefined : t('Dashboard perf no data hint')}
+            compact
+            dense
+          />
         )}
       </div>
     </section>
@@ -252,6 +279,7 @@ function MetricCell(props: {
   label: string
   value: string
   loading: boolean
+  valueMuted?: boolean
   valueClassName?: string
 }) {
   const Icon = props.icon
@@ -267,7 +295,8 @@ function MetricCell(props: {
         <div
           className={cn(
             'mt-1.5 font-mono text-sm font-semibold tabular-nums',
-            props.valueClassName
+            props.valueMuted && 'text-sm font-medium text-[#9CA3AF]',
+            !props.valueMuted && props.valueClassName
           )}
         >
           {props.value}

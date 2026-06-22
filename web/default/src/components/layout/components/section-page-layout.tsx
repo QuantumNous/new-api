@@ -23,9 +23,15 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
+import { cn } from '@/lib/utils'
 import { Main } from './main'
 import { PageFooterProvider } from './page-footer'
-import { opsConsolePageFooterClassName } from '@/lib/ops-ui-styles'
+import {
+  opsConsolePageDescriptionClassName,
+  opsConsolePageFooterClassName,
+  opsConsolePageHeaderRowClassName,
+  opsConsolePageTitleClassName,
+} from '@/lib/ops-ui-styles'
 
 type SlotProps = { children?: ReactNode }
 
@@ -64,6 +70,7 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
   )
 
   let title: ReactNode = null
+  let description: ReactNode = null
   let actions: ReactNode = null
   let content: ReactNode = null
   let breadcrumb: ReactNode = null
@@ -72,6 +79,8 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
     if (!isValidElement(node)) return
     const child = node as ReactElement<SlotProps>
     if (child.type === SectionPageLayoutTitle) title = child.props.children
+    else if (child.type === SectionPageLayoutDescription)
+      description = child.props.children
     else if (child.type === SectionPageLayoutActions)
       actions = child.props.children
     else if (child.type === SectionPageLayoutContent)
@@ -80,28 +89,46 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
       breadcrumb = child.props.children
   })
 
+  const hasPageHeader =
+    breadcrumb != null ||
+    title != null ||
+    description != null ||
+    actions != null
+
   return (
     <PageFooterProvider container={footerContainer}>
       <Main>
-        <div className='shrink-0 px-3 pt-3 pb-2.5 sm:px-4 sm:pt-5 sm:pb-3'>
-          {breadcrumb != null && (
-            <div className='mb-2 sm:mb-3'>{breadcrumb}</div>
-          )}
-          <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:gap-x-4'>
-            <div className='min-w-0'>
-              <h2 className='truncate text-base font-bold tracking-tight sm:text-lg'>
-                {title}
-              </h2>
-            </div>
-            {actions != null && (
-              <div className='flex shrink-0 flex-wrap items-center gap-2 sm:gap-x-4'>
-                {actions}
-              </div>
+        {hasPageHeader ? (
+          <div className='shrink-0 px-3 pt-3 pb-2.5 sm:px-4 sm:pt-5 sm:pb-3'>
+            {breadcrumb != null && (
+              <div className='mb-2 sm:mb-3'>{breadcrumb}</div>
             )}
+            <div className={opsConsolePageHeaderRowClassName}>
+              <div className='min-w-0 flex-1'>
+                {title != null ? (
+                  <h2 className={opsConsolePageTitleClassName}>{title}</h2>
+                ) : null}
+                {description != null ? (
+                  <p className={opsConsolePageDescriptionClassName}>
+                    {description}
+                  </p>
+                ) : null}
+              </div>
+              {actions != null && (
+                <div className='flex shrink-0 flex-wrap items-center gap-2 sm:gap-x-3'>
+                  {actions}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        ) : null}
 
-        <div className='min-h-0 flex-1 overflow-auto px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4'>
+        <div
+          className={cn(
+            'min-h-0 flex-1 overflow-auto px-3 pb-3 sm:px-4 sm:pb-4',
+            hasPageHeader ? 'pt-1 sm:pt-1.5' : 'pt-0'
+          )}
+        >
           {content}
         </div>
 

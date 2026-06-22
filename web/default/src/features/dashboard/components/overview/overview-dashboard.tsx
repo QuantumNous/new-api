@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { opsLiveDataQueryOptions } from '@/lib/query-polling'
 import { Link } from '@tanstack/react-router'
@@ -25,7 +25,6 @@ import {
   BookOpen,
   Check,
   ChevronDown,
-  ChevronUp,
   Circle,
   CreditCard,
   FileText,
@@ -58,12 +57,8 @@ import { AnnouncementsPanel } from './announcements-panel'
 import { ApiInfoPanel } from './api-info-panel'
 import { FAQPanel } from './faq-panel'
 import { CockpitChartsGrid } from './cockpit-charts-grid'
-import { CockpitHeader } from './cockpit-header'
 import { SummaryCards } from './summary-cards'
 import { COCKPIT_CARD_CLASS, COCKPIT_INSET_SURFACE_CLASS } from './cockpit-display'
-
-const SETUP_GUIDE_VISIBILITY_STORAGE_KEY =
-  'dashboard_overview_setup_guide_expanded'
 
 const SETUP_GUIDE_CODE_PATTERN = [
   'const request = await client.responses.create({',
@@ -113,22 +108,6 @@ interface HeroSignal {
   label: string
   value: string
   icon: LucideIcon
-}
-
-function getSavedSetupGuideExpanded(): boolean | null {
-  if (typeof window === 'undefined') return null
-  const saved = window.localStorage.getItem(SETUP_GUIDE_VISIBILITY_STORAGE_KEY)
-  if (saved === 'expanded') return true
-  if (saved === 'collapsed') return false
-  return null
-}
-
-function saveSetupGuideExpanded(expanded: boolean): void {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(
-    SETUP_GUIDE_VISIBILITY_STORAGE_KEY,
-    expanded ? 'expanded' : 'collapsed'
-  )
 }
 
 function getCurrentOrigin(): string {
@@ -411,29 +390,10 @@ function QuickActionItem(props: { action: QuickAction }) {
   )
 }
 
-function CompactQuickAction(props: { action: QuickAction }) {
-  const Icon = props.action.icon
-
-  return (
-    <Button
-      variant='outline'
-      size='sm'
-      className='h-8 min-w-24 gap-1.5 border-slate-200/80 bg-white px-2.5 text-slate-800'
-      render={<Link to={props.action.to} />}
-    >
-      <Icon data-icon='inline-start' />
-      <span>{props.action.title}</span>
-    </Button>
-  )
-}
-
 export function OverviewDashboard() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
   const { items: apiInfoItems } = useApiInfo()
-  const [manualSetupGuideExpanded, setManualSetupGuideExpanded] = useState<
-    boolean | null
-  >(() => getSavedSetupGuideExpanded())
 
   const requestCount = Number(user?.request_count ?? 0)
   const remainQuota = Number(user?.quota ?? 0)
@@ -580,161 +540,96 @@ export function OverviewDashboard() {
     }
   }, [apiInfoItems, modelsQuery.data, preferredKey, realKeyQuery.data, t])
 
-  const completedStepCount = startSteps.filter((step) => step.completed).length
-  const setupComplete = completedStepCount === startSteps.length
-  const setupGuideExpanded = manualSetupGuideExpanded ?? !setupComplete
-
-  const handleSetupGuideToggle = () => {
-    const nextExpanded = !setupGuideExpanded
-    setManualSetupGuideExpanded(nextExpanded)
-    saveSetupGuideExpanded(nextExpanded)
-  }
-
   return (
-    <div className='flex flex-col gap-4 sm:gap-5'>
-      <CockpitHeader />
+    <div className='flex flex-col gap-2'>
       <SummaryCards />
-      <CockpitChartsGrid isAdmin={isAdmin} />
+      <CockpitChartsGrid />
 
-      {setupGuideExpanded ? (
-        <CardStaggerContainer className='grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]'>
-          <CardStaggerItem className={cn(COCKPIT_CARD_CLASS, 'h-full')}>
-            <div className='relative h-full overflow-hidden p-4 sm:p-5 text-slate-800'>
-              <SetupGuideBackdrop />
-              <div className='relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]'>
-                <div className='flex min-w-0 flex-col gap-5'>
-                  <div className='flex flex-wrap items-start justify-between gap-3'>
-                    <div className='flex max-w-2xl flex-col gap-1'>
-                      <div className='flex items-center gap-2 text-xs font-medium tracking-wider text-blue-600/90 uppercase'>
-                        <ListChecks className='size-3.5' aria-hidden='true' />
-                        {t('Get started')}
+      <details className='group rounded-lg border border-[#E5E7EB] bg-white'>
+        <summary className='cursor-pointer list-none px-4 py-3 text-sm font-medium text-slate-700 marker:content-none [&::-webkit-details-marker]:hidden'>
+          <span className='inline-flex items-center gap-2'>
+            {t('Dashboard overview secondary section')}
+            <ChevronDown className='size-4 text-slate-400 transition-transform group-open:rotate-180' />
+          </span>
+        </summary>
+        <div className='flex flex-col gap-3 border-t border-[#F3F4F6] p-3 sm:p-4'>
+          <CardStaggerContainer className='grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]'>
+            <CardStaggerItem className={cn(COCKPIT_CARD_CLASS, 'h-full')}>
+              <div className='relative h-full overflow-hidden p-4 sm:p-5 text-slate-800'>
+                <SetupGuideBackdrop />
+                <div className='relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]'>
+                  <div className='flex min-w-0 flex-col gap-5'>
+                    <div className='flex flex-wrap items-start justify-between gap-3'>
+                      <div className='flex max-w-2xl flex-col gap-1'>
+                        <div className='flex items-center gap-2 text-xs font-medium tracking-wider text-blue-600/90 uppercase'>
+                          <ListChecks className='size-3.5' aria-hidden='true' />
+                          {t('Get started')}
+                        </div>
+                        <h3 className='text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl'>
+                          {t('Dashboard onboarding title')}
+                        </h3>
+                        <p className='max-w-xl text-sm leading-relaxed text-slate-600'>
+                          {t('Dashboard onboarding description')}
+                        </p>
                       </div>
-                      <h3 className='text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl'>
-                        {t('Dashboard onboarding title')}
-                      </h3>
-                      <p className='max-w-xl text-sm leading-relaxed text-slate-600'>
-                        {t('Dashboard onboarding description')}
-                      </p>
-                    </div>
-                    <div className='flex flex-wrap items-center gap-2'>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={handleSetupGuideToggle}
-                      >
-                        <ChevronUp data-icon='inline-start' />
-                        {t('Hide setup guide')}
-                      </Button>
                       <Button size='sm' render={<Link to='/keys' />}>
                         <KeyRound data-icon='inline-start' />
                         {t('Create API Key')}
                       </Button>
                     </div>
+
+                    <ol className={cn('rounded-2xl p-2', COCKPIT_INSET_SURFACE_CLASS)}>
+                      {startSteps.map((step, index) => (
+                        <StartStepItem
+                          key={step.title}
+                          step={step}
+                          index={index}
+                          isLast={index === startSteps.length - 1}
+                        />
+                      ))}
+                    </ol>
                   </div>
 
-                  <ol className={cn('rounded-2xl p-2', COCKPIT_INSET_SURFACE_CLASS)}>
-                    {startSteps.map((step, index) => (
-                      <StartStepItem
-                        key={step.title}
-                        step={step}
-                        index={index}
-                        isLast={index === startSteps.length - 1}
-                      />
-                    ))}
-                  </ol>
+                  <RequestPreview
+                    example={requestExample}
+                    signals={heroSignals}
+                  />
                 </div>
+              </div>
+            </CardStaggerItem>
 
-                <RequestPreview
-                  example={requestExample}
-                  signals={heroSignals}
-                />
-              </div>
-            </div>
-          </CardStaggerItem>
-
-          <CardStaggerItem className={cn(COCKPIT_CARD_CLASS, 'h-full p-4 sm:p-5')}>
-            <div className='flex h-full flex-col gap-4 text-slate-800'>
-              <div className='flex flex-col gap-1'>
-                <div className='text-xs font-medium tracking-wider text-blue-600/90 uppercase'>
-                  {t('Recommended actions')}
-                </div>
-                <h3 className='text-lg font-semibold tracking-tight text-slate-900'>
-                  {t('Dashboard recommended actions title')}
-                </h3>
-              </div>
-              <div className='grid gap-2'>
-                {visibleQuickActions.map((action) => (
-                  <QuickActionItem key={action.title} action={action} />
-                ))}
-              </div>
-            </div>
-          </CardStaggerItem>
-        </CardStaggerContainer>
-      ) : (
-        <CardStaggerContainer>
-          <CardStaggerItem className={cn(COCKPIT_CARD_CLASS, 'overflow-hidden')}>
-            <div className='relative overflow-hidden px-4 py-3 text-slate-800 sm:px-5'>
-              <SetupGuideBackdrop compact />
-              <div className='relative flex flex-wrap items-center justify-between gap-3'>
-                <div className='flex min-w-0 items-center gap-3'>
-                  <span className='flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white shadow-xs'>
-                    <Check className='text-success size-4' aria-hidden='true' />
-                  </span>
-                  <div className='min-w-0'>
-                    <div className='flex items-center gap-2'>
-                      <h3 className='truncate text-sm font-semibold'>
-                        {setupComplete
-                          ? t('Setup guide complete')
-                          : t('Setup guide')}
-                      </h3>
-                      <span className='rounded-md border border-slate-200/80 bg-slate-50 px-2 py-0.5 text-xs text-slate-600'>
-                        {t('Setup progress: {{completed}}/{{total}}', {
-                          completed: completedStepCount,
-                          total: startSteps.length,
-                        })}
-                      </span>
-                    </div>
-                    <p className='text-muted-foreground line-clamp-1 text-xs'>
-                      {setupComplete
-                        ? t(
-                            'Your setup guide is collapsed so usage stays in focus.'
-                          )
-                        : t('Setup guide is collapsed. Expand it anytime.')}
-                    </p>
+            <CardStaggerItem className={cn(COCKPIT_CARD_CLASS, 'h-full p-4 sm:p-5')}>
+              <div className='flex h-full flex-col gap-4 text-slate-800'>
+                <div className='flex flex-col gap-1'>
+                  <div className='text-xs font-medium tracking-wider text-blue-600/90 uppercase'>
+                    {t('Recommended actions')}
                   </div>
+                  <h3 className='text-lg font-semibold tracking-tight text-slate-900'>
+                    {t('Dashboard recommended actions title')}
+                  </h3>
                 </div>
-
-                <div className='flex flex-wrap items-center gap-2'>
+                <div className='grid gap-2'>
                   {visibleQuickActions.map((action) => (
-                    <CompactQuickAction key={action.title} action={action} />
+                    <QuickActionItem key={action.title} action={action} />
                   ))}
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    className='h-8 min-w-28 border-slate-200/80 bg-white text-slate-800'
-                    onClick={handleSetupGuideToggle}
-                  >
-                    <ChevronDown data-icon='inline-start' />
-                    {t('Show setup guide')}
-                  </Button>
                 </div>
               </div>
-            </div>
-          </CardStaggerItem>
-        </CardStaggerContainer>
-      )}
+            </CardStaggerItem>
+          </CardStaggerContainer>
 
-      <CardStaggerContainer className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
-        <CardStaggerItem>
-          <ApiInfoPanel />
-        </CardStaggerItem>
-        <CardStaggerItem>
-          <AnnouncementsPanel />
-        </CardStaggerItem>
-        <CardStaggerItem>
-          <FAQPanel />
-        </CardStaggerItem>
-      </CardStaggerContainer>
+          <CardStaggerContainer className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
+            <CardStaggerItem>
+              <ApiInfoPanel />
+            </CardStaggerItem>
+            <CardStaggerItem>
+              <AnnouncementsPanel />
+            </CardStaggerItem>
+            <CardStaggerItem>
+              <FAQPanel />
+            </CardStaggerItem>
+          </CardStaggerContainer>
+        </div>
+      </details>
     </div>
   )
 }

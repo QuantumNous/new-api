@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatTokenQuotaDisplay } from '@/lib/ops-billing-display'
+import { cn } from '@/lib/utils'
 
 /** Dashboard display-only: raw 词元额度 (no currency symbol). */
 export function formatQuotaForCockpit(value: number): string {
@@ -29,9 +30,23 @@ export const COCKPIT_PANEL_CLASS =
 export const COCKPIT_CARD_CLASS =
   'overflow-hidden rounded-2xl border border-[#DBEAFE]/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]'
 
+/** Compact KPI tile — reference layout (dense, icon + value + sparkline). */
+export const OVERVIEW_KPI_CARD_CLASS = cn(
+  'rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)]'
+)
+
+/** Horizontal quota balance banner spanning bottom KPI row. */
+export const OVERVIEW_QUOTA_BANNER_CLASS = cn(
+  'flex flex-col gap-3 rounded-lg border border-[#DBEAFE] bg-gradient-to-r from-white via-[#F8FBFF] to-[#EFF6FF]/80 p-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:flex-row sm:items-center sm:justify-between sm:p-4 xl:col-span-8'
+)
+
+/** Segmented health bar for channel KPI. */
+export const OVERVIEW_CHANNEL_SEGMENTS_CLASS =
+  'flex h-2 overflow-hidden rounded-full bg-slate-100'
+
 /** KPI grid item surface inside summary section. */
 export const COCKPIT_STAT_CARD_CLASS =
-  'rounded-xl border border-[#DBEAFE]/70 bg-white p-3'
+  'rounded-lg border border-[#E5E7EB] bg-white p-3'
 
 /** Outer wrapper for KPI + balance column. */
 export const COCKPIT_SECTION_CLASS =

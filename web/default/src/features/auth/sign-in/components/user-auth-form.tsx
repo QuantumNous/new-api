@@ -30,6 +30,7 @@ import {
   isPasskeySupported as detectPasskeySupport,
 } from '@/lib/passkey'
 import { cn } from '@/lib/utils'
+import { opsConsolePrimaryButtonClassName } from '@/lib/ops-ui-styles'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import {
@@ -334,7 +335,7 @@ export function UserAuthForm({
         {/* Submit Button */}
         <Button
           type='submit'
-          className='mt-2 w-full justify-center gap-2'
+          className={cn('mt-2 w-full justify-center gap-2', opsConsolePrimaryButtonClassName)}
           disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
         >
           {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}

@@ -53,7 +53,7 @@ export function PlaygroundModelSwitchDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className='border-white/20 bg-slate-950 text-slate-100'>
+      <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className={playgroundDialogTitleClassName}>
             {t(
@@ -69,7 +69,7 @@ export function PlaygroundModelSwitchDialog({
             {pendingModelLabel ? (
               <>
                 {' '}
-                <span className='font-medium text-slate-200'>
+                <span className='font-medium text-slate-800'>
                   {pendingModelLabel}
                 </span>
               </>

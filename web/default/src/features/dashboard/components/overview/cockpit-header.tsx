@@ -16,41 +16,66 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ChevronDown, Clock3, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { DEFAULT_SYSTEM_NAME } from '@/lib/constants'
-import { COCKPIT_HEADER_CLASS } from './cockpit-display'
+import { cn } from '@/lib/utils'
+import { OPS_DATA_REFETCH_INTERVAL_MS } from '@/lib/query-polling'
+import {
+  OVERVIEW_HEADER_CONTROL_BUTTON_CLASS,
+  OVERVIEW_HEADER_CONTROL_SELECT_CLASS,
+  OVERVIEW_HEADER_STATUS_PILL_CLASS,
+} from './overview-reference-styles'
 
-export function CockpitHeader() {
+interface CockpitHeaderProps {
+  quotaHealthLabel: string
+  quotaHealthDotClass: string
+  dataWindowLabel?: string
+  dataAsOfLabel?: string
+}
+
+export function CockpitHeader(props: CockpitHeaderProps) {
   const { t } = useTranslation()
+  const refreshSeconds = Math.round(OPS_DATA_REFETCH_INTERVAL_MS / 1000)
 
   return (
-    <section className={COCKPIT_HEADER_CLASS}>
-      <div
-        aria-hidden
-        className='pointer-events-none absolute inset-0 opacity-70'
-        style={{
-          background: [
-            'radial-gradient(ellipse 70% 60% at 10% 0%, oklch(0.88 0.06 250 / 55%) 0%, transparent 65%)',
-            'radial-gradient(ellipse 55% 50% at 90% 20%, oklch(0.9 0.04 220 / 45%) 0%, transparent 70%)',
-          ].join(', '),
-        }}
-      />
-      <div className='relative flex flex-col gap-2'>
-        <p className='text-xs font-medium tracking-widest text-blue-600/90 uppercase'>
-          {t('Dashboard platform overview title')}
-        </p>
-        <h2 className='text-xl font-bold tracking-tight text-slate-900 sm:text-2xl'>
-          <span className='bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600 bg-clip-text text-transparent'>
-            {DEFAULT_SYSTEM_NAME}
+    <header className='flex flex-col gap-0'>
+      <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-1'>
+        <div className='flex min-w-0 flex-nowrap items-baseline gap-2'>
+          <h1 className='shrink-0 text-lg font-semibold leading-none text-[#111827]'>
+            {t('Dashboard Operations Console')}
+          </h1>
+          <span className='min-w-0 text-xs leading-snug text-slate-500'>
+            {t('Dashboard overview page subtitle')}
           </span>
-          <span className='mt-1 block text-lg font-semibold text-slate-700 sm:inline sm:mt-0 sm:ml-2'>
-            · {t('Dashboard Operations Cockpit')}
+        </div>
+
+        <div className='flex shrink-0 flex-nowrap items-center gap-1.5'>
+          <span className={OVERVIEW_HEADER_CONTROL_SELECT_CLASS}>
+            <Clock3 className='size-3 text-[#2563EB]' aria-hidden='true' />
+            {t('Dashboard time range 24h')}
+            <ChevronDown className='size-3 text-[#9CA3AF]' aria-hidden='true' />
           </span>
-        </h2>
-        <p className='max-w-3xl text-sm leading-relaxed text-slate-600'>
-          {t('Dashboard Operations Cockpit description')}
-        </p>
+          <button type='button' className={OVERVIEW_HEADER_CONTROL_BUTTON_CLASS}>
+            <RefreshCw className='size-3 text-[#6B7280]' aria-hidden='true' />
+            {t('Dashboard auto refresh label', { seconds: refreshSeconds })}
+          </button>
+          <span className={OVERVIEW_HEADER_STATUS_PILL_CLASS}>
+            <span
+              className={cn('size-1.5 rounded-full', props.quotaHealthDotClass)}
+              aria-hidden='true'
+            />
+            {props.quotaHealthLabel}
+          </span>
+        </div>
       </div>
-    </section>
+
+      {props.dataWindowLabel || props.dataAsOfLabel ? (
+        <p className='mt-0.5 text-[11px] leading-none text-[#9CA3AF]'>
+          {[props.dataWindowLabel, props.dataAsOfLabel]
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
+      ) : null}
+    </header>
   )
 }

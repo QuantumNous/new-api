@@ -22,6 +22,7 @@ import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
 import { PlaygroundModelSwitchDialog } from './components/playground-model-switch-dialog'
+import { playgroundInputDockClassName } from './lib/playground-ui-styles'
 import { usePlaygroundState, useChatHandler } from './hooks'
 import { createUserMessage, createLoadingAssistantMessage } from './lib'
 import type { Message as MessageType } from './types'
@@ -225,9 +226,8 @@ export function Playground() {
     : undefined
 
   return (
-    <div className='relative flex size-full flex-col overflow-hidden dark:bg-slate-950'>
-      {/* Full-width scroll container: scrolling works even over side whitespace */}
-      <div className='flex flex-1 flex-col overflow-hidden'>
+    <div className='relative flex size-full min-h-0 flex-col overflow-hidden bg-[#F5F7FA]'>
+      <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
         <PlaygroundChat
           messages={messages}
           onCopyMessage={handleCopyMessage}
@@ -242,9 +242,10 @@ export function Playground() {
         />
       </div>
 
-      {/* Input area: center content and constrain to the same container width */}
-      <div className='mx-auto w-full max-w-4xl'>
-        <PlaygroundInput
+      {/* Input dock: sticky footer with clear hierarchy */}
+      <div className={playgroundInputDockClassName}>
+        <div className='mx-auto w-full max-w-3xl px-3 py-3 sm:px-4 sm:py-4'>
+          <PlaygroundInput
           disabled={isGenerating}
           groups={groups}
           groupValue={config.group}
@@ -259,6 +260,7 @@ export function Playground() {
           onStop={stopGeneration}
           onSubmit={handleSendMessage}
         />
+        </div>
       </div>
 
       <PlaygroundModelSwitchDialog
