@@ -73,7 +73,11 @@ func TestDownloadSkillPackage_SeededDemoSkills(t *testing.T) {
 		require.Containsf(t, files, "SKILL.md", "%s: SKILL.md", slug)
 		// D-09 guard inputs: SKILL.md routes through DeepRouter (the work step).
 		require.Containsf(t, strings.ToLower(files["SKILL.md"]), "deeprouter", "%s: SKILL.md mentions DeepRouter", slug)
-		require.Containsf(t, files["SKILL.md"], "/v1/chat/completions", "%s: SKILL.md has routing call", slug)
+		// Must reference the PUBLIC ROUTING endpoint, which is the only path wired to
+		// the DR-82 abuse gate (markSkillPublicRoutingAPI + PublicRoutingAbuseControl).
+		require.Containsf(t, files["SKILL.md"], "/v1/routing/chat/completions", "%s: SKILL.md must reference the public routing endpoint", slug)
+		// And must NOT point at the ordinary chat endpoint, which bypasses that gate.
+		require.NotContainsf(t, files["SKILL.md"], "/v1/chat/completions", "%s: SKILL.md must not reference the ordinary chat endpoint (bypasses the abuse gate)", slug)
 		// Capability package: manifest pins the published version.
 		require.Containsf(t, files["manifest.json"], "skill_version_id", "%s: manifest pins version", slug)
 		require.Containsf(t, files["manifest.json"], "requires_deeprouter_key", "%s: manifest flags runner key", slug)

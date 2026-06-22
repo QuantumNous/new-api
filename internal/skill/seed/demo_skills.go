@@ -25,9 +25,15 @@ import (
 // call. This satisfies main's D-09 runtime-dependency guard
 // (validateSkillPackageRuntimeDependency) so capability Skills are downloadable,
 // and it is literally true: the work step routes through DeepRouter.
+//
+// The endpoint MUST be the public routing API (/v1/routing/chat/completions), not
+// the ordinary /v1/chat/completions: only the routing path is wired to the DR-82
+// abuse gate (markSkillPublicRoutingAPI + PublicRoutingAbuseControl in
+// router/relay-router.go). Pointing runners at the ordinary chat endpoint would
+// bypass that gate, so seeded packages must reference the routing endpoint.
 const workStepSection = "\n\n## Work step\n\n" +
 	"DeepRouter performs the work step: the downloaded client calls the DeepRouter " +
-	"public routing API (POST /v1/chat/completions) using the runner's own key. " +
+	"public routing API (POST /v1/routing/chat/completions) using the runner's own key. " +
 	"DeepRouter selects the best model for the declared tier from the input and " +
 	"returns the result, billed to the runner. Delete this call and the Skill loses " +
 	"its routing power.\n"
