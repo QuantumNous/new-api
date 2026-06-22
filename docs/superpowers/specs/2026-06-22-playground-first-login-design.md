@@ -8,21 +8,21 @@ card-binding prompt competes for attention.
 
 PR #192 implemented the auto-login path for password sign-up when email
 verification is disabled. Production has email verification enabled, so the
-active path is different:
+registration path must also auto-login after a valid verification code:
 
 1. User signs up.
-2. Frontend asks the user to sign in manually.
-3. Sign-in succeeds.
-4. The current default redirect lands on Dashboard and may open the top-up /
-   card-bind onboarding dialog.
+2. Backend verifies the email code.
+3. Backend creates the user, establishes the session, and returns
+   `is_new_user=true`.
+4. Frontend routes the new user to `/playground?first=1`.
 
-That path does not satisfy #196 because the new user does not reach Playground
-first-run.
+The previous manual-login path did not satisfy #196 because the new user could
+land on Dashboard before seeing Playground first-run.
 
 ## Goal
 
-All newly registered users must land on `/playground?first=1` on their first
-successful login after account creation.
+All newly registered users must land on `/playground?first=1` on the successful
+registration/login response that creates their session.
 
 This applies to:
 
@@ -50,17 +50,13 @@ This does not apply to:
 
 ## Recommended Approach
 
-Use an explicit frontend pending state for Playground first-run, separate from
-the existing card-bind/top-up onboarding flag.
+Use the registration success response as the activation boundary. After account
+creation, the backend must call the normal login/session setup path and mark the
+response with `is_new_user=true`. The frontend should then use an explicit
+`/playground?first=1` target for the new-user activation redirect.
 
-Add a storage helper pair with a name like:
-
-- `setPendingPlaygroundFirstRun()`
-- `consumePendingPlaygroundFirstRun()`
-
-The storage key must be specific to this behavior and must not reuse the current
-pending onboarding key, because that key currently represents the top-up /
-card-bind onboarding dialog.
+Do not use a delayed browser-storage pending state for Playground first-run.
+The first-run behavior must not depend on a future manual login or a local TTL.
 
 ## Flow
 
@@ -68,19 +64,14 @@ card-bind onboarding dialog.
 
 When registration succeeds and email verification is required:
 
-1. Set `pendingPlaygroundFirstRun`.
-2. Show the existing "Account created! Please sign in" success message.
-3. Navigate to sign-in.
-4. Do not preserve the registration page's `redirect` as the post-login target
+1. The backend has already validated the email verification code.
+2. The backend creates the user and calls the normal session setup path with
+   `is_new_user=true`.
+3. The frontend shows the existing "Account created!" success message.
+4. The frontend calls `handleLoginSuccess` with `/playground?first=1`.
+5. Do not preserve the registration page's `redirect` as the post-login target
    for this newly registered user.
-
-On the next successful sign-in:
-
-1. `handleLoginSuccess` consumes `pendingPlaygroundFirstRun`.
-2. The target becomes `/playground?first=1`.
-3. The card-bind/top-up onboarding dialog is not opened.
-4. The pending state is removed so later sign-ins are not forced back to
-   Playground.
+6. The card-bind/top-up onboarding dialog is not opened.
 
 ### Password Sign-Up With Auto-Login
 
@@ -91,8 +82,8 @@ Keep the existing behavior from #192:
 3. The user lands on `/playground?first=1`.
 4. The card-bind/top-up onboarding dialog is not opened.
 
-This path does not need to set the new pending state because the user is already
-being routed immediately.
+This path uses the same frontend success handling as the email-verification
+path because the user is already being routed immediately.
 
 ### OAuth Or Third-Party Account Creation
 
@@ -121,20 +112,19 @@ For existing users:
 
 ## Error Handling
 
-- If storage write fails during password registration, do not fail account
-  creation. The user should still be sent to sign-in.
-- If storage consume fails during login, fall back to existing login behavior.
-- The implementation should log storage failures consistently with existing
-  auth storage helpers.
+- If session setup fails during password registration, return the existing
+  session-save error response rather than pretending registration completed.
+- Password registration must not depend on browser storage for Playground
+  first-run state.
 - Open-redirect protection must remain in place for all existing redirect
   handling.
 
 ## Acceptance Criteria
 
-- With email verification enabled, password registration followed by manual
-  sign-in lands on `/playground?first=1`.
+- With email verification enabled, password registration with a valid
+  verification code logs the user in and lands on `/playground?first=1`.
 - If the password registration URL contains `?redirect=/keys`, the new user's
-  first successful sign-in still lands on `/playground?first=1`.
+  registration success still lands on `/playground?first=1`.
 - The first-run redirect is consumed once; a later sign-in by the same user does
   not force Playground again.
 - Existing users signing in still honor safe internal redirects and otherwise
@@ -155,7 +145,6 @@ For existing users:
 - Run `bun run build` or the repository's existing frontend build check if the
   change touches route wiring or lazy-loaded auth code.
 - Manually smoke test the email-verification registration path:
-  sign-up -> sign-in -> `/playground?first=1`.
+  sign-up -> `/playground?first=1`.
 - Manually smoke test an existing user login to confirm the normal dashboard or
   explicit redirect path still works.
-
