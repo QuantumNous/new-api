@@ -9,12 +9,12 @@ Environment: jsdom (bun run test:coverage)
 RESULTS
 ═══════════════════════════════════════════════════════════════════════════════
 Test Files  4 passed (4)
-Tests       47 passed / 0 failed (47 total)
+Tests       48 passed / 0 failed (48 total)
 
 FILE BREAKDOWN:
   __tests__/types.test.ts                  11 passed
     getDateRange — 24h/7d/30d range, ISO8601 strings, start < end
-    formatBlockReason — all 6 BlockReason values
+    getBlockReasonLabelKey — all 6 BlockReason values
 
   __tests__/metric-card.test.tsx            8 passed
     loading state (skeletons shown, value absent)
@@ -30,14 +30,14 @@ FILE BREAKDOWN:
     onChange called with correct preset ID on click
     Custom range button is disabled, onChange not called
 
-  __tests__/dashboard.integration.test.tsx 21 passed
+  __tests__/dashboard.integration.test.tsx 22 passed
     renders page title and description
     shows skeleton cards while loading
     renders all 9 P0 card titles when charging_enabled=true
     renders WASU count value (formatNumber mock)
     renders Enable Rate as percentage (61.9%)
     renders block_rate as percentage (3.0%)
-    renders "Plan Required" for top_block_reason=plan_required
+    renders translated top_block_reason label
     renders revenue_attribution_usd as formatted USD ($1,234.56)
     shows "—" and "No data in this period" when all metrics are null
     hides Revenue Attribution card when charging_enabled=false
@@ -51,6 +51,7 @@ FILE BREAKDOWN:
     renders the date range preset buttons
     switching to 24h triggers a new API call with a ~24h window
     API is called with the correct date range on first render (7d default)
+    refreshes rolling date range after the dashboard stays mounted
     shows skeleton cards while loading (loading state)
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -71,17 +72,25 @@ Raw: 40/42 stmts, 56/57 branches, 14/15 funcs, 36/38 lines
 Notes:
   api.ts L12-16: real api.get() call is intentionally mocked at the
     integration boundary -- 0% coverage is expected and correct.
-  types.ts branch 83.33%: the `?? reason` fallback in formatBlockReason
+  types.ts branch 83.33%: the fallback in getBlockReasonLabelKey
     is unreachable with the current BlockReason union (all 6 variants
     are exhaustively covered in the labels map).
 
 ═══════════════════════════════════════════════════════════════════════════════
-PRODUCTION BUG FOUND AND FIXED DURING TESTING
+PRODUCTION BUGS FOUND AND FIXED DURING TESTING
 ═══════════════════════════════════════════════════════════════════════════════
-Bug: INFINITE RE-FETCH LOOP
+Bug: INFINITE RE-FETCH LOOP / FROZEN ROLLING WINDOW
   Root cause: getDateRange(preset) called new Date() directly in render.
     range.start / range.end changed every render -> new queryKey -> new
-    fetch -> data arrives -> re-render -> repeat indefinitely.
-  Fix: const range = useMemo(() => getDateRange(preset), [preset])
-  Impact: without this fix the dashboard would hammer the DR-75 API
-    continuously in production every time it received data.
+    fetch -> data arrives -> re-render -> repeat indefinitely. The first
+    mitigation memoized the range by preset, but that froze rolling windows
+    after mount.
+  Fix: use a stable query key based on preset + a 1-minute refresh tick, and
+    compute getDateRange(preset) inside queryFn when that key intentionally
+    advances.
+  Impact: dashboard avoids continuous API hammering while keeping 24h/7d/30d
+    windows rolling for long-lived operator sessions.
+
+Re-review fixes covered:
+  - Top Block Reason renders through i18n keys, with en/zh translations.
+  - PRD Section 5 API contract uses /api/v1/ops/skill-analytics/overview.

@@ -3,10 +3,10 @@ Copyright (C) 2026 DeepRouter
 SPDX-License-Identifier: AGPL-3.0-or-later
 */
 
-// Coverage: getDateRange — 100% | formatBlockReason — 100%
+// Coverage: getDateRange — 100% | getBlockReasonLabelKey — 100%
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { getDateRange, formatBlockReason, type BlockReason } from '../types'
+import { getDateRange, getBlockReasonLabelKey, type BlockReason } from '../types'
 
 describe('getDateRange', () => {
   const FIXED_NOW = new Date('2026-06-21T12:00:00.000Z')
@@ -63,18 +63,18 @@ describe('getDateRange', () => {
   })
 })
 
-describe('formatBlockReason', () => {
+describe('getBlockReasonLabelKey', () => {
   const cases: [BlockReason, string][] = [
-    ['plan_required', 'Plan Required'],
-    ['subscription_inactive', 'Subscription Inactive'],
-    ['quota_exceeded', 'Quota Exceeded'],
-    ['kids_blocked', 'Kids Mode Blocked'],
-    ['safety_violation', 'Safety Violation'],
-    ['unknown', 'Unknown'],
+    ['plan_required', 'skillAnalytics.blockReason.planRequired'],
+    ['subscription_inactive', 'skillAnalytics.blockReason.subscriptionInactive'],
+    ['quota_exceeded', 'skillAnalytics.blockReason.quotaExceeded'],
+    ['kids_blocked', 'skillAnalytics.blockReason.kidsBlocked'],
+    ['safety_violation', 'skillAnalytics.blockReason.safetyViolation'],
+    ['unknown', 'skillAnalytics.blockReason.unknown'],
   ]
 
   it.each(cases)('%s → "%s"', (reason, expected) => {
-    expect(formatBlockReason(reason)).toBe(expected)
+    expect(getBlockReasonLabelKey(reason)).toBe(expected)
   })
 
   it('covers all 6 BlockReason variants', () => {

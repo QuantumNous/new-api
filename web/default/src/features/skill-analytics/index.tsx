@@ -2,7 +2,7 @@
 Copyright (C) 2026 DeepRouter
 SPDX-License-Identifier: AGPL-3.0-or-later
 */
-import { useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Users,
@@ -26,7 +26,7 @@ import { DateRangeControl } from './components/date-range-control'
 import {
   type DateRangePreset,
   getDateRange,
-  formatBlockReason,
+  getBlockReasonLabelKey,
 } from './types'
 
 function fmtCount(value: number | null): string | null {
@@ -47,14 +47,18 @@ function formatUsd(value: number | null): string | null {
 export function SkillAnalyticsDashboard() {
   const { t } = useTranslation()
   const [preset, setPreset] = useState<DateRangePreset>('7d')
-  // useMemo prevents getDateRange() from creating new Date() objects on every
-  // render, which would change the queryKey and trigger an infinite re-fetch.
-  const range = useMemo(() => getDateRange(preset), [preset])
+  const [refreshTick, setRefreshTick] = useState(0)
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setRefreshTick((tick) => tick + 1)
+    }, 60 * 1000)
+    return () => window.clearInterval(id)
+  }, [])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['skill-analytics', 'overview', range.start, range.end],
-    queryFn: ({ queryKey }) =>
-      getSkillAnalyticsOverview({ start: queryKey[2] as string, end: queryKey[3] as string }),
+    queryKey: ['skill-analytics', 'overview', preset, refreshTick],
+    queryFn: () => getSkillAnalyticsOverview(getDateRange(preset)),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   })
@@ -108,7 +112,7 @@ export function SkillAnalyticsDashboard() {
     {
       title: t('Top Block Reason'),
       value: data
-        ? (data.top_block_reason !== null ? formatBlockReason(data.top_block_reason) : null)
+        ? (data.top_block_reason !== null ? t(getBlockReasonLabelKey(data.top_block_reason)) : null)
         : null,
       description: t('Most common reason for skill call rejection'),
       icon: AlertTriangle,

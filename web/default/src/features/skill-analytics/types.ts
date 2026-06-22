@@ -15,7 +15,7 @@ export type BlockReason =
 
 export type DataFreshness = 'ok' | 'delayed' | 'failed'
 
-/** DR-75 API contract — GET /api/v1/admin/skill-analytics/overview */
+/** DR-75 API contract — GET /api/v1/ops/skill-analytics/overview */
 export interface SkillAnalyticsOverview {
   wasu: number | null
   total_skill_runs: number | null
@@ -50,14 +50,14 @@ export function getDateRange(preset: DateRangePreset): DateRange {
   return { start: start.toISOString(), end: now.toISOString() }
 }
 
-export function formatBlockReason(reason: BlockReason): string {
-  const labels: Record<BlockReason, string> = {
-    plan_required: 'Plan Required',
-    subscription_inactive: 'Subscription Inactive',
-    quota_exceeded: 'Quota Exceeded',
-    kids_blocked: 'Kids Mode Blocked',
-    safety_violation: 'Safety Violation',
-    unknown: 'Unknown',
+export function getBlockReasonLabelKey(reason: BlockReason): string {
+  const labelKeys: Record<BlockReason, string> = {
+    plan_required: 'skillAnalytics.blockReason.planRequired',
+    subscription_inactive: 'skillAnalytics.blockReason.subscriptionInactive',
+    quota_exceeded: 'skillAnalytics.blockReason.quotaExceeded',
+    kids_blocked: 'skillAnalytics.blockReason.kidsBlocked',
+    safety_violation: 'skillAnalytics.blockReason.safetyViolation',
+    unknown: 'skillAnalytics.blockReason.unknown',
   }
-  return labels[reason] ?? reason
+  return labelKeys[reason] ?? labelKeys.unknown
 }

@@ -49,9 +49,9 @@ users with `userRole >= ROLE.ADMIN`.
 ## 5. API Contract (defined here; DR-75 implements)
 
 ```
-GET /api/v1/admin/skill-analytics/overview
+GET /api/v1/ops/skill-analytics/overview
 Query: start=<ISO8601>&end=<ISO8601>
-Auth:  admin session (same as other /api/v1/admin/* endpoints)
+Auth:  admin session (same as other /api/v1/ops/* endpoints)
 
 200 OK
 {

@@ -15,8 +15,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
  *  - retryDelay:0 so the error-state test doesn't wait for exponential backoff.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
@@ -34,8 +34,12 @@ vi.mock('../api', () => ({
   getSkillAnalyticsOverview: mockGetOverview,
 }))
 
+const translations: Record<string, string> = {
+  'skillAnalytics.blockReason.planRequired': '计划要求',
+}
+
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({ t: (key: string) => translations[key] ?? key }),
 }))
 
 vi.mock('@/components/layout', () => {
@@ -144,6 +148,10 @@ describe('SkillAnalyticsDashboard — integration', () => {
     vi.clearAllMocks()
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   // ── Page header ────────────────────────────────────────────────────────────
 
   it('renders page title and description', () => {
@@ -207,11 +215,11 @@ describe('SkillAnalyticsDashboard — integration', () => {
     expect(screen.getByText('3.0%')).toBeInTheDocument()
   })
 
-  it('renders "Plan Required" for top_block_reason=plan_required', async () => {
+  it('renders translated top_block_reason label', async () => {
     mockGetOverview.mockResolvedValue(FULL_DATA)
     renderDashboard()
     await waitForDataReady()
-    expect(screen.getByText('Plan Required')).toBeInTheDocument()
+    expect(screen.getByText('计划要求')).toBeInTheDocument()
   })
 
   it('renders revenue_attribution_usd as formatted USD', async () => {
@@ -369,5 +377,29 @@ describe('SkillAnalyticsDashboard — integration', () => {
     // 7d ± 60 seconds tolerance
     expect(diffMs).toBeGreaterThan(6 * 24 * 60 * 60 * 1000)
     expect(diffMs).toBeLessThan(8 * 24 * 60 * 60 * 1000)
+  })
+  it('refreshes rolling date range after the dashboard stays mounted', async () => {
+    const firstNow = new Date('2026-06-21T12:00:00.000Z')
+    vi.useFakeTimers()
+    vi.setSystemTime(firstNow)
+    mockGetOverview.mockResolvedValue(FULL_DATA)
+
+    renderDashboard()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(mockGetOverview).toHaveBeenCalledTimes(1)
+    const firstRange = mockGetOverview.mock.calls[0]![0]
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60 * 1000)
+    })
+
+    expect(mockGetOverview.mock.calls.length).toBeGreaterThan(1)
+    const latestRange = mockGetOverview.mock.lastCall![0]
+    expect(new Date(latestRange.end).getTime()).toBe(
+      firstNow.getTime() + 60 * 1000
+    )
+    expect(latestRange.end).not.toBe(firstRange.end)
   })
 })
