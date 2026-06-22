@@ -55,6 +55,8 @@ type PageCopy = {
   valueProps: Array<{ title: string; body: string }>;
   quickStartTitle: string;
   quickStartSuffix: string;
+  quickStartModelNote?: string;
+  quickStartGithubLabel?: string;
   getKeyLink: string;
   whyUsage: (toolName: string) => string;
   whyUsageBody: (toolName: string) => string;
@@ -73,6 +75,7 @@ type Props = {
 };
 
 const signUpUrl = consoleUrl("/sign-up");
+const IMAGE_BUDDY_GITHUB_URL = "https://github.com/flatkey-ai/awesome-images";
 
 export const CLAUDE_CODE_USE_CASE: UseCaseConfig = {
   pathname: "/use-case/claude-code",
@@ -138,20 +141,20 @@ export const IMAGE_BUDDY_USE_CASE: UseCaseConfig = {
   headlineAccent: "with Image Buddy",
   intro:
     "Use Flatkey.ai for lower-cost image generation and Image Buddy for commercial prompts that turn a short idea into usable product images, ads, avatars, app visuals, and ecommerce creatives.",
-  selectInstruction: "Paste the skill prompt into your AI assistant, or run the CLI directly.",
+  selectInstruction: "Run the CLI directly with one install command, one onboard command, and one generate command.",
   directLabel: "Raw image generation",
   flatkeyLabel: "Flatkey + Image Buddy",
   moreUsageLine: "Generate more usable images with lower cost and less prompt work.",
   useCases: [
     { title: "Product marketing images", body: "Turn a short product idea into polished hero images for landing pages and campaigns." },
-    { title: "Multilingual image workflows", body: "Give teams a simple CLI and skill prompt they can use from any AI assistant." },
+    { title: "Multilingual image workflows", body: "Give teams a simple CLI they can run from any terminal." },
     { title: "Ecommerce and social ads", body: "Create product shots, UGC-style ad stills, posters, and vertical demo creatives." },
     { title: "Template-driven generation", body: "Use templates like product-shot plus a short ecommerce hint, without learning every variable name." },
   ],
   faqs: [
     { question: "What does Image Buddy install?", answer: "It installs the @flatkey-ai/image-buddy CLI and uses your Flatkey API key to generate images." },
     { question: "Where do users create the key?", answer: "Create or copy the API key at https://console.flatkey.ai/keys before running image-buddy onboard." },
-    { question: "Can an AI assistant use it for me?", answer: "Yes. Paste the skill prompt into your AI assistant and it will install and run the CLI behind the scenes." },
+    { question: "Can teams run it without setup docs?", answer: "Yes. The quickstart covers install, onboard, and generate with three commands." },
     { question: "Why does this help image usage grow?", answer: "Flatkey lowers generation cost while Image Buddy removes prompt friction with templates, hints, and a local demo gallery." },
   ],
 };
@@ -164,20 +167,20 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
     headlineLead: "用 Image Buddy 生成",
     headlineAccent: "商业可用图片",
     intro: "用 Flatkey.ai 降低生图成本，再用 Image Buddy 的商业提示词库把一句话变成可用的产品图、广告图、头像、App 图和电商素材。",
-    selectInstruction: "把 skill 提示词贴给你的 AI 助手，或直接运行 CLI。",
+    selectInstruction: "直接运行 CLI：一次安装、一次初始化、一次生成。",
     directLabel: "裸生图流程",
     flatkeyLabel: "Flatkey + Image Buddy",
     moreUsageLine: "用更低成本和更少提示词调试生成更多可用图片。",
     useCases: [
       { title: "产品营销图", body: "把一句产品想法生成落地页、广告和活动可用的主视觉。" },
-      { title: "多语言图片工作流", body: "给不同语言用户同一套 CLI 和 skill prompt，AI 助手背后自动使用 CLI。" },
+      { title: "多语言图片工作流", body: "给不同语言用户同一套可以直接在终端运行的 CLI。" },
       { title: "电商与社媒广告", body: "生成产品图、UGC 广告封面、海报和竖版 demo 素材。" },
       { title: "模板化生成", body: "用 product-shot 这类模板加一个电商短 hint，不必学习每个变量名。" },
     ],
     faqs: [
       { question: "Image Buddy 会安装什么？", answer: "它安装 @flatkey-ai/image-buddy CLI，并用你的 Flatkey API key 生成图片。" },
       { question: "用户在哪里创建 key？", answer: "运行 image-buddy onboard 前，在 https://console.flatkey.ai/keys 创建或复制 API key。" },
-      { question: "能让 AI 助手代劳吗？", answer: "可以。把 skill 提示词贴给 AI 助手，它会在背后安装并调用 CLI。" },
+      { question: "团队不用额外文档也能跑吗？", answer: "可以。快速开始只需要安装、初始化和生成三条命令。" },
       { question: "为什么这能提升生图用量？", answer: "Flatkey 降低生成成本，Image Buddy 用模板、hint 和本地 demo gallery 降低提示词门槛。" },
     ],
   },
@@ -187,20 +190,20 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
     headlineLead: "Genera imágenes comerciales",
     headlineAccent: "con Image Buddy",
     intro: "Usa Flatkey.ai para reducir el coste de generación de imágenes e Image Buddy para convertir una idea corta en imágenes de producto, anuncios, avatares, visuales de app y creatividades ecommerce.",
-    selectInstruction: "Pega el prompt de skill en tu asistente de IA o ejecuta la CLI directamente.",
+    selectInstruction: "Ejecuta la CLI directamente: instalar, inicializar y generar.",
     directLabel: "Generación de imágenes manual",
     flatkeyLabel: "Flatkey + Image Buddy",
     moreUsageLine: "Genera más imágenes utilizables con menor coste y menos trabajo de prompt.",
     useCases: [
       { title: "Imágenes de producto", body: "Convierte una idea de producto en hero images para landing pages y campañas." },
-      { title: "Flujos multilingües", body: "Da a los equipos una CLI y un skill prompt que cualquier asistente de IA puede usar." },
+      { title: "Flujos multilingües", body: "Da a los equipos una CLI simple que pueden ejecutar desde cualquier terminal." },
       { title: "Ecommerce y anuncios sociales", body: "Crea fotos de producto, frames UGC, posters y creatividades verticales." },
       { title: "Generación con plantillas", body: "Usa plantillas como product-shot con un hint ecommerce corto, sin aprender cada variable." },
     ],
     faqs: [
       { question: "¿Qué instala Image Buddy?", answer: "Instala la CLI @flatkey-ai/image-buddy y usa tu API key de Flatkey para generar imágenes." },
       { question: "¿Dónde se crea la key?", answer: "Crea o copia la API key en https://console.flatkey.ai/keys antes de ejecutar image-buddy onboard." },
-      { question: "¿Puede usarlo mi asistente de IA?", answer: "Sí. Pega el skill prompt en tu asistente y ejecutará la CLI por detrás." },
+      { question: "¿Pueden usarlo los equipos sin documentación extra?", answer: "Sí. El quickstart cubre instalar, inicializar y generar con tres comandos." },
       { question: "¿Por qué aumenta el uso de imágenes?", answer: "Flatkey baja el coste e Image Buddy reduce la fricción con plantillas, hints y una demo gallery local." },
     ],
   },
@@ -210,20 +213,20 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
     headlineLead: "Générez des images commerciales",
     headlineAccent: "avec Image Buddy",
     intro: "Utilisez Flatkey.ai pour réduire le coût de génération d'images et Image Buddy pour transformer une idée courte en visuels produit, publicités, avatars, écrans d'app et créations ecommerce.",
-    selectInstruction: "Collez le prompt de skill dans votre assistant IA ou lancez directement le CLI.",
+    selectInstruction: "Lancez directement le CLI : installation, initialisation, génération.",
     directLabel: "Génération d'image brute",
     flatkeyLabel: "Flatkey + Image Buddy",
     moreUsageLine: "Générez plus d'images exploitables avec moins de coût et moins de travail de prompt.",
     useCases: [
       { title: "Images marketing produit", body: "Transformez une idée produit en visuels hero pour landing pages et campagnes." },
-      { title: "Workflows multilingues", body: "Donnez aux équipes un CLI et un skill prompt utilisables depuis tout assistant IA." },
+      { title: "Workflows multilingues", body: "Donnez aux équipes un CLI simple à lancer depuis n'importe quel terminal." },
       { title: "Ecommerce et social ads", body: "Créez photos produit, frames UGC, posters et créations verticales." },
       { title: "Génération par template", body: "Utilisez des templates comme product-shot avec un court hint ecommerce, sans apprendre chaque variable." },
     ],
     faqs: [
       { question: "Qu'installe Image Buddy ?", answer: "Il installe le CLI @flatkey-ai/image-buddy et utilise votre clé API Flatkey pour générer des images." },
       { question: "Où créer la clé ?", answer: "Créez ou copiez la clé API sur https://console.flatkey.ai/keys avant image-buddy onboard." },
-      { question: "Un assistant IA peut-il l'utiliser ?", answer: "Oui. Collez le skill prompt dans votre assistant, il installera et lancera le CLI en arrière-plan." },
+      { question: "Les équipes peuvent-elles l'utiliser sans documentation supplémentaire ?", answer: "Oui. Le quickstart couvre installation, initialisation et génération en trois commandes." },
       { question: "Pourquoi cela augmente l'usage image ?", answer: "Flatkey baisse le coût, Image Buddy réduit la friction avec templates, hints et demo gallery locale." },
     ],
   },
@@ -233,20 +236,20 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
     headlineLead: "Gere imagens comerciais",
     headlineAccent: "com Image Buddy",
     intro: "Use Flatkey.ai para reduzir o custo de geração de imagens e Image Buddy para transformar uma ideia curta em imagens de produto, anúncios, avatares, visuais de app e criativos ecommerce.",
-    selectInstruction: "Cole o prompt da skill no seu assistente de IA ou rode a CLI diretamente.",
+    selectInstruction: "Rode a CLI diretamente: instalar, inicializar e gerar.",
     directLabel: "Geração de imagem pura",
     flatkeyLabel: "Flatkey + Image Buddy",
     moreUsageLine: "Gere mais imagens utilizáveis com menor custo e menos trabalho de prompt.",
     useCases: [
       { title: "Imagens de produto", body: "Transforme uma ideia de produto em hero images para landing pages e campanhas." },
-      { title: "Fluxos multilíngues", body: "Dê às equipes uma CLI e um prompt de skill que qualquer assistente de IA pode usar." },
+      { title: "Fluxos multilíngues", body: "Dê às equipes uma CLI simples que roda em qualquer terminal." },
       { title: "Ecommerce e social ads", body: "Crie fotos de produto, frames UGC, pôsteres e criativos verticais." },
       { title: "Geração por template", body: "Use templates como product-shot com um hint curto de ecommerce, sem aprender cada variável." },
     ],
     faqs: [
       { question: "O que o Image Buddy instala?", answer: "Ele instala a CLI @flatkey-ai/image-buddy e usa sua API key Flatkey para gerar imagens." },
       { question: "Onde criar a key?", answer: "Crie ou copie a API key em https://console.flatkey.ai/keys antes de rodar image-buddy onboard." },
-      { question: "Um assistente de IA pode usar por mim?", answer: "Sim. Cole o prompt da skill no assistente e ele usará a CLI por trás." },
+      { question: "Equipes conseguem usar sem docs extras?", answer: "Sim. O quickstart cobre instalar, inicializar e gerar com três comandos." },
       { question: "Por que isso aumenta o uso de imagem?", answer: "Flatkey reduz custo e Image Buddy reduz fricção com templates, hints e uma demo gallery local." },
     ],
   },
@@ -256,20 +259,20 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
     headlineLead: "Создавайте коммерческие изображения",
     headlineAccent: "с Image Buddy",
     intro: "Используйте Flatkey.ai для более дешевой генерации изображений, а Image Buddy — чтобы превращать короткую идею в продуктовые изображения, рекламу, аватары, UI-визуалы и ecommerce-креативы.",
-    selectInstruction: "Вставьте skill prompt в AI-ассистента или запустите CLI напрямую.",
+    selectInstruction: "Запустите CLI напрямую: установка, инициализация и генерация.",
     directLabel: "Ручная генерация изображений",
     flatkeyLabel: "Flatkey + Image Buddy",
     moreUsageLine: "Создавайте больше полезных изображений дешевле и с меньшей работой над prompt.",
     useCases: [
       { title: "Продуктовый маркетинг", body: "Превращайте идею продукта в hero-визуалы для лендингов и кампаний." },
-      { title: "Мультиязычные workflows", body: "Дайте командам CLI и skill prompt для любого AI-ассистента." },
+      { title: "Мультиязычные workflows", body: "Дайте командам простой CLI, который запускается из любого терминала." },
       { title: "Ecommerce и social ads", body: "Создавайте product shots, UGC-кадры, постеры и вертикальные креативы." },
       { title: "Генерация по шаблонам", body: "Используйте шаблоны вроде product-shot с коротким ecommerce hint без изучения переменных." },
     ],
     faqs: [
       { question: "Что устанавливает Image Buddy?", answer: "CLI @flatkey-ai/image-buddy, который использует ваш Flatkey API key для генерации изображений." },
       { question: "Где создать key?", answer: "Создайте или скопируйте API key на https://console.flatkey.ai/keys перед image-buddy onboard." },
-      { question: "Может ли AI-ассистент использовать это за меня?", answer: "Да. Вставьте skill prompt в ассистента, и он установит и запустит CLI за кулисами." },
+      { question: "Можно ли использовать без дополнительных docs?", answer: "Да. Quickstart покрывает установку, инициализацию и генерацию тремя командами." },
       { question: "Почему это увеличивает image usage?", answer: "Flatkey снижает стоимость, а Image Buddy убирает трение через templates, hints и локальную demo gallery." },
     ],
   },
@@ -279,20 +282,20 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
     headlineLead: "Image Buddy で",
     headlineAccent: "商用画像を生成",
     intro: "Flatkey.ai で画像生成コストを下げ、Image Buddy の商用プロンプト集で短いアイデアを商品画像、広告、アバター、アプリ画像、EC クリエイティブに変換します。",
-    selectInstruction: "skill prompt を AI アシスタントに貼るか、CLI を直接実行してください。",
+    selectInstruction: "CLI を直接実行します。インストール、初期化、生成の 3 コマンドです。",
     directLabel: "素の画像生成",
     flatkeyLabel: "Flatkey + Image Buddy",
     moreUsageLine: "低コストかつ少ない prompt 作業で、使える画像を増やせます。",
     useCases: [
       { title: "商品マーケティング画像", body: "短い商品アイデアからランディングページや広告用の hero image を作成します。" },
-      { title: "多言語画像ワークフロー", body: "どの AI アシスタントからでも使える CLI と skill prompt を提供します。" },
+      { title: "多言語画像ワークフロー", body: "どのターミナルからでも実行できるシンプルな CLI を提供します。" },
       { title: "EC と SNS 広告", body: "商品写真、UGC 風広告フレーム、ポスター、縦型クリエイティブを作成します。" },
       { title: "テンプレート生成", body: "product-shot などのテンプレートを短い EC hint で使え、変数名を覚える必要がありません。" },
     ],
     faqs: [
       { question: "Image Buddy は何をインストールしますか？", answer: "@flatkey-ai/image-buddy CLI をインストールし、Flatkey API key で画像を生成します。" },
       { question: "key はどこで作りますか？", answer: "image-buddy onboard の前に https://console.flatkey.ai/keys で API key を作成またはコピーします。" },
-      { question: "AI アシスタントに任せられますか？", answer: "はい。skill prompt を貼れば、裏側で CLI をインストールして実行します。" },
+      { question: "追加ドキュメントなしで使えますか？", answer: "はい。quickstart はインストール、初期化、生成の 3 コマンドだけです。" },
       { question: "なぜ画像利用が増えますか？", answer: "Flatkey がコストを下げ、Image Buddy が templates、hints、local demo gallery で prompt の手間を減らします。" },
     ],
   },
@@ -302,20 +305,20 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
     headlineLead: "Tạo ảnh thương mại",
     headlineAccent: "với Image Buddy",
     intro: "Dùng Flatkey.ai để giảm chi phí tạo ảnh, và dùng Image Buddy để biến một ý tưởng ngắn thành ảnh sản phẩm, quảng cáo, avatar, hình app và creative ecommerce.",
-    selectInstruction: "Dán skill prompt vào trợ lý AI hoặc chạy CLI trực tiếp.",
+    selectInstruction: "Chạy CLI trực tiếp: cài đặt, khởi tạo, rồi tạo ảnh.",
     directLabel: "Tạo ảnh thủ công",
     flatkeyLabel: "Flatkey + Image Buddy",
     moreUsageLine: "Tạo nhiều ảnh dùng được hơn với chi phí thấp hơn và ít chỉnh prompt hơn.",
     useCases: [
       { title: "Ảnh marketing sản phẩm", body: "Biến ý tưởng sản phẩm thành hero image cho landing page và chiến dịch." },
-      { title: "Workflow đa ngôn ngữ", body: "Cung cấp CLI và skill prompt dùng được với mọi trợ lý AI." },
+      { title: "Workflow đa ngôn ngữ", body: "Cung cấp CLI đơn giản chạy được từ mọi terminal." },
       { title: "Ecommerce và social ads", body: "Tạo ảnh sản phẩm, frame quảng cáo UGC, poster và creative dọc." },
       { title: "Tạo bằng template", body: "Dùng template như product-shot với hint ecommerce ngắn, không cần học từng biến." },
     ],
     faqs: [
       { question: "Image Buddy cài gì?", answer: "Nó cài CLI @flatkey-ai/image-buddy và dùng Flatkey API key để tạo ảnh." },
       { question: "Tạo key ở đâu?", answer: "Tạo hoặc copy API key tại https://console.flatkey.ai/keys trước khi chạy image-buddy onboard." },
-      { question: "Trợ lý AI có thể dùng giúp tôi không?", answer: "Có. Dán skill prompt vào trợ lý, nó sẽ cài và chạy CLI phía sau." },
+      { question: "Team có dùng được mà không cần docs thêm không?", answer: "Có. Quickstart gồm ba lệnh: cài đặt, khởi tạo và tạo ảnh." },
       { question: "Vì sao tăng usage tạo ảnh?", answer: "Flatkey giảm chi phí, Image Buddy giảm ma sát bằng templates, hints và demo gallery local." },
     ],
   },
@@ -325,20 +328,20 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
     headlineLead: "Kommerzielle Bilder generieren",
     headlineAccent: "mit Image Buddy",
     intro: "Nutze Flatkey.ai für günstigere Bildgenerierung und Image Buddy, um kurze Ideen in Produktbilder, Ads, Avatare, App-Visuals und Ecommerce-Creatives zu verwandeln.",
-    selectInstruction: "Füge den Skill-Prompt in deinen AI-Assistenten ein oder nutze die CLI direkt.",
+    selectInstruction: "Nutze die CLI direkt: installieren, initialisieren und generieren.",
     directLabel: "Rohe Bildgenerierung",
     flatkeyLabel: "Flatkey + Image Buddy",
     moreUsageLine: "Mehr nutzbare Bilder mit weniger Kosten und weniger Prompt-Arbeit generieren.",
     useCases: [
       { title: "Produktmarketing-Bilder", body: "Verwandle eine Produktidee in Hero Images für Landingpages und Kampagnen." },
-      { title: "Mehrsprachige Workflows", body: "Gib Teams eine CLI und einen Skill-Prompt für jeden AI-Assistenten." },
+      { title: "Mehrsprachige Workflows", body: "Gib Teams eine einfache CLI, die in jedem Terminal läuft." },
       { title: "Ecommerce und Social Ads", body: "Erstelle Produktfotos, UGC-Frames, Poster und vertikale Creatives." },
       { title: "Template-basierte Generierung", body: "Nutze Templates wie product-shot mit kurzem Ecommerce-Hint, ohne Variablen zu lernen." },
     ],
     faqs: [
       { question: "Was installiert Image Buddy?", answer: "Die CLI @flatkey-ai/image-buddy, die mit deinem Flatkey API key Bilder generiert." },
       { question: "Wo erstelle ich den key?", answer: "Erstelle oder kopiere den API key unter https://console.flatkey.ai/keys vor image-buddy onboard." },
-      { question: "Kann ein AI-Assistent es für mich nutzen?", answer: "Ja. Füge den Skill-Prompt ein, der Assistent installiert und startet die CLI im Hintergrund." },
+      { question: "Können Teams es ohne zusätzliche Doku nutzen?", answer: "Ja. Der Quickstart deckt Installation, Onboarding und Generierung mit drei Befehlen ab." },
       { question: "Warum steigert das Image Usage?", answer: "Flatkey senkt Kosten, Image Buddy reduziert Reibung durch Templates, Hints und eine lokale Demo Gallery." },
     ],
   },
@@ -1124,10 +1127,12 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
     valueProps: [
       { title: "One Flatkey key", body: "Users create one key at console.flatkey.ai/keys, run image-buddy onboard, and generate images from the CLI." },
       { title: "Around 40% cheaper", body: "Route image generation through Flatkey to lower metered generation cost." },
-      { title: "Commercial prompt library", body: "Product, ecommerce, social ad, avatar, app, poster, game asset, and editing templates are ready to use." },
-      { title: "Skill + CLI", body: "Users can paste a skill prompt into an AI assistant, while the CLI handles onboarding and generation behind the scenes." },
+      { title: "GPT-image-2 + Nano Banana Pro", body: "Generate through GPT-image-2 or Nano Banana Pro while Image Buddy handles prompts, templates, and CLI setup." },
+      { title: "CLI workflow", body: "Users install Image Buddy once, save a Flatkey key, then generate images from a short prompt." },
     ],
-    quickStartTitle: "Quickstart - skill prompt or CLI in minutes",
+    quickStartTitle: "CLI quickstart in minutes",
+    quickStartModelNote: "Choose GPT-image-2 or Nano Banana Pro from your Flatkey model routing settings.",
+    quickStartGithubLabel: "View prompt examples on GitHub",
     whyUsage: () => "Why this grows image usage",
     whyUsageBody: () => "Flatkey lowers generation cost while Image Buddy removes prompt friction with templates, hints, and a local demo gallery.",
     comparisonTitle: "Raw image generation vs Image Buddy",
@@ -1135,7 +1140,7 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
       ["Cost", "Direct image routes", "Around 40% cheaper through Flatkey"],
       ["Setup", "Manual prompts and API key handling", "image-buddy onboard plus saved key"],
       ["Prompting", "Blank prompt box and repeated tuning", "Commercial templates and short hints"],
-      ["Adoption", "Users need to understand API details", "AI skill prompt and CLI hide the plumbing"],
+      ["Adoption", "Users need to understand API details", "Three CLI commands hide the plumbing"],
     ],
     actionCards: () => [
       { title: "Onboard", body: "Run image-buddy onboard once to save a Flatkey API key." },
@@ -1143,7 +1148,7 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
       { title: "Demo", body: "Open image-buddy web to browse examples and generate with Flatkey." },
     ],
     finalTitle: () => "Ready to generate images with Flatkey?",
-    finalBody: () => "Create a key, paste the skill prompt into your AI assistant, or run the CLI directly.",
+    finalBody: () => "Create a key, run onboard, then generate from a prompt.",
   },
   zh: {
     usagePill: "为生图工作流设计",
@@ -1151,10 +1156,12 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
     valueProps: [
       { title: "一个 Flatkey key", body: "用户在 console.flatkey.ai/keys 创建 key，运行 image-buddy onboard 后即可用 CLI 生图。" },
       { title: "约便宜 40%", body: "通过 Flatkey 路由生图，降低计量生成成本。" },
-      { title: "商业提示词库", body: "产品、电商、社媒广告、头像、App、海报、游戏素材和编辑模板可直接使用。" },
-      { title: "Skill + CLI", body: "用户把 skill prompt 贴给 AI 助手，背后由 CLI 负责 onboard 和生成。" },
+      { title: "GPT-image-2 + Nano Banana Pro", body: "通过 GPT-image-2 或 Nano Banana Pro 生成，Image Buddy 负责提示词、模板和 CLI 配置。" },
+      { title: "CLI 工作流", body: "用户安装一次 Image Buddy，保存 Flatkey key，然后用一句 prompt 生成图片。" },
     ],
-    quickStartTitle: "快速开始 - skill prompt 或 CLI，几分钟可用",
+    quickStartTitle: "CLI 快速开始，几分钟可用",
+    quickStartModelNote: "可在 Flatkey 模型路由设置中选择 GPT-image-2 或 Nano Banana Pro。",
+    quickStartGithubLabel: "在 GitHub 查看提示词示例",
     whyUsage: () => "为什么这能提升生图用量",
     whyUsageBody: () => "Flatkey 降低生成成本，Image Buddy 用模板、hint 和本地 demo gallery 降低提示词门槛。",
     comparisonTitle: "裸生图 vs Image Buddy",
@@ -1162,7 +1169,7 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
       ["成本", "直连生图路线", "通过 Flatkey 约便宜 40%"],
       ["配置", "手动处理 prompt 和 API key", "image-buddy onboard 保存 key"],
       ["提示词", "空白 prompt 反复调", "商业模板和短 hint"],
-      ["采用", "用户要理解 API 细节", "AI skill prompt 和 CLI 隐藏复杂度"],
+      ["采用", "用户要理解 API 细节", "三条 CLI 命令隐藏复杂度"],
     ],
     actionCards: () => [
       { title: "Onboard", body: "运行一次 image-buddy onboard 保存 Flatkey API key。" },
@@ -1170,7 +1177,7 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
       { title: "Demo", body: "打开 image-buddy web 浏览示例，并用 Flatkey 生成图片。" },
     ],
     finalTitle: () => "准备好用 Flatkey 生成图片了吗？",
-    finalBody: () => "创建 key，把 skill prompt 贴给 AI 助手，或直接运行 CLI。",
+    finalBody: () => "创建 key，运行 onboard，然后用 prompt 生成图片。",
   },
   es: {
     usagePill: "listo para flujos de imagen",
@@ -1178,17 +1185,19 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
     valueProps: [
       { title: "Una key de Flatkey", body: "Crea una key, ejecuta image-buddy onboard y genera imágenes desde la CLI." },
       { title: "Cerca de 40% más barato", body: "Enruta la generación de imágenes por Flatkey para reducir el coste medido." },
-      { title: "Prompts comerciales", body: "Plantillas para producto, ecommerce, ads, avatares, app, posters, assets de juego y edición." },
-      { title: "Skill + CLI", body: "El usuario pega un skill prompt en su asistente de IA; la CLI hace onboarding y generación." },
+      { title: "GPT-image-2 + Nano Banana Pro", body: "Genera con GPT-image-2 o Nano Banana Pro mientras Image Buddy gestiona prompts, plantillas y CLI." },
+      { title: "Flujo CLI", body: "El usuario instala Image Buddy una vez, guarda una key de Flatkey y genera imágenes desde un prompt corto." },
     ],
-    quickStartTitle: "Inicio rápido - prompt de skill o CLI en minutos",
+    quickStartTitle: "Inicio rápido de CLI en minutos",
+    quickStartModelNote: "Elige GPT-image-2 o Nano Banana Pro desde la configuración de enrutamiento de modelos de Flatkey.",
+    quickStartGithubLabel: "Ver ejemplos de prompts en GitHub",
     whyUsage: () => "Por qué aumenta el uso de imágenes",
     whyUsageBody: () => "Flatkey reduce el coste e Image Buddy elimina fricción con plantillas, hints y demo gallery local.",
     comparisonTitle: "Generación directa vs Image Buddy",
     comparisonRows: [["Coste", "Rutas directas", "Cerca de 40% más barato con Flatkey"], ["Configuración", "Prompts y key manuales", "image-buddy onboard"], ["Prompting", "Caja vacía y ajustes repetidos", "Plantillas comerciales y hints"], ["Adopción", "El usuario entiende detalles API", "Skill y CLI ocultan la complejidad"]],
     actionCards: () => [{ title: "Onboard", body: "Guarda la key con image-buddy onboard." }, { title: "Generar", body: "Usa un prompt o template hint." }, { title: "Demo", body: "Abre image-buddy web para probar con Flatkey." }],
     finalTitle: () => "¿Listo para generar imágenes con Flatkey?",
-    finalBody: () => "Crea una key, pega el skill prompt o ejecuta la CLI.",
+    finalBody: () => "Crea una key, ejecuta onboard y genera desde un prompt.",
   },
   fr: {
     usagePill: "prêt pour les workflows image",
@@ -1196,17 +1205,19 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
     valueProps: [
       { title: "Une clé Flatkey", body: "Créez une clé, lancez image-buddy onboard, puis générez depuis le CLI." },
       { title: "Environ 40% moins cher", body: "Routez la génération d'images via Flatkey pour réduire le coût mesuré." },
-      { title: "Prompts commerciaux", body: "Templates produit, ecommerce, ads, avatars, app, posters, assets de jeu et édition." },
-      { title: "Skill + CLI", body: "L'utilisateur colle un skill prompt dans son assistant IA; le CLI gère onboarding et génération." },
+      { title: "GPT-image-2 + Nano Banana Pro", body: "Générez via GPT-image-2 ou Nano Banana Pro pendant qu'Image Buddy gère prompts, templates et CLI." },
+      { title: "Workflow CLI", body: "L'utilisateur installe Image Buddy une fois, enregistre une clé Flatkey, puis génère depuis un court prompt." },
     ],
-    quickStartTitle: "Démarrage rapide - skill prompt ou CLI en quelques minutes",
+    quickStartTitle: "Démarrage CLI en quelques minutes",
+    quickStartModelNote: "Choisissez GPT-image-2 ou Nano Banana Pro dans les paramètres de routage des modèles Flatkey.",
+    quickStartGithubLabel: "Voir les exemples de prompts sur GitHub",
     whyUsage: () => "Pourquoi cela augmente l'usage image",
     whyUsageBody: () => "Flatkey réduit le coût et Image Buddy enlève la friction avec templates, hints et demo gallery locale.",
     comparisonTitle: "Génération brute vs Image Buddy",
     comparisonRows: [["Coût", "Routes directes", "Environ 40% moins cher via Flatkey"], ["Configuration", "Prompts et clé manuels", "image-buddy onboard"], ["Prompting", "Page blanche et réglages répétés", "Templates commerciaux et hints"], ["Adoption", "L'utilisateur comprend les détails API", "Skill et CLI cachent la complexité"]],
     actionCards: () => [{ title: "Onboard", body: "Enregistrez la clé avec image-buddy onboard." }, { title: "Générer", body: "Utilisez un prompt ou un template hint." }, { title: "Démo", body: "Ouvrez image-buddy web pour tester avec Flatkey." }],
     finalTitle: () => "Prêt à générer des images avec Flatkey ?",
-    finalBody: () => "Créez une clé, collez le skill prompt ou lancez le CLI.",
+    finalBody: () => "Créez une clé, lancez onboard, puis générez depuis un prompt.",
   },
   pt: {
     usagePill: "pronto para fluxos de imagem",
@@ -1214,17 +1225,19 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
     valueProps: [
       { title: "Uma key Flatkey", body: "Crie uma key, rode image-buddy onboard e gere imagens pela CLI." },
       { title: "Cerca de 40% mais barato", body: "Use Flatkey para reduzir o custo medido de geração de imagens." },
-      { title: "Prompts comerciais", body: "Templates para produto, ecommerce, ads, avatares, app, pôsteres, assets de jogo e edição." },
-      { title: "Skill + CLI", body: "O usuário cola um skill prompt no assistente de IA; a CLI faz onboarding e geração." },
+      { title: "GPT-image-2 + Nano Banana Pro", body: "Gere com GPT-image-2 ou Nano Banana Pro enquanto o Image Buddy cuida de prompts, templates e CLI." },
+      { title: "Fluxo CLI", body: "O usuário instala o Image Buddy uma vez, salva uma key Flatkey e gera imagens a partir de um prompt curto." },
     ],
-    quickStartTitle: "Início rápido - prompt de skill ou CLI em minutos",
+    quickStartTitle: "Início rápido da CLI em minutos",
+    quickStartModelNote: "Escolha GPT-image-2 ou Nano Banana Pro nas configurações de roteamento de modelos da Flatkey.",
+    quickStartGithubLabel: "Ver exemplos de prompts no GitHub",
     whyUsage: () => "Por que isso aumenta o uso de imagens",
     whyUsageBody: () => "Flatkey reduz custo e Image Buddy remove fricção com templates, hints e demo gallery local.",
     comparisonTitle: "Geração direta vs Image Buddy",
     comparisonRows: [["Custo", "Rotas diretas", "Cerca de 40% mais barato via Flatkey"], ["Configuração", "Prompts e key manuais", "image-buddy onboard"], ["Prompting", "Tela em branco e ajustes repetidos", "Templates comerciais e hints"], ["Adoção", "Usuário entende detalhes de API", "Skill e CLI escondem a complexidade"]],
     actionCards: () => [{ title: "Onboard", body: "Salve a key com image-buddy onboard." }, { title: "Gerar", body: "Use um prompt ou template hint." }, { title: "Demo", body: "Abra image-buddy web para testar com Flatkey." }],
     finalTitle: () => "Pronto para gerar imagens com Flatkey?",
-    finalBody: () => "Crie uma key, cole o skill prompt ou rode a CLI.",
+    finalBody: () => "Crie uma key, rode onboard e gere a partir de um prompt.",
   },
   ru: {
     usagePill: "готово для image-workflow",
@@ -1232,17 +1245,19 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
     valueProps: [
       { title: "Один Flatkey key", body: "Создайте key, выполните image-buddy onboard и генерируйте изображения из CLI." },
       { title: "Примерно на 40% дешевле", body: "Генерация через Flatkey снижает измеряемую стоимость изображений." },
-      { title: "Коммерческие промпты", body: "Шаблоны для продуктов, ecommerce, рекламы, аватаров, приложений, постеров, игровых ассетов и редактирования." },
-      { title: "Skill + CLI", body: "Пользователь вставляет skill prompt в AI-ассистента; CLI выполняет онбординг и генерацию." },
+      { title: "GPT-image-2 + Nano Banana Pro", body: "Генерируйте через GPT-image-2 или Nano Banana Pro, а Image Buddy отвечает за prompts, templates и CLI." },
+      { title: "CLI workflow", body: "Пользователь один раз устанавливает Image Buddy, сохраняет Flatkey key и генерирует изображения из короткого prompt." },
     ],
-    quickStartTitle: "Быстрый старт - skill prompt или CLI за минуты",
+    quickStartTitle: "Быстрый старт CLI за минуты",
+    quickStartModelNote: "Выберите GPT-image-2 или Nano Banana Pro в настройках маршрутизации моделей Flatkey.",
+    quickStartGithubLabel: "Смотреть примеры prompts на GitHub",
     whyUsage: () => "Почему это растит image usage",
     whyUsageBody: () => "Flatkey снижает стоимость, Image Buddy убирает трение через шаблоны, hints и локальную демо-галерею.",
     comparisonTitle: "Прямая генерация vs Image Buddy",
     comparisonRows: [["Стоимость", "Прямые маршруты", "Примерно на 40% дешевле через Flatkey"], ["Настройка", "Ручные промпты и key", "image-buddy onboard"], ["Prompting", "Пустое поле и повторная настройка", "Коммерческие шаблоны и hints"], ["Внедрение", "Пользователь знает детали API", "Skill и CLI скрывают сложность"]],
     actionCards: () => [{ title: "Onboard", body: "Сохраните key через image-buddy onboard." }, { title: "Генерация", body: "Используйте prompt или template hint." }, { title: "Демо", body: "Откройте image-buddy web и генерируйте через Flatkey." }],
     finalTitle: () => "Готовы генерировать изображения через Flatkey?",
-    finalBody: () => "Создайте key, вставьте skill prompt или запустите CLI.",
+    finalBody: () => "Создайте key, запустите onboard, затем сгенерируйте из prompt.",
   },
   ja: {
     usagePill: "画像ワークフロー向け",
@@ -1250,17 +1265,19 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
     valueProps: [
       { title: "1 つの Flatkey key", body: "key を作成し、image-buddy onboard 後に CLI から画像生成できます。" },
       { title: "約 40% 安い", body: "Flatkey 経由で画像生成コストを下げます。" },
-      { title: "商用プロンプト", body: "商品、EC、広告、アバター、アプリ、ポスター、ゲーム素材、編集用テンプレート。" },
-      { title: "Skill + CLI", body: "ユーザーは AI アシスタントに skill prompt を貼り、CLI が onboarding と生成を担当します。" },
+      { title: "GPT-image-2 + Nano Banana Pro", body: "GPT-image-2 または Nano Banana Pro で生成し、Image Buddy が prompt、template、CLI 設定を処理します。" },
+      { title: "CLI ワークフロー", body: "Image Buddy を一度インストールし、Flatkey key を保存して、短い prompt から画像生成できます。" },
     ],
-    quickStartTitle: "クイックスタート - skill prompt または CLI を数分で",
+    quickStartTitle: "CLI クイックスタートを数分で",
+    quickStartModelNote: "Flatkey のモデルルーティング設定で GPT-image-2 または Nano Banana Pro を選択できます。",
+    quickStartGithubLabel: "GitHub で prompt 例を見る",
     whyUsage: () => "画像利用が増える理由",
     whyUsageBody: () => "Flatkey がコストを下げ、Image Buddy が templates、hints、local demo gallery で摩擦を減らします。",
     comparisonTitle: "直接生成 vs Image Buddy",
     comparisonRows: [["コスト", "直接ルート", "Flatkey 経由で約 40% 安い"], ["設定", "手動 prompts と key", "image-buddy onboard"], ["Prompting", "空欄から調整", "商用テンプレートと hints"], ["導入", "API details の理解が必要", "Skill と CLI が複雑さを隠す"]],
     actionCards: () => [{ title: "Onboard", body: "image-buddy onboard で key を保存。" }, { title: "生成", body: "prompt または template hint を使用。" }, { title: "デモ", body: "image-buddy web で Flatkey 生成を試す。" }],
     finalTitle: () => "Flatkey で画像生成を始めますか？",
-    finalBody: () => "key を作り、skill prompt を貼るか CLI を実行してください。",
+    finalBody: () => "key を作成し、onboard を実行して、prompt から生成してください。",
   },
   vi: {
     usagePill: "sẵn cho workflow tạo ảnh",
@@ -1268,17 +1285,19 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
     valueProps: [
       { title: "Một Flatkey key", body: "Tạo key, chạy image-buddy onboard rồi tạo ảnh bằng CLI." },
       { title: "Rẻ hơn khoảng 40%", body: "Dùng Flatkey để giảm chi phí tạo ảnh theo usage." },
-      { title: "Prompt thương mại", body: "Template cho product, ecommerce, ads, avatar, app, poster, game asset và edit." },
-      { title: "Skill + CLI", body: "Người dùng dán skill prompt vào trợ lý AI; CLI xử lý onboard và generate." },
+      { title: "GPT-image-2 + Nano Banana Pro", body: "Tạo ảnh qua GPT-image-2 hoặc Nano Banana Pro, còn Image Buddy xử lý prompt, template và CLI." },
+      { title: "Workflow CLI", body: "Người dùng cài Image Buddy một lần, lưu Flatkey key rồi tạo ảnh từ prompt ngắn." },
     ],
-    quickStartTitle: "Bắt đầu nhanh - skill prompt hoặc CLI trong vài phút",
+    quickStartTitle: "Bắt đầu nhanh với CLI trong vài phút",
+    quickStartModelNote: "Chọn GPT-image-2 hoặc Nano Banana Pro trong cài đặt định tuyến model của Flatkey.",
+    quickStartGithubLabel: "Xem ví dụ prompt trên GitHub",
     whyUsage: () => "Vì sao tăng usage tạo ảnh",
     whyUsageBody: () => "Flatkey giảm chi phí, Image Buddy giảm ma sát bằng templates, hints và local demo gallery.",
     comparisonTitle: "Tạo ảnh trực tiếp vs Image Buddy",
     comparisonRows: [["Chi phí", "Route trực tiếp", "Rẻ hơn khoảng 40% qua Flatkey"], ["Cài đặt", "Prompt và key thủ công", "image-buddy onboard"], ["Prompting", "Ô trống và chỉnh nhiều lần", "Template thương mại và hints"], ["Áp dụng", "Người dùng hiểu chi tiết API", "Skill và CLI che phần phức tạp"]],
     actionCards: () => [{ title: "Onboard", body: "Lưu key bằng image-buddy onboard." }, { title: "Tạo ảnh", body: "Dùng prompt hoặc template hint." }, { title: "Demo", body: "Mở image-buddy web để thử Flatkey." }],
     finalTitle: () => "Sẵn sàng tạo ảnh với Flatkey?",
-    finalBody: () => "Tạo key, dán skill prompt hoặc chạy CLI.",
+    finalBody: () => "Tạo key, chạy onboard, rồi tạo ảnh từ prompt.",
   },
   de: {
     usagePill: "bereit für Bild-Workflows",
@@ -1286,17 +1305,19 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
     valueProps: [
       { title: "Ein Flatkey key", body: "Key erstellen, image-buddy onboard ausführen und Bilder per CLI generieren." },
       { title: "Etwa 40% günstiger", body: "Bildgenerierung über Flatkey senkt gemessene Kosten." },
-      { title: "Kommerzielle Prompts", body: "Templates für Produkt, Ecommerce, Ads, Avatare, App, Poster, Game Assets und Editing." },
-      { title: "Skill + CLI", body: "Nutzer fügen einen Skill-Prompt in den AI-Assistenten ein; die CLI macht Onboarding und Generierung." },
+      { title: "GPT-image-2 + Nano Banana Pro", body: "Generiere über GPT-image-2 oder Nano Banana Pro, während Image Buddy Prompts, Templates und CLI übernimmt." },
+      { title: "CLI-Workflow", body: "Nutzer installieren Image Buddy einmal, speichern einen Flatkey key und generieren Bilder aus einem kurzen Prompt." },
     ],
-    quickStartTitle: "Schnellstart - Skill-Prompt oder CLI in Minuten",
+    quickStartTitle: "CLI-Schnellstart in Minuten",
+    quickStartModelNote: "Wähle GPT-image-2 oder Nano Banana Pro in den Flatkey-Modellrouting-Einstellungen.",
+    quickStartGithubLabel: "Prompt-Beispiele auf GitHub ansehen",
     whyUsage: () => "Warum das Bildnutzung steigert",
     whyUsageBody: () => "Flatkey senkt Kosten, Image Buddy reduziert Reibung durch Templates, Hints und lokale Demo Gallery.",
     comparisonTitle: "Direkte Generierung vs Image Buddy",
-    comparisonRows: [["Kosten", "Direkte Routen", "Etwa 40% günstiger über Flatkey"], ["Einrichtung", "Manuelle Prompts und key", "image-buddy onboard"], ["Prompting", "Leeres Feld und wiederholtes Tunen", "Kommerzielle Templates und Hints"], ["Einführung", "Nutzer verstehen API-Details", "Skill und CLI verstecken Komplexität"]],
+    comparisonRows: [["Kosten", "Direkte Routen", "Etwa 40% günstiger über Flatkey"], ["Einrichtung", "Manuelle Prompts und key", "image-buddy onboard"], ["Prompting", "Leeres Feld und wiederholtes Tunen", "Kommerzielle Templates und Hints"], ["Einführung", "Nutzer verstehen API-Details", "Drei CLI-Befehle verstecken Komplexität"]],
     actionCards: () => [{ title: "Onboard", body: "Key mit image-buddy onboard speichern." }, { title: "Generieren", body: "Prompt oder Template-Hint nutzen." }, { title: "Demo", body: "image-buddy web öffnen und mit Flatkey testen." }],
     finalTitle: () => "Bereit, Bilder mit Flatkey zu generieren?",
-    finalBody: () => "Key erstellen, Skill-Prompt einfügen oder CLI ausführen.",
+    finalBody: () => "Key erstellen, onboard ausführen und aus einem Prompt generieren.",
   },
 };
 
@@ -1308,25 +1329,70 @@ export function getUseCaseConfig(pathname: string, locale: Locale): UseCaseConfi
 
 const valueIcons = [KeyRound, CircleDollarSign, LineChart, ShieldCheck] as const;
 const actionIcons = [ClipboardCheck, Gauge, UsersRound] as const;
-const imageBuddySkillPrompt = `Install and use the Flatkey Image Buddy skill from https://github.com/flatkey-ai/awesome-images.
-When I ask for an image, use image-buddy CLI with Flatkey. First run image-buddy onboard if needed, then generate the image from my short prompt or from a template hint. Do not stop at suggesting prompts.`;
-const imageBuddyCommands = [
-  "npx @flatkey-ai/image-buddy onboard",
-  'npx @flatkey-ai/image-buddy generate --prompt "premium product hero image for an AI image API CLI"',
-  'npx @flatkey-ai/image-buddy generate product-shot "ceramic coffee mug for a summer ecommerce campaign"',
-  "npx @flatkey-ai/image-buddy web",
-];
+export const IMAGE_BUDDY_QUICKSTART_STEPS = [
+  { label: "Step 1", title: "Install", command: "npm i -g @flatkey-ai/image-buddy" },
+  { label: "Step 2", title: "Initialize", command: "npx @flatkey-ai/image-buddy onboard" },
+  { label: "Step 3", title: "Generate", command: 'npx @flatkey-ai/image-buddy generate --prompt "premium product hero image for an AI image API CLI"' },
+] as const;
 
-const imageBuddyInstallCopy: Record<Locale, { skillTitle: string; cliTitle: string }> = {
-  en: { skillTitle: "AI skill prompt", cliTitle: "CLI quickstart" },
-  zh: { skillTitle: "AI skill 提示词", cliTitle: "CLI 快速开始" },
-  es: { skillTitle: "Prompt de skill para IA", cliTitle: "Inicio rápido de CLI" },
-  fr: { skillTitle: "Prompt de skill IA", cliTitle: "Démarrage CLI" },
-  pt: { skillTitle: "Prompt de skill para IA", cliTitle: "Início rápido da CLI" },
-  ru: { skillTitle: "Skill prompt для AI", cliTitle: "Быстрый старт CLI" },
-  ja: { skillTitle: "AI skill prompt", cliTitle: "CLI クイックスタート" },
-  vi: { skillTitle: "Skill prompt cho AI", cliTitle: "Bắt đầu nhanh với CLI" },
-  de: { skillTitle: "AI-Skill-Prompt", cliTitle: "CLI-Schnellstart" },
+const imageBuddyInstallCopy: Record<Locale, { cliTitle: string }> = {
+  en: { cliTitle: "CLI quickstart" },
+  zh: { cliTitle: "CLI 快速开始" },
+  es: { cliTitle: "Inicio rápido de CLI" },
+  fr: { cliTitle: "Démarrage CLI" },
+  pt: { cliTitle: "Início rápido da CLI" },
+  ru: { cliTitle: "Быстрый старт CLI" },
+  ja: { cliTitle: "CLI クイックスタート" },
+  vi: { cliTitle: "Bắt đầu nhanh với CLI" },
+  de: { cliTitle: "CLI-Schnellstart" },
+};
+
+const imageBuddyQuickstartStepCopy: Record<Locale, Array<{ label: string; title: string }>> = {
+  en: [
+    { label: "Step 1", title: "Install" },
+    { label: "Step 2", title: "Initialize" },
+    { label: "Step 3", title: "Generate" },
+  ],
+  zh: [
+    { label: "第 1 步", title: "安装" },
+    { label: "第 2 步", title: "初始化" },
+    { label: "第 3 步", title: "生成" },
+  ],
+  es: [
+    { label: "Paso 1", title: "Instalar" },
+    { label: "Paso 2", title: "Inicializar" },
+    { label: "Paso 3", title: "Generar" },
+  ],
+  fr: [
+    { label: "Étape 1", title: "Installer" },
+    { label: "Étape 2", title: "Initialiser" },
+    { label: "Étape 3", title: "Générer" },
+  ],
+  pt: [
+    { label: "Etapa 1", title: "Instalar" },
+    { label: "Etapa 2", title: "Inicializar" },
+    { label: "Etapa 3", title: "Gerar" },
+  ],
+  ru: [
+    { label: "Шаг 1", title: "Установить" },
+    { label: "Шаг 2", title: "Инициализировать" },
+    { label: "Шаг 3", title: "Сгенерировать" },
+  ],
+  ja: [
+    { label: "ステップ 1", title: "インストール" },
+    { label: "ステップ 2", title: "初期化" },
+    { label: "ステップ 3", title: "生成" },
+  ],
+  vi: [
+    { label: "Bước 1", title: "Cài đặt" },
+    { label: "Bước 2", title: "Khởi tạo" },
+    { label: "Bước 3", title: "Tạo ảnh" },
+  ],
+  de: [
+    { label: "Schritt 1", title: "Installieren" },
+    { label: "Schritt 2", title: "Initialisieren" },
+    { label: "Schritt 3", title: "Generieren" },
+  ],
 };
 
 const imageBuddyDemoCopy: Record<Locale, {
@@ -1490,19 +1556,27 @@ function ImageBuddyDemoGallery({ locale }: { locale: Locale }) {
 
 function ImageBuddyInstallPanel({ locale }: { locale: Locale }) {
   const panelCopy = imageBuddyInstallCopy[locale] ?? imageBuddyInstallCopy.en;
+  const stepCopy = imageBuddyQuickstartStepCopy[locale] ?? imageBuddyQuickstartStepCopy.en;
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
-      <div className="rounded-2xl border border-violet-500/16 bg-white/78 p-4 shadow-[0_24px_80px_-58px_rgba(91,33,182,0.72)] dark:border-violet-300/14 dark:bg-white/[0.04]">
-        <div className="mb-3 text-sm font-bold">{panelCopy.skillTitle}</div>
-        <pre className="overflow-x-auto rounded-xl border border-violet-500/12 bg-zinc-950 p-4 font-mono text-[13px] leading-6 whitespace-pre-wrap text-zinc-100">
-          {imageBuddySkillPrompt}
-        </pre>
-      </div>
+    <div className="w-full">
       <div className="rounded-2xl border border-violet-500/16 bg-white/78 p-4 shadow-[0_24px_80px_-58px_rgba(91,33,182,0.72)] dark:border-violet-300/14 dark:bg-white/[0.04]">
         <div className="mb-3 text-sm font-bold">{panelCopy.cliTitle}</div>
-        <pre className="overflow-x-auto rounded-xl border border-violet-500/12 bg-zinc-950 p-4 font-mono text-[13px] leading-6 text-zinc-100">
-          {imageBuddyCommands.join("\n")}
-        </pre>
+        <div className="grid gap-3 lg:grid-cols-3">
+          {IMAGE_BUDDY_QUICKSTART_STEPS.map((step, index) => {
+            const localizedStep = stepCopy[index] ?? step;
+            return (
+              <div key={step.command} className="rounded-xl border border-violet-500/14 bg-white/86 p-3 shadow-inner shadow-violet-500/5 dark:border-violet-300/14 dark:bg-white/[0.06]">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] font-bold text-violet-700 dark:text-violet-200">{localizedStep.label}</span>
+                  <span className="text-sm font-bold">{localizedStep.title}</span>
+                </div>
+                <code className="block overflow-x-auto rounded-lg border border-violet-500/10 bg-violet-500/[0.045] px-3 py-2 font-mono text-[12px] leading-5 text-zinc-800 dark:border-violet-300/12 dark:bg-white/[0.06] dark:text-zinc-100">
+                  {step.command}
+                </code>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -1513,6 +1587,7 @@ export function CodingAgentUseCasePage(props: Props) {
   const config = getUseCaseConfig(props.config.pathname, locale);
   const baseCopy = pageCopy[locale] ?? pageCopy.en;
   const copy = config.installMode === "image-buddy" ? { ...baseCopy, ...imageBuddyPageCopy[locale] } : baseCopy;
+  const ctaUrl = config.installMode === "image-buddy" ? consoleUrl("/sign-up", "redirect=/keys") : signUpUrl;
 
   return (
     <SiteShell locale={locale} pathname={config.pathname}>
@@ -1543,7 +1618,7 @@ export function CodingAgentUseCasePage(props: Props) {
                 <code className="rounded bg-violet-500/10 px-1.5 py-0.5 font-mono text-[0.85em]">{config.endpointText}</code>.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
-                <a className="flatkey-cta-primary" href={signUpUrl}>
+                <a className="flatkey-cta-primary" href={ctaUrl}>
                   {copy.ctaGetKey} <ArrowRight className="size-4" />
                 </a>
                 <a className="flatkey-cta-secondary" href="#install">
@@ -1606,15 +1681,33 @@ export function CodingAgentUseCasePage(props: Props) {
           </section>
 
           <section id="install" className="mt-12">
-            <div className="mb-5 flex flex-col justify-between gap-3 md:flex-row md:items-end">
+            <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-end">
               <div>
                 <h2 className="text-2xl font-bold tracking-tight md:text-3xl">{copy.quickStartTitle}</h2>
                 <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-6">
                   {config.selectInstruction} {copy.quickStartSuffix}
                 </p>
+                {(copy.quickStartModelNote || copy.quickStartGithubLabel) && (
+                  <div className="text-muted-foreground mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium">
+                    {copy.quickStartModelNote && <span>{copy.quickStartModelNote}</span>}
+                    {copy.quickStartGithubLabel && (
+                      <a
+                        className="inline-flex items-center gap-1.5 font-bold text-violet-700 hover:text-violet-500 dark:text-violet-200"
+                        href={IMAGE_BUDDY_GITHUB_URL}
+                        rel="nofollow noopener noreferrer"
+                        target="_blank"
+                      >
+                        <svg aria-hidden="true" className="size-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-1.04-.01-1.89-2.78.62-3.37-1.22-3.37-1.22-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.63.07-.63 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05A9.36 9.36 0 0 1 12 6.99c.85 0 1.7.12 2.5.34 1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.81-4.57 5.06.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.8 0 .27.18.59.69.49A10.08 10.08 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z" />
+                        </svg>
+                        {copy.quickStartGithubLabel}
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
-              <a className="text-sm font-semibold text-violet-700 hover:text-violet-500 dark:text-violet-200" href={signUpUrl}>
-                {copy.getKeyLink}
+              <a className="flatkey-cta-primary shrink-0 self-start md:self-auto" href={ctaUrl}>
+                {copy.ctaGetKey} <ArrowRight className="size-4" />
               </a>
             </div>
             {config.installMode === "image-buddy" ? <ImageBuddyInstallPanel locale={locale} /> : <ClaudeCodeInstallTabs locale={locale} />}
@@ -1703,7 +1796,7 @@ export function CodingAgentUseCasePage(props: Props) {
                   {copy.finalBody(config.toolName)}
                 </p>
               </div>
-              <a className="flatkey-cta-inverse shrink-0" href={signUpUrl}>
+              <a className="flatkey-cta-inverse shrink-0" href={ctaUrl}>
                 {copy.ctaGetKey} <ArrowRight className="size-4" />
               </a>
             </div>
