@@ -2,12 +2,14 @@ package relay
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -459,6 +461,7 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	}
 
 	snap := task.Snapshot()
+	oldStatus := snap.Status
 
 	// 将上游最新状态更新到 task
 	if ti.Status != "" {
@@ -466,6 +469,9 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	}
 	if ti.Progress != "" {
 		task.Progress = ti.Progress
+	}
+	if len(body) > 0 {
+		task.Data = body
 	}
 	if strings.HasPrefix(ti.Url, "data:") {
 		// data: URI — kept in Data, not ResultURL
@@ -476,8 +482,27 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
 	}
 
+	shouldRefund := false
+	if task.Status == model.TaskStatusFailure && oldStatus != model.TaskStatusFailure {
+		if ti.Reason != "" {
+			task.FailReason = ti.Reason
+		} else if task.FailReason == "" {
+			task.FailReason = "task failed"
+		}
+		task.Progress = taskcommon.ProgressComplete
+		if task.FinishTime == 0 {
+			task.FinishTime = time.Now().Unix()
+		}
+		if task.Quota != 0 {
+			shouldRefund = true
+		}
+	}
+
 	if !snap.Equal(task.Snapshot()) {
-		_, _ = task.UpdateWithStatus(snap.Status)
+		won, err := task.UpdateWithStatus(oldStatus)
+		if err == nil && won && shouldRefund {
+			service.RefundTaskQuota(context.Background(), task, task.FailReason)
+		}
 	}
 
 	// OpenAI Video API 由调用者的 ConvertToOpenAIVideo 分支处理
