@@ -77,3 +77,39 @@ func TestVerificationCodesExpireInRedis(t *testing.T) {
 
 	require.False(t, VerifyCodeWithKey("user@example.com", "123456", EmailVerificationPurpose))
 }
+
+func TestVerificationCodesFallbackToMemoryWhenRedisFails(t *testing.T) {
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	defer client.Close()
+	server.Close()
+
+	oldRedisEnabled := RedisEnabled
+	oldRDB := RDB
+	oldValidMinutes := VerificationValidMinutes
+	t.Cleanup(func() {
+		RedisEnabled = oldRedisEnabled
+		RDB = oldRDB
+		VerificationValidMinutes = oldValidMinutes
+		verificationMap = make(map[string]verificationValue)
+	})
+
+	RedisEnabled = true
+	RDB = client
+	VerificationValidMinutes = 10
+	verificationMap = make(map[string]verificationValue)
+
+	require.NoError(t, RegisterVerificationCodeWithKey("user@example.com", "123456", EmailVerificationPurpose))
+
+	verificationMutex.Lock()
+	stored, ok := verificationMap[EmailVerificationPurpose+"user@example.com"]
+	verificationMutex.Unlock()
+	require.True(t, ok)
+	require.Equal(t, "123456", stored.code)
+
+	require.True(t, VerifyCodeWithKey("user@example.com", "123456", EmailVerificationPurpose))
+	require.False(t, VerifyCodeWithKey("user@example.com", "000000", EmailVerificationPurpose))
+
+	DeleteKey("user@example.com", EmailVerificationPurpose)
+	require.False(t, VerifyCodeWithKey("user@example.com", "123456", EmailVerificationPurpose))
+}

@@ -39,12 +39,19 @@ func GenerateVerificationCode(length int) string {
 
 func RegisterVerificationCodeWithKey(key string, code string, purpose string) error {
 	if redisVerificationEnabled() {
-		if err := RedisSet(verificationRedisKey(key, purpose), code, verificationTTL()); err != nil {
-			return fmt.Errorf("failed to store verification code in Redis: %w", err)
+		if err := RedisSet(verificationRedisKey(key, purpose), code, verificationTTL()); err == nil {
+			deleteVerificationCodeFromMemory(key, purpose)
+			return nil
+		} else {
+			SysLog(fmt.Sprintf("failed to store verification code in Redis, falling back to memory: %v", err))
 		}
-		return nil
 	}
 
+	storeVerificationCodeInMemory(key, code, purpose)
+	return nil
+}
+
+func storeVerificationCodeInMemory(key string, code string, purpose string) {
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	verificationMap[purpose+key] = verificationValue{
@@ -54,22 +61,23 @@ func RegisterVerificationCodeWithKey(key string, code string, purpose string) er
 	if len(verificationMap) > verificationMapMaxSize {
 		removeExpiredPairs()
 	}
-	return nil
 }
 
 func VerifyCodeWithKey(key string, code string, purpose string) bool {
 	if redisVerificationEnabled() {
 		value, err := RedisGet(verificationRedisKey(key, purpose))
-		if errors.Is(err, redis.Nil) {
-			return false
+		if err == nil {
+			return value == code
 		}
-		if err != nil {
-			SysLog(fmt.Sprintf("failed to get verification code from Redis: %v", err))
-			return false
+		if !errors.Is(err, redis.Nil) {
+			SysLog(fmt.Sprintf("failed to get verification code from Redis, falling back to memory: %v", err))
 		}
-		return value == code
 	}
 
+	return verifyCodeInMemory(key, code, purpose)
+}
+
+func verifyCodeInMemory(key string, code string, purpose string) bool {
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	value, okay := verificationMap[purpose+key]
@@ -83,11 +91,14 @@ func VerifyCodeWithKey(key string, code string, purpose string) bool {
 func DeleteKey(key string, purpose string) {
 	if redisVerificationEnabled() {
 		if err := RedisDel(verificationRedisKey(key, purpose)); err != nil {
-			SysLog(fmt.Sprintf("failed to delete verification code from Redis: %v", err))
+			SysLog(fmt.Sprintf("failed to delete verification code from Redis, deleting memory fallback: %v", err))
 		}
-		return
 	}
 
+	deleteVerificationCodeFromMemory(key, purpose)
+}
+
+func deleteVerificationCodeFromMemory(key string, purpose string) {
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	delete(verificationMap, purpose+key)
