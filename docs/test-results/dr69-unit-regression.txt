@@ -1,0 +1,35 @@
+DR-69 Provider response + usage events focused regression
+Date: 2026-06-22
+
+Command:
+go test ./internal/skill/relay ./relay -run 'TestEmitSuccessfulExecution|TestTextHelper_SkillRelay' -count=1
+
+Fixtures:
+- In-memory SQLite migrated with SkillUsageEvent schema.
+- Synthetic SkillRelayContext with server-bound skill_id, skill_version_id, user_id, plan, entry_point, Skill kids flags, model, latency, and dto.Usage token counts.
+- Existing relay TextHelper fixtures for Skill relay entry, public routing API, and DR-68 rewrite paths.
+
+Assertions:
+- First successful run inserts skill_used + skill_first_use with skill_id, skill_version_id, entry_point=skill_package, model, token counts, latency_ms, and success=true.
+- Second successful run inserts skill_used + skill_repeat_use with metadata.repeat_index=2.
+- Metadata contains only safe schema_version/producer/repeat_index values and no prompt/raw/provider/output keys.
+- Legacy playground_picker context is normalized to skill_package for new success events.
+- Kids analytics does not persist real identity when pseudonymous salt is unavailable.
+- Existing Skill relay entry/public routing/DR-68 tests continue passing.
+
+Result:
+PASS
+
+Command:
+go test ./internal/skill/... ./relay -count=1
+
+Fixtures:
+- Package test fixtures across internal Skill API, availability, enums, errcodes, handlers, model migration/validation, relay helpers, and relay integration-light tests.
+- In-memory SQLite fixtures for Skill usage event persistence and Skill relay execution tests.
+
+Assertions:
+- Existing Skill API/model/handler behavior remains compatible with the new DR-69 emitter.
+- Relay package compiles and existing Skill relay entry, public routing API, DR-68 request rewrite, and TextHelper regression tests pass with disclosure/event hooks in place.
+
+Result:
+PASS

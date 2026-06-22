@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -332,6 +333,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		}
 	}
 
+	if _, isSkill := skillrelay.Get(c); isSkill {
+		c.Writer.Header().Set(skillrelay.AIDisclosureHeader, skillrelay.AIDisclosureText)
+	}
+
 	usage, newApiErr := adaptor.DoResponse(c, httpResp, info)
 	if newApiErr != nil {
 		// reset status code
@@ -346,6 +351,21 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		service.PostAudioConsumeQuota(c, info, usage.(*dto.Usage), "")
 	} else {
 		service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
+	}
+	if skillCtx, isSkill := skillrelay.Get(c); isSkill {
+		modelName := request.Model
+		if info.UpstreamModelName != "" {
+			modelName = info.UpstreamModelName
+		}
+		latencyMS := int(time.Since(info.StartTime).Milliseconds())
+		if err := skillrelay.EmitSuccessfulExecution(skillrelay.SuccessfulExecutionEventInput{
+			Context:   skillCtx,
+			Usage:     usage.(*dto.Usage),
+			Model:     modelName,
+			LatencyMS: latencyMS,
+		}); err != nil {
+			logger.LogError(c, fmt.Sprintf("skill usage event emit failed: %s", err.Error()))
+		}
 	}
 	return nil
 }
