@@ -61,6 +61,8 @@ func SetSkillRouter(router *gin.Engine) {
 		}
 		{
 			opsRoute.GET("/skills/summary", skillhandler.GetOpsSkillSummary)
+			opsRoute.GET("/skill-analytics/overview", skillhandler.GetOpsSkillAnalyticsOverview)
+			opsRoute.GET("/skill-analytics/skills", skillhandler.GetOpsSkillAnalyticsSkills)
 		}
 	}
 }
