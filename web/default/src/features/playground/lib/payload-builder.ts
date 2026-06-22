@@ -24,6 +24,15 @@ import type {
 } from '../types'
 import { formatMessageForAPI, isValidMessage } from './message-utils'
 
+const DEFAULT_TEMPERATURE = 0.7
+
+function shouldSkipTemperature(model: string, temperature: number): boolean {
+  return (
+    temperature === DEFAULT_TEMPERATURE ||
+    /^o[1-4]|reasoning|thinking|deepseek-r|gpt-5/i.test(model)
+  )
+}
+
 /**
  * Build API request payload from messages and config
  */
@@ -57,9 +66,18 @@ export function buildChatCompletionPayload(
   parameterKeys.forEach((key) => {
     if (parameterEnabled[key]) {
       const value = config[key as keyof PlaygroundConfig]
-      if (value !== undefined && value !== null) {
-        ;(payload as unknown as Record<string, unknown>)[key] = value
+      if (value === undefined || value === null) {
+        return
       }
+
+      if (
+        key === 'temperature' &&
+        shouldSkipTemperature(config.model, value as number)
+      ) {
+        return
+      }
+
+      ;(payload as unknown as Record<string, unknown>)[key] = value
     }
   })
 
