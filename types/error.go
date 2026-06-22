@@ -89,6 +89,7 @@ const (
 	// channel flow control errors
 	ErrorCodeChannelFlowQueueFull              ErrorCode = "channel_flow_queue_full"
 	ErrorCodeChannelFlowQueueTimeout           ErrorCode = "channel_flow_queue_timeout"
+	ErrorCodeChannelFlowClientCancelled        ErrorCode = "channel_flow_client_cancelled"
 	ErrorCodeChannelFlowContextExceeded        ErrorCode = "channel_flow_context_exceeded"
 	ErrorCodeChannelFlowDraining               ErrorCode = "channel_flow_draining"
 	ErrorCodeChannelFlowBackendUnavailable     ErrorCode = "channel_flow_backend_unavailable"

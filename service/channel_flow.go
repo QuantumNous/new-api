@@ -24,6 +24,7 @@ import (
 const (
 	FlowDecisionRejectQueueFull           = "queue_full"
 	FlowDecisionRejectQueueTimeout        = "queue_timeout"
+	FlowDecisionRejectClientCancelled     = "client_cancelled"
 	FlowDecisionRejectContextExceeded     = "context_exceeded"
 	FlowDecisionRejectPerUserQueueFull    = "per_user_queue_full"
 	FlowDecisionRejectPerUserInflightFull = "per_user_inflight_full"
@@ -71,6 +72,8 @@ type PoolStatus struct {
 	OldestWaitMs       int64  `json:"oldest_wait_ms"`
 	ConfigVersion      int64  `json:"config_version"`
 	LeaseRenewFailures int    `json:"lease_renew_failures"`
+	WatchAttempts      int64  `json:"watch_attempts"`
+	TxConflicts        int64  `json:"tx_conflicts"`
 }
 
 type FlowBackend interface {
@@ -341,6 +344,9 @@ func channelFlowEventTypeFromDecision(decision *AcquireDecision) string {
 	if decision == nil {
 		return model.ChannelFlowEventRejected
 	}
+	if decision.RejectCode == FlowDecisionRejectClientCancelled {
+		return model.ChannelFlowEventCancelled
+	}
 	if decision.RejectCode == FlowDecisionRejectQueueTimeout {
 		return model.ChannelFlowEventTimeout
 	}
@@ -513,6 +519,9 @@ func flowDecisionToAPIError(decision *AcquireDecision, err error) *types.NewAPIE
 		switch decision.RejectCode {
 		case FlowDecisionRejectQueueTimeout:
 			errorCode = types.ErrorCodeChannelFlowQueueTimeout
+		case FlowDecisionRejectClientCancelled:
+			errorCode = types.ErrorCodeChannelFlowClientCancelled
+			statusCode = http.StatusRequestTimeout
 		case FlowDecisionRejectContextExceeded:
 			errorCode = types.ErrorCodeChannelFlowContextExceeded
 			statusCode = http.StatusBadRequest
@@ -690,7 +699,7 @@ func (b *memoryFlowBackend) Acquire(ctx context.Context, req AcquireRequest) (Fl
 		decision.WaitedMs = waitedMs
 		decision.RunningNow = runningNow
 		decision.QueuedNow = queuedNow
-		decision.RejectCode = FlowDecisionRejectQueueTimeout
+		decision.RejectCode = FlowDecisionRejectClientCancelled
 		return nil, decision, ctx.Err()
 	case <-timer.C:
 		waitedMs, runningNow, queuedNow, _ := slot.cancelWaiting(request.id)

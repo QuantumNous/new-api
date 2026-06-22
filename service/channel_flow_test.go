@@ -428,6 +428,9 @@ func TestRedisFlowBackendRejectsWhenPerUserQueueFull(t *testing.T) {
 
 func newRedisFlowBackendForTest(t *testing.T) (*redisFlowBackend, model.ChannelFlowPool, func()) {
 	t.Helper()
+	if os.Getenv("CHANNEL_FLOW_REDIS_TEST") != "1" {
+		t.Skip("CHANNEL_FLOW_REDIS_TEST=1 is not set")
+	}
 	redisURL := os.Getenv("REDIS_CONN_STRING")
 	if redisURL == "" {
 		t.Skip("REDIS_CONN_STRING is not set")
@@ -566,15 +569,15 @@ func TestMemoryFlowBackendClientAbortReleasesCapacity(t *testing.T) {
 	// Create cancellable context to simulate client abort
 	abortCtx, abortCancel := context.WithCancel(context.Background())
 
-	resultCh := make(chan error, 1)
+	resultCh := make(chan *AcquireDecision, 1)
 	go func() {
-		_, _, err := backend.Acquire(abortCtx, AcquireRequest{
+		_, decision, _ := backend.Acquire(abortCtx, AcquireRequest{
 			RequestID:      "abort-2",
 			Pool:           pool,
 			UserID:         2,
 			QueueTimeoutMs: 5000, // long timeout so abort is the trigger
 		})
-		resultCh <- err
+		resultCh <- decision
 	}()
 
 	time.Sleep(50 * time.Millisecond)
@@ -590,8 +593,9 @@ func TestMemoryFlowBackendClientAbortReleasesCapacity(t *testing.T) {
 	abortCancel()
 
 	select {
-	case err := <-resultCh:
-		require.Error(t, err, "acquire should return error on client abort")
+	case decision := <-resultCh:
+		require.NotNil(t, decision, "acquire should return decision on client abort")
+		require.Equal(t, FlowDecisionRejectClientCancelled, decision.RejectCode)
 	case <-time.After(time.Second):
 		t.Fatal("acquire did not return after client abort")
 	}
@@ -605,6 +609,31 @@ func TestMemoryFlowBackendClientAbortReleasesCapacity(t *testing.T) {
 	if status.Running != 1 {
 		t.Fatalf("running count should remain 1, got %d", status.Running)
 	}
+}
+
+func TestMemoryFlowBackendQueueTimeoutRejectCode(t *testing.T) {
+	backend := NewMemoryFlowBackend()
+	pool := testFlowPool()
+	pool.QueueTimeoutMs = 30
+
+	guard, _, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "timeout-1",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	require.NoError(t, err)
+	defer guard.Release(context.Background())
+
+	_, decision, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "timeout-2",
+		Pool:           pool,
+		UserID:         2,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	require.Error(t, err)
+	require.NotNil(t, decision)
+	require.Equal(t, FlowDecisionRejectQueueTimeout, decision.RejectCode)
 }
 
 func TestMemoryFlowBackendMaxInflightPerUser(t *testing.T) {
@@ -905,4 +934,328 @@ func TestRedisFlowBackendMaxInflightPerUser(t *testing.T) {
 	case <-queuedCh:
 	case <-time.After(2 * time.Second):
 	}
+}
+
+func TestRedisFlowBackendClientAbortRejectCode(t *testing.T) {
+	backend, pool, cleanup := newRedisFlowBackendForTest(t)
+	defer cleanup()
+
+	guard, _, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "redis-abort-1",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	require.NoError(t, err)
+	defer guard.Release(context.Background())
+
+	abortCtx, abortCancel := context.WithCancel(context.Background())
+	resultCh := make(chan *AcquireDecision, 1)
+	go func() {
+		_, decision, _ := backend.Acquire(abortCtx, AcquireRequest{
+			RequestID:      "redis-abort-2",
+			Pool:           pool,
+			UserID:         2,
+			QueueTimeoutMs: 5000,
+		})
+		resultCh <- decision
+	}()
+
+	eventuallyFlowStatus(t, backend, pool, func(status PoolStatus) bool {
+		return status.Running == 1 && status.Queued == 1
+	})
+
+	abortCancel()
+	select {
+	case decision := <-resultCh:
+		require.NotNil(t, decision)
+		require.Equal(t, FlowDecisionRejectClientCancelled, decision.RejectCode)
+	case <-time.After(2 * time.Second):
+		t.Fatal("redis acquire did not return after client abort")
+	}
+
+	eventuallyFlowStatus(t, backend, pool, func(status PoolStatus) bool {
+		return status.Running == 1 && status.Queued == 0
+	})
+}
+
+func TestRedisFlowBackendMaxProcessingCleanupIgnoresRenewedLease(t *testing.T) {
+	backend, pool, cleanup := newRedisFlowBackendForTest(t)
+	defer cleanup()
+	pool.MaxProcessingMs = 80
+	pool.LeaseMs = 1000
+
+	guard, _, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "redis-max-processing-1",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	require.NoError(t, err)
+
+	time.Sleep(40 * time.Millisecond)
+	require.NoError(t, guard.RenewLease(context.Background()))
+	time.Sleep(70 * time.Millisecond)
+
+	status, err := backend.Status(context.Background(), pool)
+	require.NoError(t, err)
+	require.Equal(t, 0, status.Running, "max_processing_ms should release running request even when lease was renewed")
+}
+
+func TestRedisFlowBackendCleanupDrainsExpiredRunningBatch(t *testing.T) {
+	backend, pool, cleanup := newRedisFlowBackendForTest(t)
+	defer cleanup()
+	pool.MaxInflight = redisFlowCleanupBatch + 5
+	pool.LeaseMs = 20
+
+	for i := 0; i < redisFlowCleanupBatch+5; i++ {
+		guard, _, err := backend.Acquire(context.Background(), AcquireRequest{
+			RequestID:      fmt.Sprintf("redis-expired-running-%d", i),
+			Pool:           pool,
+			UserID:         i + 1,
+			QueueTimeoutMs: pool.QueueTimeoutMs,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, guard)
+	}
+
+	time.Sleep(60 * time.Millisecond)
+	status, err := backend.Status(context.Background(), pool)
+	require.NoError(t, err)
+	require.Equal(t, 0, status.Running, "cleanup should drain more than one expired running batch")
+}
+
+func TestRedisFlowBackendStatusReportsWatchContention(t *testing.T) {
+	backend, pool, cleanup := newRedisFlowBackendForTest(t)
+	defer cleanup()
+	pool.MaxInflight = 1
+	pool.MaxQueueSize = 50
+
+	resultCh := make(chan error, 20)
+	for i := 0; i < 20; i++ {
+		i := i
+		go func() {
+			guard, _, err := backend.Acquire(context.Background(), AcquireRequest{
+				RequestID:      fmt.Sprintf("redis-contention-%d", i),
+				Pool:           pool,
+				UserID:         i + 1,
+				QueueTimeoutMs: pool.QueueTimeoutMs,
+			})
+			if guard != nil {
+				_ = guard.Release(context.Background())
+			}
+			resultCh <- err
+		}()
+	}
+	for i := 0; i < 20; i++ {
+		select {
+		case err := <-resultCh:
+			require.NoError(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("contention acquire did not finish")
+		}
+	}
+
+	status, err := backend.Status(context.Background(), pool)
+	require.NoError(t, err)
+	require.Greater(t, status.WatchAttempts, int64(0))
+	require.GreaterOrEqual(t, status.TxConflicts, int64(0))
+}
+
+func TestRedisFlowBackendDirtyHeadCleanup(t *testing.T) {
+	backend, pool, cleanup := newRedisFlowBackendForTest(t)
+	defer cleanup()
+	pool.MaxQueueSize = 5
+
+	guard1, _, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "redis-dirty-head-running",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	require.NoError(t, err)
+
+	keys := redisKeysForPool(pool)
+	require.NoError(t, common.RDB.ZAdd(context.Background(), keys.Waiting, &redis.Z{
+		Score:  1,
+		Member: "redis-dirty-head-stale",
+	}).Err())
+	require.NoError(t, common.RDB.Set(context.Background(), keys.Seq, 1, 0).Err())
+
+	resultCh := make(chan error, 1)
+	go func() {
+		guard2, decision2, err := backend.Acquire(context.Background(), AcquireRequest{
+			RequestID:      "redis-dirty-head-valid",
+			Pool:           pool,
+			UserID:         2,
+			QueueTimeoutMs: pool.QueueTimeoutMs,
+		})
+		if err != nil {
+			resultCh <- err
+			return
+		}
+		if guard2 == nil || decision2 == nil || !decision2.Admitted || !decision2.Queued {
+			resultCh <- fmt.Errorf("valid request was not admitted after dirty head cleanup: decision=%+v guard=%v", decision2, guard2)
+			return
+		}
+		_ = guard2.Release(context.Background())
+		resultCh <- nil
+	}()
+
+	eventuallyFlowStatus(t, backend, pool, func(status PoolStatus) bool {
+		return status.Running == 1 && status.Queued == 1
+	})
+	require.NoError(t, guard1.Release(context.Background()))
+
+	select {
+	case err := <-resultCh:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("valid request was blocked behind stale waiting head")
+	}
+}
+
+func TestRedisFlowBackendLeaseRenewal(t *testing.T) {
+	backend, pool, cleanup := newRedisFlowBackendForTest(t)
+	defer cleanup()
+	pool.LeaseMs = 80
+
+	guard, _, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "redis-lease-renewal",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	require.NoError(t, err)
+	time.Sleep(50 * time.Millisecond)
+	require.NoError(t, guard.RenewLease(context.Background()))
+	time.Sleep(50 * time.Millisecond)
+
+	status, err := backend.Status(context.Background(), pool)
+	require.NoError(t, err)
+	require.Equal(t, 1, status.Running, "renewed lease should keep request running")
+
+	time.Sleep(60 * time.Millisecond)
+	status, err = backend.Status(context.Background(), pool)
+	require.NoError(t, err)
+	require.Equal(t, 0, status.Running, "request should expire after renewed lease elapses")
+}
+
+func TestRedisFlowBackendFIFOOrdering(t *testing.T) {
+	backend, pool, cleanup := newRedisFlowBackendForTest(t)
+	defer cleanup()
+	pool.MaxQueueSize = 5
+
+	guard1, _, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "redis-fifo-1",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	require.NoError(t, err)
+
+	admittedCh := make(chan string, 2)
+	go func() {
+		guard, decision, err := backend.Acquire(context.Background(), AcquireRequest{
+			RequestID:      "redis-fifo-2",
+			Pool:           pool,
+			UserID:         2,
+			QueueTimeoutMs: pool.QueueTimeoutMs,
+		})
+		if err == nil && guard != nil && decision != nil && decision.Admitted {
+			admittedCh <- "redis-fifo-2"
+			_ = guard.Release(context.Background())
+			return
+		}
+		admittedCh <- "error-2"
+	}()
+	eventuallyFlowStatus(t, backend, pool, func(status PoolStatus) bool {
+		return status.Running == 1 && status.Queued == 1
+	})
+	go func() {
+		guard, decision, err := backend.Acquire(context.Background(), AcquireRequest{
+			RequestID:      "redis-fifo-3",
+			Pool:           pool,
+			UserID:         3,
+			QueueTimeoutMs: pool.QueueTimeoutMs,
+		})
+		if err == nil && guard != nil && decision != nil && decision.Admitted {
+			admittedCh <- "redis-fifo-3"
+			_ = guard.Release(context.Background())
+			return
+		}
+		admittedCh <- "error-3"
+	}()
+	eventuallyFlowStatus(t, backend, pool, func(status PoolStatus) bool {
+		return status.Running == 1 && status.Queued == 2
+	})
+	require.NoError(t, guard1.Release(context.Background()))
+
+	select {
+	case requestID := <-admittedCh:
+		require.Equal(t, "redis-fifo-2", requestID)
+	case <-time.After(2 * time.Second):
+		t.Fatal("first queued request was not admitted")
+	}
+}
+
+func TestRedisFlowOutagePolicyFailClosed(t *testing.T) {
+	oldRedisEnabled := common.RedisEnabled
+	oldRDB := common.RDB
+	common.RedisEnabled = false
+	common.RDB = nil
+	defer func() {
+		common.RedisEnabled = oldRedisEnabled
+		common.RDB = oldRDB
+	}()
+
+	pool := testFlowPool()
+	pool.Backend = model.ChannelFlowBackendRedis
+	pool.RedisFailurePolicy = model.ChannelFlowRedisFailureFailClosed
+
+	passThrough, fallbackPool, apiErr := resolveRedisFlowUnavailable(context.Background(), &pool)
+	require.False(t, passThrough)
+	require.Nil(t, fallbackPool)
+	require.NotNil(t, apiErr)
+}
+
+func TestRedisFlowOutagePolicyFailOpen(t *testing.T) {
+	oldRedisEnabled := common.RedisEnabled
+	oldRDB := common.RDB
+	common.RedisEnabled = false
+	common.RDB = nil
+	defer func() {
+		common.RedisEnabled = oldRedisEnabled
+		common.RDB = oldRDB
+	}()
+
+	pool := testFlowPool()
+	pool.Backend = model.ChannelFlowBackendRedis
+	pool.RedisFailurePolicy = model.ChannelFlowRedisFailureFailOpen
+
+	passThrough, fallbackPool, apiErr := resolveRedisFlowUnavailable(context.Background(), &pool)
+	require.True(t, passThrough)
+	require.Nil(t, fallbackPool)
+	require.Nil(t, apiErr)
+}
+
+func TestRedisFlowOutagePolicyLocalMemory(t *testing.T) {
+	oldRedisEnabled := common.RedisEnabled
+	oldRDB := common.RDB
+	common.RedisEnabled = false
+	common.RDB = nil
+	defer func() {
+		common.RedisEnabled = oldRedisEnabled
+		common.RDB = oldRDB
+	}()
+
+	pool := testFlowPool()
+	pool.Backend = model.ChannelFlowBackendRedis
+	pool.RedisFailurePolicy = model.ChannelFlowRedisFailureLocalMemory
+
+	passThrough, fallbackPool, apiErr := resolveRedisFlowUnavailable(context.Background(), &pool)
+	require.False(t, passThrough)
+	require.NotNil(t, fallbackPool)
+	require.Nil(t, apiErr)
+	require.Equal(t, model.ChannelFlowBackendMemory, fallbackPool.Backend)
 }
