@@ -72,8 +72,10 @@ type PoolStatus struct {
 	OldestWaitMs       int64  `json:"oldest_wait_ms"`
 	ConfigVersion      int64  `json:"config_version"`
 	LeaseRenewFailures int    `json:"lease_renew_failures"`
-	WatchAttempts      int64  `json:"watch_attempts"`
-	TxConflicts        int64  `json:"tx_conflicts"`
+	// WatchAttempts and TxConflicts are backend-global counters on the shared
+	// redisFlowBackend instance, not per-pool counters.
+	WatchAttempts int64 `json:"watch_attempts"`
+	TxConflicts   int64 `json:"tx_conflicts"`
 }
 
 type FlowBackend interface {

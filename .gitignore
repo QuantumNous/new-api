@@ -33,6 +33,7 @@ data/
 .gocache-temp
 .gopath
 .test
+*.test
 token_estimator_test.go
 skills-lock.json
 .playwright-mcp

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -501,6 +502,14 @@ func eventuallyFlowStatus(t *testing.T, backend FlowBackend, pool model.ChannelF
 	t.Fatalf("status predicate not met, last=%+v err=%v", last, lastErr)
 }
 
+func assertFlowStatus(t *testing.T, backend FlowBackend, pool model.ChannelFlowPool, wantRunning, wantQueued int) {
+	t.Helper()
+	status, err := backend.Status(context.Background(), pool)
+	require.NoError(t, err)
+	require.Equal(t, wantRunning, status.Running)
+	require.Equal(t, wantQueued, status.Queued)
+}
+
 // ── Lifecycle Consistency Tests ─────────────────────────────────────────
 //
 // These tests verify Phase 1/P0 lifecycle guarantees:
@@ -634,6 +643,128 @@ func TestMemoryFlowBackendQueueTimeoutRejectCode(t *testing.T) {
 	require.Error(t, err)
 	require.NotNil(t, decision)
 	require.Equal(t, FlowDecisionRejectQueueTimeout, decision.RejectCode)
+
+	status, err := backend.Status(context.Background(), pool)
+	require.NoError(t, err)
+	require.Equal(t, 1, status.Running)
+	require.Equal(t, 0, status.Queued)
+}
+
+func TestMemoryFlowBackendCleanupExpiredRunning(t *testing.T) {
+	backend := NewMemoryFlowBackend()
+	pool := testFlowPool()
+	pool.MaxInflight = 2
+	pool.MaxProcessingMs = 30
+
+	guard1, _, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "cleanup-expired-running-1",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	require.NoError(t, err)
+	guard2, _, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "cleanup-expired-running-2",
+		Pool:           pool,
+		UserID:         2,
+		QueueTimeoutMs: pool.QueueTimeoutMs,
+	})
+	require.NoError(t, err)
+
+	time.Sleep(60 * time.Millisecond)
+
+	status, err := backend.Status(context.Background(), pool)
+	require.NoError(t, err)
+	require.Equal(t, 0, status.Running)
+	require.Equal(t, 0, status.Queued)
+	require.NoError(t, guard1.Release(context.Background()))
+	require.NoError(t, guard2.Release(context.Background()))
+}
+
+func TestMemoryFlowBackendDispatchAfterCleanup(t *testing.T) {
+	backend := NewMemoryFlowBackend()
+	pool := testFlowPool()
+	pool.MaxInflight = 1
+	pool.MaxQueueSize = 4
+	pool.MaxProcessingMs = 40
+
+	type guardResult struct {
+		guard    FlowGuard
+		decision *AcquireDecision
+		err      error
+	}
+	resultCh := make(chan guardResult, 2)
+
+	guard1, decision1, err := backend.Acquire(context.Background(), AcquireRequest{
+		RequestID:      "dispatch-cleanup-1",
+		Pool:           pool,
+		UserID:         1,
+		QueueTimeoutMs: 10000,
+	})
+	require.NoError(t, err)
+	require.True(t, decision1.Admitted)
+	assertFlowStatus(t, backend, pool, 1, 0)
+
+	go func() {
+		guard, decision, err := backend.Acquire(context.Background(), AcquireRequest{
+			RequestID:      "dispatch-cleanup-2",
+			Pool:           pool,
+			UserID:         2,
+			QueueTimeoutMs: 10000,
+		})
+		resultCh <- guardResult{guard: guard, decision: decision, err: err}
+	}()
+	eventuallyFlowStatus(t, backend, pool, func(status PoolStatus) bool {
+		return status.Running == 1 && status.Queued == 1
+	})
+
+	time.Sleep(70 * time.Millisecond)
+	assertFlowStatus(t, backend, pool, 0, 1)
+
+	ctx3, cancel3 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel3()
+	go func() {
+		guard, decision, err := backend.Acquire(ctx3, AcquireRequest{
+			RequestID:      "dispatch-cleanup-3",
+			Pool:           pool,
+			UserID:         3,
+			QueueTimeoutMs: 10000,
+		})
+		resultCh <- guardResult{guard: guard, decision: decision, err: err}
+	}()
+	eventuallyFlowStatus(t, backend, pool, func(status PoolStatus) bool {
+		return status.Running == 1 && status.Queued == 1
+	})
+
+	var guard2 FlowGuard
+	select {
+	case result := <-resultCh:
+		require.NoError(t, result.err)
+		require.NotNil(t, result.guard)
+		require.NotNil(t, result.decision)
+		require.True(t, result.decision.Admitted)
+		require.True(t, result.decision.Queued)
+		guard2 = result.guard
+	case <-time.After(2 * time.Second):
+		t.Fatal("queued request was not dispatched after cleanup freed capacity")
+	}
+
+	require.NoError(t, guard2.Release(context.Background()))
+	assertFlowStatus(t, backend, pool, 1, 0)
+
+	select {
+	case result := <-resultCh:
+		require.NoError(t, result.err)
+		require.NotNil(t, result.guard)
+		require.NotNil(t, result.decision)
+		require.True(t, result.decision.Admitted)
+		require.NoError(t, result.guard.Release(context.Background()))
+	case <-time.After(2 * time.Second):
+		t.Fatal("third request was not dispatched after releasing promoted guard")
+	}
+
+	assertFlowStatus(t, backend, pool, 0, 0)
+	require.NoError(t, guard1.Release(context.Background()))
 }
 
 func TestMemoryFlowBackendMaxInflightPerUser(t *testing.T) {
@@ -1029,25 +1160,36 @@ func TestRedisFlowBackendStatusReportsWatchContention(t *testing.T) {
 	backend, pool, cleanup := newRedisFlowBackendForTest(t)
 	defer cleanup()
 	pool.MaxInflight = 1
-	pool.MaxQueueSize = 50
+	pool.MaxQueueSize = 100
+	pool.QueueTimeoutMs = 15000
+	pool.LeaseMs = 30000
 
-	resultCh := make(chan error, 20)
-	for i := 0; i < 20; i++ {
+	const workers = 30
+	resultCh := make(chan error, workers)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
 		i := i
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
+			<-start
 			guard, _, err := backend.Acquire(context.Background(), AcquireRequest{
 				RequestID:      fmt.Sprintf("redis-contention-%d", i),
 				Pool:           pool,
 				UserID:         i + 1,
-				QueueTimeoutMs: pool.QueueTimeoutMs,
+				QueueTimeoutMs: 15000,
 			})
 			if guard != nil {
+				time.Sleep(5 * time.Millisecond)
 				_ = guard.Release(context.Background())
 			}
 			resultCh <- err
 		}()
 	}
-	for i := 0; i < 20; i++ {
+	close(start)
+	wg.Wait()
+	for i := 0; i < workers; i++ {
 		select {
 		case err := <-resultCh:
 			require.NoError(t, err)
@@ -1060,6 +1202,17 @@ func TestRedisFlowBackendStatusReportsWatchContention(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, status.WatchAttempts, int64(0))
 	require.GreaterOrEqual(t, status.TxConflicts, int64(0))
+	if status.TxConflicts > 0 {
+		t.Logf("WATCH/MULTI contention confirmed: WatchAttempts=%d TxConflicts=%d conflict_rate=%.2f%%",
+			status.WatchAttempts,
+			status.TxConflicts,
+			float64(status.TxConflicts)/float64(status.WatchAttempts)*100)
+	} else {
+		t.Logf("No WATCH/MULTI conflicts observed in this run (WatchAttempts=%d). "+
+			"This can happen when local Redis completes WATCH/EXEC faster than competing goroutines overlap; "+
+			"acceptable follow-up observations are high-concurrency spike runs, multi-instance E2E, or "+
+			"production PoolStatus deltas for TxConflicts.", status.WatchAttempts)
+	}
 }
 
 func TestRedisFlowBackendDirtyHeadCleanup(t *testing.T) {

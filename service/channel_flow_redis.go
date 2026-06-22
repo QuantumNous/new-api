@@ -24,6 +24,12 @@ const (
 	redisFlowRequestTTLExtra = time.Hour
 )
 
+// redisFlowBackend implements Redis-backed channel flow state.
+//
+// WATCH/MULTI contention counters are backend-global: they accumulate across
+// all pools served by this singleton backend. Pool-level counters would add
+// work to every WATCH path; callers needing pool-level visibility should sample
+// PoolStatus over time and compute deltas per pool.
 type redisFlowBackend struct {
 	pollMin       time.Duration
 	pollMax       time.Duration
