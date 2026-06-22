@@ -13,6 +13,7 @@ import (
 	skillhandler "github.com/QuantumNous/new-api/internal/skill/handler"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
 	"github.com/QuantumNous/new-api/middleware"
+	platformmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -102,6 +103,9 @@ func newSkillTestRouter(t *testing.T, enableRateLimit bool) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	restoreSkillRouterGlobals(t, enableRateLimit)
 	db := newSkillRouterTestDB(t)
+	oldDB := platformmodel.DB
+	platformmodel.DB = db
+	t.Cleanup(func() { platformmodel.DB = oldDB })
 	skillhandler.SetDB(db)
 
 	engine := gin.New()

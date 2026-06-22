@@ -357,11 +357,11 @@ func TestDownloadSkillPackage_EmitsSkillEnabledEvent(t *testing.T) {
 	var evt skillmodel.SkillUsageEvent
 	err := db.Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).First(&evt).Error
 	require.NoError(t, err, "skill_usage_events must have a skill_enabled row after download")
-	assert.Equal(t, "skill_package", evt.EntryPoint)
+	assert.Equal(t, enums.EntryPointSkillPackage, evt.EntryPoint)
 	require.NotNil(t, evt.UserID)
 	assert.Equal(t, int64(99), *evt.UserID)
 	require.NotNil(t, evt.Plan)
-	assert.Equal(t, "free", *evt.Plan)
+	assert.Equal(t, enums.RequiredPlanFree, *evt.Plan)
 }
 
 // TestDownloadSkillPackage_EmitRecordsUserPlanNotSkillPlan verifies that when a pro user
@@ -381,7 +381,7 @@ func TestDownloadSkillPackage_EmitRecordsUserPlanNotSkillPlan(t *testing.T) {
 	err := db.Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).First(&evt).Error
 	require.NoError(t, err)
 	require.NotNil(t, evt.Plan)
-	assert.Equal(t, "pro", *evt.Plan,
+	assert.Equal(t, enums.RequiredPlanPro, *evt.Plan,
 		"analytics event.plan must be the user's plan, not the skill's required_plan")
 }
 

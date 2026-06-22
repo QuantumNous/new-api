@@ -310,6 +310,9 @@ func migrateDB() error {
 	if err := skillmodel.MigrateSkillVersions(DB); err != nil {
 		return err
 	}
+	if err := skillmodel.MigrateSkillAuditLog(DB); err != nil {
+		return err
+	}
 	if err := skillmodel.MigrateUserEnabledSkills(DB); err != nil {
 		return err
 	}
