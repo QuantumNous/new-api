@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "rsbuild dev",
     "build": "rsbuild build",
-    "build:check": "tsc -b && rsbuild build",
-    "typecheck": "tsc -b",
+    "build:check": "tsgo -b && rsbuild build",
+    "typecheck": "tsgo -b",
     "lint": "oxlint -c .oxlintrc.json .",
     "lint:fix": "oxlint -c .oxlintrc.json . --fix",
     "preview": "rsbuild preview",
@@ -83,13 +83,13 @@
     "@types/node": "^25.9.1",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
+    "@typescript/native-preview": "^7.0.0-dev.20260621.1",
     "@xyflow/react": "^12.10.2",
     "embla-carousel-react": "^8.6.0",
     "knip": "^6.14.2",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
-    "shadcn": "^4.8.0",
-    "typescript": "~6.0.3"
+    "shadcn": "^4.8.0"
   },
   "overrides": {
     "brace-expansion": "2.1.1",

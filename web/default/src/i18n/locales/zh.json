@@ -4016,6 +4016,7 @@
     "Subscription Plans": "订阅套餐",
     "Subscription plans do NOT use the bound Product — each plan has its own dedicated Pancake product, set in the Subscriptions admin (or auto-minted via the \"+ Create\" button there).": "订阅套餐不会使用已绑定的产品。每个套餐都有独立的 Pancake 产品，可在订阅管理中设置，或通过其中的“+ 创建”按钮自动生成。",
     "Subscription purchased successfully": "订阅购买成功",
+    "Subscriptions": "订阅",
     "Subtract": "减少",
     "Success": "成功",
     "Success rate": "成功率",

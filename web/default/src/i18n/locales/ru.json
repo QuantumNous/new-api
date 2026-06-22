@@ -4016,6 +4016,7 @@
     "Subscription Plans": "Планы подписки",
     "Subscription plans do NOT use the bound Product — each plan has its own dedicated Pancake product, set in the Subscriptions admin (or auto-minted via the \"+ Create\" button there).": "Планы подписки НЕ используют привязанный продукт — у каждого плана есть собственный продукт Pancake, задаваемый в администрировании подписок (или автоматически создаваемый кнопкой «+ Создать»).",
     "Subscription purchased successfully": "Подписка успешно приобретена",
+    "Subscriptions": "Подписки",
     "Subtract": "Вычесть",
     "Success": "Успешно",
     "Success rate": "Доля успешных запросов",

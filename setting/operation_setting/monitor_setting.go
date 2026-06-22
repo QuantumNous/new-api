@@ -39,6 +39,12 @@ func GetMonitorSetting() *MonitorSetting {
 			monitorSetting.ChannelTestMode = ChannelTestModeScheduledAll
 		}
 	}
+	if enabled, ok := os.LookupEnv("CHANNEL_TEST_ENABLED"); ok {
+		parsed, err := strconv.ParseBool(enabled)
+		if err == nil {
+			monitorSetting.AutoTestChannelEnabled = parsed
+		}
+	}
 	if monitorSetting.ChannelTestMode != ChannelTestModePassiveRecovery {
 		monitorSetting.ChannelTestMode = ChannelTestModeScheduledAll
 	}

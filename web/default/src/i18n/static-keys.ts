@@ -345,6 +345,7 @@ export const STATIC_I18N_KEYS = [
 
   // Subscription management
   'Subscription Management',
+  'Subscriptions',
   'Stripe/Creem requires creating products on the third-party platform and entering the ID',
   'Create Plan',
   'Active',

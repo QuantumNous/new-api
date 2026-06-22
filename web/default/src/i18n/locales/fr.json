@@ -4016,6 +4016,7 @@
     "Subscription Plans": "Plans d'abonnement",
     "Subscription plans do NOT use the bound Product — each plan has its own dedicated Pancake product, set in the Subscriptions admin (or auto-minted via the \"+ Create\" button there).": "Les forfaits d’abonnement n’utilisent PAS le produit associé : chaque forfait dispose de son propre produit Pancake dédié, défini dans l’administration des abonnements (ou créé automatiquement via le bouton « + Créer »).",
     "Subscription purchased successfully": "Abonnement acheté avec succès",
+    "Subscriptions": "Abonnements",
     "Subtract": "Soustraire",
     "Success": "Succès",
     "Success rate": "Taux de réussite",

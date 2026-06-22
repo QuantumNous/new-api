@@ -4016,6 +4016,7 @@
     "Subscription Plans": "サブスクリプションプラン",
     "Subscription plans do NOT use the bound Product — each plan has its own dedicated Pancake product, set in the Subscriptions admin (or auto-minted via the \"+ Create\" button there).": "サブスクリプションプランは紐付け済み商品を使用しません。各プランには専用の Pancake 商品があり、サブスクリプション管理画面で設定します（または「+ 作成」ボタンで自動作成します）。",
     "Subscription purchased successfully": "サブスクリプションを購入しました",
+    "Subscriptions": "サブスクリプション",
     "Subtract": "減算",
     "Success": "成功",
     "Success rate": "成功率",
