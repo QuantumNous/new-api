@@ -86,6 +86,15 @@ func SetRelayRouter(router *gin.Engine) {
 	{
 		//http router
 		httpRouter := relayV1Router.Group("")
+		httpRouter.POST(
+			"/routing/chat/completions",
+			markSkillPublicRoutingAPI(),
+			middleware.PublicRoutingAbuseControl(),
+			middleware.Distribute(),
+			func(c *gin.Context) {
+				controller.Relay(c, types.RelayFormatOpenAI)
+			},
+		)
 		httpRouter.Use(middleware.Distribute())
 
 		// claude related routes
@@ -100,10 +109,6 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/chat/completions", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAI)
 		})
-		httpRouter.POST("/routing/chat/completions", markSkillPublicRoutingAPI(), func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAI)
-		})
-
 		// response related routes
 		httpRouter.POST("/responses", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIResponses)
