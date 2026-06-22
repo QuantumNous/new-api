@@ -627,6 +627,25 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 />
                 {formatUseTime(useTime)}
               </span>
+              {isAdmin && other?.fallback_triggered && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <span
+                          className='size-1.5 shrink-0 rounded-full bg-violet-500/80'
+                          aria-hidden='true'
+                        />
+                      }
+                    ></TooltipTrigger>
+                    <TooltipContent>
+                      <p className='text-xs'>
+                        {t('gpt-image-2: primary channel was slow, raced in a second channel')}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {log.is_stream &&
                 (frt != null && frt > 0 ? (
                   <span

@@ -197,9 +197,13 @@ func serveTrackedImageTask(c *gin.Context, taskID string) bool {
 		} else {
 			// We're the poll that won the resolution race — backfill the consumption log's
 			// "耗时" with the real submit→result latency (the original log row only has the
-			// fast async-submit round-trip, since billing happens at submit time).
+			// fast async-submit round-trip, since billing happens at submit time), and flag
+			// whether the race fallback was ever triggered for this task (admin-only marker).
 			realElapsed := int(task.FinishTime - task.SubmitTime)
-			if uerr := model.UpdateLogUseTimeByTaskID(task.UserId, task.TaskID, realElapsed); uerr != nil {
+			extraOther := map[string]interface{}{
+				"fallback_triggered": task.PrivateData.HedgeChannelId != 0,
+			}
+			if uerr := model.UpdateLogResultByTaskID(task.UserId, task.TaskID, realElapsed, extraOther); uerr != nil {
 				logger.LogWarn(c.Request.Context(), fmt.Sprintf("failed to backfill real duration for task %s: %v", task.TaskID, uerr))
 			}
 		}

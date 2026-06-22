@@ -158,6 +158,9 @@ export interface LogOtherData {
   audio_input_price?: number
   image_generation_call?: boolean
   image_generation_call_price?: number
+  // gpt-image-2 channel race fallback: true if the primary channel didn't finish in
+  // time and a second channel was raced in (admin-only marker, see Timing column).
+  fallback_triggered?: boolean
   is_system_prompt_overwritten?: boolean
   po?: string[]
   billing_source?: string

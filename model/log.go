@@ -90,18 +90,35 @@ func FindChannelIDForImageTask(userID int, taskID string) (int, bool) {
 	return row.ChannelId, true
 }
 
-// UpdateLogUseTimeByTaskID backfills the "耗时" (use_time) on the consumption log row for
-// an async image generation task once the real result is known. gpt-image-2 async submits
-// bill/log immediately at submit time (use_time = just the submit round-trip, always fast);
-// this rewrites that same row in place once polling confirms the task finished, so the log
-// reflects real generation latency instead of the misleadingly-fast submit time.
-func UpdateLogUseTimeByTaskID(userID int, taskID string, useTimeSeconds int) error {
+// UpdateLogResultByTaskID backfills the "耗时" (use_time) on the consumption log row for an
+// async image generation task once the real result is known, and merges extraOther into its
+// `other` JSON (e.g. fallback_triggered for the admin-only race-fallback marker). gpt-image-2
+// async submits bill/log immediately at submit time (use_time = just the submit round-trip,
+// always fast); this rewrites that same row in place once polling confirms the task finished,
+// so the log reflects real generation latency instead of the misleadingly-fast submit time.
+func UpdateLogResultByTaskID(userID int, taskID string, useTimeSeconds int, extraOther map[string]interface{}) error {
 	if userID <= 0 || strings.TrimSpace(taskID) == "" {
 		return nil
 	}
-	return LOG_DB.Model(&Log{}).
+	var row Log
+	err := LOG_DB.Model(&Log{}).
 		Where("user_id = ? AND type = ? AND other LIKE ?", userID, LogTypeConsume, "%"+taskID+"%").
-		Update("use_time", useTimeSeconds).Error
+		Order("id DESC").
+		First(&row).Error
+	if err != nil {
+		return err
+	}
+	otherMap, _ := common.StrToMap(row.Other)
+	if otherMap == nil {
+		otherMap = map[string]interface{}{}
+	}
+	for k, v := range extraOther {
+		otherMap[k] = v
+	}
+	return LOG_DB.Model(&Log{}).Where("id = ?", row.Id).Updates(map[string]interface{}{
+		"use_time": useTimeSeconds,
+		"other":    common.MapToJsonStr(otherMap),
+	}).Error
 }
 
 // FindRecentImageChannelID returns the channel from the user's latest gpt-image consume within withinSec.
