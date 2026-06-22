@@ -162,12 +162,14 @@ func serveTrackedImageTask(c *gin.Context, taskID string) bool {
 		APIKey:    primaryKey,
 		TaskID:    task.GetUpstreamTaskID(),
 	}}
+	var hedgeChannel *model.Channel
 	if task.PrivateData.HedgeChannelId != 0 && task.PrivateData.HedgeUpstreamTaskID != "" {
-		if hedgeChannel, herr := model.GetChannelById(task.PrivateData.HedgeChannelId, true); herr == nil && hedgeChannel != nil {
-			if hedgeKey, _, kerr := hedgeChannel.GetNextEnabledKey(); kerr == nil {
+		if ch, herr := model.GetChannelById(task.PrivateData.HedgeChannelId, true); herr == nil && ch != nil {
+			if hedgeKey, _, kerr := ch.GetNextEnabledKey(); kerr == nil {
+				hedgeChannel = ch
 				targets = append(targets, service.ImageTaskTarget{
-					ChannelID: hedgeChannel.Id,
-					BaseURL:   hedgeChannel.GetBaseURL(),
+					ChannelID: ch.Id,
+					BaseURL:   ch.GetBaseURL(),
 					APIKey:    hedgeKey,
 					TaskID:    task.PrivateData.HedgeUpstreamTaskID,
 				})
@@ -200,8 +202,14 @@ func serveTrackedImageTask(c *gin.Context, taskID string) bool {
 			// fast async-submit round-trip, since billing happens at submit time), and flag
 			// whether the race fallback was ever triggered for this task (admin-only marker).
 			realElapsed := int(task.FinishTime - task.SubmitTime)
+			winnerChannelName := primaryChannel.Name
+			if hedgeChannel != nil && winner.ChannelID == hedgeChannel.Id {
+				winnerChannelName = hedgeChannel.Name
+			}
 			extraOther := map[string]interface{}{
-				"fallback_triggered": task.PrivateData.HedgeChannelId != 0,
+				"fallback_triggered":           task.PrivateData.HedgeChannelId != 0,
+				"fallback_winner_channel_id":   winner.ChannelID,
+				"fallback_winner_channel_name": winnerChannelName,
 			}
 			if uerr := model.UpdateLogResultByTaskID(task.UserId, task.TaskID, realElapsed, extraOther); uerr != nil {
 				logger.LogWarn(c.Request.Context(), fmt.Sprintf("failed to backfill real duration for task %s: %v", task.TaskID, uerr))

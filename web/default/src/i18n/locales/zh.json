@@ -1847,6 +1847,8 @@
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4": "gpt-4",
     "gpt-4, claude-3-opus, etc.": "gpt-4, claude-3-opus, 等",
+    "gpt-image-2 channel fallback triggered — final channel: {{channel}}": "已触发渠道兜底，最终使用渠道：{{channel}}",
+    "gpt-image-2: primary channel was slow, raced in a second channel": "主渠道响应慢，已触发兜底竞速第二渠道",
     "GPU count": "GPU 数量",
     "Greater than": "大于",
     "Greater Than": "大于",

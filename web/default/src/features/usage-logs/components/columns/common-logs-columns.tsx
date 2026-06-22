@@ -640,7 +640,12 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     ></TooltipTrigger>
                     <TooltipContent>
                       <p className='text-xs'>
-                        {t('gpt-image-2: primary channel was slow, raced in a second channel')}
+                        {other.fallback_winner_channel_name
+                          ? t(
+                              'gpt-image-2 channel fallback triggered — final channel: {{channel}}',
+                              { channel: other.fallback_winner_channel_name }
+                            )
+                          : t('gpt-image-2: primary channel was slow, raced in a second channel')}
                       </p>
                     </TooltipContent>
                   </Tooltip>

@@ -161,6 +161,8 @@ export interface LogOtherData {
   // gpt-image-2 channel race fallback: true if the primary channel didn't finish in
   // time and a second channel was raced in (admin-only marker, see Timing column).
   fallback_triggered?: boolean
+  fallback_winner_channel_id?: number
+  fallback_winner_channel_name?: string
   is_system_prompt_overwritten?: boolean
   po?: string[]
   billing_source?: string
