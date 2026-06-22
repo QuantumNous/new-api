@@ -59,6 +59,20 @@ func MigrateSkillVersions(db *gorm.DB) error {
 	return nil
 }
 
+// MigrateSkillAuditLog runs the audit-log migration used by Skill admin APIs.
+func MigrateSkillAuditLog(db *gorm.DB) error {
+	if err := db.AutoMigrate(&SkillAuditLog{}); err != nil {
+		return err
+	}
+	if err := createSkillAuditLogJSONBColumns(db); err != nil {
+		return err
+	}
+	if err := createSkillAuditLogIndexes(db); err != nil {
+		return err
+	}
+	return nil
+}
+
 func createSkillVersionsSQLiteTable(db *gorm.DB) error {
 	return db.Exec(`
 		CREATE TABLE IF NOT EXISTS skill_versions (
@@ -243,6 +257,43 @@ func createSkillVersionsJSONBColumns(db *gorm.DB) error {
 		for _, sql := range steps {
 			if err := db.Exec(sql).Error; err != nil {
 				return fmt.Errorf("skill_versions jsonb upgrade %s: %w", cd.col, err)
+			}
+		}
+	}
+	return nil
+}
+
+func createSkillAuditLogJSONBColumns(db *gorm.DB) error {
+	if db.Dialector.Name() != "postgres" {
+		return nil
+	}
+
+	cols := []struct {
+		col        string
+		defaultVal string
+	}{
+		{"changed_fields", "'[]'::jsonb"},
+		{"before_value", ""},
+		{"after_value", ""},
+	}
+	for _, cd := range cols {
+		already, err := isPGColumnJSONB(db, "skill_audit_log", cd.col)
+		if err != nil {
+			return fmt.Errorf("check skill_audit_log jsonb column %s: %w", cd.col, err)
+		}
+		if already {
+			continue
+		}
+		steps := []string{
+			fmt.Sprintf("ALTER TABLE skill_audit_log ALTER COLUMN %s DROP DEFAULT", cd.col),
+			fmt.Sprintf("ALTER TABLE skill_audit_log ALTER COLUMN %s TYPE jsonb USING %s::jsonb", cd.col, cd.col),
+		}
+		if cd.defaultVal != "" {
+			steps = append(steps, fmt.Sprintf("ALTER TABLE skill_audit_log ALTER COLUMN %s SET DEFAULT %s", cd.col, cd.defaultVal))
+		}
+		for _, sql := range steps {
+			if err := db.Exec(sql).Error; err != nil {
+				return fmt.Errorf("skill_audit_log jsonb upgrade %s: %w", cd.col, err)
 			}
 		}
 	}
@@ -552,5 +603,30 @@ func createSkillVersionsIndexes(db *gorm.DB) error {
 		}
 	}
 
+	return nil
+}
+
+func createSkillAuditLogIndexes(db *gorm.DB) error {
+	indexes := []struct {
+		name string
+		ddl  string
+	}{
+		{
+			name: "idx_skill_audit_log_skill_created",
+			ddl:  "CREATE INDEX idx_skill_audit_log_skill_created ON skill_audit_log(skill_id, created_at)",
+		},
+		{
+			name: "idx_skill_audit_log_action_created",
+			ddl:  "CREATE INDEX idx_skill_audit_log_action_created ON skill_audit_log(action, created_at)",
+		},
+	}
+	for _, idx := range indexes {
+		if db.Migrator().HasIndex(&SkillAuditLog{}, idx.name) {
+			continue
+		}
+		if err := db.Exec(idx.ddl).Error; err != nil {
+			return fmt.Errorf("create skill_audit_log index %s: %w", idx.name, err)
+		}
+	}
 	return nil
 }
