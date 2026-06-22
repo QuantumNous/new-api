@@ -32,6 +32,15 @@ func SetSkillRouter(router *gin.Engine) {
 			marketplaceRoute.POST("/events", skillhandler.RecordMarketplaceEvent)
 		}
 
+		mySkillsRoute := v1.Group("/marketplace")
+		mySkillsRoute.Use(middleware.SkillUserAuth())
+		if common.GlobalApiRateLimitEnable {
+			mySkillsRoute.Use(middleware.SkillUserRateLimit(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "SKM"))
+		}
+		{
+			mySkillsRoute.GET("/my-skills", skillhandler.ListMySkills)
+		}
+
 		downloadRoute := v1.Group("/marketplace")
 		downloadRoute.Use(middleware.SkillUserAuth())
 		if common.GlobalApiRateLimitEnable {

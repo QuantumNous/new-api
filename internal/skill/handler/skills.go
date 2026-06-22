@@ -12,9 +12,11 @@ import (
 	"time"
 
 	skillapi "github.com/QuantumNous/new-api/internal/skill/api"
+	"github.com/QuantumNous/new-api/internal/skill/availability"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	platformmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -132,6 +134,25 @@ type OpsSkillSummary struct {
 	KidsSafePublished int64            `json:"kids_safe_published"`
 }
 
+type MySkill struct {
+	SkillID      string              `json:"skill_id"`
+	Slug         string              `json:"slug"`
+	Name         string              `json:"name"`
+	SkillStatus  enums.SkillStatus   `json:"skill_status"`
+	RequiredPlan enums.RequiredPlan  `json:"required_plan"`
+	Enabled      bool                `json:"enabled"`
+	EnabledAt    time.Time           `json:"enabled_at"`
+	LastUsedAt   *time.Time          `json:"last_used_at"`
+	Availability MySkillAvailability `json:"availability"`
+}
+
+type MySkillAvailability struct {
+	Executable bool                `json:"executable"`
+	Locked     bool                `json:"locked"`
+	LockCode   *errcodes.ErrorCode `json:"lock_code"`
+	CTA        availability.CTA    `json:"cta"`
+}
+
 func ListMarketplaceSkills(c *gin.Context) {
 	page, validationErr := skillapi.ParsePageParams(c)
 	if validationErr != nil {
@@ -198,6 +219,86 @@ func GetMarketplaceSkill(c *gin.Context) {
 		return
 	}
 	skillapi.Success(c, publicSkillDetailFromModel(s))
+}
+
+// ListMySkills serves GET /api/v1/marketplace/my-skills.
+// It returns the caller's enabled skills, including deprecated/archived rows,
+// with execution availability resolved through the DR-72 entitlement resolver.
+func ListMySkills(c *gin.Context) {
+	db, ok := skillDB(c)
+	if !ok {
+		return
+	}
+
+	userID := int64(c.GetInt("id"))
+	if userID <= 0 {
+		skillapi.Error(c, errcodes.ErrAuthRequired, "Authentication required.", nil)
+		return
+	}
+
+	type mySkillRow struct {
+		SkillID           string
+		Slug              string
+		Name              string
+		Status            enums.SkillStatus
+		RequiredPlan      enums.RequiredPlan
+		IsKidsSafe        bool
+		IsKidsExclusive   bool
+		FreeQuotaPerMonth *int
+		Enabled           bool
+		EnabledAt         time.Time
+		LastUsedAt        *time.Time
+	}
+
+	var rows []mySkillRow
+	if err := db.Table("user_enabled_skills AS ues").
+		Select(`skills.id AS skill_id, skills.slug, skills.name, skills.status,
+			skills.required_plan, skills.is_kids_safe, skills.is_kids_exclusive,
+			skills.free_quota_per_month, ues.enabled, ues.enabled_at, ues.last_used_at`).
+		Joins("JOIN skills ON skills.id = ues.skill_id").
+		Where("ues.user_id = ? AND ues.tenant_id = ? AND ues.enabled = ?", userID, userID, true).
+		Order("ues.enabled_at DESC, skills.name ASC").
+		Scan(&rows).Error; err != nil {
+		writeDBError(c, err)
+		return
+	}
+
+	userInfo := availability.UserInfo{
+		Plan:       groupToPlan(c.GetString("group")),
+		SubActive:  true,
+		IsEnabled:  true,
+		WasEnabled: true,
+	}
+	kidsMode, err := currentUserKidsMode(db, userID)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	userInfo.IsKidsSession = kidsMode
+
+	out := make([]MySkill, 0, len(rows))
+	for _, row := range rows {
+		result := availability.Resolve(availability.SkillInfo{
+			Status:            row.Status,
+			RequiredPlan:      row.RequiredPlan,
+			IsKidsSafe:        row.IsKidsSafe,
+			IsKidsExclusive:   row.IsKidsExclusive,
+			FreeQuotaPerMonth: row.FreeQuotaPerMonth,
+		}, userInfo)
+		out = append(out, MySkill{
+			SkillID:      row.SkillID,
+			Slug:         row.Slug,
+			Name:         row.Name,
+			SkillStatus:  row.Status,
+			RequiredPlan: row.RequiredPlan,
+			Enabled:      row.Enabled,
+			EnabledAt:    row.EnabledAt,
+			LastUsedAt:   row.LastUsedAt,
+			Availability: mySkillAvailabilityFromResult(result),
+		})
+	}
+
+	skillapi.Success(c, out)
 }
 
 // listAdminSkillsSafeQuery returns a GORM query base scoped to the admin-safe
@@ -459,6 +560,32 @@ func publicSkillDetailFromModel(s skillmodel.Skill) PublicSkillDetail {
 			Method: "GET",
 		},
 	}
+}
+
+func mySkillAvailabilityFromResult(result availability.Result) MySkillAvailability {
+	var lockCode *errcodes.ErrorCode
+	if result.LockCode != "" {
+		code := result.LockCode
+		lockCode = &code
+	}
+	return MySkillAvailability{
+		Executable: result.Executable,
+		Locked:     result.Locked,
+		LockCode:   lockCode,
+		CTA:        result.CTA,
+	}
+}
+
+func currentUserKidsMode(db *gorm.DB, userID int64) (bool, error) {
+	var user platformmodel.User
+	err := db.Select("kids_mode").Where("id = ?", userID).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return user.KidsMode, nil
 }
 
 func adminSkillFromModel(s skillmodel.Skill) AdminSkill {
