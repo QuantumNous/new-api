@@ -66,10 +66,24 @@ jobs:
             docker compose up -d new-api
 
             docker compose ps
-            docker compose logs --tail=80 new-api
 
-            curl -fsS http://127.0.0.1:3000 >/dev/null
+            echo "Waiting for New-API to become ready..."
 
-            docker image prune -f
+            for i in $(seq 1 60); do
+              if curl -fsS --max-time 5 http://127.0.0.1:3000 >/dev/null; then
+                echo "New-API is ready."
+                docker compose logs --tail=80 new-api
+                docker image prune -f
+                exit 0
+              fi
+
+              echo "New-API is not ready yet. Attempt $i/60..."
+              sleep 5
+            done
+
+            echo "New-API did not become ready in time."
+            docker compose ps
+            docker compose logs --tail=200 new-api
+            exit 1
           EOF
 
