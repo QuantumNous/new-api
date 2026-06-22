@@ -96,8 +96,8 @@ type AliUsage struct {
 	Duration            dto.IntValue `json:"duration,omitempty"`              // 总视频时长（秒），计费按此时长计算
 	Size                string       `json:"size,omitempty"`                  // 生成视频的分辨率，格式为"宽*高"
 	Ratio               string       `json:"ratio,omitempty"`                 // 生成视频的比例（wan2.7），如 "16:9"
-	InputVideoDuration  int          `json:"input_video_duration,omitempty"`  // 输入的参考视频的时长（秒）
-	OutputVideoDuration int          `json:"output_video_duration,omitempty"` // 输出视频的时长（秒）
+	InputVideoDuration  dto.IntValue `json:"input_video_duration,omitempty"`  // 输入的参考视频的时长（秒）
+	OutputVideoDuration dto.IntValue `json:"output_video_duration,omitempty"` // 输出视频的时长（秒）
 	VideoCount          dto.IntValue `json:"video_count,omitempty"`           // 生成视频的数量
 	SR                  dto.IntValue `json:"SR,omitempty"`                    // 生成视频的分辨率档位
 }
