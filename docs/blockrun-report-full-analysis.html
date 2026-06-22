@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlockRun 渠道测试报告 — 全量问题分析</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --border:#2d333b;
+    --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff;
+    --p0:#f85149; --p1:#d29922; --ok:#3fb950; --info:#a371f7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 28px 96px}
+  h1{font-size:30px;margin:0 0 6px;letter-spacing:-.4px}
+  .sub{color:var(--muted);margin:0 0 28px;font-size:14px}
+  h2{font-size:21px;margin:44px 0 14px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  h3{font-size:16px;margin:26px 0 8px}
+  p{margin:10px 0}
+  code{background:#21262d;border:1px solid var(--border);border-radius:5px;padding:1px 6px;font:13px/1.5 "SF Mono",ui-monospace,Menlo,monospace;color:#ffa657}
+  .meta{display:flex;flex-wrap:wrap;gap:12px;margin:18px 0 8px}
+  .meta .kv{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 14px}
+  .meta .kv b{display:block;color:var(--muted);font-weight:500;font-size:12px;margin-bottom:2px}
+  .verdict{display:inline-block;background:rgba(248,81,73,.15);color:var(--p0);border:1px solid var(--p0);border-radius:6px;padding:2px 10px;font-weight:700;font-size:13px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:4px 22px 18px;margin:16px 0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  tr:last-child td{border-bottom:none}
+  .badge{display:inline-block;border-radius:999px;padding:1px 9px;font-size:11.5px;font-weight:700;white-space:nowrap}
+  .b-p0{background:rgba(248,81,73,.16);color:var(--p0);border:1px solid rgba(248,81,73,.5)}
+  .b-p1{background:rgba(210,153,34,.16);color:var(--p1);border:1px solid rgba(210,153,34,.5)}
+  .b-ours{background:rgba(63,185,80,.14);color:var(--ok);border:1px solid rgba(63,185,80,.5)}
+  .b-up{background:rgba(88,166,255,.14);color:var(--accent);border:1px solid rgba(88,166,255,.5)}
+  .b-none{background:rgba(163,113,247,.14);color:var(--info);border:1px solid rgba(163,113,247,.5)}
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin:8px 0 4px;font-size:13px;color:var(--muted)}
+  .evidence{background:var(--panel2);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:10px 16px;margin:12px 0;font:12.5px/1.6 "SF Mono",ui-monospace,Menlo,monospace;color:var(--muted);overflow-x:auto}
+  .evidence b{color:var(--text)}
+  ul{margin:8px 0;padding-left:22px}
+  li{margin:5px 0}
+  .note{background:rgba(210,153,34,.08);border:1px solid rgba(210,153,34,.35);border-radius:10px;padding:14px 18px;margin:16px 0}
+  .note b{color:var(--p1)}
+  .foot{margin-top:60px;padding-top:18px;border-top:1px solid var(--border);color:var(--muted);font-size:12.5px}
+  .pill{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>BlockRun 渠道测试报告 · 全量问题分析</h1>
+  <p class="sub">渠道 <code>blockRun-claude-0603</code> · 标签 Claude Official / company-system · 余额 $192.75 · 经代码核实后的完整结论</p>
+
+  <div class="meta">
+    <div class="kv"><b>被测模型</b>claude-sonnet-4.5 / haiku-4.5 / opus-4-8</div>
+    <div class="kv"><b>裁定</b><span class="verdict">BLOCKED</span></div>
+    <div class="kv"><b>原因</b>2× P0 failure</div>
+    <div class="kv"><b>原始分 / 终分</b>88 → 59（P0 硬 gate）</div>
+  </div>
+
+  <div class="note">
+    <b>核心定性（已用代码核实）：</b>我方 new-api 对该渠道是 <b>native 透传</b>（<code>relay/channel/blockrun/adaptor.go:14-17,203-205</code>，注释明确 "ZERO model substitution"，Claude 请求原样转发到上游 <code>/v1/messages</code>）。报告里的根因 <b>几乎全部在 BlockRun 上游</b>；我方能做的是<b>出口止血 + 配置改写</b>，无法消除上游功能性缺陷与模型质量问题。
+  </div>
+
+  <div class="legend">
+    <span><span class="badge b-p0">P0</span> 阻断项</span>
+    <span><span class="badge b-p1">P1/质量</span> 非阻断</span>
+    <span><span class="badge b-ours">我方可修</span></span>
+    <span><span class="badge b-up">抛 BlockRun</span></span>
+    <span><span class="badge b-none">无法解决/只能检测</span></span>
+    <span><span class="badge b-ours">我方解决</span> → 不进上游清单</span>
+  </div>
+
+  <!-- ============ 1 ============ -->
+  <h2>① 总览：问题归属一览表</h2>
+  <p style="color:var(--muted);font-size:13.5px;margin:0 0 4px">「上游清单」列说明给 BlockRun 的文档(<code>blockrun-upstream-action-items.html</code>)是否收录该项。<b>凡我方能自行解决的,均不列入上游清单。</b></p>
+  <div class="card">
+  <table>
+    <thead><tr><th>#</th><th>报告维度 / 项</th><th>严重度</th><th>归属</th><th>列入上游清单?</th><th>一句话结论</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td><td>D5 · Error leakage<br><span class="pill">0/100 fail</span></td>
+        <td><span class="badge b-p0">P0</span></td>
+        <td><span class="badge b-ours">我方解决</span></td>
+        <td><b style="color:var(--ok)">否</b><br><span class="pill">出口脱敏即可完全消除</span></td>
+        <td>上游文本泄露内部结构体名，但我方在出口脱敏后客户端永不可见 → 我方独立解决</td>
+      </tr>
+      <tr>
+        <td>2</td><td>D5 · Error response shape<br><span class="pill">0/100 fail</span></td>
+        <td><span class="badge b-p0">P0</span></td>
+        <td><span class="badge b-up">上游根治</span> <span class="badge b-none">我方信封已对</span></td>
+        <td><b style="color:var(--accent)">是</b><br><span class="pill">功能性失败，我方修不了</span></td>
+        <td>信封已是正确 Anthropic 格式；坏的是上游 max_tokens 功能性失败 → 上游清单 #1/#2</td>
+      </tr>
+      <tr>
+        <td>3</td><td>D1 · baseline / 鉴权<br><span class="pill">40/100 · no-key+402, wrong-key+402</span></td>
+        <td><span class="badge b-p1">P1</span></td>
+        <td><span class="badge b-ours">我方解决</span></td>
+        <td><b style="color:var(--ok)">否</b><br><span class="pill">status_code_mapping 改写</span></td>
+        <td>402 是上游 x402 支付协议；我方配置 402→401 即可改写出口 → 我方独立解决</td>
+      </tr>
+      <tr>
+        <td>4</td><td>D2 · Model Core<br><span class="pill">77 · no-extra-text 45 / constraint 63 / arithmetic / code 3-of-5</span></td>
+        <td><span class="badge b-p1">质量</span></td>
+        <td><span class="badge b-up">上游</span> <span class="badge b-none">我方只能检测</span></td>
+        <td><b style="color:var(--accent)">是</b><br><span class="pill">只能检测不能修</span></td>
+        <td>纯上游模型行为；疑似降级/量化，需上游核实指纹 → 上游清单 #3</td>
+      </tr>
+      <tr style="opacity:.6">
+        <td>5</td><td>标签 "Claude Official"<br><span class="pill">已澄清</span></td>
+        <td><span class="badge b-ok" style="background:rgba(63,185,80,.14);color:var(--ok);border:1px solid rgba(63,185,80,.5)">非问题</span></td>
+        <td>—</td>
+        <td><b style="color:var(--ok)">否</b><br><span class="pill">无需处理</span></td>
+        <td><b>已确认为真官渠，"Claude Official" 仅是分组标签，非原生性声称。此项作废，无需任何操作。</b></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note" style="background:rgba(63,185,80,.07);border-color:rgba(63,185,80,.35)">
+    <b style="color:var(--ok)">分流原则：</b>凡我方能在网关侧完全消化的(Error leakage 出口脱敏、402→401 改写)<b>已从给 BlockRun 的清单中剔除</b>，由我方处理；标签项经澄清为分组概念、非问题，已作废。上游清单只保留我方真正解决不了的两项(max_tokens 功能性失败、模型疑似降级)。
+  </div>
+
+  <!-- ============ 2 ============ -->
+  <h2>② 我方 new-api 可解决的</h2>
+
+  <h3>A1 · Error leakage（P0）— 白标脱敏 <span class="badge b-ours">代码 · 已实现待部署</span></h3>
+  <p>失败响应走 <code>service.RelayErrorHandler</code>，把上游结构化错误的 <code>message</code> 原样透传；泄露文本同时存在于 <code>NewAPIError.Err</code>（供 <code>ToClaudeError</code>）和 <code>RelayError.Message</code>（供 <code>ToOpenAIError</code>）两处。</p>
+  <div class="evidence">// 上游回传、被我方透传给客户端的内容：<br><b>GenerateOpenAIRequest.max_tokens of type x not present in request id</b><br>// 该字符串 grep 全库为空 → 非我方代码生成</div>
+  <p><b>已实现方案（整段替换 + 白标 gating）：</b></p>
+  <ul>
+    <li><code>types.NewAPIError.OverrideMessage()</code>：同时改写 <code>Err</code> 与 <code>RelayError</code> 两处 message（仅改 <code>Err</code> 会漏 OpenAI 渲染路径）。</li>
+    <li><code>service.ScrubWhitelabelError()</code>：仅对白标渠道(BlockRun 100/101/102) + 命中泄露特征(CamelCase <code>*Request.</code> / <code>*.go:行号</code> / <code>not present in request</code> / <code>panic:</code> 等)时，整条 message 换成通用文案，<b>原文写服务端日志</b>。</li>
+    <li>接线在 <code>controller/relay.go</code> 唯一渲染 chokepoint（非高风险共享的 <code>RelayErrorHandler</code>，gitnexus impact=HIGH/11 caller）→ <b>40+ 其他渠道零影响</b>。</li>
+    <li>普通报错(限流/内容策略)与非白标渠道<b>原样透传</b>。已加单测 <code>TestScrubWhitelabelError</code>，build/vet/回归全绿。</li>
+  </ul>
+
+  <h3>A2 · 鉴权 402（D1）— 状态码改写 <span class="badge b-ours">配置</span></h3>
+  <p><code>ResetStatusCode</code> + 渠道 <code>status_code_mapping</code> 机制在 claude 路径<b>已接好</b>（<code>relay/claude_handler.go:209</code>）。给该渠道配 <code>{"402":"401"}</code> 即可把上游 x402 的 402 在出口改写成标准 401，既不泄露「支付门控代理」性质，又符合鉴权语义。<b>纯配置，无需发版。</b></p>
+
+  <h3 style="opacity:.6">A3 · "Claude Official" 标签 — <span class="badge b-ok" style="background:rgba(63,185,80,.14);color:var(--ok);border:1px solid rgba(63,185,80,.5)">已作废</span></h3>
+  <p style="opacity:.7">经澄清：该渠道<b>确为真官渠</b>，"Claude Official" 仅是<b>分组标签</b>，非对上游原生性的声称。此项<b>无需任何操作</b>。</p>
+
+  <!-- ============ 3 ============ -->
+  <h2>③ 必须抛给 BlockRun 上游的</h2>
+
+  <h3>B1 · 后端泄露内部报错（root cause of P0 #1）<span class="badge b-up">上游</span></h3>
+  <p><code>GenerateOpenAIRequest</code> 是 BlockRun 后端自己的 Go 结构体。源头不吐内部实现名，得他们改。我方只能在出口「抹」。</p>
+
+  <h3>B2 · 标准 max_tokens 请求功能性失败（root cause of P0 #2）<span class="badge b-up">上游</span></h3>
+  <p><code>max_tokens ... not present in request</code> 意味着上游<b>连标准 max_tokens 字段都没正确处理、直接内部报错</b>。这不是「错误信息难看」，是<b>请求本身处理失败</b>——真实客户端发同样请求照样拿不到结果。<b>我方脱敏只让它不泄露、不解决可用性。</b></p>
+
+  <h3>B3 · BlockRun 代理/校验层用 OpenAI 结构体中转（B2 的机制）<span class="badge b-up">上游</span></h3>
+  <p><b>注：渠道已确认为真官渠</b>，这里<b>不是</b>原生性/真伪问题。我方是 native 透传（零转换），上游却吐 <code>GenerateOpenAIRequest</code>，说明 BlockRun 在官方 Claude 上游<b>前面</b>还有一层自己的代理/校验层（很可能为 x402 计费、参数校验），该层内部用 OpenAI 格式结构体处理请求，并在标准 <code>max_tokens</code> 上失败——这正是 <b>B2 功能性失败的机制</b>。需上游修复该代理层，使标准 Anthropic 字段端到端正确处理。</p>
+
+  <h3>B4 · x402 / 402 鉴权语义 <span class="badge b-up">上游协议</span></h3>
+  <p>402 Payment Required 源自 BlockRun 的 x402 微支付协议（<code>relay/channel/blockrun/x402.go</code>）。是否在鉴权失败时返回更标准的码，是上游协议决定；我方只能改写、不能改其协议。</p>
+
+  <h3>B5 · 模型质量 / 疑似降级（D2）<span class="badge b-up">上游</span></h3>
+  <p>no-extra-text 45、constraint 63、arithmetic partial、code understanding 5 过 3。我方零替换，故这些纯属上游模型实际输出。对真 sonnet-4.5 偏低，需上游核实模型指纹、确认无量化/替换。</p>
+
+  <!-- ============ 4 ============ -->
+  <h2>④ 无法解决 / 只能检测与决策的</h2>
+  <div class="card">
+  <ul>
+    <li><span class="badge b-none">残留风险</span> <b>我方两个 P0 修复本质是治标。</b>同一个失败请求在上游照样失败；我方只是让错误「干净、合规」。真实可用性 100% 取决于 B2 是否被上游修复。</li>
+    <li><span class="badge b-none">检测而非修复</span> <b>模型降级嫌疑无法由我方消除。</b>只能持续检测指纹、对比基线，决定<b>保留 / 降权 / 下线</b>该渠道。</li>
+    <li><span class="badge b-none">取决于评分口径</span> 若评测 grader 只查「是否泄露 / 信封格式」→ 我方脱敏后可过；若还查「上游是否真能正确处理该请求」→ <b>仍 fail，且只能等上游 B2</b>。</li>
+  </ul>
+  </div>
+
+  <!-- ============ 5 ============ -->
+  <h2>⑤ 处置建议（按时序）</h2>
+  <div class="card">
+  <table>
+    <thead><tr><th>时序</th><th>动作</th><th>负责方</th><th>预期效果</th></tr></thead>
+    <tbody>
+      <tr><td>立即</td><td>A1 白标脱敏（已实现，待 commit + 部署）+ A2 配 status_code_mapping 402→401（配置）</td><td>我方</td><td>泄露 P0 + 鉴权码消除 → 由 BLOCKED 转通过</td></tr>
+      <tr><td>同步</td><td>B2 / B3（代理层 max_tokens 根因）+ B5（模型指纹核验）提工单给 BlockRun</td><td>BlockRun</td><td>根因消除、可用性恢复</td></tr>
+      <tr><td>复测</td><td>重跑 6D 报告（其余维度 D1 97 / D3 97 / D6 100 本就高）</td><td>我方</td><td>验证 P0 清零；D2 是否回升取决于上游</td></tr>
+      <tr><td>决策</td><td>若上游 B2/B5 不修，评估降权或下线该渠道</td><td>我方</td><td>避免把功能性失败/降级模型暴露给真实客户</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- ============ 6 ============ -->
+  <h2>⑥ 第二次客户反馈（聊天）：参数校验 + 双后端计费膨胀</h2>
+  <p style="color:var(--muted);font-size:13.5px;margin:0 0 8px">同一客户的第二次反馈（聊天截图）：claude-opus-4.8/4.7/4.6 上若干「本应 400 的非法参数」经网关后返回 200。已用本地 round-trip + 实测 <code>router.flatkey.ai</code>（该 key 请求 cc 模型仅命中 BlockRun）全部坐实。</p>
+
+  <div class="note" style="background:rgba(248,81,73,.08);border-color:rgba(248,81,73,.4)">
+    <b style="color:var(--p0)">测试坐实的核心发现 —— BlockRun 双后端 + 计费膨胀：</b>BlockRun 后挂<b>两个后端，按请求字段路由</b>。带 <code>temperature</code>/<code>top_p</code>/<code>top_k</code>/<code>context_management</code>/非法 <code>thinking.enable</code> 的请求 → 路由到 <b>B 后端</b>（短 message id）：<b>固定多算 122 个 input token 并计费</b>、不校验参数、回套话；干净请求走 A 后端（真实 token、长 id）。<b>temperature 是绝大多数真实请求都会带的参数</b>，故这是对大部分生产流量的<b>隐性计费膨胀</b>，且很可能就是首份报告里泄露 GenerateOpenAIRequest / max_tokens 失败 / D2 偏低的同一后端。
+  </div>
+
+  <div class="evidence">
+    // 实测 router.flatkey.ai（同一句 "hi"，仅改字段）<br>
+    纯请求 / 合法 thinking / stop_sequences → <b>input_tokens=8</b>，长 id（A 后端）<br>
+    + temperature / top_p / top_k / context_management / thinking.enable → <b>input_tokens=130</b>，短 id（B 后端）<br>
+    长消息对照：plain=38 vs +temperature=160 → <b>delta=122（固定注入，与消息长度无关）</b>
+  </div>
+
+  <div class="card">
+  <table>
+    <thead><tr><th>#</th><th>反馈点</th><th>实测</th><th>归属</th><th>列入上游清单?</th><th>结论</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>6.1</td><td>top_p（+thinking）应 400</td><td>200</td>
+        <td><span class="badge b-up">BlockRun</span></td>
+        <td><b style="color:var(--accent)">是</b></td>
+        <td>本地证我方原样转发 top_p+thinking；B 后端不校验</td>
+      </tr>
+      <tr>
+        <td>6.2</td><td>context_management 缺 anthropic-beta 头应 400</td><td>200</td>
+        <td><span class="badge b-up">BlockRun</span></td>
+        <td><b style="color:var(--accent)">是</b></td>
+        <td>本地证我方原样转发、不注入 beta 头；B 后端不强制</td>
+      </tr>
+      <tr>
+        <td>6.3</td><td>thinking.enable（非法字段）应 400</td><td>200</td>
+        <td><span class="badge b-ours">我方解决</span></td>
+        <td><b style="color:var(--ok)">否</b></td>
+        <td>DTO round-trip 丢弃 enable → 发上游 thinking:{}；非法字段被我方静默吞，屏蔽校验</td>
+      </tr>
+      <tr>
+        <td>6.4</td><td><b>带采样参数 → B 后端注入 122 token 并计费</b></td><td>delta=122</td>
+        <td><span class="badge b-up">BlockRun</span></td>
+        <td><b style="color:var(--accent)">是（高优）</b></td>
+        <td>计费膨胀，影响大部分真实流量；本次测试最重的发现</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>我方能解决的（6.3 thinking.enable）<span class="badge b-ours">我方</span></h3>
+  <p><code>dto.Thinking</code> 只有 <code>type/budget_tokens/display</code>，且 <code>common.Unmarshal</code> 未启用 <code>DisallowUnknownFields</code> → <code>thinking.enable</code> 等未建模/未知字段被静默丢弃，从而屏蔽了上游对非法字段的 400。要做 400 parity，二选一（<b>设计取舍，需拍板</b>）：① native <code>/v1/messages</code> 路径<b>透传原始 body</b>（保留未知字段让上游校验）；② 对 <code>thinking</code> 等做严格校验、拒绝未知子字段。建议单独排期，不混进当前 BlockRun PR。</p>
+
+  <h3>必须抛 BlockRun 的（6.1 / 6.2 / 6.4）<span class="badge b-up">上游</span></h3>
+  <p>我方对 6.1/6.2 是忠实转发（本地 round-trip 已证），200 出在上游 B 后端不校验；6.4 的 122-token 注入与后端切换都在上游。<b>6.4 计费膨胀最严重</b>——影响真金白银和大部分流量，应作为给 BlockRun 的<b>高优</b>工单。</p>
+
+  <p style="margin-top:22px"><b>一句话结论：</b>我方修复让渠道「不被 block」，但<b>不等于「这个渠道质量没问题」</b>。报告里的功能性根因（B2，机制见 B3 代理层）、模型质量（B5）必须 BlockRun 根治并复验，我方只能止血、检测和决定是否继续使用。标签项已澄清为分组概念、作废。<b>第二次反馈进一步暴露 BlockRun 双后端 + 122-token 计费膨胀（6.4，高优）</b>，唯一我方项是 thinking.enable 的 DTO 丢弃（6.3）。</p>
+
+  <div class="foot">
+    依据代码核实：<code>relay/channel/blockrun/adaptor.go</code> · <code>service/error.go</code> · <code>relay/claude_handler.go</code> · <code>controller/relay.go</code> · <code>middleware/auth.go</code> · <code>relay/channel/blockrun/x402.go</code>。grep 确认 <code>GenerateOpenAIRequest</code> / "not present in request" 不在本仓库。
+  </div>
+
+</div>
+</body>
+</html>

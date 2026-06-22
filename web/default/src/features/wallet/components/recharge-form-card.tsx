@@ -37,13 +37,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { getInvoiceProfile, isApiSuccess } from '../api'
-import {
-  formatCurrency,
-  getDiscountLabel,
-  getPaymentIcon,
-  getMinTopupAmount,
-  calculatePresetPricing,
-} from '../lib'
+import { formatCurrency, getPaymentIcon, getMinTopupAmount } from '../lib'
 import {
   EMPTY_INVOICE_PROFILE,
   normalizeInvoiceProfile,
@@ -80,8 +74,6 @@ interface RechargeFormCardProps {
   redeeming: boolean
   topupLink?: string
   loading?: boolean
-  priceRatio?: number
-  usdExchangeRate?: number
   onOpenBilling?: () => void
   creemProducts?: CreemProduct[]
   enableCreemTopup?: boolean
@@ -110,8 +102,6 @@ export function RechargeFormCard({
   redeeming,
   topupLink,
   loading,
-  priceRatio = 1,
-  usdExchangeRate = 1,
   onOpenBilling,
   creemProducts,
   enableCreemTopup,
@@ -130,7 +120,6 @@ export function RechargeFormCard({
   )
   const showLocalCurrencyBreakdown = false
   const formatUsdAmount = (amount: number) => `$${formatNumber(amount)} USD`
-  const showUsdPaymentBreakdown = true
 
   useEffect(() => {
     setLocalAmount(topupAmount.toString())
@@ -170,8 +159,15 @@ export function RechargeFormCard({
     enableWaffoTopup ||
     enableWaffoPancakeTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
-  const hasStandardPaymentMethods =
-    Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
+  // Frontend-only hide-list for payment methods (e.g. Paddle is not offered right now).
+  // Backend still returns them; we just don't render their buttons.
+  const HIDDEN_PAY_METHOD_TYPES = ['paddle']
+  const visiblePayMethods = Array.isArray(topupInfo?.pay_methods)
+    ? topupInfo.pay_methods.filter(
+        (method) => !HIDDEN_PAY_METHOD_TYPES.includes(method.type)
+      )
+    : []
+  const hasStandardPaymentMethods = visiblePayMethods.length > 0
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
@@ -287,21 +283,6 @@ export function RechargeFormCard({
                   </Label>
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
                     {presetAmounts.map((preset, index) => {
-                      const discount =
-                        preset.discount ||
-                        topupInfo?.discount?.[preset.value] ||
-                        1.0
-                      const {
-                        displayValue,
-                        actualPrice,
-                        savedAmount,
-                        hasDiscount,
-                      } = calculatePresetPricing(
-                        preset.value,
-                        priceRatio,
-                        discount,
-                        usdExchangeRate
-                      )
                       return (
                         <Button
                           key={index}
@@ -318,49 +299,14 @@ export function RechargeFormCard({
                             <div className='text-base font-semibold sm:text-lg'>
                               {formatUsdAmount(preset.value)}
                             </div>
-                            {hasDiscount && (
-                              <div className='text-xs font-medium text-green-600'>
-                                {getDiscountLabel(discount)}
-                              </div>
-                            )}
                           </div>
-                          {showLocalCurrencyBreakdown && (
-                            <div
-                              className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'
-                              data-display-value={displayValue}
-                            >
-                              {t('Pay {{amount}}', {
-                                amount: formatCurrency(actualPrice),
+                          {preset.bonus && preset.bonus > 0 && (
+                            <div className='mt-1 text-xs font-semibold text-[#FF2D78]'>
+                              {t('Get {{bonus}} free', {
+                                bonus: formatUsdAmount(preset.bonus),
                               })}
-                              {hasDiscount && savedAmount > 0 && (
-                                <span className='text-green-600'>
-                                  {' '}
-                                  •{' '}
-                                  {t('Save {{amount}}', {
-                                    amount: formatCurrency(savedAmount),
-                                  })}
-                                </span>
-                              )}
                             </div>
                           )}
-                          {!showLocalCurrencyBreakdown &&
-                            showUsdPaymentBreakdown &&
-                            hasDiscount && (
-                              <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
-                                {t('Pay {{amount}}', {
-                                  amount: formatUsdAmount(actualPrice),
-                                })}
-                                {savedAmount > 0 && (
-                                  <span className='text-green-600'>
-                                    {' '}
-                                    •{' '}
-                                    {t('Save {{amount}}', {
-                                      amount: formatUsdAmount(savedAmount),
-                                    })}
-                                  </span>
-                                )}
-                              </div>
-                            )}
                         </Button>
                       )
                     })}
@@ -528,7 +474,7 @@ export function RechargeFormCard({
                 </Label>
                 {hasStandardPaymentMethods ? (
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
-                    {topupInfo?.pay_methods?.map((method) => {
+                    {visiblePayMethods.map((method) => {
                       const minTopup = method.min_topup || 0
                       const disabled = minTopup > topupAmount
 

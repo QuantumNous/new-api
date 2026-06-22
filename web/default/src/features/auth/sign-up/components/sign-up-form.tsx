@@ -55,12 +55,14 @@ import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import {
   getAffiliateCode,
   saveAffiliateCode,
+  setPendingOnboarding,
 } from '@/features/auth/lib/storage'
 
 export function SignUpForm({
   className,
+  redirectTo,
   ...props
-}: React.HTMLAttributes<HTMLFormElement>) {
+}: React.HTMLAttributes<HTMLFormElement> & { redirectTo?: string }) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
@@ -184,8 +186,27 @@ export function SignUpForm({
         trackAdsFunnelEvent('flatkey_signup_success', {
           method: 'password',
         })
-        toast.success(t('Account created! Please sign in'))
-        redirectToLogin()
+        if (emailVerificationRequired) {
+          // Email verification on: the backend does NOT auto-login the new user.
+          // Arm the legacy first-login card-bind onboarding so it can trigger after
+          // they sign in manually (handleLoginSuccess opens it only when there is no
+          // explicit redirect and the feature is enabled).
+          setPendingOnboarding()
+          toast.success(t('Account created! Please sign in'))
+          redirectToLogin(redirectTo)
+        } else {
+          // Auto-logged-in (session cookie set by setupLogin). Activation-first: land
+          // them in the Playground first-run so they make their first API call with
+          // zero config. We intentionally do NOT arm the card-bind promo dialog here —
+          // top-up is surfaced later via the low-balance banner, once the user has
+          // experienced value. An explicit redirectTo (e.g. ?redirect=/keys from
+          // "Get API Key") still wins.
+          toast.success(t('Account created!'))
+          await handleLoginSuccess(
+            res.data as { id?: number } | null,
+            redirectTo || '/playground?first=1'
+          )
+        }
       } else {
         trackAdsFunnelEvent('flatkey_signup_error', {
           method: 'password',
@@ -240,7 +261,7 @@ export function SignUpForm({
     try {
       const res = await wechatLoginByCode(wechatCode)
       if (res?.success) {
-        await handleLoginSuccess(res.data as { id?: number } | null)
+        await handleLoginSuccess(res.data as { id?: number } | null, redirectTo)
         toast.success(t('Signed in via WeChat'))
         handleWeChatDialogChange(false)
       } else {

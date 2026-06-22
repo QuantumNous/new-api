@@ -131,7 +131,7 @@ func Login(c *gin.Context) {
 }
 
 // setup session & cookies and then return user info
-func setupLogin(user *model.User, c *gin.Context) {
+func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
 	model.UpdateUserLastLoginAt(user.Id)
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
@@ -144,17 +144,25 @@ func setupLogin(user *model.User, c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
 	}
+	data := map[string]any{
+		"id":            user.Id,
+		"username":      user.Username,
+		"display_name":  user.DisplayName,
+		"role":          user.Role,
+		"status":        user.Status,
+		"group":         user.Group,
+		"is_enterprise": user.IsEnterprise,
+	}
+	// Surfaced only for brand-new registrations (OAuth sign-up and password-register
+	// auto-login) so the frontend can trigger first-login onboarding. Omitted for
+	// normal logins (back-compat).
+	if len(isNewUser) > 0 && isNewUser[0] {
+		data["is_new_user"] = true
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
-		"data": map[string]any{
-			"id":           user.Id,
-			"username":     user.Username,
-			"display_name": user.DisplayName,
-			"role":         user.Role,
-			"status":       user.Status,
-			"group":        user.Group,
-		},
+		"data":    data,
 	})
 }
 
@@ -268,6 +276,20 @@ func Register(c *gin.Context) {
 	}
 
 	sendSignUpSuccessGA(c.Request.Context(), insertedUser.Id, inviterId, "password", user.GAClientID, user.GASessionID)
+
+	// Auto-login the freshly registered user so they land directly in the console
+	// (e.g. the Playground onboarding) without having to sign in again. setupLogin
+	// establishes the session cookie AND writes the JSON success response, marking
+	// is_new_user=true so the frontend can trigger the first-run onboarding flow.
+	//
+	// Guard: only auto-login when email verification is NOT required. When it is
+	// enabled we keep the legacy behavior (frontend redirects to sign-in) to avoid
+	// changing the verified-registration UX. In this deployment EmailVerification is
+	// off, so the common path auto-logs-in.
+	if !common.EmailVerificationEnabled {
+		setupLogin(&insertedUser, c, true)
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -454,32 +476,35 @@ func GetSelf(c *gin.Context) {
 
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
-		"id":                user.Id,
-		"username":          user.Username,
-		"display_name":      user.DisplayName,
-		"role":              user.Role,
-		"status":            user.Status,
-		"email":             user.Email,
-		"github_id":         user.GitHubId,
-		"discord_id":        user.DiscordId,
-		"oidc_id":           user.OidcId,
-		"google_id":         user.GoogleId,
-		"wechat_id":         user.WeChatId,
-		"telegram_id":       user.TelegramId,
-		"group":             user.Group,
-		"quota":             user.Quota,
-		"used_quota":        user.UsedQuota,
-		"request_count":     user.RequestCount,
-		"aff_code":          user.AffCode,
-		"aff_count":         user.AffCount,
-		"aff_quota":         user.AffQuota,
-		"aff_history_quota": user.AffHistoryQuota,
-		"inviter_id":        user.InviterId,
-		"linux_do_id":       user.LinuxDOId,
-		"setting":           user.Setting,
-		"stripe_customer":   user.StripeCustomer,
-		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
-		"permissions":       permissions,                // 新增权限字段
+		"id":                   user.Id,
+		"username":             user.Username,
+		"display_name":         user.DisplayName,
+		"role":                 user.Role,
+		"status":               user.Status,
+		"email":                user.Email,
+		"github_id":            user.GitHubId,
+		"discord_id":           user.DiscordId,
+		"oidc_id":              user.OidcId,
+		"google_id":            user.GoogleId,
+		"wechat_id":            user.WeChatId,
+		"telegram_id":          user.TelegramId,
+		"group":                user.Group,
+		"quota":                user.Quota,
+		"used_quota":           user.UsedQuota,
+		"request_count":        user.RequestCount,
+		"aff_code":             user.AffCode,
+		"aff_count":            user.AffCount,
+		"aff_quota":            user.AffQuota,
+		"aff_history_quota":    user.AffHistoryQuota,
+		"inviter_id":           user.InviterId,
+		"linux_do_id":          user.LinuxDOId,
+		"setting":              user.Setting,
+		"stripe_customer":      user.StripeCustomer,
+		"stripe_card_bound":    user.StripeCardBound,
+		"new_user_bonus_given": user.NewUserBonusGiven,
+		"is_enterprise":        user.IsEnterprise,
+		"sidebar_modules":      userSetting.SidebarModules, // 正确提取sidebar_modules字段
+		"permissions":          permissions,                // 新增权限字段
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -43,6 +43,9 @@ export interface SystemConfig {
   footerHtml?: string
   demoSiteEnabled?: boolean
   displayTokenStatEnabled?: boolean
+  serverAddress?: string
+  enableStripeCardBind?: boolean
+  stripeNewUserBonusAmount?: number
   currency: CurrencyConfig
 }
 

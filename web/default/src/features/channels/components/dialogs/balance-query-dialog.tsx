@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, DollarSign } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -26,6 +26,7 @@ import { formatTimestampToDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/dialog'
 import { getCodexUsage, updateChannelBalance } from '../../api'
+import { useCodexResetConsumer } from '../../hooks/use-codex-reset-consumer'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
 import {
@@ -52,6 +53,14 @@ export function BalanceQueryDialog({
   )
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
+  const { isConsuming: codexConsuming, consume: consumeCodexResetCredit } =
+    useCodexResetConsumer()
+  // Track the live current row so a late-resolving consume cannot write a
+  // previous channel's usage after the user switched to another channel.
+  const currentRowRef = useRef(currentRow)
+  useEffect(() => {
+    currentRowRef.current = currentRow
+  }, [currentRow])
 
   const isCodex = currentRow?.type === 57
 
@@ -149,6 +158,14 @@ export function BalanceQueryDialog({
         response={codexUsageResponse}
         onRefresh={handleQueryCodexUsage}
         isRefreshing={isQuerying}
+        onConsume={async () => {
+          const channelId = currentRow.id
+          const refreshed = await consumeCodexResetCredit(channelId)
+          if (refreshed && currentRowRef.current?.id === channelId) {
+            setCodexUsageResponse(refreshed)
+          }
+        }}
+        isConsuming={codexConsuming}
       />
     )
   }

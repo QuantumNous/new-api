@@ -25,6 +25,8 @@ import { AnimatedOutlet } from '@/components/page-transition'
 import { SkipToMain } from '@/components/skip-to-main'
 import { AppHeader } from './app-header'
 import { AppSidebar } from './app-sidebar'
+import { CardBindBanner } from './card-bind-banner'
+import { Onboarding } from '@/features/onboarding'
 
 type AuthenticatedLayoutProps = {
   children?: React.ReactNode
@@ -49,11 +51,18 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
                 'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'
               )}
             >
-              {props.children ?? <AnimatedOutlet />}
+              {/* Promo banner: pinned to the top of the content area, does not scroll. */}
+              <CardBindBanner />
+              {/* Scroll container for the routed page; min-h-0 keeps the inner Main's
+                  flex-1/overflow working so the page (not the layout) owns scrolling. */}
+              <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+                {props.children ?? <AnimatedOutlet />}
+              </div>
             </SidebarInset>
           </div>
         </SidebarProvider>
       </SearchProvider>
+      <Onboarding />
     </LayoutProvider>
   )
 }

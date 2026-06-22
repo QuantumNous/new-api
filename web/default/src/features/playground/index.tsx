@@ -16,19 +16,36 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useIsEnterprise } from '@/hooks/use-enterprise'
 import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
+import {
+  FirstRunWelcome,
+  GetKeyCard,
+} from './components/playground-first-run'
 import { PlaygroundInput } from './components/playground-input'
+import { MESSAGE_ROLES, MESSAGE_STATUS } from './constants'
 import { usePlaygroundState, useChatHandler } from './hooks'
 import { createUserMessage, createLoadingAssistantMessage } from './lib'
 import type { Message as MessageType } from './types'
 
-export function Playground() {
+// Non-enterprise (PLG) users are always pinned to the single `plg` group.
+const PLG_GROUP = 'plg'
+
+// Cheap, reliable model forced for the very first message of a brand-new user.
+// With the small free credit, a single Opus message could be costly — a cheap
+// model keeps the first call cheap and unlikely to fail on quota.
+const FIRST_RUN_DEFAULT_MODEL = 'claude-haiku-4-5'
+
+export function Playground({ firstRun = false }: { firstRun?: boolean }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const isEnterprise = useIsEnterprise()
   const {
     config,
     parameterEnabled,
@@ -52,6 +69,38 @@ export function Playground() {
     null
   )
 
+  // --- First-run onboarding state (?first=1) ---
+  // Whether the "get your API key" card is currently visible. Shown once per
+  // session after the first successful assistant response, then dismissed.
+  const [showGetKeyCard, setShowGetKeyCard] = useState(false)
+  // Whether the user has actually sent a message during THIS first-run session.
+  // The get-key card keys off this (not raw messages) so a stale localStorage
+  // conversation can't prematurely surface it.
+  const [sentThisSession, setSentThisSession] = useState(false)
+  // Guards so the cheap-model override and the get-key card each fire at most
+  // once per session (refs survive re-renders without retriggering effects).
+  const appliedFirstRunModelRef = useRef(false)
+  const getKeyCardShownRef = useRef(false)
+  const userPickedModelRef = useRef(false)
+
+  // Initialize first-run mode once on mount: start from a clean slate and force a
+  // cheap default model (unless the user already picked one). The clean slate
+  // matters because a just-registered user may be in a browser that still holds a
+  // previous account's persisted conversation, which would otherwise suppress the
+  // welcome banner (gated on messages.length === 0).
+  useEffect(() => {
+    if (!firstRun) return
+    if (appliedFirstRunModelRef.current) return
+    if (userPickedModelRef.current) return
+    appliedFirstRunModelRef.current = true
+    if (messages.length > 0) updateMessages([])
+    updateConfig('model', FIRST_RUN_DEFAULT_MODEL)
+  }, [firstRun, messages.length, updateConfig, updateMessages])
+
+  // Whether the empty-state welcome/example chips should show: first-run mode
+  // with no conversation yet.
+  const showWelcome = firstRun && messages.length === 0
+
   // Load models
   const { data: modelsData, isLoading: isLoadingModels } = useQuery({
     queryKey: ['playground-models', config.group],
@@ -69,7 +118,7 @@ export function Playground() {
     },
   })
 
-  // Load groups
+  // Load groups (enterprise users only — PLG users are pinned to `plg`)
   const { data: groupsData } = useQuery({
     queryKey: ['playground-groups'],
     queryFn: async () => {
@@ -84,7 +133,15 @@ export function Playground() {
         return []
       }
     },
+    enabled: isEnterprise,
   })
+
+  // PLG users are pinned to the `plg` group so model fetching uses it.
+  useEffect(() => {
+    if (!isEnterprise && config.group !== PLG_GROUP) {
+      updateConfig('group', PLG_GROUP)
+    }
+  }, [isEnterprise, config.group, updateConfig])
 
   // Update models when data changes
   useEffect(() => {
@@ -114,7 +171,36 @@ export function Playground() {
     }
   }, [groupsData, setGroups, config.group, updateConfig])
 
+  // Detect the first successful assistant response in first-run mode and slide
+  // in the "get your API key" card once per session.
+  const hasCompletedAssistant = useMemo(
+    () =>
+      messages.some(
+        (m) =>
+          m.from === MESSAGE_ROLES.ASSISTANT &&
+          m.status === MESSAGE_STATUS.COMPLETE &&
+          !!m.versions?.[0]?.content?.trim()
+      ),
+    [messages]
+  )
+
+  useEffect(() => {
+    if (!firstRun) return
+    if (getKeyCardShownRef.current) return
+    // Require a real send this session so a restored conversation can't trigger
+    // the card before the user has actually made a call.
+    if (!sentThisSession) return
+    if (!hasCompletedAssistant) return
+    getKeyCardShownRef.current = true
+    setShowGetKeyCard(true)
+    // First call succeeded — drop `?first=1` from the URL so a reload/back-nav
+    // doesn't replay the one-shot onboarding (welcome banner + cheap-model force).
+    // The card is driven by showGetKeyCard state, so it stays after firstRun flips.
+    navigate({ to: '/playground', replace: true })
+  }, [firstRun, sentThisSession, hasCompletedAssistant, navigate])
+
   const handleSendMessage = (text: string) => {
+    if (firstRun) setSentThisSession(true)
     const userMessage = createUserMessage(text)
     const assistantMessage = createLoadingAssistantMessage()
 
@@ -190,6 +276,10 @@ export function Playground() {
 
   return (
     <div className='relative flex size-full flex-col overflow-hidden'>
+      {/* First-run welcome banner + example prompts (empty state only) */}
+      {showWelcome && (
+        <FirstRunWelcome onPickExample={handleSendMessage} />
+      )}
       {/* Full-width scroll container: scrolling works even over side whitespace */}
       <div className='flex flex-1 flex-col overflow-hidden'>
         <PlaygroundChat
@@ -206,10 +296,16 @@ export function Playground() {
         />
       </div>
 
+      {/* "Get your API key" card after the first successful response */}
+      {showGetKeyCard && (
+        <GetKeyCard onDismiss={() => setShowGetKeyCard(false)} />
+      )}
+
       {/* Input area: center content and constrain to the same container width */}
       <div className='mx-auto w-full max-w-4xl'>
         <PlaygroundInput
           disabled={isGenerating}
+          showGroupSelector={isEnterprise}
           groups={groups}
           groupValue={config.group}
           isGenerating={isGenerating}
@@ -217,7 +313,12 @@ export function Playground() {
           modelValue={config.model}
           models={models}
           onGroupChange={(value) => updateConfig('group', value)}
-          onModelChange={(value) => updateConfig('model', value)}
+          onModelChange={(value) => {
+            // Mark that the user explicitly chose a model so the first-run cheap
+            // default never overrides their choice.
+            userPickedModelRef.current = true
+            updateConfig('model', value)
+          }}
           onStop={stopGeneration}
           onSubmit={handleSendMessage}
         />

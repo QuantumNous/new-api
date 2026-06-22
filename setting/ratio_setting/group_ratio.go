@@ -13,6 +13,11 @@ var defaultGroupRatio = map[string]float64{
 	"default": 1,
 	"vip":     1,
 	"svip":    1,
+	// plg is the group every non-enterprise user is forced onto. Seed a sane default so a
+	// fresh install bills it at 0.9 instead of falling back to 1.0. NOTE: when a GroupRatio
+	// option already exists in the DB it REPLACES this map on load (see types.LoadFromJsonString),
+	// so production must still set GroupRatio.plg explicitly — that is a hard pre-deploy gate.
+	"plg": 0.9,
 }
 
 var groupRatioMap = types.NewRWMap[string, float64]()
@@ -100,6 +105,18 @@ func GetGroupGroupRatio(userGroup, usingGroup string) (float64, bool) {
 		return -1, false
 	}
 	return ratio, true
+}
+
+// GetGroupGroupRatioKeys 返回分组专属倍率(GroupGroupRatio)中配置的外层分组名称,
+// 即配置了子分组专属费率的用户身份分组(user.Group)。与充值分组比例一并作为
+// 可分配用户分组的权威来源,详见 controller.GetGroups 的 type=user 分支。
+func GetGroupGroupRatioKeys() []string {
+	all := groupGroupRatioMap.ReadAll()
+	keys := make([]string, 0, len(all))
+	for name := range all {
+		keys = append(keys, name)
+	}
+	return keys
 }
 
 func GroupGroupRatio2JSONString() string {

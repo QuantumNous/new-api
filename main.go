@@ -157,6 +157,9 @@ func main() {
 	// Model official availability detection task
 	controller.StartModelAvailabilityDetectionTask()
 
+	// Codex subscription model governance task
+	controller.StartCodexModelGovernanceTask()
+
 	if common.IsMasterNode && constant.UpdateTask {
 		gopool.Go(func() {
 			controller.UpdateMidjourneyTaskBulk()
@@ -215,6 +218,10 @@ func main() {
 	}
 	store.Options(sessionOptions)
 	server.Use(sessions.Sessions("session", store))
+	// Drop the stale host-only "session" cookie left over from before
+	// COOKIE_SESSION_DOMAIN was introduced, so it can't shadow the domain-scoped
+	// cookie and break OAuth state / session reads. See middleware for details.
+	server.Use(middleware.PurgeLegacySessionCookie())
 
 	InjectUmamiAnalytics()
 	InjectGoogleAnalytics()

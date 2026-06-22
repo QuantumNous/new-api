@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
 import {
+  captureAdsAttribution,
   getAttributionPayload,
   mergeAttributionValues,
   normalizeAttribution,
@@ -64,6 +65,15 @@ describe('attribution normalization', () => {
     expect(normalized.source).toBe('bing')
     expect(normalized.medium).toBe('organic')
     expect(normalized.keyword).toBe('ai gateway')
+  })
+
+  test('does not classify lookalike search domains as organic', () => {
+    const normalized = normalizeAttribution({
+      referrer: 'https://evilgoogle.com/search?q=flatkey',
+    })
+
+    expect(normalized.source_type).toBe('referral')
+    expect(normalized.source).toBe('https://evilgoogle.com/search?q=flatkey')
   })
 
   test('keeps existing paid attribution when later navigation only has organic signals', () => {
@@ -141,5 +151,50 @@ describe('attribution normalization', () => {
     expect(parsed.medium).toBe('cpc')
     expect(parsed.campaign).toBe('signup')
     expect(parsed.keyword).toBe('flatkey api')
+  })
+
+  test('stores external referrer without query or hash', () => {
+    const storage = new Map<string, string>()
+    const originalWindow = globalThis.window
+    const originalDocument = globalThis.document
+
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        location: {
+          origin: 'https://console.flatkey.ai',
+          pathname: '/sign-up',
+          search: '',
+        },
+        localStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          setItem: (key: string, value: string) => storage.set(key, value),
+        },
+      },
+    })
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: {
+        referrer:
+          'https://www.google.com/search?q=email@example.com#private-token',
+      },
+    })
+
+    try {
+      const captured = JSON.stringify(captureAdsAttribution())
+
+      expect(captured).not.toContain('email@example.com')
+      expect(captured).not.toContain('private-token')
+      expect(captured).toContain('https://www.google.com/search')
+    } finally {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: originalWindow,
+      })
+      Object.defineProperty(globalThis, 'document', {
+        configurable: true,
+        value: originalDocument,
+      })
+    }
   })
 })

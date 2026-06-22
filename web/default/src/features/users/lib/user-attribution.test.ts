@@ -17,7 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
-import { getUserAttributionDisplay } from './user-attribution'
+import {
+  getSafeAttributionTooltipRaw,
+  getUserAttributionDisplay,
+} from './user-attribution'
 
 describe('getUserAttributionDisplay', () => {
   test('shows paid source with campaign and keyword', () => {
@@ -53,6 +56,50 @@ describe('getUserAttributionDisplay', () => {
     expect(display.badgeLabel).toBe('UTM')
     expect(display.sourceMedium).toBe('newsletter / email')
     expect(display.detail).toBe('june')
+  })
+
+  test('ignores unknown raw source type when valid attribution signals exist', () => {
+    const display = getUserAttributionDisplay(
+      JSON.stringify({
+        source_type: 'google_ads',
+        gclid: 'paid-click',
+        utm_source: 'google',
+      })
+    )
+
+    expect(display.sourceType).toBe('paid')
+    expect(display.badgeLabel).toBe('Paid Ads')
+    expect(display.hasAttribution).toBe(true)
+  })
+
+  test('shows no source for payload without attribution signals', () => {
+    const display = getUserAttributionDisplay(
+      JSON.stringify({
+        foo: 'bar',
+        captured_at: '2026-06-16T00:00:00.000Z',
+      })
+    )
+
+    expect(display.hasAttribution).toBe(false)
+    expect(display.badgeLabel).toBe('No source')
+    expect(display.sourceMedium).toBe('')
+  })
+
+  test('tooltip raw only exposes whitelisted attribution fields', () => {
+    const safeRaw = getSafeAttributionTooltipRaw({
+      source_type: 'paid',
+      source: 'google',
+      referrer: 'https://example.com/?token=secret',
+      landing_path: '/sign-up?email=user@example.com',
+      gclid: 'click-id',
+      foo: 'bar',
+    })
+
+    expect(safeRaw).toEqual({
+      source_type: 'paid',
+      source: 'google',
+      gclid: 'click-id',
+    })
   })
 
   test('shows no source when attribution is empty or invalid', () => {

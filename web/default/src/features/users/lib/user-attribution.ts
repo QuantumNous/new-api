@@ -32,6 +32,36 @@ export type UserAttributionDisplay = {
   hasAttribution: boolean
 }
 
+const ALLOWED_SOURCE_TYPES = new Set([
+  'paid',
+  'utm',
+  'organic',
+  'referral',
+  'direct',
+])
+const PAID_CLICK_ID_KEYS = new Set([
+  'fbclid',
+  'gbraid',
+  'gclid',
+  'msclkid',
+  'ttclid',
+  'wbraid',
+])
+const TOOLTIP_RAW_KEYS = new Set([
+  'source_type',
+  'source',
+  'medium',
+  'campaign',
+  'keyword',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'gad_campaignid',
+  'gad_source',
+  ...PAID_CLICK_ID_KEYS,
+])
+
 function badgeLabelForSourceType(sourceType: string): string {
   if (sourceType === 'paid') return 'Paid Ads'
   if (sourceType === 'utm') return 'UTM'
@@ -41,11 +71,46 @@ function badgeLabelForSourceType(sourceType: string): string {
   return 'No source'
 }
 
+function hasAttributionSignal(raw: AttributionValues): boolean {
+  return Object.entries(raw).some(([key, value]) => {
+    if (!value) return false
+    if (key === 'source_type') return ALLOWED_SOURCE_TYPES.has(value)
+    if (
+      key === 'source' ||
+      key === 'medium' ||
+      key === 'campaign' ||
+      key === 'keyword' ||
+      key === 'landing_path' ||
+      key === 'referrer' ||
+      key === 'aff' ||
+      key === 'gad_campaignid' ||
+      key === 'gad_source'
+    ) {
+      return true
+    }
+    return (
+      key.startsWith('utm_') ||
+      key.startsWith('hsa_') ||
+      PAID_CLICK_ID_KEYS.has(key)
+    )
+  })
+}
+
+export function getSafeAttributionTooltipRaw(
+  raw: AttributionValues
+): AttributionValues {
+  return Object.fromEntries(
+    Object.entries(raw).filter(
+      ([key, value]) => TOOLTIP_RAW_KEYS.has(key) && value
+    )
+  )
+}
+
 export function getUserAttributionDisplay(
   rawAttribution?: string
 ): UserAttributionDisplay {
   const raw = parseAttributionPayload(rawAttribution)
-  if (Object.keys(raw).length === 0) {
+  if (!hasAttributionSignal(raw)) {
     return {
       raw,
       sourceType: '',
@@ -58,7 +123,10 @@ export function getUserAttributionDisplay(
   }
 
   const normalized = normalizeAttribution(raw)
-  const sourceType = raw.source_type || normalized.source_type || ''
+  const normalizedSourceType = normalized.source_type || ''
+  const sourceType = ALLOWED_SOURCE_TYPES.has(raw.source_type || '')
+    ? raw.source_type
+    : normalizedSourceType
   const source = raw.source || normalized.source || ''
   const medium = raw.medium || normalized.medium || ''
   const campaign = raw.campaign || normalized.campaign || ''

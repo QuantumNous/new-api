@@ -16,10 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Link } from '@tanstack/react-router'
 import { type ColumnDef } from '@tanstack/react-table'
+import { ScrollText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatQuota, formatTimestamp } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -32,8 +35,16 @@ import { GroupBadge } from '@/components/group-badge'
 import { LongText } from '@/components/long-text'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
-import { USER_STATUSES, USER_ROLES, isUserDeleted } from '../constants'
-import { getUserAttributionDisplay } from '../lib/user-attribution'
+import {
+  USER_STATUS,
+  USER_STATUSES,
+  USER_ROLES,
+  isUserDeleted,
+} from '../constants'
+import {
+  getSafeAttributionTooltipRaw,
+  getUserAttributionDisplay,
+} from '../lib/user-attribution'
 import { type User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
@@ -131,7 +142,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const requestCount = user.request_count
 
         const statusConfig = isUserDeleted(user)
-          ? USER_STATUSES.DELETED
+          ? USER_STATUSES[USER_STATUS.DELETED]
           : USER_STATUSES[user.status as keyof typeof USER_STATUSES]
 
         if (!statusConfig) {
@@ -222,6 +233,40 @@ export function useUsersColumns(): ColumnDef<User>[] {
         )
       },
       meta: { label: t('Quota') },
+    },
+    {
+      id: 'usage_logs',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Usage Logs')} />
+      ),
+      cell: ({ row }) => (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='icon'
+                className='text-muted-foreground hover:text-foreground size-7'
+                aria-label={t('Usage Logs')}
+                render={
+                  <Link
+                    to='/usage-logs/$section'
+                    params={{ section: 'common' }}
+                    search={{ username: row.original.username, page: 1 }}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  />
+                }
+              />
+            }
+          >
+            <ScrollText className='size-4' />
+          </TooltipTrigger>
+          <TooltipContent>{t('Usage Logs')}</TooltipContent>
+        </Tooltip>
+      ),
+      enableSorting: false,
+      meta: { label: t('Usage Logs'), mobileHidden: true },
     },
     {
       accessorKey: 'group',
@@ -319,7 +364,11 @@ export function useUsersColumns(): ColumnDef<User>[] {
                   </p>
                 )}
                 <pre className='whitespace-pre-wrap'>
-                  {JSON.stringify(display.raw, null, 2)}
+                  {JSON.stringify(
+                    getSafeAttributionTooltipRaw(display.raw),
+                    null,
+                    2
+                  )}
                 </pre>
               </div>
             </TooltipContent>

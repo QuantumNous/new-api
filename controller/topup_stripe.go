@@ -49,8 +49,11 @@ type StripePayRequest struct {
 	InvoiceRequested bool `json:"invoice_requested,omitempty"`
 	// InvoiceProfile is snapshotted to the local order when InvoiceRequested is true.
 	InvoiceProfile *model.InvoiceProfileFields `json:"invoice_profile,omitempty"`
-	GAClientID     string                      `json:"ga_client_id,omitempty"`
-	GASessionID    string                      `json:"ga_session_id,omitempty"`
+	// SaveCard, when true (onboarding promo top-ups), saves the card during payment via
+	// setup_future_usage so it can be charged off-session later.
+	SaveCard    bool   `json:"save_card,omitempty"`
+	GAClientID  string `json:"ga_client_id,omitempty"`
+	GASessionID string `json:"ga_session_id,omitempty"`
 }
 
 type StripeAdaptor struct {
@@ -106,7 +109,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 
-	normalizedAmount := normalizeStripeTopUpAmount(req.Amount)
+	normalizedAmount, bonusAmount := configuredTopUpAmounts(req.Amount)
 	if normalizedAmount <= 0 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值数量无效"})
 		return
@@ -140,6 +143,8 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	topUp := &model.TopUp{
 		UserId:          id,
 		Amount:          normalizedAmount,
+		BonusAmount:     bonusAmount,
+		BonusTier:       int(req.Amount),
 		Money:           payMoney,
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodStripe,
@@ -148,6 +153,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		GASessionID:     service.NormalizeGAIdentifier(req.GASessionID),
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
+		SaveCard:        req.SaveCard,
 	}
 	err = topUp.Insert()
 	if err != nil {
@@ -187,7 +193,37 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		}
 	}
 
-	checkoutSession, paymentCurrency, err := genStripeLink(referenceId, user.StripeCustomer, user.Email, req.Amount, payMoney, req.SuccessURL, req.CancelURL, invoiceRequested)
+	// Stripe delivers invoice emails to the Customer object's email. When an invoice is
+	// requested, make sure the Stripe customer carries the billing email entered on the page
+	// before we open Checkout: new customers are created with it, and existing customers are
+	// updated to it (Checkout's customer_update cannot set email, so this is the only hook).
+	checkoutEmail := user.Email
+	checkoutCustomerId := strings.TrimSpace(user.StripeCustomer)
+	if invoiceRequested {
+		if billing := strings.TrimSpace(invoiceFields.BillingEmail); billing != "" {
+			checkoutEmail = billing
+		}
+		if err := ensureStripeKey(); err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 开票准备客户失败（密钥无效）user_id=%d trade_no=%s error=%q", id, referenceId, err.Error()))
+			topUp.Status = common.TopUpStatusFailed
+			_ = topUp.Update()
+			_ = model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed)
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
+			return
+		}
+		customerId, err := ensureStripeInvoiceCustomer(topUp, user, invoiceFields)
+		if err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 开票准备客户失败 user_id=%d trade_no=%s error=%q", id, referenceId, err.Error()))
+			topUp.Status = common.TopUpStatusFailed
+			_ = topUp.Update()
+			_ = model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed)
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
+			return
+		}
+		checkoutCustomerId = customerId
+	}
+
+	checkoutSession, paymentCurrency, err := genStripeLink(referenceId, checkoutCustomerId, checkoutEmail, req.Amount, payMoney, req.SuccessURL, req.CancelURL, invoiceRequested, req.SaveCard)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 创建 Checkout Session 失败 user_id=%d trade_no=%s amount=%d error=%q", id, referenceId, req.Amount, err.Error()))
 		topUp.Status = common.TopUpStatusFailed
@@ -421,6 +457,15 @@ func sessionCompleted(ctx context.Context, event stripe.Event, callerIp string) 
 		return
 	}
 
+	// The old setup-mode card-bind flow (送 $10 绑卡) has been retired. Cards are now saved
+	// during a paid recharge (save_card → setup_future_usage), handled in fulfillOrder. Any
+	// lingering setup-mode session (e.g. a delayed redelivery of a pre-retirement bind) carries
+	// no payment, so just acknowledge and ignore it — never grant a bonus.
+	if event.GetObjectValue("mode") == string(stripe.CheckoutSessionModeSetup) || strings.HasPrefix(referenceId, stripeCardBindReferencePrefix) {
+		logger.LogInfo(ctx, fmt.Sprintf("Stripe 收到已下线的 setup-mode 绑卡会话，忽略 trade_no=%s client_ip=%s", referenceId, callerIp))
+		return
+	}
+
 	paymentStatus := event.GetObjectValue("payment_status")
 	if paymentStatus != "paid" {
 		logger.LogInfo(ctx, fmt.Sprintf("Stripe Checkout 支付未完成，等待异步结果 trade_no=%s payment_status=%s client_ip=%s", referenceId, paymentStatus, callerIp))
@@ -511,13 +556,63 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		return
 	}
 	if recharged {
-		sendPaymentSuccessGA(ctx, model.GetTopUpByTradeNo(referenceId))
+		topUp := model.GetTopUpByTradeNo(referenceId)
+		sendPaymentSuccessGA(ctx, topUp)
+		// For save-card (onboarding promo) top-ups the card is already marked bound atomically
+		// inside model.Recharge's transaction. Here we only best-effort backfill the card's
+		// fingerprint (a Stripe API call, too slow/failure-prone for the credit transaction),
+		// used for anti-abuse dedup. Only on first fulfillment (recharged==true).
+		backfillCardFingerprintFromTopUp(ctx, topUp, customerId, callerIp)
 	}
 
 	syncStripePaymentInvoice(ctx, event, referenceId, customerId)
 	total, _ := strconv.ParseFloat(event.GetObjectValue("amount_total"), 64)
 	currency := strings.ToUpper(event.GetObjectValue("currency"))
 	logger.LogInfo(ctx, fmt.Sprintf("Stripe 充值成功 trade_no=%s amount_total=%.2f currency=%s event_type=%s client_ip=%s", referenceId, total/100, currency, string(event.Type), callerIp))
+}
+
+// backfillCardFingerprintFromTopUp best-effort records the saved card's Stripe fingerprint
+// (used for anti-abuse dedup) after a save-card top-up. The card is already marked bound
+// atomically inside model.Recharge; this only adds the fingerprint, which requires a slow
+// Stripe API call unsuitable for the credit transaction. No-op for ordinary wallet top-ups.
+// Failures are logged, not fatal. Call only on first fulfillment.
+func backfillCardFingerprintFromTopUp(ctx context.Context, topUp *model.TopUp, customerId string, callerIp string) {
+	if topUp == nil || topUp.UserId <= 0 {
+		return
+	}
+	// Only save-card (onboarding promo) top-ups have a card to record.
+	if !topUp.SaveCard {
+		return
+	}
+	customerId = strings.TrimSpace(customerId)
+	// The checkout.session.completed event sometimes omits the customer id; fall back to the
+	// customer recorded on the user (Recharge persisted it from this same event, or pre-existing).
+	if customerId == "" {
+		if user, err := model.GetUserById(topUp.UserId, false); err == nil && user != nil {
+			customerId = strings.TrimSpace(user.StripeCustomer)
+		}
+	}
+	if customerId == "" {
+		// No customer to query: binding (if any) was handled in the transaction; nothing to add.
+		return
+	}
+	fingerprint := fetchCardFingerprint(customerId)
+	if strings.TrimSpace(fingerprint) == "" {
+		return
+	}
+	// Idempotently persist customer + fingerprint (and ensure card_bound) — safe to repeat.
+	if err := model.SetStripeCardBound(topUp.UserId, customerId, fingerprint); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe 充值绑卡：记录卡指纹失败 user_id=%d trade_no=%s error=%q", topUp.UserId, topUp.TradeNo, err.Error()))
+		return
+	}
+	// Consume this card's one-time new-user-bonus slot so the same physical card cannot later
+	// farm the free new-user bonus on other accounts via the setup-mode bind path (both guard on
+	// the StripeBonusClaim unique index). The promo flow already rewarded the user with a paid
+	// deposit bonus, so it doesn't grant the free bonus itself — it only claims the slot.
+	if err := model.ClaimStripeCardFingerprint(topUp.UserId, fingerprint); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe 充值绑卡：占用卡指纹名额失败 user_id=%d trade_no=%s error=%q", topUp.UserId, topUp.TradeNo, err.Error()))
+	}
+	logger.LogInfo(ctx, fmt.Sprintf("Stripe 充值绑卡：已记录卡指纹 user_id=%d trade_no=%s client_ip=%s", topUp.UserId, topUp.TradeNo, callerIp))
 }
 
 func sessionExpired(ctx context.Context, event stripe.Event) {
@@ -692,7 +787,18 @@ func createPaidStripeTopUpInvoice(ctx context.Context, topUp *model.TopUp, user 
 	if err != nil {
 		return nil, err
 	}
-	return paid, nil
+
+	// A charge_automatically invoice marked paid out-of-band is never emailed by Stripe
+	// on its own, so deliver it explicitly. For an already-paid invoice the email omits
+	// any payment reference and simply hands the customer their finalized invoice + PDF.
+	// Best-effort: the invoice is already created, finalized and persisted for in-app
+	// download, so a send failure must not fail the whole top-up invoice request.
+	sent, err := stripeinvoice.SendInvoice(paid.ID, &stripe.InvoiceSendInvoiceParams{})
+	if err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe 发送发票邮件失败 trade_no=%s invoice_id=%s error=%q", topUp.TradeNo, paid.ID, err.Error()))
+		return paid, nil
+	}
+	return sent, nil
 }
 
 func ensureStripeInvoiceCustomer(topUp *model.TopUp, user *model.User, fields model.InvoiceProfileFields) (string, error) {
@@ -794,7 +900,7 @@ func ensureStripeCustomerTaxID(ctx context.Context, customerId string, fields mo
 //   - cancelURL: custom URL to redirect when payment is canceled (empty for default)
 //
 // Returns the checkout session URL or an error if the session creation fails.
-func genStripeLink(referenceId string, customerId string, email string, amount int64, payMoney float64, successURL string, cancelURL string, invoiceRequested bool) (*stripe.CheckoutSession, string, error) {
+func genStripeLink(referenceId string, customerId string, email string, amount int64, payMoney float64, successURL string, cancelURL string, invoiceRequested bool, saveCard bool) (*stripe.CheckoutSession, string, error) {
 	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
 		return nil, "", fmt.Errorf("无效的Stripe API密钥")
 	}
@@ -830,8 +936,18 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 				Quantity:  stripe.Int64(1),
 			},
 		},
-		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
-		AllowPromotionCodes: stripe.Bool(setting.StripePromotionCodesEnabled),
+		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
+		// Promo (save-card) links always allow coupon entry; ordinary wallet top-ups respect
+		// the admin StripePromotionCodesEnabled toggle.
+		AllowPromotionCodes: stripe.Bool(saveCard || setting.StripePromotionCodesEnabled),
+	}
+
+	// For onboarding promo top-ups, save the card while paying so it can be charged
+	// off-session later (postpaid auto-charge). Plain wallet top-ups don't save the card.
+	if saveCard {
+		params.PaymentIntentData = &stripe.CheckoutSessionPaymentIntentDataParams{
+			SetupFutureUsage: stripe.String("off_session"),
+		}
 	}
 
 	if "" == customerId {
@@ -985,17 +1101,7 @@ func stripeMinorUnitAmount(amount float64, currency string) (int64, error) {
 }
 
 func normalizeStripeTopUpAmount(amount int64) int64 {
-	if operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens {
-		return amount
-	}
-
-	normalized := decimal.NewFromInt(amount).
-		Div(decimal.NewFromFloat(common.QuotaPerUnit)).
-		IntPart()
-	if normalized < 1 {
-		return 1
-	}
-	return normalized
+	return normalizeTopUpAmount(amount)
 }
 
 func getStripePayMoney(amount float64, group string) float64 {

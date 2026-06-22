@@ -96,6 +96,7 @@ export const STATIC_I18N_KEYS = [
   'Successfully created {{count}} API Key(s)',
   'Successfully deleted {{count}} API key(s)',
   'Enter API key for this channel',
+  'Enter a valid http or https URL',
 
   // Users
   'Root',
@@ -489,6 +490,12 @@ export const STATIC_I18N_KEYS = [
   'Detection complete: {{add}} to add, {{remove}} to remove',
   'Batch detection failed',
   'Batch detection complete: {{channels}} channels, {{add}} to add, {{remove}} to remove, {{fails}} failed',
+
+  // Playground first-run example prompts (rendered via t(prompt) from the
+  // FIRST_RUN_EXAMPLE_PROMPTS constant, so the t('...') regex can't pick them up)
+  'Hello!',
+  'Write a quicksort in Python',
+  'Explain Transformers',
 
   // Misc
   'Cancel',

@@ -6,6 +6,10 @@ import "./globals.css";
 
 const GTM_ID = "GTM-5T5LPLSZ";
 
+// Solvea livechat 咨询挂件（公开站，访客售前咨询）。token 为客户端公开嵌入凭证，非密钥。
+const LIVECHAT_EMBED_SRC =
+  "https://app.solvea.cx/api_v2/gpt/bots/livechat/embed.js?pid=1773&token=9454e15203254694a03d75fadbf9a6d4";
+
 export const metadata: Metadata = {
   applicationName: "flatkey.ai",
   title: {
@@ -48,6 +52,11 @@ export default async function RootLayout(
           />
         </noscript>
         {props.children}
+        <Script
+          id="solvea-livechat"
+          src={LIVECHAT_EMBED_SRC}
+          strategy="lazyOnload"
+        />
       </body>
     </html>
   );

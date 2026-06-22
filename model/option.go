@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -88,6 +89,11 @@ func InitOptionMap() {
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
 	common.OptionMap["StripeUnitPrice"] = strconv.FormatFloat(setting.StripeUnitPrice, 'f', -1, 64)
 	common.OptionMap["StripePromotionCodesEnabled"] = strconv.FormatBool(setting.StripePromotionCodesEnabled)
+	common.OptionMap["StripeCardBindEnabled"] = strconv.FormatBool(setting.StripeCardBindEnabled)
+	common.OptionMap["StripeAutoChargeEnabled"] = strconv.FormatBool(setting.StripeAutoChargeEnabled)
+	common.OptionMap["StripeAutoChargeThreshold"] = strconv.Itoa(setting.StripeAutoChargeThreshold)
+	common.OptionMap["StripeAutoChargeAmount"] = strconv.Itoa(setting.StripeAutoChargeAmount)
+	common.OptionMap["StripeNewUserBonusAmount"] = strconv.Itoa(setting.StripeNewUserBonusAmount)
 	common.OptionMap["CreemApiKey"] = setting.CreemApiKey
 	common.OptionMap["CreemProducts"] = setting.CreemProducts
 	common.OptionMap["CreemTestMode"] = strconv.FormatBool(setting.CreemTestMode)
@@ -228,9 +234,11 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
-	if err := setting.ValidatePaddleOption(key, value); err != nil {
+	normalizedValue, err := validateAndNormalizeOptionValue(key, value)
+	if err != nil {
 		return err
 	}
+	value = normalizedValue
 
 	// Save to database first
 	option := Option{
@@ -267,13 +275,16 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
 	}
+	normalizedValues := make(map[string]string, len(values))
 	for k, v := range values {
-		if err := setting.ValidatePaddleOption(k, v); err != nil {
+		normalizedValue, err := validateAndNormalizeOptionValue(k, v)
+		if err != nil {
 			return err
 		}
+		normalizedValues[k] = normalizedValue
 	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		for k, v := range values {
+		for k, v := range normalizedValues {
 			option := Option{Key: k}
 			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
 				return err
@@ -288,16 +299,71 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if err != nil {
 		return err
 	}
-	for k, v := range values {
+	for k, v := range normalizedValues {
 		if err := updateOptionMap(k, v); err != nil {
 			return err
 		}
 	}
-	if hasPaddleOptionKey(values) {
+	if hasPaddleOptionKey(normalizedValues) {
 		setting.ApplyPaddleEnvOverrides()
 		syncPaddleOptionMap()
 	}
 	return nil
+}
+
+func validateAndNormalizeOptionValue(key string, value string) (string, error) {
+	if err := setting.ValidatePaddleOption(key, value); err != nil {
+		return "", err
+	}
+	if key == "payment_setting.amount_bonus" {
+		return normalizeAmountBonusOptionValue(value)
+	}
+	if key == "payment_setting.amount_bonus_limit" {
+		return normalizeAmountBonusLimitOptionValue(value)
+	}
+	return value, nil
+}
+
+func normalizeAmountBonusOptionValue(value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "{}", nil
+	}
+
+	var bonuses map[int]int64
+	if err := common.UnmarshalJsonStr(trimmed, &bonuses); err != nil {
+		return "", errors.New("充值赠送配置必须是充值金额到赠送额度的 JSON 对象")
+	}
+	if bonuses == nil {
+		return "", errors.New("充值赠送配置必须是充值金额到赠送额度的 JSON 对象")
+	}
+	for amount, bonus := range bonuses {
+		if amount <= 0 || bonus <= 0 {
+			return "", errors.New("充值赠送配置的充值金额和赠送额度必须为正整数")
+		}
+	}
+	return trimmed, nil
+}
+
+func normalizeAmountBonusLimitOptionValue(value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "{}", nil
+	}
+
+	var limits map[int]int
+	if err := common.UnmarshalJsonStr(trimmed, &limits); err != nil {
+		return "", errors.New("充值赠送次数限制必须是充值金额到次数的 JSON 对象")
+	}
+	if limits == nil {
+		return "", errors.New("充值赠送次数限制必须是充值金额到次数的 JSON 对象")
+	}
+	for amount, limit := range limits {
+		if amount <= 0 || limit < 0 {
+			return "", errors.New("充值赠送次数限制的充值金额必须为正、次数必须为非负整数")
+		}
+	}
+	return trimmed, nil
 }
 
 func isPaddleOptionKey(key string) bool {
@@ -321,9 +387,11 @@ func hasPaddleOptionKey(values map[string]string) bool {
 }
 
 func updateOptionMap(key string, value string) (err error) {
-	if err := setting.ValidatePaddleOption(key, value); err != nil {
+	normalizedValue, err := validateAndNormalizeOptionValue(key, value)
+	if err != nil {
 		return err
 	}
+	value = normalizedValue
 
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
@@ -483,6 +551,16 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.StripeMinTopUp, _ = strconv.Atoi(value)
 	case "StripePromotionCodesEnabled":
 		setting.StripePromotionCodesEnabled = value == "true"
+	case "StripeCardBindEnabled":
+		setting.StripeCardBindEnabled = value == "true"
+	case "StripeAutoChargeEnabled":
+		setting.StripeAutoChargeEnabled = value == "true"
+	case "StripeAutoChargeThreshold":
+		setting.StripeAutoChargeThreshold, _ = strconv.Atoi(value)
+	case "StripeAutoChargeAmount":
+		setting.StripeAutoChargeAmount, _ = strconv.Atoi(value)
+	case "StripeNewUserBonusAmount":
+		setting.StripeNewUserBonusAmount, _ = strconv.Atoi(value)
 	case "CreemApiKey":
 		setting.CreemApiKey = value
 	case "CreemProducts":

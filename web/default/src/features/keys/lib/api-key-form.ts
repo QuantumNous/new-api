@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { z } from 'zod'
 import type { TFunction } from 'i18next'
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
-import { DEFAULT_GROUP } from '../constants'
+import { DEFAULT_GROUP, PLG_GROUP } from '../constants'
 import { type ApiKeyFormData, type ApiKey } from '../types'
 
 // ============================================================================
@@ -91,10 +91,15 @@ export function getApiKeyFormDefaultValues(
 
 /**
  * Transform form data to API payload
+ *
+ * Non-enterprise (PLG) users have the group concept hidden; their keys are
+ * always forced to the `plg` group (cross-group retry never applies).
  */
 export function transformFormDataToPayload(
-  data: ApiKeyFormValues
+  data: ApiKeyFormValues,
+  isEnterprise = true
 ): ApiKeyFormData {
+  const group = isEnterprise ? data.group || '' : PLG_GROUP
   return {
     name: data.name,
     remain_quota: data.unlimited_quota
@@ -107,8 +112,8 @@ export function transformFormDataToPayload(
     model_limits_enabled: data.model_limits.length > 0,
     model_limits: data.model_limits.join(','),
     allow_ips: data.allow_ips || '',
-    group: data.group || '',
-    cross_group_retry: data.group === 'auto' ? !!data.cross_group_retry : false,
+    group,
+    cross_group_retry: group === 'auto' ? !!data.cross_group_retry : false,
   }
 }
 

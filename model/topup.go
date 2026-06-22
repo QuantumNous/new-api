@@ -13,21 +13,28 @@ import (
 )
 
 type TopUp struct {
-	Id              int             `json:"id"`
-	UserId          int             `json:"user_id" gorm:"index"`
-	Amount          int64           `json:"amount"`
-	Money           float64         `json:"money"`
-	PaymentCurrency string          `json:"payment_currency" gorm:"type:varchar(10);default:''"`
-	TradeNo         string          `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	GatewayTradeNo  string          `json:"gateway_trade_no" gorm:"type:varchar(255);index"`
-	PaymentMethod   string          `json:"payment_method" gorm:"type:varchar(50)"`
-	PaymentProvider string          `json:"payment_provider" gorm:"type:varchar(50);default:''"`
-	GAClientID      string          `json:"ga_client_id,omitempty" gorm:"type:varchar(128);default:''"`
-	GASessionID     string          `json:"ga_session_id,omitempty" gorm:"type:varchar(128);default:''"`
-	CreateTime      int64           `json:"create_time"`
-	CompleteTime    int64           `json:"complete_time"`
-	Status          string          `json:"status"`
-	Invoice         *PaymentInvoice `json:"invoice,omitempty" gorm:"foreignKey:TradeNo;references:TradeNo"`
+	Id              int     `json:"id"`
+	UserId          int     `json:"user_id" gorm:"index"`
+	Amount          int64   `json:"amount"`
+	BonusAmount     int64   `json:"bonus_amount" gorm:"default:0"`
+	BonusTier       int     `json:"bonus_tier" gorm:"default:0"` // 原始充值档位金额，回调侧反查 AmountBonusLimit
+	Money           float64 `json:"money"`
+	PaymentCurrency string  `json:"payment_currency" gorm:"type:varchar(10);default:''"`
+	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	GatewayTradeNo  string  `json:"gateway_trade_no" gorm:"type:varchar(255);index"`
+	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
+	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	GAClientID      string  `json:"ga_client_id,omitempty" gorm:"type:varchar(128);default:''"`
+	GASessionID     string  `json:"ga_session_id,omitempty" gorm:"type:varchar(128);default:''"`
+	CreateTime      int64   `json:"create_time"`
+	CompleteTime    int64   `json:"complete_time"`
+	Status          string  `json:"status"`
+	// SaveCard records that this top-up's Checkout was created with setup_future_usage
+	// (onboarding promo flow), so the webhook should mark the user card-bound on fulfillment.
+	// This is persisted because Stripe payment-mode sessions don't expose setup_intent on the
+	// checkout.session.completed event, so the event alone can't tell us a card was saved.
+	SaveCard bool            `json:"save_card" gorm:"default:false"`
+	Invoice  *PaymentInvoice `json:"invoice,omitempty" gorm:"foreignKey:TradeNo;references:TradeNo"`
 }
 
 const (
@@ -211,6 +218,12 @@ func Recharge(referenceId string, customerId string, callerIp string) (bool, err
 			return errors.New("无效的充值额度")
 		}
 
+		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
+		if bonusErr != nil {
+			return bonusErr
+		}
+		quotaToAdd += int(bonusQuota)
+
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		err = tx.Save(topUp).Error
@@ -221,6 +234,17 @@ func Recharge(referenceId string, customerId string, callerIp string) (bool, err
 		updateFields := map[string]interface{}{"quota": gorm.Expr("quota + ?", quotaToAdd)}
 		if strings.TrimSpace(customerId) != "" {
 			updateFields["stripe_customer"] = strings.TrimSpace(customerId)
+		}
+		// Bind the card atomically with the credit when this was a save-card (onboarding promo)
+		// top-up: setting stripe_card_bound here — inside the same status-gated transaction that
+		// credits quota — makes binding exactly as idempotent as the credit. It runs only on the
+		// pending→success transition (redelivery hits the Status==Success early return above), so
+		// a webhook replay cannot re-bind a card the user has since removed, and a binding can
+		// never be "lost" relative to a successful credit. Requires a customer to charge later;
+		// without one we skip binding rather than record an unchargeable card_bound=true. The
+		// fingerprint is fetched best-effort outside this tx (Stripe API call) by the caller.
+		if topUp.SaveCard && strings.TrimSpace(customerId) != "" {
+			updateFields["stripe_card_bound"] = true
 		}
 		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(updateFields).Error
 		if err != nil {
@@ -240,7 +264,8 @@ func Recharge(referenceId string, customerId string, callerIp string) (bool, err
 		if err := cacheIncrUserQuota(topUp.UserId, int64(quotaToAdd)); err != nil {
 			common.SysLog("failed to increase user quota cache after stripe topup: " + err.Error())
 		}
-		RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+		logMsg := fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), topUp.Money)
+		RecordTopupLog(topUp.UserId, logMsg, callerIp, topUp.PaymentMethod, PaymentMethodStripe)
 	}
 
 	return credited, nil
@@ -435,13 +460,19 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return errors.New("订单状态不是待支付，无法补单")
 		}
 
-		// Amount stores the purchased quota unit across payment providers.
+		// Amount 只存本金；赠送在回调/补单时按档位限次另行裁决。BonusAmount 记录实际发放的赠送，供审计/展示。
 		dAmount := decimal.NewFromInt(topUp.Amount)
 		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 		quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
 		}
+
+		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
+		if bonusErr != nil {
+			return bonusErr
+		}
+		quotaToAdd += int(bonusQuota)
 
 		// 标记完成
 		topUp.CompleteTime = common.GetTimestamp()
@@ -583,6 +614,12 @@ func RechargeWaffo(tradeNo string, callerIp string) (bool, error) {
 			return errors.New("无效的充值额度")
 		}
 
+		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
+		if bonusErr != nil {
+			return bonusErr
+		}
+		quotaToAdd += int(bonusQuota)
+
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
@@ -645,6 +682,12 @@ func RechargeWaffoPancake(tradeNo string) (bool, error) {
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
 		}
+
+		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
+		if bonusErr != nil {
+			return bonusErr
+		}
+		quotaToAdd += int(bonusQuota)
 
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
@@ -755,6 +798,12 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 			}
 			return errors.New("充值订单状态错误")
 		}
+
+		bonusQuota, bonusErr := applyTopUpBonusInTx(tx, topUp, topUpBonusLimitFor(topUp.BonusTier))
+		if bonusErr != nil {
+			return bonusErr
+		}
+		quotaToAdd += int(bonusQuota)
 
 		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
 			return err

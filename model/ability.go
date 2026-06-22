@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -26,6 +27,11 @@ type Ability struct {
 type AbilityWithChannel struct {
 	Ability
 	ChannelType int `json:"channel_type"`
+}
+
+type codexAbilityGovernanceState struct {
+	Disabled bool
+	Removed  bool
 }
 
 func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
@@ -144,28 +150,9 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
-	models_ := strings.Split(channel.Models, ",")
-	groups_ := strings.Split(channel.Group, ",")
-	abilitySet := make(map[string]struct{})
-	abilities := make([]Ability, 0, len(models_))
-	for _, model := range models_ {
-		for _, group := range groups_ {
-			key := group + "|" + model
-			if _, exists := abilitySet[key]; exists {
-				continue
-			}
-			abilitySet[key] = struct{}{}
-			ability := Ability{
-				Group:     group,
-				Model:     model,
-				ChannelId: channel.Id,
-				Enabled:   channel.Status == common.ChannelStatusEnabled,
-				Priority:  channel.Priority,
-				Weight:    uint(channel.GetWeight()),
-				Tag:       channel.Tag,
-			}
-			abilities = append(abilities, ability)
-		}
+	abilities, err := channel.buildAbilities(tx)
+	if err != nil {
+		return err
 	}
 	if len(abilities) == 0 {
 		return nil
@@ -182,6 +169,93 @@ func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 		}
 	}
 	return nil
+}
+
+func (channel *Channel) buildAbilities(tx *gorm.DB) ([]Ability, error) {
+	models_ := strings.Split(channel.Models, ",")
+	groups_ := strings.Split(channel.Group, ",")
+	governanceByModel, err := channel.codexAbilityGovernanceByModel(tx, models_)
+	if err != nil {
+		return nil, err
+	}
+	abilitySet := make(map[string]struct{})
+	abilities := make([]Ability, 0, len(models_)*len(groups_))
+	for _, model := range models_ {
+		governance := governanceByModel[strings.TrimSpace(model)]
+		if governance.Removed {
+			continue
+		}
+		for _, group := range groups_ {
+			key := group + "|" + model
+			if _, exists := abilitySet[key]; exists {
+				continue
+			}
+			abilitySet[key] = struct{}{}
+			enabled := channel.Status == common.ChannelStatusEnabled
+			if governance.Disabled {
+				enabled = false
+			}
+			ability := Ability{
+				Group:     group,
+				Model:     model,
+				ChannelId: channel.Id,
+				Enabled:   enabled,
+				Priority:  channel.Priority,
+				Weight:    uint(channel.GetWeight()),
+				Tag:       channel.Tag,
+			}
+			abilities = append(abilities, ability)
+		}
+	}
+	return abilities, nil
+}
+
+func (channel *Channel) codexAbilityGovernanceByModel(tx *gorm.DB, modelNames []string) (map[string]codexAbilityGovernanceState, error) {
+	result := make(map[string]codexAbilityGovernanceState)
+	if channel.Type != constant.ChannelTypeCodex {
+		return result, nil
+	}
+	modelNames = normalizeLookupValues(modelNames)
+	if len(modelNames) == 0 {
+		return result, nil
+	}
+	useDB := DB
+	if tx != nil {
+		useDB = tx
+	}
+	if useDB == nil {
+		return result, nil
+	}
+
+	var records []CodexModelGovernanceRecord
+	if err := useDB.Model(&CodexModelGovernanceRecord{}).
+		Where("model_name IN ?", modelNames).
+		Find(&records).Error; err != nil {
+		if isModelAvailabilityTableMissingError(err) {
+			return result, nil
+		}
+		return nil, err
+	}
+	for _, record := range records {
+		state := result[record.ModelName]
+		switch record.Status {
+		case CodexModelGovernanceStatusRemoved:
+			if codexModelGovernanceRecordAffectsChannel(record, channel.Id) {
+				state.Removed = true
+				state.Disabled = true
+			}
+		case CodexModelGovernanceStatusUnsupportedDisabled:
+			if codexModelGovernanceRecordDisablesChannel(record, channel.Id) {
+				state.Disabled = true
+			}
+		case CodexModelGovernanceStatusUnsupportedPendingReview:
+			if codexModelGovernanceRecordDisablesChannel(record, channel.Id) {
+				state.Disabled = true
+			}
+		}
+		result[record.ModelName] = state
+	}
+	return result, nil
 }
 
 func (channel *Channel) DeleteAbilities() error {
@@ -216,28 +290,12 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 	}
 
 	// Then add new abilities
-	models_ := strings.Split(channel.Models, ",")
-	groups_ := strings.Split(channel.Group, ",")
-	abilitySet := make(map[string]struct{})
-	abilities := make([]Ability, 0, len(models_))
-	for _, model := range models_ {
-		for _, group := range groups_ {
-			key := group + "|" + model
-			if _, exists := abilitySet[key]; exists {
-				continue
-			}
-			abilitySet[key] = struct{}{}
-			ability := Ability{
-				Group:     group,
-				Model:     model,
-				ChannelId: channel.Id,
-				Enabled:   channel.Status == common.ChannelStatusEnabled,
-				Priority:  channel.Priority,
-				Weight:    uint(channel.GetWeight()),
-				Tag:       channel.Tag,
-			}
-			abilities = append(abilities, ability)
+	abilities, err := channel.buildAbilities(tx)
+	if err != nil {
+		if isNewTx {
+			tx.Rollback()
 		}
+		return err
 	}
 
 	if len(abilities) > 0 {
@@ -261,11 +319,33 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 }
 
 func UpdateAbilityStatus(channelId int, status bool) error {
-	return DB.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error; err != nil {
+			return err
+		}
+		if status {
+			_, err := reapplyCodexModelGovernanceDisabledAbilitiesWithDB(tx, []int{channelId})
+			return err
+		}
+		return nil
+	})
 }
 
 func UpdateAbilityStatusByTag(tag string, status bool) error {
-	return DB.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", status).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", status).Error; err != nil {
+			return err
+		}
+		if !status {
+			return nil
+		}
+		var channelIDs []int
+		if err := tx.Model(&Channel{}).Where("tag = ?", tag).Pluck("id", &channelIDs).Error; err != nil {
+			return err
+		}
+		_, err := reapplyCodexModelGovernanceDisabledAbilitiesWithDB(tx, channelIDs)
+		return err
+	})
 }
 
 func UpdateAbilityByTag(tag string, newTag *string, priority *int64, weight *uint) error {

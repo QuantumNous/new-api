@@ -4058,6 +4058,11 @@
     "{{count}} 个月前_other": "Il y a {{count}} mois",
     "1 年前": "Il y a 1 an",
     "额度预警通知": "Notification d’alerte de quota",
-    "您的额度即将用尽，当前剩余额度为 {{value}}": "Votre quota est presque épuisé. Quota restant actuel : {{value}}"
+    "您的额度即将用尽，当前剩余额度为 {{value}}": "Votre quota est presque épuisé. Quota restant actuel : {{value}}",
+    "充值赠送配置": "Configuration du bonus de recharge",
+    "充值赠送配置不是合法的 JSON 对象": "La configuration du bonus de recharge n’est pas un objet JSON valide",
+    "设置不同充值金额对应的赠送额度，键为充值金额，值为赠送额度，例如：{\"20\": 5, \"50\": 15}": "Définissez le crédit bonus pour différents montants de recharge. Les clés sont les montants, les valeurs sont les bonus, par exemple : {\"20\": 5, \"50\": 15}",
+    "赠送额度": "Crédit bonus",
+    "到账额度": "Crédit du portefeuille"
   }
 }

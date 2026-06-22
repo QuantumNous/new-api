@@ -110,6 +110,7 @@ const PUBLIC_PAGE_COPY: Record<Locale, { lastUpdated: string; tableOfContents: s
   ru: { lastUpdated: "Последнее обновление", tableOfContents: "Содержание" },
   ja: { lastUpdated: "最終更新", tableOfContents: "目次" },
   vi: { lastUpdated: "Cập nhật lần cuối", tableOfContents: "Mục lục" },
+  de: { lastUpdated: "Zuletzt aktualisiert", tableOfContents: "Inhaltsverzeichnis" },
 };
 
 function publicPageCopy(locale: Locale) {

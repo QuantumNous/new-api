@@ -66,6 +66,8 @@ const defaultBillingSettings: BillingSettings = {
   CustomCallbackAddress: '',
   PayMethods: '',
   'payment_setting.amount_options': '',
+  'payment_setting.amount_bonus': '',
+  'payment_setting.amount_bonus_limit': '',
   'payment_setting.amount_discount': '',
   'payment_setting.compliance_confirmed': false,
   'payment_setting.compliance_terms_version': '',

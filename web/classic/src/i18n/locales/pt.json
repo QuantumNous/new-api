@@ -4669,6 +4669,11 @@
     "{{count}} 个月前_other": "Há {{count}} meses",
     "1 年前": "Há 1 ano",
     "额度预警通知": "Notificação de alerta de cota",
-    "您的额度即将用尽，当前剩余额度为 {{value}}": "Sua cota está quase esgotada. Cota restante atual: {{value}}"
+    "您的额度即将用尽，当前剩余额度为 {{value}}": "Sua cota está quase esgotada. Cota restante atual: {{value}}",
+    "充值赠送配置": "Configuração de bônus de recarga",
+    "充值赠送配置不是合法的 JSON 对象": "A configuração de bônus de recarga não é um objeto JSON válido",
+    "设置不同充值金额对应的赠送额度，键为充值金额，值为赠送额度，例如：{\"20\": 5, \"50\": 15}": "Defina crédito bônus para diferentes valores de recarga. As chaves são valores de recarga e os valores são bônus, por exemplo: {\"20\": 5, \"50\": 15}",
+    "赠送额度": "Crédito bônus",
+    "到账额度": "Crédito na carteira"
   }
 }

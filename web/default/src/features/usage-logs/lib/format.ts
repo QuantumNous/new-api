@@ -279,6 +279,44 @@ export function getTieredBillingSummary(
 }
 
 /**
+ * System reward logs (LogTypeSystem) are persisted by the backend as fixed
+ * Chinese strings (see model/user.go), e.g. "新用户注册赠送 ＄0.100000 额度".
+ * Because the amount is already formatted/localized by the backend per the
+ * configured quota display type (USD/CNY/custom/tokens), it cannot be reliably
+ * reversed; we only translate the leading action phrase and keep the formatted
+ * amount as-is (the currency symbol already conveys it is a quota amount).
+ *
+ * Returns the localized string, or null when the content is not a known reward
+ * log (callers should then fall back to showing the raw content).
+ */
+const SYSTEM_REWARD_PREFIXES: Array<{ zh: string; key: string }> = [
+  { zh: '新用户注册赠送', key: 'New user registration bonus {{amount}}' },
+  { zh: '使用邀请码赠送', key: 'Invitation code bonus {{amount}}' },
+  { zh: '邀请用户赠送', key: 'Referral reward {{amount}}' },
+  { zh: '用户签到，获得额度', key: 'Check-in reward {{amount}}' },
+]
+
+export function localizeSystemRewardContent(
+  content: string | undefined | null,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string | null {
+  if (!content) return null
+  for (const { zh, key } of SYSTEM_REWARD_PREFIXES) {
+    if (content.startsWith(zh)) {
+      const amount = content
+        .slice(zh.length)
+        .trim()
+        // Drop the trailing Chinese quota unit emitted by logger.LogQuota
+        // ("额度" / "点额度"); the localized phrase + amount stands on its own.
+        .replace(/\s*(?:点)?额度$/, '')
+        .trim()
+      return t(key, { amount })
+    }
+  }
+  return null
+}
+
+/**
  * Calculate duration and return formatted result with color variant
  * @param submitTime - Submit timestamp
  * @param finishTime - Finish timestamp

@@ -59,3 +59,7 @@ curl -s http://localhost:4000/pricing | grep -i '<title>'   # 确认 SSR 出 TDK
 - 不要在本站引入 `/dashboard`、`/v1` 等应由 Go 承载的路径。
 
 <!-- MANUAL: 下方为人工补充内容，重新生成时保留 -->
+
+## Legal Localization Notes
+- 日本站法务静态页（`/ja/terms`、`/ja/privacy`、`/ja/refund-policy`）的运营主体地址与默认英文/美国地址不同，不能自动套用 `VOC AI INC, 160 E Tasman Drive, Suite 202, San Jose, CA 95134, United States`。
+- 日本站上述三页当前应使用：`運営主体: VOC AI株式会社, 東京都港区六本木三丁目３−２７スハラ六本木３階。`

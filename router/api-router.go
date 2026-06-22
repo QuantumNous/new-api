@@ -111,6 +111,8 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/amount", controller.RequestAmount)
 				selfRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.RequestStripePay)
 				selfRoute.POST("/stripe/amount", controller.RequestStripeAmount)
+				selfRoute.GET("/stripe/card", controller.GetStripeCardStatus)
+				selfRoute.DELETE("/stripe/card", middleware.CriticalRateLimit(), controller.RemoveStripeCard)
 				selfRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.RequestCreemPay)
 				selfRoute.POST("/waffo/amount", controller.RequestWaffoAmount)
 				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPay)
@@ -272,6 +274,7 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/:id/codex/oauth/complete", controller.CompleteCodexOAuthForChannel)
 			channelRoute.POST("/:id/codex/refresh", controller.RefreshCodexChannelCredential)
 			channelRoute.GET("/:id/codex/usage", controller.GetCodexChannelUsage)
+			channelRoute.POST("/:id/codex/reset-credit", middleware.CriticalRateLimit(), controller.ConsumeCodexResetCredit)
 			channelRoute.POST("/ollama/pull", controller.OllamaPullModel)
 			channelRoute.POST("/ollama/pull/stream", controller.OllamaPullModelStream)
 			channelRoute.DELETE("/ollama/delete", controller.OllamaDeleteModel)
@@ -284,6 +287,13 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/upstream_updates/apply_all", controller.ApplyAllChannelUpstreamModelUpdates)
 			channelRoute.POST("/upstream_updates/detect", controller.DetectChannelUpstreamModelUpdates)
 			channelRoute.POST("/upstream_updates/detect_all", controller.DetectAllChannelUpstreamModelUpdates)
+		}
+		codexModelGovernanceRoute := apiRouter.Group("/codex_model_governance")
+		codexModelGovernanceRoute.Use(middleware.AdminAuth())
+		{
+			codexModelGovernanceRoute.GET("/", controller.ListCodexModelGovernanceRecords)
+			codexModelGovernanceRoute.POST("/rules/test", controller.TestCodexModelGovernanceRule)
+			codexModelGovernanceRoute.POST("/:id/review", controller.ReviewCodexModelGovernanceRecord)
 		}
 		tokenRoute := apiRouter.Group("/token")
 		tokenRoute.Use(middleware.UserAuth())

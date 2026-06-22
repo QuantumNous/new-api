@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -75,6 +76,87 @@ func buildCompletionRatioMetaValue(optionValues map[string]string) string {
 	return string(jsonBytes)
 }
 
+func parseStringSliceOptionValue(value any) ([]string, error) {
+	if raw, ok := value.(string); ok {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			return []string{}, nil
+		}
+		var patterns []string
+		if strings.HasPrefix(raw, "[") {
+			if err := common.UnmarshalJsonStr(raw, &patterns); err != nil {
+				return nil, err
+			}
+			return patterns, nil
+		}
+		return strings.Split(strings.ReplaceAll(raw, "\r\n", "\n"), "\n"), nil
+	}
+
+	val := reflect.ValueOf(value)
+	if !val.IsValid() {
+		return []string{}, nil
+	}
+	if val.Kind() == reflect.Ptr {
+		if val.IsNil() {
+			return []string{}, nil
+		}
+		val = val.Elem()
+	}
+	if val.Kind() != reflect.Slice && val.Kind() != reflect.Array {
+		return nil, fmt.Errorf("expected string slice option value, got %T", value)
+	}
+
+	patterns := make([]string, 0, val.Len())
+	for i := 0; i < val.Len(); i++ {
+		item := val.Index(i)
+		if item.Kind() == reflect.Interface {
+			if item.IsNil() {
+				return nil, fmt.Errorf("expected string at index %d, got nil", i)
+			}
+			item = item.Elem()
+		}
+		if item.Kind() != reflect.String {
+			return nil, fmt.Errorf("expected string at index %d, got %s", i, item.Kind())
+		}
+		patterns = append(patterns, item.String())
+	}
+	return patterns, nil
+}
+
+func normalizeStringSliceOptionValue(value any) (string, []string, error) {
+	values, err := parseStringSliceOptionValue(value)
+	if err != nil {
+		return "", nil, err
+	}
+	normalized := make([]string, 0, len(values))
+	for _, item := range values {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			normalized = append(normalized, item)
+		}
+	}
+	raw, isString := value.(string)
+	if isString && strings.HasPrefix(strings.TrimSpace(raw), "[") && reflect.DeepEqual(normalized, values) {
+		return raw, normalized, nil
+	}
+	bytes, err := common.Marshal(normalized)
+	if err != nil {
+		return "", nil, err
+	}
+	return string(bytes), normalized, nil
+}
+
+func normalizeCodexPatternsOptionValue(value any) (string, error) {
+	serialized, patterns, err := normalizeStringSliceOptionValue(value)
+	if err != nil {
+		return "", err
+	}
+	if err := operation_setting.ValidateCodexModelGovernancePatterns(patterns); err != nil {
+		return "", err
+	}
+	return serialized, nil
+}
+
 func GetOptions(c *gin.Context) {
 	var options []*model.Option
 	optionValues := make(map[string]string)
@@ -127,15 +209,38 @@ func UpdateOption(c *gin.Context) {
 		})
 		return
 	}
-	switch option.Value.(type) {
-	case bool:
-		option.Value = common.Interface2String(option.Value.(bool))
-	case float64:
-		option.Value = common.Interface2String(option.Value.(float64))
-	case int:
-		option.Value = common.Interface2String(option.Value.(int))
+	switch option.Key {
+	case "codex_model_governance_setting.unsupported_message_patterns":
+		option.Value, err = normalizeCodexPatternsOptionValue(option.Value)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+	case "codex_model_governance_setting.official_source_urls",
+		"codex_model_governance_setting.official_lifecycle_terms":
+		serialized, _, serializeErr := normalizeStringSliceOptionValue(option.Value)
+		if serializeErr != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": serializeErr.Error(),
+			})
+			return
+		}
+		option.Value = serialized
 	default:
-		option.Value = fmt.Sprintf("%v", option.Value)
+		switch option.Value.(type) {
+		case bool:
+			option.Value = common.Interface2String(option.Value.(bool))
+		case float64:
+			option.Value = common.Interface2String(option.Value.(float64))
+		case int:
+			option.Value = common.Interface2String(option.Value.(int))
+		default:
+			option.Value = fmt.Sprintf("%v", option.Value)
+		}
 	}
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":

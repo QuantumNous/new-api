@@ -27,15 +27,41 @@ import {
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
+import { useOnboardingStore } from '@/stores/onboarding-store'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 import { api, getSelf } from '@/lib/api'
 import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
 import { trackAdsFunnelEvent, trackSignupConversion } from '@/lib/analytics/gtag'
 import { trackPixelsSignup } from '@/lib/analytics/pixels'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
+import {
+  isSafeInternalPath,
+  readPendingPostLoginRedirect,
+} from '@/features/auth/lib/storage'
 
 type OAuthRequestConfig = AxiosRequestConfig & {
   skipBusinessError?: boolean
+}
+
+/**
+ * Resolve whether the card-bind onboarding feature is enabled. The OAuth callback runs outside
+ * the authenticated layout, so the system-config store may not have loaded yet
+ * (enableStripeCardBind === undefined). In that case fall back to a direct /api/status fetch
+ * rather than treating "not loaded" as "disabled" — otherwise brand-new OAuth users would
+ * silently miss onboarding. Returns false only when the feature is genuinely off.
+ */
+async function resolveCardBindEnabled(): Promise<boolean> {
+  const cached = useSystemConfigStore.getState().config.enableStripeCardBind
+  if (typeof cached === 'boolean') return cached
+  try {
+    const res = await fetch('/api/status')
+    if (!res.ok) return false
+    const body = await res.json()
+    return body?.data?.enable_stripe_card_bind === true
+  } catch {
+    return false
+  }
 }
 
 function OAuthCallback() {
@@ -198,7 +224,13 @@ function OAuthCallback() {
       }
 
       const redirectAfterLogin = (target?: string) => {
-        const to = target || search?.redirect || '/dashboard'
+        // The provider round-trip strips our ?redirect= param from the callback URL, so the
+        // value persisted at OAuth start is the reliable source for OAuth logins. Validate
+        // every candidate (search.redirect is user-controllable) through isSafeInternalPath
+        // so we never navigate to an external origin after authenticating (open-redirect).
+        const stored = readPendingPostLoginRedirect()
+        const requested = target || search?.redirect || stored
+        const to = isSafeInternalPath(requested) ? requested : '/dashboard'
         safeNavigate(to)
         toast.success(i18next.t('Signed in successfully!'))
       }
@@ -253,7 +285,12 @@ function OAuthCallback() {
           }
           // Otherwise it's a login, use payload user if available
           if (loginUser) {
-            useAuthStore.getState().auth.setUser(loginUser)
+            // is_new_user is a one-shot signal for triggering onboarding below; strip it
+            // before persisting so a hard refresh can't re-read a stale flag from storage.
+            const isNewUser = loginUser.is_new_user === true
+            const { is_new_user: _isNew, ...persistedUser } = loginUser
+            void _isNew
+            useAuthStore.getState().auth.setUser(persistedUser)
             try {
               if (typeof window !== 'undefined' && loginUser.id != null) {
                 window.localStorage.setItem('uid', String(loginUser.id))
@@ -262,6 +299,21 @@ function OAuthCallback() {
               void _error
             }
             trackOAuthResult('success')
+            // Brand-new OAuth registrations get the first-login onboarding dialog, mirroring
+            // the password-register flow (use-auth-redirect.ts): only when the card-bind
+            // feature is enabled and the user hasn't already bound a card.
+            //
+            // This callback route lives outside the authenticated layout, so the system config
+            // store may not have been populated yet (enableStripeCardBind === undefined). Don't
+            // let an unloaded config silently suppress onboarding — fetch /api/status as a
+            // fallback so a brand-new user reliably gets the dialog.
+            if (isNewUser && loginUser.stripe_card_bound !== true) {
+              void resolveCardBindEnabled().then((enabled) => {
+                if (enabled) {
+                  useOnboardingStore.getState().openOnboarding()
+                }
+              })
+            }
             redirectAfterLogin()
             return
           }

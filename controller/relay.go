@@ -89,6 +89,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
+			// Whitelabel channels: sanitize upstream error text that leaks the
+			// provider identity or internal implementation details before it
+			// reaches the client. No-op for non-whitelabel channels and for
+			// ordinary upstream errors. Runs after the log above so operators
+			// still see the original text server-side.
+			service.ScrubWhitelabelError(c, newAPIError, common.GetContextKeyInt(c, constant.ContextKeyChannelType))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
@@ -112,7 +118,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
 			newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
 		} else {
-			newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest)
+			// Request parse/validation failures are client errors → 400, not the
+			// NewError default of 500. (The message is already sanitized at the
+			// unmarshal layer so it never leaks an internal Go struct name.)
+			newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithStatusCode(http.StatusBadRequest))
 		}
 		return
 	}

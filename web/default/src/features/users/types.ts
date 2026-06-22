@@ -58,6 +58,10 @@ export const userSchema = z.object({
   last_login_at: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
+  stripe_customer: z.string().optional(),
+  stripe_card_bound: z.boolean().optional(),
+  new_user_bonus_given: z.boolean().optional(),
+  is_enterprise: z.boolean().optional(),
 })
 export type User = z.infer<typeof userSchema>
 
@@ -107,6 +111,7 @@ export interface UserFormData {
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
+  is_enterprise?: boolean // Only used when updating user
 }
 
 export type ManageUserAction =

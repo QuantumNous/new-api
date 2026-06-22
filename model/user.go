@@ -22,52 +22,57 @@ const UserNameMaxLength = 20
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
 type User struct {
-	Id               int            `json:"id"`
-	Username         string         `json:"username" gorm:"unique;index" validate:"max=20"`
-	Password         string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
-	OriginalPassword string         `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
-	DisplayName      string         `json:"display_name" gorm:"index" validate:"max=20"`
-	Role             int            `json:"role" gorm:"type:int;default:1"`   // admin, common
-	Status           int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
-	Email            string         `json:"email" gorm:"index" validate:"max=50"`
-	GitHubId         string         `json:"github_id" gorm:"column:github_id;index"`
-	DiscordId        string         `json:"discord_id" gorm:"column:discord_id;index"`
-	OidcId           string         `json:"oidc_id" gorm:"column:oidc_id;index"`
-	GoogleId         string         `json:"google_id" gorm:"column:google_id;index"`
-	WeChatId         string         `json:"wechat_id" gorm:"column:wechat_id;index"`
-	TelegramId       string         `json:"telegram_id" gorm:"column:telegram_id;index"`
-	VerificationCode string         `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
-	AccessToken      *string        `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
-	Quota            int            `json:"quota" gorm:"type:int;default:0"`
-	UsedQuota        int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
-	RequestCount     int            `json:"request_count" gorm:"type:int;default:0;"`               // request number
-	Group            string         `json:"group" gorm:"type:varchar(64);default:'default'"`
-	AffCode          string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
-	AffCount         int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
-	AffQuota         int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
-	AffHistoryQuota  int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
-	InviterId        int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
-	AdsAttribution   string         `json:"ads_attribution,omitempty" gorm:"type:text;column:ads_attribution"`
-	GAClientID       string         `json:"ga_client_id,omitempty" gorm:"-:all"`
-	GASessionID      string         `json:"ga_session_id,omitempty" gorm:"-:all"`
-	DeletedAt        gorm.DeletedAt `gorm:"index"`
-	LinuxDOId        string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
-	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
-	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
-	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
-	CreatedAt        int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
-	LastLoginAt      int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	Id                    int            `json:"id"`
+	Username              string         `json:"username" gorm:"unique;index" validate:"max=20"`
+	Password              string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
+	OriginalPassword      string         `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
+	DisplayName           string         `json:"display_name" gorm:"index" validate:"max=20"`
+	Role                  int            `json:"role" gorm:"type:int;default:1"`   // admin, common
+	Status                int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
+	Email                 string         `json:"email" gorm:"index" validate:"max=50"`
+	GitHubId              string         `json:"github_id" gorm:"column:github_id;index"`
+	DiscordId             string         `json:"discord_id" gorm:"column:discord_id;index"`
+	OidcId                string         `json:"oidc_id" gorm:"column:oidc_id;index"`
+	GoogleId              string         `json:"google_id" gorm:"column:google_id;index"`
+	WeChatId              string         `json:"wechat_id" gorm:"column:wechat_id;index"`
+	TelegramId            string         `json:"telegram_id" gorm:"column:telegram_id;index"`
+	VerificationCode      string         `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
+	AccessToken           *string        `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
+	Quota                 int            `json:"quota" gorm:"type:int;default:0"`
+	UsedQuota             int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
+	RequestCount          int            `json:"request_count" gorm:"type:int;default:0;"`               // request number
+	Group                 string         `json:"group" gorm:"type:varchar(64);default:'plg'"`
+	AffCode               string         `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
+	AffCount              int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
+	AffQuota              int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
+	AffHistoryQuota       int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
+	InviterId             int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
+	AdsAttribution        string         `json:"ads_attribution,omitempty" gorm:"type:text;column:ads_attribution"`
+	GAClientID            string         `json:"ga_client_id,omitempty" gorm:"-:all"`
+	GASessionID           string         `json:"ga_session_id,omitempty" gorm:"-:all"`
+	DeletedAt             gorm.DeletedAt `gorm:"index"`
+	LinuxDOId             string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
+	Setting               string         `json:"setting" gorm:"type:text;column:setting"`
+	Remark                string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
+	StripeCustomer        string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	StripeCardBound       bool           `json:"stripe_card_bound" gorm:"default:false;column:stripe_card_bound"`
+	NewUserBonusGiven     bool           `json:"new_user_bonus_given" gorm:"default:false;column:new_user_bonus_given"`
+	IsEnterprise          bool           `json:"is_enterprise" gorm:"default:false;column:is_enterprise"` // enterprise users retain the group concept; PLG (non-enterprise) users are forced to the plg group with groups hidden
+	StripeCardFingerprint string         `json:"stripe_card_fingerprint,omitempty" gorm:"type:varchar(64);column:stripe_card_fingerprint;index"`
+	CreatedAt             int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
+	LastLoginAt           int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:       user.Id,
-		Group:    user.Group,
-		Quota:    user.Quota,
-		Status:   user.Status,
-		Username: user.Username,
-		Setting:  user.Setting,
-		Email:    user.Email,
+		Id:           user.Id,
+		Group:        user.Group,
+		Quota:        user.Quota,
+		Status:       user.Status,
+		Username:     user.Username,
+		Setting:      user.Setting,
+		Email:        user.Email,
+		IsEnterprise: user.IsEnterprise,
 	}
 	return cache
 }
@@ -268,7 +273,11 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 		query = query.Where("role = ?", *role)
 	}
 	if status != nil {
-		query = query.Where("status = ?", *status)
+		if *status == -1 {
+			query = query.Where("deleted_at IS NOT NULL")
+		} else {
+			query = query.Where("deleted_at IS NULL").Where("status = ?", *status)
+		}
 	}
 
 	// 获取总数
@@ -389,6 +398,16 @@ func (user *User) Insert(inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
+	// New users default into the PLG group (groups hidden, forced plg). An explicit
+	// group (e.g. admin creating an enterprise user) is preserved; only empties fall back.
+	if user.Group == "" {
+		user.Group = "plg"
+	}
+	// Admins/root must keep group control — never silently demote them to PLG even if the
+	// caller didn't set the flag (the PLG enforcement keys off is_enterprise, not role).
+	if user.Role >= common.RoleAdminUser {
+		user.IsEnterprise = true
+	}
 	//user.SetAccessToken(common.GetUUID())
 	user.AffCode = common.GetRandomString(4)
 
@@ -449,6 +468,10 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	}
 	user.Quota = common.QuotaForNewUser
 	user.AffCode = common.GetRandomString(4)
+	// Admins/root must keep group control — never silently demote them to PLG (see Insert).
+	if user.Role >= common.RoleAdminUser {
+		user.IsEnterprise = true
+	}
 
 	// 初始化用户设置
 	if user.Setting == "" {
@@ -524,10 +547,11 @@ func (user *User) Edit(updatePassword bool) error {
 
 	newUser := *user
 	updates := map[string]interface{}{
-		"username":     newUser.Username,
-		"display_name": newUser.DisplayName,
-		"group":        newUser.Group,
-		"remark":       newUser.Remark,
+		"username":      newUser.Username,
+		"display_name":  newUser.DisplayName,
+		"group":         newUser.Group,
+		"remark":        newUser.Remark,
+		"is_enterprise": newUser.IsEnterprise,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password
@@ -540,6 +564,30 @@ func (user *User) Edit(updatePassword bool) error {
 
 	// Update cache
 	return updateUserCache(*user)
+}
+
+// backfillEnterpriseFlag runs exactly once (gated by an option marker). It marks every
+// pre-existing user as enterprise so legacy users keep full group visibility after the PLG
+// rollout — new users (created after this runs) default to is_enterprise=false (forced plg).
+func backfillEnterpriseFlag() error {
+	const flagKey = "PlgEnterpriseBackfilled"
+	var cnt int64
+	// `key` is a reserved word in MySQL — must use the DB-specific quoted column
+	// (commonKeyCol, set by initCol() before InitDB runs). A raw "key = ?" parses on
+	// SQLite but is a syntax error on MySQL (Error 1064), which is why this only surfaced
+	// in prod. See CLAUDE.md Rule 2.
+	if err := DB.Model(&Option{}).Where(commonKeyCol+" = ?", flagKey).Count(&cnt).Error; err != nil {
+		return err
+	}
+	if cnt > 0 {
+		return nil // already backfilled
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&User{}).Where("is_enterprise = ?", false).Update("is_enterprise", true).Error; err != nil {
+			return err
+		}
+		return tx.Create(&Option{Key: flagKey, Value: "true"}).Error
+	})
 }
 
 func (user *User) ClearBinding(bindingType string) error {

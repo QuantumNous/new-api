@@ -54,11 +54,25 @@ const PAID_UTM_MEDIUMS = new Set([
   'sem',
 ])
 const SEARCH_ENGINE_HOSTS: Array<{ source: string; hosts: string[] }> = [
-  { source: 'google', hosts: ['google.'] },
+  {
+    source: 'google',
+    hosts: [
+      'google.com',
+      'google.com.hk',
+      'google.co.jp',
+      'google.co.uk',
+      'google.de',
+      'google.fr',
+      'google.com.br',
+      'google.co.in',
+      'google.com.au',
+      'google.ca',
+    ],
+  },
   { source: 'bing', hosts: ['bing.com'] },
   { source: 'baidu', hosts: ['baidu.com'] },
-  { source: 'yahoo', hosts: ['search.yahoo.', 'yahoo.com'] },
-  { source: 'yandex', hosts: ['yandex.'] },
+  { source: 'yahoo', hosts: ['yahoo.com'] },
+  { source: 'yandex', hosts: ['yandex.com', 'yandex.ru'] },
   { source: 'duckduckgo', hosts: ['duckduckgo.com'] },
   { source: 'naver', hosts: ['search.naver.com', 'naver.com'] },
   { source: 'sogou', hosts: ['sogou.com'] },
@@ -100,7 +114,9 @@ function detectSearchSource(referrer: string): string {
     const host = new URL(referrer).hostname.toLowerCase()
     return (
       SEARCH_ENGINE_HOSTS.find((entry) =>
-        entry.hosts.some((candidate) => host.includes(candidate))
+        entry.hosts.some(
+          (candidate) => host === candidate || host.endsWith(`.${candidate}`)
+        )
       )?.source ?? ''
     )
   } catch {
@@ -128,6 +144,15 @@ function isExternalReferrer(referrer: string): boolean {
     return new URL(referrer).origin !== window.location.origin
   } catch {
     return false
+  }
+}
+
+function getSanitizedReferrer(referrer: string): string {
+  try {
+    const referrerUrl = new URL(referrer)
+    return `${referrerUrl.origin}${referrerUrl.pathname}`
+  } catch {
+    return ''
   }
 }
 
@@ -334,7 +359,10 @@ export function captureAdsAttribution(): Record<string, string> {
     captured_at: new Date().toISOString(),
   }
   if (isExternalReferrer(document.referrer)) {
-    current.referrer = document.referrer
+    const referrer = getSanitizedReferrer(document.referrer)
+    if (referrer) {
+      current.referrer = referrer
+    }
   }
 
   const merged = mergeAttributionValues(getStoredAdsAttribution(), current)

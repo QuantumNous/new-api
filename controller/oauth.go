@@ -142,7 +142,7 @@ func HandleOAuth(c *gin.Context) {
 	}
 
 	// 7. Find or create user
-	user, err := findOrCreateOAuthUser(c, provider, oauthUser, session)
+	user, isNewUser, err := findOrCreateOAuthUser(c, provider, oauthUser, session)
 	if err != nil {
 		switch err.(type) {
 		case *OAuthUserDeletedError:
@@ -161,8 +161,9 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
-	// 9. Setup login
-	setupLogin(user, c)
+	// 9. Setup login. Pass isNewUser so the frontend can trigger first-login onboarding for
+	// OAuth registrations (mirrors the password-register pending-onboarding flow).
+	setupLogin(user, c, isNewUser)
 }
 
 // handleOAuthBind handles binding OAuth account to existing user
@@ -233,8 +234,9 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 	})
 }
 
-// findOrCreateOAuthUser finds existing user or creates new user
-func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser, session sessions.Session) (*model.User, error) {
+// findOrCreateOAuthUser finds existing user or creates new user. The second return value is
+// true only when a brand-new user was created (used to trigger first-login onboarding).
+func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser, session sessions.Session) (*model.User, bool, error) {
 	user := &model.User{}
 	adsAttribution := getOAuthAdsAttribution(c, session)
 
@@ -242,14 +244,14 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	if provider.IsUserIDTaken(oauthUser.ProviderUserID) {
 		err := provider.FillUserByProviderID(user, oauthUser.ProviderUserID)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		// Check if user has been deleted
 		if user.Id == 0 {
-			return nil, &OAuthUserDeletedError{}
+			return nil, false, &OAuthUserDeletedError{}
 		}
 		updateUserAdsAttributionIfEmpty(user, adsAttribution)
-		return user, nil
+		return user, false, nil
 	}
 
 	// Try to find user with legacy ID (for GitHub migration from login to numeric ID)
@@ -257,7 +259,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		if provider.IsUserIDTaken(legacyID) {
 			err := provider.FillUserByProviderID(user, legacyID)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			if user.Id != 0 {
 				// Found user with legacy ID, migrate to new ID
@@ -268,14 +270,14 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 					// Continue with login even if migration fails
 				}
 				updateUserAdsAttributionIfEmpty(user, adsAttribution)
-				return user, nil
+				return user, false, nil
 			}
 		}
 	}
 
 	// User doesn't exist, create new user if registration is enabled
 	if !common.RegisterEnabled {
-		return nil, &OAuthRegistrationDisabledError{}
+		return nil, false, &OAuthRegistrationDisabledError{}
 	}
 
 	// Set up new user
@@ -333,7 +335,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 			return nil
 		})
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 
 		// Perform post-transaction tasks (logs, sidebar config, inviter rewards)
@@ -363,7 +365,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 			return nil
 		})
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 
 		// Perform post-transaction tasks
@@ -374,7 +376,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	gaSessionID, _ := session.Get("ga_session_id").(string)
 	sendSignUpSuccessGA(c.Request.Context(), user.Id, inviterId, provider.GetProviderPrefix(), gaClientID, gaSessionID)
 
-	return user, nil
+	return user, true, nil
 }
 
 // Error types for OAuth

@@ -43,6 +43,7 @@ const PaymentSetting = () => {
     CustomCallbackAddress: '',
     PayMethods: '',
     AmountOptions: '',
+    AmountBonus: '',
     AmountDiscount: '',
 
     StripeApiSecret: '',
@@ -144,6 +145,17 @@ const PaymentSetting = () => {
               );
             } catch (error) {
               newInputs['AmountDiscount'] = item.value;
+            }
+            break;
+          case 'payment_setting.amount_bonus':
+            try {
+              newInputs['AmountBonus'] = JSON.stringify(
+                JSON.parse(item.value),
+                null,
+                2,
+              );
+            } catch (error) {
+              newInputs['AmountBonus'] = item.value;
             }
             break;
           case 'payment_setting.compliance_confirmed':

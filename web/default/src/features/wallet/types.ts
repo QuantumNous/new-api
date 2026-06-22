@@ -194,6 +194,10 @@ export interface TopupInfo {
   amount_options: number[]
   /** Discount rates by amount */
   discount: Record<number, number>
+  /** Bonus amounts by selected recharge amount */
+  bonus: Record<number, number>
+  /** 当前用户在各档位的剩余可领赠送次数（仅含配置了限次的档位）。缺该档位 key = 不限次 */
+  bonus_remaining?: Record<number, number>
   /** Optional topup link for purchasing codes */
   topup_link?: string
   /** Whether Creem topup is enabled */
@@ -234,6 +238,8 @@ export interface PresetAmount {
   value: number
   /** Optional discount rate (0-1) */
   discount?: number
+  /** Optional bonus amount credited in addition to value */
+  bonus?: number
 }
 
 /**
@@ -252,6 +258,8 @@ export interface PaymentRequest {
   amount: number
   /** Payment method identifier */
   payment_method: string
+  /** Save the card during payment (setup_future_usage) for later off-session auto-charge */
+  save_card?: boolean
   /** Optional redirect URL after successful hosted checkout */
   success_url?: string
   /** Optional redirect URL after cancelled hosted checkout */
@@ -366,6 +374,8 @@ export interface TopupRecord {
   amount: number
   /** Payment amount (actual money paid) */
   money: number
+  /** Bonus amount included in amount */
+  bonus_amount?: number
   /** Trade/order number */
   trade_no: string
   /** Payment method type */

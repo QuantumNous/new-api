@@ -17,13 +17,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { PartyPopper } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
+import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
+import { trackTopupOnce } from '@/lib/analytics/topup-tracking'
 import { getSelf } from '@/lib/api'
-import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { SectionPageLayout } from '@/components/layout'
+import { getCardStatus } from '@/features/onboarding/api'
 import { getPaddleTopUpStatus, isApiSuccess } from './api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
@@ -55,7 +68,6 @@ import {
   isWaffoPancakePayment,
 } from './lib'
 import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
-import { trackTopupOnce } from '@/lib/analytics/topup-tracking'
 import type {
   UserWalletData,
   PaymentMethod,
@@ -68,6 +80,7 @@ interface WalletProps {
   initialShowHistory?: boolean
   initialPaddleOrderId?: string
   initialPaddleTransactionId?: string
+  cardJustBound?: boolean
 }
 
 type PaddleCheckoutNotice = {
@@ -113,8 +126,9 @@ export function Wallet(props: WalletProps) {
     useState<PaddleCheckoutNotice | null>(null)
   const handledPaddleTransactionRef = useRef<string | null>(null)
   const paddleCheckoutCompletedRef = useRef(false)
+  const cardBoundHandledRef = useRef(false)
+  const [cardBoundDialogOpen, setCardBoundDialogOpen] = useState(false)
 
-  const { status } = useStatus()
   const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
 
@@ -250,6 +264,71 @@ export function Wallet(props: WalletProps) {
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [props.initialShowHistory])
+
+  useEffect(() => {
+    if (!props.cardJustBound) return
+    // Run this confirmation flow at most once per mount, even if the effect
+    // re-fires due to dependency identity changes (e.g. fetchUser). Without this
+    // guard, a re-render would cancel the in-flight poll before it can confirm.
+    if (cardBoundHandledRef.current) return
+    cardBoundHandledRef.current = true
+
+    // Clean the query param immediately so a refresh doesn't re-trigger this.
+    window.history.replaceState({}, '', window.location.pathname)
+
+    // The card-binding bonus is granted by an async Stripe webhook, which may not
+    // have arrived yet at the moment we land back here. Poll the card status until
+    // the binding is confirmed, then show success and refresh; otherwise tell the
+    // user it's still processing.
+    const POLL_ATTEMPTS = 6
+    const POLL_INTERVAL_MS = 2000
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+    const refreshAuthUser = async () => {
+      try {
+        const res = await getSelf()
+        if (res?.success && res.data) {
+          useAuthStore.getState().auth.setUser(res.data)
+        }
+      } catch {
+        // Non-fatal: the next navigation will re-verify the session.
+      }
+    }
+
+    const confirmBinding = async () => {
+      const pendingToast = toast.loading(t('Confirming your card binding…'))
+      for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
+        try {
+          const res = await getCardStatus()
+          if (res?.success && res.data?.card_bound) {
+            // Funnel final step: card actually bound (the conversion we're chasing).
+            trackAdsFunnelEvent('flatkey_cardbind_success')
+            toast.dismiss(pendingToast)
+            await refreshAuthUser()
+            await fetchUser()
+            // Celebratory confirmation that the bonus has landed.
+            setCardBoundDialogOpen(true)
+            return
+          }
+        } catch {
+          // Ignore transient errors and keep polling.
+        }
+        await sleep(POLL_INTERVAL_MS)
+      }
+      // Webhook hasn't landed in time; reassure the user instead of claiming success.
+      trackAdsFunnelEvent('flatkey_cardbind_pending')
+      toast.dismiss(pendingToast)
+      toast.info(
+        t(
+          'Recharge successful. Your bonus is being credited — refresh in a moment.'
+        )
+      )
+      await refreshAuthUser()
+      await fetchUser()
+    }
+
+    confirmBinding()
+  }, [props.cardJustBound, t, fetchUser])
 
   useEffect(() => {
     if (!topupInfo) return
@@ -600,6 +679,20 @@ export function Wallet(props: WalletProps) {
     return topupInfo?.discount?.[topupAmount] || DEFAULT_DISCOUNT_RATE
   }, [topupInfo, topupAmount])
 
+  const getBonusAmount = useCallback(() => {
+    const bonus = topupInfo?.bonus?.[topupAmount]
+    if (typeof bonus !== 'number' || !Number.isFinite(bonus) || bonus <= 0) {
+      return 0
+    }
+    // 该档位配置了限次且当前用户已领满（剩余为 0）→ 不再赠送。
+    // bonus_remaining 缺该档位 key = 不限次，照常赠送。
+    const left = topupInfo?.bonus_remaining?.[topupAmount]
+    if (typeof left === 'number' && left <= 0) {
+      return 0
+    }
+    return bonus
+  }, [topupInfo, topupAmount])
+
   const handleSubscriptionAvailabilityChange = useCallback(
     (available: boolean) => {
       setShowSubscriptionPanel(available)
@@ -649,8 +742,6 @@ export function Wallet(props: WalletProps) {
                   redeeming={redeeming}
                   topupLink={topupInfo?.topup_link}
                   loading={topupLoading}
-                  priceRatio={(status?.price as number) || 1}
-                  usdExchangeRate={effectiveUsdExchangeRate}
                   onOpenBilling={() => setBillingDialogOpen(true)}
                   creemProducts={topupInfo?.creem_products}
                   enableCreemTopup={topupInfo?.enable_creem_topup}
@@ -697,6 +788,7 @@ export function Wallet(props: WalletProps) {
         processing={processing || pancakeProcessing}
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
+        bonusAmount={getBonusAmount()}
       />
 
       <TransferDialog
@@ -719,6 +811,30 @@ export function Wallet(props: WalletProps) {
         product={selectedCreemProduct}
         processing={creemProcessing}
       />
+
+      <Dialog open={cardBoundDialogOpen} onOpenChange={setCardBoundDialogOpen}>
+        <DialogContent className='sm:max-w-md' showCloseButton>
+          <DialogHeader className='items-center text-center'>
+            <div className='bg-primary/10 mx-auto mb-2 flex size-14 items-center justify-center rounded-full'>
+              <PartyPopper className='text-primary size-7' aria-hidden='true' />
+            </div>
+            <DialogTitle className='text-xl'>
+              {t('Recharge successful 🎉')}
+            </DialogTitle>
+            <DialogDescription>
+              {t('Your bonus has been credited to your wallet. Enjoy!')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              className='w-full'
+              onClick={() => setCardBoundDialogOpen(false)}
+            >
+              {t('Got it')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

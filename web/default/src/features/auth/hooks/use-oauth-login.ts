@@ -31,6 +31,7 @@ import {
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
 } from '../lib/oauth'
+import { savePendingPostLoginRedirect } from '../lib/storage'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
 
 type LogoutRequestConfig = AxiosRequestConfig & {
@@ -39,6 +40,17 @@ type LogoutRequestConfig = AxiosRequestConfig & {
 
 function trackOAuthStart(provider: string) {
   const path = window.location.pathname
+  // OAuth providers redirect back to a fixed redirect_uri (/oauth/<provider>) that can't
+  // carry our ?redirect=... intent param, so persist it (tab-scoped) at start and read it
+  // back in the callback. Pass the current value through every time so a stale entry from
+  // an earlier, abandoned attempt is cleared when this login has no redirect intent.
+  try {
+    savePendingPostLoginRedirect(
+      new URLSearchParams(window.location.search).get('redirect')
+    )
+  } catch {
+    /* ignore storage failures */
+  }
   if (path === '/sign-up' || path === '/sign-up/') {
     try {
       window.sessionStorage.setItem('ads:oauth_signup_start', provider)
