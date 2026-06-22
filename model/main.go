@@ -417,7 +417,9 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`allowed_groups`" + ` varchar(512) DEFAULT '',
 ` + "`total_amount`" + ` bigint NOT NULL DEFAULT 0,
 ` + "`quota_reset_period`" + ` varchar(16) DEFAULT 'never',
-` + "`quota_reset_custom_seconds`" + ` bigint DEFAULT 0,
+ ` + "`quota_reset_custom_seconds`" + ` bigint DEFAULT 0,
+` + "`is_recommended`" + ` numeric DEFAULT 0,
+` + "`tags`" + ` varchar(255) DEFAULT '',
 ` + "`created_at`" + ` bigint,
 ` + "`updated_at`" + ` bigint,
 PRIMARY KEY (` + "`id`" + `)
@@ -452,6 +454,8 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "total_amount", DDL: "`total_amount` bigint NOT NULL DEFAULT 0"},
 		{Name: "quota_reset_period", DDL: "`quota_reset_period` varchar(16) DEFAULT 'never'"},
 		{Name: "quota_reset_custom_seconds", DDL: "`quota_reset_custom_seconds` bigint DEFAULT 0"},
+		{Name: "is_recommended", DDL: "`is_recommended` numeric DEFAULT 0"},
+		{Name: "tags", DDL: "`tags` varchar(255) DEFAULT ''"},
 		{Name: "created_at", DDL: "`created_at` bigint"},
 		{Name: "updated_at", DDL: "`updated_at` bigint"},
 	}

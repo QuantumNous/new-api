@@ -103,9 +103,8 @@ const SubscriptionPurchaseModal = ({
                   {t('套餐名称')}：
                 </Text>
                 <Typography.Text
-                  ellipsis={{ rows: 1, showTooltip: true }}
                   className='text-slate-900 dark:text-slate-100'
-                  style={{ maxWidth: 200 }}
+                  style={{ wordBreak: 'break-all' }}
                 >
                   {plan.title}
                 </Typography.Text>

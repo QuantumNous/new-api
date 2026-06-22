@@ -107,19 +107,36 @@ const renderPlanTitle = (text, record, t) => {
 
   return (
     <Popover content={popoverContent} position='rightTop' showArrow>
-      <div style={{ cursor: 'pointer', maxWidth: 180 }}>
-        <Text strong ellipsis={{ showTooltip: false }}>
-          {text}
-        </Text>
+      <div style={{ cursor: 'pointer' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {plan?.is_recommended && (
+            <Tag color='purple' size='small' shape='circle'>{t('推荐')}</Tag>
+          )}
+          <Text strong>
+            {text}
+          </Text>
+        </div>
         {subtitle && (
           <Text
             type='tertiary'
-            ellipsis={{ showTooltip: false }}
             style={{ display: 'block' }}
           >
             {subtitle}
           </Text>
         )}
+        {plan?.tags && (() => {
+          const tagList = plan.tags.split(',').map(t => t.trim()).filter(Boolean);
+          if (tagList.length === 0) return null;
+          return (
+            <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              {tagList.map((tag, idx) => (
+                <Tag key={idx} color='blue' size='small' shape='circle'>
+                  {tag}
+                </Tag>
+              ))}
+            </div>
+          );
+        })()}
       </div>
     </Popover>
   );
@@ -293,7 +310,7 @@ export const getSubscriptionsColumns = ({
     {
       title: t('套餐'),
       dataIndex: ['plan', 'title'],
-      width: 200,
+      width: 240,
       render: (text, record) => renderPlanTitle(text, record, t),
     },
     {

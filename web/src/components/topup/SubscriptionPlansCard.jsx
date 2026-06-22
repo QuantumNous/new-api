@@ -565,7 +565,7 @@ const SubscriptionPlansCard = ({
                 const displayPrice = convertedPrice.toFixed(
                   Number.isInteger(convertedPrice) ? 0 : 2,
                 );
-                const isPopular = index === 0 && plans.length > 1;
+                const isPopular = plan?.is_recommended === true;
                 const limit = Number(plan?.max_purchase_per_user || 0);
                 const limitLabel = limit > 0 ? `${t('限购')} ${limit}` : null;
                 const totalLabel =
@@ -620,7 +620,6 @@ const SubscriptionPlansCard = ({
                       <div className='mb-3'>
                         <Typography.Title
                           heading={5}
-                          ellipsis={{ rows: 1, showTooltip: true }}
                           style={{ margin: 0 }}
                         >
                           {plan?.title || t('订阅套餐')}
@@ -629,12 +628,24 @@ const SubscriptionPlansCard = ({
                           <Text
                             type='tertiary'
                             size='small'
-                            ellipsis={{ rows: 3, showTooltip: true }}
                             style={{ display: 'block' }}
                           >
                             {plan.subtitle}
                           </Text>
                         )}
+                        {plan?.tags && (() => {
+                          const tagList = plan.tags.split(',').map(t => t.trim()).filter(Boolean);
+                          if (tagList.length === 0) return null;
+                          return (
+                            <div className='mt-2 flex flex-wrap gap-1'>
+                              {tagList.map((tag, idx) => (
+                                <Tag key={idx} color='blue' size='small' shape='circle'>
+                                  {tag}
+                                </Tag>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* 价格区域 */}

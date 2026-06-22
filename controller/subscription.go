@@ -303,6 +303,8 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"allowed_groups":             req.Plan.AllowedGroups,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
+			"is_recommended":             req.Plan.IsRecommended,
+			"tags":                       req.Plan.Tags,
 			"updated_at":                 common.GetTimestamp(),
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {

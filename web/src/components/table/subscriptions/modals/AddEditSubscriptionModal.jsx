@@ -98,6 +98,8 @@ const AddEditSubscriptionModal = ({
     allowed_groups: [],
     stripe_price_id: '',
     creem_product_id: '',
+    is_recommended: false,
+    tags: '',
   });
 
   const buildFormValues = () => {
@@ -125,6 +127,8 @@ const AddEditSubscriptionModal = ({
       allowed_groups: p.allowed_groups ? p.allowed_groups.split(',').map(g => g.trim()).filter(g => g) : [],
       stripe_price_id: p.stripe_price_id || '',
       creem_product_id: p.creem_product_id || '',
+      is_recommended: p.is_recommended || false,
+      tags: p.tags || '',
     };
   };
 
@@ -169,6 +173,8 @@ const AddEditSubscriptionModal = ({
           allowed_groups: Array.isArray(values.allowed_groups)
             ? values.allowed_groups.join(',')
             : (values.allowed_groups || ''),
+          is_recommended: values.is_recommended || false,
+          tags: values.tags || '',
         },
       };
       if (editingPlan?.plan?.id) {
@@ -402,6 +408,25 @@ const AddEditSubscriptionModal = ({
                         field='enabled'
                         label={t('启用状态')}
                         size='large'
+                      />
+                    </Col>
+
+                    <Col span={12}>
+                      <Form.Switch
+                        field='is_recommended'
+                        label={t('推荐套餐')}
+                        size='large'
+                        extraText={t('标记为推荐套餐，将在用户端置顶展示')}
+                      />
+                    </Col>
+
+                    <Col span={24}>
+                      <Form.Input
+                        field='tags'
+                        label={t('套餐标记')}
+                        placeholder={t('例如：热门,限时,活动')}
+                        showClear
+                        extraText={t('多个标记用逗号分隔')}
                       />
                     </Col>
                   </Row>
