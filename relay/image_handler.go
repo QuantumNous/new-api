@@ -104,6 +104,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				httpResp.StatusCode = http.StatusOK
 			} else {
 				newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
+				logger.LogError(c, fmt.Sprintf("image relay upstream error: status code %d, channel_name: %s, info: %s, err: %s", httpResp.StatusCode, c.GetString("channel_name"), info.ToString(), common.LocalLogPreview(newAPIError.Error())))
 				// reset status code 重置状态码
 				service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 				return newAPIError
