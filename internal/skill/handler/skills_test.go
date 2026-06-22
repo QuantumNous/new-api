@@ -11,8 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	appmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -54,6 +56,156 @@ func TestListMarketplaceSkillsEnvelopeAndPagination(t *testing.T) {
 	assert.Equal(t, int64(1), got.Pagination.Total)
 	assert.False(t, got.Pagination.HasNext)
 	assert.NotEmpty(t, got.Meta.RequestID)
+}
+
+func TestListMarketplaceSkills_DR52PublicShapeAndAnonymousAvailability(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s := testSkill("pro-featured", "published")
+	s.RequiredPlan = enums.RequiredPlanPro
+	s.FeaturedFlag = true
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testContext("/api/v1/marketplace/skills")
+	ListMarketplaceSkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+	assert.NotContains(t, body, `"description":`, "list response must not expose detail description")
+	assert.NotContains(t, body, `"featured_flag":`, "list response must expose featured, not featured_flag")
+	assert.NotContains(t, body, `"published_at":`, "list response must not expose admin/detail timestamps")
+	assert.NotContains(t, body, `"ai_disclosure_required":`, "list response must be limited to DR-52 fields")
+
+	var got struct {
+		Data []struct {
+			Slug         string   `json:"slug"`
+			RequiredPlan string   `json:"required_plan"`
+			Badges       []string `json:"badges"`
+			Featured     bool     `json:"featured"`
+			Availability struct {
+				Enabled  *bool  `json:"enabled"`
+				Locked   bool   `json:"locked"`
+				LockCode string `json:"lock_code"`
+				CTA      string `json:"cta"`
+			} `json:"availability"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 1)
+	assert.Equal(t, "pro-featured", got.Data[0].Slug)
+	assert.Equal(t, "pro", got.Data[0].RequiredPlan)
+	assert.Equal(t, []string{"pro", "featured"}, got.Data[0].Badges)
+	assert.True(t, got.Data[0].Featured)
+	assert.Nil(t, got.Data[0].Availability.Enabled)
+	assert.True(t, got.Data[0].Availability.Locked)
+	assert.Equal(t, "AUTH_REQUIRED", got.Data[0].Availability.LockCode)
+	assert.Equal(t, "login", got.Data[0].Availability.CTA)
+}
+
+func TestListMarketplaceSkills_DR52FiltersAndPublicSearch(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	target := testSkill("target-skill", "published")
+	target.Name = "Public Match"
+	target.ShortDescription = "planner helper"
+	target.Category = "planning"
+	target.RequiredPlan = enums.RequiredPlanPro
+	target.FeaturedFlag = true
+	target.IsKidsSafe = true
+	require.NoError(t, db.Create(&target).Error)
+	descriptionHit := testSkill("description-hit", "published")
+	descriptionHit.Name = "Ordinary Name"
+	descriptionHit.ShortDescription = "ordinary short"
+	descriptionHit.Description = "Public Match from public detail description"
+	descriptionHit.Category = "planning"
+	descriptionHit.RequiredPlan = enums.RequiredPlanPro
+	descriptionHit.FeaturedFlag = true
+	descriptionHit.IsKidsSafe = true
+	require.NoError(t, db.Create(&descriptionHit).Error)
+
+	c, w := testContext("/api/v1/marketplace/skills?category=planning&query=Public%20Match&plan=pro&featured=true&kids_safe=true&locale=zh")
+	ListMarketplaceSkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Slug string `json:"slug"`
+		} `json:"data"`
+		Pagination struct {
+			Total int64 `json:"total"`
+		} `json:"pagination"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 2)
+	assert.ElementsMatch(t, []string{"target-skill", "description-hit"}, []string{got.Data[0].Slug, got.Data[1].Slug})
+	assert.Equal(t, int64(2), got.Pagination.Total)
+}
+
+func TestListMarketplaceSkills_DR52HidesDraftArchivedDeprecated(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	for _, status := range []string{"published", "draft", "archived", "deprecated"} {
+		require.NoError(t, db.Create(ptr(testSkill(status+"-skill", status))).Error)
+	}
+
+	c, w := testContext("/api/v1/marketplace/skills")
+	ListMarketplaceSkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Slug string `json:"slug"`
+		} `json:"data"`
+		Pagination struct {
+			Total int64 `json:"total"`
+		} `json:"pagination"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 1)
+	assert.Equal(t, "published-skill", got.Data[0].Slug)
+	assert.Equal(t, int64(1), got.Pagination.Total)
+}
+
+func TestListMarketplaceSkills_DR52AuthenticatedAvailability(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	require.NoError(t, db.AutoMigrate(&appmodel.User{}))
+	proSkill := testSkill("enabled-pro-skill", "published")
+	proSkill.RequiredPlan = enums.RequiredPlanPro
+	require.NoError(t, db.Create(&proSkill).Error)
+	require.NoError(t, db.Create(&appmodel.User{
+		Id:       42,
+		Username: "pro-user",
+		Password: "password123",
+		Status:   common.UserStatusEnabled,
+		Group:    string(enums.RequiredPlanPro),
+	}).Error)
+	require.NoError(t, skillmodel.EnableSkillForUser(db, 42, 42, proSkill.ID, "marketplace"))
+
+	c, w := testContext("/api/v1/marketplace/skills")
+	c.Set("id", 42)
+	ListMarketplaceSkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Slug         string `json:"slug"`
+			Availability struct {
+				Enabled  *bool   `json:"enabled"`
+				Locked   bool    `json:"locked"`
+				LockCode *string `json:"lock_code"`
+				CTA      string  `json:"cta"`
+			} `json:"availability"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 1)
+	assert.Equal(t, "enabled-pro-skill", got.Data[0].Slug)
+	require.NotNil(t, got.Data[0].Availability.Enabled)
+	assert.True(t, *got.Data[0].Availability.Enabled)
+	assert.False(t, got.Data[0].Availability.Locked)
+	assert.Nil(t, got.Data[0].Availability.LockCode)
+	assert.Equal(t, "use", got.Data[0].Availability.CTA)
 }
 
 func TestListMarketplaceSkillsRejectsInvalidPagination(t *testing.T) {
@@ -726,6 +878,7 @@ func testSkillDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, skillmodel.MigrateSkills(db))
+	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
 	require.NoError(t, skillmodel.MigrateSkillVersions(db))
 	require.NoError(t, skillmodel.MigrateSkillAuditLog(db))
 	return db
