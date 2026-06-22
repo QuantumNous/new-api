@@ -22,7 +22,7 @@ import {
   Layers,
   Gauge,
   Zap,
-  Flame,
+  Wallet,
   TrendingUp,
   Activity,
   type LucideIcon,
@@ -83,7 +83,7 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
 }
 
 export function useSummaryCardsConfig(totals: {
-  todayUsageDisplay: string
+  remainDisplay: string
   usedDisplay: string
   requestCountDisplay: string
   currencyLabel: string
@@ -93,13 +93,13 @@ export function useSummaryCardsConfig(totals: {
 
   return [
     {
-      key: 'todayUsage',
-      title: t('Last 24h usage'),
-      value: totals.todayUsageDisplay,
+      key: 'balance',
+      title: t('Current Balance'),
+      value: totals.remainDisplay,
       description: totals.currencyEnabled
-        ? `${t('Consumed in the last 24 hours')} (${totals.currencyLabel})`
-        : t('Consumed in the last 24 hours'),
-      icon: Flame,
+        ? `${t('Remaining quota')} (${totals.currencyLabel})`
+        : t('Remaining quota units'),
+      icon: Wallet,
     },
     {
       key: 'usage',

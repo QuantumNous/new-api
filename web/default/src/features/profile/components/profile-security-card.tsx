@@ -47,7 +47,7 @@ export function ProfileSecurityCard({
 
   if (loading) {
     return (
-      <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
+      <Card className='gap-0 overflow-hidden py-0'>
         <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>
           <Skeleton className='h-6 w-32' />
           <Skeleton className='mt-2 h-4 w-48' />
@@ -93,7 +93,6 @@ export function ProfileSecurityCard({
         title={t('Security')}
         description={t('Manage your security settings and account access')}
         icon={<Shield className='h-4 w-4' />}
-        disableHoverEffect
       >
         <div className='grid grid-cols-1 gap-2.5 sm:gap-3 md:grid-cols-3'>
           {securityActions.map((item) => (
@@ -101,8 +100,10 @@ export function ProfileSecurityCard({
               key={item.title}
               type='button'
               onClick={item.action}
-              className={`flex items-center gap-3 rounded-lg border p-3 text-left md:flex-col md:gap-2 md:p-4 md:text-center ${
-                item.variant === 'destructive' ? 'border-destructive/30' : ''
+              className={`hover:bg-muted/50 flex items-center gap-3 rounded-lg border p-3 text-left transition-colors md:flex-col md:gap-2 md:p-4 md:text-center ${
+                item.variant === 'destructive'
+                  ? 'border-destructive/30 hover:border-destructive/50 hover:bg-destructive/5'
+                  : ''
               }`}
             >
               <div

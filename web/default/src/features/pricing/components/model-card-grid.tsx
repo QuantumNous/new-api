@@ -59,7 +59,9 @@ export function ModelCardGrid(props: ModelCardGridProps) {
   const perfMap = useMemo(() => {
     const map = new Map<string, ModelPerfBadgeData>()
     for (const model of perfQuery.data?.data?.models ?? []) {
-      map.set(model.model_name, model)
+      if (model.request_count > 0) {
+        map.set(model.model_name, model)
+      }
     }
     return map
   }, [perfQuery.data])
@@ -103,7 +105,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
               className='gap-1.5'
             >
               <ChevronLeft className='size-4' />
-              {t('Previous page')}
+              {t('Previous')}
             </Button>
             <Button
               type='button'
@@ -115,7 +117,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
               disabled={currentPage >= totalPages}
               className='gap-1.5'
             >
-              {t('Next page')}
+              {t('Next')}
               <ChevronRight className='size-4' />
             </Button>
           </div>

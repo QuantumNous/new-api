@@ -16,12 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -42,176 +42,148 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  SettingsForm,
-  SettingsSwitchContent,
-  SettingsSwitchItem,
-} from '../components/settings-form-layout'
-import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
+import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
-type AttachmentPreference = '' | 'platform' | 'cross-platform'
-type AttachmentSelectValue = 'none' | 'platform' | 'cross-platform'
-
-/**
- * Use a nested object so the dotted FormField `name` props line up with
- * react-hook-form's path semantics. Flat keys with dots cause the form state
- * to silently diverge from what zod validates on submit.
- */
 const passkeySchema = z.object({
-  passkey: z.object({
-    enabled: z.boolean(),
-    rp_display_name: z.string(),
-    rp_id: z.string(),
-    origins: z.string(),
-    allow_insecure_origin: z.boolean(),
-    user_verification: z.enum(['required', 'preferred', 'discouraged']),
-    attachment_preference: z.enum(['none', 'platform', 'cross-platform']),
-  }),
+  'passkey.enabled': z.boolean(),
+  'passkey.rp_display_name': z.string(),
+  'passkey.rp_id': z.string(),
+  'passkey.origins': z.string(),
+  'passkey.allow_insecure_origin': z.boolean(),
+  'passkey.user_verification': z.enum(['required', 'preferred', 'discouraged']),
+  'passkey.attachment_preference': z.enum([
+    'none',
+    'platform',
+    'cross-platform',
+  ]),
 })
 
-type PasskeyFormInput = z.input<typeof passkeySchema>
-type PasskeyFormValues = z.output<typeof passkeySchema>
-
-type FlatPasskeyDefaults = {
-  'passkey.enabled': boolean
-  'passkey.rp_display_name': string
-  'passkey.rp_id': string
-  'passkey.origins': string
-  'passkey.allow_insecure_origin': boolean
-  'passkey.user_verification': 'required' | 'preferred' | 'discouraged'
-  'passkey.attachment_preference': AttachmentPreference
-}
-
-const toAttachmentSelectValue = (
-  value: AttachmentPreference
-): AttachmentSelectValue => (value === '' ? 'none' : value)
-
-const fromAttachmentSelectValue = (
-  value: AttachmentSelectValue
-): AttachmentPreference => (value === 'none' ? '' : value)
-
-const buildFormDefaults = (
-  defaults: FlatPasskeyDefaults
-): PasskeyFormInput => ({
-  passkey: {
-    enabled: defaults['passkey.enabled'],
-    rp_display_name: defaults['passkey.rp_display_name'] ?? '',
-    rp_id: defaults['passkey.rp_id'] ?? '',
-    origins: (defaults['passkey.origins'] ?? '')
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean)
-      .join('\n'),
-    allow_insecure_origin: defaults['passkey.allow_insecure_origin'],
-    user_verification: defaults['passkey.user_verification'],
-    attachment_preference: toAttachmentSelectValue(
-      defaults['passkey.attachment_preference']
-    ),
-  },
-})
-
-const normalizeFormValues = (
-  values: PasskeyFormValues
-): FlatPasskeyDefaults => ({
-  'passkey.enabled': values.passkey.enabled,
-  'passkey.rp_display_name': values.passkey.rp_display_name,
-  'passkey.rp_id': values.passkey.rp_id,
-  'passkey.origins': values.passkey.origins
-    .split('\n')
-    .map((origin) => origin.trim())
-    .filter(Boolean)
-    .join(','),
-  'passkey.allow_insecure_origin': values.passkey.allow_insecure_origin,
-  'passkey.user_verification': values.passkey.user_verification,
-  'passkey.attachment_preference': fromAttachmentSelectValue(
-    values.passkey.attachment_preference
-  ),
-})
+type PasskeyFormValues = z.infer<typeof passkeySchema>
 
 interface PasskeySectionProps {
-  defaultValues: FlatPasskeyDefaults
+  defaultValues: PasskeyFormValues
 }
 
-export function PasskeySection(props: PasskeySectionProps) {
+export function PasskeySection({ defaultValues }: PasskeySectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
-  const formDefaults = useMemo(
-    () => buildFormDefaults(props.defaultValues),
-    [props.defaultValues]
+  const formDefaults = useMemo<PasskeyFormValues>(
+    () => ({
+      ...defaultValues,
+      'passkey.origins': (defaultValues['passkey.origins'] as string)
+        .split(',')
+        .map((origin: string) => origin.trim())
+        .filter(Boolean)
+        .join('\n'),
+      'passkey.attachment_preference':
+        (defaultValues['passkey.attachment_preference'] as string) === ''
+          ? 'none'
+          : (defaultValues['passkey.attachment_preference'] as
+              | 'platform'
+              | 'cross-platform'),
+    }),
+    [defaultValues]
   )
 
-  const form = useForm<PasskeyFormInput, unknown, PasskeyFormValues>({
+  const form = useForm<PasskeyFormValues>({
     resolver: zodResolver(passkeySchema),
     defaultValues: formDefaults,
   })
 
-  const baselineRef = useRef<FlatPasskeyDefaults>(props.defaultValues)
-  const baselineSerializedRef = useRef<string>(
-    JSON.stringify(props.defaultValues)
-  )
+  useResetForm(form, formDefaults)
 
-  useEffect(() => {
-    const serialized = JSON.stringify(props.defaultValues)
-    if (serialized === baselineSerializedRef.current) return
-    baselineRef.current = props.defaultValues
-    baselineSerializedRef.current = serialized
-    form.reset(buildFormDefaults(props.defaultValues))
-  }, [props.defaultValues, form])
+  const onSubmit = async () => {
+    const rawData = form.getValues() as Record<string, unknown>
+    const flattenedEntries: Array<
+      [keyof PasskeyFormValues, PasskeyFormValues[keyof PasskeyFormValues]]
+    > = []
 
-  const onSubmit = async (values: PasskeyFormValues) => {
-    const normalized = normalizeFormValues(values)
-    const changedKeys = (
-      Object.keys(normalized) as Array<keyof FlatPasskeyDefaults>
-    ).filter((key) => normalized[key] !== baselineRef.current[key])
+    Object.entries(rawData).forEach(([key, value]) => {
+      if (key === 'passkey' && value && typeof value === 'object') {
+        Object.entries(value as Record<string, unknown>).forEach(
+          ([nestedKey, nestedValue]) => {
+            flattenedEntries.push([
+              `passkey.${nestedKey}` as keyof PasskeyFormValues,
+              nestedValue as PasskeyFormValues[keyof PasskeyFormValues],
+            ])
+          }
+        )
+      } else {
+        flattenedEntries.push([
+          key as keyof PasskeyFormValues,
+          value as PasskeyFormValues[keyof PasskeyFormValues],
+        ])
+      }
+    })
 
-    if (changedKeys.length === 0) {
-      toast.info(t('No changes to save'))
-      return
+    const data = Object.fromEntries(flattenedEntries) as PasskeyFormValues
+    const updates: Array<{ key: string; value: string | boolean }> = []
+
+    Object.entries(data).forEach(([key, value]) => {
+      if (key === 'passkey.origins') {
+        const processed = (value as string)
+          .split('\n')
+          .map((origin: string) => origin.trim())
+          .filter(Boolean)
+          .join(',')
+        const currentDefault = defaultValues['passkey.origins'] as string
+        if (processed !== currentDefault) {
+          updates.push({ key, value: processed })
+        }
+      } else if (key === 'passkey.attachment_preference') {
+        const attachmentPreference =
+          value as PasskeyFormValues['passkey.attachment_preference']
+        const incoming =
+          attachmentPreference === 'none' ? '' : attachmentPreference
+        const currentDefault =
+          defaultValues['passkey.attachment_preference'] === 'none'
+            ? ''
+            : defaultValues['passkey.attachment_preference']
+        if (incoming !== currentDefault) {
+          updates.push({ key, value: incoming })
+        }
+      } else if (value !== defaultValues[key as keyof PasskeyFormValues]) {
+        updates.push({ key, value })
+      }
+    })
+
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
     }
-
-    for (const key of changedKeys) {
-      await updateOption.mutateAsync({
-        key,
-        value: normalized[key],
-      })
-    }
-
-    baselineRef.current = normalized
-    baselineSerializedRef.current = JSON.stringify(normalized)
-    form.reset(buildFormDefaults(normalized))
   }
 
   return (
-    <SettingsSection title={t('Passkey Authentication')}>
+    <SettingsSection
+      title={t('Passkey Authentication')}
+      description={t('Configure Passkey (WebAuthn) login settings')}
+    >
       <Form {...form}>
-        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
-          <SettingsPageFormActions
-            onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
-          />
+        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
           <FormField
             control={form.control}
             name='passkey.enabled'
             render={({ field }) => (
-              <SettingsSwitchItem>
-                <SettingsSwitchContent>
-                  <FormLabel>{t('Enable Passkey')}</FormLabel>
+              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5'>
+                  <FormLabel className='text-base'>
+                    {t('Enable Passkey')}
+                  </FormLabel>
                   <FormDescription>
                     {t(
                       'Allow users to register and sign in with Passkey (WebAuthn)'
                     )}
                   </FormDescription>
-                </SettingsSwitchContent>
+                </div>
                 <FormControl>
                   <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
-              </SettingsSwitchItem>
+              </FormItem>
             )}
           />
 
@@ -224,11 +196,8 @@ export function PasskeySection(props: PasskeySectionProps) {
                 <FormControl>
                   <Input
                     placeholder={t('e.g. New API Console')}
+                    {...field}
                     value={field.value ?? ''}
-                    onChange={(event) => field.onChange(event.target.value)}
-                    name={field.name}
-                    onBlur={field.onBlur}
-                    ref={field.ref}
                   />
                 </FormControl>
                 <FormDescription>
@@ -250,11 +219,8 @@ export function PasskeySection(props: PasskeySectionProps) {
                 <FormControl>
                   <Input
                     placeholder={t('e.g. example.com')}
+                    {...field}
                     value={field.value ?? ''}
-                    onChange={(event) => field.onChange(event.target.value)}
-                    name={field.name}
-                    onBlur={field.onBlur}
-                    ref={field.ref}
                   />
                 </FormControl>
                 <FormDescription>
@@ -357,22 +323,24 @@ export function PasskeySection(props: PasskeySectionProps) {
             control={form.control}
             name='passkey.allow_insecure_origin'
             render={({ field }) => (
-              <SettingsSwitchItem>
-                <SettingsSwitchContent>
-                  <FormLabel>{t('Allow Insecure Origins')}</FormLabel>
+              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5'>
+                  <FormLabel className='text-base'>
+                    {t('Allow Insecure Origins')}
+                  </FormLabel>
                   <FormDescription>
                     {t(
                       'Permit Passkey registration on non-HTTPS origins (only recommended for development)'
                     )}
                   </FormDescription>
-                </SettingsSwitchContent>
+                </div>
                 <FormControl>
                   <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
                   />
                 </FormControl>
-              </SettingsSwitchItem>
+              </FormItem>
             )}
           />
 
@@ -386,11 +354,8 @@ export function PasskeySection(props: PasskeySectionProps) {
                   <Textarea
                     rows={4}
                     placeholder={t('https://example.com')}
+                    {...field}
                     value={field.value ?? ''}
-                    onChange={(event) => field.onChange(event.target.value)}
-                    name={field.name}
-                    onBlur={field.onBlur}
-                    ref={field.ref}
                   />
                 </FormControl>
                 <FormDescription>
@@ -402,7 +367,9 @@ export function PasskeySection(props: PasskeySectionProps) {
               </FormItem>
             )}
           />
-        </SettingsForm>
+
+          <Button type='submit'>{t('Save Changes')}</Button>
+        </form>
       </Form>
     </SettingsSection>
   )

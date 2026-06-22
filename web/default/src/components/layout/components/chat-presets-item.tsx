@@ -79,9 +79,7 @@ function ChatMenuItem({
             />
           }
         >
-          <span className='min-w-0 flex-1 truncate whitespace-nowrap'>
-            {preset.name}
-          </span>
+          <span>{preset.name}</span>
         </SidebarMenuSubButton>
       </SidebarMenuSubItem>
     )
@@ -97,13 +95,11 @@ function ChatMenuItem({
         isActive={false}
         className='justify-between'
       >
-        <span className='min-w-0 flex-1 truncate whitespace-nowrap'>
-          {preset.name}
-        </span>
+        <span>{preset.name}</span>
         {loading ? (
-          <Loader2 className='h-4 w-4 shrink-0 animate-spin' />
+          <Loader2 className='h-4 w-4 animate-spin' />
         ) : (
-          <ExternalLink className='h-4 w-4 shrink-0' />
+          <ExternalLink className='h-4 w-4' />
         )}
       </SidebarMenuSubButton>
     </SidebarMenuSubItem>
@@ -231,9 +227,9 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
           <DropdownMenuTrigger
             render={<SidebarMenuButton tooltip={item.title} />}
           >
-            {item.icon && <item.icon className='h-4 w-4 shrink-0' />}
-            <span className='min-w-0 flex-1 truncate'>{item.title}</span>
-            <ChevronRight className='ms-auto h-4 w-4 shrink-0 opacity-70' />
+            {item.icon && <item.icon className='h-4 w-4' />}
+            <span>{item.title}</span>
+            <ChevronRight className='ms-auto h-4 w-4 opacity-70' />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='start'>
             {visiblePresets.map((preset) => (
@@ -261,9 +257,9 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
         className='group/collapsible-trigger'
         render={<SidebarMenuButton />}
       >
-        {item.icon && <item.icon className='shrink-0' />}
-        <span className='min-w-0 flex-1 truncate'>{item.title}</span>
-        <ChevronRight className='ms-auto size-4 shrink-0 transition-transform duration-200 group-data-[panel-open]/collapsible-trigger:rotate-90' />
+        {item.icon && <item.icon />}
+        <span>{item.title}</span>
+        <ChevronRight className='ms-auto transition-transform duration-200 group-data-[panel-open]/collapsible-trigger:rotate-90' />
       </CollapsibleTrigger>
       <CollapsibleContent className='CollapsibleContent'>
         <SidebarMenuSub>

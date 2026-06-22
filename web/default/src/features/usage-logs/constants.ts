@@ -58,14 +58,7 @@ export const LOG_TYPE_ENUM = {
   SYSTEM: 4,
   ERROR: 5,
   REFUND: 6,
-  LOGIN: 7,
 } as const
-
-/**
- * The log list/stat backend uses type=0 as the "all types" sentinel.
- * Row rendering still displays records with type=0 as "Unknown".
- */
-export const LOG_TYPE_ALL_VALUE = '0' as const
 
 // ============================================================================
 // Time Range Presets
@@ -96,30 +89,22 @@ export const LOG_TYPES = [
   { value: 4, label: 'System', color: 'purple' },
   { value: 5, label: 'Error', color: 'red' },
   { value: 6, label: 'Refund', color: 'blue' },
-  { value: 7, label: 'Login', color: 'teal' },
 ] as const
 
 /**
  * Log types for DataTableToolbar filters (single select mode)
- * Backend treats type=0 as "all logs" in list/stat endpoints, so the filter
- * must not expose the display-only "Unknown" label for that value.
  */
-export const LOG_TYPE_FILTERS = [
-  { label: 'All Types', value: LOG_TYPE_ALL_VALUE },
-  ...LOG_TYPES.filter((type) => type.value !== LOG_TYPE_ENUM.UNKNOWN).map(
-    (type) => ({
-      label: type.label,
-      value: String(type.value),
-    })
-  ),
-] as const
+export const LOG_TYPE_FILTERS = LOG_TYPES.map((type) => ({
+  label: type.label,
+  value: String(type.value),
+}))
 
 // ============================================================================
-// Drawing Logs (MjProxy) Constants
+// Drawing Logs (Midjourney) Constants
 // ============================================================================
 
 /**
- * MjProxy task types
+ * Midjourney task types
  * Must match backend constants in constant/midjourney.go
  */
 export const MJ_TASK_TYPES = {
@@ -144,7 +129,7 @@ export const MJ_TASK_TYPES = {
 } as const
 
 /**
- * MjProxy task status
+ * Midjourney task status
  */
 export const MJ_TASK_STATUS = {
   NOT_START: 'NOT_START', // 未启动
@@ -156,7 +141,7 @@ export const MJ_TASK_STATUS = {
 } as const
 
 /**
- * MjProxy submit result codes
+ * Midjourney submit result codes
  */
 export const MJ_SUBMIT_RESULT_CODES = {
   NOT_SUBMITTED: 0, // 未提交
@@ -223,7 +208,7 @@ export interface StatusMapping {
 }
 
 /**
- * MjProxy task type mappings
+ * Midjourney task type mappings
  */
 export const MJ_TASK_TYPE_MAPPINGS: Record<string, StatusMapping> = {
   [MJ_TASK_TYPES.IMAGINE]: { label: 'Draw', variant: 'blue' },
@@ -246,7 +231,7 @@ export const MJ_TASK_TYPE_MAPPINGS: Record<string, StatusMapping> = {
 }
 
 /**
- * MjProxy task status mappings
+ * Midjourney task status mappings
  */
 export const MJ_STATUS_MAPPINGS: Record<string, StatusMapping> = {
   [MJ_TASK_STATUS.SUCCESS]: { label: 'Success', variant: 'green' },
@@ -258,7 +243,7 @@ export const MJ_STATUS_MAPPINGS: Record<string, StatusMapping> = {
 }
 
 /**
- * MjProxy submit result mappings
+ * Midjourney submit result mappings
  */
 export const MJ_SUBMIT_RESULT_MAPPINGS: Record<string, StatusMapping> = {
   [String(MJ_SUBMIT_RESULT_CODES.SUBMITTED)]: {

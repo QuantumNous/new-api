@@ -33,10 +33,24 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { StaticDataTable } from '@/components/data-table'
-import { Dialog } from '@/components/dialog'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { safeJsonParse } from '../utils/json-parser'
 
 type GroupRatioVisualEditorProps = {
@@ -420,51 +434,54 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
               {t('Add group')}
             </Button>
             {topupRatioList.length > 0 && (
-              <StaticDataTable
-                data={topupRatioList}
-                getRowKey={(group) => group.name}
-                columns={[
-                  {
-                    id: 'group',
-                    header: t('Group name'),
-                    cellClassName: 'font-medium',
-                    cell: (group) => group.name,
-                  },
-                  {
-                    id: 'multiplier',
-                    header: t('Multiplier'),
-                    cell: (group) => group.value,
-                  },
-                  {
-                    id: 'actions',
-                    header: t('Actions'),
-                    className: 'text-right',
-                    cellClassName: 'text-right',
-                    cell: (group) => (
-                      <div className='flex justify-end gap-2'>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          onClick={() =>
-                            handleSimpleEdit('topupGroupRatio', group)
-                          }
-                        >
-                          <Pencil className='h-4 w-4' />
-                        </Button>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          onClick={() =>
-                            handleSimpleDelete('topupGroupRatio', group.name)
-                          }
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </div>
-                    ),
-                  },
-                ]}
-              />
+              <div className='rounded-md border'>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('Group name')}</TableHead>
+                      <TableHead>{t('Multiplier')}</TableHead>
+                      <TableHead className='text-right'>
+                        {t('Actions')}
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {topupRatioList.map((group) => (
+                      <TableRow key={group.name}>
+                        <TableCell className='font-medium'>
+                          {group.name}
+                        </TableCell>
+                        <TableCell>{group.value}</TableCell>
+                        <TableCell className='text-right'>
+                          <div className='flex justify-end gap-2'>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={() =>
+                                handleSimpleEdit('topupGroupRatio', group)
+                              }
+                            >
+                              <Pencil className='h-4 w-4' />
+                            </Button>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={() =>
+                                handleSimpleDelete(
+                                  'topupGroupRatio',
+                                  group.name
+                                )
+                              }
+                            >
+                              <Trash2 className='h-4 w-4' />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </div>
         </CardContent>
@@ -531,58 +548,55 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                       <CollapsibleContent>
                         {userGroupData.overrides.length > 0 && (
                           <div className='border-t'>
-                            <StaticDataTable
-                              className='rounded-none border-0'
-                              data={userGroupData.overrides}
-                              getRowKey={(override) => override.targetGroup}
-                              columns={[
-                                {
-                                  id: 'target-group',
-                                  header: t('Target group'),
-                                  cellClassName: 'font-medium',
-                                  cell: (override) => override.targetGroup,
-                                },
-                                {
-                                  id: 'ratio',
-                                  header: t('Ratio'),
-                                  cell: (override) => override.ratio,
-                                },
-                                {
-                                  id: 'actions',
-                                  header: t('Actions'),
-                                  className: 'text-right',
-                                  cellClassName: 'text-right',
-                                  cell: (override) => (
-                                    <div className='flex justify-end gap-2'>
-                                      <Button
-                                        variant='ghost'
-                                        size='sm'
-                                        onClick={() =>
-                                          handleOverrideEdit(
-                                            userGroupData.userGroup,
-                                            override
-                                          )
-                                        }
-                                      >
-                                        <Pencil className='h-4 w-4' />
-                                      </Button>
-                                      <Button
-                                        variant='ghost'
-                                        size='sm'
-                                        onClick={() =>
-                                          handleOverrideDelete(
-                                            userGroupData.userGroup,
-                                            override.targetGroup
-                                          )
-                                        }
-                                      >
-                                        <Trash2 className='h-4 w-4' />
-                                      </Button>
-                                    </div>
-                                  ),
-                                },
-                              ]}
-                            />
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>{t('Target group')}</TableHead>
+                                  <TableHead>{t('Ratio')}</TableHead>
+                                  <TableHead className='text-right'>
+                                    {t('Actions')}
+                                  </TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {userGroupData.overrides.map((override) => (
+                                  <TableRow key={override.targetGroup}>
+                                    <TableCell className='font-medium'>
+                                      {override.targetGroup}
+                                    </TableCell>
+                                    <TableCell>{override.ratio}</TableCell>
+                                    <TableCell className='text-right'>
+                                      <div className='flex justify-end gap-2'>
+                                        <Button
+                                          variant='ghost'
+                                          size='sm'
+                                          onClick={() =>
+                                            handleOverrideEdit(
+                                              userGroupData.userGroup,
+                                              override
+                                            )
+                                          }
+                                        >
+                                          <Pencil className='h-4 w-4' />
+                                        </Button>
+                                        <Button
+                                          variant='ghost'
+                                          size='sm'
+                                          onClick={() =>
+                                            handleOverrideDelete(
+                                              userGroupData.userGroup,
+                                              override.targetGroup
+                                            )
+                                          }
+                                        >
+                                          <Trash2 className='h-4 w-4' />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
                           </div>
                         )}
                       </CollapsibleContent>
@@ -663,15 +677,25 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       />
 
       {/* Auto Group Dialog */}
-      <Dialog
-        open={autoGroupDialogOpen}
-        onOpenChange={setAutoGroupDialogOpen}
-        title={t('Add auto group')}
-        description={t('Add a group identifier to the auto assignment list.')}
-        contentHeight='auto'
-        bodyClassName='space-y-4'
-        footer={
-          <>
+      <Dialog open={autoGroupDialogOpen} onOpenChange={setAutoGroupDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('Add auto group')}</DialogTitle>
+            <DialogDescription>
+              {t('Add a group identifier to the auto assignment list.')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4 py-4'>
+            <div className='space-y-2'>
+              <Label>{t('Group identifier')}</Label>
+              <Input
+                value={autoGroupInput}
+                onChange={(e) => setAutoGroupInput(e.target.value)}
+                placeholder={t('default')}
+              />
+            </div>
+          </div>
+          <DialogFooter>
             <Button
               variant='outline'
               onClick={() => setAutoGroupDialogOpen(false)}
@@ -679,33 +703,30 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
               {t('Cancel')}
             </Button>
             <Button onClick={handleAutoGroupSave}>{t('Add')}</Button>
-          </>
-        }
-      >
-        <div className='space-y-4 py-4'>
-          <div className='space-y-2'>
-            <Label>{t('Group identifier')}</Label>
-            <Input
-              value={autoGroupInput}
-              onChange={(e) => setAutoGroupInput(e.target.value)}
-              placeholder={t('default')}
-            />
-          </div>
-        </div>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
 
       {/* User Group Dialog */}
-      <Dialog
-        open={userGroupDialogOpen}
-        onOpenChange={setUserGroupDialogOpen}
-        title={t('Add user group')}
-        description={t(
-          'Create a new user group to configure ratio overrides for.'
-        )}
-        contentHeight='auto'
-        bodyClassName='space-y-4'
-        footer={
-          <>
+      <Dialog open={userGroupDialogOpen} onOpenChange={setUserGroupDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('Add user group')}</DialogTitle>
+            <DialogDescription>
+              {t('Create a new user group to configure ratio overrides for.')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-4 py-4'>
+            <div className='space-y-2'>
+              <Label>{t('User group name')}</Label>
+              <Input
+                value={userGroupInput}
+                onChange={(e) => setUserGroupInput(e.target.value)}
+                placeholder={t('vip')}
+              />
+            </div>
+          </div>
+          <DialogFooter>
             <Button
               variant='outline'
               onClick={() => setUserGroupDialogOpen(false)}
@@ -713,19 +734,8 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
               {t('Cancel')}
             </Button>
             <Button onClick={handleUserGroupSave}>{t('Add')}</Button>
-          </>
-        }
-      >
-        <div className='space-y-4 py-4'>
-          <div className='space-y-2'>
-            <Label>{t('User group name')}</Label>
-            <Input
-              value={userGroupInput}
-              onChange={(e) => setUserGroupInput(e.target.value)}
-              placeholder={t('vip')}
-            />
-          </div>
-        </div>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
 
       {/* Group Override Dialog */}
@@ -851,99 +861,106 @@ function GroupPricingTable({
       </CardHeader>
       <CardContent>
         <div className='space-y-3'>
-          <StaticDataTable
-            data={rows}
-            getRowKey={(row) => row._id}
-            emptyClassName='text-muted-foreground h-20 text-sm'
-            emptyContent={t('No groups yet. Add a group to get started.')}
-            columns={[
-              {
-                id: 'group',
-                header: t('Group name'),
-                className: 'min-w-40',
-                cell: (row) => (
-                  <Input
-                    value={row.name}
-                    onChange={(event) =>
-                      updateRow(row._id, 'name', event.target.value)
-                    }
-                    aria-invalid={duplicateNames.includes(row.name.trim())}
-                  />
-                ),
-              },
-              {
-                id: 'ratio',
-                header: t('Ratio'),
-                className: 'w-28',
-                cell: (row) => (
-                  <Input
-                    type='number'
-                    min={0}
-                    step={0.1}
-                    value={String(row.ratio)}
-                    onChange={(event) =>
-                      updateRow(
-                        row._id,
-                        'ratio',
-                        normalizeRatio(event.target.value)
-                      )
-                    }
-                  />
-                ),
-              },
-              {
-                id: 'selectable',
-                header: t('User selectable'),
-                className: 'w-28 text-center',
-                cell: (row) => (
-                  <div className='flex justify-center'>
-                    <Checkbox
-                      checked={row.selectable}
-                      onCheckedChange={(checked) =>
-                        updateRow(row._id, 'selectable', checked === true)
-                      }
-                      aria-label={t('User selectable')}
-                    />
-                  </div>
-                ),
-              },
-              {
-                id: 'description',
-                header: t('Description'),
-                className: 'min-w-56',
-                cell: (row) =>
-                  row.selectable ? (
-                    <Input
-                      value={row.description}
-                      placeholder={t('Group description')}
-                      onChange={(event) =>
-                        updateRow(row._id, 'description', event.target.value)
-                      }
-                    />
-                  ) : (
-                    <span className='text-muted-foreground px-3 text-sm'>
-                      -
-                    </span>
-                  ),
-              },
-              {
-                id: 'actions',
-                header: t('Actions'),
-                className: 'w-16 text-right',
-                cellClassName: 'text-right',
-                cell: (row) => (
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    onClick={() => removeRow(row._id)}
-                    aria-label={t('Delete')}
-                  >
-                    <Trash2 className='h-4 w-4' />
-                  </Button>
-                ),
-              },
-            ]}
-          />
+          <div className='overflow-hidden rounded-md border'>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className='min-w-40'>{t('Group name')}</TableHead>
+                  <TableHead className='w-28'>{t('Ratio')}</TableHead>
+                  <TableHead className='w-28 text-center'>
+                    {t('User selectable')}
+                  </TableHead>
+                  <TableHead className='min-w-56'>{t('Description')}</TableHead>
+                  <TableHead className='w-16 text-right'>
+                    {t('Actions')}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className='text-muted-foreground h-20 text-center text-sm'
+                    >
+                      {t('No groups yet. Add a group to get started.')}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  rows.map((row) => (
+                    <TableRow key={row._id}>
+                      <TableCell>
+                        <Input
+                          value={row.name}
+                          onChange={(event) =>
+                            updateRow(row._id, 'name', event.target.value)
+                          }
+                          aria-invalid={duplicateNames.includes(
+                            row.name.trim()
+                          )}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type='number'
+                          min={0}
+                          step={0.1}
+                          value={String(row.ratio)}
+                          onChange={(event) =>
+                            updateRow(
+                              row._id,
+                              'ratio',
+                              normalizeRatio(event.target.value)
+                            )
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className='flex justify-center'>
+                          <Checkbox
+                            checked={row.selectable}
+                            onCheckedChange={(checked) =>
+                              updateRow(row._id, 'selectable', checked === true)
+                            }
+                            aria-label={t('User selectable')}
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {row.selectable ? (
+                          <Input
+                            value={row.description}
+                            placeholder={t('Group description')}
+                            onChange={(event) =>
+                              updateRow(
+                                row._id,
+                                'description',
+                                event.target.value
+                              )
+                            }
+                          />
+                        ) : (
+                          <span className='text-muted-foreground px-3 text-sm'>
+                            -
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className='text-right'>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          onClick={() => removeRow(row._id)}
+                          aria-label={t('Delete')}
+                        >
+                          <Trash2 className='h-4 w-4' />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
 
           {duplicateNames.length > 0 && (
             <p className='text-destructive text-sm'>
@@ -999,52 +1016,51 @@ function SimpleGroupDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={
-        editData
-          ? t('Edit {{title}}', { title })
-          : t('Add {{title}}', { title })
-      }
-      description={t('Configure the ratio for this group.')}
-      contentHeight='auto'
-      bodyClassName='space-y-4'
-      footer={
-        <>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {editData
+              ? t('Edit {{title}}', { title })
+              : t('Add {{title}}', { title })}
+          </DialogTitle>
+          <DialogDescription>
+            {t('Configure the ratio for this group.')}
+          </DialogDescription>
+        </DialogHeader>
+        <div className='space-y-4 py-4'>
+          <div className='space-y-2'>
+            <Label>{t('Group name')}</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('default')}
+              disabled={!!editData}
+            />
+          </div>
+          <div className='space-y-2'>
+            <Label>{t('Ratio')}</Label>
+            <Input
+              value={value}
+              onChange={(e) => {
+                const val = e.target.value
+                if (val === '' || !isNaN(parseFloat(val))) {
+                  setValue(val)
+                }
+              }}
+              placeholder='1.0'
+            />
+          </div>
+        </div>
+        <DialogFooter>
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             {t('Cancel')}
           </Button>
           <Button onClick={handleSave}>
             {editData ? t('Update') : t('Add')}
           </Button>
-        </>
-      }
-    >
-      <div className='space-y-4 py-4'>
-        <div className='space-y-2'>
-          <Label>{t('Group name')}</Label>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={t('default')}
-            disabled={!!editData}
-          />
-        </div>
-        <div className='space-y-2'>
-          <Label>{t('Ratio')}</Label>
-          <Input
-            value={value}
-            onChange={(e) => {
-              const val = e.target.value
-              if (val === '' || !isNaN(parseFloat(val))) {
-                setValue(val)
-              }
-            }}
-            placeholder='1.0'
-          />
-        </div>
-      </div>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -1091,66 +1107,65 @@ function GroupOverrideDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={editData ? t('Edit ratio override') : t('Add ratio override')}
-      description={
-        userGroup
-          ? t(
-              'Configure a custom ratio for "{{userGroup}}" users when using a specific token group.',
-              { userGroup }
-            )
-          : t(
-              'Configure a custom ratio for when users use a specific token group.'
-            )
-      }
-      contentHeight='auto'
-      bodyClassName='space-y-4'
-      footer={
-        <>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {editData ? t('Edit ratio override') : t('Add ratio override')}
+          </DialogTitle>
+          <DialogDescription>
+            {userGroup
+              ? t(
+                  'Configure a custom ratio for "{{userGroup}}" users when using a specific token group.',
+                  { userGroup }
+                )
+              : t(
+                  'Configure a custom ratio for when users use a specific token group.'
+                )}
+          </DialogDescription>
+        </DialogHeader>
+        <div className='space-y-4 py-4'>
+          <div className='space-y-2'>
+            <Label>{t('Target group')}</Label>
+            <Input
+              value={targetGroup}
+              onChange={(e) => setTargetGroup(e.target.value)}
+              placeholder={t('edit_this')}
+              disabled={!!editData}
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t('The token group that will have a custom ratio')}
+            </p>
+          </div>
+          <div className='space-y-2'>
+            <Label>{t('Ratio')}</Label>
+            <Input
+              value={ratio}
+              onChange={(e) => {
+                const val = e.target.value
+                if (val === '' || !isNaN(parseFloat(val))) {
+                  setRatio(val)
+                }
+              }}
+              placeholder='0.9'
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t('Multiplier applied when {{userGroup}} uses {{targetGroup}}', {
+                userGroup: userGroup || t('this user group'),
+                targetGroup: targetGroup || t('this token group'),
+              })}
+            </p>
+          </div>
+        </div>
+        <DialogFooter>
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             {t('Cancel')}
           </Button>
           <Button onClick={handleSave}>
             {editData ? t('Update') : t('Add')}
           </Button>
-        </>
-      }
-    >
-      <div className='space-y-4 py-4'>
-        <div className='space-y-2'>
-          <Label>{t('Target group')}</Label>
-          <Input
-            value={targetGroup}
-            onChange={(e) => setTargetGroup(e.target.value)}
-            placeholder={t('edit_this')}
-            disabled={!!editData}
-          />
-          <p className='text-muted-foreground text-xs'>
-            {t('The token group that will have a custom ratio')}
-          </p>
-        </div>
-        <div className='space-y-2'>
-          <Label>{t('Ratio')}</Label>
-          <Input
-            value={ratio}
-            onChange={(e) => {
-              const val = e.target.value
-              if (val === '' || !isNaN(parseFloat(val))) {
-                setRatio(val)
-              }
-            }}
-            placeholder='0.9'
-          />
-          <p className='text-muted-foreground text-xs'>
-            {t('Multiplier applied when {{userGroup}} uses {{targetGroup}}', {
-              userGroup: userGroup || t('this user group'),
-              targetGroup: targetGroup || t('this token group'),
-            })}
-          </p>
-        </div>
-      </div>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }

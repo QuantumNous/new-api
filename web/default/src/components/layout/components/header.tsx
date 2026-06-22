@@ -24,6 +24,7 @@ type HeaderProps = React.HTMLAttributes<HTMLElement>
 export function Header({ className, children, ...props }: HeaderProps) {
   return (
     <header
+      data-slot='header'
       className={cn(
         'sticky top-0 z-40 h-[var(--app-header-height,3rem)] w-full shrink-0 bg-transparent',
         className

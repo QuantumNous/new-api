@@ -24,7 +24,6 @@ import { useChartTheme } from '@/lib/use-chart-theme'
 import { cn } from '@/lib/utils'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
-import { getSuccessRateColor } from '@/features/performance-metrics/lib/format'
 import type { LatencyTimePoint, UptimeDayPoint } from '../lib/mock-stats'
 
 function formatHourLabel(iso: string): string {
@@ -48,45 +47,6 @@ function formatDayLabel(date: string): string {
   })
 }
 
-function getChartThemeTokens(resolvedTheme: string) {
-  return {
-    textColor:
-      resolvedTheme === 'dark'
-        ? 'rgba(255, 255, 255, 0.68)'
-        : 'rgba(15, 23, 42, 0.58)',
-    gridColor:
-      resolvedTheme === 'dark'
-        ? 'rgba(255, 255, 255, 0.12)'
-        : 'rgba(15, 23, 42, 0.12)',
-  }
-}
-
-const UPTIME_AXIS_MAX = 100
-const UPTIME_FOCUSED_AXIS_MIN = 95
-const UPTIME_MINOR_OUTAGE_AXIS_MIN = 90
-
-function toUptimeChartValue(value: number): number {
-  if (!Number.isFinite(value)) return 0
-  return Math.min(UPTIME_AXIS_MAX, Math.max(0, value))
-}
-
-function getUptimeAxisMin(values: number[]): number {
-  const finiteValues = values.filter((value) => Number.isFinite(value))
-  if (finiteValues.length === 0) return UPTIME_FOCUSED_AXIS_MIN
-
-  const minValue = Math.max(0, Math.min(...finiteValues))
-  if (minValue >= UPTIME_FOCUSED_AXIS_MIN) return UPTIME_FOCUSED_AXIS_MIN
-  if (minValue >= UPTIME_MINOR_OUTAGE_AXIS_MIN) {
-    return UPTIME_MINOR_OUTAGE_AXIS_MIN
-  }
-
-  return Math.max(0, Math.floor((minValue - 5) / 10) * 10)
-}
-
-function stripUptimePointSuffix(value: string): string {
-  return value.replace(/__(start|end)$/, '')
-}
-
 // ---------------------------------------------------------------------------
 // Latency trend chart (24h, multi-group point-line chart)
 // ---------------------------------------------------------------------------
@@ -97,7 +57,6 @@ export function LatencyTrendChart(props: {
 }) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
-  const { textColor, gridColor } = getChartThemeTokens(resolvedTheme)
 
   const spec = useMemo(() => {
     if (props.series.length === 0) return null
@@ -136,7 +95,7 @@ export function LatencyTrendChart(props: {
         {
           orient: 'bottom',
           label: {
-            style: { fill: textColor, fontSize: 10 },
+            style: { fill: 'currentColor', fontSize: 10 },
           },
           tick: { visible: false },
         },
@@ -144,16 +103,13 @@ export function LatencyTrendChart(props: {
           orient: 'left',
           label: {
             formatMethod: (val: number | string) => `${val} ms`,
-            style: { fill: textColor, fontSize: 10 },
+            style: { fill: 'currentColor', fontSize: 10 },
           },
-          grid: {
-            visible: true,
-            style: { lineDash: [3, 3], stroke: gridColor },
-          },
+          grid: { visible: true, style: { lineDash: [3, 3] } },
         },
       ],
     }
-  }, [gridColor, props.series, t, textColor])
+  }, [props.series, t])
 
   if (props.series.length === 0) {
     return (
@@ -195,25 +151,16 @@ export function UptimeTrendChart(props: {
 }) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
-  const { textColor, gridColor } = getChartThemeTokens(resolvedTheme)
 
   const spec = useMemo(() => {
     if (props.series.length === 0) return null
 
-    const rawData = props.series.map((point) => ({
+    const data = props.series.map((point) => ({
       date: formatDayLabel(point.date),
-      uptime: toUptimeChartValue(point.uptime_pct),
+      uptime: point.uptime_pct,
       incidents: point.incidents,
       outage: point.outage_minutes,
     }))
-    const data =
-      rawData.length === 1
-        ? [
-            { ...rawData[0], date: `${rawData[0].date}__start` },
-            { ...rawData[0], date: `${rawData[0].date}__end` },
-          ]
-        : rawData
-    const axisMin = getUptimeAxisMin(rawData.map((point) => point.uptime))
 
     return {
       type: 'line' as const,
@@ -230,14 +177,16 @@ export function UptimeTrendChart(props: {
           size: 5,
           stroke: '#ffffff',
           lineWidth: 1.5,
-          fill: (datum: { uptime: number }) => getSuccessRateColor(datum.uptime),
+          fill: (datum: { uptime: number }) => {
+            if (datum.uptime >= 99.9) return '#10b981'
+            if (datum.uptime >= 99.0) return '#f59e0b'
+            return '#ef4444'
+          },
         },
       },
       tooltip: {
         mark: {
-          title: {
-            value: (d: { date: string }) => stripUptimePointSuffix(d.date),
-          },
+          title: { value: (d: { date: string }) => d.date },
           content: [
             {
               key: t('Uptime'),
@@ -258,29 +207,24 @@ export function UptimeTrendChart(props: {
         {
           orient: 'bottom',
           label: {
-            formatMethod: (val: number | string) =>
-              stripUptimePointSuffix(String(val)),
-            style: { fill: textColor, fontSize: 10 },
+            style: { fill: 'currentColor', fontSize: 10 },
             autoLimit: true,
           },
           tick: { visible: false },
         },
         {
           orient: 'left',
-          min: axisMin,
-          max: UPTIME_AXIS_MAX,
+          min: 95,
+          max: 100,
           label: {
             formatMethod: (val: number | string) => `${val}%`,
-            style: { fill: textColor, fontSize: 10 },
+            style: { fill: 'currentColor', fontSize: 10 },
           },
-          grid: {
-            visible: true,
-            style: { lineDash: [3, 3], stroke: gridColor },
-          },
+          grid: { visible: true, style: { lineDash: [3, 3] } },
         },
       ],
     }
-  }, [gridColor, props.series, t, textColor])
+  }, [props.series, t])
 
   if (props.series.length === 0) {
     return (
@@ -322,7 +266,6 @@ export function ThroughputBarChart(props: {
 }) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
-  const { textColor, gridColor } = getChartThemeTokens(resolvedTheme)
   const { customization } = useThemeCustomization()
   const barRadius = useThemeRadiusPx(
     '--radius-sm',
@@ -351,22 +294,19 @@ export function ThroughputBarChart(props: {
       label: {
         visible: true,
         position: 'right',
-        style: { fontSize: 11, fill: textColor },
+        style: { fontSize: 11, fill: 'currentColor' },
         formatMethod: (text: string) => `${text} t/s`,
       },
       axes: [
         {
           orient: 'left',
-          label: { style: { fill: textColor, fontSize: 10 } },
+          label: { style: { fill: 'currentColor', fontSize: 10 } },
           tick: { visible: false },
         },
         {
           orient: 'bottom',
-          label: { style: { fill: textColor, fontSize: 10 } },
-          grid: {
-            visible: true,
-            style: { lineDash: [3, 3], stroke: gridColor },
-          },
+          label: { style: { fill: 'currentColor', fontSize: 10 } },
+          grid: { visible: true, style: { lineDash: [3, 3] } },
         },
       ],
       tooltip: {
@@ -382,7 +322,7 @@ export function ThroughputBarChart(props: {
         },
       },
     }
-  }, [barRadius, filtered, gridColor, t, textColor])
+  }, [barRadius, filtered, t])
 
   if (filtered.length === 0) {
     return null

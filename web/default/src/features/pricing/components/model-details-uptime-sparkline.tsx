@@ -25,11 +25,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import {
-  formatUptimePct,
-  getSuccessRateDotClass,
-  getSuccessRateTextClass,
-} from '@/features/performance-metrics/lib/format'
+import { formatUptimePct } from '@/features/performance-metrics/lib/format'
 import { aggregateUptime, type UptimeDayPoint } from '../lib/mock-stats'
 
 // ---------------------------------------------------------------------------
@@ -54,12 +50,27 @@ type UptimeSparklineProps = {
   className?: string
 }
 
+function colourFor(uptime: number): string {
+  if (uptime >= 99.9) return 'bg-emerald-500'
+  if (uptime >= 99.0) return 'bg-emerald-400'
+  if (uptime >= 95.0) return 'bg-amber-500'
+  if (uptime >= 90.0) return 'bg-amber-600'
+  return 'bg-rose-500'
+}
+
 function heightFor(uptime: number): string {
   if (uptime >= 99.9) return 'h-full'
   if (uptime >= 99.0) return 'h-[88%]'
   if (uptime >= 95.0) return 'h-[72%]'
   if (uptime >= 90.0) return 'h-[55%]'
   return 'h-[40%]'
+}
+
+function overallTextColour(pct: number): string {
+  if (pct >= 99.9) return 'text-emerald-600 dark:text-emerald-400'
+  if (pct >= 99.0) return 'text-emerald-600 dark:text-emerald-400'
+  if (pct >= 95.0) return 'text-amber-600 dark:text-amber-400'
+  return 'text-rose-600 dark:text-rose-400'
 }
 
 export function UptimeSparkline(props: UptimeSparklineProps) {
@@ -105,7 +116,7 @@ export function UptimeSparkline(props: UptimeSparklineProps) {
               <div
                 className={cn(
                   'w-full rounded-sm',
-                  getSuccessRateDotClass(day.uptime_pct),
+                  colourFor(day.uptime_pct),
                   heightFor(day.uptime_pct)
                 )}
                 aria-hidden
@@ -127,7 +138,7 @@ export function UptimeSparkline(props: UptimeSparklineProps) {
         <span
           className={cn(
             'font-mono text-sm font-semibold tabular-nums',
-            getSuccessRateTextClass(overall)
+            overallTextColour(overall)
           )}
         >
           {overall.toFixed(1)}%

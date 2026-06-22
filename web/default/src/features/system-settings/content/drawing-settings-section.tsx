@@ -21,21 +21,17 @@ import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
   FormDescription,
   FormField,
+  FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
-import {
-  SettingsForm,
-  SettingsSwitchContent,
-  SettingsSwitchItem,
-} from '../components/settings-form-layout'
-import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -87,14 +83,14 @@ export function DrawingSettingsSection({
       name: 'DrawingEnabled',
       label: t('Enable drawing features'),
       description: t(
-        'Required to expose MjProxy-style image generation to end users.'
+        'Required to expose Midjourney-style image generation to end users.'
       ),
     },
     {
       name: 'MjNotifyEnabled',
       label: t('Allow upstream callbacks'),
       description: t(
-        'When enabled, MjProxy callbacks are accepted (reveals server IP).'
+        'When enabled, Midjourney callbacks are accepted (reveals server IP).'
       ),
     },
     {
@@ -115,7 +111,7 @@ export function DrawingSettingsSection({
       name: 'MjModeClearEnabled',
       label: t('Clear mode flags in prompts'),
       description: t(
-        'Removes MjProxy flags such as --fast, --relax, and --turbo from user prompts.'
+        'Removes Midjourney flags such as --fast, --relax, and --turbo from user prompts.'
       ),
     },
     {
@@ -128,14 +124,12 @@ export function DrawingSettingsSection({
   ]
 
   return (
-    <SettingsSection title={t('Drawing')}>
+    <SettingsSection
+      title={t('Drawing')}
+      description={t('Fine-tune Midjourney integration and guardrails.')}
+    >
       <Form {...form}>
-        <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
-          <SettingsPageFormActions
-            onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
-            saveLabel='Save drawing settings'
-          />
+        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
           <div className='space-y-4'>
             {switches.map((item) => (
               <FormField
@@ -143,11 +137,11 @@ export function DrawingSettingsSection({
                 control={form.control}
                 name={item.name}
                 render={({ field }) => (
-                  <SettingsSwitchItem>
-                    <SettingsSwitchContent>
-                      <FormLabel>{item.label}</FormLabel>
+                  <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
+                    <div className='space-y-0.5 pe-4'>
+                      <FormLabel className='text-base'>{item.label}</FormLabel>
                       <FormDescription>{item.description}</FormDescription>
-                    </SettingsSwitchContent>
+                    </div>
                     <FormControl>
                       <Switch
                         checked={field.value}
@@ -155,12 +149,18 @@ export function DrawingSettingsSection({
                       />
                     </FormControl>
                     <FormMessage />
-                  </SettingsSwitchItem>
+                  </FormItem>
                 )}
               />
             ))}
           </div>
-        </SettingsForm>
+
+          <Button type='submit' disabled={updateOption.isPending}>
+            {updateOption.isPending
+              ? t('Saving...')
+              : t('Save drawing settings')}
+          </Button>
+        </form>
       </Form>
     </SettingsSection>
   )

@@ -27,22 +27,16 @@ import {
 // Number Formatting
 // ============================================================================
 
-export function formatNumber(
-  value: number | null | undefined,
-  locales?: Intl.LocalesArgument
-): string {
+export function formatNumber(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value as number)) return '-'
-  return Intl.NumberFormat(locales, { maximumFractionDigits: 2 }).format(
+  return Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(
     value as number
   )
 }
 
-export function formatCompactNumber(
-  value: number | null | undefined,
-  locales?: Intl.LocalesArgument
-): string {
+export function formatCompactNumber(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value as number)) return '-'
-  return Intl.NumberFormat(locales, {
+  return Intl.NumberFormat(undefined, {
     notation: 'compact',
     maximumFractionDigits: 1,
   }).format(value as number)

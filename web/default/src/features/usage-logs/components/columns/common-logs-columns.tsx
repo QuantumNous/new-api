@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { CircleAlert, GitBranch, Sparkles, KeyRound } from 'lucide-react'
+import { CircleAlert, Sparkles, KeyRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
@@ -30,18 +30,13 @@ import {
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
-import { LOG_TYPE_ALL_VALUE } from '../../constants'
 import type { UsageLog } from '../../data/schema'
 import {
   formatModelName,
@@ -51,7 +46,6 @@ import {
   hasAnyCacheTokens,
   parseLogOther,
   isViolationFeeLog,
-  renderAuditContent,
 } from '../../lib/format'
 import {
   isDisplayableLogType,
@@ -95,24 +89,11 @@ function getGroupRatioText(other: LogOtherData | null): string | null {
   return null
 }
 
-function splitQuotaDisplay(value: string): { prefix: string; amount: string } {
-  const match = value.match(/^([^0-9+\-.,\s]+)(.+)$/)
-  if (!match) return { prefix: '', amount: value }
-  return { prefix: match[1], amount: match[2] }
-}
-
 function buildDetailSegments(
   log: UsageLog,
   other: LogOtherData | null,
   t: (key: string, opts?: Record<string, unknown>) => string
 ): DetailSegment[] {
-  // Audit (type=3) and login (type=7) logs: render localized content from the
-  // structured op descriptor instead of the raw (English-fallback) content.
-  if (log.type === 3 || log.type === 7) {
-    const text = renderAuditContent(other, t)
-    return text ? [{ text }] : []
-  }
-
   if (log.type === 6) {
     return [{ text: t('Async task refund') }]
   }
@@ -277,15 +258,17 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
   const columns: ColumnDef<UsageLog>[] = [
     {
       accessorKey: 'created_at',
-      header: t('Time'),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Time')} />
+      ),
       cell: ({ row }) => {
         const log = row.original
         const timestamp = row.getValue('created_at') as number
         const config = getLogTypeConfig(log.type)
 
         return (
-          <div className='flex min-w-0 flex-col gap-0.5'>
-            <span className='truncate font-mono text-xs tabular-nums'>
+          <div className='flex flex-col gap-0.5'>
+            <span className='font-mono text-xs tabular-nums'>
               {formatTimestampToDate(timestamp)}
             </span>
             <StatusBadge
@@ -293,18 +276,16 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               variant={config.color as StatusBadgeProps['variant']}
               size='sm'
               copyable={false}
-              className='!text-xs [&_span]:!text-xs'
             />
           </div>
         )
       },
       filterFn: (row, _id, value) => {
-        if (!Array.isArray(value) || value.length === 0) return true
-        if (value.includes(LOG_TYPE_ALL_VALUE)) return true
+        if (!value || value.length === 0) return true
         return value.includes(String(row.original.type))
       },
       enableHiding: false,
-      size: 180,
+      meta: { label: t('Time') },
     },
   ]
 
@@ -312,8 +293,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     columns.push(
       {
         id: 'channel',
-        header: t('Channel'),
-        accessorFn: (row) => row.channel,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Channel')} />
+        ),
         cell: function ChannelCell({ row }) {
           const { sensitiveVisible, setAffinityTarget, setAffinityDialogOpen } =
             useUsageLogsContext()
@@ -323,23 +305,16 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
           const other = parseLogOther(log.other)
           const affinity = other?.admin_info?.channel_affinity
-          const rawUseChannel = other?.admin_info?.use_channel ?? []
-          const useChannel = Array.isArray(rawUseChannel)
-            ? rawUseChannel.map(String).filter(Boolean)
-            : []
-          const hasRetryChain = useChannel.length > 1
+          const useChannel = other?.admin_info?.use_channel
           const channelChain =
-            hasRetryChain ? useChannel.join(' → ') : undefined
+            useChannel && useChannel.length > 0
+              ? useChannel.join(' → ')
+              : undefined
           const channelDisplay = log.channel_name
             ? `${log.channel_name} #${log.channel}`
             : `#${log.channel}`
           const channelIdDisplay = `#${log.channel}`
           const channelName = sensitiveVisible ? log.channel_name : '••••'
-          const multiKeyIndex = other?.admin_info?.multi_key_index
-          const showMultiKeyIndex =
-            other?.admin_info?.is_multi_key === true &&
-            typeof multiKeyIndex === 'number' &&
-            Number.isFinite(multiKeyIndex)
 
           return (
             <TooltipProvider>
@@ -349,57 +324,14 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     <div className='flex max-w-[160px] flex-col gap-0.5' />
                   }
                 >
-                  <div className='relative inline-flex w-fit items-center gap-1'>
+                  <div className='relative inline-flex w-fit'>
                     <StatusBadge
                       label={channelIdDisplay}
                       autoColor={String(log.channel)}
                       copyText={String(log.channel)}
                       size='sm'
-                      showDot={false}
                       className='font-mono'
                     />
-                    {showMultiKeyIndex && (
-                      <StatusBadge
-                        label={String(multiKeyIndex)}
-                        size='sm'
-                        showDot={false}
-                        copyable={false}
-                        variant='neutral'
-                        className='h-5 min-w-5 justify-center rounded-full px-1 font-mono text-xs'
-                        aria-label={`${t('Key')} ${multiKeyIndex}`}
-                      />
-                    )}
-                    {hasRetryChain && (
-                      <Popover>
-                        <PopoverTrigger
-                          render={
-                            <button
-                              type='button'
-                              className='text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex size-5 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none'
-                              aria-label={t('Retry Chain')}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          }
-                        >
-                          <GitBranch
-                            className='size-3.5 text-amber-500'
-                            aria-hidden='true'
-                          />
-                        </PopoverTrigger>
-                        <PopoverContent
-                          side='top'
-                          align='start'
-                          className='w-64 text-xs'
-                        >
-                          <div className='flex flex-col gap-1'>
-                            <p className='font-medium'>{t('Retry Chain')}</p>
-                            <p className='text-muted-foreground font-mono break-all'>
-                              {channelChain}
-                            </p>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    )}
                     {affinity && (
                       <button
                         type='button'
@@ -423,7 +355,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     )}
                   </div>
                   {log.channel_name && (
-                    <span className='text-muted-foreground/70 truncate [font-family:var(--font-body)] !text-xs'>
+                    <span className='text-muted-foreground/70 truncate text-[11px]'>
                       {channelName}
                     </span>
                   )}
@@ -436,11 +368,6 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     {channelChain && (
                       <p className='text-muted-foreground text-xs'>
                         {t('Chain')}: {channelChain}
-                      </p>
-                    )}
-                    {showMultiKeyIndex && (
-                      <p className='text-muted-foreground text-xs'>
-                        {t('Key')}: {multiKeyIndex}
                       </p>
                     )}
                     {affinity && (
@@ -465,11 +392,13 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </TooltipProvider>
           )
         },
+        meta: { label: t('Channel'), mobileHidden: true },
       },
       {
         id: 'user',
-        header: t('User'),
-        accessorFn: (row) => row.username,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('User')} />
+        ),
         cell: function UserCell({ row }) {
           const { sensitiveVisible, setSelectedUserId, setUserInfoDialogOpen } =
             useUsageLogsContext()
@@ -487,7 +416,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 setUserInfoDialogOpen(true)
               }}
             >
-              <Avatar className='ring-border/60 size-6 ring-1 max-sm:hidden'>
+              <Avatar className='ring-border/60 size-6 ring-1'>
                 <AvatarFallback
                   className={cn(
                     'text-[11px] font-semibold',
@@ -502,30 +431,22 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   {sensitiveVisible ? getUserAvatarFallback(log.username) : '•'}
                 </AvatarFallback>
               </Avatar>
-              <TooltipProvider delay={300}>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className='text-muted-foreground max-w-[100px] truncate text-sm hover:underline' />
-                    }
-                  >
-                    {sensitiveVisible ? log.username : '••••'}
-                  </TooltipTrigger>
-                  {sensitiveVisible && log.username.length > 12 && (
-                    <TooltipContent side='top'>{log.username}</TooltipContent>
-                  )}
-                </Tooltip>
-              </TooltipProvider>
+              <span className='text-muted-foreground truncate text-sm hover:underline'>
+                {sensitiveVisible ? log.username : '••••'}
+              </span>
             </button>
           )
         },
+        meta: { label: t('User'), mobileHidden: true },
       }
     )
   }
 
   columns.push({
     accessorKey: 'token_name',
-    header: t('Token'),
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={t('Token')} />
+    ),
     cell: function TokenNameCell({ row }) {
       const { sensitiveVisible } = useUsageLogsContext()
       const log = row.original
@@ -547,40 +468,33 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       if (groupRatioText) metaParts.push(groupRatioText)
 
       return (
-        <div className='flex max-w-[200px] flex-col gap-0.5'>
-          <TooltipProvider delay={300}>
-            <Tooltip>
-              <TooltipTrigger render={<div className='max-w-full' />}>
-                <StatusBadge
-                  label={displayName}
-                  icon={KeyRound}
-                  copyText={sensitiveVisible ? tokenName : undefined}
-                  size='sm'
-                  showDot={false}
-                  className='border-border/60 bg-muted/30 text-foreground h-6 max-w-full gap-1.5 overflow-hidden rounded-md border px-2 py-0.5 [font-family:var(--font-body)]'
-                />
-              </TooltipTrigger>
-              {sensitiveVisible && tokenName.length > 16 && (
-                <TooltipContent side='top' className='max-w-xs break-all'>
-                  {tokenName}
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+        <div className='flex max-w-[150px] flex-col gap-0.5'>
+          <StatusBadge
+            label={displayName}
+            icon={KeyRound}
+            copyText={sensitiveVisible ? tokenName : undefined}
+            size='sm'
+            showDot={false}
+            className='border-border/60 bg-muted/30 text-foreground max-w-full overflow-hidden rounded-md border px-1.5 py-0.5 font-mono'
+          />
           {metaParts.length > 0 && (
-            <span className='text-muted-foreground/60 truncate [font-family:var(--font-body)] !text-xs'>
+            <span className='text-muted-foreground/60 truncate text-[11px]'>
               {metaParts.join(' · ')}
             </span>
           )}
         </div>
       )
     },
-    size: 160,
+    meta: { label: t('Token') },
+    size: 130,
   })
+
   columns.push(
     {
       accessorKey: 'model_name',
-      header: t('Model'),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Model')} />
+      ),
       cell: function ModelCell({ row }) {
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
@@ -588,7 +502,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const modelInfo = formatModelName(log)
 
         return (
-          <div className='flex w-fit flex-col gap-0.5'>
+          <div className='flex max-w-[220px] flex-col gap-0.5'>
             <ModelBadge
               modelName={modelInfo.name}
               actualModel={modelInfo.actualModel}
@@ -596,11 +510,14 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
-      meta: { mobileTitle: true },
+      meta: { label: t('Model'), mobileTitle: true },
     },
+
     {
       accessorKey: 'use_time',
-      header: t('Timing'),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Timing')} />
+      ),
       cell: ({ row }) => {
         const log = row.original
         if (!isTimingLogType(log.type)) return null
@@ -613,62 +530,70 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             ? log.completion_tokens / useTime
             : null
         const timeVariant = getResponseTimeColor(useTime, log.completion_tokens)
-        const frtVariant = frt
-          ? getFirstResponseTimeColor(frt / 1000)
-          : 'neutral'
+        const frtVariant = frt ? getFirstResponseTimeColor(frt / 1000) : null
 
-        const timingBgMap: Record<string, string> = {
+        const pillBg: Record<string, string> = {
           success:
-            'border border-emerald-200/40 bg-emerald-50/35 !text-emerald-600 dark:border-emerald-900/40 dark:bg-emerald-950/15 dark:!text-emerald-400',
+            'border border-emerald-200/40 bg-emerald-50/35 dark:border-emerald-900/40 dark:bg-emerald-950/15',
           warning:
-            'border border-amber-200/45 bg-amber-50/35 !text-amber-600 dark:border-amber-900/40 dark:bg-amber-950/15 dark:!text-amber-400',
+            'border border-amber-200/45 bg-amber-50/35 dark:border-amber-900/40 dark:bg-amber-950/15',
           danger:
-            'border border-rose-200/50 bg-rose-50/35 !text-red-600 dark:border-rose-900/40 dark:bg-rose-950/15 dark:!text-red-400',
-          neutral:
-            'border border-border/60 bg-muted/30 dark:border-border/40 dark:bg-muted/20',
+            'border border-rose-200/50 bg-rose-50/35 dark:border-rose-900/40 dark:bg-rose-950/15',
+        }
+        const pillText: Record<string, string> = {
+          success: 'text-emerald-700/85 dark:text-emerald-400/85',
+          warning: 'text-amber-700/85 dark:text-amber-400/85',
+          danger: 'text-rose-700/85 dark:text-rose-400/85',
+        }
+        const pillDot: Record<string, string> = {
+          success: 'bg-emerald-500/80',
+          warning: 'bg-amber-500/80',
+          danger: 'bg-rose-500/80',
         }
 
         return (
           <div className='flex flex-col gap-1'>
             <div className='flex items-center gap-1.5'>
-              <StatusBadge
-                label={formatUseTime(useTime)}
-                variant={timeVariant as StatusBadgeProps['variant']}
-                size='sm'
-                copyable={false}
-                className={cn('rounded-md font-mono', timingBgMap[timeVariant])}
-              />
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-xs font-medium',
+                  pillBg[timeVariant],
+                  pillText[timeVariant]
+                )}
+              >
+                <span
+                  className={cn(
+                    'size-1.5 shrink-0 rounded-full',
+                    pillDot[timeVariant]
+                  )}
+                  aria-hidden='true'
+                />
+                {formatUseTime(useTime)}
+              </span>
               {log.is_stream &&
                 (frt != null && frt > 0 ? (
-                  <StatusBadge
-                    label={formatUseTime(frt / 1000)}
-                    variant={frtVariant as StatusBadgeProps['variant']}
-                    size='sm'
-                    showDot={false}
-                    copyable={false}
+                  <span
                     className={cn(
-                      'rounded-md font-mono',
-                      timingBgMap[frtVariant]
+                      'inline-flex items-center rounded-md px-1.5 py-0.5 font-mono text-xs font-medium',
+                      pillBg[frtVariant!],
+                      pillText[frtVariant!]
                     )}
-                  />
+                  >
+                    {formatUseTime(frt / 1000)}
+                  </span>
                 ) : (
-                  <StatusBadge
-                    label='N/A'
-                    variant='neutral'
-                    size='sm'
-                    showDot={false}
-                    copyable={false}
-                    className={cn('rounded-md font-mono', timingBgMap.neutral)}
-                  />
+                  <span className='border-border/60 text-muted-foreground/50 inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px]'>
+                    N/A
+                  </span>
                 ))}
             </div>
-            <div className='flex items-center gap-1 [font-family:var(--font-body)] !text-xs leading-none'>
-              <span className='text-muted-foreground/60 [font-family:var(--font-body)] !text-xs leading-none'>
+            <div className='flex items-center gap-1 text-[11px]'>
+              <span className='text-muted-foreground/60'>
                 {log.is_stream ? t('Stream') : t('Non-stream')}
                 {tokensPerSecond != null && (
                   <>
                     {' · '}
-                    <span className='tabular-nums'>
+                    <span className='font-mono tabular-nums'>
                       {Math.round(tokensPerSecond)}
                     </span>
                     {' t/s'}
@@ -704,11 +629,14 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
+      meta: { label: t('Timing'), mobileHidden: true },
     },
 
     {
       accessorKey: 'prompt_tokens',
-      header: 'Tokens',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title='Tokens' />
+      ),
       cell: ({ row }) => {
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
@@ -752,11 +680,14 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </div>
         )
       },
+      meta: { label: 'Tokens', mobileHidden: true },
     },
 
     {
       accessorKey: 'quota',
-      header: t('Cost'),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Cost')} />
+      ),
       cell: ({ row }) => {
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
@@ -771,15 +702,15 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <StatusBadge
-                      label={t('Subscription')}
-                      variant='success'
-                      size='sm'
-                      copyable={false}
-                      className='cursor-help'
-                    />
+                    <span className='inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' />
                   }
-                />
+                >
+                  <span
+                    className='size-1.5 rounded-full bg-emerald-500'
+                    aria-hidden='true'
+                  />
+                  {t('Subscription')}
+                </TooltipTrigger>
                 <TooltipContent>
                   <span>
                     {t('Deducted by subscription')}: {formatLogQuota(quota)}
@@ -791,19 +722,16 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         }
 
         const quotaStr = formatLogQuota(quota)
-        const quotaDisplay = splitQuotaDisplay(quotaStr)
 
         return (
           <div className='flex flex-col gap-0.5'>
-            <span className='border-border/80 bg-muted/60 inline-flex h-6 w-fit items-center rounded-md border px-2 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums'>
-              {quotaDisplay.prefix && (
-                <span className='mr-1'>{quotaDisplay.prefix}</span>
-              )}
-              <span>{quotaDisplay.amount}</span>
+            <span className='border-border/80 bg-muted/60 inline-flex w-fit items-center rounded-md border px-1.5 py-0.5 font-mono text-xs font-semibold tabular-nums'>
+              {quotaStr}
             </span>
           </div>
         )
       },
+      meta: { label: t('Cost') },
     },
 
     {
@@ -861,6 +789,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           </>
         )
       },
+      meta: { label: t('Details') },
       size: 180,
       maxSize: 200,
     }

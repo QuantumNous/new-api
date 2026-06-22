@@ -16,13 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
+import {
+  getCoreRowModel,
+  useReactTable,
+  type SortingState,
+  type VisibilityState,
+} from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
-import { DataTablePage, useDataTable } from '@/components/data-table'
+import { DataTablePage } from '@/components/data-table'
 import { getModels, searchModels, getVendors } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
@@ -40,6 +46,15 @@ export function ModelsTable() {
   const { t } = useTranslation()
   const { selectedVendor } = useModels()
   const isMobile = useMediaQuery('(max-width: 640px)')
+
+  // Table state
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    description: false,
+    bound_channels: false,
+    quota_types: false,
+  })
+  const [rowSelection, setRowSelection] = useState({})
 
   // URL state management
   const {
@@ -161,27 +176,36 @@ export function ModelsTable() {
   const columns = useModelsColumns(vendors)
 
   // React Table instance
-  const { table } = useDataTable({
+  const table = useReactTable({
     data: models,
     columns,
-    totalCount,
-    initialColumnVisibility: {
-      description: false,
-      bound_channels: false,
-      quota_types: false,
+    pageCount: Math.ceil(totalCount / pagination.pageSize),
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+      pagination,
+      globalFilter,
     },
-    columnFilters,
-    pagination,
-    globalFilter,
     enableRowSelection: true,
+    onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
     onColumnFiltersChange,
+    onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange,
     onGlobalFilterChange,
+    getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true,
-    ensurePageInRange,
   })
+
+  // Ensure page is in range when total count changes
+  const pageCount = table.getPageCount()
+  useEffect(() => {
+    ensurePageInRange(pageCount)
+  }, [pageCount, ensurePageInRange])
 
   // Prepare filter options
   const vendorFilterOptions = [

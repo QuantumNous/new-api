@@ -42,18 +42,24 @@ import {
 
 const route = getRouteApi('/_authenticated/models/$section')
 
-const SECTION_META: Record<ModelsSectionId, { titleKey: string }> = {
+const SECTION_META: Record<
+  ModelsSectionId,
+  { titleKey: string; descriptionKey: string }
+> = {
   metadata: {
     titleKey: 'Metadata',
+    descriptionKey: 'Manage model metadata and configuration',
   },
   deployments: {
     titleKey: 'Deployments',
+    descriptionKey: 'Manage model deployments',
   },
 }
 
 function ModelsContent() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { tabCategory, setTabCategory } = useModels()
   const params = route.useParams()
   const activeSection = (params.section ??
@@ -69,6 +75,41 @@ function ModelsContent() {
     }
   }, [activeSection, setTabCategory, tabCategory])
 
+  const {
+    loading: deploymentLoading,
+    loadingPhase,
+    isIoNetEnabled,
+    connectionLoading,
+    connectionOk,
+    connectionError,
+    testConnection,
+    refresh: refreshDeploymentSettings,
+  } = useModelDeploymentSettings()
+
+  // Ensure settings are fresh when switching to deployments section
+  useEffect(() => {
+    if (activeSection === 'deployments') {
+      refreshDeploymentSettings()
+    }
+  }, [activeSection, refreshDeploymentSettings])
+
+  // Prefetch deployments list while connection check is in progress
+  // This allows the data to be ready as soon as the guard passes
+  useEffect(() => {
+    if (
+      activeSection === 'deployments' &&
+      isIoNetEnabled &&
+      loadingPhase === 'connection'
+    ) {
+      const defaultParams = { p: 1, page_size: 10 }
+      queryClient.prefetchQuery({
+        queryKey: deploymentsQueryKeys.list(defaultParams),
+        queryFn: () => listDeployments(defaultParams),
+        staleTime: 30 * 1000, // 30 seconds
+      })
+    }
+  }, [activeSection, isIoNetEnabled, loadingPhase, queryClient])
+
   const handleSectionChange = useCallback(
     (section: string) => {
       void navigate({
@@ -83,8 +124,11 @@ function ModelsContent() {
 
   return (
     <>
-      <SectionPageLayout fixedContent>
+      <SectionPageLayout>
         <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
+        <SectionPageLayout.Description>
+          {t(meta.descriptionKey)}
+        </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           {activeSection === 'metadata' ? (
             <ModelsPrimaryButtons />
@@ -96,9 +140,9 @@ function ModelsContent() {
           )}
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <div className='flex h-full min-h-0 flex-col gap-4'>
+          <div className='space-y-4'>
             <Tabs value={activeSection} onValueChange={handleSectionChange}>
-              <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
+              <TabsList className='h-auto max-w-full flex-wrap justify-start'>
                 {MODELS_SECTION_IDS.map((section) => (
                   <TabsTrigger key={section} value={section}>
                     {t(SECTION_META[section].titleKey)}
@@ -106,13 +150,21 @@ function ModelsContent() {
                 ))}
               </TabsList>
             </Tabs>
-            <div className='min-h-0 flex-1'>
-              {activeSection === 'metadata' ? (
-                <ModelsTable />
-              ) : (
-                <DeploymentsSection />
-              )}
-            </div>
+            {activeSection === 'metadata' ? (
+              <ModelsTable />
+            ) : (
+              <DeploymentAccessGuard
+                loading={deploymentLoading}
+                loadingPhase={loadingPhase}
+                isEnabled={isIoNetEnabled}
+                connectionLoading={connectionLoading}
+                connectionOk={connectionOk}
+                connectionError={connectionError}
+                onRetry={testConnection}
+              >
+                <DeploymentsTable />
+              </DeploymentAccessGuard>
+            )}
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
@@ -123,45 +175,6 @@ function ModelsContent() {
         onOpenChange={setCreateDeploymentOpen}
       />
     </>
-  )
-}
-
-function DeploymentsSection() {
-  const queryClient = useQueryClient()
-  const {
-    loading: deploymentLoading,
-    loadingPhase,
-    isIoNetEnabled,
-    connectionLoading,
-    connectionOk,
-    connectionError,
-    testConnection,
-  } = useModelDeploymentSettings()
-
-  // Prefetch deployments list while connection check is in progress.
-  useEffect(() => {
-    if (isIoNetEnabled && loadingPhase === 'connection') {
-      const defaultParams = { p: 1, page_size: 10 }
-      queryClient.prefetchQuery({
-        queryKey: deploymentsQueryKeys.list(defaultParams),
-        queryFn: () => listDeployments(defaultParams),
-        staleTime: 30 * 1000,
-      })
-    }
-  }, [isIoNetEnabled, loadingPhase, queryClient])
-
-  return (
-    <DeploymentAccessGuard
-      loading={deploymentLoading}
-      loadingPhase={loadingPhase}
-      isEnabled={isIoNetEnabled}
-      connectionLoading={connectionLoading}
-      connectionOk={connectionOk}
-      connectionError={connectionError}
-      onRetry={testConnection}
-    >
-      <DeploymentsTable />
-    </DeploymentAccessGuard>
   )
 }
 

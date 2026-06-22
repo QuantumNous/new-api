@@ -55,13 +55,6 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  SideDrawerSection,
-  sideDrawerContentClassName,
-  sideDrawerFooterClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-} from '@/components/drawer-layout'
 import { createUser, updateUser, getUser, getGroups } from '../api'
 import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
@@ -128,17 +121,6 @@ export function UsersMutateDrawer({
   const currentQuotaRaw = form.watch('quota_dollars') || 0
 
   const onSubmit = async (data: UserFormValues) => {
-    if (!isUpdate) {
-      const passwordLength = data.password?.length || 0
-      if (passwordLength < 8 || passwordLength > 20) {
-        form.setError('password', {
-          type: 'manual',
-          message: t('Password must be between 8 and 20 characters'),
-        })
-        return
-      }
-    }
-
     setIsSubmitting(true)
     try {
       const payload = transformFormDataToPayload(data, currentRow?.id)
@@ -189,10 +171,8 @@ export function UsersMutateDrawer({
           }
         }}
       >
-        <SheetContent
-          className={sideDrawerContentClassName('sm:max-w-[600px]')}
-        >
-          <SheetHeader className={sideDrawerHeaderClassName()}>
+        <SheetContent className='flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'>
+          <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
             <SheetTitle>
               {isUpdate ? t('Update') : t('Create')} {t('User')}
             </SheetTitle>
@@ -206,10 +186,10 @@ export function UsersMutateDrawer({
             <form
               id='user-form'
               onSubmit={form.handleSubmit(onSubmit)}
-              className={sideDrawerFormClassName()}
+              className='flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-6 sm:px-4'
             >
               {/* Basic Information */}
-              <SideDrawerSection>
+              <div className='space-y-4'>
                 <h3 className='text-sm font-medium'>
                   {t('Basic Information')}
                 </h3>
@@ -313,11 +293,11 @@ export function UsersMutateDrawer({
                     </FormItem>
                   )}
                 />
-              </SideDrawerSection>
+              </div>
 
               {/* Group & Quota Settings (Update only) */}
               {isUpdate && (
-                <SideDrawerSection>
+                <div className='space-y-4'>
                   <h3 className='text-sm font-medium'>{t('Group & Quota')}</h3>
 
                   <FormField
@@ -414,12 +394,12 @@ export function UsersMutateDrawer({
                       </FormItem>
                     )}
                   />
-                </SideDrawerSection>
+                </div>
               )}
 
               {/* Binding Information (Read-only) */}
               {isUpdate && (
-                <SideDrawerSection>
+                <div className='space-y-4'>
                   <h3 className='text-sm font-medium'>
                     {t('Binding Information')}
                   </h3>
@@ -429,7 +409,7 @@ export function UsersMutateDrawer({
                     )}
                   </p>
 
-                  <div className='flex flex-col gap-3'>
+                  <div className='space-y-3'>
                     {BINDING_FIELDS.map(({ key, label }) => (
                       <div key={key}>
                         <Label className='text-muted-foreground text-xs'>
@@ -445,11 +425,11 @@ export function UsersMutateDrawer({
                       </div>
                     ))}
                   </div>
-                </SideDrawerSection>
+                </div>
               )}
             </form>
           </Form>
-          <SheetFooter className={sideDrawerFooterClassName()}>
+          <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
             <SheetClose render={<Button variant='outline' />}>
               {t('Close')}
             </SheetClose>

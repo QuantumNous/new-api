@@ -51,22 +51,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import {
-  SideDrawerSection,
-  sideDrawerContentClassName,
-  sideDrawerFooterClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-  sideDrawerSwitchItemClassName,
-} from '@/components/drawer-layout'
-import {
-  createPlan,
-  updatePlan,
-  getGroups,
-  createWaffoPancakeSubscriptionProduct,
-  listWaffoPancakeSubscriptionProductOptions,
-} from '../api'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { createPlan, updatePlan, getGroups } from '../api'
 import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
 import {
   getPlanFormSchema,
@@ -92,15 +77,8 @@ export function SubscriptionsMutateDrawer({
   const { t } = useTranslation()
   const isEdit = !!currentRow?.plan?.id
   const { triggerRefresh } = useSubscriptions()
-  const { meta: currencyMeta } = getCurrencyDisplay()
-  const tokensOnly = currencyMeta.kind === 'tokens'
-  const currencyLabel = getCurrencyLabel()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [groupOptions, setGroupOptions] = useState<string[]>([])
-  const [creatingPancakeProduct, setCreatingPancakeProduct] = useState(false)
-  const [pancakeProducts, setPancakeProducts] = useState<
-    { id: string; name: string; status: string }[]
-  >([])
 
   const schema = getPlanFormSchema(t)
   const form = useForm<PlanFormValues>({
@@ -120,35 +98,11 @@ export function SubscriptionsMutateDrawer({
           if (res.success) setGroupOptions(res.data || [])
         })
         .catch(() => {})
-      // Best-effort — empty list still lets the operator use "+ Create".
-      listWaffoPancakeSubscriptionProductOptions()
-        .then((res) => {
-          if (
-            res.message === 'success' &&
-            typeof res.data === 'object' &&
-            res.data &&
-            Array.isArray((res.data as { products?: unknown }).products)
-          ) {
-            setPancakeProducts(
-              (res.data as { products: typeof pancakeProducts }).products
-            )
-          } else {
-            setPancakeProducts([])
-          }
-        })
-        .catch(() => setPancakeProducts([]))
     }
   }, [open, currentRow, form])
 
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
-  // Gate "+ Create on Pancake" on the same checks the mint handler runs.
-  const watchedTitle = form.watch('title')
-  const watchedPrice = form.watch('price_amount')
-  const pancakeCreateReady =
-    typeof watchedTitle === 'string' &&
-    watchedTitle.trim().length > 0 &&
-    Number(watchedPrice ?? 0) > 0
 
   const onSubmit = async (values: PlanFormValues) => {
     setIsSubmitting(true)
@@ -176,72 +130,6 @@ export function SubscriptionsMutateDrawer({
     }
   }
 
-  // Mints a Pancake OnetimeProduct (not SubscriptionProduct — see
-  // controller) using persisted creds + the form's title/price, then
-  // pins the returned PROD_ ID into the form field.
-  const handleCreatePancakeProduct = async () => {
-    const title = form.getValues('title').trim()
-    const priceAmount = Number(form.getValues('price_amount') || 0)
-    if (!title) {
-      toast.error(t('Plan title is required'))
-      return
-    }
-    if (priceAmount <= 0) {
-      toast.error(t('Plan price must be greater than zero'))
-      return
-    }
-    setCreatingPancakeProduct(true)
-    try {
-      const res = await createWaffoPancakeSubscriptionProduct({
-        name: title,
-        amount: priceAmount.toFixed(2),
-      })
-      if (
-        res.message === 'success' &&
-        typeof res.data === 'object' &&
-        res.data
-      ) {
-        const created = res.data as { product_id: string; product_name: string }
-        form.setValue('waffo_pancake_product_id', created.product_id, {
-          shouldDirty: true,
-        })
-        // Refetch from GraphQL so the dropdown reflects authoritative state.
-        try {
-          const refresh = await listWaffoPancakeSubscriptionProductOptions()
-          if (
-            refresh.message === 'success' &&
-            typeof refresh.data === 'object' &&
-            refresh.data &&
-            Array.isArray((refresh.data as { products?: unknown }).products)
-          ) {
-            setPancakeProducts(
-              (refresh.data as { products: typeof pancakeProducts }).products
-            )
-          }
-        } catch {
-          // Best-effort — form value already points at the new product;
-          // raw-ID fallback covers the missing label.
-        }
-        toast.success(
-          `${t('Waffo Pancake product created')}: ${created.product_id}`
-        )
-      } else {
-        const reason = typeof res.data === 'string' ? res.data : undefined
-        toast.error(
-          reason
-            ? `${t('Waffo Pancake product creation failed')}: ${reason}`
-            : t('Waffo Pancake product creation failed')
-        )
-      }
-    } catch (err) {
-      toast.error(
-        `${t('Waffo Pancake product creation failed')}: ${err instanceof Error ? err.message : String(err)}`
-      )
-    } finally {
-      setCreatingPancakeProduct(false)
-    }
-  }
-
   const durationUnitOpts = getDurationUnitOptions(t)
   const resetPeriodOpts = getResetPeriodOptions(t)
 
@@ -255,8 +143,8 @@ export function SubscriptionsMutateDrawer({
         }
       }}
     >
-      <SheetContent className={sideDrawerContentClassName('sm:max-w-[600px]')}>
-        <SheetHeader className={sideDrawerHeaderClassName()}>
+      <SheetContent className='flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'>
+        <SheetHeader className='border-b px-4 py-3 text-start sm:px-6 sm:py-4'>
           <SheetTitle>
             {isEdit ? t('Update plan info') : t('Create new subscription plan')}
           </SheetTitle>
@@ -272,10 +160,10 @@ export function SubscriptionsMutateDrawer({
           <form
             id='subscription-form'
             onSubmit={form.handleSubmit(onSubmit)}
-            className={sideDrawerFormClassName()}
+            className='flex-1 space-y-4 overflow-y-auto px-3 py-3 pb-4 sm:space-y-6 sm:px-4'
           >
             {/* Basic Info */}
-            <SideDrawerSection>
+            <div className='space-y-4'>
               <h3 className='flex items-center gap-2 text-sm font-medium'>
                 <Settings2 className='h-4 w-4' />
                 {t('Basic Info')}
@@ -318,7 +206,7 @@ export function SubscriptionsMutateDrawer({
                   name='price_amount'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Plan Price')}</FormLabel>
+                      <FormLabel>{t('Actual Amount')}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -330,11 +218,6 @@ export function SubscriptionsMutateDrawer({
                           }
                         />
                       </FormControl>
-                      <FormDescription>
-                        {t(
-                          'Amount the user pays to purchase this plan; the actual currency depends on the payment gateway.'
-                        )}
-                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -345,31 +228,19 @@ export function SubscriptionsMutateDrawer({
                   name='total_amount'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>
-                        {t('Quota ({{currency}})', { currency: currencyLabel })}
-                      </FormLabel>
+                      <FormLabel>{t('Total Quota')}</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
                           type='number'
                           min={0}
-                          step={tokensOnly ? 1 : 0.01}
-                          placeholder={
-                            tokensOnly
-                              ? t('Enter quota in tokens')
-                              : t('Enter quota in {{currency}}', {
-                                  currency: currencyLabel,
-                                })
-                          }
                           onChange={(e) =>
                             field.onChange(parseFloat(e.target.value) || 0)
                           }
                         />
                       </FormControl>
                       <FormDescription>
-                        {t(
-                          'Total quota included in the plan, usable per billing period. 0 means unlimited.'
-                        )}
+                        {t('0 means unlimited')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -419,53 +290,6 @@ export function SubscriptionsMutateDrawer({
 
                 <FormField
                   control={form.control}
-                  name='downgrade_group'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Downgrade Group')}</FormLabel>
-                      <Select
-                        items={[
-                          {
-                            value: '__none__',
-                            label: t('Downgrade to pre-purchase group'),
-                          },
-                          ...groupOptions.map((g) => ({ value: g, label: g })),
-                        ]}
-                        onValueChange={(v) =>
-                          field.onChange(v === '__none__' ? '' : v)
-                        }
-                        value={field.value || ''}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue
-                              placeholder={t('Downgrade to pre-purchase group')}
-                            />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent alignItemWithTrigger={false}>
-                          <SelectGroup>
-                            <SelectItem value='__none__'>
-                              {t('Downgrade to pre-purchase group')}
-                            </SelectItem>
-                            {groupOptions.map((g) => (
-                              <SelectItem key={g} value={g}>
-                                {g}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        {t('Downgrade to this group after the subscription expires')}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
                   name='max_purchase_per_user'
                   render={({ field }) => (
                     <FormItem>
@@ -489,85 +313,49 @@ export function SubscriptionsMutateDrawer({
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name='sort_order'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Sort Order')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type='number'
-                        onChange={(e) =>
-                          field.onChange(parseInt(e.target.value, 10) || 0)
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='sort_order'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Sort Order')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          onChange={(e) =>
+                            field.onChange(parseInt(e.target.value, 10) || 0)
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <div className='flex flex-col gap-3'>
                 <FormField
                   control={form.control}
                   name='enabled'
                   render={({ field }) => (
-                    <FormItem className={sideDrawerSwitchItemClassName()}>
+                    <FormItem className='flex flex-row items-center gap-2 pt-8'>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
                       <FormLabel className='!mt-0'>
                         {t('Enabled Status')}
                       </FormLabel>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name='allow_balance_pay'
-                  render={({ field }) => (
-                    <FormItem className={sideDrawerSwitchItemClassName()}>
-                      <FormLabel className='!mt-0'>
-                        {t('Allow balance redemption')}
-                      </FormLabel>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name='allow_wallet_overflow'
-                  render={({ field }) => (
-                    <FormItem className={sideDrawerSwitchItemClassName()}>
-                      <FormLabel className='!mt-0'>
-                        {t('Allow wallet balance after quota used up')}
-                      </FormLabel>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
                     </FormItem>
                   )}
                 />
               </div>
-            </SideDrawerSection>
+            </div>
 
             {/* Duration Settings */}
-            <SideDrawerSection>
+            <div className='space-y-4'>
               <h3 className='flex items-center gap-2 text-sm font-medium'>
                 <CalendarClock className='h-4 w-4' />
                 {t('Duration Settings')}
@@ -654,10 +442,10 @@ export function SubscriptionsMutateDrawer({
                   />
                 )}
               </div>
-            </SideDrawerSection>
+            </div>
 
             {/* Quota Reset */}
-            <SideDrawerSection>
+            <div className='space-y-4'>
               <h3 className='flex items-center gap-2 text-sm font-medium'>
                 <RefreshCw className='h-4 w-4' />
                 {t('Quota Reset')}
@@ -722,10 +510,10 @@ export function SubscriptionsMutateDrawer({
                   )}
                 />
               </div>
-            </SideDrawerSection>
+            </div>
 
             {/* Payment Config */}
-            <SideDrawerSection>
+            <div className='space-y-4'>
               <h3 className='flex items-center gap-2 text-sm font-medium'>
                 <CreditCard className='h-4 w-4' />
                 {t('Third-party Payment Config')}
@@ -758,71 +546,10 @@ export function SubscriptionsMutateDrawer({
                   </FormItem>
                 )}
               />
-
-              <FormField
-                control={form.control}
-                name='waffo_pancake_product_id'
-                render={({ field }) => {
-                  // Raw-ID fallback for IDs not yet in the catalog.
-                  const items = pancakeProducts.map((p) => ({
-                    value: p.id,
-                    label: `${p.name} (${p.id})`,
-                  }))
-                  if (
-                    field.value &&
-                    !pancakeProducts.some((p) => p.id === field.value)
-                  ) {
-                    items.push({ value: field.value, label: field.value })
-                  }
-                  return (
-                    <FormItem>
-                      <FormLabel>Waffo Pancake Product ID</FormLabel>
-                      <div className='flex gap-2'>
-                        <Select
-                          items={items}
-                          value={field.value || ''}
-                          onValueChange={(v) => field.onChange(v)}
-                          disabled={items.length === 0}
-                        >
-                          <SelectTrigger className='w-full flex-1'>
-                            <SelectValue placeholder={t('Select a product')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {items.map((item) => (
-                              <SelectItem key={item.value} value={item.value}>
-                                {item.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          onClick={handleCreatePancakeProduct}
-                          disabled={
-                            creatingPancakeProduct || !pancakeCreateReady
-                          }
-                          className='shrink-0'
-                        >
-                          {creatingPancakeProduct
-                            ? t('Creating...')
-                            : `+ ${t('Create')}`}
-                        </Button>
-                      </div>
-                      <FormDescription>
-                        {t(
-                          'Creates a Pancake product in the saved store using this plan’s title and price. Requires Waffo Pancake to be fully configured in Payment settings first.'
-                        )}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )
-                }}
-              />
-            </SideDrawerSection>
+            </div>
           </form>
         </Form>
-        <SheetFooter className={sideDrawerFooterClassName()}>
+        <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
           <SheetClose render={<Button variant='outline' />}>
             {t('Close')}
           </SheetClose>

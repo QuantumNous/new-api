@@ -17,13 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 /* eslint-disable react-refresh/only-export-components */
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useMemo,
-} from 'react'
+import React, { createContext, useContext, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useChannelUpstreamUpdates } from '../hooks/use-channel-upstream-updates'
 import { channelsQueryKeys } from '../lib'
@@ -59,8 +53,6 @@ type ChannelsContextType = {
   setEnableTagMode: (enabled: boolean) => void
   idSort: boolean
   setIdSort: (enabled: boolean) => void
-  sensitiveVisible: boolean
-  setSensitiveVisible: (visible: boolean) => void
   upstream: UpstreamUpdateState
 }
 
@@ -86,7 +78,6 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
   const [idSort, setIdSort] = useState(() => {
     return localStorage.getItem('channels-id-sort') === 'true'
   })
-  const [sensitiveVisible, setSensitiveVisible] = useState(true)
 
   const queryClient = useQueryClient()
   const refreshChannels = useCallback(async () => {
@@ -94,38 +85,22 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
   }, [queryClient])
   const upstream = useChannelUpstreamUpdates(refreshChannels)
 
-  // useState setters are stable, so the context value only needs to change when
-  // an actual state value changes. Memoizing avoids handing every consumer
-  // (including all channel cards/cells) a brand-new object on each render.
-  const value = useMemo<ChannelsContextType>(
-    () => ({
-      open,
-      setOpen,
-      currentRow,
-      setCurrentRow,
-      currentTag,
-      setCurrentTag,
-      enableTagMode,
-      setEnableTagMode,
-      idSort,
-      setIdSort,
-      sensitiveVisible,
-      setSensitiveVisible,
-      upstream,
-    }),
-    [
-      open,
-      currentRow,
-      currentTag,
-      enableTagMode,
-      idSort,
-      sensitiveVisible,
-      upstream,
-    ]
-  )
-
   return (
-    <ChannelsContext.Provider value={value}>
+    <ChannelsContext.Provider
+      value={{
+        open,
+        setOpen,
+        currentRow,
+        setCurrentRow,
+        currentTag,
+        setCurrentTag,
+        enableTagMode,
+        setEnableTagMode,
+        idSort,
+        setIdSort,
+        upstream,
+      }}
+    >
       {children}
     </ChannelsContext.Provider>
   )

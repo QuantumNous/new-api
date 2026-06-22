@@ -16,16 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useRef, useState, useCallback, useMemo } from 'react'
+import { useRef, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { api, type ApiRequestConfig } from '@/lib/api'
+import { api } from '@/lib/api'
 import { normalizeModelList } from '../lib/upstream-update-utils'
-
-const upstreamUpdateRequestConfig = {
-  skipBusinessError: true,
-  skipErrorHandler: true,
-} satisfies ApiRequestConfig
 
 function getManualIgnoredModelCount(settings: unknown): number {
   let parsed: Record<string, unknown> | null = null
@@ -122,7 +117,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
             ignore_models: ignoreModels,
             remove_models: normalizeModelList(selectedRemove),
           },
-          upstreamUpdateRequestConfig
+          { skipErrorHandler: true } as Record<string, unknown>
         )
         const { success, message, data } = res.data || {}
         if (!success) {
@@ -167,7 +162,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       const res = await api.post(
         '/api/channel/upstream_updates/apply_all',
         {},
-        upstreamUpdateRequestConfig
+        { skipErrorHandler: true } as Record<string, unknown>
       )
       const { success, message, data } = res.data || {}
       if (!success) {
@@ -211,7 +206,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
         const res = await api.post(
           '/api/channel/upstream_updates/detect',
           { id: ch.id },
-          upstreamUpdateRequestConfig
+          { skipErrorHandler: true } as Record<string, unknown>
         )
         const { success, message, data } = res.data || {}
         if (!success) {
@@ -249,7 +244,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       const res = await api.post(
         '/api/channel/upstream_updates/detect_all',
         {},
-        upstreamUpdateRequestConfig
+        { skipErrorHandler: true } as Record<string, unknown>
       )
       const { success, message, data } = res.data || {}
       if (!success) {
@@ -285,41 +280,20 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
     }
   }, [refresh, t])
 
-  // Memoized so consumers (and the channels context value built from this) get
-  // a stable reference unless an actual field changes. Callbacks above are all
-  // useCallback-stable, so this only changes when relevant state changes.
-  return useMemo(
-    () => ({
-      showModal,
-      channel,
-      addModels,
-      removeModels,
-      preferredTab,
-      applyLoading,
-      detectAllLoading,
-      applyAllLoading,
-      openModal,
-      closeModal,
-      applyUpdates,
-      applyAllUpdates,
-      detectChannelUpdates,
-      detectAllUpdates,
-    }),
-    [
-      showModal,
-      channel,
-      addModels,
-      removeModels,
-      preferredTab,
-      applyLoading,
-      detectAllLoading,
-      applyAllLoading,
-      openModal,
-      closeModal,
-      applyUpdates,
-      applyAllUpdates,
-      detectChannelUpdates,
-      detectAllUpdates,
-    ]
-  )
+  return {
+    showModal,
+    channel,
+    addModels,
+    removeModels,
+    preferredTab,
+    applyLoading,
+    detectAllLoading,
+    applyAllLoading,
+    openModal,
+    closeModal,
+    applyUpdates,
+    applyAllUpdates,
+    detectChannelUpdates,
+    detectAllUpdates,
+  }
 }

@@ -43,6 +43,8 @@ export interface SystemConfig {
   footerHtml?: string
   demoSiteEnabled?: boolean
   displayTokenStatEnabled?: boolean
+  serverAddress?: string
+  docsLink?: string
   currency: CurrencyConfig
 }
 

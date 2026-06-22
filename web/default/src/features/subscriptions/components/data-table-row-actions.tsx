@@ -35,48 +35,44 @@ interface DataTableRowActionsProps {
 
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { t } = useTranslation()
-  const { setOpen, setCurrentRow, complianceConfirmed } = useSubscriptions()
+  const { setOpen, setCurrentRow } = useSubscriptions()
 
   return (
-    <div className='-ml-2'>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={<Button variant='ghost' className='h-8 w-8 p-0' />}
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button variant='ghost' className='h-8 w-8 p-0' />}
+      >
+        <MoreHorizontal className='h-4 w-4' />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        <DropdownMenuItem
+          onClick={() => {
+            setCurrentRow(row.original)
+            setOpen('update')
+          }}
         >
-          <MoreHorizontal className='h-4 w-4' />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='end'>
-          <DropdownMenuItem
-            disabled={!complianceConfirmed}
-            onClick={() => {
-              setCurrentRow(row.original)
-              setOpen('update')
-            }}
-          >
-            <Pencil className='mr-2 h-4 w-4' />
-            {t('Edit')}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={!complianceConfirmed}
-            onClick={() => {
-              setCurrentRow(row.original)
-              setOpen('toggle-status')
-            }}
-          >
-            {row.original.plan.enabled ? (
-              <>
-                <PowerOff className='mr-2 h-4 w-4' />
-                {t('Disable')}
-              </>
-            ) : (
-              <>
-                <Power className='mr-2 h-4 w-4' />
-                {t('Enable')}
-              </>
-            )}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+          <Pencil className='mr-2 h-4 w-4' />
+          {t('Edit')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            setCurrentRow(row.original)
+            setOpen('toggle-status')
+          }}
+        >
+          {row.original.plan.enabled ? (
+            <>
+              <PowerOff className='mr-2 h-4 w-4' />
+              {t('Disable')}
+            </>
+          ) : (
+            <>
+              <Power className='mr-2 h-4 w-4' />
+              {t('Enable')}
+            </>
+          )}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

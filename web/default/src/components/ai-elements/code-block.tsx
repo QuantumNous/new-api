@@ -52,7 +52,7 @@ const CodeBlockContext = createContext<CodeBlockContextType>({
 
 const lineNumberTransformer: ShikiTransformer = {
   name: 'line-numbers',
-  line(node, line) {
+  line(node, line: number) {
     node.children.unshift({
       type: 'element',
       tagName: 'span',
