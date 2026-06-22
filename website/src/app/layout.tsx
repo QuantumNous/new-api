@@ -18,7 +18,8 @@ export const metadata: Metadata = {
 };
 
 export function resolveHtmlLang(locale: string | null | undefined): Locale {
-  return isLocale(locale) ? locale : DEFAULT_LOCALE;
+  const normalizedLocale = locale ?? undefined;
+  return isLocale(normalizedLocale) ? normalizedLocale : DEFAULT_LOCALE;
 }
 
 export default async function RootLayout(
