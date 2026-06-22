@@ -287,12 +287,12 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 	for _, info := range response.BalanceInfos {
 		switch info.Currency {
 		case "USD":
-			if balance, err := strconv.ParseFloat(info.TotalBalance, 64); err == nil {
+			if balance, err := strconv.ParseFloat(info.TotalBalance, 64); err == nil && balance > 0 {
 				channel.UpdateBalance(balance)
 				return balance, nil
 			}
 		case "CNY":
-			if cny, err := strconv.ParseFloat(info.TotalBalance, 64); err == nil {
+			if cny, err := strconv.ParseFloat(info.TotalBalance, 64); err == nil && cny > 0 {
 				rate := operation_setting.USDExchangeRate
 				if rate > 0 {
 					cny = cny / rate
