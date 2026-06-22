@@ -2,6 +2,11 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-06-22
+
+- 新增 DR-49 Admin Skills 管理列表 UI：`/skills/admin` Super Admin 路由、侧边栏入口、DR-45 列表 API 封装、桌面表格列（状态/套餐/儿童状态/featured/active version/更新人/操作）、status/plan/kids 筛选、移动端只读卡片，以及英文/中文文案（`web/default/src/features/admin-skills/`, `web/default/src/routes/_authenticated/skills/admin/`）
+- 新增 DR-49 Admin Skill list UI 任务 PRD，明确基于 DR-45 管理列表 API 的桌面表格、移动只读与筛选范围（`docs/tasks/dr49-admin-skill-list-ui-prd.md`）
+
 ## 2026-06-21
 
 - DR-68 fourth-pass 深度複查修正：(1) Rule 8：將 `prepareSkillRelayForDistribution` + `replaceReusableRequestBody` 從上游 `middleware/distributor.go` 提取至新增 `middleware/skill_distributor.go`，避免上游 cherry-pick 衝突；(2) TOCTOU 測試補正：舊 `TestPrepareSkillRelay_TOCTOU_SkillVersionIDPinned` 因命中同一 DB row 而誤判通過，替換為 `TestTextHelper_SkillRelay_TOCTOU_PinnedVersionIDPreserved`（直接預種 pinnedID 進 gin context 並呼叫 TextHelper，驗證 Resolve 不覆寫 pinned SkillVersionID）；(3) `rewriteForSingleTurn` 深複製 `StreamOptions` 防止指針別名，並新增 `TODO(DR-67)` 標注 MaxTokens 意圖丟棄；(4) direct path `LoadAndApply` 後加 `skillrelay.Set(c, skillCtx)` 顯式重存；(5) kids-mode 虛擬別名 TODO 注釋；(6) `replaceReusableRequestBody` 雙重守衛說明注釋；更新 `docs/test-results/dr68-unit-regression.txt`（154 PASS / 0 FAIL，附各函數覆蓋率）；各測試文件頂部新增 Coverage 注釋

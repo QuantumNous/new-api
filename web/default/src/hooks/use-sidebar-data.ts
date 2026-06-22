@@ -35,6 +35,7 @@ import {
   HelpCircle,
   Store,
   Sparkles,
+  LibraryBig,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
@@ -141,6 +142,11 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('Admin Skills'),
+            url: '/skills/admin',
+            icon: LibraryBig,
           },
           {
             title: t('Redemption Codes'),
