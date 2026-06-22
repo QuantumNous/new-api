@@ -74,6 +74,19 @@ func SelectCheapestEnabledChannel(c *gin.Context, modelName string) (*model.Chan
 	return nil, ErrNoCheapestChannel
 }
 
+// SelectCheapestEnabledChannelExcluding is like SelectCheapestEnabledChannel but takes an
+// explicit exclusion list instead of deriving it from a *gin.Context. For callers running in
+// a background goroutine after the original request has already completed (e.g. the
+// gpt-image-2 async race hedge), where touching the original *gin.Context is unsafe (Gin
+// recycles it once the response has been written).
+func SelectCheapestEnabledChannelExcluding(modelName string, excludeChannelIDs []int) (*model.Channel, error) {
+	pickedID := selectCheapestChannelID(modelName, excludeChannelIDs)
+	if pickedID == 0 {
+		return nil, ErrNoCheapestChannel
+	}
+	return model.GetChannelById(pickedID, true)
+}
+
 // ErrNoCheapestChannel signals "no candidate fits" — distinct sentinel so the
 // caller can map it to "no available channel" without parsing the error string.
 var ErrNoCheapestChannel = errors.New("no enabled channel for cheapest routing")

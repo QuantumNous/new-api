@@ -85,6 +85,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			requestBody = bytes.NewBuffer(jsonData)
 			// Client img2img may POST multipart; upstream OpenAI-compatible hubs expect JSON.
 			c.Request.Header.Set("Content-Type", "application/json")
+			// Stashed so the gpt-image-2 race fallback can resubmit the identical
+			// converted body to a second channel without re-running ConvertImageRequest.
+			c.Set("image_request_body_json", jsonData)
 		}
 	}
 

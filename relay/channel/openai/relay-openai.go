@@ -13,6 +13,8 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -564,8 +566,15 @@ func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.R
 // imagePollDeadlineContextKey stores server-side poll budget (seconds) for async image tasks.
 const imagePollDeadlineContextKey = "image_poll_deadline_sec"
 
+// imageRaceTriggerContextKey stores the gpt-image-2 race-fallback trigger threshold (seconds).
+const imageRaceTriggerContextKey = "image_race_trigger_sec"
+
 // imagePollTaskIDContextKey stores upstream task id for error logs when sync poll times out.
 const imagePollTaskIDContextKey = "image_poll_task_id"
+
+// imageRequestBodyContextKey stores the already-converted JSON request body (set by
+// relay/image_handler.go) so the race fallback can resubmit it verbatim to a second channel.
+const imageRequestBodyContextKey = "image_request_body_json"
 
 const (
 	imagePollMaxDeadlineSec   = 900 // align with nginx proxy_read_timeout for /v1/
@@ -574,9 +583,11 @@ const (
 	imagePollTierHighDeadline = 900 // 4k / high / hd — upstream can exceed 600s
 )
 
-// SetImagePollDeadline stores how long the relay may poll upstream before returning timeout.
+// SetImagePollDeadline stores how long the relay may poll upstream before returning timeout,
+// plus the (shorter) gpt-image-2 race-fallback trigger threshold for the same request.
 func SetImagePollDeadline(c *gin.Context, req dto.ImageRequest) {
 	c.Set(imagePollDeadlineContextKey, imagePollDeadlineSeconds(req))
+	c.Set(imageRaceTriggerContextKey, imageRaceTriggerSeconds(req))
 }
 
 // imagePollTierFromSize infers poll tier from explicit pixel size (e.g. 1792x1024).
@@ -606,7 +617,11 @@ func imagePollTierFromSize(size string) int {
 	}
 }
 
-func imagePollDeadlineSeconds(req dto.ImageRequest) int {
+// imagePollTier infers the poll tier (0=default/1k, 1=2k-class, 2=4k/hd-class)
+// from explicit pixel size, resolution, and quality hints on the request.
+// Shared by imagePollDeadlineSeconds (give-up timeout) and imageRaceTriggerSeconds
+// (gpt-image-2 race fallback timeout) so both honor the same tier classification.
+func imagePollTier(req dto.ImageRequest) int {
 	tier := imagePollTierFromSize(req.Size)
 
 	resolution := strings.ToLower(strings.TrimSpace(req.Resolution))
@@ -644,9 +659,12 @@ func imagePollDeadlineSeconds(req dto.ImageRequest) int {
 			tier = 1
 		}
 	}
+	return tier
+}
 
+func imagePollDeadlineSeconds(req dto.ImageRequest) int {
 	var sec int
-	switch tier {
+	switch imagePollTier(req) {
 	case 2:
 		sec = imagePollTierHighDeadline
 	case 1:
@@ -660,6 +678,20 @@ func imagePollDeadlineSeconds(req dto.ImageRequest) int {
 	return sec
 }
 
+// imageRaceTriggerSeconds returns how long pollAsyncImageTask waits on the primary
+// channel before also submitting to a second gpt-image-2 channel (race fallback).
+// Always smaller than imagePollDeadlineSeconds' give-up timeout for the same tier.
+func imageRaceTriggerSeconds(req dto.ImageRequest) int {
+	switch imagePollTier(req) {
+	case 2:
+		return common.GptImage2RaceTimeout4K
+	case 1:
+		return common.GptImage2RaceTimeout2K
+	default:
+		return common.GptImage2RaceTimeout1K
+	}
+}
+
 func imagePollDeadlineFromContext(c *gin.Context) time.Duration {
 	if v, ok := c.Get(imagePollDeadlineContextKey); ok {
 		if sec, ok := v.(int); ok && sec > 0 {
@@ -669,96 +701,170 @@ func imagePollDeadlineFromContext(c *gin.Context) time.Duration {
 	return 180 * time.Second
 }
 
+func imageRaceTriggerFromContext(c *gin.Context) time.Duration {
+	if v, ok := c.Get(imageRaceTriggerContextKey); ok {
+		if sec, ok := v.(int); ok && sec > 0 {
+			return time.Duration(sec) * time.Second
+		}
+	}
+	return 45 * time.Second
+}
+
+// startImageRaceHedge selects a second gpt-image-2 channel (excluding the primary,
+// already recorded in use_channel by the retry loop) and resubmits the identical
+// converted request body to it. Returns ok=false on any reason racing can't proceed
+// (feature off, not gpt-image-2, no stashed body — e.g. multipart img2img — or no
+// other channel available) so callers fall back to single-channel polling unchanged.
+func startImageRaceHedge(c *gin.Context, info *relaycommon.RelayInfo) (target service.ImageTaskTarget, channel *model.Channel, ok bool) {
+	if !common.GptImage2RaceFallbackEnabled {
+		return service.ImageTaskTarget{}, nil, false
+	}
+	if info == nil || !common.UsesAsyncImageTaskUpstream(info.OriginModelName) {
+		return service.ImageTaskTarget{}, nil, false
+	}
+	rawBody, exists := c.Get(imageRequestBodyContextKey)
+	requestBody, _ := rawBody.([]byte)
+	if !exists || len(requestBody) == 0 {
+		return service.ImageTaskTarget{}, nil, false
+	}
+	channel, err := service.SelectCheapestEnabledChannel(c, info.OriginModelName)
+	if err != nil || channel == nil {
+		return service.ImageTaskTarget{}, nil, false
+	}
+	asyncPath := isClientAsyncImageGenerationsPath(c)
+	taskID, err := service.SubmitImageGenerationToChannel(c.Request.Context(), channel, requestBody, asyncPath)
+	if err != nil {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("image race hedge submit to channel #%d failed: %v", channel.Id, err))
+		return service.ImageTaskTarget{}, nil, false
+	}
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("image race hedge: primary slow, submitted to channel #%d task_id=%s", channel.Id, taskID))
+	key, _, apiErr := channel.GetNextEnabledKey()
+	if apiErr != nil {
+		return service.ImageTaskTarget{}, nil, false
+	}
+	return service.ImageTaskTarget{
+		ChannelID: channel.Id,
+		BaseURL:   channel.GetBaseURL(),
+		APIKey:    key,
+		TaskID:    taskID,
+	}, channel, true
+}
+
+// scheduleAsyncImageRaceHedge waits for the race-fallback trigger threshold in the
+// background — the client already has its own task_id and is polling on its own — then,
+// if the primary channel hasn't finished, submits to a second channel and records it on
+// the Task row so RelayImageTask's poll can race both going forward.
+//
+// Runs fully detached from the original request: must not touch the original *gin.Context
+// (Gin recycles it once the response has been written) or derive an HTTP context from it.
+func scheduleAsyncImageRaceHedge(publicTaskID, modelName string, requestBody []byte, triggerDelay time.Duration) {
+	if !common.GptImage2RaceFallbackEnabled || len(requestBody) == 0 {
+		return
+	}
+	if !common.UsesAsyncImageTaskUpstream(modelName) {
+		return
+	}
+	gopool.Go(func() {
+		time.Sleep(triggerDelay)
+
+		task, found, err := model.GetByOnlyTaskId(publicTaskID)
+		if err != nil || !found || task == nil {
+			return
+		}
+		switch task.Status {
+		case model.TaskStatusSuccess, model.TaskStatusFailure:
+			return // already resolved
+		}
+
+		primaryChannel, err := model.GetChannelById(task.ChannelId, true)
+		if err != nil || primaryChannel == nil {
+			return
+		}
+		primaryKey, _, apiErr := primaryChannel.GetNextEnabledKey()
+		if apiErr != nil {
+			return
+		}
+		_, status, _ := service.CheckImageTaskTargetsOnce([]service.ImageTaskTarget{{
+			ChannelID: primaryChannel.Id,
+			BaseURL:   primaryChannel.GetBaseURL(),
+			APIKey:    primaryKey,
+			TaskID:    task.GetUpstreamTaskID(),
+		}})
+		switch status {
+		case "succeeded", "success", "completed", "failed", "error", "cancelled":
+			return // resolved between submit and now — nothing to hedge
+		}
+
+		channelB, err := service.SelectCheapestEnabledChannelExcluding(modelName, []int{task.ChannelId})
+		if err != nil || channelB == nil {
+			return
+		}
+		hedgeTaskID, err := service.SubmitImageGenerationToChannel(context.Background(), channelB, requestBody, true)
+		if err != nil {
+			logger.LogWarn(context.Background(), fmt.Sprintf("async image race hedge submit to channel #%d failed: %v", channelB.Id, err))
+			return
+		}
+
+		task.PrivateData.HedgeChannelId = channelB.Id
+		task.PrivateData.HedgeUpstreamTaskID = hedgeTaskID
+		if err := task.Update(); err != nil {
+			logger.LogWarn(context.Background(), fmt.Sprintf("async image race hedge: failed to persist hedge on task %s: %v", publicTaskID, err))
+			return
+		}
+		logger.LogInfo(context.Background(), fmt.Sprintf("async image race hedge: task %s primary slow, hedged to channel #%d", publicTaskID, channelB.Id))
+	})
+}
+
 // pollAsyncImageTask polls the upstream /v1/tasks/{id} until done, then returns OpenAI-compatible image JSON.
-func pollAsyncImageTask(c *gin.Context, taskID string) []byte {
+// If the primary channel hasn't finished by the race-fallback trigger threshold, it also
+// submits to a second channel and returns whichever finishes first (see startImageRaceHedge).
+func pollAsyncImageTask(c *gin.Context, info *relaycommon.RelayInfo, taskID string) []byte {
 	baseURL := strings.TrimRight(common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl), "/")
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
 	}
 	apiKey := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
-	pollURL := fmt.Sprintf("%s/v1/tasks/%s", baseURL, taskID)
+	primaryChannelID := common.GetContextKeyInt(c, constant.ContextKeyChannelId)
+	primary := service.ImageTaskTarget{ChannelID: primaryChannelID, BaseURL: baseURL, APIKey: apiKey, TaskID: taskID}
 
-	client := &http.Client{Timeout: 15 * time.Second}
-	deadline := time.Now().Add(imagePollDeadlineFromContext(c))
+	fullDeadline := time.Now().Add(imagePollDeadlineFromContext(c))
+	raceDeadline := time.Now().Add(imageRaceTriggerFromContext(c))
+	if raceDeadline.After(fullDeadline) {
+		raceDeadline = fullDeadline
+	}
 
 	time.Sleep(3 * time.Second)
 
-	for time.Now().Before(deadline) {
-		req, err := http.NewRequest("GET", pollURL, nil)
-		if err != nil {
-			time.Sleep(4 * time.Second)
-			continue
-		}
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-
-		pollResp, err := client.Do(req)
-		if err != nil {
-			logger.LogWarn(context.Background(), fmt.Sprintf("pollAsyncImageTask: request error: %v", err))
-			time.Sleep(4 * time.Second)
-			continue
-		}
-		body, _ := io.ReadAll(pollResp.Body)
-		pollResp.Body.Close()
-
-		var result struct {
-			Code int `json:"code"`
-			Data struct {
-				Status string `json:"status"`
-				Result struct {
-					Images []struct {
-						URL interface{} `json:"url"` // string or []string
-					} `json:"images"`
-				} `json:"result"`
-				// fallback flat fields
-				URL string `json:"url"`
-				B64 string `json:"b64_json"`
-			} `json:"data"`
-		}
-		if common.Unmarshal(body, &result) != nil {
-			time.Sleep(4 * time.Second)
-			continue
-		}
-
-		d := result.Data
-		switch d.Status {
-		case "failed", "error", "cancelled":
-			logger.LogWarn(context.Background(), fmt.Sprintf("pollAsyncImageTask: task %s failed status=%s", taskID, d.Status))
-			return nil
-		case "succeeded", "success", "completed":
-			// extract URL from nested or flat format
-			imageURL := d.URL
-			if imageURL == "" && len(d.Result.Images) > 0 {
-				switch v := d.Result.Images[0].URL.(type) {
-				case string:
-					imageURL = v
-				case []interface{}:
-					if len(v) > 0 {
-						if s, ok := v[0].(string); ok {
-							imageURL = s
-						}
-					}
+	winner, imageURL, ok := service.RaceImageTask([]service.ImageTaskTarget{primary}, raceDeadline)
+	if !ok && raceDeadline.Before(fullDeadline) {
+		if hedgeTarget, hedgeChannel, hedgeOK := startImageRaceHedge(c, info); hedgeOK {
+			winner, imageURL, ok = service.RaceImageTask([]service.ImageTaskTarget{primary, hedgeTarget}, fullDeadline)
+			if ok && winner.ChannelID == hedgeChannel.Id && info != nil {
+				if setupErr := middleware.SetupContextForSelectedChannel(c, hedgeChannel, info.OriginModelName); setupErr == nil {
+					info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
 				}
 			}
-			if imageURL == "" && d.B64 != "" {
-				// return as-is, caller will pick up b64_json
-				return body
-			}
-			if imageURL == "" {
-				logger.LogWarn(context.Background(), fmt.Sprintf("pollAsyncImageTask: task %s completed but no URL", taskID))
-				return nil
-			}
-			// cache on our server so callers never see the upstream provider URL
-			cachedURL := service.CacheImageLocally(imageURL)
-			openaiResp, _ := common.Marshal(map[string]interface{}{
-				"created": time.Now().Unix(),
-				"data":    []map[string]string{{"url": cachedURL}},
-			})
-			return openaiResp
+		} else {
+			winner, imageURL, ok = service.RaceImageTask([]service.ImageTaskTarget{primary}, fullDeadline)
 		}
-		time.Sleep(4 * time.Second)
 	}
-	logger.LogWarn(context.Background(), fmt.Sprintf("pollAsyncImageTask: timeout for task %s", taskID))
-	return nil
+	_ = winner
+
+	if !ok {
+		logger.LogWarn(context.Background(), fmt.Sprintf("pollAsyncImageTask: timeout/failed for task %s", taskID))
+		return nil
+	}
+	if imageURL == "" {
+		logger.LogWarn(context.Background(), fmt.Sprintf("pollAsyncImageTask: task %s completed but no URL", taskID))
+		return nil
+	}
+	// cache on our server so callers never see the upstream provider URL
+	cachedURL := service.CacheImageLocally(imageURL)
+	openaiResp, _ := common.Marshal(map[string]interface{}{
+		"created": time.Now().Unix(),
+		"data":    []map[string]string{{"url": cachedURL}},
+	})
+	return openaiResp
 }
 
 // isClientAsyncImageGenerationsPath reports POST /v1/images/generations/async:
@@ -775,7 +881,11 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 
-	// Client async submit: capture task_id for consume logs / poll channel affinity.
+	// Client async submit: mint our own public task_id (decoupled from the upstream's),
+	// persist a Task row mapping it to the real channel + upstream task_id, and — if the
+	// gpt-image-2 race fallback is enabled — schedule a background hedge so the client's
+	// later poll can transparently race a second channel without ever seeing either
+	// channel's identity.
 	if isClientAsyncImageGenerationsPath(c) {
 		var asyncCheck struct {
 			Data []struct {
@@ -785,7 +895,49 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		if common.Unmarshal(responseBody, &asyncCheck) == nil &&
 			len(asyncCheck.Data) > 0 &&
 			strings.TrimSpace(asyncCheck.Data[0].TaskID) != "" {
-			c.Set(imagePollTaskIDContextKey, asyncCheck.Data[0].TaskID)
+			upstreamTaskID := strings.TrimSpace(asyncCheck.Data[0].TaskID)
+			publicTaskID := model.GenerateTaskID()
+
+			task := &model.Task{
+				TaskID:     publicTaskID,
+				Platform:   constant.TaskPlatformOpenAIImage,
+				UserId:     info.UserId,
+				ChannelId:  info.ChannelId,
+				Status:     model.TaskStatusSubmitted,
+				Progress:   "0%",
+				SubmitTime: time.Now().Unix(),
+				Properties: model.Properties{OriginModelName: info.OriginModelName},
+				PrivateData: model.TaskPrivateData{
+					UpstreamTaskID: upstreamTaskID,
+				},
+			}
+			if err := task.Insert(); err != nil {
+				// Fall back to the pre-existing behavior (expose the upstream task_id
+				// directly) rather than failing the request over a tracking-table write.
+				logger.LogWarn(c.Request.Context(), fmt.Sprintf("image task insert failed, exposing upstream task_id directly: %v", err))
+				c.Set(imagePollTaskIDContextKey, upstreamTaskID)
+			} else {
+				c.Set(imagePollTaskIDContextKey, publicTaskID)
+				// Mutate just the task_id in place rather than rebuilding the body,
+				// so any other fields the upstream returned (e.g. usage) survive —
+				// OpenaiHandlerWithUsage still needs to parse usage from this body below.
+				var rootMap map[string]interface{}
+				if common.Unmarshal(responseBody, &rootMap) == nil {
+					if dataArr, ok := rootMap["data"].([]interface{}); ok && len(dataArr) > 0 {
+						if first, ok := dataArr[0].(map[string]interface{}); ok {
+							first["task_id"] = publicTaskID
+							if rewritten, merr := common.Marshal(rootMap); merr == nil {
+								responseBody = rewritten
+							}
+						}
+					}
+				}
+				if rawBody, exists := c.Get(imageRequestBodyContextKey); exists {
+					if bodyBytes, ok := rawBody.([]byte); ok && len(bodyBytes) > 0 {
+						scheduleAsyncImageRaceHedge(publicTaskID, info.OriginModelName, bodyBytes, imageRaceTriggerFromContext(c))
+					}
+				}
+			}
 		}
 	}
 
@@ -803,7 +955,7 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 			asyncCheck.Data[0].Status == "submitted" {
 			taskID := asyncCheck.Data[0].TaskID
 			logger.LogInfo(c.Request.Context(), fmt.Sprintf("image task async detected, polling task_id=%s", taskID))
-			if finalBody := pollAsyncImageTask(c, taskID); finalBody != nil {
+			if finalBody := pollAsyncImageTask(c, info, taskID); finalBody != nil {
 				responseBody = finalBody
 			} else {
 				c.Set(imagePollTaskIDContextKey, taskID)

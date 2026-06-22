@@ -49,6 +49,10 @@ const quotaSchema = z.object({
   FirstTopupPromoDiscount: z.coerce.number().min(0).max(1),
   FirstTopupPromoAmount: z.coerce.number().min(1),
   FirstTopupPromoWindowDays: z.coerce.number().min(1),
+  GptImage2RaceFallbackEnabled: z.boolean(),
+  GptImage2RaceTimeout1K: z.coerce.number().min(1),
+  GptImage2RaceTimeout2K: z.coerce.number().min(1),
+  GptImage2RaceTimeout4K: z.coerce.number().min(1),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -316,6 +320,100 @@ export function QuotaSettingsSection({
                 </FormControl>
                 <FormDescription>
                   {t('How many days after registration the discount is valid.')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='GptImage2RaceFallbackEnabled'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5'>
+                  <FormLabel className='text-base'>{t('gpt-image-2 Channel Race Fallback')}</FormLabel>
+                  <FormDescription>
+                    {t('When the primary channel has not finished within the timeout below, also submit to a second available channel and use whichever returns first.')}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={updateOption.isPending}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='GptImage2RaceTimeout1K'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Race Fallback Timeout — 1k (seconds)')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    value={field.value ?? ''}
+                    onChange={handleNumberChange(field.onChange)}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('For 1k images: how long to wait on the primary channel before also trying a second channel.')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='GptImage2RaceTimeout2K'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Race Fallback Timeout — 2k (seconds)')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    value={field.value ?? ''}
+                    onChange={handleNumberChange(field.onChange)}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('For 2k images: how long to wait on the primary channel before also trying a second channel.')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='GptImage2RaceTimeout4K'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Race Fallback Timeout — 4k (seconds)')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    value={field.value ?? ''}
+                    onChange={handleNumberChange(field.onChange)}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    ref={field.ref}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('For 4k/hd images: how long to wait on the primary channel before also trying a second channel.')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

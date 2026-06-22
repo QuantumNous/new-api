@@ -35,6 +35,15 @@ func RelayImageTask(c *gin.Context) {
 
 	modelName := common.GetStringIfEmpty(c.Query("model"), "gpt-image-2")
 
+	// New-style tasks (submitted after the gpt-image-2 race fallback shipped) carry our
+	// own task_id, mapped via the Task table — this is what makes the race fallback fully
+	// transparent to the client. Tasks submitted before that change won't be found here
+	// (their task_id is still the literal upstream one) and fall through to the legacy
+	// single-channel proxy below.
+	if serveTrackedImageTask(c, taskID) {
+		return
+	}
+
 	baseURL := strings.TrimRight(common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl), "/")
 	if baseURL == "" {
 		if err := setupImageTaskPollChannel(c, modelName, taskID); err != nil {
@@ -108,6 +117,106 @@ func RelayImageTask(c *gin.Context) {
 		body = service.RewriteImageResponseBody(body)
 	}
 	c.Data(resp.StatusCode, contentType, body)
+}
+
+// serveTrackedImageTask handles GET /v1/tasks/:task_id for tasks tracked via the Task
+// table (model.GetByOnlyTaskId). Returns false ("not handled") when no such row exists,
+// so the caller falls back to the legacy single-channel proxy. When a hedge channel is
+// recorded on the task, both channels are checked and whichever resolves first wins —
+// the client only ever sees our own task_id and a clean, normalized status response.
+func serveTrackedImageTask(c *gin.Context, taskID string) bool {
+	task, found, err := model.GetByOnlyTaskId(taskID)
+	if err != nil || !found || task == nil {
+		return false
+	}
+	if task.UserId != c.GetInt("id") {
+		return false
+	}
+
+	switch task.Status {
+	case model.TaskStatusSuccess:
+		c.JSON(http.StatusOK, buildImageTaskStatusResponse("succeeded", task.GetResultURL()))
+		return true
+	case model.TaskStatusFailure:
+		c.JSON(http.StatusOK, buildImageTaskStatusResponse("failed", ""))
+		return true
+	}
+
+	primaryChannel, err := model.GetChannelById(task.ChannelId, true)
+	if err != nil || primaryChannel == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": gin.H{"message": "channel unavailable for task poll", "type": "server_error"},
+		})
+		return true
+	}
+	primaryKey, _, apiErr := primaryChannel.GetNextEnabledKey()
+	if apiErr != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": gin.H{"message": apiErr.Error(), "type": "server_error"},
+		})
+		return true
+	}
+	targets := []service.ImageTaskTarget{{
+		ChannelID: primaryChannel.Id,
+		BaseURL:   primaryChannel.GetBaseURL(),
+		APIKey:    primaryKey,
+		TaskID:    task.GetUpstreamTaskID(),
+	}}
+	if task.PrivateData.HedgeChannelId != 0 && task.PrivateData.HedgeUpstreamTaskID != "" {
+		if hedgeChannel, herr := model.GetChannelById(task.PrivateData.HedgeChannelId, true); herr == nil && hedgeChannel != nil {
+			if hedgeKey, _, kerr := hedgeChannel.GetNextEnabledKey(); kerr == nil {
+				targets = append(targets, service.ImageTaskTarget{
+					ChannelID: hedgeChannel.Id,
+					BaseURL:   hedgeChannel.GetBaseURL(),
+					APIKey:    hedgeKey,
+					TaskID:    task.PrivateData.HedgeUpstreamTaskID,
+				})
+			}
+		}
+	}
+
+	winner, status, imageURL := service.CheckImageTaskTargetsOnce(targets)
+	fromStatus := task.Status
+	switch status {
+	case "succeeded", "success", "completed":
+		cachedURL := service.CacheImageLocally(imageURL)
+		task.PrivateData.ResultURL = cachedURL
+		if winner.ChannelID != task.ChannelId {
+			task.ChannelId = winner.ChannelID
+			task.PrivateData.UpstreamTaskID = winner.TaskID
+		}
+		task.Status = model.TaskStatusSuccess
+		task.Progress = "100%"
+		task.FinishTime = time.Now().Unix()
+		if ok, uerr := task.UpdateWithStatus(fromStatus); !ok || uerr != nil {
+			// Another concurrent poll already resolved it first — serve that instead of
+			// risking re-settling/overwriting it.
+			if fresh, ffound, _ := model.GetByOnlyTaskId(taskID); ffound && fresh != nil {
+				task = fresh
+			}
+		}
+		c.JSON(http.StatusOK, buildImageTaskStatusResponse("succeeded", task.GetResultURL()))
+	case "failed", "error", "cancelled":
+		task.Status = model.TaskStatusFailure
+		task.FailReason = "upstream task failed"
+		task.FinishTime = time.Now().Unix()
+		_, _ = task.UpdateWithStatus(fromStatus)
+		c.JSON(http.StatusOK, buildImageTaskStatusResponse("failed", ""))
+	default:
+		c.JSON(http.StatusOK, buildImageTaskStatusResponse("in_progress", ""))
+	}
+	return true
+}
+
+// buildImageTaskStatusResponse mirrors the upstream task-poll JSON shape
+// ({"data":{"status":...,"result":{"images":[{"url":...}]}}}) so existing clients
+// (which already parse that shape from the legacy proxy path) don't need to change.
+func buildImageTaskStatusResponse(status, imageURL string) gin.H {
+	data := gin.H{"status": status}
+	if imageURL != "" {
+		data["result"] = gin.H{"images": []gin.H{{"url": imageURL}}}
+	}
+	return gin.H{"data": data}
 }
 
 func setupImageTaskPollChannel(c *gin.Context, modelName, taskID string) error {

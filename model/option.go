@@ -151,6 +151,10 @@ func InitOptionMap() {
 	common.OptionMap["FirstTopupPromoDiscount"] = strconv.FormatFloat(common.FirstTopupPromoDiscount, 'f', -1, 64)
 	common.OptionMap["FirstTopupPromoAmount"] = strconv.Itoa(common.FirstTopupPromoAmount)
 	common.OptionMap["FirstTopupPromoWindowDays"] = strconv.Itoa(common.FirstTopupPromoWindowDays)
+	common.OptionMap["GptImage2RaceFallbackEnabled"] = strconv.FormatBool(common.GptImage2RaceFallbackEnabled)
+	common.OptionMap["GptImage2RaceTimeout1K"] = strconv.Itoa(common.GptImage2RaceTimeout1K)
+	common.OptionMap["GptImage2RaceTimeout2K"] = strconv.Itoa(common.GptImage2RaceTimeout2K)
+	common.OptionMap["GptImage2RaceTimeout4K"] = strconv.Itoa(common.GptImage2RaceTimeout4K)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -529,6 +533,14 @@ func updateOptionMap(key string, value string) (err error) {
 		common.FirstTopupPromoAmount, _ = strconv.Atoi(value)
 	case "FirstTopupPromoWindowDays":
 		common.FirstTopupPromoWindowDays, _ = strconv.Atoi(value)
+	case "GptImage2RaceFallbackEnabled":
+		common.GptImage2RaceFallbackEnabled, _ = strconv.ParseBool(value)
+	case "GptImage2RaceTimeout1K":
+		common.GptImage2RaceTimeout1K, _ = strconv.Atoi(value)
+	case "GptImage2RaceTimeout2K":
+		common.GptImage2RaceTimeout2K, _ = strconv.Atoi(value)
+	case "GptImage2RaceTimeout4K":
+		common.GptImage2RaceTimeout4K, _ = strconv.Atoi(value)
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":

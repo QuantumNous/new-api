@@ -67,6 +67,10 @@ const BILLING_SECTIONS = [
           FirstTopupPromoDiscount: settings.FirstTopupPromoDiscount,
           FirstTopupPromoAmount: settings.FirstTopupPromoAmount,
           FirstTopupPromoWindowDays: settings.FirstTopupPromoWindowDays,
+          GptImage2RaceFallbackEnabled: settings.GptImage2RaceFallbackEnabled,
+          GptImage2RaceTimeout1K: settings.GptImage2RaceTimeout1K,
+          GptImage2RaceTimeout2K: settings.GptImage2RaceTimeout2K,
+          GptImage2RaceTimeout4K: settings.GptImage2RaceTimeout4K,
           TopUpLink: settings.TopUpLink,
           general_setting: {
             docs_link: settings['general_setting.docs_link'],

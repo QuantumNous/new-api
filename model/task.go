@@ -107,6 +107,10 @@ type TaskPrivateData struct {
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
 	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
 	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	// gpt-image-2 渠道竞速兜底：主渠道超时未完成时提交的第二个渠道（竞速候选）。
+	// 分出胜负后若第二渠道胜出，会被搬运覆盖 ChannelId/UpstreamTaskID，这两个字段随之清空。
+	HedgeChannelId      int    `json:"hedge_channel_id,omitempty"`
+	HedgeUpstreamTaskID string `json:"hedge_upstream_task_id,omitempty"`
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。

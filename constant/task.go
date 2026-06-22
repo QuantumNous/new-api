@@ -3,9 +3,10 @@ package constant
 type TaskPlatform string
 
 const (
-	TaskPlatformSuno       TaskPlatform = "suno"
-	TaskPlatformMidjourney              = "mj"
-	TaskPlatformApimartVideo            = "apimart-video"
+	TaskPlatformSuno         TaskPlatform = "suno"
+	TaskPlatformMidjourney                = "mj"
+	TaskPlatformApimartVideo              = "apimart-video"
+	TaskPlatformOpenAIImage               = "openai-image"
 )
 
 const (
