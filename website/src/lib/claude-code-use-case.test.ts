@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CLAUDE_CODE_USE_CASE, CODEX_USE_CASE, getUseCaseConfig } from "@/components/coding-agent-use-case-page";
+import { CLAUDE_CODE_USE_CASE, CODEX_USE_CASE, IMAGE_BUDDY_USE_CASE, getUseCaseConfig } from "@/components/coding-agent-use-case-page";
 import { LOCALES } from "@/lib/locales";
 import {
   CLAUDE_CODE_BASE_URL,
@@ -58,14 +58,24 @@ describe("Claude Code use-case install scripts", () => {
     expect(CLAUDE_CODE_USE_CASE.pathname).toBe("/use-case/claude-code");
     expect(CLAUDE_CODE_USE_CASE.toolName).toBe("Claude Code");
     expect(CLAUDE_CODE_USE_CASE.endpointText).toBe("https://router.flatkey.ai");
+    expect(IMAGE_BUDDY_USE_CASE.pathname).toBe("/use-case/image-buddy");
+    expect(IMAGE_BUDDY_USE_CASE.toolName).toBe("Image Buddy");
+    expect(IMAGE_BUDDY_USE_CASE.endpointText).toBe("npx @flatkey-ai/image-buddy");
   });
 
   test("provides localized configs for every website locale", () => {
     for (const locale of LOCALES) {
+      const imageBuddyConfig = getUseCaseConfig(IMAGE_BUDDY_USE_CASE.pathname, locale);
       expect(getUseCaseConfig(CODEX_USE_CASE.pathname, locale).pathname).toBe("/use-case/codex");
       expect(getUseCaseConfig(CLAUDE_CODE_USE_CASE.pathname, locale).pathname).toBe("/use-case/claude-code");
+      expect(imageBuddyConfig.pathname).toBe("/use-case/image-buddy");
       expect(getUseCaseConfig(CODEX_USE_CASE.pathname, locale).headlineLead.length).toBeGreaterThan(0);
       expect(getUseCaseConfig(CLAUDE_CODE_USE_CASE.pathname, locale).headlineLead.length).toBeGreaterThan(0);
+      expect(imageBuddyConfig.endpointText).toBe("npx @flatkey-ai/image-buddy");
+      if (locale !== "en") {
+        expect(imageBuddyConfig.headlineLead).not.toBe(IMAGE_BUDDY_USE_CASE.headlineLead);
+        expect(imageBuddyConfig.intro).not.toBe(IMAGE_BUDDY_USE_CASE.intro);
+      }
     }
   });
 });

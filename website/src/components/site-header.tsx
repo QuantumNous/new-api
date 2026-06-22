@@ -17,6 +17,7 @@ const CONSOLE_URL = consoleUrl("/dashboard");
 const useCaseItems = [
   { href: "/use-case/codex", label: "Codex" },
   { href: "/use-case/claude-code", label: "Claude Code" },
+  { href: "/use-case/image-buddy", label: "Image Buddy" },
 ];
 const useCaseLabelByLocale: Record<Locale, string> = {
   en: "Use Case",
