@@ -21,6 +21,26 @@ const AutoCheapestGroup = "default"
 // auto-cheapest switches from price-ascending to price-descending selection.
 const autoCheapestPremiumFallbackRetry = 1
 
+const HeaderApimasterRoutingRetry = "X-Apimaster-Routing-Retry"
+
+// RoutingRetryFromHeader reads the initial auto-cheapest retry index for this
+// request (0 = cheapest channel, ≥1 = premium / next-tier channel). Used by
+// playground channel fallback without changing the model name.
+func RoutingRetryFromHeader(c *gin.Context) int {
+	if c == nil {
+		return 0
+	}
+	raw := strings.TrimSpace(c.GetHeader(HeaderApimasterRoutingRetry))
+	if raw == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
+}
+
 // SelectCheapestEnabledChannel returns the channel with the lowest user price
 // for modelName, using the exact same formula shown on the Model Data admin page:
 //
