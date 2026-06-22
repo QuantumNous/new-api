@@ -255,12 +255,14 @@ const TopUpBonusGroupAll = "all"
 
 // topUpBonusGroupAllowed 判定 group 是否可享 tier 档位的充值赠送（opt-in 语义）。
 // 未配 / 空数组 = 谁都不送；含 "all" = 全送；否则仅命中列表内组名才送。
+// 组名按 trim 后比较：兼容历史上可能已落库的带首尾空格的脏数据，避免精确匹配漏命中。
 func topUpBonusGroupAllowed(tier int, group string) bool {
 	groups := operation_setting.GetPaymentSetting().AmountBonusGroups[tier]
 	if len(groups) == 0 {
 		return false
 	}
 	for _, g := range groups {
+		g = strings.TrimSpace(g)
 		if g == TopUpBonusGroupAll || g == group {
 			return true
 		}

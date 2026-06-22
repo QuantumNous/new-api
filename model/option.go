@@ -382,17 +382,28 @@ func normalizeAmountBonusGroupsOptionValue(value string) (string, error) {
 	if groups == nil {
 		return "", errors.New("充值赠送用户组白名单必须是充值金额到用户组数组的 JSON 对象")
 	}
+	// 组名是精确匹配的标识符：trim 后落库，避免带首尾空格的组名（如 " plg "）通过校验、
+	// 却在发放时因精确匹配永不命中而静默不发赠送。归一化后重新序列化存储。
+	normalized := make(map[int][]string, len(groups))
 	for amount, names := range groups {
 		if amount <= 0 {
 			return "", errors.New("充值赠送用户组白名单的充值金额必须为正整数")
 		}
+		cleaned := make([]string, 0, len(names))
 		for _, name := range names {
-			if strings.TrimSpace(name) == "" {
+			trimmedName := strings.TrimSpace(name)
+			if trimmedName == "" {
 				return "", errors.New("充值赠送用户组白名单的用户组名不能为空")
 			}
+			cleaned = append(cleaned, trimmedName)
 		}
+		normalized[amount] = cleaned
 	}
-	return trimmed, nil
+	out, err := common.Marshal(normalized)
+	if err != nil {
+		return "", errors.New("充值赠送用户组白名单序列化失败")
+	}
+	return string(out), nil
 }
 
 func isPaddleOptionKey(key string) bool {

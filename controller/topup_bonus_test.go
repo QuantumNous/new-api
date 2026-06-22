@@ -106,6 +106,8 @@ func TestTopUpBonusGroupWhitelist(t *testing.T) {
 		{"不命中组=不送", map[int][]string{20: {"vip"}}, "plg", 0},
 		{"多组之一命中=送", map[int][]string{20: {"vip", "plg"}}, "plg", 5},
 		{"all 与具体组混合=全送", map[int][]string{20: {"vip", TopUpBonusGroupAll}}, "enterprise-x", 5},
+		{"组名带空格也命中(兼容历史脏数据)", map[int][]string{20: {" plg "}}, "plg", 5},
+		{"all 带空格也全送", map[int][]string{20: {" all "}}, "plg", 5},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
