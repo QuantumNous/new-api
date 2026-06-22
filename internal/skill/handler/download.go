@@ -351,7 +351,7 @@ func buildSkillMD(s skillmodel.Skill) string {
 	sb.WriteString("python3 runtime/deeprouter_skill_runner.py --input \"...\"\n")
 	sb.WriteString("```\n\n")
 	sb.WriteString("### Work Step\n\n")
-	sb.WriteString("Use `runtime/deeprouter_skill_runner.py` to call DeepRouter with the runner's own credential at POST https://api.deeprouter.ai/v1/routing/chat/completions (or another approved DeepRouter public routing endpoint configured via `DEEPROUTER_EXECUTION_API_URL`).\n")
+	sb.WriteString("Use `runtime/deeprouter_skill_runner.py` to call DeepRouter with the runner's own credential at POST https://api.deeprouter.co/v1/routing/chat/completions (or another approved DeepRouter public routing endpoint configured via `DEEPROUTER_EXECUTION_API_URL`).\n")
 	sb.WriteString("The request must use `manifest.json` for `deeprouter.skill_id` and `deeprouter.skill_version_id`, then base the final answer on the routed DeepRouter response instead of a local-only prompt execution.\n\n")
 	sb.WriteString("### Runtime Behavior\n\n")
 	sb.WriteString("- The runtime client reads `manifest.json` and `instruction_template.md` from this package.\n")

@@ -117,7 +117,7 @@ func TestDownloadSkillPackage_ZipContainsManifestAndSkillMD(t *testing.T) {
 	assert.Contains(t, skillMD, "A full description.")
 	assert.Equal(t, "System template for zip skill.", string(files["instruction_template.md"]))
 	assert.Contains(t, skillMD, "### Work Step")
-	assert.Contains(t, skillMD, "https://api.deeprouter.ai/v1/routing/chat/completions")
+	assert.Contains(t, skillMD, "https://api.deeprouter.co/v1/routing/chat/completions")
 }
 
 func TestDownloadSkillPackage_SKILLMDIsRuntimeWrapper(t *testing.T) {
@@ -157,7 +157,7 @@ func TestDownloadSkillPackage_SKILLMDIsRuntimeWrapper(t *testing.T) {
 	assert.Contains(t, skillMD, "DeepRouter")
 	assert.Contains(t, skillMD, "Do not execute this package as a standalone local-only prompt")
 	assert.Contains(t, skillMD, "### Work Step")
-	assert.Contains(t, skillMD, "https://api.deeprouter.ai/v1/routing/chat/completions")
+	assert.Contains(t, skillMD, "https://api.deeprouter.co/v1/routing/chat/completions")
 }
 
 // TestDownloadSkillPackage_ManifestIncludesSkillVersionID verifies that when a skill
@@ -629,6 +629,7 @@ func TestDownloadedPackageRunner_MissingKeyFailsBeforeHTTP(t *testing.T) {
 	cmd.Env = append(os.Environ(), "DEEPROUTER_EXECUTION_API_URL="+server.URL)
 	out, err := cmd.CombinedOutput()
 	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
 	var errPayload map[string]string
 	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
 	assert.Equal(t, "AUTH_REQUIRED", errPayload["code"])
@@ -661,6 +662,7 @@ func TestDownloadedPackageRunner_MissingExecutionAPIURLFailsBeforeHTTP(t *testin
 	cmd.Env = append(os.Environ(), "DEEPROUTER_API_KEY=test-runner-key")
 	out, err := cmd.CombinedOutput()
 	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
 	var errPayload map[string]string
 	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
 	assert.Equal(t, "CONFIG_REQUIRED", errPayload["code"])
@@ -696,10 +698,122 @@ func TestDownloadedPackageRunner_MissingInstructionTemplateFailsBeforeHTTP(t *te
 	)
 	out, err := cmd.CombinedOutput()
 	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
 	var errPayload map[string]string
 	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
 	assert.Equal(t, "PACKAGE_INVALID", errPayload["code"])
 	assert.Equal(t, int32(0), callCount.Load(), "missing instruction_template.md must fail before any HTTP call")
+}
+
+func TestDownloadedPackageRunner_InvalidManifestJSONFailsBeforeHTTP(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-invalid-manifest-json", "Runtime template")
+
+	var callCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount.Add(1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"text":"unexpected"}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-invalid-manifest-json", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	writeManifestRaw(t, pkgDir, []byte(`{"broken":`))
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL="+server.URL,
+	)
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "PACKAGE_INVALID", errPayload["code"])
+	assert.NotContains(t, string(out), "Traceback")
+	assert.Equal(t, int32(0), callCount.Load(), "invalid manifest JSON must fail before any HTTP call")
+}
+
+func TestDownloadedPackageRunner_InvalidManifestUTF8FailsBeforeHTTP(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-invalid-manifest-utf8", "Runtime template")
+
+	var callCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount.Add(1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"text":"unexpected"}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-invalid-manifest-utf8", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	writeManifestRaw(t, pkgDir, []byte{0xff, 0xfe, 0xfd})
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL="+server.URL,
+	)
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "PACKAGE_INVALID", errPayload["code"])
+	assert.NotContains(t, string(out), "Traceback")
+	assert.Equal(t, int32(0), callCount.Load(), "invalid manifest UTF-8 must fail before any HTTP call")
+}
+
+func TestDownloadedPackageRunner_ManifestRootMustBeObject(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-manifest-root-array", "Runtime template")
+
+	var callCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount.Add(1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, `{"text":"unexpected"}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-manifest-root-array", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	writeManifestRaw(t, pkgDir, []byte(`[]`))
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL="+server.URL,
+	)
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+
+	var errPayload map[string]string
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
+	assert.Equal(t, "PACKAGE_INVALID", errPayload["code"])
+	assert.NotContains(t, string(out), "Traceback")
+	assert.Equal(t, int32(0), callCount.Load(), "non-object manifest root must fail before any HTTP call")
 }
 
 func TestDownloadedPackageRunner_InvalidExecutionAPIURLFailsFast(t *testing.T) {
@@ -722,6 +836,7 @@ func TestDownloadedPackageRunner_InvalidExecutionAPIURLFailsFast(t *testing.T) {
 	)
 	out, err := cmd.CombinedOutput()
 	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
 	var errPayload map[string]string
 	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
 	assert.Equal(t, "CONFIG_INVALID", errPayload["code"])
@@ -748,6 +863,7 @@ func TestDownloadedPackageRunner_InvalidTimeoutEnvFailsFast(t *testing.T) {
 	)
 	out, err := cmd.CombinedOutput()
 	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
 	var errPayload map[string]string
 	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
 	assert.Equal(t, "CONFIG_INVALID", errPayload["code"])
@@ -784,6 +900,7 @@ func TestDownloadedPackageRunner_TamperedManifestForbiddenFieldFailsBeforeHTTP(t
 	)
 	out, err := cmd.CombinedOutput()
 	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
 	var errPayload map[string]string
 	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
 	assert.Equal(t, "PACKAGE_INVALID", errPayload["code"])
@@ -821,6 +938,7 @@ func TestDownloadedPackageRunner_TamperedManifestRequiresDeepRouterKeyFalseFails
 	)
 	out, err := cmd.CombinedOutput()
 	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
 	var errPayload map[string]string
 	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
 	assert.Equal(t, "PACKAGE_INVALID", errPayload["code"])
@@ -896,6 +1014,7 @@ func TestDownloadedPackageRunner_MockAuthRequiredErrorMapping(t *testing.T) {
 	)
 	out, err := cmd.CombinedOutput()
 	require.Error(t, err)
+	t.Logf("runner out: %s", string(out))
 	var errPayload map[string]string
 	require.NoError(t, json.Unmarshal(bytes.TrimSpace(out), &errPayload))
 	assert.Equal(t, "AUTH_REQUIRED", errPayload["code"])
@@ -926,7 +1045,7 @@ func TestBuildSkillPackageZip_AllowsDeepRouterCapabilityWorkStep(t *testing.T) {
 
 ### Work Step
 
-Call DeepRouter at POST https://api.deeprouter.ai/v1/routing/chat/completions with the runner's own key, then base the final answer on the routed response.
+Call DeepRouter at POST https://api.deeprouter.co/v1/routing/chat/completions with the runner's own key, then base the final answer on the routed response.
 `)},
 	})
 
@@ -946,7 +1065,7 @@ func TestValidateSkillPackageRuntimeDependency_Regressions(t *testing.T) {
 			kind: skillPackageKindCapability,
 			skillMD: `# Misleading Skill
 
-Mentions https://api.deeprouter.ai/v1/chat/completions in setup text.
+Mentions https://api.deeprouter.co/v1/chat/completions in setup text.
 
 ### Work Step
 
@@ -959,7 +1078,7 @@ Summarize local files without making any network call.
 			kind: skillPackageKindCapability,
 			skillMD: `# No Work Step
 
-Call DeepRouter at https://api.deeprouter.ai/v1/chat/completions somewhere in prose.
+Call DeepRouter at https://api.deeprouter.co/v1/chat/completions somewhere in prose.
 `,
 			wantErr: "no DeepRouter public routing API call",
 		},
@@ -985,7 +1104,7 @@ No runtime work step.
 
 ### Work Step
 
-Call DeepRouter with POST https://api.deeprouter.ai/v1/responses using the runner key.
+Call DeepRouter with POST https://api.deeprouter.co/v1/responses using the runner key.
 `,
 			wantErr: "",
 		},
@@ -996,7 +1115,7 @@ Call DeepRouter with POST https://api.deeprouter.ai/v1/responses using the runne
 
 ### Work Step
 
-Call DeepRouter with POST https://api.deeprouter.ai/v1/routing/chat/completions using the runner key.
+Call DeepRouter with POST https://api.deeprouter.co/v1/routing/chat/completions using the runner key.
 `,
 			wantErr: "",
 		},
@@ -1007,7 +1126,7 @@ Call DeepRouter with POST https://api.deeprouter.ai/v1/routing/chat/completions 
 
 ### Work Step (D-09)
 
-Call DeepRouter with POST https://api.deeprouter.ai/v1/chat/completions using the runner key.
+Call DeepRouter with POST https://api.deeprouter.co/v1/chat/completions using the runner key.
 `,
 			wantErr: "",
 		},
@@ -1095,6 +1214,12 @@ func tamperManifestJSON(t *testing.T, pkgDir string, mutate func(manifest map[st
 	updated, err := json.Marshal(manifest)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(manifestPath, updated, 0o644))
+}
+
+func writeManifestRaw(t *testing.T, pkgDir string, body []byte) {
+	t.Helper()
+	manifestPath := filepath.Join(pkgDir, "manifest.json")
+	require.NoError(t, os.WriteFile(manifestPath, body, 0o644))
 }
 
 func requirePython(t *testing.T) string {

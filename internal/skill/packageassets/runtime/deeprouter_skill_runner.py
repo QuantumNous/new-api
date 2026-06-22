@@ -21,14 +21,28 @@ def load_package_root():
     return Path(__file__).resolve().parent.parent
 
 
-def read_json_file(path):
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+def read_manifest(path):
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            manifest = json.load(f)
+    except (OSError, UnicodeDecodeError) as exc:
+        detail = getattr(exc, "strerror", None) or str(exc)
+        fail("PACKAGE_INVALID", f"manifest.json could not be read: {detail}")
+    except json.JSONDecodeError:
+        fail("PACKAGE_INVALID", "manifest.json is not valid JSON")
+
+    if not isinstance(manifest, dict):
+        fail("PACKAGE_INVALID", "manifest.json root must be a JSON object")
+    return manifest
 
 
 def read_text_file(path):
-    with path.open("r", encoding="utf-8") as f:
-        return f.read()
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            return f.read()
+    except (OSError, UnicodeDecodeError) as exc:
+        detail = getattr(exc, "strerror", None) or str(exc)
+        fail("PACKAGE_INVALID", f"instruction_template.md could not be read: {detail}")
 
 
 def require_nonempty_env(name, code, message, cta=None):
@@ -147,7 +161,7 @@ def main():
     if not instruction_template_path.exists():
         fail("PACKAGE_INVALID", "instruction_template.md not found in package root")
 
-    manifest = read_json_file(manifest_path)
+    manifest = read_manifest(manifest_path)
     validate_manifest(manifest)
 
     template_text = read_text_file(instruction_template_path)
