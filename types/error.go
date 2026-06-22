@@ -88,6 +88,9 @@ const (
 
 	// tenant quota error (DR-13) — distinct from upstream capacity errors (DRS-17)
 	ErrorCodeTenantQuotaExceeded ErrorCode = "tenant_quota_exceeded"
+
+	// public routing abuse controls (DR-82)
+	ErrorCodePublicRoutingAbuseDetected ErrorCode = "public_routing_abuse_detected"
 )
 
 type NewAPIError struct {

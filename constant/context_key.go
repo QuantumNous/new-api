@@ -103,4 +103,7 @@ const (
 	// That surface requires deeprouter.skill_id and forces entry_point=skill_package.
 	ContextKeySkillPublicRoutingAPI ContextKey = "skill_public_routing_api"
 	ContextKeySkillRelayEntryPoint  ContextKey = "skill_relay_entry_point"
+	// ContextKeyPublicRoutingAbuseFlags stores comma-separated abuse/anomaly flags
+	// produced by the public routing API abuse gate (DR-82).
+	ContextKeyPublicRoutingAbuseFlags ContextKey = "public_routing_abuse_flags"
 )
