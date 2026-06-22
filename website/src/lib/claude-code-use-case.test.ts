@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { CLAUDE_CODE_USE_CASE, CODEX_USE_CASE, IMAGE_BUDDY_USE_CASE, getUseCaseConfig } from "@/components/coding-agent-use-case-page";
+import { readFileSync } from "node:fs";
+import { CLAUDE_CODE_USE_CASE, CODEX_USE_CASE, IMAGE_BUDDY_QUICKSTART_STEPS, IMAGE_BUDDY_USE_CASE, getUseCaseConfig } from "@/components/coding-agent-use-case-page";
 import { LOCALES } from "@/lib/locales";
 import {
   CLAUDE_CODE_BASE_URL,
@@ -77,5 +78,33 @@ describe("Claude Code use-case install scripts", () => {
         expect(imageBuddyConfig.intro).not.toBe(IMAGE_BUDDY_USE_CASE.intro);
       }
     }
+  });
+
+  test("defines a focused Image Buddy CLI quickstart", () => {
+    expect(IMAGE_BUDDY_QUICKSTART_STEPS).toEqual([
+      {
+        label: "Step 1",
+        title: "Install",
+        command: "npm i -g @flatkey-ai/image-buddy",
+      },
+      {
+        label: "Step 2",
+        title: "Initialize",
+        command: "npx @flatkey-ai/image-buddy onboard",
+      },
+      {
+        label: "Step 3",
+        title: "Generate",
+        command: 'npx @flatkey-ai/image-buddy generate --prompt "premium product hero image for an AI image API CLI"',
+      },
+    ]);
+    expect(IMAGE_BUDDY_QUICKSTART_STEPS.map((step) => step.command).join("\n")).not.toContain("image-buddy web");
+  });
+
+  test("does not render an Image Buddy prompt block in the CLI quickstart", () => {
+    const source = readFileSync(new URL("../components/coding-agent-use-case-page.tsx", import.meta.url), "utf8");
+
+    expect(source).not.toContain("imageBuddySkillPrompt");
+    expect(source).not.toContain("Install and use the Flatkey Image Buddy skill");
   });
 });
