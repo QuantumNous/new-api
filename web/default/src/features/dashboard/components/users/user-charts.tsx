@@ -33,11 +33,13 @@ import {
 } from '@/features/dashboard/constants'
 import {
   getDefaultDays,
-  getSavedGranularity,
   saveGranularity,
   processUserChartData,
 } from '@/features/dashboard/lib'
-import type { ProcessedUserChartData } from '@/features/dashboard/types'
+import type {
+  ProcessedUserChartData,
+  UserChartsFilters,
+} from '@/features/dashboard/types'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
@@ -62,7 +64,12 @@ const USER_CHARTS: {
 
 const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
 
-export function UserCharts() {
+interface UserChartsProps {
+  filters: UserChartsFilters
+  onFiltersChange: (filters: UserChartsFilters) => void
+}
+
+export function UserCharts(props: UserChartsProps) {
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()
   const [themeReady, setThemeReady] = useState(false)
@@ -70,41 +77,45 @@ export function UserCharts() {
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
   >(null)
 
-  const [timeGranularity, setTimeGranularity] = useState<TimeGranularity>(() =>
-    getSavedGranularity()
-  )
-  const [selectedRange, setSelectedRange] = useState<number>(() =>
-    getDefaultDays(timeGranularity)
-  )
-  const [topUserLimit, setTopUserLimit] = useState(10)
-  const [timeRange, setTimeRange] = useState(() => {
-    const days = getDefaultDays(timeGranularity)
-    const { start, end } = getRollingDateRange(days)
+  // The selection is owned by the dashboard parent so it persists across
+  // sub-section switches; the rolling window is derived from the chosen range.
+  const timeGranularity = props.filters.timeGranularity
+  const selectedRange = props.filters.selectedRange
+  const topUserLimit = props.filters.topUserLimit
+  const onFiltersChange = props.onFiltersChange
+
+  const timeRange = useMemo(() => {
+    const { start, end } = getRollingDateRange(selectedRange)
     return {
       start_timestamp: Math.floor(start.getTime() / 1000),
       end_timestamp: Math.floor(end.getTime() / 1000),
     }
-  })
+  }, [selectedRange])
 
-  const handleRangeChange = useCallback((days: number) => {
-    setSelectedRange(days)
-    const { start, end } = getRollingDateRange(days)
-    setTimeRange({
-      start_timestamp: Math.floor(start.getTime() / 1000),
-      end_timestamp: Math.floor(end.getTime() / 1000),
-    })
-  }, [])
+  const handleRangeChange = useCallback(
+    (days: number) => {
+      onFiltersChange({ ...props.filters, selectedRange: days })
+    },
+    [onFiltersChange, props.filters]
+  )
 
   const handleGranularityChange = useCallback(
     (g: TimeGranularity) => {
-      setTimeGranularity(g)
       saveGranularity(g)
-      const days = getDefaultDays(g)
-      if (days !== selectedRange) {
-        handleRangeChange(days)
-      }
+      onFiltersChange({
+        ...props.filters,
+        timeGranularity: g,
+        selectedRange: getDefaultDays(g),
+      })
     },
-    [selectedRange, handleRangeChange]
+    [onFiltersChange, props.filters]
+  )
+
+  const handleTopUserLimitChange = useCallback(
+    (limit: number) => {
+      onFiltersChange({ ...props.filters, topUserLimit: limit })
+    },
+    [onFiltersChange, props.filters]
   )
 
   useEffect(() => {
@@ -184,7 +195,7 @@ export function UserCharts() {
 
         <Tabs
           value={String(topUserLimit)}
-          onValueChange={(value) => setTopUserLimit(Number(value))}
+          onValueChange={(value) => handleTopUserLimitChange(Number(value))}
           className='shrink-0'
         >
           <TabsList>
