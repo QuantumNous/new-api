@@ -139,8 +139,9 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	//      immutable SkillVersion snapshot; LoadAndApply consumes it here and rewrites
 	//      the request after applyAirbotixPolicy so kids-mode sees the original model.
 	//   b) Distribute path: prepareSkillRelayForDistribution may have already rewritten
-	//      the request and pinned SkillVersionID only. In that case, skip LoadAndApply
-	//      here to preserve the TOCTOU guard and avoid rebuilding from mutable state.
+	//      the request and stored the bound SkillVersion snapshot. Re-running
+	//      LoadAndApply here is safe because it consumes that bound snapshot instead
+	//      of resolving mutable active_version_id state again.
 	if skillCtx, isSkill := skillrelay.Get(c); isSkill && (skillCtx.SkillVersion != nil || skillCtx.SkillVersionID == "") {
 		rewritten, execErrCode := skillrelay.LoadAndApply(skillCtx, request)
 		if execErrCode != "" {
