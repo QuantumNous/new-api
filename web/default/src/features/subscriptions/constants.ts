@@ -17,6 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type TFunction } from 'i18next'
+import {
+  opsConsoleGhostIconButtonClassName,
+  opsConsoleOutlineButtonClassName,
+} from '@/lib/ops-ui-styles'
 
 // ============================================================================
 // Duration Unit Options
@@ -38,13 +42,12 @@ export const RESET_PERIODS = [
   { value: 'custom', labelKey: 'subs.reset.custom_seconds' },
 ] as const
 
-/** Dark-theme readable outline buttons (Sheet / dialogs). */
-export const SUBSCRIPTIONS_OUTLINE_BUTTON_CLASS =
-  'border-white/15 bg-white/10 text-slate-100 [&_svg]:text-slate-100 hover:bg-white/15 hover:text-white hover:[&_svg]:text-white data-popup-open:bg-white/10 disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-400 disabled:opacity-60'
+/** Light ops console outline buttons (Sheet / dialogs). */
+export const SUBSCRIPTIONS_OUTLINE_BUTTON_CLASS = opsConsoleOutlineButtonClassName
 
-/** Dark-theme row action trigger (ghost icon). */
+/** Light ops console row action trigger (ghost icon). */
 export const SUBSCRIPTIONS_GHOST_ICON_BUTTON_CLASS =
-  'text-slate-200 hover:bg-white/10 hover:text-white [&_svg]:text-slate-300 hover:[&_svg]:text-white data-popup-open:bg-white/10'
+  opsConsoleGhostIconButtonClassName
 
 export function getDurationUnitOptions(t: TFunction) {
   return DURATION_UNITS.map((u) => ({ value: u.value, label: t(u.labelKey) }))

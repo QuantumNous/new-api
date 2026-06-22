@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { opsConsolePrimaryButtonClassName } from '@/lib/ops-ui-styles'
 import { Button } from '@/components/ui/button'
 import { useUsers } from './users-provider'
 
@@ -32,7 +33,11 @@ export function UsersPrimaryButtons() {
 
   return (
     <div className='flex gap-2'>
-      <Button size='sm' onClick={handleCreate}>
+      <Button
+        size='sm'
+        className={opsConsolePrimaryButtonClassName}
+        onClick={handleCreate}
+      >
         <Plus className='h-4 w-4' />
         {t('Create account')}
       </Button>

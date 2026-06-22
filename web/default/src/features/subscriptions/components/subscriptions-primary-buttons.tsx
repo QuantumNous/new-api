@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { opsConsolePrimaryButtonClassName } from '@/lib/ops-ui-styles'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -33,11 +34,11 @@ export function SubscriptionsPrimaryButtons() {
   const { setOpen, complianceConfirmed } = useSubscriptions()
 
   const createButtonClassName = cn(
-    'shadow-sm text-primary-foreground [&_svg]:text-primary-foreground',
+    opsConsolePrimaryButtonClassName,
+    'shadow-sm',
     'disabled:pointer-events-none disabled:cursor-not-allowed',
-    /* Disabled: readable on dark surfaces without looking “broken” */
-    'disabled:!opacity-90 disabled:border disabled:border-white/15 disabled:bg-white/10 disabled:text-slate-200 disabled:shadow-none',
-    'disabled:[&_svg]:text-slate-200'
+    'disabled:!opacity-90 disabled:border disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none',
+    'disabled:[&_svg]:text-slate-400'
   )
 
   const createButton = (

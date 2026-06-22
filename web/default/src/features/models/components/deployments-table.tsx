@@ -28,6 +28,13 @@ import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import {
+  opsConsoleFilterToolbarClassName,
+  opsConsoleTableHeaderClassName,
+  opsConsoleTableShellClassName,
+  opsConsoleTableStickyActionsCellClassName,
+  opsConsoleTableStickyActionsHeaderClassName,
+} from '@/lib/ops-ui-styles'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   AlertDialog,
@@ -58,36 +65,16 @@ import { ViewLogsDialog } from './dialogs/view-logs-dialog'
 
 const route = getRouteApi('/_authenticated/models/$section')
 
-const deploymentsToolbarClassName = cn(
-  '[&_input]:border-white/15 [&_input]:bg-slate-950/50 [&_input]:text-slate-100',
-  '[&_input::placeholder]:text-slate-500',
-  '[&_button]:border-white/15 [&_button]:text-slate-200',
-  '[&_button[data-state=open]]:bg-slate-800'
-)
+const deploymentsToolbarClassName = opsConsoleFilterToolbarClassName
 
 const deploymentsTableHeaderClassName = cn(
-  'bg-slate-900/80 text-slate-200',
-  '[&_th]:border-white/10 [&_th]:text-slate-200',
-  '[&_button]:text-slate-200',
-  '[&_svg]:text-slate-400',
-  '[&_[data-slot=checkbox]]:border-white/25'
+  opsConsoleTableHeaderClassName,
+  opsConsoleTableStickyActionsHeaderClassName
 )
 
 const deploymentsTableClassName = cn(
-  'border-white/10 bg-slate-900/40',
-  '[&_[data-slot=empty-title]]:text-slate-100',
-  '[&_[data-slot=empty-description]]:text-slate-400',
-  '[&_[data-slot=empty-icon]]:text-slate-300',
-  '[&_[data-slot=table-row]:hover]:!bg-white/5',
-  '[&_th:last-child]:sticky [&_th:last-child]:right-0 [&_th:last-child]:z-20',
-  '[&_th:last-child]:border-l [&_th:last-child]:border-white/10',
-  '[&_th:last-child]:bg-slate-900/95',
-  '[&_th:last-child]:shadow-[-10px_0_16px_-10px_rgba(0,0,0,0.65)]',
-  '[&_td:last-child]:sticky [&_td:last-child]:right-0 [&_td:last-child]:z-10',
-  '[&_td:last-child]:border-l [&_td:last-child]:border-white/10',
-  '[&_td:last-child]:bg-slate-900/95',
-  '[&_td:last-child]:shadow-[-10px_0_16px_-10px_rgba(0,0,0,0.65)]',
-  '[&_[data-slot=table-row]:hover_td:last-child]:bg-slate-900'
+  opsConsoleTableShellClassName,
+  opsConsoleTableStickyActionsCellClassName
 )
 
 export function DeploymentsTable() {

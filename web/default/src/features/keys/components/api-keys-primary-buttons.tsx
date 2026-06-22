@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { opsConsolePrimaryButtonClassName } from '@/lib/ops-ui-styles'
 import { Button } from '@/components/ui/button'
 import { useApiKeys } from './api-keys-provider'
 
@@ -26,7 +27,11 @@ export function ApiKeysPrimaryButtons() {
   const { setOpen } = useApiKeys()
   return (
     <div className='flex gap-2'>
-      <Button size='sm' onClick={() => setOpen('create')}>
+      <Button
+        size='sm'
+        className={opsConsolePrimaryButtonClassName}
+        onClick={() => setOpen('create')}
+      >
         <Plus className='h-4 w-4' />
         {t('keys.primary.create')}
       </Button>

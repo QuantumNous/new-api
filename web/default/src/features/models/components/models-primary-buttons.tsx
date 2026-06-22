@@ -25,7 +25,10 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+import {
+  opsConsoleOutlineButtonClassName,
+  opsConsolePrimaryButtonClassName,
+} from '@/lib/ops-ui-styles'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -65,7 +68,11 @@ export function ModelsPrimaryButtons() {
   return (
     <div className='flex items-center gap-2'>
       {/* Create Model */}
-      <Button onClick={handleCreateModel} size='sm'>
+      <Button
+        onClick={handleCreateModel}
+        size='sm'
+        className={opsConsolePrimaryButtonClassName}
+      >
         <Plus className='h-4 w-4' />
         {t('Create model resource')}
       </Button>
@@ -77,13 +84,7 @@ export function ModelsPrimaryButtons() {
             <Button
               variant='outline'
               size='sm'
-              className={cn(
-                'border-white/15 bg-white/10 text-slate-100',
-                '[&_svg]:text-slate-100',
-                'hover:bg-white/15 hover:text-white hover:[&_svg]:text-white',
-                'data-popup-open:bg-white/15 data-popup-open:text-white data-popup-open:[&_svg]:text-white',
-                'disabled:bg-white/5 disabled:text-slate-400 disabled:border-white/10 disabled:opacity-60'
-              )}
+              className={opsConsoleOutlineButtonClassName}
               aria-label={t('More...')}
               title={t('More...')}
             />

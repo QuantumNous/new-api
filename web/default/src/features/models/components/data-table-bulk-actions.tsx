@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { cn } from '@/lib/utils'
+import { opsConsoleOutlineButtonClassName } from '@/lib/ops-ui-styles'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -47,30 +48,23 @@ import {
 import type { Model } from '../types'
 
 const modelsBulkPanelClassName = cn(
-  'border-white/10 bg-slate-950/90 shadow-black/40 backdrop-blur-md'
+  'border-[#DBEAFE] bg-white/95 text-slate-800 shadow-md shadow-blue-950/5 backdrop-blur-md'
 )
 
-const modelsBulkClearButtonClassName = cn(
-  'border-white/15 bg-white/10 text-slate-100',
-  '[&_svg]:text-slate-100',
-  'hover:bg-white/15 hover:text-white hover:[&_svg]:text-white',
-  'disabled:bg-white/5 disabled:text-slate-400 disabled:border-white/10 disabled:opacity-60'
-)
+const modelsBulkClearButtonClassName = opsConsoleOutlineButtonClassName
 
 const modelsBulkActionButtonClassName = cn(
-  'size-8 border-white/15 bg-white/10 text-slate-100',
-  '[&_svg]:text-slate-100',
-  'hover:bg-white/15 hover:text-white hover:[&_svg]:text-white',
-  'disabled:pointer-events-auto disabled:bg-white/5 disabled:text-slate-400',
-  'disabled:border-white/10 disabled:opacity-60 disabled:[&_svg]:text-slate-400'
+  'size-8 border-[#DBEAFE] bg-white text-slate-700',
+  '[&_svg]:text-slate-600',
+  'hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 hover:[&_svg]:text-blue-600',
+  'disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:opacity-60'
 )
 
 const modelsBulkDeleteButtonClassName = cn(
-  'size-8 border-red-400/30 bg-red-500/10 text-red-300',
-  '[&_svg]:text-red-300',
-  'hover:bg-red-500/15 hover:text-red-200 hover:[&_svg]:text-red-200',
-  'disabled:pointer-events-auto disabled:bg-white/5 disabled:text-slate-400',
-  'disabled:border-white/10 disabled:opacity-60 disabled:[&_svg]:text-slate-400'
+  'size-8 border-red-200 bg-red-50 text-red-700',
+  '[&_svg]:text-red-600',
+  'hover:border-red-300 hover:bg-red-100 hover:text-red-800',
+  'disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:opacity-60'
 )
 
 interface DataTableBulkActionsProps<TData> {

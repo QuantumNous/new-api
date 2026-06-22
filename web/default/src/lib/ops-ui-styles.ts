@@ -255,7 +255,7 @@ export const opsConsoleHeaderNavLinkActiveClassName = cn(
 )
 
 export const opsConsoleDashboardShellClassName = cn(
-  'flex min-h-full flex-col text-slate-800'
+  'flex min-h-full flex-col bg-[#F5F7FA] text-slate-800'
 )
 
 export const opsConsoleDashboardOverviewWrapClassName = cn(
@@ -266,6 +266,57 @@ export const opsConsoleDashboardOverviewWrapClassName = cn(
 export const opsConsolePageFooterClassName = cn(
   'shrink-0 border-t border-[#DBEAFE] bg-[#F8FBFF] px-3 py-2.5 text-slate-600 empty:hidden sm:px-4 sm:py-3'
 )
+
+/** Unified section page title row (table/card pages). */
+export const opsConsolePageTitleClassName =
+  'text-lg font-bold tracking-tight text-slate-900 sm:text-xl'
+
+export const opsConsolePageDescriptionClassName =
+  'mt-1 max-w-3xl text-sm leading-relaxed text-slate-600'
+
+export const opsConsolePageHeaderRowClassName =
+  'flex flex-wrap items-start justify-between gap-x-4 gap-y-3'
+
+/** Primary CTA on ops pages. */
+export const opsConsolePrimaryButtonClassName = cn(
+  'border-blue-600 bg-blue-600 text-white shadow-sm',
+  'hover:border-blue-700 hover:bg-blue-700',
+  'disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400'
+)
+
+/** Secondary outline action on ops pages. */
+export const opsConsoleSecondaryButtonClassName = cn(
+  'border-[#DBEAFE] bg-white text-slate-700 shadow-xs',
+  'hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
+  'disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400'
+)
+
+/** Status / filter pill in overview header. */
+export const opsConsoleHeaderPillClassName = cn(
+  'inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#DBEAFE] bg-white px-3 text-sm font-medium text-slate-700 shadow-xs'
+)
+
+export const opsConsoleHeaderPillActiveClassName = cn(
+  'inline-flex h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-sm font-medium text-blue-700 shadow-xs'
+)
+
+/** Large white card shell for overview sections. */
+export const opsConsoleOverviewCardClassName = cn(
+  'overflow-hidden rounded-2xl border border-[#DBEAFE]/80 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]'
+)
+
+export const opsConsoleOverviewCardHeaderClassName = cn(
+  'flex flex-wrap items-center justify-between gap-2 border-b border-[#DBEAFE]/70 px-4 py-3 sm:px-5'
+)
+
+export const opsConsoleOverviewCardTitleClassName =
+  'text-sm font-semibold text-slate-900'
+
+export const opsConsoleOverviewCardDescriptionClassName =
+  'text-xs text-slate-500'
+
+export const opsConsoleOverviewLinkClassName =
+  'inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline'
 
 // —— Shared DataTable / filter tokens (keys, channels, users, usage-logs) —— //
 
@@ -357,44 +408,37 @@ export const opsConsoleGhostIconButtonClassName = cn(
 
 // —— System settings (platform config center) —— //
 
-export const systemSettingsShellClassName =
-  'dark min-h-full text-slate-100'
+export const systemSettingsShellClassName = cn(
+  'min-h-full bg-gradient-to-br from-[#F8FBFF] via-[#F4F8FD] to-[#EEF6FF] text-slate-800'
+)
 
-/** Descendant overrides inside /system-settings (forms, tables, sheets). */
+/** Light ops shell for platform config center (forms keep native card styles). */
 export const systemSettingsContentScopeClassName = cn(
-  '[&_[class*="text-muted-foreground"]]:text-slate-300',
-  '[&_.text-foreground]:text-slate-50',
-  '[&_h3]:text-slate-50 [&_h4]:text-slate-100',
-  '[&_[data-slot=form-label]]:text-slate-200',
-  '[&_[data-slot=form-description]]:text-slate-400',
-  '[&_.bg-card]:border-white/12 [&_.bg-card]:bg-slate-900/90 [&_.bg-card]:text-slate-100',
-  '[&_.rounded-lg.border]:border-white/12',
-  '[&_.bg-background]:bg-slate-900/90',
-  '[&_.bg-muted]:bg-white/[0.06]',
-  '[&_input:not(:disabled)]:border-white/15 [&_input:not(:disabled)]:bg-slate-950/85 [&_input:not(:disabled)]:text-slate-50',
-  '[&_input:disabled]:cursor-not-allowed [&_input:disabled]:border-white/10 [&_input:disabled]:bg-slate-900/55 [&_input:disabled]:text-slate-300',
-  '[&_textarea:not(:disabled)]:border-white/15 [&_textarea:not(:disabled)]:bg-slate-950/85 [&_textarea:not(:disabled)]:text-slate-50',
-  '[&_textarea:disabled]:cursor-not-allowed [&_textarea:disabled]:border-white/10 [&_textarea:disabled]:bg-slate-900/55 [&_textarea:disabled]:text-slate-300',
-  '[&_[data-slot=input-group]]:border-white/15 [&_[data-slot=input-group]]:bg-slate-950/85',
-  '[&_[data-slot=input-group-input]:not(:disabled)]:text-slate-50',
-  '[&_[data-slot=input-group-input]:disabled]:text-slate-300',
-  '[&_[data-slot=input-group-addon]]:text-slate-300',
-  '[&_[data-slot=table]]:text-slate-100',
-  '[&_thead]:bg-slate-900/95 [&_thead]:text-slate-200',
-  '[&_tbody_tr:hover]:bg-white/[0.05]',
-  '[&_tr[data-state=selected]]:border-cyan-400/20 [&_tr[data-state=selected]]:bg-cyan-500/12 [&_tr[data-state=selected]]:text-slate-50',
-  '[&_tr[data-state=selected]_.text-muted-foreground]:text-slate-200',
-  '[&_[data-slot=tabs-list]]:gap-1 [&_[data-slot=tabs-list]]:rounded-xl [&_[data-slot=tabs-list]]:border [&_[data-slot=tabs-list]]:border-white/10 [&_[data-slot=tabs-list]]:bg-slate-900/70 [&_[data-slot=tabs-list]]:p-1',
-  '[&_[data-slot=tabs-trigger]]:text-slate-300',
-  '[&_[data-slot=tabs-trigger][data-active]]:border [&_[data-slot=tabs-trigger][data-active]]:border-cyan-300/40 [&_[data-slot=tabs-trigger][data-active]]:bg-cyan-400/15 [&_[data-slot=tabs-trigger][data-active]]:text-white',
-  '[&_[data-slot=sheet-footer]]:border-white/10 [&_[data-slot=sheet-footer]]:bg-slate-900/95'
+  '[&_[class*="text-muted-foreground"]]:text-slate-500',
+  '[&_.text-foreground]:text-slate-900',
+  '[&_h3]:text-slate-900 [&_h4]:text-slate-800',
+  '[&_[data-slot=form-label]]:text-slate-700',
+  '[&_[data-slot=form-description]]:text-slate-500',
+  '[&_.bg-card]:border-[#DBEAFE]/80 [&_.bg-card]:bg-white [&_.bg-card]:text-slate-800',
+  '[&_.rounded-lg.border]:border-[#DBEAFE]/80',
+  '[&_.bg-background]:bg-white',
+  '[&_.bg-muted]:bg-[#F8FBFF]',
+  '[&_input:not(:disabled)]:border-[#DBEAFE] [&_input:not(:disabled)]:bg-white [&_input:not(:disabled)]:text-slate-800',
+  '[&_input:disabled]:cursor-not-allowed [&_input:disabled]:border-slate-200 [&_input:disabled]:bg-slate-50 [&_input:disabled]:text-slate-400',
+  '[&_textarea:not(:disabled)]:border-[#DBEAFE] [&_textarea:not(:disabled)]:bg-white [&_textarea:not(:disabled)]:text-slate-800',
+  '[&_textarea:disabled]:cursor-not-allowed [&_textarea:disabled]:border-slate-200 [&_textarea:disabled]:bg-slate-50 [&_textarea:disabled]:text-slate-400',
+  '[&_[data-slot=input-group]]:border-[#DBEAFE] [&_[data-slot=input-group]]:bg-white',
+  '[&_[data-slot=table]]:text-slate-800',
+  '[&_thead]:bg-[#F4F8FD] [&_thead]:text-slate-700',
+  '[&_tbody_tr:hover]:bg-[#EFF6FF]',
+  '[&_tr[data-state=selected]]:border-blue-200 [&_tr[data-state=selected]]:bg-blue-50 [&_tr[data-state=selected]]:text-slate-900',
+  '[&_[data-slot=tabs-list]]:gap-1 [&_[data-slot=tabs-list]]:rounded-xl [&_[data-slot=tabs-list]]:border [&_[data-slot=tabs-list]]:border-[#DBEAFE] [&_[data-slot=tabs-list]]:bg-[#F8FBFF] [&_[data-slot=tabs-list]]:p-1',
+  '[&_[data-slot=tabs-trigger]]:text-slate-600',
+  '[&_[data-slot=tabs-trigger][data-active]]:border [&_[data-slot=tabs-trigger][data-active]]:border-blue-200 [&_[data-slot=tabs-trigger][data-active]]:bg-white [&_[data-slot=tabs-trigger][data-active]]:text-blue-700',
+  '[&_[data-slot=sheet-footer]]:border-[#DBEAFE] [&_[data-slot=sheet-footer]]:bg-[#F8FBFF]'
 )
 
-export const systemSettingsOutlineButtonClassName = cn(
-  'border-white/20 bg-slate-900/65 text-slate-100 shadow-sm',
-  'hover:border-white/30 hover:bg-white/10 hover:text-white',
-  'disabled:pointer-events-none disabled:border-white/10 disabled:bg-slate-900/45 disabled:text-slate-400 disabled:opacity-100'
-)
+export const systemSettingsOutlineButtonClassName = opsConsoleOutlineButtonClassName
 
 export const systemSettingsPricingPanelClassName = cn(
   'border-white/12 bg-slate-900/90 text-slate-100',
@@ -407,4 +451,33 @@ export const systemSettingsPricingTabsListClassName = cn(
 
 export const systemSettingsPricingTabsTriggerClassName = cn(
   'text-slate-300 data-active:border data-active:border-cyan-300/40 data-active:bg-cyan-400/15 data-active:text-white'
+)
+
+// —— Auth / sign-in (light ops console, matches authenticated shell) —— //
+
+export const opsAuthPageShellClassName = cn(
+  'relative flex min-h-svh flex-col',
+  'bg-gradient-to-br from-[#F8FBFF] via-[#F4F8FD] to-[#EEF6FF] text-slate-800',
+  'lg:grid lg:grid-cols-2 lg:gap-0'
+)
+
+export const opsAuthBrandTitleClassName =
+  'text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl'
+
+export const opsAuthBrandDescriptionClassName =
+  'text-sm leading-relaxed text-slate-600 sm:text-base'
+
+export const opsAuthCapabilityItemClassName = cn(
+  'flex items-start gap-3 rounded-xl border border-[#DBEAFE] bg-white/80 px-4 py-3 shadow-sm'
+)
+
+export const opsAuthCapabilityIconClassName =
+  'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600'
+
+export const opsAuthCapabilityLabelClassName =
+  'text-sm leading-snug text-slate-700'
+
+export const opsAuthCardClassName = cn(
+  'border-[#DBEAFE]/80 bg-white shadow-lg shadow-blue-950/5',
+  'ring-1 ring-blue-100/60'
 )
