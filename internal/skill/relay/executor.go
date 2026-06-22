@@ -9,6 +9,8 @@ package skillrelay
 //   - Model comes from model_whitelist_snapshot, never from the client payload.
 //   - Provider call contains only instruction_template + last user message (no history).
 //   - Provider credentials stay server-side; instruction_template is not a secret (R2/D-09).
+//   - Downstream execution must consume the request-entry-bound snapshot and must not
+//     re-resolve mutable active_version_id state.
 
 import (
 	"github.com/QuantumNous/new-api/common"
@@ -19,8 +21,7 @@ import (
 )
 
 // LoadAndApply is the DR-68 relay execution step (package-level, uses package db).
-// It consumes the immutable SkillVersion snapshot already bound on ctx when present;
-// otherwise it falls back to loading the currently pointed version row once.
+// It consumes the immutable SkillVersion snapshot already bound on ctx.
 //
 // Returns the rewritten request on success.
 // Returns (nil, errCode) on any failure - caller must abort the request.
@@ -62,27 +63,17 @@ type versionSnapshot struct {
 	ModelWhitelist      []string
 }
 
-// loadSnapshot returns the bound SkillVersion snapshot when Resolve already loaded it.
-// If not yet bound, it falls back to loading the pointed version row once from DB.
+// loadSnapshot consumes the SkillVersion snapshot bound by Resolve at request entry.
+// If the bound snapshot is absent, fail closed instead of re-reading mutable
+// active_version_id state from Skill.
 func loadSnapshot(database *gorm.DB, ctx *SkillRelayContext) (*versionSnapshot, errcodes.ErrorCode) {
-	if ctx == nil || ctx.Skill == nil || ctx.Skill.ActiveVersionID == nil {
+	if database == nil || ctx == nil || ctx.Skill == nil || ctx.Skill.ActiveVersionID == nil {
 		return nil, errcodes.ErrSkillInternalError
 	}
-	if ctx.SkillVersion != nil {
-		return snapshotFromSkillVersion(ctx.SkillVersion)
-	}
-
-	var version skillmodel.SkillVersion
-	if err := database.
-		Select([]string{"id", "instruction_template", "model_whitelist_snapshot"}).
-		Where("id = ?", *ctx.Skill.ActiveVersionID).
-		Take(&version).Error; err != nil {
-		// ActiveVersionID points to a non-existent or corrupt version row -
-		// publish/activate validation should have prevented this, but guard here.
+	if ctx.SkillVersion == nil {
 		return nil, errcodes.ErrSkillInternalError
 	}
-	ctx.SkillVersion = &version
-	return snapshotFromSkillVersion(&version)
+	return snapshotFromSkillVersion(ctx.SkillVersion)
 }
 
 func snapshotFromSkillVersion(version *skillmodel.SkillVersion) (*versionSnapshot, errcodes.ErrorCode) {

@@ -44,8 +44,8 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		c.Set("chat_completion_web_search_context_size", request.WebSearchOptions.SearchContextSize)
 	}
 
-	// DR-64: skill relay entry point Ã¢â‚¬â€ resolve user identity and load the target Skill
-	// for requests that carry deeprouter.skill_id (tasks/05 Ã‚Â§5.1 steps 1-6).
+	// DR-64: skill relay entry point - resolve user identity and load the target Skill
+	// for requests that carry deeprouter.skill_id (tasks/05 section 5.1 steps 1-6).
 	// Anonymous callers are rejected here with AUTH_REQUIRED before any prompt load.
 	publicRoutingAPI := common.GetContextKeyBool(c, constant.ContextKeySkillPublicRoutingAPI)
 	if publicRoutingAPI && (request.Deeprouter == nil || request.Deeprouter.SkillID == "") {
@@ -67,7 +67,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			// ran, SkillRelayContext has a pinned SkillVersionID. Re-calling Resolve
 			// would return a fresh zero-SkillVersionID context; skillrelay.Set below
 			// would overwrite the pin, causing the LoadAndApply block to re-load the
-			// snapshot Ã¢â‚¬â€ which may differ from the one used for channel selection if
+			// snapshot - which may differ from the one used for channel selection if
 			// active_version_id changed between Distribute and TextHelper.
 			// Direct path (unit tests / non-Distribute callers): no context exists yet.
 			var skillCtx *skillrelay.SkillRelayContext
@@ -85,7 +85,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 				}
 				skillCtx = resolved
 			}
-			// Carry entry_point into relay context for analytics (tasks/03 Ã‚Â§9).
+			// Carry entry_point into relay context for analytics (tasks/03 section 9).
 			// Package routing API forces skill_package so package-provided values
 			// cannot spoof analytics surfaces; regular relay keeps the explicit enum.
 			skillCtx.EntryPoint = string(enums.EntryPointPlaygroundPicker)
@@ -117,7 +117,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	//      called LoadAndApply and replaced the request body, so request.Model is the
 	//      server whitelist model (e.g. "deeprouter-auto") by the time we reach here.
 	//      Kids-mode filtering against virtual alias names is intentionally out of scope
-	//      for V1 (DR-68 PRD Ã‚Â§kids-session); the Distribute path's rewrite is applied
+	//      for V1 (DR-68 PRD section kids-session); the Distribute path's rewrite is applied
 	//      before channel model_mapping so a kids_mode whitelist entry for a real model
 	//      name is still honoured once smart-router resolves the virtual alias.
 	//      TODO(DR-68-kids): assert that no virtual alias (e.g. "deeprouter-auto")
@@ -216,8 +216,8 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	if passThroughGlobal || info.ChannelSetting.PassThroughBodyEnabled {
 		// Pass-through sends raw BodyStorage bytes directly to the provider, bypassing
 		// the Go struct. The request.Deeprouter = nil strip above has no effect on the
-		// already-buffered raw body, so any deeprouter vendor extension Ã¢â‚¬â€ including
-		// partial extensions without a skill_id Ã¢â‚¬â€ would be forwarded upstream unchanged.
+		// already-buffered raw body, so any deeprouter vendor extension ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â including
+		// partial extensions without a skill_id ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â would be forwarded upstream unchanged.
 		// Reject any request that carried a deeprouter extension.
 		if hadDeeprouterExtension {
 			return types.NewErrorWithStatusCode(
@@ -361,7 +361,7 @@ func skillRelayErrType(errCode errcodes.ErrorCode) types.ErrorCode {
 		return types.ErrorCodeAccessDenied
 	case http.StatusNotFound, http.StatusBadRequest:
 		return types.ErrorCodeInvalidRequest
-	default: // 429, 500, 504, Ã¢â‚¬Â¦
+	default: // 429, 500, 504, ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦
 		return types.ErrorCodeDoRequestFailed
 	}
 }
