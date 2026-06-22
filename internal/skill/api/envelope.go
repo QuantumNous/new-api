@@ -81,6 +81,9 @@ func ErrorWithRetryAfter(c *gin.Context, code errcodes.ErrorCode, message string
 		v := defaultRateLimitRetryAfterSeconds
 		retryAfter = &v
 	}
+	if retryAfter != nil && *retryAfter <= 0 {
+		retryAfter = nil
+	}
 	if retryAfter != nil {
 		c.Header("Retry-After", strconv.Itoa(*retryAfter))
 	}

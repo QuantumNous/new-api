@@ -3,9 +3,12 @@ package handler
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"fmt"
 	"mime"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -13,7 +16,14 @@ import (
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	appmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+)
+
+const (
+	kidsAnalyticsDailySaltEnv   = "SKILL_KIDS_ANALYTICS_DAILY_SALT"
+	kidsAnalyticsSaltVersionEnv = "SKILL_KIDS_ANALYTICS_SALT_VERSION"
 )
 
 // DownloadSkillPackage handles GET /api/v1/marketplace/skills/:id/download.
@@ -64,8 +74,7 @@ func DownloadSkillPackage(c *gin.Context) {
 	// Emit analytics event with the user's resolved plan (not the skill's required_plan).
 	// Log on failure but do not block the download response.
 	userPlan := groupToPlan(c.GetString("group"))
-	if err := skillmodel.EmitSkillEnabled(db, userID, s.ID, s.ActiveVersionID,
-		string(enums.EntryPointSkillPackage), string(userPlan)); err != nil {
+	if err := emitSkillEnabledForDownload(db, userID, s, userPlan); err != nil {
 		common.SysLog("EmitSkillEnabled failed for skill " + s.ID + ": " + err.Error())
 	}
 
@@ -104,6 +113,59 @@ func downloadPlanLevel(p enums.RequiredPlan) int {
 	default:
 		return -1
 	}
+}
+
+func emitSkillEnabledForDownload(db *gorm.DB, userID int64, s skillmodel.Skill, userPlan enums.RequiredPlan) error {
+	isKidsSession, err := serverResolvedKidsSession(db, userID)
+	if err != nil {
+		return err
+	}
+	if !isKidsSession {
+		return skillmodel.EmitSkillEnabled(db, userID, s.ID, s.ActiveVersionID,
+			string(enums.EntryPointSkillPackage), string(userPlan))
+	}
+
+	plan := userPlan
+	successVal := true
+	skillID := s.ID
+	event := skillmodel.SkillUsageEvent{
+		EventType:            enums.SkillUsageEventTypeEnabled,
+		SkillID:              &skillID,
+		SkillVersionID:       s.ActiveVersionID,
+		EntryPoint:           enums.EntryPointSkillPackage,
+		Plan:                 &plan,
+		IsKidsSafeSkill:      &s.IsKidsSafe,
+		IsKidsExclusiveSkill: &s.IsKidsExclusive,
+		Success:              &successVal,
+		Metadata:             skillmodel.SkillJSONB(`{}`),
+	}
+	if err := event.ApplyKidsSessionAnalyticsIdentity(userID, userID, kidsAnalyticsSaltVersion(), kidsAnalyticsDailySalt()); err != nil {
+		return err
+	}
+	return skillmodel.EmitSkillUsageEvent(db, event)
+}
+
+func serverResolvedKidsSession(db *gorm.DB, userID int64) (bool, error) {
+	if !db.Migrator().HasTable(&appmodel.User{}) {
+		return false, nil
+	}
+	var user appmodel.User
+	err := db.Select("kids_mode").Where("id = ?", userID).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, fmt.Errorf("resolve kids_mode for user %d: %w", userID, err)
+		}
+		return false, err
+	}
+	return user.KidsMode, nil
+}
+
+func kidsAnalyticsDailySalt() []byte {
+	return []byte(os.Getenv(kidsAnalyticsDailySaltEnv))
+}
+
+func kidsAnalyticsSaltVersion() string {
+	return os.Getenv(kidsAnalyticsSaltVersionEnv)
 }
 
 // ─── Zip builder ─────────────────────────────────────────────────────────────
@@ -274,8 +336,7 @@ func buildSkillMD(s skillmodel.Skill) string {
 
 	sb.WriteString("---\n")
 	sb.WriteString("name: " + s.Slug + "\n")
-	escapedDesc := strings.NewReplacer(`"`, `\"`, "\n", `\n`, "\r", "").Replace(s.ShortDescription)
-	sb.WriteString(`description: "` + escapedDesc + `"` + "\n")
+	sb.WriteString("description: " + strconv.Quote(s.ShortDescription) + "\n")
 	sb.WriteString("---\n\n")
 
 	sb.WriteString("## " + s.Name + "\n\n")
