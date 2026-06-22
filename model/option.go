@@ -321,6 +321,9 @@ func validateAndNormalizeOptionValue(key string, value string) (string, error) {
 	if key == "payment_setting.amount_bonus_limit" {
 		return normalizeAmountBonusLimitOptionValue(value)
 	}
+	if key == "payment_setting.amount_bonus_groups" {
+		return normalizeAmountBonusGroupsOptionValue(value)
+	}
 	return value, nil
 }
 
@@ -361,6 +364,32 @@ func normalizeAmountBonusLimitOptionValue(value string) (string, error) {
 	for amount, limit := range limits {
 		if amount <= 0 || limit < 0 {
 			return "", errors.New("充值赠送次数限制的充值金额必须为正、次数必须为非负整数")
+		}
+	}
+	return trimmed, nil
+}
+
+func normalizeAmountBonusGroupsOptionValue(value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "{}", nil
+	}
+
+	var groups map[int][]string
+	if err := common.UnmarshalJsonStr(trimmed, &groups); err != nil {
+		return "", errors.New("充值赠送用户组白名单必须是充值金额到用户组数组的 JSON 对象")
+	}
+	if groups == nil {
+		return "", errors.New("充值赠送用户组白名单必须是充值金额到用户组数组的 JSON 对象")
+	}
+	for amount, names := range groups {
+		if amount <= 0 {
+			return "", errors.New("充值赠送用户组白名单的充值金额必须为正整数")
+		}
+		for _, name := range names {
+			if strings.TrimSpace(name) == "" {
+				return "", errors.New("充值赠送用户组白名单的用户组名不能为空")
+			}
 		}
 	}
 	return trimmed, nil
