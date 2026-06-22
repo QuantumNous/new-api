@@ -166,6 +166,21 @@ The public-facing official website — home/marketing, pricing, rankings, blog, 
 - Cross-app wiring is **environment-driven** — never hardcode the peer origin: `APP_CONSOLE_ORIGIN` (website → Go console/API), `SITE_ORIGIN` / `NEXT_PUBLIC_SITE_ORIGIN` (website's own canonical origin), `OFFICIAL_WEBSITE_ORIGIN` (console → website).
 - CI/CD & infra: `website/` builds and deploys via `.github/workflows/gcp-deploy-website.yml` (separate Cloud Run service, container port 4000); the Go app uses `gcp-deploy.yml` (which `paths-ignore`s `website/**`). LB host-split + second Cloud Run live in `deploy/gcp/` — see `deploy/gcp/docs/WEBSITE_ROLLOUT.md`.
 
+### Rule 10: GitHub Issues And Pull Requests Must Preserve The Reasoning Trail
+
+When creating or updating a GitHub issue or PR, write a reviewable engineering note, not just a title, task list, change summary, or command log. Non-trivial issues/PRs must preserve the reasoning trail: **problem/background**, **evidence or reproduction**, **root cause or hypothesis**, **scope or design**, **impact and risks**, and **validation or acceptance criteria**.
+
+Small mechanical items can be shorter, but still need clear requested/changed behavior and verification. For production incidents, bug fixes, cross-module changes, billing/auth/relay work, migrations, or large PRs, do not publish without the evidence-backed chain: phenomenon → evidence → root cause/hypothesis → fix/scope → impact → validation.
+
+### Rule 11: Production Is Multi-Node
+
+Production runs as a multi-node deployment. Code changes and technical plans MUST account for multiple application instances serving traffic at the same time.
+
+- Do not rely on in-memory state, process-local locks, or single-instance ordering for correctness.
+- Use database transactions, row locks, unique constraints, Redis/distributed locks, idempotency keys, or other cross-node-safe mechanisms when correctness depends on coordination.
+- Cache invalidation, background jobs, startup initialization, scheduled work, and one-time migrations must be safe when executed by more than one node.
+- PRs and technical designs that touch auth, billing, quota, token/key creation, relay routing, caches, jobs, or configuration writes must explicitly mention the multi-node behavior or why it is not relevant.
+
 ---
 
 ## Code Map — 按需加载的模块级文档（重要）
