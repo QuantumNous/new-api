@@ -16,20 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { create } from 'zustand'
+import { describe, expect, test } from 'bun:test'
+import { validateApiKeySearch } from './index'
 
-interface OnboardingState {
-  open: boolean
-  openOnboarding: () => void
-  closeOnboarding: () => void
-}
+describe('validateApiKeySearch', () => {
+  test('preserves auto-create marker as create=1', () => {
+    expect(validateApiKeySearch({ create: '1' })).toEqual({ create: 1 })
+    expect(validateApiKeySearch({ create: true })).toEqual({ create: 1 })
+    expect(validateApiKeySearch({ create: 'true' })).toEqual({ create: 1 })
+  })
 
-/**
- * Controls the card-binding onboarding dialog that floats over the console.
- * Opened from onboarding entry points for new, unbound users or via the card-bind banner.
- */
-export const useOnboardingStore = create<OnboardingState>((set) => ({
-  open: false,
-  openOnboarding: () => set({ open: true }),
-  closeOnboarding: () => set({ open: false }),
-}))
+  test('omits create when the value is not an auto-create marker', () => {
+    expect(validateApiKeySearch({})).toEqual({})
+    expect(validateApiKeySearch({ create: '0' })).toEqual({})
+    expect(validateApiKeySearch({ create: false })).toEqual({})
+  })
+})

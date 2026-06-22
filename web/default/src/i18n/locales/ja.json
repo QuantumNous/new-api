@@ -1,9 +1,9 @@
 {
   "translation": {
-    "Lowest entry to get started": "最小ティアでまず始める",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
+    "Lowest entry to get started": "最小ティアでまず始める",
     "Top up $10 → the <z>full $10 lands, zero fee</z> + bonus. On OpenRouter, $10 only loads $9.45.": "$10 チャージ → <z>全額 $10 反映、手数料ゼロ</z> + ボーナス。OpenRouter では $10 で $9.45 しか反映されません。",
     "Top up — zero fee →": "チャージ — 手数料ゼロ →",
     "_copy": "_copy",
@@ -3203,6 +3203,7 @@
     "Platform": "プラットフォーム",
     "Playground": "プレイグラウンド",
     "Playground and chat functions": "プレイグラウンドとチャット機能",
+    "Playground default model": "Playground のデフォルトモデル",
     "Playground experiments and live conversations.": "Playgroundの実験とライブ会話。",
     "Please agree to the legal terms first": "先に利用規約に同意してください",
     "Please complete the security check to continue.": "続行するにはセキュリティチェックを完了してください。",
@@ -4669,6 +4670,7 @@
     "Used": "使用済み",
     "Used / Remaining": "使用済み / 残り",
     "Used as SuccessURL on the new product. You'll be prompted to confirm if left blank.": "新しい商品の SuccessURL として使用されます。空のままにすると確認を求められます。",
+    "Used as the initial model for first-run Playground onboarding.": "Playground の初回オンボーディングで使用する初期モデルです。",
     "Used for load balancing. Higher weight = more requests": "ロードバランシングに使用されます。重みが高いほどリクエスト数が増えます",
     "Used in URLs and API routes": "URLとAPIルートで使用されます",
     "Used Quota": "使用済みクォータ",

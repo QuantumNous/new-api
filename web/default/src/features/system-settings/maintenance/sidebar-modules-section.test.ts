@@ -16,20 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { create } from 'zustand'
+import { describe, expect, test } from 'bun:test'
+import { resolvePlaygroundDefaultModelToSave } from './sidebar-modules-utils'
 
-interface OnboardingState {
-  open: boolean
-  openOnboarding: () => void
-  closeOnboarding: () => void
-}
+describe('resolvePlaygroundDefaultModelToSave', () => {
+  test('normalizes blank admin input to the product default', () => {
+    expect(resolvePlaygroundDefaultModelToSave('   ')).toBe('gpt-4o')
+  })
 
-/**
- * Controls the card-binding onboarding dialog that floats over the console.
- * Opened from onboarding entry points for new, unbound users or via the card-bind banner.
- */
-export const useOnboardingStore = create<OnboardingState>((set) => ({
-  open: false,
-  openOnboarding: () => set({ open: true }),
-  closeOnboarding: () => set({ open: false }),
-}))
+  test('trims a configured model name', () => {
+    expect(resolvePlaygroundDefaultModelToSave(' gemini-2.5-flash ')).toBe(
+      'gemini-2.5-flash'
+    )
+  })
+})

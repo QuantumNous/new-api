@@ -1,9 +1,9 @@
 {
   "translation": {
-    "Lowest entry to get started": "Минимальный порог для старта",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
+    "Lowest entry to get started": "Минимальный порог для старта",
     "Top up $10 → the <z>full $10 lands, zero fee</z> + bonus. On OpenRouter, $10 only loads $9.45.": "Пополните на $10 → <z>зачисляются все $10, без комиссии</z> + бонус. На OpenRouter $10 дают только $9.45.",
     "Top up — zero fee →": "Пополнить — без комиссии →",
     "_copy": "_копировать",
@@ -3203,6 +3203,7 @@
     "Platform": "Платформа",
     "Playground": "Песочница",
     "Playground and chat functions": "Функции песочницы и чата",
+    "Playground default model": "Модель Playground по умолчанию",
     "Playground experiments and live conversations.": "Эксперименты в песочнице и живые беседы.",
     "Please agree to the legal terms first": "Сначала согласитесь с юридическими условиями",
     "Please complete the security check to continue.": "Пожалуйста, завершите проверку безопасности, чтобы продолжить.",
@@ -4669,6 +4670,7 @@
     "Used": "Использовано",
     "Used / Remaining": "Использовано / Осталось",
     "Used as SuccessURL on the new product. You'll be prompted to confirm if left blank.": "Используется как SuccessURL для нового продукта. Если оставить пустым, потребуется подтверждение.",
+    "Used as the initial model for first-run Playground onboarding.": "Используется как начальная модель для первичного онбординга Playground.",
     "Used for load balancing. Higher weight = more requests": "Используется для балансировки нагрузки. Больший вес = больше запросов",
     "Used in URLs and API routes": "Используется в URL и маршрутах API",
     "Used Quota": "Лимит потребления",

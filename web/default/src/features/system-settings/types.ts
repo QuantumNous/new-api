@@ -34,6 +34,13 @@ export type UpdateOptionRequest = {
   value: string | boolean | number
 }
 
+export type UpdateOptionsRequest = {
+  options: Array<{
+    key: string
+    value: string
+  }>
+}
+
 export type UpdateOptionResponse = {
   success: boolean
   message: string
@@ -86,6 +93,7 @@ export type SiteSettings = {
   'legal.auth_notice_enabled': string
   HeaderNavModules: string
   SidebarModulesAdmin: string
+  PlaygroundDefaultModel: string
 }
 
 export type AuthSettings = {

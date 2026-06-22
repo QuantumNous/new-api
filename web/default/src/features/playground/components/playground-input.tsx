@@ -56,6 +56,7 @@ interface PlaygroundInputProps {
   onSubmit: (text: string) => void
   onStop?: () => void
   disabled?: boolean
+  submitDisabled?: boolean
   isGenerating?: boolean
   models: ModelOption[]
   modelValue: string
@@ -80,6 +81,7 @@ export function PlaygroundInput({
   onSubmit,
   onStop,
   disabled,
+  submitDisabled,
   isGenerating,
   models,
   modelValue,
@@ -95,7 +97,7 @@ export function PlaygroundInput({
 
   const isModelSelectDisabled = disabled || isModelLoading
   const isGroupSelectDisabled = disabled || groups.length === 0
-  const isSubmitDisabled = disabled || !modelValue
+  const isSubmitDisabled = disabled || submitDisabled || !modelValue
 
   const handleSubmit = (message: PromptInputMessage) => {
     if (!message.text?.trim() || isSubmitDisabled) return

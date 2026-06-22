@@ -9,7 +9,10 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+var ErrUserTokenLimitReached = errors.New("user token limit reached")
 
 type Token struct {
 	Id                 int            `json:"id"`
@@ -284,6 +287,78 @@ func (token *Token) Insert() error {
 	var err error
 	err = DB.Create(token).Error
 	return err
+}
+
+func CreateUserToken(userId int, token *Token, maxTokens int) error {
+	if userId == 0 {
+		return errors.New("userId 为空！")
+	}
+	if token == nil {
+		return errors.New("token 为空！")
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id").
+			Where("id = ?", userId).
+			First(&user).Error; err != nil {
+			return err
+		}
+
+		var total int64
+		if err := tx.Model(&Token{}).Where("user_id = ?", userId).Count(&total).Error; err != nil {
+			return err
+		}
+		if int(total) >= maxTokens {
+			return ErrUserTokenLimitReached
+		}
+
+		token.UserId = userId
+		return tx.Create(token).Error
+	})
+}
+
+func EnsureInitialUserToken(userId int, token Token, maxTokens int) (*Token, bool, error) {
+	if userId == 0 {
+		return nil, false, errors.New("userId 为空！")
+	}
+
+	var created bool
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id").
+			Where("id = ?", userId).
+			First(&user).Error; err != nil {
+			return err
+		}
+
+		var total int64
+		if err := tx.Model(&Token{}).Where("user_id = ?", userId).Count(&total).Error; err != nil {
+			return err
+		}
+		if total > 0 {
+			return nil
+		}
+		if int(total) >= maxTokens {
+			return ErrUserTokenLimitReached
+		}
+
+		token.UserId = userId
+		if err := tx.Create(&token).Error; err != nil {
+			return err
+		}
+		created = true
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	if !created {
+		return nil, false, nil
+	}
+	return &token, true, nil
 }
 
 // Update Make sure your token's fields is completed, because this will update non-zero values

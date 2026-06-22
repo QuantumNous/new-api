@@ -19,14 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
-import { updateSystemOption } from '../api'
-import type { UpdateOptionRequest } from '../types'
+import { updateSystemOption, updateSystemOptions } from '../api'
+import type { UpdateOptionRequest, UpdateOptionsRequest } from '../types'
 
 // Configuration keys that require status refresh
 const STATUS_RELATED_KEYS = [
   'theme.frontend',
   'HeaderNavModules',
   'SidebarModulesAdmin',
+  'PlaygroundDefaultModel',
   'Notice',
   'LogConsumeEnabled',
   'QuotaPerUnit',
@@ -50,6 +51,39 @@ export function useUpdateOption() {
 
         // If updating frontend-display-related config, also refresh status
         if (STATUS_RELATED_KEYS.includes(variables.key)) {
+          queryClient.invalidateQueries({ queryKey: ['status'] })
+          try {
+            window.localStorage.removeItem('status')
+          } catch {
+            /* empty */
+          }
+        }
+
+        toast.success(i18next.t('Setting updated successfully'))
+      } else {
+        toast.error(data.message || i18next.t('Failed to update setting'))
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || i18next.t('Failed to update setting'))
+    },
+  })
+}
+
+export function useUpdateOptionsBulk() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (request: UpdateOptionsRequest) => updateSystemOptions(request),
+    onSuccess: (data, variables) => {
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ['system-options'] })
+
+        if (
+          variables.options.some((option) =>
+            STATUS_RELATED_KEYS.includes(option.key)
+          )
+        ) {
           queryClient.invalidateQueries({ queryKey: ['status'] })
           try {
             window.localStorage.removeItem('status')

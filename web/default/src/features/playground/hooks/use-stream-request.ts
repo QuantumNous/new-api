@@ -20,7 +20,8 @@ import { useCallback, useRef } from 'react'
 import { SSE } from 'sse.js'
 import { getCommonHeaders } from '@/lib/api'
 import { API_ENDPOINTS, ERROR_MESSAGES } from '../constants'
-import type { ChatCompletionRequest, ChatCompletionChunk } from '../types'
+import { parseStreamMessageEvent } from '../lib/stream-event-parser'
+import type { ChatCompletionRequest } from '../types'
 
 /**
  * Hook for handling streaming chat completion requests
@@ -65,22 +66,24 @@ export function useStreamRequest() {
           return
         }
 
-        try {
-          const chunk: ChatCompletionChunk = JSON.parse(e.data)
-          const delta = chunk.choices?.[0]?.delta
+        const parsed = parseStreamMessageEvent(e.data)
+        if (parsed.type === 'error') {
+          handleError(parsed.message, parsed.code)
+          return
+        }
 
-          if (delta) {
-            if (delta.reasoning_content) {
-              onUpdate('reasoning', delta.reasoning_content)
-            }
-            if (delta.content) {
-              onUpdate('content', delta.content)
-            }
-          }
-        } catch (error) {
+        if (parsed.type === 'parse_error') {
           // eslint-disable-next-line no-console
-          console.error('Failed to parse SSE message:', error)
+          console.error('Failed to parse SSE message:', e.data)
           handleError(ERROR_MESSAGES.PARSE_ERROR)
+          return
+        }
+
+        if (parsed.reasoning) {
+          onUpdate('reasoning', parsed.reasoning)
+        }
+        if (parsed.content) {
+          onUpdate('content', parsed.content)
         }
       })
 

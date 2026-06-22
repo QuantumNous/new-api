@@ -24,7 +24,7 @@ import { Button } from '@/components/ui/button'
 // Example prompts shown as one-click chips during the first run. They fill the
 // input and send immediately so a brand-new user can make their first API call
 // with zero typing. Keys are translated via t().
-export const FIRST_RUN_EXAMPLE_PROMPTS = [
+const FIRST_RUN_EXAMPLE_PROMPTS = [
   'Hello!',
   'Write a quicksort in Python',
   'Explain Transformers',
@@ -32,13 +32,17 @@ export const FIRST_RUN_EXAMPLE_PROMPTS = [
 
 interface FirstRunWelcomeProps {
   onPickExample: (prompt: string) => void
+  disabled?: boolean
 }
 
 /**
  * Welcome banner + example-prompt chips shown at the top of the empty Playground
  * when a user lands via `?first=1` and has not sent any message yet.
  */
-export function FirstRunWelcome({ onPickExample }: FirstRunWelcomeProps) {
+export function FirstRunWelcome({
+  onPickExample,
+  disabled = false,
+}: FirstRunWelcomeProps) {
   const { t } = useTranslation()
   return (
     <div className='mx-auto w-full max-w-4xl px-4 pt-6'>
@@ -47,7 +51,7 @@ export function FirstRunWelcome({ onPickExample }: FirstRunWelcomeProps) {
           <span className='mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-white'>
             <Sparkles className='size-4' />
           </span>
-          <p className='text-sm leading-relaxed text-foreground'>
+          <p className='text-foreground text-sm leading-relaxed'>
             {t(
               'Welcome to flatkey! Send a message to make your first API call in 30 seconds — no key or setup needed.'
             )}
@@ -58,8 +62,9 @@ export function FirstRunWelcome({ onPickExample }: FirstRunWelcomeProps) {
             <button
               key={prompt}
               type='button'
+              disabled={disabled}
               onClick={() => onPickExample(prompt)}
-              className='rounded-full border border-violet-200 bg-white px-3 py-1.5 text-sm text-violet-700 transition-colors hover:bg-violet-50 dark:border-violet-900/40 dark:bg-transparent dark:text-violet-300 dark:hover:bg-violet-950/30'
+              className='rounded-full border border-violet-200 bg-white px-3 py-1.5 text-sm text-violet-700 transition-colors hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-violet-900/40 dark:bg-transparent dark:text-violet-300 dark:hover:bg-violet-950/30'
             >
               {t(prompt)}
             </button>
@@ -88,7 +93,7 @@ export function GetKeyCard({ onDismiss }: GetKeyCardProps) {
           type='button'
           onClick={onDismiss}
           aria-label={t('Dismiss')}
-          className='absolute right-2 top-2 rounded-md p-1 text-white/80 transition-colors hover:bg-white/10 hover:text-white'
+          className='absolute top-2 right-2 rounded-md p-1 text-white/80 transition-colors hover:bg-white/10 hover:text-white'
         >
           <X className='size-4' />
         </button>
@@ -109,7 +114,12 @@ export function GetKeyCard({ onDismiss }: GetKeyCardProps) {
             </button>
             <Button
               size='sm'
-              onClick={() => navigate({ to: '/keys' })}
+              onClick={() =>
+                navigate({
+                  to: '/keys',
+                  search: { create: 1 },
+                })
+              }
               className='gap-1 rounded-full bg-white text-violet-700 hover:bg-violet-50'
             >
               {t('Get my API key')}

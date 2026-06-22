@@ -8,6 +8,9 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	backendI18n "github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -91,6 +94,52 @@ func TestRegisterWithEmailVerificationAutoLogsInNewUser(t *testing.T) {
 	require.NotZero(t, payload.Data.ID)
 	require.Equal(t, "verified-user", payload.Data.Username)
 	require.True(t, payload.Data.IsNewUser)
+}
+
+func TestRegisterDefaultTokenLimitDoesNotBlockRegistration(t *testing.T) {
+	require.NoError(t, backendI18n.Init())
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.Token{}))
+
+	originalRegisterEnabled := common.RegisterEnabled
+	originalPasswordRegisterEnabled := common.PasswordRegisterEnabled
+	originalEmailVerificationEnabled := common.EmailVerificationEnabled
+	originalGenerateDefaultToken := constant.GenerateDefaultToken
+	tokenSetting := operation_setting.GetTokenSetting()
+	originalMaxUserTokens := tokenSetting.MaxUserTokens
+	t.Cleanup(func() {
+		common.RegisterEnabled = originalRegisterEnabled
+		common.PasswordRegisterEnabled = originalPasswordRegisterEnabled
+		common.EmailVerificationEnabled = originalEmailVerificationEnabled
+		constant.GenerateDefaultToken = originalGenerateDefaultToken
+		tokenSetting.MaxUserTokens = originalMaxUserTokens
+	})
+	common.RegisterEnabled = true
+	common.PasswordRegisterEnabled = true
+	common.EmailVerificationEnabled = false
+	constant.GenerateDefaultToken = true
+	tokenSetting.MaxUserTokens = 0
+
+	body, err := common.Marshal(map[string]any{
+		"username": "token-limit-user",
+		"password": "password123",
+		"email":    "token-limit@example.com",
+	})
+	require.NoError(t, err)
+
+	recorder := performRegisterRequest(t, body)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.NotEmpty(t, recorder.Result().Cookies(), "registration should establish a login session")
+	var payload registerResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	require.NotZero(t, payload.Data.ID)
+	require.True(t, payload.Data.IsNewUser)
+
+	var tokenCount int64
+	require.NoError(t, db.Model(&model.Token{}).Count(&tokenCount).Error)
+	require.Zero(t, tokenCount)
 }
 
 func TestWeChatAuthNewUserMarksIsNewUser(t *testing.T) {

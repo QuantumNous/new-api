@@ -199,16 +199,21 @@ type OptionUpdateRequest struct {
 	Value any    `json:"value"`
 }
 
-func UpdateOption(c *gin.Context) {
-	var option OptionUpdateRequest
-	err := common.DecodeJson(c.Request.Body, &option)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "无效的参数",
-		})
-		return
+type OptionsUpdateRequest struct {
+	Options []OptionUpdateRequest `json:"options"`
+}
+
+func isBulkOptionUpdateKey(key string) bool {
+	switch key {
+	case "SidebarModulesAdmin", model.OptionKeyPlaygroundDefaultModel:
+		return true
+	default:
+		return false
 	}
+}
+
+func prepareOptionUpdate(c *gin.Context, option *OptionUpdateRequest) bool {
+	var err error
 	switch option.Key {
 	case "codex_model_governance_setting.unsupported_message_patterns":
 		option.Value, err = normalizeCodexPatternsOptionValue(option.Value)
@@ -217,7 +222,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": err.Error(),
 			})
-			return
+			return false
 		}
 	case "codex_model_governance_setting.official_source_urls",
 		"codex_model_governance_setting.official_lifecycle_terms":
@@ -227,7 +232,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": serializeErr.Error(),
 			})
-			return
+			return false
 		}
 		option.Value = serialized
 	default:
@@ -246,12 +251,12 @@ func UpdateOption(c *gin.Context) {
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
-			return
+			return false
 		}
 	default:
 		if isPaymentComplianceOptionKey(option.Key) {
 			common.ApiErrorMsg(c, "合规确认字段不允许通过通用设置接口修改")
-			return
+			return false
 		}
 	}
 	switch option.Key {
@@ -261,7 +266,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "无法启用 GitHub OAuth，请先填入 GitHub Client Id 以及 GitHub Client Secret！",
 			})
-			return
+			return false
 		}
 	case "discord.enabled":
 		if option.Value == "true" && system_setting.GetDiscordSettings().ClientId == "" {
@@ -269,7 +274,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "无法启用 Discord OAuth，请先填入 Discord Client Id 以及 Discord Client Secret！",
 			})
-			return
+			return false
 		}
 	case "oidc.enabled":
 		if option.Value == "true" && system_setting.GetOIDCSettings().ClientId == "" {
@@ -277,7 +282,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "无法启用 OIDC 登录，请先填入 OIDC Client Id 以及 OIDC Client Secret！",
 			})
-			return
+			return false
 		}
 	case "google.enabled":
 		if option.Value == "true" && system_setting.GetGoogleSettings().ClientId == "" {
@@ -285,7 +290,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "无法启用 Google OAuth，请先填入 Google Client Id 以及 Google Client Secret！",
 			})
-			return
+			return false
 		}
 	case "LinuxDOOAuthEnabled":
 		if option.Value == "true" && common.LinuxDOClientId == "" {
@@ -293,7 +298,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "无法启用 LinuxDO OAuth，请先填入 LinuxDO Client Id 以及 LinuxDO Client Secret！",
 			})
-			return
+			return false
 		}
 	case "EmailDomainRestrictionEnabled":
 		if option.Value == "true" && len(common.EmailDomainWhitelist) == 0 {
@@ -301,7 +306,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "无法启用邮箱域名限制，请先填入限制的邮箱域名！",
 			})
-			return
+			return false
 		}
 	case "WeChatAuthEnabled":
 		if option.Value == "true" && common.WeChatServerAddress == "" {
@@ -309,7 +314,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "无法启用微信登录，请先填入微信登录相关配置信息！",
 			})
-			return
+			return false
 		}
 	case "TurnstileCheckEnabled":
 		if option.Value == "true" && common.TurnstileSiteKey == "" {
@@ -317,8 +322,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "无法启用 Turnstile 校验，请先填入 Turnstile 校验相关配置信息！",
 			})
-
-			return
+			return false
 		}
 	case "TelegramOAuthEnabled":
 		if option.Value == "true" && common.TelegramBotToken == "" {
@@ -326,7 +330,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "无法启用 Telegram OAuth，请先填入 Telegram Bot Token！",
 			})
-			return
+			return false
 		}
 	case "theme.frontend":
 		if option.Value != "default" && option.Value != "classic" {
@@ -334,7 +338,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "无效的主题值，可选值：default（新版前端）、classic（经典前端）",
 			})
-			return
+			return false
 		}
 	case "GroupRatio":
 		err = ratio_setting.CheckGroupRatio(option.Value.(string))
@@ -343,7 +347,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": err.Error(),
 			})
-			return
+			return false
 		}
 	case "ImageRatio":
 		err = ratio_setting.UpdateImageRatioByJSONString(option.Value.(string))
@@ -352,7 +356,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "图片倍率设置失败: " + err.Error(),
 			})
-			return
+			return false
 		}
 	case "AudioRatio":
 		err = ratio_setting.UpdateAudioRatioByJSONString(option.Value.(string))
@@ -361,7 +365,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "音频倍率设置失败: " + err.Error(),
 			})
-			return
+			return false
 		}
 	case "AudioCompletionRatio":
 		err = ratio_setting.UpdateAudioCompletionRatioByJSONString(option.Value.(string))
@@ -370,7 +374,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "音频补全倍率设置失败: " + err.Error(),
 			})
-			return
+			return false
 		}
 	case "CreateCacheRatio":
 		err = ratio_setting.UpdateCreateCacheRatioByJSONString(option.Value.(string))
@@ -379,7 +383,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "缓存创建倍率设置失败: " + err.Error(),
 			})
-			return
+			return false
 		}
 	case "ModelRequestRateLimitGroup":
 		err = setting.CheckModelRequestRateLimitGroup(option.Value.(string))
@@ -388,7 +392,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": err.Error(),
 			})
-			return
+			return false
 		}
 	case "AutomaticDisableStatusCodes":
 		_, err = operation_setting.ParseHTTPStatusCodeRanges(option.Value.(string))
@@ -397,7 +401,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": err.Error(),
 			})
-			return
+			return false
 		}
 	case "AutomaticRetryStatusCodes":
 		_, err = operation_setting.ParseHTTPStatusCodeRanges(option.Value.(string))
@@ -406,7 +410,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": err.Error(),
 			})
-			return
+			return false
 		}
 	case "console_setting.api_info":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "ApiInfo")
@@ -415,7 +419,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": err.Error(),
 			})
-			return
+			return false
 		}
 	case "console_setting.announcements":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "Announcements")
@@ -424,7 +428,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": err.Error(),
 			})
-			return
+			return false
 		}
 	case "console_setting.faq":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "FAQ")
@@ -433,7 +437,7 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": err.Error(),
 			})
-			return
+			return false
 		}
 	case "console_setting.uptime_kuma_groups":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "UptimeKumaGroups")
@@ -442,11 +446,68 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": err.Error(),
 			})
-			return
+			return false
 		}
+	}
+	return true
+}
+
+func UpdateOption(c *gin.Context) {
+	var option OptionUpdateRequest
+	err := common.DecodeJson(c.Request.Body, &option)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的参数",
+		})
+		return
+	}
+	if !prepareOptionUpdate(c, &option) {
+		return
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}
+
+func UpdateOptions(c *gin.Context) {
+	var request OptionsUpdateRequest
+	err := common.DecodeJson(c.Request.Body, &request)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的参数",
+		})
+		return
+	}
+	if len(request.Options) > 100 {
+		common.ApiErrorI18n(c, i18n.MsgBatchTooMany, map[string]any{"Max": 100})
+		return
+	}
+
+	values := make(map[string]string, len(request.Options))
+	for i := range request.Options {
+		if !isBulkOptionUpdateKey(request.Options[i].Key) {
+			common.ApiErrorMsg(c, "该配置项不支持批量保存")
+			return
+		}
+		value, ok := request.Options[i].Value.(string)
+		if !ok {
+			common.ApiErrorMsg(c, "配置项值必须为字符串")
+			return
+		}
+		if !prepareOptionUpdate(c, &request.Options[i]) {
+			return
+		}
+		values[request.Options[i].Key] = value
+	}
+	if err := model.UpdateOptionsBulk(values); err != nil {
 		common.ApiError(c, err)
 		return
 	}

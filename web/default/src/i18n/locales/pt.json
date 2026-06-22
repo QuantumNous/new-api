@@ -1,9 +1,9 @@
 {
   "translation": {
-    "Lowest entry to get started": "Entrada mais baixa para começar",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
+    "Lowest entry to get started": "Entrada mais baixa para começar",
     "Top up $10 → the <z>full $10 lands, zero fee</z> + bonus. On OpenRouter, $10 only loads $9.45.": "Recarregue $10 → <z>os $10 completos entram, sem taxa</z> + bônus. No OpenRouter, $10 só creditam $9.45.",
     "Top up — zero fee →": "Recarregar — sem taxa →",
     "_copy": "_copiar",
@@ -3203,6 +3203,7 @@
     "Platform": "Plataforma",
     "Playground": "Parque infantil",
     "Playground and chat functions": "Funções de playground e bate-papo",
+    "Playground default model": "Modelo padrão do Playground",
     "Playground experiments and live conversations.": "Experimentos de playground e conversas ao vivo.",
     "Please agree to the legal terms first": "Por favor, concorde primeiro com os termos legais",
     "Please complete the security check to continue.": "Conclua a verificação de segurança para continuar.",
@@ -4669,6 +4670,7 @@
     "Used": "Usado",
     "Used / Remaining": "Usado / Restante",
     "Used as SuccessURL on the new product. You'll be prompted to confirm if left blank.": "Usado como SuccessURL no novo produto. Você será solicitado a confirmar se for deixado em branco.",
+    "Used as the initial model for first-run Playground onboarding.": "Usado como modelo inicial para a integração inicial do Playground.",
     "Used for load balancing. Higher weight = more requests": "Usado para balanceamento de carga. Peso maior = mais solicitações",
     "Used in URLs and API routes": "Usado em URLs e rotas de API",
     "Used Quota": "Cota usada",

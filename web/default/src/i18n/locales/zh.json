@@ -1,9 +1,9 @@
 {
   "translation": {
-    "Lowest entry to get started": "最低门槛，先开始用",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
+    "Lowest entry to get started": "最低门槛，先开始用",
     "Top up $10 → the <z>full $10 lands, zero fee</z> + bonus. On OpenRouter, $10 only loads $9.45.": "充 $10 → <z>全额 $10 到账，0 手续费</z> + 送 bonus。在 OpenRouter，$10 只到账 $9.45。",
     "Top up — zero fee →": "充值 — 0 手续费 →",
     "_copy": "_复制",
@@ -3203,6 +3203,7 @@
     "Platform": "平台",
     "Playground": "游乐场",
     "Playground and chat functions": "操练场和聊天功能",
+    "Playground default model": "Playground 默认模型",
     "Playground experiments and live conversations.": "Playground 实验和实时对话。",
     "Please agree to the legal terms first": "请先同意法律条款",
     "Please complete the security check to continue.": "请完成安全验证以继续。",
@@ -4669,6 +4670,7 @@
     "Used": "已使用",
     "Used / Remaining": "已使用 / 剩余",
     "Used as SuccessURL on the new product. You'll be prompted to confirm if left blank.": "用作新产品的 SuccessURL。若留空，系统会要求你确认。",
+    "Used as the initial model for first-run Playground onboarding.": "用作 Playground 首次引导的初始模型。",
     "Used for load balancing. Higher weight = more requests": "用于负载均衡。权重越高 = 请求越多",
     "Used in URLs and API routes": "用于URL和API路由",
     "Used Quota": "消耗额度",
