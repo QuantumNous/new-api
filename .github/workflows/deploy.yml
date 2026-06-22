@@ -1,0 +1,75 @@
+name: Build and Deploy New-API
+
+on:
+  push:
+    branches:
+      - custom-ui
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: new-api-production
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: ghcr.io/kwoskywang/new-api
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/KwoskyWang/new-api
+
+      - name: Prepare SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/new_api_deploy
+          chmod 600 ~/.ssh/new_api_deploy
+          ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        run: |
+          ssh -i ~/.ssh/new_api_deploy "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" << 'EOF'
+            set -e
+
+            cd /opt/new-api
+
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
+
+            docker compose pull new-api
+            docker compose up -d new-api
+
+            docker compose ps
+            docker compose logs --tail=80 new-api
+
+            curl -fsS http://127.0.0.1:3000 >/dev/null
+
+            docker image prune -f
+          EOF
+
