@@ -21,6 +21,7 @@ import { Check as CheckIcon, ChevronDown, Pencil, Plus, Trash2 } from 'lucide-re
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -293,6 +294,27 @@ export function AmountBonusVisualEditor({
     setDraftGroups(groupsByTier[tier.amount] ?? [])
   }
 
+  // 表格内「生效用户组」只读展示（编辑入口统一在下方添加/编辑区，避免双写冲突）。
+  // opt-in 语义：空 = 不发放（红色提示）；含 all = 全部用户组；否则列出组名。
+  const renderTierGroups = (tierAmount: number) => {
+    const groups = groupsByTier[tierAmount]
+    if (!groups || groups.length === 0) {
+      return <Badge variant='destructive'>{t('No groups (not granted)')}</Badge>
+    }
+    if (groups.includes(AMOUNT_BONUS_GROUP_ALL)) {
+      return <Badge variant='secondary'>{t('All user groups')}</Badge>
+    }
+    return (
+      <div className='flex flex-wrap gap-1'>
+        {groups.map((group) => (
+          <Badge key={group} variant='outline'>
+            {group}
+          </Badge>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className='space-y-4'>
       <p className='text-muted-foreground text-sm'>
@@ -340,17 +362,7 @@ export function AmountBonusVisualEditor({
                   <TableCell className='font-mono'>
                     {limits[tier.amount] ? limits[tier.amount] : t('Unlimited')}
                   </TableCell>
-                  <TableCell>
-                    <TierGroupSelect
-                      selected={groupsByTier[tier.amount] ?? []}
-                      options={userGroups}
-                      onChange={(groups) =>
-                        onGroupsChange?.(
-                          setAmountBonusGroups(groupsValue, tier.amount, groups)
-                        )
-                      }
-                    />
-                  </TableCell>
+                  <TableCell>{renderTierGroups(tier.amount)}</TableCell>
                   <TableCell className='text-right'>
                     <div className='flex justify-end gap-2'>
                       <Button
@@ -453,7 +465,7 @@ export function AmountBonusVisualEditor({
       </div>
       <p className='text-muted-foreground text-xs'>
         {t(
-          'Tip: pick eligible user groups here, or change them later directly in the table row.'
+          'Tip: pick eligible user groups here. To change a tier later, click edit on its row.'
         )}
       </p>
     </div>
