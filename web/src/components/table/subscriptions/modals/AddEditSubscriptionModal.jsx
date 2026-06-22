@@ -131,7 +131,7 @@ const AddEditSubscriptionModal = ({
   useEffect(() => {
     if (!visible) return;
     setGroupLoading(true);
-    API.get('/api/group')
+    API.get('/api/group/')
       .then((res) => {
         if (res.data?.success) {
           setGroupOptions(res.data?.data || []);

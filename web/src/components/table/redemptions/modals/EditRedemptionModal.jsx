@@ -126,7 +126,7 @@ const EditRedemptionModal = (props) => {
   const loadGroupOptions = async () => {
     setGroupLoading(true);
     try {
-      const res = await API.get('/api/group');
+      const res = await API.get('/api/group/');
       if (res.data?.success) {
         setGroupOptions(res.data?.data || []);
       } else {
