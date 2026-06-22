@@ -12,6 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 // LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
@@ -50,6 +51,9 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = info.UpstreamModelName
 	}
+	if info.TaskRelayInfo != nil && strings.TrimSpace(info.TaskRelayInfo.PublicTaskID) != "" {
+		other["task_id"] = info.TaskRelayInfo.PublicTaskID
+	}
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ChannelId: info.ChannelId,
 		ModelName: info.OriginModelName,
@@ -62,6 +66,37 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	})
 	model.UpdateUserUsedQuotaAndRequestCount(info.UserId, info.PriceData.Quota)
 	model.UpdateChannelUsedQuota(info.ChannelId, info.PriceData.Quota)
+}
+
+// TaskLogElapsedSeconds returns submit→finish latency for async task consume logs.
+func TaskLogElapsedSeconds(task *model.Task) int {
+	if task == nil {
+		return 0
+	}
+	if task.FinishTime > 0 && task.SubmitTime > 0 && task.FinishTime >= task.SubmitTime {
+		return int(task.FinishTime - task.SubmitTime)
+	}
+	if actual := gjson.GetBytes(task.Data, "data.actual_time").Int(); actual > 0 {
+		return int(actual)
+	}
+	if task.StartTime > 0 && task.FinishTime > task.StartTime {
+		return int(task.FinishTime - task.StartTime)
+	}
+	return 0
+}
+
+// BackfillTaskLogDuration rewrites the submit-time consume log row with real generation latency.
+func BackfillTaskLogDuration(ctx context.Context, task *model.Task) {
+	if task == nil || task.UserId <= 0 || strings.TrimSpace(task.TaskID) == "" {
+		return
+	}
+	elapsed := TaskLogElapsedSeconds(task)
+	if elapsed <= 0 {
+		return
+	}
+	if err := model.UpdateLogResultByTaskID(task.UserId, task.TaskID, elapsed, nil); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("failed to backfill use_time for task %s: %v", task.TaskID, err))
+	}
 }
 
 // ---------------------------------------------------------------------------

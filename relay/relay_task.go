@@ -483,6 +483,12 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	}
 
 	shouldRefund := false
+	if task.Status == model.TaskStatusSuccess && oldStatus != model.TaskStatusSuccess {
+		task.Progress = taskcommon.ProgressComplete
+		if task.FinishTime == 0 {
+			task.FinishTime = time.Now().Unix()
+		}
+	}
 	if task.Status == model.TaskStatusFailure && oldStatus != model.TaskStatusFailure {
 		if ti.Reason != "" {
 			task.FailReason = ti.Reason
@@ -500,8 +506,13 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 
 	if !snap.Equal(task.Snapshot()) {
 		won, err := task.UpdateWithStatus(oldStatus)
-		if err == nil && won && shouldRefund {
-			service.RefundTaskQuota(context.Background(), task, task.FailReason)
+		if err == nil && won {
+			if shouldRefund {
+				service.RefundTaskQuota(context.Background(), task, task.FailReason)
+			}
+			if task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure {
+				service.BackfillTaskLogDuration(context.Background(), task)
+			}
 		}
 	}
 

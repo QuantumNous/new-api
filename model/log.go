@@ -90,27 +90,64 @@ func FindChannelIDForImageTask(userID int, taskID string) (int, bool) {
 	return row.ChannelId, true
 }
 
-// UpdateLogResultByTaskID backfills the "耗时" (use_time) on the consumption log row for an
-// async image generation task once the real result is known, and merges extraOther into its
-// `other` JSON (e.g. fallback_triggered for the admin-only race-fallback marker). gpt-image-2
-// async submits bill/log immediately at submit time (use_time = just the submit round-trip,
-// always fast); this rewrites that same row in place once polling confirms the task finished,
-// so the log reflects real generation latency instead of the misleadingly-fast submit time.
-func UpdateLogResultByTaskID(userID int, taskID string, useTimeSeconds int, extraOther map[string]interface{}) error {
+func findConsumeLogRowForTask(userID int, taskID string) (*Log, error) {
 	if userID <= 0 || strings.TrimSpace(taskID) == "" {
-		return nil
+		return nil, gorm.ErrRecordNotFound
 	}
 	var row Log
 	err := LOG_DB.Model(&Log{}).
 		Where("user_id = ? AND type = ? AND other LIKE ?", userID, LogTypeConsume, "%"+taskID+"%").
 		Order("id DESC").
 		First(&row).Error
+	if err == nil {
+		return &row, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	// Legacy rows: video tasks logged before task_id was stored in other.
+	task, exist, taskErr := GetByTaskId(userID, taskID)
+	if taskErr != nil || !exist {
+		return nil, gorm.ErrRecordNotFound
+	}
+	modelName := task.Properties.OriginModelName
+	if modelName == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	windowStart := task.SubmitTime - 3
+	windowEnd := task.SubmitTime + 3
+	if windowStart < 0 {
+		windowStart = 0
+	}
+	err = LOG_DB.Model(&Log{}).
+		Where("user_id = ? AND type = ? AND model_name = ? AND channel_id = ? AND created_at >= ? AND created_at <= ? AND other LIKE ?",
+			userID, LogTypeConsume, modelName, task.ChannelId, windowStart, windowEnd, "%\"is_task\":true%").
+		Order("id DESC").
+		First(&row).Error
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+// UpdateLogResultByTaskID backfills the "耗时" (use_time) on the consumption log row for an
+// async task once the real result is known, and merges extraOther into its `other` JSON
+// (e.g. fallback_triggered for gpt-image race-fallback). Async submits bill/log at submit
+// time with use_time=0; this rewrites the same row once polling confirms the task finished.
+func UpdateLogResultByTaskID(userID int, taskID string, useTimeSeconds int, extraOther map[string]interface{}) error {
+	if userID <= 0 || strings.TrimSpace(taskID) == "" || useTimeSeconds <= 0 {
+		return nil
+	}
+	row, err := findConsumeLogRowForTask(userID, taskID)
 	if err != nil {
 		return err
 	}
 	otherMap, _ := common.StrToMap(row.Other)
 	if otherMap == nil {
 		otherMap = map[string]interface{}{}
+	}
+	if _, ok := otherMap["task_id"]; !ok || otherMap["task_id"] == "" {
+		otherMap["task_id"] = taskID
 	}
 	for k, v := range extraOther {
 		otherMap[k] = v
