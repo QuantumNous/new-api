@@ -24,6 +24,10 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { isAiocNavHidden } from '@/config/aioc-demo-visibility'
 import { normalizeSystemName } from '@/lib/constants'
+import {
+  opsConsoleOutlineButtonClassName,
+  opsConsolePrimaryButtonClassName,
+} from '@/lib/ops-ui-styles'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -79,20 +83,11 @@ function normalizeValue(value: unknown): string {
 }
 
 const cockpitFieldClassName =
-  'border border-white/15 bg-slate-950/50 text-slate-100 placeholder:text-slate-400'
+  'border-[#DBEAFE] bg-white text-slate-800 placeholder:text-slate-400'
 
-const cockpitOutlineButtonClassName = cn(
-  'border-white/15 bg-slate-800/70 text-slate-100 shadow-none',
-  'hover:border-white/20 hover:bg-white/15 hover:text-slate-50',
-  'disabled:opacity-60 disabled:text-slate-300',
-  '[&_svg]:text-slate-200'
-)
+const siteOutlineButtonClassName = opsConsoleOutlineButtonClassName
 
-const cockpitPrimaryButtonClassName = cn(
-  'border-cyan-500/60 bg-cyan-600 text-white shadow-sm',
-  'hover:border-cyan-400/70 hover:bg-cyan-500',
-  'disabled:border-white/10 disabled:bg-white/10 disabled:text-slate-400'
-)
+const sitePrimaryButtonClassName = opsConsolePrimaryButtonClassName
 
 export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
   const { t } = useTranslation()
@@ -169,17 +164,17 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     <>
       <FormNavigationGuard when={isDirty} />
 
-      <div className='relative z-0 rounded-2xl border border-violet-500/15 bg-slate-900/40 p-4 sm:p-6'>
+      <div className='relative z-0 rounded-2xl border border-[#DBEAFE]/80 bg-white p-4 shadow-sm sm:p-6'>
         <SettingsSection
           title={t('systemSettings.site.pageTitle')}
           description={t('systemSettings.site.pageDescription')}
-          titleProps={{ className: 'text-slate-50' }}
-          descriptionClassName='text-slate-400'
+          titleProps={{ className: 'text-slate-900' }}
+          descriptionClassName='text-slate-600'
         >
         <Form {...form}>
           <form
             onSubmit={handleSubmit}
-            className='relative z-0 space-y-6 [&_label]:text-slate-100 [&_[data-slot=form-description]]:text-slate-300 [&_[data-slot=form-message]]:text-rose-300'
+            className='relative z-0 space-y-6'
           >
             <FormDirtyIndicator
               isDirty={isDirty}
@@ -443,7 +438,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
             <div className='flex gap-2'>
               <Button
                 type='submit'
-                className={cockpitPrimaryButtonClassName}
+                className={sitePrimaryButtonClassName}
                 disabled={isSubmitting || updateOption.isPending}
               >
                 {updateOption.isPending ? t('Saving...') : t('Save Changes')}
@@ -451,7 +446,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
               <Button
                 type='button'
                 variant='outline'
-                className={cockpitOutlineButtonClassName}
+                className={siteOutlineButtonClassName}
                 onClick={handleReset}
                 disabled={!isDirty || updateOption.isPending || isSubmitting}
               >

@@ -62,6 +62,11 @@ import {
 } from '@/features/pricing/lib/billing-expr'
 import { safeJsonParse } from '../utils/json-parser'
 import {
+  formatPricingDecimal,
+  multiplyPricingDecimals,
+  parsePricingDecimal,
+} from './pricing-decimal'
+import {
   ModelPricingEditorPanel,
   ModelPricingSheet,
   type ModelRatioData,
@@ -101,21 +106,14 @@ const STORAGE_KEY = 'model-ratio-column-visibility'
 
 const hasValue = (value?: string) => value !== undefined && value !== ''
 
-const toNumberOrNull = (value?: string) => {
-  if (!hasValue(value)) return null
-  const num = Number(value)
-  return Number.isFinite(num) ? num : null
-}
-
-const formatPrice = (value: number) => {
-  return Number.parseFloat(value.toFixed(12)).toString()
-}
-
 const ratioToPrice = (ratio?: string, denominator?: string) => {
-  const ratioNumber = toNumberOrNull(ratio)
-  const denominatorNumber = denominator ? toNumberOrNull(denominator) : 2
-  if (ratioNumber === null || denominatorNumber === null) return ''
-  return formatPrice(ratioNumber * denominatorNumber)
+  if (!hasValue(ratio)) return ''
+  return multiplyPricingDecimals(ratio, denominator ?? 2)
+}
+
+function ratioMapValueToString(value: number | undefined): string {
+  if (value === undefined) return ''
+  return formatPricingDecimal(value)
 }
 
 const filterBySelectedValues = (
@@ -324,14 +322,14 @@ export const ModelRatioVisualEditor = memo(
       ])
 
       const modelData: ModelRow[] = Array.from(modelNames).map((name) => {
-        const price = priceMap[name]?.toString() || ''
-        const ratio = ratioMap[name]?.toString() || ''
-        const cache = cacheMap[name]?.toString() || ''
-        const createCache = createCacheMap[name]?.toString() || ''
-        const completion = completionMap[name]?.toString() || ''
-        const image = imageMap[name]?.toString() || ''
-        const audio = audioMap[name]?.toString() || ''
-        const audioCompletion = audioCompletionMap[name]?.toString() || ''
+        const price = ratioMapValueToString(priceMap[name])
+        const ratio = ratioMapValueToString(ratioMap[name])
+        const cache = ratioMapValueToString(cacheMap[name])
+        const createCache = ratioMapValueToString(createCacheMap[name])
+        const completion = ratioMapValueToString(completionMap[name])
+        const image = ratioMapValueToString(imageMap[name])
+        const audio = ratioMapValueToString(audioMap[name])
+        const audioCompletion = ratioMapValueToString(audioCompletionMap[name])
 
         const modeForModel = billingModeMap[name]
         if (modeForModel === 'tiered_expr') {
@@ -755,8 +753,9 @@ export const ModelRatioVisualEditor = memo(
           value: string | undefined
         ) => {
           if (!value || value === '') return
-          const parsed = parseFloat(value)
-          if (Number.isFinite(parsed)) target[name] = parsed
+          const parsed = parsePricingDecimal(value)
+          if (parsed === null) return
+          target[name] = parsed
         }
 
         targetNames.forEach((name) => {

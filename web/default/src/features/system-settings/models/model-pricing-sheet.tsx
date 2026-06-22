@@ -71,6 +71,10 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
+import {
+  dividePricingDecimals,
+  multiplyPricingDecimals,
+} from './pricing-decimal'
 import { TieredPricingEditor } from './tiered-pricing-editor'
 
 const createModelPricingSchema = (t: (key: string) => string) =>
@@ -222,16 +226,9 @@ function toNumberOrNull(value: unknown): number | null {
   return Number.isFinite(num) ? num : null
 }
 
-function formatNumber(value: unknown): string {
-  const num = toNumberOrNull(value)
-  if (num === null) return ''
-  return Number.parseFloat(num.toFixed(12)).toString()
-}
-
 function ratioToBasePrice(ratio: unknown): string {
-  const num = toNumberOrNull(ratio)
-  if (num === null) return ''
-  return formatNumber(num * 2)
+  if (!hasValue(ratio) && ratio !== 0) return ''
+  return multiplyPricingDecimals(ratio, 2)
 }
 
 function deriveLanePrice(
@@ -239,10 +236,10 @@ function deriveLanePrice(
   denominator: unknown,
   fallback = ''
 ): string {
-  const ratioNumber = toNumberOrNull(ratio)
-  const denominatorNumber = toNumberOrNull(denominator)
-  if (ratioNumber === null || denominatorNumber === null) return fallback
-  return formatNumber(ratioNumber * denominatorNumber)
+  if (!hasValue(ratio) && ratio !== 0) return fallback
+  if (!hasValue(denominator) && denominator !== 0) return fallback
+  const price = multiplyPricingDecimals(ratio, denominator)
+  return price === '' ? fallback : price
 }
 
 function createInitialLaneState(data?: ModelRatioData | null) {
@@ -513,18 +510,15 @@ export function ModelPricingEditorPanel({
     nextPromptPrice = promptPrice,
     nextLanePrices = lanePrices
   ) => {
-    const priceNumber = toNumberOrNull(price)
-    if (priceNumber === null) return ''
+    if (!hasValue(price) && price !== '0') return ''
 
     if (lane === 'audioOutput') {
-      const audioInputPrice = toNumberOrNull(nextLanePrices.audioInput)
-      if (audioInputPrice === null || audioInputPrice === 0) return ''
-      return formatNumber(priceNumber / audioInputPrice)
+      if (!hasValue(nextLanePrices.audioInput)) return ''
+      return dividePricingDecimals(price, nextLanePrices.audioInput)
     }
 
-    const inputPrice = toNumberOrNull(nextPromptPrice)
-    if (inputPrice === null || inputPrice === 0) return ''
-    return formatNumber(priceNumber / inputPrice)
+    if (!hasValue(nextPromptPrice)) return ''
+    return dividePricingDecimals(price, nextPromptPrice)
   }
 
   const syncLaneRatios = (
@@ -535,7 +529,7 @@ export function ModelPricingEditorPanel({
     const inputPrice = toNumberOrNull(nextPromptPrice)
     setFormValue(
       'ratio',
-      inputPrice !== null ? formatNumber(inputPrice / 2) : ''
+      inputPrice !== null ? dividePricingDecimals(inputPrice, 2) : ''
     )
 
     laneConfigs.forEach(({ key }) => {
