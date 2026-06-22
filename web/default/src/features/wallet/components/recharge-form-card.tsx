@@ -49,9 +49,16 @@ import type {
   WaffoPayMethod,
 } from '../types'
 import { CreemProductsSection } from './creem-products-section'
-
-const WALLET_OUTLINE_BTN =
-  'border-border bg-background text-foreground shadow-none hover:bg-muted/80 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 dark:disabled:border-slate-700 dark:disabled:text-slate-400 dark:disabled:opacity-80'
+import {
+  walletAlertInfoClassName,
+  walletIconMutedClassName,
+  walletLinkClassName,
+  walletMutedLabelClassName,
+  walletMutedTextClassName,
+  walletOutlineButtonClassName,
+  walletPresetOptionClassName,
+  walletPresetOptionSelectedClassName,
+} from '../lib/wallet-ui-styles'
 
 interface RechargeFormCardProps {
   topupInfo: TopupInfo | null
@@ -200,10 +207,7 @@ export function RechargeFormCard({
             variant='outline'
             size='sm'
             onClick={onOpenBilling}
-            className={cn(
-              'w-full gap-2 sm:w-auto',
-              WALLET_OUTLINE_BTN
-            )}
+            className={cn('w-full gap-2 sm:w-auto', walletOutlineButtonClassName)}
           >
             <Receipt className='h-4 w-4' />
             {t('wallet.topup.order_history')}
@@ -219,7 +223,7 @@ export function RechargeFormCard({
             <>
               {presetAmounts.length > 0 && (
                 <div className='space-y-2.5 sm:space-y-3'>
-                  <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'>
+                  <Label className={walletMutedLabelClassName}>
                     {t('wallet.topup.amount_label')}
                   </Label>
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
@@ -244,11 +248,11 @@ export function RechargeFormCard({
                           key={index}
                           variant='outline'
                           className={cn(
-                            WALLET_OUTLINE_BTN,
-                            'hover:border-foreground flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
+                            walletOutlineButtonClassName,
+                            'flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal hover:border-blue-200 sm:min-h-[72px] sm:p-4',
                             selectedPreset === preset.value
-                              ? 'border-foreground bg-foreground/5 dark:border-foreground dark:bg-foreground/10'
-                              : 'border-muted'
+                              ? walletPresetOptionSelectedClassName
+                              : walletPresetOptionClassName
                           )}
                           onClick={() => onSelectPreset(preset)}
                         >
@@ -257,12 +261,12 @@ export function RechargeFormCard({
                               {formatNumber(displayValue)}
                             </div>
                             {hasDiscount && (
-                              <div className='text-xs font-medium text-green-600 dark:text-green-400'>
+                              <div className='text-xs font-medium text-green-600'>
                                 {getDiscountLabel(discount, t)}
                               </div>
                             )}
                           </div>
-                          <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2 dark:text-slate-400'>
+                          <div className={cn('mt-1.5 w-full text-xs sm:mt-2', walletMutedTextClassName)}>
                             {t('Pay {{amount}}', {
                               amount: formatCurrency(actualPrice),
                             })}
@@ -286,7 +290,7 @@ export function RechargeFormCard({
               <div className='space-y-2.5 sm:space-y-3'>
                 <Label
                   htmlFor='topup-amount'
-                  className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'
+                  className={walletMutedLabelClassName}
                 >
                   {t('wallet.topup.custom_amount')}
                 </Label>
@@ -303,7 +307,7 @@ export function RechargeFormCard({
                     className='h-9 text-base sm:h-10 sm:text-lg'
                   />
                   <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
-                    <span className='text-muted-foreground truncate text-xs dark:text-slate-400'>
+                    <span className={cn('truncate text-xs', walletMutedTextClassName)}>
                       {t('wallet.topup.amount_to_pay_inline')}
                     </span>
                     {calculating ? (
@@ -318,7 +322,7 @@ export function RechargeFormCard({
               </div>
 
               <div className='space-y-2.5 sm:space-y-3'>
-                <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'>
+                <Label className={walletMutedLabelClassName}>
                   {t('wallet.topup.payment_method')}
                 </Label>
                 {hasStandardPaymentMethods ? (
@@ -334,7 +338,7 @@ export function RechargeFormCard({
                           onClick={() => onPaymentMethodSelect(method)}
                           disabled={disabled || !!paymentLoading}
                           className={cn(
-                            WALLET_OUTLINE_BTN,
+                            walletOutlineButtonClassName,
                             'h-9 min-w-0 justify-start gap-2 rounded-lg px-3'
                           )}
                         >
@@ -383,7 +387,7 @@ export function RechargeFormCard({
                 hasWaffoPaymentMethods &&
                 onWaffoMethodSelect && (
                   <div className='space-y-2.5 sm:space-y-3'>
-                    <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'>
+                    <Label className={walletMutedLabelClassName}>
                       {t('wallet.topup.waffo_section')}
                     </Label>
                     <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
@@ -399,7 +403,7 @@ export function RechargeFormCard({
                             onClick={() => onWaffoMethodSelect(method, index)}
                             disabled={belowMin || !!paymentLoading}
                             className={cn(
-                              WALLET_OUTLINE_BTN,
+                              walletOutlineButtonClassName,
                               'h-9 min-w-0 justify-start gap-2 rounded-lg px-3'
                             )}
                           >
@@ -455,7 +459,7 @@ export function RechargeFormCard({
         creemProducts.length > 0 &&
         onCreemProductSelect && (
           <div className='space-y-2.5 border-t pt-4 sm:space-y-3 sm:pt-6'>
-            <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'>
+            <Label className={walletMutedLabelClassName}>
               {t('wallet.topup.creem_section')}
             </Label>
             <CreemProductsSection
@@ -469,10 +473,10 @@ export function RechargeFormCard({
       {redemptionEnabled ? (
         <div className='space-y-2.5 border-t pt-4 sm:space-y-3 sm:pt-6'>
           <div className='flex items-center gap-2'>
-            <Gift className='text-muted-foreground h-4 w-4 dark:text-slate-400' />
+            <Gift className={cn('h-4 w-4', walletIconMutedClassName)} />
             <Label
               htmlFor='redemption-code'
-              className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'
+              className={walletMutedLabelClassName}
             >
               {t('wallet.topup.have_code')}
             </Label>
@@ -489,20 +493,20 @@ export function RechargeFormCard({
               onClick={onRedeem}
               disabled={redeeming || !redemptionCode.trim()}
               variant='outline'
-              className={cn('h-9 px-4', WALLET_OUTLINE_BTN)}
+              className={cn('h-9 px-4', walletOutlineButtonClassName)}
             >
               {redeeming && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
               {t('wallet.topup.redeem')}
             </Button>
           </div>
           {topupLink && (
-            <p className='text-muted-foreground text-xs dark:text-slate-400'>
+            <p className={walletMutedTextClassName}>
               {t('wallet.topup.need_code')}{' '}
               <a
                 href={topupLink}
                 target='_blank'
                 rel='noopener noreferrer'
-                className='text-foreground inline-flex items-center gap-1 underline-offset-4 hover:underline dark:text-slate-200'
+                className={walletLinkClassName}
               >
                 {t('wallet.topup.get_code')}
                 <ExternalLink className='h-3 w-3' />
@@ -511,8 +515,8 @@ export function RechargeFormCard({
           )}
         </div>
       ) : (
-        <Alert className='border-amber-500/30 bg-amber-500/10 dark:border-amber-400/30 dark:bg-amber-500/10'>
-          <AlertDescription className='text-foreground dark:text-slate-100'>
+        <Alert className={walletAlertInfoClassName}>
+          <AlertDescription className='text-slate-800'>
             {t(
               'Redemption feature is disabled until the administrator completes compliance confirmation to enable resource redemption.'
             )}

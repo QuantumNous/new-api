@@ -21,6 +21,7 @@ import { formatNumber } from '@/lib/format'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCreemPrice } from '../lib/format'
+import { walletMutedTextClassName } from '../lib/wallet-ui-styles'
 import type { CreemProduct } from '../types'
 
 interface CreemProductsSectionProps {
@@ -60,10 +61,10 @@ export function CreemProductsSection({
         >
           <CardContent className='p-3 text-center sm:p-4'>
             <div className='mb-2 text-lg font-medium'>{product.name}</div>
-            <div className='text-muted-foreground mb-2 text-sm dark:text-slate-400'>
+            <div className={cn('mb-2 text-sm', walletMutedTextClassName)}>
               {t('wallet.creem.quota_label')}: {formatNumber(product.quota)}
             </div>
-            <div className='text-lg font-semibold text-indigo-600 dark:text-indigo-400'>
+            <div className='text-lg font-semibold text-indigo-600'>
               {t('wallet.creem.price_label')}:{' '}
               {formatCreemPrice(product.price, product.currency)}
             </div>

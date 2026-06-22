@@ -125,7 +125,7 @@ function usageLogTypeBadgeToneClass(type: number): string {
     case LOG_TYPE_ENUM.SYSTEM:
       return 'border border-violet-500/20 bg-violet-500/5 text-violet-400/80'
     default:
-      return 'border border-white/10 bg-white/[0.03] text-slate-500'
+      return 'border border-[#DBEAFE] bg-[#F8FBFF] text-slate-500'
   }
 }
 
@@ -652,7 +652,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             <ModelBadge
               modelName={modelInfo.name}
               actualModel={modelInfo.actualModel}
-              className='border-white/15 bg-white/5 font-mono text-slate-100'
+              className='border-[#DBEAFE] bg-[#F8FBFF] font-mono text-slate-800'
             />
           </div>
         )

@@ -33,6 +33,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -53,6 +54,11 @@ import {
   resolveUserToastMessage,
 } from '../constants'
 import { getUserActionMessage } from '../lib'
+import {
+  usersActionsTriggerClassName,
+  usersDropdownMenuContentClassName,
+  usersDropdownMenuItemClassName,
+} from '../lib/users-ui-styles'
 import { type User, type ManageUserAction } from '../types'
 import { UserBindingDialog } from './dialogs/user-binding-dialog'
 import { useUsers } from './users-provider'
@@ -156,7 +162,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             <Button
               variant='outline'
               size='sm'
-              className='h-8 min-w-[5.5rem] gap-1.5 border-white/15 bg-slate-800/90 px-2.5 text-slate-200 hover:bg-white/10 hover:text-white data-popup-open:border-cyan-500/30 data-popup-open:bg-slate-700'
+              className={usersActionsTriggerClassName}
               title={t('Open account actions')}
               aria-label={t('Open account actions')}
             />
@@ -168,11 +174,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align='end'
-          className='w-[200px] border-white/10 bg-slate-900 text-slate-100'
+          className={cn('w-[200px]', usersDropdownMenuContentClassName)}
         >
           <DropdownMenuItem
             onClick={handleEdit}
-            className='font-medium focus:bg-cyan-500/15'
+            className={usersDropdownMenuItemClassName}
           >
             {t('Edit account')}
             <DropdownMenuShortcut>

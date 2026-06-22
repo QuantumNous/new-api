@@ -33,9 +33,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { QUOTA_PER_DOLLAR } from '../../constants'
 import { cn } from '@/lib/utils'
-
-const WALLET_OUTLINE_BTN =
-  'border-border bg-background text-foreground shadow-none hover:bg-muted/80 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 dark:disabled:opacity-70'
+import {
+  walletDialogDescriptionClassName,
+  walletMutedLabelClassName,
+  walletMutedTextClassName,
+  walletOutlineButtonClassName,
+} from '../../lib/wallet-ui-styles'
 
 interface TransferDialogProps {
   open: boolean
@@ -76,14 +79,14 @@ export function TransferDialog({
           <DialogTitle className='text-xl font-semibold'>
             {t('wallet.transfer.title')}
           </DialogTitle>
-          <DialogDescription className='dark:text-slate-400'>
+          <DialogDescription className={walletDialogDescriptionClassName}>
             {t('wallet.transfer.description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className='space-y-4 py-3 sm:space-y-6 sm:py-4'>
           <div className='space-y-2'>
-            <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'>
+            <Label className={walletMutedLabelClassName}>
               {t('wallet.transfer.available_rewards')}
             </Label>
             <div className='text-2xl font-semibold'>
@@ -94,7 +97,7 @@ export function TransferDialog({
           <div className='space-y-3'>
             <Label
               htmlFor='transfer-amount'
-              className='text-muted-foreground text-xs font-medium tracking-wider uppercase dark:text-slate-400'
+              className={walletMutedLabelClassName}
             >
               {t('wallet.transfer.transfer_amount')}
             </Label>
@@ -108,7 +111,7 @@ export function TransferDialog({
               step={QUOTA_PER_DOLLAR}
               className='font-mono text-lg'
             />
-            <p className='text-muted-foreground text-xs dark:text-slate-400'>
+            <p className={walletMutedTextClassName}>
               {t('wallet.transfer.minimum_line', {
                 amount: formatTokenQuotaDisplay(QUOTA_PER_DOLLAR),
               })}
@@ -121,7 +124,7 @@ export function TransferDialog({
             variant='outline'
             onClick={() => onOpenChange(false)}
             disabled={transferring}
-            className={cn(WALLET_OUTLINE_BTN)}
+            className={walletOutlineButtonClassName}
           >
             {t('Cancel')}
           </Button>

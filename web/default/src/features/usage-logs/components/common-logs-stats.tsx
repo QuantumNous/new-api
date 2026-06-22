@@ -84,9 +84,9 @@ export function CommonLogsStats() {
   if (isLoading) {
     return (
       <div className='flex items-center gap-1.5'>
-        <Skeleton className='h-10 w-[140px] rounded-md bg-white/10' />
-        <Skeleton className='h-10 w-[96px] rounded-md bg-white/10' />
-        <Skeleton className='h-10 w-[112px] rounded-md bg-white/10' />
+        <Skeleton className='h-10 w-[140px] rounded-md bg-slate-200/70' />
+        <Skeleton className='h-10 w-[96px] rounded-md bg-slate-200/70' />
+        <Skeleton className='h-10 w-[112px] rounded-md bg-slate-200/70' />
       </div>
     )
   }
@@ -112,7 +112,7 @@ export function CommonLogsStats() {
         label={t('usageLogs.stats.tpm')}
         value={stats?.tpm || 0}
         hint={t('usageLogs.stats.tpm_hint')}
-        accent='bg-slate-400/80'
+        accent='bg-slate-300'
       />
     </div>
   )

@@ -185,7 +185,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
                 <AvatarFallback
                   className={cn(
                     'text-[11px] font-semibold',
-                    !sensitiveVisible && 'bg-white/10 text-slate-400'
+                    !sensitiveVisible && 'bg-slate-100 text-slate-500 ring-1 ring-[#DBEAFE]'
                   )}
                   style={
                     sensitiveVisible

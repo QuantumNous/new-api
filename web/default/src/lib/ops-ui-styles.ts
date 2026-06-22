@@ -267,6 +267,94 @@ export const opsConsolePageFooterClassName = cn(
   'shrink-0 border-t border-[#DBEAFE] bg-[#F8FBFF] px-3 py-2.5 text-slate-600 empty:hidden sm:px-4 sm:py-3'
 )
 
+// —— Shared DataTable / filter tokens (keys, channels, users, usage-logs) —— //
+
+export const opsConsoleFilterToolbarClassName = cn(
+  '[&_input]:border-[#DBEAFE] [&_input]:bg-white [&_input]:text-slate-800',
+  '[&_input::placeholder]:text-slate-400',
+  '[&_button]:border-[#DBEAFE] [&_button]:bg-white [&_button]:text-slate-700',
+  '[&_button_svg]:text-slate-500',
+  '[&_button:hover]:border-blue-200 [&_button:hover]:bg-blue-50 [&_button:hover]:text-blue-700',
+  '[&_button:hover_svg]:text-blue-600'
+)
+
+export const opsConsoleTableHeaderClassName = cn(
+  'sticky top-0 z-10 border-b border-[#DBEAFE] bg-[#F4F8FD]',
+  '[&_th]:text-slate-700',
+  '[&_th_button]:font-medium [&_th_button]:text-slate-700',
+  '[&_th_button:hover]:bg-blue-50 [&_th_button:hover]:text-blue-700',
+  '[&_th_svg]:text-slate-500',
+  '[&_[data-slot=checkbox]]:border-slate-300'
+)
+
+export const opsConsoleTableShellClassName = cn(
+  'border-[#DBEAFE] bg-white text-slate-800',
+  '[&_[data-slot=empty-title]]:text-slate-800',
+  '[&_[data-slot=empty-description]]:text-slate-500',
+  '[&_[data-slot=empty-icon]]:text-slate-400',
+  '[&_[data-slot=table-row]:hover]:!bg-[#EFF6FF]',
+  '[&_[data-slot=table-cell]]:text-slate-800',
+  '[&_.text-muted-foreground]:text-slate-500',
+  '[&_[data-slot=checkbox]]:border-slate-300'
+)
+
+export const opsConsoleTableBodyRowClassName = cn(
+  'border-b border-[#DBEAFE]/80 transition-colors',
+  'hover:!bg-[#EFF6FF]',
+  'data-[state=selected]:!bg-blue-50',
+  'data-[state=selected]:hover:!bg-blue-100/60',
+  'data-[state=selected]:!text-slate-900'
+)
+
+export const opsConsoleTableSelectedRowClassName = cn(
+  'data-[state=selected]:!bg-blue-50',
+  'data-[state=selected]:hover:!bg-blue-100/60',
+  'data-[state=selected]:!text-slate-900',
+  'data-[state=selected]:ring-1 data-[state=selected]:ring-blue-200/80',
+  '[&[data-state=selected]_.text-muted-foreground]:!text-slate-500',
+  '[&[data-state=selected]_[data-slot=checkbox]]:border-blue-400/60'
+)
+
+export const opsConsoleTableStickyActionsHeaderClassName = cn(
+  '[&_th:last-child]:sticky [&_th:last-child]:right-0 [&_th:last-child]:z-20',
+  '[&_th:last-child]:border-l [&_th:last-child]:border-[#DBEAFE]',
+  '[&_th:last-child]:bg-[#F4F8FD]',
+  '[&_th:last-child]:shadow-[-8px_0_12px_-8px_rgba(15,23,42,0.06)]'
+)
+
+export const opsConsoleTableStickyActionsCellClassName = cn(
+  '[&_td:last-child]:sticky [&_td:last-child]:right-0 [&_td:last-child]:z-10',
+  '[&_td:last-child]:border-l [&_td:last-child]:border-[#DBEAFE]',
+  '[&_td:last-child]:bg-white',
+  '[&_td:last-child]:shadow-[-8px_0_12px_-8px_rgba(15,23,42,0.06)]',
+  '[&_[data-slot=table-row][data-state=selected]_td:last-child]:!bg-blue-50',
+  '[&_[data-slot=table-row]:hover_td:last-child]:bg-[#EFF6FF]'
+)
+
+export const opsConsoleCardClassName =
+  'overflow-hidden rounded-lg border border-[#DBEAFE] bg-white'
+
+export const opsConsoleOutlineButtonClassName = cn(
+  'border-[#DBEAFE] bg-white text-slate-700 shadow-none',
+  'hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
+  'disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:opacity-60'
+)
+
+export const opsConsoleMutedLabelClassName =
+  'text-xs font-medium tracking-wider text-slate-500 uppercase'
+
+export const opsConsoleDropdownMenuContentClassName = cn(
+  'border border-[#DBEAFE] bg-white text-slate-800 shadow-lg ring-1 ring-blue-100/50'
+)
+
+export const opsConsoleDropdownMenuItemClassName =
+  'text-slate-700 focus:bg-blue-50 focus:text-blue-700'
+
+export const opsConsoleGhostIconButtonClassName = cn(
+  'text-slate-600 hover:bg-blue-50 hover:text-blue-700',
+  'disabled:text-slate-400'
+)
+
 // —— System settings (platform config center) —— //
 
 export const systemSettingsShellClassName =

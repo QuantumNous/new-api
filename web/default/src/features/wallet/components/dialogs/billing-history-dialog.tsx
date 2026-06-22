@@ -59,9 +59,12 @@ import {
   formatTimestamp,
 } from '../../lib/billing'
 import { cn } from '@/lib/utils'
-
-const WALLET_OUTLINE_BTN =
-  'border-border bg-background text-foreground shadow-none hover:bg-muted/80 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 dark:disabled:opacity-70'
+import {
+  walletDialogDescriptionClassName,
+  walletMutedLabelClassName,
+  walletMutedTextClassName,
+  walletOutlineButtonClassName,
+} from '../../lib/wallet-ui-styles'
 
 interface BillingHistoryDialogProps {
   open: boolean
@@ -108,7 +111,7 @@ export function BillingHistoryDialog({
         <DialogContent className='flex max-h-[calc(100dvh-2rem)] flex-col max-sm:h-dvh max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-4xl'>
           <DialogHeader>
             <DialogTitle>{t('wallet.billing.history_title')}</DialogTitle>
-            <DialogDescription className='dark:text-slate-400'>
+            <DialogDescription className={walletDialogDescriptionClassName}>
               {t('wallet.billing.history_description')}
             </DialogDescription>
           </DialogHeader>
@@ -173,7 +176,7 @@ export function BillingHistoryDialog({
                   ))}
                 </div>
               ) : records.length === 0 ? (
-                <div className='text-muted-foreground flex h-[320px] flex-col items-center justify-center text-center sm:h-[400px] dark:text-slate-400'>
+                <div className={cn('flex h-[320px] flex-col items-center justify-center text-center sm:h-[400px]', walletMutedTextClassName)}>
                   <p className='text-sm font-medium'>
                     {t('No billing records found')}
                   </p>
@@ -220,7 +223,7 @@ export function BillingHistoryDialog({
                                 />
                               )}
                             </div>
-                            <div className='text-muted-foreground text-xs dark:text-slate-400'>
+                            <div className={walletMutedTextClassName}>
                               {formatTimestamp(record.create_time)}
                             </div>
                           </div>
@@ -235,7 +238,7 @@ export function BillingHistoryDialog({
                         {/* Details Grid */}
                         <div className='mt-3 grid grid-cols-2 gap-3 sm:mt-4 sm:grid-cols-3 sm:gap-4'>
                           <div className='space-y-1'>
-                            <Label className='text-muted-foreground text-xs dark:text-slate-400'>
+                            <Label className={walletMutedLabelClassName}>
                               {t('wallet.billing.history_payment_method')}
                             </Label>
                             <div className='text-sm font-medium'>
@@ -243,7 +246,7 @@ export function BillingHistoryDialog({
                             </div>
                           </div>
                           <div className='space-y-1'>
-                            <Label className='text-muted-foreground text-xs dark:text-slate-400'>
+                            <Label className={walletMutedLabelClassName}>
                               {t('wallet.billing.history_amount')}
                             </Label>
                             <div className='text-sm font-semibold'>
@@ -255,10 +258,10 @@ export function BillingHistoryDialog({
                             </div>
                           </div>
                           <div className='space-y-1'>
-                            <Label className='text-muted-foreground text-xs dark:text-slate-400'>
+                            <Label className={walletMutedLabelClassName}>
                               {t('wallet.billing.history_payment')}
                             </Label>
-                            <div className='text-sm font-semibold text-red-600 dark:text-red-400'>
+                            <div className='text-sm font-semibold text-red-600'>
                               {formatWalletAmountForOpsCenter(record.money, {
                                 digitsLarge: 2,
                                 digitsSmall: 2,
@@ -274,7 +277,7 @@ export function BillingHistoryDialog({
                             <Button
                               size='sm'
                               variant='outline'
-                              className={WALLET_OUTLINE_BTN}
+                              className={walletOutlineButtonClassName}
                               onClick={() => setConfirmTradeNo(record.trade_no)}
                               disabled={completing}
                             >
@@ -292,7 +295,7 @@ export function BillingHistoryDialog({
             {/* Pagination */}
             {!loading && records.length > 0 && (
               <div className='flex flex-col items-center gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between'>
-                <div className='text-muted-foreground text-xs sm:text-sm dark:text-slate-400'>
+                <div className={cn('text-xs sm:text-sm', walletMutedTextClassName)}>
                   {t('Showing')} {(page - 1) * pageSize + 1}-
                   {Math.min(page * pageSize, total)} {t('of')} {total}
                 </div>
@@ -302,11 +305,11 @@ export function BillingHistoryDialog({
                     size='sm'
                     onClick={() => handlePageChange(page - 1)}
                     disabled={page <= 1}
-                    className={cn('h-8 w-8 p-0', WALLET_OUTLINE_BTN)}
+                    className={cn('h-8 w-8 p-0', walletOutlineButtonClassName)}
                   >
                     <ChevronLeft className='h-4 w-4' />
                   </Button>
-                  <div className='text-muted-foreground flex items-center gap-1 text-sm dark:text-slate-400'>
+                  <div className={cn('flex items-center gap-1 text-sm', walletMutedTextClassName)}>
                     <span className='font-medium'>{page}</span>
                     <span>/</span>
                     <span>{totalPages}</span>
@@ -316,7 +319,7 @@ export function BillingHistoryDialog({
                     size='sm'
                     onClick={() => handlePageChange(page + 1)}
                     disabled={page >= totalPages}
-                    className={cn('h-8 w-8 p-0', WALLET_OUTLINE_BTN)}
+                    className={cn('h-8 w-8 p-0', walletOutlineButtonClassName)}
                   >
                     <ChevronRight className='h-4 w-4' />
                   </Button>
@@ -342,7 +345,7 @@ export function BillingHistoryDialog({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={completing} className={WALLET_OUTLINE_BTN}>
+            <AlertDialogCancel disabled={completing} className={walletOutlineButtonClassName}>
               {t('Cancel')}
             </AlertDialogCancel>
             <AlertDialogAction

@@ -47,6 +47,7 @@ import {
   usageLogsCommonRowRefundTintClassName,
   usageLogsCommonTableCellClassName,
   usageLogsTableBodyRowClassName,
+  usageLogsTableShellClassName,
 } from '../lib/ops-ui-styles'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
@@ -183,6 +184,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       emptyDescription={t('usageLogs.empty.description')}
       skeletonKeyPrefix='usage-log-skeleton'
       tableClassName={cn(
+        usageLogsTableShellClassName,
         'max-h-[calc(100dvh-12rem)] overflow-auto sm:max-h-[calc(100dvh-12.5rem)]',
         isCommon && 'min-w-[1180px]'
       )}

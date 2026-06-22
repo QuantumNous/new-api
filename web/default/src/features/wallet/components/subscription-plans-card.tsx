@@ -61,9 +61,11 @@ import type {
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
 import type { PaymentMethod, TopupInfo } from '../types'
-
-const WALLET_OUTLINE_BTN =
-  'border-border bg-background text-foreground shadow-none hover:bg-muted/80 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 dark:disabled:opacity-70'
+import {
+  walletCardClassName,
+  walletMutedTextClassName,
+  walletOutlineButtonClassName,
+} from '../lib/wallet-ui-styles'
 
 interface SubscriptionPlansCardProps {
   topupInfo: TopupInfo | null
@@ -240,7 +242,7 @@ export function SubscriptionPlansCard({
 
   if (loading) {
     return (
-      <Card className='gap-0 overflow-hidden py-0'>
+      <Card className={cn(walletCardClassName, 'gap-0 overflow-hidden py-0')}>
         <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>
           <Skeleton className='h-6 w-32' />
         </CardHeader>
@@ -290,16 +292,16 @@ export function SubscriptionPlansCard({
                     })}
                   </span>
                 ) : (
-                  <span className='text-muted-foreground dark:text-slate-400'>
+                  <span className={walletMutedTextClassName}>
                     {t('wallet.subscription.no_active')}
                   </span>
                 )}
                 {allSubscriptions.length > activeSubscriptions.length && (
                   <>
-                    <span className='text-muted-foreground/30 dark:text-slate-600'>
+                    <span className='text-slate-300'>
                       ·
                     </span>
-                    <span className='text-muted-foreground dark:text-slate-400'>
+                    <span className={walletMutedTextClassName}>
                       {t('wallet.subscription.summary_expired_count', {
                         count:
                           allSubscriptions.length - activeSubscriptions.length,
@@ -342,7 +344,7 @@ export function SubscriptionPlansCard({
                 value={displayPref}
                 onValueChange={(v) => v !== null && handlePreferenceChange(v)}
               >
-                <SelectTrigger className='h-8 flex-1 text-xs sm:w-[140px] sm:flex-none dark:text-slate-100'>
+                <SelectTrigger className='h-8 flex-1 border-[#DBEAFE] bg-white text-xs text-slate-800 sm:w-[140px] sm:flex-none'>
                   <SelectValue>
                     {getBillingPreferenceLabel(displayPref, t)}
                   </SelectValue>
@@ -375,7 +377,7 @@ export function SubscriptionPlansCard({
               <Button
                 variant='ghost'
                 size='icon'
-                className='text-foreground h-8 w-8 dark:text-slate-200 dark:hover:bg-slate-800'
+                className='h-8 w-8 text-slate-700 hover:bg-blue-50 hover:text-blue-700'
                 onClick={handleRefresh}
                 disabled={refreshing}
               >
@@ -387,7 +389,7 @@ export function SubscriptionPlansCard({
           </div>
 
           {disablePref && isSubPref && (
-            <p className='text-muted-foreground mt-2 text-xs dark:text-slate-400'>
+            <p className={cn('mt-2 text-xs', walletMutedTextClassName)}>
               {t('wallet.subscription.pref_fallback_notice', {
                 pref: getBillingPreferenceLabel(billingPreference, t),
               })}
@@ -452,14 +454,14 @@ export function SubscriptionPlansCard({
                           )}
                         </div>
                         {isActive && (
-                          <span className='text-muted-foreground dark:text-slate-400'>
+                          <span className={walletMutedTextClassName}>
                             {t('{{count}} days remaining', {
                               count: remainDays,
                             })}
                           </span>
                         )}
                       </div>
-                      <div className='text-muted-foreground mt-1.5 dark:text-slate-400'>
+                      <div className={cn('mt-1.5', walletMutedTextClassName)}>
                         {isActive
                           ? t('Until')
                           : isCancelled
@@ -470,14 +472,14 @@ export function SubscriptionPlansCard({
                         ).toLocaleString()}
                       </div>
                       {isActive && (subscription?.next_reset_time ?? 0) > 0 && (
-                        <div className='text-muted-foreground mt-1 dark:text-slate-400'>
+                        <div className={cn('mt-1', walletMutedTextClassName)}>
                           {t('Next reset')}:{' '}
                           {new Date(
                             subscription!.next_reset_time! * 1000
                           ).toLocaleString()}
                         </div>
                       )}
-                      <div className='text-muted-foreground mt-1 dark:text-slate-400'>
+                      <div className={cn('mt-1', walletMutedTextClassName)}>
                         {t('wallet.subscription.total_quota')}:{' '}
                         {totalAmount > 0 ? (
                           <Tooltip>
@@ -517,7 +519,7 @@ export function SubscriptionPlansCard({
           )}
 
           {!hasAny && (
-            <p className='text-muted-foreground mt-2 text-xs dark:text-slate-400'>
+            <p className={cn('mt-2 text-xs', walletMutedTextClassName)}>
               {t('wallet.subscription.plans_description')}
             </p>
           )}
@@ -567,7 +569,7 @@ export function SubscriptionPlansCard({
                           {plan.title || t('wallet.subscription.plans_title')}
                         </h4>
                         {plan.subtitle && (
-                          <p className='text-muted-foreground truncate text-xs dark:text-slate-400'>
+                          <p className={cn('truncate text-xs', walletMutedTextClassName)}>
                             {plan.subtitle}
                           </p>
                         )}
@@ -594,7 +596,7 @@ export function SubscriptionPlansCard({
                       {benefits.map((label) => (
                         <div
                           key={label}
-                          className='text-muted-foreground flex items-center gap-2 text-xs dark:text-slate-400'
+                          className={cn('flex items-center gap-2 text-xs', walletMutedTextClassName)}
                         >
                           <Check className='text-primary h-3 w-3 shrink-0' />
                           <span>{label}</span>
@@ -607,7 +609,7 @@ export function SubscriptionPlansCard({
                     {reached ? (
                       <Tooltip>
                         <TooltipTrigger render={<div />}>
-                          <Button variant='outline' className={cn('w-full', WALLET_OUTLINE_BTN)} disabled>
+                          <Button variant='outline' className={cn('w-full', walletOutlineButtonClassName)} disabled>
                             {t('wallet.subscription.limit_reached')}
                           </Button>
                         </TooltipTrigger>
@@ -621,7 +623,7 @@ export function SubscriptionPlansCard({
                     ) : (
                       <Button
                         variant='outline'
-                        className={cn('w-full', WALLET_OUTLINE_BTN)}
+                        className={cn('w-full', walletOutlineButtonClassName)}
                         onClick={() => {
                           setSelectedPlan(p)
                           setPurchaseOpen(true)
@@ -636,7 +638,7 @@ export function SubscriptionPlansCard({
             })}
           </div>
         ) : (
-          <p className='text-muted-foreground py-4 text-center text-sm dark:text-slate-400'>
+          <p className={cn('py-4 text-center text-sm', walletMutedTextClassName)}>
             {t('wallet.subscription.no_plans')}
           </p>
         )}

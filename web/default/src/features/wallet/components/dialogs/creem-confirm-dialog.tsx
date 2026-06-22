@@ -31,9 +31,11 @@ import {
 import { formatCreemPrice } from '../../lib/format'
 import type { CreemProduct } from '../../types'
 import { cn } from '@/lib/utils'
-
-const WALLET_OUTLINE_BTN =
-  'border-border bg-background text-foreground shadow-none hover:bg-muted/80 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 dark:disabled:opacity-70'
+import {
+  walletDialogDescriptionClassName,
+  walletMutedTextClassName,
+  walletOutlineButtonClassName,
+} from '../../lib/wallet-ui-styles'
 
 interface CreemConfirmDialogProps {
   open: boolean
@@ -59,20 +61,20 @@ export function CreemConfirmDialog({
       <DialogContent className='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-[425px]'>
         <DialogHeader>
           <DialogTitle>{t('wallet.creem.confirm_title')}</DialogTitle>
-          <DialogDescription className='dark:text-slate-400'>
+          <DialogDescription className={walletDialogDescriptionClassName}>
             {t('wallet.creem.review_description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className='space-y-3 py-3 sm:space-y-4 sm:py-4'>
           <div className='flex items-center justify-between'>
-            <span className='text-muted-foreground dark:text-slate-400'>
+            <span className={walletMutedTextClassName}>
               {t('Product')}
             </span>
             <span className='font-medium'>{product.name}</span>
           </div>
           <div className='flex items-center justify-between'>
-            <span className='text-muted-foreground dark:text-slate-400'>
+            <span className={walletMutedTextClassName}>
               {t('wallet.creem.price_label')}
             </span>
             <span className='font-medium text-indigo-600'>
@@ -80,7 +82,7 @@ export function CreemConfirmDialog({
             </span>
           </div>
           <div className='flex items-center justify-between'>
-            <span className='text-muted-foreground dark:text-slate-400'>
+            <span className={walletMutedTextClassName}>
               {t('wallet.creem.quota_label')}
             </span>
             <span className='font-medium'>{formatNumber(product.quota)}</span>
@@ -92,7 +94,7 @@ export function CreemConfirmDialog({
             variant='outline'
             onClick={() => onOpenChange(false)}
             disabled={processing}
-            className={cn(WALLET_OUTLINE_BTN)}
+            className={walletOutlineButtonClassName}
           >
             {t('Cancel')}
           </Button>

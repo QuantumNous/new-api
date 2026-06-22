@@ -21,7 +21,6 @@ import {
   dataTablePaginationOutlineButtonClassName,
   dataTablePaginationTextClassName,
 } from '@/components/data-table/toolbar-button-styles'
-import { systemSettingsOutlineButtonClassName } from '@/lib/ops-ui-styles'
 
 export {
   CHANNEL_BILLING_GROUP_PRICING_PATH,
@@ -121,34 +120,37 @@ export const channelsBulkDeleteButtonClassName = cn(
 )
 
 export const channelTestDialogContentClassName = cn(
-  'border-white/10 bg-slate-950 text-slate-100',
-  '[&_[data-slot=dialog-title]]:text-slate-50',
-  '[&_[data-slot=dialog-description]]:text-slate-300',
-  '[&_[data-slot=form-label]]:text-slate-200',
-  '[&_.text-muted-foreground]:text-slate-300',
-  '[&_input]:border-white/15 [&_input]:bg-slate-900/80 [&_input]:text-slate-100',
+  'border-[#DBEAFE] bg-white text-slate-800',
+  '[&_[data-slot=dialog-title]]:text-slate-900',
+  '[&_[data-slot=dialog-description]]:text-slate-600',
+  '[&_[data-slot=form-label]]:text-slate-700',
+  '[&_.text-muted-foreground]:text-slate-500',
+  '[&_input]:border-[#DBEAFE] [&_input]:bg-white [&_input]:text-slate-800',
   '[&_input::placeholder]:text-slate-400'
 )
 
 export const channelTestDialogTableScopeClassName = cn(
-  'overflow-hidden rounded-md border border-white/10 bg-slate-900/60',
-  '[&_[data-slot=table]]:text-slate-100',
-  '[&_thead]:bg-slate-900/95 [&_thead]:text-slate-200',
-  '[&_th]:border-white/10 [&_th]:text-slate-200',
-  '[&_tbody_tr]:border-white/10',
-  '[&_tbody_tr:hover]:bg-white/[0.05]',
-  '[&_[data-slot=table-row][data-state=selected]]:!bg-cyan-500/10',
-  '[&_[data-slot=table-row][data-state=selected]:hover]:!bg-cyan-500/15',
-  '[&_[data-slot=table-row][data-state=selected]]:!text-slate-100',
-  '[&_[data-slot=table-row][data-state=selected]_.text-muted-foreground]:!text-slate-300',
-  '[&_.text-muted-foreground]:text-slate-300',
-  '[&_[data-slot=checkbox]]:border-white/25'
+  'overflow-hidden rounded-md border border-[#DBEAFE] bg-white',
+  '[&_[data-slot=table]]:text-slate-800',
+  '[&_thead]:bg-[#F4F8FD] [&_thead]:text-slate-700',
+  '[&_th]:border-[#DBEAFE] [&_th]:text-slate-700',
+  '[&_tbody_tr]:border-[#DBEAFE]/80',
+  '[&_tbody_tr:hover]:bg-[#EFF6FF]',
+  '[&_[data-slot=table-row][data-state=selected]]:!bg-blue-50',
+  '[&_[data-slot=table-row][data-state=selected]:hover]:!bg-blue-100/60',
+  '[&_[data-slot=table-row][data-state=selected]]:!text-slate-900',
+  '[&_[data-slot=table-row][data-state=selected]_.text-muted-foreground]:!text-slate-500',
+  '[&_.text-muted-foreground]:text-slate-500',
+  '[&_[data-slot=checkbox]]:border-slate-300'
 )
 
 export const channelTestDialogPaginationClassName = dataTablePaginationTextClassName
 
-export const channelTestDialogOutlineButtonClassName =
-  systemSettingsOutlineButtonClassName
+export const channelTestDialogOutlineButtonClassName = cn(
+  'border-[#DBEAFE] bg-white text-slate-700',
+  'hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
+  'disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:opacity-60'
+)
 
 export const channelTestDialogPaginationButtonClassName =
   dataTablePaginationOutlineButtonClassName

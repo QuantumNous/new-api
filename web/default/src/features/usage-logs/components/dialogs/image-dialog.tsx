@@ -36,6 +36,7 @@ import {
   usageLogsContentDialogDescClassName,
   usageLogsContentDialogImageErrorClassName,
   usageLogsContentDialogImageFrameClassName,
+  usageLogsContentDialogOutlineButtonClassName,
   usageLogsContentDialogSurfaceWideClassName,
   usageLogsContentDialogTitleClassName,
   usageLogsContentDialogUrlPanelClassName,
@@ -96,7 +97,7 @@ export function ImageDialog({
           <Button
             variant='outline'
             size='sm'
-            className='border-white/15 bg-slate-950/50 text-slate-100 hover:bg-white/10'
+            className={usageLogsContentDialogOutlineButtonClassName}
             render={
               <a
                 href={imageUrl}
@@ -112,7 +113,7 @@ export function ImageDialog({
           <Button
             variant='outline'
             size='sm'
-            className='border-white/15 bg-slate-950/50 text-slate-100 hover:bg-white/10'
+            className={usageLogsContentDialogOutlineButtonClassName}
             onClick={() => copyToClipboard(imageUrl)}
           >
             {copiedText === imageUrl ? (
@@ -128,7 +129,7 @@ export function ImageDialog({
           <div className='py-4'>
             <div className={usageLogsContentDialogImageFrameClassName}>
               {(isLoading || hasError) && (
-                <Skeleton className='absolute inset-0 h-full w-full rounded-lg bg-white/5' />
+                <Skeleton className='absolute inset-0 h-full w-full rounded-lg bg-slate-200/60' />
               )}
 
               <img

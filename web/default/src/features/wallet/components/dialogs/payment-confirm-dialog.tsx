@@ -30,12 +30,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import { DEFAULT_DISCOUNT_RATE } from '../../constants'
 import { formatCurrency, getPaymentIcon } from '../../lib'
 import type { PaymentMethod } from '../../types'
-
-const WALLET_DIALOG_OUTLINE =
-  'border-border bg-background text-foreground shadow-none hover:bg-muted/80 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900 dark:disabled:opacity-70'
+import {
+  walletDialogDescriptionClassName,
+  walletMutedTextClassName,
+  walletOutlineButtonClassName,
+} from '../../lib/wallet-ui-styles'
 
 interface PaymentConfirmDialogProps {
   open: boolean
@@ -74,14 +77,14 @@ export function PaymentConfirmDialog({
           <AlertDialogTitle className='text-xl font-semibold'>
             {t('wallet.pay_confirm.title')}
           </AlertDialogTitle>
-          <AlertDialogDescription className='dark:text-slate-400'>
+          <AlertDialogDescription className={walletDialogDescriptionClassName}>
             {t('wallet.pay_confirm.description')}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
         <div className='space-y-3 py-3 sm:space-y-4 sm:py-4'>
           <div className='flex items-center justify-between'>
-            <span className='text-muted-foreground text-sm dark:text-slate-400'>
+            <span className={cn('text-sm', walletMutedTextClassName)}>
               {t('wallet.pay_confirm.topup_amount')}
             </span>
             <span className='text-lg font-semibold'>
@@ -94,7 +97,7 @@ export function PaymentConfirmDialog({
           </div>
 
           <div className='flex items-center justify-between'>
-            <span className='text-muted-foreground text-sm dark:text-slate-400'>
+            <span className={cn('text-sm', walletMutedTextClassName)}>
               {t('wallet.pay_confirm.you_pay')}
             </span>
             {calculating ? (
@@ -105,7 +108,7 @@ export function PaymentConfirmDialog({
                   {formatCurrency(paymentAmount)}
                 </span>
                 {hasDiscount && (
-                  <span className='text-muted-foreground text-sm line-through dark:text-slate-500'>
+                  <span className='text-sm text-slate-400 line-through'>
                     {formatCurrency(originalAmount)}
                   </span>
                 )}
@@ -116,10 +119,10 @@ export function PaymentConfirmDialog({
           {hasDiscount && !calculating && (
             <div className='bg-muted/50 rounded-lg p-3'>
               <div className='flex items-center justify-between text-sm'>
-                <span className='text-muted-foreground dark:text-slate-400'>
+                <span className={walletMutedTextClassName}>
                   {t('wallet.pay_confirm.you_save')}
                 </span>
-                <span className='font-semibold text-green-600 dark:text-green-400'>
+                <span className='font-semibold text-green-600'>
                   {formatCurrency(discountAmount)}
                 </span>
               </div>
@@ -128,7 +131,7 @@ export function PaymentConfirmDialog({
 
           <div className='border-t pt-4'>
             <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground text-sm dark:text-slate-400'>
+              <span className={cn('text-sm', walletMutedTextClassName)}>
                 {t('wallet.pay_confirm.payment_method')}
               </span>
               <div className='flex items-center gap-2'>
@@ -145,7 +148,7 @@ export function PaymentConfirmDialog({
         </div>
 
         <AlertDialogFooter className='grid grid-cols-2 gap-2 sm:flex'>
-          <AlertDialogCancel disabled={processing} className={WALLET_DIALOG_OUTLINE}>
+          <AlertDialogCancel disabled={processing} className={walletOutlineButtonClassName}>
             {t('Cancel')}
           </AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} disabled={processing}>

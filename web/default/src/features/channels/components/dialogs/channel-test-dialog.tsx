@@ -318,7 +318,7 @@ export function ChannelTestDialog({
           const isDefault = defaultTestModel === model
 
           return (
-            <div className='flex items-center gap-2 text-slate-100'>
+            <div className='flex items-center gap-2 text-slate-800'>
               <span className='font-medium'>{model}</span>
               {isDefault && (
                 <StatusBadge
@@ -351,8 +351,8 @@ export function ChannelTestDialog({
 
           if (result.status === 'testing') {
             return (
-              <div className='flex items-center gap-2 text-sm text-slate-300'>
-                <Loader2 className='h-4 w-4 animate-spin text-slate-300' />
+              <div className='flex items-center gap-2 text-sm text-slate-600'>
+                <Loader2 className='h-4 w-4 animate-spin text-slate-500' />
                 {t('Testing...')}
               </div>
             )
@@ -367,7 +367,7 @@ export function ChannelTestDialog({
                   copyable={false}
                 />
                 {typeof result.responseTime === 'number' && (
-                  <span className='text-slate-300'>
+                  <span className='text-slate-600'>
                     {formatResponseTime(result.responseTime, t)}
                   </span>
                 )}
@@ -383,7 +383,7 @@ export function ChannelTestDialog({
             <div className='flex flex-col gap-1 text-xs'>
               <StatusBadge label={t('Failed')} variant='danger' copyable={false} />
               {formattedError && (
-                <span className='break-all text-slate-300'>{formattedError}</span>
+                <span className='break-all text-slate-600'>{formattedError}</span>
               )}
               {result.errorCode === 'model_price_error' && (
                 <Button
@@ -531,10 +531,10 @@ export function ChannelTestDialog({
           <div className='space-y-3 max-sm:has-[div[role="toolbar"]]:pb-16'>
             <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
               <div>
-                <p className='text-sm font-medium text-slate-100'>
+                <p className='text-sm font-medium text-slate-900'>
                   {t('Channel models')}
                 </p>
-                <p className='text-xs text-slate-300'>
+                <p className='text-xs text-slate-500'>
                   {t('Select models to run batch tests.')}
                 </p>
               </div>
@@ -542,7 +542,7 @@ export function ChannelTestDialog({
                 placeholder={t('Filter models...')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className='border-white/15 bg-slate-900/80 text-slate-100 placeholder:text-slate-400 sm:w-64'
+                className='h-8 w-full border-[#DBEAFE] bg-white text-slate-800 placeholder:text-slate-400 sm:w-64'
               />
             </div>
 
@@ -577,7 +577,7 @@ export function ChannelTestDialog({
                             data-state={
                               row.getIsSelected() ? 'selected' : undefined
                             }
-                            className='border-white/10 text-slate-100 hover:bg-white/[0.05] data-[state=selected]:bg-cyan-500/10 data-[state=selected]:text-slate-100'
+                            className='border-[#DBEAFE] text-slate-800 hover:bg-[#EFF6FF] data-[state=selected]:bg-blue-50 data-[state=selected]:text-blue-700'
                           >
                             {row.getVisibleCells().map((cell) => (
                               <TableCell key={cell.id}>
@@ -593,7 +593,7 @@ export function ChannelTestDialog({
                         <TableRow>
                           <TableCell
                             colSpan={table.getVisibleLeafColumns().length}
-                            className='h-16 text-center text-sm text-slate-300'
+                            className='h-16 text-center text-sm text-slate-500'
                           >
                             {models.length
                               ? t('No models matched your search.')

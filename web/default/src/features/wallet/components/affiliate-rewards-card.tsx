@@ -25,14 +25,18 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CopyButton } from '@/components/copy-button'
 import { cn } from '@/lib/utils'
+import {
+  walletCardClassName,
+  walletIconMutedClassName,
+  walletMutedTextClassName,
+  walletOutlineButtonClassName,
+  walletStatInsetClassName,
+} from '../lib/wallet-ui-styles'
 import type { UserWalletData } from '../types'
 
-/** Outline controls on the affiliate card — high default contrast in dark mode. */
-const WALLET_OUTLINE_BTN =
-  'border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-100 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-50 dark:hover:border-slate-400 dark:hover:bg-slate-700 dark:disabled:border-slate-600 dark:disabled:bg-slate-900 dark:disabled:text-slate-400'
-
-const AFFILIATE_LINK_INPUT =
-  'h-9 min-w-0 flex-1 border-slate-300 bg-white font-mono text-sm text-slate-900 placeholder:text-slate-500 dark:border-slate-500 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-400'
+const AFFILIATE_LINK_INPUT = cn(
+  'h-9 min-w-0 flex-1 border-[#DBEAFE] bg-white font-mono text-sm text-slate-800 placeholder:text-slate-400'
+)
 
 interface AffiliateRewardsCardProps {
   user: UserWalletData | null
@@ -52,14 +56,14 @@ export function AffiliateRewardsCard({
   const { t } = useTranslation()
   if (loading) {
     return (
-      <Card className='border border-slate-200 bg-slate-50 py-0 dark:border-slate-600 dark:bg-slate-900'>
+      <Card className={walletCardClassName}>
         <CardContent className='grid gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,0.72fr)_minmax(320px,1.15fr)] lg:items-center'>
           <div>
-            <Skeleton className='h-5 w-32 dark:bg-slate-700' />
-            <Skeleton className='mt-2 h-4 w-48 dark:bg-slate-700' />
+            <Skeleton className='h-5 w-32' />
+            <Skeleton className='mt-2 h-4 w-48' />
           </div>
-          <Skeleton className='h-14 rounded-lg dark:bg-slate-700' />
-          <Skeleton className='h-10 rounded-lg dark:bg-slate-700' />
+          <Skeleton className='h-14 rounded-lg' />
+          <Skeleton className='h-10 rounded-lg' />
         </CardContent>
       </Card>
     )
@@ -68,17 +72,17 @@ export function AffiliateRewardsCard({
   const hasRewards = (user?.aff_quota ?? 0) > 0
 
   return (
-    <Card className='border border-slate-200 bg-slate-50 py-0 dark:border-slate-600 dark:bg-slate-900'>
+    <Card className={walletCardClassName}>
       <CardContent className='grid gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-[minmax(200px,1fr)_minmax(180px,0.65fr)_minmax(280px,1fr)] lg:items-center'>
         <div className='flex min-w-0 items-center gap-2.5'>
-          <div className='flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-800'>
-            <Share2 className='size-4 text-slate-600 dark:text-slate-200' />
+          <div className='flex size-9 shrink-0 items-center justify-center rounded-lg border border-[#DBEAFE] bg-[#F8FBFF]'>
+            <Share2 className={walletIconMutedClassName} />
           </div>
           <div className='min-w-0'>
-            <h3 className='truncate text-sm font-semibold text-slate-900 dark:text-slate-50'>
+            <h3 className='truncate text-sm font-semibold text-slate-900'>
               {t('wallet.affiliate.title')}
             </h3>
-            <p className='line-clamp-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200'>
+            <p className='line-clamp-2 text-sm leading-relaxed text-slate-700'>
               {t('wallet.affiliate.description')}
             </p>
           </div>
@@ -93,14 +97,11 @@ export function AffiliateRewardsCard({
             ],
             [t('Invites'), String(user?.aff_count ?? 0)],
           ].map(([label, value]) => (
-            <div
-              key={label}
-              className='rounded-lg border border-slate-200 bg-white px-2 py-2 dark:border-slate-600 dark:bg-slate-800'
-            >
-              <div className='truncate text-xs font-semibold tracking-wide text-slate-600 uppercase dark:text-slate-200'>
+            <div key={label} className={walletStatInsetClassName}>
+              <div className='truncate text-xs font-semibold tracking-wide text-slate-500 uppercase'>
                 {label}
               </div>
-              <div className='mt-1 truncate text-base font-bold tabular-nums text-slate-900 dark:text-slate-50'>
+              <div className='mt-1 truncate text-base font-bold text-slate-900 tabular-nums'>
                 {value}
               </div>
             </div>
@@ -116,8 +117,8 @@ export function AffiliateRewardsCard({
           <CopyButton
             value={affiliateLink}
             variant='outline'
-            className={cn('size-9 shrink-0', WALLET_OUTLINE_BTN)}
-            iconClassName='size-4 text-slate-700 dark:text-slate-100'
+            className={cn('size-9 shrink-0', walletOutlineButtonClassName)}
+            iconClassName={walletIconMutedClassName}
             tooltip={t('Copy referral link')}
             aria-label={t('Copy referral link')}
           />
@@ -126,7 +127,7 @@ export function AffiliateRewardsCard({
               onClick={onTransfer}
               disabled={!complianceConfirmed}
               variant='outline'
-              className={cn('h-9 shrink-0 px-3', WALLET_OUTLINE_BTN)}
+              className={cn('h-9 shrink-0 px-3', walletOutlineButtonClassName)}
               size='sm'
             >
               {t('wallet.affiliate.transfer_button')}
@@ -134,7 +135,7 @@ export function AffiliateRewardsCard({
           )}
         </div>
         {!complianceConfirmed ? (
-          <p className='text-sm leading-relaxed text-slate-600 lg:col-span-3 dark:text-slate-200'>
+          <p className={cn('text-sm leading-relaxed lg:col-span-3', walletMutedTextClassName)}>
             {t('wallet.affiliate.compliance_note')}
           </p>
         ) : null}
