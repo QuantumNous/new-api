@@ -23,7 +23,7 @@ export const staticDataTableClassNames = {
   compactTable: 'text-sm',
   compactHeaderRow: 'hover:bg-transparent',
   mutedHeaderRow:
-    '[background-color:color-mix(in_oklch,var(--muted)_30%,var(--background))] hover:[background-color:color-mix(in_oklch,var(--muted)_30%,var(--background))]',
+    '[background-color:var(--table-header)] hover:[background-color:var(--table-header-hover)]',
   compactHeaderCell:
     'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase',
   compactHeaderCellRight:

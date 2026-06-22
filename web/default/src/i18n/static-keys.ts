@@ -30,6 +30,9 @@ export const STATIC_I18N_KEYS = [
   // Sidebar views (drill-in workspaces)
   'System Settings',
   'Back to Dashboard',
+  'Auto-disable rules',
+  'Channel health checks',
+  'Request retry',
 
   // System settings sidebar
   'System Administration',
@@ -39,6 +42,7 @@ export const STATIC_I18N_KEYS = [
   'Content',
   'Integrations',
   'Models',
+  'Routing Reliability',
   'Maintenance',
 
   // Pricing constants
@@ -431,6 +435,10 @@ export const STATIC_I18N_KEYS = [
   'Data management and log viewing',
   'Dashboard',
   'System data statistics',
+  'Flow',
+  'Flow Filters',
+  'Filter the traffic flow view by time range and user.',
+  'Requests',
   'Token Management',
   'API token management',
   'Usage Logs',
@@ -485,6 +493,20 @@ export const STATIC_I18N_KEYS = [
   'Detection complete: {{add}} to add, {{remove}} to remove',
   'Batch detection failed',
   'Batch detection complete: {{channels}} channels, {{add}} to add, {{remove}} to remove, {{fails}} failed',
+
+  // Dashboard flow stages (labels/descriptions passed to t at runtime)
+  'User',
+  'Node',
+  'Token',
+  'Group',
+  'Model',
+  'Channel',
+  'The user who made the requests',
+  'The deployment node that handled the requests',
+  'The API key used for the requests',
+  'The user group applied to the requests',
+  'The model that was requested',
+  'The upstream channel that served the requests',
 
   // Misc
   'Cancel',

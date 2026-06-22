@@ -87,14 +87,14 @@ export function DrawingSettingsSection({
       name: 'DrawingEnabled',
       label: t('Enable drawing features'),
       description: t(
-        'Required to expose Midjourney-style image generation to end users.'
+        'Required to expose MjProxy-style image generation to end users.'
       ),
     },
     {
       name: 'MjNotifyEnabled',
       label: t('Allow upstream callbacks'),
       description: t(
-        'When enabled, Midjourney callbacks are accepted (reveals server IP).'
+        'When enabled, MjProxy callbacks are accepted (reveals server IP).'
       ),
     },
     {
@@ -115,7 +115,7 @@ export function DrawingSettingsSection({
       name: 'MjModeClearEnabled',
       label: t('Clear mode flags in prompts'),
       description: t(
-        'Removes Midjourney flags such as --fast, --relax, and --turbo from user prompts.'
+        'Removes MjProxy flags such as --fast, --relax, and --turbo from user prompts.'
       ),
     },
     {

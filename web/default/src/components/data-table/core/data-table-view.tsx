@@ -1,3 +1,4 @@
+import type { Row, Table as TanstackTable } from '@tanstack/react-table'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,9 +18,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
-import { type Row, type Table as TanstackTable } from '@tanstack/react-table'
-import { cn } from '@/lib/utils'
+
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
+
 import {
   getPinnedColumnMap,
   getResolvedColumnClassNameFromMap,
@@ -136,7 +138,7 @@ function SplitHeaderTableView<TData>({
       <div
         className={cn(
           'min-h-0 flex-1 overflow-auto',
-          '**:data-[slot=table-header]:[--table-header-bg:color-mix(in_oklch,var(--muted)_30%,var(--background))]',
+          '**:data-[slot=table-header]:[--table-header-bg:var(--table-header)]',
           '**:data-[slot=table-header]:bg-(--table-header-bg)',
           props.splitHeaderScrollClassName,
           props.bodyContainerClassName
@@ -192,7 +194,9 @@ function getMetaPinnedColumns<TData>(
 ): DataTablePinnedColumn[] {
   return table.getAllColumns().flatMap((column) => {
     const side = column.columnDef.meta?.pinned
-    if (!side) return []
+    if (!side) {
+      return []
+    }
 
     return [{ columnId: column.id, side }]
   })

@@ -89,6 +89,12 @@ func buildChannelListQuery(group string, statusFilter int, typeFilter int) *gorm
 	return query
 }
 
+func GetChannelOps(c *gin.Context) {
+	common.ApiSuccess(c, gin.H{
+		"retry_times": common.RetryTimes,
+	})
+}
+
 func GetAllChannels(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	channelData := make([]*model.Channel, 0)

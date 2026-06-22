@@ -267,7 +267,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
             checked={isEnabled}
             onCheckedChange={handleToggleEnabled}
             label={t('Enabled')}
-            className='border-b-0 py-0'
+            className='py-0'
           />
         </div>
 
