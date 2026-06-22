@@ -194,6 +194,14 @@ func serveTrackedImageTask(c *gin.Context, taskID string) bool {
 			if fresh, ffound, _ := model.GetByOnlyTaskId(taskID); ffound && fresh != nil {
 				task = fresh
 			}
+		} else {
+			// We're the poll that won the resolution race — backfill the consumption log's
+			// "耗时" with the real submit→result latency (the original log row only has the
+			// fast async-submit round-trip, since billing happens at submit time).
+			realElapsed := int(task.FinishTime - task.SubmitTime)
+			if uerr := model.UpdateLogUseTimeByTaskID(task.UserId, task.TaskID, realElapsed); uerr != nil {
+				logger.LogWarn(c.Request.Context(), fmt.Sprintf("failed to backfill real duration for task %s: %v", task.TaskID, uerr))
+			}
 		}
 		c.JSON(http.StatusOK, buildImageTaskStatusResponse("succeeded", task.GetResultURL()))
 	case "failed", "error", "cancelled":

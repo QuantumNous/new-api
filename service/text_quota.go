@@ -470,6 +470,12 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if tieredBillingApplied {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
+	if taskID := ctx.GetString("image_poll_task_id"); taskID != "" {
+		// Structured task_id (vs. buried in the Content text) so the gpt-image-2 async
+		// race fallback can later find and backfill this exact row's use_time once the
+		// real result is known (see controller/relay_image_task.go, model.UpdateLogUseTimeByTaskID).
+		other["task_id"] = taskID
+	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,

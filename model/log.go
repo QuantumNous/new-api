@@ -90,6 +90,20 @@ func FindChannelIDForImageTask(userID int, taskID string) (int, bool) {
 	return row.ChannelId, true
 }
 
+// UpdateLogUseTimeByTaskID backfills the "耗时" (use_time) on the consumption log row for
+// an async image generation task once the real result is known. gpt-image-2 async submits
+// bill/log immediately at submit time (use_time = just the submit round-trip, always fast);
+// this rewrites that same row in place once polling confirms the task finished, so the log
+// reflects real generation latency instead of the misleadingly-fast submit time.
+func UpdateLogUseTimeByTaskID(userID int, taskID string, useTimeSeconds int) error {
+	if userID <= 0 || strings.TrimSpace(taskID) == "" {
+		return nil
+	}
+	return LOG_DB.Model(&Log{}).
+		Where("user_id = ? AND type = ? AND other LIKE ?", userID, LogTypeConsume, "%"+taskID+"%").
+		Update("use_time", useTimeSeconds).Error
+}
+
 // FindRecentImageChannelID returns the channel from the user's latest gpt-image consume within withinSec.
 func FindRecentImageChannelID(userID int, withinSec int64) (int, bool) {
 	if userID <= 0 || withinSec <= 0 {
