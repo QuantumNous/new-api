@@ -39,6 +39,57 @@ func Distribute() func(c *gin.Context) {
 			return
 		}
 		if ok {
+			// Specific channel override — skip combo routing
+		} else if strings.HasPrefix(modelRequest.Model, "combo:") && shouldSelectChannel {
+			// --- Combo Routing ---
+			comboName := strings.TrimPrefix(modelRequest.Model, "combo:")
+			if comboName == "" {
+				abortWithOpenAiMessage(c, http.StatusBadRequest, "Combo name is empty")
+				return
+			}
+			userId := c.GetInt("id")
+			combo, comboErr := model.GetComboByNameUserId(comboName, userId)
+			if comboErr != nil || combo == nil {
+				abortWithOpenAiMessage(c, http.StatusNotFound, "Combo not found: "+comboName)
+				return
+			}
+			if combo.Status != 1 {
+				abortWithOpenAiMessage(c, http.StatusForbidden, "Combo is disabled: "+comboName)
+				return
+			}
+
+			// Store combo context for downstream (logging, billing)
+			common.SetContextKey(c, constant.ContextKeyComboName, combo.Name)
+			common.SetContextKey(c, constant.ContextKeyComboStrategy, combo.Strategy)
+
+			tokenGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+			result, comboErr := service.ResolveComboModel(c, combo, tokenGroup)
+			if comboErr != nil {
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, "Combo routing failed: "+comboErr.Error(), types.ErrorCodeModelNotFound)
+				return
+			}
+
+			// Rewrite request body model field from "combo:xxx" to resolved model name
+			if rewriteErr := service.RewriteRequestBodyModel(c, result.ResolvedModel); rewriteErr != nil {
+				common.SysError("combo: failed to rewrite request body: " + rewriteErr.Error())
+				abortWithOpenAiMessage(c, http.StatusInternalServerError, "Failed to rewrite request body")
+				return
+			}
+
+			// Update modelRequest for downstream model-limit checks etc.
+			modelRequest.Model = result.ResolvedModel
+
+			// For fallback (channel pre-resolved), bypass normal channel selection
+			if result.Channel != nil {
+				channel = result.Channel
+				shouldSelectChannel = false
+				if tokenGroup == "auto" && result.Group != "" {
+					common.SetContextKey(c, constant.ContextKeyAutoGroup, result.Group)
+				}
+			}
+			// For other strategies, normal channel selection runs below with resolved model name
+		}
+		if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
 				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
@@ -53,7 +104,8 @@ func Distribute() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
 				return
 			}
-		} else {
+		}
+		if !ok && !strings.HasPrefix(modelRequest.Model, "combo:") {
 			// Select a channel for the user
 			// check token model mapping
 			modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)

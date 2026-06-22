@@ -25,6 +25,7 @@ import {
   Key,
   LayoutDashboard,
   ListTodo,
+  GitMerge,
   MessageSquare,
   Radio,
   Settings,
@@ -81,6 +82,11 @@ export function useSidebarData(): SidebarData {
             title: t('API Keys'),
             url: '/keys',
             icon: Key,
+          },
+         {
+            title: t('Combos'),
+            url: '/combos',
+            icon: GitMerge,
           },
           {
             title: t('Usage Logs'),
