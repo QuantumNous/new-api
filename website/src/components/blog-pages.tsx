@@ -270,7 +270,7 @@ function EmptyBlogState(props: { locale: Locale }) {
 export async function BlogIndexPage(props: Props & { search?: BlogSearchState }) {
   const page = props.search?.page ?? 1;
   const query = props.search?.q;
-  const posts = await getBlogPosts({ page, q: query });
+  const posts = await getBlogPosts({ page, q: query }, props.locale);
   const totalPages = Math.ceil(posts.total / BLOG_PAGE_SIZE);
   const copy = getCopy(props.locale).blog;
 
@@ -308,12 +308,16 @@ export async function BlogIndexPage(props: Props & { search?: BlogSearchState })
 }
 
 export async function BlogArticlePage(props: Props & { slug: string }) {
-  const post = await getBlogPost(props.slug);
+  const post = await getBlogPost(props.slug, props.locale);
   if (!post) notFound();
+  const currentPost = post;
 
-  const relatedPosts = await getBlogPosts({ page: 1, categoryIds: post.categoryId ? [post.categoryId] : undefined });
+  const relatedPosts = await getBlogPosts(
+    { page: 1, categoryIds: currentPost.categoryId ? [currentPost.categoryId] : undefined },
+    props.locale
+  );
   const related = relatedPosts.list.filter((item) => item.slug !== props.slug).slice(0, 3);
-  const html = sanitizeBlogHtml(post.content ?? "");
+  const html = sanitizeBlogHtml(currentPost.content ?? "");
   const toc = getBlogToc(html);
   const copy = getCopy(props.locale).blog;
 
@@ -323,24 +327,24 @@ export async function BlogArticlePage(props: Props & { slug: string }) {
         <section className="border-b border-border/50 bg-muted/30 pt-28 pb-12">
           <div className="container mx-auto max-w-4xl px-4">
             <div className="mb-5 flex flex-wrap items-center gap-3">
-              {post.categoryName ? <Badge>{post.categoryName}</Badge> : null}
-              {post.date ? <span className="text-muted-foreground text-sm">{formatBlogDate(post.date, "long", props.locale)}</span> : null}
-              {post.author ? <span className="text-muted-foreground text-sm">{post.author}</span> : null}
+              {currentPost.categoryName ? <Badge>{currentPost.categoryName}</Badge> : null}
+              {currentPost.date ? <span className="text-muted-foreground text-sm">{formatBlogDate(currentPost.date, "long", props.locale)}</span> : null}
+              {currentPost.author ? <span className="text-muted-foreground text-sm">{currentPost.author}</span> : null}
             </div>
             <h1 className="text-foreground text-3xl font-semibold tracking-tight text-balance md:text-5xl">
-              {post.title}
+              {currentPost.title}
             </h1>
-            {post.summary ? (
-              <p className="text-muted-foreground mt-5 max-w-3xl text-base leading-7 text-balance md:text-lg">{post.summary}</p>
+            {currentPost.summary ? (
+              <p className="text-muted-foreground mt-5 max-w-3xl text-base leading-7 text-balance md:text-lg">{currentPost.summary}</p>
             ) : null}
           </div>
         </section>
-        {post.cover ? (
+        {currentPost.cover ? (
           <div className="container mx-auto max-w-4xl px-4 py-8">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={post.cover}
-              alt={post.title}
+              src={currentPost.cover}
+              alt={currentPost.title}
               className="bg-muted aspect-[16/9] w-full rounded-lg object-cover"
               loading="eager"
               decoding="async"
@@ -401,18 +405,19 @@ export async function BlogCategoryPage(props: Props & { slug: string; search?: B
   const categories = await getBlogCategories();
   const category = categories.find((item) => item.slug === props.slug);
   if (!category) notFound();
+  const currentCategory = category;
 
   const page = props.search?.page ?? 1;
   const query = props.search?.q;
-  const posts = await getBlogPosts({ page, q: query, categoryIds: [category.id] });
+  const posts = await getBlogPosts({ page, q: query, categoryIds: [currentCategory.id] }, props.locale);
   const totalPages = Math.ceil(posts.total / BLOG_PAGE_SIZE);
   const copy = getCopy(props.locale).blog;
-  const description = category.description || formatBlogCopy(copy.latestInCategory, { category: category.name });
+  const description = currentCategory.description || formatBlogCopy(copy.latestInCategory, { category: currentCategory.name });
 
   return (
     <SiteShell locale={props.locale} pathname={`/blog/category/${props.slug}`}>
       <main>
-        <BlogHero locale={props.locale} title={category.name} description={description} copy={copy} query={query} categorySlug={props.slug} />
+        <BlogHero locale={props.locale} title={currentCategory.name} description={description} copy={copy} query={query} categorySlug={props.slug} />
         <section className="container mx-auto max-w-6xl px-4 py-12">
           <Link className={buttonClass("ghost")} href={localizePath("/blog", props.locale)}>
             <ArrowLeft className="size-4" />

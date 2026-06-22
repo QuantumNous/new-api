@@ -7,7 +7,7 @@ type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata(props: Props) {
   const params = await props.params;
-  const post = await getBlogPost(params.slug);
+  const post = await getBlogPost(params.slug, "en");
   const copy = getCopy("en").blog;
   return buildMetadata({
     title: post?.title ?? copy.articleFallbackTitle,

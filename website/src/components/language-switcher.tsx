@@ -17,8 +17,7 @@ export function LanguageSwitcher(props: Props) {
 
   const links = useMemo(() => {
     const strippedPath = stripLocale(props.pathname);
-    const locales = strippedPath === "/blog" || strippedPath.startsWith("/blog/") ? (["en"] as const) : LOCALES;
-    return locales.map((locale) => ({
+    return LOCALES.map((locale) => ({
       code: locale,
       label: LOCALE_LABELS[locale],
       href: localizePath(strippedPath, locale),
