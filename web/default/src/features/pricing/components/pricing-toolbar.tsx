@@ -159,7 +159,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
   )
 
   return (
-    <div className='rounded-xl border p-3'>
+    <div className='border-border/80 bg-card/85 rounded-xl border p-3 shadow-[0_10px_26px_rgba(28,28,28,0.05)]'>
       <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
         <div className='flex items-center gap-2'>
           <Button

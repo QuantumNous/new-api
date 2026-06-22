@@ -96,6 +96,14 @@ func TestSkillRouterSkillAnalyticsAuthFailureUsesEnvelope(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, skills.Code)
 	assert.Contains(t, skills.Body.String(), `"code":"AUTH_REQUIRED"`)
 	assert.Contains(t, skills.Body.String(), `"request_id":`)
+func TestSkillRouterMySkillsRequiresAuth(t *testing.T) {
+	engine := newSkillTestRouter(t, false)
+
+	w := performSkillRequest(engine, http.MethodGet, "/api/v1/marketplace/my-skills", "")
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"AUTH_REQUIRED"`)
+	assert.Contains(t, w.Body.String(), `"request_id":`)
 }
 
 func TestSkillRouterRateLimitUsesEnvelopeAndRetryAfter(t *testing.T) {
