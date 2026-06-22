@@ -62,4 +62,19 @@ describe('auth storage onboarding flags', () => {
     expect(consumePendingOnboarding()).toBe(true)
     expect(consumePendingOnboarding()).toBe(false)
   })
+
+  test('clears legacy Playground first-run storage without triggering onboarding', () => {
+    const localStorage = installWindowStorage()
+    localStorage.values.set(
+      'pending_playground_first_run',
+      JSON.stringify({
+        email: 'old-user@example.com',
+        username: 'old-user',
+        createdAt: Date.now(),
+      })
+    )
+
+    expect(consumePendingOnboarding()).toBe(false)
+    expect(localStorage.getItem('pending_playground_first_run')).toBe(null)
+  })
 })

@@ -39,6 +39,21 @@ func performRegisterRequest(t *testing.T, body []byte) *httptest.ResponseRecorde
 	return recorder
 }
 
+func performWeChatAuthRequest(t *testing.T, code string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(sessions.Sessions("session", cookie.NewStore([]byte("wechat-session-test"))))
+	router.GET("/api/oauth/wechat", WeChatAuth)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/oauth/wechat?code="+code, nil)
+	router.ServeHTTP(recorder, request)
+
+	return recorder
+}
+
 func TestRegisterWithEmailVerificationAutoLogsInNewUser(t *testing.T) {
 	setupModelListControllerTestDB(t)
 
@@ -75,5 +90,49 @@ func TestRegisterWithEmailVerificationAutoLogsInNewUser(t *testing.T) {
 	require.True(t, payload.Success)
 	require.NotZero(t, payload.Data.ID)
 	require.Equal(t, "verified-user", payload.Data.Username)
+	require.True(t, payload.Data.IsNewUser)
+}
+
+func TestWeChatAuthNewUserMarksIsNewUser(t *testing.T) {
+	setupModelListControllerTestDB(t)
+
+	wechatServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/api/wechat/user", r.URL.Path)
+		require.Equal(t, "valid-wechat-code", r.URL.Query().Get("code"))
+		body, err := common.Marshal(map[string]any{
+			"success": true,
+			"message": "",
+			"data":    "wechat-open-id-new-user",
+		})
+		require.NoError(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		_, err = w.Write(body)
+		require.NoError(t, err)
+	}))
+	defer wechatServer.Close()
+
+	originalWeChatAuthEnabled := common.WeChatAuthEnabled
+	originalRegisterEnabled := common.RegisterEnabled
+	originalWeChatServerAddress := common.WeChatServerAddress
+	originalWeChatServerToken := common.WeChatServerToken
+	t.Cleanup(func() {
+		common.WeChatAuthEnabled = originalWeChatAuthEnabled
+		common.RegisterEnabled = originalRegisterEnabled
+		common.WeChatServerAddress = originalWeChatServerAddress
+		common.WeChatServerToken = originalWeChatServerToken
+	})
+	common.WeChatAuthEnabled = true
+	common.RegisterEnabled = true
+	common.WeChatServerAddress = wechatServer.URL
+	common.WeChatServerToken = "test-token"
+
+	recorder := performWeChatAuthRequest(t, "valid-wechat-code")
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.NotEmpty(t, recorder.Result().Cookies(), "WeChat registration should establish a login session")
+	var payload registerResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	require.NotZero(t, payload.Data.ID)
 	require.True(t, payload.Data.IsNewUser)
 }
