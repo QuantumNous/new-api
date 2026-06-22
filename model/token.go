@@ -307,7 +307,8 @@ func (token *Token) Update() (err error) {
 	}()
 	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
 		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry",
-		"simple_purpose", "simple_brand", "simple_price_tier").Updates(token).Error
+		"simple_purpose", "simple_brand", "simple_price_tier",
+		"rpm_limit", "tpm_limit", "monthly_limit").Updates(token).Error
 	return err
 }
 
