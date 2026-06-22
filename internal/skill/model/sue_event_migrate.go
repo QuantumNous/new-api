@@ -2,6 +2,7 @@ package skillmodel
 
 import (
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -24,10 +25,102 @@ const sueKidsPrivacyCheckExpr = "is_kids_session = false OR (user_id IS NULL AND
 // recursive guard and always runs before the DB constraint via BeforeCreate.
 const sueRestrictedMetadataJSONPaths = "'$.instruction_template', '$.prompt', '$.system_prompt', '$.raw_messages', '$.provider_payload', '$.kids_raw_input', '$.full_user_input', '$.raw_output', '$.model_output'"
 
+// sueAllDR43Columns lists every column in the DR-43 skill_usage_events schema in
+// declaration order. rebuildSUETableSQLite uses this list to determine which columns
+// from the old table carry over into the rebuilt table; columns absent from the old
+// table receive their DR-43 DEFAULT on INSERT.
+var sueAllDR43Columns = []string{
+	"event_id", "event_type", "occurred_at",
+	"user_id", "tenant_id", "session_id", "request_id",
+	"skill_id", "skill_version_id",
+	"entry_point", "plan", "subscription_status",
+	"persona", "persona_source", "model",
+	"is_kids_session", "is_kids_safe_skill", "is_kids_exclusive_skill",
+	"input_tokens", "output_tokens", "total_tokens", "latency_ms",
+	"success", "failure_reason", "block_reason", "error_code",
+	"timeout_occurred", "prompt_injection_detected", "safety_violation_detected",
+	"metadata",
+}
+
+// sueCreateTableDDL returns the CREATE TABLE DDL for the full DR-43
+// skill_usage_events schema. tableName must be either "skill_usage_events"
+// (normal path) or "skill_usage_events_new" (rebuild temp table).
+// IF NOT EXISTS is intentionally absent — callers verify existence themselves.
+func sueCreateTableDDL(tableName string) string {
+	return `CREATE TABLE "` + tableName + `" (
+		"event_id"                TEXT     NOT NULL,
+		"event_type"              TEXT     NOT NULL,
+		"occurred_at"             DATETIME NOT NULL,
+		"user_id"                 INTEGER,
+		"tenant_id"               INTEGER,
+		"session_id"              TEXT,
+		"request_id"              TEXT,
+		"skill_id"                TEXT,
+		"skill_version_id"        TEXT,
+		"entry_point"             TEXT     NOT NULL,
+		"plan"                    TEXT,
+		"subscription_status"     TEXT,
+		"persona"                 TEXT,
+		"persona_source"          TEXT,
+		"model"                   TEXT,
+		"is_kids_session"         INTEGER  NOT NULL DEFAULT 0,
+		"is_kids_safe_skill"      INTEGER,
+		"is_kids_exclusive_skill" INTEGER,
+		"input_tokens"            INTEGER,
+		"output_tokens"           INTEGER,
+		"total_tokens"            INTEGER,
+		"latency_ms"              INTEGER,
+		"success"                 INTEGER,
+		"failure_reason"          TEXT,
+		"block_reason"            TEXT,
+		"error_code"              TEXT,
+		"timeout_occurred"        INTEGER  NOT NULL DEFAULT 0,
+		"prompt_injection_detected" INTEGER NOT NULL DEFAULT 0,
+		"safety_violation_detected" INTEGER NOT NULL DEFAULT 0,
+		"metadata"                TEXT     NOT NULL DEFAULT '{}',
+		PRIMARY KEY ("event_id"),
+		CONSTRAINT "chk_sue_input_tokens" CHECK ("input_tokens" IS NULL OR "input_tokens" >= 0),
+		CONSTRAINT "chk_sue_output_tokens" CHECK ("output_tokens" IS NULL OR "output_tokens" >= 0),
+		CONSTRAINT "chk_sue_total_tokens" CHECK ("total_tokens" IS NULL OR "total_tokens" >= 0),
+		CONSTRAINT "chk_sue_latency_ms" CHECK ("latency_ms" IS NULL OR "latency_ms" >= 0),
+		CONSTRAINT "chk_sue_event_type" CHECK (` + sueEventTypeCheckExpr + `),
+		CONSTRAINT "chk_sue_entry_point" CHECK (` + sueEntryPointCheckExpr + `),
+		CONSTRAINT "chk_sue_plan" CHECK (` + suePlanCheckExpr + `),
+		CONSTRAINT "chk_sue_block_reason" CHECK (` + sueBlockReasonCheckExpr + `),
+		CONSTRAINT "chk_sue_kids_privacy" CHECK (` + sueKidsPrivacyCheckExpr + `),
+		CONSTRAINT "chk_sue_metadata_object" CHECK (json_valid("metadata") AND json_type("metadata") = 'object'),
+		-- top-level keys only; nested restricted keys require the application BeforeCreate guard
+		CONSTRAINT "chk_sue_metadata_no_restricted_keys" CHECK (
+			json_extract("metadata", '$.instruction_template') IS NULL AND
+			json_extract("metadata", '$.prompt') IS NULL AND
+			json_extract("metadata", '$.system_prompt') IS NULL AND
+			json_extract("metadata", '$.raw_messages') IS NULL AND
+			json_extract("metadata", '$.provider_payload') IS NULL AND
+			json_extract("metadata", '$.kids_raw_input') IS NULL AND
+			json_extract("metadata", '$.full_user_input') IS NULL AND
+			json_extract("metadata", '$.raw_output') IS NULL AND
+			json_extract("metadata", '$.model_output') IS NULL
+		)
+	)`
+}
+
 // MigrateSkillUsageEvents creates and configures the skill_usage_events table.
 //
-// SQLite path: CREATE TABLE IF NOT EXISTS with all columns, then createSUEIndexes.
-// PG/MySQL path: AutoMigrate → createSUEIndexes.
+// SQLite fresh path: CREATE TABLE with full DR-43 schema (columns + CHECK constraints) →
+//
+//	createSUEIndexes.
+//
+// SQLite upgrade path (existing table): upgradeSUETableSQLite detects pre-DR-43
+//
+//	tables (missing chk_sue_kids_privacy) and rebuilds the table to add missing
+//	DR-43 columns and CHECK constraints. SQLite cannot ADD CONSTRAINT via ALTER TABLE;
+//	a full copy-rename rebuild is the only way to add constraints to an existing table.
+//	The rebuild is wrapped in a transaction so an interrupted run leaves the original
+//	table intact. Existing rows must conform to DR-43 CHECK constraints; rows written
+//	via EmitSkillUsageEvent (the only sanctioned write path) always satisfy this
+//	because BeforeCreate + EmitSkillUsageEvent enum guards enforce the same predicates.
+//
+// PG/MySQL path: AutoMigrate → createSUEJSONBColumns → migrateSUEConstraints → createSUEIndexes.
 //
 // occurred_at has no DB-level DEFAULT — it is always set from Go (time.Now().UTC()).
 // No FK on skill_id/skill_version_id: skill_usage_events is an append-only event log;
@@ -62,65 +155,93 @@ func MigrateSkillUsageEvents(db *gorm.DB) error {
 }
 
 func migrateSkillUsageEventsSQLite(db *gorm.DB) error {
-	if err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS "skill_usage_events" (
-			"event_id"                TEXT     NOT NULL,
-			"event_type"              TEXT     NOT NULL,
-			"occurred_at"             DATETIME NOT NULL,
-			"user_id"                 INTEGER,
-			"tenant_id"               INTEGER,
-			"session_id"              TEXT,
-			"request_id"              TEXT,
-			"skill_id"                TEXT,
-			"skill_version_id"        TEXT,
-			"entry_point"             TEXT     NOT NULL,
-			"plan"                    TEXT,
-			"subscription_status"     TEXT,
-			"persona"                 TEXT,
-			"persona_source"          TEXT,
-			"model"                   TEXT,
-			"is_kids_session"         INTEGER  NOT NULL DEFAULT 0,
-			"is_kids_safe_skill"      INTEGER,
-			"is_kids_exclusive_skill" INTEGER,
-			"input_tokens"            INTEGER,
-			"output_tokens"           INTEGER,
-			"total_tokens"            INTEGER,
-			"latency_ms"              INTEGER,
-			"success"                 INTEGER,
-			"failure_reason"          TEXT,
-			"block_reason"            TEXT,
-			"error_code"              TEXT,
-			"timeout_occurred"        INTEGER  NOT NULL DEFAULT 0,
-			"prompt_injection_detected" INTEGER NOT NULL DEFAULT 0,
-			"safety_violation_detected" INTEGER NOT NULL DEFAULT 0,
-			"metadata"                TEXT     NOT NULL DEFAULT '{}',
-			PRIMARY KEY ("event_id"),
-			CONSTRAINT "chk_sue_input_tokens" CHECK ("input_tokens" IS NULL OR "input_tokens" >= 0),
-			CONSTRAINT "chk_sue_output_tokens" CHECK ("output_tokens" IS NULL OR "output_tokens" >= 0),
-			CONSTRAINT "chk_sue_total_tokens" CHECK ("total_tokens" IS NULL OR "total_tokens" >= 0),
-			CONSTRAINT "chk_sue_latency_ms" CHECK ("latency_ms" IS NULL OR "latency_ms" >= 0),
-			CONSTRAINT "chk_sue_event_type" CHECK (` + sueEventTypeCheckExpr + `),
-			CONSTRAINT "chk_sue_entry_point" CHECK (` + sueEntryPointCheckExpr + `),
-			CONSTRAINT "chk_sue_plan" CHECK (` + suePlanCheckExpr + `),
-			CONSTRAINT "chk_sue_block_reason" CHECK (` + sueBlockReasonCheckExpr + `),
-			CONSTRAINT "chk_sue_kids_privacy" CHECK (` + sueKidsPrivacyCheckExpr + `),
-			CONSTRAINT "chk_sue_metadata_object" CHECK (json_valid("metadata") AND json_type("metadata") = 'object'),
-			-- top-level keys only; nested restricted keys require the application BeforeCreate guard
-			CONSTRAINT "chk_sue_metadata_no_restricted_keys" CHECK (
-				json_extract("metadata", '$.instruction_template') IS NULL AND
-				json_extract("metadata", '$.prompt') IS NULL AND
-				json_extract("metadata", '$.system_prompt') IS NULL AND
-				json_extract("metadata", '$.raw_messages') IS NULL AND
-				json_extract("metadata", '$.provider_payload') IS NULL AND
-				json_extract("metadata", '$.kids_raw_input') IS NULL AND
-				json_extract("metadata", '$.full_user_input') IS NULL AND
-				json_extract("metadata", '$.raw_output') IS NULL AND
-				json_extract("metadata", '$.model_output') IS NULL
-			)
-		)`).Error; err != nil {
-		return fmt.Errorf("create skill_usage_events (SQLite): %w", err)
+	if !db.Migrator().HasTable(&SkillUsageEvent{}) {
+		if err := db.Exec(sueCreateTableDDL("skill_usage_events")).Error; err != nil {
+			return fmt.Errorf("create skill_usage_events (SQLite): %w", err)
+		}
+	} else {
+		if err := upgradeSUETableSQLite(db); err != nil {
+			return err
+		}
 	}
 	return createSUEIndexes(db)
+}
+
+// upgradeSUETableSQLite upgrades an existing skill_usage_events table to the DR-43
+// schema. The presence of "chk_sue_kids_privacy" in the stored DDL is the sentinel:
+// tables lacking it pre-date DR-43 and are rebuilt by rebuildSUETableSQLite.
+// Tables already on the DR-43 schema are a no-op (idempotent).
+func upgradeSUETableSQLite(db *gorm.DB) error {
+	var ddl string
+	if err := db.Raw(
+		`SELECT sql FROM sqlite_master WHERE type='table' AND name='skill_usage_events'`,
+	).Scan(&ddl).Error; err != nil {
+		return fmt.Errorf("read skill_usage_events DDL for upgrade check: %w", err)
+	}
+	if strings.Contains(ddl, "chk_sue_kids_privacy") {
+		return nil // already DR-43 schema: idempotent no-op
+	}
+	return rebuildSUETableSQLite(db)
+}
+
+// rebuildSUETableSQLite upgrades a pre-DR-43 skill_usage_events table by:
+//  1. Creating skill_usage_events_new with the full DR-43 schema (all columns +
+//     CHECK constraints). SQLite cannot add CHECK constraints via ALTER TABLE.
+//  2. Copying all rows from the old table; columns absent in the old schema
+//     receive their DR-43 DEFAULT value (is_kids_session=0, metadata='{}', etc.).
+//  3. Dropping the old table (cascades its indexes) and renaming the new one.
+//
+// All steps run in a single SQLite transaction: a failure rolls back to the original
+// intact table. Rows that would violate DR-43 CHECK constraints cause the migration to
+// fail with an explicit error — this indicates data corruption that must be resolved
+// manually, since EmitSkillUsageEvent always enforces the same predicates at write time.
+func rebuildSUETableSQLite(db *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		// Remove any stale temp table left by an interrupted previous run.
+		if err := tx.Exec(`DROP TABLE IF EXISTS "skill_usage_events_new"`).Error; err != nil {
+			return fmt.Errorf("drop stale skill_usage_events_new: %w", err)
+		}
+		if err := tx.Exec(sueCreateTableDDL("skill_usage_events_new")).Error; err != nil {
+			return fmt.Errorf("create skill_usage_events_new (SQLite rebuild): %w", err)
+		}
+
+		// Discover which columns exist in the old table so we can build a safe
+		// INSERT … SELECT that only references columns that actually exist.
+		type colRow struct {
+			Name string `gorm:"column:name"`
+		}
+		var colRows []colRow
+		if err := tx.Raw("SELECT name FROM pragma_table_info('skill_usage_events')").Scan(&colRows).Error; err != nil {
+			return fmt.Errorf("pragma_table_info skill_usage_events: %w", err)
+		}
+		oldColSet := make(map[string]bool, len(colRows))
+		for _, c := range colRows {
+			oldColSet[c.Name] = true
+		}
+
+		var quotedCols []string
+		for _, c := range sueAllDR43Columns {
+			if oldColSet[c] {
+				quotedCols = append(quotedCols, `"`+c+`"`)
+			}
+		}
+		if len(quotedCols) == 0 {
+			return fmt.Errorf("rebuildSUETableSQLite: no DR-43 columns found in old skill_usage_events")
+		}
+		colList := strings.Join(quotedCols, ", ")
+		insertSQL := `INSERT INTO "skill_usage_events_new" (` + colList + `) SELECT ` + colList + ` FROM "skill_usage_events"`
+		if err := tx.Exec(insertSQL).Error; err != nil {
+			return fmt.Errorf("copy skill_usage_events rows to DR-43 schema: %w", err)
+		}
+
+		if err := tx.Exec(`DROP TABLE "skill_usage_events"`).Error; err != nil {
+			return fmt.Errorf("drop old skill_usage_events: %w", err)
+		}
+		if err := tx.Exec(`ALTER TABLE "skill_usage_events_new" RENAME TO "skill_usage_events"`).Error; err != nil {
+			return fmt.Errorf("rename skill_usage_events_new to skill_usage_events: %w", err)
+		}
+		return nil
+	})
 }
 
 func migrateSUEConstraints(db *gorm.DB) error {

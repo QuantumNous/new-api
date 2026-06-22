@@ -2,6 +2,10 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-06-22
+
+- DR-43 review fix — SQLite upgrade regression test：新增 `TestMigrateSkillUsageEvents_SQLite_UpgradesPreDR43Table`，构造 pre-DR-43 最简 schema（缺少 `tenant_id`、`metadata`、kids safety 列及全部 CHECK 约束），预埋一行旧数据，调用 `MigrateSkillUsageEvents` 后校验：全部 30 个 DR-43 列存在；全部 7 个索引存在；重建后 DDL 含 `chk_sue_kids_privacy`/`chk_sue_metadata_*`/`chk_sue_event_type`/`chk_sue_entry_point`；旧行保留；ORM 层 Kids 隐私守卫与 metadata 受限 key 守卫仍拒绝违规写入；DB 层 CHECK 约束对 raw SQL 仍生效（`internal/skill/model/skill_usage_event_integration_test.go`）
+
 ## 2026-06-21
 
 - DR-46 (M02) `POST /api/v1/admin/skills`：实现草稿 Skill 创建端点（Super Admin only）。新增 `CreateAdminSkill` handler 及全部辅助函数（`internal/skill/handler/skills.go`），注册 `adminRoute.POST("/skills", ...)` 路由（`router/skill-router.go`），修复 `newSkillTestRouter` 缺失 `platformmodel.DB` 设置导致的路由器 panic（`router/skill-router_test.go`）。Status 强制为 draft、created_by 取自 auth context、slug 唯一性双重校验（COUNT + DB unique constraint → 409）、Free/free-quota 配置缺 `max_input_tokens` → 400 `MAX_INPUT_TOKENS_REQUIRED`；draft 对 marketplace 不可见（DR-46)

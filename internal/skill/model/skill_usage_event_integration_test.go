@@ -291,6 +291,163 @@ func TestEmitSkillUsageEvent_ValidatesEnums(t *testing.T) {
 	}
 }
 
+// TestMigrateSkillUsageEvents_SQLite_UpgradesPreDR43Table verifies that
+// MigrateSkillUsageEvents upgrades an existing pre-DR-43 skill_usage_events table.
+//
+// Detection: upgradeSUETableSQLite looks for "chk_sue_kids_privacy" in the stored
+// DDL. Tables lacking it are rebuilt by rebuildSUETableSQLite, which creates a new
+// table with the full DR-43 schema, copies existing rows (absent columns receive
+// their DR-43 defaults), then renames the table. All steps run in a transaction so
+// a failure leaves the original table intact.
+func TestMigrateSkillUsageEvents_SQLite_UpgradesPreDR43Table(t *testing.T) {
+	db := openSQLiteDB(t)
+
+	// Create a minimal pre-DR-43 schema: no chk_sue_kids_privacy, no tenant_id,
+	// no metadata, no is_kids_safe_skill / is_kids_exclusive_skill, no safety columns.
+	const preDR43DDL = `CREATE TABLE "skill_usage_events" (
+		"event_id"         TEXT     NOT NULL,
+		"event_type"       TEXT     NOT NULL,
+		"occurred_at"      DATETIME NOT NULL,
+		"user_id"          INTEGER,
+		"session_id"       TEXT,
+		"request_id"       TEXT,
+		"skill_id"         TEXT,
+		"skill_version_id" TEXT,
+		"entry_point"      TEXT     NOT NULL,
+		"plan"             TEXT,
+		"model"            TEXT,
+		"is_kids_session"  INTEGER  NOT NULL DEFAULT 0,
+		"input_tokens"     INTEGER,
+		"output_tokens"    INTEGER,
+		"total_tokens"     INTEGER,
+		"latency_ms"       INTEGER,
+		"success"          INTEGER,
+		"failure_reason"   TEXT,
+		"block_reason"     TEXT,
+		"error_code"       TEXT,
+		PRIMARY KEY ("event_id")
+	)`
+	if err := db.Exec(preDR43DDL).Error; err != nil {
+		t.Fatalf("create pre-DR-43 skill_usage_events: %v", err)
+	}
+	// Seed a row in the old schema; it must survive the rebuild.
+	if err := db.Exec(
+		`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, entry_point, is_kids_session)
+		 VALUES (?, ?, ?, ?, ?)`,
+		"pre-dr43-row", "skill_used", testTS, "skill_detail", 0,
+	).Error; err != nil {
+		t.Fatalf("seed pre-DR-43 row: %v", err)
+	}
+
+	// Run the migration — must succeed without error.
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatalf("MigrateSkillUsageEvents upgrade: %v", err)
+	}
+
+	// All DR-43 columns must now exist.
+	for _, col := range sueAllDR43Columns {
+		if !db.Migrator().HasColumn(&SkillUsageEvent{}, col) {
+			t.Errorf("column %q missing after upgrade", col)
+		}
+	}
+
+	// All required indexes must exist.
+	for _, name := range []string{
+		"idx_sue_event_time",
+		"idx_sue_user_skill",
+		"idx_sue_entry_time",
+		"idx_usage_skill_time",
+		"idx_usage_user_time",
+		"idx_usage_plan_persona_time",
+		"idx_usage_request_id",
+	} {
+		if !db.Migrator().HasIndex(&SkillUsageEvent{}, name) {
+			t.Errorf("index %q missing after upgrade", name)
+		}
+	}
+
+	// DR-43 CHECK constraints must appear in the rebuilt DDL.
+	var ddl string
+	if err := db.Raw(
+		`SELECT sql FROM sqlite_master WHERE type='table' AND name='skill_usage_events'`,
+	).Scan(&ddl).Error; err != nil {
+		t.Fatal(err)
+	}
+	lowerDDL := strings.ToLower(ddl)
+	for _, want := range []string{
+		"chk_sue_kids_privacy",
+		"chk_sue_metadata_object",
+		"chk_sue_metadata_no_restricted_keys",
+		"chk_sue_event_type",
+		"chk_sue_entry_point",
+	} {
+		if !strings.Contains(lowerDDL, want) {
+			t.Errorf("DDL missing constraint %q after upgrade:\n%s", want, ddl)
+		}
+	}
+
+	// The pre-DR-43 row must survive the rebuild.
+	var count int64
+	if err := db.Raw(`SELECT COUNT(*) FROM skill_usage_events WHERE event_id = ?`, "pre-dr43-row").Scan(&count).Error; err != nil {
+		t.Fatalf("count pre-DR-43 row after upgrade: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("pre-DR-43 row must survive rebuild, got count=%d", count)
+	}
+
+	// Application-level Kids privacy guard must still reject real user_id via ORM.
+	uid := int64(999)
+	if err := db.Create(&SkillUsageEvent{
+		EventID:       uuid.New().String(),
+		EventType:     enums.SkillUsageEventTypeUsed,
+		OccurredAt:    time.Now().UTC(),
+		UserID:        &uid,
+		EntryPoint:    enums.EntryPointSkillDetail,
+		IsKidsSession: true,
+		Metadata:      SkillJSONB(`{}`),
+	}).Error; err == nil {
+		t.Fatal("kids privacy guard must reject real user_id via ORM after upgrade")
+	}
+
+	// Application-level metadata guard must still reject restricted keys via ORM.
+	if err := db.Create(&SkillUsageEvent{
+		EventID:    uuid.New().String(),
+		EventType:  enums.SkillUsageEventTypeUsed,
+		OccurredAt: time.Now().UTC(),
+		EntryPoint: enums.EntryPointSkillDetail,
+		Metadata:   SkillJSONB(`{"instruction_template":"blocked"}`),
+	}).Error; err == nil {
+		t.Fatal("metadata guard must reject restricted key 'instruction_template' via ORM after upgrade")
+	}
+
+	// DB-level chk_sue_kids_privacy must reject real user_id in kids session via raw SQL.
+	if err := db.Exec(
+		`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, entry_point, is_kids_session, user_id, session_id, metadata)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"db-chk-kids-uid", "skill_used", testTS, "skill_detail", 1, 123, "pseudo", `{}`,
+	).Error; err == nil {
+		t.Error("DB chk_sue_kids_privacy must reject real user_id in kids session after upgrade")
+	}
+
+	// DB-level chk_sue_metadata_no_restricted_keys must reject top-level restricted key via raw SQL.
+	if err := db.Exec(
+		`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, entry_point, metadata)
+		 VALUES (?, ?, ?, ?, ?)`,
+		"db-chk-meta", "skill_used", testTS, "skill_detail", `{"prompt":"blocked"}`,
+	).Error; err == nil {
+		t.Error("DB chk_sue_metadata_no_restricted_keys must reject top-level restricted key after upgrade")
+	}
+
+	// DB-level chk_sue_event_type must reject an invalid enum value via raw SQL.
+	if err := db.Exec(
+		`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, entry_point, metadata)
+		 VALUES (?, ?, ?, ?, ?)`,
+		"db-chk-evtype", "SKILL_USED", testTS, "skill_detail", `{}`,
+	).Error; err == nil {
+		t.Error("DB chk_sue_event_type must reject invalid event_type after upgrade")
+	}
+}
+
 // TestSUEMetadataDBConstraintTopLevelOnly documents the boundary between the
 // application-layer and DB-layer metadata key enforcement.
 //
