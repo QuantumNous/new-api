@@ -2,6 +2,10 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-06-22
+
+- 新增 DR-82 public routing API abuse controls：`/v1/routing/chat/completions` 在通道选择前执行 public API 专用 abuse gate，按 runner credential 做默认 RPM 限流，DB 强校验 revoked/expired/exhausted key fail-closed，并对共享凭据 IP/User-Agent fanout 写入 flags、响应头和系统日志；补 `model.Token.Update()` 持久化 `status` 与 DR-13 limit 字段；补 Redis failure fail-closed 测试、env-gated Redis 路径测试说明、fanout 运营消费说明，并将 Redis integration cleanup 收敛为只删除本测试 token/bucket keys；新增任务 PRD 与聚焦测试（`internal/abuse`, `middleware/public_routing_abuse.go`, `router/relay-router.go`, `model/token.go`, `docs/tasks/dr82-public-api-abuse-controls-prd.md`）
+
 ## 2026-06-21
 
 - DR-76 前端測試套件（unit + integration，48 PASS / 0 FAIL，覆蓋率 95.2% stmts / 98.2% branch）：新增 Vitest + @testing-library/react 測試框架；`__tests__/types.test.ts`（getDateRange + getBlockReasonLabelKey 全路徑）、`metric-card.test.tsx`（loading/no-data/tracking-failed/normal 四態）、`date-range-control.test.tsx`（preset 渲染/active 狀態/onChange/disabled custom）、`dashboard.integration.test.tsx`（22 個整合測試覆蓋 9 張 P0 卡片、tracking 橫幅、Revenue 條件隱藏、錯誤態、日期切換觸發新 API 呼叫）；測試揪出 production bug：`getDateRange(preset)` 直接調用 `new Date()` 未用 `useMemo`，每次 re-render 產生新 queryKey，導致無限循環 re-fetch，修正為穩定 queryKey + 1 分鐘 rolling refresh tick，避免無限 re-fetch 且不凍結 rolling window；api.ts 0% 覆蓋為預期（intentionally mocked）；docs/test-results/dr76-frontend-unit-regression.txt 記錄結果
