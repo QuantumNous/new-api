@@ -25,6 +25,7 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { AnimatedOutlet } from '@/components/page-transition'
 import { SkipToMain } from '@/components/skip-to-main'
 import { WorkspaceProvider } from '../context/workspace-context'
+import { opsConsoleContentShellClassName } from '@/lib/ops-ui-styles'
 import { AppHeader } from './app-header'
 import { AppSidebar } from './app-sidebar'
 
@@ -50,7 +51,7 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
                   '@container/content',
                   'h-[calc(100svh-var(--app-header-height,0px))]',
                   'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]',
-                  'bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950/90 text-slate-100'
+                  opsConsoleContentShellClassName
                 )}
               >
                 {props.children ?? <AnimatedOutlet />}

@@ -39,7 +39,7 @@ export function FAQPanel() {
       variant='cockpit'
       title={
         <span className='flex items-center gap-2'>
-          <HelpCircle className='size-4 text-violet-400' />
+          <HelpCircle className='size-4 text-blue-600' />
           {t('Dashboard panel faq title')}
         </span>
       }

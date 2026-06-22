@@ -33,10 +33,10 @@ export function CockpitChartsGrid(props: CockpitChartsGridProps) {
   return (
     <section className='flex flex-col gap-3'>
       <div className='flex flex-col gap-1 px-0.5'>
-        <h3 className='text-sm font-semibold text-slate-100'>
+        <h3 className='text-sm font-semibold text-slate-900'>
           {t('Dashboard charts section title')}
         </h3>
-        <p className='text-xs text-slate-400'>
+        <p className='text-xs text-slate-600'>
           {t('Dashboard charts section description')}
         </p>
       </div>

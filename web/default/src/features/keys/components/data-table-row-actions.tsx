@@ -228,7 +228,7 @@ export function DataTableRowActions<TData>({
             <Button
               variant='ghost'
               className={cn(
-                'flex size-8 p-0 data-popup-open:bg-white/10',
+                'flex size-8 p-0 data-popup-open:bg-blue-50',
                 keysGhostIconButtonClassName
               )}
             />

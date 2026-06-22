@@ -49,7 +49,7 @@ export function ApiInfoPanel() {
       variant='cockpit'
       title={
         <span className='flex items-center gap-2'>
-          <Route className='size-4 text-violet-400' />
+          <Route className='size-4 text-blue-600' />
           {t('Dashboard panel api title')}
         </span>
       }

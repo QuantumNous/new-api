@@ -20,25 +20,28 @@ import { Link } from '@tanstack/react-router'
 import { ArrowRight, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { COCKPIT_CARD_CLASS } from './cockpit-display'
 
 export function CockpitTenantRanking() {
   const { t } = useTranslation()
 
   return (
-    <div className='flex h-full min-h-[18rem] flex-col justify-between gap-4 rounded-2xl border border-violet-500/20 bg-slate-900/60 p-5 backdrop-blur-sm'>
+    <div
+      className={`flex h-full min-h-[18rem] flex-col justify-between gap-4 p-5 ${COCKPIT_CARD_CLASS}`}
+    >
       <div className='flex flex-col gap-2'>
         <div className='flex items-center gap-2'>
-          <Users className='size-4 text-violet-400' aria-hidden='true' />
-          <h3 className='text-sm font-semibold text-slate-100'>
+          <Users className='size-4 text-blue-600' aria-hidden='true' />
+          <h3 className='text-sm font-semibold text-slate-900'>
             {t('Dashboard chart tenant ranking')}
           </h3>
         </div>
-        <p className='text-xs leading-relaxed text-slate-400'>
+        <p className='text-xs leading-relaxed text-slate-600'>
           {t('Dashboard chart tenant ranking description')}
         </p>
       </div>
       <Button
-        className='w-full justify-between border-violet-500/30 bg-violet-600/20 text-slate-100 hover:bg-violet-600/30'
+        className='w-full justify-between border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100'
         variant='outline'
         render={<Link to='/dashboard/users' />}
       >

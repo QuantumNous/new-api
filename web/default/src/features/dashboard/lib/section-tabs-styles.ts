@@ -18,22 +18,20 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { cn } from '@/lib/utils'
 
-/** Section switcher on dashboard (模型调用分析 / 账号分析) — dark ops style only. */
+/** Section switcher on dashboard (模型调用分析 / 账号分析) — light ops console. */
 export const dashboardSectionTabsListClassName = cn(
   'group-data-horizontal/tabs:h-auto max-w-full flex-wrap justify-start gap-1 rounded-xl',
-  'border border-white/10 bg-slate-900/70 p-1 shadow-sm shadow-black/25',
-  '!bg-slate-900/70'
+  'border border-[#DBEAFE] bg-white p-1 shadow-[0_1px_2px_rgba(15,23,42,0.04)]',
+  '!bg-white'
 )
 
 export const dashboardSectionTabsTriggerClassName = cn(
   'h-9 flex-none rounded-lg border border-transparent bg-transparent px-3 py-1.5',
-  'text-sm font-medium text-slate-300 shadow-none transition-colors',
-  'hover:bg-white/5 hover:text-white',
-  'focus-visible:ring-2 focus-visible:ring-cyan-400/30 focus-visible:outline-none',
-  'data-active:border-cyan-300/40 data-active:bg-cyan-400/15 data-active:text-white',
-  'data-active:shadow-sm data-active:ring-1 data-active:ring-cyan-400/20',
-  'dark:text-slate-300 dark:hover:text-white',
-  'dark:data-active:border-cyan-300/40 dark:data-active:bg-cyan-400/15 dark:data-active:text-white',
-  'data-active:!bg-cyan-400/15 data-active:!text-white',
+  'text-sm font-medium text-slate-600 shadow-none transition-colors',
+  'hover:bg-blue-50/70 hover:text-blue-700',
+  'focus-visible:ring-2 focus-visible:ring-blue-200 focus-visible:outline-none',
+  'data-active:border-blue-200/80 data-active:bg-blue-50 data-active:text-blue-700',
+  'data-active:shadow-none data-active:ring-1 data-active:ring-blue-200/60',
+  'data-active:!bg-blue-50 data-active:!text-blue-700',
   'after:hidden group-data-[variant=line]/tabs-list:after:hidden'
 )

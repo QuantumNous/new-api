@@ -21,12 +21,14 @@ import { useQuery } from '@tanstack/react-query'
 import { opsLiveDataQueryOptions } from '@/lib/query-polling'
 import { Activity } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { formatNumber } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import { StatCard } from '../ui/stat-card'
+import { COCKPIT_STAT_CARD_CLASS } from './cockpit-display'
 
 const SPARKLINE_BUCKETS = 12
 
@@ -97,11 +99,11 @@ export function CockpitCallTrend() {
   )
 
   if (usageTrendQuery.isLoading) {
-    return <Skeleton className='h-36 w-full rounded-xl bg-slate-800/60' />
+    return <Skeleton className='h-36 w-full rounded-xl bg-slate-200/80' />
   }
 
   return (
-    <div className='cockpit-stat-card rounded-xl border border-white/10 bg-slate-950/50 p-4'>
+    <div className={cn('cockpit-stat-card p-4', COCKPIT_STAT_CARD_CLASS)}>
       <StatCard
         title={t('Dashboard chart trend title')}
         value={formatNumber(totalCalls)}

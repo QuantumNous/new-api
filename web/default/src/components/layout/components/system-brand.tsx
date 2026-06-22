@@ -91,9 +91,9 @@ export function SystemBrand(props: SystemBrandProps) {
         aria-label={t('Go to home')}
         className={cn(
           'inline-flex h-9 shrink-0 items-center gap-2.5 rounded-lg border px-2.5 text-sm font-semibold transition-colors outline-none select-none',
-          'border-white/10 bg-white/5 text-slate-100 shadow-sm backdrop-blur-sm',
-          'hover:bg-white/10 hover:text-slate-50',
-          'focus-visible:ring-2 focus-visible:ring-indigo-400/40',
+          'border-slate-200/80 bg-white text-slate-800 shadow-sm',
+          'hover:bg-blue-50/70 hover:text-slate-900',
+          'focus-visible:ring-2 focus-visible:ring-blue-500/30',
           className
         )}
       >
@@ -115,8 +115,8 @@ export function SystemBrand(props: SystemBrandProps) {
         <SidebarMenuButton
           size='lg'
           className={cn(
-            'cursor-default rounded-lg border border-white/10 bg-white/5 px-2 hover:bg-white/5 active:bg-white/5',
-            'hover:text-slate-50 active:text-slate-50'
+            'cursor-default rounded-lg border border-slate-200/80 bg-white px-2 hover:bg-white active:bg-white',
+            'hover:text-slate-800 active:text-slate-800'
           )}
           render={<div />}
         >
@@ -133,9 +133,9 @@ export function SystemBrand(props: SystemBrandProps) {
               !displayVersion && 'justify-center'
             )}
           >
-            <span className='truncate font-semibold text-slate-50'>{name}</span>
+            <span className='truncate font-semibold text-slate-800'>{name}</span>
             {displayVersion ? (
-              <span className='truncate text-xs text-slate-400'>
+              <span className='truncate text-xs text-slate-500'>
                 {displayVersion}
               </span>
             ) : null}

@@ -56,7 +56,13 @@ import {
   formatUptimePct,
 } from '@/features/performance-metrics/lib/format'
 import { StatCard } from '../ui/stat-card'
-import { formatQuotaForCockpit } from './cockpit-display'
+import {
+  COCKPIT_BALANCE_PANEL_CLASS,
+  COCKPIT_INSET_SURFACE_CLASS,
+  COCKPIT_SECTION_CLASS,
+  COCKPIT_STAT_CARD_CLASS,
+  formatQuotaForCockpit,
+} from './cockpit-display'
 
 const PERFORMANCE_WINDOW_HOURS = 24
 const SUMMARY_SPARKLINE_BUCKETS = 12
@@ -378,14 +384,14 @@ export function SummaryCards() {
   ]
 
   return (
-    <section className='overflow-hidden rounded-2xl border border-violet-500/20 bg-slate-900/60 shadow-lg shadow-indigo-950/20 backdrop-blur-sm'>
+    <section className={COCKPIT_SECTION_CLASS}>
       <div className='grid xl:grid-cols-[minmax(0,1fr)_17rem]'>
         <div className='flex flex-col gap-4 p-4 sm:p-5'>
           <div className='flex flex-col gap-1'>
-            <h3 className='text-base font-semibold text-slate-50'>
+            <h3 className='text-base font-semibold text-slate-900'>
               {t('Dashboard KPI section title')}
             </h3>
-            <p className='text-sm text-slate-400'>
+            <p className='text-sm text-slate-600'>
               {t('Dashboard KPI section description')}
             </p>
           </div>
@@ -394,7 +400,7 @@ export function SummaryCards() {
             {kpiItems.map((it) => (
               <StaggerItem
                 key={it.key}
-                className='cockpit-stat-card rounded-xl border border-white/10 bg-slate-950/50 p-3'
+                className={cn('cockpit-stat-card', COCKPIT_STAT_CARD_CLASS)}
               >
                 <StatCard
                   title={it.title}
@@ -412,10 +418,10 @@ export function SummaryCards() {
           </StaggerContainer>
         </div>
 
-        <div className='flex flex-col justify-between gap-4 border-t border-white/10 bg-indigo-950/30 p-4 sm:p-5 xl:border-t-0 xl:border-l'>
+        <div className={COCKPIT_BALANCE_PANEL_CLASS}>
           <div className='flex flex-col gap-3'>
             <div className='flex items-center justify-between'>
-              <span className='text-xs font-medium text-slate-400'>
+              <span className='text-xs font-medium text-slate-600'>
                 {t('Dashboard token balance label')}
               </span>
               <span className='flex items-center gap-1.5'>
@@ -423,29 +429,29 @@ export function SummaryCards() {
                   className={cn('size-1.5 rounded-full', healthCfg.dotClass)}
                   aria-hidden='true'
                 />
-                <span className='text-[11px] font-medium text-slate-400'>
+                <span className='text-[11px] font-medium text-slate-600'>
                   {t(healthCfg.labelKey)}
                 </span>
               </span>
             </div>
 
-            <div className='font-mono text-2xl font-semibold tracking-tight text-slate-50'>
+            <div className='font-mono text-2xl font-semibold tracking-tight text-slate-900'>
               {formatQuotaForCockpit(remainQuota)}
             </div>
 
             <div className='grid grid-cols-2 gap-2'>
-              <div className='rounded-lg border border-white/10 bg-slate-950/40 px-2.5 py-2'>
+              <div className={cn('px-2.5 py-2', COCKPIT_INSET_SURFACE_CLASS)}>
                 <div className='flex items-center gap-1 text-[11px] font-medium text-slate-500'>
                   <Flame className='size-3 shrink-0' aria-hidden='true' />
                   <span className='truncate'>
                     {t('Dashboard token usage 24h')}
                   </span>
                 </div>
-                <div className='mt-1.5 truncate text-xs font-semibold text-slate-200 tabular-nums'>
+                <div className='mt-1.5 truncate text-xs font-semibold text-slate-800 tabular-nums'>
                   {formatQuotaForCockpit(recentUsage)}
                 </div>
               </div>
-              <div className='rounded-lg border border-white/10 bg-slate-950/40 px-2.5 py-2'>
+              <div className={cn('px-2.5 py-2', COCKPIT_INSET_SURFACE_CLASS)}>
                 <div className='flex items-center gap-1 text-[11px] font-medium text-slate-500'>
                   {runwayDays !== null && runwayDays < 3 ? (
                     <TrendingDown
@@ -463,9 +469,9 @@ export function SummaryCards() {
                 <div
                   className={cn(
                     'mt-1.5 truncate text-xs font-semibold tabular-nums',
-                    healthLevel === 'critical' && 'text-red-400',
-                    healthLevel === 'caution' && 'text-amber-400',
-                    healthLevel === 'healthy' && 'text-slate-200'
+                    healthLevel === 'critical' && 'text-red-600',
+                    healthLevel === 'caution' && 'text-amber-600',
+                    healthLevel === 'healthy' && 'text-slate-800'
                   )}
                 >
                   {runwayDays !== null
@@ -489,7 +495,7 @@ export function SummaryCards() {
           </div>
 
           <Button
-            className='justify-between border-violet-500/30 bg-violet-600/25 text-slate-100 hover:bg-violet-600/40'
+            className='justify-between border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100'
             variant='outline'
             render={<Link to='/wallet' />}
           >

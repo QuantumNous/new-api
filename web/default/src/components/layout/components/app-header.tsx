@@ -17,7 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
-  portalHeaderIconGroupClassName,
+  opsConsoleHeaderClassName,
+  opsConsoleHeaderNavLinkActiveClassName,
+  opsConsoleHeaderNavLinkClassName,
+  opsConsoleHeaderToolbarClassName,
+  opsConsoleHeaderTriggerClassName,
   topNavBarRowClassName,
   topNavBrandZoneClassName,
   topNavCenterZoneClassName,
@@ -122,12 +126,12 @@ export function AppHeader({
 
   return (
     <>
-      <Header className='border-b border-white/10 bg-slate-950/90 text-slate-100 shadow-sm shadow-black/20 backdrop-blur-md'>
+      <Header className={opsConsoleHeaderClassName}>
         <div className={cn(topNavBarRowClassName, 'h-full')}>
           <div className={cn(topNavBrandZoneClassName, 'gap-1.5')}>
             <SidebarTrigger
               variant='ghost'
-              className='size-8 shrink-0 text-slate-200 hover:bg-white/10 hover:text-slate-50'
+              className={opsConsoleHeaderTriggerClassName}
             />
             <SystemBrand variant='inline' className='shrink-0' />
             {leftContent ? (
@@ -138,7 +142,7 @@ export function AppHeader({
           {showTopNav && (
             <TopNavDesktop
               links={links}
-              tone='portal'
+              tone='ops-console'
               className={topNavCenterZoneClassName}
             />
           )}
@@ -151,12 +155,7 @@ export function AppHeader({
                 </div>
               )}
 
-              <div
-                className={cn(
-                  'flex shrink-0 items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-1 py-0.5 text-slate-100 sm:gap-1 sm:px-1.5',
-                  portalHeaderIconGroupClassName
-                )}
-              >
+              <div className={opsConsoleHeaderToolbarClassName}>
                 {showNotifications && (
                   <NotificationButton
                     unreadCount={notifications.unreadCount}

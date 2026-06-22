@@ -400,7 +400,7 @@ export function ChannelsTable() {
             placeholder={t('Filter by model...')}
             value={modelFilterInput}
             onChange={(e) => setModelFilterInput(e.target.value)}
-            className='w-full border-white/15 bg-slate-950/50 text-slate-100 placeholder:text-slate-500 sm:w-[150px] lg:w-[180px]'
+            className='h-8 w-full border-[#DBEAFE] bg-white text-slate-800 placeholder:text-slate-400 sm:w-[150px] lg:w-[180px]'
           />
         ),
         filters: [

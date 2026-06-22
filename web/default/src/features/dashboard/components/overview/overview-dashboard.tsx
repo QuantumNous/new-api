@@ -60,7 +60,7 @@ import { FAQPanel } from './faq-panel'
 import { CockpitChartsGrid } from './cockpit-charts-grid'
 import { CockpitHeader } from './cockpit-header'
 import { SummaryCards } from './summary-cards'
-import { COCKPIT_CARD_CLASS } from './cockpit-display'
+import { COCKPIT_CARD_CLASS, COCKPIT_INSET_SURFACE_CLASS } from './cockpit-display'
 
 const SETUP_GUIDE_VISIBILITY_STORAGE_KEY =
   'dashboard_overview_setup_guide_expanded'
@@ -186,15 +186,15 @@ function SetupGuideBackdrop(props: { compact?: boolean }) {
         )}
         style={{
           background: [
-            'radial-gradient(ellipse 80% 70% at 0% 0%, oklch(0.42 0.16 265 / 45%) 0%, transparent 60%)',
-            'radial-gradient(ellipse 60% 55% at 100% 30%, oklch(0.4 0.14 290 / 40%) 0%, transparent 65%)',
+            'radial-gradient(ellipse 80% 70% at 0% 0%, oklch(0.88 0.08 250 / 35%) 0%, transparent 60%)',
+            'radial-gradient(ellipse 60% 55% at 100% 30%, oklch(0.9 0.06 290 / 25%) 0%, transparent 65%)',
           ].join(', '),
         }}
         aria-hidden='true'
       />
       <div
         className={cn(
-          'pointer-events-none absolute inset-y-0 right-0 hidden overflow-hidden font-mono text-violet-200/20 sm:block',
+          'pointer-events-none absolute inset-y-0 right-0 hidden overflow-hidden font-mono text-blue-200/40 sm:block',
           props.compact ? 'w-1/2 opacity-45' : 'w-[58%] opacity-75'
         )}
         aria-hidden='true'
@@ -211,7 +211,7 @@ function SetupGuideBackdrop(props: { compact?: boolean }) {
         </pre>
       </div>
       <div
-        className='pointer-events-none absolute inset-0 bg-linear-to-b from-slate-950/20 via-transparent to-slate-950/60'
+        className='pointer-events-none absolute inset-0 bg-linear-to-b from-blue-50/30 via-transparent to-slate-100/40'
         aria-hidden='true'
       />
     </>
@@ -236,7 +236,7 @@ function StartStepItem(props: {
       )}
       <span
         className={cn(
-          'relative z-10 flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-slate-950/60 shadow-xs',
+          'relative z-10 flex size-8 shrink-0 items-center justify-center rounded-lg border border-slate-200/80 bg-white shadow-xs',
           props.step.completed && 'border-emerald-500/40 bg-emerald-500/15'
         )}
       >
@@ -248,10 +248,10 @@ function StartStepItem(props: {
 
       <Link
         to={props.step.to}
-        className='flex min-w-0 flex-1 items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-left text-slate-100 shadow-xs transition-colors outline-none hover:bg-slate-900/80 focus-visible:ring-2 focus-visible:ring-violet-500/40'
+        className='flex min-w-0 flex-1 items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white px-3 py-2.5 text-left text-slate-800 shadow-xs transition-colors outline-none hover:bg-blue-50/60 focus-visible:ring-2 focus-visible:ring-blue-500/30'
       >
         <span className='flex min-w-0 items-start gap-2.5'>
-          <span className='mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-indigo-950/50'>
+          <span className='mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-50'>
             <Icon className='size-3.5' aria-hidden='true' />
           </span>
           <span className='flex min-w-0 flex-col gap-0.5'>
@@ -261,7 +261,7 @@ function StartStepItem(props: {
               </span>
               <span className='truncate'>{props.step.title}</span>
             </span>
-            <span className='line-clamp-1 text-xs text-slate-400'>
+            <span className='line-clamp-1 text-xs text-slate-600'>
               {props.step.description}
             </span>
           </span>
@@ -293,7 +293,7 @@ function RequestPreview(props: {
       initial={shouldReduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
       animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
       transition={MOTION_TRANSITION.slow}
-      className='relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/60 p-3 shadow-sm backdrop-blur'
+      className='relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-3 shadow-sm'
     >
       {!shouldReduceMotion && (
         <motion.div
@@ -393,17 +393,17 @@ function QuickActionItem(props: { action: QuickAction }) {
   return (
     <Button
       variant='outline'
-      className='h-auto justify-start rounded-xl border-white/10 bg-slate-950/40 px-3 py-3 text-left text-slate-100 hover:bg-slate-900/80'
+      className='h-auto justify-start rounded-xl border-slate-200/80 bg-slate-50/80 px-3 py-3 text-left text-slate-800 hover:bg-blue-50/70'
       render={<Link to={props.action.to} />}
     >
-      <span className='flex size-9 shrink-0 items-center justify-center rounded-lg bg-indigo-950/50'>
+      <span className='flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50'>
         <Icon className='size-4' aria-hidden='true' />
       </span>
       <span className='flex min-w-0 flex-1 flex-col gap-0.5'>
         <span className='truncate text-sm font-medium'>
           {props.action.title}
         </span>
-        <span className='line-clamp-2 text-xs leading-relaxed text-slate-400'>
+        <span className='line-clamp-2 text-xs leading-relaxed text-slate-600'>
           {props.action.description}
         </span>
       </span>
@@ -418,7 +418,7 @@ function CompactQuickAction(props: { action: QuickAction }) {
     <Button
       variant='outline'
       size='sm'
-      className='h-8 min-w-24 gap-1.5 border-white/10 bg-slate-950/50 px-2.5 text-slate-100'
+      className='h-8 min-w-24 gap-1.5 border-slate-200/80 bg-white px-2.5 text-slate-800'
       render={<Link to={props.action.to} />}
     >
       <Icon data-icon='inline-start' />
@@ -599,20 +599,20 @@ export function OverviewDashboard() {
       {setupGuideExpanded ? (
         <CardStaggerContainer className='grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]'>
           <CardStaggerItem className={cn(COCKPIT_CARD_CLASS, 'h-full')}>
-            <div className='relative h-full overflow-hidden p-4 sm:p-5 text-slate-100'>
+            <div className='relative h-full overflow-hidden p-4 sm:p-5 text-slate-800'>
               <SetupGuideBackdrop />
               <div className='relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]'>
                 <div className='flex min-w-0 flex-col gap-5'>
                   <div className='flex flex-wrap items-start justify-between gap-3'>
                     <div className='flex max-w-2xl flex-col gap-1'>
-                      <div className='flex items-center gap-2 text-xs font-medium tracking-wider text-violet-300/90 uppercase'>
+                      <div className='flex items-center gap-2 text-xs font-medium tracking-wider text-blue-600/90 uppercase'>
                         <ListChecks className='size-3.5' aria-hidden='true' />
                         {t('Get started')}
                       </div>
-                      <h3 className='text-xl font-semibold tracking-tight text-slate-50 sm:text-2xl'>
+                      <h3 className='text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl'>
                         {t('Dashboard onboarding title')}
                       </h3>
-                      <p className='max-w-xl text-sm leading-relaxed text-slate-400'>
+                      <p className='max-w-xl text-sm leading-relaxed text-slate-600'>
                         {t('Dashboard onboarding description')}
                       </p>
                     </div>
@@ -632,7 +632,7 @@ export function OverviewDashboard() {
                     </div>
                   </div>
 
-                  <ol className='rounded-2xl border border-white/10 bg-slate-950/40 p-2 backdrop-blur'>
+                  <ol className={cn('rounded-2xl p-2', COCKPIT_INSET_SURFACE_CLASS)}>
                     {startSteps.map((step, index) => (
                       <StartStepItem
                         key={step.title}
@@ -653,12 +653,12 @@ export function OverviewDashboard() {
           </CardStaggerItem>
 
           <CardStaggerItem className={cn(COCKPIT_CARD_CLASS, 'h-full p-4 sm:p-5')}>
-            <div className='flex h-full flex-col gap-4 text-slate-100'>
+            <div className='flex h-full flex-col gap-4 text-slate-800'>
               <div className='flex flex-col gap-1'>
-                <div className='text-xs font-medium tracking-wider text-violet-300/90 uppercase'>
+                <div className='text-xs font-medium tracking-wider text-blue-600/90 uppercase'>
                   {t('Recommended actions')}
                 </div>
-                <h3 className='text-lg font-semibold tracking-tight text-slate-50'>
+                <h3 className='text-lg font-semibold tracking-tight text-slate-900'>
                   {t('Dashboard recommended actions title')}
                 </h3>
               </div>
@@ -673,11 +673,11 @@ export function OverviewDashboard() {
       ) : (
         <CardStaggerContainer>
           <CardStaggerItem className={cn(COCKPIT_CARD_CLASS, 'overflow-hidden')}>
-            <div className='relative overflow-hidden px-4 py-3 text-slate-100 sm:px-5'>
+            <div className='relative overflow-hidden px-4 py-3 text-slate-800 sm:px-5'>
               <SetupGuideBackdrop compact />
               <div className='relative flex flex-wrap items-center justify-between gap-3'>
                 <div className='flex min-w-0 items-center gap-3'>
-                  <span className='flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-slate-950/50 shadow-xs'>
+                  <span className='flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white shadow-xs'>
                     <Check className='text-success size-4' aria-hidden='true' />
                   </span>
                   <div className='min-w-0'>
@@ -687,7 +687,7 @@ export function OverviewDashboard() {
                           ? t('Setup guide complete')
                           : t('Setup guide')}
                       </h3>
-                      <span className='rounded-md border border-white/10 bg-slate-950/50 px-2 py-0.5 text-xs text-slate-400'>
+                      <span className='rounded-md border border-slate-200/80 bg-slate-50 px-2 py-0.5 text-xs text-slate-600'>
                         {t('Setup progress: {{completed}}/{{total}}', {
                           completed: completedStepCount,
                           total: startSteps.length,
@@ -711,7 +711,7 @@ export function OverviewDashboard() {
                   <Button
                     variant='outline'
                     size='sm'
-                    className='h-8 min-w-28 border-white/10 bg-slate-950/50 text-slate-100'
+                    className='h-8 min-w-28 border-slate-200/80 bg-white text-slate-800'
                     onClick={handleSetupGuideToggle}
                   >
                     <ChevronDown data-icon='inline-start' />

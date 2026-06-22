@@ -25,6 +25,7 @@ import {
 } from 'react'
 import { Main } from './main'
 import { PageFooterProvider } from './page-footer'
+import { opsConsolePageFooterClassName } from '@/lib/ops-ui-styles'
 
 type SlotProps = { children?: ReactNode }
 
@@ -106,7 +107,7 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
 
         <div
           ref={setFooterContainer}
-          className='shrink-0 border-t border-white/10 bg-slate-950/80 px-3 py-2.5 text-slate-200 backdrop-blur-sm empty:hidden sm:px-4 sm:py-3'
+          className={opsConsolePageFooterClassName}
         />
       </Main>
     </PageFooterProvider>

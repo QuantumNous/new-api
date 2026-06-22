@@ -54,23 +54,23 @@ import {
 import { useChannels } from './channels-provider'
 
 const channelsToggleShellClassName = cn(
-  'border-white/15 bg-slate-900/50',
-  '[&_label]:text-slate-100',
-  '[&_svg]:text-slate-300'
+  'border-[#DBEAFE] bg-white',
+  '[&_label]:text-slate-700',
+  '[&_svg]:text-slate-500'
 )
 
 const channelsSwitchClassName = cn(
-  'border border-white/20 shadow-sm',
-  'data-unchecked:!bg-white/15',
-  'data-checked:!bg-indigo-500',
+  'border border-[#DBEAFE] shadow-sm',
+  'data-unchecked:!bg-slate-100',
+  'data-checked:!bg-blue-600',
   '[&_[data-slot=switch-thumb]]:!bg-white',
-  'data-unchecked:[&_[data-slot=switch-thumb]]:!bg-slate-200'
+  'data-unchecked:[&_[data-slot=switch-thumb]]:!bg-white'
 )
 
 const channelsOutlineButtonClassName = cn(
-  'border-white/15 bg-slate-900/70 text-slate-100',
-  'hover:bg-white/15 hover:text-white',
-  '[&_svg]:text-slate-200'
+  'border-[#DBEAFE] bg-white text-slate-700',
+  'hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
+  '[&_svg]:text-slate-500'
 )
 
 export function ChannelsPrimaryButtons() {

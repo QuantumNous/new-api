@@ -200,6 +200,73 @@ export const publicPortalContentScopeClassName = cn(
   '[&_.prose]:prose-invert [&_.prose]:text-slate-200'
 )
 
+// —— Authenticated ops console (light daily ops v0) —— //
+
+/** Main content area behind sidebar + pages. */
+export const opsConsoleContentShellClassName = cn(
+  'bg-gradient-to-br from-[#F8FBFF] via-[#F4F8FD] to-[#EEF6FF] text-slate-800'
+)
+
+export const opsConsoleSidebarShellClassName = cn(
+  '[&_[data-slot=sidebar-inner]]:border-[#DBEAFE]/80',
+  '[&_[data-slot=sidebar-inner]]:bg-[#F8FBFF]',
+  '[&_[data-slot=sidebar-inner]]:text-slate-700',
+  '[&_[data-sidebar=sidebar][data-mobile=true]]:border-[#DBEAFE]/80',
+  '[&_[data-sidebar=sidebar][data-mobile=true]]:bg-[#F8FBFF]',
+  '[&_[data-sidebar=sidebar][data-mobile=true]]:text-slate-700'
+)
+
+export const opsConsoleSidebarContentClassName = cn(
+  'min-h-0 flex-1 overflow-y-auto px-2 py-3',
+  '[&_[data-sidebar=group-label]]:text-xs [&_[data-sidebar=group-label]]:font-medium [&_[data-sidebar=group-label]]:tracking-wide [&_[data-sidebar=group-label]]:text-slate-500',
+  '[&_[data-sidebar=menu-button]:hover]:bg-blue-50/80 [&_[data-sidebar=menu-button]:hover]:text-slate-900',
+  '[&_[data-sidebar=menu-sub]]:border-[#DBEAFE]/70',
+  '[&_[data-sidebar=menu-sub-button]]:text-slate-500',
+  '[&_[data-sidebar=menu-sub-button]:hover]:bg-blue-50/80 [&_[data-sidebar=menu-sub-button]:hover]:text-slate-800',
+  '[&_[data-active=true]]:border [&_[data-active=true]]:border-blue-200/70 [&_[data-active=true]]:border-l-2 [&_[data-active=true]]:border-l-blue-500 [&_[data-active=true]]:bg-blue-50/90 [&_[data-active=true]]:text-blue-700',
+  '[&_[data-active=true]]:shadow-none',
+  '[&_[data-active=true]_svg]:text-blue-600'
+)
+
+export const opsConsoleSidebarHeaderClassName =
+  'border-b border-[#DBEAFE]/80 px-2 py-3'
+
+export const opsConsoleSidebarRailClassName = 'hover:after:bg-blue-300/40'
+
+export const opsConsoleHeaderClassName = cn(
+  'border-b border-[#DBEAFE]/80 bg-white/98 text-slate-800 shadow-[0_1px_0_0_rgba(219,234,254,0.6)] backdrop-blur-md'
+)
+
+export const opsConsoleHeaderTriggerClassName = cn(
+  'size-8 shrink-0 text-slate-600 hover:bg-blue-50 hover:text-blue-700'
+)
+
+export const opsConsoleHeaderToolbarClassName = cn(
+  'flex shrink-0 items-center gap-0.5 rounded-lg border border-[#DBEAFE] bg-white px-1 py-0.5 text-slate-700 sm:gap-1 sm:px-1.5',
+  portalHeaderDefaultIconGroupClassName
+)
+
+export const opsConsoleHeaderNavLinkClassName = cn(
+  'inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-1.5 text-[13px] font-medium text-slate-600 transition-colors duration-200 hover:bg-blue-50/70 hover:text-blue-700'
+)
+
+export const opsConsoleHeaderNavLinkActiveClassName = cn(
+  'inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-blue-50 px-2.5 py-1.5 text-[13px] font-medium text-blue-700 ring-1 ring-blue-200/70 transition-colors duration-200'
+)
+
+export const opsConsoleDashboardShellClassName = cn(
+  'flex min-h-full flex-col text-slate-800'
+)
+
+export const opsConsoleDashboardOverviewWrapClassName = cn(
+  '-mx-1 rounded-2xl border border-[#DBEAFE]/80 bg-white/90 px-1 pb-3 pt-1 shadow-[0_1px_2px_rgba(15,23,42,0.04)]'
+)
+
+/** Sticky page footer (pagination) on authenticated section pages. */
+export const opsConsolePageFooterClassName = cn(
+  'shrink-0 border-t border-[#DBEAFE] bg-[#F8FBFF] px-3 py-2.5 text-slate-600 empty:hidden sm:px-4 sm:py-3'
+)
+
 // —— System settings (platform config center) —— //
 
 export const systemSettingsShellClassName =

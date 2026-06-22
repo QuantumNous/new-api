@@ -29,95 +29,95 @@ export {
 } from './channel-error-display'
 
 export const channelsToolbarClassName = cn(
-  '[&_input]:border-white/15 [&_input]:bg-slate-950/50 [&_input]:text-slate-100',
-  '[&_input::placeholder]:text-slate-500'
+  '[&_input]:border-[#DBEAFE] [&_input]:bg-white [&_input]:text-slate-800',
+  '[&_input::placeholder]:text-slate-400'
 )
 
 export const channelsTableHeaderClassName = cn(
-  'bg-slate-900/80 text-slate-200',
-  '[&_th]:border-white/10 [&_th]:text-slate-100',
-  '[&_th_.font-semibold]:text-slate-100',
-  '[&_th_button]:text-slate-100 [&_th_button]:hover:text-white',
-  '[&_th_button]:hover:bg-white/10',
-  '[&_th_svg]:text-slate-300 [&_th_button:hover_svg]:text-slate-100',
-  '[&_[data-slot=checkbox]]:border-white/25'
+  'bg-[#F4F8FD] text-slate-700',
+  '[&_th]:border-[#DBEAFE] [&_th]:text-slate-700',
+  '[&_th_.font-semibold]:text-slate-700',
+  '[&_th_button]:text-slate-700 [&_th_button]:hover:text-blue-700',
+  '[&_th_button]:hover:bg-blue-50',
+  '[&_th_svg]:text-slate-500 [&_th_button:hover_svg]:text-blue-600',
+  '[&_[data-slot=checkbox]]:border-slate-300'
 )
 
 export const channelsDisabledRowDesktopClassName = cn(
-  '[&>td:first-child]:border-l-slate-500/50 [&>td:first-child]:border-l-4 [&>td:first-child]:pl-1',
-  'bg-slate-900/55 hover:bg-slate-900/65 text-slate-300',
+  '[&>td:first-child]:border-l-slate-300 [&>td:first-child]:border-l-4 [&>td:first-child]:pl-1',
+  'bg-slate-50/90 hover:bg-slate-100/80 text-slate-500',
   '[&_.text-muted-foreground]:text-slate-400'
 )
 
 export const channelsDisabledRowMobileClassName = cn(
-  'border-l-4 border-l-slate-500/50 bg-slate-900/55 text-slate-300'
+  'border-l-4 border-l-slate-300 bg-slate-50/90 text-slate-500'
 )
 
 export const channelsSelectedRowClassName = cn(
-  'data-[state=selected]:!bg-cyan-500/10',
-  'data-[state=selected]:hover:!bg-cyan-500/15',
-  'data-[state=selected]:!text-slate-100',
-  'data-[state=selected]:ring-1 data-[state=selected]:ring-cyan-400/30',
-  '[&[data-state=selected]_.text-muted-foreground]:!text-slate-300',
-  '[&[data-state=selected]_[data-slot=checkbox]]:border-cyan-400/50'
+  'data-[state=selected]:!bg-blue-50',
+  'data-[state=selected]:hover:!bg-blue-100/60',
+  'data-[state=selected]:!text-slate-900',
+  'data-[state=selected]:ring-1 data-[state=selected]:ring-blue-200/80',
+  '[&[data-state=selected]_.text-muted-foreground]:!text-slate-500',
+  '[&[data-state=selected]_[data-slot=checkbox]]:border-blue-400/60'
 )
 
 export const channelsTableClassName = cn(
-  'border-white/10 bg-slate-900/40 text-slate-100',
-  '[&_[data-slot=empty-title]]:text-slate-100',
-  '[&_[data-slot=empty-description]]:text-slate-400',
-  '[&_[data-slot=empty-icon]]:text-slate-300',
+  'border-[#DBEAFE] bg-white text-slate-800',
+  '[&_[data-slot=empty-title]]:text-slate-800',
+  '[&_[data-slot=empty-description]]:text-slate-500',
+  '[&_[data-slot=empty-icon]]:text-slate-400',
   '[&_[data-slot=table-container]]:overflow-x-auto',
   '[&_[data-slot=table-container]]:overscroll-x-contain',
   '[&_[data-slot=table]]:min-w-max',
-  '[&_[data-slot=table-row]:hover]:!bg-white/5',
-  '[&_[data-slot=table-row][data-state=selected]]:!bg-cyan-500/10',
-  '[&_[data-slot=table-row][data-state=selected]:hover]:!bg-cyan-500/15',
-  '[&_[data-slot=table-row][data-state=selected]]:!text-slate-100',
-  '[&_[data-slot=table-row][data-state=selected]_.text-muted-foreground]:!text-slate-300',
-  '[&_[data-slot=table-row][data-state=selected]_[data-slot=checkbox]]:border-cyan-400/50',
-  '[&_[data-slot=table-cell]]:text-slate-100',
-  '[&_.text-muted-foreground]:text-slate-300',
-  '[&_[data-slot=checkbox]]:border-white/25',
+  '[&_[data-slot=table-row]:hover]:!bg-[#EFF6FF]',
+  '[&_[data-slot=table-row][data-state=selected]]:!bg-blue-50',
+  '[&_[data-slot=table-row][data-state=selected]:hover]:!bg-blue-100/60',
+  '[&_[data-slot=table-row][data-state=selected]]:!text-slate-900',
+  '[&_[data-slot=table-row][data-state=selected]_.text-muted-foreground]:!text-slate-500',
+  '[&_[data-slot=table-row][data-state=selected]_[data-slot=checkbox]]:border-blue-400/60',
+  '[&_[data-slot=table-cell]]:text-slate-800',
+  '[&_.text-muted-foreground]:text-slate-500',
+  '[&_[data-slot=checkbox]]:border-slate-300',
   '[&_th:last-child]:sticky [&_th:last-child]:right-0 [&_th:last-child]:z-20',
-  '[&_th:last-child]:border-l [&_th:last-child]:border-white/10',
-  '[&_th:last-child]:bg-slate-900/95',
-  '[&_th:last-child]:shadow-[-10px_0_16px_-10px_rgba(0,0,0,0.65)]',
+  '[&_th:last-child]:border-l [&_th:last-child]:border-[#DBEAFE]',
+  '[&_th:last-child]:bg-[#F4F8FD]',
+  '[&_th:last-child]:shadow-[-8px_0_12px_-8px_rgba(15,23,42,0.06)]',
   '[&_td:last-child]:sticky [&_td:last-child]:right-0 [&_td:last-child]:z-10',
-  '[&_td:last-child]:border-l [&_td:last-child]:border-white/10',
-  '[&_td:last-child]:bg-slate-900/95',
-  '[&_td:last-child]:shadow-[-10px_0_16px_-10px_rgba(0,0,0,0.65)]',
-  '[&_[data-slot=table-row][data-state=selected]_td:last-child]:!bg-slate-900',
-  '[&_[data-slot=table-row]:hover_td:last-child]:bg-slate-900'
+  '[&_td:last-child]:border-l [&_td:last-child]:border-[#DBEAFE]',
+  '[&_td:last-child]:bg-white',
+  '[&_td:last-child]:shadow-[-8px_0_12px_-8px_rgba(15,23,42,0.06)]',
+  '[&_[data-slot=table-row][data-state=selected]_td:last-child]:!bg-blue-50',
+  '[&_[data-slot=table-row]:hover_td:last-child]:bg-[#EFF6FF]'
 )
 
 export const channelsBulkPanelClassName = cn(
-  'border-white/10 bg-slate-950/90 shadow-black/40 backdrop-blur-md'
+  'border-[#DBEAFE] bg-white shadow-lg'
 )
 
-export const channelsBulkCountTextClassName = 'text-slate-100'
+export const channelsBulkCountTextClassName = 'text-slate-700'
 
 export const channelsBulkClearButtonClassName = cn(
-  'border-white/15 bg-white/10 text-slate-100',
-  '[&_svg]:text-slate-100',
-  'hover:bg-white/15 hover:text-white hover:[&_svg]:text-white',
-  'disabled:bg-white/5 disabled:text-slate-400 disabled:border-white/10 disabled:opacity-60'
+  'border-[#DBEAFE] bg-white text-slate-700',
+  '[&_svg]:text-slate-600',
+  'hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 hover:[&_svg]:text-blue-600',
+  'disabled:bg-slate-50 disabled:text-slate-400 disabled:border-slate-200 disabled:opacity-60'
 )
 
 export const channelsBulkIconButtonClassName = cn(
-  'size-8 border-white/15 bg-white/10 text-slate-100',
-  '[&_svg]:text-slate-100',
-  'hover:bg-white/15 hover:text-white hover:[&_svg]:text-white',
-  'disabled:pointer-events-auto disabled:bg-white/5 disabled:text-slate-400',
-  'disabled:border-white/10 disabled:opacity-60 disabled:[&_svg]:text-slate-400'
+  'size-8 border-[#DBEAFE] bg-white text-slate-700',
+  '[&_svg]:text-slate-600',
+  'hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 hover:[&_svg]:text-blue-600',
+  'disabled:pointer-events-auto disabled:bg-slate-50 disabled:text-slate-400',
+  'disabled:border-slate-200 disabled:opacity-60 disabled:[&_svg]:text-slate-400'
 )
 
 export const channelsBulkDeleteButtonClassName = cn(
-  'size-8 border-red-400/30 bg-red-500/10 text-red-300',
-  '[&_svg]:text-red-300',
-  'hover:bg-red-500/15 hover:text-red-200 hover:[&_svg]:text-red-200',
-  'disabled:pointer-events-auto disabled:bg-white/5 disabled:text-slate-400',
-  'disabled:border-white/10 disabled:opacity-60 disabled:[&_svg]:text-slate-400'
+  'size-8 border-rose-200 bg-rose-50 text-rose-600',
+  '[&_svg]:text-rose-600',
+  'hover:bg-rose-100 hover:text-rose-700 hover:[&_svg]:text-rose-700',
+  'disabled:pointer-events-auto disabled:bg-slate-50 disabled:text-slate-400',
+  'disabled:border-slate-200 disabled:opacity-60 disabled:[&_svg]:text-slate-400'
 )
 
 export const channelTestDialogContentClassName = cn(

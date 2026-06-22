@@ -30,6 +30,7 @@ import {
   formatUptimePct,
 } from '@/features/performance-metrics/lib/format'
 import type { PerfModelSummary } from '@/features/performance-metrics/types'
+import { COCKPIT_CARD_CLASS, COCKPIT_INSET_SURFACE_CLASS } from './cockpit-display'
 
 const PERFORMANCE_WINDOW_HOURS = 24
 const TOP_MODEL_LIMIT = 5
@@ -105,25 +106,25 @@ export function PerformanceHealthPanel(props: PerformanceHealthPanelProps) {
       className={cn(
         'h-full min-h-[18rem] overflow-hidden rounded-2xl border shadow-xs',
         isCockpit
-          ? 'border-violet-500/20 bg-slate-900/60 backdrop-blur-sm'
+          ? cn('text-slate-800', COCKPIT_CARD_CLASS)
           : 'bg-card'
       )}
     >
       <div
         className={cn(
           'flex items-center gap-2 border-b px-4 py-3 sm:px-5',
-          isCockpit && 'border-white/10'
+          isCockpit && 'border-slate-200/70'
         )}
       >
         <HeartPulse
           className={cn(
             'size-4 shrink-0',
-            isCockpit ? 'text-violet-400' : 'text-muted-foreground/60'
+            isCockpit ? 'text-blue-600' : 'text-muted-foreground/60'
           )}
           aria-hidden='true'
         />
         <h3
-          className={cn('text-sm font-semibold', isCockpit && 'text-slate-100')}
+          className={cn('text-sm font-semibold', isCockpit && 'text-slate-900')}
         >
           {isCockpit
             ? t('Dashboard chart model ranking')
@@ -132,7 +133,7 @@ export function PerformanceHealthPanel(props: PerformanceHealthPanelProps) {
         <span
           className={cn(
             'ml-auto text-xs',
-            isCockpit ? 'text-slate-400' : 'text-muted-foreground'
+            isCockpit ? 'text-slate-600' : 'text-muted-foreground'
           )}
         >
           {t('Dashboard KPI perf 24h')}
@@ -171,7 +172,7 @@ export function PerformanceHealthPanel(props: PerformanceHealthPanelProps) {
                 key={i}
                 className={cn(
                   'h-5 w-full rounded',
-                  isCockpit && 'bg-slate-800'
+                  isCockpit && 'bg-slate-200/80'
                 )}
               />
             ))}
@@ -189,13 +190,13 @@ export function PerformanceHealthPanel(props: PerformanceHealthPanelProps) {
                   key={model.model_name}
                   className={cn(
                     'flex items-center justify-between gap-2 rounded px-1.5 py-1',
-                    isCockpit && 'border border-white/5 bg-slate-950/40'
+                    isCockpit && cn('px-1.5 py-1', COCKPIT_INSET_SURFACE_CLASS)
                   )}
                 >
                   <span
                     className={cn(
                       'min-w-0 flex-1 truncate font-mono text-[11px]',
-                      isCockpit && 'text-slate-300'
+                      isCockpit && 'text-slate-700'
                     )}
                   >
                     {model.model_name}

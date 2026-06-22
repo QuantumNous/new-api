@@ -137,7 +137,7 @@ function ApiKeysMobileList({
   }
 
   return (
-    <div className={cn(keysMobileShellClassName, 'divide-white/10')}>
+    <div className={cn(keysMobileShellClassName, 'divide-[#DBEAFE]')}>
       {rows.map((row) => {
         const apiKey = row.original
         const statusConfig = API_KEY_STATUSES[apiKey.status]
@@ -146,7 +146,7 @@ function ApiKeysMobileList({
           <div
             key={row.id}
             className={cn(
-              'space-y-2.5 border-b border-white/10 bg-slate-900/30 px-3 py-2.5 last:border-b-0',
+              'space-y-2.5 border-b border-[#DBEAFE] bg-white px-3 py-2.5 last:border-b-0',
               isDisabledApiKeyRow(apiKey) && keysDisabledRowMobileClassName
             )}
           >

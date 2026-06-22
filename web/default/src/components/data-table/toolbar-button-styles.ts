@@ -19,25 +19,24 @@ For commercial licensing, please contact support@quantumnous.com
 import { cn } from '@/lib/utils'
 
 /**
- * Default styles for data-table toolbar controls on dark cockpit layouts
- * (dark gradient shell with light-theme CSS variables).
+ * Default styles for data-table toolbar controls on light ops console layouts.
  */
 export const dataTableFilterTriggerClassName = cn(
   'h-8 border-dashed',
-  'border-white/15 bg-slate-900/70 text-slate-100',
-  'hover:bg-white/15 hover:text-white',
-  'aria-expanded:border-white/15 aria-expanded:bg-white/15 aria-expanded:text-white',
-  '[&_svg]:text-slate-300',
-  'hover:[&_svg]:text-white aria-expanded:[&_svg]:text-white',
-  'disabled:border-white/10 disabled:bg-white/10 disabled:text-slate-300 disabled:opacity-60'
+  'border-[#DBEAFE] bg-white text-slate-700',
+  'hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
+  'aria-expanded:border-blue-200 aria-expanded:bg-blue-50 aria-expanded:text-blue-700',
+  '[&_svg]:text-slate-500',
+  'hover:[&_svg]:text-blue-600 aria-expanded:[&_svg]:text-blue-600',
+  'disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:opacity-60'
 )
 
-/** Filter controls on dark cockpit layouts (no theme-variable / dark: dependency). */
+/** Filter controls on light ops console layouts. */
 const dataTableFilterControlBaseClassName = cn(
-  'border-white/20 bg-slate-900/60 text-slate-100 shadow-none',
+  'border-[#DBEAFE] bg-white text-slate-800 shadow-none',
   'placeholder:text-slate-400',
-  'hover:border-white/30 hover:bg-slate-900/75',
-  'focus-visible:border-white/35 focus-visible:ring-1 focus-visible:ring-white/15'
+  'hover:border-blue-200 hover:bg-blue-50/50',
+  'focus-visible:border-blue-300 focus-visible:ring-1 focus-visible:ring-blue-200/80'
 )
 
 /** Filter text inputs — overrides default Input border/placeholder. */
@@ -51,76 +50,76 @@ export const dataTableFilterSelectTriggerClassName = cn(
   'h-8 w-full min-w-[7.5rem] justify-between gap-2 px-2.5 py-0 font-normal',
   dataTableFilterControlBaseClassName,
   'data-placeholder:text-slate-400',
-  '[&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:text-slate-100',
-  '[&_svg]:pointer-events-none [&_svg]:!size-4 [&_svg]:shrink-0 [&_svg]:!text-slate-300 [&_svg]:!opacity-100',
-  'aria-expanded:border-white/35 aria-expanded:bg-slate-900/80'
+  '[&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:text-slate-800',
+  '[&_svg]:pointer-events-none [&_svg]:!size-4 [&_svg]:shrink-0 [&_svg]:!text-slate-500 [&_svg]:!opacity-100',
+  'aria-expanded:border-blue-300 aria-expanded:bg-blue-50/60'
 )
 
 /** Date-range popover trigger on filter toolbars. */
 export const dataTableFilterDateTriggerClassName = cn(
   'h-8 w-full justify-start gap-2 px-2.5 font-mono text-xs font-normal',
   dataTableFilterControlBaseClassName,
-  '[&_svg]:!text-slate-300 [&_svg]:!opacity-100'
+  '[&_svg]:!text-slate-500 [&_svg]:!opacity-100'
 )
 
 export const dataTableResetGhostClassName = cn(
   'gap-1 px-2',
-  'border border-white/15 bg-white/10 text-slate-100',
-  'hover:border-white/15 hover:bg-white/15 hover:text-white',
-  '[&_svg]:text-slate-300',
-  'hover:[&_svg]:text-white'
+  'border border-[#DBEAFE] bg-white text-slate-700',
+  'hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
+  '[&_svg]:text-slate-500',
+  'hover:[&_svg]:text-blue-600'
 )
 
 export const dataTableResetOutlineClassName = cn(
-  'border-white/15 bg-slate-900/70 text-slate-100',
-  'hover:bg-white/15 hover:text-white',
-  'disabled:border-white/10 disabled:bg-white/10 disabled:text-slate-300 disabled:opacity-60'
+  'border-[#DBEAFE] bg-white text-slate-700',
+  'hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
+  'disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:opacity-60'
 )
 
 /** Column visibility ("View") trigger on data-table toolbars. */
 export const dataTableViewTriggerClassName = cn(
   'shrink-0',
-  'border-white/15 bg-slate-900/70 text-slate-100',
-  'hover:bg-white/15 hover:text-white',
-  'aria-expanded:border-white/15 aria-expanded:bg-white/15 aria-expanded:text-white',
-  '[&_svg]:text-slate-300',
-  'hover:[&_svg]:text-white aria-expanded:[&_svg]:text-white',
-  'disabled:border-white/10 disabled:bg-white/10 disabled:text-slate-300 disabled:opacity-60',
-  'data-disabled:border-white/10 data-disabled:bg-white/10 data-disabled:text-slate-300 data-disabled:opacity-60'
+  'border-[#DBEAFE] bg-white text-slate-700',
+  'hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
+  'aria-expanded:border-blue-200 aria-expanded:bg-blue-50 aria-expanded:text-blue-700',
+  '[&_svg]:text-slate-500',
+  'hover:[&_svg]:text-blue-600 aria-expanded:[&_svg]:text-blue-600',
+  'disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:opacity-60',
+  'data-disabled:border-slate-200 data-disabled:bg-slate-50 data-disabled:text-slate-400 data-disabled:opacity-60'
 )
 
-/** Table footer pagination on dark cockpit layouts. */
-export const dataTablePaginationTextClassName = 'text-slate-200'
+/** Table footer pagination on light ops console layouts. */
+export const dataTablePaginationTextClassName = 'text-slate-600'
 
 export const dataTablePaginationSelectTriggerClassName = cn(
-  'border-white/15 bg-slate-900/70 text-slate-100',
+  'border-[#DBEAFE] bg-white text-slate-700',
   'data-placeholder:text-slate-400',
-  '[&_[data-slot=select-value]]:text-slate-100',
-  '[&_svg]:!text-slate-300'
+  '[&_[data-slot=select-value]]:text-slate-700',
+  '[&_svg]:!text-slate-500'
 )
 
 export const dataTablePaginationSelectContentClassName = cn(
-  'border border-white/10 bg-slate-900 text-slate-100 ring-white/10',
-  '[&_[data-slot=select-item]]:text-slate-100',
-  'focus:[&_[data-slot=select-item]]:bg-white/10',
-  'focus:[&_[data-slot=select-item]]:text-white'
+  'border border-[#DBEAFE] bg-white text-slate-800 ring-blue-100/50',
+  '[&_[data-slot=select-item]]:text-slate-700',
+  'focus:[&_[data-slot=select-item]]:bg-blue-50',
+  'focus:[&_[data-slot=select-item]]:text-blue-700'
 )
 
 export const dataTablePaginationSelectItemClassName = cn(
-  'text-slate-100 focus:bg-white/10 focus:text-white'
+  'text-slate-700 focus:bg-blue-50 focus:text-blue-700'
 )
 
 export const dataTablePaginationOutlineButtonClassName = cn(
-  'border-white/15 bg-slate-900/70 text-slate-100',
-  'hover:bg-white/15 hover:text-white',
-  '[&_svg]:text-slate-300',
-  'hover:[&_svg]:text-white',
-  'disabled:pointer-events-none disabled:border-white/10 disabled:bg-white/5',
+  'border-[#DBEAFE] bg-white text-slate-700',
+  'hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
+  '[&_svg]:text-slate-500',
+  'hover:[&_svg]:text-blue-600',
+  'disabled:pointer-events-none disabled:border-slate-200 disabled:bg-slate-50',
   'disabled:text-slate-400 disabled:opacity-60',
-  'disabled:[&_svg]:text-slate-500'
+  'disabled:[&_svg]:text-slate-400'
 )
 
 export const dataTablePaginationActivePageClassName = cn(
-  'border-indigo-500/60 bg-indigo-500 text-white',
-  'hover:bg-indigo-400 hover:text-white'
+  'border-blue-500/50 bg-blue-600 text-white',
+  'hover:bg-blue-500 hover:text-white'
 )

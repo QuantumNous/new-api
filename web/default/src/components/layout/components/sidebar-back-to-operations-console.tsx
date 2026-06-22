@@ -29,9 +29,9 @@ import {
 } from '@/components/ui/sidebar'
 
 const backButtonClassName = cn(
-  'mb-2 w-full rounded-xl border border-white/10',
-  'text-slate-200 hover:bg-white/10 hover:text-white',
-  'data-active:bg-white/10 data-active:text-white'
+  'mb-2 w-full rounded-xl border border-slate-200/80',
+  'text-slate-700 hover:bg-blue-50 hover:text-slate-900',
+  'data-active:bg-blue-50 data-active:text-blue-700'
 )
 
 /**

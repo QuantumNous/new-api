@@ -64,8 +64,8 @@ const LINE_TONE_CLASSES: Record<StatCardTone, string> = {
 }
 
 const COCKPIT_LINE_TONE_CLASSES: Record<StatCardTone, string> = {
-  rose: 'text-violet-400',
-  teal: 'text-blue-400',
+  rose: 'text-violet-500',
+  teal: 'text-blue-600',
   gray: 'text-slate-500',
 }
 
@@ -228,13 +228,13 @@ export function StatCard(props: StatCardProps) {
         <div
           className={cn(
             'flex items-center gap-1.5 text-xs font-medium sm:gap-2',
-            isCockpit ? 'text-slate-400' : 'text-muted-foreground'
+            isCockpit ? 'text-slate-600' : 'text-muted-foreground'
           )}
         >
           <Icon
             className={cn(
               'size-3.5 shrink-0',
-              isCockpit ? 'text-violet-400/80' : 'text-muted-foreground/60'
+              isCockpit ? 'text-blue-600/90' : 'text-muted-foreground/60'
             )}
             aria-hidden='true'
           />
@@ -262,7 +262,7 @@ export function StatCard(props: StatCardProps) {
           <div
             className={cn(
               'font-mono text-2xl font-semibold tracking-tight break-all tabular-nums',
-              isCockpit ? 'text-slate-50' : 'text-foreground'
+              isCockpit ? 'text-slate-900' : 'text-foreground'
             )}
           >
             {props.value}

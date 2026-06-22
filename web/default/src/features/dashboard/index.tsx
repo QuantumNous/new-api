@@ -21,6 +21,10 @@ import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
+import {
+  opsConsoleDashboardOverviewWrapClassName,
+  opsConsoleDashboardShellClassName,
+} from '@/lib/ops-ui-styles'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -229,12 +233,12 @@ export function Dashboard() {
     ) : null
 
   return (
-    <div className='dark flex min-h-full flex-col text-slate-100'>
+    <div className={opsConsoleDashboardShellClassName}>
       <SectionPageLayout>
         <SectionPageLayout.Title>
-          <span className='text-slate-50'>{t(meta.titleKey)}</span>
+          <span className='text-slate-900'>{t(meta.titleKey)}</span>
           {activeSection === 'overview' ? (
-            <span className='mt-1 block text-sm font-normal text-slate-400'>
+            <span className='mt-1 block text-sm font-normal text-slate-600'>
               {t('Dashboard overview page subtitle')}
             </span>
           ) : null}
@@ -276,7 +280,7 @@ export function Dashboard() {
             </div>
           )}
           {activeSection === 'overview' && (
-            <div className='-mx-1 rounded-2xl border border-violet-500/15 bg-slate-950/40 px-1 pb-3 pt-1 shadow-inner shadow-indigo-950/30'>
+            <div className={opsConsoleDashboardOverviewWrapClassName}>
               <OverviewDashboard />
             </div>
           )}

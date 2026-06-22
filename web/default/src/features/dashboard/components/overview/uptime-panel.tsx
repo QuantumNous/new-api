@@ -104,7 +104,7 @@ export function UptimePanel(props: UptimePanelProps) {
           <Activity
             className={cn(
               'size-4',
-              isCockpit ? 'text-violet-400' : 'text-muted-foreground/60'
+              isCockpit ? 'text-blue-600' : 'text-muted-foreground/60'
             )}
           />
           {isCockpit

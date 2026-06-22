@@ -59,7 +59,7 @@ export function AnnouncementsPanel() {
       variant='cockpit'
       title={
         <span className='flex items-center gap-2'>
-          <Megaphone className='size-4 text-violet-400' />
+          <Megaphone className='size-4 text-blue-600' />
           {t('Dashboard panel announcements title')}
         </span>
       }

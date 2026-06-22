@@ -20,6 +20,7 @@ import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import { COCKPIT_PANEL_CLASS } from '../overview/cockpit-display'
 
 interface PanelWrapperProps {
   title: ReactNode
@@ -45,7 +46,7 @@ function PanelHeader(props: {
   const heading = (
     <div className='flex flex-col gap-1'>
       <div
-        className={cn('text-sm font-semibold', isCockpit && 'text-slate-100')}
+        className={cn('text-sm font-semibold', isCockpit && 'text-slate-900')}
       >
         {props.title}
       </div>
@@ -53,7 +54,7 @@ function PanelHeader(props: {
         <div
           className={cn(
             'text-xs',
-            isCockpit ? 'text-slate-400' : 'text-muted-foreground'
+            isCockpit ? 'text-slate-600' : 'text-muted-foreground'
           )}
         >
           {props.description}
@@ -66,7 +67,7 @@ function PanelHeader(props: {
     <div
       className={cn(
         'border-b px-4 py-3 sm:px-5',
-        isCockpit && 'border-white/10'
+        isCockpit && 'border-slate-200/70'
       )}
     >
       {props.actions != null ? (
@@ -89,7 +90,7 @@ export function PanelWrapper(props: PanelWrapperProps) {
   const frameClassName = cn(
     'overflow-hidden rounded-2xl border shadow-xs',
     isCockpit
-      ? 'border-violet-500/20 bg-slate-900/60 text-slate-100 shadow-lg shadow-indigo-950/20 backdrop-blur-sm'
+      ? cn('text-slate-800', COCKPIT_PANEL_CLASS)
       : 'bg-card',
     props.className
   )
@@ -107,7 +108,7 @@ export function PanelWrapper(props: PanelWrapperProps) {
             className={cn(
               'w-full',
               height,
-              isCockpit && 'bg-slate-800/60'
+              isCockpit && 'bg-slate-200/80'
             )}
           />
         </div>
@@ -126,7 +127,7 @@ export function PanelWrapper(props: PanelWrapperProps) {
         <div
           className={cn(
             'flex items-center justify-center px-4 text-sm',
-            isCockpit ? 'text-slate-400' : 'text-muted-foreground',
+            isCockpit ? 'text-slate-600' : 'text-muted-foreground',
             height,
             props.contentClassName
           )}

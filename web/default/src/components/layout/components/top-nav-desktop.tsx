@@ -20,6 +20,8 @@ import { useMemo } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import {
+  opsConsoleHeaderNavLinkActiveClassName,
+  opsConsoleHeaderNavLinkClassName,
   portalHeaderNavLinkActiveClassName,
   portalHeaderNavLinkClassName,
   topNavDesktopNavClassName,
@@ -30,7 +32,7 @@ import { type TopNavLink } from '../types'
 
 type TopNavDesktopProps = React.HTMLAttributes<HTMLElement> & {
   links: TopNavLink[]
-  tone?: 'portal' | 'default'
+  tone?: 'portal' | 'default' | 'ops-console'
   onLinkClick?: (
     event: React.MouseEvent<HTMLAnchorElement>,
     link: TopNavLink
@@ -50,6 +52,7 @@ export function TopNavDesktop({
   const { t } = useTranslation()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isPortalTone = tone === 'portal'
+  const isOpsConsoleTone = tone === 'ops-console'
 
   const normalizedLinks = useMemo(
     () =>
@@ -62,17 +65,24 @@ export function TopNavDesktop({
     [links]
   )
 
-  const linkClass = (active: boolean) =>
-    isPortalTone
-      ? active
+  const linkClass = (active: boolean) => {
+    if (isOpsConsoleTone) {
+      return active
+        ? opsConsoleHeaderNavLinkActiveClassName
+        : opsConsoleHeaderNavLinkClassName
+    }
+    if (isPortalTone) {
+      return active
         ? portalHeaderNavLinkActiveClassName
         : portalHeaderNavLinkClassName
-      : cn(
-          'inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-200',
-          active
-            ? 'text-foreground'
-            : 'text-muted-foreground hover:text-foreground'
-        )
+    }
+    return cn(
+      'inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-200',
+      active
+        ? 'text-foreground'
+        : 'text-muted-foreground hover:text-foreground'
+    )
+  }
 
   return (
     <nav

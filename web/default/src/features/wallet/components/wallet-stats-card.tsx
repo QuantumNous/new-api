@@ -31,13 +31,13 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
   const { t } = useTranslation()
   if (props.loading) {
     return (
-      <div className='overflow-hidden rounded-lg border bg-card dark:border-slate-700/80 dark:bg-slate-900/40'>
-        <div className='divide-border/60 grid grid-cols-3 divide-x dark:divide-slate-700/80'>
+      <div className='overflow-hidden rounded-lg border border-[#DBEAFE] bg-white'>
+        <div className='divide-[#DBEAFE]/80 grid grid-cols-3 divide-x'>
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className='px-3 py-3 sm:px-5 sm:py-4'>
-              <Skeleton className='h-4 w-24 dark:bg-slate-700' />
-              <Skeleton className='mt-2.5 h-8 w-32 dark:bg-slate-600' />
-              <Skeleton className='mt-2 h-3.5 w-28 dark:bg-slate-700' />
+              <Skeleton className='h-4 w-24' />
+              <Skeleton className='mt-2.5 h-8 w-32' />
+              <Skeleton className='mt-2 h-3.5 w-28' />
             </div>
           ))}
         </div>
@@ -67,21 +67,21 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
   ]
 
   return (
-    <div className='overflow-hidden rounded-lg border bg-card dark:border-slate-700/80 dark:bg-slate-900/40'>
-      <div className='divide-border/60 grid grid-cols-3 divide-x dark:divide-slate-700/80'>
+    <div className='overflow-hidden rounded-lg border border-[#DBEAFE] bg-white'>
+      <div className='divide-[#DBEAFE]/80 grid grid-cols-3 divide-x'>
         {stats.map((item) => (
           <div key={item.label} className='px-3 py-3.5 sm:px-5 sm:py-4'>
             <div className='flex items-center gap-2'>
-              <item.icon className='text-muted-foreground size-4 shrink-0 dark:text-slate-300' />
-              <div className='text-muted-foreground truncate text-xs font-semibold tracking-wide uppercase dark:text-sm dark:text-slate-200'>
+              <item.icon className='size-4 shrink-0 text-slate-500' />
+              <div className='truncate text-xs font-semibold tracking-wide text-slate-500 uppercase sm:text-sm'>
                 {item.label}
               </div>
             </div>
 
-            <div className='text-foreground mt-2 font-mono text-lg font-bold tracking-tight break-all tabular-nums dark:text-slate-50 sm:mt-2.5 sm:text-2xl dark:sm:text-[1.75rem]'>
+            <div className='mt-2 font-mono text-lg font-bold tracking-tight break-all text-slate-900 tabular-nums sm:mt-2.5 sm:text-2xl'>
               {item.value}
             </div>
-            <div className='text-muted-foreground mt-1.5 hidden text-xs leading-relaxed md:block dark:text-slate-300'>
+            <div className='mt-1.5 hidden text-xs leading-relaxed text-slate-500 md:block'>
               {item.description}
             </div>
           </div>

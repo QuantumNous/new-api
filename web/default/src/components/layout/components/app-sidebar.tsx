@@ -20,6 +20,12 @@ import { useMemo } from 'react'
 import { useLocation } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { isAiocSidebarBrandHidden } from '@/config/aioc-demo-visibility'
+import {
+  opsConsoleSidebarContentClassName,
+  opsConsoleSidebarHeaderClassName,
+  opsConsoleSidebarRailClassName,
+  opsConsoleSidebarShellClassName,
+} from '@/lib/ops-ui-styles'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
@@ -43,33 +49,6 @@ import { SystemBrand } from './system-brand'
 
 /** Ops layout: hide sidebar header brand (duplicates top app bar). */
 const hideSidebarBrand = isAiocSidebarBrandHidden()
-
-const sidebarShellClassName = cn(
-  '[&_[data-slot=sidebar-inner]]:border-white/10',
-  '[&_[data-slot=sidebar-inner]]:bg-gradient-to-b',
-  '[&_[data-slot=sidebar-inner]]:from-slate-950',
-  '[&_[data-slot=sidebar-inner]]:via-slate-900',
-  '[&_[data-slot=sidebar-inner]]:to-indigo-950',
-  '[&_[data-slot=sidebar-inner]]:text-slate-100',
-  '[&_[data-sidebar=sidebar][data-mobile=true]]:border-white/10',
-  '[&_[data-sidebar=sidebar][data-mobile=true]]:bg-gradient-to-b',
-  '[&_[data-sidebar=sidebar][data-mobile=true]]:from-slate-950',
-  '[&_[data-sidebar=sidebar][data-mobile=true]]:via-slate-900',
-  '[&_[data-sidebar=sidebar][data-mobile=true]]:to-indigo-950',
-  '[&_[data-sidebar=sidebar][data-mobile=true]]:text-slate-100'
-)
-
-const sidebarContentClassName = cn(
-  'min-h-0 flex-1 overflow-y-auto px-2 py-3',
-  '[&_[data-sidebar=group-label]]:text-xs [&_[data-sidebar=group-label]]:font-medium [&_[data-sidebar=group-label]]:tracking-wide [&_[data-sidebar=group-label]]:text-slate-400',
-  '[&_[data-sidebar=menu-button]:hover]:bg-white/10 [&_[data-sidebar=menu-button]:hover]:text-slate-50',
-  '[&_[data-sidebar=menu-sub]]:border-white/10',
-  '[&_[data-sidebar=menu-sub-button]]:text-slate-400',
-  '[&_[data-sidebar=menu-sub-button]:hover]:bg-white/10 [&_[data-sidebar=menu-sub-button]:hover]:text-slate-100',
-  '[&_[data-active=true]]:bg-indigo-500/20 [&_[data-active=true]]:text-indigo-100',
-  '[&_[data-active=true]]:shadow-[inset_0_0_0_1px_rgba(129,140,248,0.35)]',
-  '[&_[data-active=true]_svg]:text-indigo-200'
-)
 
 /**
  * Application sidebar component
@@ -113,15 +92,15 @@ export function AppSidebar() {
     <Sidebar
       collapsible={collapsible}
       variant={variant}
-      className={sidebarShellClassName}
+      className={opsConsoleSidebarShellClassName}
     >
       {!hideSidebarBrand ? (
-        <SidebarHeader className='border-b border-white/10 px-2 py-3'>
+        <SidebarHeader className={opsConsoleSidebarHeaderClassName}>
           <SystemBrand variant='sidebar' />
         </SidebarHeader>
       ) : null}
       <SidebarContent
-        className={cn(sidebarContentClassName, hideSidebarBrand && 'pt-2')}
+        className={cn(opsConsoleSidebarContentClassName, hideSidebarBrand && 'pt-2')}
       >
         {isSystemSettingsWorkspace ? <SidebarBackToOperationsConsole /> : null}
         {currentNavGroups.map((props) => {
@@ -129,7 +108,7 @@ export function AppSidebar() {
           return <NavGroup key={key} {...props} />
         })}
       </SidebarContent>
-      <SidebarRail className='hover:after:bg-indigo-400/40' />
+      <SidebarRail className={opsConsoleSidebarRailClassName} />
     </Sidebar>
   )
 }
