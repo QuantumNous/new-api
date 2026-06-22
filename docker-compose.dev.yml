@@ -1,12 +1,21 @@
-# Frontend Development - Backend built from local source
+# Local dev stack: backend + frontend dev server (both auto-restart in Docker).
 #
-# Usage:
-#   1. docker compose -f docker-compose.dev.yml up -d
-#   2. cd web && bun install && bun run dev
-#   3. Open http://localhost:3001 (Rsbuild dev server, API auto-proxied to :3000)
+# Quick start:
+#   ./scripts/dev/start-dev-stack.sh
+#   # or: docker compose -f docker-compose.dev.yml up -d --build
 #
-# Rebuild backend after Go code changes:
+# URLs:
+#   - UI:  http://localhost:3001  (Rsbuild, proxies /api to new-api:3000)
+#   - API: http://localhost:3000
+#
+# Rebuild after Go changes:
 #   docker compose -f docker-compose.dev.yml up -d --build new-api
+#
+# Rebuild after frontend dependency changes:
+#   docker compose -f docker-compose.dev.yml up -d --build web-dev
+#
+# Logs:
+#   docker compose -f docker-compose.dev.yml logs -f web-dev
 #
 # Stop:
 #   docker compose -f docker-compose.dev.yml down
@@ -39,6 +48,26 @@ services:
     networks:
       - dev-network
 
+  web-dev:
+    build:
+      context: ./web/default
+      dockerfile: Dockerfile.dev
+    image: new-api-web-dev:local
+    container_name: new-api-dev-web
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - VITE_REACT_APP_SERVER_URL=http://new-api:3000
+    volumes:
+      - ./web/default:/app
+      - web_dev_node_modules:/app/node_modules
+    depends_on:
+      new-api:
+        condition: service_started
+    networks:
+      - dev-network
+
   redis:
     image: redis:7-alpine
     container_name: new-api-dev-redis
@@ -67,6 +96,7 @@ services:
 volumes:
   dev_data:
   dev_pg_data:
+  web_dev_node_modules:
 
 networks:
   dev-network:

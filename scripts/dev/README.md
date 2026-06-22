@@ -2,6 +2,25 @@
 
 **DEV ONLY** — never run against production.
 
+94 本机完整开发基线见 [`docs/DEV.md`](../../docs/DEV.md)。new-api dev 栈使用宿主机 **3000**（API）与 **3001**（前端 dev）。本机同时运行 Dify；Dify 端口分配与保护规则以 `docs/DEV.md` 为准，此处不重复。
+
+## Dev stack (3000 + 3001, auto-restart)
+
+Backend and frontend dev server both run in Docker with `restart: unless-stopped`:
+
+```bash
+./scripts/dev/start-dev-stack.sh
+```
+
+- UI: `http://<host>:3001/`
+- API: `http://<host>:3000/`
+
+If you previously ran `pnpm dev` on the host, stop it first (port 3001 conflict):
+
+```bash
+pkill -f 'rsbuild dev.*3001' || true
+```
+
 ## Pre-flight (required)
 
 Confirm:
