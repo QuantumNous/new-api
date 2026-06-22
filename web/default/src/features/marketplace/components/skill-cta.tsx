@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { MouseEventHandler } from 'react'
 import {
   ArrowRight,
   Download,
@@ -35,7 +36,7 @@ import type { SkillCTAAction } from '../types'
 interface SkillCTAProps {
   action: SkillCTAAction
   disabled?: boolean
-  onClick?: () => void
+  onClick?: MouseEventHandler<HTMLButtonElement>
 }
 
 const ctaConfig = {

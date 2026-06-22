@@ -4,6 +4,8 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-22
 
+- 实现 DR-57 Marketplace list UI：新增搜索、category/plan/status 过滤、flag 控制的 Kids Safe 过滤、稳定尺寸 Skill Cards、详情弹窗、状态矩阵 CTA 推导、空状态、`skill_impression`/`skill_detail_view` 触发与聚焦测试；补 en/zh 翻译（`web/default/src/features/marketplace/`, `web/default/src/i18n/locales/`）
+- 新增 DR-57 Marketplace list UI 任务 PRD，锁定列表页范围、状态矩阵 CTA、空状态、埋点与 DR-52/DR-73 兼容要求（`docs/tasks/dr-57-marketplace-list-ui-prd.md`）
 - DR-43 review fix — SQLite upgrade regression test：新增 `TestMigrateSkillUsageEvents_SQLite_UpgradesPreDR43Table`，构造 pre-DR-43 最简 schema（缺少 `tenant_id`、`metadata`、kids safety 列及全部 CHECK 约束），预埋一行旧数据，调用 `MigrateSkillUsageEvents` 后校验：全部 30 个 DR-43 列存在；全部 7 个索引存在；重建后 DDL 含 `chk_sue_kids_privacy`/`chk_sue_metadata_*`/`chk_sue_event_type`/`chk_sue_entry_point`；旧行保留；ORM 层 Kids 隐私守卫与 metadata 受限 key 守卫仍拒绝违规写入；DB 层 CHECK 约束对 raw SQL 仍生效（`internal/skill/model/skill_usage_event_integration_test.go`）
 - 修复 DR-47 PR review 阻断问题：`version_activated` 审计 before_value 改为目标版本自身的激活前状态，after_value 增加 `previous_active_version_id`；创建版本号增加事务锁与唯一冲突重试，避免并发创建冒成 500（`internal/skill/handler/versions.go`）
 - 新增 DR-47 Skill version API：Super Admin 可创建 draft 版本、查看版本列表/详情、激活版本并自动降级旧 active；版本写入 instruction_template sha256 与执行 snapshot，并新增不含 prompt 正文的 skill_audit_log 审计记录（`internal/skill/handler/versions.go`, `internal/skill/model/skill_audit_log.go`, `router/skill-router.go`）

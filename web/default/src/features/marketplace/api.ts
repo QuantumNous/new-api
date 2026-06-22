@@ -18,15 +18,27 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import type {
+  MarketplaceEventPayload,
+  MarketplaceFilters,
   MarketplaceListResponse,
   MarketplaceSkill,
   MySkill,
 } from './types'
 
-export async function getMarketplaceSkills(): Promise<
-  MarketplaceListResponse<MarketplaceSkill>
-> {
+export async function getMarketplaceSkills(
+  filters?: Partial<MarketplaceFilters>
+): Promise<MarketplaceListResponse<MarketplaceSkill>> {
   const res = await api.get('/api/v1/marketplace/skills', {
+    params: {
+      limit: 100,
+      sort: 'featured_rank',
+      query: filters?.query || undefined,
+      category: filters?.category || undefined,
+      plan:
+        filters?.plan != null && filters.plan !== 'all'
+          ? filters.plan
+          : undefined,
+    },
     skipErrorHandler: true,
   } as Record<string, unknown>)
   return res.data
@@ -37,4 +49,13 @@ export async function getMySkills(): Promise<MarketplaceListResponse<MySkill>> {
     skipErrorHandler: true,
   } as Record<string, unknown>)
   return res.data
+}
+
+export async function emitMarketplaceEvent(
+  payload: MarketplaceEventPayload
+): Promise<void> {
+  await api.post('/api/v1/marketplace/events', payload, {
+    skipErrorHandler: true,
+    skipBusinessError: true,
+  } as Record<string, unknown>)
 }
