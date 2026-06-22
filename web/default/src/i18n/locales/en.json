@@ -2545,6 +2545,7 @@
     "Models that are being used but not configured in the system": "Models that are being used but not configured in the system",
     "Models that skip thinking suffix processing": "Models that skip thinking suffix processing",
     "Models updated successfully": "Models updated successfully",
+    "Model {{name}} removed. Click Save to apply changes.": "Model {{name}} removed. Click Save to apply changes.",
     "Modify existing subscription plan configuration": "Modify existing subscription plan configuration",
     "Module availability": "Module availability",
     "MokaAI": "MokaAI",

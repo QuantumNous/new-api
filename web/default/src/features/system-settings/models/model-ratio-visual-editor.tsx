@@ -399,6 +399,9 @@ const ModelRatioVisualEditorComponent = forwardRef<
         setEditorOpen(false)
         setSheetOpen(false)
       }
+      toast.success(
+        t('Model {{name}} removed. Click Save to apply changes.', { name })
+      )
     },
     [
       modelPrice,
@@ -413,6 +416,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       billingExpr,
       onChange,
       editData,
+      t,
     ]
   )
 
