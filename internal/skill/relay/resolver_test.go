@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// ── test helpers ─────────────────────────────────────────────────────────────
+// ---- test helpers ----
 
 func newTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -27,7 +27,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}, &platformmodel.User{}))
+	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}, &platformmodel.User{}))
 	return database
 }
 
@@ -52,6 +52,20 @@ func insertSkill(t *testing.T, database *gorm.DB, s *skillmodel.Skill) *skillmod
 	return s
 }
 
+func insertSkillVersion(t *testing.T, database *gorm.DB, v *skillmodel.SkillVersion) *skillmodel.SkillVersion {
+	t.Helper()
+	require.NoError(t, database.Create(v).Error)
+	return v
+}
+
+func insertRunnableSkill(t *testing.T, database *gorm.DB, s *skillmodel.Skill) (*skillmodel.Skill, *skillmodel.SkillVersion) {
+	t.Helper()
+	skill := insertSkill(t, database, s)
+	require.NotNil(t, skill.ActiveVersionID)
+	version := insertSkillVersion(t, database, defaultSkillVersion(skill.ID, *skill.ActiveVersionID))
+	return skill, version
+}
+
 func defaultSkill() *skillmodel.Skill {
 	versionID := "aaaaaaaa-bbbb-cccc-dddd-000000000001"
 	return &skillmodel.Skill{
@@ -68,6 +82,23 @@ func defaultSkill() *skillmodel.Skill {
 	}
 }
 
+func defaultSkillVersion(skillID string, versionID string) *skillmodel.SkillVersion {
+	maxTokens := 4096
+	return &skillmodel.SkillVersion{
+		ID:                        versionID,
+		SkillID:                   skillID,
+		VersionNumber:             1,
+		Status:                    enums.SkillVersionStatusActive,
+		InstructionTemplate:       "You are the immutable skill executor.",
+		InstructionTemplateSHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		ModelWhitelistSnapshot:    skillmodel.SkillJSONB(`["gpt-4o-mini","gpt-4o"]`),
+		RequiredPlanSnapshot:      enums.RequiredPlanPro,
+		MonetizationSnapshot:      skillmodel.SkillJSONB(`{"mode":"plan_included"}`),
+		MaxInputTokensSnapshot:    &maxTokens,
+		CreatedBy:                 1,
+	}
+}
+
 func enabledUser(id int) *platformmodel.User {
 	return &platformmodel.User{
 		Id:       id,
@@ -78,7 +109,7 @@ func enabledUser(id int) *platformmodel.User {
 	}
 }
 
-// ── groupToPlan ──────────────────────────────────────────────────────────────
+// ---- groupToPlan ----
 
 func TestGroupToPlan_Pro(t *testing.T) {
 	assert.Equal(t, enums.RequiredPlanPro, groupToPlan("pro"))
@@ -100,7 +131,7 @@ func TestGroupToPlan_Unknown(t *testing.T) {
 	assert.Equal(t, enums.RequiredPlanFree, groupToPlan("vip"))
 }
 
-// ── context Set / Get ─────────────────────────────────────────────────────────
+// ---- context Set / Get ----
 
 func TestSetGet_RoundTrip(t *testing.T) {
 	c := newTestContext(t)
@@ -118,11 +149,11 @@ func TestGet_Missing(t *testing.T) {
 	assert.Nil(t, got)
 }
 
-// ── resolve — error paths ─────────────────────────────────────────────────────
+// ---- resolve - error paths ----
 
 func TestResolve_AnonymousUser_ReturnsAuthRequired(t *testing.T) {
 	c := newTestContext(t)
-	// userID not set → defaults to 0 → anonymous
+	// userID not set -> defaults to 0 -> anonymous
 	ctx, code := resolve(c, nil, "any-skill-id")
 	assert.Nil(t, ctx)
 	assert.Equal(t, errcodes.ErrAuthRequired, code)
@@ -131,7 +162,7 @@ func TestResolve_AnonymousUser_ReturnsAuthRequired(t *testing.T) {
 func TestResolve_DBNilWithNoContextUser_ReturnsInternalError(t *testing.T) {
 	c := newTestContext(t)
 	common.SetContextKey(c, constant.ContextKeyUserId, 5)
-	// No ContextKeyAirbotixUser → falls back to DB, but db=nil
+	// No ContextKeyAirbotixUser -> falls back to DB, but db=nil
 	ctx, code := resolve(c, nil, "any-skill-id")
 	assert.Nil(t, ctx)
 	assert.Equal(t, errcodes.ErrSkillInternalError, code)
@@ -144,7 +175,7 @@ func TestResolve_DisabledUser_ReturnsAuthRequired(t *testing.T) {
 	setContextUser(c, disabled)
 
 	database := newTestDB(t)
-	skill := insertSkill(t, database, defaultSkill())
+	skill, _ := insertRunnableSkill(t, database, defaultSkill())
 
 	ctx, code := resolve(c, database, skill.ID)
 	assert.Nil(t, ctx)
@@ -168,7 +199,7 @@ func TestResolve_DBNilAfterUserResolved_ReturnsInternalError(t *testing.T) {
 	user := enabledUser(12)
 	setContextUser(c, user) // user comes from context, not DB
 
-	// db=nil → skill lookup cannot proceed
+	// db=nil -> skill lookup cannot proceed
 	ctx, code := resolve(c, nil, "some-skill-id")
 	assert.Nil(t, ctx)
 	assert.Equal(t, errcodes.ErrSkillInternalError, code)
@@ -231,10 +262,10 @@ func TestResolve_NilActiveVersionID_ReturnsNotPublished(t *testing.T) {
 	ctx, code := resolve(c, database, skill.ID)
 	assert.Nil(t, ctx)
 	assert.Equal(t, errcodes.ErrSkillNotPublished, code,
-		"published skill with nil active_version_id must be blocked — no runnable version")
+		"published skill with nil active_version_id must be blocked - no runnable version")
 }
 
-// ── resolve — success paths ───────────────────────────────────────────────────
+// ---- resolve - success paths ----
 
 func TestResolve_Success_FreePlan(t *testing.T) {
 	c := newTestContext(t)
@@ -243,7 +274,7 @@ func TestResolve_Success_FreePlan(t *testing.T) {
 	setContextUser(c, user)
 
 	database := newTestDB(t)
-	skill := insertSkill(t, database, defaultSkill())
+	skill, _ := insertRunnableSkill(t, database, defaultSkill())
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -252,7 +283,7 @@ func TestResolve_Success_FreePlan(t *testing.T) {
 }
 
 // TestResolve_FreePlan_UserNotSkill is the cross-source guard for the Plan field.
-// A free user downloads a pro skill — Plan must be "free" (from user.Group),
+// A free user downloads a pro skill - Plan must be "free" (from user.Group),
 // NOT "pro" (from skill.RequiredPlan). If resolve() ever accidentally used
 // skill.RequiredPlan, this test would catch it (DR-81 anti-pattern: coincidentally
 // equal values in TestResolve_Success_FreePlan would mask the bug).
@@ -265,7 +296,7 @@ func TestResolve_FreePlan_UserNotSkill(t *testing.T) {
 	database := newTestDB(t)
 	proSkill := defaultSkill()
 	proSkill.RequiredPlan = enums.RequiredPlanPro
-	skill := insertSkill(t, database, proSkill)
+	skill, _ := insertRunnableSkill(t, database, proSkill)
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -281,7 +312,7 @@ func TestResolve_Success_ProPlan(t *testing.T) {
 	setContextUser(c, user)
 
 	database := newTestDB(t)
-	skill := insertSkill(t, database, defaultSkill())
+	skill, _ := insertRunnableSkill(t, database, defaultSkill())
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -296,7 +327,7 @@ func TestResolve_Success_EnterprisePlan(t *testing.T) {
 	setContextUser(c, user)
 
 	database := newTestDB(t)
-	skill := insertSkill(t, database, defaultSkill())
+	skill, _ := insertRunnableSkill(t, database, defaultSkill())
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -311,7 +342,7 @@ func TestResolve_KidsSession_Propagated(t *testing.T) {
 	setContextUser(c, user)
 
 	database := newTestDB(t)
-	skill := insertSkill(t, database, defaultSkill())
+	skill, _ := insertRunnableSkill(t, database, defaultSkill())
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -326,7 +357,7 @@ func TestResolve_NonKidsSession_Propagated(t *testing.T) {
 	setContextUser(c, user)
 
 	database := newTestDB(t)
-	skill := insertSkill(t, database, defaultSkill())
+	skill, _ := insertRunnableSkill(t, database, defaultSkill())
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -340,7 +371,7 @@ func TestResolve_SubActiveAlwaysTrue(t *testing.T) {
 	setContextUser(c, user)
 
 	database := newTestDB(t)
-	skill := insertSkill(t, database, defaultSkill())
+	skill, _ := insertRunnableSkill(t, database, defaultSkill())
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -354,7 +385,7 @@ func TestResolve_RequestIDNotEmpty(t *testing.T) {
 	setContextUser(c, user)
 
 	database := newTestDB(t)
-	skill := insertSkill(t, database, defaultSkill())
+	skill, _ := insertRunnableSkill(t, database, defaultSkill())
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -364,7 +395,7 @@ func TestResolve_RequestIDNotEmpty(t *testing.T) {
 
 func TestResolve_TwoRequestsGetDistinctRequestIDs(t *testing.T) {
 	database := newTestDB(t)
-	skill := insertSkill(t, database, defaultSkill())
+	skill, _ := insertRunnableSkill(t, database, defaultSkill())
 
 	makeCtx := func(uid int) *gin.Context {
 		c := newTestContext(t)
@@ -387,7 +418,7 @@ func TestResolve_ContextFieldsPopulated(t *testing.T) {
 	setContextUser(c, user)
 
 	database := newTestDB(t)
-	skill := insertSkill(t, database, defaultSkill())
+	skill, version := insertRunnableSkill(t, database, defaultSkill())
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -395,11 +426,20 @@ func TestResolve_ContextFieldsPopulated(t *testing.T) {
 
 	assert.Equal(t, skill.ID, skillCtx.SkillID)
 	assert.Equal(t, 40, skillCtx.UserID)
+	assert.Equal(t, version.ID, skillCtx.SkillVersionID)
 	assert.Equal(t, enums.RequiredPlanPro, skillCtx.Plan)
 	assert.True(t, skillCtx.IsKidsSession)
 	assert.True(t, skillCtx.SubActive)
 	assert.NotNil(t, skillCtx.Skill)
+	assert.NotNil(t, skillCtx.SkillVersion)
 	assert.Equal(t, skill.ID, skillCtx.Skill.ID)
+	assert.Equal(t, version.ID, skillCtx.SkillVersion.ID)
+	assert.Equal(t, version.InstructionTemplate, skillCtx.SkillVersion.InstructionTemplate)
+	assert.Equal(t, version.RequiredPlanSnapshot, skillCtx.SkillVersion.RequiredPlanSnapshot)
+	assert.Equal(t, string(version.ModelWhitelistSnapshot), string(skillCtx.SkillVersion.ModelWhitelistSnapshot))
+	assert.Equal(t, string(version.MonetizationSnapshot), string(skillCtx.SkillVersion.MonetizationSnapshot))
+	require.NotNil(t, skillCtx.SkillVersion.MaxInputTokensSnapshot)
+	assert.Equal(t, *version.MaxInputTokensSnapshot, *skillCtx.SkillVersion.MaxInputTokensSnapshot)
 }
 
 // TestResolve_UserFromDB verifies the DB fallback path:
@@ -418,10 +458,10 @@ func TestResolve_UserFromDB(t *testing.T) {
 	}
 	require.NoError(t, database.Create(dbUser).Error)
 
-	skill := insertSkill(t, database, defaultSkill())
+	skill, _ := insertRunnableSkill(t, database, defaultSkill())
 
 	c := newTestContext(t)
-	// Only set user_id; do NOT set ContextKeyAirbotixUser — forces DB fallback.
+	// Only set user_id; do NOT set ContextKeyAirbotixUser -> forces DB fallback.
 	common.SetContextKey(c, constant.ContextKeyUserId, 99)
 
 	skillCtx, code := resolve(c, database, skill.ID)
@@ -437,14 +477,14 @@ func TestResolve_UserFromDB(t *testing.T) {
 // from the validated auth context and not from any client-provided field.
 // The resolver must not read user identity from the request body.
 func TestResolve_T21_UserIDFromContextOnly(t *testing.T) {
-	// Two different users — only the one set in context should be used.
+	// Two different users - only the one set in context should be used.
 	c := newTestContext(t)
 	trustedUser := enabledUser(50)
 	trustedUser.Group = "pro"
 	setContextUser(c, trustedUser)
 
 	database := newTestDB(t)
-	skill := insertSkill(t, database, defaultSkill())
+	skill, _ := insertRunnableSkill(t, database, defaultSkill())
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -455,12 +495,12 @@ func TestResolve_T21_UserIDFromContextOnly(t *testing.T) {
 	assert.Equal(t, enums.RequiredPlanPro, skillCtx.Plan)
 }
 
-// ── exported Resolve wrapper ──────────────────────────────────────────────────
+// ---- exported Resolve wrapper ----
 
 // TestResolve_ExportedWrapper_NilPackageDB verifies that the exported Resolve()
 // function delegates to resolve() and correctly propagates errors through the
 // package-level db. In tests the package-level db is never set (SetDB not called),
-// so a request with a context user but no db → SKILL_INTERNAL_ERROR.
+// so a request with a context user but no db -> SKILL_INTERNAL_ERROR.
 func TestResolve_ExportedWrapper_NilPackageDB(t *testing.T) {
 	// Confirm: package-level db was never set in this test binary.
 	// (SetDB is never called in any test; db starts as nil.)
@@ -475,13 +515,13 @@ func TestResolve_ExportedWrapper_NilPackageDB(t *testing.T) {
 	assert.Equal(t, errcodes.ErrSkillInternalError, code)
 }
 
-// ── return invariant ──────────────────────────────────────────────────────────
+// ---- return invariant ----
 
 // TestResolveReturnInvariant asserts the hard contract of resolve():
 // exactly one of the following is always true for every code path:
 //
-//	(ctx == nil  AND errCode != "") — failure
-//	(ctx != nil  AND errCode == "") — success
+//	(ctx == nil  AND errCode != "") - failure
+//	(ctx != nil  AND errCode == "") - success
 //
 // This mirrors the DR-72 lesson where a non-nil result was returned with a
 // misleading zero-value field. A future change that returns (nil, "") would
@@ -489,7 +529,7 @@ func TestResolve_ExportedWrapper_NilPackageDB(t *testing.T) {
 // doing ctx.UserID would panic.
 func TestResolveReturnInvariant(t *testing.T) {
 	database := newTestDB(t)
-	validSkill := insertSkill(t, database, defaultSkill())
+	validSkill, _ := insertRunnableSkill(t, database, defaultSkill())
 
 	type testCase struct {
 		name    string
@@ -501,7 +541,7 @@ func TestResolveReturnInvariant(t *testing.T) {
 			name: "anonymous user",
 			setupFn: func() (*gin.Context, *gorm.DB, string) {
 				c := newTestContext(t)
-				// no userID → anonymous
+				// no userID -> anonymous
 				return c, database, validSkill.ID
 			},
 		},
@@ -554,8 +594,8 @@ func TestResolveReturnInvariant(t *testing.T) {
 			c, db, skillID := tc.setupFn()
 			ctx, errCode := resolve(c, db, skillID)
 
-			// Invariant A: failure → ctx nil, errCode non-empty
-			// Invariant B: success → ctx non-nil, errCode empty
+			// Invariant A: failure -> ctx nil, errCode non-empty
+			// Invariant B: success -> ctx non-nil, errCode empty
 			if errCode != "" {
 				assert.Nil(t, ctx,
 					"when errCode=%q, ctx MUST be nil (storing nil via Set causes downstream panic)", errCode)
@@ -566,18 +606,18 @@ func TestResolveReturnInvariant(t *testing.T) {
 			}
 			// The two outcomes must be mutually exclusive.
 			assert.Equal(t, ctx == nil, errCode != "",
-				"(ctx==nil) must equal (errCode!='') — invariant violated")
+				"(ctx==nil) must equal (errCode!='') - invariant violated")
 		})
 	}
 }
 
-// ── SetDB wiring ──────────────────────────────────────────────────────────────
+// ---- SetDB wiring ----
 
 // TestSetDB_Wiring confirms that SetDB stores exactly the supplied *gorm.DB in
 // the package-level var and that the var is nil before SetDB is called (ensuring
 // no earlier test accidentally initialised it).
 func TestSetDB_Wiring(t *testing.T) {
-	require.Nil(t, db, "package-level db must be nil before SetDB — earlier test must not have called SetDB")
+	require.Nil(t, db, "package-level db must be nil before SetDB - earlier test must not have called SetDB")
 
 	database := newTestDB(t)
 	SetDB(database)

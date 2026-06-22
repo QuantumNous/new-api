@@ -44,8 +44,8 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		c.Set("chat_completion_web_search_context_size", request.WebSearchOptions.SearchContextSize)
 	}
 
-	// DR-64: skill relay entry point — resolve user identity and load the target Skill
-	// for requests that carry deeprouter.skill_id (tasks/05 §5.1 steps 1-6).
+	// DR-64: skill relay entry point - resolve user identity and load the target Skill
+	// for requests that carry deeprouter.skill_id (tasks/05 section 5.1 steps 1-6).
 	// Anonymous callers are rejected here with AUTH_REQUIRED before any prompt load.
 	publicRoutingAPI := common.GetContextKeyBool(c, constant.ContextKeySkillPublicRoutingAPI)
 	if publicRoutingAPI && (request.Deeprouter == nil || request.Deeprouter.SkillID == "") {
@@ -67,7 +67,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			// ran, SkillRelayContext has a pinned SkillVersionID. Re-calling Resolve
 			// would return a fresh zero-SkillVersionID context; skillrelay.Set below
 			// would overwrite the pin, causing the LoadAndApply block to re-load the
-			// snapshot — which may differ from the one used for channel selection if
+			// snapshot - which may differ from the one used for channel selection if
 			// active_version_id changed between Distribute and TextHelper.
 			// Direct path (unit tests / non-Distribute callers): no context exists yet.
 			var skillCtx *skillrelay.SkillRelayContext
@@ -85,7 +85,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 				}
 				skillCtx = resolved
 			}
-			// Carry entry_point into relay context for analytics (tasks/03 §9).
+			// Carry entry_point into relay context for analytics (tasks/03 section 9).
 			// Package routing API forces skill_package so package-provided values
 			// cannot spoof analytics surfaces; regular relay keeps the explicit enum.
 			skillCtx.EntryPoint = string(enums.EntryPointPlaygroundPicker)
@@ -117,7 +117,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	//      called LoadAndApply and replaced the request body, so request.Model is the
 	//      server whitelist model (e.g. "deeprouter-auto") by the time we reach here.
 	//      Kids-mode filtering against virtual alias names is intentionally out of scope
-	//      for V1 (DR-68 PRD §kids-session); the Distribute path's rewrite is applied
+	//      for V1 (DR-68 PRD section kids-session); the Distribute path's rewrite is applied
 	//      before channel model_mapping so a kids_mode whitelist entry for a real model
 	//      name is still honoured once smart-router resolves the virtual alias.
 	//      TODO(DR-68-kids): assert that no virtual alias (e.g. "deeprouter-auto")
@@ -135,15 +135,14 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	// (server-authoritative model selection + FR-G19 single-turn enforcement).
 	//
 	// Two paths:
-	//   a) Direct (unit tests / non-Distribute callers): SkillVersionID is empty.
-	//      LoadAndApply fetches the snapshot and rewrites the request here.
-	//      Runs after applyAirbotixPolicy so kids-mode sees the original client model.
-	//   b) Distribute path: prepareSkillRelayForDistribution already called LoadAndApply
-	//      and set SkillVersionID. Re-loading here would be a TOCTOU race — if
-	//      active_version_id changed between Distribute and TextHelper, the provider
-	//      payload would be rebuilt from a different snapshot than the channel was
-	//      selected for, breaking server-authoritative routing. Skip the reload.
-	if skillCtx, isSkill := skillrelay.Get(c); isSkill && skillCtx.SkillVersionID == "" {
+	//   a) Direct (unit tests / non-Distribute callers): Resolve already bound the
+	//      immutable SkillVersion snapshot; LoadAndApply consumes it here and rewrites
+	//      the request after applyAirbotixPolicy so kids-mode sees the original model.
+	//   b) Distribute path: prepareSkillRelayForDistribution may have already rewritten
+	//      the request and stored the bound SkillVersion snapshot. Re-running
+	//      LoadAndApply here is safe because it consumes that bound snapshot instead
+	//      of resolving mutable active_version_id state again.
+	if skillCtx, isSkill := skillrelay.Get(c); isSkill && (skillCtx.SkillVersion != nil || skillCtx.SkillVersionID == "") {
 		rewritten, execErrCode := skillrelay.LoadAndApply(skillCtx, request)
 		if execErrCode != "" {
 			return types.NewErrorWithStatusCode(
@@ -218,8 +217,8 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	if passThroughGlobal || info.ChannelSetting.PassThroughBodyEnabled {
 		// Pass-through sends raw BodyStorage bytes directly to the provider, bypassing
 		// the Go struct. The request.Deeprouter = nil strip above has no effect on the
-		// already-buffered raw body, so any deeprouter vendor extension — including
-		// partial extensions without a skill_id — would be forwarded upstream unchanged.
+		// already-buffered raw body, so any deeprouter vendor extension  including
+		// partial extensions without a skill_id  would be forwarded upstream unchanged.
 		// Reject any request that carried a deeprouter extension.
 		if hadDeeprouterExtension {
 			return types.NewErrorWithStatusCode(
@@ -363,7 +362,7 @@ func skillRelayErrType(errCode errcodes.ErrorCode) types.ErrorCode {
 		return types.ErrorCodeAccessDenied
 	case http.StatusNotFound, http.StatusBadRequest:
 		return types.ErrorCodeInvalidRequest
-	default: // 429, 500, 504, …
+	default: // 429, 500, 504,
 		return types.ErrorCodeDoRequestFailed
 	}
 }
