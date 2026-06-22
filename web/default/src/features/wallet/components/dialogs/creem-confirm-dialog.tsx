@@ -30,7 +30,6 @@ import {
 } from '@/components/ui/dialog'
 import { formatCreemPrice } from '../../lib/format'
 import type { CreemProduct } from '../../types'
-import { cn } from '@/lib/utils'
 import {
   walletDialogDescriptionClassName,
   walletMutedTextClassName,

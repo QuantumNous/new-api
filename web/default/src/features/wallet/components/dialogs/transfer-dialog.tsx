@@ -32,7 +32,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { QUOTA_PER_DOLLAR } from '../../constants'
-import { cn } from '@/lib/utils'
 import {
   walletDialogDescriptionClassName,
   walletMutedLabelClassName,
