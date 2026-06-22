@@ -394,6 +394,23 @@ func extractVideoURL(env *taskEnvelope) string {
 	return ""
 }
 
+func failureMessageFromTask(task *model.Task) string {
+	if msg := strings.TrimSpace(task.FailReason); msg != "" {
+		return msg
+	}
+	var env taskEnvelope
+	if err := common.Unmarshal(task.Data, &env); err != nil {
+		return ""
+	}
+	if env.Data.Error != nil && strings.TrimSpace(env.Data.Error.Message) != "" {
+		return strings.TrimSpace(env.Data.Error.Message)
+	}
+	if env.Error != nil && strings.TrimSpace(env.Error.Message) != "" {
+		return strings.TrimSpace(env.Error.Message)
+	}
+	return ""
+}
+
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	out := map[string]any{
 		"id":     task.TaskID,
@@ -406,6 +423,14 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	}
 	if task.Status == model.TaskStatusSuccess {
 		out["url"] = task.GetResultURL()
+	}
+	if task.Status == model.TaskStatusFailure {
+		if msg := failureMessageFromTask(task); msg != "" {
+			out["error"] = map[string]string{
+				"code":    "task_failed",
+				"message": msg,
+			}
+		}
 	}
 	return common.Marshal(out)
 }
