@@ -14,7 +14,7 @@ export function generateStaticParams() {
 export async function generateMetadata(props: Props) {
   const params = await props.params;
   if (!isLocale(params.locale)) return {};
-  const post = await getBlogPost(params.slug);
+  const post = await getBlogPost(params.slug, params.locale);
   const copy = getCopy(params.locale).blog;
   return buildMetadata({
     title: post?.title ?? copy.articleFallbackTitle,
