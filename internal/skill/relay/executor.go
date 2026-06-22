@@ -10,7 +10,7 @@ package skillrelay
 //   - Provider call contains only instruction_template + last user message (no history).
 //   - Provider credentials stay server-side; instruction_template is not a secret (R2/D-09).
 //   - Downstream execution must consume the request-entry-bound snapshot and must not
-//     re-resolve mutable active_version_id state.
+//     re-resolve mutable skill version pointer state.
 
 import (
 	"github.com/QuantumNous/new-api/common"
@@ -63,11 +63,11 @@ type versionSnapshot struct {
 	ModelWhitelist      []string
 }
 
-// loadSnapshot consumes the SkillVersion snapshot bound by Resolve at request entry.
-// If the bound snapshot is absent, fail closed instead of re-reading mutable
-// active_version_id state from Skill.
-func loadSnapshot(database *gorm.DB, ctx *SkillRelayContext) (*versionSnapshot, errcodes.ErrorCode) {
-	if database == nil || ctx == nil || ctx.Skill == nil || ctx.Skill.ActiveVersionID == nil {
+// loadSnapshot consumes only the SkillVersion snapshot bound by Resolve at request
+// entry. If the bound snapshot is absent, fail closed instead of inspecting mutable
+// Skill state.
+func loadSnapshot(_ *gorm.DB, ctx *SkillRelayContext) (*versionSnapshot, errcodes.ErrorCode) {
+	if ctx == nil {
 		return nil, errcodes.ErrSkillInternalError
 	}
 	if ctx.SkillVersion == nil {

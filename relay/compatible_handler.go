@@ -216,8 +216,8 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	if passThroughGlobal || info.ChannelSetting.PassThroughBodyEnabled {
 		// Pass-through sends raw BodyStorage bytes directly to the provider, bypassing
 		// the Go struct. The request.Deeprouter = nil strip above has no effect on the
-		// already-buffered raw body, so any deeprouter vendor extension ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â including
-		// partial extensions without a skill_id ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â would be forwarded upstream unchanged.
+		// already-buffered raw body, so any deeprouter vendor extension  including
+		// partial extensions without a skill_id  would be forwarded upstream unchanged.
 		// Reject any request that carried a deeprouter extension.
 		if hadDeeprouterExtension {
 			return types.NewErrorWithStatusCode(
@@ -361,7 +361,7 @@ func skillRelayErrType(errCode errcodes.ErrorCode) types.ErrorCode {
 		return types.ErrorCodeAccessDenied
 	case http.StatusNotFound, http.StatusBadRequest:
 		return types.ErrorCodeInvalidRequest
-	default: // 429, 500, 504, ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦
+	default: // 429, 500, 504,
 		return types.ErrorCodeDoRequestFailed
 	}
 }
