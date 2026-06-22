@@ -5117,6 +5117,15 @@
     "Get my API key": "Lấy khóa API của tôi",
     "View quickstart": "Xem hướng dẫn nhanh",
     "Dismiss": "Đóng",
-    "Account created!": "Đã tạo tài khoản!"
+    "Account created!": "Đã tạo tài khoản!",
+    "Eligible user groups": "Nhóm người dùng đủ điều kiện",
+    "All user groups": "Tất cả nhóm người dùng",
+    "No groups (not granted)": "Chưa chọn nhóm (không tặng)",
+    "all (every group)": "all (mọi nhóm)",
+    "{{count}} groups": "{{count}} nhóm",
+    "Bonus is granted only to the selected user groups. Leave groups empty to grant to nobody; pick \"all\" to grant to every group.": "Tiền thưởng chỉ được tặng cho các nhóm người dùng đã chọn. Để trống nghĩa là không tặng cho ai; chọn “all” để tặng cho mọi nhóm.",
+    "Tip: pick eligible user groups here. To change a tier later, click edit on its row.": "Mẹo: chọn nhóm người dùng đủ điều kiện tại đây. Để thay đổi một mức sau này, nhấn sửa ở hàng của mức đó.",
+    "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "Danh sách trắng các nhóm đủ điều kiện nhận thưởng theo từng mức (đối tượng JSON). Mảng rỗng = không ai; [\"all\"] = mọi nhóm.",
+    "A bonus tier with this recharge amount already exists.": "Đã tồn tại một mức thưởng với số tiền nạp này."
   }
 }

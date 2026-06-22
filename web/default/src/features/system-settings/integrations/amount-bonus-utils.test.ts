@@ -18,10 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
 import {
+  getAmountBonusGroupsJsonError,
   getAmountBonusJsonError,
   getAmountBonusLimitJsonError,
+  parseAmountBonusGroupsJson,
   parseAmountBonusJson,
   parseAmountBonusLimitJson,
+  removeAmountBonusGroups,
+  setAmountBonusGroups,
   setAmountBonusLimit,
   upsertAmountBonusTier,
 } from './amount-bonus-utils'
@@ -79,6 +83,41 @@ describe('amount bonus settings helpers', () => {
     // 0 表示不限 → 从配置移除
     expect(setAmountBonusLimit('{"20":2,"50":1}', 20, 0)).toBe(
       '{\n  "50": 1\n}'
+    )
+  })
+
+  test('validates bonus-group JSON as amount-to-string-array map', () => {
+    expect(getAmountBonusGroupsJsonError('{"20":["plg"],"50":["all"]}')).toBeNull()
+    expect(getAmountBonusGroupsJsonError('{"20":[]}')).toBeNull() // 空数组合法（显式不送）
+    expect(getAmountBonusGroupsJsonError('')).toBeNull()
+    expect(getAmountBonusGroupsJsonError('{"20":"plg"}')).not.toBeNull() // 值必须是数组
+    expect(getAmountBonusGroupsJsonError('{"20":[""]}')).not.toBeNull() // 组名不能为空
+    expect(getAmountBonusGroupsJsonError('{"20.5":["plg"]}')).not.toBeNull()
+    expect(getAmountBonusGroupsJsonError('{"20":[1]}')).not.toBeNull()
+  })
+
+  test('parses bonus-group JSON into a numeric record, trimming names', () => {
+    expect(
+      parseAmountBonusGroupsJson('{"20":["plg"," vip "],"bad":["x"],"50":[]}')
+    ).toEqual({
+      20: ['plg', 'vip'],
+      50: [],
+    })
+  })
+
+  test('setAmountBonusGroups upserts a tier whitelist, keeping empty arrays', () => {
+    expect(setAmountBonusGroups('{"20":["plg"]}', 50, ['all'])).toBe(
+      '{\n  "20": [\n    "plg"\n  ],\n  "50": [\n    "all"\n  ]\n}'
+    )
+    // 空数组语义为「显式配置为不送」，保留而非删除
+    expect(setAmountBonusGroups('{"20":["plg"]}', 20, [])).toBe(
+      '{\n  "20": []\n}'
+    )
+  })
+
+  test('removeAmountBonusGroups drops a tier whitelist entirely', () => {
+    expect(removeAmountBonusGroups('{"20":["plg"],"50":["all"]}', 20)).toBe(
+      '{\n  "50": [\n    "all"\n  ]\n}'
     )
   })
 })
