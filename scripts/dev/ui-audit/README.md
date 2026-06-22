@@ -125,6 +125,48 @@ UI_AUDIT_PASSWORD='DevUi@123456' \
 node scripts/dev/ui-audit/playwright-page-audit.mjs
 ```
 
+### 单页截图验收：`/dashboard/overview`
+
+用于 UI 改完后的**视觉验收**（禁止仅用 HTTP 200 / diff 推断）：
+
+```bash
+BASE_URL=http://192.168.18.94:3001 \
+UI_AUDIT_USERNAME=<本机有效账号> \
+UI_AUDIT_PASSWORD='<密码>' \
+bash scripts/dev/ui-audit/capture-overview.sh
+```
+
+或：
+
+```bash
+node scripts/dev/ui-audit/capture-overview.mjs
+```
+
+**产出：**
+
+| 路径 | 说明 |
+|------|------|
+| `scripts/dev/ui-audit/artifacts/dashboard-overview-latest.png` | 主产物（gitignore） |
+| `docs/checklists/ui-snapshots/dashboard-overview-latest.png` | 同步副本，便于对照参考图 |
+| `scripts/dev/ui-audit/artifacts/dashboard-overview-meta.json` | 登录/导航/结构检查元数据 |
+
+**视口：** 1440×900，`fullPage` 截图。
+
+**凭据（勿提交仓库）：**
+
+1. 环境变量 `UI_AUDIT_USERNAME` / `UI_AUDIT_PASSWORD`（推荐）
+2. 或 gitignore 文件 `scripts/dev/ui-audit/.env.local`（见 `.env.local.example`）
+
+94 本机若未执行 `DEV_SEED=1 ./scripts/dev/seed-ui-acceptance.sh`，文档中的 `aioc_demo_zhang` 可能不存在；请使用数据库中已有账号（如 `admin`、`laohao`）或先 seed。
+
+**Playwright 浏览器：** 若报 `Executable doesn't exist`，在本机执行一次：
+
+```bash
+cd web/default && npm exec playwright install chromium
+```
+
+若 Ubuntu 版本过新导致 install 失败，可复用已有 revision（例如 symlink `chromium_headless_shell-1223` → 已安装的 `-1228`）。
+
 ---
 
 ## 演示模式可见性
@@ -163,3 +205,26 @@ DEV_SEED=1 ./scripts/dev/seed-ui-acceptance.sh
 | `screenshot-ui-acceptance.sh` | 调用 Playwright 页面验收 |
 | `playwright-page-audit.mjs` | 截图 + `innerText` 扫描 + 页面报告 |
 | `playwright-screenshots.mjs` | 兼容包装（转调 page-audit） |
+| `capture-overview.mjs` | **单页** `/dashboard/overview` 截图 + 结构检查 |
+| `capture-overview.sh` | 调用 capture-overview.mjs |
+| `capture-page-quality.mjs` | **全量** 页面质量截图 + 视觉启发式审计 |
+| `capture-page-quality.sh` | 调用 capture-page-quality.mjs |
+
+### 全量页面质量审计
+
+```bash
+BASE_URL=http://192.168.18.94:3001 \
+UI_AUDIT_USERNAME=admin \
+UI_AUDIT_PASSWORD='<密码>' \
+bash scripts/dev/ui-audit/capture-page-quality.sh
+```
+
+**产出：**
+
+| 路径 | 说明 |
+|------|------|
+| `scripts/dev/ui-audit/artifacts/page-quality/*.png` | 各页 1440×900 视口截图 |
+| `docs/checklists/ui-snapshots/page-quality/*.png` | 截图副本 |
+| `scripts/dev/ui-audit/artifacts/ui-full-page-quality-audit-latest.json` | JSON 审计报告 |
+| `docs/checklists/ui-full-page-quality-audit-latest.md` | Markdown 审计报告 |
+
