@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Image as ImageIcon } from 'lucide-react';
 import {
   Button,
   Card,
@@ -75,6 +76,20 @@ const isAllowedZipUrl = (value) => {
     return false;
   }
 };
+
+const isAllowedIconFile = (file) => {
+  if (!file) return false;
+  if (['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    return true;
+  }
+  return /\.(png|jpe?g|webp)$/i.test(file.name || '');
+};
+
+const isImageIcon = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .startsWith('https://');
 
 const skillToForm = (skill) => ({
   ...defaultForm,
@@ -178,7 +193,9 @@ const SkillHub = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [iconUploading, setIconUploading] = useState(false);
   const zipInputRef = useRef(null);
+  const iconInputRef = useRef(null);
 
   const selectedSkill = useMemo(
     () => skills.find((skill) => skill.id === selectedId),
@@ -291,6 +308,37 @@ const SkillHub = () => {
       setUploading(false);
       if (zipInputRef.current) {
         zipInputRef.current.value = '';
+      }
+    }
+  };
+
+  const uploadIcon = async (file) => {
+    if (!file) return;
+    if (!form.id.trim()) {
+      showError('请先填写 Skill ID');
+      return;
+    }
+    if (!isAllowedIconFile(file)) {
+      showError('请上传 png、jpg、jpeg 或 webp 图片');
+      return;
+    }
+    setIconUploading(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      body.append('skill_id', form.id);
+      const res = await API.post('/api/admin/skill-hub/upload-icon', body);
+      const { success, data, message } = res.data;
+      if (!success || !data) {
+        showError(message || '图标上传失败');
+        return;
+      }
+      updateForm('icon', data.url);
+      showSuccess('图标已上传');
+    } finally {
+      setIconUploading(false);
+      if (iconInputRef.current) {
+        iconInputRef.current.value = '';
       }
     }
   };
@@ -429,11 +477,36 @@ const SkillHub = () => {
                   />
                 </Field>
                 <Field label='图标'>
-                  <Input
-                    value={form.icon}
-                    placeholder='可填 URL 或 emoji'
-                    onChange={(value) => updateForm('icon', value)}
-                  />
+                  <div className='flex gap-2'>
+                    <div className='flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded border border-semi-color-border bg-semi-color-fill-0 text-semi-color-text-2'>
+                      {isImageIcon(form.icon) ? (
+                        <img
+                          src={form.icon}
+                          alt=''
+                          referrerPolicy='no-referrer'
+                          className='h-full w-full object-cover'
+                        />
+                      ) : (
+                        <ImageIcon size={16} />
+                      )}
+                    </div>
+                    <div className='flex min-w-0 flex-1 items-center truncate rounded border border-semi-color-border bg-semi-color-fill-0 px-3 text-xs text-semi-color-text-2'>
+                      {form.icon.trim() || '未上传图标'}
+                    </div>
+                    <input
+                      ref={iconInputRef}
+                      type='file'
+                      accept='image/png,image/jpeg,image/webp'
+                      className='hidden'
+                      onChange={(event) => uploadIcon(event.target.files?.[0])}
+                    />
+                    <Button
+                      loading={iconUploading}
+                      onClick={() => iconInputRef.current?.click()}
+                    >
+                      上传
+                    </Button>
+                  </div>
                 </Field>
                 <Field label='排序'>
                   <Input
@@ -641,7 +714,7 @@ const SkillHub = () => {
                 <Button
                   type='primary'
                   loading={saving}
-                  disabled={uploading}
+                  disabled={uploading || iconUploading}
                   onClick={handleSave}
                 >
                   保存

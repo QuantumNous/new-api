@@ -87,6 +87,21 @@ export async function uploadSkillHubZip(
   return res.data
 }
 
+export async function uploadSkillHubIcon(
+  file: File,
+  form: Pick<SkillHubForm, 'id'>
+): Promise<{
+  success: boolean
+  message?: string
+  data?: { url: string; object: string; size: number; checksum: string }
+}> {
+  const body = new FormData()
+  body.append('file', file)
+  body.append('skill_id', form.id)
+  const res = await api.post('/api/admin/skill-hub/upload-icon', body)
+  return res.data
+}
+
 export function skillToForm(skill?: SkillHubSkill): SkillHubForm {
   return {
     id: skill?.id || '',

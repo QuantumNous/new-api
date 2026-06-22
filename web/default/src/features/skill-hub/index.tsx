@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Check,
   FileArchive,
+  ImageIcon,
   MessageCircle,
   Plus,
   RefreshCw,
@@ -47,6 +48,7 @@ import {
   listAdminSkillHubSkills,
   setSkillHubSkillPublished,
   skillToForm,
+  uploadSkillHubIcon,
   updateSkillHubSkill,
   uploadSkillHubZip,
 } from './api'
@@ -60,8 +62,10 @@ export function SkillHub() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [iconUploading, setIconUploading] = useState(false)
   const [keyword, setKeyword] = useState('')
   const zipInputRef = useRef<HTMLInputElement | null>(null)
+  const iconInputRef = useRef<HTMLInputElement | null>(null)
 
   const selected = useMemo(
     () => skills.find((skill) => skill.id === selectedId),
@@ -157,6 +161,36 @@ export function SkillHub() {
       setUploading(false)
       if (zipInputRef.current) {
         zipInputRef.current.value = ''
+      }
+    }
+  }
+
+  async function uploadIcon(file?: File) {
+    if (!file) return
+    if (!form.id.trim()) {
+      toast.error(t('Please enter Skill ID before uploading'))
+      return
+    }
+    if (!isAllowedIconFile(file)) {
+      toast.error(t('Please upload a png, jpg, jpeg, or webp image'))
+      return
+    }
+    setIconUploading(true)
+    try {
+      const payload = await uploadSkillHubIcon(file, form)
+      if (!payload.success || !payload.data) {
+        throw new Error(payload.message || t('Failed to upload icon'))
+      }
+      update('icon', payload.data.url)
+      toast.success(t('Icon uploaded'))
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to upload icon')
+      )
+    } finally {
+      setIconUploading(false)
+      if (iconInputRef.current) {
+        iconInputRef.current.value = ''
       }
     }
   }
@@ -332,11 +366,44 @@ export function SkillHub() {
                         }
                       />
                     </Field>
-                    <Field label={t('Icon URL')}>
-                      <Input
-                        value={form.icon}
-                        onChange={(event) => update('icon', event.target.value)}
-                      />
+                    <Field label={t('Icon')}>
+                      <div className='flex gap-2'>
+                        <div className='bg-muted flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border text-sm'>
+                          {isImageIcon(form.icon) ? (
+                            <img
+                              src={form.icon}
+                              alt=''
+                              className='h-full w-full object-cover'
+                              referrerPolicy='no-referrer'
+                            />
+                          ) : (
+                            <ImageIcon className='text-muted-foreground h-4 w-4' />
+                          )}
+                        </div>
+                        <div className='bg-muted text-muted-foreground flex min-w-0 flex-1 items-center truncate rounded-md border px-3 text-xs'>
+                          {form.icon.trim()
+                            ? form.icon.trim()
+                            : t('No icon uploaded')}
+                        </div>
+                        <input
+                          ref={iconInputRef}
+                          type='file'
+                          accept='image/png,image/jpeg,image/webp'
+                          className='hidden'
+                          onChange={(event) =>
+                            void uploadIcon(event.target.files?.[0])
+                          }
+                        />
+                        <Button
+                          type='button'
+                          variant='outline'
+                          disabled={iconUploading}
+                          onClick={() => iconInputRef.current?.click()}
+                        >
+                          <ImageIcon className='h-4 w-4' />
+                          {iconUploading ? t('Uploading') : t('Upload')}
+                        </Button>
+                      </div>
                     </Field>
                     <Field label={t('Tags')}>
                       <Input
@@ -558,7 +625,10 @@ export function SkillHub() {
                       </>
                     )}
                   </div>
-                  <Button disabled={saving || uploading} onClick={saveSkill}>
+                  <Button
+                    disabled={saving || uploading || iconUploading}
+                    onClick={saveSkill}
+                  >
                     <Save className='h-4 w-4' />
                     {saving ? t('Saving') : t('Save skill')}
                   </Button>
@@ -581,6 +651,18 @@ function isAllowedZipUrl(value: string) {
   } catch {
     return false
   }
+}
+
+function isAllowedIconFile(file: File) {
+  if (['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    return true
+  }
+  return /\.(png|jpe?g|webp)$/i.test(file.name)
+}
+
+function isImageIcon(value: string) {
+  const trimmed = value.trim().toLowerCase()
+  return trimmed.startsWith('https://')
 }
 
 function Field(props: { label: string; children: ReactNode }) {

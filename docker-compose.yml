@@ -39,6 +39,18 @@ services:
 #      - GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX  # Google Analytics 的测量 ID (Google Analytics Measurement ID)
 #      - UMAMI_WEBSITE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Umami 网站 ID (Umami Website ID)
 #      - UMAMI_SCRIPT_URL=https://analytics.umami.is/script.js  # Umami 脚本 URL，默认为官方地址 (Umami Script URL, defaults to official URL)
+#      - SKILL_HUB_OSS_ENDPOINT=${SKILL_HUB_OSS_ENDPOINT:-}  # Skill Hub Zip OSS endpoint
+#      - SKILL_HUB_OSS_BUCKET=${SKILL_HUB_OSS_BUCKET:-}  # Skill Hub private Zip bucket
+#      - SKILL_HUB_OSS_ACCESS_KEY_ID=${SKILL_HUB_OSS_ACCESS_KEY_ID:-}
+#      - SKILL_HUB_OSS_ACCESS_KEY_SECRET=${SKILL_HUB_OSS_ACCESS_KEY_SECRET:-}
+#      - SKILL_HUB_OSS_PREFIX=${SKILL_HUB_OSS_PREFIX:-skill-hub/skills}
+#      - SKILL_HUB_OSS_SIGNED_URL_EXPIRES_SECONDS=${SKILL_HUB_OSS_SIGNED_URL_EXPIRES_SECONDS:-600}
+#      - SKILL_HUB_OSS_ICON_ENDPOINT=${SKILL_HUB_OSS_ICON_ENDPOINT:-}  # Skill Hub icon OSS endpoint
+#      - SKILL_HUB_OSS_ICON_BUCKET=${SKILL_HUB_OSS_ICON_BUCKET:-}  # Public-read icon bucket
+#      - SKILL_HUB_OSS_ICON_ACCESS_KEY_ID=${SKILL_HUB_OSS_ICON_ACCESS_KEY_ID:-}  # Optional; falls back to SKILL_HUB_OSS_ACCESS_KEY_ID
+#      - SKILL_HUB_OSS_ICON_ACCESS_KEY_SECRET=${SKILL_HUB_OSS_ICON_ACCESS_KEY_SECRET:-}  # Optional; falls back to SKILL_HUB_OSS_ACCESS_KEY_SECRET
+#      - SKILL_HUB_OSS_ICON_PREFIX=${SKILL_HUB_OSS_ICON_PREFIX:-skill-hub/icons}
+#      - SKILL_HUB_OSS_ICON_PUBLIC_BASE_URL=${SKILL_HUB_OSS_ICON_PUBLIC_BASE_URL:-}  # Stable public HTTPS URL base for connector icons
 
     depends_on:
       - redis
