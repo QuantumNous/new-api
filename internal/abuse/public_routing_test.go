@@ -2,6 +2,7 @@ package abuse
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -128,33 +129,33 @@ func TestPublicRoutingRedisPath_Integration(t *testing.T) {
 	}
 
 	tokenID := int(time.Now().UnixNano() % 1000000000)
+	fanoutTokenID := tokenID + 1
 	cfg := DefaultConfig()
 	cfg.RPMLimit = 2
 	cfg.SharedIPLimit = 1
 	cfg.SharedClientLimit = 2
 
 	t.Cleanup(func() {
-		patterns := []string{
-			"prabuse:rpm:*",
-			"prabuse:ips:*",
-			"prabuse:clients:*",
+		buckets := []int64{
+			time.Now().Unix() / int64(cfg.SharedWindowSeconds),
+			(time.Now().Unix() / int64(cfg.SharedWindowSeconds)) - 1,
+			(time.Now().Unix() / int64(cfg.SharedWindowSeconds)) + 1,
 		}
-		for _, pattern := range patterns {
-			var cursor uint64
-			for {
-				keys, next, err := rdb.Scan(ctx, cursor, pattern, 100).Result()
-				if err != nil {
-					return
-				}
-				if len(keys) > 0 {
-					_ = rdb.Del(ctx, keys...).Err()
-				}
-				cursor = next
-				if cursor == 0 {
-					break
-				}
-			}
+		keys := []string{
+			fmt.Sprintf("prabuse:rpm:%d", tokenID),
+			fmt.Sprintf("prabuse:rpm:%d:seq", tokenID),
+			fmt.Sprintf("prabuse:rpm:%d", fanoutTokenID),
+			fmt.Sprintf("prabuse:rpm:%d:seq", fanoutTokenID),
 		}
+		for _, bucket := range buckets {
+			keys = append(keys,
+				fmt.Sprintf("prabuse:ips:%d:%d", tokenID, bucket),
+				fmt.Sprintf("prabuse:clients:%d:%d", tokenID, bucket),
+				fmt.Sprintf("prabuse:ips:%d:%d", fanoutTokenID, bucket),
+				fmt.Sprintf("prabuse:clients:%d:%d", fanoutTokenID, bucket),
+			)
+		}
+		_ = rdb.Del(ctx, keys...).Err()
 	})
 
 	for i := 0; i < 2; i++ {
@@ -174,7 +175,6 @@ func TestPublicRoutingRedisPath_Integration(t *testing.T) {
 		t.Fatal("redis path third request should be throttled")
 	}
 
-	fanoutTokenID := tokenID + 1
 	_, err = CheckPublicRoutingCredential(ctx, rdb, fanoutTokenID, "203.0.113.10", "runner-a", cfg)
 	if err != nil {
 		t.Fatalf("redis fanout first request error: %v", err)
