@@ -84,7 +84,10 @@ func SyncFeishuUserInfo(ctx context.Context) FeishuUserInfoSyncResult {
 	}
 
 	var users []model.User
-	if err := model.DB.Where("feishu_id <> ?", "").Find(&users).Error; err != nil {
+	if err := model.DB.
+		Where("feishu_id <> ?", "").
+		Where("status = ?", common.UserStatusEnabled).
+		Find(&users).Error; err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		return result
 	}
