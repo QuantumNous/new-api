@@ -22,7 +22,7 @@ variable "enable_staging" {
 
 variable "enable_staging_domains" {
   type        = bool
-  description = "Create Cloud Run domain mappings for staging-console.flatkey.ai and staging-website.flatkey.ai. Enable only after flatkey.ai is verified in Google Search Console and DNS is ready."
+  description = "Create Cloud Run domain mappings for staging-console.flatkey.ai, staging-router.flatkey.ai, and staging-website.flatkey.ai. Enable only after flatkey.ai is verified in Google Search Console and DNS is ready."
   default     = false
 }
 
@@ -32,6 +32,7 @@ locals {
   staging_backend_name = "newapi-staging"
   staging_website_name = "newapi-web-staging"
   staging_console_host = replace(replace(var.staging_console_origin, "https://", ""), "http://", "")
+  staging_router_host  = replace(replace(var.staging_router_origin, "https://", ""), "http://", "")
   staging_website_host = replace(replace(var.staging_website_origin, "https://", ""), "http://", "")
   // 首次 apply 用公开占位镜像（此时 AR 里还没有 staging tag，避免"镜像不存在"创建失败）。
   // CI 首次部署会替换为真实镜像 server:staging-latest / website:staging-latest，
@@ -488,6 +489,7 @@ resource "google_cloud_run_v2_service_iam_member" "staging_web_public" {
 // 独立 Cloud Run 域名映射：不加入生产 LB / lb_domains，避免生产证书轮换风险。
 // DNS 需配置：
 //   staging-console.flatkey.ai  CNAME  ghs.googlehosted.com
+//   staging-router.flatkey.ai   CNAME  ghs.googlehosted.com
 //   staging-website.flatkey.ai  CNAME  ghs.googlehosted.com
 // ---------------------------------------------------------------------------
 resource "google_cloud_run_domain_mapping" "staging_console_domain" {
@@ -495,6 +497,22 @@ resource "google_cloud_run_domain_mapping" "staging_console_domain" {
   project  = var.project_id
   location = var.region
   name     = local.staging_console_host
+
+  metadata {
+    namespace = var.project_id
+  }
+
+  spec {
+    route_name       = google_cloud_run_v2_service.staging[0].name
+    certificate_mode = "AUTOMATIC"
+  }
+}
+
+resource "google_cloud_run_domain_mapping" "staging_router_domain" {
+  count    = var.enable_staging && var.enable_staging_domains ? 1 : 0
+  project  = var.project_id
+  location = var.region
+  name     = local.staging_router_host
 
   metadata {
     namespace = var.project_id
@@ -537,6 +555,12 @@ variable "staging_console_origin" {
   default     = "https://staging-console.flatkey.ai"
 }
 
+variable "staging_router_origin" {
+  type        = string
+  description = "Staging API router public origin."
+  default     = "https://staging-router.flatkey.ai"
+}
+
 variable "staging_website_origin" {
   type        = string
   description = "Staging website public origin."
@@ -556,6 +580,10 @@ output "staging_website_url" {
 
 output "staging_console_domain" {
   value = var.enable_staging ? var.staging_console_origin : ""
+}
+
+output "staging_router_domain" {
+  value = var.enable_staging ? var.staging_router_origin : ""
 }
 
 output "staging_website_domain" {
