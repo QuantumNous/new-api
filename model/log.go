@@ -52,7 +52,9 @@ func normalizeLogTextFilterValue(value string) string {
 // 的历史日志，产生“看起来正常但结果不全”的边界漏数。返回空后调用方退化为仅按
 // logs.username 快照 LIKE，结果仍正确（只是放弃用 user 表补齐改名前历史日志这一
 // 增强）——宁可不补齐，也不返回不完整的集合。
-const fuzzyUsernameUserIDLimit = 1000
+//
+// 用 var 而非 const 仅为便于测试覆盖超限降级分支（造上千用户代价过高）。
+var fuzzyUsernameUserIDLimit = 1000
 
 func getUserIDsByUsernameFilter(value string, fuzzy bool) ([]int, error) {
 	if DB == nil {
@@ -600,17 +602,28 @@ func GetCodexChannelUsageStats(
 	return result, nil
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, excludeUserId int) (stat Stat, err error) {
+// SumUsedQuota 聚合用量统计。
+//
+// selfUserId 用于「查自己」场景的身份约束：非 0 时强制 user_id = selfUserId 精确
+// 过滤，且忽略 username 模糊搜索（username 自 fuzzy 化后会把 alice2/malice 等带进
+// alice 的统计，绝不能用于身份约束）。管理员搜索路径传 0，按 username 模糊匹配。
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, excludeUserId int, selfUserId int) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
 
-	if tx, err = applyLogUsernameFilter(tx, "username", "user_id", username); err != nil {
-		return stat, err
-	}
-	if rpmTpmQuery, err = applyLogUsernameFilter(rpmTpmQuery, "username", "user_id", username); err != nil {
-		return stat, err
+	if selfUserId != 0 {
+		// 身份约束：只统计本人日志，精确按 user_id，不掺入 username 模糊匹配。
+		tx = tx.Where("user_id = ?", selfUserId)
+		rpmTpmQuery = rpmTpmQuery.Where("user_id = ?", selfUserId)
+	} else {
+		if tx, err = applyLogUsernameFilter(tx, "username", "user_id", username); err != nil {
+			return stat, err
+		}
+		if rpmTpmQuery, err = applyLogUsernameFilter(rpmTpmQuery, "username", "user_id", username); err != nil {
+			return stat, err
+		}
 	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)

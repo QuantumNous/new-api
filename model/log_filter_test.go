@@ -117,7 +117,7 @@ func TestSumUsedQuotaFiltersNumericUsernameAsUserID(t *testing.T) {
 		CompletionTokens: 50,
 	})
 
-	stat, err := SumUsedQuota(LogTypeConsume, 0, 0, "", "216", "", 0, "", 0)
+	stat, err := SumUsedQuota(LogTypeConsume, 0, 0, "", "216", "", 0, "", 0, 0)
 	if err != nil {
 		t.Fatalf("SumUsedQuota: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestSumUsedQuotaFiltersNumericUsernameAsUserID(t *testing.T) {
 		t.Fatalf("tpm = %d, want 15", stat.Tpm)
 	}
 
-	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", `"216"`, "", 0, "", 0)
+	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", `"216"`, "", 0, "", 0, 0)
 	if err != nil {
 		t.Fatalf("SumUsedQuota with quoted username: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestSumUsedQuotaFiltersNumericUsernameAsUserID(t *testing.T) {
 		t.Fatalf("quoted tpm = %d, want 15", stat.Tpm)
 	}
 
-	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", `"google_liu1124789567"`, "", 0, "", 0)
+	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", `"google_liu1124789567"`, "", 0, "", 0, 0)
 	if err != nil {
 		t.Fatalf("SumUsedQuota with quoted google username: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestSumUsedQuotaFiltersNumericUsernameAsUserID(t *testing.T) {
 		t.Fatalf("quoted google username tpm = %d, want 15", stat.Tpm)
 	}
 
-	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", " google_liu1124789567 ", "", 0, "", 0)
+	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", " google_liu1124789567 ", "", 0, "", 0, 0)
 	if err != nil {
 		t.Fatalf("SumUsedQuota with padded google username: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestSumUsedQuotaFiltersNumericUsernameAsUserID(t *testing.T) {
 		CompletionTokens: 1,
 	})
 
-	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "google_liu1124789567", "", 0, "", 0)
+	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "google_liu1124789567", "", 0, "", 0, 0)
 	if err != nil {
 		t.Fatalf("SumUsedQuota with current username: %v", err)
 	}
@@ -197,6 +197,52 @@ func TestSumUsedQuotaFiltersNumericUsernameAsUserID(t *testing.T) {
 	}
 	if stat.Tpm != 17 {
 		t.Fatalf("current username tpm = %d, want 17", stat.Tpm)
+	}
+}
+
+// TestSumUsedQuotaSelfStatIsExactByUserID 锁住越权回归：self stat 用 selfUserId
+// 精确约束身份，username 自动模糊化后绝不能把同前缀用户（alice2/malice）的用量
+// 统计算进 alice 自己的统计里。
+func TestSumUsedQuotaSelfStatIsExactByUserID(t *testing.T) {
+	resetUsageTables(t)
+	now := time.Now().Unix()
+	// 三个用户名互为子串：alice / alice2 / malice。
+	mustCreateUsage(t, &Log{
+		UserId: 401, Username: "alice", Type: LogTypeConsume, CreatedAt: now,
+		ModelName: "gpt-4o", Quota: 10, PromptTokens: 3, CompletionTokens: 2,
+	})
+	mustCreateUsage(t, &Log{
+		UserId: 402, Username: "alice2", Type: LogTypeConsume, CreatedAt: now,
+		ModelName: "gpt-4o", Quota: 100, PromptTokens: 30, CompletionTokens: 20,
+	})
+	mustCreateUsage(t, &Log{
+		UserId: 403, Username: "malice", Type: LogTypeConsume, CreatedAt: now,
+		ModelName: "gpt-4o", Quota: 1000, PromptTokens: 300, CompletionTokens: 200,
+	})
+
+	// self stat：selfUserId=401，username 传空 —— 只能统计到 401 自己的 quota=10。
+	stat, err := SumUsedQuota(LogTypeConsume, 0, 0, "", "", "", 0, "", 0, 401)
+	if err != nil {
+		t.Fatalf("SumUsedQuota self stat: %v", err)
+	}
+	if stat.Quota != 10 {
+		t.Fatalf("self stat quota = %d, want 10 (must NOT include alice2/malice)", stat.Quota)
+	}
+	if stat.Rpm != 1 {
+		t.Fatalf("self stat rpm = %d, want 1", stat.Rpm)
+	}
+	if stat.Tpm != 5 {
+		t.Fatalf("self stat tpm = %d, want 5", stat.Tpm)
+	}
+
+	// 对照：管理员搜索 "alice"（selfUserId=0）会模糊命中三者，证明模糊能力仍在、
+	// 仅 self 路径被收紧。quota = 10+100+1000 = 1110。
+	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "alice", "", 0, "", 0, 0)
+	if err != nil {
+		t.Fatalf("SumUsedQuota admin fuzzy: %v", err)
+	}
+	if stat.Quota != 1110 {
+		t.Fatalf("admin fuzzy quota = %d, want 1110 (10+100+1000)", stat.Quota)
 	}
 }
 
@@ -302,6 +348,40 @@ func TestGetAllLogsFuzzyUsernameMatch(t *testing.T) {
 	}
 	if total != 1 || len(logs) != 1 || logs[0].UserId != 303 {
 		t.Fatalf("single-char exact username logs = %+v / total %d, want 1 log for user 303", logs, total)
+	}
+
+	// Over-limit degradation: when more than fuzzyUsernameUserIDLimit users match
+	// the keyword, the user-table resolution returns an empty id set and the query
+	// degrades to a pure logs.username LIKE — it must NOT match a renamed user's
+	// historical log via user_id (that would require the now-discarded id set).
+	origLimit := fuzzyUsernameUserIDLimit
+	fuzzyUsernameUserIDLimit = 2
+	defer func() { fuzzyUsernameUserIDLimit = origLimit }()
+	resetLogFilterTestUser(t, 501)
+	resetLogFilterTestUser(t, 502)
+	resetLogFilterTestUser(t, 503)
+	// 3 users (> limit 2) all match "over_limit_kw" in the user table.
+	mustCreateUsage(t, &User{Id: 501, Username: "over_limit_kw_1", DisplayName: "O1", AffCode: "log-filter-501"})
+	mustCreateUsage(t, &User{Id: 502, Username: "over_limit_kw_2", DisplayName: "O2", AffCode: "log-filter-502"})
+	mustCreateUsage(t, &User{Id: 503, Username: "over_limit_kw_3", DisplayName: "O3", AffCode: "log-filter-503"})
+	// user 501 has a log under a renamed (no-keyword) username — only reachable via
+	// the user_id补齐 path, which is disabled once the id set is discarded.
+	mustCreateUsage(t, &Log{
+		UserId: 501, Username: "renamed_no_kw", Type: LogTypeConsume,
+		CreatedAt: 5000, ModelName: "gpt-4o", Quota: 1,
+	})
+	// user 502 has a log whose username snapshot still contains the keyword — this
+	// one IS reachable via the degraded pure-LIKE path.
+	mustCreateUsage(t, &Log{
+		UserId: 502, Username: "over_limit_kw_2", Type: LogTypeConsume,
+		CreatedAt: 5001, ModelName: "gpt-4o", Quota: 1,
+	})
+	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "over_limit_kw", "", 0, 20, 0, "", "", "", 0)
+	if err != nil {
+		t.Fatalf("GetAllLogs over-limit fuzzy: %v", err)
+	}
+	if total != 1 || len(logs) != 1 || logs[0].UserId != 502 {
+		t.Fatalf("over-limit fuzzy logs = %+v / total %d, want only the LIKE-matched log of user 502", logs, total)
 	}
 }
 

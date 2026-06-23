@@ -27,9 +27,9 @@ import { type Table } from '@tanstack/react-table'
 import { Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useIsAdmin, useIsRoot } from '@/hooks/use-admin'
-import { useIsEnterprise } from '@/hooks/use-enterprise'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { Combobox } from '@/components/ui/combobox'
 import {
   Select,
   SelectContent,
@@ -60,20 +60,6 @@ import { useUsageLogsContext } from './usage-logs-provider'
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 const logTypeValues = ['0', '1', '2', '3', '4', '5', '6'] as const
 
-// Select item values for the group filter are namespaced so a system option can
-// never collide with a real group name (group names come from backend config
-// JSON keys and are otherwise unconstrained). Real groups are encoded as
-// `group:<name>`; the "all groups" sentinel uses a distinct `system:` namespace.
-// Base UI Select also cannot use an empty string as an item value.
-const GROUP_ALL_VALUE = 'system:all'
-const GROUP_VALUE_PREFIX = 'group:'
-const encodeGroupValue = (group: string) =>
-  `${GROUP_VALUE_PREFIX}${group}`
-const decodeGroupValue = (value: string): string | undefined =>
-  value.startsWith(GROUP_VALUE_PREFIX)
-    ? value.slice(GROUP_VALUE_PREFIX.length)
-    : undefined
-
 type LogTypeValue = (typeof logTypeValues)[number]
 
 function isLogTypeValue(value: string): value is LogTypeValue {
@@ -92,17 +78,16 @@ export function CommonLogsFilterBar<TData>(
   const queryClient = useQueryClient()
   const searchParams = route.useSearch()
   const isAdmin = useIsAdmin()
-  const isEnterprise = useIsEnterprise()
   const isRoot = useIsRoot()
   const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
-  // Group filter is only shown to enterprise/admin users (PLG users have the
-  // group concept hidden), so only fetch the group list when it can be shown.
+  // Group filter is admin-only — its option source `/api/group/` is behind
+  // AdminAuth — so only fetch the group list for admins.
   const { data: groupsResp } = useQuery({
     queryKey: ['groups'],
     queryFn: getGroups,
-    enabled: isEnterprise,
+    enabled: isAdmin,
     staleTime: 5 * 60 * 1000,
   })
   const groupOptions = useMemo(
@@ -215,7 +200,9 @@ export function CommonLogsFilterBar<TData>(
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
   // PLG (non-enterprise) users don't see the group concept, so the group
   // filter and its active-filter badge are hidden for them.
-  const hasGroupFilter = isEnterprise && !!filters.group
+  // Group filter is admin-only (see groupFilter), so its active-filter badge
+  // keys off isAdmin to stay consistent with control visibility.
+  const hasGroupFilter = isAdmin && !!filters.group
   const hasAdditionalFilters =
     !!filters.model || hasGroupFilter || hasTypeFilter || hasExpandedFilters
 
@@ -285,56 +272,26 @@ export function CommonLogsFilterBar<TData>(
       />
     </LogsFilterField>
   )
-  const groupSelectItems = useMemo(
-    () => [
-      { value: GROUP_ALL_VALUE, label: t('All Groups') },
-      ...groupOptions.map((g) => ({
-        value: encodeGroupValue(g),
-        label: g,
-      })),
-    ],
-    [groupOptions, t]
+  // Group filter is admin-only: the option source `/api/group/` is behind
+  // AdminAuth, and group filtering of logs is an admin capability. allowCustomValue
+  // lets an admin still type a renamed/deleted historical group that no longer
+  // appears in the current ratio-group config (log `group` is a point-in-time
+  // snapshot and is never backfilled).
+  const groupComboboxOptions = useMemo(
+    () => groupOptions.map((g) => ({ value: g, label: g })),
+    [groupOptions]
   )
-  const groupValue = filters.group
-    ? encodeGroupValue(filters.group)
-    : GROUP_ALL_VALUE
-  // Group names were masked behind the sensitive-info toggle as a text input;
-  // keep that behaviour after switching to a dropdown — mask the selected value
-  // and the option labels when sensitive info is hidden.
-  const maskGroup = (label: string) => (sensitiveVisible ? label : '••••')
-  const groupLabel =
-    groupValue === GROUP_ALL_VALUE
-      ? t('All Groups')
-      : maskGroup(filters.group ?? '')
-  const groupFilter = isEnterprise ? (
+  const groupFilter = isAdmin ? (
     <LogsFilterField>
-      <Select
-        items={groupSelectItems}
-        value={groupValue}
-        onValueChange={(value) => {
-          handleChange(
-            'group',
-            value && value !== GROUP_ALL_VALUE
-              ? decodeGroupValue(value)
-              : undefined
-          )
-        }}
-      >
-        <SelectTrigger>
-          <SelectValue>{groupLabel}</SelectValue>
-        </SelectTrigger>
-        <SelectContent alignItemWithTrigger={false}>
-          <SelectGroup>
-            {groupSelectItems.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.value === GROUP_ALL_VALUE
-                  ? item.label
-                  : maskGroup(item.label)}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+      <Combobox
+        options={groupComboboxOptions}
+        value={filters.group || ''}
+        onValueChange={(value) => handleChange('group', value || undefined)}
+        placeholder={t('Group')}
+        searchPlaceholder={t('Group')}
+        emptyText={t('No group found.')}
+        allowCustomValue
+      />
     </LogsFilterField>
   ) : null
   const typeFilter = (
