@@ -398,6 +398,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	} else {
 		other = GenerateTextOtherInfo(ctx, relayInfo, summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, summary.CacheRatio, summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	}
+	if usage != nil {
+		appendReasoningTokens(other, usage.CompletionTokenDetails.ReasoningTokens)
+	}
 	if adminRejectReason != "" {
 		other["reject_reason"] = adminRejectReason
 	}
