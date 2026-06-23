@@ -80,11 +80,29 @@ func SelectCheapestEnabledChannel(c *gin.Context, modelName string) (*model.Chan
 // gpt-image-2 async race hedge), where touching the original *gin.Context is unsafe (Gin
 // recycles it once the response has been written).
 func SelectCheapestEnabledChannelExcluding(modelName string, excludeChannelIDs []int) (*model.Channel, error) {
-	pickedID := selectCheapestChannelID(modelName, excludeChannelIDs)
-	if pickedID == 0 {
-		return nil, ErrNoCheapestChannel
+	return SelectCheapestEnabledChannelExcludingWithFilter(modelName, excludeChannelIDs, nil)
+}
+
+// SelectCheapestEnabledChannelExcludingWithFilter applies an optional channel filter when
+// picking the next cheapest candidate (async race hedge).
+func SelectCheapestEnabledChannelExcludingWithFilter(modelName string, excludeChannelIDs []int, filter model.ChannelPickFilter) (*model.Channel, error) {
+	const maxAttempts = 32
+	bannedIDs := append([]int(nil), excludeChannelIDs...)
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		pickedID := selectCheapestChannelID(modelName, bannedIDs)
+		if pickedID == 0 {
+			return nil, ErrNoCheapestChannel
+		}
+		ch, err := model.GetChannelById(pickedID, true)
+		if err != nil {
+			return nil, fmt.Errorf("auto-cheapest load channel %d: %w", pickedID, err)
+		}
+		if filter == nil || filter(ch) {
+			return ch, nil
+		}
+		bannedIDs = append(bannedIDs, pickedID)
 	}
-	return model.GetChannelById(pickedID, true)
+	return nil, ErrNoCheapestChannel
 }
 
 // ErrNoCheapestChannel signals "no candidate fits" — distinct sentinel so the

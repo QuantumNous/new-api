@@ -145,18 +145,45 @@ func ChannelMatchesClientPolicy(setting *string, clientType ClientType, modelNam
 	return true
 }
 
-// ChannelPickFilter returns a filter when client-exclusive routing applies.
+// ChannelPickFilter returns a filter when client-exclusive or gpt-image-2 routing applies.
 func ChannelPickFilter(c *gin.Context, modelName string) model.ChannelPickFilter {
-	if !RequiresClientExclusivePolicy(modelName) {
+	var filters []model.ChannelPickFilter
+
+	if RequiresClientExclusivePolicy(modelName) {
+		InitClientPolicyContext(c, modelName)
+		clientType := clientTypeFromContext(c)
+		filters = append(filters, func(ch *model.Channel) bool {
+			if ch == nil {
+				return false
+			}
+			return ChannelMatchesClientPolicy(ch.Setting, clientType, modelName)
+		})
+	}
+
+	if gptFilter := GptImage2ChannelPickFilter(c, modelName); gptFilter != nil {
+		filters = append(filters, gptFilter)
+	}
+
+	return composeChannelPickFilters(filters)
+}
+
+func composeChannelPickFilters(filters []model.ChannelPickFilter) model.ChannelPickFilter {
+	if len(filters) == 0 {
 		return nil
 	}
-	InitClientPolicyContext(c, modelName)
-	clientType := clientTypeFromContext(c)
+	if len(filters) == 1 {
+		return filters[0]
+	}
 	return func(ch *model.Channel) bool {
-		if ch == nil {
-			return false
+		for _, f := range filters {
+			if f == nil {
+				continue
+			}
+			if !f(ch) {
+				return false
+			}
 		}
-		return ChannelMatchesClientPolicy(ch.Setting, clientType, modelName)
+		return true
 	}
 }
 

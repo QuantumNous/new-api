@@ -61,6 +61,7 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		modelRequest.Model = service.PrepareGptImage2ModelRequest(c, modelRequest.Model)
 		if modelRequest.Model != "" && common.IsImageGenerationModel(modelRequest.Model) && isTextCompletionPath(c.Request.URL.Path) {
 			abortImageModelOnTextEndpoint(c, modelRequest.Model)
 			return
@@ -82,6 +83,10 @@ func Distribute() func(c *gin.Context) {
 			}
 			if policyErr := service.ValidateChannelClientPolicy(c, channel, modelRequest.Model); policyErr != nil {
 				abortWithOpenAiMessage(c, http.StatusForbidden, policyErr.Error())
+				return
+			}
+			if tierErr := service.ValidateGptImage2Channel(c, channel, modelRequest.Model); tierErr != nil {
+				abortWithOpenAiMessage(c, http.StatusForbidden, tierErr.Error())
 				return
 			}
 		} else {

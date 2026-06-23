@@ -727,7 +727,9 @@ func startImageRaceHedge(c *gin.Context, info *relaycommon.RelayInfo) (target se
 	if !exists || len(requestBody) == 0 {
 		return service.ImageTaskTarget{}, nil, false
 	}
-	channel, err := service.SelectCheapestEnabledChannel(c, info.OriginModelName)
+	service.SetGptImage2RaceHedgePick(c, true)
+	defer service.SetGptImage2RaceHedgePick(c, false)
+	channel, err := service.SelectCheapestEnabledChannel(c, service.NormalizeGptImage2ModelName(info.OriginModelName))
 	if err != nil || channel == nil {
 		return service.ImageTaskTarget{}, nil, false
 	}
@@ -795,7 +797,11 @@ func scheduleAsyncImageRaceHedge(publicTaskID, modelName string, requestBody []b
 			return // resolved between submit and now — nothing to hedge
 		}
 
-		channelB, err := service.SelectCheapestEnabledChannelExcluding(modelName, []int{task.ChannelId})
+		channelB, err := service.SelectCheapestEnabledChannelExcludingWithFilter(
+			service.NormalizeGptImage2ModelName(modelName),
+			[]int{task.ChannelId},
+			service.GptImage2ChannelPickFilterForTask(task.PrivateData.GptImage2Profile, task.PrivateData.GptImage2OfficialFB),
+		)
 		if err != nil || channelB == nil {
 			return
 		}
@@ -908,7 +914,9 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 				SubmitTime: time.Now().Unix(),
 				Properties: model.Properties{OriginModelName: info.OriginModelName},
 				PrivateData: model.TaskPrivateData{
-					UpstreamTaskID: upstreamTaskID,
+					UpstreamTaskID:      upstreamTaskID,
+					GptImage2Profile:      string(service.GptImage2ProfileFromContext(c)),
+					GptImage2OfficialFB: service.GptImage2OfficialFallbackContextValue(c),
 				},
 			}
 			if err := task.Insert(); err != nil {

@@ -91,6 +91,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	//   retry 0: cheapest (distributor)
 	//   retry ≥ 1: most expensive remaining channel (premium fallback)
 	if param.TokenGroup == AutoCheapestGroup {
+		SetGptImage2RoutingRetry(param.Ctx, param.GetRetry())
 		var (
 			ch       *model.Channel
 			selectErr error

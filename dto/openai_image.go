@@ -37,6 +37,7 @@ type ImageRequest struct {
 	UserId           json.RawMessage `json:"user_id,omitempty"`
 	Image            json.RawMessage `json:"image,omitempty"`
 	ImageUrls        []string        `json:"image_urls,omitempty"`
+	MaskUrl          string          `json:"mask_url,omitempty"`
 	// 用匿名参数接收额外参数
 	Extra map[string]json.RawMessage `json:"-"`
 }
@@ -84,13 +85,12 @@ func (r ImageRequest) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 
-	// 不能合并ExtraFields！！！！！！！！
-	// 合并 ExtraFields
-	//for k, v := range r.Extra {
-	//	if _, exists := baseMap[k]; !exists {
-	//		baseMap[k] = v
-	//	}
-	//}
+	// Merge unknown Extra fields (e.g. mask_url before first-class field adoption).
+	for k, v := range r.Extra {
+		if _, exists := baseMap[k]; !exists && len(v) > 0 && string(v) != "null" {
+			baseMap[k] = v
+		}
+	}
 
 	return common.Marshal(baseMap)
 }

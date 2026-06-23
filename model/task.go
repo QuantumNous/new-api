@@ -111,6 +111,8 @@ type TaskPrivateData struct {
 	// 分出胜负后若第二渠道胜出，会被搬运覆盖 ChannelId/UpstreamTaskID，这两个字段随之清空。
 	HedgeChannelId      int    `json:"hedge_channel_id,omitempty"`
 	HedgeUpstreamTaskID string `json:"hedge_upstream_task_id,omitempty"`
+	GptImage2Profile    string `json:"gpt_image2_profile,omitempty"`
+	GptImage2OfficialFB string `json:"gpt_image2_official_fallback,omitempty"`
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。

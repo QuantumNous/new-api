@@ -180,6 +180,9 @@ func ListModels(c *gin.Context, modelType int) {
 			models = model.GetGroupEnabledModels(group)
 		}
 		for _, modelName := range models {
+			if service.ShouldHideGptImage2OfficialModel(modelName) {
+				continue
+			}
 			if !acceptUnsetRatioModel {
 				if !helper.HasModelBillingConfig(modelName) {
 					continue
