@@ -726,7 +726,41 @@ The Detail response is public metadata only and must not include provider raw co
 - Requires a logged-in, entitled user; archived/draft are 403/404 per the entitlement table.
 - The package must not contain provider credentials, server routing/model-selection logic, or draft templates.
 - Emits `skill_enabled` (download) with `entry_point=skill_package`; the originating surface, when needed, belongs in allowlisted `metadata.source_entry_point`.
-- The package's bundled client targets the public routing API (§9) and authenticates with the runner's own DeepRouter credential at runtime.
+- The package's bundled client targets the public routing API (§8.7) and authenticates with the runner's own DeepRouter credential at runtime.
+
+### 8.7 Public Routing / Execution API
+
+`POST /v1/routing/chat/completions`
+
+Headers:
+
+| Header | Required | Notes |
+|---|---:|---|
+| `Authorization: Bearer <runner key>` | Yes | The only trusted identity source. |
+| `Content-Type: application/json` | Yes | JSON request body. |
+
+Request:
+
+```json
+{
+  "messages": [
+    {"role": "user", "content": "Input for the Skill"}
+  ],
+  "deeprouter": {
+    "skill_id": "6e3f...",
+    "skill_version_id": "9a12..."
+  }
+}
+```
+
+Rules:
+
+- `deeprouter.skill_id` is required.
+- `deeprouter.skill_version_id` pins execution to the manifest version when present. The server accepts the pin only when that version belongs to the requested Skill and is active; otherwise it fails closed with `SKILL_NOT_PUBLISHED`.
+- Missing `skill_version_id` falls back to the Skill's current active version for legacy callers.
+- Public routing forces `entry_point=skill_package`; package-provided `deeprouter.entry_point` is ignored.
+- Request-body identity/policy fields are not trusted. The package must not send `user_id`, `tenant_id`, Kids fields, or trusted identity objects; if present, they are ignored as identity sources.
+- The server rebuilds the provider payload from the server-owned SkillVersion snapshot and strips `deeprouter` before forwarding upstream.
 
 ### 8.3 My Skills
 

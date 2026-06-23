@@ -74,7 +74,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			if existing, alreadyLoaded := skillrelay.Get(c); alreadyLoaded && existing.SkillVersionID != "" {
 				skillCtx = existing // Distribute path: reuse pinned context
 			} else {
-				resolved, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
+				resolved, errCode := skillrelay.ResolveVersion(c, request.Deeprouter.SkillID, request.Deeprouter.SkillVersionID)
 				if errCode != "" {
 					return types.NewErrorWithStatusCode(
 						fmt.Errorf("%s", errCode),

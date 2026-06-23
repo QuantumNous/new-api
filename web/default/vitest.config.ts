@@ -12,7 +12,11 @@ export default defineConfig({
     setupFiles: ['./src/test-utils/setup.ts'],
     coverage: {
       provider: 'v8',
-      include: ['src/features/skill-analytics/**'],
+      include: [
+        'src/features/skill-analytics/**',
+        'src/features/admin-skills/**',
+        'src/routes/_authenticated/skills/admin/index.tsx',
+      ],
       reporter: ['text', 'json-summary'],
       reportsDirectory: './coverage/skill-analytics',
     },

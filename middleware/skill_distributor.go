@@ -28,7 +28,7 @@ func prepareSkillRelayForDistribution(c *gin.Context, modelRequest *ModelRequest
 		return ""
 	}
 
-	skillCtx, errCode := skillrelay.Resolve(c, request.Deeprouter.SkillID)
+	skillCtx, errCode := skillrelay.ResolveVersion(c, request.Deeprouter.SkillID, request.Deeprouter.SkillVersionID)
 	if errCode != "" {
 		return errCode
 	}
