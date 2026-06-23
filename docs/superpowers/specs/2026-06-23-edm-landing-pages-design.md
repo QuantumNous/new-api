@@ -153,6 +153,7 @@ The website uses root English plus localized paths for the supported locales. Th
 - `ru`
 - `ja`
 - `vi`
+- `de`
 
 Do not copy English text into non-English locales except for product names, URLs, model/tool names, and other literals.
 

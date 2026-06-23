@@ -29,6 +29,7 @@ describe("language routing", () => {
   test("redirects ordinary users on non-locale public pages", () => {
     expect(getLanguageRedirectPath({ pathname: "/", method: "GET", acceptLanguage: "ja" })).toBe("/ja");
     expect(getLanguageRedirectPath({ pathname: "/pricing", method: "GET", acceptLanguage: "ja" })).toBe("/ja/pricing");
+    expect(getLanguageRedirectPath({ pathname: "/lp/personal-ai", method: "GET", acceptLanguage: "zh-CN,zh;q=0.9" })).toBe("/zh/lp/personal-ai");
     expect(getLanguageRedirectPath({ pathname: "/pricing", method: "GET", cookieLocale: "fr", acceptLanguage: "ja" })).toBe("/fr/pricing");
   });
 
