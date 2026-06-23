@@ -211,6 +211,7 @@ func SetApiRouter(router *gin.Engine) {
 		adminSkillHubRoute.Use(middleware.AdminAuth())
 		{
 			adminSkillHubRoute.POST("/upload", controller.AdminUploadSkillHubZip)
+			adminSkillHubRoute.POST("/upload-icon", controller.AdminUploadSkillHubIcon)
 			adminSkillHubRoute.GET("/skills", controller.AdminListSkillHubSkills)
 			adminSkillHubRoute.POST("/skills", controller.AdminCreateSkillHubSkill)
 			adminSkillHubRoute.GET("/skills/:id", controller.AdminGetSkillHubSkill)

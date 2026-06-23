@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -96,6 +97,7 @@ func (s *SkillHubSkill) BeforeSave(tx *gorm.DB) error {
 	s.SkillID = strings.TrimSpace(s.SkillID)
 	s.Name = strings.TrimSpace(s.Name)
 	s.Version = strings.TrimSpace(s.Version)
+	s.Icon = strings.TrimSpace(s.Icon)
 	s.ManifestEntry = strings.TrimSpace(s.ManifestEntry)
 	if s.ManifestEntry == "" {
 		s.ManifestEntry = "SKILL.md"
@@ -135,6 +137,9 @@ func ValidateSkillHubSkill(s *SkillHubSkill) error {
 	if !isAllowedSkillHubZipURL(s.SourceURL) {
 		return errors.New("skill zip url must use https, except localhost during development")
 	}
+	if !isAllowedSkillHubIconURL(s.Icon) {
+		return errors.New("skill icon must be uploaded to the configured OSS icon bucket")
+	}
 	return nil
 }
 
@@ -154,6 +159,49 @@ func isAllowedSkillHubZipURL(value string) bool {
 	}
 	host := strings.ToLower(parsed.Hostname())
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+func isAllowedSkillHubIconURL(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return true
+	}
+	baseValue := strings.TrimRight(strings.TrimSpace(os.Getenv("SKILL_HUB_OSS_ICON_PUBLIC_BASE_URL")), "/")
+	if baseValue == "" {
+		return false
+	}
+	base, err := url.Parse(baseValue)
+	if err != nil || base.Scheme != "https" || base.Host == "" || base.User != nil {
+		return false
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
+		return false
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return false
+	}
+	if !strings.EqualFold(parsed.Host, base.Host) {
+		return false
+	}
+	basePath := strings.TrimRight(base.EscapedPath(), "/")
+	iconPrefix := strings.Trim(strings.TrimSpace(os.Getenv("SKILL_HUB_OSS_ICON_PREFIX")), "/")
+	if iconPrefix == "" {
+		iconPrefix = "skill-hub/icons"
+	}
+	allowedPath := "/" + iconPrefix
+	if basePath != "" {
+		allowedPath = basePath + allowedPath
+	}
+	targetPath := strings.TrimRight(parsed.EscapedPath(), "/")
+	if targetPath != allowedPath && !strings.HasPrefix(targetPath, allowedPath+"/") {
+		return false
+	}
+	lowerPath := strings.ToLower(targetPath)
+	return strings.HasSuffix(lowerPath, ".png") ||
+		strings.HasSuffix(lowerPath, ".jpg") ||
+		strings.HasSuffix(lowerPath, ".jpeg") ||
+		strings.HasSuffix(lowerPath, ".webp")
 }
 
 func (s *SkillHubSkill) Insert() error {

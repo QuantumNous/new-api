@@ -55,6 +55,70 @@ func TestValidateSkillHubSkillAcceptsLocalhostHTTPZipURL(t *testing.T) {
 	}
 }
 
+func TestValidateSkillHubSkillAcceptsConfiguredOSSIconURL(t *testing.T) {
+	t.Setenv("SKILL_HUB_OSS_ICON_PUBLIC_BASE_URL", "https://z-up-api-public.oss-cn-hangzhou.aliyuncs.com")
+	t.Setenv("SKILL_HUB_OSS_ICON_PREFIX", "skill-hub/icons")
+	skill := &SkillHubSkill{
+		SkillID:    "icon-skill",
+		Name:       "Icon Skill",
+		Version:    "1.0.0",
+		Icon:       "https://z-up-api-public.oss-cn-hangzhou.aliyuncs.com/skill-hub/icons/icon-skill/icon.png",
+		SourceType: "zip",
+		SourceURL:  "https://cdn.example.com/skill.zip",
+	}
+	if err := ValidateSkillHubSkill(skill); err != nil {
+		t.Fatalf("ValidateSkillHubSkill() error = %v", err)
+	}
+}
+
+func TestValidateSkillHubSkillRejectsExternalIconURL(t *testing.T) {
+	t.Setenv("SKILL_HUB_OSS_ICON_PUBLIC_BASE_URL", "https://z-up-api-public.oss-cn-hangzhou.aliyuncs.com")
+	t.Setenv("SKILL_HUB_OSS_ICON_PREFIX", "skill-hub/icons")
+	skill := &SkillHubSkill{
+		SkillID:    "icon-skill",
+		Name:       "Icon Skill",
+		Version:    "1.0.0",
+		Icon:       "https://example.com/icon.png",
+		SourceType: "zip",
+		SourceURL:  "https://cdn.example.com/skill.zip",
+	}
+	if err := ValidateSkillHubSkill(skill); err == nil || err.Error() != "skill icon must be uploaded to the configured OSS icon bucket" {
+		t.Fatalf("ValidateSkillHubSkill() error = %v, want icon bucket error", err)
+	}
+}
+
+func TestValidateSkillHubSkillRejectsIconURLWithQuery(t *testing.T) {
+	t.Setenv("SKILL_HUB_OSS_ICON_PUBLIC_BASE_URL", "https://z-up-api-public.oss-cn-hangzhou.aliyuncs.com")
+	t.Setenv("SKILL_HUB_OSS_ICON_PREFIX", "skill-hub/icons")
+	skill := &SkillHubSkill{
+		SkillID:    "icon-skill",
+		Name:       "Icon Skill",
+		Version:    "1.0.0",
+		Icon:       "https://z-up-api-public.oss-cn-hangzhou.aliyuncs.com/skill-hub/icons/icon-skill/icon.png?x=1",
+		SourceType: "zip",
+		SourceURL:  "https://cdn.example.com/skill.zip",
+	}
+	if err := ValidateSkillHubSkill(skill); err == nil || err.Error() != "skill icon must be uploaded to the configured OSS icon bucket" {
+		t.Fatalf("ValidateSkillHubSkill() error = %v, want icon bucket error", err)
+	}
+}
+
+func TestValidateSkillHubSkillRejectsIconURLWithoutImageExtension(t *testing.T) {
+	t.Setenv("SKILL_HUB_OSS_ICON_PUBLIC_BASE_URL", "https://z-up-api-public.oss-cn-hangzhou.aliyuncs.com")
+	t.Setenv("SKILL_HUB_OSS_ICON_PREFIX", "skill-hub/icons")
+	skill := &SkillHubSkill{
+		SkillID:    "icon-skill",
+		Name:       "Icon Skill",
+		Version:    "1.0.0",
+		Icon:       "https://z-up-api-public.oss-cn-hangzhou.aliyuncs.com/skill-hub/icons/icon-skill/file.txt",
+		SourceType: "zip",
+		SourceURL:  "https://cdn.example.com/skill.zip",
+	}
+	if err := ValidateSkillHubSkill(skill); err == nil || err.Error() != "skill icon must be uploaded to the configured OSS icon bucket" {
+		t.Fatalf("ValidateSkillHubSkill() error = %v, want icon bucket error", err)
+	}
+}
+
 func TestSkillHubSkillToResponseUsesConnectorSchema(t *testing.T) {
 	skill := &SkillHubSkill{
 		SkillID:             "demo-skill",

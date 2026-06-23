@@ -121,6 +121,27 @@ func AdminUploadSkillHubZip(c *gin.Context) {
 	common.ApiSuccess(c, result)
 }
 
+func AdminUploadSkillHubIcon(c *gin.Context) {
+	skillID := strings.TrimSpace(c.PostForm("skill_id"))
+	if skillID == "" {
+		common.ApiErrorMsg(c, "skill id is required before upload")
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, service.SkillHubIconMaxBytes+(1<<20))
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	defer file.Close()
+	result, err := service.UploadSkillHubIcon(file, header, skillID)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, result)
+}
+
 func AdminCreateSkillHubSkill(c *gin.Context) {
 	var request skillHubSkillRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
