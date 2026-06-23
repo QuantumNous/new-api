@@ -2,6 +2,10 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-06-24
+
+- 更新 DR-74 PRD 状态为 eval，符合任务 PRD 生命周期并记录当前 awaiting review 状态（`docs/tasks/dr74-event-schema-version-occurred-at-prd.md`）
+
 ## 2026-06-23
 
 - 新增 DR-74 事件 `schema_version` + `timestamp`→`occurred_at` 持久化契约（M08 分析管线，纯 model 层）：在 `skill_usage_events` 的唯一写入 choke point `BeforeCreate` 统一为每个事件盖 `metadata.schema_version="1.0"` 并将 `occurred_at` 规整为服务端权威 UTC（zero→`time.Now().UTC()`，非零→`.UTC()`）。修复此前三处发事件路径（`download.go`×2、`skills.go` RecordMarketplaceSkillEvent）均写 `metadata={}`、schema_version 从未落库的缺口。schema_version 采 V1 严格策略（缺省→"1.0"；="1.0"→保留；空/非字符串/≠"1.0"→拒绝），不加一等列、不迁移（契约见 tasks/03 §4.4 无该列、allowlist 含 schema_version）。occurred_at 只接受可信服务端 producer 时间，公开/面向客户端的 handler 不得把客户端 timestamp 塞进 `OccurredAt`（客户端时间只进可选 `metadata.client_event_time`，DR-74 D2/D4）。新增 `SkillEventSchemaVersion` 常量 + `ensureMetadataSchemaVersion` 助手 + 9 个回归测试（三写入路径盖章、严格拒绝非 1.0、受限 key 仍优先拒绝、occurred_at UTC 规整用跨 DB 稳定的 `Equal` 断言而非 `Location()`、zero→now-UTC、非零保留）。并就地澄清 tasks/04 三处歧义：schema_version 仅落 metadata 无一等列、occurred_at 为服务端接收 UTC 且迟到标记属 P1、样例顶层 schema_version 仅为 wire 信封字段（`internal/skill/model/skill_usage_event.go`, `internal/skill/model/skill_usage_event_dr74_test.go`, `docs/tasks/dr74-event-schema-version-occurred-at-prd.md`, `docs/skill-marketplace/tasks/04_Analytics_and_Operations.md`）(DR-74)

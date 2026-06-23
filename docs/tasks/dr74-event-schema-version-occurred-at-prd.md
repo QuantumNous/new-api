@@ -1,6 +1,6 @@
 # DR-74 — Event `schema_version` + `timestamp`→`occurred_at` mapping
 
-Status: **Implemented** (backend, `internal/skill/model/`). Phase 1 / Module M08 (Analytics Pipeline).
+Status: **eval** (backend, `internal/skill/model/`). Phase 1 / Module M08 (Analytics Pipeline).
 
 ## 1. Problem
 
