@@ -17,15 +17,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useQueryClient, useIsFetching } from '@tanstack/react-query'
+import {
+  useQuery,
+  useQueryClient,
+  useIsFetching,
+} from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
 import { Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useIsAdmin, useIsRoot } from '@/hooks/use-admin'
-import { useIsEnterprise } from '@/hooks/use-enterprise'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { Combobox } from '@/components/ui/combobox'
 import {
   Select,
   SelectContent,
@@ -40,6 +44,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
+import { getGroups } from '../api'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
 import type { CommonLogFilters } from '../types'
@@ -73,10 +78,22 @@ export function CommonLogsFilterBar<TData>(
   const queryClient = useQueryClient()
   const searchParams = route.useSearch()
   const isAdmin = useIsAdmin()
-  const isEnterprise = useIsEnterprise()
   const isRoot = useIsRoot()
   const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
+
+  // Group filter is admin-only — its option source `/api/group/` is behind
+  // AdminAuth — so only fetch the group list for admins.
+  const { data: groupsResp } = useQuery({
+    queryKey: ['groups'],
+    queryFn: getGroups,
+    enabled: isAdmin,
+    staleTime: 5 * 60 * 1000,
+  })
+  const groupOptions = useMemo(
+    () => (groupsResp?.success ? (groupsResp.data ?? []) : []),
+    [groupsResp]
+  )
 
   const [filters, setFilters] = useState<CommonLogFilters>(() => {
     const { start, end } = getDefaultTimeRange()
@@ -94,7 +111,10 @@ export function CommonLogsFilterBar<TData>(
       channel: searchParams.channel || undefined,
       model: searchParams.model || undefined,
       token: searchParams.token || undefined,
-      group: searchParams.group || undefined,
+      // Group filter is admin-only; ignore any group in the URL for non-admins
+      // so a stale/hand-edited ?group= can't silently filter /api/log/self with
+      // no visible control and a disabled Reset.
+      group: isAdmin ? searchParams.group || undefined : undefined,
       username: searchParams.username || undefined,
       requestId: searchParams.requestId || undefined,
       upstreamRequestId: searchParams.upstreamRequestId || undefined,
@@ -121,6 +141,7 @@ export function CommonLogsFilterBar<TData>(
     searchParams.upstreamRequestId,
     searchParams.nonAdmin,
     searchParams.type,
+    isAdmin,
   ])
 
   const handleChange = useCallback(
@@ -183,7 +204,9 @@ export function CommonLogsFilterBar<TData>(
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
   // PLG (non-enterprise) users don't see the group concept, so the group
   // filter and its active-filter badge are hidden for them.
-  const hasGroupFilter = isEnterprise && !!filters.group
+  // Group filter is admin-only (see groupFilter), so its active-filter badge
+  // keys off isAdmin to stay consistent with control visibility.
+  const hasGroupFilter = isAdmin && !!filters.group
   const hasAdditionalFilters =
     !!filters.model || hasGroupFilter || hasTypeFilter || hasExpandedFilters
 
@@ -253,15 +276,39 @@ export function CommonLogsFilterBar<TData>(
       />
     </LogsFilterField>
   )
-  const groupFilter = isEnterprise ? (
+  // Group filter is admin-only: the option source `/api/group/` is behind
+  // AdminAuth, and group filtering of logs is an admin capability. allowCustomValue
+  // lets an admin still type a renamed/deleted historical group that no longer
+  // appears in the current ratio-group config (log `group` is a point-in-time
+  // snapshot and is never backfilled).
+  const groupComboboxOptions = useMemo(
+    () => groupOptions.map((g) => ({ value: g, label: g })),
+    [groupOptions]
+  )
+  const groupFilter = isAdmin ? (
     <LogsFilterField>
-      <LogsFilterInput
-        placeholder={t('Group')}
-        type={sensitiveType}
-        value={filters.group || ''}
-        onChange={(e) => handleChange('group', e.target.value)}
-        onKeyDown={handleKeyDown}
-      />
+      {sensitiveVisible ? (
+        <Combobox
+          options={groupComboboxOptions}
+          value={filters.group || ''}
+          onValueChange={(value) => handleChange('group', value || undefined)}
+          placeholder={t('Group')}
+          searchPlaceholder={t('Group')}
+          emptyText={t('No group found.')}
+          allowCustomValue
+        />
+      ) : (
+        // Consistent with the channel/group columns: when sensitive info is
+        // hidden, group names are masked. Show a read-only masked placeholder
+        // (preserving whether a group filter is active) instead of exposing
+        // names in the combobox value/options.
+        <LogsFilterInput
+          readOnly
+          value={filters.group ? '••••' : ''}
+          placeholder={t('Group')}
+          aria-label={t('Group')}
+        />
+      )}
     </LogsFilterField>
   ) : null
   const typeFilter = (
