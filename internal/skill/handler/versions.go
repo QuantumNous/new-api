@@ -489,7 +489,7 @@ func writeSkillVersionMutationError(c *gin.Context, err error) {
 	if errors.Is(err, errVersionNumberConflict) {
 		c.JSON(http.StatusConflict, skillapi.ErrorEnvelope{
 			Error: skillapi.ErrorBody{
-				Code:      errcodes.ErrInvalidRequest,
+				Code:      errcodes.ErrSkillConflict,
 				Message:   "Could not allocate a unique skill version number; retry the request.",
 				Detail:    gin.H{"reason": "VERSION_NUMBER_CONFLICT"},
 				RequestID: skillapi.RequestID(c),

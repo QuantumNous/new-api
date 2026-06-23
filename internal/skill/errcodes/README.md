@@ -9,11 +9,11 @@ for the Skill Marketplace. Source of truth:
 | Symbol | Type | Description |
 |---|---|---|
 | `ErrorCode` | `type string` | Uppercase API error code, for example `"SKILL_NOT_FOUND"` |
-| `ErrInvalidRequest` ... `ErrSkillInternalError` | `ErrorCode` constants | 14 stable error codes |
+| `ErrInvalidRequest` ... `ErrSkillInternalError` | `ErrorCode` constants | Stable error codes, including Skill Marketplace extensions such as `SKILL_CONFLICT` |
 | `ErrorCode.Valid()` | method | Reports whether the code is catalog-registered |
 | `HTTPStatusFor(code)` | func | Returns canonical HTTP status; 500 for unknown codes |
 | `HTTPStatusCatalog()` | func | Returns a defensive copy of the full code-to-status map |
-| `AllErrorCodes()` | func | Returns a defensive copy of all 14 codes in declaration order |
+| `AllErrorCodes()` | func | Returns a defensive copy of all codes in declaration order |
 | `ErrorCodeFor(BlockReason)` | func | Translates data-model BlockReason to API ErrorCode |
 | `BlockReasonFor(ErrorCode)` | func | Reverse translation |
 | `RateLimitedCode` | const | Alias for `ErrSkillRateLimited`, the one code requiring a Retry-After header |
