@@ -1131,7 +1131,16 @@ func TestPublishAdminSkill_PublishesAndEmitsAuditAndEvent(t *testing.T) {
 	assert.Equal(t, enums.EntryPointAdminPreview, event.EntryPoint)
 	require.NotNil(t, event.Success)
 	assert.True(t, *event.Success)
-	assert.Contains(t, string(event.Metadata), "minimal checklist complete")
+	var eventMetadata map[string]any
+	require.NoError(t, common.Unmarshal(event.Metadata, &eventMetadata))
+	assert.Equal(t, map[string]any{
+		"producer":       "admin",
+		"schema_version": "1.0",
+	}, eventMetadata)
+	assert.NotContains(t, eventMetadata, "reason")
+	assert.NotContains(t, eventMetadata, "action")
+	assert.NotContains(t, eventMetadata, "status")
+	assert.NotContains(t, string(event.Metadata), "minimal checklist complete")
 
 	marketplaceCtx, marketplaceW := testContext("/api/v1/marketplace/skills?page=1&limit=20")
 	ListMarketplaceSkills(marketplaceCtx)

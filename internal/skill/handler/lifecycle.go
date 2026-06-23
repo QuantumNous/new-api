@@ -93,7 +93,7 @@ func PublishAdminSkill(c *gin.Context) {
 		if err := writeSkillLifecycleAuditLog(tx, c, "publish", published.ID, version.ID, actorID, role, &reasonPtr, before, skillPublishAuditAfter(published, version)); err != nil {
 			return err
 		}
-		if err := emitSkillAdminAction(tx, c, published, version.ID, actorID, reason, "publish"); err != nil {
+		if err := emitSkillAdminAction(tx, c, published, version.ID, actorID); err != nil {
 			return err
 		}
 		return nil
@@ -212,13 +212,12 @@ func writeSkillLifecycleAuditLog(tx *gorm.DB, c *gin.Context, action, skillID, v
 	}).Error
 }
 
-func emitSkillAdminAction(tx *gorm.DB, c *gin.Context, skill skillmodel.Skill, versionID string, actorID int64, reason string, action string) error {
+func emitSkillAdminAction(tx *gorm.DB, c *gin.Context, skill skillmodel.Skill, versionID string, actorID int64) error {
 	success := true
 	requestID := skillapi.RequestID(c)
 	metadataRaw, err := common.Marshal(map[string]any{
-		"action": action,
-		"reason": reason,
-		"status": string(skill.Status),
+		"producer":       "admin",
+		"schema_version": "1.0",
 	})
 	if err != nil {
 		return err
