@@ -4,6 +4,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-23
 
+- 更新 DR-78 PRD 状态为 ship，记录 Growth surfaces 已通过 PR #95 合并到 main（`docs/tasks/dr78-growth-surfaces-prd.md`）
 - 新增 DR-78 Growth surfaces：Playground 空态推荐 Skill、Marketplace new-Skill banner、Dashboard 首次 Marketplace 指针，并新增 privacy-safe marketplace 事件端点与下载 `entry_point=recommended/new` 归因，补后端/前端 focused tests 与 i18n（`internal/skill/handler`, `router/skill-router.go`, `web/default/src/features/{marketplace,playground,dashboard}`, `web/default/src/i18n/locales/`）
 - 新增 DR-78 Growth surfaces 任务 PRD，定义 Playground recommendation、Marketplace new-Skill banner、first-run pointer 与 `entry_point=recommended/new` 埋点范围（`docs/tasks/dr78-growth-surfaces-prd.md`）
 - 更新 DR-63 PRD 状态为 ship，记录 Public routing API call contract 已通过 PR #93 合并到 main（`docs/tasks/dr63-public-routing-api-contract-prd.md`）
