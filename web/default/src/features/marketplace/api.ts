@@ -21,7 +21,18 @@ import type {
   MarketplaceListResponse,
   MarketplaceSkill,
   MySkill,
+  SkillGrowthEntryPoint,
+  SkillGrowthEventType,
 } from './types'
+
+export { skillDownloadURL } from './lib/growth-surfaces'
+
+export interface MarketplaceSkillsParams {
+  featured?: boolean
+  limit?: number
+  page?: number
+  sort?: string
+}
 
 export async function getMarketplaceSkills(): Promise<
   MarketplaceListResponse<MarketplaceSkill>
@@ -32,9 +43,35 @@ export async function getMarketplaceSkills(): Promise<
   return res.data
 }
 
+export async function getMarketplaceSkillsWithParams(
+  params: MarketplaceSkillsParams
+): Promise<MarketplaceListResponse<MarketplaceSkill>> {
+  const res = await api.get('/api/v1/marketplace/skills', {
+    params,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
 export async function getMySkills(): Promise<MarketplaceListResponse<MySkill>> {
   const res = await api.get('/api/v1/marketplace/my-skills', {
     skipErrorHandler: true,
   } as Record<string, unknown>)
   return res.data
+}
+
+export async function recordMarketplaceSkillEvent(
+  skillId: string,
+  event: {
+    event_type: SkillGrowthEventType
+    entry_point: SkillGrowthEntryPoint
+  }
+): Promise<void> {
+  await api.post(
+    `/api/v1/marketplace/skills/${encodeURIComponent(skillId)}/events`,
+    event,
+    {
+      skipErrorHandler: true,
+    } as Record<string, unknown>
+  )
 }

@@ -84,13 +84,13 @@ jobs:
           # kids_mode relay layer: all constraints incl. max_tokens cap and model
           # whitelist gate (DR-12). TestKidsModeCoverageMatrix enforces that every
           # function listed in docs/kids-coverage-matrix.md actually exists.
-          go test ./relay/ -run 'TestApplyAirbotixPolicy|TestClampUint|TestCheckAirbotixModelWhitelist|TestKidsModeCoverageMatrix' -count=1 -race -timeout 60s
+          go test ./relay/ -run 'TestApplyAirbotixPolicy|TestClampUint|TestCheckAirbotixModelWhitelist|TestKidsModeCoverageMatrix|TestTextHelper_SkillRelay_DR66' -count=1 -race -timeout 60s
           # Smart-router integration: catalog endpoint pricing math, kids
           # pre-filter, brand map, input validation, cross-model fallback,
           # internal-token auth, ResolveAutoModel hot path.
           go test ./controller/ -run 'TestModelRatio|TestGetModelRatio|TestKidsMode|TestListModels|TestGetRouterCatalog|TestChannelTypeToBrand|TryCrossModelFallback|IsChannelExhaustion' -count=1 -race -timeout 60s
           # kids_mode middleware layer: policy resolution + defensive pass-through (DR-12).
-          go test ./middleware/ -run 'TestAirbotixPolicy|TestInternalToken|TestResolveAutoModel' -count=1 -race -timeout 60s
+          go test ./middleware/ -run 'TestAirbotixPolicy|TestInternalToken|TestResolveAutoModel|TestPrepareSkillRelay_DR66' -count=1 -race -timeout 60s
 
       - name: Verify kids coverage matrix (go test -list)
         # scripts/check-kids-coverage-matrix.sh parses docs/kids-coverage-matrix.md,
