@@ -42,7 +42,7 @@ func smtpTLSConfig() *tls.Config {
 }
 
 func newSMTPClient(addr string) (*smtp.Client, error) {
-	if SMTPSSLEnabled {
+	if SMTPSSLEnabled || (SMTPPort == 465 && !SMTPStartTLSEnabled) {
 		conn, err := tls.Dial("tcp", addr, smtpTLSConfig())
 		if err != nil {
 			return nil, err

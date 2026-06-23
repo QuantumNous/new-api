@@ -64,6 +64,35 @@ func newFakeSMTPServerWithSTARTTLSAdvertisement(t *testing.T, advertiseSTARTTLS 
 	return server
 }
 
+func newFakeImplicitTLSSMTPServer(t *testing.T) *fakeSMTPServer {
+	t.Helper()
+
+	cert, err := newTestTLSCertificate()
+	require.NoError(t, err)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	host, portText, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+	port, err := strconv.Atoi(portText)
+	require.NoError(t, err)
+
+	server := &fakeSMTPServer{
+		listener:          tls.NewListener(listener, &tls.Config{Certificates: []tls.Certificate{cert}}),
+		host:              host,
+		port:              port,
+		cert:              cert,
+		advertiseSTARTTLS: false,
+		authMechanisms:    []string{"PLAIN", "LOGIN"},
+		messages:          make(chan string, 1),
+		authCommands:      make(chan string, 1),
+		startTLSCommands:  make(chan string, 1),
+	}
+	go server.serve()
+	return server
+}
+
 func (s *fakeSMTPServer) close() {
 	_ = s.listener.Close()
 }
@@ -74,6 +103,7 @@ func (s *fakeSMTPServer) serve() {
 		return
 	}
 	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 	if err := writeSMTPLine(rw, "220 fake.smtp.local ESMTP"); err != nil {
@@ -341,6 +371,22 @@ func TestNewSMTPClientHonorsExplicitStartTLSWhenPortIs465(t *testing.T) {
 	}
 }
 
+func TestNewSMTPClientKeepsImplicitTLSForLegacyPort465(t *testing.T) {
+	server := newFakeImplicitTLSSMTPServer(t)
+	defer server.close()
+	withSMTPSettings(t)
+
+	SMTPServer = server.host
+	SMTPPort = 465
+	SMTPSSLEnabled = false
+	SMTPStartTLSEnabled = false
+	SMTPInsecureSkipVerify = true
+
+	client, err := newSMTPClient(fmt.Sprintf("%s:%d", server.host, server.port))
+	require.NoError(t, err)
+	defer client.Close()
+}
+
 func TestSendEmailSkipsAuthWhenCredentialsAreEmpty(t *testing.T) {
 	server := newFakeSMTPServerWithSTARTTLSAdvertisement(t, false)
 	defer server.close()
@@ -421,6 +467,34 @@ func TestSendEmailUsesNTLMWhenServerOnlySupportsNTLM(t *testing.T) {
 	SMTPForceAuthLogin = false
 	SMTPAccount = "no-reply"
 	SMTPFrom = "no-reply@example.com"
+	SMTPToken = "secret"
+	SystemName = "New API"
+
+	err := SendEmail("Verification", "receiver@example.com", "<p>123456</p>")
+	require.NoError(t, err)
+
+	select {
+	case command := <-server.authCommands:
+		require.True(t, strings.HasPrefix(command, "AUTH NTLM "), "unexpected auth command: %s", command)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for SMTP AUTH")
+	}
+}
+
+func TestSendEmailUsesNTLMForMicrosoftAccountWhenServerOnlySupportsNTLM(t *testing.T) {
+	server := newFakeSMTPServer(t)
+	server.authMechanisms = []string{"NTLM"}
+	defer server.close()
+	withSMTPSettings(t)
+
+	SMTPServer = server.host
+	SMTPPort = server.port
+	SMTPSSLEnabled = false
+	SMTPStartTLSEnabled = true
+	SMTPInsecureSkipVerify = true
+	SMTPForceAuthLogin = false
+	SMTPAccount = "no-reply@contoso.onmicrosoft.com"
+	SMTPFrom = "no-reply@contoso.onmicrosoft.com"
 	SMTPToken = "secret"
 	SystemName = "New API"
 
