@@ -58,6 +58,21 @@ describe('getUserAttributionDisplay', () => {
     expect(display.detail).toBe('june')
   })
 
+  test('shows affiliate-only attribution as affiliate traffic', () => {
+    const display = getUserAttributionDisplay(
+      JSON.stringify({
+        aff: 'partner-42',
+        landing_path: '/sign-up',
+      })
+    )
+
+    expect(display.sourceType).toBe('affiliate')
+    expect(display.badgeLabel).toBe('Affiliate')
+    expect(display.sourceMedium).toBe('partner-42 / affiliate')
+    expect(display.landingPath).toBe('/sign-up')
+    expect(display.hasAttribution).toBe(true)
+  })
+
   test('ignores unknown raw source type when valid attribution signals exist', () => {
     const display = getUserAttributionDisplay(
       JSON.stringify({
@@ -89,6 +104,7 @@ describe('getUserAttributionDisplay', () => {
     const safeRaw = getSafeAttributionTooltipRaw({
       source_type: 'paid',
       source: 'google',
+      aff: 'partner-42',
       referrer: 'https://example.com/?token=secret',
       landing_path: '/sign-up?email=user@example.com',
       gclid: 'click-id',
@@ -98,6 +114,7 @@ describe('getUserAttributionDisplay', () => {
     expect(safeRaw).toEqual({
       source_type: 'paid',
       source: 'google',
+      aff: 'partner-42',
       gclid: 'click-id',
     })
   })

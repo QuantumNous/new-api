@@ -225,6 +225,18 @@ export function normalizeAttribution(
     }
   }
 
+  if (cleaned.aff) {
+    return {
+      source_type: 'affiliate',
+      source: cleaned.aff,
+      medium: 'affiliate',
+      campaign: '',
+      keyword: '',
+      is_paid: 'false',
+      rule_version: '2026-06-16',
+    }
+  }
+
   const organicSource = detectSearchSource(cleaned.referrer || '')
   if (organicSource) {
     return {

@@ -67,6 +67,17 @@ describe('attribution normalization', () => {
     expect(normalized.keyword).toBe('ai gateway')
   })
 
+  test('classifies affiliate-only traffic before direct traffic', () => {
+    const normalized = normalizeAttribution({
+      aff: 'partner-42',
+    })
+
+    expect(normalized.source_type).toBe('affiliate')
+    expect(normalized.source).toBe('partner-42')
+    expect(normalized.medium).toBe('affiliate')
+    expect(normalized.is_paid).toBe('false')
+  })
+
   test('does not classify lookalike search domains as organic', () => {
     const normalized = normalizeAttribution({
       referrer: 'https://evilgoogle.com/search?q=flatkey',
@@ -186,6 +197,98 @@ describe('attribution normalization', () => {
       expect(captured).not.toContain('email@example.com')
       expect(captured).not.toContain('private-token')
       expect(captured).toContain('https://www.google.com/search')
+    } finally {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: originalWindow,
+      })
+      Object.defineProperty(globalThis, 'document', {
+        configurable: true,
+        value: originalDocument,
+      })
+    }
+  })
+
+  test('capture path classifies organic referrers without storing search keywords', () => {
+    const storage = new Map<string, string>()
+    const originalWindow = globalThis.window
+    const originalDocument = globalThis.document
+
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        location: {
+          origin: 'https://console.flatkey.ai',
+          pathname: '/sign-up',
+          search: '',
+        },
+        localStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          setItem: (key: string, value: string) => storage.set(key, value),
+        },
+      },
+    })
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: {
+        referrer:
+          'https://www.google.com/search?q=email@example.com#private-token',
+      },
+    })
+
+    try {
+      const captured = captureAdsAttribution()
+
+      expect(captured.source_type).toBe('organic')
+      expect(captured.source).toBe('google')
+      expect(captured.medium).toBe('organic')
+      expect(captured.keyword).toBe('')
+      expect(JSON.stringify(captured)).not.toContain('email@example.com')
+    } finally {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: originalWindow,
+      })
+      Object.defineProperty(globalThis, 'document', {
+        configurable: true,
+        value: originalDocument,
+      })
+    }
+  })
+
+  test('capture path preserves affiliate-only attribution', () => {
+    const storage = new Map<string, string>()
+    const originalWindow = globalThis.window
+    const originalDocument = globalThis.document
+
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        location: {
+          origin: 'https://console.flatkey.ai',
+          pathname: '/sign-up',
+          search: '?aff=partner-42',
+        },
+        localStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          setItem: (key: string, value: string) => storage.set(key, value),
+        },
+      },
+    })
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: {
+        referrer: '',
+      },
+    })
+
+    try {
+      const captured = captureAdsAttribution()
+
+      expect(captured.aff).toBe('partner-42')
+      expect(captured.source_type).toBe('affiliate')
+      expect(captured.source).toBe('partner-42')
+      expect(captured.medium).toBe('affiliate')
     } finally {
       Object.defineProperty(globalThis, 'window', {
         configurable: true,

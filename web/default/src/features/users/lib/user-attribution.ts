@@ -34,6 +34,7 @@ export type UserAttributionDisplay = {
 
 const ALLOWED_SOURCE_TYPES = new Set([
   'paid',
+  'affiliate',
   'utm',
   'organic',
   'referral',
@@ -57,6 +58,7 @@ const TOOLTIP_RAW_KEYS = new Set([
   'utm_medium',
   'utm_campaign',
   'utm_term',
+  'aff',
   'gad_campaignid',
   'gad_source',
   ...PAID_CLICK_ID_KEYS,
@@ -64,6 +66,7 @@ const TOOLTIP_RAW_KEYS = new Set([
 
 function badgeLabelForSourceType(sourceType: string): string {
   if (sourceType === 'paid') return 'Paid Ads'
+  if (sourceType === 'affiliate') return 'Affiliate'
   if (sourceType === 'utm') return 'UTM'
   if (sourceType === 'organic') return 'Organic'
   if (sourceType === 'referral') return 'Referral'
