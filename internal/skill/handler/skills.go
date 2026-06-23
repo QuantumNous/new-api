@@ -204,7 +204,7 @@ func ListMarketplaceSkills(c *gin.Context) {
 	if !ok {
 		return
 	}
-	query := db.Model(&skillmodel.Skill{}).Where("status = ?", enums.SkillStatusPublished)
+	query := listMarketplaceSkillsPublicQuery(db).Where("status = ?", enums.SkillStatusPublished)
 	query = applyPublicSkillFilters(query, c)
 	if featured != nil {
 		query = query.Where("featured_flag = ?", *featured)
@@ -497,14 +497,40 @@ func applyPublicSkillFilters(query *gorm.DB, c *gin.Context) *gorm.DB {
 		query = query.Where("required_plan = ?", plan)
 	}
 	if q := strings.TrimSpace(c.Query("query")); q != "" {
-		escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(q)
-		like := "%" + escaped + "%"
-		query = query.Where(
-			"name LIKE ? ESCAPE '!' OR short_description LIKE ? ESCAPE '!' OR description LIKE ? ESCAPE '!'",
-			like, like, like,
-		)
+		clause, args := publicSearchClause(query.Dialector.Name(), q)
+		query = query.Where(clause, args...)
 	}
 	return query
+}
+
+func listMarketplaceSkillsPublicQuery(db *gorm.DB) *gorm.DB {
+	return db.Model(&skillmodel.Skill{}).Select([]string{
+		"id",
+		"slug",
+		"name",
+		"category",
+		"short_description",
+		"status",
+		"required_plan",
+		"free_quota_per_month",
+		"featured_flag",
+		"featured_rank",
+		"is_kids_safe",
+		"is_kids_exclusive",
+	})
+}
+
+func publicSearchClause(dialect, q string) (string, []any) {
+	if dialect == "postgres" {
+		return `to_tsvector('simple',
+				coalesce(name, '') || ' ' ||
+				coalesce(short_description, '') || ' ' ||
+				coalesce(description, '')
+			) @@ plainto_tsquery('simple', ?)`, []any{q}
+	}
+	escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(q)
+	like := "%" + escaped + "%"
+	return "name LIKE ? ESCAPE '!' OR short_description LIKE ? ESCAPE '!' OR description LIKE ? ESCAPE '!'", []any{like, like, like}
 }
 
 func applyAdminSkillFilters(query *gorm.DB, c *gin.Context) *gorm.DB {

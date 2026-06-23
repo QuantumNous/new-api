@@ -142,6 +142,58 @@ func TestListMarketplaceSkills_DR52FiltersAndPublicSearch(t *testing.T) {
 	assert.Equal(t, int64(2), got.Pagination.Total)
 }
 
+func TestListMarketplaceSkills_PublicSearchClauseUsesPGFullTextIndex(t *testing.T) {
+	clause, args := publicSearchClause("postgres", "Public Match")
+
+	assert.Contains(t, clause, "to_tsvector('simple'")
+	assert.Contains(t, clause, "plainto_tsquery('simple', ?)")
+	assert.NotContains(t, clause, "LIKE")
+	assert.Equal(t, []any{"Public Match"}, args)
+}
+
+func TestListMarketplaceSkills_PublicSearchClauseEscapesLikeFallback(t *testing.T) {
+	clause, args := publicSearchClause("sqlite", "100%_match!")
+
+	assert.Contains(t, clause, "LIKE")
+	assert.Equal(t, []any{"%100!%!_match!!%", "%100!%!_match!!%", "%100!%!_match!!%"}, args)
+}
+
+func TestListMarketplaceSkills_PublicQuerySelectsMinimumFields(t *testing.T) {
+	db := testSkillDB(t)
+
+	stmt := listMarketplaceSkillsPublicQuery(db.Session(&gorm.Session{DryRun: true})).
+		Find(&[]skillmodel.Skill{}).Statement
+	sql := stmt.SQL.String()
+
+	for _, col := range []string{
+		"`id`",
+		"`slug`",
+		"`name`",
+		"`category`",
+		"`short_description`",
+		"`status`",
+		"`required_plan`",
+		"`free_quota_per_month`",
+		"`featured_flag`",
+		"`featured_rank`",
+		"`is_kids_safe`",
+		"`is_kids_exclusive`",
+	} {
+		assert.Contains(t, sql, col)
+	}
+	for _, privateCol := range []string{
+		"`description`",
+		"`input_hints`",
+		"`example_inputs`",
+		"`example_outputs`",
+		"`model_whitelist`",
+		"`active_version_id`",
+		"`price_markup`",
+	} {
+		assert.NotContains(t, sql, privateCol)
+	}
+}
+
 func TestListMarketplaceSkills_DR52HidesDraftArchivedDeprecated(t *testing.T) {
 	db := testSkillDB(t)
 	SetDB(db)

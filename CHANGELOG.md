@@ -2,6 +2,10 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-06-23
+
+- 修复 DR-52 PR review 问题：Marketplace list 搜索在 PostgreSQL 使用 DR-81 `idx_skills_public_search` 对齐的全文检索表达式；公开列表路由支持 session/access-token 可选认证；列表 DB 查询改为最小字段白名单，并补 PG 搜索、LIKE fallback、字段白名单和 token-auth availability 回归测试（`middleware/skill-auth.go`, `router/skill-router.go`, `internal/skill/handler/skills.go`, `*_test.go`）
+
 ## 2026-06-22
 
 - 实现 DR-52 Marketplace list API：公开列表响应收窄到 DR-52 字段，新增 availability/badges/featured，支持 category/query/plan/featured/kids_safe/page/limit/locale 查询，隐藏 draft/archived/deprecated，并补匿名与登录态回归测试（`internal/skill/handler/skills.go`, `internal/skill/handler/skills_test.go`）

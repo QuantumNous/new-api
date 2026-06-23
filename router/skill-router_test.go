@@ -52,6 +52,51 @@ func TestSkillRouterMarketplaceListEnvelope(t *testing.T) {
 	assert.Equal(t, got.Meta.RequestID, w.Header().Get(common.RequestIdKey))
 }
 
+func TestSkillRouterMarketplaceListAcceptsAccessTokenAuth(t *testing.T) {
+	engine := newSkillTestRouter(t, false)
+	db := platformmodel.DB
+	token := "marketplace-access-token"
+	require.NoError(t, db.Create(&platformmodel.User{
+		Id:          55,
+		Username:    "token-user",
+		Password:    "password123",
+		Status:      common.UserStatusEnabled,
+		Role:        common.RoleCommonUser,
+		Group:       string(enums.RequiredPlanFree),
+		AccessToken: &token,
+	}).Error)
+
+	var skill skillmodel.Skill
+	require.NoError(t, db.Where("slug = ?", "published-skill").First(&skill).Error)
+	require.NoError(t, skillmodel.EnableSkillForUser(db, 55, 55, skill.ID, "marketplace"))
+
+	w := performSkillRequestWithHeaders(engine, http.MethodGet, "/api/v1/marketplace/skills", map[string]string{
+		"Authorization": "Bearer " + token,
+		"New-Api-User":  "55",
+	})
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Slug         string `json:"slug"`
+			Availability struct {
+				Enabled  *bool   `json:"enabled"`
+				Locked   bool    `json:"locked"`
+				LockCode *string `json:"lock_code"`
+				CTA      string  `json:"cta"`
+			} `json:"availability"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 1)
+	assert.Equal(t, "published-skill", got.Data[0].Slug)
+	require.NotNil(t, got.Data[0].Availability.Enabled)
+	assert.True(t, *got.Data[0].Availability.Enabled)
+	assert.False(t, got.Data[0].Availability.Locked)
+	assert.Nil(t, got.Data[0].Availability.LockCode)
+	assert.Equal(t, "use", got.Data[0].Availability.CTA)
+}
+
 func TestSkillRouterRejectsInvalidSortWithInvalidRequest(t *testing.T) {
 	engine := newSkillTestRouter(t, false)
 
@@ -154,11 +199,23 @@ func performSkillRequest(engine *gin.Engine, method, url string, remoteAddr stri
 	return w
 }
 
+func performSkillRequestWithHeaders(engine *gin.Engine, method, url string, headers map[string]string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(method, url, nil)
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	engine.ServeHTTP(w, req)
+	return w
+}
+
 func newSkillRouterTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, skillmodel.MigrateSkills(db))
+	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
+	require.NoError(t, db.AutoMigrate(&platformmodel.User{}))
 	published := routerTestSkill("published-skill", enums.SkillStatusPublished)
 	draft := routerTestSkill("draft-skill", enums.SkillStatusDraft)
 	require.NoError(t, db.Create(&published).Error)
