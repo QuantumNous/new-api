@@ -17,7 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
+import { Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -27,6 +29,7 @@ import {
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
+import { downloadMediaFile } from '../../lib/download-media'
 
 interface ImageDialogProps {
   imageUrl: string
@@ -44,6 +47,7 @@ export function ImageDialog({
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
 
   // Reset loading state when dialog opens or image URL changes
   const handleOpenChange = (newOpen: boolean) => {
@@ -62,6 +66,16 @@ export function ImageDialog({
   const handleImageError = () => {
     setIsLoading(false)
     setHasError(true)
+  }
+
+  const handleDownload = async () => {
+    if (!imageUrl || hasError || isDownloading) return
+    setIsDownloading(true)
+    try {
+      await downloadMediaFile(imageUrl, 'generated-image.png')
+    } finally {
+      setIsDownloading(false)
+    }
   }
 
   return (
@@ -111,10 +125,21 @@ export function ImageDialog({
             </div>
 
             {/* Image URL */}
-            <div className='bg-muted mt-4 rounded-md p-3'>
-              <p className='text-muted-foreground font-mono text-xs break-all'>
+            <div className='bg-muted mt-4 flex items-start gap-3 rounded-md p-3'>
+              <p className='text-muted-foreground min-w-0 flex-1 font-mono text-xs break-all'>
                 {imageUrl}
               </p>
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                className='shrink-0'
+                disabled={isLoading || hasError || isDownloading}
+                onClick={() => void handleDownload()}
+              >
+                <Download className='size-4' />
+                {t('Download')}
+              </Button>
             </div>
           </div>
         </ScrollArea>
