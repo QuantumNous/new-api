@@ -18,6 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import {
+  getMarketplaceSkillsWithParams,
+  recordMarketplaceSkillEvent,
+  skillDownloadURL,
+} from '@/features/marketplace/api'
 import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundEmptyState } from './components/playground-empty-state'
@@ -63,6 +68,13 @@ export function Playground() {
     queryFn: getUserGroups,
   })
 
+  const { data: recommendedSkillsData } = useQuery({
+    queryKey: ['playground-recommended-skill'],
+    queryFn: () => getMarketplaceSkillsWithParams({ limit: 1, page: 1 }),
+    staleTime: 5 * 60 * 1000,
+  })
+  const recommendedSkill = recommendedSkillsData?.data?.[0] ?? null
+
   // Update models when data changes
   useEffect(() => {
     if (!modelsData) return
@@ -96,6 +108,17 @@ export function Playground() {
 
     setGroups(processedGroups)
   }, [groupsData, setGroups])
+
+  useEffect(() => {
+    if (!recommendedSkill) return
+    void recordMarketplaceSkillEvent(
+      recommendedSkill.slug || recommendedSkill.id,
+      {
+        event_type: 'skill_impression',
+        entry_point: 'recommended',
+      }
+    ).catch(() => undefined)
+  }, [recommendedSkill])
 
   const handleSendMessage = (text: string) => {
     const userMessage = createUserMessage(text)
@@ -176,7 +199,15 @@ export function Playground() {
       {/* Full-width scroll container: scrolling works even over side whitespace */}
       <div className='flex flex-1 flex-col overflow-hidden'>
         {messages.length === 0 ? (
-          <PlaygroundEmptyState onSubmitPrompt={handleSendMessage} />
+          <PlaygroundEmptyState
+            recommendedSkill={recommendedSkill}
+            onDownloadRecommendation={(skill) => {
+              window.location.assign(
+                skillDownloadURL(skill.slug || skill.id, 'recommended')
+              )
+            }}
+            onSubmitPrompt={handleSendMessage}
+          />
         ) : (
           <PlaygroundChat
             messages={messages}

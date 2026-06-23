@@ -65,9 +65,9 @@ jobs:
           go test ./internal/... -count=1 -race -timeout 120s
           # Upstream-adjacent fork tests (kept in sync with airbotix-internal.yml).
           go test ./model/ -run 'TestUser_Airbotix' -count=1 -timeout 60s
-          go test ./relay/ -run 'TestApplyAirbotixPolicy|TestClampUint|TestCheckAirbotixModelWhitelist|TestKidsModeCoverageMatrix' -count=1 -race -timeout 60s
+          go test ./relay/ -run 'TestApplyAirbotixPolicy|TestClampUint|TestCheckAirbotixModelWhitelist|TestKidsModeCoverageMatrix|TestTextHelper_SkillRelay_DR66' -count=1 -race -timeout 60s
           go test ./controller/ -run 'TestModelRatio|TestGetModelRatio|TestKidsMode|TestListModels|TestGetRouterCatalog|TestChannelTypeToBrand|TryCrossModelFallback|IsChannelExhaustion' -count=1 -race -timeout 60s
-          go test ./middleware/ -run 'TestAirbotixPolicy|TestInternalToken|TestResolveAutoModel' -count=1 -race -timeout 60s
+          go test ./middleware/ -run 'TestAirbotixPolicy|TestInternalToken|TestResolveAutoModel|TestPrepareSkillRelay_DR66' -count=1 -race -timeout 60s
 
       - name: Verify kids coverage matrix
         run: bash scripts/check-kids-coverage-matrix.sh

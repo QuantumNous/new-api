@@ -23,6 +23,8 @@ import type {
   MarketplaceListResponse,
   MarketplaceSkill,
   MySkill,
+  SkillGrowthEntryPoint,
+  SkillGrowthEventType,
 } from './types'
 
 export async function getMarketplaceSkills(
@@ -44,6 +46,16 @@ export async function getMarketplaceSkills(
   return res.data
 }
 
+export async function getMarketplaceSkillsWithParams(
+  params: MarketplaceSkillsParams
+): Promise<MarketplaceListResponse<MarketplaceSkill>> {
+  const res = await api.get('/api/v1/marketplace/skills', {
+    params,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
 export async function getMySkills(): Promise<MarketplaceListResponse<MySkill>> {
   const res = await api.get('/api/v1/marketplace/my-skills', {
     skipErrorHandler: true,
@@ -58,4 +70,18 @@ export async function emitMarketplaceEvent(
     skipErrorHandler: true,
     skipBusinessError: true,
   } as Record<string, unknown>)
+export async function recordMarketplaceSkillEvent(
+  skillId: string,
+  event: {
+    event_type: SkillGrowthEventType
+    entry_point: SkillGrowthEntryPoint
+  }
+): Promise<void> {
+  await api.post(
+    `/api/v1/marketplace/skills/${encodeURIComponent(skillId)}/events`,
+    event,
+    {
+      skipErrorHandler: true,
+    } as Record<string, unknown>
+  )
 }

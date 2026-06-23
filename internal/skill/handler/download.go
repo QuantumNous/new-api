@@ -77,10 +77,11 @@ func DownloadSkillPackage(c *gin.Context) {
 		return
 	}
 
+	entryPoint := downloadEntryPoint(c.Query("entry_point"))
 	// Emit analytics event with the user's resolved plan (not the skill's required_plan).
 	// Log on failure but do not block the download response.
 	userPlan := groupToPlan(c.GetString("group"))
-	if err := emitSkillEnabledForDownload(db, userID, s, userPlan); err != nil {
+	if err := emitSkillEnabledForDownload(db, userID, s, userPlan, entryPoint); err != nil {
 		common.SysLog("EmitSkillEnabled failed for skill " + s.ID + ": " + err.Error())
 	}
 
@@ -95,6 +96,17 @@ func DownloadSkillPackage(c *gin.Context) {
 // used by the availability resolver (free < pro < enterprise).
 func downloadEntitled(required enums.RequiredPlan, userGroup string) bool {
 	return downloadPlanLevel(groupToPlan(userGroup)) >= downloadPlanLevel(required)
+}
+
+func downloadEntryPoint(raw string) enums.EntryPoint {
+	switch enums.EntryPoint(strings.TrimSpace(raw)) {
+	case enums.EntryPointNew:
+		return enums.EntryPointNew
+	case enums.EntryPointRecommended:
+		return enums.EntryPointRecommended
+	default:
+		return enums.EntryPointSkillPackage
+	}
 }
 
 func groupToPlan(group string) enums.RequiredPlan {
@@ -121,14 +133,14 @@ func downloadPlanLevel(p enums.RequiredPlan) int {
 	}
 }
 
-func emitSkillEnabledForDownload(db *gorm.DB, userID int64, s skillmodel.Skill, userPlan enums.RequiredPlan) error {
+func emitSkillEnabledForDownload(db *gorm.DB, userID int64, s skillmodel.Skill, userPlan enums.RequiredPlan, entryPoint enums.EntryPoint) error {
 	isKidsSession, err := serverResolvedKidsSession(db, userID)
 	if err != nil {
 		return err
 	}
 	if !isKidsSession {
 		return skillmodel.EmitSkillEnabled(db, userID, s.ID, s.ActiveVersionID,
-			string(enums.EntryPointSkillPackage), string(userPlan))
+			string(entryPoint), string(userPlan))
 	}
 
 	plan := userPlan
@@ -138,7 +150,7 @@ func emitSkillEnabledForDownload(db *gorm.DB, userID int64, s skillmodel.Skill, 
 		EventType:            enums.SkillUsageEventTypeEnabled,
 		SkillID:              &skillID,
 		SkillVersionID:       s.ActiveVersionID,
-		EntryPoint:           enums.EntryPointSkillPackage,
+		EntryPoint:           entryPoint,
 		Plan:                 &plan,
 		IsKidsSafeSkill:      &s.IsKidsSafe,
 		IsKidsExclusiveSkill: &s.IsKidsExclusive,

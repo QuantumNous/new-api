@@ -31,8 +31,22 @@ func Resolve(c *gin.Context, skillID string) (*SkillRelayContext, errcodes.Error
 	return resolve(c, db, skillID)
 }
 
+// ResolveVersion is the public routing/package execution entry point when a
+// downloaded package provides a manifest-pinned skill_version_id. Identity still
+// comes exclusively from the authenticated request context; the version pin is
+// only accepted after the server verifies it belongs to the requested published
+// Skill and is active.
+func ResolveVersion(c *gin.Context, skillID string, skillVersionID string) (*SkillRelayContext, errcodes.ErrorCode) {
+	return resolveVersion(c, db, skillID, skillVersionID)
+}
+
 // resolve is the pure, DB-injectable core of Resolve. Used directly in tests.
 func resolve(c *gin.Context, database *gorm.DB, skillID string) (*SkillRelayContext, errcodes.ErrorCode) {
+	return resolveVersion(c, database, skillID, "")
+}
+
+// resolveVersion is the pure, DB-injectable core of ResolveVersion. Used directly in tests.
+func resolveVersion(c *gin.Context, database *gorm.DB, skillID string, skillVersionID string) (*SkillRelayContext, errcodes.ErrorCode) {
 	userID := common.GetContextKeyInt(c, constant.ContextKeyUserId)
 	if userID == 0 {
 		return nil, errcodes.ErrAuthRequired
@@ -83,10 +97,45 @@ func resolve(c *gin.Context, database *gorm.DB, skillID string) (*SkillRelayCont
 		return nil, errcodes.ErrSkillInternalError
 	}
 
-	if skill.Status != enums.SkillStatusPublished {
-		return nil, errcodes.ErrSkillNotPublished
+	// DR-66 lifecycle + enabled-state gate (tasks/05 §5.1 step 8, before the
+	// SkillVersion snapshot SELECT / LoadAndApply). Gate failure returns here, so a
+	// disabled / draft / archived / (fail-closed) deprecated skill never loads a
+	// snapshot or prompt ("No prompt load", tasks/05 error table; threat T-05).
+	//
+	// Short-circuit (fixed requirement, not an optimisation): only a published
+	// skill WITH an active version (and, once DR-67 flips the flag, deprecated)
+	// needs the enabled lookup. A missing active version, draft, archived, or
+	// deprecated-while-flag-off is rejected on lifecycle alone, so it must NOT query
+	// user_enabled_skills. Gating the lookup on hasActiveVersion also preserves error
+	// priority: a published-but-no-active-version skill returns SKILL_NOT_PUBLISHED
+	// even when the enabled lookup would have hit a DB error (which must not mask the
+	// higher-priority lifecycle failure with SKILL_INTERNAL_ERROR).
+	hasActiveVersion := skill.ActiveVersionID != nil
+	enabled := false
+	if hasActiveVersion &&
+		(skill.Status == enums.SkillStatusPublished ||
+			(deprecatedRuntimeEnabled && skill.Status == enums.SkillStatusDeprecated)) {
+		e, err := userSkillEnabled(database, int64(userID), skill.ID)
+		if err != nil {
+			return nil, errcodes.ErrSkillInternalError
+		}
+		enabled = e
 	}
-	if skill.ActiveVersionID == nil {
+	if code := lifecycleEnabledDecision(skill.Status, hasActiveVersion, enabled, deprecatedRuntimeEnabled); code != "" {
+		return nil, code
+	}
+
+	// DR-63 version selection (runs AFTER the DR-66 gate authorises execution): use
+	// the manifest-pinned version if provided, else the skill's active version. The
+	// snapshot SELECT below still requires the selected version to be active.
+	selectedVersionID := strings.TrimSpace(skillVersionID)
+	if selectedVersionID == "" {
+		if skill.ActiveVersionID == nil {
+			return nil, errcodes.ErrSkillNotPublished
+		}
+		selectedVersionID = *skill.ActiveVersionID
+	}
+	if strings.TrimSpace(selectedVersionID) == "" {
 		return nil, errcodes.ErrSkillNotPublished
 	}
 
@@ -102,7 +151,7 @@ func resolve(c *gin.Context, database *gorm.DB, skillID string) (*SkillRelayCont
 			"monetization_snapshot",
 			"max_input_tokens_snapshot",
 		}).
-		Where("id = ? AND skill_id = ? AND status = ?", *skill.ActiveVersionID, skill.ID, enums.SkillVersionStatusActive).
+		Where("id = ? AND skill_id = ? AND status = ?", selectedVersionID, skill.ID, enums.SkillVersionStatusActive).
 		Take(&skillVersion).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errcodes.ErrSkillNotPublished

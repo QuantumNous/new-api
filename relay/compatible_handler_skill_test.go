@@ -11,8 +11,11 @@ package relay
 // - unrelated non-skill branches still require live channel setup
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -23,6 +26,9 @@ import (
 	skillrelay "github.com/QuantumNous/new-api/internal/skill/relay"
 	platformmodel "github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -41,8 +47,21 @@ func newSkillTestDB(t *testing.T) *gorm.DB {
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}))
+	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}, &skillmodel.UserEnabledSkill{}))
 	return database
+}
+
+// enableSkillRowFor seeds an enabled user_enabled_skills row (tenant_id=userID, V1)
+// so a request passes the DR-66 lifecycle/enabled gate, which requires published
+// skills to be enabled for the caller before the snapshot/prompt is loaded.
+func enableSkillRowFor(t *testing.T, db *gorm.DB, userID int, skillID string) {
+	t.Helper()
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:   int64(userID),
+		TenantID: int64(userID),
+		SkillID:  skillID,
+		Enabled:  true,
+	}).Error)
 }
 
 // insertVersionForSkill creates a SkillVersion for skill and wires it as the active version.
@@ -169,6 +188,7 @@ func TestTextHelper_SkillRelay_SkillFound_ContextSet(t *testing.T) {
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 7)
+	enableSkillRowFor(t, testDB, 7, skill.ID)
 
 	// TextHelper exits after LoadAndApply (no adaptor available in tests)  we don't assert the error.
 	TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
@@ -215,6 +235,73 @@ func TestTextHelper_SkillRelay_NilDeepRouter_NotAffected(t *testing.T) {
 	}
 }
 
+// TestTextHelper_NonSkillRequest_UpstreamPayloadUnchanged verifies DR-71:
+// a normal chat-completions request with no deeprouter.skill_id must stay on the
+// legacy relay path. The Skill gate must not create SkillRelayContext, must not
+// rewrite model/messages, and must not set smart-router routing metadata.
+func TestTextHelper_NonSkillRequest_UpstreamPayloadUnchanged(t *testing.T) {
+	withDBBypass(t)
+	service.InitHttpClient()
+
+	var capturedBody []byte
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		capturedBody = append([]byte(nil), body...)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, err = w.Write([]byte(`{"id":"chatcmpl-dr71","object":"chat.completion","created":1700000000,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(upstream.Close)
+
+	stream := false
+	temperature := 0.0
+	topP := 0.0
+	maxTokens := uint(16)
+	req := &dto.GeneralOpenAIRequest{
+		Model:       "gpt-4o-mini",
+		Messages:    []dto.Message{userMsg("keep this request unchanged")},
+		Stream:      &stream,
+		Temperature: &temperature,
+		TopP:        &topP,
+		MaxTokens:   &maxTokens,
+		User:        []byte(`"user-123"`),
+		Metadata:    []byte(`{"trace":"dr71"}`),
+	}
+	expectedBody, err := common.Marshal(req)
+	require.NoError(t, err)
+	expectedBody, err = relaycommon.RemoveDisabledFields(expectedBody, dto.ChannelOtherSettings{}, false)
+	require.NoError(t, err)
+
+	c := newSkillTestCtx(t, 1)
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(c, constant.ContextKeyChannelId, 71)
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
+	common.SetContextKey(c, constant.ContextKeyChannelKey, "test-key")
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, "gpt-4o-mini")
+
+	apiErr := TextHelper(c, &relaycommon.RelayInfo{
+		Request:         req,
+		RequestId:       "req-dr71-non-skill",
+		OriginModelName: "gpt-4o-mini",
+		RequestURLPath:  "/v1/chat/completions",
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+	})
+
+	require.Nil(t, apiErr, "normal non-skill request must complete through the legacy OpenAI relay path")
+	require.True(t, bytes.Equal(expectedBody, capturedBody),
+		"non-skill upstream payload changed\nexpected: %s\nactual:   %s", expectedBody, capturedBody)
+
+	_, hasSkillCtx := skillrelay.Get(c)
+	assert.False(t, hasSkillCtx, "non-skill request must not set SkillRelayContext")
+	assert.Empty(t, c.Writer.Header().Get("X-DeepRouter-Routed-Model"),
+		"direct non-skill request must not emit smart-router routed-model header")
+	assert.Empty(t, common.GetContextKeyString(c, constant.ContextKeyAliasResolvedFrom),
+		"direct non-skill request must not set smart-router alias context")
+}
+
 // TestTextHelper_SkillRelay_EmptySkillID_NotAffected verifies that a request with
 // deeprouter: {"skill_id": ""} is treated as a normal relay request  the guard
 // condition `request.Deeprouter != nil && request.Deeprouter.SkillID != ""` must
@@ -246,6 +333,7 @@ func TestTextHelper_SkillRelay_EntryPoint_DefaultIsPlaygroundPicker(t *testing.T
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 8)
+	enableSkillRowFor(t, testDB, 8, skill.ID)
 	TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
 		Model:      "gpt-4o",
 		Messages:   []dto.Message{userMsg("hello")},
@@ -275,6 +363,7 @@ func TestTextHelper_SkillRelay_InvalidEntryPoint_Returns400(t *testing.T) {
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 10)
+	enableSkillRowFor(t, testDB, 10, skill.ID)
 	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
 		Model:    "gpt-4o",
 		Messages: []dto.Message{userMsg("hello")},
@@ -338,6 +427,7 @@ func TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField(t *testing.T) {
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 9)
+	enableSkillRowFor(t, testDB, 9, skill.ID)
 	TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
 		Model:    "gpt-4o",
 		Messages: []dto.Message{userMsg("hello")},
@@ -412,6 +502,7 @@ func TestTextHelper_SkillRelay_PublicRoutingAPI_ForcePackageEntryAndCredentialId
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 13)
+	enableSkillRowFor(t, testDB, 13, skill.ID)
 	common.SetContextKey(c, constant.ContextKeySkillPublicRoutingAPI, true)
 	common.SetContextKey(c, constant.ContextKeySkillRelayEntryPoint, string(enums.EntryPointSkillPackage))
 
@@ -421,7 +512,7 @@ func TestTextHelper_SkillRelay_PublicRoutingAPI_ForcePackageEntryAndCredentialId
 		User:     []byte(`{"user_id":999,"tenant_id":"evil"}`),
 		Deeprouter: &dto.DeepRouterExtension{
 			SkillID:        skill.ID,
-			SkillVersionID: "package-supplied-version-is-not-authoritative",
+			SkillVersionID: version.ID,
 			EntryPoint:     string(enums.EntryPointAdminPreview),
 		},
 	}))
@@ -429,11 +520,44 @@ func TestTextHelper_SkillRelay_PublicRoutingAPI_ForcePackageEntryAndCredentialId
 	sCtx, ok := skillrelay.Get(c)
 	require.True(t, ok)
 	assert.Equal(t, 13, sCtx.UserID, "identity must come from the verified credential context")
-	assert.Equal(t, version.ID, sCtx.SkillVersionID, "client-supplied skill_version_id must be ignored in favor of the active server-bound version")
+	assert.Equal(t, version.ID, sCtx.SkillVersionID, "valid package-supplied skill_version_id must pin the server-verified execution version")
 	require.NotNil(t, sCtx.SkillVersion, "DR-65: SkillVersion snapshot must be stored on context")
 	assert.Equal(t, version.ID, sCtx.SkillVersion.ID, "DR-65: context must keep the selected version snapshot")
 	assert.Equal(t, string(enums.EntryPointSkillPackage), sCtx.EntryPoint,
 		"public routing API must force package entry point over package-provided values")
+}
+
+func TestTextHelper_SkillRelay_PublicRoutingAPI_InvalidVersionPinRejected(t *testing.T) {
+	testDB := newSkillTestDB(t)
+	skill := &skillmodel.Skill{
+		Slug: "public-routing-bad-pin", Status: enums.SkillStatusPublished, Category: "test",
+		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
+		Name: "Public Routing Bad Pin", ShortDescription: "s", Description: "d", CreatedBy: 1,
+	}
+	require.NoError(t, testDB.Create(skill).Error)
+	insertVersionForSkill(t, testDB, skill, "template", []string{"deeprouter-auto"})
+	skillrelay.SetDB(testDB)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c := newSkillTestCtx(t, 14)
+	enableSkillRowFor(t, testDB, 14, skill.ID) // pass DR-66 gate to reach the version-pin check
+	common.SetContextKey(c, constant.ContextKeySkillPublicRoutingAPI, true)
+	common.SetContextKey(c, constant.ContextKeySkillRelayEntryPoint, string(enums.EntryPointSkillPackage))
+
+	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
+		Model:    "gpt-4o",
+		Messages: []dto.Message{userMsg("hello")},
+		Deeprouter: &dto.DeepRouterExtension{
+			SkillID:        skill.ID,
+			SkillVersionID: "00000000-0000-0000-0000-000000000000",
+		},
+	}))
+
+	require.NotNil(t, apiErr, "invalid package version pin must be rejected")
+	assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+	assert.Equal(t, "SKILL_NOT_PUBLISHED", apiErr.Err.Error())
+	_, hasCtx := skillrelay.Get(c)
+	assert.False(t, hasCtx, "invalid pin must not store SkillRelayContext")
 }
 
 //  DR-68 specific integration tests
@@ -455,6 +579,7 @@ func TestTextHelper_SkillRelay_DR68_EmptyWhitelist_Returns500(t *testing.T) {
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 5)
+	enableSkillRowFor(t, testDB, 5, skill.ID)
 	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
 		Model:      "gpt-4o",
 		Messages:   []dto.Message{userMsg("hello")},
@@ -485,6 +610,7 @@ func TestTextHelper_SkillRelay_DR68_NoUserMessage_Returns400(t *testing.T) {
 	sys := dto.Message{Role: "system"}
 	sys.SetStringContent("system only  no user message")
 	c := newSkillTestCtx(t, 5)
+	enableSkillRowFor(t, testDB, 5, skill.ID)
 	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
 		Model:      "gpt-4o",
 		Messages:   []dto.Message{sys}, // no user role
@@ -567,6 +693,7 @@ func TestTextHelper_SkillRelay_DR68_LoadAndApply_Executed(t *testing.T) {
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 5)
+	enableSkillRowFor(t, testDB, 5, skill.ID)
 
 	// Multi-turn history: LoadAndApply must strip to [system, last-user] only.
 	a1 := dto.Message{Role: "assistant"}
@@ -591,6 +718,55 @@ func TestTextHelper_SkillRelay_DR68_LoadAndApply_Executed(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, version.ID, sCtx.SkillVersionID,
 		"DR-68: SkillVersionID must be populated by LoadAndApply to prove version snapshot was loaded")
+}
+
+// TestTextHelper_SkillRelay_DR66_NotEnabled_NoSnapshotNoPrompt is the direct/TextHelper
+// no-snapshot regression for DR-66: a published skill the caller has NOT enabled is
+// rejected with HTTP 403 SKILL_NOT_ENABLED before the version snapshot is queried, so no
+// prompt/snapshot is loaded and no SkillRelayContext is stored (tasks/05 "No prompt load";
+// threat T-05). Asserted at the DB layer via a skill_versions SELECT counter (no production
+// test hook).
+func TestTextHelper_SkillRelay_DR66_NotEnabled_NoSnapshotNoPrompt(t *testing.T) {
+	testDB := newSkillTestDB(t)
+	skill := &skillmodel.Skill{
+		Slug: "dr66-not-enabled", Status: enums.SkillStatusPublished, Category: "test",
+		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
+		Name: "DR66 Not Enabled", ShortDescription: "s", Description: "d", CreatedBy: 1,
+	}
+	require.NoError(t, testDB.Create(skill).Error)
+	insertVersionForSkill(t, testDB, skill, "SENTINEL_DR66_TEMPLATE", []string{"deeprouter-auto"})
+
+	var snapshotSelects int
+	require.NoError(t, testDB.Callback().Query().After("gorm:query").Register("dr66_count", func(d *gorm.DB) {
+		if strings.Contains(strings.ToLower(d.Statement.SQL.String()), "skill_versions") {
+			snapshotSelects++
+		}
+	}))
+
+	skillrelay.SetDB(testDB)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	// user 77 has NO user_enabled_skills row -> gate must reject.
+	c := newSkillTestCtx(t, 77)
+	req := &dto.GeneralOpenAIRequest{
+		Model:      "gpt-4o",
+		Messages:   []dto.Message{userMsg("hello")},
+		Deeprouter: &dto.DeepRouterExtension{SkillID: skill.ID},
+	}
+	apiErr := TextHelper(c, newSkillRelayInfo(req))
+
+	require.NotNil(t, apiErr, "not-enabled skill must be rejected")
+	assert.Equal(t, http.StatusForbidden, apiErr.StatusCode, "must be HTTP 403")
+	assert.Equal(t, "SKILL_NOT_ENABLED", apiErr.Err.Error())
+	assert.Equal(t, 0, snapshotSelects, "gate failure must not load the version snapshot (no prompt)")
+	_, hasCtx := skillrelay.Get(c)
+	assert.False(t, hasCtx, "no SkillRelayContext must be stored when the gate fails")
+	// Symmetric with the Distribute-path regression: the instruction template must
+	// never be injected into the request messages when the gate fails.
+	for _, m := range req.Messages {
+		assert.NotContains(t, m.StringContent(), "SENTINEL_DR66_TEMPLATE",
+			"instruction template must not be injected on gate failure")
+	}
 }
 
 // TestTextHelper_SkillRelay_TOCTOU_PinnedVersionIDPreserved verifies the TOCTOU guard

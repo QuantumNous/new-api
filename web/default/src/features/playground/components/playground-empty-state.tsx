@@ -21,12 +21,15 @@ import {
   Image as ImageIcon,
   Languages,
   Lightbulb,
+  PackageOpen,
   PenSquare,
   Sparkles,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import type { MarketplaceSkill } from '@/features/marketplace/types'
 
 type Suggestion = {
   icon: LucideIcon
@@ -71,8 +74,7 @@ const SUGGESTIONS: Suggestion[] = [
   {
     icon: ImageIcon,
     labelKey: 'Describe an image',
-    promptKey:
-      'Describe a peaceful mountain lake at sunrise in two sentences.',
+    promptKey: 'Describe a peaceful mountain lake at sunrise in two sentences.',
   },
   {
     icon: Lightbulb,
@@ -83,10 +85,14 @@ const SUGGESTIONS: Suggestion[] = [
 ]
 
 type PlaygroundEmptyStateProps = {
+  recommendedSkill?: MarketplaceSkill | null
+  onDownloadRecommendation?: (skill: MarketplaceSkill) => void
   onSubmitPrompt: (prompt: string) => void
 }
 
 export function PlaygroundEmptyState({
+  recommendedSkill,
+  onDownloadRecommendation,
   onSubmitPrompt,
 }: PlaygroundEmptyStateProps) {
   const { t } = useTranslation()
@@ -100,6 +106,30 @@ export function PlaygroundEmptyState({
           {t('Pick a suggestion or type your own question.')}
         </p>
       </div>
+      {recommendedSkill != null && (
+        <div className='bg-card border-border flex w-full max-w-2xl flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='flex min-w-0 items-start gap-3'>
+            <span className='bg-accent/10 text-accent flex size-9 shrink-0 items-center justify-center rounded-lg border border-current/10'>
+              <PackageOpen className='size-4' aria-hidden='true' />
+            </span>
+            <div className='min-w-0'>
+              <p className='text-sm font-semibold'>{t('Recommended skill')}</p>
+              <p className='text-muted-foreground mt-0.5 line-clamp-2 text-xs leading-relaxed'>
+                {t('Try {{name}} for guided {{category}} work.', {
+                  name: recommendedSkill.name,
+                  category: recommendedSkill.category || t('everyday'),
+                })}
+              </p>
+            </div>
+          </div>
+          <Button
+            size='sm'
+            onClick={() => onDownloadRecommendation?.(recommendedSkill)}
+          >
+            {t('Try skill')}
+          </Button>
+        </div>
+      )}
       <div className='grid w-full max-w-2xl grid-cols-2 gap-2 sm:grid-cols-3'>
         {SUGGESTIONS.map((s, i) => (
           <button

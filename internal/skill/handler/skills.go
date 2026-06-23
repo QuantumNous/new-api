@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	skillapi "github.com/QuantumNous/new-api/internal/skill/api"
 	"github.com/QuantumNous/new-api/internal/skill/availability"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
@@ -86,6 +87,27 @@ type PublicSkill struct {
 	PublishedAt          *time.Time         `json:"published_at,omitempty"`
 }
 
+type MarketplaceSkill struct {
+	ID               string             `json:"id"`
+	Slug             string             `json:"slug"`
+	Name             string             `json:"name"`
+	Category         string             `json:"category"`
+	ShortDescription string             `json:"short_description"`
+	RequiredPlan     enums.RequiredPlan `json:"required_plan"`
+	Availability     SkillAvailability  `json:"availability"`
+	Badges           []string           `json:"badges"`
+	Featured         bool               `json:"featured"`
+	IsKidsSafe       bool               `json:"is_kids_safe"`
+	IsKidsExclusive  bool               `json:"is_kids_exclusive"`
+}
+
+type SkillAvailability struct {
+	Enabled  *bool               `json:"enabled"`
+	Locked   bool                `json:"locked"`
+	LockCode *errcodes.ErrorCode `json:"lock_code"`
+	CTA      availability.CTA    `json:"cta"`
+}
+
 type AdminSkill struct {
 	PublicSkill
 	Status             enums.SkillStatus        `json:"status"`
@@ -153,6 +175,24 @@ type MySkillAvailability struct {
 	CTA        availability.CTA    `json:"cta"`
 }
 
+type MarketplaceSkillEventRequest struct {
+	EventType  enums.SkillUsageEventType `json:"event_type"`
+	EntryPoint enums.EntryPoint          `json:"entry_point"`
+}
+
+var marketplaceEventTypeValues = map[enums.SkillUsageEventType]struct{}{
+	enums.SkillUsageEventTypeImpression: {},
+	enums.SkillUsageEventTypeDetailView: {},
+}
+
+var marketplaceEventEntryPointValues = map[enums.EntryPoint]struct{}{
+	enums.EntryPointMarketplaceCard: {},
+	enums.EntryPointSkillDetail:     {},
+	enums.EntryPointSearchResults:   {},
+	enums.EntryPointNew:             {},
+	enums.EntryPointRecommended:     {},
+}
+
 func ListMarketplaceSkills(c *gin.Context) {
 	page, validationErr := skillapi.ParsePageParams(c)
 	if validationErr != nil {
@@ -172,15 +212,23 @@ func ListMarketplaceSkills(c *gin.Context) {
 		skillapi.AbortQueryError(c, validationErr)
 		return
 	}
+	kidsSafe, validationErr := optionalBoolFilter(c.Query("kids_safe"), "kids_safe")
+	if validationErr != nil {
+		skillapi.AbortQueryError(c, validationErr)
+		return
+	}
 
 	db, ok := skillDB(c)
 	if !ok {
 		return
 	}
-	query := db.Model(&skillmodel.Skill{}).Where("status = ?", enums.SkillStatusPublished)
+	query := listMarketplaceSkillsPublicQuery(db).Where("status = ?", enums.SkillStatusPublished)
 	query = applyPublicSkillFilters(query, c)
 	if featured != nil {
 		query = query.Where("featured_flag = ?", *featured)
+	}
+	if kidsSafe != nil {
+		query = query.Where("is_kids_safe = ?", *kidsSafe)
 	}
 
 	var total int64
@@ -198,9 +246,20 @@ func ListMarketplaceSkills(c *gin.Context) {
 		return
 	}
 
-	out := make([]PublicSkill, 0, len(skills))
+	userInfo, err := marketplaceUserInfo(c, db)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	enabledBySkillID, err := marketplaceEnablementBySkillID(db, userInfo, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+
+	out := make([]MarketplaceSkill, 0, len(skills))
 	for _, s := range skills {
-		out = append(out, publicSkillFromModel(s, false))
+		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID]))
 	}
 	skillapi.List(c, out, skillapi.NewPagination(page.Page, page.Limit, total))
 }
@@ -219,6 +278,78 @@ func GetMarketplaceSkill(c *gin.Context) {
 		return
 	}
 	skillapi.Success(c, publicSkillDetailFromModel(s))
+}
+
+// RecordMarketplaceSkillEvent ingests privacy-safe client-side discovery events
+// for growth surfaces. It intentionally accepts only a tiny event/entry-point
+// whitelist and stores empty metadata so prompts, templates, and raw messages
+// cannot enter analytics through this endpoint.
+func RecordMarketplaceSkillEvent(c *gin.Context) {
+	db, ok := skillDB(c)
+	if !ok {
+		return
+	}
+
+	var req MarketplaceSkillEventRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "Invalid event payload.", nil)
+		return
+	}
+	if _, ok := marketplaceEventTypeValues[req.EventType]; !ok {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "Unsupported event type.", nil)
+		return
+	}
+	if _, ok := marketplaceEventEntryPointValues[req.EntryPoint]; !ok {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "Unsupported entry point.", nil)
+		return
+	}
+
+	var s skillmodel.Skill
+	err := db.Select([]string{
+		"id", "status", "active_version_id", "is_kids_safe", "is_kids_exclusive",
+	}).Where("status = ?", enums.SkillStatusPublished).
+		Where("id = ? OR slug = ?", c.Param("id"), c.Param("id")).
+		First(&s).Error
+	if err != nil {
+		writeSkillLookupError(c, err)
+		return
+	}
+
+	userID := int64(c.GetInt("id"))
+	plan := groupToPlan(c.GetString("group"))
+	successVal := true
+	skillID := s.ID
+	event := skillmodel.SkillUsageEvent{
+		EventType:            req.EventType,
+		SkillID:              &skillID,
+		SkillVersionID:       s.ActiveVersionID,
+		EntryPoint:           req.EntryPoint,
+		Plan:                 &plan,
+		IsKidsSafeSkill:      &s.IsKidsSafe,
+		IsKidsExclusiveSkill: &s.IsKidsExclusive,
+		Success:              &successVal,
+		Metadata:             skillmodel.SkillJSONB(`{}`),
+	}
+	if userID > 0 {
+		if isKidsSession, err := serverResolvedKidsSession(db, userID); err != nil {
+			writeDBError(c, err)
+			return
+		} else if isKidsSession {
+			if err := event.ApplyKidsSessionAnalyticsIdentity(userID, userID, kidsAnalyticsSaltVersion(), kidsAnalyticsDailySalt()); err != nil {
+				writeDBError(c, err)
+				return
+			}
+		} else {
+			event.UserID = &userID
+			event.TenantID = &userID
+		}
+	}
+	if err := skillmodel.EmitSkillUsageEvent(db, event); err != nil {
+		writeDBError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+	c.Writer.WriteHeaderNow()
 }
 
 // ListMySkills serves GET /api/v1/marketplace/my-skills.
@@ -456,14 +587,40 @@ func applyPublicSkillFilters(query *gorm.DB, c *gin.Context) *gorm.DB {
 		query = query.Where("required_plan = ?", plan)
 	}
 	if q := strings.TrimSpace(c.Query("query")); q != "" {
-		escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(q)
-		like := "%" + escaped + "%"
-		query = query.Where(
-			"name LIKE ? ESCAPE '!' OR short_description LIKE ? ESCAPE '!' OR description LIKE ? ESCAPE '!'",
-			like, like, like,
-		)
+		clause, args := publicSearchClause(query.Dialector.Name(), q)
+		query = query.Where(clause, args...)
 	}
 	return query
+}
+
+func listMarketplaceSkillsPublicQuery(db *gorm.DB) *gorm.DB {
+	return db.Model(&skillmodel.Skill{}).Select([]string{
+		"id",
+		"slug",
+		"name",
+		"category",
+		"short_description",
+		"status",
+		"required_plan",
+		"free_quota_per_month",
+		"featured_flag",
+		"featured_rank",
+		"is_kids_safe",
+		"is_kids_exclusive",
+	})
+}
+
+func publicSearchClause(dialect, q string) (string, []any) {
+	if dialect == "postgres" {
+		return `to_tsvector('simple',
+				coalesce(name, '') || ' ' ||
+				coalesce(short_description, '') || ' ' ||
+				coalesce(description, '')
+			) @@ plainto_tsquery('simple', ?)`, []any{q}
+	}
+	escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(q)
+	like := "%" + escaped + "%"
+	return "name LIKE ? ESCAPE '!' OR short_description LIKE ? ESCAPE '!' OR description LIKE ? ESCAPE '!'", []any{like, like, like}
 }
 
 func applyAdminSkillFilters(query *gorm.DB, c *gin.Context) *gorm.DB {
@@ -545,6 +702,143 @@ func publicSkillFromModel(s skillmodel.Skill, includeDetail bool) PublicSkill {
 		out.Tags = rawJSON(s.Tags)
 	}
 	return out
+}
+
+type marketplaceUserContext struct {
+	IsAnonymous bool
+	UserID      int64
+	Plan        enums.RequiredPlan
+	IsKidsMode  bool
+	SubActive   bool
+}
+
+func marketplaceSkillFromModel(s skillmodel.Skill, user marketplaceUserContext, enabled bool) MarketplaceSkill {
+	result := availability.Resolve(availability.SkillInfo{
+		Status:            s.Status,
+		RequiredPlan:      s.RequiredPlan,
+		IsKidsSafe:        s.IsKidsSafe,
+		IsKidsExclusive:   s.IsKidsExclusive,
+		FreeQuotaPerMonth: s.FreeQuotaPerMonth,
+	}, availability.UserInfo{
+		IsAnonymous:   user.IsAnonymous,
+		IsKidsSession: user.IsKidsMode,
+		Plan:          user.Plan,
+		SubActive:     user.SubActive,
+		IsEnabled:     enabled,
+		WasEnabled:    enabled,
+	})
+	return MarketplaceSkill{
+		ID:               s.ID,
+		Slug:             s.Slug,
+		Name:             s.Name,
+		Category:         s.Category,
+		ShortDescription: s.ShortDescription,
+		RequiredPlan:     s.RequiredPlan,
+		Availability:     skillAvailabilityFromResult(result),
+		Badges:           marketplaceBadges(s),
+		Featured:         s.FeaturedFlag,
+		IsKidsSafe:       s.IsKidsSafe,
+		IsKidsExclusive:  s.IsKidsExclusive,
+	}
+}
+
+func skillAvailabilityFromResult(result availability.Result) SkillAvailability {
+	var lockCode *errcodes.ErrorCode
+	if result.LockCode != "" {
+		code := result.LockCode
+		lockCode = &code
+	}
+	return SkillAvailability{
+		Enabled:  result.Enabled,
+		Locked:   result.Locked,
+		LockCode: lockCode,
+		CTA:      result.CTA,
+	}
+}
+
+func marketplaceBadges(s skillmodel.Skill) []string {
+	badges := make([]string, 0, 4)
+	if s.RequiredPlan != enums.RequiredPlanFree {
+		badges = append(badges, string(s.RequiredPlan))
+	}
+	if s.FeaturedFlag {
+		badges = append(badges, "featured")
+	}
+	if s.IsKidsExclusive {
+		badges = append(badges, "kids_exclusive")
+	} else if s.IsKidsSafe {
+		badges = append(badges, "kids_safe")
+	}
+	return badges
+}
+
+func marketplaceUserInfo(c *gin.Context, db *gorm.DB) (marketplaceUserContext, error) {
+	id := c.GetInt("id")
+	if id == 0 {
+		return marketplaceUserContext{
+			IsAnonymous: true,
+			Plan:        enums.RequiredPlanFree,
+			SubActive:   true,
+		}, nil
+	}
+
+	user := platformmodel.User{}
+	if err := db.Select([]string{"id", "group", "kids_mode", "status"}).
+		Where("id = ?", id).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return marketplaceUserContext{
+				IsAnonymous: true,
+				Plan:        enums.RequiredPlanFree,
+				SubActive:   true,
+			}, nil
+		}
+		return marketplaceUserContext{}, err
+	}
+	if user.Status == common.UserStatusDisabled {
+		return marketplaceUserContext{
+			IsAnonymous: true,
+			Plan:        enums.RequiredPlanFree,
+			SubActive:   true,
+		}, nil
+	}
+	return marketplaceUserContext{
+		UserID:     int64(user.Id),
+		Plan:       marketplaceGroupToPlan(user.Group),
+		IsKidsMode: user.KidsMode,
+		SubActive:  true,
+	}, nil
+}
+
+func marketplaceEnablementBySkillID(db *gorm.DB, user marketplaceUserContext, skills []skillmodel.Skill) (map[string]bool, error) {
+	enabled := map[string]bool{}
+	if user.IsAnonymous || user.UserID == 0 || len(skills) == 0 {
+		return enabled, nil
+	}
+	ids := make([]string, 0, len(skills))
+	for _, s := range skills {
+		ids = append(ids, s.ID)
+	}
+	var rows []skillmodel.UserEnabledSkill
+	if err := db.Select([]string{"skill_id", "enabled"}).
+		Where("user_id = ? AND tenant_id = ? AND skill_id IN ?", user.UserID, user.UserID, ids).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		enabled[row.SkillID] = row.Enabled
+	}
+	return enabled, nil
+}
+
+func marketplaceGroupToPlan(group string) enums.RequiredPlan {
+	switch group {
+	case string(enums.RequiredPlanPro):
+		return enums.RequiredPlanPro
+	case string(enums.RequiredPlanEnterprise):
+		return enums.RequiredPlanEnterprise
+	default:
+		return enums.RequiredPlanFree
+	}
 }
 
 // publicSkillDetailFromModel builds the detail-page response.
