@@ -141,8 +141,6 @@ func getESACaptchaSceneId(scene string) string {
 		return common.ESACaptchaVerificationSceneId
 	case "reset_password":
 		return common.ESACaptchaResetPasswordSceneId
-	case "change_password":
-		return common.ESACaptchaChangePasswordSceneId
 	case "delete_account":
 		return common.ESACaptchaDeleteAccountSceneId
 	case "checkin":

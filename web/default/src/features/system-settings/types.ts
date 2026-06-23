@@ -108,9 +108,7 @@ export type AuthSettings = {
   ESARegion: string
   ESAPrefix: string
   ESACaptchaLoginSceneId: string
-  ESACaptchaRegisterSceneId: string
   ESACaptchaResetPasswordSceneId: string
-  ESACaptchaChangePasswordSceneId: string
   ESACaptchaDeleteAccountSceneId: string
   ESACaptchaCheckinSceneId: string
   ESACaptchaVerificationSceneId: string

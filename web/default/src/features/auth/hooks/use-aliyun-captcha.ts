@@ -21,9 +21,7 @@ import { useStatus } from '@/hooks/use-status'
 
 export type AliyunCaptchaScene =
   | 'login'
-  | 'register'
   | 'reset_password'
-  | 'change_password'
   | 'delete_account'
   | 'checkin'
   | 'verification'

@@ -110,11 +110,8 @@ const AUTH_SECTIONS = [
           ESARegion: settings.ESARegion,
           ESAPrefix: settings.ESAPrefix,
           ESACaptchaLoginSceneId: settings.ESACaptchaLoginSceneId,
-          ESACaptchaRegisterSceneId: settings.ESACaptchaRegisterSceneId,
           ESACaptchaResetPasswordSceneId:
             settings.ESACaptchaResetPasswordSceneId,
-          ESACaptchaChangePasswordSceneId:
-            settings.ESACaptchaChangePasswordSceneId,
           ESACaptchaDeleteAccountSceneId:
             settings.ESACaptchaDeleteAccountSceneId,
           ESACaptchaCheckinSceneId: settings.ESACaptchaCheckinSceneId,
