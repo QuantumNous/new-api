@@ -42,6 +42,7 @@ describe("language routing", () => {
     expect(getLanguageRedirectPath({ pathname: "/pricing", method: "POST", acceptLanguage: "ja" })).toBeNull();
     expect(getLanguageRedirectPath({ pathname: "/_next/static/app.js", method: "GET", acceptLanguage: "ja" })).toBeNull();
     expect(getLanguageRedirectPath({ pathname: "/api/perf-metrics", method: "GET", acceptLanguage: "ja" })).toBeNull();
+    expect(getLanguageRedirectPath({ pathname: "/cdn-cgi/trace", method: "GET", acceptLanguage: "ja" })).toBeNull();
     expect(getLanguageRedirectPath({ pathname: "/favicon.ico", method: "GET", acceptLanguage: "ja" })).toBeNull();
     expect(getLanguageRedirectPath({ pathname: "/sign-in", method: "GET", acceptLanguage: "ja" })).toBeNull();
     expect(getLanguageRedirectPath({ pathname: "/install.sh", method: "GET", acceptLanguage: "ja" })).toBeNull();
