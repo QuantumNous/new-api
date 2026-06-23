@@ -2,11 +2,9 @@
 // HTTP status mappings, plus helpers for translating between the data-model
 // BlockReason and the API ErrorCode. Source of truth: tasks/03 §7.2.
 //
-// DR-45 deviation D-45-1: ErrForbidden ("FORBIDDEN", HTTP 403) is added here to
-// satisfy tasks/05 §4.1 (authenticated non-admin → 403) but is NOT in the
-// tasks/03 §7.2 catalog of 14 codes. It has no BlockReason counterpart and is
-// intentionally excluded from blockReasonToCode/allBlockReasons. PR description
-// for DR-45 must disclose this extension and request reviewer sign-off.
+// Skill API extensions such as ErrForbidden and ErrSkillConflict have no
+// BlockReason counterpart and are intentionally excluded from blockReasonToCode
+// and allBlockReasons.
 package errcodes
 
 import (
@@ -25,6 +23,7 @@ const (
 	// ErrForbidden is emitted when a user is authenticated but lacks sufficient
 	// role for the endpoint (tasks/05 §4.1). See D-45-1 in the package doc.
 	ErrForbidden                 ErrorCode = "FORBIDDEN"
+	ErrSkillConflict             ErrorCode = "SKILL_CONFLICT"
 	ErrSkillNotFound             ErrorCode = "SKILL_NOT_FOUND"
 	ErrSkillNotPublished         ErrorCode = "SKILL_NOT_PUBLISHED"
 	ErrSkillNotEnabled           ErrorCode = "SKILL_NOT_ENABLED"
@@ -55,6 +54,7 @@ var httpStatusByCode = map[ErrorCode]int{
 	ErrInvalidRequest:            http.StatusBadRequest,          // 400
 	ErrAuthRequired:              http.StatusUnauthorized,        // 401
 	ErrForbidden:                 http.StatusForbidden,           // 403 — D-45-1, see package doc
+	ErrSkillConflict:             http.StatusConflict,            // 409
 	ErrSkillNotFound:             http.StatusNotFound,            // 404
 	ErrSkillNotPublished:         http.StatusForbidden,           // 403
 	ErrSkillNotEnabled:           http.StatusForbidden,           // 403
@@ -77,6 +77,7 @@ var allErrorCodes = []ErrorCode{
 	ErrInvalidRequest,
 	ErrAuthRequired,
 	ErrForbidden,
+	ErrSkillConflict,
 	ErrSkillNotFound,
 	ErrSkillNotPublished,
 	ErrSkillNotEnabled,

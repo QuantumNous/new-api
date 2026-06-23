@@ -605,6 +605,7 @@ Error:
 | Code | HTTP | Notes |
 |---|---:|---|
 | `AUTH_REQUIRED` | 401 | Login required |
+| `SKILL_CONFLICT` | 409 | Duplicate Skill slug or conflicting admin write |
 | `SKILL_NOT_FOUND` | 404 | Unknown Skill |
 | `SKILL_NOT_PUBLISHED` | 403 | Draft, archived, or unavailable deprecated Skill |
 | `SKILL_NOT_ENABLED` | 403 | Execution attempted before enable |
@@ -880,6 +881,10 @@ Response must redact `instruction_template`.
 `POST /api/v1/admin/skills`
 
 Creates draft Skill. Required fields: `slug`, `name`, `short_description`, `description`, `category`, `required_plan`, `monetization_type`. `max_input_tokens` is required when `required_plan='free'`, `monetization_type='free'`, or `free_quota_per_month` is set.
+
+Conditional `price_markup` rules:
+- `monetization_type='token_markup'`: `price_markup` is required and must be > 0. Omitting it or sending 0 returns `400 INVALID_REQUEST` with `detail.reason: PRICE_MARKUP_REQUIRED`.
+- Any other `monetization_type`: `price_markup` must be omitted or 0. A non-zero value returns `400 INVALID_REQUEST` with `detail.reason: PRICE_MARKUP_NOT_ALLOWED`.
 
 ### 10.3 Patch Skill
 
