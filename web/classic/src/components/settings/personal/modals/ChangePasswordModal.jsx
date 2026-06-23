@@ -95,9 +95,7 @@ const ChangePasswordModal = ({
     );
   }, [needsEmailVerification, emailCode, changePassword, userState]);
 
-  const emaillessMessage = hasEmail
-    ? null
-    : t('请先绑定邮箱地址后修改密码');
+  const emaillessMessage = hasEmail ? null : t('请先绑定邮箱地址后修改密码');
 
   return (
     <>
@@ -123,8 +121,7 @@ const ChangePasswordModal = ({
         centered={true}
         className='modern-modal'
         okButtonProps={{
-          disabled:
-            !hasEmail || (needsEmailVerification && !emailCode),
+          disabled: !hasEmail || (needsEmailVerification && !emailCode),
         }}
       >
         <div className='space-y-4 py-4'>
@@ -176,7 +173,9 @@ const ChangePasswordModal = ({
               placeholder={t('请输入原密码')}
               type='password'
               value={inputs.original_password}
-              onChange={(value) => handleInputChange('original_password', value)}
+              onChange={(value) =>
+                handleInputChange('original_password', value)
+              }
               size='large'
               className='!rounded-lg'
               prefix={<IconLock />}

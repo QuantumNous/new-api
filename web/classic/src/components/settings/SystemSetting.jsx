@@ -1671,7 +1671,9 @@ const SystemSetting = () => {
 
               <Card>
                 <Form.Section text={t('Bot Protection')}>
-                  <Text>{t('配置阿里云 ESA 验证码以保护注册、登录、密码重置等流程')}</Text>
+                  <Text>
+                    {t('配置阿里云 ESA 验证码以保护注册、登录、密码重置等流程')}
+                  </Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
