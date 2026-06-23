@@ -45,8 +45,13 @@ func normalizeLogTextFilterValue(value string) string {
 // 日志库可能经 LOG_SQL_DSN 独立部署（LOG_DB != DB，见 model/main.go），因此不能
 // 用基于主库 DB 的子查询去拼 LOG_DB 的 WHERE（会产生跨库引用）；只能在应用侧把
 // user_id 物化成 IN 列表。该上限防止过宽关键词（如 2 字符）命中海量用户导致内存/
-// SQL 参数膨胀甚至超过数据库参数上限——超出后退化为仅按 logs.username 快照 LIKE，
-// 结果仍正确（只是不再额外用 user 表补齐改名前的历史日志）。
+// SQL 参数膨胀甚至超过数据库参数上限。
+//
+// 关键：超过上限时必须返回空列表（全有或全无），而不是返回被截断的前 N 个 id。
+// 截断列表会让调用方静默地用残缺的 user_id 集合，漏掉第 N+1 个及之后用户改名前
+// 的历史日志，产生“看起来正常但结果不全”的边界漏数。返回空后调用方退化为仅按
+// logs.username 快照 LIKE，结果仍正确（只是放弃用 user 表补齐改名前历史日志这一
+// 增强）——宁可不补齐，也不返回不完整的集合。
 const fuzzyUsernameUserIDLimit = 1000
 
 func getUserIDsByUsernameFilter(value string, fuzzy bool) ([]int, error) {
@@ -60,12 +65,17 @@ func getUserIDsByUsernameFilter(value string, fuzzy bool) ([]int, error) {
 		if err != nil {
 			return nil, err
 		}
-		tx = tx.Where("username LIKE ? ESCAPE '!'", pattern).Limit(fuzzyUsernameUserIDLimit)
+		// 多查 1 条以判断是否真的超过上限。
+		tx = tx.Where("username LIKE ? ESCAPE '!'", pattern).Limit(fuzzyUsernameUserIDLimit + 1)
 	} else {
 		tx = tx.Where("username = ?", value)
 	}
 	if err := tx.Find(&userIDs).Error; err != nil {
 		return nil, err
+	}
+	// 命中数超过上限：返回空，让调用方退化为纯 LIKE，避免用截断后的不完整集合。
+	if fuzzy && len(userIDs) > fuzzyUsernameUserIDLimit {
+		return nil, nil
 	}
 	return userIDs, nil
 }
