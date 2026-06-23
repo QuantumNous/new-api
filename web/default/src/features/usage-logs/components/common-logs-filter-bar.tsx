@@ -1,3 +1,7 @@
+import { useQueryClient, useIsFetching } from '@tanstack/react-query'
+import { useNavigate, getRouteApi } from '@tanstack/react-router'
+import type { Table } from '@tanstack/react-table'
+import { Eye, EyeOff } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,12 +21,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useCallback, useMemo } from 'react'
-import { useQueryClient, useIsFetching } from '@tanstack/react-query'
-import { useNavigate, getRouteApi } from '@tanstack/react-router'
-import type { Table } from '@tanstack/react-table'
-import { Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useIsAdmin } from '@/hooks/use-admin'
+
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -37,6 +37,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useIsAdmin } from '@/hooks/use-admin'
+
 import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
@@ -106,6 +108,8 @@ function buildSearchSourceKey(values: {
 
 interface CommonLogsFilterBarProps<TData> {
   table: Table<TData>
+  auditOnly?: boolean
+  adminOverride?: boolean
 }
 
 export function CommonLogsFilterBar<TData>(
@@ -115,9 +119,11 @@ export function CommonLogsFilterBar<TData>(
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const searchParams = route.useSearch()
-  const isAdmin = useIsAdmin()
+  const roleAdmin = useIsAdmin()
+  const isAdmin = props.adminOverride || roleAdmin
   const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
+  const section = props.auditOnly ? 'audit' : 'common'
 
   const searchState = useMemo<CommonLogDraft>(() => {
     const { start, end } = getDefaultTimeRange()
@@ -188,16 +194,16 @@ export function CommonLogsFilterBar<TData>(
     const filterParams = buildSearchParams(filters, 'common')
     navigate({
       to: '/usage-logs/$section',
-      params: { section: 'common' },
+      params: { section },
       search: {
         ...filterParams,
-        type: [logType],
+        type: props.auditOnly ? undefined : [logType],
         page: 1,
       },
     })
     queryClient.invalidateQueries({ queryKey: ['logs'] })
     queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
-  }, [filters, logType, navigate, queryClient])
+  }, [filters, logType, navigate, props.auditOnly, queryClient, section])
 
   const handleReset = useCallback(() => {
     const { start, end } = getDefaultTimeRange()
@@ -215,15 +221,20 @@ export function CommonLogsFilterBar<TData>(
 
     navigate({
       to: '/usage-logs/$section',
-      params: { section: 'common' },
+      params: { section },
       search: {
         page: 1,
-        ...resetSearch,
+        ...(props.auditOnly
+          ? {
+              startTime: start.getTime(),
+              endTime: end.getTime(),
+            }
+          : resetSearch),
       },
     })
     queryClient.invalidateQueries({ queryKey: ['logs'] })
     queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
-  }, [navigate, queryClient])
+  }, [navigate, props.auditOnly, queryClient, section])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -241,7 +252,10 @@ export function CommonLogsFilterBar<TData>(
 
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
   const hasAdditionalFilters =
-    !!filters.model || !!filters.group || hasTypeFilter || hasExpandedFilters
+    !!filters.model ||
+    !!filters.group ||
+    (!props.auditOnly && hasTypeFilter) ||
+    hasExpandedFilters
 
   const expandedFilterCount = [
     filters.token,
@@ -264,7 +278,7 @@ export function CommonLogsFilterBar<TData>(
 
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
-      <CommonLogsStats />
+      <CommonLogsStats adminOverride={props.adminOverride} />
     </div>
   )
   const sensitiveToggle = (
@@ -418,7 +432,7 @@ export function CommonLogsFilterBar<TData>(
           {dateRangeFilter}
           {modelFilter}
           {groupFilter}
-          {typeFilter}
+          {!props.auditOnly && typeFilter}
         </>
       }
       advancedFilters={advancedFilters}
@@ -427,13 +441,16 @@ export function CommonLogsFilterBar<TData>(
         <>
           {modelFilter}
           {groupFilter}
-          {typeFilter}
+          {!props.auditOnly && typeFilter}
           {advancedFilters}
         </>
       }
       mobileFilterCount={
-        [filters.model, filters.group, hasTypeFilter].filter(Boolean).length +
-        expandedFilterCount
+        [
+          filters.model,
+          filters.group,
+          !props.auditOnly && hasTypeFilter,
+        ].filter(Boolean).length + expandedFilterCount
       }
       hasAdvancedActiveFilters={hasExpandedFilters}
       advancedFilterCount={expandedFilterCount}

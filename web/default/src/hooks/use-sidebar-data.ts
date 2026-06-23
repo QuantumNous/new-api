@@ -21,11 +21,15 @@ import {
   Box,
   CreditCard,
   FileText,
+  FileSearch,
   FlaskConical,
+  HandCoins,
   Key,
   LayoutDashboard,
   ListTodo,
   MessageSquare,
+  ShieldCheck,
+  Store,
   Radio,
   Settings,
   Ticket,
@@ -34,6 +38,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
 import { type SidebarData } from '@/components/layout/types'
 
 /**
@@ -88,6 +93,11 @@ export function useSidebarData(): SidebarData {
             icon: FileText,
           },
           {
+            title: t('Model Marketplace'),
+            url: '/marketplace',
+            icon: Store,
+          },
+          {
             title: t('Task Logs'),
             url: '/usage-logs/task',
             activeUrls: ['/usage-logs/drawing'],
@@ -130,6 +140,26 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('Provider Console'),
+            url: '/provider-console',
+            icon: Store,
+          },
+          {
+            title: t('Finance Foundation'),
+            url: '/finance',
+            icon: HandCoins,
+          },
+          {
+            title: t('Roles & Permissions'),
+            url: '/rbac',
+            icon: ShieldCheck,
+          },
+          {
+            title: t('Audit Logs'),
+            url: '/usage-logs/audit',
+            icon: FileSearch,
           },
           {
             title: t('Redemption Codes'),

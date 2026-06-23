@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
 
 	// Import oauth package to register providers via init()
 	_ "github.com/QuantumNous/new-api/oauth"
@@ -303,14 +304,14 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
 		logRoute := apiRouter.Group("/log")
-		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
+		logRoute.GET("/", middleware.UserAuth(), middleware.PermissionAuth(model.PermissionAuditView), controller.GetAllLogs)
 		// Legacy synchronous direct-delete route used only by the classic frontend.
 		// TODO: remove once the classic frontend is removed; the default frontend uses /system-task/log-cleanup.
 		logRoute.DELETE("/", middleware.RootAuth(), controller.DeleteHistoryLogs)
-		logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)
+		logRoute.GET("/stat", middleware.UserAuth(), middleware.PermissionAuth(model.PermissionAuditView), controller.GetLogsStat)
 		logRoute.GET("/self/stat", middleware.UserAuth(), controller.GetLogsSelfStat)
-		logRoute.GET("/channel_affinity_usage_cache", middleware.AdminAuth(), controller.GetChannelAffinityUsageCacheStats)
-		logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
+		logRoute.GET("/channel_affinity_usage_cache", middleware.UserAuth(), middleware.PermissionAuth(model.PermissionAuditView), controller.GetChannelAffinityUsageCacheStats)
+		logRoute.GET("/search", middleware.UserAuth(), middleware.PermissionAuth(model.PermissionAuditView), controller.SearchAllLogs)
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.SearchRateLimit(), controller.SearchUserLogs)
 
@@ -337,6 +338,44 @@ func SetApiRouter(router *gin.Engine) {
 		groupRoute.Use(middleware.AdminAuth())
 		{
 			groupRoute.GET("/", controller.GetGroups)
+		}
+
+		rbacRoute := apiRouter.Group("/rbac")
+		rbacRoute.Use(middleware.UserAuth())
+		{
+			rbacRoute.GET("/roles", middleware.PermissionAuth(model.PermissionRBACManage), controller.ListRBACRoles)
+			rbacRoute.GET("/permissions", middleware.PermissionAuth(model.PermissionRBACManage), controller.ListRBACPermissions)
+			rbacRoute.GET("/users/:id/roles", middleware.PermissionAuth(model.PermissionRBACManage), controller.ListRBACUserRoles)
+			rbacRoute.PUT("/users/:id/roles", middleware.PermissionAuth(model.PermissionRBACManage), controller.ReplaceRBACUserRoles)
+		}
+
+		providerRoute := apiRouter.Group("/provider")
+		providerRoute.Use(middleware.UserAuth())
+		{
+			providerRoute.GET("/", middleware.PermissionAuth(model.PermissionProviderManage, model.PermissionProviderSelfManage), controller.ListProviders)
+			providerRoute.POST("/", middleware.PermissionAuth(model.PermissionProviderManage, model.PermissionProviderSelfManage), controller.UpsertProvider)
+			providerRoute.GET("/:id", middleware.PermissionAuth(model.PermissionProviderManage, model.PermissionProviderSelfManage), controller.GetProvider)
+			providerRoute.PUT("/:id", middleware.PermissionAuth(model.PermissionProviderManage, model.PermissionProviderSelfManage), controller.UpsertProvider)
+			providerRoute.GET("/:id/wallet", middleware.PermissionAuth(model.PermissionFinanceView, model.PermissionFinanceManage, model.PermissionProviderSelfManage), controller.GetProviderWallet)
+			providerRoute.PUT("/:id/wallet", middleware.PermissionAuth(model.PermissionFinanceManage, model.PermissionProviderSelfManage), controller.UpdateProviderWallet)
+			providerRoute.GET("/:id/settlement", middleware.PermissionAuth(model.PermissionFinanceView, model.PermissionFinanceManage, model.PermissionProviderSelfManage), controller.GetProviderSettlement)
+			providerRoute.PUT("/:id/settlement", middleware.PermissionAuth(model.PermissionFinanceManage, model.PermissionProviderSelfManage), controller.UpdateProviderSettlement)
+		}
+
+		marketplaceRoute := apiRouter.Group("/marketplace-models")
+		marketplaceRoute.Use(middleware.UserAuth())
+		{
+			marketplaceRoute.GET("/", middleware.PermissionAuth(model.PermissionMarketplaceView), controller.ListMarketplaceModels)
+			marketplaceRoute.GET("/:id", middleware.PermissionAuth(model.PermissionMarketplaceView), controller.GetMarketplaceModel)
+			marketplaceRoute.POST("/", middleware.PermissionAuth(model.PermissionMarketplaceManage, model.PermissionMarketplaceSelfManage), controller.CreateMarketplaceModel)
+			marketplaceRoute.PUT("/:id", middleware.PermissionAuth(model.PermissionMarketplaceManage, model.PermissionMarketplaceSelfManage), controller.UpdateMarketplaceModel)
+			marketplaceRoute.DELETE("/:id", middleware.PermissionAuth(model.PermissionMarketplaceManage, model.PermissionMarketplaceSelfManage), controller.DeleteMarketplaceModel)
+			marketplaceRoute.POST("/:id/api-configs", middleware.PermissionAuth(model.PermissionMarketplaceManage, model.PermissionMarketplaceSelfManage), controller.UpsertModelApiConfig)
+			marketplaceRoute.POST("/:id/keys", middleware.PermissionAuth(model.PermissionMarketplaceKeyManage, model.PermissionMarketplaceSelfKeyManage), controller.CreateModelKey)
+			marketplaceRoute.PUT("/:id/keys/:key_id", middleware.PermissionAuth(model.PermissionMarketplaceKeyManage, model.PermissionMarketplaceSelfKeyManage), controller.UpdateModelKey)
+			marketplaceRoute.DELETE("/:id/keys/:key_id", middleware.PermissionAuth(model.PermissionMarketplaceKeyManage, model.PermissionMarketplaceSelfKeyManage), controller.DeleteModelKey)
+			marketplaceRoute.POST("/:id/pricing", middleware.PermissionAuth(model.PermissionMarketplaceManage, model.PermissionMarketplaceSelfManage), controller.UpsertModelPricing)
+			marketplaceRoute.POST("/:id/reviews", middleware.PermissionAuth(model.PermissionMarketplaceManage), controller.CreateModelReviewRecord)
 		}
 
 		prefillGroupRoute := apiRouter.Group("/prefill_group")

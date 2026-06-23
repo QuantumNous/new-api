@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
  * Shared constants for usage logs feature
  */
 import type { StatusBadgeProps } from '@/components/status-badge'
+
 import type { LogStatistics, LogCategory } from './types'
 
 // ============================================================================
@@ -334,6 +335,7 @@ export const TASK_PLATFORM_MAPPINGS: Record<string, StatusMapping> = {
  */
 export const LOG_CATEGORY_LABELS: Record<LogCategory, string> = {
   common: 'Common',
+  audit: 'Audit',
   drawing: 'Drawing',
   task: 'Task',
 }

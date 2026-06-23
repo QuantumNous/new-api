@@ -1,3 +1,4 @@
+import { createFileRoute, redirect } from '@tanstack/react-router'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,22 +18,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import z from 'zod'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+
 import { UsageLogs } from '@/features/usage-logs'
 import {
   isUsageLogsSectionId,
   USAGE_LOGS_DEFAULT_SECTION,
 } from '@/features/usage-logs/section-registry'
+import { hasPermission, PERMISSION } from '@/lib/rbac'
+import { useAuthStore } from '@/stores/auth-store'
 
 const logTypeValues = ['0', '1', '2', '3', '4', '5', '6', '7'] as const
 const logTypeSearchSchema = z
-  .preprocess(
-    (value) => {
-      if (value == null || value === '') return undefined
-      return Array.isArray(value) ? value : [value]
-    },
-    z.array(z.enum(logTypeValues)).optional()
-  )
+  .preprocess((value) => {
+    if (value == null || value === '') return undefined
+    return Array.isArray(value) ? value : [value]
+  }, z.array(z.enum(logTypeValues)).optional())
   .catch([])
 
 const usageLogsSearchSchema = z.object({
@@ -58,6 +58,12 @@ export const Route = createFileRoute('/_authenticated/usage-logs/$section')({
         to: '/usage-logs/$section',
         params: { section: USAGE_LOGS_DEFAULT_SECTION },
       })
+    }
+    if (params.section === 'audit') {
+      const { auth } = useAuthStore.getState()
+      if (!hasPermission(auth.user, PERMISSION.AUDIT_VIEW)) {
+        throw redirect({ to: '/403' })
+      }
     }
     // type 仅 common 使用，非 common 时清掉 URL 里的 type
     const hasTypeSearch = Array.isArray(search?.type)

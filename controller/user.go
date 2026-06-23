@@ -443,6 +443,10 @@ func GetSelf(c *gin.Context) {
 
 	// 计算用户权限信息
 	permissions := calculateUserPermissions(userRole)
+	roleCodes, _ := model.GetUserRoleCodes(id, userRole)
+	permissionCodes, _ := model.GetUserPermissionCodes(id, userRole)
+	permissions["role_codes"] = roleCodes
+	permissions["permission_codes"] = permissionCodes
 
 	// 获取用户设置并提取sidebar_modules
 	userSetting := user.GetSetting()

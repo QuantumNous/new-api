@@ -49,8 +49,23 @@ func TestMain(m *testing.M) {
 		&UserOAuthBinding{},
 		&PerfMetric{},
 		&SystemTask{},
+		&Role{},
+		&Permission{},
+		&UserRole{},
+		&RolePermission{},
+		&ProviderProfile{},
+		&ProviderWallet{},
+		&ProviderSettlementConfig{},
+		&MarketplaceModel{},
+		&ModelApiConfig{},
+		&ModelKey{},
+		&ModelPricing{},
+		&ModelReviewRecord{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
+	}
+	if err := EnsureBuiltinRBAC(); err != nil {
+		panic("failed to seed builtin RBAC: " + err.Error())
 	}
 
 	os.Exit(m.Run())
@@ -73,6 +88,19 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM user_oauth_bindings")
 		DB.Exec("DELETE FROM perf_metrics")
 		DB.Exec("DELETE FROM system_tasks")
+		DB.Exec("DELETE FROM role_permissions")
+		DB.Exec("DELETE FROM user_roles")
+		DB.Exec("DELETE FROM permissions")
+		DB.Exec("DELETE FROM roles")
+		DB.Exec("DELETE FROM provider_profiles")
+		DB.Exec("DELETE FROM provider_wallets")
+		DB.Exec("DELETE FROM provider_settlement_configs")
+		DB.Exec("DELETE FROM marketplace_models")
+		DB.Exec("DELETE FROM model_api_configs")
+		DB.Exec("DELETE FROM model_keys")
+		DB.Exec("DELETE FROM model_pricings")
+		DB.Exec("DELETE FROM model_review_records")
+		require.NoError(t, EnsureBuiltinRBAC())
 	})
 }
 

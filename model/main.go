@@ -295,8 +295,23 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&PerfMetric{},
 		&SystemTask{},
+		&Role{},
+		&Permission{},
+		&UserRole{},
+		&RolePermission{},
+		&ProviderProfile{},
+		&ProviderWallet{},
+		&ProviderSettlementConfig{},
+		&MarketplaceModel{},
+		&ModelApiConfig{},
+		&ModelKey{},
+		&ModelPricing{},
+		&ModelReviewRecord{},
 	)
 	if err != nil {
+		return err
+	}
+	if err := EnsureBuiltinRBAC(); err != nil {
 		return err
 	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
@@ -345,6 +360,18 @@ func migrateDBFast() error {
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
 		{&SystemTask{}, "SystemTask"},
+		{&Role{}, "Role"},
+		{&Permission{}, "Permission"},
+		{&UserRole{}, "UserRole"},
+		{&RolePermission{}, "RolePermission"},
+		{&ProviderProfile{}, "ProviderProfile"},
+		{&ProviderWallet{}, "ProviderWallet"},
+		{&ProviderSettlementConfig{}, "ProviderSettlementConfig"},
+		{&MarketplaceModel{}, "MarketplaceModel"},
+		{&ModelApiConfig{}, "ModelApiConfig"},
+		{&ModelKey{}, "ModelKey"},
+		{&ModelPricing{}, "ModelPricing"},
+		{&ModelReviewRecord{}, "ModelReviewRecord"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -377,6 +404,9 @@ func migrateDBFast() error {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
 		}
+	}
+	if err := EnsureBuiltinRBAC(); err != nil {
+		return err
 	}
 	common.SysLog("database migrated")
 	return nil

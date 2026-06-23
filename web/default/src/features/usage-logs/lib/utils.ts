@@ -31,6 +31,7 @@ import {
   LOG_TYPES,
   DISPLAYABLE_LOG_TYPES,
   TIMING_LOG_TYPES,
+  LOG_TYPE_ENUM,
 } from '../constants'
 import type {
   GetLogsParams,
@@ -259,18 +260,31 @@ export function buildApiParams(config: {
 export async function fetchLogsByCategory(
   config: FetchLogsConfig
 ): Promise<GetLogsResponse> {
-  const { logCategory, isAdmin, page, pageSize, searchParams, columnFilters } =
-    config
+  const {
+    logCategory,
+    isAdmin,
+    adminOverride = false,
+    page,
+    pageSize,
+    searchParams,
+    columnFilters,
+  } = config
+  const hasAllLogAccess = isAdmin || adminOverride
 
-  if (logCategory === 'common') {
+  if (logCategory === 'common' || logCategory === 'audit') {
     const params = buildApiParams({
       page,
       pageSize,
       searchParams,
       columnFilters,
-      isAdmin,
+      isAdmin: hasAllLogAccess,
     })
-    return isAdmin ? await getAllLogs(params) : await getUserLogs(params)
+    if (logCategory === 'audit') {
+      params.type = LOG_TYPE_ENUM.MANAGE
+    }
+    return hasAllLogAccess
+      ? await getAllLogs(params)
+      : await getUserLogs(params)
   }
 
   // For drawing and task logs

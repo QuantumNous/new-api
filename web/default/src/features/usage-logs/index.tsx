@@ -1,3 +1,4 @@
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,13 +18,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo } from 'react'
-import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { useSidebarConfig } from '@/hooks/use-sidebar-config'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
 import { SectionPageLayout } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
+import { useSidebarConfig } from '@/hooks/use-sidebar-config'
+
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import {
   UsageLogsProvider,
@@ -42,6 +44,9 @@ const TASK_LOG_SECTIONS = ['drawing', 'task'] as const
 const SECTION_META: Record<UsageLogsSectionId, { titleKey: string }> = {
   common: {
     titleKey: 'Common Logs',
+  },
+  audit: {
+    titleKey: 'Audit Logs',
   },
   drawing: {
     titleKey: 'Drawing Logs',
@@ -104,9 +109,13 @@ function UsageLogsContent() {
   )
 
   const pageMeta =
-    activeCategory === 'common' ? SECTION_META.common : SECTION_META.task
+    activeCategory === 'common' || activeCategory === 'audit'
+      ? SECTION_META[activeCategory]
+      : SECTION_META.task
   const showTaskSwitcher =
-    activeCategory !== 'common' && visibleSections.length > 1
+    activeCategory !== 'common' &&
+    activeCategory !== 'audit' &&
+    visibleSections.length > 1
 
   return (
     <>
@@ -128,7 +137,10 @@ function UsageLogsContent() {
               </Tabs>
             )}
             <div className='min-h-0 flex-1'>
-              <UsageLogsTable logCategory={activeCategory} />
+              <UsageLogsTable
+                logCategory={activeCategory}
+                adminOverride={activeCategory === 'audit'}
+              />
             </div>
           </div>
         </SectionPageLayout.Content>

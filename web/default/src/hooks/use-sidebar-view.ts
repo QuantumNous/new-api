@@ -16,13 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { useLocation } from '@tanstack/react-router'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
+
 import { resolveSidebarView } from '@/components/layout/lib/sidebar-view-registry'
 import type { NavGroup, ResolvedSidebarView } from '@/components/layout/types'
+import { hasAnyPermission, hasPermission, PERMISSION } from '@/lib/rbac'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { useSidebarConfig } from './use-sidebar-config'
 import { useSidebarData } from './use-sidebar-data'
 
@@ -46,15 +49,43 @@ export function useSidebarView(): ResolvedSidebarView {
   const { t } = useTranslation()
   const pathname = useLocation({ select: (l) => l.pathname })
   const userRole = useAuthStore((s) => s.auth.user?.role)
+  const user = useAuthStore((s) => s.auth.user)
   const rootSidebarData = useSidebarData()
   const configFilteredRoot = useSidebarConfig(rootSidebarData.navGroups)
 
   const rootNavGroups = useMemo<NavGroup[]>(() => {
     const isAdmin = userRole !== undefined && userRole >= ROLE.ADMIN
-    return configFilteredRoot.filter((group) =>
-      group.id === 'admin' ? isAdmin : true
-    )
-  }, [configFilteredRoot, userRole])
+    return configFilteredRoot
+      .filter((group) => (group.id === 'admin' ? isAdmin : true))
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => {
+          if ('url' in item && item.url === '/marketplace') {
+            return hasPermission(user, PERMISSION.MARKETPLACE_VIEW)
+          }
+          if ('url' in item && item.url === '/provider-console') {
+            return hasAnyPermission(user, [
+              PERMISSION.PROVIDER_MANAGE,
+              PERMISSION.PROVIDER_SELF_MANAGE,
+            ])
+          }
+          if ('url' in item && item.url === '/finance') {
+            return hasAnyPermission(user, [
+              PERMISSION.FINANCE_MANAGE,
+              PERMISSION.FINANCE_VIEW,
+            ])
+          }
+          if ('url' in item && item.url === '/rbac') {
+            return hasPermission(user, PERMISSION.RBAC_MANAGE)
+          }
+          if ('url' in item && item.url === '/usage-logs/audit') {
+            return hasPermission(user, PERMISSION.AUDIT_VIEW)
+          }
+          return true
+        }),
+      }))
+      .filter((group) => group.items.length > 0)
+  }, [configFilteredRoot, userRole, user])
 
   const view = resolveSidebarView(pathname)
 

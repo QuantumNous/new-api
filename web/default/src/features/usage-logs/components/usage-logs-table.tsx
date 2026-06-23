@@ -19,17 +19,19 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { type ColumnDef } from '@tanstack/react-table'
-import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
-import { useIsAdmin } from '@/hooks/use-admin'
-import { useTableUrlState } from '@/hooks/use-table-url-state'
+
 import {
   DataTablePage,
   DataTableRow,
   useDataTable,
 } from '@/components/data-table'
+import { useMediaQuery } from '@/hooks'
+import { useIsAdmin } from '@/hooks/use-admin'
+import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { cn } from '@/lib/utils'
+
 import {
   DEFAULT_LOGS_DATA,
   LOG_TYPE_ALL_VALUE,
@@ -63,13 +65,19 @@ function deserializeLogTypeFilter(value: unknown): unknown[] {
 
 interface UsageLogsTableProps {
   logCategory: LogCategory
+  adminOverride?: boolean
 }
 
-export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
+export function UsageLogsTable({
+  logCategory,
+  adminOverride = false,
+}: UsageLogsTableProps) {
   const { t } = useTranslation()
-  const isAdmin = useIsAdmin()
+  const roleAdmin = useIsAdmin()
+  const isAdmin = adminOverride || roleAdmin
   const isMobile = useMediaQuery('(max-width: 640px)')
   const searchParams = route.useSearch()
+  const effectiveCategory = logCategory === 'audit' ? 'common' : logCategory
 
   const {
     columnFilters,
@@ -124,6 +132,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       const result = await fetchLogsByCategory({
         logCategory,
         isAdmin,
+        adminOverride,
         page: pagination.pageIndex + 1,
         pageSize: pagination.pageSize,
         searchParams,
@@ -146,7 +155,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   })
 
   const logs = data?.items || []
-  const columns = useColumnsByCategory(logCategory, isAdmin)
+  const columns = useColumnsByCategory(effectiveCategory, isAdmin)
   const isLoadingData = isLoading || (isFetching && !data)
 
   const { table } = useDataTable({
@@ -167,7 +176,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     ensurePageInRange,
   })
 
-  const isCommon = logCategory === 'common'
+  const isCommon = effectiveCategory === 'common'
 
   return (
     <DataTablePage
@@ -188,14 +197,18 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         <UsageLogsMobileList
           table={table}
           isLoading={isLoadingData}
-          logCategory={logCategory}
+          logCategory={effectiveCategory}
         />
       }
       toolbar={
         isCommon ? (
-          <CommonLogsFilterBar table={table} />
+          <CommonLogsFilterBar
+            table={table}
+            auditOnly={logCategory === 'audit'}
+            adminOverride={adminOverride}
+          />
         ) : (
-          <TaskLogsFilterBar table={table} logCategory={logCategory} />
+          <TaskLogsFilterBar table={table} logCategory={effectiveCategory} />
         )
       }
       renderRow={(row) => {
