@@ -16,9 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import ReactMarkdown from 'react-markdown'
-import rehypeRaw from 'rehype-raw'
-import remarkGfm from 'remark-gfm'
+import DOMPurify from 'dompurify'
+import { marked } from 'marked'
+import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 
 interface MarkdownProps {
@@ -26,7 +26,38 @@ interface MarkdownProps {
   className?: string
 }
 
-export function Markdown({ children, className }: MarkdownProps) {
+const markdownOptions = {
+  async: false,
+  breaks: false,
+  gfm: true,
+} as const
+
+function addExternalLinkAttributes(html: string): string {
+  if (typeof window === 'undefined') {
+    return html
+  }
+
+  const template = document.createElement('template')
+  template.innerHTML = html
+
+  template.content.querySelectorAll('a[href]').forEach((link) => {
+    link.setAttribute('target', '_blank')
+    link.setAttribute('rel', 'noopener noreferrer')
+  })
+
+  return template.innerHTML
+}
+
+function renderMarkdown(markdown: string): string {
+  const parsedHtml = marked.parse(markdown, markdownOptions)
+  const html = DOMPurify.sanitize(parsedHtml)
+
+  return addExternalLinkAttributes(html)
+}
+
+export function Markdown(props: MarkdownProps) {
+  const html = useMemo(() => renderMarkdown(props.children), [props.children])
+
   return (
     <div
       className={cn(
@@ -44,21 +75,9 @@ export function Markdown({ children, className }: MarkdownProps) {
         'prose-img:rounded-lg prose-img:shadow-sm',
         '[&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
         '[overflow-wrap:anywhere] break-words',
-        className
+        props.className
       )}
-    >
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw]}
-        components={{
-          // 自定义组件渲染（可选）
-          a: ({ node, ...props }) => (
-            <a {...props} target='_blank' rel='noopener noreferrer' />
-          ),
-        }}
-      >
-        {children}
-      </ReactMarkdown>
-    </div>
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   )
 }
