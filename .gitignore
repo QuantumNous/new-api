@@ -38,3 +38,4 @@ token_estimator_test.go
 skills-lock.json
 .omc/
 .playwright-mcp
+.superpowers/
