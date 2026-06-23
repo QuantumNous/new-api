@@ -27,7 +27,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { downloadMediaFile } from '../../lib/download-media'
 import { RequestDataPanel } from './request-data-panel'
@@ -72,7 +71,7 @@ export function VideoDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className='sm:max-w-3xl'>
+      <DialogContent className='gap-4 sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle>{t('Video Preview')}</DialogTitle>
           <DialogDescription>
@@ -84,21 +83,17 @@ export function VideoDialog({
 
         <RequestDataPanel data={requestData} />
 
-        <p className='text-muted-foreground text-xs'>
-          {t('Generated images and videos are only kept for 3 days.')}
-        </p>
-
-        <ScrollArea className='max-h-[600px]'>
-          <div className='py-4'>
-            <div className='bg-muted/50 relative flex min-h-[300px] items-center justify-center rounded-lg border'>
+        <div className='space-y-3'>
+          <div className='bg-muted/40 mx-auto flex w-full max-w-[360px] items-center justify-center rounded-lg border p-3'>
+            <div className='relative flex min-h-[180px] w-full items-center justify-center'>
               {(isLoading || hasError) && (
-                <Skeleton className='absolute inset-0 h-full w-full rounded-lg' />
+                <Skeleton className='absolute inset-0 rounded-md' />
               )}
 
               <video
                 src={videoUrl}
                 controls
-                className={`max-h-[550px] w-full rounded-lg ${
+                className={`max-h-[240px] max-w-full rounded-md shadow-sm ${
                   isLoading || hasError ? 'opacity-0' : 'opacity-100'
                 }`}
                 onLoadedData={() => {
@@ -119,25 +114,29 @@ export function VideoDialog({
                 </div>
               )}
             </div>
-
-            <div className='bg-muted mt-4 flex items-start gap-3 rounded-md p-3'>
-              <p className='text-muted-foreground min-w-0 flex-1 font-mono text-xs break-all'>
-                {videoUrl}
-              </p>
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                className='shrink-0'
-                disabled={isLoading || hasError || isDownloading}
-                onClick={() => void handleDownload()}
-              >
-                <Download className='size-4' />
-                {t('Download')}
-              </Button>
-            </div>
           </div>
-        </ScrollArea>
+
+          <p className='text-muted-foreground text-center text-xs'>
+            {t('Generated images and videos are only kept for 3 days.')}
+          </p>
+
+          <div className='bg-muted flex items-start gap-3 rounded-md p-3'>
+            <p className='text-muted-foreground min-w-0 flex-1 font-mono text-xs break-all'>
+              {videoUrl}
+            </p>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              className='shrink-0'
+              disabled={isLoading || hasError || isDownloading}
+              onClick={() => void handleDownload()}
+            >
+              <Download className='size-4' />
+              {t('Download')}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   )
