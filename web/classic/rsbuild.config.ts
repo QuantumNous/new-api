@@ -43,10 +43,13 @@ export default defineConfig(({ envMode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        'date-fns': path.resolve(__dirname, './node_modules/date-fns'),
         '@douyinfe/semi-ui/dist/css/semi.css': path.resolve(
           semiUiDir,
           'dist/css/semi.css',
         ),
+        // Force single copy of vrender-core to avoid DI container singleton conflicts
+        '@visactor/vrender-core': path.resolve(__dirname, '../node_modules/@visactor/vrender-core'),
       },
     },
     html: {

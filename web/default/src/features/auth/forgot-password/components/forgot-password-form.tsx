@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -35,13 +35,13 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Turnstile } from '@/components/turnstile'
+import { AliyunCaptcha, type AliyunCaptchaHandle } from '@/components/aliyun-captcha'
 import { sendPasswordResetEmail } from '@/features/auth/api'
 import {
   forgotPasswordFormSchema,
   PASSWORD_RESET_COUNTDOWN,
 } from '@/features/auth/constants'
-import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
+import { useAliyunCaptcha } from '@/features/auth/hooks/use-aliyun-captcha'
 
 export function ForgotPasswordForm({
   className,
@@ -49,14 +49,8 @@ export function ForgotPasswordForm({
 }: React.HTMLAttributes<HTMLFormElement>) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
-
-  const {
-    isTurnstileEnabled,
-    turnstileSiteKey,
-    turnstileToken,
-    setTurnstileToken,
-    validateTurnstile,
-  } = useTurnstile()
+  const aliyunCaptchaRef = useRef<AliyunCaptchaHandle>(null)
+  const resetPasswordCaptcha = useAliyunCaptcha('reset_password')
   const {
     secondsLeft,
     isActive,
@@ -67,14 +61,14 @@ export function ForgotPasswordForm({
     resolver: zodResolver(forgotPasswordFormSchema),
     defaultValues: { email: '' },
   })
-  const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
 
   async function onSubmit(data: z.infer<typeof forgotPasswordFormSchema>) {
-    if (!validateTurnstile()) return
-
     setIsLoading(true)
     try {
-      const res = await sendPasswordResetEmail(data.email, turnstileToken)
+      const captchaVerifyParam = resetPasswordCaptcha.enabled
+        ? await aliyunCaptchaRef.current?.execute()
+        : ''
+      const res = await sendPasswordResetEmail(data.email, captchaVerifyParam)
       if (res?.success) {
         form.reset()
         startCountdown()
@@ -113,7 +107,7 @@ export function ForgotPasswordForm({
         <Button
           type='submit'
           className='mt-2'
-          disabled={isLoading || isActive || !turnstileReady}
+          disabled={isLoading || isActive}
         >
           {isActive
             ? t('Resend ({{seconds}}s)', { seconds: secondsLeft })
@@ -121,13 +115,16 @@ export function ForgotPasswordForm({
           {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
         </Button>
 
-        {isTurnstileEnabled && (
-          <div className='mt-2'>
-            <Turnstile
-              siteKey={turnstileSiteKey}
-              onVerify={setTurnstileToken}
-            />
-          </div>
+        {resetPasswordCaptcha.enabled && (
+          <AliyunCaptcha
+            ref={aliyunCaptchaRef}
+            enabled={resetPasswordCaptcha.enabled}
+            region={resetPasswordCaptcha.region}
+            prefix={resetPasswordCaptcha.prefix}
+            sceneId={resetPasswordCaptcha.sceneId}
+            className='mt-2'
+            onError={(message) => toast.error(t(message))}
+          />
         )}
       </form>
     </Form>

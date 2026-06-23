@@ -138,6 +138,19 @@ var WeChatAccountQRCodeImageURL = ""
 var TurnstileSiteKey = ""
 var TurnstileSecretKey = ""
 
+// ESA AI 验证码配置（阿里云 Edge Security Acceleration）
+var ESACaptchaEnabled = false
+var ESAStrictModeEnabled = false          // 是否启用 ESA 严格模式（要求请求经过 ESA 边缘并注入验签头）
+var ESARegion = "cn"                     // cn 或 sgp
+var ESAPrefix = ""                       // ESA 身份标
+var ESACaptchaLoginSceneId = ""          // 登录场景
+var ESACaptchaRegisterSceneId = ""       // 注册场景
+var ESACaptchaResetPasswordSceneId = ""  // 密码重置场景
+var ESACaptchaChangePasswordSceneId = "" // 修改密码场景
+var ESACaptchaDeleteAccountSceneId = ""  // 删除账户场景
+var ESACaptchaCheckinSceneId = ""        // 签到场景
+var ESACaptchaVerificationSceneId = ""   // 发送邮箱验证码场景
+
 var TelegramBotToken = ""
 var TelegramBotName = ""
 

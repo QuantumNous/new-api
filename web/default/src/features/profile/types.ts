@@ -127,6 +127,7 @@ export interface UpdateUserRequest {
   display_name?: string
   password?: string
   original_password?: string
+  verification_code?: string
 }
 
 /**

@@ -207,6 +207,32 @@ func UpdateOption(c *gin.Context) {
 
 			return
 		}
+	case "ESACaptchaEnabled":
+		if option.Value == "true" && (common.ESAPrefix == "" || common.ESACaptchaLoginSceneId == "") {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用 ESA 验证码，请先填入 ESA 身份标（prefix）和至少一个场景 ID！",
+			})
+
+			return
+		}
+	case "ESAStrictModeEnabled":
+		if option.Value == "true" {
+			if !common.ESACaptchaEnabled {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "无法启用 ESA 严格模式，请先启用 ESA 验证码。",
+				})
+				return
+			}
+			if common.ESAPrefix == "" || common.ESACaptchaLoginSceneId == "" {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "无法启用 ESA 严格模式，请先填入 ESA 身份标（prefix）和至少一个场景 ID！",
+				})
+				return
+			}
+		}
 	case "TelegramOAuthEnabled":
 		if option.Value == "true" && common.TelegramBotToken == "" {
 			c.JSON(http.StatusOK, gin.H{

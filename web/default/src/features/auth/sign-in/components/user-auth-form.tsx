@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -42,15 +42,15 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { AliyunCaptcha, type AliyunCaptchaHandle } from '@/components/aliyun-captcha'
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
-import { Turnstile } from '@/components/turnstile'
 import { login, wechatLoginByCode } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { loginFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
-import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
+import { useAliyunCaptcha } from '@/features/auth/hooks/use-aliyun-captcha'
 import { beginPasskeyLogin, finishPasskeyLogin } from '@/features/auth/passkey'
 import type { AuthFormProps } from '@/features/auth/types'
 
@@ -71,6 +71,8 @@ export function UserAuthForm({
   const loginFailedMessage = t('Login failed')
 
   const { status } = useStatus()
+  const aliyunCaptchaRef = useRef<AliyunCaptchaHandle>(null)
+  const loginCaptcha = useAliyunCaptcha('login')
   const passkeyLoginEnabled = Boolean(
     status?.passkey_login ?? status?.data?.passkey_login
   )
@@ -78,13 +80,6 @@ export function UserAuthForm({
     (status?.password_login_enabled ??
       status?.data?.password_login_enabled ??
       true) !== false
-  const {
-    isTurnstileEnabled,
-    turnstileSiteKey,
-    turnstileToken,
-    setTurnstileToken,
-    validateTurnstile,
-  } = useTurnstile()
   const { handleLoginSuccess, redirectTo2FA } = useAuthRedirect()
 
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
@@ -148,14 +143,15 @@ export function UserAuthForm({
       return
     }
 
-    if (!validateTurnstile()) return
-
     setIsLoading(true)
     try {
+      const captchaVerifyParam = loginCaptcha.enabled
+        ? await aliyunCaptchaRef.current?.execute()
+        : ''
       const res = await login({
         username: data.username,
         password: data.password,
-        turnstile: turnstileToken,
+        captcha_verify_param: captchaVerifyParam,
       })
 
       if (res.success) {
@@ -381,14 +377,17 @@ export function UserAuthForm({
               {t('Sign in')}
             </Button>
 
-            {/* Turnstile */}
-            {isTurnstileEnabled && (
-              <div className='mt-2'>
-                <Turnstile
-                  siteKey={turnstileSiteKey}
-                  onVerify={setTurnstileToken}
-                />
-              </div>
+            {/* Aliyun captcha */}
+            {loginCaptcha.enabled && (
+              <AliyunCaptcha
+                ref={aliyunCaptchaRef}
+                enabled={loginCaptcha.enabled}
+                region={loginCaptcha.region}
+                prefix={loginCaptcha.prefix}
+                sceneId={loginCaptcha.sceneId}
+                className='mt-2'
+                onError={(message) => toast.error(t(message))}
+              />
             )}
           </>
         )}

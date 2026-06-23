@@ -22,6 +22,12 @@ import { useDialogs } from '@/hooks/use-dialog'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import type { UserProfile } from '../types'
 import { AccessTokenDialog } from './dialogs/access-token-dialog'
 import { ChangePasswordDialog } from './dialogs/change-password-dialog'
@@ -63,6 +69,8 @@ export function ProfileSecurityCard({
 
   if (!profile) return null
 
+  const hasEmail = Boolean(profile.email)
+
   const securityActions = [
     {
       icon: Shield,
@@ -96,32 +104,56 @@ export function ProfileSecurityCard({
         disableHoverEffect
       >
         <div className='grid grid-cols-1 gap-2.5 sm:gap-3 md:grid-cols-3'>
-          {securityActions.map((item) => (
-            <button
-              key={item.title}
-              type='button'
-              onClick={item.action}
-              className={`flex items-center gap-3 rounded-lg border p-3 text-left md:flex-col md:gap-2 md:p-4 md:text-center ${
-                item.variant === 'destructive' ? 'border-destructive/30' : ''
-              }`}
-            >
-              <div
-                className={`rounded-md p-2 ${
-                  item.variant === 'destructive'
-                    ? 'bg-destructive/10 text-destructive'
-                    : 'bg-muted'
+          {securityActions.map((item) => {
+            const isChangePassword = item.title === t('Change Password')
+            const isDisabled = isChangePassword && !hasEmail
+
+            const button = (
+              <button
+                key={item.title}
+                type='button'
+                onClick={isDisabled ? undefined : item.action}
+                className={`flex items-center gap-3 rounded-lg border p-3 text-left md:flex-col md:gap-2 md:p-4 md:text-center ${
+                  item.variant === 'destructive' ? 'border-destructive/30' : ''
+                } ${
+                  isDisabled ? 'cursor-not-allowed opacity-50' : ''
                 }`}
               >
-                <item.icon className='h-5 w-5' />
-              </div>
-              <div className='min-w-0 md:contents'>
-                <p className='text-sm font-medium'>{item.title}</p>
-                <p className='text-muted-foreground line-clamp-1 text-xs md:line-clamp-none'>
-                  {item.description}
-                </p>
-              </div>
-            </button>
-          ))}
+                <div
+                  className={`rounded-md p-2 ${
+                    item.variant === 'destructive'
+                      ? 'bg-destructive/10 text-destructive'
+                      : 'bg-muted'
+                  }`}
+                >
+                  <item.icon className='h-5 w-5' />
+                </div>
+                <div className='min-w-0 md:contents'>
+                  <p className='text-sm font-medium'>{item.title}</p>
+                  <p className='text-muted-foreground line-clamp-1 text-xs md:line-clamp-none'>
+                    {isDisabled
+                      ? t('Bind an email to change your password')
+                      : item.description}
+                  </p>
+                </div>
+              </button>
+            )
+
+            if (isDisabled) {
+              return (
+                <TooltipProvider key={item.title} delay={300}>
+                  <Tooltip>
+                    <TooltipTrigger>{button}</TooltipTrigger>
+                    <TooltipContent>
+                      {t('Please bind an email address first')}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )
+            }
+
+            return button
+          })}
         </div>
       </TitledCard>
 
@@ -132,6 +164,7 @@ export function ProfileSecurityCard({
           open ? dialogs.open('password') : dialogs.close('password')
         }
         username={profile.username}
+        currentEmail={profile.email}
       />
 
       <AccessTokenDialog

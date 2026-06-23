@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -70,8 +71,21 @@ func GetStatus(c *gin.Context) {
 		"server_address":              system_setting.ServerAddress,
 		"turnstile_check":             common.TurnstileCheckEnabled,
 		"turnstile_site_key":          common.TurnstileSiteKey,
-		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
-		"quota_per_unit":              common.QuotaPerUnit,
+		"esa_captcha_enabled":         common.ESACaptchaEnabled,
+		"esa_strict_mode_enabled":     common.ESAStrictModeEnabled,
+		"esa_region":                  common.ESARegion,
+		"esa_prefix":                  common.ESAPrefix,
+		"esa_captcha_scenes": gin.H{
+			"login":           common.ESACaptchaLoginSceneId,
+			"register":        common.ESACaptchaRegisterSceneId,
+			"reset_password":  common.ESACaptchaResetPasswordSceneId,
+			"change_password": common.ESACaptchaChangePasswordSceneId,
+			"delete_account":  common.ESACaptchaDeleteAccountSceneId,
+			"checkin":         common.ESACaptchaCheckinSceneId,
+			"verification":    common.ESACaptchaVerificationSceneId,
+		},
+		"docs_link":      operation_setting.GetGeneralSetting().DocsLink,
+		"quota_per_unit": common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type
 		"display_in_currency":           operation_setting.IsCurrencyDisplay(),
 		"quota_display_type":            operation_setting.GetQuotaDisplayType(),
@@ -311,19 +325,27 @@ func SendPasswordResetEmail(c *gin.Context) {
 		})
 		return
 	}
-	if model.IsEmailAlreadyTaken(email) {
-		code := common.GenerateVerificationCode(0)
-		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
-		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
-		subject := fmt.Sprintf("%s密码重置", common.SystemName)
-		content := fmt.Sprintf("<p>您好，你正在进行%s密码重置。</p>"+
-			"<p>点击 <a href='%s'>此处</a> 进行密码重置。</p>"+
-			"<p>如果链接无法点击，请尝试点击下面的链接或将其复制到浏览器中打开：<br> %s </p>"+
-			"<p>重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
-		err := common.SendEmail(subject, email, content)
-		if err != nil {
-			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
-		}
+	if !model.IsEmailAlreadyTaken(email) {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "该邮箱未绑定账号，无法重置密码",
+		})
+		return
+	}
+
+	code := common.GenerateVerificationCode(0)
+	common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
+	link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, url.QueryEscape(email), url.QueryEscape(code))
+	subject := fmt.Sprintf("%s密码重置", common.SystemName)
+	content := fmt.Sprintf("<p>您好，你正在进行%s密码重置。</p>"+
+		"<p>点击 <a href='%s'>此处</a> 进行密码重置。</p>"+
+		"<p>如果链接无法点击，请尝试点击下面的链接或将其复制到浏览器中打开：<br> %s </p>"+
+		"<p>重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
+	err := common.SendEmail(subject, email, content)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
+		common.ApiError(c, err)
+		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
