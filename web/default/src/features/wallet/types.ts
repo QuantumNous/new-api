@@ -59,6 +59,16 @@ export type WaffoPancakePaymentResponse = ApiResponse<
     }
   | string
 >
+export type YooKassaPaymentResponse = ApiResponse<{
+  confirmation_url?: string
+  payment_id?: string
+  trade_no?: string
+}>
+
+export interface DiscountThreshold {
+  min_amount: number
+  discount: number
+}
 
 /**
  * Creem product configuration
@@ -134,6 +144,8 @@ export interface TopupInfo {
   amount_options: number[]
   /** Discount rates by amount */
   discount: Record<number, number>
+  /** Threshold discounts sorted by min_amount */
+  discount_thresholds?: DiscountThreshold[]
   /** Optional topup link for purchasing codes */
   topup_link?: string
   /** Whether Creem topup is enabled */
@@ -150,6 +162,10 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether YooKassa topup is enabled */
+  enable_yookassa_topup?: boolean
+  /** Minimum topup amount for YooKassa */
+  yookassa_min_topup?: number
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
   /** Whether compliance confirmation has been completed */
@@ -202,6 +218,16 @@ export interface WaffoPaymentRequest {
 export interface WaffoPancakePaymentRequest {
   /** Topup amount */
   amount: number
+}
+
+/**
+ * YooKassa payment request parameters
+ */
+export interface YooKassaPaymentRequest {
+  /** Topup amount */
+  amount: number
+  /** Payment method identifier */
+  payment_method: 'yookassa_sbp'
 }
 
 /**

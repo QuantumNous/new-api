@@ -151,6 +151,11 @@ const BILLING_SECTIONS = [
           CreemWebhookSecret: settings.CreemWebhookSecret,
           CreemTestMode: settings.CreemTestMode,
           CreemProducts: settings.CreemProducts,
+          YooKassaEnabled: settings.YooKassaEnabled ?? false,
+          YooKassaShopID: settings.YooKassaShopID ?? '',
+          YooKassaSecretKey: settings.YooKassaSecretKey ?? '',
+          YooKassaReturnURL: settings.YooKassaReturnURL ?? '',
+          YooKassaPaymentMethods: settings.YooKassaPaymentMethods ?? 'sbp',
         }}
         waffoDefaultValues={{
           WaffoEnabled: settings.WaffoEnabled ?? false,

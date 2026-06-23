@@ -129,8 +129,27 @@ const paymentSchema = z.object({
   AmountDiscount: z.string().superRefine((value, ctx) => {
     const error = getJsonError(
       value,
-      (parsed) =>
-        !!parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      (parsed) => {
+        if (!parsed) return false
+        if (Array.isArray(parsed)) {
+          return parsed.every((item) => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+              return false
+            }
+            const record = item as Record<string, unknown>
+            return (
+              Number.isInteger(Number(record.min_amount)) &&
+              Number.isFinite(Number(record.discount))
+            )
+          })
+        }
+        if (typeof parsed !== 'object') return false
+        return Object.entries(parsed).every(
+          ([amount, discount]) =>
+            Number.isInteger(Number(amount)) &&
+            Number.isFinite(Number(discount))
+        )
+      }
     )
     if (error) {
       ctx.addIssue({
@@ -174,6 +193,15 @@ const paymentSchema = z.object({
   WaffoPancakeMerchantID: z.string(),
   WaffoPancakePrivateKey: z.string(),
   WaffoPancakeReturnURL: z.string(),
+  YooKassaEnabled: z.boolean(),
+  YooKassaShopID: z.string(),
+  YooKassaSecretKey: z.string(),
+  YooKassaReturnURL: z.string().refine((value) => {
+    const trimmed = value.trim()
+    if (!trimmed) return true
+    return /^https?:\/\//.test(trimmed)
+  }, 'Provide a valid URL starting with http:// or https://'),
+  YooKassaPaymentMethods: z.string(),
 })
 
 type PaymentFormValues = z.infer<typeof paymentSchema>
@@ -455,6 +483,11 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         values.WaffoPancakeReturnURL.trim()
       ),
+      YooKassaEnabled: values.YooKassaEnabled,
+      YooKassaShopID: values.YooKassaShopID.trim(),
+      YooKassaSecretKey: values.YooKassaSecretKey.trim(),
+      YooKassaReturnURL: removeTrailingSlash(values.YooKassaReturnURL.trim()),
+      YooKassaPaymentMethods: values.YooKassaPaymentMethods.trim(),
     }
 
     const initial = {
@@ -502,6 +535,13 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         initialRef.current.WaffoPancakeReturnURL.trim()
       ),
+      YooKassaEnabled: initialRef.current.YooKassaEnabled,
+      YooKassaShopID: initialRef.current.YooKassaShopID.trim(),
+      YooKassaSecretKey: initialRef.current.YooKassaSecretKey.trim(),
+      YooKassaReturnURL: removeTrailingSlash(
+        initialRef.current.YooKassaReturnURL.trim()
+      ),
+      YooKassaPaymentMethods: initialRef.current.YooKassaPaymentMethods.trim(),
     }
 
     const updates: Array<{ key: string; value: string | number | boolean }> = []
@@ -625,6 +665,40 @@ export function PaymentSettingsSection({
       normalizeJsonForComparison(initial.CreemProducts)
     ) {
       updates.push({ key: 'CreemProducts', value: sanitized.CreemProducts })
+    }
+
+    if (sanitized.YooKassaEnabled !== initial.YooKassaEnabled) {
+      updates.push({ key: 'YooKassaEnabled', value: sanitized.YooKassaEnabled })
+    }
+
+    if (sanitized.YooKassaShopID !== initial.YooKassaShopID) {
+      updates.push({ key: 'YooKassaShopID', value: sanitized.YooKassaShopID })
+    }
+
+    if (
+      sanitized.YooKassaSecretKey &&
+      sanitized.YooKassaSecretKey !== initial.YooKassaSecretKey
+    ) {
+      updates.push({
+        key: 'YooKassaSecretKey',
+        value: sanitized.YooKassaSecretKey,
+      })
+    }
+
+    if (sanitized.YooKassaReturnURL !== initial.YooKassaReturnURL) {
+      updates.push({
+        key: 'YooKassaReturnURL',
+        value: sanitized.YooKassaReturnURL,
+      })
+    }
+
+    if (
+      sanitized.YooKassaPaymentMethods !== initial.YooKassaPaymentMethods
+    ) {
+      updates.push({
+        key: 'YooKassaPaymentMethods',
+        value: sanitized.YooKassaPaymentMethods,
+      })
     }
 
     if (sanitized.WaffoEnabled !== initial.WaffoEnabled) {
@@ -875,9 +949,10 @@ export function PaymentSettingsSection({
           />
           <Tabs defaultValue='general' className='min-w-0'>
             <div className='overflow-x-auto pb-1'>
-              <TabsList className='grid min-w-[44rem] grid-cols-6'>
+              <TabsList className='grid min-w-[52rem] grid-cols-7'>
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
                 <TabsTrigger value='epay'>Epay</TabsTrigger>
+                <TabsTrigger value='yookassa'>YooKassa</TabsTrigger>
                 <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
                 <TabsTrigger value='creem'>Creem</TabsTrigger>
                 <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>
@@ -1101,7 +1176,7 @@ export function PaymentSettingsSection({
                           ) : (
                             <Textarea
                               rows={4}
-                              placeholder='{"100":0.95,"200":0.9}'
+                              placeholder='[{"min_amount":100,"discount":0.95}]'
                               {...field}
                               onChange={(event) =>
                                 field.onChange(event.target.value)
@@ -1110,7 +1185,9 @@ export function PaymentSettingsSection({
                           )}
                         </FormControl>
                         <FormDescription>
-                          {t('Discount map by recharge amount (JSON object)')}
+                          {t(
+                            'Discount map by exact amount or threshold array with min_amount'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1230,6 +1307,153 @@ export function PaymentSettingsSection({
                         </FormControl>
                         <FormDescription>
                           {t('Leave blank unless rotating the secret')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value='yookassa' className={paymentTabContentClassName}>
+              <div className='space-y-4'>
+                <div>
+                  <h3 className='text-lg font-medium'>
+                    {t('YooKassa Gateway')}
+                  </h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Configuration for YooKassa payment integration')}
+                  </p>
+                </div>
+
+                <div className='rounded-md bg-purple-50 p-4 text-sm text-purple-900 dark:bg-purple-950 dark:text-purple-100'>
+                  <p className='mb-2 font-medium'>
+                    {t('Webhook Configuration:')}
+                  </p>
+                  <ul className='list-inside list-disc space-y-1'>
+                    <li>
+                      {t('Webhook URL:')}{' '}
+                      <code className='rounded bg-purple-100 px-1 py-0.5 text-xs dark:bg-purple-900'>
+                        {'<ServerAddress>/api/user/yookassa/notify'}
+                      </code>
+                    </li>
+                    <li>{t('Configure in your YooKassa dashboard')}</li>
+                  </ul>
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name='YooKassaEnabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable YooKassa payments')}</FormLabel>
+                        <FormDescription>
+                          {t('Show SBP / YooKassa in recharge options')}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='YooKassaShopID'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Shop ID')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t('YooKassa shop ID')}
+                            autoComplete='off'
+                            {...field}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='YooKassaSecretKey'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Secret key')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            placeholder={t(
+                              'YooKassa secret key (leave blank unless updating)'
+                            )}
+                            autoComplete='new-password'
+                            {...field}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Masked value means the saved key is unchanged')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='YooKassaReturnURL'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Payment return URL')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder='https://example.com/console/topup'
+                            {...field}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Leave blank to use the public server address')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='YooKassaPaymentMethods'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Payment methods')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder='sbp'
+                            {...field}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Comma-separated YooKassa payment method types')}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

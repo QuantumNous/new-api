@@ -40,6 +40,7 @@ import {
   getPaymentIcon,
   getMinTopupAmount,
   calculatePresetPricing,
+  getDiscountForAmount,
 } from '../lib'
 import type {
   PaymentMethod,
@@ -127,6 +128,7 @@ export function RechargeFormCard({
   const hasConfigurableTopup =
     topupInfo?.enable_online_topup ||
     topupInfo?.enable_stripe_topup ||
+    topupInfo?.enable_yookassa_topup ||
     enableWaffoTopup ||
     enableWaffoPancakeTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
@@ -221,8 +223,11 @@ export function RechargeFormCard({
                     {presetAmounts.map((preset, index) => {
                       const discount =
                         preset.discount ||
-                        topupInfo?.discount?.[preset.value] ||
-                        1.0
+                        getDiscountForAmount(
+                          preset.value,
+                          topupInfo?.discount,
+                          topupInfo?.discount_thresholds
+                        )
                       const {
                         displayValue,
                         actualPrice,

@@ -320,6 +320,11 @@ export type BillingSettings = {
   WaffoPancakeMerchantID: string
   WaffoPancakePrivateKey: string
   WaffoPancakeReturnURL: string
+  YooKassaEnabled: boolean
+  YooKassaShopID: string
+  YooKassaSecretKey: string
+  YooKassaReturnURL: string
+  YooKassaPaymentMethods: string
   // Bound by the operator through the catalog flow in the admin Pancake
   // section (saved via /api/option/waffo-pancake/save).
   WaffoPancakeStoreID: string

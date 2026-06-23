@@ -116,6 +116,11 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
 	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
+	common.OptionMap["YooKassaEnabled"] = strconv.FormatBool(setting.YooKassaEnabled)
+	common.OptionMap["YooKassaShopID"] = setting.YooKassaShopID
+	common.OptionMap["YooKassaSecretKey"] = setting.YooKassaSecretKey
+	common.OptionMap["YooKassaReturnURL"] = setting.YooKassaReturnURL
+	common.OptionMap["YooKassaPaymentMethods"] = setting.YooKassaPaymentMethods
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -468,6 +473,16 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeMinTopUp":
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
+	case "YooKassaEnabled":
+		setting.YooKassaEnabled = value == "true"
+	case "YooKassaShopID":
+		setting.YooKassaShopID = value
+	case "YooKassaSecretKey":
+		setting.YooKassaSecretKey = value
+	case "YooKassaReturnURL":
+		setting.YooKassaReturnURL = value
+	case "YooKassaPaymentMethods":
+		setting.YooKassaPaymentMethods = value
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

@@ -95,12 +95,33 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	enableYooKassa := isYooKassaTopUpEnabled()
+	if enableYooKassa && isYooKassaPaymentMethodEnabled("sbp") {
+		hasYooKassa := false
+		for _, method := range payMethods {
+			if method["type"] == model.PaymentMethodYooKassaSBP {
+				hasYooKassa = true
+				break
+			}
+		}
+
+		if !hasYooKassa {
+			payMethods = append(payMethods, map[string]string{
+				"name":      "СБП / YooKassa",
+				"type":      model.PaymentMethodYooKassaSBP,
+				"color":     "#8B3FFD",
+				"min_topup": strconv.FormatInt(getMinTopup(), 10),
+			})
+		}
+	}
+
 	data := gin.H{
 		"enable_online_topup":              isEpayTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
+		"enable_yookassa_topup":            enableYooKassa,
 		"enable_redemption":                complianceConfirmed,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
@@ -116,6 +137,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"stripe_min_topup":        setting.StripeMinTopUp,
 		"waffo_min_topup":         setting.WaffoMinTopUp,
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
+		"yookassa_min_topup":      getMinTopup(),
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":              common.TopUpLink,
@@ -162,13 +184,7 @@ func getPayMoney(amount int64, group string) float64 {
 
 	dTopupGroupRatio := decimal.NewFromFloat(topupGroupRatio)
 	dPrice := decimal.NewFromFloat(operation_setting.Price)
-	// apply optional preset discount by the original request amount (if configured), default 1.0
-	discount := 1.0
-	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(amount)]; ok {
-		if ds > 0 {
-			discount = ds
-		}
-	}
+	discount := operation_setting.GetPaymentSetting().AmountDiscount.DiscountForAmount(int(amount))
 	dDiscount := decimal.NewFromFloat(discount)
 
 	payMoney := dAmount.Mul(dPrice).Mul(dTopupGroupRatio).Mul(dDiscount)

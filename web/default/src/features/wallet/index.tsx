@@ -30,7 +30,6 @@ import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
-import { DEFAULT_DISCOUNT_RATE } from './constants'
 import {
   useTopupInfo,
   usePayment,
@@ -42,6 +41,7 @@ import {
 } from './hooks'
 import {
   getDefaultPaymentType,
+  getDiscountForAmount,
   getMinTopupAmount,
   isWaffoPancakePayment,
 } from './lib'
@@ -247,7 +247,11 @@ export function Wallet(props: WalletProps) {
 
   // Get discount rate for current topup amount
   const getDiscountRate = useCallback(() => {
-    return topupInfo?.discount?.[topupAmount] || DEFAULT_DISCOUNT_RATE
+    return getDiscountForAmount(
+      topupAmount,
+      topupInfo?.discount,
+      topupInfo?.discount_thresholds
+    )
   }, [topupInfo, topupAmount])
 
   const handleSubscriptionAvailabilityChange = useCallback(

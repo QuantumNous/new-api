@@ -34,6 +34,87 @@ type AmountDiscountVisualEditorProps = {
   onChange: (value: string) => void
 }
 
+type ParsedAmountDiscounts = {
+  discounts: AmountDiscountData[]
+  thresholdMode: boolean
+}
+
+function parseAmountDiscounts(value: string): ParsedAmountDiscounts {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value || '{}')
+  } catch {
+    parsed = {}
+  }
+
+  if (Array.isArray(parsed)) {
+    const discounts = parsed
+      .map((item) => {
+        if (!item || typeof item !== 'object') {
+          return null
+        }
+        const record = item as Record<string, unknown>
+        const amount = Number(record.min_amount)
+        const discountRate = Number(record.discount)
+        if (!Number.isFinite(amount) || !Number.isFinite(discountRate)) {
+          return null
+        }
+        return {
+          amount,
+          discountRate,
+        }
+      })
+      .filter((item): item is AmountDiscountData => item !== null)
+      .sort((a, b) => a.amount - b.amount)
+
+    return { discounts, thresholdMode: true }
+  }
+
+  const parsedObject = safeJsonParseWithValidation<Record<string, unknown>>(
+    value,
+    {
+      fallback: {},
+      validator: isObjectRecord,
+      validatorMessage: 'Amount discount must be a JSON object',
+      context: 'amount discounts',
+    }
+  )
+  const discounts = Object.entries(parsedObject)
+    .map(([amount, rate]) => ({
+      amount: parseInt(amount, 10),
+      discountRate: typeof rate === 'number' ? rate : parseFloat(String(rate)),
+    }))
+    .filter((item) => !isNaN(item.amount) && !isNaN(item.discountRate))
+    .sort((a, b) => a.amount - b.amount)
+
+  return { discounts, thresholdMode: false }
+}
+
+function stringifyAmountDiscounts(
+  discounts: AmountDiscountData[],
+  thresholdMode: boolean
+): string {
+  const sorted = [...discounts].sort((a, b) => a.amount - b.amount)
+  if (thresholdMode) {
+    return JSON.stringify(
+      sorted.map((item) => ({
+        min_amount: item.amount,
+        discount: item.discountRate,
+      })),
+      null,
+      2
+    )
+  }
+
+  return JSON.stringify(
+    Object.fromEntries(
+      sorted.map((item) => [item.amount.toString(), item.discountRate])
+    ),
+    null,
+    2
+  )
+}
+
 export function AmountDiscountVisualEditor({
   value,
   onChange,
@@ -42,56 +123,31 @@ export function AmountDiscountVisualEditor({
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editData, setEditData] = useState<AmountDiscountData | null>(null)
 
-  const discounts = useMemo(() => {
-    const parsed = safeJsonParseWithValidation<Record<string, unknown>>(value, {
-      fallback: {},
-      validator: isObjectRecord,
-      validatorMessage: 'Amount discount must be a JSON object',
-      context: 'amount discounts',
-    })
-
-    return Object.entries(parsed)
-      .map(([amount, rate]) => ({
-        amount: parseInt(amount, 10),
-        discountRate:
-          typeof rate === 'number' ? rate : parseFloat(String(rate)),
-      }))
-      .filter((item) => !isNaN(item.amount) && !isNaN(item.discountRate))
-      .sort((a, b) => a.amount - b.amount)
-  }, [value])
+  const parsedDiscounts = useMemo(() => parseAmountDiscounts(value), [value])
+  const discounts = parsedDiscounts.discounts
 
   const handleSave = (data: AmountDiscountData) => {
-    const discountObject = safeJsonParseWithValidation<Record<string, unknown>>(
-      value,
-      {
-        fallback: {},
-        validator: isObjectRecord,
-        silent: true,
+    const nextDiscounts = discounts.filter((item) => {
+      if (editData && editData.amount !== data.amount) {
+        return item.amount !== editData.amount && item.amount !== data.amount
       }
+      return item.amount !== data.amount
+    })
+
+    nextDiscounts.push(data)
+
+    onChange(
+      stringifyAmountDiscounts(nextDiscounts, parsedDiscounts.thresholdMode)
     )
-
-    if (editData && editData.amount !== data.amount) {
-      delete discountObject[editData.amount.toString()]
-    }
-
-    discountObject[data.amount.toString()] = data.discountRate
-
-    onChange(JSON.stringify(discountObject, null, 2))
   }
 
   const handleDelete = (amount: number) => {
-    const discountObject = safeJsonParseWithValidation<Record<string, unknown>>(
-      value,
-      {
-        fallback: {},
-        validator: isObjectRecord,
-        silent: true,
-      }
+    onChange(
+      stringifyAmountDiscounts(
+        discounts.filter((item) => item.amount !== amount),
+        parsedDiscounts.thresholdMode
+      )
     )
-
-    delete discountObject[amount.toString()]
-
-    onChange(JSON.stringify(discountObject, null, 2))
   }
 
   const handleEdit = (discount: AmountDiscountData) => {

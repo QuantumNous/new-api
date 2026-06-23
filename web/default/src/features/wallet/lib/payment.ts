@@ -22,7 +22,7 @@ import {
   DEFAULT_PAYMENT_TYPE,
   DEFAULT_MIN_TOPUP,
 } from '../constants'
-import type { PresetAmount, TopupInfo } from '../types'
+import type { DiscountThreshold, PresetAmount, TopupInfo } from '../types'
 
 // ============================================================================
 // Payment Processing Functions
@@ -87,6 +87,13 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
 }
 
 /**
+ * Check if payment method is YooKassa
+ */
+export function isYooKassaPayment(paymentType: string): boolean {
+  return paymentType === PAYMENT_TYPES.YOOKASSA_SBP
+}
+
+/**
  * Get default payment type from topup info
  */
 export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
@@ -109,6 +116,10 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
 
   if (topupInfo.enable_waffo_pancake_topup) {
     return PAYMENT_TYPES.WAFFO_PANCAKE
+  }
+
+  if (topupInfo.enable_yookassa_topup) {
+    return PAYMENT_TYPES.YOOKASSA_SBP
   }
 
   return DEFAULT_PAYMENT_TYPE
@@ -138,6 +149,10 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
     return topupInfo.waffo_pancake_min_topup || DEFAULT_MIN_TOPUP
   }
 
+  if (topupInfo.enable_yookassa_topup) {
+    return topupInfo.yookassa_min_topup || DEFAULT_MIN_TOPUP
+  }
+
   return DEFAULT_MIN_TOPUP
 }
 
@@ -155,7 +170,8 @@ export function generatePresetAmounts(minAmount: number): PresetAmount[] {
  */
 export function mergePresetAmounts(
   amountOptions: number[],
-  discounts: Record<number, number>
+  discounts: Record<number, number>,
+  thresholds: DiscountThreshold[] = []
 ): PresetAmount[] {
   if (!amountOptions || amountOptions.length === 0) {
     return []
@@ -163,6 +179,30 @@ export function mergePresetAmounts(
 
   return amountOptions.map((amount) => ({
     value: amount,
-    discount: discounts[amount] || 1.0,
+    discount: getDiscountForAmount(amount, discounts, thresholds),
   }))
+}
+
+export function getDiscountForAmount(
+  amount: number,
+  discounts: Record<number, number> = {},
+  thresholds: DiscountThreshold[] = []
+): number {
+  if (thresholds.length > 0) {
+    let discount = 1.0
+    let bestMinAmount = -1
+    for (const threshold of thresholds) {
+      if (
+        threshold.min_amount <= amount &&
+        threshold.min_amount > bestMinAmount &&
+        threshold.discount > 0
+      ) {
+        bestMinAmount = threshold.min_amount
+        discount = threshold.discount
+      }
+    }
+    return discount
+  }
+
+  return discounts[amount] || 1.0
 }

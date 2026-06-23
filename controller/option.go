@@ -29,6 +29,8 @@ var completionRatioMetaOptionKeys = []string{
 	"AudioCompletionRatio",
 }
 
+const maskedOptionValue = "********"
+
 func isPaymentComplianceOptionKey(key string) bool {
 	return strings.HasPrefix(key, "payment_setting.compliance_")
 }
@@ -87,6 +89,15 @@ func GetOptions(c *gin.Context) {
 			strings.HasSuffix(k, "secret") ||
 			strings.HasSuffix(k, "api_key")
 		if isSensitiveKey {
+			if k == "YooKassaSecretKey" {
+				if value != "" {
+					value = maskedOptionValue
+				}
+				options = append(options, &model.Option{
+					Key:   k,
+					Value: value,
+				})
+			}
 			continue
 		}
 		options = append(options, &model.Option{
@@ -138,6 +149,14 @@ func UpdateOption(c *gin.Context) {
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
 	switch option.Key {
+	case "YooKassaSecretKey":
+		if option.Value == maskedOptionValue {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "",
+			})
+			return
+		}
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)

@@ -29,6 +29,7 @@ import type {
   CreemProduct,
   PaymentMethod,
   WaffoPayMethod,
+  DiscountThreshold,
 } from '../types'
 
 // ============================================================================
@@ -124,9 +125,12 @@ function parseAmountOptions(data: unknown): number[] {
     .filter((item) => Number.isFinite(item) && item > 0)
 }
 
-function parseDiscountMap(data: unknown): Record<number, number> {
+function parseDiscountConfig(data: unknown): {
+  discount: Record<number, number>
+  thresholds: DiscountThreshold[]
+} {
   if (!data) {
-    return {}
+    return { discount: {}, thresholds: [] }
   }
 
   let parsedData = data
@@ -135,19 +139,34 @@ function parseDiscountMap(data: unknown): Record<number, number> {
     try {
       parsedData = JSON.parse(data)
     } catch {
-      return {}
+      return { discount: {}, thresholds: [] }
     }
   }
 
-  if (
-    !parsedData ||
-    typeof parsedData !== 'object' ||
-    Array.isArray(parsedData)
-  ) {
-    return {}
+  if (!parsedData || typeof parsedData !== 'object') {
+    return { discount: {}, thresholds: [] }
   }
 
-  return Object.entries(parsedData).reduce<Record<number, number>>(
+  if (Array.isArray(parsedData)) {
+    const thresholds = parsedData
+      .map((item) => {
+        if (!item || typeof item !== 'object') {
+          return null
+        }
+        const candidate = item as Record<string, unknown>
+        const minAmount = Number(candidate.min_amount)
+        const discount = Number(candidate.discount)
+        if (!Number.isFinite(minAmount) || !Number.isFinite(discount)) {
+          return null
+        }
+        return { min_amount: minAmount, discount }
+      })
+      .filter((item): item is DiscountThreshold => item !== null)
+      .sort((a, b) => a.min_amount - b.min_amount)
+    return { discount: {}, thresholds }
+  }
+
+  const discount = Object.entries(parsedData).reduce<Record<number, number>>(
     (result, [key, value]) => {
       const numericKey = Number(key)
       const numericValue = Number(value)
@@ -160,6 +179,7 @@ function parseDiscountMap(data: unknown): Record<number, number> {
     },
     {}
   )
+  return { discount, thresholds: [] }
 }
 
 export function useTopupInfo() {
@@ -179,6 +199,7 @@ export function useTopupInfo() {
         return
       }
 
+      const discountConfig = parseDiscountConfig(response.data.discount)
       const processedData: TopupInfo = {
         ...response.data,
         pay_methods: parsePaymentMethods(
@@ -186,7 +207,8 @@ export function useTopupInfo() {
           response.data.stripe_min_topup
         ),
         amount_options: parseAmountOptions(response.data.amount_options),
-        discount: parseDiscountMap(response.data.discount),
+        discount: discountConfig.discount,
+        discount_thresholds: discountConfig.thresholds,
         creem_products: parseCreemProducts(response.data.creem_products),
         waffo_pay_methods: parseWaffoPayMethods(
           response.data.waffo_pay_methods
@@ -198,7 +220,8 @@ export function useTopupInfo() {
       if (processedData.amount_options.length > 0) {
         const customPresets = mergePresetAmounts(
           processedData.amount_options,
-          processedData.discount || {}
+          processedData.discount || {},
+          processedData.discount_thresholds || []
         )
         setPresetAmounts(customPresets)
       } else {

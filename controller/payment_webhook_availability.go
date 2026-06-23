@@ -92,6 +92,24 @@ func isWaffoPancakeWebhookEnabled() bool {
 	return isWaffoPancakeTopUpEnabled()
 }
 
+func isYooKassaTopUpEnabled() bool {
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	return setting.YooKassaEnabled &&
+		strings.TrimSpace(setting.YooKassaShopID) != "" &&
+		strings.TrimSpace(setting.YooKassaSecretKey) != ""
+}
+
+func isYooKassaWebhookConfigured() bool {
+	return strings.TrimSpace(setting.YooKassaShopID) != "" &&
+		strings.TrimSpace(setting.YooKassaSecretKey) != ""
+}
+
+func isYooKassaWebhookEnabled() bool {
+	return isYooKassaTopUpEnabled()
+}
+
 func isEpayTopUpEnabled() bool {
 	if !isPaymentComplianceConfirmed() {
 		return false

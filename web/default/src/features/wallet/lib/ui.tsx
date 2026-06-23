@@ -125,10 +125,11 @@ export function getPaymentIcon(
         />
       )
     case PAYMENT_TYPES.WAFFO:
+    case PAYMENT_TYPES.YOOKASSA_SBP:
       return (
         <CreditCard
           className={className}
-          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.WAFFO] }}
+          style={{ color: PAYMENT_ICON_COLORS[paymentType] }}
         />
       )
     case PAYMENT_TYPES.WAFFO_PANCAKE:
