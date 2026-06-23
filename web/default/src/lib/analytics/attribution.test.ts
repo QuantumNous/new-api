@@ -164,7 +164,7 @@ describe('attribution normalization', () => {
     expect(parsed.keyword).toBe('flatkey api')
   })
 
-  test('stores external referrer without query or hash', () => {
+  test('stores external referrer keyword without raw query or hash', () => {
     const storage = new Map<string, string>()
     const originalWindow = globalThis.window
     const originalDocument = globalThis.document
@@ -187,13 +187,15 @@ describe('attribution normalization', () => {
       configurable: true,
       value: {
         referrer:
-          'https://www.google.com/search?q=email@example.com#private-token',
+          'https://www.google.com/search?q=flatkey+api&token=email@example.com#private-token',
       },
     })
 
     try {
       const captured = JSON.stringify(captureAdsAttribution())
 
+      expect(captured).toContain('flatkey api')
+      expect(captured).not.toContain('token=')
       expect(captured).not.toContain('email@example.com')
       expect(captured).not.toContain('private-token')
       expect(captured).toContain('https://www.google.com/search')
@@ -209,7 +211,7 @@ describe('attribution normalization', () => {
     }
   })
 
-  test('capture path classifies organic referrers without storing search keywords', () => {
+  test('capture path classifies organic referrers and safely stores search keywords', () => {
     const storage = new Map<string, string>()
     const originalWindow = globalThis.window
     const originalDocument = globalThis.document
@@ -232,7 +234,7 @@ describe('attribution normalization', () => {
       configurable: true,
       value: {
         referrer:
-          'https://www.google.com/search?q=email@example.com#private-token',
+          'https://www.google.com/search?q=flatkey+api&token=email@example.com#private-token',
       },
     })
 
@@ -242,7 +244,9 @@ describe('attribution normalization', () => {
       expect(captured.source_type).toBe('organic')
       expect(captured.source).toBe('google')
       expect(captured.medium).toBe('organic')
-      expect(captured.keyword).toBe('')
+      expect(captured.keyword).toBe('flatkey api')
+      expect(captured.referrer).toBe('https://www.google.com/search')
+      expect(JSON.stringify(captured)).not.toContain('token=')
       expect(JSON.stringify(captured)).not.toContain('email@example.com')
     } finally {
       Object.defineProperty(globalThis, 'window', {

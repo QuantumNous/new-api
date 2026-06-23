@@ -244,7 +244,7 @@ export function normalizeAttribution(
       source: organicSource,
       medium: 'organic',
       campaign: '',
-      keyword: getSearchKeyword(cleaned.referrer || ''),
+      keyword: cleaned.keyword || getSearchKeyword(cleaned.referrer || ''),
       is_paid: 'false',
       rule_version: '2026-06-16',
     }
@@ -371,6 +371,11 @@ export function captureAdsAttribution(): Record<string, string> {
     captured_at: new Date().toISOString(),
   }
   if (isExternalReferrer(document.referrer)) {
+    const keyword = getSearchKeyword(document.referrer)
+    if (keyword) {
+      current.keyword = keyword
+    }
+
     const referrer = getSanitizedReferrer(document.referrer)
     if (referrer) {
       current.referrer = referrer
