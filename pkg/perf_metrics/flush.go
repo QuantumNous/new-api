@@ -51,8 +51,15 @@ func flushCompletedBuckets() {
 			GenerationMs:   drained.generationMs,
 		})
 		if err != nil {
-			bucket.addCounters(drained)
 			common.SysError(fmt.Sprintf("failed to flush perf metric bucket model=%s group=%s bucket=%d: %s", k.model, k.group, k.bucketTs, err.Error()))
+			// Give up on buckets that have been failing past the 24h horizon instead
+			// of retrying (and holding memory) forever; otherwise a persistently
+			// failing flush leaks memory and spams logs indefinitely.
+			if k.bucketTs < bucketStart(time.Now().Add(-24*time.Hour).Unix()) {
+				hotBuckets.Delete(key)
+				return true
+			}
+			bucket.addCounters(drained)
 			return true
 		}
 

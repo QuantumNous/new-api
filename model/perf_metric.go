@@ -37,13 +37,17 @@ func UpsertPerfMetric(metric *PerfMetric) error {
 			{Name: "bucket_ts"},
 		},
 		DoUpdates: clause.Assignments(map[string]interface{}{
-			"request_count":    gorm.Expr("request_count + ?", metric.RequestCount),
-			"success_count":    gorm.Expr("success_count + ?", metric.SuccessCount),
-			"total_latency_ms": gorm.Expr("total_latency_ms + ?", metric.TotalLatencyMs),
-			"ttft_sum_ms":      gorm.Expr("ttft_sum_ms + ?", metric.TtftSumMs),
-			"ttft_count":       gorm.Expr("ttft_count + ?", metric.TtftCount),
-			"output_tokens":    gorm.Expr("output_tokens + ?", metric.OutputTokens),
-			"generation_ms":    gorm.Expr("generation_ms + ?", metric.GenerationMs),
+			// Qualify the right-hand column with the table name. PostgreSQL (>=14.4)
+			// treats an unqualified column in ON CONFLICT DO UPDATE as ambiguous
+			// between the existing row and the excluded row. Table-qualified names
+			// are accepted by SQLite/MySQL/PostgreSQL alike.
+			"request_count":    gorm.Expr("perf_metrics.request_count + ?", metric.RequestCount),
+			"success_count":    gorm.Expr("perf_metrics.success_count + ?", metric.SuccessCount),
+			"total_latency_ms": gorm.Expr("perf_metrics.total_latency_ms + ?", metric.TotalLatencyMs),
+			"ttft_sum_ms":      gorm.Expr("perf_metrics.ttft_sum_ms + ?", metric.TtftSumMs),
+			"ttft_count":       gorm.Expr("perf_metrics.ttft_count + ?", metric.TtftCount),
+			"output_tokens":    gorm.Expr("perf_metrics.output_tokens + ?", metric.OutputTokens),
+			"generation_ms":    gorm.Expr("perf_metrics.generation_ms + ?", metric.GenerationMs),
 		}),
 	}).Create(metric).Error
 }
