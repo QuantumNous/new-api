@@ -183,6 +183,16 @@ Production runs as a multi-node deployment. Code changes and technical plans MUS
 - Cache invalidation, background jobs, startup initialization, scheduled work, and one-time migrations must be safe when executed by more than one node.
 - PRs and technical designs that touch auth, billing, quota, token/key creation, relay routing, caches, jobs, or configuration writes must explicitly mention the multi-node behavior or why it is not relevant.
 
+### Rule 12: Staging Deploys From The `staging` Branch
+
+The GCP staging environment is deployed by GitHub Actions from the remote `staging` branch. To deploy staging, merge or push the desired code into branch `staging`; this automatically builds and deploys staging without the production approval gate.
+
+- Backend workflow: `.github/workflows/gcp-deploy-staging.yml` builds the Go application image and deploys Cloud Run service `newapi-staging`.
+- Website workflow: `.github/workflows/gcp-deploy-website-staging.yml` builds `website/` and deploys Cloud Run service `newapi-web-staging`.
+- Staging domains are `https://staging-console.flatkey.ai`, `https://staging-router.flatkey.ai`, and `https://staging-website.flatkey.ai`.
+- This is separate from production: production deploys from `main` through the production workflows and approval gate. Do not use `staging` as evidence that production has been deployed.
+- Do not copy production-only runtime settings, callback URLs, payment credentials, OAuth secrets, or production domains into staging. Staging must keep its own domain/origin values.
+
 ---
 
 ## Code Map — 按需加载的模块级文档（重要）
