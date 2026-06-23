@@ -25,9 +25,13 @@ import (
 // metadata stores SkillJSONB object; restricted keys (instruction_template, prompt, etc.)
 // must never be written here — see spec rule in §4.4.
 type SkillUsageEvent struct {
-	EventID    string                    `gorm:"column:event_id;type:char(36);primaryKey;not null"`
-	EventType  enums.SkillUsageEventType `gorm:"column:event_type;type:varchar(64);not null"`
-	OccurredAt time.Time                 `gorm:"column:occurred_at;not null"`
+	EventID   string                    `gorm:"column:event_id;type:char(36);primaryKey;not null"`
+	EventType enums.SkillUsageEventType `gorm:"column:event_type;type:varchar(64);not null"`
+	// OccurredAt is the server-authoritative analytics time (UTC, DR-74 D2/D4).
+	// Public / client / SDK / package-supplied timestamps must NEVER be copied into
+	// this field; a non-zero value is reserved for trusted backend-internal producers
+	// only. BeforeCreate normalizes it to UTC (zero -> time.Now().UTC()).
+	OccurredAt time.Time `gorm:"column:occurred_at;not null"`
 
 	UserID    *int64  `gorm:"column:user_id;type:bigint"`
 	TenantID  *int64  `gorm:"column:tenant_id;type:bigint"`
@@ -65,6 +69,12 @@ type SkillUsageEvent struct {
 	Metadata SkillJSONB `gorm:"column:metadata;type:text;not null"`
 }
 
+// SkillEventSchemaVersion is the V1 analytics event contract version stamped into
+// every skill_usage_events row at metadata.schema_version (DR-74). V1 is single-schema:
+// the canonical DDL (tasks/03 §4.4) has no first-class column and there is no
+// reader-side multi-version migration, so only this exact value may persist.
+const SkillEventSchemaVersion = "1.0"
+
 var restrictedSUEMetadataKeys = map[string]struct{}{
 	"instruction_template": {},
 	"prompt":               {},
@@ -84,10 +94,53 @@ func (e *SkillUsageEvent) BeforeCreate(tx *gorm.DB) error {
 	if err := validateSUEEventMetadata(e.Metadata); err != nil {
 		return err
 	}
+	// DR-74: stamp metadata.schema_version on every event (single choke point).
+	// Runs after validateSUEEventMetadata so the metadata is known to be an object.
+	stamped, err := ensureMetadataSchemaVersion(e.Metadata)
+	if err != nil {
+		return err
+	}
+	e.Metadata = stamped
 	if err := validateSUEKidsSessionPrivacy(e); err != nil {
 		return err
 	}
+	// DR-74: occurred_at is server-authoritative UTC. Zero -> now (UTC); a non-zero
+	// (trusted server-side producer) timestamp is normalized to UTC. Public/client-facing
+	// handlers must never map a client-provided timestamp into OccurredAt (see DR-74 D2/D4).
+	if e.OccurredAt.IsZero() {
+		e.OccurredAt = time.Now().UTC()
+	} else {
+		e.OccurredAt = e.OccurredAt.UTC()
+	}
 	return nil
+}
+
+// ensureMetadataSchemaVersion enforces the DR-74 V1 schema_version contract on an
+// already-validated metadata object: absent -> set SkillEventSchemaVersion; equal to
+// SkillEventSchemaVersion -> keep; empty, non-string, or any other value -> reject.
+// V1 is single-schema (no reader-side multi-version migration), so mixed schemas must
+// not land in skill_usage_events.
+func ensureMetadataSchemaVersion(meta SkillJSONB) (SkillJSONB, error) {
+	var obj map[string]any
+	if err := common.Unmarshal(meta, &obj); err != nil {
+		return nil, fmt.Errorf("skill_usage_events: invalid metadata JSON: %w", err)
+	}
+	if obj == nil {
+		obj = map[string]any{}
+	}
+	if raw, ok := obj["schema_version"]; ok {
+		sv, isStr := raw.(string)
+		if !isStr || sv != SkillEventSchemaVersion {
+			return nil, fmt.Errorf("skill_usage_events: metadata.schema_version must be %q (V1), got %v", SkillEventSchemaVersion, raw)
+		}
+		return meta, nil // already the V1 version; no re-marshal needed
+	}
+	obj["schema_version"] = SkillEventSchemaVersion
+	out, err := common.Marshal(obj)
+	if err != nil {
+		return nil, fmt.Errorf("skill_usage_events: marshal metadata with schema_version: %w", err)
+	}
+	return SkillJSONB(out), nil
 }
 
 // validateSUEEventMetadata is the authoritative recursive guard against restricted
@@ -185,7 +238,8 @@ func (e *SkillUsageEvent) ApplyKidsSessionAnalyticsIdentity(realUserID, tenantID
 // On error the caller should log but must not block the user-facing response.
 // EmitSkillUsageEvent is the common write path for skill_usage_events.
 // It fills event_id/occurred_at when absent and relies on BeforeCreate for
-// object-shaped metadata normalization plus restricted-key validation.
+// object-shaped metadata normalization, restricted-key validation,
+// DR-74 schema_version stamping, and UTC occurred_at normalization.
 func EmitSkillUsageEvent(db *gorm.DB, event SkillUsageEvent) error {
 	if !event.EventType.Valid() {
 		return fmt.Errorf("skill_usage_events: invalid event_type %q", event.EventType)

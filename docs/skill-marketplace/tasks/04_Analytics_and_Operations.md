@@ -118,7 +118,7 @@ These events must not be required for V1 P0 dashboards:
 |---|---|---:|---|
 | `event_id` | UUID | Yes | `skill_usage_events.event_id`; dedupe key |
 | `timestamp` | timestamp | Yes | Maps to `skill_usage_events.occurred_at`; UTC required |
-| `schema_version` | string | Yes | Stored in `metadata.schema_version` if not first-class |
+| `schema_version` | string | Yes | Stored in `metadata.schema_version` (no first-class column in V1; value `"1.0"`, DR-74) |
 | `user_id` | UUID/null | Conditional | Null allowed for anonymous browse and Kids Session analytics; Kids must not store real child user identifiers here |
 | `tenant_id` | UUID/null | Conditional | Required for logged-in execution |
 | `session_id` | UUID/string | Yes | Server/session derived; Kids analytics uses `kids_session_pseudo_id` |
@@ -493,10 +493,10 @@ Ops may create a review from the Ops Dashboard using "Mark for Review" on a Skil
 |---|---|
 | Event dedupe | `event_id` must be unique |
 | Required fields | P0 events missing required fields are rejected or quarantined |
-| Late events | Accept up to 24h late; mark late arrival |
-| Clock source | Backend server time preferred |
+| Late events | Accept up to 24h late; mark late arrival. Applies only to trusted server-side producer timestamps (P1); V1 client surfaces use server-receipt time, so nothing is "late" (DR-74) |
+| Clock source | Backend server time preferred. `occurred_at` is **server-authoritative UTC**: current public/client-facing producers use server receipt time, while trusted server-side producers may preserve an explicit event timestamp after UTC normalization. A client's self-reported time, if kept, lives only in optional `metadata.client_event_time` and is never the dashboard/cohort source (DR-74 D2/D4) |
 | Timezone | Persist and query P0 analytics in UTC |
-| Schema version | All events include `schema_version` |
+| Schema version | All events include `schema_version` (V1: `metadata.schema_version="1.0"`, stamped at persistence — DR-74) |
 | Unknown entry point | Reject or map to `unknown` only in quarantine, not production dashboards |
 | Null user | Allowed for anonymous impression/detail and Kids Session analytics only |
 | No prompt leakage | Reject events containing restricted prompt-like keys |
@@ -563,7 +563,7 @@ Export policy:
 }
 ```
 
-Persistence: `timestamp` maps to `skill_usage_events.occurred_at`.
+Persistence: `timestamp` maps to `skill_usage_events.occurred_at` (server-authoritative UTC). The top-level `schema_version` shown here is a wire-envelope field; persisted rows have no such column — only `metadata.schema_version` is stored (DR-74).
 
 ### 16.2 `skill_used`
 
