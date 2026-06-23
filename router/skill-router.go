@@ -29,6 +29,7 @@ func SetSkillRouter(router *gin.Engine) {
 		{
 			marketplaceRoute.GET("/skills", skillhandler.ListMarketplaceSkills)
 			marketplaceRoute.GET("/skills/:id", skillhandler.GetMarketplaceSkill)
+			marketplaceRoute.POST("/skills/:id/events", skillhandler.RecordMarketplaceSkillEvent)
 		}
 
 		mySkillsRoute := v1.Group("/marketplace")

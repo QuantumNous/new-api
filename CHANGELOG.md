@@ -4,6 +4,8 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-23
 
+- 新增 DR-78 Growth surfaces：Playground 空态推荐 Skill、Marketplace new-Skill banner、Dashboard 首次 Marketplace 指针，并新增 privacy-safe marketplace 事件端点与下载 `entry_point=recommended/new` 归因，补后端/前端 focused tests 与 i18n（`internal/skill/handler`, `router/skill-router.go`, `web/default/src/features/{marketplace,playground,dashboard}`, `web/default/src/i18n/locales/`）
+- 新增 DR-78 Growth surfaces 任务 PRD，定义 Playground recommendation、Marketplace new-Skill banner、first-run pointer 与 `entry_point=recommended/new` 埋点范围（`docs/tasks/dr78-growth-surfaces-prd.md`）
 - 更新 DR-63 PRD 状态为 ship，记录 Public routing API call contract 已通过 PR #93 合并到 main（`docs/tasks/dr63-public-routing-api-contract-prd.md`）
 - 新增 DR-63 Public routing API call contract 任务 PRD，明确 `/v1/routing/chat/completions` runner key 身份解析、`deeprouter.skill_id`/`skill_version_id` 请求契约、trusted-looking package fields 不可信、以及 public routing 强制 `entry_point=skill_package`（`docs/tasks/dr63-public-routing-api-contract-prd.md`）
 - 更新 DR-63 外部客户端契约文档：Skill package public routing API 需使用 runner key + `deeprouter.skill_id`/`skill_version_id`，服务端校验版本 pin、强制 `entry_point=skill_package`，且不信任 package-provided identity/Kids/routing hints（`docs/skill-marketplace/tasks/03_Data_Model_and_API_Spec.md`, `internal/skill/packageassets/runtime/README.md`）

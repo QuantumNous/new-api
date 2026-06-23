@@ -364,6 +364,23 @@ func TestDownloadSkillPackage_EmitsSkillEnabledEvent(t *testing.T) {
 	assert.Equal(t, enums.RequiredPlanFree, *evt.Plan)
 }
 
+func TestDownloadSkillPackage_RecommendedEntryPoint(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := createPublishedSkillWithActiveVersion(t, db, "recommended-download", "Recommended template")
+
+	c, w := testDownloadCtx("recommended-download", 99, "default")
+	c.Request.URL.RawQuery = "entry_point=recommended"
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var evt skillmodel.SkillUsageEvent
+	err := db.Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).First(&evt).Error
+	require.NoError(t, err)
+	assert.Equal(t, enums.EntryPointRecommended, evt.EntryPoint)
+}
+
 // TestDownloadSkillPackage_EmitRecordsUserPlanNotSkillPlan verifies that when a pro user
 // downloads a free skill, the analytics event.plan reflects the user's plan ("pro"),
 // not the skill's required_plan ("free"). Prevents dashboard funnel distortion.

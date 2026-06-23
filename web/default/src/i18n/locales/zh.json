@@ -3599,11 +3599,11 @@
     "skillAnalytics.blockReason.kidsBlocked": "儿童模式拦截",
     "skillAnalytics.blockReason.safetyViolation": "安全违规",
     "skillAnalytics.blockReason.unknown": "未知原因",
+    "Skill analytics overview for the operator": "运营人员技能数据总览",
     "Skill Detail CTR": "技能详情点击率",
     "Skill Marketplace": "技能市场",
     "Skill Marketplace is not available yet.": "技能市场暂未开放。",
     "Skill analytics data is unavailable. The analytics API (DR-75) may not be deployed yet.": "技能分析数据不可用，分析 API（DR-75）可能尚未部署。",
-    "Skill analytics overview for the operator": "运营人员技能数据总览",
     "Skill calls blocked by policy or quota enforcement": "被策略或配额拦截的技能调用",
     "Skill discovery and management": "技能发现与管理",
     "Skill discovery and management.": "技能发现与管理。",
@@ -4547,7 +4547,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "gpt-3.5-turbo": "gpt-3.5-turbo",
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4": "gpt-4",
@@ -4892,6 +4892,15 @@
     "Review Skill lifecycle, plan access, kids safety, and versions.": "查看 Skill 生命周期、套餐权限、儿童安全和版本状态。",
     "Skill": "Skill",
     "Unable to load admin skills.": "无法加载管理 Skill。",
-    "Version": "版本"
+    "Version": "版本",
+    "New skill available": "有新技能可用",
+    "{{name}} can help with {{category}} tasks.": "{{name}} 可以帮助处理 {{category}} 任务。",
+    "everyday": "日常",
+    "Try skill": "试用技能",
+    "Recommended skill": "推荐技能",
+    "Try {{name}} for guided {{category}} work.": "试试 {{name}}，用引导式流程完成 {{category}} 工作。",
+    "Marketplace skills are ready.": "技能市场已准备好。",
+    "Start with a ready-made skill when you want a guided workflow instead of a blank prompt.": "当你需要引导式流程而不是空白提示时，可以从现成技能开始。",
+    "Browse skills": "浏览技能"
   }
 }

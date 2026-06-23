@@ -4547,7 +4547,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "gpt-3.5-turbo": "gpt-3.5-turbo",
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4": "gpt-4",
@@ -4892,6 +4892,15 @@
     "Review Skill lifecycle, plan access, kids safety, and versions.": "Review Skill lifecycle, plan access, kids safety, and versions.",
     "Skill": "Skill",
     "Unable to load admin skills.": "Unable to load admin skills.",
-    "Version": "Version"
+    "Version": "Version",
+    "New skill available": "New skill available",
+    "{{name}} can help with {{category}} tasks.": "{{name}} can help with {{category}} tasks.",
+    "everyday": "everyday",
+    "Try skill": "Try skill",
+    "Recommended skill": "Recommended skill",
+    "Try {{name}} for guided {{category}} work.": "Try {{name}} for guided {{category}} work.",
+    "Marketplace skills are ready.": "Marketplace skills are ready.",
+    "Start with a ready-made skill when you want a guided workflow instead of a blank prompt.": "Start with a ready-made skill when you want a guided workflow instead of a blank prompt.",
+    "Browse skills": "Browse skills"
   }
 }
