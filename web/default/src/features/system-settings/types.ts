@@ -103,9 +103,17 @@ export type AuthSettings = {
   WeChatServerAddress: string
   WeChatServerToken: string
   WeChatAccountQRCodeImageURL: string
-  TurnstileCheckEnabled: boolean
-  TurnstileSiteKey: string
-  TurnstileSecretKey: string
+  ESACaptchaEnabled: boolean
+  ESAStrictModeEnabled: boolean
+  ESARegion: string
+  ESAPrefix: string
+  ESACaptchaLoginSceneId: string
+  ESACaptchaRegisterSceneId: string
+  ESACaptchaResetPasswordSceneId: string
+  ESACaptchaChangePasswordSceneId: string
+  ESACaptchaDeleteAccountSceneId: string
+  ESACaptchaCheckinSceneId: string
+  ESACaptchaVerificationSceneId: string
   'passkey.enabled': boolean
   'passkey.rp_display_name': string
   'passkey.rp_id': string

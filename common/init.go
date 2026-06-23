@@ -126,6 +126,9 @@ func InitEnv() {
 	SearchRateLimitEnable = GetEnvOrDefaultBool("SEARCH_RATE_LIMIT_ENABLE", true)
 	SearchRateLimitNum = GetEnvOrDefault("SEARCH_RATE_LIMIT", 10)
 	SearchRateLimitDuration = int64(GetEnvOrDefault("SEARCH_RATE_LIMIT_DURATION", 60))
+
+	ESACaptchaEnabled = GetEnvOrDefaultBool("ESA_CAPTCHA_ENABLED", false)
+	ESAStrictModeEnabled = GetEnvOrDefaultBool("ESA_STRICT_MODE_ENABLED", false)
 	initConstantEnv()
 }
 

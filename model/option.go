@@ -128,6 +128,17 @@ func InitOptionMap() {
 	common.OptionMap["WeChatAccountQRCodeImageURL"] = ""
 	common.OptionMap["TurnstileSiteKey"] = ""
 	common.OptionMap["TurnstileSecretKey"] = ""
+	common.OptionMap["ESACaptchaEnabled"] = strconv.FormatBool(common.ESACaptchaEnabled)
+	common.OptionMap["ESAStrictModeEnabled"] = strconv.FormatBool(common.ESAStrictModeEnabled)
+	common.OptionMap["ESARegion"] = common.ESARegion
+	common.OptionMap["ESAPrefix"] = common.ESAPrefix
+	common.OptionMap["ESACaptchaLoginSceneId"] = common.ESACaptchaLoginSceneId
+	common.OptionMap["ESACaptchaRegisterSceneId"] = common.ESACaptchaRegisterSceneId
+	common.OptionMap["ESACaptchaResetPasswordSceneId"] = common.ESACaptchaResetPasswordSceneId
+	common.OptionMap["ESACaptchaChangePasswordSceneId"] = common.ESACaptchaChangePasswordSceneId
+	common.OptionMap["ESACaptchaDeleteAccountSceneId"] = common.ESACaptchaDeleteAccountSceneId
+	common.OptionMap["ESACaptchaCheckinSceneId"] = common.ESACaptchaCheckinSceneId
+	common.OptionMap["ESACaptchaVerificationSceneId"] = common.ESACaptchaVerificationSceneId
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
@@ -294,6 +305,10 @@ func updateOptionMap(key string, value string) (err error) {
 			common.TelegramOAuthEnabled = boolValue
 		case "TurnstileCheckEnabled":
 			common.TurnstileCheckEnabled = boolValue
+		case "ESACaptchaEnabled":
+			common.ESACaptchaEnabled = boolValue
+		case "ESAStrictModeEnabled":
+			common.ESAStrictModeEnabled = boolValue
 		case "RegisterEnabled":
 			common.RegisterEnabled = boolValue
 		case "EmailDomainRestrictionEnabled":
@@ -494,6 +509,24 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TurnstileSiteKey = value
 	case "TurnstileSecretKey":
 		common.TurnstileSecretKey = value
+	case "ESARegion":
+		common.ESARegion = value
+	case "ESAPrefix":
+		common.ESAPrefix = value
+	case "ESACaptchaLoginSceneId":
+		common.ESACaptchaLoginSceneId = value
+	case "ESACaptchaRegisterSceneId":
+		common.ESACaptchaRegisterSceneId = value
+	case "ESACaptchaResetPasswordSceneId":
+		common.ESACaptchaResetPasswordSceneId = value
+	case "ESACaptchaChangePasswordSceneId":
+		common.ESACaptchaChangePasswordSceneId = value
+	case "ESACaptchaDeleteAccountSceneId":
+		common.ESACaptchaDeleteAccountSceneId = value
+	case "ESACaptchaCheckinSceneId":
+		common.ESACaptchaCheckinSceneId = value
+	case "ESACaptchaVerificationSceneId":
+		common.ESACaptchaVerificationSceneId = value
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
 	case "QuotaForInviter":

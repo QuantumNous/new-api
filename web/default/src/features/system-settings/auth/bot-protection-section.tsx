@@ -42,9 +42,17 @@ import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const botProtectionSchema = z.object({
-  TurnstileCheckEnabled: z.boolean(),
-  TurnstileSiteKey: z.string().optional(),
-  TurnstileSecretKey: z.string().optional(),
+  ESACaptchaEnabled: z.boolean(),
+  ESAStrictModeEnabled: z.boolean(),
+  ESARegion: z.string().optional(),
+  ESAPrefix: z.string().optional(),
+  ESACaptchaLoginSceneId: z.string().optional(),
+  ESACaptchaRegisterSceneId: z.string().optional(),
+  ESACaptchaResetPasswordSceneId: z.string().optional(),
+  ESACaptchaChangePasswordSceneId: z.string().optional(),
+  ESACaptchaDeleteAccountSceneId: z.string().optional(),
+  ESACaptchaCheckinSceneId: z.string().optional(),
+  ESACaptchaVerificationSceneId: z.string().optional(),
 })
 
 type BotProtectionFormValues = z.infer<typeof botProtectionSchema>
@@ -52,6 +60,16 @@ type BotProtectionFormValues = z.infer<typeof botProtectionSchema>
 type BotProtectionSectionProps = {
   defaultValues: BotProtectionFormValues
 }
+
+const sceneFields = [
+  ['ESACaptchaLoginSceneId', 'Login scene ID'],
+  ['ESACaptchaVerificationSceneId', 'Email verification scene ID'],
+  ['ESACaptchaResetPasswordSceneId', 'Password reset email scene ID'],
+  ['ESACaptchaRegisterSceneId', 'Register scene ID'],
+  ['ESACaptchaChangePasswordSceneId', 'Change password scene ID'],
+  ['ESACaptchaDeleteAccountSceneId', 'Delete account scene ID'],
+  ['ESACaptchaCheckinSceneId', 'Check-in scene ID'],
+] as const
 
 export function BotProtectionSection({
   defaultValues,
@@ -87,24 +105,22 @@ export function BotProtectionSection({
             onSave={form.handleSubmit(onSubmit)}
             isSaving={updateOption.isPending}
           />
+
           <FormField
             control={form.control}
-            name='TurnstileCheckEnabled'
+            name='ESACaptchaEnabled'
             render={({ field }) => (
               <SettingsSwitchItem>
                 <SettingsSwitchContent>
-                  <FormLabel>{t('Enable Turnstile')}</FormLabel>
+                  <FormLabel>{t('Enable Aliyun ESA captcha')}</FormLabel>
                   <FormDescription>
                     {t(
-                      'Protect login and registration with Cloudflare Turnstile'
+                      'Protect sign-in, email verification, password reset email, and check-in with Aliyun ESA captcha.'
                     )}
                   </FormDescription>
                 </SettingsSwitchContent>
                 <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
                 </FormControl>
               </SettingsSwitchItem>
             )}
@@ -112,16 +128,32 @@ export function BotProtectionSection({
 
           <FormField
             control={form.control}
-            name='TurnstileSiteKey'
+            name='ESAStrictModeEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('拦截空 Token 请求（严格模式）')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      '开启后 ESA 边缘节点会拦截未携带 captchaVerifyParam 的请求，大幅提高安全性。需要在 ESA 控制台同步开启「拦截空Token请求」，并确保所有客户端已完成前端 HTML 集成与全网发布后再启用。否则旧客户端（未集成验证码JS）的请求也会被拦截。'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='ESARegion'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Site Key')}</FormLabel>
+                <FormLabel>{t('Region')}</FormLabel>
                 <FormControl>
-                  <Input
-                    placeholder={t('Your Turnstile site key')}
-                    autoComplete='off'
-                    {...field}
-                  />
+                  <Input placeholder='cn / sgp' autoComplete='off' {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -130,22 +162,34 @@ export function BotProtectionSection({
 
           <FormField
             control={form.control}
-            name='TurnstileSecretKey'
+            name='ESAPrefix'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Secret Key')}</FormLabel>
+                <FormLabel>{t('ESA identity prefix')}</FormLabel>
                 <FormControl>
-                  <Input
-                    type='password'
-                    placeholder={t('Your Turnstile secret key')}
-                    autoComplete='new-password'
-                    {...field}
-                  />
+                  <Input placeholder='esa-********' autoComplete='off' {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
+
+          {sceneFields.map(([name, label]) => (
+            <FormField
+              key={name}
+              control={form.control}
+              name={name}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t(label)}</FormLabel>
+                  <FormControl>
+                    <Input autoComplete='off' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ))}
         </SettingsForm>
       </Form>
     </SettingsSection>

@@ -789,6 +789,26 @@ func UpdateSelf(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// 如果用户尝试修改密码，必须先绑定邮箱
+	if updatePassword {
+		currentUser, err := model.GetUserById(cleanUser.Id, false)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if currentUser.Email == "" {
+			common.ApiErrorMsg(c, "请先绑定邮箱后再修改密码")
+			return
+		}
+		if user.VerificationCode == "" {
+			common.ApiErrorMsg(c, "请先验证邮箱")
+			return
+		}
+		if !common.VerifyCodeWithKey(currentUser.Email, user.VerificationCode, common.EmailVerificationPurpose) {
+			common.ApiErrorMsg(c, "邮箱验证码错误")
+			return
+		}
+	}
 	if err := cleanUser.Update(updatePassword); err != nil {
 		common.ApiError(c, err)
 		return

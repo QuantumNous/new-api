@@ -25,7 +25,7 @@ import type { User } from '@/features/users/types'
 export interface LoginPayload {
   username: string
   password: string
-  turnstile?: string
+  captcha_verify_param?: string
 }
 
 export interface TwoFAPayload {
@@ -38,17 +38,16 @@ export interface RegisterPayload {
   email?: string
   verification_code?: string
   aff_code?: string
-  turnstile?: string
 }
 
 export interface PasswordResetPayload {
   email: string
-  turnstile?: string
+  captcha_verify_param?: string
 }
 
 export interface EmailVerificationPayload {
   email: string
-  turnstile?: string
+  captcha_verify_param?: string
 }
 
 export interface BindEmailPayload {
@@ -112,6 +111,11 @@ export interface SystemStatus {
     WeChatAccountQRCodeImageURL?: string
     turnstile_check?: boolean
     turnstile_site_key?: string
+    esa_captcha_enabled?: boolean
+    esa_strict_mode_enabled?: boolean
+    esa_region?: string
+    esa_prefix?: string
+    esa_captcha_scenes?: Record<string, string>
     email_verification?: boolean
     self_use_mode_enabled?: boolean
     display_in_currency?: boolean
@@ -155,6 +159,11 @@ export interface SystemStatus {
   WeChatAccountQRCodeImageURL?: string
   turnstile_check?: boolean
   turnstile_site_key?: string
+  esa_captcha_enabled?: boolean
+  esa_strict_mode_enabled?: boolean
+  esa_region?: string
+  esa_prefix?: string
+  esa_captcha_scenes?: Record<string, string>
   email_verification?: boolean
   self_use_mode_enabled?: boolean
   display_in_currency?: boolean

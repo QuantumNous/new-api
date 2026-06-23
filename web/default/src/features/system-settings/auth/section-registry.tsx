@@ -105,9 +105,21 @@ const AUTH_SECTIONS = [
     build: (settings: AuthSettings) => (
       <BotProtectionSection
         defaultValues={{
-          TurnstileCheckEnabled: settings.TurnstileCheckEnabled,
-          TurnstileSiteKey: settings.TurnstileSiteKey,
-          TurnstileSecretKey: settings.TurnstileSecretKey,
+          ESACaptchaEnabled: settings.ESACaptchaEnabled,
+          ESAStrictModeEnabled: settings.ESAStrictModeEnabled,
+          ESARegion: settings.ESARegion,
+          ESAPrefix: settings.ESAPrefix,
+          ESACaptchaLoginSceneId: settings.ESACaptchaLoginSceneId,
+          ESACaptchaRegisterSceneId: settings.ESACaptchaRegisterSceneId,
+          ESACaptchaResetPasswordSceneId:
+            settings.ESACaptchaResetPasswordSceneId,
+          ESACaptchaChangePasswordSceneId:
+            settings.ESACaptchaChangePasswordSceneId,
+          ESACaptchaDeleteAccountSceneId:
+            settings.ESACaptchaDeleteAccountSceneId,
+          ESACaptchaCheckinSceneId: settings.ESACaptchaCheckinSceneId,
+          ESACaptchaVerificationSceneId:
+            settings.ESACaptchaVerificationSceneId,
         }}
       />
     ),

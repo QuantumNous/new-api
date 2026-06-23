@@ -16,14 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Loader2, Mail } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { AliyunCaptcha, type AliyunCaptchaHandle } from '@/components/aliyun-captcha'
+import { useAliyunCaptcha } from '@/features/auth/hooks/use-aliyun-captcha'
+import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
 import { updateUserProfile } from '../../api'
 
 // ============================================================================
@@ -34,29 +44,62 @@ interface ChangePasswordDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   username: string
+  /** User's currently bound email. Empty means no email is bound. */
+  currentEmail?: string
 }
 
 export function ChangePasswordDialog({
   open,
   onOpenChange,
   username,
+  currentEmail,
 }: ChangePasswordDialogProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
+  const [verificationCode, setVerificationCode] = useState('')
   const [formData, setFormData] = useState({
     originalPassword: '',
     newPassword: '',
     confirmPassword: '',
   })
 
+  const aliyunCaptchaRef = useRef<AliyunCaptchaHandle>(null)
+  const verificationCaptcha = useAliyunCaptcha('verification')
+  const {
+    isSending: isSendingCode,
+    secondsLeft,
+    isActive,
+    sendCode,
+  } = useEmailVerification({
+    getCaptchaVerifyParam: async () =>
+      verificationCaptcha.enabled
+        ? (await aliyunCaptchaRef.current?.execute()) || ''
+        : '',
+  })
+
+  const hasEmail = Boolean(currentEmail)
+
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const resetForm = () => {
+    setFormData({
+      originalPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    })
+    setVerificationCode('')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Validation
+    if (!hasEmail) {
+      toast.error(t('Please bind an email address before changing your password'))
+      return
+    }
+
     if (!formData.originalPassword) {
       toast.error(t('Please enter your current password'))
       return
@@ -82,21 +125,23 @@ export function ChangePasswordDialog({
       return
     }
 
+    if (!verificationCode) {
+      toast.error(t('Please enter the email verification code'))
+      return
+    }
+
     try {
       setLoading(true)
       const response = await updateUserProfile({
         original_password: formData.originalPassword,
         password: formData.newPassword,
+        verification_code: verificationCode,
       })
 
       if (response.success) {
         toast.success(t('Password changed successfully'))
         onOpenChange(false)
-        setFormData({
-          originalPassword: '',
-          newPassword: '',
-          confirmPassword: '',
-        })
+        resetForm()
       } else {
         toast.error(response.message || t('Failed to change password'))
       }
@@ -107,12 +152,25 @@ export function ChangePasswordDialog({
     }
   }
 
+  const handleSendVerificationCode = async () => {
+    if (!currentEmail) return
+    await sendCode(currentEmail)
+  }
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) resetForm()
+    onOpenChange(open)
+  }
+
   const formId = 'change-password-form'
+  const emailHelpText = hasEmail
+    ? currentEmail
+    : t('You need to bind an email address before changing your password.')
 
   return (
     <Dialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       title={t('Change Password')}
       description={
         <>
@@ -127,38 +185,63 @@ export function ChangePasswordDialog({
           <Button
             type='button'
             variant='outline'
-            onClick={() => onOpenChange(false)}
+            onClick={() => handleOpenChange(false)}
             disabled={loading}
           >
             {t('Cancel')}
           </Button>
-          <Button type='submit' form={formId} disabled={loading}>
-            {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            {loading ? t('Changing...') : t('Change Password')}
-          </Button>
+          <TooltipProvider delay={300}>
+            <Tooltip>
+              <TooltipTrigger>
+                <span>
+                  <Button
+                    type='submit'
+                    form={formId}
+                    disabled={loading || !hasEmail}
+                  >
+                    {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+                    {loading ? t('Changing...') : t('Change Password')}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!hasEmail && (
+                <TooltipContent>
+                  {t('Please bind an email address first')}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </>
       }
     >
       <form id={formId} onSubmit={handleSubmit} className='space-y-4'>
+        {/* Email info banner */}
+        <div className='bg-muted flex items-center gap-2 rounded-md px-3 py-2 text-sm'>
+          <Mail className='text-muted-foreground h-4 w-4 shrink-0' />
+          <span className='text-muted-foreground'>{emailHelpText}</span>
+        </div>
+
+        {/* Current Password */}
         <div className='space-y-2'>
           <Label htmlFor='currentPassword'>{t('Current Password')}</Label>
           <PasswordInput
             id='currentPassword'
             value={formData.originalPassword}
             onChange={(e) => handleChange('originalPassword', e.target.value)}
-            disabled={loading}
+            disabled={loading || !hasEmail}
             required
             autoComplete='current-password'
           />
         </div>
 
+        {/* New Password */}
         <div className='space-y-2'>
           <Label htmlFor='newPassword'>{t('New Password')}</Label>
           <PasswordInput
             id='newPassword'
             value={formData.newPassword}
             onChange={(e) => handleChange('newPassword', e.target.value)}
-            disabled={loading}
+            disabled={loading || !hasEmail}
             required
             minLength={8}
             autoComplete='new-password'
@@ -168,17 +251,61 @@ export function ChangePasswordDialog({
           </p>
         </div>
 
+        {/* Confirm New Password */}
         <div className='space-y-2'>
           <Label htmlFor='confirmPassword'>{t('Confirm New Password')}</Label>
           <PasswordInput
             id='confirmPassword'
             value={formData.confirmPassword}
             onChange={(e) => handleChange('confirmPassword', e.target.value)}
-            disabled={loading}
+            disabled={loading || !hasEmail}
             required
             autoComplete='new-password'
           />
         </div>
+
+        {/* Email Verification Code */}
+        <div className='space-y-2'>
+          <Label>{t('Email Verification Code')}</Label>
+          <div className='flex items-end gap-2'>
+            <div className='flex-1'>
+              <Input
+                placeholder={t('Verification code')}
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                disabled={loading || !hasEmail}
+                autoComplete='one-time-code'
+              />
+            </div>
+            <Button
+              variant='outline'
+              type='button'
+              disabled={loading || isSendingCode || isActive || !hasEmail}
+              onClick={handleSendVerificationCode}
+            >
+              {isActive ? (
+                t('Resend ({{seconds}}s)', { seconds: secondsLeft })
+              ) : isSendingCode ? (
+                <Loader2 className='h-4 w-4 animate-spin' />
+              ) : (
+                t('Send code')
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* Aliyun captcha for sending verification code */}
+        {verificationCaptcha.enabled && (
+          <AliyunCaptcha
+            ref={aliyunCaptchaRef}
+            enabled={verificationCaptcha.enabled}
+            region={verificationCaptcha.region}
+            prefix={verificationCaptcha.prefix}
+            sceneId={verificationCaptcha.sceneId}
+            className='mt-2'
+            onError={(message) => toast.error(t(message))}
+          />
+        )}
       </form>
     </Dialog>
   )

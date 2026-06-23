@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -36,16 +36,16 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { AliyunCaptcha, type AliyunCaptchaHandle } from '@/components/aliyun-captcha'
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
-import { Turnstile } from '@/components/turnstile'
 import { register, wechatLoginByCode } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { registerFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
+import { useAliyunCaptcha } from '@/features/auth/hooks/use-aliyun-captcha'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
-import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import {
   getAffiliateCode,
   saveAffiliateCode,
@@ -65,13 +65,8 @@ export function SignUpForm({
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
   const { status } = useStatus()
-  const {
-    isTurnstileEnabled,
-    turnstileSiteKey,
-    turnstileToken,
-    setTurnstileToken,
-    validateTurnstile,
-  } = useTurnstile()
+  const aliyunCaptchaRef = useRef<AliyunCaptchaHandle>(null)
+  const verificationCaptcha = useAliyunCaptcha('verification')
   const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
   const {
     isSending: isSendingCode,
@@ -79,8 +74,10 @@ export function SignUpForm({
     isActive,
     sendCode,
   } = useEmailVerification({
-    turnstileToken,
-    validateTurnstile,
+    getCaptchaVerifyParam: async () =>
+      verificationCaptcha.enabled
+        ? (await aliyunCaptchaRef.current?.execute()) || ''
+        : '',
   })
 
   const form = useForm<z.infer<typeof registerFormSchema>>({
@@ -103,7 +100,6 @@ export function SignUpForm({
     status?.data?.oauth_register_enabled ??
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
-  const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
 
   const wechatQrCodeUrl = useMemo(() => {
     return (
@@ -152,8 +148,6 @@ export function SignUpForm({
       }
     }
 
-    if (!validateTurnstile()) return
-
     setIsLoading(true)
     try {
       const res = await register({
@@ -162,7 +156,6 @@ export function SignUpForm({
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
-        turnstile: turnstileToken,
       })
 
       if (res?.success) {
@@ -317,8 +310,7 @@ export function SignUpForm({
                   isLoading ||
                   isSendingCode ||
                   isActive ||
-                  !emailValue ||
-                  !turnstileReady
+                  !emailValue
                 }
                 onClick={handleSendVerificationCode}
               >
@@ -334,14 +326,17 @@ export function SignUpForm({
           </>
         )}
 
-        {/* Turnstile */}
-        {isTurnstileEnabled && (
-          <div className='mt-2'>
-            <Turnstile
-              siteKey={turnstileSiteKey}
-              onVerify={setTurnstileToken}
-            />
-          </div>
+        {/* Aliyun captcha for sending email verification code */}
+        {verificationCaptcha.enabled && (
+          <AliyunCaptcha
+            ref={aliyunCaptchaRef}
+            enabled={verificationCaptcha.enabled}
+            region={verificationCaptcha.region}
+            prefix={verificationCaptcha.prefix}
+            sceneId={verificationCaptcha.sceneId}
+            className='mt-2'
+            onError={(message) => toast.error(t(message))}
+          />
         )}
 
         <LegalConsent
@@ -357,8 +352,7 @@ export function SignUpForm({
           className='mt-2 w-full justify-center gap-2'
           disabled={
             isLoading ||
-            (requiresLegalConsent && !agreedToLegal) ||
-            !turnstileReady
+            (requiresLegalConsent && !agreedToLegal)
           }
         >
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
