@@ -29,6 +29,9 @@ env:
   RUN_SERVICE: newapi-staging
   # Staging console 内部“回官网”链接必须指向 staging website，不能串生产 flatkey.ai。
   STAGING_OFFICIAL_WEBSITE_ORIGIN: ${{ vars.STAGING_OFFICIAL_WEBSITE_ORIGIN || 'https://staging-website.flatkey.ai' }}
+  STAGING_APP_CONSOLE_ORIGIN: ${{ vars.STAGING_APP_CONSOLE_ORIGIN || 'https://staging-console.flatkey.ai' }}
+  STAGING_COOKIE_SESSION_DOMAIN: ${{ vars.STAGING_COOKIE_SESSION_DOMAIN || '.flatkey.ai' }}
+  STAGING_SESSION_COOKIE_SECURE: ${{ vars.STAGING_SESSION_COOKIE_SECURE || 'true' }}
 
 jobs:
   build:
@@ -102,10 +105,20 @@ jobs:
         run: |
           set -euo pipefail
           revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
+          env_vars=(
+            "OFFICIAL_WEBSITE_ORIGIN=${STAGING_OFFICIAL_WEBSITE_ORIGIN}"
+            "APP_CONSOLE_ORIGIN=${STAGING_APP_CONSOLE_ORIGIN}"
+            "COOKIE_SESSION_DOMAIN=${STAGING_COOKIE_SESSION_DOMAIN}"
+            "SESSION_COOKIE_SECURE=${STAGING_SESSION_COOKIE_SECURE}"
+          )
+          IFS=,
+          env_arg="${env_vars[*]}"
+          unset IFS
           gcloud run services update "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
             --image="${{ needs.build.outputs.image_uri }}" \
+            --update-env-vars="${env_arg}" \
             --revision-suffix="${revision_suffix}" \
             --quiet
           new_rev="$(gcloud run services describe "${RUN_SERVICE}" \
@@ -119,7 +132,11 @@ jobs:
           set -euo pipefail
           url="$(gcloud run services describe "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" --region="${REGION}" \
-            --format='value(status.uri)')"
+            --format='value(status.url)')"
+          if [[ -z "${url}" ]]; then
+            echo "Could not resolve Cloud Run service URL" >&2
+            exit 1
+          fi
           echo "Probing ${url}/api/status ..."
           for i in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w '%{http_code}' "${url}/api/status" || true)
@@ -134,7 +151,7 @@ jobs:
         run: |
           url="$(gcloud run services describe "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" --region="${REGION}" \
-            --format='value(status.uri)')"
+            --format='value(status.url)')"
           echo "### Staging backend deployed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Service:  \`${RUN_SERVICE}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Revision: \`${{ steps.deploy.outputs.new_revision }}\`" >> "$GITHUB_STEP_SUMMARY"

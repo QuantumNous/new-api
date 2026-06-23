@@ -127,7 +127,11 @@ jobs:
           set -euo pipefail
           url="$(gcloud run services describe "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" --region="${REGION}" \
-            --format='value(status.uri)')"
+            --format='value(status.url)')"
+          if [[ -z "${url}" ]]; then
+            echo "Could not resolve Cloud Run service URL" >&2
+            exit 1
+          fi
           echo "Probing ${url}/ ..."
           for i in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w '%{http_code}' "${url}/" || true)
@@ -142,7 +146,7 @@ jobs:
         run: |
           url="$(gcloud run services describe "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" --region="${REGION}" \
-            --format='value(status.uri)')"
+            --format='value(status.url)')"
           echo "### Staging website deployed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Service:  \`${RUN_SERVICE}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Revision: \`${{ steps.deploy.outputs.new_revision }}\`" >> "$GITHUB_STEP_SUMMARY"
