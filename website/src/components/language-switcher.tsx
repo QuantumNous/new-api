@@ -2,6 +2,7 @@
 
 import { Check, Languages } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { buildLanguagePreferenceCookie } from "@/lib/language-routing";
 import { LOCALE_LABELS, LOCALES, type Locale, localizePath, stripLocale } from "@/lib/locales";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +10,10 @@ type Props = {
   locale: Locale;
   pathname: string;
 };
+
+function persistLanguagePreference(locale: Locale) {
+  document.cookie = buildLanguagePreferenceCookie(locale);
+}
 
 export function LanguageSwitcher(props: Props) {
   const [open, setOpen] = useState(false);
@@ -45,6 +50,11 @@ export function LanguageSwitcher(props: Props) {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
+
+  const handleLanguageClick = (locale: Locale) => {
+    persistLanguagePreference(locale);
+    setOpen(false);
+  };
 
   return (
     <div ref={rootRef} className="relative">
@@ -91,7 +101,7 @@ export function LanguageSwitcher(props: Props) {
             href={lang.href}
             hrefLang={lang.code}
             aria-current={props.locale === lang.code ? "page" : undefined}
-            onClick={() => setOpen(false)}
+            onClick={() => handleLanguageClick(lang.code)}
           >
             <span>{lang.label}</span>
             <Check
