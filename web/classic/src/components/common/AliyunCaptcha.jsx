@@ -47,7 +47,7 @@ function loadAliyunCaptchaScript() {
       existingScript.addEventListener(
         'error',
         () => reject(new Error('阿里验证码脚本加载失败')),
-        { once: true }
+        { once: true },
       );
       return;
     }
@@ -68,11 +68,17 @@ function loadAliyunCaptchaScript() {
 
 const AliyunCaptcha = forwardRef(function AliyunCaptcha(
   { enabled, region, prefix, sceneId, className, onError },
-  ref
+  ref,
 ) {
   const uniqueId = useUniqueId();
-  const elementSelector = useMemo(() => `#aliyun-captcha-element-${uniqueId}`, [uniqueId]);
-  const buttonSelector = useMemo(() => `#aliyun-captcha-button-${uniqueId}`, [uniqueId]);
+  const elementSelector = useMemo(
+    () => `#aliyun-captcha-element-${uniqueId}`,
+    [uniqueId],
+  );
+  const buttonSelector = useMemo(
+    () => `#aliyun-captcha-button-${uniqueId}`,
+    [uniqueId],
+  );
   const instanceRef = useRef(null);
   const initializedSceneRef = useRef('');
   const pendingResolveRef = useRef(null);
@@ -106,9 +112,7 @@ const AliyunCaptcha = forwardRef(function AliyunCaptcha(
       },
       fail: (result) => {
         const message =
-          result instanceof Error
-            ? result.message
-            : '人机验证未通过，请重试';
+          result instanceof Error ? result.message : '人机验证未通过，请重试';
         pendingRejectRef.current?.(new Error(message));
         pendingResolveRef.current = null;
         pendingRejectRef.current = null;
@@ -151,7 +155,7 @@ const AliyunCaptcha = forwardRef(function AliyunCaptcha(
         instanceRef.current?.refresh?.();
       },
     }),
-    [enabled, initialize, onError, buttonSelector]
+    [enabled, initialize, onError, buttonSelector],
   );
 
   if (!enabled) return null;
