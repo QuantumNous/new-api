@@ -87,54 +87,87 @@ func sweepTimedOutTasks(ctx context.Context) {
 	}
 }
 
-// TaskPollingLoop 主轮询循环，每 15 秒检查一次未完成的任务
-func TaskPollingLoop() {
-	for {
-		time.Sleep(time.Duration(15) * time.Second)
-		common.SysLog("任务进度轮询开始")
-		ctx := context.TODO()
-		sweepTimedOutTasks(ctx)
-		allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
-		platformTask := make(map[constant.TaskPlatform][]*model.Task)
-		for _, t := range allTasks {
-			platformTask[t.Platform] = append(platformTask[t.Platform], t)
-		}
-		for platform, tasks := range platformTask {
-			if len(tasks) == 0 {
-				continue
-			}
-			taskChannelM := make(map[int][]string)
-			taskM := make(map[string]*model.Task)
-			nullTaskIds := make([]int64, 0)
-			for _, task := range tasks {
-				upstreamID := task.GetUpstreamTaskID()
-				if upstreamID == "" {
-					// 统计失败的未完成任务
-					nullTaskIds = append(nullTaskIds, task.ID)
-					continue
-				}
-				taskM[upstreamID] = task
-				taskChannelM[task.ChannelId] = append(taskChannelM[task.ChannelId], upstreamID)
-			}
-			if len(nullTaskIds) > 0 {
-				err := model.TaskBulkUpdateByID(nullTaskIds, map[string]any{
-					"status":   "FAILURE",
-					"progress": "100%",
-				})
-				if err != nil {
-					logger.LogError(ctx, fmt.Sprintf("Fix null task_id task error: %v", err))
-				} else {
-					logger.LogInfo(ctx, fmt.Sprintf("Fix null task_id task success: %v", nullTaskIds))
-				}
-			}
-			if len(taskChannelM) == 0 {
-				continue
-			}
+// TaskPollSummary is the result recorded on an async_task_poll system task row,
+// summarizing one polling pass.
+type TaskPollSummary struct {
+	UnfinishedTasks  int `json:"unfinished_tasks"`
+	PlatformsScanned int `json:"platforms_scanned"`
+	NullTasksFailed  int `json:"null_tasks_failed"`
+}
 
-			DispatchPlatformUpdate(platform, taskChannelM, taskM)
-		}
-		common.SysLog("任务进度轮询完成")
+// RunTaskPollingOnce performs one async-task (Suno/video) polling pass
+// synchronously. It honors ctx cancellation (the system-task runner cancels it
+// when the lease is lost) and, when report is non-nil, reports progress as
+// (processedPlatforms, totalPlatforms). It returns immediately if the task
+// adaptor factory has not been wired yet, to avoid a nil call during startup.
+func RunTaskPollingOnce(ctx context.Context, report func(processed, total int)) TaskPollSummary {
+	summary := TaskPollSummary{}
+	if GetTaskAdaptorFunc == nil {
+		return summary
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	common.SysLog("任务进度轮询开始")
+	sweepTimedOutTasks(ctx)
+	allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
+	summary.UnfinishedTasks = len(allTasks)
+	platformTask := make(map[constant.TaskPlatform][]*model.Task)
+	for _, t := range allTasks {
+		platformTask[t.Platform] = append(platformTask[t.Platform], t)
+	}
+
+	totalPlatforms := len(platformTask)
+	processedPlatforms := 0
+	for platform, tasks := range platformTask {
+		if ctx.Err() != nil {
+			break
+		}
+		if report != nil {
+			report(processedPlatforms, totalPlatforms)
+		}
+		processedPlatforms++
+		if len(tasks) == 0 {
+			continue
+		}
+		summary.PlatformsScanned++
+		taskChannelM := make(map[int][]string)
+		taskM := make(map[string]*model.Task)
+		nullTaskIds := make([]int64, 0)
+		for _, task := range tasks {
+			upstreamID := task.GetUpstreamTaskID()
+			if upstreamID == "" {
+				// 统计失败的未完成任务
+				nullTaskIds = append(nullTaskIds, task.ID)
+				continue
+			}
+			taskM[upstreamID] = task
+			taskChannelM[task.ChannelId] = append(taskChannelM[task.ChannelId], upstreamID)
+		}
+		if len(nullTaskIds) > 0 {
+			summary.NullTasksFailed += len(nullTaskIds)
+			err := model.TaskBulkUpdateByID(nullTaskIds, map[string]any{
+				"status":   "FAILURE",
+				"progress": "100%",
+			})
+			if err != nil {
+				logger.LogError(ctx, fmt.Sprintf("Fix null task_id task error: %v", err))
+			} else {
+				logger.LogInfo(ctx, fmt.Sprintf("Fix null task_id task success: %v", nullTaskIds))
+			}
+		}
+		if len(taskChannelM) == 0 {
+			continue
+		}
+
+		DispatchPlatformUpdate(platform, taskChannelM, taskM)
+	}
+	if report != nil && ctx.Err() == nil {
+		report(totalPlatforms, totalPlatforms)
+	}
+	common.SysLog("任务进度轮询完成")
+	return summary
 }
 
 // DispatchPlatformUpdate 按平台分发轮询更新
