@@ -1,6 +1,6 @@
 # DR-63 Public Routing API Contract PRD
 
-Status: eval
+Status: ship
 
 Date: 2026-06-23
 

@@ -175,6 +175,24 @@ type MySkillAvailability struct {
 	CTA        availability.CTA    `json:"cta"`
 }
 
+type MarketplaceSkillEventRequest struct {
+	EventType  enums.SkillUsageEventType `json:"event_type"`
+	EntryPoint enums.EntryPoint          `json:"entry_point"`
+}
+
+var marketplaceEventTypeValues = map[enums.SkillUsageEventType]struct{}{
+	enums.SkillUsageEventTypeImpression: {},
+	enums.SkillUsageEventTypeDetailView: {},
+}
+
+var marketplaceEventEntryPointValues = map[enums.EntryPoint]struct{}{
+	enums.EntryPointMarketplaceCard: {},
+	enums.EntryPointSkillDetail:     {},
+	enums.EntryPointSearchResults:   {},
+	enums.EntryPointNew:             {},
+	enums.EntryPointRecommended:     {},
+}
+
 func ListMarketplaceSkills(c *gin.Context) {
 	page, validationErr := skillapi.ParsePageParams(c)
 	if validationErr != nil {
@@ -260,6 +278,78 @@ func GetMarketplaceSkill(c *gin.Context) {
 		return
 	}
 	skillapi.Success(c, publicSkillDetailFromModel(s))
+}
+
+// RecordMarketplaceSkillEvent ingests privacy-safe client-side discovery events
+// for growth surfaces. It intentionally accepts only a tiny event/entry-point
+// whitelist and stores empty metadata so prompts, templates, and raw messages
+// cannot enter analytics through this endpoint.
+func RecordMarketplaceSkillEvent(c *gin.Context) {
+	db, ok := skillDB(c)
+	if !ok {
+		return
+	}
+
+	var req MarketplaceSkillEventRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "Invalid event payload.", nil)
+		return
+	}
+	if _, ok := marketplaceEventTypeValues[req.EventType]; !ok {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "Unsupported event type.", nil)
+		return
+	}
+	if _, ok := marketplaceEventEntryPointValues[req.EntryPoint]; !ok {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "Unsupported entry point.", nil)
+		return
+	}
+
+	var s skillmodel.Skill
+	err := db.Select([]string{
+		"id", "status", "active_version_id", "is_kids_safe", "is_kids_exclusive",
+	}).Where("status = ?", enums.SkillStatusPublished).
+		Where("id = ? OR slug = ?", c.Param("id"), c.Param("id")).
+		First(&s).Error
+	if err != nil {
+		writeSkillLookupError(c, err)
+		return
+	}
+
+	userID := int64(c.GetInt("id"))
+	plan := groupToPlan(c.GetString("group"))
+	successVal := true
+	skillID := s.ID
+	event := skillmodel.SkillUsageEvent{
+		EventType:            req.EventType,
+		SkillID:              &skillID,
+		SkillVersionID:       s.ActiveVersionID,
+		EntryPoint:           req.EntryPoint,
+		Plan:                 &plan,
+		IsKidsSafeSkill:      &s.IsKidsSafe,
+		IsKidsExclusiveSkill: &s.IsKidsExclusive,
+		Success:              &successVal,
+		Metadata:             skillmodel.SkillJSONB(`{}`),
+	}
+	if userID > 0 {
+		if isKidsSession, err := serverResolvedKidsSession(db, userID); err != nil {
+			writeDBError(c, err)
+			return
+		} else if isKidsSession {
+			if err := event.ApplyKidsSessionAnalyticsIdentity(userID, userID, kidsAnalyticsSaltVersion(), kidsAnalyticsDailySalt()); err != nil {
+				writeDBError(c, err)
+				return
+			}
+		} else {
+			event.UserID = &userID
+			event.TenantID = &userID
+		}
+	}
+	if err := skillmodel.EmitSkillUsageEvent(db, event); err != nil {
+		writeDBError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+	c.Writer.WriteHeaderNow()
 }
 
 // ListMySkills serves GET /api/v1/marketplace/my-skills.

@@ -19,6 +19,7 @@ func TestResolve_LoadsImmutableExecutionSnapshot(t *testing.T) {
 
 	database := newTestDB(t)
 	skill, version := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 101, skill.ID)
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -42,6 +43,7 @@ func TestResolveVersion_UsesExplicitActiveVersionPin(t *testing.T) {
 
 	database := newTestDB(t)
 	skill, versionV1 := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 109, skill.ID)
 	versionV2ID := "aaaaaaaa-bbbb-cccc-dddd-000000000022"
 	versionV2 := defaultSkillVersion(skill.ID, versionV2ID)
 	versionV2.VersionNumber = 2
@@ -72,6 +74,7 @@ func TestResolveVersion_CrossSkillPinReturnsNotPublished(t *testing.T) {
 	skillB.ActiveVersionID = ptrString("aaaaaaaa-bbbb-cccc-dddd-0000000000b1")
 	skillB, versionB := insertRunnableSkill(t, database, skillB)
 	require.NotEqual(t, skillA.ID, skillB.ID)
+	enableSkillRow(t, database, 110, skillA.ID)
 
 	ctx, code := resolveVersion(c, database, skillA.ID, versionB.ID)
 	assert.Nil(t, ctx)
@@ -84,6 +87,7 @@ func TestResolveVersion_InactivePinReturnsNotPublished(t *testing.T) {
 
 	database := newTestDB(t)
 	skill, _ := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 111, skill.ID)
 	inactiveID := "aaaaaaaa-bbbb-cccc-dddd-000000000033"
 	inactive := defaultSkillVersion(skill.ID, inactiveID)
 	inactive.VersionNumber = 2
@@ -101,6 +105,7 @@ func TestResolve_ActiveVersionRecordMissing_ReturnsNotPublished(t *testing.T) {
 
 	database := newTestDB(t)
 	skill := insertSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 102, skill.ID)
 
 	ctx, code := resolve(c, database, skill.ID)
 	assert.Nil(t, ctx)
@@ -113,6 +118,7 @@ func TestResolve_DraftActiveVersionRecord_ReturnsNotPublished(t *testing.T) {
 
 	database := newTestDB(t)
 	skill := insertSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 103, skill.ID)
 	require.NotNil(t, skill.ActiveVersionID)
 	version := defaultSkillVersion(skill.ID, *skill.ActiveVersionID)
 	version.Status = enums.SkillVersionStatusDraft
@@ -129,6 +135,7 @@ func TestResolve_InactiveActiveVersionRecord_ReturnsNotPublished(t *testing.T) {
 
 	database := newTestDB(t)
 	skill := insertSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 104, skill.ID)
 	require.NotNil(t, skill.ActiveVersionID)
 	version := defaultSkillVersion(skill.ID, *skill.ActiveVersionID)
 	version.Status = enums.SkillVersionStatusInactive
@@ -145,6 +152,7 @@ func TestResolve_ArchivedActiveVersionRecord_ReturnsNotPublished(t *testing.T) {
 
 	database := newTestDB(t)
 	skill := insertSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 105, skill.ID)
 	require.NotNil(t, skill.ActiveVersionID)
 	version := defaultSkillVersion(skill.ID, *skill.ActiveVersionID)
 	version.Status = enums.SkillVersionStatusArchived
@@ -174,6 +182,7 @@ func TestResolve_ActiveVersionRecordBelongsToAnotherSkill_ReturnsNotPublished(t 
 	skillB.ActiveVersionID = &versionBID
 	skillB = insertSkill(t, database, skillB)
 	insertSkillVersion(t, database, defaultSkillVersion(skillB.ID, versionBID))
+	enableSkillRow(t, database, 1035, skillA.ID)
 
 	ctx, code := resolve(c, database, skillA.ID)
 	assert.Nil(t, ctx)
@@ -185,6 +194,7 @@ func TestResolve_EmptyInstructionTemplate_ReturnsInternalError(t *testing.T) {
 
 	database := newTestDB(t)
 	skill := insertSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 106, skill.ID)
 	require.NotNil(t, skill.ActiveVersionID)
 	version := defaultSkillVersion(skill.ID, *skill.ActiveVersionID)
 	version.InstructionTemplate = ""
@@ -201,6 +211,7 @@ func TestResolve_WhitespaceInstructionTemplate_ReturnsInternalError(t *testing.T
 
 	database := newTestDB(t)
 	skill := insertSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 107, skill.ID)
 	require.NotNil(t, skill.ActiveVersionID)
 	version := defaultSkillVersion(skill.ID, *skill.ActiveVersionID)
 	version.InstructionTemplate = "  \n\t  "
@@ -219,6 +230,7 @@ func TestResolve_BindsSnapshotAtEntryEvenIfActiveVersionChangesMidFlight(t *test
 
 	database := newTestDB(t)
 	skill, versionV1 := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 108, skill.ID)
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)

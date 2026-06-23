@@ -405,6 +405,58 @@ func TestGetMarketplaceSkill_LookupByID_CTAUsesSlug(t *testing.T) {
 		"download_cta.url must use slug even when fetched by UUID")
 }
 
+func TestRecordMarketplaceSkillEvent_AcceptsRecommendedImpression(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	require.NoError(t, db.AutoMigrate(&platformmodel.User{}))
+	s := testSkill("recommended-skill", "published")
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/marketplace/skills/recommended-skill/events",
+		`{"event_type":"skill_impression","entry_point":"recommended"}`)
+	c.Params = gin.Params{{Key: "id", Value: "recommended-skill"}}
+	c.Set("id", 42)
+	c.Set("group", "pro")
+	require.NoError(t, db.Create(&platformmodel.User{
+		Id:       42,
+		Username: "event-user",
+		Password: "password123",
+		Role:     1,
+		Status:   1,
+		Group:    "pro",
+	}).Error)
+
+	RecordMarketplaceSkillEvent(c)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+	var evt skillmodel.SkillUsageEvent
+	require.NoError(t, db.Where("skill_id = ?", s.ID).First(&evt).Error)
+	assert.Equal(t, enums.SkillUsageEventTypeImpression, evt.EventType)
+	assert.Equal(t, enums.EntryPointRecommended, evt.EntryPoint)
+	require.NotNil(t, evt.UserID)
+	assert.Equal(t, int64(42), *evt.UserID)
+	require.NotNil(t, evt.Plan)
+	assert.Equal(t, enums.RequiredPlanPro, *evt.Plan)
+}
+
+func TestRecordMarketplaceSkillEvent_RejectsPackageEntryPoint(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s := testSkill("package-entry-skill", "published")
+	require.NoError(t, db.Create(&s).Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/marketplace/skills/package-entry-skill/events",
+		`{"event_type":"skill_impression","entry_point":"skill_package"}`)
+	c.Params = gin.Params{{Key: "id", Value: "package-entry-skill"}}
+
+	RecordMarketplaceSkillEvent(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	var count int64
+	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).Count(&count).Error)
+	assert.Equal(t, int64(0), count)
+}
+
 // TestGetMarketplaceSkill_NonPublishedReturns404 verifies that draft, deprecated,
 // and archived skills are not accessible via the public marketplace detail endpoint.
 func TestGetMarketplaceSkill_NonPublishedReturns404(t *testing.T) {
@@ -1113,6 +1165,7 @@ func testSkillDB(t *testing.T) *gorm.DB {
 	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
 	require.NoError(t, skillmodel.MigrateSkillVersions(db))
 	require.NoError(t, skillmodel.MigrateSkillAuditLog(db))
+	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
 	return db
 }
 

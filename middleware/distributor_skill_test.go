@@ -42,7 +42,7 @@ func newSkillDistributionDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}); err != nil {
+	if err := database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}, &skillmodel.UserEnabledSkill{}); err != nil {
 		t.Fatalf("migrate skill tables: %v", err)
 	}
 	return database
@@ -86,6 +86,14 @@ func insertDistributionSkill(t *testing.T, db *gorm.DB, template string, whiteli
 		t.Fatalf("activate version: %v", err)
 	}
 	skill.ActiveVersionID = &version.ID
+	// DR-66: published skills require the caller to be enabled before the gate lets
+	// resolution proceed. All distribution-path tests act as user 7 (see
+	// newSkillDistributionCtx), so seed an enabled row for (7, tenant=7, skill).
+	if err := db.Create(&skillmodel.UserEnabledSkill{
+		UserID: 7, TenantID: 7, SkillID: skill.ID, Enabled: true,
+	}).Error; err != nil {
+		t.Fatalf("seed enabled row: %v", err)
+	}
 	return skill, version
 }
 
@@ -263,6 +271,65 @@ func TestPrepareSkillRelay_NoUserMessage_ReturnsInvalidRequest(t *testing.T) {
 	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
 	if errCode == "" {
 		t.Fatal("no user message must return an error code")
+	}
+}
+
+// TestPrepareSkillRelay_DR66_NotEnabled_NoSnapshotNoRewrite is the Distribute-path
+// no-snapshot regression for DR-66: a published skill the caller has not enabled is
+// rejected before the version snapshot is queried, and the request body is left
+// unrewritten (client model preserved, no instruction_template injected).
+func TestPrepareSkillRelay_DR66_NotEnabled_NoSnapshotNoRewrite(t *testing.T) {
+	db := newSkillDistributionDB(t)
+	skill, _ := insertDistributionSkill(t, db, "SENTINEL_DR66_TEMPLATE", []string{VirtualModelAuto})
+	// Disable the enabled row seeded for user 7 (see insertDistributionSkill) so the gate fails.
+	if err := db.Model(&skillmodel.UserEnabledSkill{}).
+		Where("user_id = ? AND skill_id = ?", 7, skill.ID).
+		Update("enabled", false).Error; err != nil {
+		t.Fatalf("disable enabled row: %v", err)
+	}
+
+	var snapshotSelects int
+	if err := db.Callback().Query().After("gorm:query").Register("dr66_count", func(d *gorm.DB) {
+		if strings.Contains(strings.ToLower(d.Statement.SQL.String()), "skill_versions") {
+			snapshotSelects++
+		}
+	}); err != nil {
+		t.Fatalf("register counter: %v", err)
+	}
+
+	skillrelay.SetDB(db)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c, _ := newSkillDistributionCtx(t, map[string]any{
+		"model":      "client-model",
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"deeprouter": map[string]any{"skill_id": skill.ID},
+	})
+	modelRequest := &ModelRequest{Model: "client-model"}
+
+	errCode := prepareSkillRelayForDistribution(c, modelRequest)
+	if string(errCode) != "SKILL_NOT_ENABLED" {
+		t.Fatalf("errCode = %q, want SKILL_NOT_ENABLED", errCode)
+	}
+	if snapshotSelects != 0 {
+		t.Fatalf("skill_versions SELECT count = %d, want 0 (no snapshot on gate failure)", snapshotSelects)
+	}
+	if modelRequest.Model != "client-model" {
+		t.Fatalf("modelRequest.Model = %q, must be unchanged on gate failure", modelRequest.Model)
+	}
+
+	// Body must be untouched: still the client model, no injected sentinel template.
+	var body dto.GeneralOpenAIRequest
+	if err := common.UnmarshalBodyReusable(c, &body); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	if body.Model != "client-model" {
+		t.Fatalf("rewritten body model = %q, must be unchanged", body.Model)
+	}
+	for _, m := range body.Messages {
+		if strings.Contains(m.StringContent(), "SENTINEL_DR66_TEMPLATE") {
+			t.Fatalf("instruction template must not be injected on gate failure")
+		}
 	}
 }
 
