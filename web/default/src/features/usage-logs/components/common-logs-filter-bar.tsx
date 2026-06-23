@@ -283,15 +283,28 @@ export function CommonLogsFilterBar<TData>(
   )
   const groupFilter = isAdmin ? (
     <LogsFilterField>
-      <Combobox
-        options={groupComboboxOptions}
-        value={filters.group || ''}
-        onValueChange={(value) => handleChange('group', value || undefined)}
-        placeholder={t('Group')}
-        searchPlaceholder={t('Group')}
-        emptyText={t('No group found.')}
-        allowCustomValue
-      />
+      {sensitiveVisible ? (
+        <Combobox
+          options={groupComboboxOptions}
+          value={filters.group || ''}
+          onValueChange={(value) => handleChange('group', value || undefined)}
+          placeholder={t('Group')}
+          searchPlaceholder={t('Group')}
+          emptyText={t('No group found.')}
+          allowCustomValue
+        />
+      ) : (
+        // Consistent with the channel/group columns: when sensitive info is
+        // hidden, group names are masked. Show a read-only masked placeholder
+        // (preserving whether a group filter is active) instead of exposing
+        // names in the combobox value/options.
+        <LogsFilterInput
+          readOnly
+          value={filters.group ? '••••' : ''}
+          placeholder={t('Group')}
+          aria-label={t('Group')}
+        />
+      )}
     </LogsFilterField>
   ) : null
   const typeFilter = (
