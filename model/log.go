@@ -41,6 +41,14 @@ func normalizeLogTextFilterValue(value string) string {
 	return value
 }
 
+// fuzzyUsernameUserIDLimit 限制模糊匹配时从 user 表物化到内存的 user_id 数量。
+// 日志库可能经 LOG_SQL_DSN 独立部署（LOG_DB != DB，见 model/main.go），因此不能
+// 用基于主库 DB 的子查询去拼 LOG_DB 的 WHERE（会产生跨库引用）；只能在应用侧把
+// user_id 物化成 IN 列表。该上限防止过宽关键词（如 2 字符）命中海量用户导致内存/
+// SQL 参数膨胀甚至超过数据库参数上限——超出后退化为仅按 logs.username 快照 LIKE，
+// 结果仍正确（只是不再额外用 user 表补齐改名前的历史日志）。
+const fuzzyUsernameUserIDLimit = 1000
+
 func getUserIDsByUsernameFilter(value string, fuzzy bool) ([]int, error) {
 	if DB == nil {
 		return nil, nil
@@ -52,7 +60,7 @@ func getUserIDsByUsernameFilter(value string, fuzzy bool) ([]int, error) {
 		if err != nil {
 			return nil, err
 		}
-		tx = tx.Where("username LIKE ? ESCAPE '!'", pattern)
+		tx = tx.Where("username LIKE ? ESCAPE '!'", pattern).Limit(fuzzyUsernameUserIDLimit)
 	} else {
 		tx = tx.Where("username = ?", value)
 	}
@@ -95,8 +103,17 @@ func applyLogUsernameFilter(tx *gorm.DB, usernameColumn string, userIDColumn str
 	if userID, err := strconv.Atoi(value); err == nil {
 		return tx.Where("("+usernameColumn+" = ? OR "+userIDColumn+" = ?)", value, userID), nil
 	}
-	// 单字符关键词：退回精确匹配，避免过宽的前导通配 LIKE 导致全表扫描。
+	// 单字符关键词：退回精确匹配，避免过宽的前导通配 LIKE 导致全表扫描；但仍
+	// 经 user 表精确解析 user_id（精确查询走索引、无扫描风险），补齐用户改名前
+	// 写入历史日志的情况。
 	if utf8.RuneCountInString(value) < 2 {
+		userIDs, err := getUserIDsByUsernameFilter(value, false)
+		if err != nil {
+			return nil, err
+		}
+		if len(userIDs) > 0 {
+			return tx.Where("("+usernameColumn+" = ? OR "+userIDColumn+" IN ?)", value, userIDs), nil
+		}
 		return tx.Where(usernameColumn+" = ?", value), nil
 	}
 	// 纯文本关键词：自动子串模糊，管理员输入部分用户名即可命中。

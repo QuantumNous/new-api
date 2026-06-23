@@ -282,6 +282,27 @@ func TestGetAllLogsFuzzyUsernameMatch(t *testing.T) {
 	if total != 0 {
 		t.Fatalf("single-char keyword total = %d, want 0 (exact match only)", total)
 	}
+
+	// A single-character username is still resolved through the user table, so a
+	// log written under the user's previous name is matched via user_id even
+	// though the keyword is too short for a fuzzy LIKE.
+	resetLogFilterTestUser(t, 303)
+	mustCreateUsage(t, &User{Id: 303, Username: "x", DisplayName: "X", AffCode: "log-filter-303"})
+	mustCreateUsage(t, &Log{
+		UserId:    303,
+		Username:  "old_name_x",
+		Type:      LogTypeConsume,
+		CreatedAt: 2003,
+		ModelName: "gpt-4o",
+		Quota:     1,
+	})
+	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "x", "", 0, 20, 0, "", "", "", 0)
+	if err != nil {
+		t.Fatalf("GetAllLogs single-char exact username: %v", err)
+	}
+	if total != 1 || len(logs) != 1 || logs[0].UserId != 303 {
+		t.Fatalf("single-char exact username logs = %+v / total %d, want 1 log for user 303", logs, total)
+	}
 }
 
 func resetLogFilterTestUser(t *testing.T, userID int) {

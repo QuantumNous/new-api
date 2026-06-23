@@ -60,10 +60,19 @@ import { useUsageLogsContext } from './usage-logs-provider'
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 const logTypeValues = ['0', '1', '2', '3', '4', '5', '6'] as const
 
-// Sentinel for the "all groups" option. Base UI Select cannot use an empty
-// string as an item value, so we map this sentinel to/from `filters.group`
-// being undefined.
-const GROUP_ALL_VALUE = '__all__'
+// Select item values for the group filter are namespaced so a system option can
+// never collide with a real group name (group names come from backend config
+// JSON keys and are otherwise unconstrained). Real groups are encoded as
+// `group:<name>`; the "all groups" sentinel uses a distinct `system:` namespace.
+// Base UI Select also cannot use an empty string as an item value.
+const GROUP_ALL_VALUE = 'system:all'
+const GROUP_VALUE_PREFIX = 'group:'
+const encodeGroupValue = (group: string) =>
+  `${GROUP_VALUE_PREFIX}${group}`
+const decodeGroupValue = (value: string): string | undefined =>
+  value.startsWith(GROUP_VALUE_PREFIX)
+    ? value.slice(GROUP_VALUE_PREFIX.length)
+    : undefined
 
 type LogTypeValue = (typeof logTypeValues)[number]
 
@@ -279,13 +288,24 @@ export function CommonLogsFilterBar<TData>(
   const groupSelectItems = useMemo(
     () => [
       { value: GROUP_ALL_VALUE, label: t('All Groups') },
-      ...groupOptions.map((g) => ({ value: g, label: g })),
+      ...groupOptions.map((g) => ({
+        value: encodeGroupValue(g),
+        label: g,
+      })),
     ],
     [groupOptions, t]
   )
-  const groupValue = filters.group || GROUP_ALL_VALUE
+  const groupValue = filters.group
+    ? encodeGroupValue(filters.group)
+    : GROUP_ALL_VALUE
+  // Group names were masked behind the sensitive-info toggle as a text input;
+  // keep that behaviour after switching to a dropdown — mask the selected value
+  // and the option labels when sensitive info is hidden.
+  const maskGroup = (label: string) => (sensitiveVisible ? label : '••••')
   const groupLabel =
-    groupValue === GROUP_ALL_VALUE ? t('All Groups') : groupValue
+    groupValue === GROUP_ALL_VALUE
+      ? t('All Groups')
+      : maskGroup(filters.group ?? '')
   const groupFilter = isEnterprise ? (
     <LogsFilterField>
       <Select
@@ -294,7 +314,9 @@ export function CommonLogsFilterBar<TData>(
         onValueChange={(value) => {
           handleChange(
             'group',
-            value && value !== GROUP_ALL_VALUE ? value : undefined
+            value && value !== GROUP_ALL_VALUE
+              ? decodeGroupValue(value)
+              : undefined
           )
         }}
       >
@@ -305,7 +327,9 @@ export function CommonLogsFilterBar<TData>(
           <SelectGroup>
             {groupSelectItems.map((item) => (
               <SelectItem key={item.value} value={item.value}>
-                {item.label}
+                {item.value === GROUP_ALL_VALUE
+                  ? item.label
+                  : maskGroup(item.label)}
               </SelectItem>
             ))}
           </SelectGroup>
