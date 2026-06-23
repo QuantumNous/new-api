@@ -210,6 +210,7 @@ func serveTrackedImageTask(c *gin.Context, taskID string) bool {
 				"fallback_triggered":           task.PrivateData.HedgeChannelId != 0,
 				"fallback_winner_channel_id":   winner.ChannelID,
 				"fallback_winner_channel_name": winnerChannelName,
+				"result_url":                   cachedURL,
 			}
 			if uerr := model.UpdateLogResultByTaskID(task.UserId, task.TaskID, realElapsed, extraOther); uerr != nil {
 				logger.LogWarn(c.Request.Context(), fmt.Sprintf("failed to backfill real duration for task %s: %v", task.TaskID, uerr))

@@ -476,6 +476,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		// real result is known (see controller/relay_image_task.go, model.UpdateLogUseTimeByTaskID).
 		other["task_id"] = taskID
 	}
+	if resultURL := strings.TrimSpace(ctx.GetString("image_result_url")); resultURL != "" {
+		other["result_url"] = resultURL
+	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,

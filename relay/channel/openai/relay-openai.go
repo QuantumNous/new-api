@@ -866,6 +866,9 @@ func pollAsyncImageTask(c *gin.Context, info *relaycommon.RelayInfo, taskID stri
 	}
 	// cache on our server so callers never see the upstream provider URL
 	cachedURL := service.CacheImageLocally(imageURL)
+	if cachedURL != "" {
+		c.Set("image_result_url", cachedURL)
+	}
 	openaiResp, _ := common.Marshal(map[string]interface{}{
 		"created": time.Now().Unix(),
 		"data":    []map[string]string{{"url": cachedURL}},
@@ -990,6 +993,9 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	// Rewrite upstream image URLs before returning to client (sync responses).
 	if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {
 		responseBody = service.RewriteImageResponseBody(responseBody)
+		if resultURL := service.ExtractFirstImageURLFromResponse(responseBody); resultURL != "" {
+			c.Set("image_result_url", resultURL)
+		}
 	}
 
 	// 写入新的 response body

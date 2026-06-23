@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { CircleAlert, Sparkles, KeyRound } from 'lucide-react'
+import { CircleAlert, ImageIcon, Sparkles, KeyRound, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
@@ -54,7 +54,10 @@ import {
   isPerCallBilling,
 } from '../../lib/utils'
 import type { LogOtherData } from '../../types'
+import { getLogMediaPreview } from '../../lib/media-preview'
 import { DetailsDialog } from '../dialogs/details-dialog'
+import { ImageDialog } from '../dialogs/image-dialog'
+import { VideoDialog } from '../dialogs/video-dialog'
 import { ModelBadge } from '../model-badge'
 import { useUsageLogsContext } from '../usage-logs-provider'
 
@@ -276,6 +279,59 @@ function buildDetailSegments(
   }
 
   return segments
+}
+
+function MediaPreviewCell({
+  log,
+  other,
+}: {
+  log: UsageLog
+  other: LogOtherData | null
+}) {
+  const { t } = useTranslation()
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const preview = getLogMediaPreview(log, other)
+
+  if (!preview) return null
+
+  const label =
+    preview.kind === 'image'
+      ? t('Click to preview image')
+      : t('Click to preview video')
+  const Icon = preview.kind === 'image' ? ImageIcon : Video
+
+  return (
+    <>
+      <button
+        type='button'
+        className='group flex items-center gap-1 text-left text-xs'
+        onClick={(e) => {
+          e.stopPropagation()
+          setDialogOpen(true)
+        }}
+      >
+        <Icon className='text-muted-foreground size-3 shrink-0' />
+        <span className='text-foreground leading-snug group-hover:underline'>
+          {label}
+        </span>
+      </button>
+      {preview.kind === 'image' ? (
+        <ImageDialog
+          imageUrl={preview.url}
+          taskId={preview.taskId}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+        />
+      ) : (
+        <VideoDialog
+          videoUrl={preview.url}
+          taskId={preview.taskId}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+        />
+      )}
+    </>
+  )
 }
 
 export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
@@ -845,12 +901,14 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         return (
           <>
-            <button
-              type='button'
-              className='group flex max-w-[200px] items-center gap-1 text-left text-xs'
-              onClick={() => setDialogOpen(true)}
-              title={t('Click to view full details')}
-            >
+            <div className='flex max-w-[200px] flex-col gap-1'>
+              <MediaPreviewCell log={log} other={other} />
+              <button
+                type='button'
+                className='group flex items-center gap-1 text-left text-xs'
+                onClick={() => setDialogOpen(true)}
+                title={t('Click to view full details')}
+              >
               {primary ? (
                 <span
                   className={cn(
@@ -876,7 +934,8 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               ) : (
                 <span className='text-muted-foreground/40'>—</span>
               )}
-            </button>
+              </button>
+            </div>
             <DetailsDialog
               log={log}
               isAdmin={isAdmin}

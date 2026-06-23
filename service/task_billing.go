@@ -94,7 +94,11 @@ func BackfillTaskLogDuration(ctx context.Context, task *model.Task) {
 	if elapsed <= 0 {
 		return
 	}
-	if err := model.UpdateLogResultByTaskID(task.UserId, task.TaskID, elapsed, nil); err != nil {
+	extra := map[string]interface{}{}
+	if resultURL := strings.TrimSpace(task.GetResultURL()); resultURL != "" {
+		extra["result_url"] = resultURL
+	}
+	if err := model.UpdateLogResultByTaskID(task.UserId, task.TaskID, elapsed, extra); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("failed to backfill use_time for task %s: %v", task.TaskID, err))
 	}
 }

@@ -107,6 +107,58 @@ func RewriteImageResponseBody(body []byte) []byte {
 	return out
 }
 
+// ExtractFirstImageURLFromResponse reads the first image URL from an OpenAI-style image response body.
+func ExtractFirstImageURLFromResponse(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+	var root map[string]interface{}
+	if err := common.Unmarshal(body, &root); err != nil {
+		return ""
+	}
+	data, ok := root["data"]
+	if !ok {
+		return ""
+	}
+	switch typed := data.(type) {
+	case []interface{}:
+		for _, item := range typed {
+			if m, ok := item.(map[string]interface{}); ok {
+				if u := firstURLFromImageMap(m); u != "" {
+					return u
+				}
+			}
+		}
+	case map[string]interface{}:
+		return firstURLFromImageMap(typed)
+	}
+	return ""
+}
+
+func firstURLFromImageMap(m map[string]interface{}) string {
+	if u, ok := m["url"].(string); ok && strings.TrimSpace(u) != "" {
+		return strings.TrimSpace(u)
+	}
+	result, ok := m["result"].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	images, ok := result["images"].([]interface{})
+	if !ok {
+		return ""
+	}
+	for _, img := range images {
+		im, ok := img.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if u, ok := im["url"].(string); ok && strings.TrimSpace(u) != "" {
+			return strings.TrimSpace(u)
+		}
+	}
+	return ""
+}
+
 func shouldRewriteTaskPollData(data map[string]interface{}) bool {
 	status := strings.ToLower(strings.TrimSpace(fmt.Sprint(data["status"])))
 	if status == "" {
