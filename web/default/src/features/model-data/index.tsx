@@ -120,6 +120,7 @@ const MODEL_TABS: ModelTab[] = [
   { label: 'Qwen 3.7 Plus',   modelId: 'qwen3.7-plus',      accent: '#06b6d4' },
   { label: 'Doubao Seed 2.1 Pro',  modelId: 'doubao-seed-2-1-pro-260628',   accent: '#f97316' },
   { label: 'Doubao Seed 2.1 Turbo', modelId: 'doubao-seed-2-1-turbo-260628', accent: '#fb923c' },
+  { label: 'GLM 5.2',         modelId: 'glm-5.2',           accent: '#10b981' },
   { label: 'Image 2',         modelId: 'gpt-image-2',       accent: '#22d3ee' },
   { label: 'Sora 2',          modelId: 'sora-2',            accent: '#22d3ee' },
   { label: 'Sora 2 Pro',      modelId: 'sora-2-pro',        accent: '#22d3ee' },
