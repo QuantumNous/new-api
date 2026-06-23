@@ -78,10 +78,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.19.0 // indirect
 )
 
-require privacyfilter v0.0.0
-
-require github.com/BurntSushi/toml v1.6.0 // indirect
-
 require (
 	github.com/DmitriyVTitov/size v1.5.0 // indirect
 	github.com/anknown/darts v0.0.0-20151216065714-83ff685239e6 // indirect
@@ -160,5 +156,3 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.40.1 // indirect
 )
-
-replace privacyfilter => ./privacy-filter

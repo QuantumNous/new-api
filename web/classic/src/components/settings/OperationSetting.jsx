@@ -23,7 +23,6 @@ import SettingsGeneral from '../../pages/Setting/Operation/SettingsGeneral';
 import SettingsHeaderNavModules from '../../pages/Setting/Operation/SettingsHeaderNavModules';
 import SettingsSidebarModulesAdmin from '../../pages/Setting/Operation/SettingsSidebarModulesAdmin';
 import SettingsSensitiveWords from '../../pages/Setting/Operation/SettingsSensitiveWords';
-import SettingsPrivacyFilter from '../../pages/Setting/Operation/SettingsPrivacyFilter';
 import SettingsLog from '../../pages/Setting/Operation/SettingsLog';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring';
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
@@ -61,10 +60,6 @@ const OperationSetting = () => {
     CheckSensitiveEnabled: false,
     CheckSensitiveOnPromptEnabled: false,
     SensitiveWords: '',
-
-    /* 隐私过滤器设置 */
-    'privacy_filter_setting.enabled': false,
-    'privacy_filter_setting.gitleaks_toml': '',
 
     /* 日志设置 */
     LogConsumeEnabled: false,
@@ -142,10 +137,6 @@ const OperationSetting = () => {
         {/* 屏蔽词过滤设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsSensitiveWords options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* 隐私过滤器设置 */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsPrivacyFilter options={inputs} refresh={onRefresh} />
         </Card>
         {/* 日志设置 */}
         <Card style={{ marginTop: '10px' }}>
