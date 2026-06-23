@@ -228,28 +228,57 @@ describe('Marketplace analytics events', () => {
     MockIntersectionObserver.instances.at(-1)?.trigger()
 
     await waitFor(() => {
-      expect(mockEmitMarketplaceEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          event_type: 'skill_impression',
-          skill_id: 'skill-1',
-          entry_point: 'marketplace_card',
-        }),
-        expect.anything()
-      )
+      expect(mockEmitMarketplaceEvent).toHaveBeenCalled()
     })
+    expect(mockEmitMarketplaceEvent.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        event_type: 'skill_impression',
+        skill_id: 'skill-1',
+        entry_point: 'marketplace_card',
+      })
+    )
   })
 
   it('fires detail view when a card opens', async () => {
     renderMarketplace()
     await userEvent.click(await screen.findByText('Draft Helper'))
 
-    expect(mockEmitMarketplaceEvent).toHaveBeenCalledWith(
+    expect(mockEmitMarketplaceEvent.mock.calls[0][0]).toEqual(
       expect.objectContaining({
         event_type: 'skill_detail_view',
         skill_id: 'skill-1',
         entry_point: 'marketplace_card',
-      }),
-      expect.anything()
+      })
     )
+  })
+
+  it('keeps server search results that match tokens but not a contiguous substring', async () => {
+    mockGetAllMarketplaceSkills.mockResolvedValue({
+      data: [
+        {
+          id: 'skill-token-match',
+          slug: 'skill-token-match',
+          name: 'Draft Legal Helper',
+          category: 'writing',
+          short_description: 'Searchable by separate tokens',
+          required_plan: 'free',
+        },
+      ],
+    })
+
+    renderMarketplace()
+    await userEvent.type(
+      await screen.findByLabelText('Search Skills'),
+      'draft helper'
+    )
+
+    await waitFor(() => {
+      expect(mockGetAllMarketplaceSkills).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          query: 'draft helper',
+        })
+      )
+    })
+    expect(screen.getByText('Draft Legal Helper')).toBeInTheDocument()
   })
 })

@@ -145,34 +145,40 @@ describe('Marketplace filtering and empty states', () => {
     }),
   ]
 
-  it('filters by query, category, plan, status, and Kids Safe flag', () => {
+  it('keeps server-filtered query, category, plan, and Kids Safe results intact', () => {
     expect(
       filterMarketplaceSkills(skills, { ...baseFilters, query: 'writer' })
-    ).toHaveLength(1)
+    ).toHaveLength(2)
     expect(
       filterMarketplaceSkills(skills, { ...baseFilters, category: 'analysis' })
-    ).toHaveLength(1)
+    ).toHaveLength(2)
     expect(
       filterMarketplaceSkills(skills, { ...baseFilters, plan: 'pro' })
-    ).toHaveLength(1)
-    expect(
-      filterMarketplaceSkills(skills, { ...baseFilters, status: 'locked' })
-    ).toHaveLength(1)
+    ).toHaveLength(2)
     expect(
       filterMarketplaceSkills(skills, { ...baseFilters, kidsSafeOnly: true })
+    ).toHaveLength(2)
+  })
+
+  it('filters client-side only by personalized status', () => {
+    expect(
+      filterMarketplaceSkills(skills, { ...baseFilters, status: 'locked' })
     ).toHaveLength(1)
   })
 
   it('selects specific empty states for search, category, Kids, errors, and empty catalogs', () => {
     expect(
-      marketplaceEmptyState(2, 0, { ...baseFilters, query: 'missing' }, false)
+      marketplaceEmptyState(0, 0, { ...baseFilters, query: 'missing' }, false)
     ).toBe('search')
     expect(
-      marketplaceEmptyState(2, 0, { ...baseFilters, category: 'coding' }, false)
+      marketplaceEmptyState(0, 0, { ...baseFilters, category: 'coding' }, false)
     ).toBe('category')
     expect(
-      marketplaceEmptyState(2, 0, { ...baseFilters, kidsSafeOnly: true }, false)
+      marketplaceEmptyState(0, 0, { ...baseFilters, kidsSafeOnly: true }, false)
     ).toBe('kids')
+    expect(
+      marketplaceEmptyState(0, 0, { ...baseFilters, status: 'locked' }, false)
+    ).toBe('filters')
     expect(marketplaceEmptyState(2, 0, baseFilters, true)).toBe('load-error')
     expect(marketplaceEmptyState(0, 0, baseFilters, false)).toBe('marketplace')
   })

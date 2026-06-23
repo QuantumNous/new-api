@@ -2,6 +2,10 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-06-24
+
+- 修复 DR-57 review blocker：Marketplace 客户端过滤只保留 personalized status，query/category/plan/Kids Safe 仅交给 server filters，避免 PG token 搜索结果被 substring 二次过滤误删；修正 mutation 测试断言为单参数 payload，并补非连续 substring 搜索回归测试（`web/default/src/features/marketplace/`）
+
 ## 2026-06-23
 
 - 修复 DR-57 PR review 阻断问题：Marketplace API 文件恢复编译、补 `MarketplaceSkillsParams` 与 `skillDownloadURL` re-export；前端事件改走既有 `/marketplace/skills/:id/events` privacy-safe handler；列表查询按 search/category/plan/Kids Safe 传 server filters 并分页取完整 server-filtered 集合，避免只在首 100 条上过滤；补 API 回归测试（`web/default/src/features/marketplace/`, `router/skill-router.go`）

@@ -184,26 +184,12 @@ export function filterMarketplaceSkills(
   skills: ResolvedMarketplaceSkill[],
   filters: MarketplaceFilters
 ): ResolvedMarketplaceSkill[] {
-  const query = filters.query.trim().toLowerCase()
-
   return skills.filter((skill) => {
-    if (filters.category && skill.category !== filters.category) return false
-    if (filters.plan !== 'all' && skill.required_plan !== filters.plan) {
-      return false
-    }
-    if (filters.kidsSafeOnly && !skill.is_kids_safe) return false
     if (
       filters.status !== 'all' &&
       skillStatusFilterValue(skill) !== filters.status
     ) {
       return false
-    }
-    if (query.length > 0) {
-      const haystack = [skill.name, skill.short_description, skill.description]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-      return haystack.includes(query)
     }
     return true
   })
@@ -217,9 +203,10 @@ export function marketplaceEmptyState(
 ): MarketplaceEmptyStateKind {
   if (isError) return 'load-error'
   if (filteredCount > 0) return 'marketplace'
-  if (totalCount === 0) return 'marketplace'
   if (filters.kidsSafeOnly) return 'kids'
   if (filters.query.trim().length > 0) return 'search'
   if (filters.category) return 'category'
+  if (filters.plan !== 'all' || filters.status !== 'all') return 'filters'
+  if (totalCount === 0) return 'marketplace'
   return 'filters'
 }
