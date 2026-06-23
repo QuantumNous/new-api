@@ -1,0 +1,40 @@
+# DR-74 verification log — event schema_version + occurred_at UTC
+# Generated: 2026-06-23 (branch based on origin/main @ 96deb5eb)
+# Scope: internal/skill/model/skill_usage_event.go (impl) + _dr74_test.go (tests) + docs.
+
+## gofmt -l  (empty = clean)
+(end gofmt — clean)
+
+## go vet ./internal/skill/model/        -> exit 0
+## go build ./internal/...               -> exit 0
+## git diff --check (whitespace)         -> clean
+
+## go test ./internal/skill/model/ ./internal/skill/handler/ -count=1
+ok  	github.com/QuantumNous/new-api/internal/skill/model	11.587s
+ok  	github.com/QuantumNous/new-api/internal/skill/handler	19.092s
+
+## DR-74 focused tests: 9 PASS (skill_usage_event_dr74_test.go)
+  Group A (schema_version stamped on every write path):
+    SchemaVersionStamped_DirectCreate / _EmitSkillUsageEvent / _EmitSkillEnabled
+  Group B (V1 strict '1.0'): SchemaVersion_ExplicitV1Kept (1.0 preserved);
+    SchemaVersion_NonV1Rejected ('2.0' / '' / non-string 3 all error)
+  Group C (validate-before-stamp): RestrictedKeyStillRejected_WithSchemaVersion
+    ({schema_version:'1.0', prompt:'...'} rejected by metadata validation FIRST)
+  Group D (occurred_at UTC): NormalizedToUTC (+8h -> UTC instant via Equal, not Location());
+    ZeroDefaultsToNowUTC; NonZeroUTCPreserved
+
+## Coverage (go test -cover ./internal/skill/model/) — required per PR rule
+  Package: 49.9% of statements (dominated by unrelated migration code).
+  DR-74 code:
+    BeforeCreate (skill_usage_event.go:92)   100.0%
+    EmitSkillUsageEvent                      100.0%
+    EmitSkillEnabled                         100.0%
+    ensureMetadataSchemaVersion               80.0%  (uncovered = defensive Unmarshal/Marshal
+                                                      error branches, unreachable on already-
+                                                      validated object metadata)
+  Coverage口径: Go -cover reports STATEMENT coverage. Branch behavior is demonstrated by
+    focused scenario tests (groups A-D), not a branch-coverage tool.
+
+## -race
+  Not run locally: requires cgo and no C compiler (gcc) on the dev box.
+  Carried by CI (unit-test.yml: go test ./internal/... -race); required green before merge.
