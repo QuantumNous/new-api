@@ -172,6 +172,8 @@ When creating or updating a GitHub issue or PR, write a reviewable engineering n
 
 Small mechanical items can be shorter, but still need clear requested/changed behavior and verification. For production incidents, bug fixes, cross-module changes, billing/auth/relay work, migrations, or large PRs, do not publish without the evidence-backed chain: phenomenon → evidence → root cause/hypothesis → fix/scope → impact → validation.
 
+When addressing PR review comments, reviewer comments, or review-bot comments, do not only fix code locally. Reply on GitHub to every actionable comment with the resolution: what changed, which commit/PR update contains it, validation run, or why the comment is not applicable. For top-level PR comments (issue comments), add a new PR comment that links to and quotes the original comment; for inline review threads, reply in the thread when GitHub supports it. Keep replies factual and traceable.
+
 ### Rule 11: Production Is Multi-Node
 
 Production runs as a multi-node deployment. Code changes and technical plans MUST account for multiple application instances serving traffic at the same time.
