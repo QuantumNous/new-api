@@ -82,7 +82,9 @@ func InitEnv() {
 	DebugEnabled = os.Getenv("DEBUG") == "true"
 	MemoryCacheEnabled = os.Getenv("MEMORY_CACHE_ENABLED") == "true"
 	IsMasterNode = os.Getenv("NODE_TYPE") != "slave"
-	NodeName = os.Getenv("NODE_NAME")
+	// NodeName 优先用 NODE_NAME，未配置时回退主机名（容器下=容器 ID/Pod 名，自动扩容天然唯一）。
+	hostname, _ := os.Hostname()
+	NodeName = GetEnvOrDefaultString("NODE_NAME", hostname)
 	TLSInsecureSkipVerify = GetEnvOrDefaultBool("TLS_INSECURE_SKIP_VERIFY", false)
 	if TLSInsecureSkipVerify {
 		if tr, ok := http.DefaultTransport.(*http.Transport); ok && tr != nil {
