@@ -111,7 +111,10 @@ export function CommonLogsFilterBar<TData>(
       channel: searchParams.channel || undefined,
       model: searchParams.model || undefined,
       token: searchParams.token || undefined,
-      group: searchParams.group || undefined,
+      // Group filter is admin-only; ignore any group in the URL for non-admins
+      // so a stale/hand-edited ?group= can't silently filter /api/log/self with
+      // no visible control and a disabled Reset.
+      group: isAdmin ? searchParams.group || undefined : undefined,
       username: searchParams.username || undefined,
       requestId: searchParams.requestId || undefined,
       upstreamRequestId: searchParams.upstreamRequestId || undefined,
@@ -138,6 +141,7 @@ export function CommonLogsFilterBar<TData>(
     searchParams.upstreamRequestId,
     searchParams.nonAdmin,
     searchParams.type,
+    isAdmin,
   ])
 
   const handleChange = useCallback(
