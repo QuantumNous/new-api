@@ -28,6 +28,10 @@ import { useApiRequest } from '../../hooks/playground/useApiRequest';
 import { useSyncMessageAndCustomBody } from '../../hooks/playground/useSyncMessageAndCustomBody';
 import { useMessageEdit } from '../../hooks/playground/useMessageEdit';
 import { useDataLoader } from '../../hooks/playground/useDataLoader';
+import {
+  loadCachedImageDataUrl,
+  saveCachedImageDataUrl,
+} from '../../components/playground/configStorage';
 
 // Constants and utils
 import {
@@ -90,6 +94,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
   const pendingRouteRef = useRef(null);
   const popstateGuardActiveRef = useRef(false);
   const imageAbortControllerRef = useRef(null);
+  const imageCacheInFlightRef = useRef(new Set());
   const videoPollingRef = useRef(new Set());
   const playgroundUserIdentity = useMemo(
     () => ({
@@ -551,6 +556,141 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
       );
     },
     [collectImageUrls, parseJsonLikeValue],
+  );
+
+  const convertImageUrlToDataUrl = useCallback(async (url) => {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`图片下载失败 (${response.status})`);
+    }
+
+    const blob = await response.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error('图片转换失败'));
+      };
+      reader.onerror = () => {
+        reject(reader.error || new Error('图片转换失败'));
+      };
+      reader.readAsDataURL(blob);
+    });
+  }, []);
+
+  const cacheImageUrlsInBackground = useCallback(
+    async (imageUrls = []) => {
+      await Promise.all(
+        imageUrls.map(async (url) => {
+          if (
+            typeof url !== 'string' ||
+            url.trim() === '' ||
+            url.startsWith('data:image/') ||
+            imageCacheInFlightRef.current.has(url)
+          ) {
+            return;
+          }
+
+          const cachedDataUrl = await loadCachedImageDataUrl(url);
+          if (typeof cachedDataUrl === 'string' && cachedDataUrl !== '') {
+            return;
+          }
+
+          imageCacheInFlightRef.current.add(url);
+          try {
+            const dataUrl = await convertImageUrlToDataUrl(url);
+            await saveCachedImageDataUrl(url, dataUrl);
+          } catch (error) {
+            console.warn('缓存图片到 IndexedDB 失败:', url, error);
+          } finally {
+            imageCacheInFlightRef.current.delete(url);
+          }
+        }),
+      );
+    },
+    [convertImageUrlToDataUrl],
+  );
+
+  const hydrateMessagesWithCachedImageUrls = useCallback(
+    async (messages = []) => {
+      let changed = false;
+      const urlsToCache = new Set();
+
+      const nextMessages = await Promise.all(
+        (messages || []).map(async (msg) => {
+          if (!Array.isArray(msg?.content)) {
+            return msg;
+          }
+
+          let messageChanged = false;
+          const cachedUrlMap = new Map();
+          const nextContent = await Promise.all(
+            msg.content.map(async (item) => {
+              if (item?.type !== 'image_url') {
+                return item;
+              }
+
+              const originalUrl = item?.image_url?.url;
+              if (
+                typeof originalUrl !== 'string' ||
+                originalUrl.trim() === '' ||
+                originalUrl.startsWith('data:image/')
+              ) {
+                return item;
+              }
+
+              const cachedDataUrl = await loadCachedImageDataUrl(originalUrl);
+              if (typeof cachedDataUrl === 'string' && cachedDataUrl !== '') {
+                messageChanged = true;
+                cachedUrlMap.set(originalUrl, cachedDataUrl);
+                return {
+                  ...item,
+                  image_url: {
+                    ...item.image_url,
+                    url: cachedDataUrl,
+                  },
+                };
+              }
+
+              urlsToCache.add(originalUrl);
+              return item;
+            }),
+          );
+
+          if (!messageChanged) {
+            return msg;
+          }
+
+          changed = true;
+          return {
+            ...msg,
+            content: nextContent,
+            imageUrls: Array.isArray(msg.imageUrls)
+              ? msg.imageUrls.map((url) => {
+                  if (
+                    typeof url !== 'string' ||
+                    url.trim() === '' ||
+                    url.startsWith('data:image/')
+                  ) {
+                    return url;
+                  }
+                  return cachedUrlMap.get(url) || url;
+                })
+              : msg.imageUrls,
+          };
+        }),
+      );
+
+      return {
+        nextMessages,
+        changed,
+        urlsToCache: Array.from(urlsToCache),
+      };
+    },
+    [],
   );
 
   const buildImagePayload = useCallback(
@@ -1242,6 +1382,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
           status: MESSAGE_STATUS.COMPLETE,
           isThinkingComplete: true,
         });
+        void cacheImageUrlsInBackground(imageUrls);
       } catch (error) {
         if (error?.name === 'AbortError') {
           updateImageAssistantMessage(assistantMessage.id, {
@@ -1268,6 +1409,7 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
       buildImageAssistantContent,
       buildImageEditFormData,
       buildImagePayload,
+      cacheImageUrlsInBackground,
       clearSelectedImages,
       extractImageUrls,
       inputs.imageEnabled,
@@ -1553,6 +1695,43 @@ export const PlaygroundPage = ({ forcedMode = 'chat' }) => {
     constructPreviewPayload,
     setPreviewPayload,
     setDebugData,
+  ]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const hydrateCachedImages = async () => {
+      const {
+        nextMessages,
+        changed,
+        urlsToCache,
+      } = await hydrateMessagesWithCachedImageUrls(message);
+
+      if (isCancelled) {
+        return;
+      }
+
+      if (changed) {
+        setMessage((prevMessages) =>
+          prevMessages === message ? nextMessages : prevMessages,
+        );
+      }
+
+      if (urlsToCache.length > 0) {
+        void cacheImageUrlsInBackground(urlsToCache);
+      }
+    };
+
+    hydrateCachedImages();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    cacheImageUrlsInBackground,
+    hydrateMessagesWithCachedImageUrls,
+    message,
+    setMessage,
   ]);
 
   useEffect(() => {

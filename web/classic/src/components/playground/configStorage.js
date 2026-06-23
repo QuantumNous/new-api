@@ -23,8 +23,9 @@ import {
 } from '../../constants/playground.constants';
 
 const PLAYGROUND_DB_NAME = 'new-api-playground';
-const PLAYGROUND_DB_VERSION = 1;
+const PLAYGROUND_DB_VERSION = 2;
 const PLAYGROUND_META_STORE = 'meta';
+const PLAYGROUND_IMAGE_CACHE_STORE = 'image-cache';
 const PLAYGROUND_CONVERSATION_STATE_KEY = 'conversation-state';
 const MAX_STORAGE_TEXT_LENGTH = 4000;
 const MAX_STORAGE_REASONING_LENGTH = 2000;
@@ -373,6 +374,9 @@ const openPlaygroundDB = () =>
       if (!db.objectStoreNames.contains(PLAYGROUND_META_STORE)) {
         db.createObjectStore(PLAYGROUND_META_STORE, { keyPath: 'key' });
       }
+      if (!db.objectStoreNames.contains(PLAYGROUND_IMAGE_CACHE_STORE)) {
+        db.createObjectStore(PLAYGROUND_IMAGE_CACHE_STORE, { keyPath: 'key' });
+      }
     };
 
     request.onsuccess = () => resolve(request.result);
@@ -403,6 +407,74 @@ const runMetaTransaction = async (mode, executor) => {
 
     executor(store, resolve, reject);
   });
+};
+
+const runImageCacheTransaction = async (mode, executor) => {
+  const db = await openPlaygroundDB();
+  if (!db) {
+    return null;
+  }
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(PLAYGROUND_IMAGE_CACHE_STORE, mode);
+    const store = transaction.objectStore(PLAYGROUND_IMAGE_CACHE_STORE);
+
+    transaction.oncomplete = () => {
+      db.close();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+    transaction.onabort = () => {
+      db.close();
+      reject(transaction.error);
+    };
+
+    executor(store, resolve, reject);
+  });
+};
+
+export const loadCachedImageDataUrl = async (url) => {
+  if (typeof url !== 'string' || url.trim() === '') {
+    return null;
+  }
+
+  try {
+    return await runImageCacheTransaction('readonly', (store, resolve) => {
+      const request = store.get(url);
+      request.onsuccess = () => resolve(request.result?.value || null);
+      request.onerror = () => resolve(null);
+    });
+  } catch (error) {
+    console.error('从 IndexedDB 加载图片缓存失败:', error);
+    return null;
+  }
+};
+
+export const saveCachedImageDataUrl = async (url, dataUrl) => {
+  if (
+    typeof url !== 'string' ||
+    url.trim() === '' ||
+    typeof dataUrl !== 'string' ||
+    !dataUrl.startsWith('data:image/')
+  ) {
+    return;
+  }
+
+  try {
+    await runImageCacheTransaction('readwrite', (store, resolve, reject) => {
+      const request = store.put({
+        key: url,
+        value: dataUrl,
+        timestamp: new Date().toISOString(),
+      });
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('保存 IndexedDB 图片缓存失败:', error);
+  }
 };
 
 export const loadConversationStateFromIndexedDB = async (userIdentity = null) => {
