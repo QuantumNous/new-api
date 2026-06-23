@@ -1,9 +1,9 @@
 {
   "translation": {
-    "Lowest entry to get started": "最小ティアでまず始める",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
+    "Lowest entry to get started": "最小ティアでまず始める",
     "Top up $10 → the <z>full $10 lands, zero fee</z> + bonus. On OpenRouter, $10 only loads $9.45.": "$10 チャージ → <z>全額 $10 反映、手数料ゼロ</z> + ボーナス。OpenRouter では $10 で $9.45 しか反映されません。",
     "Top up — zero fee →": "チャージ — 手数料ゼロ →",
     "_copy": "_copy",
@@ -5089,8 +5089,6 @@
     "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "チャージ額別ボーナスクレジットマップ（JSON オブジェクト）。値はチャージ額と同じ単位を使用します。",
     "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "各チャージ額のボーナスクレジットを設定します。値はチャージ額と同じ単位を使用します。",
     "No rate-limit window was reset": "レート制限ウィンドウはリセットされませんでした",
-    "Allow this user to see and select groups; PLG users are hidden from the group concept": "このユーザーがグループを表示・選択できるようにします。PLGユーザーにはグループの概念が非表示になります",
-    "Enterprise User": "エンタープライズユーザー",
     "Get ${{bonus}} free": "${{bonus}} 進呈",
     "Create an API key": "API キーを作成",
     "Credit limit (optional)": "クレジット上限（任意）",
