@@ -154,7 +154,7 @@ func TestBlockReason_Valid(t *testing.T) {
 	valid := []BlockReason{
 		BlockReasonAuthRequired, BlockReasonSkillNotFound, BlockReasonSkillNotPublished,
 		BlockReasonSkillNotEnabled, BlockReasonPlanRequired, BlockReasonSubscriptionInactive,
-		BlockReasonQuotaExceeded, BlockReasonKidsModeBlocked, BlockReasonContextTooLong,
+		BlockReasonEvaluationNotPassed, BlockReasonQuotaExceeded, BlockReasonKidsModeBlocked, BlockReasonContextTooLong,
 		BlockReasonRateLimited, BlockReasonTimeout, BlockReasonSafetyViolation,
 		BlockReasonInternalError,
 	}
@@ -181,6 +181,7 @@ func TestBlockReason_StringValues(t *testing.T) {
 	assert.Equal(t, "skill_not_enabled", string(BlockReasonSkillNotEnabled))
 	assert.Equal(t, "plan_required", string(BlockReasonPlanRequired))
 	assert.Equal(t, "subscription_inactive", string(BlockReasonSubscriptionInactive))
+	assert.Equal(t, "evaluation_not_passed", string(BlockReasonEvaluationNotPassed))
 	assert.Equal(t, "quota_exceeded", string(BlockReasonQuotaExceeded))
 	assert.Equal(t, "kids_mode_blocked", string(BlockReasonKidsModeBlocked))
 	assert.Equal(t, "context_too_long", string(BlockReasonContextTooLong))

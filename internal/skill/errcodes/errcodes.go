@@ -30,6 +30,7 @@ const (
 	ErrSkillNotEnabled           ErrorCode = "SKILL_NOT_ENABLED"
 	ErrSkillPlanRequired         ErrorCode = "SKILL_PLAN_REQUIRED"
 	ErrSkillSubscriptionInactive ErrorCode = "SKILL_SUBSCRIPTION_INACTIVE"
+	ErrSkillEvaluationNotPassed  ErrorCode = "SKILL_EVALUATION_NOT_PASSED"
 	ErrSkillQuotaExceeded        ErrorCode = "SKILL_QUOTA_EXCEEDED"
 	ErrSkillKidsModeBlocked      ErrorCode = "SKILL_KIDS_MODE_BLOCKED"
 	ErrSkillContextTooLong       ErrorCode = "SKILL_CONTEXT_TOO_LONG"
@@ -59,6 +60,7 @@ var httpStatusByCode = map[ErrorCode]int{
 	ErrSkillNotEnabled:           http.StatusForbidden,           // 403
 	ErrSkillPlanRequired:         http.StatusForbidden,           // 403
 	ErrSkillSubscriptionInactive: http.StatusForbidden,           // 403
+	ErrSkillEvaluationNotPassed:  http.StatusForbidden,           // 403
 	ErrSkillQuotaExceeded:        http.StatusTooManyRequests,     // 429
 	ErrSkillKidsModeBlocked:      http.StatusForbidden,           // 403
 	ErrSkillContextTooLong:       http.StatusBadRequest,          // 400
@@ -80,6 +82,7 @@ var allErrorCodes = []ErrorCode{
 	ErrSkillNotEnabled,
 	ErrSkillPlanRequired,
 	ErrSkillSubscriptionInactive,
+	ErrSkillEvaluationNotPassed,
 	ErrSkillQuotaExceeded,
 	ErrSkillKidsModeBlocked,
 	ErrSkillContextTooLong,
@@ -142,6 +145,7 @@ var blockReasonToCode = map[enums.BlockReason]ErrorCode{
 	enums.BlockReasonSkillNotEnabled:      ErrSkillNotEnabled,
 	enums.BlockReasonPlanRequired:         ErrSkillPlanRequired,
 	enums.BlockReasonSubscriptionInactive: ErrSkillSubscriptionInactive,
+	enums.BlockReasonEvaluationNotPassed:  ErrSkillEvaluationNotPassed,
 	enums.BlockReasonQuotaExceeded:        ErrSkillQuotaExceeded,
 	enums.BlockReasonKidsModeBlocked:      ErrSkillKidsModeBlocked,
 	enums.BlockReasonContextTooLong:       ErrSkillContextTooLong,
@@ -162,6 +166,7 @@ var allBlockReasons = []enums.BlockReason{
 	enums.BlockReasonSkillNotEnabled,
 	enums.BlockReasonPlanRequired,
 	enums.BlockReasonSubscriptionInactive,
+	enums.BlockReasonEvaluationNotPassed,
 	enums.BlockReasonQuotaExceeded,
 	enums.BlockReasonKidsModeBlocked,
 	enums.BlockReasonContextTooLong,

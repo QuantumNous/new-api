@@ -32,6 +32,15 @@ export type SkillCTAAction =
   | 'login'
   | 'unavailable'
 
+export type SkillGrowthEntryPoint =
+  | 'marketplace_card'
+  | 'skill_detail'
+  | 'search_results'
+  | 'new'
+  | 'recommended'
+
+export type SkillGrowthEventType = 'skill_impression' | 'skill_detail_view'
+
 export type SkillLockReason =
   | 'auth_required'
   | 'plan_required'

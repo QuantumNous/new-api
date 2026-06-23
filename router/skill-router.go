@@ -22,13 +22,23 @@ func SetSkillRouter(router *gin.Engine) {
 	v1.Use(middleware.BodyStorageCleanup())
 	{
 		marketplaceRoute := v1.Group("/marketplace")
-		marketplaceRoute.Use(middleware.TryUserAuth())
+		marketplaceRoute.Use(middleware.TrySkillUserAuth())
 		if common.GlobalApiRateLimitEnable {
 			marketplaceRoute.Use(middleware.SkillRateLimit(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "SKM"))
 		}
 		{
 			marketplaceRoute.GET("/skills", skillhandler.ListMarketplaceSkills)
 			marketplaceRoute.GET("/skills/:id", skillhandler.GetMarketplaceSkill)
+			marketplaceRoute.POST("/skills/:id/events", skillhandler.RecordMarketplaceSkillEvent)
+		}
+
+		mySkillsRoute := v1.Group("/marketplace")
+		mySkillsRoute.Use(middleware.SkillUserAuth())
+		if common.GlobalApiRateLimitEnable {
+			mySkillsRoute.Use(middleware.SkillUserRateLimit(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "SKM"))
+		}
+		{
+			mySkillsRoute.GET("/my-skills", skillhandler.ListMySkills)
 		}
 
 		downloadRoute := v1.Group("/marketplace")
@@ -47,6 +57,7 @@ func SetSkillRouter(router *gin.Engine) {
 		}
 		{
 			adminRoute.GET("/skills", skillhandler.ListAdminSkills)
+			adminRoute.POST("/skills", skillhandler.CreateAdminSkill)
 			adminRoute.GET("/skills/:skill_id/versions", skillhandler.ListAdminSkillVersions)
 			adminRoute.POST("/skills/:skill_id/versions", skillhandler.CreateAdminSkillVersion)
 			adminRoute.GET("/skills/:skill_id/versions/:version_id", skillhandler.GetAdminSkillVersion)

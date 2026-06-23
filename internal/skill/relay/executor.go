@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	"github.com/QuantumNous/new-api/internal/skill/tiers"
 	"gorm.io/gorm"
 )
 
@@ -104,13 +105,22 @@ func parseModelWhitelist(raw skillmodel.SkillJSONB) ([]string, error) {
 }
 
 // selectModel picks the server-authoritative model from the whitelist.
-// V1: returns the first non-empty entry (list is priority-ordered by admin at publish time).
+// V1: takes the first non-empty entry (list is priority-ordered by admin at publish time).
+//
+// DR-96: a whitelist entry may be a platform tier alias (e.g. "smart-tier") rather
+// than a concrete model id. Tier aliases are resolved server-side to the current
+// best model via the platform alias registry; non-alias entries are treated as
+// literal model names and passed through unchanged (backward compatible).
 // TODO(DR-68-model-selection): add plan-based filtering and context-budget check.
 func selectModel(whitelist []string) (string, errcodes.ErrorCode) {
 	for _, m := range whitelist {
-		if m != "" {
-			return m, ""
+		if m == "" {
+			continue
 		}
+		if resolved, ok := tiers.Resolve(m); ok {
+			return resolved, ""
+		}
+		return m, ""
 	}
 	return "", errcodes.ErrSkillInternalError
 }

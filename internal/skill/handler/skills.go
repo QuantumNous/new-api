@@ -8,19 +8,28 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	skillapi "github.com/QuantumNous/new-api/internal/skill/api"
+	"github.com/QuantumNous/new-api/internal/skill/availability"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	platformmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-var db *gorm.DB
+var (
+	dbMu sync.RWMutex
+	db   *gorm.DB
+)
 
 func SetDB(database *gorm.DB) {
+	dbMu.Lock()
+	defer dbMu.Unlock()
 	db = database
 }
 
@@ -78,6 +87,27 @@ type PublicSkill struct {
 	PublishedAt          *time.Time         `json:"published_at,omitempty"`
 }
 
+type MarketplaceSkill struct {
+	ID               string             `json:"id"`
+	Slug             string             `json:"slug"`
+	Name             string             `json:"name"`
+	Category         string             `json:"category"`
+	ShortDescription string             `json:"short_description"`
+	RequiredPlan     enums.RequiredPlan `json:"required_plan"`
+	Availability     SkillAvailability  `json:"availability"`
+	Badges           []string           `json:"badges"`
+	Featured         bool               `json:"featured"`
+	IsKidsSafe       bool               `json:"is_kids_safe"`
+	IsKidsExclusive  bool               `json:"is_kids_exclusive"`
+}
+
+type SkillAvailability struct {
+	Enabled  *bool               `json:"enabled"`
+	Locked   bool                `json:"locked"`
+	LockCode *errcodes.ErrorCode `json:"lock_code"`
+	CTA      availability.CTA    `json:"cta"`
+}
+
 type AdminSkill struct {
 	PublicSkill
 	Status             enums.SkillStatus        `json:"status"`
@@ -126,6 +156,43 @@ type OpsSkillSummary struct {
 	KidsSafePublished int64            `json:"kids_safe_published"`
 }
 
+type MySkill struct {
+	SkillID      string              `json:"skill_id"`
+	Slug         string              `json:"slug"`
+	Name         string              `json:"name"`
+	SkillStatus  enums.SkillStatus   `json:"skill_status"`
+	RequiredPlan enums.RequiredPlan  `json:"required_plan"`
+	Enabled      bool                `json:"enabled"`
+	EnabledAt    time.Time           `json:"enabled_at"`
+	LastUsedAt   *time.Time          `json:"last_used_at"`
+	Availability MySkillAvailability `json:"availability"`
+}
+
+type MySkillAvailability struct {
+	Executable bool                `json:"executable"`
+	Locked     bool                `json:"locked"`
+	LockCode   *errcodes.ErrorCode `json:"lock_code"`
+	CTA        availability.CTA    `json:"cta"`
+}
+
+type MarketplaceSkillEventRequest struct {
+	EventType  enums.SkillUsageEventType `json:"event_type"`
+	EntryPoint enums.EntryPoint          `json:"entry_point"`
+}
+
+var marketplaceEventTypeValues = map[enums.SkillUsageEventType]struct{}{
+	enums.SkillUsageEventTypeImpression: {},
+	enums.SkillUsageEventTypeDetailView: {},
+}
+
+var marketplaceEventEntryPointValues = map[enums.EntryPoint]struct{}{
+	enums.EntryPointMarketplaceCard: {},
+	enums.EntryPointSkillDetail:     {},
+	enums.EntryPointSearchResults:   {},
+	enums.EntryPointNew:             {},
+	enums.EntryPointRecommended:     {},
+}
+
 func ListMarketplaceSkills(c *gin.Context) {
 	page, validationErr := skillapi.ParsePageParams(c)
 	if validationErr != nil {
@@ -145,15 +212,23 @@ func ListMarketplaceSkills(c *gin.Context) {
 		skillapi.AbortQueryError(c, validationErr)
 		return
 	}
+	kidsSafe, validationErr := optionalBoolFilter(c.Query("kids_safe"), "kids_safe")
+	if validationErr != nil {
+		skillapi.AbortQueryError(c, validationErr)
+		return
+	}
 
 	db, ok := skillDB(c)
 	if !ok {
 		return
 	}
-	query := db.Model(&skillmodel.Skill{}).Where("status = ?", enums.SkillStatusPublished)
+	query := listMarketplaceSkillsPublicQuery(db).Where("status = ?", enums.SkillStatusPublished)
 	query = applyPublicSkillFilters(query, c)
 	if featured != nil {
 		query = query.Where("featured_flag = ?", *featured)
+	}
+	if kidsSafe != nil {
+		query = query.Where("is_kids_safe = ?", *kidsSafe)
 	}
 
 	var total int64
@@ -171,9 +246,20 @@ func ListMarketplaceSkills(c *gin.Context) {
 		return
 	}
 
-	out := make([]PublicSkill, 0, len(skills))
+	userInfo, err := marketplaceUserInfo(c, db)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	enabledBySkillID, err := marketplaceEnablementBySkillID(db, userInfo, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+
+	out := make([]MarketplaceSkill, 0, len(skills))
 	for _, s := range skills {
-		out = append(out, publicSkillFromModel(s, false))
+		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID]))
 	}
 	skillapi.List(c, out, skillapi.NewPagination(page.Page, page.Limit, total))
 }
@@ -192,6 +278,158 @@ func GetMarketplaceSkill(c *gin.Context) {
 		return
 	}
 	skillapi.Success(c, publicSkillDetailFromModel(s))
+}
+
+// RecordMarketplaceSkillEvent ingests privacy-safe client-side discovery events
+// for growth surfaces. It intentionally accepts only a tiny event/entry-point
+// whitelist and stores empty metadata so prompts, templates, and raw messages
+// cannot enter analytics through this endpoint.
+func RecordMarketplaceSkillEvent(c *gin.Context) {
+	db, ok := skillDB(c)
+	if !ok {
+		return
+	}
+
+	var req MarketplaceSkillEventRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "Invalid event payload.", nil)
+		return
+	}
+	if _, ok := marketplaceEventTypeValues[req.EventType]; !ok {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "Unsupported event type.", nil)
+		return
+	}
+	if _, ok := marketplaceEventEntryPointValues[req.EntryPoint]; !ok {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "Unsupported entry point.", nil)
+		return
+	}
+
+	var s skillmodel.Skill
+	err := db.Select([]string{
+		"id", "status", "active_version_id", "is_kids_safe", "is_kids_exclusive",
+	}).Where("status = ?", enums.SkillStatusPublished).
+		Where("id = ? OR slug = ?", c.Param("id"), c.Param("id")).
+		First(&s).Error
+	if err != nil {
+		writeSkillLookupError(c, err)
+		return
+	}
+
+	userID := int64(c.GetInt("id"))
+	plan := groupToPlan(c.GetString("group"))
+	successVal := true
+	skillID := s.ID
+	event := skillmodel.SkillUsageEvent{
+		EventType:            req.EventType,
+		SkillID:              &skillID,
+		SkillVersionID:       s.ActiveVersionID,
+		EntryPoint:           req.EntryPoint,
+		Plan:                 &plan,
+		IsKidsSafeSkill:      &s.IsKidsSafe,
+		IsKidsExclusiveSkill: &s.IsKidsExclusive,
+		Success:              &successVal,
+		Metadata:             skillmodel.SkillJSONB(`{}`),
+	}
+	if userID > 0 {
+		if isKidsSession, err := serverResolvedKidsSession(db, userID); err != nil {
+			writeDBError(c, err)
+			return
+		} else if isKidsSession {
+			if err := event.ApplyKidsSessionAnalyticsIdentity(userID, userID, kidsAnalyticsSaltVersion(), kidsAnalyticsDailySalt()); err != nil {
+				writeDBError(c, err)
+				return
+			}
+		} else {
+			event.UserID = &userID
+			event.TenantID = &userID
+		}
+	}
+	if err := skillmodel.EmitSkillUsageEvent(db, event); err != nil {
+		writeDBError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+	c.Writer.WriteHeaderNow()
+}
+
+// ListMySkills serves GET /api/v1/marketplace/my-skills.
+// It returns the caller's enabled skills, including deprecated/archived rows,
+// with execution availability resolved through the DR-72 entitlement resolver.
+func ListMySkills(c *gin.Context) {
+	db, ok := skillDB(c)
+	if !ok {
+		return
+	}
+
+	userID := int64(c.GetInt("id"))
+	if userID <= 0 {
+		skillapi.Error(c, errcodes.ErrAuthRequired, "Authentication required.", nil)
+		return
+	}
+
+	type mySkillRow struct {
+		SkillID           string
+		Slug              string
+		Name              string
+		Status            enums.SkillStatus
+		RequiredPlan      enums.RequiredPlan
+		IsKidsSafe        bool
+		IsKidsExclusive   bool
+		FreeQuotaPerMonth *int
+		Enabled           bool
+		EnabledAt         time.Time
+		LastUsedAt        *time.Time
+	}
+
+	var rows []mySkillRow
+	if err := db.Table("user_enabled_skills AS ues").
+		Select(`skills.id AS skill_id, skills.slug, skills.name, skills.status,
+			skills.required_plan, skills.is_kids_safe, skills.is_kids_exclusive,
+			skills.free_quota_per_month, ues.enabled, ues.enabled_at, ues.last_used_at`).
+		Joins("JOIN skills ON skills.id = ues.skill_id").
+		Where("ues.user_id = ? AND ues.tenant_id = ? AND ues.enabled = ?", userID, userID, true).
+		Order("ues.enabled_at DESC, skills.name ASC").
+		Scan(&rows).Error; err != nil {
+		writeDBError(c, err)
+		return
+	}
+
+	userInfo := availability.UserInfo{
+		Plan:       groupToPlan(c.GetString("group")),
+		SubActive:  true,
+		IsEnabled:  true,
+		WasEnabled: true,
+	}
+	kidsMode, err := currentUserKidsMode(db, userID)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	userInfo.IsKidsSession = kidsMode
+
+	out := make([]MySkill, 0, len(rows))
+	for _, row := range rows {
+		result := availability.Resolve(availability.SkillInfo{
+			Status:            row.Status,
+			RequiredPlan:      row.RequiredPlan,
+			IsKidsSafe:        row.IsKidsSafe,
+			IsKidsExclusive:   row.IsKidsExclusive,
+			FreeQuotaPerMonth: row.FreeQuotaPerMonth,
+		}, userInfo)
+		out = append(out, MySkill{
+			SkillID:      row.SkillID,
+			Slug:         row.Slug,
+			Name:         row.Name,
+			SkillStatus:  row.Status,
+			RequiredPlan: row.RequiredPlan,
+			Enabled:      row.Enabled,
+			EnabledAt:    row.EnabledAt,
+			LastUsedAt:   row.LastUsedAt,
+			Availability: mySkillAvailabilityFromResult(result),
+		})
+	}
+
+	skillapi.Success(c, out)
 }
 
 // listAdminSkillsSafeQuery returns a GORM query base scoped to the admin-safe
@@ -294,10 +532,7 @@ func GetOpsSkillSummary(c *gin.Context) {
 	summary.ByStatus = map[string]int64{}
 	summary.ByCategory = map[string]int64{}
 
-	if err := db.Model(&skillmodel.Skill{}).Count(&summary.Total).Error; err != nil {
-		writeDBError(c, err)
-		return
-	}
+	// Query 1: status breakdown — also gives total and published count.
 	var statusRows []struct {
 		Status string
 		Count  int64
@@ -308,7 +543,11 @@ func GetOpsSkillSummary(c *gin.Context) {
 	}
 	for _, row := range statusRows {
 		summary.ByStatus[row.Status] = row.Count
+		summary.Total += row.Count
 	}
+	summary.Published = summary.ByStatus[string(enums.SkillStatusPublished)]
+
+	// Query 2: category breakdown.
 	var categoryRows []struct {
 		Category string
 		Count    int64
@@ -320,18 +559,23 @@ func GetOpsSkillSummary(c *gin.Context) {
 	for _, row := range categoryRows {
 		summary.ByCategory[row.Category] = row.Count
 	}
-	if err := db.Model(&skillmodel.Skill{}).Where("status = ?", enums.SkillStatusPublished).Count(&summary.Published).Error; err != nil {
+
+	// Query 3: featured and kids-safe published counts via conditional aggregation.
+	var pubCounts struct {
+		FeaturedPublished int64
+		KidsSafePublished int64
+	}
+	if err := db.Model(&skillmodel.Skill{}).Select(
+		"SUM(CASE WHEN status = ? AND featured_flag = ? THEN 1 ELSE 0 END) as featured_published,"+
+			" SUM(CASE WHEN status = ? AND is_kids_safe = ? THEN 1 ELSE 0 END) as kids_safe_published",
+		enums.SkillStatusPublished, true, enums.SkillStatusPublished, true,
+	).Scan(&pubCounts).Error; err != nil {
 		writeDBError(c, err)
 		return
 	}
-	if err := db.Model(&skillmodel.Skill{}).Where("status = ? AND featured_flag = ?", enums.SkillStatusPublished, true).Count(&summary.FeaturedPublished).Error; err != nil {
-		writeDBError(c, err)
-		return
-	}
-	if err := db.Model(&skillmodel.Skill{}).Where("status = ? AND is_kids_safe = ?", enums.SkillStatusPublished, true).Count(&summary.KidsSafePublished).Error; err != nil {
-		writeDBError(c, err)
-		return
-	}
+	summary.FeaturedPublished = pubCounts.FeaturedPublished
+	summary.KidsSafePublished = pubCounts.KidsSafePublished
+
 	skillapi.Success(c, summary)
 }
 
@@ -343,10 +587,40 @@ func applyPublicSkillFilters(query *gorm.DB, c *gin.Context) *gorm.DB {
 		query = query.Where("required_plan = ?", plan)
 	}
 	if q := strings.TrimSpace(c.Query("query")); q != "" {
-		like := "%" + q + "%"
-		query = query.Where("name LIKE ? OR short_description LIKE ? OR description LIKE ?", like, like, like)
+		clause, args := publicSearchClause(query.Dialector.Name(), q)
+		query = query.Where(clause, args...)
 	}
 	return query
+}
+
+func listMarketplaceSkillsPublicQuery(db *gorm.DB) *gorm.DB {
+	return db.Model(&skillmodel.Skill{}).Select([]string{
+		"id",
+		"slug",
+		"name",
+		"category",
+		"short_description",
+		"status",
+		"required_plan",
+		"free_quota_per_month",
+		"featured_flag",
+		"featured_rank",
+		"is_kids_safe",
+		"is_kids_exclusive",
+	})
+}
+
+func publicSearchClause(dialect, q string) (string, []any) {
+	if dialect == "postgres" {
+		return `to_tsvector('simple',
+				coalesce(name, '') || ' ' ||
+				coalesce(short_description, '') || ' ' ||
+				coalesce(description, '')
+			) @@ plainto_tsquery('simple', ?)`, []any{q}
+	}
+	escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(q)
+	like := "%" + escaped + "%"
+	return "name LIKE ? ESCAPE '!' OR short_description LIKE ? ESCAPE '!' OR description LIKE ? ESCAPE '!'", []any{like, like, like}
 }
 
 func applyAdminSkillFilters(query *gorm.DB, c *gin.Context) *gorm.DB {
@@ -393,7 +667,7 @@ func orderForSort(sort string, public bool) string {
 	column := columns[key]
 	if column == "" {
 		if public {
-			return "featured_rank ASC, published_at DESC, created_at DESC"
+			return "(featured_rank IS NULL) ASC, featured_rank ASC, published_at DESC, created_at DESC"
 		}
 		return "updated_at DESC"
 	}
@@ -402,7 +676,7 @@ func orderForSort(sort string, public bool) string {
 		direction = "DESC"
 	}
 	if key == "featured_rank" {
-		return column + " " + direction + ", published_at DESC, created_at DESC"
+		return "(featured_rank IS NULL) ASC, " + column + " " + direction + ", published_at DESC, created_at DESC"
 	}
 	return column + " " + direction
 }
@@ -430,6 +704,143 @@ func publicSkillFromModel(s skillmodel.Skill, includeDetail bool) PublicSkill {
 	return out
 }
 
+type marketplaceUserContext struct {
+	IsAnonymous bool
+	UserID      int64
+	Plan        enums.RequiredPlan
+	IsKidsMode  bool
+	SubActive   bool
+}
+
+func marketplaceSkillFromModel(s skillmodel.Skill, user marketplaceUserContext, enabled bool) MarketplaceSkill {
+	result := availability.Resolve(availability.SkillInfo{
+		Status:            s.Status,
+		RequiredPlan:      s.RequiredPlan,
+		IsKidsSafe:        s.IsKidsSafe,
+		IsKidsExclusive:   s.IsKidsExclusive,
+		FreeQuotaPerMonth: s.FreeQuotaPerMonth,
+	}, availability.UserInfo{
+		IsAnonymous:   user.IsAnonymous,
+		IsKidsSession: user.IsKidsMode,
+		Plan:          user.Plan,
+		SubActive:     user.SubActive,
+		IsEnabled:     enabled,
+		WasEnabled:    enabled,
+	})
+	return MarketplaceSkill{
+		ID:               s.ID,
+		Slug:             s.Slug,
+		Name:             s.Name,
+		Category:         s.Category,
+		ShortDescription: s.ShortDescription,
+		RequiredPlan:     s.RequiredPlan,
+		Availability:     skillAvailabilityFromResult(result),
+		Badges:           marketplaceBadges(s),
+		Featured:         s.FeaturedFlag,
+		IsKidsSafe:       s.IsKidsSafe,
+		IsKidsExclusive:  s.IsKidsExclusive,
+	}
+}
+
+func skillAvailabilityFromResult(result availability.Result) SkillAvailability {
+	var lockCode *errcodes.ErrorCode
+	if result.LockCode != "" {
+		code := result.LockCode
+		lockCode = &code
+	}
+	return SkillAvailability{
+		Enabled:  result.Enabled,
+		Locked:   result.Locked,
+		LockCode: lockCode,
+		CTA:      result.CTA,
+	}
+}
+
+func marketplaceBadges(s skillmodel.Skill) []string {
+	badges := make([]string, 0, 4)
+	if s.RequiredPlan != enums.RequiredPlanFree {
+		badges = append(badges, string(s.RequiredPlan))
+	}
+	if s.FeaturedFlag {
+		badges = append(badges, "featured")
+	}
+	if s.IsKidsExclusive {
+		badges = append(badges, "kids_exclusive")
+	} else if s.IsKidsSafe {
+		badges = append(badges, "kids_safe")
+	}
+	return badges
+}
+
+func marketplaceUserInfo(c *gin.Context, db *gorm.DB) (marketplaceUserContext, error) {
+	id := c.GetInt("id")
+	if id == 0 {
+		return marketplaceUserContext{
+			IsAnonymous: true,
+			Plan:        enums.RequiredPlanFree,
+			SubActive:   true,
+		}, nil
+	}
+
+	user := platformmodel.User{}
+	if err := db.Select([]string{"id", "group", "kids_mode", "status"}).
+		Where("id = ?", id).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return marketplaceUserContext{
+				IsAnonymous: true,
+				Plan:        enums.RequiredPlanFree,
+				SubActive:   true,
+			}, nil
+		}
+		return marketplaceUserContext{}, err
+	}
+	if user.Status == common.UserStatusDisabled {
+		return marketplaceUserContext{
+			IsAnonymous: true,
+			Plan:        enums.RequiredPlanFree,
+			SubActive:   true,
+		}, nil
+	}
+	return marketplaceUserContext{
+		UserID:     int64(user.Id),
+		Plan:       marketplaceGroupToPlan(user.Group),
+		IsKidsMode: user.KidsMode,
+		SubActive:  true,
+	}, nil
+}
+
+func marketplaceEnablementBySkillID(db *gorm.DB, user marketplaceUserContext, skills []skillmodel.Skill) (map[string]bool, error) {
+	enabled := map[string]bool{}
+	if user.IsAnonymous || user.UserID == 0 || len(skills) == 0 {
+		return enabled, nil
+	}
+	ids := make([]string, 0, len(skills))
+	for _, s := range skills {
+		ids = append(ids, s.ID)
+	}
+	var rows []skillmodel.UserEnabledSkill
+	if err := db.Select([]string{"skill_id", "enabled"}).
+		Where("user_id = ? AND tenant_id = ? AND skill_id IN ?", user.UserID, user.UserID, ids).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		enabled[row.SkillID] = row.Enabled
+	}
+	return enabled, nil
+}
+
+func marketplaceGroupToPlan(group string) enums.RequiredPlan {
+	switch group {
+	case string(enums.RequiredPlanPro):
+		return enums.RequiredPlanPro
+	case string(enums.RequiredPlanEnterprise):
+		return enums.RequiredPlanEnterprise
+	default:
+		return enums.RequiredPlanFree
+	}
+}
+
 // publicSkillDetailFromModel builds the detail-page response.
 // download_cta.url uses slug (not ID) because slugs are human-readable and
 // stable. DR-81 must accept slug as the {id} path parameter — verify before
@@ -443,6 +854,32 @@ func publicSkillDetailFromModel(s skillmodel.Skill) PublicSkillDetail {
 			Method: "GET",
 		},
 	}
+}
+
+func mySkillAvailabilityFromResult(result availability.Result) MySkillAvailability {
+	var lockCode *errcodes.ErrorCode
+	if result.LockCode != "" {
+		code := result.LockCode
+		lockCode = &code
+	}
+	return MySkillAvailability{
+		Executable: result.Executable,
+		Locked:     result.Locked,
+		LockCode:   lockCode,
+		CTA:        result.CTA,
+	}
+}
+
+func currentUserKidsMode(db *gorm.DB, userID int64) (bool, error) {
+	var user platformmodel.User
+	err := db.Select("kids_mode").Where("id = ?", userID).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return user.KidsMode, nil
 }
 
 func adminSkillFromModel(s skillmodel.Skill) AdminSkill {
@@ -478,11 +915,14 @@ func rawJSON(value skillmodel.SkillJSONB) json.RawMessage {
 }
 
 func skillDB(c *gin.Context) (*gorm.DB, bool) {
-	if db == nil {
+	dbMu.RLock()
+	d := db
+	dbMu.RUnlock()
+	if d == nil {
 		skillapi.Error(c, errcodes.ErrSkillInternalError, "Skill database is unavailable.", nil)
 		return nil, false
 	}
-	return db, true
+	return d, true
 }
 
 func writeSkillLookupError(c *gin.Context, err error) {
@@ -498,4 +938,148 @@ func writeDBError(c *gin.Context, err error) {
 		return
 	}
 	skillapi.Error(c, errcodes.ErrSkillInternalError, http.StatusText(http.StatusInternalServerError), nil)
+}
+
+type createSkillRequest struct {
+	Slug              string                 `json:"slug"`
+	Name              string                 `json:"name"`
+	ShortDescription  string                 `json:"short_description"`
+	Description       string                 `json:"description"`
+	Category          string                 `json:"category"`
+	RequiredPlan      enums.RequiredPlan     `json:"required_plan"`
+	MonetizationType  enums.MonetizationType `json:"monetization_type"`
+	FreeQuotaPerMonth *int                   `json:"free_quota_per_month"`
+	MaxInputTokens    *int                   `json:"max_input_tokens"`
+}
+
+// CreateAdminSkill serves POST /api/v1/admin/skills (Super Admin only).
+// Creates a draft Skill shell; instruction templates are managed via version APIs.
+func CreateAdminSkill(c *gin.Context) {
+	var req createSkillRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeCreateSkillValidationError(c, "INVALID_JSON", "Invalid JSON request body.")
+		return
+	}
+	normalizeCreateSkillRequest(&req)
+	if reason := validateCreateSkillRequest(req); reason != "" {
+		writeCreateSkillValidationError(c, reason, "Invalid skill create request.")
+		return
+	}
+
+	db, ok := skillDB(c)
+	if !ok {
+		return
+	}
+
+	var existing int64
+	if err := db.Model(&skillmodel.Skill{}).Where("slug = ?", req.Slug).Count(&existing).Error; err != nil {
+		writeDBError(c, err)
+		return
+	}
+	if existing > 0 {
+		writeSkillConflict(c, "Skill slug already exists.")
+		return
+	}
+
+	creatorID := int64(c.GetInt("id"))
+	s := skillmodel.Skill{
+		Slug:                 req.Slug,
+		Status:               enums.SkillStatusDraft,
+		Category:             req.Category,
+		Tags:                 skillmodel.SkillJSONB(`[]`),
+		DefaultLocale:        "en",
+		Name:                 req.Name,
+		ShortDescription:     req.ShortDescription,
+		Description:          req.Description,
+		InputHints:           skillmodel.SkillJSONB(`[]`),
+		ExampleInputs:        skillmodel.SkillJSONB(`[]`),
+		ExampleOutputs:       skillmodel.SkillJSONB(`[]`),
+		RequiredPlan:         req.RequiredPlan,
+		MonetizationType:     req.MonetizationType,
+		FreeQuotaPerMonth:    req.FreeQuotaPerMonth,
+		MaxInputTokens:       req.MaxInputTokens,
+		ModelWhitelist:       skillmodel.SkillJSONB(`[]`),
+		TimeoutSeconds:       45,
+		KidsApprovalStatus:   enums.KidsApprovalStatusNotRequired,
+		AIDisclosureRequired: true,
+		CreatedBy:            creatorID,
+	}
+	if err := db.Create(&s).Error; err != nil {
+		if isUniqueConstraintError(err) {
+			writeSkillConflict(c, "Skill slug already exists.")
+			return
+		}
+		writeDBError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, skillapi.SuccessEnvelope{
+		Data: adminSkillFromModel(s),
+		Meta: skillapi.Meta{RequestID: skillapi.RequestID(c)},
+	})
+}
+
+func normalizeCreateSkillRequest(req *createSkillRequest) {
+	req.Slug = strings.TrimSpace(req.Slug)
+	req.Name = strings.TrimSpace(req.Name)
+	req.ShortDescription = strings.TrimSpace(req.ShortDescription)
+	req.Description = strings.TrimSpace(req.Description)
+	req.Category = strings.TrimSpace(req.Category)
+	req.RequiredPlan = enums.RequiredPlan(strings.TrimSpace(string(req.RequiredPlan)))
+	req.MonetizationType = enums.MonetizationType(strings.TrimSpace(string(req.MonetizationType)))
+}
+
+func validateCreateSkillRequest(req createSkillRequest) string {
+	switch {
+	case req.Slug == "":
+		return "MISSING_SLUG"
+	case req.Name == "":
+		return "MISSING_NAME"
+	case req.ShortDescription == "":
+		return "MISSING_SHORT_DESCRIPTION"
+	case req.Description == "":
+		return "MISSING_DESCRIPTION"
+	case req.Category == "":
+		return "MISSING_CATEGORY"
+	case !req.RequiredPlan.Valid():
+		return "INVALID_REQUIRED_PLAN"
+	case !req.MonetizationType.Valid():
+		return "INVALID_MONETIZATION_TYPE"
+	case req.FreeQuotaPerMonth != nil && *req.FreeQuotaPerMonth < 0:
+		return "INVALID_FREE_QUOTA_PER_MONTH"
+	case req.MaxInputTokens != nil && *req.MaxInputTokens <= 0:
+		return "INVALID_MAX_INPUT_TOKENS"
+	case createSkillRequiresMaxInputTokens(req) && req.MaxInputTokens == nil:
+		return "MAX_INPUT_TOKENS_REQUIRED"
+	default:
+		return ""
+	}
+}
+
+func createSkillRequiresMaxInputTokens(req createSkillRequest) bool {
+	return req.RequiredPlan == enums.RequiredPlanFree ||
+		req.MonetizationType == enums.MonetizationTypeFree ||
+		req.FreeQuotaPerMonth != nil
+}
+
+func writeCreateSkillValidationError(c *gin.Context, reason string, message string) {
+	skillapi.Error(c, errcodes.ErrInvalidRequest, message, gin.H{"reason": reason})
+}
+
+func writeSkillConflict(c *gin.Context, message string) {
+	c.JSON(http.StatusConflict, skillapi.ErrorEnvelope{
+		Error: skillapi.ErrorBody{
+			Code:      errcodes.ErrInvalidRequest,
+			Message:   message,
+			Detail:    gin.H{"reason": "DUPLICATE_SLUG"},
+			RequestID: skillapi.RequestID(c),
+		},
+	})
+}
+
+func isUniqueConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unique") || strings.Contains(msg, "duplicate")
 }
