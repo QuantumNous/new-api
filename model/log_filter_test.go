@@ -200,6 +200,90 @@ func TestSumUsedQuotaFiltersNumericUsernameAsUserID(t *testing.T) {
 	}
 }
 
+func TestGetAllLogsFuzzyUsernameMatch(t *testing.T) {
+	resetUsageTables(t)
+	resetLogFilterTestUser(t, 301)
+	resetLogFilterTestUser(t, 302)
+
+	// Current usernames live in the user table.
+	mustCreateUsage(t, &User{Id: 301, Username: "google_alice", DisplayName: "Alice", AffCode: "log-filter-301"})
+	mustCreateUsage(t, &User{Id: 302, Username: "github_bob", DisplayName: "Bob", AffCode: "log-filter-302"})
+
+	// user 301 has one log under the current name and one under an older name;
+	// resolving the keyword through the user table must catch both.
+	mustCreateUsage(t, &Log{
+		UserId:    301,
+		Username:  "google_alice",
+		Type:      LogTypeConsume,
+		CreatedAt: 2000,
+		ModelName: "gpt-4o",
+		Quota:     1,
+	})
+	mustCreateUsage(t, &Log{
+		UserId:    301,
+		Username:  "old_google_alice",
+		Type:      LogTypeConsume,
+		CreatedAt: 2001,
+		ModelName: "gpt-4o",
+		Quota:     1,
+	})
+	mustCreateUsage(t, &Log{
+		UserId:    302,
+		Username:  "github_bob",
+		Type:      LogTypeConsume,
+		CreatedAt: 2002,
+		ModelName: "gpt-4o",
+		Quota:     1,
+	})
+
+	// Partial keyword "google" should fuzzily match every log for user 301
+	// (current + historical name, resolved via the user table), and nothing
+	// belonging to user 302.
+	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "google", "", 0, 20, 0, "", "", "", 0)
+	if err != nil {
+		t.Fatalf("GetAllLogs fuzzy google: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("fuzzy google total = %d, want 2", total)
+	}
+	for _, l := range logs {
+		if l.UserId != 301 {
+			t.Fatalf("fuzzy google matched unexpected user_id %d", l.UserId)
+		}
+	}
+
+	// Partial keyword "bob" should match only user 302.
+	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "bob", "", 0, 20, 0, "", "", "", 0)
+	if err != nil {
+		t.Fatalf("GetAllLogs fuzzy bob: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("fuzzy bob total = %d, want 1", total)
+	}
+	if len(logs) != 1 || logs[0].UserId != 302 {
+		t.Fatalf("fuzzy bob logs = %+v, want only user_id 302", logs)
+	}
+
+	// A keyword matching no username at all returns nothing.
+	_, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "no_such_user", "", 0, 20, 0, "", "", "", 0)
+	if err != nil {
+		t.Fatalf("GetAllLogs fuzzy miss: %v", err)
+	}
+	if total != 0 {
+		t.Fatalf("fuzzy miss total = %d, want 0", total)
+	}
+
+	// Single-character keywords stay exact to avoid an over-broad leading-wildcard
+	// scan: "g" must NOT fuzzily match "google_alice"/"github_bob".
+	_, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "g", "", 0, 20, 0, "", "", "", 0)
+	if err != nil {
+		t.Fatalf("GetAllLogs single-char keyword: %v", err)
+	}
+	if total != 0 {
+		t.Fatalf("single-char keyword total = %d, want 0 (exact match only)", total)
+	}
+}
+
 func resetLogFilterTestUser(t *testing.T, userID int) {
 	t.Helper()
 	cleanup := func() {

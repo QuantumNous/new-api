@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -61,36 +62,45 @@ func getUserIDsByUsernameFilter(value string, fuzzy bool) ([]int, error) {
 	return userIDs, nil
 }
 
+// applyFuzzyUsernameFilter 对日志用户名做模糊匹配：既匹配 logs 表里的用户名
+// 快照（历史改名前写入的记录），又通过 user 表把关键词解析成 user_id 列表，
+// 再用 user_id IN 命中该用户改名后的全部日志。rawPattern 形如 "%kw%" 或用户
+// 显式给出的含 % 模式。
+func applyFuzzyUsernameFilter(tx *gorm.DB, usernameColumn string, userIDColumn string, rawPattern string) (*gorm.DB, error) {
+	pattern, err := sanitizeLikePattern(rawPattern)
+	if err != nil {
+		return nil, err
+	}
+	userIDs, err := getUserIDsByUsernameFilter(rawPattern, true)
+	if err != nil {
+		return nil, err
+	}
+	if len(userIDs) > 0 {
+		return tx.Where("("+usernameColumn+" LIKE ? ESCAPE '!' OR "+userIDColumn+" IN ?)", pattern, userIDs), nil
+	}
+	return tx.Where(usernameColumn+" LIKE ? ESCAPE '!'", pattern), nil
+}
+
 func applyLogUsernameFilter(tx *gorm.DB, usernameColumn string, userIDColumn string, value string) (*gorm.DB, error) {
 	value = normalizeLogTextFilterValue(value)
 	if value == "" {
 		return tx, nil
 	}
+	// 用户显式使用 % 通配符：按其给定的模式模糊匹配。
 	if strings.Contains(value, "%") {
-		pattern, err := sanitizeLikePattern(value)
-		if err != nil {
-			return nil, err
-		}
-		userIDs, err := getUserIDsByUsernameFilter(value, true)
-		if err != nil {
-			return nil, err
-		}
-		if len(userIDs) > 0 {
-			return tx.Where("("+usernameColumn+" LIKE ? ESCAPE '!' OR "+userIDColumn+" IN ?)", pattern, userIDs), nil
-		}
-		return tx.Where(usernameColumn+" LIKE ? ESCAPE '!'", pattern), nil
+		return applyFuzzyUsernameFilter(tx, usernameColumn, userIDColumn, value)
 	}
+	// 纯数字：按 user_id 精确匹配，用于 /users「使用日志」行内跳转以及按 ID
+	// 精确定位单个用户（用户名唯一，但管理员也可能直接输 ID）。
 	if userID, err := strconv.Atoi(value); err == nil {
 		return tx.Where("("+usernameColumn+" = ? OR "+userIDColumn+" = ?)", value, userID), nil
 	}
-	userIDs, err := getUserIDsByUsernameFilter(value, false)
-	if err != nil {
-		return nil, err
+	// 单字符关键词：退回精确匹配，避免过宽的前导通配 LIKE 导致全表扫描。
+	if utf8.RuneCountInString(value) < 2 {
+		return tx.Where(usernameColumn+" = ?", value), nil
 	}
-	if len(userIDs) > 0 {
-		return tx.Where("("+usernameColumn+" = ? OR "+userIDColumn+" IN ?)", value, userIDs), nil
-	}
-	return tx.Where(usernameColumn+" = ?", value), nil
+	// 纯文本关键词：自动子串模糊，管理员输入部分用户名即可命中。
+	return applyFuzzyUsernameFilter(tx, usernameColumn, userIDColumn, "%"+value+"%")
 }
 
 type Log struct {
