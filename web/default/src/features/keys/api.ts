@@ -24,6 +24,7 @@ import type {
   GetApiKeysResponse,
   SearchApiKeysParams,
   ApiKeyFormData,
+  EnsureInitialApiKeyResponse,
 } from './types'
 
 // ============================================================================
@@ -64,6 +65,13 @@ export async function createApiKey(
   data: ApiKeyFormData
 ): Promise<ApiResponse<ApiKey>> {
   const res = await api.post('/api/token/', data)
+  return res.data
+}
+
+export async function ensureInitialApiKey(
+  data: ApiKeyFormData
+): Promise<ApiResponse<EnsureInitialApiKeyResponse>> {
+  const res = await api.post('/api/token/ensure_initial', data)
   return res.data
 }
 

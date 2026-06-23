@@ -16,20 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { create } from 'zustand'
+const NON_CHAT_MODEL_PATTERNS = [
+  /(^|[-_/])(?:dall[ -]?e|gpt-image|imagen|flux|stable-diffusion|sdxl|midjourney|jimeng|qwen-image|z-image)(?:$|[-_/])/,
+  /(^|[-_/])(?:image|video|seedance|sora|kling|veo|wan|hailuo|runway|pika|luma)(?:$|[-_/])/,
+  /(^|[-_/])(?:tts|whisper|transcribe|speech|audio-preview|audio)(?:$|[-_/])/,
+  /(^|[-_/])(?:embedding|embeddings|rerank|reranker|moderation|suno|music|lyrics)(?:$|[-_/])/,
+  /^mj_/,
+]
 
-interface OnboardingState {
-  open: boolean
-  openOnboarding: () => void
-  closeOnboarding: () => void
+export function isPlaygroundChatModelName(model: unknown): model is string {
+  if (typeof model !== 'string') return false
+  const normalized = model.trim().toLowerCase()
+  if (!normalized) return false
+  return !NON_CHAT_MODEL_PATTERNS.some((pattern) => pattern.test(normalized))
 }
-
-/**
- * Controls the card-binding onboarding dialog that floats over the console.
- * Opened from onboarding entry points for new, unbound users or via the card-bind banner.
- */
-export const useOnboardingStore = create<OnboardingState>((set) => ({
-  open: false,
-  openOnboarding: () => set({ open: true }),
-  closeOnboarding: () => set({ open: false }),
-}))

@@ -16,20 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { create } from 'zustand'
-
-interface OnboardingState {
-  open: boolean
-  openOnboarding: () => void
-  closeOnboarding: () => void
+interface FirstRunChatOverrideState {
+  firstRun: boolean
+  firstRunModel?: string
+  currentModel: string
+  userPickedModel: boolean
 }
 
-/**
- * Controls the card-binding onboarding dialog that floats over the console.
- * Opened from onboarding entry points for new, unbound users or via the card-bind banner.
- */
-export const useOnboardingStore = create<OnboardingState>((set) => ({
-  open: false,
-  openOnboarding: () => set({ open: true }),
-  closeOnboarding: () => set({ open: false }),
-}))
+type FirstRunChatOverride = { model: string } | undefined
+
+export function getFirstRunChatOverride(
+  state: FirstRunChatOverrideState
+): FirstRunChatOverride {
+  if (!state.firstRun) return undefined
+  if (state.userPickedModel) return undefined
+  if (!state.firstRunModel) return undefined
+  if (state.currentModel !== state.firstRunModel) return undefined
+  return { model: state.firstRunModel }
+}

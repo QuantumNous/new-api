@@ -16,20 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { create } from 'zustand'
+export const DEFAULT_PLAYGROUND_DEFAULT_MODEL = 'gpt-4o'
 
-interface OnboardingState {
-  open: boolean
-  openOnboarding: () => void
-  closeOnboarding: () => void
-}
+export const normalizeModelName = (value: string | null | undefined): string =>
+  value?.trim() || ''
 
-/**
- * Controls the card-binding onboarding dialog that floats over the console.
- * Opened from onboarding entry points for new, unbound users or via the card-bind banner.
- */
-export const useOnboardingStore = create<OnboardingState>((set) => ({
-  open: false,
-  openOnboarding: () => set({ open: true }),
-  closeOnboarding: () => set({ open: false }),
-}))
+export const resolvePlaygroundDefaultModelToSave = (
+  value: string | null | undefined
+): string => normalizeModelName(value) || DEFAULT_PLAYGROUND_DEFAULT_MODEL

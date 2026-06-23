@@ -39,6 +39,7 @@ const defaultSiteSettings: SiteSettings = {
   'legal.auth_notice_enabled': 'false',
   HeaderNavModules: '',
   SidebarModulesAdmin: '',
+  PlaygroundDefaultModel: 'gpt-4o',
 }
 
 export function SiteSettings() {

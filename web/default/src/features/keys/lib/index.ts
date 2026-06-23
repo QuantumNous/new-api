@@ -27,3 +27,12 @@ export {
   transformFormDataToPayload,
   transformApiKeyToFormDefaults,
 } from './api-key-form'
+export {
+  buildDefaultApiKeyPayload,
+  ensureInitialApiKeyCreateOnce,
+  resetInitialApiKeyCreateOnce,
+  runInitialApiKeyCreate,
+  type DefaultApiKeyPayloadOptions,
+  type InitialApiKeyCreateDeps,
+  type InitialApiKeyCreateResult,
+} from './auto-create-api-key'

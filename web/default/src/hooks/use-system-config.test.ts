@@ -16,20 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { create } from 'zustand'
+import assert from 'node:assert/strict'
+import { describe, test } from 'node:test'
+import { mapStatusDataToConfig } from './use-system-config'
 
-interface OnboardingState {
-  open: boolean
-  openOnboarding: () => void
-  closeOnboarding: () => void
-}
+describe('mapStatusDataToConfig', () => {
+  test('maps playground default model from status response', () => {
+    const config = mapStatusDataToConfig({
+      playground_default_model: 'gpt-4.1-mini',
+    } as Parameters<typeof mapStatusDataToConfig>[0]) as {
+      playgroundDefaultModel?: string
+    }
 
-/**
- * Controls the card-binding onboarding dialog that floats over the console.
- * Opened from onboarding entry points for new, unbound users or via the card-bind banner.
- */
-export const useOnboardingStore = create<OnboardingState>((set) => ({
-  open: false,
-  openOnboarding: () => set({ open: true }),
-  closeOnboarding: () => set({ open: false }),
-}))
+    assert.equal(config.playgroundDefaultModel, 'gpt-4.1-mini')
+  })
+})

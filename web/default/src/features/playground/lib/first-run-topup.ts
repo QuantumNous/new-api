@@ -16,20 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { create } from 'zustand'
-
-interface OnboardingState {
-  open: boolean
-  openOnboarding: () => void
-  closeOnboarding: () => void
+interface FirstRunTopupPromptState {
+  firstRun: boolean
+  sentThisSession: boolean
+  hasCompletedAssistant: boolean
+  promptShown: boolean
+  enableStripeCardBind?: boolean
+  stripeCardBound?: boolean
 }
 
-/**
- * Controls the card-binding onboarding dialog that floats over the console.
- * Opened from onboarding entry points for new, unbound users or via the card-bind banner.
- */
-export const useOnboardingStore = create<OnboardingState>((set) => ({
-  open: false,
-  openOnboarding: () => set({ open: true }),
-  closeOnboarding: () => set({ open: false }),
-}))
+export function shouldOpenFirstRunTopupPrompt(
+  state: FirstRunTopupPromptState
+): boolean {
+  return (
+    state.firstRun &&
+    state.sentThisSession &&
+    state.hasCompletedAssistant &&
+    !state.promptShown &&
+    state.enableStripeCardBind === true &&
+    state.stripeCardBound === false
+  )
+}

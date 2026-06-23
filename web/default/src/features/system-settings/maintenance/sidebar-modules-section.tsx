@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import {
@@ -24,8 +24,10 @@ import {
   FormControl,
   FormDescription,
   FormField,
+  FormItem,
   FormLabel,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import {
   SettingsControlChildren,
@@ -36,16 +38,22 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
-import { useUpdateOption } from '../hooks/use-update-option'
+import { useUpdateOptionsBulk } from '../hooks/use-update-option'
+import type { UpdateOptionsRequest } from '../types'
 import {
   SIDEBAR_MODULES_DEFAULT,
   type SidebarModulesAdminConfig,
   serializeSidebarModulesAdmin,
 } from './config'
+import {
+  DEFAULT_PLAYGROUND_DEFAULT_MODEL,
+  resolvePlaygroundDefaultModelToSave,
+} from './sidebar-modules-utils'
 
 type SidebarModulesSectionProps = {
   config: SidebarModulesAdminConfig
   initialSerialized: string
+  playgroundDefaultModel: string
 }
 
 type SidebarFormValues = SidebarModulesAdminConfig
@@ -56,9 +64,15 @@ const toTitleCase = (value: string) =>
 export function SidebarModulesSection({
   config,
   initialSerialized,
+  playgroundDefaultModel,
 }: SidebarModulesSectionProps) {
   const { t } = useTranslation()
-  const updateOption = useUpdateOption()
+  const updateOptionsBulk = useUpdateOptionsBulk()
+  const initialPlaygroundDefaultModel = resolvePlaygroundDefaultModelToSave(
+    playgroundDefaultModel
+  )
+  const [currentPlaygroundDefaultModel, setCurrentPlaygroundDefaultModel] =
+    useState(initialPlaygroundDefaultModel)
 
   const sectionMeta: Record<string, { title: string; description: string }> = {
     chat: {
@@ -166,20 +180,41 @@ export function SidebarModulesSection({
     form.reset(formDefaults)
   }, [formDefaults, form])
 
+  useEffect(() => {
+    setCurrentPlaygroundDefaultModel(initialPlaygroundDefaultModel)
+  }, [initialPlaygroundDefaultModel])
+
   const onSubmit = async (values: SidebarFormValues) => {
     const serialized = serializeSidebarModulesAdmin(values)
-    if (serialized === initialSerialized) {
+    const nextPlaygroundDefaultModel = resolvePlaygroundDefaultModelToSave(
+      currentPlaygroundDefaultModel
+    )
+    if (
+      serialized === initialSerialized &&
+      nextPlaygroundDefaultModel === initialPlaygroundDefaultModel
+    ) {
       return
     }
 
-    await updateOption.mutateAsync({
-      key: 'SidebarModulesAdmin',
-      value: serialized,
-    })
+    const options: UpdateOptionsRequest['options'] = []
+    if (serialized !== initialSerialized) {
+      options.push({
+        key: 'SidebarModulesAdmin',
+        value: serialized,
+      })
+    }
+    if (nextPlaygroundDefaultModel !== initialPlaygroundDefaultModel) {
+      options.push({
+        key: 'PlaygroundDefaultModel',
+        value: nextPlaygroundDefaultModel,
+      })
+    }
+    await updateOptionsBulk.mutateAsync({ options })
   }
 
   const resetToDefault = () => {
     form.reset(SIDEBAR_MODULES_DEFAULT)
+    setCurrentPlaygroundDefaultModel(DEFAULT_PLAYGROUND_DEFAULT_MODEL)
   }
 
   const sections = Object.entries(config)
@@ -191,7 +226,7 @@ export function SidebarModulesSection({
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
             onReset={resetToDefault}
-            isSaving={updateOption.isPending}
+            isSaving={updateOptionsBulk.isPending}
             resetLabel='Reset to default'
             saveLabel='Save sidebar modules'
           />
@@ -235,32 +270,60 @@ export function SidebarModulesSection({
                       description: t('Custom module'),
                     }
                     return (
-                      <FormField
-                        key={`${sectionKey}.${moduleKey}`}
-                        control={form.control}
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        name={`${sectionKey}.${moduleKey}` as any}
-                        render={({ field }) => (
-                          <SettingsSwitchItem className='border-b-0 py-2'>
-                            <SettingsSwitchContent>
-                              <FormLabel>{moduleInfo.title}</FormLabel>
-                              <FormDescription>
-                                {moduleInfo.description}
-                              </FormDescription>
-                            </SettingsSwitchContent>
+                      <Fragment key={`${sectionKey}.${moduleKey}`}>
+                        <FormField
+                          control={form.control}
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          name={`${sectionKey}.${moduleKey}` as any}
+                          render={({ field }) => (
+                            <SettingsSwitchItem className='border-b-0 py-2'>
+                              <SettingsSwitchContent>
+                                <FormLabel>{moduleInfo.title}</FormLabel>
+                                <FormDescription>
+                                  {moduleInfo.description}
+                                </FormDescription>
+                              </SettingsSwitchContent>
+                              <FormControl>
+                                <Switch
+                                  checked={Boolean(field.value)}
+                                  onCheckedChange={field.onChange}
+                                  disabled={
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    !form.watch(`${sectionKey}.enabled` as any)
+                                  }
+                                />
+                              </FormControl>
+                            </SettingsSwitchItem>
+                          )}
+                        />
+                        {sectionKey === 'chat' && moduleKey === 'playground' ? (
+                          <FormItem className='md:col-span-2'>
+                            <FormLabel>
+                              {t('Playground default model')}
+                            </FormLabel>
                             <FormControl>
-                              <Switch
-                                checked={Boolean(field.value)}
-                                onCheckedChange={field.onChange}
+                              <Input
+                                value={currentPlaygroundDefaultModel}
+                                onChange={(event) =>
+                                  setCurrentPlaygroundDefaultModel(
+                                    event.target.value
+                                  )
+                                }
+                                placeholder='gpt-4o'
                                 disabled={
-                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                  !form.watch(`${sectionKey}.enabled` as any)
+                                  !form.watch('chat.enabled') ||
+                                  !form.watch('chat.playground')
                                 }
                               />
                             </FormControl>
-                          </SettingsSwitchItem>
-                        )}
-                      />
+                            <FormDescription>
+                              {t(
+                                'Used as the initial model for first-run Playground onboarding.'
+                              )}
+                            </FormDescription>
+                          </FormItem>
+                        ) : null}
+                      </Fragment>
                     )
                   })}
                 </SettingsControlChildren>

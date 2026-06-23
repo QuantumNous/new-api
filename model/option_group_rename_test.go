@@ -1,12 +1,17 @@
 package model
 
 import (
+	"context"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/glebarez/sqlite"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -123,6 +128,39 @@ func TestUpdateOptionsBulkRejectsInvalidAmountBonusConfig(t *testing.T) {
 	var persistedCount int64
 	require.NoError(t, DB.Model(&Option{}).Where("key = ?", "payment_setting.amount_bonus").Count(&persistedCount).Error)
 	require.Zero(t, persistedCount)
+}
+
+func TestUpdateOptionsBulkPublishesOptionsChange(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+	mr := miniredis.RunT(t)
+	previousRDB := common.RDB
+	previousRedisEnabled := common.RedisEnabled
+	common.RDB = redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	common.RedisEnabled = true
+	t.Cleanup(func() {
+		require.NoError(t, common.RDB.Close())
+		common.RDB = previousRDB
+		common.RedisEnabled = previousRedisEnabled
+	})
+
+	ctx := context.Background()
+	sub := common.RDB.Subscribe(ctx, common.ConfigChangedChannel)
+	defer sub.Close()
+	_, err := sub.Receive(ctx)
+	require.NoError(t, err)
+	ch := sub.Channel()
+
+	require.NoError(t, UpdateOptionsBulk(map[string]string{
+		"PlaygroundDefaultModel": "gpt-4o-mini",
+	}))
+
+	select {
+	case msg := <-ch:
+		require.Equal(t, common.ConfigChangedChannel, msg.Channel)
+		require.True(t, strings.Contains(msg.Payload, `"scope":"options"`), msg.Payload)
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected options change pubsub message")
+	}
 }
 
 func TestUpdateOptionValidatesAmountBonusLimitConfig(t *testing.T) {

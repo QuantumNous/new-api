@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
@@ -164,55 +165,33 @@ func GetTokenUsage(c *gin.Context) {
 	})
 }
 
-func AddToken(c *gin.Context) {
-	token := model.Token{}
-	err := c.ShouldBindJSON(&token)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+func validateTokenCreatePayload(c *gin.Context, token *model.Token) bool {
 	if len(token.Name) > 50 {
 		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
-		return
+		return false
 	}
 	// 非无限额度时，检查额度值是否超出有效范围
 	if !token.UnlimitedQuota {
 		if token.RemainQuota < 0 {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
-			return
+			return false
 		}
 		maxQuotaValue := int((1000000000 * common.QuotaPerUnit))
 		if token.RemainQuota > maxQuotaValue {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue})
-			return
+			return false
 		}
 	}
-	// 检查用户令牌数量是否已达上限
-	maxTokens := operation_setting.GetMaxUserTokens()
-	count, err := model.CountUserTokens(c.GetInt("id"))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if int(count) >= maxTokens {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": fmt.Sprintf("已达到最大令牌数量限制 (%d)", maxTokens),
-		})
-		return
-	}
-	key, err := common.GenerateKey()
-	if err != nil {
-		common.ApiErrorI18n(c, i18n.MsgTokenGenerateFailed)
-		common.SysLog("failed to generate token key: " + err.Error())
-		return
-	}
+	return true
+}
+
+func buildTokenForInsert(c *gin.Context, token model.Token, key string) model.Token {
 	// PLG (non-enterprise) users cannot pick a group — force every token onto plg.
 	if uc, ucErr := model.GetUserCache(c.GetInt("id")); ucErr == nil && !uc.IsEnterprise {
 		token.Group = plgGroup
 		token.CrossGroupRetry = false
 	}
-	cleanToken := model.Token{
+	return model.Token{
 		UserId:             c.GetInt("id"),
 		Name:               token.Name,
 		Key:                key,
@@ -227,8 +206,46 @@ func AddToken(c *gin.Context) {
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
 	}
-	err = cleanToken.Insert()
+}
+
+func applyInitialTokenDefaults(c *gin.Context, token *model.Token) {
+	if token == nil {
+		return
+	}
+	userCache, err := model.GetUserCache(c.GetInt("id"))
+	if err != nil || !userCache.IsEnterprise {
+		return
+	}
+	if setting.DefaultUseAutoGroup {
+		token.Group = "auto"
+		token.CrossGroupRetry = true
+	}
+}
+
+func AddToken(c *gin.Context) {
+	token := model.Token{}
+	err := c.ShouldBindJSON(&token)
 	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !validateTokenCreatePayload(c, &token) {
+		return
+	}
+	maxTokens := operation_setting.GetMaxUserTokens()
+	key, err := common.GenerateKey()
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgTokenGenerateFailed)
+		common.SysLog("failed to generate token key: " + err.Error())
+		return
+	}
+	cleanToken := buildTokenForInsert(c, token, key)
+	err = model.CreateUserToken(c.GetInt("id"), &cleanToken, maxTokens)
+	if err != nil {
+		if errors.Is(err, model.ErrUserTokenLimitReached) {
+			common.ApiErrorI18n(c, i18n.MsgTokenLimitReached, map[string]any{"Max": maxTokens})
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}
@@ -243,6 +260,45 @@ func AddToken(c *gin.Context) {
 			"key": key,
 		},
 	})
+}
+
+func EnsureInitialToken(c *gin.Context) {
+	token := model.Token{}
+	err := c.ShouldBindJSON(&token)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !validateTokenCreatePayload(c, &token) {
+		return
+	}
+	key, err := common.GenerateKey()
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgTokenGenerateFailed)
+		common.SysLog("failed to generate token key: " + err.Error())
+		return
+	}
+
+	cleanToken := buildTokenForInsert(c, token, key)
+	applyInitialTokenDefaults(c, &cleanToken)
+	maxTokens := operation_setting.GetMaxUserTokens()
+	createdToken, created, err := model.EnsureInitialUserToken(c.GetInt("id"), cleanToken, maxTokens)
+	if err != nil {
+		if errors.Is(err, model.ErrUserTokenLimitReached) {
+			common.ApiErrorI18n(c, i18n.MsgTokenLimitReached, map[string]any{"Max": maxTokens})
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	data := gin.H{
+		"created": created,
+	}
+	if createdToken != nil {
+		data["id"] = createdToken.Id
+		data["key"] = key
+	}
+	common.ApiSuccess(c, data)
 }
 
 func DeleteToken(c *gin.Context) {
