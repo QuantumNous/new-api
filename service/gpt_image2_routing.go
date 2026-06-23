@@ -313,18 +313,9 @@ func gptImage2ChannelMatchesPick(
 	case GptImage2ProfileOfficial:
 		return tier == GptImage2TierOfficial
 	case GptImage2ProfileStandard:
-		if tier == GptImage2TierStandard {
-			return true
-		}
-		if tier == GptImage2TierOfficial {
-			if forRaceHedge {
-				return true
-			}
-			if officialFallback && routingRetry >= autoCheapestPremiumFallbackRetry {
-				return true
-			}
-		}
-		return false
+		// Standard requests compete on user price across all enabled gpt-image-2 channels
+		// (e.g. roma-image #33 and Apimart-image #59), not only standard-tier upstreams.
+		return tier == GptImage2TierStandard || tier == GptImage2TierOfficial
 	default:
 		return true
 	}

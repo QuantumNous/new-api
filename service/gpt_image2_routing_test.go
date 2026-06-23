@@ -72,8 +72,6 @@ func TestGptImage2StandardOfficialFallbackRetry(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 	c.Set(contextKeyGptImage2Profile, string(GptImage2ProfileStandard))
-	c.Set(contextKeyGptImage2OfficialFB, true)
-	SetGptImage2RoutingRetry(c, autoCheapestPremiumFallbackRetry)
 
 	officialMapping := `{"gpt-image-2":"gpt-image-2-official"}`
 	official := &model.Channel{Id: 59, ModelMapping: &officialMapping}
