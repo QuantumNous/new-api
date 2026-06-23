@@ -869,6 +869,7 @@ func pollAsyncImageTask(c *gin.Context, info *relaycommon.RelayInfo, taskID stri
 	if cachedURL != "" {
 		c.Set("image_result_url", cachedURL)
 	}
+	c.Set(imagePollTaskIDContextKey, taskID)
 	openaiResp, _ := common.Marshal(map[string]interface{}{
 		"created": time.Now().Unix(),
 		"data":    []map[string]string{{"url": cachedURL}},
