@@ -420,6 +420,15 @@ V1 仅在下载时做一次性订阅校验。执行无服务端 entitlement。
 | `deprecated` | No for new users | No for new users or disabled prior users | Yes only when `user_enabled_skills.enabled=true` at use time | Limited | Used for phase-out; disabled users cannot re-enable unless Super Admin republishes |
 | `archived` | No | No | No | No except restore metadata by Super Admin | Hard unavailable |
 
+> **⚠ DR-66 staged deviation (current LIVE behavior):** the relay gate ships
+> **fail-closed for `deprecated`** — until DR-67 adds the use-time entitlement
+> check, a `deprecated` Skill returns `skill_not_published` for **all** callers,
+> including already-enabled users. This intentionally overrides the
+> "Executable by already-enabled user = Yes" cell above. DR-67 flips the
+> `deprecatedRuntimeEnabled` constant (together with the entitlement gate, in the
+> same PR) to restore the documented behavior. Source of truth:
+> `docs/tasks/dr-66-lifecycle-enabled-gate-prd.md` (decision D3).
+
 ### 5.2 Promotion Flags
 
 | Field | Purpose |
@@ -473,6 +482,13 @@ V1 仅在下载时做一次性订阅校验。执行无服务端 entitlement。
 | Existing disabled user | Deprecated Skill | Active | No | Cannot re-enable; show unavailable/retired state | `skill_not_published` |
 | Kids Session | Non-Kids-Safe Skill | Any | Any | Block before injection | `kids_mode_blocked` |
 | Normal Session | Kids Exclusive Skill | Any | Any | Block or hide | `kids_mode_blocked` |
+
+> **⚠ DR-66 staged deviation (current LIVE behavior):** the
+> "Existing enabled user / Deprecated Skill / … / Allow with warning / None" row
+> is **not yet live**. DR-66 fail-closes `deprecated` for every caller
+> (`skill_not_published`) until DR-67 adds the use-time entitlement check and
+> flips `deprecatedRuntimeEnabled` in the same PR. See
+> `docs/tasks/dr-66-lifecycle-enabled-gate-prd.md` (decision D3).
 
 ---
 
