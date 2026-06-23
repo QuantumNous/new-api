@@ -1,9 +1,9 @@
 {
   "translation": {
-    "Lowest entry to get started": "最低门槛，先开始用",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
+    "Lowest entry to get started": "最低门槛，先开始用",
     "Top up $10 → the <z>full $10 lands, zero fee</z> + bonus. On OpenRouter, $10 only loads $9.45.": "充 $10 → <z>全额 $10 到账，0 手续费</z> + 送 bonus。在 OpenRouter，$10 只到账 $9.45。",
     "Top up — zero fee →": "充值 — 0 手续费 →",
     "_copy": "_复制",
@@ -5089,8 +5089,6 @@
     "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "按充值金额配置赠送额度（JSON 对象）。数值单位与充值金额一致。",
     "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "为每个充值金额配置赠送额度。数值单位与充值金额一致。",
     "No rate-limit window was reset": "未重置任何限流窗口",
-    "Allow this user to see and select groups; PLG users are hidden from the group concept": "允许该用户查看和选择分组；PLG 用户将隐藏分组概念",
-    "Enterprise User": "企业用户",
     "Get ${{bonus}} free": "送 ${{bonus}}",
     "Create an API key": "创建 API 密钥",
     "Credit limit (optional)": "额度上限（可选）",

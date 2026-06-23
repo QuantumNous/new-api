@@ -64,15 +64,17 @@ type User struct {
 }
 
 func (user *User) ToBaseUser() *UserBase {
+	group := common.NormalizeUserIdentityGroup(user.Group)
 	cache := &UserBase{
 		Id:           user.Id,
-		Group:        user.Group,
+		Group:        group,
+		Role:         user.Role,
 		Quota:        user.Quota,
 		Status:       user.Status,
 		Username:     user.Username,
 		Setting:      user.Setting,
 		Email:        user.Email,
-		IsEnterprise: user.IsEnterprise,
+		IsEnterprise: common.IsEnterpriseIdentity(group, user.Role),
 	}
 	return cache
 }
@@ -398,13 +400,7 @@ func (user *User) Insert(inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
-	// New users default into the PLG group (groups hidden, forced plg). An explicit
-	// group (e.g. admin creating an enterprise user) is preserved; only empties fall back.
-	if user.Group == "" {
-		user.Group = "plg"
-	}
-	// Admins/root must keep group control — never silently demote them to PLG even if the
-	// caller didn't set the flag (the PLG enforcement keys off is_enterprise, not role).
+	user.Group = common.NormalizeUserIdentityGroup(user.Group)
 	if user.Role >= common.RoleAdminUser {
 		user.IsEnterprise = true
 	}
@@ -467,8 +463,8 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
+	user.Group = common.NormalizeUserIdentityGroup(user.Group)
 	user.AffCode = common.GetRandomString(4)
-	// Admins/root must keep group control — never silently demote them to PLG (see Insert).
 	if user.Role >= common.RoleAdminUser {
 		user.IsEnterprise = true
 	}
@@ -546,6 +542,8 @@ func (user *User) Edit(updatePassword bool) error {
 	}
 
 	newUser := *user
+	newUser.Group = common.NormalizeUserIdentityGroup(newUser.Group)
+	newUser.IsEnterprise = common.IsEnterpriseIdentity(newUser.Group, newUser.Role)
 	updates := map[string]interface{}{
 		"username":      newUser.Username,
 		"display_name":  newUser.DisplayName,
@@ -563,14 +561,16 @@ func (user *User) Edit(updatePassword bool) error {
 	}
 
 	// Update cache
+	if err = DB.First(user, user.Id).Error; err != nil {
+		return err
+	}
 	return updateUserCache(*user)
 }
 
-// backfillEnterpriseFlag runs exactly once (gated by an option marker). It marks every
-// pre-existing user as enterprise so legacy users keep full group visibility after the PLG
-// rollout — new users (created after this runs) default to is_enterprise=false (forced plg).
+// backfillEnterpriseFlag is kept for the existing InitDB call site. It now performs
+// the issue-182 compatibility migration: legacy/default identity users become PLG.
 func backfillEnterpriseFlag() error {
-	const flagKey = "PlgEnterpriseBackfilled"
+	const flagKey = "PlgDefaultGroupMigrated"
 	var cnt int64
 	// `key` is a reserved word in MySQL — must use the DB-specific quoted column
 	// (commonKeyCol, set by initCol() before InitDB runs). A raw "key = ?" parses on
@@ -580,14 +580,116 @@ func backfillEnterpriseFlag() error {
 		return err
 	}
 	if cnt > 0 {
-		return nil // already backfilled
+		return nil
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&User{}).Where("is_enterprise = ?", false).Update("is_enterprise", true).Error; err != nil {
+		if err := tx.Model(&User{}).
+			Where(commonGroupCol+" = ? OR "+commonGroupCol+" = ?", "", common.LegacyDefaultGroup).
+			Updates(map[string]interface{}{
+				"group":         common.PLGGroup,
+				"is_enterprise": false,
+			}).Error; err != nil {
+			return err
+		}
+		for _, key := range []string{"TopupGroupRatio", "GroupRatio", "group_ratio_setting.group_ratio"} {
+			if err := migrateLegacyDefaultFlatRatioOption(tx, key); err != nil {
+				return err
+			}
+		}
+		for _, key := range []string{"GroupGroupRatio", "group_ratio_setting.group_group_ratio"} {
+			if err := migrateLegacyDefaultNestedFloatOption(tx, key); err != nil {
+				return err
+			}
+		}
+		if err := migrateLegacyDefaultNestedStringOption(tx, "group_ratio_setting.group_special_usable_group"); err != nil {
 			return err
 		}
 		return tx.Create(&Option{Key: flagKey, Value: "true"}).Error
 	})
+}
+
+func migrateLegacyDefaultFlatRatioOption(tx *gorm.DB, key string) error {
+	return migrateLegacyDefaultOption(tx, key, func(value string) (string, bool, error) {
+		ratios := make(map[string]float64)
+		if err := common.UnmarshalJsonStr(value, &ratios); err != nil {
+			return "", false, err
+		}
+		defaultRatio, ok := ratios[common.LegacyDefaultGroup]
+		if !ok {
+			return "", false, nil
+		}
+		if _, hasPLG := ratios[common.PLGGroup]; !hasPLG {
+			ratios[common.PLGGroup] = defaultRatio
+		}
+		delete(ratios, common.LegacyDefaultGroup)
+		data, err := common.Marshal(ratios)
+		return string(data), true, err
+	})
+}
+
+func migrateLegacyDefaultNestedFloatOption(tx *gorm.DB, key string) error {
+	return migrateLegacyDefaultOption(tx, key, func(value string) (string, bool, error) {
+		ratios := make(map[string]map[string]float64)
+		if err := common.UnmarshalJsonStr(value, &ratios); err != nil {
+			return "", false, err
+		}
+		defaultRatios, ok := ratios[common.LegacyDefaultGroup]
+		if !ok {
+			return "", false, nil
+		}
+		if plgRatios, hasPLG := ratios[common.PLGGroup]; hasPLG {
+			for group, ratio := range defaultRatios {
+				if _, exists := plgRatios[group]; !exists {
+					plgRatios[group] = ratio
+				}
+			}
+		} else {
+			ratios[common.PLGGroup] = defaultRatios
+		}
+		delete(ratios, common.LegacyDefaultGroup)
+		data, err := common.Marshal(ratios)
+		return string(data), true, err
+	})
+}
+
+func migrateLegacyDefaultNestedStringOption(tx *gorm.DB, key string) error {
+	return migrateLegacyDefaultOption(tx, key, func(value string) (string, bool, error) {
+		groups := make(map[string]map[string]string)
+		if err := common.UnmarshalJsonStr(value, &groups); err != nil {
+			return "", false, err
+		}
+		defaultGroups, ok := groups[common.LegacyDefaultGroup]
+		if !ok {
+			return "", false, nil
+		}
+		if plgGroups, hasPLG := groups[common.PLGGroup]; hasPLG {
+			for group, desc := range defaultGroups {
+				if _, exists := plgGroups[group]; !exists {
+					plgGroups[group] = desc
+				}
+			}
+		} else {
+			groups[common.PLGGroup] = defaultGroups
+		}
+		delete(groups, common.LegacyDefaultGroup)
+		data, err := common.Marshal(groups)
+		return string(data), true, err
+	})
+}
+
+func migrateLegacyDefaultOption(tx *gorm.DB, key string, migrate func(string) (string, bool, error)) error {
+	var option Option
+	if err := tx.Where(commonKeyCol+" = ?", key).First(&option).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	value, changed, err := migrate(option.Value)
+	if err != nil || !changed {
+		return err
+	}
+	return tx.Model(&option).Update("value", value).Error
 }
 
 func (user *User) ClearBinding(bindingType string) error {

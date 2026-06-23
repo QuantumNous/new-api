@@ -111,7 +111,7 @@ export interface UserFormData {
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
-  is_enterprise?: boolean // Only used when updating user
+  is_enterprise?: boolean // Legacy compatibility only; identity is derived from group.
 }
 
 export type ManageUserAction =

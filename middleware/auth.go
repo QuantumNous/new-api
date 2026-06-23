@@ -22,10 +22,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// plgGroup is the single group every non-enterprise (PLG) user is served from.
-// Mirrors the constant of the same name in the controller package.
-const plgGroup = "plg"
-
 func validUserInfo(username string, role int) bool {
 	// check username is empty
 	if strings.TrimSpace(username) == "" {
@@ -388,8 +384,8 @@ func TokenAuth() func(c *gin.Context) {
 		// PLG (non-enterprise) users are always served from the plg group, ignoring any
 		// group carried on the token. Defense-in-depth: the token API already forces plg,
 		// this guarantees it even for tokens minted before the flag flipped.
-		if !userCache.IsEnterprise {
-			userGroup = plgGroup
+		if !common.IsEnterpriseIdentity(userCache.Group, userCache.Role) {
+			userGroup = common.PLGGroup
 			tokenGroup = ""
 		}
 		if tokenGroup != "" {

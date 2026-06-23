@@ -1,9 +1,9 @@
 {
   "translation": {
-    "Lowest entry to get started": "Lowest entry to get started",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
+    "Lowest entry to get started": "Lowest entry to get started",
     "Top up $10 → the <z>full $10 lands, zero fee</z> + bonus. On OpenRouter, $10 only loads $9.45.": "Top up $10 → the <z>full $10 lands, zero fee</z> + bonus. On OpenRouter, $10 only loads $9.45.",
     "Top up — zero fee →": "Top up — zero fee →",
     "_copy": "_copy",
@@ -5089,8 +5089,6 @@
     "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.",
     "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.",
     "No rate-limit window was reset": "No rate-limit window was reset",
-    "Allow this user to see and select groups; PLG users are hidden from the group concept": "Allow this user to see and select groups; PLG users are hidden from the group concept",
-    "Enterprise User": "Enterprise User",
     "Get ${{bonus}} free": "Get ${{bonus}} free",
     "Create an API key": "Create an API key",
     "Credit limit (optional)": "Credit limit (optional)",

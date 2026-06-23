@@ -1,9 +1,9 @@
 {
   "translation": {
-    "Lowest entry to get started": "Mức thấp nhất để bắt đầu",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
+    "Lowest entry to get started": "Mức thấp nhất để bắt đầu",
     "Top up $10 → the <z>full $10 lands, zero fee</z> + bonus. On OpenRouter, $10 only loads $9.45.": "Nạp $10 → <z>nhận đủ $10, miễn phí</z> + thưởng. Trên OpenRouter, $10 chỉ vào $9.45.",
     "Top up — zero fee →": "Nạp — miễn phí →",
     "_copy": "_bản sao",
@@ -5089,8 +5089,6 @@
     "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Bản đồ tín dụng thưởng theo số tiền nạp (đối tượng JSON). Giá trị dùng cùng đơn vị với số tiền nạp.",
     "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Cấu hình tín dụng thưởng cho từng số tiền nạp. Giá trị dùng cùng đơn vị với số tiền nạp.",
     "No rate-limit window was reset": "Không có cửa sổ giới hạn tốc độ nào được đặt lại",
-    "Allow this user to see and select groups; PLG users are hidden from the group concept": "Cho phép người dùng này xem và chọn nhóm; người dùng PLG sẽ ẩn khái niệm nhóm",
-    "Enterprise User": "Người dùng doanh nghiệp",
     "Get ${{bonus}} free": "Tặng ${{bonus}}",
     "Create an API key": "Tạo khóa API",
     "Credit limit (optional)": "Giới hạn tín dụng (tùy chọn)",

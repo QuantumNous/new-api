@@ -1,9 +1,9 @@
 {
   "translation": {
-    "Lowest entry to get started": "Entrada mais baixa para começar",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
+    "Lowest entry to get started": "Entrada mais baixa para começar",
     "Top up $10 → the <z>full $10 lands, zero fee</z> + bonus. On OpenRouter, $10 only loads $9.45.": "Recarregue $10 → <z>os $10 completos entram, sem taxa</z> + bônus. No OpenRouter, $10 só creditam $9.45.",
     "Top up — zero fee →": "Recarregar — sem taxa →",
     "_copy": "_copiar",
@@ -5089,8 +5089,6 @@
     "Bonus credit map by recharge amount (JSON object). Values use the same unit as recharge amounts.": "Mapa de crédito bônus por valor de recarga (objeto JSON). Os valores usam a mesma unidade dos valores de recarga.",
     "Configure bonus credit for each recharge amount. Values use the same unit as recharge amounts.": "Configure crédito bônus para cada valor de recarga. Os valores usam a mesma unidade dos valores de recarga.",
     "No rate-limit window was reset": "Nenhuma janela de limite de taxa foi redefinida",
-    "Allow this user to see and select groups; PLG users are hidden from the group concept": "Permitir que este usuário veja e selecione grupos; o conceito de grupo fica oculto para usuários PLG",
-    "Enterprise User": "Usuário empresarial",
     "Get ${{bonus}} free": "${{bonus}} grátis",
     "Create an API key": "Criar uma chave de API",
     "Credit limit (optional)": "Limite de crédito (opcional)",

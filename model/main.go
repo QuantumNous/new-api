@@ -200,13 +200,9 @@ func InitDB() (err error) {
 		if err != nil {
 			return err
 		}
-		// One-time: mark legacy users enterprise so they keep group visibility post-PLG rollout.
-		// Fail fast on error: a swallowed failure leaves every legacy user is_enterprise=false,
-		// i.e. silently forced onto the plg group (their custom-group tokens get overridden).
-		// The option marker is only written inside a successful transaction, so a crash here is
-		// safe — the next startup retries the backfill.
+		// One-time: merge the legacy default identity group into plg.
 		if err := backfillEnterpriseFlag(); err != nil {
-			common.FatalLog("enterprise flag backfill failed: " + err.Error())
+			common.FatalLog("PLG identity group migration failed: " + err.Error())
 		}
 		return nil
 	} else {
