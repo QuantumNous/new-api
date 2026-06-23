@@ -45,6 +45,7 @@
     "i18next": "^26.2.0",
     "i18next-browser-languagedetector": "^8.2.1",
     "input-otp": "^1.4.2",
+    "katex": "^0.17.0",
     "lucide-react": "^1.16.0",
     "marked": "^18.0.5",
     "motion": "^12.40.0",
