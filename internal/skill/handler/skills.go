@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	skillapi "github.com/QuantumNous/new-api/internal/skill/api"
@@ -68,6 +70,15 @@ var kidsApprovalFilterValues = map[string]struct{}{
 	string(enums.KidsApprovalStatusRejected):          {},
 	string(enums.KidsApprovalStatusRevoked):           {},
 }
+
+const (
+	createSkillSlugMaxLength             = 128
+	createSkillNameMaxLength             = 160
+	createSkillShortDescriptionMaxLength = 280
+	createSkillCategoryMaxLength         = 64
+)
+
+var createSkillSlugPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,126}[a-z0-9])?$`)
 
 type PublicSkill struct {
 	ID                   string             `json:"id"`
@@ -908,7 +919,11 @@ func adminSkillFromModel(s skillmodel.Skill) AdminSkill {
 }
 
 func rawJSON(value skillmodel.SkillJSONB) json.RawMessage {
-	if len(value) == 0 || !json.Valid(value) {
+	if len(value) == 0 {
+		return json.RawMessage("[]")
+	}
+	var decoded any
+	if err := common.Unmarshal(value, &decoded); err != nil {
 		return json.RawMessage("[]")
 	}
 	return json.RawMessage(value)
@@ -948,6 +963,7 @@ type createSkillRequest struct {
 	Category          string                 `json:"category"`
 	RequiredPlan      enums.RequiredPlan     `json:"required_plan"`
 	MonetizationType  enums.MonetizationType `json:"monetization_type"`
+	PriceMarkup       *float64               `json:"price_markup"`
 	FreeQuotaPerMonth *int                   `json:"free_quota_per_month"`
 	MaxInputTokens    *int                   `json:"max_input_tokens"`
 }
@@ -996,6 +1012,7 @@ func CreateAdminSkill(c *gin.Context) {
 		ExampleOutputs:       skillmodel.SkillJSONB(`[]`),
 		RequiredPlan:         req.RequiredPlan,
 		MonetizationType:     req.MonetizationType,
+		PriceMarkup:          createSkillPriceMarkup(req),
 		FreeQuotaPerMonth:    req.FreeQuotaPerMonth,
 		MaxInputTokens:       req.MaxInputTokens,
 		ModelWhitelist:       skillmodel.SkillJSONB(`[]`),
@@ -1004,7 +1021,13 @@ func CreateAdminSkill(c *gin.Context) {
 		AIDisclosureRequired: true,
 		CreatedBy:            creatorID,
 	}
-	if err := db.Create(&s).Error; err != nil {
+	role := strconv.Itoa(c.GetInt("role"))
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&s).Error; err != nil {
+			return err
+		}
+		return writeSkillCreateAuditLog(tx, c, s.ID, creatorID, role, skillCreateChangedFields(req), skillCreationAuditAfter(s))
+	}); err != nil {
 		if isUniqueConstraintError(err) {
 			writeSkillConflict(c, "Skill slug already exists.")
 			return
@@ -1032,18 +1055,32 @@ func validateCreateSkillRequest(req createSkillRequest) string {
 	switch {
 	case req.Slug == "":
 		return "MISSING_SLUG"
+	case len(req.Slug) > createSkillSlugMaxLength:
+		return "SLUG_TOO_LONG"
+	case !createSkillSlugPattern.MatchString(req.Slug):
+		return "INVALID_SLUG_FORMAT"
 	case req.Name == "":
 		return "MISSING_NAME"
+	case utf8.RuneCountInString(req.Name) > createSkillNameMaxLength:
+		return "NAME_TOO_LONG"
 	case req.ShortDescription == "":
 		return "MISSING_SHORT_DESCRIPTION"
+	case utf8.RuneCountInString(req.ShortDescription) > createSkillShortDescriptionMaxLength:
+		return "SHORT_DESCRIPTION_TOO_LONG"
 	case req.Description == "":
 		return "MISSING_DESCRIPTION"
 	case req.Category == "":
 		return "MISSING_CATEGORY"
+	case utf8.RuneCountInString(req.Category) > createSkillCategoryMaxLength:
+		return "CATEGORY_TOO_LONG"
 	case !req.RequiredPlan.Valid():
 		return "INVALID_REQUIRED_PLAN"
 	case !req.MonetizationType.Valid():
 		return "INVALID_MONETIZATION_TYPE"
+	case req.MonetizationType == enums.MonetizationTypeTokenMarkup && (req.PriceMarkup == nil || *req.PriceMarkup <= 0):
+		return "PRICE_MARKUP_REQUIRED"
+	case req.MonetizationType != enums.MonetizationTypeTokenMarkup && req.PriceMarkup != nil && *req.PriceMarkup != 0:
+		return "PRICE_MARKUP_NOT_ALLOWED"
 	case req.FreeQuotaPerMonth != nil && *req.FreeQuotaPerMonth < 0:
 		return "INVALID_FREE_QUOTA_PER_MONTH"
 	case req.MaxInputTokens != nil && *req.MaxInputTokens <= 0:
@@ -1061,6 +1098,13 @@ func createSkillRequiresMaxInputTokens(req createSkillRequest) bool {
 		req.FreeQuotaPerMonth != nil
 }
 
+func createSkillPriceMarkup(req createSkillRequest) float64 {
+	if req.PriceMarkup != nil {
+		return *req.PriceMarkup
+	}
+	return 0
+}
+
 func writeCreateSkillValidationError(c *gin.Context, reason string, message string) {
 	skillapi.Error(c, errcodes.ErrInvalidRequest, message, gin.H{"reason": reason})
 }
@@ -1068,11 +1112,72 @@ func writeCreateSkillValidationError(c *gin.Context, reason string, message stri
 func writeSkillConflict(c *gin.Context, message string) {
 	c.JSON(http.StatusConflict, skillapi.ErrorEnvelope{
 		Error: skillapi.ErrorBody{
-			Code:      errcodes.ErrInvalidRequest,
+			Code:      errcodes.ErrSkillConflict,
 			Message:   message,
 			Detail:    gin.H{"reason": "DUPLICATE_SLUG"},
 			RequestID: skillapi.RequestID(c),
 		},
+	})
+}
+
+func writeSkillCreateAuditLog(tx *gorm.DB, c *gin.Context, skillID string, actorID int64, actorRole string, changedFields skillmodel.SkillJSONB, afterValue *skillmodel.SkillJSONB) error {
+	requestID := skillapi.RequestID(c)
+	ipAddress := c.ClientIP()
+	userAgent := c.Request.UserAgent()
+	return tx.Create(&skillmodel.SkillAuditLog{
+		SkillID:       &skillID,
+		ActorID:       actorID,
+		ActorRole:     actorRole,
+		Action:        "skill_created",
+		ChangedFields: changedFields,
+		AfterValue:    afterValue,
+		RequestID:     &requestID,
+		IPAddress:     &ipAddress,
+		UserAgent:     &userAgent,
+	}).Error
+}
+
+func skillCreateChangedFields(req createSkillRequest) skillmodel.SkillJSONB {
+	fields := []string{
+		"slug",
+		"status",
+		"category",
+		"name",
+		"short_description",
+		"description",
+		"required_plan",
+		"monetization_type",
+	}
+	if req.MonetizationType == enums.MonetizationTypeTokenMarkup {
+		fields = append(fields, "price_markup")
+	}
+	if req.FreeQuotaPerMonth != nil {
+		fields = append(fields, "free_quota_per_month")
+	}
+	if req.MaxInputTokens != nil {
+		fields = append(fields, "max_input_tokens")
+	}
+	raw, err := common.Marshal(fields)
+	if err != nil {
+		return skillmodel.SkillJSONB(`[]`)
+	}
+	return skillmodel.SkillJSONB(raw)
+}
+
+func skillCreationAuditAfter(s skillmodel.Skill) *skillmodel.SkillJSONB {
+	return auditJSON(map[string]any{
+		"skill_id":             s.ID,
+		"slug":                 s.Slug,
+		"status":               s.Status,
+		"category":             s.Category,
+		"name":                 s.Name,
+		"short_description":    s.ShortDescription,
+		"description_sha256":   sha256Hex([]byte(s.Description)),
+		"required_plan":        s.RequiredPlan,
+		"monetization_type":    s.MonetizationType,
+		"price_markup":         s.PriceMarkup,
+		"free_quota_per_month": s.FreeQuotaPerMonth,
+		"max_input_tokens":     s.MaxInputTokens,
 	})
 }
 

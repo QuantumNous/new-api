@@ -12,8 +12,8 @@
 
 | Decision | V1 UX Baseline |
 |---|---|
-| Distribution & execution (D-09) | Marketplace offers downloadable SKILL.md-compatible zip packages; Detail shows a Download CTA with installation instructions ("Extract to .claude/skills/ and use /skillname"). DeepRouter does not execute Skills. Admin Preview retained for Admin testing only |
-| No runtime dependency | Skills run locally with any LLM; Detail page must NOT state "requires DeepRouter key to run"; instead show "Works with Claude Code and other compatible tools" |
+| Distribution & execution (D-09 / R2) | Marketplace offers downloadable SKILL.md-compatible zip packages; Detail shows a Download CTA with installation instructions ("Extract to .claude/skills/ and use /skillname"). Running a downloaded Skill routes its work through DeepRouter and requires a DeepRouter API key. Admin Preview retained for Admin testing only |
+| Runtime dependency (D-09 / R2) | Detail page MUST state that running the Skill requires a DeepRouter API key and routes through DeepRouter; downloaded packages depend on DeepRouter at run time (the moat is the runtime dependency + per-run auth/billing, not prompt secrecy) |
 | Kids Mode | Closed beta / feature-flagged by default until Product + Safety declare GA |
 | Kids UI when flag off | Hide Kids filters and Kids-exclusive browsing entry from normal users |
 | Kids UI when flag on | Apply all Kids blocked, Kids Safe, Kids Exclusive states in this spec |
@@ -134,12 +134,12 @@ Help users discover official Skills and understand whether each Skill is usable 
 
 | Scenario | Card / Page UX | Primary CTA |
 |---|---|---|
-| Anonymous + Free Skill | Public card, no enabled state | Log in to enable |
+| Anonymous + Free Skill | Public card, no enabled state | Log in to download |
 | Anonymous + Pro Skill | Public card with Pro badge | Log in to continue |
-| Logged-in + Free + not enabled | Available | Enable |
-| Logged-in + Free + enabled | Enabled badge | Use in Playground |
+| Logged-in + Free + not downloaded | Available | View (opens Detail → Download) |
+| Logged-in + Free + downloaded | Downloaded badge | View (opens Detail → Download) |
 | Logged-in + Pro + Free user | Locked with Pro badge | Upgrade |
-| Logged-in + Pro + Pro user | Available | Enable or Use |
+| Logged-in + Pro + Pro user | Available | View (opens Detail → Download) |
 | Subscription expired | Locked with renewal reason | Renew |
 | Enterprise Skill + non-enterprise | Enterprise badge | Contact sales |
 | Quota exceeded | Locked state with quota message and reset time when available | Upgrade |
@@ -191,25 +191,25 @@ Help users understand what the Skill does, what input it needs, what output to e
 
 | User / Skill State | Primary CTA | Secondary CTA | Notes |
 |---|---|---|---|
-| Anonymous | Log in to enable | Back to Marketplace | Preserve return URL |
-| Logged-in + not enabled + allowed | Enable Skill | Back | After enable, show Use in Playground |
-| Enabled + executable | Use in Playground | Disable | Preselect Skill in Playground |
-| Free user + Pro Skill | Upgrade to Pro | Back | Do not enable automatically unless Product decides |
+| Anonymous | Log in to download | Back to Marketplace | Preserve return URL |
+| Logged-in + allowed | Download | Back | Download returns the zip; running it requires a DeepRouter API key |
+| Free user + Pro Skill | Upgrade to Pro | Back | No download until upgraded |
 | Expired subscription | Renew membership | Back | Skill remains in My Skills |
-| Enterprise Skill + not entitled | Contact sales | Back | No fake enable state |
+| Enterprise Skill + not entitled | Contact sales | Back | No fake download state |
 | Quota exceeded | Upgrade | Back | Show quota reset if available; may preview Pro value without implying entitlement |
-| Deprecated + enabled | Use with warning | Disable | Show deprecation notice |
-| Deprecated + not enabled | Unavailable | Back | No enable CTA |
-| Archived | Unavailable | Back | No execution CTA |
+| Deprecated | Unavailable | Back | Backend exposes published Skills only; no download CTA unless a future backend policy explicitly allows deprecated downloads (not in DR-58 scope) |
+| Archived | Unavailable | Back | No download CTA |
 | Kids blocked | Not available in Kids Mode | Back | No switch-mode CTA in V1 |
+| Download auth failure | Sign in again | Back | `AUTH_REQUIRED` from the download endpoint = web session expired, NOT a missing runner key |
 
 #### 4.2.4 Privacy and Runtime-Dependency Copy
 
-Use concise user-facing copy:
+Use concise user-facing copy (R2 — must state the runtime dependency):
 
 ```text
 Download this Skill to use it in your own environment.
-Extract the zip to .claude/skills/ and use /skillname in Claude Code — or any compatible tool.
+Running this Skill requires a DeepRouter API key; it routes its work through DeepRouter.
+Extract the zip to .claude/skills/ and use /skillname in Claude Code.
 Generated results are AI-assisted and should be reviewed before use.
 ```
 
@@ -217,7 +217,7 @@ Installation instruction block (shown after download):
 ```text
 1. Extract the zip to your .claude/skills/ directory
 2. Type /skillname in Claude Code to use it
-3. Works with any Claude Code-compatible tool
+3. Running it still requires a valid DeepRouter API key
 ```
 
 For China-facing surfaces, include required AI-generated content disclosure as product UI text, not model output.
@@ -588,10 +588,10 @@ No tracking payload may include `instruction_template` or Kids sensitive raw inp
 
 ### 10.1 P0 UX Acceptance
 
-1. Anonymous users can browse public Marketplace and Skill Detail, but cannot download (Download CTA routes to login/signup).
+1. Anonymous users can browse public Marketplace and Skill Detail, but cannot download (Download CTA routes to login/signup). *(V1: not yet — Marketplace and Detail are authenticated-only; anonymous browse is a deferred follow-up.)*
 2. Logged-in users can download, remove from My Skills, and view My Skills.
 3. Marketplace cards show plan, availability, and correct CTA for Free/Pro/Enterprise states.
-4. Skill Detail shows examples, runtime-dependency copy (needs a DeepRouter key), AI disclosure, and correct Download CTA.
+4. Skill Detail shows runtime-dependency copy (needs a DeepRouter key), AI disclosure, and correct Download CTA. *(V1: examples/input hints deferred — not exposed by `PublicSkillDetail`; DR-53 follow-up.)*
 5. The downloaded package surfaces lock/error states and prompts signup on `AUTH_REQUIRED`.
 6. Archived Skills have no enable/use CTA.
 7. Deprecated enabled Skills appear only in My Skills and show warning; execution CTA appears only when backend returns executable state.

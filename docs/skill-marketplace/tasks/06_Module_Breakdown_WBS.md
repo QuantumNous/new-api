@@ -262,11 +262,11 @@ Each module must be implemented with this contract:
 - Marketplace list with public fields only.
 - Search by public name/description only.
 - Category and plan filters.
-- Skill Detail with examples, input hints, plan, availability, runtime-dependency note (needs a DeepRouter key to run), Download CTA, AI disclosure.
+- Skill Detail with plan, availability, runtime-dependency note (needs a DeepRouter key to run), Download CTA, AI disclosure. *(V1: examples/input hints deferred — not exposed by `PublicSkillDetail`; DR-53 follow-up.)*
 - Download / remove-from-My-Skills flows (download record = `user_enabled_skills`).
 - My Skills with downloaded, executable, locked, deprecated, archived states.
 - Error-code-to-UX-state mapping.
-- Anonymous browsing with login CTA.
+- Anonymous browsing with login CTA. *(V1: deferred — Marketplace/Detail are authenticated-only; separate route-opening ticket.)*
 - Hide Kids UI when Kids flag is off.
 
 **P0 Boundary**

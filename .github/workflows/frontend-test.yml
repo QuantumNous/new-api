@@ -1,0 +1,42 @@
+# Frontend Tests — runs the web/default Vitest suite + typecheck on PRs that
+# touch the frontend. Path-filtered so backend-only PRs are unaffected.
+#
+# NOT a required status check yet (Track B plan B8): let it run green and prove
+# stable on PRs first, then a repo admin can mark it required in branch
+# protection. Kept lean (typecheck + vitest) to stay fast and deterministic,
+# matching the philosophy of unit-test.yml.
+name: Frontend Tests
+
+on:
+  pull_request:
+    paths:
+      - 'web/default/**'
+  push:
+    branches: [main]
+    paths:
+      - 'web/default/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-test:
+    name: typecheck + vitest (web/default)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/default
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Unit tests (Vitest)
+        run: bun run test
