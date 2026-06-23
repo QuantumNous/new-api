@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -28,6 +28,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog } from '@/components/dialog'
+import { AliyunCaptcha } from '@/components/aliyun-captcha'
+import type { AliyunCaptchaHandle } from '@/components/aliyun-captcha'
+import { useAliyunCaptcha } from '@/features/auth/hooks/use-aliyun-captcha'
 import { deleteUserAccount } from '../../api'
 
 // ============================================================================
@@ -51,6 +54,9 @@ export function DeleteAccountDialog({
   const [loading, setLoading] = useState(false)
   const [confirmation, setConfirmation] = useState('')
 
+  const captchaRef = useRef<AliyunCaptchaHandle>(null)
+  const captchaConfig = useAliyunCaptcha('delete_account')
+
   const handleDelete = async () => {
     if (confirmation !== username) {
       toast.error(t('Username confirmation does not match'))
@@ -59,7 +65,21 @@ export function DeleteAccountDialog({
 
     try {
       setLoading(true)
-      const response = await deleteUserAccount()
+
+      let captchaVerifyParam: string | undefined
+      if (captchaConfig.enabled) {
+        try {
+          captchaVerifyParam = await captchaRef.current?.execute()
+          if (!captchaVerifyParam) {
+            return
+          }
+        } catch {
+          // Captcha cancelled or failed
+          return
+        }
+      }
+
+      const response = await deleteUserAccount(undefined, captchaVerifyParam)
 
       if (response.success) {
         toast.success(t('Account deleted successfully'))
@@ -94,7 +114,16 @@ export function DeleteAccountDialog({
   }
 
   return (
-    <Dialog
+    <>
+      <AliyunCaptcha
+        ref={captchaRef}
+        enabled={captchaConfig.enabled}
+        region={captchaConfig.region}
+        prefix={captchaConfig.prefix}
+        sceneId={captchaConfig.sceneId}
+      />
+
+      <Dialog
       open={open}
       onOpenChange={handleOpenChange}
       title={
@@ -156,5 +185,6 @@ export function DeleteAccountDialog({
         </div>
       </div>
     </Dialog>
+    </>
   )
 }

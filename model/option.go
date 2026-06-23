@@ -133,9 +133,7 @@ func InitOptionMap() {
 	common.OptionMap["ESARegion"] = common.ESARegion
 	common.OptionMap["ESAPrefix"] = common.ESAPrefix
 	common.OptionMap["ESACaptchaLoginSceneId"] = common.ESACaptchaLoginSceneId
-	common.OptionMap["ESACaptchaRegisterSceneId"] = common.ESACaptchaRegisterSceneId
 	common.OptionMap["ESACaptchaResetPasswordSceneId"] = common.ESACaptchaResetPasswordSceneId
-	common.OptionMap["ESACaptchaChangePasswordSceneId"] = common.ESACaptchaChangePasswordSceneId
 	common.OptionMap["ESACaptchaDeleteAccountSceneId"] = common.ESACaptchaDeleteAccountSceneId
 	common.OptionMap["ESACaptchaCheckinSceneId"] = common.ESACaptchaCheckinSceneId
 	common.OptionMap["ESACaptchaVerificationSceneId"] = common.ESACaptchaVerificationSceneId
@@ -515,12 +513,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.ESAPrefix = value
 	case "ESACaptchaLoginSceneId":
 		common.ESACaptchaLoginSceneId = value
-	case "ESACaptchaRegisterSceneId":
-		common.ESACaptchaRegisterSceneId = value
 	case "ESACaptchaResetPasswordSceneId":
 		common.ESACaptchaResetPasswordSceneId = value
-	case "ESACaptchaChangePasswordSceneId":
-		common.ESACaptchaChangePasswordSceneId = value
 	case "ESACaptchaDeleteAccountSceneId":
 		common.ESACaptchaDeleteAccountSceneId = value
 	case "ESACaptchaCheckinSceneId":

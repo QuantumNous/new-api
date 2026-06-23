@@ -47,9 +47,7 @@ const botProtectionSchema = z.object({
   ESARegion: z.string().optional(),
   ESAPrefix: z.string().optional(),
   ESACaptchaLoginSceneId: z.string().optional(),
-  ESACaptchaRegisterSceneId: z.string().optional(),
   ESACaptchaResetPasswordSceneId: z.string().optional(),
-  ESACaptchaChangePasswordSceneId: z.string().optional(),
   ESACaptchaDeleteAccountSceneId: z.string().optional(),
   ESACaptchaCheckinSceneId: z.string().optional(),
   ESACaptchaVerificationSceneId: z.string().optional(),
@@ -65,8 +63,6 @@ const sceneFields = [
   ['ESACaptchaLoginSceneId', 'Login scene ID'],
   ['ESACaptchaVerificationSceneId', 'Email verification scene ID'],
   ['ESACaptchaResetPasswordSceneId', 'Password reset email scene ID'],
-  ['ESACaptchaRegisterSceneId', 'Register scene ID'],
-  ['ESACaptchaChangePasswordSceneId', 'Change password scene ID'],
   ['ESACaptchaDeleteAccountSceneId', 'Delete account scene ID'],
   ['ESACaptchaCheckinSceneId', 'Check-in scene ID'],
 ] as const

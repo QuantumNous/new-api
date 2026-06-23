@@ -73,9 +73,16 @@ export async function updateUserLanguage(
  * Delete user account
  */
 export async function deleteUserAccount(
-  data?: DeleteAccountRequest
+  data?: DeleteAccountRequest,
+  captchaVerifyParam?: string
 ): Promise<ApiResponse> {
-  const res = await api.delete('/api/user/self', { data })
+  const params = new URLSearchParams()
+  if (captchaVerifyParam) {
+    params.append('captcha_verify_param', captchaVerifyParam)
+  }
+  const queryString = params.toString()
+  const url = queryString ? `/api/user/self?${queryString}` : '/api/user/self'
+  const res = await api.delete(url, { data })
   return res.data
 }
 
@@ -176,10 +183,10 @@ export async function getCheckinStatus(
  * Perform daily checkin
  */
 export async function performCheckin(
-  turnstileToken?: string
+  captchaVerifyParam?: string
 ): Promise<ApiResponse<CheckinResponse>> {
-  const url = turnstileToken
-    ? `/api/user/checkin?turnstile=${encodeURIComponent(turnstileToken)}`
+  const url = captchaVerifyParam
+    ? `/api/user/checkin?captcha_verify_param=${encodeURIComponent(captchaVerifyParam)}`
     : '/api/user/checkin'
   const res = await api.post(url)
   return res.data
