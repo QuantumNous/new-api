@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
 import {
   Select,
   SelectContent,
@@ -59,7 +60,11 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { DateTimePicker } from '@/components/datetime-picker'
-import { deleteLogsBefore } from '../api'
+import {
+  getCurrentLogCleanupTask,
+  getSystemTask,
+  startLogCleanupTask,
+} from '../api'
 import {
   SettingsControlGroup,
   SettingsForm,
@@ -69,6 +74,7 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import type { LogCleanupTask } from '../types'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
@@ -127,6 +133,10 @@ const quickSelectOptions = [
   },
 ]
 
+function isActiveLogCleanupTask(task: LogCleanupTask | null) {
+  return task?.status === 'pending' || task?.status === 'running'
+}
+
 export function LogSettingsSection({
   defaultEnabled,
 }: LogSettingsSectionProps) {
@@ -142,7 +152,10 @@ export function LogSettingsSection({
   const [purgeDate, setPurgeDate] = useState<Date | undefined>(() =>
     getDateDaysAgo(30)
   )
-  const [isCleaning, setIsCleaning] = useState(false)
+  const [isStartingLogCleanup, setIsStartingLogCleanup] = useState(false)
+  const [logCleanupTask, setLogCleanupTask] = useState<LogCleanupTask | null>(
+    null
+  )
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [serverLogInfo, setServerLogInfo] = useState<ServerLogInfo | null>(
     null
@@ -168,6 +181,27 @@ export function LogSettingsSection({
     fetchServerLogInfo()
   }, [fetchServerLogInfo])
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function fetchCurrentLogCleanupTask() {
+      try {
+        const res = await getCurrentLogCleanupTask()
+        if (!cancelled && res.success && res.data) {
+          setLogCleanupTask(res.data)
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    fetchCurrentLogCleanupTask()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const purgeTimestamp = useMemo(() => {
     if (!purgeDate) return null
     return Math.floor(purgeDate.getTime() / 1000)
@@ -177,6 +211,49 @@ export function LogSettingsSection({
     if (!purgeDate) return ''
     return formatTimestampToDate(purgeDate.getTime(), 'milliseconds')
   }, [purgeDate])
+
+  const logCleanupActive = isActiveLogCleanupTask(logCleanupTask)
+  const logCleanupState = logCleanupTask?.state
+  const logCleanupProgress = Math.min(
+    100,
+    Math.max(0, logCleanupState?.progress ?? 0)
+  )
+  const logCleanupProcessed = logCleanupState?.processed ?? 0
+  const logCleanupTotal = logCleanupState?.total ?? 0
+
+  useEffect(() => {
+    if (!logCleanupTask || !isActiveLogCleanupTask(logCleanupTask)) return
+
+    let cancelled = false
+    const interval = window.setInterval(async () => {
+      try {
+        const res = await getSystemTask(logCleanupTask.task_id)
+        if (cancelled || !res.success || !res.data) return
+
+        setLogCleanupTask(res.data)
+        if (!isActiveLogCleanupTask(res.data)) {
+          if (res.data.status === 'succeeded') {
+            const count =
+              res.data.result?.deleted_count ?? res.data.state?.processed ?? 0
+            toast.success(
+              count > 0
+                ? t('{{count}} log entries removed.', { count })
+                : t('No log entries matched the selected time.')
+            )
+          } else if (res.data.status === 'failed') {
+            toast.error(res.data.error || t('Failed to clean logs'))
+          }
+        }
+      } catch {
+        /* keep polling */
+      }
+    }, 1000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [logCleanupTask?.task_id, logCleanupTask?.status, t])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
     if (values.LogConsumeEnabled === defaultEnabled) return
@@ -201,24 +278,24 @@ export function LogSettingsSection({
       return
     }
 
-    setIsCleaning(true)
+    setIsStartingLogCleanup(true)
     try {
-      const res = await deleteLogsBefore(purgeTimestamp)
+      const res = await startLogCleanupTask(purgeTimestamp)
       if (!res.success) {
         throw new Error(res.message || t('Failed to clean logs'))
       }
-      const count = res.data ?? 0
-      toast.success(
-        count > 0
-          ? t('{{count}} log entries removed.', { count })
-          : t('No log entries matched the selected time.')
-      )
+      if (!res.data) {
+        throw new Error(t('Failed to clean logs'))
+      }
+      setLogCleanupTask(res.data)
+      setShowConfirmDialog(false)
+      toast.success(t('Log cleanup task started.'))
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t('Failed to clean logs')
       toast.error(message)
     } finally {
-      setIsCleaning(false)
+      setIsStartingLogCleanup(false)
     }
   }
 
@@ -314,11 +391,37 @@ export function LogSettingsSection({
                 type='button'
                 variant='destructive'
                 onClick={handleRequestCleanLogs}
-                disabled={isCleaning}
+                disabled={isStartingLogCleanup || logCleanupActive}
               >
-                {isCleaning ? t('Cleaning...') : t('Clean logs')}
+                {isStartingLogCleanup || logCleanupActive
+                  ? t('Cleaning...')
+                  : t('Clean logs')}
               </Button>
             </div>
+            {logCleanupTask && (
+              <div className='rounded-md border p-3'>
+                <div className='mb-2 flex items-center justify-between gap-3 text-sm'>
+                  <span className='font-medium'>
+                    {t('Log cleanup progress')}
+                  </span>
+                  <span className='text-muted-foreground tabular-nums'>
+                    {logCleanupProgress}%
+                  </span>
+                </div>
+                <Progress value={logCleanupProgress} />
+                <div className='text-muted-foreground mt-2 text-xs'>
+                  {t('{{processed}} of {{total}} log entries processed.', {
+                    processed: logCleanupProcessed,
+                    total: logCleanupTotal,
+                  })}
+                </div>
+                {logCleanupTask.status === 'failed' && logCleanupTask.error && (
+                  <div className='text-destructive mt-2 text-xs'>
+                    {logCleanupTask.error}
+                  </div>
+                )}
+              </div>
+            )}
           </SettingsControlGroup>
         </SettingsForm>
       </Form>
@@ -491,11 +594,14 @@ export function LogSettingsSection({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isCleaning}>
+            <AlertDialogCancel disabled={isStartingLogCleanup}>
               {t('Cancel')}
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleCleanLogs} disabled={isCleaning}>
-              {isCleaning ? t('Cleaning...') : t('Delete logs')}
+            <AlertDialogAction
+              onClick={handleCleanLogs}
+              disabled={isStartingLogCleanup}
+            >
+              {isStartingLogCleanup ? t('Cleaning...') : t('Delete logs')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
