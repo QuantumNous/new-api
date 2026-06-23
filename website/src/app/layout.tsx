@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import Script from "next/script";
 import { DEFAULT_LOCALE, isLocale, type Locale } from "@/lib/locales";
 import "./globals.css";
@@ -18,21 +17,21 @@ export const metadata: Metadata = {
   },
 };
 
-export function resolveHtmlLangFromPathname(pathname: string | null | undefined): Locale {
-  const firstSegment = pathname?.split("/").filter(Boolean)[0];
-  return isLocale(firstSegment) ? firstSegment : DEFAULT_LOCALE;
+export function resolveHtmlLang(locale: string | null | undefined): Locale {
+  const normalizedLocale = locale ?? undefined;
+  return isLocale(normalizedLocale) ? normalizedLocale : DEFAULT_LOCALE;
 }
 
 export default async function RootLayout(
   props: Readonly<{
     children: React.ReactNode;
+    params?: Promise<{ locale?: string }>;
   }>
 ) {
-  const requestHeaders = await headers();
-  const pathname = requestHeaders.get("x-flatkey-pathname");
+  const params = await props.params;
 
   return (
-    <html lang={resolveHtmlLangFromPathname(pathname)}>
+    <html lang={resolveHtmlLang(params?.locale)}>
       <body>
         <Script id="google-tag-manager" strategy="afterInteractive">
           {`

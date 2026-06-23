@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getBlogCategories, getBlogPosts } from "@/lib/blog";
+import { getAllBlogPosts, getBlogCategories } from "@/lib/blog";
 import { LOCALES, type Locale, localizePath } from "@/lib/locales";
 import { getPricingData, getTopVendors, getVendorName } from "@/lib/pricing";
 
@@ -40,7 +40,11 @@ function queryEntry(
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [posts, categories, pricing] = await Promise.all([getBlogPosts(), getBlogCategories(), getPricingData()]);
+  const [localizedPosts, categories, pricing] = await Promise.all([
+    Promise.all(LOCALES.map(async (locale) => ({ locale, posts: await getAllBlogPosts(locale) }))),
+    getBlogCategories(),
+    getPricingData(),
+  ]);
   const staticEntries = [
     ...entry("/", 1, "daily"),
     ...entry("/pricing", 0.8, "daily"),
@@ -51,14 +55,43 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...entry("/models/gpt-api", 0.82, "daily"),
     ...entry("/rankings", 0.7, "daily"),
     ...entry("/about", 0.5, "monthly"),
-    ...entry("/blog", 0.9, "daily", ["en"]),
+    ...entry("/blog", 0.9, "daily"),
     ...entry("/terms", 0.3, "yearly"),
     ...entry("/privacy", 0.3, "yearly"),
     ...entry("/sla", 0.3, "yearly"),
     ...entry("/refund-policy", 0.3, "yearly"),
   ];
-  const categoryEntries = categories.flatMap((category) => entry(`/blog/category/${category.slug}`, 0.7, "weekly", ["en"]));
-  const postEntries = posts.list.flatMap((post) => entry(`/blog/${post.slug}`, 0.8, "monthly", ["en"]));
+  const categoryEntries = categories.flatMap((category) => entry(`/blog/category/${category.slug}`, 0.7, "weekly"));
+  const postsBySlug = new Map<string, Partial<Record<Locale, { date?: string }>>>();
+
+  for (const { locale, posts } of localizedPosts) {
+    for (const post of posts) {
+      const existing = postsBySlug.get(post.slug) ?? {};
+      existing[locale] = { date: post.date };
+      postsBySlug.set(post.slug, existing);
+    }
+  }
+
+  const postEntries = Array.from(postsBySlug.entries()).flatMap(([slug, locales]) => {
+    const availableLocales = LOCALES.filter((locale) => locales[locale]);
+    return availableLocales.map((locale) => {
+      const localizedPost = locales[locale];
+      return {
+        url: `${base}${localizePath(`/blog/${slug}`, locale)}`,
+        lastModified: localizedPost?.date ? new Date(localizedPost.date) : new Date(),
+        changeFrequency: "monthly" as const,
+        priority: 0.8,
+        alternates: {
+          languages: Object.fromEntries(
+            availableLocales.map((availableLocale) => [
+              availableLocale,
+              `${base}${localizePath(`/blog/${slug}`, availableLocale)}`,
+            ])
+          ),
+        },
+      };
+    });
+  });
   const pricingModels = pricing.models.map((model) => ({
     ...model,
     vendor_name: getVendorName(model, pricing.vendors),

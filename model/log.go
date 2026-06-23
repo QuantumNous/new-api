@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +30,67 @@ func applyExplicitLogTextFilter(tx *gorm.DB, column string, value string) (*gorm
 		return tx.Where(column+" LIKE ? ESCAPE '!'", pattern), nil
 	}
 	return tx.Where(column+" = ?", value), nil
+}
+
+func normalizeLogTextFilterValue(value string) string {
+	value = strings.TrimSpace(value)
+	if unquoted, err := strconv.Unquote(value); err == nil {
+		return strings.TrimSpace(unquoted)
+	}
+	return value
+}
+
+func getUserIDsByUsernameFilter(value string, fuzzy bool) ([]int, error) {
+	if DB == nil {
+		return nil, nil
+	}
+	var userIDs []int
+	tx := DB.Model(&User{}).Select("id")
+	if fuzzy {
+		pattern, err := sanitizeLikePattern(value)
+		if err != nil {
+			return nil, err
+		}
+		tx = tx.Where("username LIKE ? ESCAPE '!'", pattern)
+	} else {
+		tx = tx.Where("username = ?", value)
+	}
+	if err := tx.Find(&userIDs).Error; err != nil {
+		return nil, err
+	}
+	return userIDs, nil
+}
+
+func applyLogUsernameFilter(tx *gorm.DB, usernameColumn string, userIDColumn string, value string) (*gorm.DB, error) {
+	value = normalizeLogTextFilterValue(value)
+	if value == "" {
+		return tx, nil
+	}
+	if strings.Contains(value, "%") {
+		pattern, err := sanitizeLikePattern(value)
+		if err != nil {
+			return nil, err
+		}
+		userIDs, err := getUserIDsByUsernameFilter(value, true)
+		if err != nil {
+			return nil, err
+		}
+		if len(userIDs) > 0 {
+			return tx.Where("("+usernameColumn+" LIKE ? ESCAPE '!' OR "+userIDColumn+" IN ?)", pattern, userIDs), nil
+		}
+		return tx.Where(usernameColumn+" LIKE ? ESCAPE '!'", pattern), nil
+	}
+	if userID, err := strconv.Atoi(value); err == nil {
+		return tx.Where("("+usernameColumn+" = ? OR "+userIDColumn+" = ?)", value, userID), nil
+	}
+	userIDs, err := getUserIDsByUsernameFilter(value, false)
+	if err != nil {
+		return nil, err
+	}
+	if len(userIDs) > 0 {
+		return tx.Where("("+usernameColumn+" = ? OR "+userIDColumn+" IN ?)", value, userIDs), nil
+	}
+	return tx.Where(usernameColumn+" = ?", value), nil
 }
 
 type Log struct {
@@ -333,7 +395,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
 		return nil, 0, err
 	}
-	if tx, err = applyExplicitLogTextFilter(tx, "logs.username", username); err != nil {
+	if tx, err = applyLogUsernameFilter(tx, "logs.username", "logs.user_id", username); err != nil {
 		return nil, 0, err
 	}
 	if excludeUserId != 0 {
@@ -507,10 +569,10 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
 
-	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
+	if tx, err = applyLogUsernameFilter(tx, "username", "user_id", username); err != nil {
 		return stat, err
 	}
-	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
+	if rpmTpmQuery, err = applyLogUsernameFilter(rpmTpmQuery, "username", "user_id", username); err != nil {
 		return stat, err
 	}
 	if tokenName != "" {

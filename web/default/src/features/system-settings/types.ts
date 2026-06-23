@@ -248,6 +248,7 @@ export type BillingSettings = {
   'payment_setting.amount_options': string
   'payment_setting.amount_bonus': string
   'payment_setting.amount_bonus_limit': string
+  'payment_setting.amount_bonus_groups': string
   'payment_setting.amount_discount': string
   'payment_setting.compliance_confirmed': boolean
   'payment_setting.compliance_terms_version': string

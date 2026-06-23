@@ -109,7 +109,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 
-	normalizedAmount, bonusAmount := configuredTopUpAmounts(req.Amount)
+	normalizedAmount, bonusAmount := configuredTopUpAmounts(req.Amount, user.Group)
 	if normalizedAmount <= 0 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值数量无效"})
 		return

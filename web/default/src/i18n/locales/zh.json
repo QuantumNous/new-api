@@ -131,7 +131,6 @@
     "AccessKey / SecretAccessKey": "AccessKey / SecretAccessKey",
     "Account Binding Management": "账户绑定管理",
     "Account Bindings": "账户绑定",
-    "Account created! Please sign in": "账户已创建！请登录",
     "Account deleted successfully": "账户删除成功",
     "Account ID *": "账户 ID *",
     "Account Info": "账户信息",
@@ -5125,6 +5124,15 @@
     "Organic": "自然搜索",
     "Referral": "引荐流量",
     "Direct": "直接访问",
-    "Landing Page": "落地页"
+    "Landing Page": "落地页",
+    "Eligible user groups": "生效用户组",
+    "All user groups": "全部用户组",
+    "No groups (not granted)": "未选择用户组（不发放）",
+    "all (every group)": "all（全部用户组）",
+    "{{count}} groups": "{{count}} 个用户组",
+    "Bonus is granted only to the selected user groups. Leave groups empty to grant to nobody; pick \"all\" to grant to every group.": "赠送仅发放给所选用户组。不选任何组表示对所有人都不发放；选择“all”表示对所有用户组发放。",
+    "Tip: pick eligible user groups here. To change a tier later, click edit on its row.": "提示：在此为档位选择生效用户组。之后要修改某档位，点击该行的编辑按钮。",
+    "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "各档位可享赠送的用户组白名单（JSON 对象）。空数组 = 谁都不发；[\"all\"] = 所有用户组。",
+    "A bonus tier with this recharge amount already exists.": "该充值金额的赠送档位已存在。"
   }
 }

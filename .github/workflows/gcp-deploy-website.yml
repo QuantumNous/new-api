@@ -30,6 +30,7 @@ env:
   # set at runtime for the server-side route handlers.
   APP_CONSOLE_ORIGIN: ${{ vars.WEBSITE_APP_CONSOLE_ORIGIN }}   # https://console.flatkey.ai
   SITE_ORIGIN:        ${{ vars.WEBSITE_SITE_ORIGIN }}          # https://flatkey.ai
+  BLOGGER_ACCESS_KEY: ${{ secrets.BLOGGER_ACCESS_KEY }}
 
 jobs:
   build:
@@ -105,11 +106,21 @@ jobs:
         run: |
           set -euo pipefail
           revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
-          # Keep server-side origins in sync on every deploy (TF only seeds them at
-          # bring-up and then ignores env). Idempotent.
+          # Keep runtime env in sync on every deploy (TF only seeds them at
+          # bring-up and then ignores env). Idempotent delta updates.
+          env_kvs=()
+          if [[ -n "${APP_CONSOLE_ORIGIN}" ]]; then
+            env_kvs+=("APP_CONSOLE_ORIGIN=${APP_CONSOLE_ORIGIN}")
+          fi
+          if [[ -n "${SITE_ORIGIN}" ]]; then
+            env_kvs+=("SITE_ORIGIN=${SITE_ORIGIN}")
+          fi
+          if [[ -n "${BLOGGER_ACCESS_KEY}" ]]; then
+            env_kvs+=("BLOGGER_ACCESS_KEY=${BLOGGER_ACCESS_KEY}")
+          fi
           env_args=()
-          if [[ -n "${APP_CONSOLE_ORIGIN}" && -n "${SITE_ORIGIN}" ]]; then
-            env_args=(--update-env-vars="APP_CONSOLE_ORIGIN=${APP_CONSOLE_ORIGIN},SITE_ORIGIN=${SITE_ORIGIN}")
+          if [[ ${#env_kvs[@]} -gt 0 ]]; then
+            env_args=(--update-env-vars="$(IFS=,; echo "${env_kvs[*]}")")
           fi
           gcloud run services update "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" \
