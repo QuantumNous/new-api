@@ -93,6 +93,7 @@
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.9",
     "@xyflow/react": "^12.10.2",
     "embla-carousel-react": "^8.6.0",

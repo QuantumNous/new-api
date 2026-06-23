@@ -156,8 +156,8 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 2. Marketplace emits `skill_impression` for visible cards.
 3. User opens Skill Detail.
 4. System emits `skill_detail_view`.
-5. Detail page displays plan requirement, example input/output, safety labels, runtime-dependency note (Skill requires a DeepRouter key to run), and Download CTA.
-6. If user is anonymous, Download CTA routes to login/signup (so a DeepRouter credential exists for later runtime calls).
+5. Detail page displays plan requirement, example input/output *(V1: deferred — `PublicSkillDetail` does not yet expose example/input-hint fields; tracked under DR-53)*, safety labels, runtime-dependency note (Skill requires a DeepRouter key to run), and Download CTA.
+6. If user is anonymous, Download CTA routes to login/signup (so a DeepRouter credential exists for later runtime calls). *(V1: Marketplace and Detail are authenticated-only; anonymous browse is deferred to a follow-up route-opening ticket.)*
 7. If user is logged in, user downloads the Skill package (zip).
 8. System creates or updates `user_enabled_skills` as the download/entitlement record.
 9. System emits `skill_enabled` (download). Note: download grants no permanent execution right; entitlement is still checked at runtime per call.
@@ -238,7 +238,7 @@ All Sprint 0 decisions must use the canonical `D-01` to `D-08` IDs defined in `0
 | ID | Requirement | Priority | Acceptance Notes |
 |---|---|---|---|
 | FR-U1 | Browse published Skills | P0 | Only public fields returned |
-| FR-U2 | View Skill Detail | P0 | Shows examples, plan, labels, runtime-dependency note, Download CTA, AI disclosure |
+| FR-U2 | View Skill Detail | P0 | Shows plan, labels, runtime-dependency note, Download CTA, AI disclosure. V1: examples/input hints deferred (not exposed by `PublicSkillDetail`; DR-53 follow-up) |
 | FR-U3 | Download Skill package | P0 | Login/signup required; archived/draft cannot be downloaded; deprecated cannot be newly downloaded |
 | FR-U4 | Remove from My Skills | P0 | Existing usage/billing history remains; does not invalidate already-downloaded copies (runtime auth still gates execution) |
 | FR-U5 | View My Skills | P0 | Shows downloaded Skills, status, lock reason, last used |

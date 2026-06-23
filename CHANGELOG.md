@@ -2,10 +2,15 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-06-24
+
+- 更新 DR-74 PRD 状态为 eval，符合任务 PRD 生命周期并记录当前 awaiting review 状态（`docs/tasks/dr74-event-schema-version-occurred-at-prd.md`）
+
 ## 2026-06-23
 
 - 修复 DR-48 PR review 阻断问题：publish 改用 GORM `clause.Locking`，发布更新增加 `status=draft` 与 `active_version_id` 条件并检查 `RowsAffected`，防止并发重复 publish、重复 audit/event 以及 active version snapshot 漂移（`internal/skill/handler/lifecycle.go`, `internal/skill/handler/skills_test.go`, `docs/tasks/dr48-publish-skill-api-prd.md`）
 - 修复 DR-48 PR review 阻断问题：`skill_admin_action` analytics metadata 改为仅写 allowlist 字段 `producer`/`schema_version`，发布 reason 只保留在 `skill_audit_log.action_reason`，并补回归断言防止自由文本进入 `skill_usage_events.metadata`（`internal/skill/handler/lifecycle.go`, `internal/skill/handler/skills_test.go`, `docs/tasks/dr48-publish-skill-api-prd.md`）
+- 新增 DR-74 事件 `schema_version` + `timestamp`→`occurred_at` 持久化契约（M08 分析管线，纯 model 层）：在 `skill_usage_events` 的唯一写入 choke point `BeforeCreate` 统一为每个事件盖 `metadata.schema_version="1.0"` 并将 `occurred_at` 规整为服务端权威 UTC（zero→`time.Now().UTC()`，非零→`.UTC()`）。修复此前三处发事件路径（`download.go`×2、`skills.go` RecordMarketplaceSkillEvent）均写 `metadata={}`、schema_version 从未落库的缺口。schema_version 采 V1 严格策略（缺省→"1.0"；="1.0"→保留；空/非字符串/≠"1.0"→拒绝），不加一等列、不迁移（契约见 tasks/03 §4.4 无该列、allowlist 含 schema_version）。occurred_at 只接受可信服务端 producer 时间，公开/面向客户端的 handler 不得把客户端 timestamp 塞进 `OccurredAt`（客户端时间只进可选 `metadata.client_event_time`，DR-74 D2/D4）。新增 `SkillEventSchemaVersion` 常量 + `ensureMetadataSchemaVersion` 助手 + 9 个回归测试（三写入路径盖章、严格拒绝非 1.0、受限 key 仍优先拒绝、occurred_at UTC 规整用跨 DB 稳定的 `Equal` 断言而非 `Location()`、zero→now-UTC、非零保留）。并就地澄清 tasks/04 三处歧义：schema_version 仅落 metadata 无一等列、occurred_at 为服务端接收 UTC 且迟到标记属 P1、样例顶层 schema_version 仅为 wire 信封字段（`internal/skill/model/skill_usage_event.go`, `internal/skill/model/skill_usage_event_dr74_test.go`, `docs/tasks/dr74-event-schema-version-occurred-at-prd.md`, `docs/skill-marketplace/tasks/04_Analytics_and_Operations.md`）(DR-74)
 - 修复 PR #92 review 问题：`CreateAdminSkill` 现在拒绝非 `token_markup` 类型传入非 0 `price_markup`，返回 400 `INVALID_REQUEST` / `PRICE_MARKUP_NOT_ALLOWED`，确保 `plan_included`/`free` skill 持久化 `price_markup=0`；补回归测试 `plan_included_with_nonzero_price_markup`、`free_with_price_markup_and_max_input_tokens`、`NonTokenMarkupOmittedPriceMarkupPersistsZero`；更新 `docs/skill-marketplace/tasks/03_Data_Model_and_API_Spec.md` §10.2 记录 `PRICE_MARKUP_REQUIRED`/`PRICE_MARKUP_NOT_ALLOWED` 条件规则（`internal/skill/handler/skills.go`, `internal/skill/handler/skills_test.go`, `docs/skill-marketplace/tasks/03_Data_Model_and_API_Spec.md`）
 
 - 更新 DR-66 PRD 状态为 eval，符合任务 PRD 生命周期并记录当前 awaiting merge 状态（`docs/tasks/dr-66-lifecycle-enabled-gate-prd.md`）
@@ -38,6 +43,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 - 新增 DR-82 public routing API abuse controls：`/v1/routing/chat/completions` 在通道选择前执行 public API 专用 abuse gate，按 runner credential 做默认 RPM 限流，DB 强校验 revoked/expired/exhausted key fail-closed，并对共享凭据 IP/User-Agent fanout 写入 flags、响应头和系统日志；补 `model.Token.Update()` 持久化 `status` 与 DR-13 limit 字段；补 Redis failure fail-closed 测试、env-gated Redis 路径测试说明、fanout 运营消费说明，并将 Redis integration cleanup 收敛为只删除本测试 token/bucket keys；新增任务 PRD 与聚焦测试（`internal/abuse`, `middleware/public_routing_abuse.go`, `router/relay-router.go`, `model/token.go`, `docs/tasks/dr82-public-api-abuse-controls-prd.md`）
 
 ## 2026-06-21
+- DR-58: add the Skill Detail UI with runtime-dependency copy and a Download CTA, route marketplace cards to detail pages, harden same-origin blob download handling and filename parsing, and add focused Vitest/RTL coverage for marketplace download utils and View CTA behavior (`web/default/src/features/marketplace/*`, `web/default/src/routes/_authenticated/skills/$slug.tsx`, `.github/workflows/frontend-test.yml`).
 - DR-62: add skill package runtime client mock-path support with runnable zip assets, active skill_version package binding, malformed manifest PACKAGE_INVALID fail-closed handling, and download/runtime smoke tests.
 - DR-65: clarify skill relay TextHelper comment for Distribute path snapshot reuse (`relay/compatible_handler.go`).
 - DR-65: bind immutable active skill_version snapshot at relay request entry; keep the published-only skill guard; fail closed for missing or non-active pointed versions and empty instruction_template; add resolver snapshot immutability and cross-skill dirty-pointer tests.
