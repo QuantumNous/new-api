@@ -22,7 +22,7 @@ func SetSkillRouter(router *gin.Engine) {
 	v1.Use(middleware.BodyStorageCleanup())
 	{
 		marketplaceRoute := v1.Group("/marketplace")
-		marketplaceRoute.Use(middleware.TryUserAuth())
+		marketplaceRoute.Use(middleware.TrySkillUserAuth())
 		if common.GlobalApiRateLimitEnable {
 			marketplaceRoute.Use(middleware.SkillRateLimit(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "SKM"))
 		}
