@@ -141,6 +141,8 @@ func TestSkillRouterSkillAnalyticsAuthFailureUsesEnvelope(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, skills.Code)
 	assert.Contains(t, skills.Body.String(), `"code":"AUTH_REQUIRED"`)
 	assert.Contains(t, skills.Body.String(), `"request_id":`)
+}
+
 func TestSkillRouterMySkillsRequiresAuth(t *testing.T) {
 	engine := newSkillTestRouter(t, false)
 

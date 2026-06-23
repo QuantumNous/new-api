@@ -2,8 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -60,35 +58,12 @@ type SkillAnalyticsSkillsResponse struct {
 	PeriodEnd       string                   `json:"period_end"`
 }
 
-type analyticsEvent struct {
-	EventType   enums.SkillUsageEventType
-	OccurredAt  time.Time
-	UserID      *int64
-	SkillID     *string
-	EntryPoint  enums.EntryPoint
-	Success     *bool
-	BlockReason *enums.BlockReason
-}
-
-type analyticsCounters struct {
-	impressions  map[string]struct{}
-	details      map[string]struct{}
-	enables      map[string]struct{}
-	firstUses    map[string]struct{}
-	successes    map[string]int64
-	blocked      int64
-	blockReasons map[string]int64
-}
-
-func newAnalyticsCounters() analyticsCounters {
-	return analyticsCounters{
-		impressions:  map[string]struct{}{},
-		details:      map[string]struct{}{},
-		enables:      map[string]struct{}{},
-		firstUses:    map[string]struct{}{},
-		successes:    map[string]int64{},
-		blockReasons: map[string]int64{},
-	}
+type skillAnalyticsPageRow struct {
+	ID             string
+	Name           string
+	Status         enums.SkillStatus
+	RequiredPlan   enums.RequiredPlan
+	SuccessfulRuns int64
 }
 
 func GetOpsSkillAnalyticsOverview(c *gin.Context) {
@@ -100,48 +75,69 @@ func GetOpsSkillAnalyticsOverview(c *gin.Context) {
 	if !valid {
 		return
 	}
-	queryStart := period.Start
 	wasuStart := period.End.Add(-wasuWindow)
-	if wasuStart.Before(queryStart) {
-		queryStart = wasuStart
+
+	wasu, err := countWASU(db, wasuStart, period.End)
+	if err != nil {
+		writeDBError(c, err)
+		return
 	}
-	events, err := loadAnalyticsEvents(db, queryStart, period.End)
+	impressions, err := countDistinctPairsForEvent(db, period.Start, period.End, enums.SkillUsageEventTypeImpression)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	details, err := countDistinctPairsForEvent(db, period.Start, period.End, enums.SkillUsageEventTypeDetailView)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	enables, err := countDistinctPairsForEvent(db, period.Start, period.End, enums.SkillUsageEventTypeEnabled)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	firstUses, err := countDistinctPairsForEvent(db, period.Start, period.End, enums.SkillUsageEventTypeFirstUse)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	totalRuns, err := countSuccessfulRuns(db, period.Start, period.End)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	activePairs, repeatPairs, err := countRepeatPairs(db, period.Start, period.End)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	blocked, err := countEvents(db, period.Start, period.End, enums.SkillUsageEventTypeBlocked)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	topReason, err := topBlockReason(db, period.Start, period.End)
 	if err != nil {
 		writeDBError(c, err)
 		return
 	}
 
-	selected := newAnalyticsCounters()
-	wasuUsers := map[int64]struct{}{}
-	for _, event := range events {
-		if event.EntryPoint == enums.EntryPointAdminPreview {
-			continue
-		}
-		successfulRun := isSuccessfulSkillRun(event)
-		if !event.OccurredAt.Before(period.Start) {
-			selected.add(event)
-		}
-		if successfulRun && !event.OccurredAt.Before(wasuStart) && event.UserID != nil {
-			wasuUsers[*event.UserID] = struct{}{}
-		}
-	}
-
-	overview := SkillAnalyticsOverview{
-		WASU:                 int64(len(wasuUsers)),
-		TotalSkillRuns:       selected.successfulRuns(),
-		DetailCTR:            ratio(len(selected.details), len(selected.impressions)),
-		EnableRate:           ratio(len(selected.enables), len(selected.details)),
-		FirstUseRate:         ratio(len(selected.firstUses), len(selected.enables)),
-		RepeatUseRate:        selected.repeatUseRate(),
-		BlockRate:            ratio64(selected.blocked, selected.blocked+selected.successfulRuns()),
-		TopBlockReason:       selected.topBlockReason(),
+	c.JSON(http.StatusOK, SkillAnalyticsOverview{
+		WASU:                 wasu,
+		TotalSkillRuns:       totalRuns,
+		DetailCTR:            ratio64(details, impressions),
+		EnableRate:           ratio64(enables, details),
+		FirstUseRate:         ratio64(firstUses, enables),
+		RepeatUseRate:        ratio64(repeatPairs, activePairs),
+		BlockRate:            ratio64(blocked, blocked+totalRuns),
+		TopBlockReason:       topReason,
 		RevenueAttributionUS: nil,
 		ChargingEnabled:      false,
 		DataFreshness:        "ok",
 		PeriodStart:          period.Start.Format(time.RFC3339),
 		PeriodEnd:            period.End.Format(time.RFC3339),
-	}
-	c.JSON(http.StatusOK, overview)
+	})
 }
 
 func GetOpsSkillAnalyticsSkills(c *gin.Context) {
@@ -159,79 +155,73 @@ func GetOpsSkillAnalyticsSkills(c *gin.Context) {
 		return
 	}
 
-	events, err := loadAnalyticsEvents(db, period.Start, period.End)
+	pageRows, total, err := loadSkillAnalyticsPage(db, period.Start, period.End, page)
 	if err != nil {
 		writeDBError(c, err)
 		return
 	}
-	bySkill := map[string]analyticsCounters{}
-	for _, event := range events {
-		if event.SkillID == nil || event.EntryPoint == enums.EntryPointAdminPreview {
-			continue
-		}
-		counters, exists := bySkill[*event.SkillID]
-		if !exists {
-			counters = newAnalyticsCounters()
-		}
-		counters.add(event)
-		bySkill[*event.SkillID] = counters
+	skillIDs := make([]string, 0, len(pageRows))
+	for _, row := range pageRows {
+		skillIDs = append(skillIDs, row.ID)
 	}
 
-	enabledUsers, err := loadEnabledUsersBySkill(db)
+	enabledUsers, err := loadEnabledUsersBySkill(db, skillIDs)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	impressions, err := countDistinctPairsBySkillForEvent(db, period.Start, period.End, skillIDs, enums.SkillUsageEventTypeImpression)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	details, err := countDistinctPairsBySkillForEvent(db, period.Start, period.End, skillIDs, enums.SkillUsageEventTypeDetailView)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	enables, err := countDistinctPairsBySkillForEvent(db, period.Start, period.End, skillIDs, enums.SkillUsageEventTypeEnabled)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	firstUses, err := countDistinctPairsBySkillForEvent(db, period.Start, period.End, skillIDs, enums.SkillUsageEventTypeFirstUse)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	activePairs, repeatPairs, err := countRepeatPairsBySkill(db, period.Start, period.End, skillIDs)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	blocked, err := countEventsBySkill(db, period.Start, period.End, skillIDs, enums.SkillUsageEventTypeBlocked)
 	if err != nil {
 		writeDBError(c, err)
 		return
 	}
 
-	var skills []skillmodel.Skill
-	if err := db.Model(&skillmodel.Skill{}).
-		Select("id, name, status, required_plan").
-		Find(&skills).Error; err != nil {
-		writeDBError(c, err)
-		return
-	}
-
-	rows := make([]SkillAnalyticsSkillRow, 0, len(skills))
-	for _, skill := range skills {
-		counters, exists := bySkill[skill.ID]
-		if !exists {
-			counters = newAnalyticsCounters()
-		}
+	rows := make([]SkillAnalyticsSkillRow, 0, len(pageRows))
+	for _, skill := range pageRows {
 		rows = append(rows, SkillAnalyticsSkillRow{
 			SkillID:              skill.ID,
 			SkillName:            skill.Name,
 			Status:               skill.Status,
 			RequiredPlan:         skill.RequiredPlan,
 			EnabledUsers:         enabledUsers[skill.ID],
-			ActiveUsers:          int64(len(counters.successes)),
-			SuccessfulRuns:       counters.successfulRuns(),
-			DetailCTR:            ratio(len(counters.details), len(counters.impressions)),
-			EnableRate:           ratio(len(counters.enables), len(counters.details)),
-			FirstUseRate:         ratio(len(counters.firstUses), len(counters.enables)),
-			RepeatUseRate:        counters.repeatUseRate(),
-			BlockRate:            ratio64(counters.blocked, counters.blocked+counters.successfulRuns()),
+			ActiveUsers:          activePairs[skill.ID],
+			SuccessfulRuns:       skill.SuccessfulRuns,
+			DetailCTR:            ratio64(details[skill.ID], impressions[skill.ID]),
+			EnableRate:           ratio64(enables[skill.ID], details[skill.ID]),
+			FirstUseRate:         ratio64(firstUses[skill.ID], enables[skill.ID]),
+			RepeatUseRate:        ratio64(repeatPairs[skill.ID], activePairs[skill.ID]),
+			BlockRate:            ratio64(blocked[skill.ID], blocked[skill.ID]+skill.SuccessfulRuns),
 			RevenueAttributionUS: nil,
 		})
 	}
-	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].SuccessfulRuns != rows[j].SuccessfulRuns {
-			return rows[i].SuccessfulRuns > rows[j].SuccessfulRuns
-		}
-		return strings.ToLower(rows[i].SkillName) < strings.ToLower(rows[j].SkillName)
-	})
-
-	total := int64(len(rows))
-	start := page.Offset
-	if start > len(rows) {
-		start = len(rows)
-	}
-	end := start + page.Limit
-	if end > len(rows) {
-		end = len(rows)
-	}
 
 	c.JSON(http.StatusOK, SkillAnalyticsSkillsResponse{
-		Skills:          rows[start:end],
+		Skills:          rows,
 		Pagination:      skillapi.NewPagination(page.Page, page.Limit, total),
 		ChargingEnabled: false,
 		PeriodStart:     period.Start.Format(time.RFC3339),
@@ -275,111 +265,228 @@ func writeAnalyticsQueryError(c *gin.Context, reason, message string) {
 	skillapi.Error(c, errcodes.ErrInvalidRequest, message, gin.H{"reason": reason})
 }
 
-func loadAnalyticsEvents(db *gorm.DB, start, end time.Time) ([]analyticsEvent, error) {
-	var events []analyticsEvent
-	err := db.Model(&skillmodel.SkillUsageEvent{}).
-		Select("event_type, occurred_at, user_id, skill_id, entry_point, success, block_reason").
+func analyticsEventsQuery(db *gorm.DB, start, end time.Time) *gorm.DB {
+	return db.Model(&skillmodel.SkillUsageEvent{}).
 		Where("occurred_at >= ? AND occurred_at < ?", start.UTC(), end.UTC()).
-		Find(&events).Error
-	return events, err
+		Where("entry_point <> ?", enums.EntryPointAdminPreview)
 }
 
-func loadEnabledUsersBySkill(db *gorm.DB) (map[string]int64, error) {
-	var rows []struct {
-		SkillID string
-		Count   int64
+func countWASU(db *gorm.DB, start, end time.Time) (int64, error) {
+	var count int64
+	err := analyticsEventsQuery(db, start, end).
+		Where("event_type = ? AND success = ? AND user_id IS NOT NULL", enums.SkillUsageEventTypeUsed, true).
+		Distinct("user_id").
+		Count(&count).Error
+	return count, err
+}
+
+func countSuccessfulRuns(db *gorm.DB, start, end time.Time) (int64, error) {
+	var count int64
+	err := analyticsEventsQuery(db, start, end).
+		Where("event_type = ? AND success = ?", enums.SkillUsageEventTypeUsed, true).
+		Count(&count).Error
+	return count, err
+}
+
+func countEvents(db *gorm.DB, start, end time.Time, eventType enums.SkillUsageEventType) (int64, error) {
+	var count int64
+	err := analyticsEventsQuery(db, start, end).
+		Where("event_type = ?", eventType).
+		Count(&count).Error
+	return count, err
+}
+
+func countDistinctPairsForEvent(db *gorm.DB, start, end time.Time, eventType enums.SkillUsageEventType) (int64, error) {
+	pairs := analyticsEventsQuery(db, start, end).
+		Select("user_id, skill_id").
+		Where("event_type = ? AND user_id IS NOT NULL AND skill_id IS NOT NULL", eventType).
+		Group("user_id, skill_id")
+	var count int64
+	err := db.Table("(?) AS analytics_pairs", pairs).Count(&count).Error
+	return count, err
+}
+
+func countRepeatPairs(db *gorm.DB, start, end time.Time) (active int64, repeat int64, err error) {
+	pairs := successfulPairCountsQuery(db, start, end, nil)
+	if err = db.Table("(?) AS analytics_success_pairs", pairs).Count(&active).Error; err != nil {
+		return 0, 0, err
 	}
-	err := db.Model(&skillmodel.UserEnabledSkill{}).
-		Select("skill_id, count(*) as count").
-		Where("enabled = ?", true).
-		Group("skill_id").
+	err = db.Table("(?) AS analytics_success_pairs", pairs).
+		Where("successful_runs >= ?", 2).
+		Count(&repeat).Error
+	return active, repeat, err
+}
+
+func topBlockReason(db *gorm.DB, start, end time.Time) (*string, error) {
+	var rows []struct {
+		BlockReason *enums.BlockReason
+		Count       int64
+	}
+	err := analyticsEventsQuery(db, start, end).
+		Select("block_reason, count(*) as count").
+		Where("event_type = ?", enums.SkillUsageEventTypeBlocked).
+		Group("block_reason").
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[string]int64, len(rows))
+	counts := map[string]int64{}
 	for _, row := range rows {
-		out[row.SkillID] = row.Count
+		counts[analyticsBlockReason(row.BlockReason)] += row.Count
 	}
-	return out, nil
-}
-
-func (c *analyticsCounters) add(event analyticsEvent) {
-	pair, hasPair := analyticsPairKey(event)
-	switch event.EventType {
-	case enums.SkillUsageEventTypeImpression:
-		if hasPair {
-			c.impressions[pair] = struct{}{}
-		}
-	case enums.SkillUsageEventTypeDetailView:
-		if hasPair {
-			c.details[pair] = struct{}{}
-		}
-	case enums.SkillUsageEventTypeEnabled:
-		if hasPair {
-			c.enables[pair] = struct{}{}
-		}
-	case enums.SkillUsageEventTypeFirstUse:
-		if hasPair {
-			c.firstUses[pair] = struct{}{}
-		}
-	case enums.SkillUsageEventTypeUsed:
-		if isSuccessfulSkillRun(event) && hasPair {
-			c.successes[pair]++
-		}
-	case enums.SkillUsageEventTypeBlocked:
-		c.blocked++
-		reason := analyticsBlockReason(event.BlockReason)
-		c.blockReasons[reason]++
-	}
-}
-
-func analyticsPairKey(event analyticsEvent) (string, bool) {
-	if event.UserID == nil || event.SkillID == nil || *event.SkillID == "" {
-		return "", false
-	}
-	return *event.SkillID + ":" + strconv.FormatInt(*event.UserID, 10), true
-}
-
-func isSuccessfulSkillRun(event analyticsEvent) bool {
-	return event.EventType == enums.SkillUsageEventTypeUsed && event.Success != nil && *event.Success
-}
-
-func (c analyticsCounters) successfulRuns() int64 {
-	var total int64
-	for _, count := range c.successes {
-		total += count
-	}
-	return total
-}
-
-func (c analyticsCounters) repeatUseRate() *float64 {
-	var repeat int
-	for _, count := range c.successes {
-		if count >= 2 {
-			repeat++
-		}
-	}
-	return ratio(repeat, len(c.successes))
-}
-
-func (c analyticsCounters) topBlockReason() *string {
 	var top string
 	var topCount int64
-	for reason, count := range c.blockReasons {
+	for reason, count := range counts {
 		if count > topCount || (count == topCount && reason < top) {
 			top = reason
 			topCount = count
 		}
 	}
 	if top == "" {
-		return nil
+		return nil, nil
 	}
-	return &top
+	return &top, nil
 }
 
-func ratio(numerator, denominator int) *float64 {
-	return ratio64(int64(numerator), int64(denominator))
+func loadSkillAnalyticsPage(db *gorm.DB, start, end time.Time, page skillapi.PageParams) ([]skillAnalyticsPageRow, int64, error) {
+	var total int64
+	if err := db.Model(&skillmodel.Skill{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	successes := analyticsEventsQuery(db, start, end).
+		Select("skill_id, count(*) AS successful_runs").
+		Where("event_type = ? AND success = ? AND skill_id IS NOT NULL", enums.SkillUsageEventTypeUsed, true).
+		Group("skill_id")
+	var rows []skillAnalyticsPageRow
+	err := db.Model(&skillmodel.Skill{}).
+		Select("skills.id, skills.name, skills.status, skills.required_plan, COALESCE(successes.successful_runs, 0) AS successful_runs").
+		Joins("LEFT JOIN (?) AS successes ON successes.skill_id = skills.id", successes).
+		Order("COALESCE(successes.successful_runs, 0) DESC").
+		Order("LOWER(skills.name) ASC").
+		Offset(page.Offset).
+		Limit(page.Limit).
+		Scan(&rows).Error
+	return rows, total, err
+}
+
+func loadEnabledUsersBySkill(db *gorm.DB, skillIDs []string) (map[string]int64, error) {
+	out := make(map[string]int64, len(skillIDs))
+	if len(skillIDs) == 0 {
+		return out, nil
+	}
+	var rows []struct {
+		SkillID string
+		Count   int64
+	}
+	err := db.Model(&skillmodel.UserEnabledSkill{}).
+		Select("skill_id, count(*) as count").
+		Where("enabled = ? AND skill_id IN ?", true, skillIDs).
+		Group("skill_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.SkillID] = row.Count
+	}
+	return out, nil
+}
+
+func countDistinctPairsBySkillForEvent(db *gorm.DB, start, end time.Time, skillIDs []string, eventType enums.SkillUsageEventType) (map[string]int64, error) {
+	out := make(map[string]int64, len(skillIDs))
+	if len(skillIDs) == 0 {
+		return out, nil
+	}
+	pairs := analyticsEventsQuery(db, start, end).
+		Select("skill_id, user_id").
+		Where("event_type = ? AND user_id IS NOT NULL AND skill_id IN ?", eventType, skillIDs).
+		Group("skill_id, user_id")
+	var rows []struct {
+		SkillID string
+		Count   int64
+	}
+	err := db.Table("(?) AS analytics_pairs", pairs).
+		Select("skill_id, count(*) AS count").
+		Group("skill_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.SkillID] = row.Count
+	}
+	return out, nil
+}
+
+func countEventsBySkill(db *gorm.DB, start, end time.Time, skillIDs []string, eventType enums.SkillUsageEventType) (map[string]int64, error) {
+	out := make(map[string]int64, len(skillIDs))
+	if len(skillIDs) == 0 {
+		return out, nil
+	}
+	var rows []struct {
+		SkillID string
+		Count   int64
+	}
+	err := analyticsEventsQuery(db, start, end).
+		Select("skill_id, count(*) AS count").
+		Where("event_type = ? AND skill_id IN ?", eventType, skillIDs).
+		Group("skill_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.SkillID] = row.Count
+	}
+	return out, nil
+}
+
+func countRepeatPairsBySkill(db *gorm.DB, start, end time.Time, skillIDs []string) (map[string]int64, map[string]int64, error) {
+	active := make(map[string]int64, len(skillIDs))
+	repeat := make(map[string]int64, len(skillIDs))
+	if len(skillIDs) == 0 {
+		return active, repeat, nil
+	}
+	pairs := successfulPairCountsQuery(db, start, end, skillIDs)
+	var activeRows []struct {
+		SkillID string
+		Count   int64
+	}
+	if err := db.Table("(?) AS analytics_success_pairs", pairs).
+		Select("skill_id, count(*) AS count").
+		Group("skill_id").
+		Scan(&activeRows).Error; err != nil {
+		return nil, nil, err
+	}
+	for _, row := range activeRows {
+		active[row.SkillID] = row.Count
+	}
+	var repeatRows []struct {
+		SkillID string
+		Count   int64
+	}
+	if err := db.Table("(?) AS analytics_success_pairs", pairs).
+		Select("skill_id, count(*) AS count").
+		Where("successful_runs >= ?", 2).
+		Group("skill_id").
+		Scan(&repeatRows).Error; err != nil {
+		return nil, nil, err
+	}
+	for _, row := range repeatRows {
+		repeat[row.SkillID] = row.Count
+	}
+	return active, repeat, nil
+}
+
+func successfulPairCountsQuery(db *gorm.DB, start, end time.Time, skillIDs []string) *gorm.DB {
+	query := analyticsEventsQuery(db, start, end).
+		Select("skill_id, user_id, count(*) AS successful_runs").
+		Where("event_type = ? AND success = ? AND user_id IS NOT NULL AND skill_id IS NOT NULL", enums.SkillUsageEventTypeUsed, true).
+		Group("skill_id, user_id")
+	if len(skillIDs) > 0 {
+		query = query.Where("skill_id IN ?", skillIDs)
+	}
+	return query
 }
 
 func ratio64(numerator, denominator int64) *float64 {

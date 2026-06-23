@@ -112,6 +112,38 @@ func TestGetOpsSkillAnalyticsSkillsReturnsPerSkillRows(t *testing.T) {
 	assert.NotContains(t, w.Body.String(), "metadata")
 }
 
+func TestGetOpsSkillAnalyticsSkillsPaginatesDBOrderedRows(t *testing.T) {
+	db := newAnalyticsTestDB(t)
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+	alpha := createAnalyticsSkill(t, db, "alpha", enums.RequiredPlanFree)
+	beta := createAnalyticsSkill(t, db, "beta", enums.RequiredPlanFree)
+	gamma := createAnalyticsSkill(t, db, "gamma", enums.RequiredPlanFree)
+
+	emitAnalyticsEvent(t, db, start.Add(time.Hour), enums.SkillUsageEventTypeUsed, 1, gamma.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
+	emitAnalyticsEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeUsed, 2, gamma.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
+	emitAnalyticsEvent(t, db, start.Add(3*time.Hour), enums.SkillUsageEventTypeUsed, 3, beta.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
+	emitAnalyticsEvent(t, db, start.Add(4*time.Hour), enums.SkillUsageEventTypeUsed, 4, gamma.ID, enums.EntryPointAdminPreview, boolPtr(true), nil)
+	emitAnalyticsEvent(t, db, start.Add(5*time.Hour), enums.SkillUsageEventTypeUsed, 5, alpha.ID, enums.EntryPointSkillPackage, boolPtr(false), nil)
+
+	w := performAnalyticsHandlerRequest(
+		t,
+		"/?start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339)+"&page=2&limit=1",
+		GetOpsSkillAnalyticsSkills,
+	)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got SkillAnalyticsSkillsResponse
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Skills, 1)
+	assert.Equal(t, beta.ID, got.Skills[0].SkillID)
+	assert.Equal(t, int64(1), got.Skills[0].SuccessfulRuns)
+	assert.Equal(t, 2, got.Pagination.Page)
+	assert.Equal(t, 1, got.Pagination.Limit)
+	assert.Equal(t, int64(3), got.Pagination.Total)
+	assert.True(t, got.Pagination.HasNext)
+}
+
 func TestGetOpsSkillAnalyticsRejectsInvalidDateRange(t *testing.T) {
 	_ = newAnalyticsTestDB(t)
 	w := performAnalyticsHandlerRequest(t, "/?start=2026-06-08T00:00:00Z&end=2026-06-01T00:00:00Z", GetOpsSkillAnalyticsOverview)
