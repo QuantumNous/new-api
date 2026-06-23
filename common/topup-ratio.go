@@ -7,9 +7,9 @@ import (
 )
 
 var topupGroupRatio = map[string]float64{
-	PLGGroup: 0.9,
-	"vip":    1,
-	"svip":   1,
+	"default": 1,
+	"vip":     1,
+	"svip":    1,
 }
 var topupGroupRatioMutex sync.RWMutex
 

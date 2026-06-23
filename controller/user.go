@@ -138,8 +138,7 @@ func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
 	session.Set("username", user.Username)
 	session.Set("role", user.Role)
 	session.Set("status", user.Status)
-	userGroup := common.NormalizeUserIdentityGroup(user.Group)
-	session.Set("group", userGroup)
+	session.Set("group", user.Group)
 	err := session.Save()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
@@ -151,8 +150,8 @@ func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
 		"display_name":  user.DisplayName,
 		"role":          user.Role,
 		"status":        user.Status,
-		"group":         userGroup,
-		"is_enterprise": common.IsEnterpriseIdentity(userGroup, user.Role),
+		"group":         user.Group,
+		"is_enterprise": user.IsEnterprise,
 	}
 	// Surfaced only for brand-new registrations (OAuth sign-up and password-register
 	// auto-login) so the frontend can trigger first-login onboarding. Omitted for
@@ -349,8 +348,6 @@ func GetUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
 		return
 	}
-	user.Group = common.NormalizeUserIdentityGroup(user.Group)
-	user.IsEnterprise = common.IsEnterpriseIdentity(user.Group, user.Role)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -478,7 +475,7 @@ func GetSelf(c *gin.Context) {
 		"google_id":            user.GoogleId,
 		"wechat_id":            user.WeChatId,
 		"telegram_id":          user.TelegramId,
-		"group":                common.NormalizeUserIdentityGroup(user.Group),
+		"group":                user.Group,
 		"quota":                user.Quota,
 		"used_quota":           user.UsedQuota,
 		"request_count":        user.RequestCount,
@@ -492,7 +489,7 @@ func GetSelf(c *gin.Context) {
 		"stripe_customer":      user.StripeCustomer,
 		"stripe_card_bound":    user.StripeCardBound,
 		"new_user_bonus_given": user.NewUserBonusGiven,
-		"is_enterprise":        common.IsEnterpriseIdentity(user.Group, user.Role),
+		"is_enterprise":        user.IsEnterprise,
 		"sidebar_modules":      userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":          permissions,                // 新增权限字段
 	}

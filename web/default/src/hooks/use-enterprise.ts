@@ -17,33 +17,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 /**
- * Hook for checking whether the current user should see group controls.
+ * Hook for checking whether the current user is an enterprise user.
  *
- * PLG users have the group concept hidden everywhere in their UI; their API
- * keys are always forced to the `plg` group by the backend. Enterprise identity
- * is derived from the user's group; the legacy is_enterprise field is only a
- * compatibility payload from older sessions.
+ * Non-enterprise (PLG) users have the group concept hidden everywhere in
+ * their UI; their API keys are always forced to the `plg` group by the
+ * backend. Enterprise users (and admins, who are backfilled as enterprise)
+ * keep the full group UI.
  */
 import { useAuthStore } from '@/stores/auth-store'
 
-const ADMIN_ROLE = 10
-const PLG_GROUP = 'plg'
-const LEGACY_DEFAULT_GROUP = 'default'
-
-function normalizeIdentityGroup(group: string | undefined): string {
-  const normalized = group?.trim()
-  if (!normalized || normalized === LEGACY_DEFAULT_GROUP) return PLG_GROUP
-  return normalized
-}
-
 /**
- * Returns true when the current user should see group controls.
+ * Returns true when the current user is an enterprise user.
  */
 export function useIsEnterprise(): boolean {
-  return useAuthStore((state) => {
-    const user = state.auth.user
-    if (!user) return false
-    if (user.role >= ADMIN_ROLE) return true
-    return normalizeIdentityGroup(user.group) !== PLG_GROUP
-  })
+  return useAuthStore((state) => !!state.auth.user?.is_enterprise)
 }

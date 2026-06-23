@@ -17,7 +17,6 @@ import (
 type UserBase struct {
 	Id           int    `json:"id"`
 	Group        string `json:"group"`
-	Role         int    `json:"role"`
 	Email        string `json:"email"`
 	Quota        int    `json:"quota"`
 	Status       int    `json:"status"`
@@ -48,10 +47,14 @@ func (user *UserBase) GetSetting() dto.UserSetting {
 
 // getUserCacheKey returns the key for user cache.
 //
-// The `v3:` prefix was bumped when user identity stopped using the stored
-// is_enterprise switch and started deriving group visibility from Group+Role.
+// The `v2:` prefix was bumped when the UserBase schema gained IsEnterprise. Old `user:%d`
+// hashes (written before the field existed) lack it, so RedisHGetObj would deserialize
+// IsEnterprise=false and wrongly treat backfilled enterprise users as PLG until the stale
+// entry expired. Bumping the prefix forces a cache miss → DB rebuild on the new schema
+// instead of reading a stale struct — safe across processes/nodes and needs no flush
+// (which is impossible here anyway: the backfill runs before Redis is initialized).
 func getUserCacheKey(userId int) string {
-	return fmt.Sprintf("user:v3:%d", userId)
+	return fmt.Sprintf("user:v2:%d", userId)
 }
 
 // invalidateUserCache clears user cache
@@ -112,14 +115,13 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 	// Create cache object from user data
 	userCache = &UserBase{
 		Id:           user.Id,
-		Group:        common.NormalizeUserIdentityGroup(user.Group),
-		Role:         user.Role,
+		Group:        user.Group,
 		Quota:        user.Quota,
 		Status:       user.Status,
 		Username:     user.Username,
 		Setting:      user.Setting,
 		Email:        user.Email,
-		IsEnterprise: common.IsEnterpriseIdentity(user.Group, user.Role),
+		IsEnterprise: user.IsEnterprise,
 	}
 
 	return userCache, nil
@@ -135,12 +137,6 @@ func cacheGetUserBase(userId int) (*UserBase, error) {
 	if err != nil {
 		return nil, err
 	}
-	if userCache.Id == 0 || userCache.Username == "" {
-		_ = invalidateUserCache(userId)
-		return nil, fmt.Errorf("incomplete user cache: %d", userId)
-	}
-	userCache.Group = common.NormalizeUserIdentityGroup(userCache.Group)
-	userCache.IsEnterprise = common.IsEnterpriseIdentity(userCache.Group, userCache.Role)
 	return &userCache, nil
 }
 

@@ -13,23 +13,40 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// defaultUserGroup is the system default identity group assigned to every newly
+// registered user. It mirrors the `default:'default'` column default on
+// model.User.Group (model/user.go). It is always an assignable group even when an
+// admin has not listed it in any ratio config, so the user-edit picker can always
+// represent a freshly registered user's group.
+const defaultUserGroup = "default"
+
+// plgGroup is the single group assigned to every non-enterprise (PLG) user. New users
+// default into it (model.User.Group default), the group concept is hidden from them in the
+// UI, and the backend forces their tokens/requests onto it. Shared across the controller
+// package (group.go, token.go).
+const plgGroup = "plg"
+
 func GetGroups(c *gin.Context) {
 	// type=user returns the user identity groups (user.Group), whose authoritative
-	// source is the union of plg, the topup group ratio
+	// source is the union of the system default group, the topup group ratio
 	// (充值分组比例), and the outer keys of the group-specific ratio (分组专属倍率
-	// GroupGroupRatio). Default returns all ratio groups (model/channel pricing
-	// groups), used by channel configuration.
+	// GroupGroupRatio). This mirrors the system-settings group-ratio editor, which
+	// treats a parent user group as valid if it is configured in either place — a
+	// customer may isolate rates purely via GroupGroupRatio without ever touching
+	// TopupGroupRatio. The system default is always included so newly registered
+	// users (group=default) remain a selectable option. Used by the admin user-edit
+	// form. Default returns all ratio groups (model/channel pricing groups), used by
+	// channel configuration.
 	if c.Query("type") == "user" {
 		seen := make(map[string]bool)
 		userGroups := make([]string, 0)
 		addGroup := func(name string) {
-			name = common.NormalizeUserIdentityGroup(name)
 			if name != "" && !seen[name] {
 				seen[name] = true
 				userGroups = append(userGroups, name)
 			}
 		}
-		addGroup(common.PLGGroup)
+		addGroup(defaultUserGroup)
 		for _, name := range common.GetTopupGroupRatioKeys() {
 			addGroup(name)
 		}
@@ -62,16 +79,13 @@ func GetUserGroups(c *gin.Context) {
 	userId := c.GetInt("id")
 	userGroup, _ = model.GetUserGroup(userId, false)
 
-	userCache, err := model.GetUserCache(userId)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	userGroup = common.NormalizeUserIdentityGroup(userGroup)
-	if !common.IsEnterpriseIdentity(userCache.Group, userCache.Role) {
-		usableGroups[common.PLGGroup] = map[string]interface{}{
-			"ratio": service.GetUserGroupRatio(userGroup, common.PLGGroup),
-			"desc":  setting.GetUsableGroupDescription(common.PLGGroup),
+	// PLG (non-enterprise) users never see the group concept — they only ever get the
+	// single plg group. Enterprise users (admin-flagged, plus all backfilled legacy users)
+	// fall through to the full usable-group resolution below.
+	if userCache, err := model.GetUserCache(userId); err == nil && !userCache.IsEnterprise {
+		usableGroups[plgGroup] = map[string]interface{}{
+			"ratio": service.GetUserGroupRatio(userGroup, plgGroup),
+			"desc":  setting.GetUsableGroupDescription(plgGroup),
 		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,

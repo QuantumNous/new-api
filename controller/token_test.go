@@ -48,21 +48,21 @@ type sqliteColumnInfo struct {
 }
 
 type legacyToken struct {
-	Id                 int    `gorm:"primaryKey"`
-	UserId             int    `gorm:"index"`
-	Key                string `gorm:"column:key;type:char(48);uniqueIndex"`
-	Status             int    `gorm:"default:1"`
-	Name               string `gorm:"index"`
-	CreatedTime        int64  `gorm:"bigint"`
-	AccessedTime       int64  `gorm:"bigint"`
-	ExpiredTime        int64  `gorm:"bigint;default:-1"`
-	RemainQuota        int    `gorm:"default:0"`
+	Id                 int            `gorm:"primaryKey"`
+	UserId             int            `gorm:"index"`
+	Key                string         `gorm:"column:key;type:char(48);uniqueIndex"`
+	Status             int            `gorm:"default:1"`
+	Name               string         `gorm:"index"`
+	CreatedTime        int64          `gorm:"bigint"`
+	AccessedTime       int64          `gorm:"bigint"`
+	ExpiredTime        int64          `gorm:"bigint;default:-1"`
+	RemainQuota        int            `gorm:"default:0"`
 	UnlimitedQuota     bool
 	ModelLimitsEnabled bool
-	ModelLimits        string  `gorm:"type:text"`
-	AllowIps           *string `gorm:"default:''"`
-	UsedQuota          int     `gorm:"default:0"`
-	Group              string  `gorm:"column:group;default:''"`
+	ModelLimits        string         `gorm:"type:text"`
+	AllowIps           *string        `gorm:"default:''"`
+	UsedQuota          int            `gorm:"default:0"`
+	Group              string         `gorm:"column:group;default:''"`
 	CrossGroupRetry    bool
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
@@ -101,7 +101,7 @@ func openTokenControllerTestDB(t *testing.T) *gorm.DB {
 func migrateTokenControllerTestDB(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
-	if err := db.AutoMigrate(&model.User{}, &model.Token{}); err != nil {
+	if err := db.AutoMigrate(&model.Token{}); err != nil {
 		t.Fatalf("failed to migrate token table: %v", err)
 	}
 }
@@ -163,17 +163,6 @@ func openTokenControllerExternalDB(t *testing.T, dialect string, dsn string) (*g
 
 func seedToken(t *testing.T, db *gorm.DB, userID int, name string, rawKey string) *model.Token {
 	t.Helper()
-
-	user := model.User{
-		Id:       userID,
-		Username: fmt.Sprintf("token-user-%d", userID),
-		Group:    "vip",
-		Role:     common.RoleAdminUser,
-		AffCode:  fmt.Sprintf("tk%02d", userID),
-	}
-	if err := db.Where("id = ?", userID).FirstOrCreate(&user).Error; err != nil {
-		t.Fatalf("failed to create token test user: %v", err)
-	}
 
 	token := &model.Token{
 		UserId:         userID,

@@ -10,8 +10,9 @@ import (
 )
 
 var defaultGroupRatio = map[string]float64{
-	"vip":  1,
-	"svip": 1,
+	"default": 1,
+	"vip":     1,
+	"svip":    1,
 	// plg is the group every non-enterprise user is forced onto. Seed a sane default so a
 	// fresh install bills it at 0.9 instead of falling back to 1.0. NOTE: when a GroupRatio
 	// option already exists in the DB it REPLACES this map on load (see types.LoadFromJsonString),

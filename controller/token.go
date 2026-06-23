@@ -207,14 +207,9 @@ func AddToken(c *gin.Context) {
 		common.SysLog("failed to generate token key: " + err.Error())
 		return
 	}
-	// PLG users cannot pick a group — force every token onto plg.
-	uc, ucErr := model.GetUserCache(c.GetInt("id"))
-	if ucErr != nil {
-		common.ApiError(c, ucErr)
-		return
-	}
-	if !common.IsEnterpriseIdentity(uc.Group, uc.Role) {
-		token.Group = common.PLGGroup
+	// PLG (non-enterprise) users cannot pick a group — force every token onto plg.
+	if uc, ucErr := model.GetUserCache(c.GetInt("id")); ucErr == nil && !uc.IsEnterprise {
+		token.Group = plgGroup
 		token.CrossGroupRetry = false
 	}
 	cleanToken := model.Token{
@@ -316,14 +311,9 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
-		// PLG users cannot pick a group — force every token onto plg.
-		uc, ucErr := model.GetUserCache(userId)
-		if ucErr != nil {
-			common.ApiError(c, ucErr)
-			return
-		}
-		if !common.IsEnterpriseIdentity(uc.Group, uc.Role) {
-			cleanToken.Group = common.PLGGroup
+		// PLG (non-enterprise) users cannot pick a group — force every token onto plg.
+		if uc, ucErr := model.GetUserCache(userId); ucErr == nil && !uc.IsEnterprise {
+			cleanToken.Group = plgGroup
 			cleanToken.CrossGroupRetry = false
 		}
 	}
