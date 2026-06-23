@@ -1,6 +1,6 @@
 # DR-66 — Skill lifecycle & enabled-state gate (relay entry)
 
-Status: **Implemented** (backend, `internal/skill/relay/`). Phase 1 / M05.
+Status: **eval** (backend, `internal/skill/relay/`; awaiting merge). Phase 1 / M05.
 Depends on: DR-65 (immutable execution snapshot, merged) + DR-42 (`user_enabled_skills`).
 Successor: DR-67 (use-time entitlement) — see D3 handoff seam below.
 
