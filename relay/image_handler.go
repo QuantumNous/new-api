@@ -46,6 +46,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	adaptor.Init(info)
 
 	openai.SetImagePollDeadline(c, *request)
+	service.SetImageRequestDataOnContext(c, request)
 
 	var requestBody io.Reader
 

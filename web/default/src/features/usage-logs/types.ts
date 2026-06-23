@@ -185,6 +185,7 @@ export interface LogOtherData {
   is_task?: boolean
   task_id?: string
   result_url?: string
+  request_data?: Record<string, unknown>
   reason?: string
   // Subscription billing fields
   subscription_plan_id?: string

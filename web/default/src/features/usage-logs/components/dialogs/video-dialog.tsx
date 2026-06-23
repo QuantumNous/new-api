@@ -30,10 +30,12 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { downloadMediaFile } from '../../lib/download-media'
+import { RequestDataPanel } from './request-data-panel'
 
 interface VideoDialogProps {
   videoUrl: string
   taskId?: string
+  requestData?: Record<string, unknown> | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }
@@ -41,6 +43,7 @@ interface VideoDialogProps {
 export function VideoDialog({
   videoUrl,
   taskId,
+  requestData,
   open,
   onOpenChange,
 }: VideoDialogProps) {
@@ -78,6 +81,8 @@ export function VideoDialog({
               : t('View the generated video')}
           </DialogDescription>
         </DialogHeader>
+
+        <RequestDataPanel data={requestData} />
 
         <p className='text-muted-foreground text-xs'>
           {t('Generated images and videos are only kept for 3 days.')}

@@ -113,6 +113,7 @@ type TaskPrivateData struct {
 	HedgeUpstreamTaskID string `json:"hedge_upstream_task_id,omitempty"`
 	GptImage2Profile    string `json:"gpt_image2_profile,omitempty"`
 	GptImage2OfficialFB string `json:"gpt_image2_official_fallback,omitempty"`
+	RequestData         string `json:"request_data,omitempty"`
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。

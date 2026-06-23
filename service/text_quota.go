@@ -479,6 +479,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if resultURL := strings.TrimSpace(ctx.GetString("image_result_url")); resultURL != "" {
 		other["result_url"] = resultURL
 	}
+	if requestData := ImageRequestDataFromContext(ctx); len(requestData) > 0 {
+		other["request_data"] = requestData
+	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,

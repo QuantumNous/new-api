@@ -31,14 +31,38 @@ func EnrichLogMediaURL(log *model.Log) {
 	if otherMap == nil {
 		otherMap = map[string]interface{}{}
 	}
-	if url, ok := otherMap["result_url"].(string); ok && strings.TrimSpace(url) != "" {
-		return
+	changed := false
+	if url, ok := otherMap["result_url"].(string); !ok || strings.TrimSpace(url) == "" {
+		if url := resolveLogMediaURL(log, otherMap); url != "" {
+			otherMap["result_url"] = url
+			changed = true
+		}
 	}
-
-	if url := resolveLogMediaURL(log, otherMap); url != "" {
-		otherMap["result_url"] = url
+	if _, ok := otherMap["request_data"]; !ok {
+		if rd := resolveLogRequestData(otherMap); len(rd) > 0 {
+			otherMap["request_data"] = rd
+			changed = true
+		}
+	}
+	if changed {
 		log.Other = common.MapToJsonStr(otherMap)
 	}
+}
+
+func resolveLogRequestData(other map[string]interface{}) map[string]interface{} {
+	taskID := strings.TrimSpace(fmtTaskID(other["task_id"]))
+	if taskID == "" {
+		return nil
+	}
+	task, exist, err := model.GetByOnlyTaskId(taskID)
+	if err != nil || !exist || strings.TrimSpace(task.PrivateData.RequestData) == "" {
+		return nil
+	}
+	var data map[string]interface{}
+	if err := common.Unmarshal([]byte(task.PrivateData.RequestData), &data); err != nil {
+		return nil
+	}
+	return data
 }
 
 func isLogMediaVideoModel(modelName string) bool {

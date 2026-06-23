@@ -319,6 +319,7 @@ function MediaPreviewCell({
         <ImageDialog
           imageUrl={preview.url}
           taskId={preview.taskId}
+          requestData={other?.request_data}
           open={dialogOpen}
           onOpenChange={setDialogOpen}
         />
@@ -326,6 +327,7 @@ function MediaPreviewCell({
         <VideoDialog
           videoUrl={preview.url}
           taskId={preview.taskId}
+          requestData={other?.request_data}
           open={dialogOpen}
           onOpenChange={setDialogOpen}
         />

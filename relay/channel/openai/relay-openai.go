@@ -923,6 +923,11 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 					GptImage2OfficialFB: service.GptImage2OfficialFallbackContextValue(c),
 				},
 			}
+			if rd := service.ImageRequestDataFromContext(c); len(rd) > 0 {
+				if encoded, merr := common.Marshal(rd); merr == nil {
+					task.PrivateData.RequestData = string(encoded)
+				}
+			}
 			if err := task.Insert(); err != nil {
 				// Fall back to the pre-existing behavior (expose the upstream task_id
 				// directly) rather than failing the request over a tracking-table write.
