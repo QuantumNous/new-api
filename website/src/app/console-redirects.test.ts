@@ -10,21 +10,21 @@ describe("console redirects", () => {
     const response = dashboardRedirect(new Request("https://flatkey.ai/dashboard?next=%2Fplayground&utm_source=home"));
 
     expect(response.status).toBe(301);
-    expect(response.headers.get("location")).toBe("https://router.flatkey.ai/dashboard?next=%2Fplayground&utm_source=home");
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/dashboard?next=%2Fplayground&utm_source=home");
   });
 
   test("preserves sign-in search params", () => {
     const response = signInRedirect(new Request("https://flatkey.ai/sign-in?redirect=%2Fdashboard"));
 
     expect(response.status).toBe(301);
-    expect(response.headers.get("location")).toBe("https://router.flatkey.ai/sign-in?redirect=%2Fdashboard");
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-in?redirect=%2Fdashboard");
   });
 
   test("preserves sign-up search params", () => {
     const response = signUpRedirect(new Request("https://flatkey.ai/sign-up?invite=abc123"));
 
     expect(response.status).toBe(301);
-    expect(response.headers.get("location")).toBe("https://router.flatkey.ai/sign-up?invite=abc123");
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-up?invite=abc123");
   });
 
   test("preserves localized sign-in search params", async () => {
@@ -33,7 +33,7 @@ describe("console redirects", () => {
     });
 
     expect(response.status).toBe(301);
-    expect(response.headers.get("location")).toBe("https://router.flatkey.ai/sign-in?redirect=%2Fdashboard");
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-in?redirect=%2Fdashboard");
   });
 
   test("preserves localized sign-up search params", async () => {
@@ -42,6 +42,6 @@ describe("console redirects", () => {
     });
 
     expect(response.status).toBe(301);
-    expect(response.headers.get("location")).toBe("https://router.flatkey.ai/sign-up?invite=abc123");
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-up?invite=abc123");
   });
 });
