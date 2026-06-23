@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
@@ -32,6 +33,9 @@ func UpdateModelRequestRateLimitGroupByJSONString(jsonStr string) error {
 	defer ModelRequestRateLimitMutex.RUnlock()
 
 	ModelRequestRateLimitGroup = make(map[string][2]int)
+	if strings.TrimSpace(jsonStr) == "" {
+		return nil
+	}
 	return json.Unmarshal([]byte(jsonStr), &ModelRequestRateLimitGroup)
 }
 

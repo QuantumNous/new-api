@@ -2,6 +2,7 @@ package setting
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 )
@@ -41,6 +42,9 @@ var Chats = []map[string]string{
 
 func UpdateChatsByJsonString(jsonString string) error {
 	Chats = make([]map[string]string, 0)
+	if strings.TrimSpace(jsonString) == "" {
+		return nil
+	}
 	return json.Unmarshal([]byte(jsonString), &Chats)
 }
 

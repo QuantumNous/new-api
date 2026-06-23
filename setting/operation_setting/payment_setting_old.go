@@ -6,6 +6,8 @@ This file is the old version of the payment settings file. If you need to add ne
 package operation_setting
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/common"
 )
 
@@ -38,6 +40,9 @@ var PayMethods = []map[string]string{
 
 func UpdatePayMethodsByJsonString(jsonString string) error {
 	PayMethods = make([]map[string]string, 0)
+	if strings.TrimSpace(jsonString) == "" {
+		return nil
+	}
 	return common.Unmarshal([]byte(jsonString), &PayMethods)
 }
 
