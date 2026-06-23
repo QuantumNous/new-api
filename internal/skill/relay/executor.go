@@ -1,7 +1,7 @@
 package skillrelay
 
 // executor implements DR-68: server-side routing/model-selection + provider call setup.
-// After Resolve() stores a SkillRelayContext, LoadAndApply() loads the immutable
+// After Resolve() stores a SkillRelayContext, LoadAndApply() consumes the immutable
 // SkillVersion snapshot, selects a server-authoritative model, and rewrites the relay
 // request to enforce FR-G19 (stateless single-turn).
 //
@@ -9,21 +9,23 @@ package skillrelay
 //   - Model comes from model_whitelist_snapshot, never from the client payload.
 //   - Provider call contains only instruction_template + last user message (no history).
 //   - Provider credentials stay server-side; instruction_template is not a secret (R2/D-09).
+//   - Downstream execution must consume the request-entry-bound snapshot and must not
+//     re-resolve mutable skill version pointer state.
 
 import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	"github.com/QuantumNous/new-api/internal/skill/tiers"
 	"gorm.io/gorm"
 )
 
 // LoadAndApply is the DR-68 relay execution step (package-level, uses package db).
-// It loads the active SkillVersion snapshot, selects a server-authoritative model
-// from the whitelist, and rewrites the request for stateless single-turn execution.
+// It consumes the immutable SkillVersion snapshot already bound on ctx.
 //
 // Returns the rewritten request on success.
-// Returns (nil, errCode) on any failure — caller must abort the request.
+// Returns (nil, errCode) on any failure - caller must abort the request.
 // SkillRelayContext.SkillVersionID is populated on success.
 func LoadAndApply(ctx *SkillRelayContext, request *dto.GeneralOpenAIRequest) (*dto.GeneralOpenAIRequest, errcodes.ErrorCode) {
 	return loadAndApply(db, ctx, request)
@@ -35,7 +37,7 @@ func loadAndApply(database *gorm.DB, ctx *SkillRelayContext, request *dto.Genera
 		return nil, errcodes.ErrSkillInternalError
 	}
 
-	snapshot, errCode := loadSnapshot(database, ctx.Skill)
+	snapshot, errCode := loadSnapshot(database, ctx)
 	if errCode != "" {
 		return nil, errCode
 	}
@@ -62,28 +64,27 @@ type versionSnapshot struct {
 	ModelWhitelist      []string
 }
 
-// loadSnapshot fetches the active SkillVersion row for skill.ActiveVersionID.
-// The caller must have already verified ActiveVersionID != nil (done by resolver.go).
-func loadSnapshot(database *gorm.DB, skill *skillmodel.Skill) (*versionSnapshot, errcodes.ErrorCode) {
-	if skill == nil || skill.ActiveVersionID == nil {
+// loadSnapshot consumes only the SkillVersion snapshot bound by Resolve at request
+// entry. If the bound snapshot is absent, fail closed instead of inspecting mutable
+// Skill state.
+func loadSnapshot(_ *gorm.DB, ctx *SkillRelayContext) (*versionSnapshot, errcodes.ErrorCode) {
+	if ctx == nil {
 		return nil, errcodes.ErrSkillInternalError
 	}
-
-	var version skillmodel.SkillVersion
-	if err := database.
-		Select([]string{"id", "instruction_template", "model_whitelist_snapshot"}).
-		Where("id = ?", *skill.ActiveVersionID).
-		Take(&version).Error; err != nil {
-		// ActiveVersionID points to a non-existent or corrupt version row —
-		// publish/activate validation should have prevented this, but guard here.
+	if ctx.SkillVersion == nil {
 		return nil, errcodes.ErrSkillInternalError
 	}
+	return snapshotFromSkillVersion(ctx.SkillVersion)
+}
 
+func snapshotFromSkillVersion(version *skillmodel.SkillVersion) (*versionSnapshot, errcodes.ErrorCode) {
+	if version == nil {
+		return nil, errcodes.ErrSkillInternalError
+	}
 	whitelist, err := parseModelWhitelist(version.ModelWhitelistSnapshot)
 	if err != nil {
 		return nil, errcodes.ErrSkillInternalError
 	}
-
 	return &versionSnapshot{
 		SkillVersionID:      version.ID,
 		InstructionTemplate: version.InstructionTemplate,
@@ -104,13 +105,22 @@ func parseModelWhitelist(raw skillmodel.SkillJSONB) ([]string, error) {
 }
 
 // selectModel picks the server-authoritative model from the whitelist.
-// V1: returns the first non-empty entry (list is priority-ordered by admin at publish time).
+// V1: takes the first non-empty entry (list is priority-ordered by admin at publish time).
+//
+// DR-96: a whitelist entry may be a platform tier alias (e.g. "smart-tier") rather
+// than a concrete model id. Tier aliases are resolved server-side to the current
+// best model via the platform alias registry; non-alias entries are treated as
+// literal model names and passed through unchanged (backward compatible).
 // TODO(DR-68-model-selection): add plan-based filtering and context-budget check.
 func selectModel(whitelist []string) (string, errcodes.ErrorCode) {
 	for _, m := range whitelist {
-		if m != "" {
-			return m, ""
+		if m == "" {
+			continue
 		}
+		if resolved, ok := tiers.Resolve(m); ok {
+			return resolved, ""
+		}
+		return m, ""
 	}
 	return "", errcodes.ErrSkillInternalError
 }
@@ -120,7 +130,7 @@ func selectModel(whitelist []string) (string, errcodes.ErrorCode) {
 //   - Builds a fresh message array: [system: instruction_template, user: last_user_message].
 //   - Sets request.Model to the server-selected model (discards client-supplied model).
 //
-// All prior-turn messages are dropped — the provider sees exactly one user turn.
+// All prior-turn messages are dropped - the provider sees exactly one user turn.
 func rewriteForSingleTurn(request *dto.GeneralOpenAIRequest, instructionTemplate, model string) (*dto.GeneralOpenAIRequest, errcodes.ErrorCode) {
 	// V1 skills are text-only. StringContent() returns "" for pure-image ContentPart
 	// arrays (no text type), which is treated the same as a missing user message.

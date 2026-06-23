@@ -36,6 +36,7 @@ import {
   Store,
   Sparkles,
   LibraryBig,
+  BarChart2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
@@ -163,6 +164,12 @@ export function useSidebarData(): SidebarData {
             url: '/system-settings/site',
             activeUrls: ['/system-settings'],
             icon: Settings,
+          },
+          // DR-76: Ops Overview dashboard — skill health metrics for operators.
+          {
+            title: t('Skill Analytics'),
+            url: '/skill-analytics',
+            icon: BarChart2,
           },
           // DeepRouter cheatsheet — keeps the Channel/Model/Group pricing
           // relationship a click away so the operator never has to re-derive
