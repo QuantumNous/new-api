@@ -261,6 +261,16 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
         encodeToBase64(JSON.stringify(deepchatConfig)),
       );
       url = url.replaceAll('{deepchatConfig}', encodedConfig);
+    } else if (url.includes('{etosConfig}') === true) {
+      let etosConfig = {
+        id: 'new-api',
+        baseUrl: serverAddress,
+        apiKey: `sk-${fullKey}`,
+      };
+      let encodedConfig = encodeURIComponent(
+        encodeToBase64(JSON.stringify(etosConfig)),
+      );
+      url = url.replaceAll('{etosConfig}', encodedConfig);
     } else {
       let encodedServerAddress = encodeURIComponent(serverAddress);
       url = url.replaceAll('{address}', encodedServerAddress);

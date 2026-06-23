@@ -89,7 +89,8 @@ export function chatLinkRequiresApiKey(url: string): boolean {
     url.includes('{key}') ||
     url.includes('{cherryConfig}') ||
     url.includes('{aionuiConfig}') ||
-    url.includes('{deepchatConfig}')
+    url.includes('{deepchatConfig}') ||
+    url.includes('{etosConfig}')
   )
 }
 
@@ -187,6 +188,16 @@ export function resolveChatUrl({
     }
     const encoded = encodeURIComponent(toBase64(JSON.stringify(payload)))
     return replaceToken(url, '{deepchatConfig}', encoded)
+  }
+
+  if (url.includes('{etosConfig}')) {
+    const payload = {
+      id: 'new-api',
+      baseUrl: safeServerAddress,
+      apiKey: safeApiKey,
+    }
+    const encoded = encodeURIComponent(toBase64(JSON.stringify(payload)))
+    return replaceToken(url, '{etosConfig}', encoded)
   }
 
   if (safeServerAddress) {
