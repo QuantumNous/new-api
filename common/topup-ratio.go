@@ -2,6 +2,7 @@ package common
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 )
 
@@ -26,6 +27,9 @@ func UpdateTopupGroupRatioByJSONString(jsonStr string) error {
 	topupGroupRatioMutex.Lock()
 	defer topupGroupRatioMutex.Unlock()
 	topupGroupRatio = make(map[string]float64)
+	if strings.TrimSpace(jsonStr) == "" {
+		return nil
+	}
 	return json.Unmarshal([]byte(jsonStr), &topupGroupRatio)
 }
 
