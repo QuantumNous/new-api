@@ -13,6 +13,7 @@ package relay
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -41,8 +42,21 @@ func newSkillTestDB(t *testing.T) *gorm.DB {
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}))
+	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}, &skillmodel.UserEnabledSkill{}))
 	return database
+}
+
+// enableSkillRowFor seeds an enabled user_enabled_skills row (tenant_id=userID, V1)
+// so a request passes the DR-66 lifecycle/enabled gate, which requires published
+// skills to be enabled for the caller before the snapshot/prompt is loaded.
+func enableSkillRowFor(t *testing.T, db *gorm.DB, userID int, skillID string) {
+	t.Helper()
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:   int64(userID),
+		TenantID: int64(userID),
+		SkillID:  skillID,
+		Enabled:  true,
+	}).Error)
 }
 
 // insertVersionForSkill creates a SkillVersion for skill and wires it as the active version.
@@ -169,6 +183,7 @@ func TestTextHelper_SkillRelay_SkillFound_ContextSet(t *testing.T) {
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 7)
+	enableSkillRowFor(t, testDB, 7, skill.ID)
 
 	// TextHelper exits after LoadAndApply (no adaptor available in tests)  we don't assert the error.
 	TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
@@ -246,6 +261,7 @@ func TestTextHelper_SkillRelay_EntryPoint_DefaultIsPlaygroundPicker(t *testing.T
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 8)
+	enableSkillRowFor(t, testDB, 8, skill.ID)
 	TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
 		Model:      "gpt-4o",
 		Messages:   []dto.Message{userMsg("hello")},
@@ -275,6 +291,7 @@ func TestTextHelper_SkillRelay_InvalidEntryPoint_Returns400(t *testing.T) {
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 10)
+	enableSkillRowFor(t, testDB, 10, skill.ID)
 	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
 		Model:    "gpt-4o",
 		Messages: []dto.Message{userMsg("hello")},
@@ -338,6 +355,7 @@ func TestTextHelper_SkillRelay_EntryPoint_FromDeepRouterField(t *testing.T) {
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 9)
+	enableSkillRowFor(t, testDB, 9, skill.ID)
 	TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
 		Model:    "gpt-4o",
 		Messages: []dto.Message{userMsg("hello")},
@@ -412,6 +430,7 @@ func TestTextHelper_SkillRelay_PublicRoutingAPI_ForcePackageEntryAndCredentialId
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 13)
+	enableSkillRowFor(t, testDB, 13, skill.ID)
 	common.SetContextKey(c, constant.ContextKeySkillPublicRoutingAPI, true)
 	common.SetContextKey(c, constant.ContextKeySkillRelayEntryPoint, string(enums.EntryPointSkillPackage))
 
@@ -455,6 +474,7 @@ func TestTextHelper_SkillRelay_DR68_EmptyWhitelist_Returns500(t *testing.T) {
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 5)
+	enableSkillRowFor(t, testDB, 5, skill.ID)
 	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
 		Model:      "gpt-4o",
 		Messages:   []dto.Message{userMsg("hello")},
@@ -485,6 +505,7 @@ func TestTextHelper_SkillRelay_DR68_NoUserMessage_Returns400(t *testing.T) {
 	sys := dto.Message{Role: "system"}
 	sys.SetStringContent("system only  no user message")
 	c := newSkillTestCtx(t, 5)
+	enableSkillRowFor(t, testDB, 5, skill.ID)
 	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
 		Model:      "gpt-4o",
 		Messages:   []dto.Message{sys}, // no user role
@@ -567,6 +588,7 @@ func TestTextHelper_SkillRelay_DR68_LoadAndApply_Executed(t *testing.T) {
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c := newSkillTestCtx(t, 5)
+	enableSkillRowFor(t, testDB, 5, skill.ID)
 
 	// Multi-turn history: LoadAndApply must strip to [system, last-user] only.
 	a1 := dto.Message{Role: "assistant"}
@@ -591,6 +613,55 @@ func TestTextHelper_SkillRelay_DR68_LoadAndApply_Executed(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, version.ID, sCtx.SkillVersionID,
 		"DR-68: SkillVersionID must be populated by LoadAndApply to prove version snapshot was loaded")
+}
+
+// TestTextHelper_SkillRelay_DR66_NotEnabled_NoSnapshotNoPrompt is the direct/TextHelper
+// no-snapshot regression for DR-66: a published skill the caller has NOT enabled is
+// rejected with HTTP 403 SKILL_NOT_ENABLED before the version snapshot is queried, so no
+// prompt/snapshot is loaded and no SkillRelayContext is stored (tasks/05 "No prompt load";
+// threat T-05). Asserted at the DB layer via a skill_versions SELECT counter (no production
+// test hook).
+func TestTextHelper_SkillRelay_DR66_NotEnabled_NoSnapshotNoPrompt(t *testing.T) {
+	testDB := newSkillTestDB(t)
+	skill := &skillmodel.Skill{
+		Slug: "dr66-not-enabled", Status: enums.SkillStatusPublished, Category: "test",
+		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
+		Name: "DR66 Not Enabled", ShortDescription: "s", Description: "d", CreatedBy: 1,
+	}
+	require.NoError(t, testDB.Create(skill).Error)
+	insertVersionForSkill(t, testDB, skill, "SENTINEL_DR66_TEMPLATE", []string{"deeprouter-auto"})
+
+	var snapshotSelects int
+	require.NoError(t, testDB.Callback().Query().After("gorm:query").Register("dr66_count", func(d *gorm.DB) {
+		if strings.Contains(strings.ToLower(d.Statement.SQL.String()), "skill_versions") {
+			snapshotSelects++
+		}
+	}))
+
+	skillrelay.SetDB(testDB)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	// user 77 has NO user_enabled_skills row -> gate must reject.
+	c := newSkillTestCtx(t, 77)
+	req := &dto.GeneralOpenAIRequest{
+		Model:      "gpt-4o",
+		Messages:   []dto.Message{userMsg("hello")},
+		Deeprouter: &dto.DeepRouterExtension{SkillID: skill.ID},
+	}
+	apiErr := TextHelper(c, newSkillRelayInfo(req))
+
+	require.NotNil(t, apiErr, "not-enabled skill must be rejected")
+	assert.Equal(t, http.StatusForbidden, apiErr.StatusCode, "must be HTTP 403")
+	assert.Equal(t, "SKILL_NOT_ENABLED", apiErr.Err.Error())
+	assert.Equal(t, 0, snapshotSelects, "gate failure must not load the version snapshot (no prompt)")
+	_, hasCtx := skillrelay.Get(c)
+	assert.False(t, hasCtx, "no SkillRelayContext must be stored when the gate fails")
+	// Symmetric with the Distribute-path regression: the instruction template must
+	// never be injected into the request messages when the gate fails.
+	for _, m := range req.Messages {
+		assert.NotContains(t, m.StringContent(), "SENTINEL_DR66_TEMPLATE",
+			"instruction template must not be injected on gate failure")
+	}
 }
 
 // TestTextHelper_SkillRelay_TOCTOU_PinnedVersionIDPreserved verifies the TOCTOU guard

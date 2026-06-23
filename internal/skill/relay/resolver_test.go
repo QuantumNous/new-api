@@ -27,8 +27,34 @@ func newTestDB(t *testing.T) *gorm.DB {
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}, &platformmodel.User{}))
+	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}, &skillmodel.UserEnabledSkill{}, &platformmodel.User{}))
 	return database
+}
+
+// enableSkillRow seeds an enabled user_enabled_skills row for (userID, tenant=userID, skillID).
+// DR-66 enforces enablement for published skills, so success-path fixtures must seed this.
+func enableSkillRow(t *testing.T, database *gorm.DB, userID int, skillID string) {
+	t.Helper()
+	require.NoError(t, database.Create(&skillmodel.UserEnabledSkill{
+		UserID:   int64(userID),
+		TenantID: int64(userID),
+		SkillID:  skillID,
+		Enabled:  true,
+	}).Error)
+}
+
+// disableSkillRow seeds a DISABLED user_enabled_skills row (enabled=false).
+//
+// ⚠ Do NOT write `Create(&UserEnabledSkill{Enabled: false})`: GORM honours the
+// `default:true` tag on a zero-value bool, silently inserting enabled=TRUE and
+// producing a false positive. Always insert enabled then UPDATE it off (the real
+// disable path). Use this helper instead of hand-rolling that pattern.
+func disableSkillRow(t *testing.T, database *gorm.DB, userID int, skillID string) {
+	t.Helper()
+	enableSkillRow(t, database, userID, skillID)
+	require.NoError(t, database.Model(&skillmodel.UserEnabledSkill{}).
+		Where("user_id = ? AND tenant_id = ? AND skill_id = ?", userID, userID, skillID).
+		Update("enabled", false).Error)
 }
 
 func newTestContext(t *testing.T) *gin.Context {
@@ -275,6 +301,7 @@ func TestResolve_Success_FreePlan(t *testing.T) {
 
 	database := newTestDB(t)
 	skill, _ := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 20, skill.ID)
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -297,6 +324,7 @@ func TestResolve_FreePlan_UserNotSkill(t *testing.T) {
 	proSkill := defaultSkill()
 	proSkill.RequiredPlan = enums.RequiredPlanPro
 	skill, _ := insertRunnableSkill(t, database, proSkill)
+	enableSkillRow(t, database, 20, skill.ID)
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -313,6 +341,7 @@ func TestResolve_Success_ProPlan(t *testing.T) {
 
 	database := newTestDB(t)
 	skill, _ := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 21, skill.ID)
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -328,6 +357,7 @@ func TestResolve_Success_EnterprisePlan(t *testing.T) {
 
 	database := newTestDB(t)
 	skill, _ := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 22, skill.ID)
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -343,6 +373,7 @@ func TestResolve_KidsSession_Propagated(t *testing.T) {
 
 	database := newTestDB(t)
 	skill, _ := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 23, skill.ID)
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -358,6 +389,7 @@ func TestResolve_NonKidsSession_Propagated(t *testing.T) {
 
 	database := newTestDB(t)
 	skill, _ := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 24, skill.ID)
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -372,6 +404,7 @@ func TestResolve_SubActiveAlwaysTrue(t *testing.T) {
 
 	database := newTestDB(t)
 	skill, _ := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 25, skill.ID)
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -386,6 +419,7 @@ func TestResolve_RequestIDNotEmpty(t *testing.T) {
 
 	database := newTestDB(t)
 	skill, _ := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 26, skill.ID)
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -396,6 +430,8 @@ func TestResolve_RequestIDNotEmpty(t *testing.T) {
 func TestResolve_TwoRequestsGetDistinctRequestIDs(t *testing.T) {
 	database := newTestDB(t)
 	skill, _ := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 30, skill.ID)
+	enableSkillRow(t, database, 31, skill.ID)
 
 	makeCtx := func(uid int) *gin.Context {
 		c := newTestContext(t)
@@ -419,6 +455,7 @@ func TestResolve_ContextFieldsPopulated(t *testing.T) {
 
 	database := newTestDB(t)
 	skill, version := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 40, skill.ID)
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -459,6 +496,7 @@ func TestResolve_UserFromDB(t *testing.T) {
 	require.NoError(t, database.Create(dbUser).Error)
 
 	skill, _ := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 99, skill.ID)
 
 	c := newTestContext(t)
 	// Only set user_id; do NOT set ContextKeyAirbotixUser -> forces DB fallback.
@@ -485,6 +523,7 @@ func TestResolve_T21_UserIDFromContextOnly(t *testing.T) {
 
 	database := newTestDB(t)
 	skill, _ := insertRunnableSkill(t, database, defaultSkill())
+	enableSkillRow(t, database, 50, skill.ID)
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)
@@ -584,6 +623,7 @@ func TestResolveReturnInvariant(t *testing.T) {
 			setupFn: func() (*gin.Context, *gorm.DB, string) {
 				c := newTestContext(t)
 				setContextUser(c, enabledUser(73))
+				enableSkillRow(t, database, 73, validSkill.ID)
 				return c, database, validSkill.ID
 			},
 		},

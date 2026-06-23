@@ -1,0 +1,45 @@
+# DR-66 verification log (lifecycle + enabled-state gate)
+# Generated: 2026-06-22T11:07:39Z
+# Env: Windows, Go local. CGO unavailable on dev box -> -race deferred to CI/Linux (see end).
+
+## gofmt -l (DR-66 prod files) — empty = clean
+(end gofmt)
+
+## go vet ./internal/...
+vet exit: 0
+
+## go build ./...
+build exit: 0
+
+## go test ./internal/skill/relay/ ./relay/ ./middleware/ -count=1
+ok  	github.com/QuantumNous/new-api/internal/skill/relay	20.142s
+ok  	github.com/QuantumNous/new-api/relay	33.436s
+ok  	github.com/QuantumNous/new-api/middleware	19.110s
+
+## -race status (merge-readiness gate, not a code-review blocker)
+Not run locally: `go test -race` requires cgo; no C compiler (gcc) on the dev box
+("cgo: C compiler \"gcc\" not found").
+CI lane that covers it (ubuntu-latest, CGO available) — unit-test.yml / airbotix-internal.yml:
+  - go test ./internal/... -count=1 -race   # all DR-66 core tests (lifecycle/resolver/snapshot)
+  - go test ./relay/ -run '...|TestTextHelper_SkillRelay_DR66' -race   # direct-path regression (added this PR)
+  - go test ./middleware/ -run '...|TestPrepareSkillRelay_DR66' -race  # Distribute-path regression (added this PR)
+Merge gate: the 'Run unit tests' step of Unit Tests / airbotix-internal must be green.
+
+## Smoke note
+go build ./... exits 0; on some Windows setups it also prints a benign
+'Access is denied' Go module stat-cache write warning (env-only, not a build error).
+
+## test coverage (go test -cover ./internal/skill/relay/) — required per PR rule
+package: coverage: 94.1% of statements
+  lifecycleEnabledDecision  100.0%   (lifecycle.go:33 — DR-66 decision fn, full truth table)
+  userSkillEnabled          100.0%   (lifecycle.go:66 — DR-66 enabled lookup)
+  resolve                    87.2%   (resolver.go:35 — gate wired here; uncovered = pre-existing
+                                       non-DR-66 fallback edges, e.g. DB-user-not-found branch)
+  Resolve/SetDB/groupToPlan/airbotixUser  100.0%
+Scenario coverage: published enabled/disabled/no-row; deprecated fail-closed (+FutureDR67 flag-on);
+  draft/archived; nil active-version short-circuit; enabled-lookup DB error; tenant isolation;
+  query-counter short-circuit + no-snapshot; direct+Distribute no-prompt regressions (symmetric).
+Coverage口径: Go `go test -cover` reports STATEMENT coverage, not branch coverage. Branch
+  behavior here is represented by explicit scenario / truth-table tests (lifecycle_test.go
+  enumerates every status x enabled x flag combination) rather than a branch-coverage %.
+  No branch-coverage tool is in the pipeline; if one is introduced later, add its numbers here.
