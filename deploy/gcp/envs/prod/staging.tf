@@ -315,6 +315,22 @@ resource "google_cloud_run_v2_service" "staging" {
         name  = "FRONTEND_BASE_URL"
         value = var.staging_backend_frontend_base_url
       }
+      env {
+        name  = "OFFICIAL_WEBSITE_ORIGIN"
+        value = var.staging_website_origin
+      }
+      env {
+        name  = "APP_CONSOLE_ORIGIN"
+        value = var.staging_console_origin
+      }
+      env {
+        name  = "COOKIE_SESSION_DOMAIN"
+        value = ".flatkey.ai"
+      }
+      env {
+        name  = "SESSION_COOKIE_SECURE"
+        value = "true"
+      }
 
       env {
         name = "SQL_DSN"
