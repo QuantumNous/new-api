@@ -2,9 +2,20 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-06-23
+
+- 新增 DR-63 Public routing API call contract 任务 PRD，明确 `/v1/routing/chat/completions` runner key 身份解析、`deeprouter.skill_id`/`skill_version_id` 请求契约、trusted-looking package fields 不可信、以及 public routing 强制 `entry_point=skill_package`（`docs/tasks/dr63-public-routing-api-contract-prd.md`）
+- 更新 DR-63 外部客户端契约文档：Skill package public routing API 需使用 runner key + `deeprouter.skill_id`/`skill_version_id`，服务端校验版本 pin、强制 `entry_point=skill_package`，且不信任 package-provided identity/Kids/routing hints（`docs/skill-marketplace/tasks/03_Data_Model_and_API_Spec.md`, `internal/skill/packageassets/runtime/README.md`）
+- 实现 DR-63 public routing 版本 pin：`deeprouter.skill_version_id` 通过 server-side 校验后绑定 active SkillVersion snapshot，cross-skill / missing / inactive pin fail-closed；public routing 继续只信任 runner key 身份并强制 `entry_point=skill_package`；补 resolver、relay 回归测试并记录覆盖率（`internal/skill/relay/resolver.go`, `middleware/skill_distributor.go`, `relay/compatible_handler.go`, `*_test.go`, `docs/test-results/dr63-public-routing-api-contract.txt`）
+- 修复 DR-52 PR review 问题：Marketplace list 搜索在 PostgreSQL 使用 DR-81 `idx_skills_public_search` 对齐的全文检索表达式；公开列表路由支持 session/access-token 可选认证；列表 DB 查询改为最小字段白名单，并补 PG 搜索、LIKE fallback、字段白名单和 token-auth availability 回归测试（`middleware/skill-auth.go`, `router/skill-router.go`, `internal/skill/handler/skills.go`, `*_test.go`）
+
 ## 2026-06-22
 
 - 新增 DR-75 Analytics aggregation API：实现 `GET /api/v1/ops/skill-analytics/overview` 与 `/skills`，从 `skill_usage_events` 聚合 WASU、总运行数、Detail CTR、Enable/First Use/Repeat Use/Block rate、Top Block Reason 和 per-skill status/plan/enabled/active/successful runs；统一排除 `admin_preview`，按 UTC `occurred_at` 过滤，不读取/返回 prompt/raw/metadata；MVP charging disabled 时 `revenue_attribution_usd=null`、`charging_enabled=false`；新增任务 PRD 与 SQLite handler/router 回归测试（`internal/skill/handler/analytics.go`, `router/skill-router.go`, `docs/tasks/dr75-analytics-aggregation-api-prd.md`）
+- 新增 DR-49 Admin Skills 管理列表 UI：`/skills/admin` Super Admin 路由、侧边栏入口、DR-45 列表 API 封装、桌面表格列（状态/套餐/儿童状态/featured/active version/更新人/操作）、status/plan/kids 筛选、移动端只读卡片，以及英文/中文文案（`web/default/src/features/admin-skills/`, `web/default/src/routes/_authenticated/skills/admin/`）
+- 新增 DR-49 Admin Skill list UI 任务 PRD，明确基于 DR-45 管理列表 API 的桌面表格、移动只读与筛选范围（`docs/tasks/dr49-admin-skill-list-ui-prd.md`）
+- 实现 DR-52 Marketplace list API：公开列表响应收窄到 DR-52 字段，新增 availability/badges/featured，支持 category/query/plan/featured/kids_safe/page/limit/locale 查询，隐藏 draft/archived/deprecated，并补匿名与登录态回归测试（`internal/skill/handler/skills.go`, `internal/skill/handler/skills_test.go`）
+- 新增 DR-52 Marketplace list API 任务 PRD，定义公开列表字段、过滤条件、匿名/登录可用性语义与测试范围（`docs/tasks/dr52-marketplace-list-api-prd.md`）
 - 优化 `/pricing` 公开价格页视觉风格：补充任务 PRD，并将首屏改为符合设计系统的 warm cream / soft-white 价格工作台布局，收敛蓝紫渐变装饰，强化模型数量、价格显示方式和常见用途引导（`docs/tasks/pricing-page-style-refresh-prd.md`, `web/default/src/features/pricing/`）。
 
 - DR-43 review fix — SQLite upgrade regression test：新增 `TestMigrateSkillUsageEvents_SQLite_UpgradesPreDR43Table`，构造 pre-DR-43 最简 schema（缺少 `tenant_id`、`metadata`、kids safety 列及全部 CHECK 约束），预埋一行旧数据，调用 `MigrateSkillUsageEvents` 后校验：全部 30 个 DR-43 列存在；全部 7 个索引存在；重建后 DDL 含 `chk_sue_kids_privacy`/`chk_sue_metadata_*`/`chk_sue_event_type`/`chk_sue_entry_point`；旧行保留；ORM 层 Kids 隐私守卫与 metadata 受限 key 守卫仍拒绝违规写入；DB 层 CHECK 约束对 raw SQL 仍生效（`internal/skill/model/skill_usage_event_integration_test.go`）

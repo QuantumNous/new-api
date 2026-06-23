@@ -421,7 +421,7 @@ func TestTextHelper_SkillRelay_PublicRoutingAPI_ForcePackageEntryAndCredentialId
 		User:     []byte(`{"user_id":999,"tenant_id":"evil"}`),
 		Deeprouter: &dto.DeepRouterExtension{
 			SkillID:        skill.ID,
-			SkillVersionID: "package-supplied-version-is-not-authoritative",
+			SkillVersionID: version.ID,
 			EntryPoint:     string(enums.EntryPointAdminPreview),
 		},
 	}))
@@ -429,11 +429,43 @@ func TestTextHelper_SkillRelay_PublicRoutingAPI_ForcePackageEntryAndCredentialId
 	sCtx, ok := skillrelay.Get(c)
 	require.True(t, ok)
 	assert.Equal(t, 13, sCtx.UserID, "identity must come from the verified credential context")
-	assert.Equal(t, version.ID, sCtx.SkillVersionID, "client-supplied skill_version_id must be ignored in favor of the active server-bound version")
+	assert.Equal(t, version.ID, sCtx.SkillVersionID, "valid package-supplied skill_version_id must pin the server-verified execution version")
 	require.NotNil(t, sCtx.SkillVersion, "DR-65: SkillVersion snapshot must be stored on context")
 	assert.Equal(t, version.ID, sCtx.SkillVersion.ID, "DR-65: context must keep the selected version snapshot")
 	assert.Equal(t, string(enums.EntryPointSkillPackage), sCtx.EntryPoint,
 		"public routing API must force package entry point over package-provided values")
+}
+
+func TestTextHelper_SkillRelay_PublicRoutingAPI_InvalidVersionPinRejected(t *testing.T) {
+	testDB := newSkillTestDB(t)
+	skill := &skillmodel.Skill{
+		Slug: "public-routing-bad-pin", Status: enums.SkillStatusPublished, Category: "test",
+		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
+		Name: "Public Routing Bad Pin", ShortDescription: "s", Description: "d", CreatedBy: 1,
+	}
+	require.NoError(t, testDB.Create(skill).Error)
+	insertVersionForSkill(t, testDB, skill, "template", []string{"deeprouter-auto"})
+	skillrelay.SetDB(testDB)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c := newSkillTestCtx(t, 14)
+	common.SetContextKey(c, constant.ContextKeySkillPublicRoutingAPI, true)
+	common.SetContextKey(c, constant.ContextKeySkillRelayEntryPoint, string(enums.EntryPointSkillPackage))
+
+	apiErr := TextHelper(c, newSkillRelayInfo(&dto.GeneralOpenAIRequest{
+		Model:    "gpt-4o",
+		Messages: []dto.Message{userMsg("hello")},
+		Deeprouter: &dto.DeepRouterExtension{
+			SkillID:        skill.ID,
+			SkillVersionID: "00000000-0000-0000-0000-000000000000",
+		},
+	}))
+
+	require.NotNil(t, apiErr, "invalid package version pin must be rejected")
+	assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+	assert.Equal(t, "SKILL_NOT_PUBLISHED", apiErr.Err.Error())
+	_, hasCtx := skillrelay.Get(c)
+	assert.False(t, hasCtx, "invalid pin must not store SkillRelayContext")
 }
 
 //  DR-68 specific integration tests

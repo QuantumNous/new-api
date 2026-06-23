@@ -25,3 +25,4 @@ Behavior:
 - invalid `DEEPROUTER_EXECUTION_API_URL` or timeout env -> `CONFIG_INVALID`
 - the runner reads `manifest.json` and `instruction_template.md` from the package root
 - the runner sends only `messages` plus `deeprouter.skill_id` / `deeprouter.skill_version_id`
+- the server resolves identity only from `Authorization: Bearer <runner key>` and ignores package-provided identity, tenant, Kids, entry-point, model, or routing hints

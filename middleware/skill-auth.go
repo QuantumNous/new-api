@@ -116,6 +116,89 @@ func SkillUserAuth() func(c *gin.Context) {
 	}
 }
 
+// TrySkillUserAuth preserves anonymous access while enriching the request
+// context when a valid browser session or platform access token is present.
+//
+// No credentials: continue anonymous.
+// Session credentials: copy the session id/group when available.
+// Authorization credentials: validate the access token plus New-Api-User header
+// using the same identity semantics as SkillUserAuth.
+func TrySkillUserAuth() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		session := sessions.Default(c)
+		if id := session.Get("id"); id != nil {
+			c.Set("id", id)
+			if group := session.Get("group"); group != nil {
+				c.Set("group", group)
+				c.Set("user_group", group)
+			}
+			c.Next()
+			return
+		}
+
+		accessToken := c.Request.Header.Get("Authorization")
+		if accessToken == "" {
+			c.Next()
+			return
+		}
+
+		user, authErr := model.ValidateAccessToken(accessToken)
+		if authErr != nil {
+			if errors.Is(authErr, model.ErrDatabase) {
+				common.SysLog("ValidateAccessToken database error: " + authErr.Error())
+				skillapi.Error(c, errcodes.ErrSkillInternalError, common.TranslateMessage(c, i18n.MsgDatabaseError), nil)
+			} else {
+				abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid), nil, errcodes.ErrAuthRequired)
+			}
+			c.Abort()
+			return
+		}
+		if user == nil || user.Username == "" || !validUserInfo(user.Username, user.Role) {
+			abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid), nil, errcodes.ErrAuthRequired)
+			return
+		}
+
+		apiUserIdStr := c.Request.Header.Get("New-Api-User")
+		if apiUserIdStr == "" {
+			abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserIdNotProvided), nil, errcodes.ErrAuthRequired)
+			return
+		}
+		apiUserId, err := strconv.Atoi(apiUserIdStr)
+		if err != nil {
+			abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserIdFormatError), nil, errcodes.ErrAuthRequired)
+			return
+		}
+		if user.Id != apiUserId {
+			abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserIdMismatch), nil, errcodes.ErrAuthRequired)
+			return
+		}
+		if user.Status == common.UserStatusDisabled {
+			abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthUserBanned), nil, errcodes.ErrAuthRequired)
+			return
+		}
+		if user.Role < common.RoleCommonUser {
+			abortSkillAuth(c, common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege), nil, errcodes.ErrForbidden)
+			return
+		}
+
+		group := user.Group
+		if group == "" {
+			if g, err := model.GetUserGroup(apiUserId, false); err == nil {
+				group = g
+			}
+		}
+
+		c.Header("Auth-Version", "864b7076dbcd0a3c01b5520316720ebf")
+		c.Set("username", user.Username)
+		c.Set("role", user.Role)
+		c.Set("id", user.Id)
+		c.Set("group", group)
+		c.Set("user_group", group)
+		c.Set("use_access_token", true)
+		c.Next()
+	}
+}
+
 func SkillAdminAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		skillAuthHelper(c, common.RoleAdminUser)
