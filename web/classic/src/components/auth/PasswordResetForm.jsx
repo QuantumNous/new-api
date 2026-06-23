@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   API,
   getLogo,
@@ -26,7 +26,8 @@ import {
   showSuccess,
   getSystemName,
 } from '../../helpers';
-import Turnstile from 'react-turnstile';
+import AliyunCaptcha from '../common/AliyunCaptcha';
+import { useAliyunCaptcha } from '../../hooks/useAliyunCaptcha';
 import { Button, Card, Form, Typography } from '@douyinfe/semi-ui';
 import { IconMail } from '@douyinfe/semi-icons';
 import { Link } from 'react-router-dom';
@@ -42,25 +43,28 @@ const PasswordResetForm = () => {
   const { email } = inputs;
 
   const [loading, setLoading] = useState(false);
-  const [turnstileEnabled, setTurnstileEnabled] = useState(false);
-  const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
-  const [turnstileToken, setTurnstileToken] = useState('');
+  const [status, setStatus] = useState({});
   const [disableButton, setDisableButton] = useState(false);
   const [countdown, setCountdown] = useState(30);
+
+  const aliyunCaptchaRef = useRef(null);
 
   const logo = getLogo();
   const systemName = getSystemName();
 
   useEffect(() => {
-    let status = localStorage.getItem('status');
-    if (status) {
-      status = JSON.parse(status);
-      if (status.turnstile_check) {
-        setTurnstileEnabled(true);
-        setTurnstileSiteKey(status.turnstile_site_key);
+    let savedStatus = localStorage.getItem('status');
+    if (savedStatus) {
+      try {
+        const parsed = JSON.parse(savedStatus);
+        setStatus(parsed);
+      } catch (err) {
+        // ignore
       }
     }
   }, []);
+
+  const resetPasswordCaptcha = useAliyunCaptcha(status, 'reset_password');
 
   useEffect(() => {
     let countdownInterval = null;
@@ -84,21 +88,40 @@ const PasswordResetForm = () => {
       showError(t('请输入邮箱地址'));
       return;
     }
-    if (turnstileEnabled && turnstileToken === '') {
-      showInfo(t('请稍后几秒重试，Turnstile 正在检查用户环境！'));
-      return;
-    }
     setDisableButton(true);
     setLoading(true);
-    const res = await API.get(
-      `/api/reset_password?email=${email}&turnstile=${turnstileToken}`,
-    );
-    const { success, message } = res.data;
-    if (success) {
-      showSuccess(t('重置邮件发送成功，请检查邮箱！'));
-      setInputs({ ...inputs, email: '' });
-    } else {
-      showError(message);
+
+    try {
+      let captchaVerifyParam = '';
+      if (resetPasswordCaptcha.enabled) {
+        try {
+          captchaVerifyParam = await aliyunCaptchaRef.current?.execute();
+          if (!captchaVerifyParam) {
+            setDisableButton(false);
+            setLoading(false);
+            return;
+          }
+        } catch {
+          setDisableButton(false);
+          setLoading(false);
+          return;
+        }
+      }
+
+      const params = `email=${encodeURIComponent(email)}`;
+      const captchaParam = captchaVerifyParam
+        ? `&captcha_verify_param=${encodeURIComponent(captchaVerifyParam)}`
+        : '';
+      const res = await API.get(`/api/reset_password?${params}${captchaParam}`);
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('重置邮件发送成功，请检查邮箱！'));
+        setInputs({ ...inputs, email: '' });
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError('请求失败，请重试');
     }
     setLoading(false);
   }
@@ -173,15 +196,14 @@ const PasswordResetForm = () => {
               </div>
             </Card>
 
-            {turnstileEnabled && (
-              <div className='flex justify-center mt-6'>
-                <Turnstile
-                  sitekey={turnstileSiteKey}
-                  onVerify={(token) => {
-                    setTurnstileToken(token);
-                  }}
-                />
-              </div>
+            {resetPasswordCaptcha.enabled && (
+              <AliyunCaptcha
+                ref={aliyunCaptchaRef}
+                enabled={resetPasswordCaptcha.enabled}
+                region={resetPasswordCaptcha.region}
+                prefix={resetPasswordCaptcha.prefix}
+                sceneId={resetPasswordCaptcha.sceneId}
+              />
             )}
           </div>
         </div>

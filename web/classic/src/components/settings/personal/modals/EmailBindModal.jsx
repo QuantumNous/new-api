@@ -17,10 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import { Button, Input, Modal } from '@douyinfe/semi-ui';
 import { IconMail, IconKey } from '@douyinfe/semi-icons';
-import Turnstile from 'react-turnstile';
+import AliyunCaptcha from '../../../common/AliyunCaptcha';
+import { useAliyunCaptcha } from '../../../../hooks/useAliyunCaptcha';
 
 const EmailBindModal = ({
   t,
@@ -33,75 +34,91 @@ const EmailBindModal = ({
   disableButton,
   loading,
   countdown,
-  turnstileEnabled,
-  turnstileSiteKey,
-  setTurnstileToken,
+  status,
 }) => {
-  return (
-    <Modal
-      title={
-        <div className='flex items-center'>
-          <IconMail className='mr-2 text-blue-500' />
-          {t('绑定邮箱地址')}
-        </div>
+  const captchaRef = useRef(null);
+  const captchaConfig = useAliyunCaptcha(status, 'verification');
+
+  const handleSendCode = useCallback(async () => {
+    const email = inputs.email;
+    if (!email) return;
+
+    let captchaVerifyParam = '';
+    if (captchaConfig.enabled) {
+      try {
+        captchaVerifyParam = await captchaRef.current?.execute();
+        if (!captchaVerifyParam) return;
+      } catch {
+        return;
       }
-      visible={showEmailBindModal}
-      onCancel={() => setShowEmailBindModal(false)}
-      onOk={bindEmail}
-      size={'small'}
-      centered={true}
-      maskClosable={false}
-      className='modern-modal'
-    >
-      <div className='space-y-4 py-4'>
-        <div className='flex gap-3'>
-          <Input
-            placeholder={t('输入邮箱地址')}
-            onChange={(value) => handleInputChange('email', value)}
-            name='email'
-            type='email'
-            size='large'
-            className='!rounded-lg flex-1'
-            prefix={<IconMail />}
-          />
-          <Button
-            onClick={sendVerificationCode}
-            disabled={disableButton || loading}
-            className='!rounded-lg'
-            type='primary'
-            theme='outline'
-            size='large'
-          >
-            {disableButton
-              ? `${t('重新发送')} (${countdown})`
-              : t('获取验证码')}
-          </Button>
-        </div>
+    }
+    await sendVerificationCode(email, captchaVerifyParam);
+  }, [inputs.email, captchaConfig.enabled, sendVerificationCode]);
 
-        <Input
-          placeholder={t('验证码')}
-          name='email_verification_code'
-          value={inputs.email_verification_code}
-          onChange={(value) =>
-            handleInputChange('email_verification_code', value)
-          }
-          size='large'
-          className='!rounded-lg'
-          prefix={<IconKey />}
-        />
+  return (
+    <>
+      <AliyunCaptcha
+        ref={captchaRef}
+        enabled={captchaConfig.enabled}
+        region={captchaConfig.region}
+        prefix={captchaConfig.prefix}
+        sceneId={captchaConfig.sceneId}
+      />
 
-        {turnstileEnabled && (
-          <div className='flex justify-center'>
-            <Turnstile
-              sitekey={turnstileSiteKey}
-              onVerify={(token) => {
-                setTurnstileToken(token);
-              }}
-            />
+      <Modal
+        title={
+          <div className='flex items-center'>
+            <IconMail className='mr-2 text-blue-500' />
+            {t('绑定邮箱地址')}
           </div>
-        )}
-      </div>
-    </Modal>
+        }
+        visible={showEmailBindModal}
+        onCancel={() => setShowEmailBindModal(false)}
+        onOk={bindEmail}
+        size={'small'}
+        centered={true}
+        maskClosable={false}
+        className='modern-modal'
+      >
+        <div className='space-y-4 py-4'>
+          <div className='flex gap-3'>
+            <Input
+              placeholder={t('输入邮箱地址')}
+              onChange={(value) => handleInputChange('email', value)}
+              name='email'
+              type='email'
+              size='large'
+              className='!rounded-lg flex-1'
+              prefix={<IconMail />}
+            />
+            <Button
+              onClick={handleSendCode}
+              disabled={disableButton || loading}
+              className='!rounded-lg'
+              type='primary'
+              theme='outline'
+              size='large'
+            >
+              {disableButton
+                ? `${t('重新发送')} (${countdown})`
+                : t('获取验证码')}
+            </Button>
+          </div>
+
+          <Input
+            placeholder={t('验证码')}
+            name='email_verification_code'
+            value={inputs.email_verification_code}
+            onChange={(value) =>
+              handleInputChange('email_verification_code', value)
+            }
+            size='large'
+            className='!rounded-lg'
+            prefix={<IconKey />}
+          />
+        </div>
+      </Modal>
+    </>
   );
 };
 

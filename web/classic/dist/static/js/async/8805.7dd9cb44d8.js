@@ -1,0 +1,1 @@
+"use strict";(self.rspackChunkreact_template=self.rspackChunkreact_template||[]).push([[8805],{70212(e,r,t){var a=t(23440);t(59728),t.d(r,{createTreeViewServices:()=>a.I})}}]);

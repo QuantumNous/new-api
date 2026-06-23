@@ -1,0 +1,1 @@
+"use strict";(self.rspackChunkreact_template=self.rspackChunkreact_template||[]).push([[1312],{17475(e,t,a){var r=a(8314);a(59728),a.d(t,{createPieServices:()=>r.f})}}]);

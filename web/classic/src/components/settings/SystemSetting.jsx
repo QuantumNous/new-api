@@ -80,6 +80,15 @@ const SystemSetting = () => {
     TurnstileCheckEnabled: '',
     TurnstileSiteKey: '',
     TurnstileSecretKey: '',
+    ESACaptchaEnabled: '',
+    ESAStrictModeEnabled: '',
+    ESARegion: '',
+    ESAPrefix: '',
+    ESACaptchaLoginSceneId: '',
+    ESACaptchaResetPasswordSceneId: '',
+    ESACaptchaDeleteAccountSceneId: '',
+    ESACaptchaCheckinSceneId: '',
+    ESACaptchaVerificationSceneId: '',
     RegisterEnabled: '',
     'passkey.enabled': '',
     'passkey.rp_display_name': '',
@@ -180,6 +189,8 @@ const SystemSetting = () => {
           case 'TelegramOAuthEnabled':
           case 'RegisterEnabled':
           case 'TurnstileCheckEnabled':
+          case 'ESACaptchaEnabled':
+          case 'ESAStrictModeEnabled':
           case 'EmailDomainRestrictionEnabled':
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
@@ -603,6 +614,29 @@ const SystemSetting = () => {
         value: inputs.TurnstileSecretKey,
       });
     }
+
+    if (options.length > 0) {
+      await updateOptions(options);
+    }
+  };
+
+  const submitESA = async () => {
+    const options = [];
+
+    const esaKeys = [
+      'ESARegion',
+      'ESAPrefix',
+      'ESACaptchaLoginSceneId',
+      'ESACaptchaResetPasswordSceneId',
+      'ESACaptchaDeleteAccountSceneId',
+      'ESACaptchaCheckinSceneId',
+      'ESACaptchaVerificationSceneId',
+    ];
+    esaKeys.forEach((key) => {
+      if (originInputs[key] !== inputs[key]) {
+        options.push({ key, value: inputs[key] || '' });
+      }
+    });
 
     if (options.length > 0) {
       await updateOptions(options);
@@ -1631,6 +1665,105 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitTurnstile}>
                     {t('保存 Turnstile 设置')}
+                  </Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('Bot Protection')}>
+                  <Text>{t('配置阿里云 ESA 验证码以保护注册、登录、密码重置等流程')}</Text>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Checkbox
+                        field='ESACaptchaEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('ESACaptchaEnabled', e)
+                        }
+                      >
+                        {t('启用阿里云 ESA 验证码')}
+                      </Form.Checkbox>
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Checkbox
+                        field='ESAStrictModeEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('ESAStrictModeEnabled', e)
+                        }
+                      >
+                        {t('拦截空 Token 请求（严格模式）')}
+                      </Form.Checkbox>
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='ESARegion'
+                        label={t('Region')}
+                        placeholder='cn / sgp'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='ESAPrefix'
+                        label={t('ESA identity prefix')}
+                        placeholder='esa-********'
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='ESACaptchaLoginSceneId'
+                        label={t('Login scene ID')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='ESACaptchaVerificationSceneId'
+                        label={t('Email verification scene ID')}
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='ESACaptchaResetPasswordSceneId'
+                        label={t('Password reset email scene ID')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='ESACaptchaDeleteAccountSceneId'
+                        label={t('Delete account scene ID')}
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='ESACaptchaCheckinSceneId'
+                        label={t('Check-in scene ID')}
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitESA} style={{ marginTop: 16 }}>
+                    {t('保存 ESA 验证码设置')}
                   </Button>
                 </Form.Section>
               </Card>

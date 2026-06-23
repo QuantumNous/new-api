@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Card,
   Calendar,
@@ -27,7 +27,6 @@ import {
   Spin,
   Tooltip,
   Collapsible,
-  Modal,
 } from '@douyinfe/semi-ui';
 import {
   CalendarCheck,
@@ -36,14 +35,13 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import Turnstile from 'react-turnstile';
 import { API, showError, showSuccess, renderQuota } from '../../../../helpers';
+import AliyunCaptcha from '../../../common/AliyunCaptcha';
+import { useAliyunCaptcha } from '../../../../hooks/useAliyunCaptcha';
 
-const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
+const CheckinCalendar = ({ t, status }) => {
   const [loading, setLoading] = useState(false);
   const [checkinLoading, setCheckinLoading] = useState(false);
-  const [turnstileModalVisible, setTurnstileModalVisible] = useState(false);
-  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0);
   const [checkinData, setCheckinData] = useState({
     enabled: false,
     stats: {
@@ -57,10 +55,11 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
   const [currentMonth, setCurrentMonth] = useState(
     new Date().toISOString().slice(0, 7),
   );
-  // 初始加载状态，用于避免折叠状态闪烁
   const [initialLoaded, setInitialLoaded] = useState(false);
-  // 折叠状态：null 表示未确定（等待首次加载）
   const [isCollapsed, setIsCollapsed] = useState(null);
+
+  const captchaRef = useRef(null);
+  const captchaConfig = useAliyunCaptcha(status, 'checkin');
 
   // 创建日期到额度的映射，方便快速查找
   const checkinRecordsMap = useMemo(() => {
@@ -90,7 +89,6 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
       const { success, data, message } = res.data;
       if (success) {
         setCheckinData(data);
-        // 首次加载时，根据签到状态设置折叠状态
         if (isFirstLoad) {
           setIsCollapsed(data.stats?.checked_in_today ?? false);
           setInitialLoaded(true);
@@ -113,51 +111,47 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
     }
   };
 
-  const postCheckin = async (token) => {
-    const url = token
-      ? `/api/user/checkin?turnstile=${encodeURIComponent(token)}`
-      : '/api/user/checkin';
-    return API.post(url);
-  };
-
-  const shouldTriggerTurnstile = (message) => {
-    if (!turnstileEnabled) return false;
-    if (typeof message !== 'string') return true;
-    return message.includes('Turnstile');
-  };
-
-  const doCheckin = async (token) => {
-    setCheckinLoading(true);
-    try {
-      const res = await postCheckin(token);
-      const { success, data, message } = res.data;
-      if (success) {
-        showSuccess(
-          t('签到成功！获得') + ' ' + renderQuota(data.quota_awarded),
-        );
-        // 刷新签到状态
-        fetchCheckinStatus(currentMonth);
-        setTurnstileModalVisible(false);
-      } else {
-        if (!token && shouldTriggerTurnstile(message)) {
-          if (!turnstileSiteKey) {
-            showError('Turnstile is enabled but site key is empty.');
-            return;
-          }
-          setTurnstileModalVisible(true);
-          return;
+  const doCheckin = useCallback(
+    async (captchaVerifyParam) => {
+      setCheckinLoading(true);
+      try {
+        const url = captchaVerifyParam
+          ? `/api/user/checkin?captcha_verify_param=${encodeURIComponent(captchaVerifyParam)}`
+          : '/api/user/checkin';
+        const res = await API.post(url);
+        const { success, data, message } = res.data;
+        if (success) {
+          showSuccess(
+            t('签到成功！获得') + ' ' + renderQuota(data.quota_awarded),
+          );
+          fetchCheckinStatus(currentMonth);
+        } else {
+          showError(message || t('签到失败'));
         }
-        if (token && shouldTriggerTurnstile(message)) {
-          setTurnstileWidgetKey((v) => v + 1);
-        }
-        showError(message || t('签到失败'));
+      } catch (error) {
+        showError(t('签到失败'));
+      } finally {
+        setCheckinLoading(false);
       }
-    } catch (error) {
-      showError(t('签到失败'));
-    } finally {
-      setCheckinLoading(false);
+    },
+    [currentMonth, t],
+  );
+
+  const handleCheckin = useCallback(async () => {
+    const captchaRequired = captchaConfig.enabled;
+    if (captchaRequired) {
+      try {
+        const captchaVerifyParam = await captchaRef.current?.execute();
+        if (captchaVerifyParam) {
+          await doCheckin(captchaVerifyParam);
+        }
+      } catch {
+        // Captcha cancelled or failed - do not proceed
+      }
+      return;
     }
-  };
+    await doCheckin();
+  }, [captchaConfig.enabled, doCheckin]);
 
   useEffect(() => {
     if (status?.checkin_enabled) {
@@ -165,24 +159,20 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
     }
   }, [status?.checkin_enabled, currentMonth]);
 
-  // 如果签到功能未启用，不显示组件
   if (!status?.checkin_enabled) {
     return null;
   }
 
-  // 日期渲染函数 - 显示签到状态和获得的额度
+  // 日期渲染函数
   const dateRender = (dateString) => {
-    // Semi Calendar 传入的 dateString 是 Date.toString() 格式
-    // 需要转换为 YYYY-MM-DD 格式来匹配后端数据
     const date = new Date(dateString);
     if (isNaN(date.getTime())) {
       return null;
     }
-    // 使用本地时间格式化，避免时区问题
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
-    const formattedDate = `${year}-${month}-${day}`; // YYYY-MM-DD
+    const formattedDate = `${year}-${month}-${day}`;
     const quotaAwarded = checkinRecordsMap[formattedDate];
     const isCheckedIn = quotaAwarded !== undefined;
 
@@ -206,7 +196,6 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
     return null;
   };
 
-  // 处理月份变化
   const handleMonthChange = (date) => {
     const month = date.toISOString().slice(0, 7);
     setCurrentMonth(month);
@@ -214,29 +203,13 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
 
   return (
     <Card className='!rounded-2xl'>
-      <Modal
-        title='Security Check'
-        visible={turnstileModalVisible}
-        footer={null}
-        centered
-        onCancel={() => {
-          setTurnstileModalVisible(false);
-          setTurnstileWidgetKey((v) => v + 1);
-        }}
-      >
-        <div className='flex justify-center py-2'>
-          <Turnstile
-            key={turnstileWidgetKey}
-            sitekey={turnstileSiteKey}
-            onVerify={(token) => {
-              doCheckin(token);
-            }}
-            onExpire={() => {
-              setTurnstileWidgetKey((v) => v + 1);
-            }}
-          />
-        </div>
-      </Modal>
+      <AliyunCaptcha
+        ref={captchaRef}
+        enabled={captchaConfig.enabled}
+        region={captchaConfig.region}
+        prefix={captchaConfig.prefix}
+        sceneId={captchaConfig.sceneId}
+      />
 
       {/* 卡片头部 */}
       <div className='flex items-center justify-between'>
@@ -273,7 +246,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
           type='primary'
           theme='solid'
           icon={<Gift size={16} />}
-          onClick={() => doCheckin()}
+          onClick={handleCheckin}
           loading={checkinLoading || !initialLoaded}
           disabled={!initialLoaded || checkinData.stats?.checked_in_today}
           className='!bg-green-600 hover:!bg-green-700'
@@ -310,7 +283,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
           </div>
         </div>
 
-        {/* 签到日历 - 使用更紧凑的样式 */}
+        {/* 签到日历 */}
         <Spin spinning={loading}>
           <div className='border rounded-lg overflow-hidden checkin-calendar'>
             <style>{`
