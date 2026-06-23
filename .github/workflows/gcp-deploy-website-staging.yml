@@ -22,13 +22,13 @@ permissions:
   id-token: write   # required for Workload Identity Federation
 
 env:
-  PROJECT_ID:  ${{ vars.GCP_PROJECT_ID }}
-  REGION:      ${{ vars.GCP_REGION }}
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION }}
   AR_REPO_URL: ${{ vars.GCP_AR_REPO_URL }}
   RUN_SERVICE: newapi-web-staging
-  # staging 官网指向 staging 后端（不串生产）。在 GitHub 配 staging 专用 vars。
-  APP_CONSOLE_ORIGIN: ${{ vars.STAGING_WEBSITE_APP_CONSOLE_ORIGIN }}
-  SITE_ORIGIN:        ${{ vars.STAGING_WEBSITE_SITE_ORIGIN }}
+  # staging 官网指向 staging 后端（不串生产）。GitHub vars 可覆盖，默认用已确认域名。
+  APP_CONSOLE_ORIGIN: ${{ vars.STAGING_WEBSITE_APP_CONSOLE_ORIGIN || 'https://staging-console.flatkey.ai' }}
+  SITE_ORIGIN: ${{ vars.STAGING_WEBSITE_SITE_ORIGIN || 'https://staging-website.flatkey.ai' }}
 
 jobs:
   build:

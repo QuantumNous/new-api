@@ -23,10 +23,12 @@ permissions:
   id-token: write   # required for Workload Identity Federation
 
 env:
-  PROJECT_ID:   ${{ vars.GCP_PROJECT_ID }}
-  REGION:       ${{ vars.GCP_REGION }}
-  AR_REPO_URL:  ${{ vars.GCP_AR_REPO_URL }}
-  RUN_SERVICE:  newapi-staging
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION }}
+  AR_REPO_URL: ${{ vars.GCP_AR_REPO_URL }}
+  RUN_SERVICE: newapi-staging
+  # Staging console 内部“回官网”链接必须指向 staging website，不能串生产 flatkey.ai。
+  STAGING_OFFICIAL_WEBSITE_ORIGIN: ${{ vars.STAGING_OFFICIAL_WEBSITE_ORIGIN || 'https://staging-website.flatkey.ai' }}
 
 jobs:
   build:
@@ -73,6 +75,8 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
+          build-args: |
+            VITE_OFFICIAL_WEBSITE_ORIGIN=${{ env.STAGING_OFFICIAL_WEBSITE_ORIGIN }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/server:staging-latest

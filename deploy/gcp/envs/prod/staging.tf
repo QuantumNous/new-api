@@ -20,11 +20,19 @@ variable "enable_staging" {
   default     = false
 }
 
+variable "enable_staging_domains" {
+  type        = bool
+  description = "Create Cloud Run domain mappings for staging-console.flatkey.ai and staging-website.flatkey.ai. Enable only after flatkey.ai is verified in Google Search Console and DNS is ready."
+  default     = false
+}
+
 locals {
   staging_db_name      = "newapi_staging" // 手动建好的库，不由 TF 创建
   staging_db_user      = "newapi_staging_app"
   staging_backend_name = "newapi-staging"
   staging_website_name = "newapi-web-staging"
+  staging_console_host = replace(replace(var.staging_console_origin, "https://", ""), "http://", "")
+  staging_website_host = replace(replace(var.staging_website_origin, "https://", ""), "http://", "")
   // 首次 apply 用公开占位镜像（此时 AR 里还没有 staging tag，避免"镜像不存在"创建失败）。
   // CI 首次部署会替换为真实镜像 server:staging-latest / website:staging-latest，
   // 且下方 lifecycle.ignore_changes 覆盖 image，故 TF 之后不再回退占位镜像。
@@ -301,7 +309,7 @@ resource "google_cloud_run_v2_service" "staging" {
         value = "300"
       }
       // FRONTEND_BASE_URL 在首次 apply 后用真实 run.app URL 回填（见方案 §4）。
-      // 部署时 CI 也可 --update-env-vars 覆盖。这里留空让应用回落自身请求 Host。
+      // staging console 需要由后端服务自身承载 dashboard，因此默认留空。
       env {
         name  = "FRONTEND_BASE_URL"
         value = var.staging_backend_frontend_base_url
@@ -440,11 +448,11 @@ resource "google_cloud_run_v2_service" "staging_web" {
       // 官网 staging 指向后端 staging（不串生产）；首次 apply 后回填真实 URL
       env {
         name  = "APP_CONSOLE_ORIGIN"
-        value = var.staging_website_app_console_origin
+        value = var.staging_console_origin
       }
       env {
         name  = "SITE_ORIGIN"
-        value = var.staging_website_site_origin
+        value = var.staging_website_origin
       }
     }
   }
@@ -477,24 +485,62 @@ resource "google_cloud_run_v2_service_iam_member" "staging_web_public" {
 }
 
 // ---------------------------------------------------------------------------
+// 独立 Cloud Run 域名映射：不加入生产 LB / lb_domains，避免生产证书轮换风险。
+// DNS 需配置：
+//   staging-console.flatkey.ai  CNAME  ghs.googlehosted.com
+//   staging-website.flatkey.ai  CNAME  ghs.googlehosted.com
+// ---------------------------------------------------------------------------
+resource "google_cloud_run_domain_mapping" "staging_console_domain" {
+  count    = var.enable_staging && var.enable_staging_domains ? 1 : 0
+  project  = var.project_id
+  location = var.region
+  name     = local.staging_console_host
+
+  metadata {
+    namespace = var.project_id
+  }
+
+  spec {
+    route_name       = google_cloud_run_v2_service.staging[0].name
+    certificate_mode = "AUTOMATIC"
+  }
+}
+
+resource "google_cloud_run_domain_mapping" "staging_website_domain" {
+  count    = var.enable_staging && var.enable_staging_domains ? 1 : 0
+  project  = var.project_id
+  location = var.region
+  name     = local.staging_website_host
+
+  metadata {
+    namespace = var.project_id
+  }
+
+  spec {
+    route_name       = google_cloud_run_v2_service.staging_web[0].name
+    certificate_mode = "AUTOMATIC"
+  }
+}
+
+// ---------------------------------------------------------------------------
 // origin 变量（首次 apply 后用真实 run.app URL 回填，见方案 §4）
 // ---------------------------------------------------------------------------
 variable "staging_backend_frontend_base_url" {
   type        = string
-  description = "Backend staging FRONTEND_BASE_URL (OAuth callbacks / mails). Fill with the real run.app URL after first apply; empty lets the app fall back to request Host."
+  description = "Backend staging FRONTEND_BASE_URL. Keep empty so staging-console.flatkey.ai serves the embedded dashboard instead of redirecting NoRoute traffic."
   default     = ""
 }
 
-variable "staging_website_app_console_origin" {
+variable "staging_console_origin" {
   type        = string
-  description = "Website staging APP_CONSOLE_ORIGIN — should point to the backend staging run.app URL, NOT prod console. Fill after first apply."
-  default     = ""
+  description = "Staging console/backend public origin."
+  default     = "https://staging-console.flatkey.ai"
 }
 
-variable "staging_website_site_origin" {
+variable "staging_website_origin" {
   type        = string
-  description = "Website staging SITE_ORIGIN — the website's own run.app URL. Fill after first apply."
-  default     = ""
+  description = "Staging website public origin."
+  default     = "https://staging-website.flatkey.ai"
 }
 
 // ---------------------------------------------------------------------------
@@ -506,4 +552,12 @@ output "staging_backend_url" {
 
 output "staging_website_url" {
   value = var.enable_staging ? google_cloud_run_v2_service.staging_web[0].uri : ""
+}
+
+output "staging_console_domain" {
+  value = var.enable_staging ? var.staging_console_origin : ""
+}
+
+output "staging_website_domain" {
+  value = var.enable_staging ? var.staging_website_origin : ""
 }
