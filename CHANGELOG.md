@@ -4,6 +4,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-23
 
+- 新增 DR-71 非 Skill API 兼容性回归守卫 PRD，并补正常 chat-completions 请求无 `skill_id` 时 upstream payload 保持 legacy 路径不变的回归测试（`docs/tasks/dr71-non-skill-api-compatibility-regression-guard-prd.md`, `relay/compatible_handler_skill_test.go`）
 - 修复 DR-52 PR review 问题：Marketplace list 搜索在 PostgreSQL 使用 DR-81 `idx_skills_public_search` 对齐的全文检索表达式；公开列表路由支持 session/access-token 可选认证；列表 DB 查询改为最小字段白名单，并补 PG 搜索、LIKE fallback、字段白名单和 token-auth availability 回归测试（`middleware/skill-auth.go`, `router/skill-router.go`, `internal/skill/handler/skills.go`, `*_test.go`）
 
 ## 2026-06-22
