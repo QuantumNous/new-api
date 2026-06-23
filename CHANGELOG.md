@@ -4,6 +4,9 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-23
 
+- 新增 DR-63 Public routing API call contract 任务 PRD，明确 `/v1/routing/chat/completions` runner key 身份解析、`deeprouter.skill_id`/`skill_version_id` 请求契约、trusted-looking package fields 不可信、以及 public routing 强制 `entry_point=skill_package`（`docs/tasks/dr63-public-routing-api-contract-prd.md`）
+- 更新 DR-63 外部客户端契约文档：Skill package public routing API 需使用 runner key + `deeprouter.skill_id`/`skill_version_id`，服务端校验版本 pin、强制 `entry_point=skill_package`，且不信任 package-provided identity/Kids/routing hints（`docs/skill-marketplace/tasks/03_Data_Model_and_API_Spec.md`, `internal/skill/packageassets/runtime/README.md`）
+- 实现 DR-63 public routing 版本 pin：`deeprouter.skill_version_id` 通过 server-side 校验后绑定 active SkillVersion snapshot，cross-skill / missing / inactive pin fail-closed；public routing 继续只信任 runner key 身份并强制 `entry_point=skill_package`；补 resolver、relay 回归测试并记录覆盖率（`internal/skill/relay/resolver.go`, `middleware/skill_distributor.go`, `relay/compatible_handler.go`, `*_test.go`, `docs/test-results/dr63-public-routing-api-contract.txt`）
 - 修复 DR-52 PR review 问题：Marketplace list 搜索在 PostgreSQL 使用 DR-81 `idx_skills_public_search` 对齐的全文检索表达式；公开列表路由支持 session/access-token 可选认证；列表 DB 查询改为最小字段白名单，并补 PG 搜索、LIKE fallback、字段白名单和 token-auth availability 回归测试（`middleware/skill-auth.go`, `router/skill-router.go`, `internal/skill/handler/skills.go`, `*_test.go`）
 
 ## 2026-06-22

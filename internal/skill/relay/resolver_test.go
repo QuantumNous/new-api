@@ -109,6 +109,10 @@ func enabledUser(id int) *platformmodel.User {
 	}
 }
 
+func ptrString(value string) *string {
+	return &value
+}
+
 // ---- groupToPlan ----
 
 func TestGroupToPlan_Pro(t *testing.T) {

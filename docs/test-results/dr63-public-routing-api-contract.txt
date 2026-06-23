@@ -1,0 +1,48 @@
+DR-63 Public routing API call contract
+Date: 2026-06-23
+
+Command:
+go test ./internal/skill/relay ./middleware ./relay
+
+Result:
+PASS
+
+Packages:
+ok  	github.com/QuantumNous/new-api/internal/skill/relay	0.724s
+ok  	github.com/QuantumNous/new-api/middleware	1.186s
+ok  	github.com/QuantumNous/new-api/relay	2.014s
+
+Command:
+go test -cover ./internal/skill/relay ./middleware ./relay
+
+Result:
+PASS
+
+Coverage:
+github.com/QuantumNous/new-api/internal/skill/relay: 91.5% statements
+github.com/QuantumNous/new-api/middleware: 14.4% statements
+github.com/QuantumNous/new-api/relay: 12.8% statements
+
+Dataset / fixtures:
+- In-memory SQLite Skill + SkillVersion fixtures.
+- Gin test contexts seeded with verified credential identity via ContextKeyUserId and ContextKeyAirbotixUser.
+- Public routing test requests carrying deeprouter.skill_id, deeprouter.skill_version_id, spoofed identity payloads, and package-supplied entry_point values.
+
+Verified behavior:
+- Public routing resolves identity only from the authenticated credential context.
+- Valid deeprouter.skill_version_id pins execution to the server-verified active SkillVersion snapshot.
+- Cross-skill, missing, or inactive version pins fail closed with SKILL_NOT_PUBLISHED.
+- Public routing forces entry_point=skill_package over package-provided values.
+- Missing deeprouter.skill_id is rejected before SkillRelayContext is stored.
+- The provider-bound request path continues stripping deeprouter before upstream forwarding and rejecting pass-through extension leaks.
+
+Command:
+go test ./...
+
+Result:
+FAIL at root package setup before root tests:
+main.go:45:12: pattern web/classic/dist: no matching files found
+
+Notes:
+- The failure is the repository's frontend embed prebuild requirement: `web/classic/dist` is absent in this worktree.
+- Package tests emitted before/after that setup failure passed, including controller, dto, internal/*, middleware, model, relay/*, router, service, and setting packages.
