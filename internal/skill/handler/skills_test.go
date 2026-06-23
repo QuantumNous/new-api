@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -985,6 +986,342 @@ func TestListAdminSkills_SortByUpdatedAt(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
 	require.Len(t, got.Data, 2)
 	assert.Equal(t, "newer-skill", got.Data[0].Slug)
+}
+
+func TestCreateAdminSkill_CreatesDraftFromAuthAndHidesFromMarketplace(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	body := `{"slug":"draft-create","name":"Draft Create","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included"}`
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills", body)
+	c.Set("id", 77)
+	c.Set("role", 100)
+
+	CreateAdminSkill(c)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	var got struct {
+		Data struct {
+			ID               string `json:"id"`
+			Slug             string `json:"slug"`
+			Status           string `json:"status"`
+			CreatedBy        int64  `json:"created_by"`
+			RequiredPlan     string `json:"required_plan"`
+			MonetizationType string `json:"monetization_type"`
+		} `json:"data"`
+		Meta struct {
+			RequestID string `json:"request_id"`
+		} `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	assert.Equal(t, "draft-create", got.Data.Slug)
+	assert.Equal(t, string(enums.SkillStatusDraft), got.Data.Status)
+	assert.Equal(t, int64(77), got.Data.CreatedBy)
+	assert.Equal(t, "pro", got.Data.RequiredPlan)
+	assert.Equal(t, "plan_included", got.Data.MonetizationType)
+	assert.NotEmpty(t, got.Meta.RequestID)
+
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "id = ?", got.Data.ID).Error)
+	assert.Equal(t, enums.SkillStatusDraft, persisted.Status)
+	assert.Equal(t, int64(77), persisted.CreatedBy)
+	assert.Nil(t, persisted.MaxInputTokens)
+
+	var audit skillmodel.SkillAuditLog
+	require.NoError(t, db.First(&audit, "skill_id = ? AND action = ?", got.Data.ID, "skill_created").Error)
+	assert.Equal(t, int64(77), audit.ActorID)
+	require.NotNil(t, audit.AfterValue)
+	assert.Contains(t, string(*audit.AfterValue), `"slug":"draft-create"`)
+	assert.NotContains(t, string(*audit.AfterValue), "long", "audit values should not store raw description text")
+	assert.JSONEq(t, `["slug","status","category","name","short_description","description","required_plan","monetization_type"]`, string(audit.ChangedFields))
+
+	listC, listW := testContext("/api/v1/marketplace/skills")
+	ListMarketplaceSkills(listC)
+	require.Equal(t, http.StatusOK, listW.Code)
+	assert.NotContains(t, listW.Body.String(), "draft-create", "draft skills must not be discoverable in public list")
+
+	detailC, detailW := testContext("/api/v1/marketplace/skills/draft-create")
+	detailC.Params = gin.Params{{Key: "id", Value: "draft-create"}}
+	GetMarketplaceSkill(detailC)
+	require.Equal(t, http.StatusNotFound, detailW.Code)
+	assert.Contains(t, detailW.Body.String(), `"code":"SKILL_NOT_FOUND"`)
+}
+
+func TestCreateAdminSkill_FreeConfigurationsRequireMaxInputTokens(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "required_plan_free",
+			body: `{"slug":"free-plan","name":"Free Plan","short_description":"short","description":"long","category":"writing","required_plan":"free","monetization_type":"plan_included"}`,
+		},
+		{
+			name: "monetization_type_free",
+			body: `{"slug":"free-money","name":"Free Money","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"free"}`,
+		},
+		{
+			name: "free_quota_set",
+			body: `{"slug":"free-quota","name":"Free Quota","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included","free_quota_per_month":10}`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			SetDB(testSkillDB(t))
+			c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills", tc.body)
+			c.Set("id", 77)
+			c.Set("role", 100)
+
+			CreateAdminSkill(c)
+
+			require.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), `"code":"INVALID_REQUEST"`)
+			assert.Contains(t, w.Body.String(), `"reason":"MAX_INPUT_TOKENS_REQUIRED"`)
+		})
+	}
+}
+
+func TestCreateAdminSkill_ValidationErrors(t *testing.T) {
+	cases := []struct {
+		name   string
+		body   string
+		reason string
+	}{
+		{
+			name:   "invalid_json",
+			body:   `{`,
+			reason: "INVALID_JSON",
+		},
+		{
+			name:   "missing_slug",
+			body:   `{"name":"Draft","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included"}`,
+			reason: "MISSING_SLUG",
+		},
+		{
+			name:   "missing_name",
+			body:   `{"slug":"missing-name","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included"}`,
+			reason: "MISSING_NAME",
+		},
+		{
+			name:   "missing_short_description",
+			body:   `{"slug":"missing-short","name":"Draft","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included"}`,
+			reason: "MISSING_SHORT_DESCRIPTION",
+		},
+		{
+			name:   "missing_description",
+			body:   `{"slug":"missing-description","name":"Draft","short_description":"short","category":"writing","required_plan":"pro","monetization_type":"plan_included"}`,
+			reason: "MISSING_DESCRIPTION",
+		},
+		{
+			name:   "missing_category",
+			body:   `{"slug":"missing-category","name":"Draft","short_description":"short","description":"long","required_plan":"pro","monetization_type":"plan_included"}`,
+			reason: "MISSING_CATEGORY",
+		},
+		{
+			name:   "invalid_slug_format_spaces",
+			body:   `{"slug":"bad slug","name":"Draft","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included"}`,
+			reason: "INVALID_SLUG_FORMAT",
+		},
+		{
+			name:   "invalid_slug_format_uppercase",
+			body:   `{"slug":"Bad-Slug","name":"Draft","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included"}`,
+			reason: "INVALID_SLUG_FORMAT",
+		},
+		{
+			name:   "invalid_required_plan",
+			body:   `{"slug":"invalid-plan","name":"Draft","short_description":"short","description":"long","category":"writing","required_plan":"diamond","monetization_type":"plan_included"}`,
+			reason: "INVALID_REQUIRED_PLAN",
+		},
+		{
+			name:   "invalid_monetization_type",
+			body:   `{"slug":"invalid-money","name":"Draft","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"subscription"}`,
+			reason: "INVALID_MONETIZATION_TYPE",
+		},
+		{
+			name:   "invalid_free_quota",
+			body:   `{"slug":"bad-quota","name":"Draft","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included","free_quota_per_month":-1}`,
+			reason: "INVALID_FREE_QUOTA_PER_MONTH",
+		},
+		{
+			name:   "invalid_max_input_tokens",
+			body:   `{"slug":"bad-max","name":"Draft","short_description":"short","description":"long","category":"writing","required_plan":"free","monetization_type":"free","max_input_tokens":0}`,
+			reason: "INVALID_MAX_INPUT_TOKENS",
+		},
+		{
+			name:   "token_markup_missing_price_markup",
+			body:   `{"slug":"token-missing","name":"Draft","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"token_markup"}`,
+			reason: "PRICE_MARKUP_REQUIRED",
+		},
+		{
+			name:   "token_markup_zero_price_markup",
+			body:   `{"slug":"token-zero","name":"Draft","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"token_markup","price_markup":0}`,
+			reason: "PRICE_MARKUP_REQUIRED",
+		},
+		{
+			name:   "plan_included_with_nonzero_price_markup",
+			body:   `{"slug":"plan-markup","name":"Draft","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included","price_markup":0.25}`,
+			reason: "PRICE_MARKUP_NOT_ALLOWED",
+		},
+		{
+			name:   "free_with_price_markup_and_max_input_tokens",
+			body:   `{"slug":"free-markup","name":"Draft","short_description":"short","description":"long","category":"writing","required_plan":"free","monetization_type":"free","price_markup":0.25,"max_input_tokens":1000}`,
+			reason: "PRICE_MARKUP_NOT_ALLOWED",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			SetDB(testSkillDB(t))
+			c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills", tc.body)
+			c.Set("id", 77)
+			c.Set("role", 100)
+
+			CreateAdminSkill(c)
+
+			require.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), `"code":"INVALID_REQUEST"`)
+			assert.Contains(t, w.Body.String(), `"reason":"`+tc.reason+`"`)
+		})
+	}
+}
+
+func TestCreateAdminSkill_LengthValidation(t *testing.T) {
+	longSlug := strings.Repeat("a", createSkillSlugMaxLength+1)
+	longName := strings.Repeat("n", createSkillNameMaxLength+1)
+	longShortDescription := strings.Repeat("s", createSkillShortDescriptionMaxLength+1)
+	longCategory := strings.Repeat("c", createSkillCategoryMaxLength+1)
+	cases := []struct {
+		name   string
+		body   string
+		reason string
+	}{
+		{
+			name:   "slug_too_long",
+			body:   fmt.Sprintf(`{"slug":%q,"name":"Draft","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included"}`, longSlug),
+			reason: "SLUG_TOO_LONG",
+		},
+		{
+			name:   "name_too_long",
+			body:   fmt.Sprintf(`{"slug":"name-too-long","name":%q,"short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included"}`, longName),
+			reason: "NAME_TOO_LONG",
+		},
+		{
+			name:   "short_description_too_long",
+			body:   fmt.Sprintf(`{"slug":"short-too-long","name":"Draft","short_description":%q,"description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included"}`, longShortDescription),
+			reason: "SHORT_DESCRIPTION_TOO_LONG",
+		},
+		{
+			name:   "category_too_long",
+			body:   fmt.Sprintf(`{"slug":"category-too-long","name":"Draft","short_description":"short","description":"long","category":%q,"required_plan":"pro","monetization_type":"plan_included"}`, longCategory),
+			reason: "CATEGORY_TOO_LONG",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			SetDB(testSkillDB(t))
+			c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills", tc.body)
+			c.Set("id", 77)
+			c.Set("role", 100)
+
+			CreateAdminSkill(c)
+
+			require.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), `"reason":"`+tc.reason+`"`)
+		})
+	}
+}
+
+func TestCreateAdminSkill_AcceptsFreeConfigurationWithMaxInputTokens(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	body := `{"slug":"free-with-max","name":"Free With Max","short_description":"short","description":"long","category":"writing","required_plan":"free","monetization_type":"free","max_input_tokens":2000}`
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills", body)
+	c.Set("id", 77)
+	c.Set("role", 100)
+
+	CreateAdminSkill(c)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "slug = ?", "free-with-max").Error)
+	require.NotNil(t, persisted.MaxInputTokens)
+	assert.Equal(t, 2000, *persisted.MaxInputTokens)
+	assert.Equal(t, enums.SkillStatusDraft, persisted.Status)
+
+	var audit skillmodel.SkillAuditLog
+	require.NoError(t, db.First(&audit, "skill_id = ? AND action = ?", persisted.ID, "skill_created").Error)
+	assert.JSONEq(t, `["slug","status","category","name","short_description","description","required_plan","monetization_type","max_input_tokens"]`, string(audit.ChangedFields))
+}
+
+func TestCreateAdminSkill_TokenMarkupWithPriceMarkup(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	body := `{"slug":"token-markup-skill","name":"Token Markup","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"token_markup","price_markup":0.25}`
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills", body)
+	c.Set("id", 77)
+	c.Set("role", 100)
+
+	CreateAdminSkill(c)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "slug = ?", "token-markup-skill").Error)
+	assert.Equal(t, enums.MonetizationTypeTokenMarkup, persisted.MonetizationType)
+	assert.Equal(t, 0.25, persisted.PriceMarkup)
+
+	var audit skillmodel.SkillAuditLog
+	require.NoError(t, db.First(&audit, "skill_id = ? AND action = ?", persisted.ID, "skill_created").Error)
+	assert.Contains(t, string(audit.ChangedFields), `"price_markup"`)
+	require.NotNil(t, audit.AfterValue)
+	assert.Contains(t, string(*audit.AfterValue), `"price_markup"`)
+}
+
+func TestCreateAdminSkill_NonTokenMarkupOmittedPriceMarkupPersistsZero(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	body := `{"slug":"plan-no-markup","name":"Plan No Markup","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included"}`
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills", body)
+	c.Set("id", 77)
+	c.Set("role", 100)
+
+	CreateAdminSkill(c)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "slug = ?", "plan-no-markup").Error)
+	assert.Equal(t, 0.0, persisted.PriceMarkup)
+}
+
+func TestCreateAdminSkill_UnicodeNameWithinLimit(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	// 50 Chinese characters: 150 UTF-8 bytes but only 50 runes, within VARCHAR(160).
+	chineseName := strings.Repeat("\u5199", 50)
+	body := fmt.Sprintf(`{"slug":"unicode-name","name":%q,"short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included"}`, chineseName)
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills", body)
+	c.Set("id", 77)
+	c.Set("role", 100)
+
+	CreateAdminSkill(c)
+
+	require.Equal(t, http.StatusCreated, w.Code, "50-rune Chinese name must be accepted (150 bytes but within VARCHAR(160) char limit)")
+}
+
+func TestCreateAdminSkill_DuplicateSlugReturns409(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	require.NoError(t, db.Create(ptr(testSkill("duplicate-slug", "draft"))).Error)
+	body := `{"slug":"duplicate-slug","name":"Duplicate","short_description":"short","description":"long","category":"writing","required_plan":"pro","monetization_type":"plan_included"}`
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills", body)
+	c.Set("id", 77)
+	c.Set("role", 100)
+
+	CreateAdminSkill(c)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"SKILL_CONFLICT"`)
+	assert.Contains(t, w.Body.String(), `"reason":"DUPLICATE_SLUG"`)
 }
 
 func TestCreateAdminSkillVersion_CreatesDraftSnapshotAndAudit(t *testing.T) {

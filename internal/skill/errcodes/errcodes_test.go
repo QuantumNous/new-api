@@ -19,6 +19,7 @@ func TestHTTPStatus_AllCodes(t *testing.T) {
 		{ErrInvalidRequest, 400},
 		{ErrAuthRequired, 401},
 		{ErrForbidden, 403}, // D-45-1: authenticated non-admin, see package doc
+		{ErrSkillConflict, 409},
 		{ErrSkillNotFound, 404},
 		{ErrSkillNotPublished, 403},
 		{ErrSkillNotEnabled, 403},
@@ -143,12 +144,12 @@ func TestRateLimitedCode(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, HTTPStatusFor(RateLimitedCode))
 }
 
-// TestErrorCodeStringValues verifies all 15 ErrorCode string values verbatim.
-// 14 are from tasks/03 §7.2; ErrForbidden is the DR-45 extension (D-45-1).
+// TestErrorCodeStringValues verifies all ErrorCode string values verbatim.
 func TestErrorCodeStringValues(t *testing.T) {
 	assert.Equal(t, "INVALID_REQUEST", string(ErrInvalidRequest))
 	assert.Equal(t, "AUTH_REQUIRED", string(ErrAuthRequired))
 	assert.Equal(t, "FORBIDDEN", string(ErrForbidden))
+	assert.Equal(t, "SKILL_CONFLICT", string(ErrSkillConflict))
 	assert.Equal(t, "SKILL_NOT_FOUND", string(ErrSkillNotFound))
 	assert.Equal(t, "SKILL_NOT_PUBLISHED", string(ErrSkillNotPublished))
 	assert.Equal(t, "SKILL_NOT_ENABLED", string(ErrSkillNotEnabled))

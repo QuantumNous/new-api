@@ -4,6 +4,8 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-23
 
+- 修复 PR #92 review 问题：`CreateAdminSkill` 现在拒绝非 `token_markup` 类型传入非 0 `price_markup`，返回 400 `INVALID_REQUEST` / `PRICE_MARKUP_NOT_ALLOWED`，确保 `plan_included`/`free` skill 持久化 `price_markup=0`；补回归测试 `plan_included_with_nonzero_price_markup`、`free_with_price_markup_and_max_input_tokens`、`NonTokenMarkupOmittedPriceMarkupPersistsZero`；更新 `docs/skill-marketplace/tasks/03_Data_Model_and_API_Spec.md` §10.2 记录 `PRICE_MARKUP_REQUIRED`/`PRICE_MARKUP_NOT_ALLOWED` 条件规则（`internal/skill/handler/skills.go`, `internal/skill/handler/skills_test.go`, `docs/skill-marketplace/tasks/03_Data_Model_and_API_Spec.md`）
+
 - 更新 DR-66 PRD 状态为 eval，符合任务 PRD 生命周期并记录当前 awaiting merge 状态（`docs/tasks/dr-66-lifecycle-enabled-gate-prd.md`）
 - 新增 DR-71 非 Skill API 兼容性回归守卫 PRD，并补正常 chat-completions 请求无 `skill_id` 时 upstream payload 保持 legacy 路径不变的回归测试（`docs/tasks/dr71-non-skill-api-compatibility-regression-guard-prd.md`, `relay/compatible_handler_skill_test.go`）
 - 更新 DR-78 PRD 状态为 ship，记录 Growth surfaces 已通过 PR #95 合并到 main（`docs/tasks/dr78-growth-surfaces-prd.md`）
@@ -24,6 +26,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 - 新增 DR-52 Marketplace list API 任务 PRD，定义公开列表字段、过滤条件、匿名/登录可用性语义与测试范围（`docs/tasks/dr52-marketplace-list-api-prd.md`）
 - 优化 `/pricing` 公开价格页视觉风格：补充任务 PRD，并将首屏改为符合设计系统的 warm cream / soft-white 价格工作台布局，收敛蓝紫渐变装饰，强化模型数量、价格显示方式和常见用途引导（`docs/tasks/pricing-page-style-refresh-prd.md`, `web/default/src/features/pricing/`）。
 
+- DR-46 review fix：(1) `skillCreateChangedFields` 将 `json.Marshal` 替换为 `common.Marshal`（AGENTS Rule 1）；(2) `name`/`short_description`/`category` 长度校验改用 `utf8.RuneCountInString`（原 `len()` 计字节，中文名 50 字 = 150 字节会被错误拒绝）；(3) `createSkillRequest` 新增 `price_markup *float64` 字段，`token_markup` 类型必须提供 `price_markup > 0`，否则 400 `PRICE_MARKUP_REQUIRED`；补测试 `token_markup_missing_price_markup`、`token_markup_zero_price_markup`、`TokenMarkupWithPriceMarkup`、`UnicodeNameWithinLimit`（`internal/skill/handler/skills.go`, `internal/skill/handler/skills_test.go`）
 - DR-43 review fix — SQLite upgrade regression test：新增 `TestMigrateSkillUsageEvents_SQLite_UpgradesPreDR43Table`，构造 pre-DR-43 最简 schema（缺少 `tenant_id`、`metadata`、kids safety 列及全部 CHECK 约束），预埋一行旧数据，调用 `MigrateSkillUsageEvents` 后校验：全部 30 个 DR-43 列存在；全部 7 个索引存在；重建后 DDL 含 `chk_sue_kids_privacy`/`chk_sue_metadata_*`/`chk_sue_event_type`/`chk_sue_entry_point`；旧行保留；ORM 层 Kids 隐私守卫与 metadata 受限 key 守卫仍拒绝违规写入；DB 层 CHECK 约束对 raw SQL 仍生效（`internal/skill/model/skill_usage_event_integration_test.go`）
 - 修复 DR-47 PR review 阻断问题：`version_activated` 审计 before_value 改为目标版本自身的激活前状态，after_value 增加 `previous_active_version_id`；创建版本号增加事务锁与唯一冲突重试，避免并发创建冒成 500（`internal/skill/handler/versions.go`）
 - 新增 DR-47 Skill version API：Super Admin 可创建 draft 版本、查看版本列表/详情、激活版本并自动降级旧 active；版本写入 instruction_template sha256 与执行 snapshot，并新增不含 prompt 正文的 skill_audit_log 审计记录（`internal/skill/handler/versions.go`, `internal/skill/model/skill_audit_log.go`, `router/skill-router.go`）
