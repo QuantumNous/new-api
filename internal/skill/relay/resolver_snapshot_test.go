@@ -36,6 +36,65 @@ func TestResolve_LoadsImmutableExecutionSnapshot(t *testing.T) {
 	assert.Equal(t, *version.MaxInputTokensSnapshot, *skillCtx.SkillVersion.MaxInputTokensSnapshot)
 }
 
+func TestResolveVersion_UsesExplicitActiveVersionPin(t *testing.T) {
+	c := newTestContext(t)
+	setContextUser(c, enabledUser(109))
+
+	database := newTestDB(t)
+	skill, versionV1 := insertRunnableSkill(t, database, defaultSkill())
+	versionV2ID := "aaaaaaaa-bbbb-cccc-dddd-000000000022"
+	versionV2 := defaultSkillVersion(skill.ID, versionV2ID)
+	versionV2.VersionNumber = 2
+	versionV2.InstructionTemplate = "Pinned package snapshot."
+	versionV2.ModelWhitelistSnapshot = skillmodel.SkillJSONB(`["gpt-4.1-mini"]`)
+	insertSkillVersion(t, database, versionV2)
+
+	skillCtx, code := resolveVersion(c, database, skill.ID, versionV2.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, skillCtx)
+	require.NotNil(t, skillCtx.SkillVersion)
+
+	assert.Equal(t, versionV2.ID, skillCtx.SkillVersionID)
+	assert.Equal(t, versionV2.ID, skillCtx.SkillVersion.ID)
+	assert.Equal(t, versionV2.InstructionTemplate, skillCtx.SkillVersion.InstructionTemplate)
+	assert.NotEqual(t, versionV1.ID, skillCtx.SkillVersionID)
+}
+
+func TestResolveVersion_CrossSkillPinReturnsNotPublished(t *testing.T) {
+	c := newTestContext(t)
+	setContextUser(c, enabledUser(110))
+
+	database := newTestDB(t)
+	skillA, _ := insertRunnableSkill(t, database, defaultSkill())
+	skillB := defaultSkill()
+	skillB.Slug = "other-skill"
+	skillB.Name = "Other Skill"
+	skillB.ActiveVersionID = ptrString("aaaaaaaa-bbbb-cccc-dddd-0000000000b1")
+	skillB, versionB := insertRunnableSkill(t, database, skillB)
+	require.NotEqual(t, skillA.ID, skillB.ID)
+
+	ctx, code := resolveVersion(c, database, skillA.ID, versionB.ID)
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrSkillNotPublished, code)
+}
+
+func TestResolveVersion_InactivePinReturnsNotPublished(t *testing.T) {
+	c := newTestContext(t)
+	setContextUser(c, enabledUser(111))
+
+	database := newTestDB(t)
+	skill, _ := insertRunnableSkill(t, database, defaultSkill())
+	inactiveID := "aaaaaaaa-bbbb-cccc-dddd-000000000033"
+	inactive := defaultSkillVersion(skill.ID, inactiveID)
+	inactive.VersionNumber = 2
+	inactive.Status = enums.SkillVersionStatusInactive
+	insertSkillVersion(t, database, inactive)
+
+	ctx, code := resolveVersion(c, database, skill.ID, inactive.ID)
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrSkillNotPublished, code)
+}
+
 func TestResolve_ActiveVersionRecordMissing_ReturnsNotPublished(t *testing.T) {
 	c := newTestContext(t)
 	setContextUser(c, enabledUser(102))

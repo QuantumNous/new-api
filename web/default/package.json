@@ -9,6 +9,7 @@
     "build:check": "tsc -b && rsbuild build",
     "typecheck": "tsc -b",
     "lint": "eslint .",
+    "test:dr49-admin-skills": "vitest run src/features/admin-skills/__tests__/admin-skills.test.ts",
     "preview": "rsbuild preview",
     "format:check": "prettier --check .",
     "format": "prettier --write .",

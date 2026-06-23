@@ -16,12 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { api } from '@/lib/api'
+import type { AdminSkillListParams, AdminSkillListResponse } from './types'
 
-export { PlanBadge, KidsBadge } from './badges'
-export { EmptyState } from './empty-state'
-export { ErrorBanner } from './error-banner'
-export { LockState } from './lock-state'
-export { normalizeLockState } from './lock-state-utils'
-export { NewSkillBanner } from './new-skill-banner'
-export { SkillCard, SkillCardSkeleton } from './skill-card'
-export { SkillCTA } from './skill-cta'
+export async function getAdminSkills(
+  params: AdminSkillListParams
+): Promise<AdminSkillListResponse> {
+  const res = await api.get('/api/v1/admin/skills', {
+    params,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}

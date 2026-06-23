@@ -16,12 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { AdminSkill } from '../types'
 
-export { PlanBadge, KidsBadge } from './badges'
-export { EmptyState } from './empty-state'
-export { ErrorBanner } from './error-banner'
-export { LockState } from './lock-state'
-export { normalizeLockState } from './lock-state-utils'
-export { NewSkillBanner } from './new-skill-banner'
-export { SkillCard, SkillCardSkeleton } from './skill-card'
-export { SkillCTA } from './skill-cta'
+export function AdminSkillIcon({ skill }: { skill: AdminSkill }) {
+  if (skill.icon_url) {
+    return (
+      <img
+        src={skill.icon_url}
+        alt=''
+        className='size-9 rounded-[7px] border bg-card object-cover'
+      />
+    )
+  }
+
+  return (
+    <div className='flex size-9 items-center justify-center rounded-[7px] border bg-card text-sm font-semibold'>
+      {skill.name.charAt(0).toUpperCase()}
+    </div>
+  )
+}

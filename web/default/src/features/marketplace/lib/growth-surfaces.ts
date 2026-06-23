@@ -16,12 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { SkillGrowthEntryPoint } from '../types'
 
-export { PlanBadge, KidsBadge } from './badges'
-export { EmptyState } from './empty-state'
-export { ErrorBanner } from './error-banner'
-export { LockState } from './lock-state'
-export { normalizeLockState } from './lock-state-utils'
-export { NewSkillBanner } from './new-skill-banner'
-export { SkillCard, SkillCardSkeleton } from './skill-card'
-export { SkillCTA } from './skill-cta'
+export function skillDownloadURL(
+  skillId: string,
+  entryPoint?: SkillGrowthEntryPoint
+): string {
+  const params = new URLSearchParams()
+  if (entryPoint === 'new' || entryPoint === 'recommended') {
+    params.set('entry_point', entryPoint)
+  }
+  const query = params.toString()
+  return `/api/v1/marketplace/skills/${encodeURIComponent(skillId)}/download${query ? `?${query}` : ''}`
+}

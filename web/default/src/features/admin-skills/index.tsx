@@ -16,12 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useTranslation } from 'react-i18next'
+import { SectionPageLayout } from '@/components/layout'
+import { AdminSkillsTable } from './components/admin-skills-table'
 
-export { PlanBadge, KidsBadge } from './badges'
-export { EmptyState } from './empty-state'
-export { ErrorBanner } from './error-banner'
-export { LockState } from './lock-state'
-export { normalizeLockState } from './lock-state-utils'
-export { NewSkillBanner } from './new-skill-banner'
-export { SkillCard, SkillCardSkeleton } from './skill-card'
-export { SkillCTA } from './skill-cta'
+export function AdminSkills() {
+  const { t } = useTranslation()
+
+  return (
+    <SectionPageLayout>
+      <SectionPageLayout.Title>{t('Admin Skills')}</SectionPageLayout.Title>
+      <SectionPageLayout.Description>
+        {t('Review Skill lifecycle, plan access, kids safety, and versions.')}
+      </SectionPageLayout.Description>
+      <SectionPageLayout.Content>
+        <AdminSkillsTable />
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
+  )
+}
