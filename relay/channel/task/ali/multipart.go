@@ -10,7 +10,7 @@ func newFormatDefaultResolution(model string) (string, bool) {
 	switch {
 	case strings.HasPrefix(model, "wan2.7"):
 		return "720P", true
-	case strings.HasPrefix(model, "happyhorse-1.0"):
+	case strings.HasPrefix(model, "happyhorse"):
 		return "1080P", true
 	}
 	return "", false

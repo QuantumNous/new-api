@@ -221,6 +221,10 @@ func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) 
 		"720P":  1,
 		"1080P": 1.6 / 0.9,
 	}
+	happyhorse11Ratio := map[string]float64{
+		"720P":  1,
+		"1080P": 1.2 / 0.9,
+	}
 	aliRatios := map[string]map[string]float64{
 		"wan2.7-t2v":                wan27Ratio,
 		"wan2.7-i2v":                wan27Ratio,
@@ -230,6 +234,9 @@ func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) 
 		"happyhorse-1.0-i2v":        happyhorseRatio,
 		"happyhorse-1.0-r2v":        happyhorseRatio,
 		"happyhorse-1.0-video-edit": happyhorseRatio,
+		"happyhorse-1.1-t2v":        happyhorse11Ratio,
+		"happyhorse-1.1-i2v":        happyhorse11Ratio,
+		"happyhorse-1.1-r2v":        happyhorse11Ratio,
 		"wan2.6-i2v": {
 			"720P":  1,
 			"1080P": 1 / 0.6,
