@@ -4,6 +4,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-23
 
+- 修复 DR-57 PR review 阻断问题：Marketplace API 文件恢复编译、补 `MarketplaceSkillsParams` 与 `skillDownloadURL` re-export；前端事件改走既有 `/marketplace/skills/:id/events` privacy-safe handler；列表查询按 search/category/plan/Kids Safe 传 server filters 并分页取完整 server-filtered 集合，避免只在首 100 条上过滤；补 API 回归测试（`web/default/src/features/marketplace/`, `router/skill-router.go`）
 - 更新 DR-66 PRD 状态为 eval，符合任务 PRD 生命周期并记录当前 awaiting merge 状态（`docs/tasks/dr-66-lifecycle-enabled-gate-prd.md`）
 - 新增 DR-71 非 Skill API 兼容性回归守卫 PRD，并补正常 chat-completions 请求无 `skill_id` 时 upstream payload 保持 legacy 路径不变的回归测试（`docs/tasks/dr71-non-skill-api-compatibility-regression-guard-prd.md`, `relay/compatible_handler_skill_test.go`）
 - 更新 DR-78 PRD 状态为 ship，记录 Growth surfaces 已通过 PR #95 合并到 main（`docs/tasks/dr78-growth-surfaces-prd.md`）

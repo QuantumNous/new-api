@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Marketplace } from '../index'
 import type { MarketplaceEventPayload, MarketplaceSkill } from '../types'
 
-const mockGetMarketplaceSkills = vi.hoisted(() =>
+const mockGetAllMarketplaceSkills = vi.hoisted(() =>
   vi.fn<() => Promise<{ data: MarketplaceSkill[] }>>()
 )
 const mockEmitMarketplaceEvent = vi.hoisted(() =>
@@ -53,7 +53,7 @@ class MockIntersectionObserver {
 }
 
 vi.mock('../api', () => ({
-  getMarketplaceSkills: mockGetMarketplaceSkills,
+  getAllMarketplaceSkills: mockGetAllMarketplaceSkills,
   emitMarketplaceEvent: mockEmitMarketplaceEvent,
 }))
 
@@ -199,7 +199,7 @@ describe('Marketplace analytics events', () => {
     vi.clearAllMocks()
     MockIntersectionObserver.instances = []
     vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
-    mockGetMarketplaceSkills.mockResolvedValue({
+    mockGetAllMarketplaceSkills.mockResolvedValue({
       data: [
         {
           id: 'skill-1',

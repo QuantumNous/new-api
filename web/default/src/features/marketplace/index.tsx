@@ -48,7 +48,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { SectionPageLayout } from '@/components/layout'
-import { emitMarketplaceEvent, getMarketplaceSkills } from './api'
+import { emitMarketplaceEvent, getAllMarketplaceSkills } from './api'
 import {
   EmptyState,
   ErrorBanner,
@@ -116,9 +116,19 @@ export function Marketplace() {
   const observerRef = useRef<IntersectionObserver | null>(null)
   const emittedImpressions = useRef(new Set<string>())
 
+  const serverFilters = useMemo(
+    () => ({
+      query: filters.query,
+      category: filters.category,
+      plan: filters.plan,
+      kidsSafeOnly: filters.kidsSafeOnly,
+    }),
+    [filters.category, filters.kidsSafeOnly, filters.plan, filters.query]
+  )
+
   const skillsQuery = useQuery({
-    queryKey: ['marketplace-skills'],
-    queryFn: () => getMarketplaceSkills(),
+    queryKey: ['marketplace-skills', serverFilters],
+    queryFn: () => getAllMarketplaceSkills(serverFilters),
     placeholderData: (prev) => prev,
   })
 
