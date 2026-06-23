@@ -96,7 +96,7 @@ func TestRegisterWithEmailVerificationAutoLogsInNewUser(t *testing.T) {
 	require.True(t, payload.Data.IsNewUser)
 }
 
-func TestRegisterDefaultTokenLimitDoesNotBlockRegistration(t *testing.T) {
+func TestRegisterDefaultTokenLimitDoesNotSkipInitialToken(t *testing.T) {
 	require.NoError(t, backendI18n.Init())
 	db := setupModelListControllerTestDB(t)
 	require.NoError(t, db.AutoMigrate(&model.Token{}))
@@ -139,7 +139,12 @@ func TestRegisterDefaultTokenLimitDoesNotBlockRegistration(t *testing.T) {
 
 	var tokenCount int64
 	require.NoError(t, db.Model(&model.Token{}).Count(&tokenCount).Error)
-	require.Zero(t, tokenCount)
+	require.EqualValues(t, 1, tokenCount)
+
+	var token model.Token
+	require.NoError(t, db.Where("user_id = ?", payload.Data.ID).First(&token).Error)
+	require.Equal(t, "token-limit-user的初始令牌", token.Name)
+	require.True(t, token.UnlimitedQuota)
 }
 
 func TestWeChatAuthNewUserMarksIsNewUser(t *testing.T) {

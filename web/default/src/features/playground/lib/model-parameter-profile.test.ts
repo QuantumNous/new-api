@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, test } from 'bun:test'
 import { DEFAULT_CONFIG, DEFAULT_PARAMETER_ENABLED } from '../constants'
 import type { Message, ParameterEnabled, PlaygroundConfig } from '../types'
+import { resolveModelParameterKeys } from './model-parameter-profile'
 import { buildChatCompletionPayload } from './payload-builder'
 
 const userMessage: Message = {
@@ -217,5 +218,13 @@ describe('buildChatCompletionPayload model parameter profiles', () => {
     expect(payload.presence_penalty).toBeUndefined()
     expect(payload.max_tokens).toBe(1024)
     expect(payload.seed).toBeUndefined()
+  })
+
+  test('resolved parameter keys are isolated from caller mutation', () => {
+    const keys = resolveModelParameterKeys('gpt-4o-mini')
+    keys.splice(0, keys.length)
+
+    expect(resolveModelParameterKeys('gpt-4o-mini')).toContain('temperature')
+    expect(resolveModelParameterKeys('gpt-4o-mini')).toContain('seed')
   })
 })

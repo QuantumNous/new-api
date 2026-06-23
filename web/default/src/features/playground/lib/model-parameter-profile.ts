@@ -70,7 +70,7 @@ export function resolveModelParameterKeys(
   const normalized = normalizeModelName(model)
 
   if (isReasoningModel(normalized)) {
-    return REASONING_PROFILE.allowed
+    return [...REASONING_PROFILE.allowed]
   }
 
   if (
@@ -78,11 +78,11 @@ export function resolveModelParameterKeys(
     normalized.includes('anthropic') ||
     normalized.includes('claude-code')
   ) {
-    return CLAUDE_PROFILE.allowed
+    return [...CLAUDE_PROFILE.allowed]
   }
 
   if (normalized.includes('gemini')) {
-    return GEMINI_PROFILE.allowed
+    return [...GEMINI_PROFILE.allowed]
   }
 
   if (
@@ -90,10 +90,10 @@ export function resolveModelParameterKeys(
     normalized.includes('/gpt-') ||
     normalized.includes('openai/')
   ) {
-    return OPENAI_PROFILE.allowed
+    return [...OPENAI_PROFILE.allowed]
   }
 
-  return CONSERVATIVE_PROFILE.allowed
+  return [...CONSERVATIVE_PROFILE.allowed]
 }
 
 export function isParameterAllowedForModel(

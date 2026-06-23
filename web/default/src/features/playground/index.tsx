@@ -143,8 +143,13 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     return pickFirstRunModel(modelsData, playgroundDefaultModel)
   }, [firstRun, modelsData, playgroundDefaultModel])
 
+  const isCurrentModelValid =
+    !!config.model &&
+    !!modelsData?.some((model) => model.value === config.model)
   const isFirstRunModelApplied =
-    !!firstRunModel && (userPickedModel || config.model === firstRunModel)
+    !!firstRunModel &&
+    isCurrentModelValid &&
+    (userPickedModel || config.model === firstRunModel)
   const isFirstRunModelReady = !firstRun || isFirstRunModelApplied
   const getFirstRunChatOverride = useCallback(
     () =>
@@ -259,12 +264,17 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     openOnboarding,
   ])
 
-  const handleSendMessage = (text: string) => {
+  const prepareFirstRunSend = useCallback(() => {
     if (firstRun && !isFirstRunModelApplied) {
       toast.error(i18next.t('Failed to load playground models'))
-      return
+      return false
     }
     if (firstRun) setSentThisSession(true)
+    return true
+  }, [firstRun, isFirstRunModelApplied])
+
+  const handleSendMessage = (text: string) => {
+    if (!prepareFirstRunSend()) return
     const userMessage = createUserMessage(text)
     const assistantMessage = createLoadingAssistantMessage()
 
@@ -327,12 +337,14 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
         ...updated.slice(0, index + 1),
         createLoadingAssistantMessage(),
       ]
+      if (!prepareFirstRunSend()) return
       updateMessages(toSubmit)
       sendChat(toSubmit, getFirstRunChatOverride())
     },
     [
       editingMessageKey,
       messages,
+      prepareFirstRunSend,
       updateMessages,
       sendChat,
       getFirstRunChatOverride,
