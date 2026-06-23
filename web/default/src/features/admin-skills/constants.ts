@@ -91,4 +91,3 @@ export function getAdminSkillKidsOptions(t: TFunction) {
     value,
   }))
 }
-

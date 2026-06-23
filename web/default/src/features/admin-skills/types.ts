@@ -81,4 +81,3 @@ export interface AdminSkillListParams {
   required_plan?: SkillPlan
   kids_approval_status?: AdminSkillKidsApprovalStatus
 }
-

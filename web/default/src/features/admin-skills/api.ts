@@ -28,4 +28,3 @@ export async function getAdminSkills(
   } as Record<string, unknown>)
   return res.data
 }
-

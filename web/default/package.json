@@ -9,6 +9,7 @@
     "build:check": "tsc -b && rsbuild build",
     "typecheck": "tsc -b",
     "lint": "eslint .",
+    "test:dr49-admin-skills": "node scripts/dr49-admin-skills-regression.mjs",
     "preview": "rsbuild preview",
     "format:check": "prettier --check .",
     "format": "prettier --write .",

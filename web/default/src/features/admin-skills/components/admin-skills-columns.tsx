@@ -30,6 +30,7 @@ import {
   skillStatusVariant,
 } from '../constants'
 import type { AdminSkill } from '../types'
+import { AdminSkillIcon } from './admin-skill-icon'
 import { AdminSkillRowActions } from './admin-skill-row-actions'
 
 interface UseAdminSkillsColumnsProps {
@@ -53,7 +54,7 @@ export function useAdminSkillsColumns({
         const skill = row.original
         return (
           <div className='flex min-w-[220px] items-center gap-3'>
-            <SkillIcon skill={skill} />
+            <AdminSkillIcon skill={skill} />
             <div className='min-w-0'>
               <div className='flex items-center gap-2'>
                 <LongText className='max-w-[220px] font-medium'>
@@ -215,22 +216,4 @@ export function useAdminSkillsColumns({
       meta: { label: t('Actions'), mobileHidden: true },
     },
   ]
-}
-
-function SkillIcon({ skill }: { skill: AdminSkill }) {
-  if (skill.icon_url) {
-    return (
-      <img
-        src={skill.icon_url}
-        alt=''
-        className='size-9 rounded-[7px] border bg-card object-cover'
-      />
-    )
-  }
-
-  return (
-    <div className='flex size-9 items-center justify-center rounded-[7px] border bg-card text-sm font-semibold'>
-      {skill.name.charAt(0).toUpperCase()}
-    </div>
-  )
 }

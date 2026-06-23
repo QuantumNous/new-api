@@ -61,4 +61,3 @@ export const Route = createFileRoute('/_authenticated/skills/admin/')({
   validateSearch: adminSkillsSearchSchema,
   component: AdminSkills,
 })
-
