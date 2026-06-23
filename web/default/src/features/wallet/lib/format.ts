@@ -64,12 +64,12 @@ export function formatCurrency(amount: number | string): string {
 /**
  * Get discount label for display (e.g., "20% OFF")
  */
-export function getDiscountLabel(discount: number): string {
+export function getDiscountLabel(discount: number, offLabel = 'OFF'): string {
   if (discount >= DEFAULT_DISCOUNT_RATE) {
     return ''
   }
   const off = Math.round((1 - discount) * 100)
-  return `${off}% OFF`
+  return `${off}% ${offLabel}`
 }
 
 /**
