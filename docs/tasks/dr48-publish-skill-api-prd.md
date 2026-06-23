@@ -22,6 +22,7 @@ Implement the Phase-1 minimal publish API for official Skills:
 - Publish fails unless `required_plan` and `monetization_type` are valid.
 - Publish fails unless `model_whitelist` contains at least one model.
 - Publish fails unless `max_input_tokens` is set when the Skill is Free, monetization is Free, or `free_quota_per_month` is configured.
+- Publish must lock the draft row and use a conditional `draft` + active-version snapshot update so concurrent publish or version changes fail with conflict before audit/event writes.
 - Successful publish writes `skill_audit_log` with the reason and no prompt text.
 - Successful publish emits `skill_usage_events.event_type='skill_admin_action'` with analytics allowlist metadata only; the publish reason is restricted to `skill_audit_log.action_reason`.
 - After publish, marketplace list/detail APIs can discover the Skill through existing `status='published'` filtering.

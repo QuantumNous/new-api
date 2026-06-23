@@ -4,6 +4,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-23
 
+- 修复 DR-48 PR review 阻断问题：publish 改用 GORM `clause.Locking`，发布更新增加 `status=draft` 与 `active_version_id` 条件并检查 `RowsAffected`，防止并发重复 publish、重复 audit/event 以及 active version snapshot 漂移（`internal/skill/handler/lifecycle.go`, `internal/skill/handler/skills_test.go`, `docs/tasks/dr48-publish-skill-api-prd.md`）
 - 修复 DR-48 PR review 阻断问题：`skill_admin_action` analytics metadata 改为仅写 allowlist 字段 `producer`/`schema_version`，发布 reason 只保留在 `skill_audit_log.action_reason`，并补回归断言防止自由文本进入 `skill_usage_events.metadata`（`internal/skill/handler/lifecycle.go`, `internal/skill/handler/skills_test.go`, `docs/tasks/dr48-publish-skill-api-prd.md`）
 - 更新 DR-66 PRD 状态为 eval，符合任务 PRD 生命周期并记录当前 awaiting merge 状态（`docs/tasks/dr-66-lifecycle-enabled-gate-prd.md`）
 - 新增 DR-71 非 Skill API 兼容性回归守卫 PRD，并补正常 chat-completions 请求无 `skill_id` 时 upstream payload 保持 legacy 路径不变的回归测试（`docs/tasks/dr71-non-skill-api-compatibility-regression-guard-prd.md`, `relay/compatible_handler_skill_test.go`）

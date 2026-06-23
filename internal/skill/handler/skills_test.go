@@ -18,6 +18,7 @@ import (
 	platformmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -1239,6 +1240,26 @@ func TestPublishAdminSkill_BlocksWhenChecklistFails(t *testing.T) {
 	var persisted skillmodel.Skill
 	require.NoError(t, db.First(&persisted, "id = ?", s.ID).Error)
 	assert.Equal(t, enums.SkillStatusDraft, persisted.Status)
+}
+
+func TestPublishDraftSkill_BlocksWhenActiveVersionSnapshotChanges(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s, version := createPublishReadySkill(t, db, "publish-version-changed")
+	changedVersionID := uuid.New().String()
+	require.NoError(t, db.Model(&skillmodel.Skill{}).Where("id = ?", s.ID).Update("active_version_id", changedVersionID).Error)
+
+	err := db.Transaction(func(tx *gorm.DB) error {
+		return publishDraftSkill(tx, s, version, 42, time.Now().UTC())
+	})
+
+	require.ErrorIs(t, err, errPublishStateChanged)
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "id = ?", s.ID).Error)
+	assert.Equal(t, enums.SkillStatusDraft, persisted.Status)
+	require.NotNil(t, persisted.ActiveVersionID)
+	assert.Equal(t, changedVersionID, *persisted.ActiveVersionID)
+	assert.Nil(t, persisted.PublishedAt)
 }
 
 func TestSkillVersionNumberConflictDetection(t *testing.T) {

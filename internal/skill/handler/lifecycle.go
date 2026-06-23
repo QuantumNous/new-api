@@ -14,6 +14,7 @@ import (
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type PublishSkillRequest struct {
@@ -57,7 +58,7 @@ func PublishAdminSkill(c *gin.Context) {
 	var checklist []PublishChecklistItem
 	err := database.Transaction(func(tx *gorm.DB) error {
 		var skill skillmodel.Skill
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&skill, "id = ?", skillID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&skill, "id = ?", skillID).Error; err != nil {
 			return err
 		}
 		if skill.Status != enums.SkillStatusDraft {
@@ -74,15 +75,7 @@ func PublishAdminSkill(c *gin.Context) {
 		}
 		before := skillPublishAuditBefore(skill)
 		now := time.Now().UTC()
-		updates := map[string]any{
-			"status":            enums.SkillStatusPublished,
-			"published_at":      now,
-			"active_version_id": version.ID,
-			"updated_by":        actorID,
-			"deprecated_at":     nil,
-			"archived_at":       nil,
-		}
-		if err := tx.Model(&skillmodel.Skill{}).Where("id = ?", skill.ID).Updates(updates).Error; err != nil {
+		if err := publishDraftSkill(tx, skill, version, actorID, now); err != nil {
 			return err
 		}
 		if err := tx.First(&published, "id = ?", skill.ID).Error; err != nil {
@@ -108,6 +101,27 @@ func PublishAdminSkill(c *gin.Context) {
 		Version:     skillVersionMetadataFromModel(activeVersion),
 		PublishedAt: *published.PublishedAt,
 	})
+}
+
+func publishDraftSkill(tx *gorm.DB, skill skillmodel.Skill, version skillmodel.SkillVersion, actorID int64, now time.Time) error {
+	updates := map[string]any{
+		"status":            enums.SkillStatusPublished,
+		"published_at":      now,
+		"active_version_id": version.ID,
+		"updated_by":        actorID,
+		"deprecated_at":     nil,
+		"archived_at":       nil,
+	}
+	result := tx.Model(&skillmodel.Skill{}).
+		Where("id = ? AND status = ? AND active_version_id = ?", skill.ID, enums.SkillStatusDraft, version.ID).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return errPublishStateChanged
+	}
+	return nil
 }
 
 func loadActivePublishVersion(tx *gorm.DB, skill skillmodel.Skill) (skillmodel.SkillVersion, error) {
@@ -260,6 +274,7 @@ func skillPublishAuditAfter(skill skillmodel.Skill, version skillmodel.SkillVers
 var (
 	errPublishChecklistFailed = errors.New("publish checklist failed")
 	errPublishRequiresDraft   = errors.New("skill must be draft to publish")
+	errPublishStateChanged    = errors.New("skill publish state changed")
 	errMissingActiveVersion   = errors.New("active skill version is required")
 )
 
@@ -274,6 +289,17 @@ func writePublishSkillError(c *gin.Context, err error, checklist []PublishCheckl
 				Code:      errcodes.ErrInvalidRequest,
 				Message:   "Only draft Skills can be published.",
 				Detail:    gin.H{"reason": "SKILL_NOT_DRAFT"},
+				RequestID: skillapi.RequestID(c),
+			},
+		})
+		return
+	}
+	if errors.Is(err, errPublishStateChanged) {
+		c.JSON(http.StatusConflict, skillapi.ErrorEnvelope{
+			Error: skillapi.ErrorBody{
+				Code:      errcodes.ErrInvalidRequest,
+				Message:   "Skill publish state changed. Reload and try again.",
+				Detail:    gin.H{"reason": "PUBLISH_STATE_CHANGED"},
 				RequestID: skillapi.RequestID(c),
 			},
 		})
