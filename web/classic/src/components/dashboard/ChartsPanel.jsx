@@ -70,22 +70,22 @@ const ChartsPanel = ({
     >
       <div className='h-96 p-2'>
         {activeChartTab === '1' && (
-          <VChart spec={spec_line} option={CHART_CONFIG} />
+          <VChart spec={spec_line} options={CHART_CONFIG} />
         )}
         {activeChartTab === '2' && (
-          <VChart spec={spec_model_line} option={CHART_CONFIG} />
+          <VChart spec={spec_model_line} options={CHART_CONFIG} />
         )}
         {activeChartTab === '3' && (
-          <VChart spec={spec_pie} option={CHART_CONFIG} />
+          <VChart spec={spec_pie} options={CHART_CONFIG} />
         )}
         {activeChartTab === '4' && (
-          <VChart spec={spec_rank_bar} option={CHART_CONFIG} />
+          <VChart spec={spec_rank_bar} options={CHART_CONFIG} />
         )}
         {activeChartTab === '5' && isAdminUser && (
-          <VChart spec={spec_user_rank} option={CHART_CONFIG} />
+          <VChart spec={spec_user_rank} options={CHART_CONFIG} />
         )}
         {activeChartTab === '6' && isAdminUser && (
-          <VChart spec={spec_user_trend} option={CHART_CONFIG} />
+          <VChart spec={spec_user_trend} options={CHART_CONFIG} />
         )}
       </div>
     </Card>
