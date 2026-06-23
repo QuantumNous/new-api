@@ -3821,6 +3821,13 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "Gitleaks TOML 路径": "Gitleaks TOML path",
+    "保存隐私过滤器设置": "Save privacy filter settings",
+    "启用隐私过滤器": "Enable privacy filter",
+    "在请求转发到上游之前，对中继请求中的密钥和个人数据进行脱敏": "Redact secrets and personal data in relay requests before they are sent upstream",
+    "留空将使用内置备用规则。Docker中请填写容器内路径，而不是宿主机路径": "Leave empty to use the built-in fallback rules. In Docker, use a container path rather than a host path",
+    "留空将使用内置备用规则。Docker 中请填写容器内路径，而不是宿主机路径": "Leave empty to use the built-in fallback rules. In Docker, use a container path rather than a host path",
+    "隐私过滤器": "Privacy Filter"
   }
 }

@@ -70,7 +70,9 @@ function parseRatioOption(value: string): Record<string, unknown> {
   }
 }
 
-export function UnpricedModelsEditor(props: UnpricedModelsEditorProps) {
+export function UnpricedModelsEditor({
+  modelRatios,
+}: UnpricedModelsEditorProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const isMobile = useMediaQuery('(max-width: 767px)')
@@ -101,24 +103,24 @@ export function UnpricedModelsEditor(props: UnpricedModelsEditorProps) {
 
   const parsedRatios = useMemo(() => {
     return {
-      ModelPrice: parseRatioOption(props.modelRatios.ModelPrice || '{}'),
-      ModelRatio: parseRatioOption(props.modelRatios.ModelRatio || '{}'),
-      CompletionRatio: parseRatioOption(props.modelRatios.CompletionRatio || '{}'),
-      CacheRatio: parseRatioOption(props.modelRatios.CacheRatio || '{}'),
-      CreateCacheRatio: parseRatioOption(props.modelRatios.CreateCacheRatio || '{}'),
-      ImageRatio: parseRatioOption(props.modelRatios.ImageRatio || '{}'),
-      AudioRatio: parseRatioOption(props.modelRatios.AudioRatio || '{}'),
+      ModelPrice: parseRatioOption(modelRatios.ModelPrice || '{}'),
+      ModelRatio: parseRatioOption(modelRatios.ModelRatio || '{}'),
+      CompletionRatio: parseRatioOption(modelRatios.CompletionRatio || '{}'),
+      CacheRatio: parseRatioOption(modelRatios.CacheRatio || '{}'),
+      CreateCacheRatio: parseRatioOption(modelRatios.CreateCacheRatio || '{}'),
+      ImageRatio: parseRatioOption(modelRatios.ImageRatio || '{}'),
+      AudioRatio: parseRatioOption(modelRatios.AudioRatio || '{}'),
       AudioCompletionRatio: parseRatioOption(
-        props.modelRatios.AudioCompletionRatio || '{}'
+        modelRatios.AudioCompletionRatio || '{}'
       ),
       BillingMode: parseRatioOption(
-        props.modelRatios['billing_setting.billing_mode'] || '{}'
+        modelRatios['billing_setting.billing_mode'] || '{}'
       ),
       BillingExpr: parseRatioOption(
-        props.modelRatios['billing_setting.billing_expr'] || '{}'
+        modelRatios['billing_setting.billing_expr'] || '{}'
       ),
     }
-  }, [props.modelRatios])
+  }, [modelRatios])
 
   // 过滤未定价的模型：在已启用列表中 && 未设置价格
   const unpricedModels = useMemo(() => {
@@ -252,11 +254,7 @@ export function UnpricedModelsEditor(props: UnpricedModelsEditorProps) {
                 className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2'
                 aria-hidden
               />
-              <label htmlFor='unpriced-model-search' className='sr-only'>
-                {t('Search model name...')}
-              </label>
               <Input
-                id='unpriced-model-search'
                 type='search'
                 placeholder={t('Search model name...')}
                 value={searchQuery}

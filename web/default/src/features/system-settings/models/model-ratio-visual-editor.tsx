@@ -394,11 +394,6 @@ const ModelRatioVisualEditorComponent = forwardRef<
         JSON.stringify(billingExprMap, null, 2)
       )
 
-      if (editData?.name === name) {
-        setEditData(null)
-        setEditorOpen(false)
-        setSheetOpen(false)
-      }
       toast.success(
         t('Model {{name}} removed. Click Save to apply changes.', { name })
       )
@@ -415,7 +410,6 @@ const ModelRatioVisualEditorComponent = forwardRef<
       billingMode,
       billingExpr,
       onChange,
-      editData,
       t,
     ]
   )

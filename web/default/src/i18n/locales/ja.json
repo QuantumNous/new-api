@@ -4828,6 +4828,12 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Enable privacy filter": "プライバシーフィルターを有効化",
+    "Gitleaks TOML path": "Gitleaks TOML パス",
+    "Leave empty to use the built-in fallback rules. In Docker, use a container path rather than a host path.": "空欄の場合は組み込みのフォールバックルールを使用します。Docker ではホスト側のパスではなく、コンテナ内のパスを指定してください。",
+    "Privacy Filter": "プライバシーフィルター",
+    "Redact secrets and personal data in relay requests before they are sent upstream.": "上流へ送信する前に、中継リクエスト内のシークレットと個人データをマスクします。",
+    "Save privacy filter settings": "プライバシーフィルター設定を保存"
   }
 }
