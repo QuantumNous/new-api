@@ -32,7 +32,8 @@ import {
   onDiscordOAuthClicked,
   onCustomOAuthClicked,
 } from '../../helpers';
-import Turnstile from 'react-turnstile';
+import AliyunCaptcha from '../common/AliyunCaptcha';
+import { useAliyunCaptcha } from '../../hooks/useAliyunCaptcha';
 import {
   Button,
   Card,
@@ -84,9 +85,6 @@ const RegisterForm = () => {
   const { username, password, password2 } = inputs;
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
-  const [turnstileEnabled, setTurnstileEnabled] = useState(false);
-  const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
-  const [turnstileToken, setTurnstileToken] = useState('');
   const [showWeChatLoginModal, setShowWeChatLoginModal] = useState(false);
   const [showEmailRegister, setShowEmailRegister] = useState(false);
   const [wechatLoading, setWechatLoading] = useState(false);
@@ -111,6 +109,8 @@ const RegisterForm = () => {
   const githubTimeoutRef = useRef(null);
   const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
 
+  const aliyunCaptchaRef = useRef(null);
+
   const logo = getLogo();
   const systemName = getSystemName();
 
@@ -129,6 +129,8 @@ const RegisterForm = () => {
       return {};
     }
   }, [statusState?.status]);
+
+  const verificationCaptcha = useAliyunCaptcha(status, 'verification');
   const hasCustomOAuthProviders =
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthRegisterOptions = Boolean(
@@ -145,10 +147,6 @@ const RegisterForm = () => {
 
   useEffect(() => {
     setShowEmailVerification(!!status?.email_verification);
-    if (status?.turnstile_check) {
-      setTurnstileEnabled(true);
-      setTurnstileSiteKey(status.turnstile_site_key);
-    }
 
     // 从 status 获取用户协议和隐私政策的启用状态
     setHasUserAgreement(status?.user_agreement_enabled || false);
@@ -183,10 +181,6 @@ const RegisterForm = () => {
   };
 
   const onSubmitWeChatVerificationCode = async () => {
-    if (turnstileEnabled && turnstileToken === '') {
-      showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
-      return;
-    }
     setWechatCodeSubmitLoading(true);
     try {
       const res = await API.get(
@@ -225,20 +219,13 @@ const RegisterForm = () => {
       return;
     }
     if (username && password) {
-      if (turnstileEnabled && turnstileToken === '') {
-        showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
-        return;
-      }
       setRegisterLoading(true);
       try {
         if (!affCode) {
           affCode = localStorage.getItem('aff');
         }
         inputs.aff_code = affCode;
-        const res = await API.post(
-          `/api/user/register?turnstile=${turnstileToken}`,
-          inputs,
-        );
+        const res = await API.post('/api/user/register', inputs);
         const { success, message } = res.data;
         if (success) {
           navigate('/login');
@@ -256,19 +243,31 @@ const RegisterForm = () => {
 
   const sendVerificationCode = async () => {
     if (inputs.email === '') return;
-    if (turnstileEnabled && turnstileToken === '') {
-      showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
-      return;
-    }
     setVerificationCodeLoading(true);
     try {
-      const res = await API.get(
-        `/api/verification?email=${encodeURIComponent(inputs.email)}&turnstile=${turnstileToken}`,
-      );
+      let captchaVerifyParam = '';
+      if (verificationCaptcha.enabled) {
+        try {
+          captchaVerifyParam = await aliyunCaptchaRef.current?.execute();
+          if (!captchaVerifyParam) {
+            setVerificationCodeLoading(false);
+            return;
+          }
+        } catch {
+          setVerificationCodeLoading(false);
+          return;
+        }
+      }
+
+      const params = `email=${encodeURIComponent(inputs.email)}`;
+      const captchaParam = captchaVerifyParam
+        ? `&captcha_verify_param=${encodeURIComponent(captchaVerifyParam)}`
+        : '';
+      const res = await API.get(`/api/verification?${params}${captchaParam}`);
       const { success, message } = res.data;
       if (success) {
         showSuccess('验证码发送成功，请检查你的邮箱！');
-        setDisableButton(true); // 发送成功后禁用按钮，开始倒计时
+        setDisableButton(true);
       } else {
         showError(message);
       }
@@ -787,15 +786,14 @@ const RegisterForm = () => {
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}
 
-        {turnstileEnabled && (
-          <div className='flex justify-center mt-6'>
-            <Turnstile
-              sitekey={turnstileSiteKey}
-              onVerify={(token) => {
-                setTurnstileToken(token);
-              }}
-            />
-          </div>
+        {verificationCaptcha.enabled && (
+          <AliyunCaptcha
+            ref={aliyunCaptchaRef}
+            enabled={verificationCaptcha.enabled}
+            region={verificationCaptcha.region}
+            prefix={verificationCaptcha.prefix}
+            sceneId={verificationCaptcha.sceneId}
+          />
         )}
       </div>
     </div>

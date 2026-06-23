@@ -40,7 +40,8 @@ import {
   buildAssertionResult,
   isPasskeySupported,
 } from '../../helpers';
-import Turnstile from 'react-turnstile';
+import AliyunCaptcha from '../common/AliyunCaptcha';
+import { useAliyunCaptcha } from '../../hooks/useAliyunCaptcha';
 import {
   Button,
   Card,
@@ -85,9 +86,6 @@ const LoginForm = () => {
   const [submitted, setSubmitted] = useState(false);
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
-  const [turnstileEnabled, setTurnstileEnabled] = useState(false);
-  const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
-  const [turnstileToken, setTurnstileToken] = useState('');
   const [showWeChatLoginModal, setShowWeChatLoginModal] = useState(false);
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [wechatLoading, setWechatLoading] = useState(false);
@@ -113,6 +111,8 @@ const LoginForm = () => {
   const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
   const [customOAuthLoading, setCustomOAuthLoading] = useState({});
 
+  const aliyunCaptchaRef = useRef(null);
+
   const logo = getLogo();
   const systemName = getSystemName();
 
@@ -131,6 +131,8 @@ const LoginForm = () => {
       return {};
     }
   }, [statusState?.status]);
+
+  const loginCaptcha = useAliyunCaptcha(status, 'login');
   const hasCustomOAuthProviders =
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthLoginOptions = Boolean(
@@ -144,11 +146,6 @@ const LoginForm = () => {
   );
 
   useEffect(() => {
-    if (status?.turnstile_check) {
-      setTurnstileEnabled(true);
-      setTurnstileSiteKey(status.turnstile_site_key);
-    }
-
     // 从 status 获取用户协议和隐私政策的启用状态
     setHasUserAgreement(status?.user_agreement_enabled || false);
     setHasPrivacyPolicy(status?.privacy_policy_enabled || false);
@@ -183,10 +180,6 @@ const LoginForm = () => {
   };
 
   const onSubmitWeChatVerificationCode = async () => {
-    if (turnstileEnabled && turnstileToken === '') {
-      showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
-      return;
-    }
     setWechatCodeSubmitLoading(true);
     try {
       const res = await API.get(
@@ -220,16 +213,26 @@ const LoginForm = () => {
       showInfo(t('请先阅读并同意用户协议和隐私政策'));
       return;
     }
-    if (turnstileEnabled && turnstileToken === '') {
-      showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
-      return;
-    }
     setSubmitted(true);
     setLoginLoading(true);
     try {
       if (username && password) {
+        let captchaVerifyParam = '';
+        if (loginCaptcha.enabled) {
+          try {
+            captchaVerifyParam = await aliyunCaptchaRef.current?.execute();
+            if (!captchaVerifyParam) {
+              setLoginLoading(false);
+              return;
+            }
+          } catch {
+            setLoginLoading(false);
+            return;
+          }
+        }
+
         const res = await API.post(
-          `/api/user/login?turnstile=${turnstileToken}`,
+          `/api/user/login?captcha_verify_param=${encodeURIComponent(captchaVerifyParam || '')}`,
           {
             username,
             password,
@@ -237,7 +240,6 @@ const LoginForm = () => {
         );
         const { success, message, data } = res.data;
         if (success) {
-          // 检查是否需要2FA验证
           if (data && data.require_2fa) {
             setShowTwoFA(true);
             setLoginLoading(false);
@@ -965,15 +967,14 @@ const LoginForm = () => {
         {renderWeChatLoginModal()}
         {render2FAModal()}
 
-        {turnstileEnabled && (
-          <div className='flex justify-center mt-6'>
-            <Turnstile
-              sitekey={turnstileSiteKey}
-              onVerify={(token) => {
-                setTurnstileToken(token);
-              }}
-            />
-          </div>
+        {loginCaptcha.enabled && (
+          <AliyunCaptcha
+            ref={aliyunCaptchaRef}
+            enabled={loginCaptcha.enabled}
+            region={loginCaptcha.region}
+            prefix={loginCaptcha.prefix}
+            sceneId={loginCaptcha.sceneId}
+          />
         )}
       </div>
     </div>

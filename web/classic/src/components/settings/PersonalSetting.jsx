@@ -67,9 +67,6 @@ const PersonalSetting = () => {
   const [showWeChatBindModal, setShowWeChatBindModal] = useState(false);
   const [showEmailBindModal, setShowEmailBindModal] = useState(false);
   const [showAccountDeleteModal, setShowAccountDeleteModal] = useState(false);
-  const [turnstileEnabled, setTurnstileEnabled] = useState(false);
-  const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
-  const [turnstileToken, setTurnstileToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [disableButton, setDisableButton] = useState(false);
   const [countdown, setCountdown] = useState(30);
@@ -130,15 +127,8 @@ const PersonalSetting = () => {
     if (saved) {
       const parsed = JSON.parse(saved);
       setStatus(parsed);
-      if (parsed.turnstile_check) {
-        setTurnstileEnabled(true);
-        setTurnstileSiteKey(parsed.turnstile_site_key);
-      } else {
-        setTurnstileEnabled(false);
-        setTurnstileSiteKey('');
-      }
     }
-    // Always refresh status from server to avoid stale flags (e.g., admin just enabled OAuth)
+    // Always refresh status from server to avoid stale flags
     (async () => {
       try {
         const res = await API.get('/api/status');
@@ -146,13 +136,6 @@ const PersonalSetting = () => {
         if (success && data) {
           setStatus(data);
           setStatusData(data);
-          if (data.turnstile_check) {
-            setTurnstileEnabled(true);
-            setTurnstileSiteKey(data.turnstile_site_key);
-          } else {
-            setTurnstileEnabled(false);
-            setTurnstileSiteKey('');
-          }
         }
       } catch (e) {
         // ignore and keep local status
@@ -176,7 +159,7 @@ const PersonalSetting = () => {
       setDisableButton(false);
       setCountdown(30);
     }
-    return () => clearInterval(countdownInterval); // Clean up on unmount
+    return () => clearInterval(countdownInterval);
   }, [disableButton, countdown]);
 
   useEffect(() => {
@@ -377,13 +360,16 @@ const PersonalSetting = () => {
     showSuccess(t('系统令牌已复制到剪切板'));
   };
 
-  const deleteAccount = async () => {
+  const deleteAccount = async (captchaVerifyParam) => {
     if (inputs.self_account_deletion_confirmation !== userState.user.username) {
       showError(t('请输入你的账户名以确认删除！'));
       return;
     }
 
-    const res = await API.delete('/api/user/self');
+    const url = captchaVerifyParam
+      ? `/api/user/self?captcha_verify_param=${encodeURIComponent(captchaVerifyParam)}`
+      : '/api/user/self';
+    const res = await API.delete(url);
     const { success, message } = res.data;
 
     if (success) {
@@ -411,11 +397,7 @@ const PersonalSetting = () => {
     }
   };
 
-  const changePassword = async () => {
-    // if (inputs.original_password === '') {
-    //   showError(t('请输入原密码！'));
-    //   return;
-    // }
+  const changePassword = async (extra) => {
     if (inputs.set_new_password === '') {
       showError(t('请输入新密码！'));
       return;
@@ -428,34 +410,36 @@ const PersonalSetting = () => {
       showError(t('两次输入的密码不一致！'));
       return;
     }
-    const res = await API.put(`/api/user/self`, {
+    const payload = {
       original_password: inputs.original_password,
       password: inputs.set_new_password,
-    });
+    };
+    if (extra?.email) {
+      payload.email = extra.email;
+      payload.verification_code = extra.verification_code;
+    }
+    const res = await API.put(`/api/user/self`, payload);
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('密码修改成功！'));
-      setShowWeChatBindModal(false);
     } else {
       showError(message);
     }
     setShowChangePasswordModal(false);
   };
 
-  const sendVerificationCode = async () => {
-    if (inputs.email === '') {
+  const sendVerificationCode = async (email, captchaVerifyParam) => {
+    if (!email) {
       showError(t('请输入邮箱！'));
       return;
     }
     setDisableButton(true);
-    if (turnstileEnabled && turnstileToken === '') {
-      showInfo(t('请稍后几秒重试，Turnstile 正在检查用户环境！'));
-      return;
-    }
     setLoading(true);
-    const res = await API.get(
-      `/api/verification?email=${inputs.email}&turnstile=${turnstileToken}`,
-    );
+    const params = `email=${encodeURIComponent(email)}`;
+    const captchaParam = captchaVerifyParam
+      ? `&captcha_verify_param=${encodeURIComponent(captchaVerifyParam)}`
+      : '';
+    const res = await API.get(`/api/verification?${params}${captchaParam}`);
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('验证码发送成功，请检查邮箱！'));
@@ -490,7 +474,6 @@ const PersonalSetting = () => {
     if (await copy(text)) {
       showSuccess(t('已复制：') + text);
     } else {
-      // setSearchKeyword(text);
       Modal.error({ title: t('无法复制到剪贴板，请手动复制'), content: text });
     }
   };
@@ -502,7 +485,7 @@ const PersonalSetting = () => {
         ? value.target.value !== undefined
           ? value.target.value
           : value.target.checked
-        : value, // handle checkbox properly
+        : value,
     }));
   };
 
@@ -551,12 +534,7 @@ const PersonalSetting = () => {
           {/* 签到日历 - 仅在启用时显示 */}
           {status?.checkin_enabled && (
             <div className='mt-4 md:mt-6'>
-              <CheckinCalendar
-                t={t}
-                status={status}
-                turnstileEnabled={turnstileEnabled}
-                turnstileSiteKey={turnstileSiteKey}
-              />
+              <CheckinCalendar t={t} status={status} />
             </div>
           )}
 
@@ -610,9 +588,7 @@ const PersonalSetting = () => {
         disableButton={disableButton}
         loading={loading}
         countdown={countdown}
-        turnstileEnabled={turnstileEnabled}
-        turnstileSiteKey={turnstileSiteKey}
-        setTurnstileToken={setTurnstileToken}
+        status={status}
       />
 
       <WeChatBindModal
@@ -633,9 +609,7 @@ const PersonalSetting = () => {
         handleInputChange={handleInputChange}
         deleteAccount={deleteAccount}
         userState={userState}
-        turnstileEnabled={turnstileEnabled}
-        turnstileSiteKey={turnstileSiteKey}
-        setTurnstileToken={setTurnstileToken}
+        status={status}
       />
 
       <ChangePasswordModal
@@ -645,9 +619,9 @@ const PersonalSetting = () => {
         inputs={inputs}
         handleInputChange={handleInputChange}
         changePassword={changePassword}
-        turnstileEnabled={turnstileEnabled}
-        turnstileSiteKey={turnstileSiteKey}
-        setTurnstileToken={setTurnstileToken}
+        sendVerificationCode={sendVerificationCode}
+        status={status}
+        userState={userState}
       />
 
       <SecureVerificationModal
