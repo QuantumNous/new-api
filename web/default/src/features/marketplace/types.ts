@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 export type SkillPlan = 'free' | 'pro' | 'enterprise'
 
 export type SkillStatus = 'draft' | 'published' | 'deprecated' | 'archived'
@@ -121,6 +120,19 @@ export interface MarketplaceEventPayload {
     producer?: 'frontend'
     client_event_time?: string
   }
+export interface DownloadCTA {
+  url: string
+  // Backend returns "GET"; kept as string to tolerate future methods.
+  method: string
+}
+
+// PublicSkillDetail mirrors the backend detail-only response (DR-53):
+// PublicSkill fields plus the runtime-dependency flag and download CTA.
+// Examples/input hints are intentionally absent — the detail API does not
+// expose them yet (DR-53 follow-up).
+export interface PublicSkillDetail extends MarketplaceSkill {
+  requires_deeprouter_key: boolean
+  download_cta: DownloadCTA
 }
 
 export interface MySkill extends MarketplaceSkill {

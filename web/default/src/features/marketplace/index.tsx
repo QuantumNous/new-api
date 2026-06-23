@@ -106,7 +106,10 @@ function labelForStatus(status: MarketplaceStatusFilter) {
   }
 }
 
+export { SkillDetail } from './skill-detail'
+
 export function Marketplace() {
+  const navigate = useNavigate()
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
   const [filters, setFilters] = useState<MarketplaceFilters>(initialFilters)
@@ -314,6 +317,28 @@ export function Marketplace() {
       observedCards.current.set(skillId, node)
       observerRef.current?.observe(node)
     }
+    if (!newSkill || newSkillBannerDismissed) return
+    void recordMarketplaceSkillEvent(newSkill.slug || newSkill.id, {
+      event_type: 'skill_impression',
+      entry_point: 'new',
+    }).catch(() => undefined)
+  }, [newSkill, newSkillBannerDismissed])
+
+  // Every Marketplace discovery surface (card + new-skill banner) routes to the
+  // Skill Detail page. The real Download action lives only on that page, where it
+  // goes through downloadSkillPackage() (axios api client → New-Api-User header).
+  // We never trigger a download URL directly from the list/banner: native
+  // navigation omits New-Api-User (SkillUserAuth 401) and would bypass the detail
+  // page's runtime-key copy + plan/auth/download error mapping.
+  const goToSkillDetail = (
+    skill: MarketplaceSkill,
+    entryPoint: SkillGrowthEntryPoint
+  ) => {
+    void recordMarketplaceSkillEvent(skill.slug || skill.id, {
+      event_type: 'skill_detail_view',
+      entry_point: entryPoint,
+    }).catch(() => undefined)
+    void navigate({ to: '/skills/$slug', params: { slug: skill.slug } })
   }
 
   return (
@@ -322,7 +347,7 @@ export function Marketplace() {
         {t('Skill Marketplace')}
       </SectionPageLayout.Title>
       <SectionPageLayout.Description>
-        {t('Browse and enable skills to enhance your AI experience')}
+        {t('Browse and download skills to enhance your AI experience')}
       </SectionPageLayout.Description>
       <SectionPageLayout.Content>
         <div className='flex flex-col gap-4'>
@@ -446,6 +471,16 @@ export function Marketplace() {
             </div>
           </div>
 
+          {showNewSkillBanner && (
+            <NewSkillBanner
+              skill={newSkill}
+              onAction={() => goToSkillDetail(newSkill, 'new')}
+              onDismiss={() => {
+                setNewSkillBannerDismissed(true)
+                writeDismissed(NEW_SKILL_BANNER_DISMISS_KEY)
+              }}
+            />
+          )}
           {skillsQuery.isError && (
             <ErrorBanner
               message={errorMessage ?? t('Unable to load marketplace skills.')}
