@@ -37,6 +37,12 @@ type stubScheduledHandler struct {
 	onRun    func(ctx context.Context, task *model.SystemTask, runnerID string)
 }
 
+type stubSystemTaskRunResult struct {
+	taskID   string
+	taskType string
+	err      error
+}
+
 func (h *stubScheduledHandler) Type() string { return h.taskType }
 
 func (h *stubScheduledHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
@@ -104,14 +110,16 @@ func TestSystemTaskSchedulerSkipsDisabled(t *testing.T) {
 func TestSystemTaskClaimPassDispatchesByType(t *testing.T) {
 	truncate(t)
 
-	ran := make(chan string, 1)
+	ran := make(chan stubSystemTaskRunResult, 1)
 	handler := &stubScheduledHandler{
 		taskType: "test_dispatch",
 		enabled:  true,
 		interval: time.Minute,
 		onRun: func(_ context.Context, task *model.SystemTask, runnerID string) {
-			require.NoError(t, model.FinishSystemTask(task.TaskID, runnerID, model.SystemTaskStatusSucceeded, nil, ""))
-			ran <- task.Type
+			ran <- stubSystemTaskRunResult{
+				taskType: task.Type,
+				err:      model.FinishSystemTask(task.TaskID, runnerID, model.SystemTaskStatusSucceeded, nil, ""),
+			}
 		},
 	}
 	withSystemTaskRegistry(t, handler)
@@ -123,7 +131,8 @@ func TestSystemTaskClaimPassDispatchesByType(t *testing.T) {
 
 	select {
 	case got := <-ran:
-		assert.Equal(t, handler.taskType, got)
+		require.NoError(t, got.err)
+		assert.Equal(t, handler.taskType, got.taskType)
 	case <-time.After(2 * time.Second):
 		t.Fatal("claimed task was not dispatched to its handler")
 	}
@@ -137,14 +146,16 @@ func TestSystemTaskClaimPassDispatchesByType(t *testing.T) {
 func TestSystemTaskClaimPassDispatchesEarliestPendingByType(t *testing.T) {
 	truncate(t)
 
-	ran := make(chan string, 2)
+	ran := make(chan stubSystemTaskRunResult, 2)
 	handlerA := &stubScheduledHandler{
 		taskType: "test_dispatch_a",
 		enabled:  true,
 		interval: time.Minute,
 		onRun: func(_ context.Context, task *model.SystemTask, runnerID string) {
-			require.NoError(t, model.FinishSystemTask(task.TaskID, runnerID, model.SystemTaskStatusSucceeded, nil, ""))
-			ran <- task.TaskID
+			ran <- stubSystemTaskRunResult{
+				taskID: task.TaskID,
+				err:    model.FinishSystemTask(task.TaskID, runnerID, model.SystemTaskStatusSucceeded, nil, ""),
+			}
 		},
 	}
 	handlerB := &stubScheduledHandler{
@@ -152,8 +163,10 @@ func TestSystemTaskClaimPassDispatchesEarliestPendingByType(t *testing.T) {
 		enabled:  true,
 		interval: time.Minute,
 		onRun: func(_ context.Context, task *model.SystemTask, runnerID string) {
-			require.NoError(t, model.FinishSystemTask(task.TaskID, runnerID, model.SystemTaskStatusSucceeded, nil, ""))
-			ran <- task.TaskID
+			ran <- stubSystemTaskRunResult{
+				taskID: task.TaskID,
+				err:    model.FinishSystemTask(task.TaskID, runnerID, model.SystemTaskStatusSucceeded, nil, ""),
+			}
 		},
 	}
 	withSystemTaskRegistry(t, handlerA, handlerB)
@@ -170,8 +183,9 @@ func TestSystemTaskClaimPassDispatchesEarliestPendingByType(t *testing.T) {
 	got := map[string]bool{}
 	for range 2 {
 		select {
-		case taskID := <-ran:
-			got[taskID] = true
+		case result := <-ran:
+			require.NoError(t, result.err)
+			got[result.taskID] = true
 		case <-time.After(2 * time.Second):
 			t.Fatal("claimed tasks were not dispatched to their handlers")
 		}
@@ -185,4 +199,30 @@ func TestSystemTaskClaimPassDispatchesEarliestPendingByType(t *testing.T) {
 		reloaded, err := model.GetSystemTaskByTaskID(secondA.TaskID)
 		return err == nil && reloaded != nil && reloaded.Status == model.SystemTaskStatusPending
 	}, 2*time.Second, 20*time.Millisecond)
+}
+
+func TestEnqueueSystemTaskReportsCreatedAndExistingActive(t *testing.T) {
+	truncate(t)
+
+	first, created, err := EnqueueSystemTask("test_enqueue", map[string]bool{"manual": true})
+	require.NoError(t, err)
+	require.True(t, created)
+	require.NotNil(t, first)
+
+	existing, created, err := EnqueueSystemTask("test_enqueue", nil)
+	require.NoError(t, err)
+	require.False(t, created)
+	require.NotNil(t, existing)
+	assert.Equal(t, first.TaskID, existing.TaskID)
+
+	_, claimed, err := model.ClaimSystemTask(first.ID, first.Type, "runner-a", common.GetTimestamp()+60)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.NoError(t, model.FinishSystemTask(first.TaskID, "runner-a", model.SystemTaskStatusSucceeded, nil, ""))
+
+	second, created, err := EnqueueSystemTask("test_enqueue", nil)
+	require.NoError(t, err)
+	require.True(t, created)
+	require.NotNil(t, second)
+	assert.NotEqual(t, first.TaskID, second.TaskID)
 }

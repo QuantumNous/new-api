@@ -554,6 +554,7 @@ func runChannelUpstreamModelUpdateTaskOnce(ctx context.Context, force bool, allo
 	processed := 0
 
 	lastID := 0
+scanLoop:
 	for {
 		if ctx != nil && ctx.Err() != nil {
 			break
@@ -580,6 +581,9 @@ func runChannelUpstreamModelUpdateTaskOnce(ctx context.Context, force bool, allo
 		for _, channel := range channels {
 			if channel == nil {
 				continue
+			}
+			if ctx != nil && ctx.Err() != nil {
+				break scanLoop
 			}
 
 			processed++
@@ -622,7 +626,15 @@ func runChannelUpstreamModelUpdateTaskOnce(ctx context.Context, force bool, allo
 			autoAddedModels += autoAdded
 
 			if common.RequestInterval > 0 {
-				time.Sleep(common.RequestInterval)
+				if ctx == nil {
+					time.Sleep(common.RequestInterval)
+				} else {
+					select {
+					case <-ctx.Done():
+						break scanLoop
+					case <-time.After(common.RequestInterval):
+					}
+				}
 			}
 		}
 
@@ -941,14 +953,25 @@ func ApplyAllChannelUpstreamModelUpdates(c *gin.Context) {
 // DetectAllChannelUpstreamModelUpdates enqueues a model_update system task
 // (manual variant) instead of scanning inline. Routing the manual trigger
 // through the framework gives it the same cross-instance lease dedup and run
-// history as the scheduled scan: if a scan (scheduled or manual) is already
-// active the existing task is reused. The scan now runs in the background; the
-// admin tracks progress in System Info and refreshes the channel list to see
-// staged per-channel updates once it completes.
+// history as the scheduled scan. If any model_update task is already active, the
+// manual run is rejected so the caller does not mistake a scheduled run for this
+// manual one.
 func DetectAllChannelUpstreamModelUpdates(c *gin.Context) {
-	task, err := service.EnqueueSystemTask(model.SystemTaskTypeModelUpdate, modelUpdateTaskPayload{Manual: true})
+	task, created, err := service.EnqueueSystemTask(model.SystemTaskTypeModelUpdate, modelUpdateTaskPayload{Manual: true})
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if !created {
+		c.JSON(http.StatusConflict, gin.H{
+			"success": false,
+			"message": "已有模型更新任务正在运行或等待中，不能启动本次手动任务",
+			"data": gin.H{
+				"task_id": task.TaskID,
+				"status":  task.Status,
+				"type":    task.Type,
+			},
+		})
 		return
 	}
 

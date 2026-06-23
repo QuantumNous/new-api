@@ -3,7 +3,6 @@ package controller
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,6 +33,9 @@ type midjourneyPollSummary struct {
 // totalChannels) so the system task surfaces a percentage.
 func runMidjourneyTaskUpdateOnce(ctx context.Context, report func(processed, total int)) midjourneyPollSummary {
 	summary := midjourneyPollSummary{}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	tasks := model.GetAllUnFinishTasks()
 	if len(tasks) == 0 {
@@ -100,19 +102,21 @@ func runMidjourneyTaskUpdateOnce(ctx context.Context, report func(processed, tot
 		}
 		requestUrl := fmt.Sprintf("%s/mj/task/list-by-condition", *midjourneyChannel.BaseURL)
 
-		body, _ := json.Marshal(map[string]any{
+		body, err := common.Marshal(map[string]any{
 			"ids": taskIds,
 		})
-		req, err := http.NewRequest("POST", requestUrl, bytes.NewBuffer(body))
 		if err != nil {
+			logger.LogError(ctx, fmt.Sprintf("Get Task marshal body error: %v", err))
+			continue
+		}
+		timeout := time.Second * 15
+		requestCtx, cancel := context.WithTimeout(ctx, timeout)
+		req, err := http.NewRequestWithContext(requestCtx, "POST", requestUrl, bytes.NewBuffer(body))
+		if err != nil {
+			cancel()
 			logger.LogError(ctx, fmt.Sprintf("Get Task error: %v", err))
 			continue
 		}
-		// 设置超时时间
-		timeout := time.Second * 15
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		// 使用带有超时的 context 创建新的请求
-		req = req.WithContext(ctx)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("mj-api-secret", midjourneyChannel.Key)
 		resp, err := service.GetHttpClient().Do(req)
@@ -135,7 +139,7 @@ func runMidjourneyTaskUpdateOnce(ctx context.Context, report func(processed, tot
 			continue
 		}
 		var responseItems []dto.MidjourneyDto
-		err = json.Unmarshal(responseBody, &responseItems)
+		err = common.Unmarshal(responseBody, &responseItems)
 		if err != nil {
 			logger.LogError(ctx, fmt.Sprintf("Get Mjp Task parse body error2: %v, body: %s", err, string(responseBody)))
 			resp.Body.Close()
@@ -148,6 +152,10 @@ func runMidjourneyTaskUpdateOnce(ctx context.Context, report func(processed, tot
 
 		for _, responseItem := range responseItems {
 			task := taskM[responseItem.MjId]
+			if task == nil {
+				logger.LogWarn(ctx, fmt.Sprintf("Midjourney task response ignored: unknown mj_id=%s", responseItem.MjId))
+				continue
+			}
 
 			useTime := (time.Now().UnixNano() / int64(time.Millisecond)) - task.SubmitTime
 			// 如果时间超过一小时，且进度不是100%，则认为任务失败
@@ -170,11 +178,11 @@ func runMidjourneyTaskUpdateOnce(ctx context.Context, report func(processed, tot
 			task.Status = responseItem.Status
 			task.FailReason = responseItem.FailReason
 			if responseItem.Properties != nil {
-				propertiesStr, _ := json.Marshal(responseItem.Properties)
+				propertiesStr, _ := common.Marshal(responseItem.Properties)
 				task.Properties = string(propertiesStr)
 			}
 			if responseItem.Buttons != nil {
-				buttonStr, _ := json.Marshal(responseItem.Buttons)
+				buttonStr, _ := common.Marshal(responseItem.Buttons)
 				task.Buttons = string(buttonStr)
 			}
 			// 映射 VideoUrl
@@ -182,7 +190,7 @@ func runMidjourneyTaskUpdateOnce(ctx context.Context, report func(processed, tot
 
 			// 映射 VideoUrls - 将数组序列化为 JSON 字符串
 			if responseItem.VideoUrls != nil && len(responseItem.VideoUrls) > 0 {
-				videoUrlsStr, err := json.Marshal(responseItem.VideoUrls)
+				videoUrlsStr, err := common.Marshal(responseItem.VideoUrls)
 				if err != nil {
 					logger.LogError(ctx, fmt.Sprintf("序列化 VideoUrls 失败: %v", err))
 					task.VideoUrls = "[]" // 失败时设置为空数组
@@ -273,7 +281,7 @@ func checkMjTaskNeedUpdate(oldTask *model.Midjourney, newTask dto.MidjourneyDto)
 	}
 	// 检查 VideoUrls 是否需要更新
 	if newTask.VideoUrls != nil && len(newTask.VideoUrls) > 0 {
-		newVideoUrlsStr, _ := json.Marshal(newTask.VideoUrls)
+		newVideoUrlsStr, _ := common.Marshal(newTask.VideoUrls)
 		if oldTask.VideoUrls != string(newVideoUrlsStr) {
 			return true
 		}

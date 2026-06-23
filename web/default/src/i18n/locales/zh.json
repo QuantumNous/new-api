@@ -4726,6 +4726,7 @@
     "Warning: This action is permanent and irreversible!": "警告：此操作是永久且不可逆的！",
     "We apologize for the inconvenience.": "对于由此造成的不便，我们深表歉意。",
     "We could not load the setup status.": "我们无法加载设置状态。",
+    "We could not load system tasks.": "无法加载系统任务。",
     "We will prompt your device to confirm using biometrics or your hardware key.": "我们将提示您的设备使用生物识别或硬件密钥进行确认。",
     "We'll be back online shortly.": "我们将很快恢复在线。",
     "Web search": "网络搜索",

@@ -252,3 +252,28 @@ func TestSystemTaskUpdatesRequireCurrentLock(t *testing.T) {
 	assert.ErrorIs(t, UpdateSystemTaskState(task.TaskID, runnerID, testSystemTaskState{Progress: 10}), ErrSystemTaskLockLost)
 	assert.ErrorIs(t, FinishSystemTask(task.TaskID, runnerID, SystemTaskStatusSucceeded, nil, ""), ErrSystemTaskLockLost)
 }
+
+func TestSystemTaskUpdatesRequireUnexpiredLock(t *testing.T) {
+	truncateTables(t)
+
+	task, err := CreateSystemTask(SystemTaskTypeLogCleanup, nil, nil)
+	require.NoError(t, err)
+
+	runnerID := "runner-a"
+	_, claimed, err := ClaimSystemTask(task.ID, SystemTaskTypeLogCleanup, runnerID, common.GetTimestamp()+60)
+	require.NoError(t, err)
+	require.True(t, claimed)
+
+	require.NoError(t, DB.Model(&SystemTaskLock{}).
+		Where("task_id = ?", task.TaskID).
+		Update("locked_until", common.GetTimestamp()-1).Error)
+
+	assert.ErrorIs(t, UpdateSystemTaskState(task.TaskID, runnerID, testSystemTaskState{Progress: 10}), ErrSystemTaskLockLost)
+	assert.ErrorIs(t, FinishSystemTask(task.TaskID, runnerID, SystemTaskStatusSucceeded, nil, ""), ErrSystemTaskLockLost)
+
+	reloaded, err := GetSystemTaskByTaskID(task.TaskID)
+	require.NoError(t, err)
+	require.NotNil(t, reloaded)
+	assert.Equal(t, SystemTaskStatusRunning, reloaded.Status)
+	assert.Empty(t, reloaded.State)
+}

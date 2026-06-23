@@ -17,13 +17,14 @@ import (
 const (
 	// systemTaskRunnerIdleInterval is the fallback poll interval used to pick up
 	// tasks created on other nodes and mark expired leases failed.
-	systemTaskRunnerIdleInterval = 30 * time.Second
+	systemTaskRunnerIdleInterval = 15 * time.Second
 	systemTaskLockTTL            = 60 * time.Second
 	logCleanupBatchSize          = 100
 
 	// systemTaskSchedulerInterval throttles how often the scheduler/stale-lock
 	// pass runs, independent of how often the runner wakes to claim tasks.
-	systemTaskSchedulerInterval = 30 * time.Second
+	systemTaskSchedulerInterval = 15 * time.Second
+	systemTaskStaleLockInterval = 30 * time.Second
 )
 
 // SystemTaskHandler executes a claimed task of a specific type. Run owns the
@@ -133,15 +134,20 @@ func StartSystemTaskRunner() {
 			defer ticker.Stop()
 
 			var lastScheduler time.Time
+			var lastStaleLockCleanup time.Time
 			runPass := func() {
 				// The scheduler/stale-lock pass is throttled independently of the
 				// claim pass: wakeups (e.g. a manual log cleanup) should claim
 				// immediately without re-running the scheduler every time.
-				if time.Since(lastScheduler) >= systemTaskSchedulerInterval {
-					lastScheduler = time.Now()
+				now := time.Now()
+				if now.Sub(lastStaleLockCleanup) >= systemTaskStaleLockInterval {
+					lastStaleLockCleanup = now
 					if err := model.ExpireStaleSystemTaskLocks(common.GetTimestamp()); err != nil {
 						logger.LogWarn(context.Background(), fmt.Sprintf("system task stale lock cleanup failed: %v", err))
 					}
+				}
+				if now.Sub(lastScheduler) >= systemTaskSchedulerInterval {
+					lastScheduler = now
 					runSystemTaskScheduler()
 				}
 				runSystemTaskClaimPass(runnerID)
@@ -189,29 +195,28 @@ func StartLogCleanupTask(targetTimestamp int64) (*model.SystemTask, error) {
 	return task, nil
 }
 
-// EnqueueSystemTask creates an on-demand task of the given type, coalescing with
-// any already-active (pending/running) task of that type. The per-type lock is
-// acquired later by the runner, so concurrent creators may briefly race but only
-// one run per type can execute at a time.
-func EnqueueSystemTask(taskType string, payload any) (*model.SystemTask, error) {
+// EnqueueSystemTask creates an on-demand task of the given type. The returned
+// bool is true only when a new pending row was created; false means an active
+// task of the same type already exists and was returned.
+func EnqueueSystemTask(taskType string, payload any) (*model.SystemTask, bool, error) {
 	activeTask, err := model.GetActiveSystemTask(taskType)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if activeTask != nil {
-		return activeTask, nil
+		return activeTask, false, nil
 	}
 
 	task, err := model.CreateSystemTask(taskType, payload, nil)
 	if err != nil {
 		activeTask, activeErr := model.GetActiveSystemTask(taskType)
 		if activeErr == nil && activeTask != nil {
-			return activeTask, nil
+			return activeTask, false, nil
 		}
-		return nil, err
+		return nil, false, err
 	}
 	notifySystemTaskRunner()
-	return task, nil
+	return task, true, nil
 }
 
 // runSystemTaskClaimPass tries to claim one pending task per registered type
@@ -284,6 +289,7 @@ func runSystemTaskScheduler() {
 			}
 		}
 		if _, err := model.CreateSystemTask(scheduled.Type(), scheduled.NewPayload(), nil); err != nil {
+			logger.LogWarn(context.Background(), fmt.Sprintf("system task scheduler create failed: type=%s err=%v", scheduled.Type(), err))
 			continue
 		}
 	}

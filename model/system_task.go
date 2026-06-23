@@ -26,7 +26,7 @@ const (
 var ErrSystemTaskLockLost = errors.New("system task lock lost")
 
 type SystemTask struct {
-	ID        int64            `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
+	ID        int64            `json:"id" gorm:"primary_key"`
 	TaskID    string           `json:"task_id" gorm:"type:varchar(64);uniqueIndex"`
 	Type      string           `json:"type" gorm:"type:varchar(64);index"`
 	Status    SystemTaskStatus `json:"status" gorm:"type:varchar(32);index"`
@@ -304,18 +304,17 @@ func acquireSystemTaskLock(taskType string, taskID string, lockedBy string, now 
 }
 
 func UpdateSystemTaskState(taskID string, lockedBy string, state any) error {
-	if err := ensureSystemTaskLockHeld(taskID, lockedBy); err != nil {
-		return err
-	}
 	stateText, err := marshalSystemTaskJSON(state)
 	if err != nil {
 		return err
 	}
+	now := common.GetTimestamp()
 	result := DB.Model(&SystemTask{}).
 		Where("task_id = ? AND status = ? AND locked_by = ?", taskID, SystemTaskStatusRunning, lockedBy).
+		Where("EXISTS (SELECT 1 FROM system_task_locks WHERE system_task_locks.task_id = system_tasks.task_id AND system_task_locks.locked_by = ? AND system_task_locks.locked_until >= ?)", lockedBy, now).
 		Updates(map[string]any{
 			"state":      stateText,
-			"updated_at": common.GetTimestamp(),
+			"updated_at": now,
 		})
 	if result.Error != nil {
 		return result.Error
@@ -378,20 +377,19 @@ func ReleaseSystemTaskLock(taskID string, lockedBy string) error {
 }
 
 func FinishSystemTask(taskID string, lockedBy string, status SystemTaskStatus, resultPayload any, errorMessage string) error {
-	if err := ensureSystemTaskLockHeld(taskID, lockedBy); err != nil {
-		return err
-	}
 	resultText, err := marshalSystemTaskJSON(resultPayload)
 	if err != nil {
 		return err
 	}
+	now := common.GetTimestamp()
 	result := DB.Model(&SystemTask{}).
 		Where("task_id = ? AND status = ? AND locked_by = ?", taskID, SystemTaskStatusRunning, lockedBy).
+		Where("EXISTS (SELECT 1 FROM system_task_locks WHERE system_task_locks.task_id = system_tasks.task_id AND system_task_locks.locked_by = ? AND system_task_locks.locked_until >= ?)", lockedBy, now).
 		Updates(map[string]any{
 			"status":     status,
 			"result":     resultText,
 			"error":      errorMessage,
-			"updated_at": common.GetTimestamp(),
+			"updated_at": now,
 		})
 	if result.Error != nil {
 		return result.Error
@@ -400,20 +398,6 @@ func FinishSystemTask(taskID string, lockedBy string, status SystemTaskStatus, r
 		return ErrSystemTaskLockLost
 	}
 	return ReleaseSystemTaskLock(taskID, lockedBy)
-}
-
-func ensureSystemTaskLockHeld(taskID string, lockedBy string) error {
-	var count int64
-	err := DB.Model(&SystemTaskLock{}).
-		Where("task_id = ? AND locked_by = ? AND locked_until >= ?", taskID, lockedBy, common.GetTimestamp()).
-		Count(&count).Error
-	if err != nil {
-		return err
-	}
-	if count == 0 {
-		return ErrSystemTaskLockLost
-	}
-	return nil
 }
 
 func (task *SystemTask) DecodePayload(v any) error {

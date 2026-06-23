@@ -21,6 +21,7 @@ import { ListChecks, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { ErrorState } from '@/components/error-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -195,7 +196,10 @@ export function SystemTasksPanel() {
     queryKey: ['system-info', 'system-tasks'],
     queryFn: async () => {
       const res = await listSystemTasks(TASK_LIMIT)
-      return res.success && Array.isArray(res.data) ? res.data : []
+      if (!res.success || !Array.isArray(res.data)) {
+        throw new Error(res.message || t('We could not load system tasks.'))
+      }
+      return res.data
     },
     staleTime: 30 * 1000,
     retry: false,
@@ -273,6 +277,19 @@ export function SystemTasksPanel() {
               <Skeleton key={i} className='h-9 w-full rounded-md' />
             ))}
           </div>
+        ) : tasksQuery.isError ? (
+          <ErrorState
+            title={t('We could not load system tasks.')}
+            description={
+              tasksQuery.error instanceof Error
+                ? tasksQuery.error.message
+                : undefined
+            }
+            onRetry={() => {
+              void tasksQuery.refetch()
+            }}
+            className='min-h-[260px]'
+          />
         ) : tasks.length === 0 ? (
           <div className='px-4 py-10 text-center sm:px-5'>
             <div className='bg-muted mx-auto mb-3 flex size-10 items-center justify-center rounded-lg'>
