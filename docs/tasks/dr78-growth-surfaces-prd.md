@@ -1,6 +1,6 @@
 # DR-78 Growth Surfaces PRD
 
-Status: eval
+Status: ship
 Ticket: DR-78
 Date: 2026-06-23
 Module: M13 light demo

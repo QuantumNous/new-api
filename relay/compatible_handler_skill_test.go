@@ -11,6 +11,8 @@ package relay
 // - unrelated non-skill branches still require live channel setup
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -24,6 +26,9 @@ import (
 	skillrelay "github.com/QuantumNous/new-api/internal/skill/relay"
 	platformmodel "github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -228,6 +233,73 @@ func TestTextHelper_SkillRelay_NilDeepRouter_NotAffected(t *testing.T) {
 		assert.NotEqual(t, http.StatusNotFound, apiErr.StatusCode,
 			"relay infra error must not be 404 SKILL_NOT_FOUND")
 	}
+}
+
+// TestTextHelper_NonSkillRequest_UpstreamPayloadUnchanged verifies DR-71:
+// a normal chat-completions request with no deeprouter.skill_id must stay on the
+// legacy relay path. The Skill gate must not create SkillRelayContext, must not
+// rewrite model/messages, and must not set smart-router routing metadata.
+func TestTextHelper_NonSkillRequest_UpstreamPayloadUnchanged(t *testing.T) {
+	withDBBypass(t)
+	service.InitHttpClient()
+
+	var capturedBody []byte
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		capturedBody = append([]byte(nil), body...)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, err = w.Write([]byte(`{"id":"chatcmpl-dr71","object":"chat.completion","created":1700000000,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(upstream.Close)
+
+	stream := false
+	temperature := 0.0
+	topP := 0.0
+	maxTokens := uint(16)
+	req := &dto.GeneralOpenAIRequest{
+		Model:       "gpt-4o-mini",
+		Messages:    []dto.Message{userMsg("keep this request unchanged")},
+		Stream:      &stream,
+		Temperature: &temperature,
+		TopP:        &topP,
+		MaxTokens:   &maxTokens,
+		User:        []byte(`"user-123"`),
+		Metadata:    []byte(`{"trace":"dr71"}`),
+	}
+	expectedBody, err := common.Marshal(req)
+	require.NoError(t, err)
+	expectedBody, err = relaycommon.RemoveDisabledFields(expectedBody, dto.ChannelOtherSettings{}, false)
+	require.NoError(t, err)
+
+	c := newSkillTestCtx(t, 1)
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(c, constant.ContextKeyChannelId, 71)
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
+	common.SetContextKey(c, constant.ContextKeyChannelKey, "test-key")
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, "gpt-4o-mini")
+
+	apiErr := TextHelper(c, &relaycommon.RelayInfo{
+		Request:         req,
+		RequestId:       "req-dr71-non-skill",
+		OriginModelName: "gpt-4o-mini",
+		RequestURLPath:  "/v1/chat/completions",
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+	})
+
+	require.Nil(t, apiErr, "normal non-skill request must complete through the legacy OpenAI relay path")
+	require.True(t, bytes.Equal(expectedBody, capturedBody),
+		"non-skill upstream payload changed\nexpected: %s\nactual:   %s", expectedBody, capturedBody)
+
+	_, hasSkillCtx := skillrelay.Get(c)
+	assert.False(t, hasSkillCtx, "non-skill request must not set SkillRelayContext")
+	assert.Empty(t, c.Writer.Header().Get("X-DeepRouter-Routed-Model"),
+		"direct non-skill request must not emit smart-router routed-model header")
+	assert.Empty(t, common.GetContextKeyString(c, constant.ContextKeyAliasResolvedFrom),
+		"direct non-skill request must not set smart-router alias context")
 }
 
 // TestTextHelper_SkillRelay_EmptySkillID_NotAffected verifies that a request with
