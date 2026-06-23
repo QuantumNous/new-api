@@ -37,6 +37,11 @@ export function EdmLandingPage(props: Props) {
             <span className="text-violet-700">{props.campaign.hero.accent}</span>
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 md:text-lg">{props.campaign.hero.description}</p>
+          {props.campaign.hero.highlight ? (
+            <p className="mt-5 max-w-2xl border-l-4 border-violet-600 bg-white px-4 py-3 text-base leading-7 font-medium text-slate-800 shadow-[0_16px_50px_-40px_rgba(15,23,42,0.75)]">
+              {props.campaign.hero.highlight}
+            </p>
+          ) : null}
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <a
