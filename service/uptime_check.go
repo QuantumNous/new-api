@@ -49,6 +49,8 @@ var ModelIDCandidates = map[string][]string{
 	"kimi-k2.7-code":    {"moonshotai/kimi-k2.7-code", "kimi-k2-7-code"},
 	"qwen3.7-max":       {"qwen3-7-max", "Qwen3.7-Max"},
 	"qwen3.7-plus":      {"qwen3-7-plus", "Qwen3.7-Plus"},
+	"doubao-seed-2-1-pro-260628":   {"doubao-seed-2-1-pro"},
+	"doubao-seed-2-1-turbo-260628": {"doubao-seed-2-1-turbo"},
 	"sora":              {"sora-2"},
 }
 
