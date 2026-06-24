@@ -248,7 +248,7 @@ resource "google_compute_url_map" "https" {
         var.website_domains,
         var.router_domains,
         var.console_domains,
-      ))) == length(concat(
+        ))) == length(concat(
         var.website_domains,
         var.router_domains,
         var.console_domains,
