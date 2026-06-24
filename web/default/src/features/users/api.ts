@@ -160,6 +160,16 @@ export interface OAuthBinding {
   external_id?: string
 }
 
+export interface LDAPBinding {
+  user_id: number
+  ldap_user_id: string
+  ldap_username?: string
+  ldap_display_name?: string
+  ldap_email?: string
+  ldap_groups?: string[]
+  last_sync_time?: number
+}
+
 /**
  * Get user's custom OAuth bindings (admin)
  */
@@ -167,6 +177,13 @@ export async function getUserOAuthBindings(
   userId: number
 ): Promise<ApiResponse<OAuthBinding[]>> {
   const res = await api.get(`/api/user/${userId}/oauth/bindings`)
+  return res.data
+}
+
+export async function getUserLDAPBinding(
+  userId: number
+): Promise<ApiResponse<LDAPBinding | null>> {
+  const res = await api.get(`/api/user/${userId}/ldap/binding`)
   return res.data
 }
 

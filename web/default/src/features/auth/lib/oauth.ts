@@ -67,6 +67,14 @@ export function getAvailableOAuthProviders(
     })
   }
 
+  if (status.ldap_enabled) {
+    providers.push({
+      name: 'LDAP',
+      type: 'ldap',
+      enabled: true,
+    })
+  }
+
   if (status.linuxdo_oauth) {
     providers.push({
       name: 'LinuxDO',
@@ -96,6 +104,7 @@ export function hasOAuthProviders(status: SystemStatus | null): boolean {
     status.github_oauth ||
     status.discord_oauth ||
     status.oidc_enabled ||
+    status.ldap_enabled ||
     status.linuxdo_oauth ||
     status.telegram_oauth ||
     status.wechat_login

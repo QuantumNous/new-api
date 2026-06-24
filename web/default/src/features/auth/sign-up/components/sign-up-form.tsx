@@ -39,7 +39,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
-import { register, wechatLoginByCode } from '@/features/auth/api'
+import { ldapLogin, register, wechatLoginByCode } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { registerFormSchema } from '@/features/auth/constants'
@@ -62,6 +62,10 @@ export function SignUpForm({
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
+  const [isLDAPDialogOpen, setIsLDAPDialogOpen] = useState(false)
+  const [isLDAPSubmitting, setIsLDAPSubmitting] = useState(false)
+  const [ldapUsername, setLDAPUsername] = useState('')
+  const [ldapPassword, setLDAPPassword] = useState('')
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
   const { status } = useStatus()
@@ -103,6 +107,7 @@ export function SignUpForm({
     status?.data?.oauth_register_enabled ??
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
+  const hasLDAPLogin = Boolean(status?.ldap_enabled)
   const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
 
   const wechatQrCodeUrl = useMemo(() => {
@@ -199,6 +204,24 @@ export function SignUpForm({
     }
   }
 
+  const handleOpenLDAPDialog = () => {
+    if (requiresLegalConsent && !agreedToLegal) {
+      toast.error(legalConsentErrorMessage)
+      return
+    }
+
+    setIsLDAPDialogOpen(true)
+  }
+
+  const handleLDAPDialogChange = (open: boolean) => {
+    setIsLDAPDialogOpen(open)
+    if (!open) {
+      setLDAPUsername('')
+      setLDAPPassword('')
+      setIsLDAPSubmitting(false)
+    }
+  }
+
   async function handleWeChatLogin() {
     if (!wechatCode.trim()) {
       toast.error(t('Please enter the verification code'))
@@ -219,6 +242,32 @@ export function SignUpForm({
       toast.error(t('Login failed'))
     } finally {
       setIsWeChatSubmitting(false)
+    }
+  }
+
+  async function handleLDAPLogin() {
+    if (!ldapUsername.trim() || !ldapPassword) {
+      toast.error(t('Please enter your LDAP username and password'))
+      return
+    }
+
+    setIsLDAPSubmitting(true)
+    try {
+      const res = await ldapLogin({
+        username: ldapUsername.trim(),
+        password: ldapPassword,
+      })
+      if (res?.success) {
+        await handleLoginSuccess(res.data as { id?: number } | null)
+        toast.success(t('Signed in with LDAP'))
+        handleLDAPDialogChange(false)
+      } else {
+        toast.error(res?.message || t('Login failed'))
+      }
+    } catch (_error) {
+      toast.error(t('Login failed'))
+    } finally {
+      setIsLDAPSubmitting(false)
     }
   }
 
@@ -370,7 +419,9 @@ export function SignUpForm({
             status={status}
             disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
             onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
+            onLDAPLogin={hasLDAPLogin ? handleOpenLDAPDialog : undefined}
             isWeChatLoading={isWeChatSubmitting}
+            isLDAPLoading={isLDAPSubmitting}
             className='pt-2'
           />
         )}
@@ -439,6 +490,73 @@ export function SignUpForm({
               autoComplete='one-time-code'
             />
           </div>
+        </Dialog>
+      )}
+
+      {hasLDAPLogin && (
+        <Dialog open={isLDAPDialogOpen} onOpenChange={handleLDAPDialogChange}>
+          <DialogContent className='max-w-sm'>
+            <DialogHeader className='text-left'>
+              <DialogTitle>{t('LDAP sign in')}</DialogTitle>
+              <DialogDescription>
+                {t(
+                  'Use your directory account to sign in. A local account will be created automatically if registration is enabled.'
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className='grid gap-4'>
+              <div className='grid gap-2'>
+                <Label htmlFor='ldap-register-username'>
+                  {t('LDAP username')}
+                </Label>
+                <Input
+                  id='ldap-register-username'
+                  value={ldapUsername}
+                  onChange={(event) => setLDAPUsername(event.target.value)}
+                  autoComplete='username'
+                  placeholder={t('Enter your LDAP username')}
+                />
+              </div>
+              <div className='grid gap-2'>
+                <Label htmlFor='ldap-register-password'>{t('Password')}</Label>
+                <PasswordInput
+                  id='ldap-register-password'
+                  value={ldapPassword}
+                  onChange={(event) => setLDAPPassword(event.target.value)}
+                  autoComplete='current-password'
+                  placeholder={t('Enter password')}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => handleLDAPDialogChange(false)}
+                disabled={isLDAPSubmitting}
+              >
+                {t('Cancel')}
+              </Button>
+              <Button
+                type='button'
+                onClick={handleLDAPLogin}
+                disabled={
+                  isLDAPSubmitting ||
+                  !ldapUsername.trim() ||
+                  !ldapPassword ||
+                  (requiresLegalConsent && !agreedToLegal)
+                }
+                className='gap-2'
+              >
+                {isLDAPSubmitting ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : null}
+                {t('Sign in')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
         </Dialog>
       )}
     </Form>

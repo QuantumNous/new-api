@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { Mail, Shield, Send, Link2, Unlink } from 'lucide-react'
+import { Mail, Shield, Send, Link2, Unlink, KeyRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SiGithub, SiWechat, SiLinux } from 'react-icons/si'
 import { toast } from 'sonner'
@@ -39,9 +39,11 @@ import {
   getSelfOAuthBindings,
   unbindCustomOAuth,
   type CustomOAuthBinding,
+  getSelfLDAPBinding,
 } from '../../api'
-import type { UserProfile, BindingItem } from '../../types'
+import type { UserProfile, BindingItem, LDAPBinding } from '../../types'
 import { EmailBindDialog } from '../dialogs/email-bind-dialog'
+import { LDAPBindDialog } from '../dialogs/ldap-bind-dialog'
 import { TelegramBindDialog } from '../dialogs/telegram-bind-dialog'
 import { WeChatBindDialog } from '../dialogs/wechat-bind-dialog'
 
@@ -54,7 +56,22 @@ interface AccountBindingsTabProps {
   onUpdate: () => void
 }
 
-type DialogKey = 'email' | 'wechat' | 'telegram'
+type DialogKey = 'email' | 'wechat' | 'telegram' | 'ldap'
+
+function formatLDAPBindingValue(
+  binding: LDAPBinding | null,
+  t: (key: string) => string
+) {
+  if (!binding) return t('Not bound')
+  const identity =
+    binding.ldap_username ||
+    binding.ldap_display_name ||
+    binding.ldap_email ||
+    binding.ldap_user_id
+  const groups = binding.ldap_groups?.filter(Boolean) ?? []
+  if (groups.length === 0) return identity
+  return `${identity} · ${groups.join(', ')}`
+}
 
 export function AccountBindingsTab({
   profile,
@@ -64,6 +81,7 @@ export function AccountBindingsTab({
   const dialogs = useDialogs<DialogKey>()
   const { status, loading } = useStatus()
   const [customBindings, setCustomBindings] = useState<CustomOAuthBinding[]>([])
+  const [ldapBinding, setLDAPBinding] = useState<LDAPBinding | null>(null)
   const [unbindTarget, setUnbindTarget] = useState<CustomOAuthBinding | null>(
     null
   )
@@ -85,9 +103,34 @@ export function AccountBindingsTab({
     }
   }, [customProviders])
 
+  const fetchLDAPBinding = useCallback(async () => {
+    if (!status?.ldap_enabled) {
+      setLDAPBinding(null)
+      return
+    }
+    try {
+      const res = await getSelfLDAPBinding()
+      if (res.success) {
+        setLDAPBinding(res.data ?? null)
+      }
+    } catch {
+      // ignore
+    }
+  }, [status?.ldap_enabled])
+
   useEffect(() => {
     fetchCustomBindings()
   }, [fetchCustomBindings])
+
+  useEffect(() => {
+    fetchLDAPBinding()
+  }, [fetchLDAPBinding])
+
+  useEffect(() => {
+    if (profile?.ldap_binding !== undefined) {
+      setLDAPBinding(profile.ldap_binding ?? null)
+    }
+  }, [profile?.ldap_binding])
 
   const handleUnbindCustom = async () => {
     if (!unbindTarget) return
@@ -255,9 +298,18 @@ export function AccountBindingsTab({
           }
         },
       },
+      {
+        id: 'ldap',
+        label: t('LDAP'),
+        icon: KeyRound,
+        value: formatLDAPBindingValue(ldapBinding, t),
+        isBound: Boolean(ldapBinding),
+        isEnabled: Boolean(status?.ldap_enabled || ldapBinding),
+        onBind: () => dialogs.open('ldap'),
+      },
     ].filter((binding) => binding.isEnabled)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, status, t])
+  }, [profile, status, t, ldapBinding])
 
   if (!profile || loading) return null
 
@@ -420,6 +472,17 @@ export function AccountBindingsTab({
           onSuccess={onUpdate}
         />
       )}
+
+      <LDAPBindDialog
+        open={dialogs.isOpen('ldap')}
+        onOpenChange={(open) =>
+          open ? dialogs.open('ldap') : dialogs.close('ldap')
+        }
+        onSuccess={async () => {
+          await fetchLDAPBinding()
+          onUpdate()
+        }}
+      />
     </>
   )
 }

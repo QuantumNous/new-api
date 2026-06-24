@@ -191,6 +191,24 @@ func GetMaxUserId() int {
 	return user.Id
 }
 
+func FindUniqueUserByEmail(email string) (*User, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var users []User
+	if err := DB.Omit("password").Where("email = ?", email).Limit(2).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	if len(users) == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	if len(users) > 1 {
+		return nil, errors.New("multiple users match email")
+	}
+	return &users[0], nil
+}
+
 func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err error) {
 	// Start transaction
 	tx := DB.Begin()

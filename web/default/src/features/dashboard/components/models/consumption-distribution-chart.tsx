@@ -44,6 +44,7 @@ interface ConsumptionDistributionChartProps {
   loading?: boolean
   timeGranularity?: TimeGranularity
   defaultChartType?: ConsumptionDistributionChartType
+  onChartTypeChange?: (type: ConsumptionDistributionChartType) => void
 }
 
 const CHART_TYPE_ICONS: Record<
@@ -76,6 +77,11 @@ export function ConsumptionDistributionChart(
   useEffect(() => {
     if (props.defaultChartType) setChartType(props.defaultChartType)
   }, [props.defaultChartType])
+
+  const handleChartTypeChange = (type: ConsumptionDistributionChartType) => {
+    setChartType(type)
+    props.onChartTypeChange?.(type)
+  }
 
   useEffect(() => {
     const updateTheme = async () => {
@@ -135,7 +141,7 @@ export function ConsumptionDistributionChart(
               <button
                 key={item.value}
                 type='button'
-                onClick={() => setChartType(item.value)}
+                onClick={() => handleChartTypeChange(item.value)}
                 className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
                   chartType === item.value
                     ? 'bg-background text-foreground shadow-sm'
