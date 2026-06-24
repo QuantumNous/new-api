@@ -893,7 +893,7 @@ func TestChannel(c *gin.Context) {
 var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
 
-func testChannels(channels []*model.Channel, testUserID int, notify bool, allowDisable bool) error {
+func testChannels(channels []*model.Channel, testUserID int, notify bool, allowDisable bool, skipAutoTest bool) error {
 	testAllChannelsLock.Lock()
 	if testAllChannelsRunning {
 		testAllChannelsLock.Unlock()
@@ -915,6 +915,9 @@ func testChannels(channels []*model.Channel, testUserID int, notify bool, allowD
 
 		for _, channel := range channels {
 			if channel.Status == common.ChannelStatusManuallyDisabled {
+				continue
+			}
+			if skipAutoTest && channel.GetSkipAutoTest() {
 				continue
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
@@ -983,7 +986,7 @@ func testAllChannels(notify bool) error {
 	if getChannelErr != nil {
 		return getChannelErr
 	}
-	return testChannels(selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll), testUserID, notify, true)
+	return testChannels(selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll), testUserID, notify, true, false)
 }
 
 func testAutoDisabledChannels(notify bool) error {
@@ -995,7 +998,7 @@ func testAutoDisabledChannels(notify bool) error {
 	if getChannelErr != nil {
 		return getChannelErr
 	}
-	return testChannels(selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModePassiveRecovery), testUserID, notify, false)
+	return testChannels(selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModePassiveRecovery), testUserID, notify, false, false)
 }
 
 func TestAllChannels(c *gin.Context) {
@@ -1032,7 +1035,9 @@ func AutomaticallyTestChannels() {
 					_ = testAutoDisabledChannels(false)
 				} else {
 					common.SysLog("automatically testing all channels")
-					_ = testAllChannels(false)
+					testUserID, _ := resolveChannelTestUserID(nil)
+					channels, _ := model.GetAllChannels(0, 0, true, false)
+					_ = testChannels(selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll), testUserID, false, true, true)
 				}
 				common.SysLog("automatically channel test finished")
 				if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
