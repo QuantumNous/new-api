@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	platformmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -1001,6 +1003,44 @@ type createSkillRequest struct {
 	MaxInputTokens    *int                   `json:"max_input_tokens"`
 }
 
+type patchSkillRequest struct {
+	Name                 *string                   `json:"name,omitempty"`
+	ShortDescription     *string                   `json:"short_description,omitempty"`
+	Description          *string                   `json:"description,omitempty"`
+	Category             *string                   `json:"category,omitempty"`
+	Tags                 json.RawMessage           `json:"tags,omitempty"`
+	IconURL              json.RawMessage           `json:"icon_url,omitempty"`
+	InputHints           json.RawMessage           `json:"input_hints,omitempty"`
+	ExampleInputs        json.RawMessage           `json:"example_inputs,omitempty"`
+	ExampleOutputs       json.RawMessage           `json:"example_outputs,omitempty"`
+	RequiredPlan         *enums.RequiredPlan       `json:"required_plan,omitempty"`
+	MonetizationType     *enums.MonetizationType   `json:"monetization_type,omitempty"`
+	PriceMarkup          *float64                  `json:"price_markup,omitempty"`
+	FreeQuotaPerMonth    json.RawMessage           `json:"free_quota_per_month,omitempty"`
+	MaxInputTokens       json.RawMessage           `json:"max_input_tokens,omitempty"`
+	ModelWhitelist       json.RawMessage           `json:"model_whitelist,omitempty"`
+	TimeoutSeconds       *int                      `json:"timeout_seconds,omitempty"`
+	IsKidsSafe           *bool                     `json:"is_kids_safe,omitempty"`
+	IsKidsExclusive      *bool                     `json:"is_kids_exclusive,omitempty"`
+	KidsApprovalStatus   *enums.KidsApprovalStatus `json:"kids_approval_status,omitempty"`
+	AIDisclosureRequired *bool                     `json:"ai_disclosure_required,omitempty"`
+	FeaturedFlag         *bool                     `json:"featured_flag,omitempty"`
+	FeaturedRank         json.RawMessage           `json:"featured_rank,omitempty"`
+}
+
+type AdminSkillAuditEntry struct {
+	ID             string          `json:"id"`
+	SkillID        *string         `json:"skill_id,omitempty"`
+	SkillVersionID *string         `json:"skill_version_id,omitempty"`
+	ActorID        int64           `json:"actor_id"`
+	ActorRole      string          `json:"actor_role"`
+	Action         string          `json:"action"`
+	ActionReason   *string         `json:"action_reason,omitempty"`
+	ChangedFields  json.RawMessage `json:"changed_fields"`
+	RequestID      *string         `json:"request_id,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+}
+
 // CreateAdminSkill serves POST /api/v1/admin/skills (Super Admin only).
 // Creates a draft Skill shell; instruction templates are managed via version APIs.
 func CreateAdminSkill(c *gin.Context) {
@@ -1074,6 +1114,103 @@ func CreateAdminSkill(c *gin.Context) {
 	})
 }
 
+func PatchAdminSkill(c *gin.Context) {
+	var req patchSkillRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeCreateSkillValidationError(c, "INVALID_JSON", "Invalid JSON request body.")
+		return
+	}
+
+	database, ok := skillDB(c)
+	if !ok {
+		return
+	}
+
+	actorID := int64(c.GetInt("id"))
+	role := strconv.Itoa(c.GetInt("role"))
+	skillID := c.Param("skill_id")
+	var updated skillmodel.Skill
+	if err := database.Transaction(func(tx *gorm.DB) error {
+		var current skillmodel.Skill
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&current, "id = ?", skillID).Error; err != nil {
+			return err
+		}
+		before := skillPatchAuditBefore(current)
+		updates, changed, reason, err := buildSkillPatchUpdates(current, req, actorID)
+		if err != nil {
+			return err
+		}
+		if reason != "" {
+			return skillPatchValidationError{reason: reason}
+		}
+		if len(updates) == 0 {
+			updated = current
+			return nil
+		}
+		selectedColumns := append(append([]string{}, changed...), "updated_by")
+		if err := tx.Model(&skillmodel.Skill{}).Where("id = ?", skillID).Select(selectedColumns).Updates(updates).Error; err != nil {
+			return err
+		}
+		if err := tx.First(&updated, "id = ?", skillID).Error; err != nil {
+			return err
+		}
+		changedFields, err := common.Marshal(changed)
+		if err != nil {
+			return err
+		}
+		if err := writeSkillPatchAuditLog(tx, c, skillID, actorID, role, skillmodel.SkillJSONB(changedFields), before, skillPatchAuditAfter(updated)); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			writeSkillLookupError(c, err)
+			return
+		}
+		var validation skillPatchValidationError
+		if errors.As(err, &validation) {
+			writeCreateSkillValidationError(c, validation.reason, "Invalid skill patch request.")
+			return
+		}
+		writeDBError(c, err)
+		return
+	}
+	skillapi.Success(c, adminSkillFromModel(updated))
+}
+
+func ListAdminSkillAuditLog(c *gin.Context) {
+	page, validationErr := skillapi.ParsePageParams(c)
+	if validationErr != nil {
+		skillapi.AbortQueryError(c, validationErr)
+		return
+	}
+	database, ok := skillDB(c)
+	if !ok {
+		return
+	}
+	skillID := c.Param("skill_id")
+	if err := ensureSkillExists(database, skillID); err != nil {
+		writeSkillLookupError(c, err)
+		return
+	}
+	query := database.Model(&skillmodel.SkillAuditLog{}).Where("skill_id = ?", skillID)
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		writeDBError(c, err)
+		return
+	}
+	var rows []skillmodel.SkillAuditLog
+	if err := query.Order("created_at DESC").Offset(page.Offset).Limit(page.Limit).Find(&rows).Error; err != nil {
+		writeDBError(c, err)
+		return
+	}
+	out := make([]AdminSkillAuditEntry, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, adminSkillAuditEntryFromModel(row))
+	}
+	skillapi.List(c, out, skillapi.NewPagination(page.Page, page.Limit, total))
+}
+
 func normalizeCreateSkillRequest(req *createSkillRequest) {
 	req.Slug = strings.TrimSpace(req.Slug)
 	req.Name = strings.TrimSpace(req.Name)
@@ -1125,6 +1262,257 @@ func validateCreateSkillRequest(req createSkillRequest) string {
 	}
 }
 
+type skillPatchValidationError struct {
+	reason string
+}
+
+func (e skillPatchValidationError) Error() string { return e.reason }
+
+func buildSkillPatchUpdates(current skillmodel.Skill, req patchSkillRequest, actorID int64) (map[string]any, []string, string, error) {
+	updates := map[string]any{}
+	changed := make([]string, 0, 16)
+	add := func(column string, value any) {
+		updates[column] = value
+		changed = append(changed, column)
+	}
+
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if name == "" {
+			return nil, nil, "MISSING_NAME", nil
+		}
+		if utf8.RuneCountInString(name) > createSkillNameMaxLength {
+			return nil, nil, "NAME_TOO_LONG", nil
+		}
+		current.Name = name
+		add("name", name)
+	}
+	if req.ShortDescription != nil {
+		short := strings.TrimSpace(*req.ShortDescription)
+		if short == "" {
+			return nil, nil, "MISSING_SHORT_DESCRIPTION", nil
+		}
+		if utf8.RuneCountInString(short) > createSkillShortDescriptionMaxLength {
+			return nil, nil, "SHORT_DESCRIPTION_TOO_LONG", nil
+		}
+		current.ShortDescription = short
+		add("short_description", short)
+	}
+	if req.Description != nil {
+		description := strings.TrimSpace(*req.Description)
+		if description == "" {
+			return nil, nil, "MISSING_DESCRIPTION", nil
+		}
+		current.Description = description
+		add("description", description)
+	}
+	if req.Category != nil {
+		category := strings.TrimSpace(*req.Category)
+		if category == "" {
+			return nil, nil, "MISSING_CATEGORY", nil
+		}
+		if utf8.RuneCountInString(category) > createSkillCategoryMaxLength {
+			return nil, nil, "CATEGORY_TOO_LONG", nil
+		}
+		current.Category = category
+		add("category", category)
+	}
+	if len(req.Tags) > 0 {
+		tags, err := normalizeJSONPatchValue(req.Tags, "[]")
+		if err != nil {
+			return nil, nil, "INVALID_TAGS", nil
+		}
+		current.Tags = tags
+		add("tags", tags)
+	}
+	if len(req.IconURL) > 0 {
+		iconURL, reason, err := nullableStringPatchValue(req.IconURL, "icon_url")
+		if err != nil || reason != "" {
+			return nil, nil, reason, err
+		}
+		current.IconURL = iconURL
+		add("icon_url", iconURL)
+	}
+	if len(req.InputHints) > 0 {
+		inputHints, err := normalizeJSONPatchValue(req.InputHints, "[]")
+		if err != nil {
+			return nil, nil, "INVALID_INPUT_HINTS", nil
+		}
+		current.InputHints = inputHints
+		add("input_hints", inputHints)
+	}
+	if len(req.ExampleInputs) > 0 {
+		exampleInputs, err := normalizeJSONPatchValue(req.ExampleInputs, "[]")
+		if err != nil {
+			return nil, nil, "INVALID_EXAMPLE_INPUTS", nil
+		}
+		current.ExampleInputs = exampleInputs
+		add("example_inputs", exampleInputs)
+	}
+	if len(req.ExampleOutputs) > 0 {
+		exampleOutputs, err := normalizeJSONPatchValue(req.ExampleOutputs, "[]")
+		if err != nil {
+			return nil, nil, "INVALID_EXAMPLE_OUTPUTS", nil
+		}
+		current.ExampleOutputs = exampleOutputs
+		add("example_outputs", exampleOutputs)
+	}
+	if req.RequiredPlan != nil {
+		plan := enums.RequiredPlan(strings.TrimSpace(string(*req.RequiredPlan)))
+		if !plan.Valid() {
+			return nil, nil, "INVALID_REQUIRED_PLAN", nil
+		}
+		current.RequiredPlan = plan
+		add("required_plan", plan)
+	}
+	if req.MonetizationType != nil {
+		monetization := enums.MonetizationType(strings.TrimSpace(string(*req.MonetizationType)))
+		if !monetization.Valid() {
+			return nil, nil, "INVALID_MONETIZATION_TYPE", nil
+		}
+		current.MonetizationType = monetization
+		add("monetization_type", monetization)
+	}
+	if req.PriceMarkup != nil {
+		current.PriceMarkup = *req.PriceMarkup
+		add("price_markup", *req.PriceMarkup)
+	}
+	if len(req.FreeQuotaPerMonth) > 0 {
+		freeQuota, reason, err := nullableIntPatchValue(req.FreeQuotaPerMonth, "free_quota_per_month")
+		if err != nil || reason != "" {
+			return nil, nil, reason, err
+		}
+		if freeQuota != nil && *freeQuota < 0 {
+			return nil, nil, "INVALID_FREE_QUOTA_PER_MONTH", nil
+		}
+		current.FreeQuotaPerMonth = freeQuota
+		add("free_quota_per_month", freeQuota)
+	}
+	if len(req.MaxInputTokens) > 0 {
+		maxInputTokens, reason, err := nullableIntPatchValue(req.MaxInputTokens, "max_input_tokens")
+		if err != nil || reason != "" {
+			return nil, nil, reason, err
+		}
+		if maxInputTokens != nil && *maxInputTokens <= 0 {
+			return nil, nil, "INVALID_MAX_INPUT_TOKENS", nil
+		}
+		current.MaxInputTokens = maxInputTokens
+		add("max_input_tokens", maxInputTokens)
+	}
+	if len(req.ModelWhitelist) > 0 {
+		modelWhitelist, err := normalizeJSONPatchValue(req.ModelWhitelist, "[]")
+		if err != nil {
+			return nil, nil, "INVALID_MODEL_WHITELIST", nil
+		}
+		current.ModelWhitelist = modelWhitelist
+		add("model_whitelist", modelWhitelist)
+	}
+	if req.TimeoutSeconds != nil {
+		if *req.TimeoutSeconds < 1 || *req.TimeoutSeconds > 120 {
+			return nil, nil, "INVALID_TIMEOUT_SECONDS", nil
+		}
+		current.TimeoutSeconds = *req.TimeoutSeconds
+		add("timeout_seconds", *req.TimeoutSeconds)
+	}
+	if req.IsKidsSafe != nil {
+		current.IsKidsSafe = *req.IsKidsSafe
+		add("is_kids_safe", *req.IsKidsSafe)
+	}
+	if req.IsKidsExclusive != nil {
+		current.IsKidsExclusive = *req.IsKidsExclusive
+		add("is_kids_exclusive", *req.IsKidsExclusive)
+	}
+	if current.IsKidsExclusive && !current.IsKidsSafe {
+		return nil, nil, "KIDS_EXCLUSIVE_REQUIRES_SAFE", nil
+	}
+	if req.KidsApprovalStatus != nil {
+		kidsApproval := enums.KidsApprovalStatus(strings.TrimSpace(string(*req.KidsApprovalStatus)))
+		if !kidsApproval.Valid() {
+			return nil, nil, "INVALID_KIDS_APPROVAL_STATUS", nil
+		}
+		current.KidsApprovalStatus = kidsApproval
+		add("kids_approval_status", kidsApproval)
+	}
+	if req.AIDisclosureRequired != nil {
+		current.AIDisclosureRequired = *req.AIDisclosureRequired
+		add("ai_disclosure_required", *req.AIDisclosureRequired)
+	}
+	if req.FeaturedFlag != nil {
+		current.FeaturedFlag = *req.FeaturedFlag
+		add("featured_flag", *req.FeaturedFlag)
+	}
+	if len(req.FeaturedRank) > 0 {
+		featuredRank, reason, err := nullableIntPatchValue(req.FeaturedRank, "featured_rank")
+		if err != nil || reason != "" {
+			return nil, nil, reason, err
+		}
+		if featuredRank != nil && *featuredRank < 0 {
+			return nil, nil, "INVALID_FEATURED_RANK", nil
+		}
+		current.FeaturedRank = featuredRank
+		add("featured_rank", featuredRank)
+	}
+
+	switch {
+	case current.MonetizationType == enums.MonetizationTypeTokenMarkup && current.PriceMarkup <= 0:
+		return nil, nil, "PRICE_MARKUP_REQUIRED", nil
+	case current.MonetizationType != enums.MonetizationTypeTokenMarkup && current.PriceMarkup != 0:
+		return nil, nil, "PRICE_MARKUP_NOT_ALLOWED", nil
+	case patchSkillRequiresMaxInputTokens(current) && current.MaxInputTokens == nil:
+		return nil, nil, "MAX_INPUT_TOKENS_REQUIRED", nil
+	}
+	if len(updates) > 0 {
+		updates["updated_by"] = actorID
+	}
+	return updates, changed, "", nil
+}
+
+func patchSkillRequiresMaxInputTokens(s skillmodel.Skill) bool {
+	return s.RequiredPlan == enums.RequiredPlanFree ||
+		s.MonetizationType == enums.MonetizationTypeFree ||
+		s.FreeQuotaPerMonth != nil
+}
+
+func normalizeJSONPatchValue(raw json.RawMessage, fallback string) (skillmodel.SkillJSONB, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return skillmodel.SkillJSONB(fallback), nil
+	}
+	var decoded any
+	if err := common.Unmarshal(trimmed, &decoded); err != nil {
+		return nil, err
+	}
+	return skillmodel.SkillJSONB(append([]byte(nil), trimmed...)), nil
+}
+
+func nullableIntPatchValue(raw json.RawMessage, field string) (*int, string, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil, "", nil
+	}
+	var value int
+	if err := common.Unmarshal(trimmed, &value); err != nil {
+		return nil, "INVALID_" + strings.ToUpper(field), nil
+	}
+	return &value, "", nil
+}
+
+func nullableStringPatchValue(raw json.RawMessage, field string) (*string, string, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil, "", nil
+	}
+	var value string
+	if err := common.Unmarshal(trimmed, &value); err != nil {
+		return nil, "INVALID_" + strings.ToUpper(field), nil
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, "", nil
+	}
+	return &value, "", nil
+}
+
 func createSkillRequiresMaxInputTokens(req createSkillRequest) bool {
 	return req.RequiredPlan == enums.RequiredPlanFree ||
 		req.MonetizationType == enums.MonetizationTypeFree ||
@@ -1170,6 +1558,60 @@ func writeSkillCreateAuditLog(tx *gorm.DB, c *gin.Context, skillID string, actor
 	}).Error
 }
 
+func writeSkillPatchAuditLog(tx *gorm.DB, c *gin.Context, skillID string, actorID int64, actorRole string, changedFields skillmodel.SkillJSONB, beforeValue, afterValue *skillmodel.SkillJSONB) error {
+	requestID := skillapi.RequestID(c)
+	ipAddress := c.ClientIP()
+	userAgent := c.Request.UserAgent()
+	return tx.Create(&skillmodel.SkillAuditLog{
+		SkillID:       &skillID,
+		ActorID:       actorID,
+		ActorRole:     actorRole,
+		Action:        "skill_updated",
+		ChangedFields: changedFields,
+		BeforeValue:   beforeValue,
+		AfterValue:    afterValue,
+		RequestID:     &requestID,
+		IPAddress:     &ipAddress,
+		UserAgent:     &userAgent,
+	}).Error
+}
+
+func skillPatchAuditBefore(s skillmodel.Skill) *skillmodel.SkillJSONB {
+	return skillPatchAuditSnapshot(s)
+}
+
+func skillPatchAuditAfter(s skillmodel.Skill) *skillmodel.SkillJSONB {
+	return skillPatchAuditSnapshot(s)
+}
+
+func skillPatchAuditSnapshot(s skillmodel.Skill) *skillmodel.SkillJSONB {
+	return auditJSON(map[string]any{
+		"skill_id":               s.ID,
+		"status":                 s.Status,
+		"category":               s.Category,
+		"name":                   s.Name,
+		"short_description":      s.ShortDescription,
+		"description_sha256":     sha256Hex([]byte(s.Description)),
+		"tags_sha256":            sha256Hex(s.Tags),
+		"icon_url":               s.IconURL,
+		"input_hints_sha256":     sha256Hex(s.InputHints),
+		"example_inputs_sha256":  sha256Hex(s.ExampleInputs),
+		"example_outputs_sha256": sha256Hex(s.ExampleOutputs),
+		"required_plan":          s.RequiredPlan,
+		"monetization_type":      s.MonetizationType,
+		"price_markup":           s.PriceMarkup,
+		"free_quota_per_month":   s.FreeQuotaPerMonth,
+		"max_input_tokens":       s.MaxInputTokens,
+		"model_whitelist_sha256": sha256Hex(s.ModelWhitelist),
+		"timeout_seconds":        s.TimeoutSeconds,
+		"is_kids_safe":           s.IsKidsSafe,
+		"is_kids_exclusive":      s.IsKidsExclusive,
+		"kids_approval_status":   s.KidsApprovalStatus,
+		"featured_flag":          s.FeaturedFlag,
+		"featured_rank":          s.FeaturedRank,
+	})
+}
+
 func skillCreateChangedFields(req createSkillRequest) skillmodel.SkillJSONB {
 	fields := []string{
 		"slug",
@@ -1212,6 +1654,21 @@ func skillCreationAuditAfter(s skillmodel.Skill) *skillmodel.SkillJSONB {
 		"free_quota_per_month": s.FreeQuotaPerMonth,
 		"max_input_tokens":     s.MaxInputTokens,
 	})
+}
+
+func adminSkillAuditEntryFromModel(row skillmodel.SkillAuditLog) AdminSkillAuditEntry {
+	return AdminSkillAuditEntry{
+		ID:             row.ID,
+		SkillID:        row.SkillID,
+		SkillVersionID: row.SkillVersionID,
+		ActorID:        row.ActorID,
+		ActorRole:      row.ActorRole,
+		Action:         row.Action,
+		ActionReason:   row.ActionReason,
+		ChangedFields:  rawJSONWithDefault(row.ChangedFields, "[]"),
+		RequestID:      row.RequestID,
+		CreatedAt:      row.CreatedAt,
+	}
 }
 
 func isUniqueConstraintError(err error) bool {

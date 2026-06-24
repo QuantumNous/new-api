@@ -4,6 +4,8 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-24
 
+- 新增 DR-50 Admin Skill editor UI：管理端支持创建 Skill 草稿、分区编辑 Metadata/User Guidance/Entitlement/Execution/Safety/Promotion，保存 metadata/config 到 admin create/patch API，instruction template 变更时提示并创建 DR-47 draft version；新增 Version History/Audit Log 读取，补 Free/free-quota `max_input_tokens` 前后端校验、PATCH/audit-log 管理端接口、聚焦回归测试与 en/zh 文案（`internal/skill/handler/skills.go`, `router/skill-router.go`, `web/default/src/features/admin-skills/`, `web/default/src/i18n/locales/`, `internal/skill/handler/skills_test.go`）
+- 新增 DR-50 Admin Skill editor UI 任务 PRD，锁定分区编辑器、DR-46/DR-47 接口串联、Free/free-quota `max_input_tokens` 校验与版本变更提示范围（`docs/tasks/dr50-admin-skill-editor-ui-prd.md`）
 - 撤回 DR-77 Per-Skill Analytics Table UI 合并内容，恢复 DR-75 per-skill analytics 与 Skill Analytics 页面到合并前状态（`internal/skill/handler/analytics.go`, `web/default/src/features/skill-analytics/`, `docs/tasks/dr77-per-skill-analytics-table-ui-prd.md`）
 - 修复 DR-69 first/repeat usage event 生产级并发问题：`skill_first_use` 改用数据库唯一 `first_use_key` + `ON CONFLICT DO NOTHING` 原子插入，避免多副本重复 first-use 和 PostgreSQL unique violation 污染事务；SQLite migration 支持 fresh、既有 DR-43 表和 pre-DR-43 rebuild，并修复并发测试 Windows 文件句柄清理（`internal/skill/{model,relay}`, `docs/test-results/dr69-unit-regression.txt`）
 - 修复 DR-79 review 问题：激活已发布 Skill 的新版本时同样在 activation 事务内构建并持久化该 `skill_version_id` 的 package artifact，构建失败则阻断激活并回滚；补 v2 激活后版本下载返回 stored zip 的回归测试（`internal/skill/handler/versions.go`, `internal/skill/handler/skills_test.go`, `docs/tasks/dr79-publish-time-skill-packaging-prd.md`）

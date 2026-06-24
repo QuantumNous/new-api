@@ -60,6 +60,8 @@ func SetSkillRouter(router *gin.Engine) {
 		{
 			adminRoute.GET("/skills", skillhandler.ListAdminSkills)
 			adminRoute.POST("/skills", skillhandler.CreateAdminSkill)
+			adminRoute.PATCH("/skills/:skill_id", skillhandler.PatchAdminSkill)
+			adminRoute.GET("/skills/:skill_id/audit-log", skillhandler.ListAdminSkillAuditLog)
 			adminRoute.GET("/skills/:skill_id/versions", skillhandler.ListAdminSkillVersions)
 			adminRoute.POST("/skills/:skill_id/versions", skillhandler.CreateAdminSkillVersion)
 			adminRoute.GET("/skills/:skill_id/versions/:version_id", skillhandler.GetAdminSkillVersion)
