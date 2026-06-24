@@ -4,6 +4,8 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-24
 
+- 实现 DR-79 Publish-time Skill packaging：publish 事务内构建并持久化版本固定 zip（`package_zip`/sha256/built_at），新增按 `skill_version_id` 下载的版本地址，slug 下载优先返回存储 artifact 并保留旧数据 fallback；构建期新增 provider credential 与 server-side routing/model-selection marker guard，失败时阻断发布且不写 audit/event（`internal/skill/{model,handler}`, `router/skill-router.go`, `docs/tasks/dr79-publish-time-skill-packaging-prd.md`）
+- 新增 DR-79 Publish-time Skill packaging 任务 PRD，明确 publish 事务内构建版本固定 zip、按 `skill_version_id` 下载、以及 provider credential / server-side routing guard 范围（`docs/tasks/dr79-publish-time-skill-packaging-prd.md`）
 - 修复 DR-48 PR review 阻断问题：publish 锁定 active version row 并在条件更新中校验 version 仍为 active，activation 先锁 Skill row 后再切换版本，Free/free-quota 发布和激活同时要求 `max_input_tokens` 与 `max_input_tokens_snapshot` 存在且一致；补 active version status 漂移、缺 snapshot publish/activation 回归测试（`internal/skill/handler/lifecycle.go`, `internal/skill/handler/versions.go`, `internal/skill/handler/skills_test.go`, `docs/tasks/dr48-publish-skill-api-prd.md`）
 - 更新 DR-71 PRD 状态为 ship，记录非 Skill API 兼容性回归守卫已在 main 中实现并通过聚焦 relay 回归测试验证（`docs/tasks/dr71-non-skill-api-compatibility-regression-guard-prd.md`）
 - 修复 DR-75 后续 PR review 问题：overview/per-skill funnel 改为按 analytics identity（`user_id` 优先，否则 `session_id`）+ `skill_id` 聚合各阶段首个 `occurred_at`，并强制 `impression <= detail <= enable <= first_use` 后再计算转化；匿名/Kids session 不再因 `user_id=NULL` 被静默丢弃，Kids GA business metrics 默认过滤并可通过 `include_kids=true` 显式纳入；`data_freshness` 无 P0 事件时返回 `ok`，避免低流量误报 pipeline failed；同步更新 DR-75 PRD 和回归测试（`internal/skill/handler/analytics.go`, `internal/skill/handler/analytics_test.go`, `docs/tasks/dr75-analytics-aggregation-api-prd.md`）

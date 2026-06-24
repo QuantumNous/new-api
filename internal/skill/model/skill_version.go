@@ -31,6 +31,10 @@ type SkillVersion struct {
 	MonetizationSnapshot   SkillJSONB `gorm:"column:monetization_snapshot;type:text;not null"`
 	MaxInputTokensSnapshot *int       `gorm:"column:max_input_tokens_snapshot;type:integer;check:chk_skill_versions_max_input_tokens_snapshot,max_input_tokens_snapshot IS NULL OR max_input_tokens_snapshot > 0"`
 
+	PackageZip     []byte     `gorm:"column:package_zip"`
+	PackageSHA256  *string    `gorm:"column:package_sha256;type:char(64)"`
+	PackageBuiltAt *time.Time `gorm:"column:package_built_at"`
+
 	RolloutPercentage int     `gorm:"column:rollout_percentage;not null;default:100;check:chk_skill_versions_rollout_percentage,rollout_percentage BETWEEN 0 AND 100"`
 	ExperimentName    *string `gorm:"column:experiment_name;type:varchar(128)"`
 
