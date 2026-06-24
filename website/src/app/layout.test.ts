@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveHtmlLang } from "./layout";
+import { ATTRIBUTION_COOKIE_SCRIPT, resolveHtmlLang } from "./layout";
 
 describe("resolveHtmlLang", () => {
   test("defaults to English without a supported locale", () => {
@@ -16,5 +16,14 @@ describe("resolveHtmlLang", () => {
     expect(resolveHtmlLang("es")).toBe("es");
     expect(resolveHtmlLang("fr")).toBe("fr");
     expect(resolveHtmlLang("ja")).toBe("ja");
+  });
+});
+
+describe("ATTRIBUTION_COOKIE_SCRIPT", () => {
+  test("stores campaign parameters in a shared flatkey cookie", () => {
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("flatkey_ads_attribution");
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("utm_");
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("domain=.flatkey.ai");
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("SameSite=Lax");
   });
 });
