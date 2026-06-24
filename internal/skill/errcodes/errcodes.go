@@ -2,9 +2,11 @@
 // HTTP status mappings, plus helpers for translating between the data-model
 // BlockReason and the API ErrorCode. Source of truth: tasks/03 §7.2.
 //
-// Skill API extensions such as ErrForbidden and ErrSkillConflict have no
-// BlockReason counterpart and are intentionally excluded from blockReasonToCode
-// and allBlockReasons.
+// DR-45 deviation D-45-1: ErrForbidden ("FORBIDDEN", HTTP 403) is added here to
+// satisfy tasks/05 §4.1 (authenticated non-admin -> 403) but is NOT in the
+// tasks/03 §7.2 catalog of 14 codes. It has no BlockReason counterpart and is
+// intentionally excluded from blockReasonToCode/allBlockReasons. PR description
+// for DR-45 must disclose this extension and request reviewer sign-off.
 package errcodes
 
 import (
@@ -22,7 +24,10 @@ const (
 	ErrAuthRequired   ErrorCode = "AUTH_REQUIRED"
 	// ErrForbidden is emitted when a user is authenticated but lacks sufficient
 	// role for the endpoint (tasks/05 §4.1). See D-45-1 in the package doc.
-	ErrForbidden                 ErrorCode = "FORBIDDEN"
+	ErrForbidden ErrorCode = "FORBIDDEN"
+	// ErrSkillConflict is emitted for stable 409 skill write conflicts such as
+	// duplicate slugs or version-number collisions. It has no BlockReason
+	// counterpart and is intentionally excluded from DR-70 skill_blocked.
 	ErrSkillConflict             ErrorCode = "SKILL_CONFLICT"
 	ErrSkillNotFound             ErrorCode = "SKILL_NOT_FOUND"
 	ErrSkillNotPublished         ErrorCode = "SKILL_NOT_PUBLISHED"
@@ -40,7 +45,7 @@ const (
 )
 
 // httpStatusByCode is the unexported catalog mapping each ErrorCode to its
-// canonical HTTP status. NOT exported — callers must use HTTPStatusFor() for
+// canonical HTTP status. NOT exported - callers must use HTTPStatusFor() for
 // single lookups, HTTPStatusCatalog() for a full copy, or AllErrorCodes() for
 // enumeration. Exporting a map would allow mutation and undermine DR-39's goal
 // of a stable, immutable single source of truth.
@@ -53,7 +58,7 @@ const (
 var httpStatusByCode = map[ErrorCode]int{
 	ErrInvalidRequest:            http.StatusBadRequest,          // 400
 	ErrAuthRequired:              http.StatusUnauthorized,        // 401
-	ErrForbidden:                 http.StatusForbidden,           // 403 — D-45-1, see package doc
+	ErrForbidden:                 http.StatusForbidden,           // 403 - D-45-1, see package doc
 	ErrSkillConflict:             http.StatusConflict,            // 409
 	ErrSkillNotFound:             http.StatusNotFound,            // 404
 	ErrSkillNotPublished:         http.StatusForbidden,           // 403
@@ -118,7 +123,7 @@ func AllErrorCodes() []ErrorCode {
 	return out
 }
 
-// HTTPStatusCatalog returns a defensive copy of the full code→HTTP-status
+// HTTPStatusCatalog returns a defensive copy of the full code->HTTP-status
 // catalog. Use for bulk tooling (e.g. building an error middleware lookup);
 // do not mutate the returned map.
 func HTTPStatusCatalog() map[ErrorCode]int {
@@ -158,7 +163,7 @@ var blockReasonToCode = map[enums.BlockReason]ErrorCode{
 
 // allBlockReasons mirrors blockReasonToCode's key set in declaration order.
 // Used by exhaustiveness tests (len check) and Valid() validation.
-// Must stay in sync with blockReasonToCode above. Not exported — if a public
+// Must stay in sync with blockReasonToCode above. Not exported - if a public
 // accessor is ever needed, it should live in the enums package.
 var allBlockReasons = []enums.BlockReason{
 	enums.BlockReasonAuthRequired,
@@ -180,10 +185,37 @@ var allBlockReasons = []enums.BlockReason{
 // codeToBlockReason is the reverse of blockReasonToCode, built at init time.
 var codeToBlockReason map[ErrorCode]enums.BlockReason
 
+// skillBlockedCodeToBlockReason is the DR-70 blocked-event reverse mapping.
+// It is narrower than codeToBlockReason: only codes that currently belong to the
+// skill_blocked taxonomy by default are included here.
+//
+// Notably excluded by default:
+//   - INVALID_REQUEST: request-validation taxonomy
+//   - FORBIDDEN: authz/admin taxonomy extension, not a blocked-event code
+//   - SKILL_CONFLICT: write-conflict taxonomy, not a blocked-event code
+//   - SKILL_EVALUATION_NOT_PASSED: not part of DR-70's current canonical blocked table
+//   - SKILL_INTERNAL_ERROR: operational failure unless a later reviewed mapping is added
+//   - SKILL_SAFETY_VIOLATION: separate safety taxonomy unless explicitly reviewed in-scope
+var skillBlockedCodeToBlockReason map[ErrorCode]enums.BlockReason
+
 func init() {
 	codeToBlockReason = make(map[ErrorCode]enums.BlockReason, len(blockReasonToCode))
 	for br, ec := range blockReasonToCode {
 		codeToBlockReason[ec] = br
+	}
+
+	skillBlockedCodeToBlockReason = map[ErrorCode]enums.BlockReason{
+		ErrAuthRequired:              enums.BlockReasonAuthRequired,
+		ErrSkillNotFound:             enums.BlockReasonSkillNotFound,
+		ErrSkillNotPublished:         enums.BlockReasonSkillNotPublished,
+		ErrSkillNotEnabled:           enums.BlockReasonSkillNotEnabled,
+		ErrSkillPlanRequired:         enums.BlockReasonPlanRequired,
+		ErrSkillSubscriptionInactive: enums.BlockReasonSubscriptionInactive,
+		ErrSkillQuotaExceeded:        enums.BlockReasonQuotaExceeded,
+		ErrSkillKidsModeBlocked:      enums.BlockReasonKidsModeBlocked,
+		ErrSkillContextTooLong:       enums.BlockReasonContextTooLong,
+		ErrSkillRateLimited:          enums.BlockReasonRateLimited,
+		ErrSkillTimeout:              enums.BlockReasonTimeout,
 	}
 }
 
@@ -195,9 +227,25 @@ func ErrorCodeFor(r enums.BlockReason) (ErrorCode, bool) {
 }
 
 // BlockReasonFor translates an API ErrorCode to the data-model BlockReason.
-// Returns (reason, true) when found; ("", false) for unknown codes.
+//
+// This is the generic reverse translation for the full shared error-code catalog.
+// A returned mapping means the code has a canonical lowercase BlockReason
+// counterpart somewhere in the shared taxonomy; it does not mean every caller
+// should classify that code into DR-70's skill_blocked event family.
 func BlockReasonFor(c ErrorCode) (enums.BlockReason, bool) {
 	reason, ok := codeToBlockReason[c]
+	return reason, ok
+}
+
+// SkillBlockedReasonFor translates an API ErrorCode to the DR-70 blocked-event
+// BlockReason. It intentionally returns false for codes that are valid shared
+// ErrorCodes but are outside the default skill_blocked taxonomy.
+//
+// A returned mapping still does not imply the runtime currently has a live
+// blocked path for that code. For example, SKILL_TIMEOUT remains mapping-only
+// until a real pre-injection timeout path exists.
+func SkillBlockedReasonFor(c ErrorCode) (enums.BlockReason, bool) {
+	reason, ok := skillBlockedCodeToBlockReason[c]
 	return reason, ok
 }
 

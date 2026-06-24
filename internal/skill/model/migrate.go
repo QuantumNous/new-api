@@ -50,6 +50,9 @@ func MigrateSkillVersions(db *gorm.DB) error {
 	if err := createSkillVersionsJSONBColumns(db); err != nil {
 		return err
 	}
+	if err := migrateSkillVersionPackageColumns(db); err != nil {
+		return err
+	}
 	if err := createSkillVersionsIndexes(db); err != nil {
 		return err
 	}
@@ -88,6 +91,9 @@ func createSkillVersionsSQLiteTable(db *gorm.DB) error {
 			required_plan_snapshot varchar(32) NOT NULL,
 			monetization_snapshot text NOT NULL,
 			max_input_tokens_snapshot integer,
+			package_zip blob,
+			package_sha256 char(64),
+			package_built_at datetime,
 			rollout_percentage integer NOT NULL DEFAULT 100,
 			experiment_name varchar(128),
 			created_by bigint NOT NULL,
@@ -119,6 +125,9 @@ func createSkillVersionsMySQLTable(db *gorm.DB) error {
 			required_plan_snapshot varchar(32) NOT NULL,
 			monetization_snapshot text NOT NULL,
 			max_input_tokens_snapshot bigint,
+			package_zip longblob,
+			package_sha256 char(64),
+			package_built_at datetime(3),
 			rollout_percentage bigint NOT NULL DEFAULT 100,
 			experiment_name varchar(128),
 			created_by bigint NOT NULL,
@@ -131,6 +140,19 @@ func createSkillVersionsMySQLTable(db *gorm.DB) error {
 			CONSTRAINT fk_skill_versions_skill FOREIGN KEY (skill_id) REFERENCES skills(id) ON UPDATE RESTRICT ON DELETE RESTRICT
 		)
 	`).Error
+}
+
+func migrateSkillVersionPackageColumns(db *gorm.DB) error {
+	cols := []string{"package_zip", "package_sha256", "package_built_at"}
+	for _, col := range cols {
+		if db.Migrator().HasColumn(&SkillVersion{}, col) {
+			continue
+		}
+		if err := db.Migrator().AddColumn(&SkillVersion{}, col); err != nil {
+			return fmt.Errorf("add skill_versions %s: %w", col, err)
+		}
+	}
+	return nil
 }
 
 // migrateSkillsConstraints adds the 9 hand-written CHECK constraints to PG and MySQL >= 8.0.16.

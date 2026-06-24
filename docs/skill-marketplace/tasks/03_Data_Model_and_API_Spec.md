@@ -56,7 +56,7 @@ V1 assumes existing platform tables exist for users, tenants, sessions, subscrip
 | `evaluation_status` | `pending`, `running`, `passed`, `failed`, `warning` |
 | `evaluation_issue_type` | `format`, `completeness`, `task_completion`, `violation` |
 | `save_type` | `saved`, `favorited` |
-| `block_reason` | `auth_required`, `skill_not_found`, `skill_not_published`, `plan_required`, `subscription_inactive`, `kids_mode_blocked`, `evaluation_not_passed` |
+| `block_reason` | `auth_required`, `skill_not_found`, `skill_not_published`, `skill_not_enabled`, `plan_required`, `subscription_inactive`, `quota_exceeded`, `kids_mode_blocked`, `context_too_long`, `rate_limited`, `timeout` |
 | `entry_point` | `marketplace_card`, `skill_detail`, `my_skills`, `saved_list`, `featured`, `popular`, `new`, `recommended`, `admin_preview`, `search_results`, `skill_package`, `playground_picker` (legacy parse only) |
 | `tier2_event_type` | `skill_installed`, `skill_used_local` |
 
@@ -279,6 +279,7 @@ Rules:
 - `metadata` is allowlisted, not free-form. V1 allowed analytics metadata keys are `source_entry_point`, `repeat_index`, `surface_id`, `card_position`, `query_hash`, `filter_hash`, `schema_version`, `producer`, and `client_event_time`.
 - `metadata.source_entry_point` must use the same `entry_point` enum when present.
 - New R2 Skill package execution producers must emit `entry_point=skill_package`. `playground_picker` remains in the enum only so historical Playground analytics rows and legacy payloads continue to parse; new V1/R2 flows must not emit it.
+- `skill_blocked.block_reason` is a narrow runtime taxonomy for mapped pre-provider block outcomes only. `INVALID_REQUEST`, `FORBIDDEN`, `SKILL_EVALUATION_NOT_PASSED`, `SKILL_INTERNAL_ERROR`, and `SKILL_SAFETY_VIOLATION` remain outside the default DR-70 `skill_blocked` mapping unless a future spec explicitly adds them.
 - `metadata.repeat_index` must be a positive integer when present and is required for `skill_repeat_use` until promoted to a first-class column.
 - Restricted keys such as `instruction_template`, `prompt`, `system_prompt`, `raw_messages`, `provider_payload`, `kids_raw_input`, `full_user_input`, `raw_output`, and `model_output` must be rejected or quarantined.
 

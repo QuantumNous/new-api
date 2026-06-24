@@ -22,8 +22,8 @@ V1 analytics must answer:
 
 | Item | Decision |
 |---|---|
-| Execution analytics (server-side) | Not in scope；DeepRouter 不执行 Skill，无服务端执行事件 |
-| Per-execution billing analytics | Not in scope；无 per-execution 计费 |
+| Execution analytics (server-side) | In scope for DeepRouter-routed Skill execution surfaces, including `skill_used`, `skill_repeat_use`, and `skill_blocked`; purely local/off-platform execution remains out of scope |
+| Per-execution billing analytics | In scope at the attribution boundary via `skill_billing_events` when DeepRouter-routed execution reaches billable settlement; blocked paths create no billing row |
 | Full referral attribution | V1.1 |
 | A/B experiment dashboard | P1/V1.1 |
 | Tier 2 aggregated dashboard | P1；须 Tier 2 数据量达统计意义后启用 |
