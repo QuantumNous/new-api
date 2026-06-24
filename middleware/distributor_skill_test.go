@@ -42,7 +42,13 @@ func newSkillDistributionDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}, &skillmodel.UserEnabledSkill{}); err != nil {
+	if err := database.AutoMigrate(
+		&skillmodel.Skill{},
+		&skillmodel.SkillVersion{},
+		&skillmodel.UserEnabledSkill{},
+		&platformmodel.SubscriptionPlan{},
+		&platformmodel.UserSubscription{},
+	); err != nil {
 		t.Fatalf("migrate skill tables: %v", err)
 	}
 	return database

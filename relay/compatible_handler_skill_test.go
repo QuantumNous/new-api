@@ -47,7 +47,13 @@ func newSkillTestDB(t *testing.T) *gorm.DB {
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}, &skillmodel.UserEnabledSkill{}))
+	require.NoError(t, database.AutoMigrate(
+		&skillmodel.Skill{},
+		&skillmodel.SkillVersion{},
+		&skillmodel.UserEnabledSkill{},
+		&platformmodel.SubscriptionPlan{},
+		&platformmodel.UserSubscription{},
+	))
 	return database
 }
 
