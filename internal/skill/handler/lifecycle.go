@@ -75,13 +75,6 @@ func PublishAdminSkill(c *gin.Context) {
 		}
 		before := skillPublishAuditBefore(skill)
 		now := time.Now().UTC()
-		zipBytes, err := buildSkillPackageForVersion(skill, version)
-		if err != nil {
-			return err
-		}
-		if err := storeVersionPackageArtifact(tx, version.ID, zipBytes, now); err != nil {
-			return err
-		}
 		if err := publishDraftSkill(tx, skill, version, actorID, now); err != nil {
 			return err
 		}
@@ -327,12 +320,6 @@ func writePublishSkillError(c *gin.Context, err error, checklist []PublishCheckl
 		skillapi.Error(c, errcodes.ErrInvalidRequest, "Publish checklist failed.", gin.H{
 			"reason":    "PUBLISH_CHECKLIST_FAILED",
 			"checklist": checklist,
-		})
-		return
-	}
-	if errors.Is(err, errSkillPackageGuardFailed) {
-		skillapi.Error(c, errcodes.ErrInvalidRequest, "Skill package build failed.", gin.H{
-			"reason": "PUBLISH_PACKAGE_INVALID",
 		})
 		return
 	}
