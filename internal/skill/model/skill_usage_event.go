@@ -40,6 +40,7 @@ type SkillUsageEvent struct {
 
 	SkillID        *string          `gorm:"column:skill_id;type:char(36)"`
 	SkillVersionID *string          `gorm:"column:skill_version_id;type:char(36)"`
+	FirstUseKey    *string          `gorm:"column:first_use_key;type:varchar(128)"`
 	EntryPoint     enums.EntryPoint `gorm:"column:entry_point;type:varchar(64);not null;check:chk_sue_entry_point,entry_point IN ('marketplace_card','skill_detail','my_skills','saved_list','playground_picker','featured','popular','new','recommended','admin_preview','search_results','skill_package')"`
 
 	Plan               *enums.RequiredPlan `gorm:"column:plan;type:varchar(32)"`
@@ -90,6 +91,10 @@ var restrictedSUEMetadataKeys = map[string]struct{}{
 func (SkillUsageEvent) TableName() string { return "skill_usage_events" }
 
 func (e *SkillUsageEvent) BeforeCreate(tx *gorm.DB) error {
+	if e.EventType == enums.SkillUsageEventTypeFirstUse && e.Success != nil && *e.Success && e.UserID != nil && e.SkillID != nil && e.FirstUseKey == nil {
+		key := fmt.Sprintf("%d:%s", *e.UserID, *e.SkillID)
+		e.FirstUseKey = &key
+	}
 	normalizeSkillJSONBObject(&e.Metadata)
 	if err := validateSUEEventMetadata(e.Metadata); err != nil {
 		return err

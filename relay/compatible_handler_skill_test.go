@@ -12,6 +12,7 @@ package relay
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,6 +26,10 @@ import (
 	skillrelay "github.com/QuantumNous/new-api/internal/skill/relay"
 	platformmodel "github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -775,6 +780,120 @@ func TestTextHelper_SkillRelay_DR68_LoadAndApply_Executed(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, version.ID, sCtx.SkillVersionID,
 		"DR-68: SkillVersionID must be populated by LoadAndApply to prove version snapshot was loaded")
+}
+
+func TestTextHelper_SkillRelay_ResponsesPath_EmitsDisclosureAndUsageEvents(t *testing.T) {
+	withDBBypass(t)
+	service.InitHttpClient()
+
+	settings := model_setting.GetGlobalSettings()
+	prevPolicy := settings.ChatCompletionsToResponsesPolicy
+	settings.ChatCompletionsToResponsesPolicy = model_setting.ChatCompletionsToResponsesPolicy{
+		Enabled:       true,
+		AllChannels:   true,
+		ModelPatterns: []string{".*"},
+	}
+	t.Cleanup(func() { settings.ChatCompletionsToResponsesPolicy = prevPolicy })
+
+	testDB := newSkillTestDB(t)
+	require.NoError(t, skillmodel.MigrateSkillUsageEvents(testDB))
+	skill := &skillmodel.Skill{
+		Slug: "responses-path", Status: enums.SkillStatusPublished, Category: "test",
+		RequiredPlan: enums.RequiredPlanFree, MonetizationType: enums.MonetizationTypeFree,
+		Name: "Responses Path", ShortDescription: "s", Description: "d", CreatedBy: 1,
+	}
+	require.NoError(t, testDB.Create(skill).Error)
+	version := insertVersionForSkill(t, testDB, skill, "Answer with the approved skill.", []string{"gpt-4o-mini"})
+	skillrelay.SetDB(testDB)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	var capturedPath string
+	var capturedBody []byte
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedPath = r.URL.Path
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		capturedBody = append([]byte(nil), body...)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, err = w.Write([]byte(`{"id":"resp-dr69","object":"response","created_at":1700000000,"model":"gpt-4o-mini","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"response ok"}]}],"usage":{"input_tokens":11,"output_tokens":6,"total_tokens":17}}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(upstream.Close)
+
+	c := newSkillTestCtx(t, 31)
+	enableSkillRow(t, testDB, 31, skill.ID)
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(c, constant.ContextKeyChannelId, 6901)
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
+	common.SetContextKey(c, constant.ContextKeyChannelKey, "test-key")
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, "gpt-4o-mini")
+
+	req := &dto.GeneralOpenAIRequest{
+		Model: "gpt-4o-mini",
+		Messages: []dto.Message{
+			userMsg("hello responses path"),
+		},
+		Deeprouter: &dto.DeepRouterExtension{
+			SkillID:    skill.ID,
+			EntryPoint: string(enums.EntryPointSearchResults),
+		},
+	}
+	apiErr := TextHelper(c, &relaycommon.RelayInfo{
+		Request:         req,
+		RequestId:       "req-dr69-responses-path",
+		OriginModelName: "gpt-4o-mini",
+		RequestURLPath:  "/v1/chat/completions",
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+	})
+
+	require.Nil(t, apiErr, "Responses conversion branch must complete successfully")
+	assert.Equal(t, "/v1/responses", capturedPath, "chat completions request must be sent through Responses API path")
+	assert.Contains(t, string(capturedBody), "Answer with the approved skill.",
+		"DR-68 instruction template must survive chat-completions-to-responses conversion")
+	assert.Equal(t, skillrelay.AIDisclosureText, c.Writer.Header().Get(skillrelay.AIDisclosureHeader),
+		"Responses success path must return the DR-69 AI disclosure header")
+
+	var events []skillmodel.SkillUsageEvent
+	require.NoError(t, testDB.Where("skill_id = ?", skill.ID).Find(&events).Error)
+	require.Len(t, events, 2)
+	assertEventTypesInRelayTest(t, events, []enums.SkillUsageEventType{
+		enums.SkillUsageEventTypeUsed,
+		enums.SkillUsageEventTypeFirstUse,
+	})
+	for _, event := range events {
+		assert.Equal(t, enums.EntryPointSkillPackage, event.EntryPoint,
+			"successful execution event entry point must be server-forced to skill_package")
+		require.NotNil(t, event.SkillVersionID)
+		assert.Equal(t, version.ID, *event.SkillVersionID)
+		require.NotNil(t, event.Model)
+		assert.Equal(t, "gpt-4o-mini", *event.Model)
+		require.NotNil(t, event.InputTokens)
+		assert.Equal(t, 11, *event.InputTokens)
+		require.NotNil(t, event.OutputTokens)
+		assert.Equal(t, 6, *event.OutputTokens)
+		require.NotNil(t, event.TotalTokens)
+		assert.Equal(t, 17, *event.TotalTokens)
+		require.NotNil(t, event.Success)
+		assert.True(t, *event.Success)
+
+		var metadata map[string]any
+		require.NoError(t, common.Unmarshal(event.Metadata, &metadata))
+		assert.NotContains(t, metadata, "prompt")
+		assert.NotContains(t, metadata, "raw_messages")
+		assert.NotContains(t, metadata, "provider_payload")
+		assert.NotContains(t, metadata, "model_output")
+	}
+}
+
+func assertEventTypesInRelayTest(t *testing.T, events []skillmodel.SkillUsageEvent, want []enums.SkillUsageEventType) {
+	t.Helper()
+	got := make([]enums.SkillUsageEventType, 0, len(events))
+	for _, event := range events {
+		got = append(got, event.EventType)
+	}
+	assert.ElementsMatch(t, want, got)
 }
 
 // TestTextHelper_SkillRelay_TOCTOU_PinnedVersionIDPreserved verifies the TOCTOU guard
