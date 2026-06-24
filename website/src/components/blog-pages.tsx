@@ -329,7 +329,7 @@ export async function BlogArticlePage(props: Props & { slug: string }) {
     props.locale
   );
   const related = relatedPosts.list.filter((item) => item.slug !== props.slug).slice(0, 3);
-  const html = sanitizeBlogHtml(currentPost.content ?? "");
+  const html = sanitizeBlogHtml(currentPost.content ?? "", props.locale);
   const toc = getBlogToc(html);
   const copy = getCopy(props.locale).blog;
 

@@ -1,5 +1,5 @@
 import sanitizeHtml from "sanitize-html";
-import { DEFAULT_LOCALE, type Locale } from "@/lib/locales";
+import { DEFAULT_LOCALE, localizePath, stripLocale, type Locale } from "@/lib/locales";
 import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
 
 const API_BASE_URL = APP_CONSOLE_ORIGIN;
@@ -8,6 +8,21 @@ const BLOGGER_SITE_SLUG = "flatkey";
 const BLOGGER_ACCESS_KEY = process.env.BLOGGER_ACCESS_KEY?.trim() ?? "";
 const BLOG_REVALIDATE_SECONDS = 300;
 const BLOGGER_PAGE_SIZE = 100;
+const SITE_ORIGIN = "https://flatkey.ai";
+const INTERNAL_PUBLIC_PATH_PREFIXES = [
+  "/about",
+  "/blog",
+  "/models",
+  "/pricing",
+  "/privacy",
+  "/rankings",
+  "/refund-policy",
+  "/sign-in",
+  "/sign-up",
+  "/sla",
+  "/terms",
+  "/use-case",
+] as const;
 export const BLOG_PAGE_SIZE = 18;
 export type BlogEntityId = string | number;
 
@@ -256,7 +271,7 @@ export async function getBlogPost(slug: string, locale: Locale = DEFAULT_LOCALE)
   return fetchLegacyJson<BlogPost>(`/api/blog/detail/${encodeURIComponent(slug)}`);
 }
 
-export function sanitizeBlogHtml(html: string): string {
+export function sanitizeBlogHtml(html: string, locale: Locale = DEFAULT_LOCALE): string {
   return ensureHeadingIds(sanitizeHtml(html, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat([
       "img",
@@ -283,7 +298,47 @@ export function sanitizeBlogHtml(html: string): string {
       td: ["colspan", "rowspan"],
     },
     allowedSchemes: ["http", "https", "mailto"],
+    transformTags: {
+      a: (tagName, attribs) => ({
+        tagName,
+        attribs: rewriteBlogAnchorAttributes(attribs, locale),
+      }),
+    },
   }));
+}
+
+export function rewriteBlogHref(href: string | undefined, locale: Locale = DEFAULT_LOCALE): string | undefined {
+  const value = href?.trim();
+  if (!value) return value;
+  if (
+    value.startsWith("#") ||
+    value.startsWith("mailto:") ||
+    value.startsWith("tel:") ||
+    value.startsWith("data:")
+  ) {
+    return value;
+  }
+
+  const isAbsolute = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value) || value.startsWith("//");
+  if (!isAbsolute && !value.startsWith("/")) {
+    return value;
+  }
+
+  try {
+    const url = new URL(value, SITE_ORIGIN);
+    const hostname = url.hostname.toLowerCase();
+    if (isAbsolute && hostname !== "flatkey.ai" && hostname !== "www.flatkey.ai") {
+      return value;
+    }
+
+    const normalizedPath = localizeInternalPublicPath(url.pathname, locale);
+    if (!normalizedPath) return value;
+
+    const result = `${normalizedPath}${url.search}${url.hash}`;
+    return isAbsolute ? `${SITE_ORIGIN}${result}` : result;
+  } catch {
+    return value;
+  }
 }
 
 const BLOG_DATE_LOCALES: Record<Locale, string> = {
@@ -366,4 +421,26 @@ function slugifyHeading(value: string): string {
 
 function stripTags(value: string): string {
   return value.replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
+}
+
+function rewriteBlogAnchorAttributes(
+  attribs: Record<string, string>,
+  locale: Locale
+): Record<string, string> {
+  const href = rewriteBlogHref(attribs.href, locale);
+  return href ? { ...attribs, href } : attribs;
+}
+
+function localizeInternalPublicPath(pathname: string, locale: Locale): string | null {
+  const normalized = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  const stripped = stripLocale(normalized) || "/";
+  if (!shouldLocalizeInternalPublicPath(stripped)) {
+    return null;
+  }
+  return localizePath(stripped, locale);
+}
+
+function shouldLocalizeInternalPublicPath(pathname: string): boolean {
+  if (pathname === "/") return true;
+  return INTERNAL_PUBLIC_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
