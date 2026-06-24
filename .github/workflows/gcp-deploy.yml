@@ -1,8 +1,8 @@
 name: GCP Deploy
 
-# Push to main builds the Go image and opens console/router production deploy
-# approval jobs. Nothing reaches production unless an authorized reviewer
-# approves the target job in the "production" GitHub Environment.
+# Push to main builds the Go image and opens separate console/router production
+# deploy approval jobs. Nothing reaches production unless an authorized reviewer
+# approves the target-specific GitHub Environment.
 
 on:
   push:
@@ -118,7 +118,7 @@ jobs:
           echo "- Image: \`${{ steps.compute_image.outputs.image_uri }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Deploy target: \`${{ steps.compute_target.outputs.deploy_target }}\`" >> "$GITHUB_STEP_SUMMARY"
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "- Production deploy: approve \`deploy console\` and/or \`deploy router\` in this run." >> "$GITHUB_STEP_SUMMARY"
+            echo "- Production deploy: approve \`deploy console\` and/or \`deploy router\` in their separate environments." >> "$GITHUB_STEP_SUMMARY"
           fi
 
   deploy-console:
@@ -126,7 +126,7 @@ jobs:
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.deploy_target == 'console' || inputs.deploy_target == 'both'))
     needs: build
     runs-on: ubuntu-latest
-    environment: production
+    environment: production-console
     env:
       RUN_SERVICE: newapi-console
       NODE_TYPE: master
@@ -260,7 +260,7 @@ jobs:
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.deploy_target == 'router' || inputs.deploy_target == 'both'))
     needs: build
     runs-on: ubuntu-latest
-    environment: production
+    environment: production-router
     env:
       RUN_SERVICE: newapi-router
       NODE_TYPE: slave

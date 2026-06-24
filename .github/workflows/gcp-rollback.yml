@@ -23,7 +23,7 @@ permissions:
 jobs:
   rollback:
     runs-on: ubuntu-latest
-    environment: production   # same approval gate as deploy
+    environment: ${{ inputs.rollback_target == 'router' && 'production-router' || 'production-console' }}
     steps:
       - name: Auth to GCP via WIF
         uses: google-github-actions/auth@v2
