@@ -20,6 +20,23 @@ export type SkillPlan = 'free' | 'pro' | 'enterprise'
 
 export type SkillStatus = 'draft' | 'published' | 'deprecated' | 'archived'
 
+export type MarketplacePlanFilter = 'all' | SkillPlan
+
+export type MarketplaceStatusFilter =
+  | 'all'
+  | 'available'
+  | 'enabled'
+  | 'locked'
+  | 'unavailable'
+
+export interface MarketplaceFilters {
+  query: string
+  category: string
+  plan: MarketplacePlanFilter
+  status: MarketplaceStatusFilter
+  kidsSafeOnly: boolean
+}
+
 export type SkillCTAAction =
   | 'view'
   | 'download'
@@ -90,6 +107,12 @@ export interface MarketplaceSkill {
   is_kids_exclusive?: boolean
   ai_disclosure_required?: boolean
   published_at?: string | null
+}
+
+export interface MarketplaceEventPayload {
+  event_type: 'skill_impression' | 'skill_detail_view'
+  skill_id: string
+  entry_point: 'marketplace_card'
 }
 
 export interface DownloadCTA {

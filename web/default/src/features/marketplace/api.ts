@@ -24,6 +24,8 @@ import {
   isSafeDownloadUrl,
 } from './download-utils'
 import type {
+  MarketplaceEventPayload,
+  MarketplaceFilters,
   MarketplaceListResponse,
   MarketplaceSkill,
   MySkill,
@@ -38,19 +40,32 @@ export { DownloadSkillError } from './download-utils'
 export { skillDownloadURL } from './lib/growth-surfaces'
 
 export interface MarketplaceSkillsParams {
-  featured?: boolean
-  limit?: number
   page?: number
-  sort?: string
+  limit?: number
+  sort?: 'name' | 'created_at' | 'featured_rank' | string
+  query?: string
+  category?: string
+  plan?: MarketplaceFilters['plan']
+  kids_safe?: boolean
+  featured?: boolean
 }
 
-export async function getMarketplaceSkills(): Promise<
-  MarketplaceListResponse<MarketplaceSkill>
-> {
-  const res = await api.get('/api/v1/marketplace/skills', {
-    skipErrorHandler: true,
-  } as Record<string, unknown>)
-  return res.data
+export async function getMarketplaceSkills(
+  filters?: Partial<MarketplaceFilters>,
+  page = 1
+): Promise<MarketplaceListResponse<MarketplaceSkill>> {
+  return getMarketplaceSkillsWithParams({
+    page,
+    limit: 100,
+    sort: 'featured_rank',
+    query: filters?.query || undefined,
+    category: filters?.category || undefined,
+    plan:
+      filters?.plan != null && filters.plan !== 'all'
+        ? filters.plan
+        : undefined,
+    kids_safe: filters?.kidsSafeOnly || undefined,
+  })
 }
 
 export async function getMarketplaceSkillsWithParams(
@@ -68,6 +83,15 @@ export async function getMySkills(): Promise<MarketplaceListResponse<MySkill>> {
     skipErrorHandler: true,
   } as Record<string, unknown>)
   return res.data
+}
+
+export async function emitMarketplaceEvent(
+  payload: MarketplaceEventPayload
+): Promise<void> {
+  await recordMarketplaceSkillEvent(payload.skill_id, {
+    event_type: payload.event_type,
+    entry_point: payload.entry_point,
+  })
 }
 
 export async function getMarketplaceSkill(
