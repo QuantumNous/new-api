@@ -16,17 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 // Coverage: route guard, DR-45 API params, filter wiring, mobile read-only contract.
-
+import { isRedirect } from '@tanstack/react-router'
+import { Route } from '@/routes/_authenticated/skills/admin'
 import fs from 'node:fs'
 import path from 'node:path'
-import { isRedirect } from '@tanstack/react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ROLE } from '@/lib/roles'
 import { api } from '@/lib/api'
-import { Route } from '@/routes/_authenticated/skills/admin'
-import { getAdminSkills } from '../api'
+import { ROLE } from '@/lib/roles'
+import {
+  createAdminSkill,
+  createAdminSkillVersion,
+  getAdminSkills,
+  listAdminSkillAuditLog,
+  listAdminSkillVersions,
+  patchAdminSkill,
+} from '../api'
+import { adminSkillEditorTestUtils } from '../components/admin-skill-editor-dialog'
 
 const authState = vi.hoisted(() => ({
   user: null as { id: number; username: string; role: number } | null,
@@ -39,6 +45,12 @@ vi.mock('@/lib/api', () => ({
         data: [],
         pagination: { page: 1, limit: 20, total: 0, has_next: false },
       },
+    })),
+    patch: vi.fn(async () => ({
+      data: { data: { id: 'skill-1' } },
+    })),
+    post: vi.fn(async () => ({
+      data: { data: { id: 'skill-1' } },
     })),
   },
 }))
@@ -123,6 +135,61 @@ describe('DR-49 Admin Skills API/filter contract', () => {
     )
   })
 
+  it('wires DR-50 create, patch, version, and audit API calls', async () => {
+    await createAdminSkill({
+      slug: 'draft-skill',
+      name: 'Draft Skill',
+      short_description: 'Short',
+      description: 'Long',
+      category: 'writing',
+      required_plan: 'free',
+      monetization_type: 'free',
+      max_input_tokens: 2000,
+    })
+    await patchAdminSkill('skill-1', {
+      name: 'Updated Skill',
+      max_input_tokens: 2000,
+    })
+    await createAdminSkillVersion('skill-1', {
+      instruction_template: 'Use the provided input.',
+      output_schema: { type: 'object' },
+    })
+    await listAdminSkillVersions('skill-1')
+    await listAdminSkillAuditLog('skill-1')
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/api/v1/admin/skills',
+      expect.objectContaining({ slug: 'draft-skill' }),
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    expect(api.patch).toHaveBeenCalledWith(
+      '/api/v1/admin/skills/skill-1',
+      expect.objectContaining({ max_input_tokens: 2000 }),
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    expect(api.post).toHaveBeenCalledWith(
+      '/api/v1/admin/skills/skill-1/versions',
+      expect.objectContaining({
+        instruction_template: 'Use the provided input.',
+      }),
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    expect(api.get).toHaveBeenCalledWith(
+      '/api/v1/admin/skills/skill-1/versions',
+      expect.objectContaining({
+        params: { page: 1, limit: 20 },
+        skipErrorHandler: true,
+      })
+    )
+    expect(api.get).toHaveBeenCalledWith(
+      '/api/v1/admin/skills/skill-1/audit-log',
+      expect.objectContaining({
+        params: { page: 1, limit: 20 },
+        skipErrorHandler: true,
+      })
+    )
+  })
+
   it('wires the table filters to the DR-45 query parameter names', () => {
     const tableSource = fs.readFileSync(
       path.resolve(
@@ -136,9 +203,114 @@ describe('DR-49 Admin Skills API/filter contract', () => {
     expect(tableSource).toContain("searchKey: 'required_plan'")
     expect(tableSource).toContain("searchKey: 'kids_approval_status'")
     expect(tableSource).toContain('required_plan: requiredPlan')
-    expect(tableSource).toContain(
-      'kids_approval_status: kidsApprovalStatus'
+    expect(tableSource).toContain('kids_approval_status: kidsApprovalStatus')
+  })
+
+  it('renders the DR-50 editor entry point and sectioned editor contract', () => {
+    const tableSource = fs.readFileSync(
+      path.resolve(
+        process.cwd(),
+        'src/features/admin-skills/components/admin-skills-table.tsx'
+      ),
+      'utf8'
     )
+    const editorSource = fs.readFileSync(
+      path.resolve(
+        process.cwd(),
+        'src/features/admin-skills/components/admin-skill-editor-dialog.tsx'
+      ),
+      'utf8'
+    )
+
+    expect(tableSource).toContain("t('Create Skill Draft')")
+    expect(editorSource).toContain("title={t('Metadata')}")
+    expect(editorSource).toContain("title={t('User Guidance')}")
+    expect(editorSource).toContain("title={t('Entitlement')}")
+    expect(editorSource).toContain("title={t('Execution')}")
+    expect(editorSource).toContain("title={t('Safety')}")
+    expect(editorSource).toContain("title={t('Promotion')}")
+    expect(editorSource).toContain("title={t('Version History')}")
+    expect(editorSource).toContain("title={t('Audit Log')}")
+    expect(editorSource).toContain("t('Version change pending')")
+    expect(editorSource).toContain('max_input_tokens is required')
+    expect(editorSource).toContain('createAdminSkillVersion')
+  })
+
+  it('validates DR-50 Free/free-quota max_input_tokens and builds structured payloads', () => {
+    const form = {
+      ...adminSkillEditorTestUtils.emptyForm(),
+      slug: 'draft-skill',
+      name: 'Draft Skill',
+      short_description: 'Short',
+      description: 'Long',
+      category: 'writing',
+      tags: 'ops\nwriting',
+      input_hints: '[{"name":"topic"}]',
+      example_inputs: '[{"topic":"contracts"}]',
+      example_outputs: '[{"summary":"done"}]',
+      required_plan: 'free' as const,
+      monetization_type: 'free' as const,
+      instruction_template: 'Use the latest brief.',
+      model_whitelist: 'smart-tier\nfast-tier',
+    }
+
+    const missingTokens = adminSkillEditorTestUtils.parseForm(form, 'create')
+    expect(missingTokens.ok).toBe(false)
+    expect(missingTokens.errors.max_input_tokens).toContain(
+      'max_input_tokens is required'
+    )
+
+    const valid = adminSkillEditorTestUtils.parseForm(
+      { ...form, max_input_tokens: '2000' },
+      'create'
+    )
+    expect(valid.ok).toBe(true)
+    expect(valid.createPayload).toEqual(
+      expect.objectContaining({
+        slug: 'draft-skill',
+        max_input_tokens: 2000,
+      })
+    )
+    expect(valid.patchPayload).toEqual(
+      expect.objectContaining({
+        tags: ['ops', 'writing'],
+        input_hints: [{ name: 'topic' }],
+        model_whitelist: ['smart-tier', 'fast-tier'],
+      })
+    )
+    expect(valid.versionPayload).toEqual(
+      expect.objectContaining({
+        instruction_template: 'Use the latest brief.',
+      })
+    )
+  })
+
+  it('validates DR-50 token markup and JSON fields before save', () => {
+    const base = {
+      ...adminSkillEditorTestUtils.emptyForm(),
+      slug: 'markup-skill',
+      name: 'Markup Skill',
+      short_description: 'Short',
+      description: 'Long',
+      category: 'writing',
+      required_plan: 'pro' as const,
+      monetization_type: 'token_markup' as const,
+      input_hints: '{bad',
+      max_input_tokens: '',
+    }
+
+    const invalid = adminSkillEditorTestUtils.parseForm(base, 'create')
+    expect(invalid.ok).toBe(false)
+    expect(invalid.errors.price_markup).toContain('Markup must be greater')
+    expect(invalid.errors.input_hints).toBe('Enter valid JSON.')
+
+    const valid = adminSkillEditorTestUtils.parseForm(
+      { ...base, input_hints: '[]', price_markup: '0.2' },
+      'create'
+    )
+    expect(valid.ok).toBe(true)
+    expect(valid.createPayload.price_markup).toBe(0.2)
+    expect(valid.patchPayload.price_markup).toBe(0.2)
   })
 
   it('keeps mobile read-only: preview only, no edit or lifecycle actions', () => {

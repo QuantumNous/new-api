@@ -149,6 +149,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 
 		service.PostTextConsumeQuota(c, info, usage, nil)
+		emitSuccessfulSkillRelay(c, info, request.Model, usage)
 		return nil
 	}
 

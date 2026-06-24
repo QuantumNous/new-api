@@ -16,9 +16,9 @@ import (
 // ---- query counter (black-box DB-layer assertion) ----
 //
 // attachQueryCounter registers a GORM query callback that counts SELECTs touching
-// user_enabled_skills and skill_versions. This lets DR-66 tests prove, without any
+// user_enabled_skills and skill_versions. This lets tests prove, without any
 // production test hook, that (a) lifecycle-only rejections short-circuit before the
-// enabled lookup, and (b) a gate failure never loads the SkillVersion snapshot.
+// enabled lookup, and (b) a gate failure never loads prompt-bearing SkillVersion data.
 type queryCounter struct {
 	mu     sync.Mutex
 	counts map[string]int
@@ -42,6 +42,9 @@ func attachQueryCounter(t *testing.T, database *gorm.DB) *queryCounter {
 		}
 		if strings.Contains(sql, "skill_versions") {
 			qc.counts["skill_versions"]++
+		}
+		if strings.Contains(sql, "skill_versions") && strings.Contains(sql, "instruction_template") {
+			qc.counts["skill_versions_prompt"]++
 		}
 	})
 	require.NoError(t, err)
@@ -108,23 +111,21 @@ func TestResolve_DR66_PublishedEnabledFalse_ReturnsNotEnabled(t *testing.T) {
 		"published skill with enabled=false must be SKILL_NOT_ENABLED")
 }
 
-// ---- deprecated: D3=b fail-closed (DR-66 does NOT open deprecated) ----
+// ---- deprecated: DR-67 opens existing-enabled users, then entitlement still applies ----
 
-func TestResolve_DR66_DeprecatedEnabled_ReturnsNotPublished_FailClosed(t *testing.T) {
+func TestResolve_DR67_DeprecatedEnabled_SucceedsWhenStillEntitled(t *testing.T) {
 	c := newTestContext(t)
 	setContextUser(c, enabledUser(203))
 
 	database := newTestDB(t)
 	skill, _ := insertRunnableSkill(t, database, deprecatedSkill())
-	// even with an enabled row, deprecated stays fail-closed until DR-67
 	require.NoError(t, database.Create(&skillmodel.UserEnabledSkill{
 		UserID: 203, TenantID: 203, SkillID: skill.ID, Enabled: true,
 	}).Error)
 
 	ctx, code := resolve(c, database, skill.ID)
-	assert.Nil(t, ctx)
-	assert.Equal(t, errcodes.ErrSkillNotPublished, code,
-		"deprecated + enabled must be NOT_PUBLISHED in DR-66 (D3=b fail-closed)")
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, ctx)
 }
 
 func TestResolve_DR66_DeprecatedNoRow_ReturnsNotPublished(t *testing.T) {
@@ -209,15 +210,9 @@ func TestResolve_DR66_ArchivedSkill_DoesNotQueryEnabled(t *testing.T) {
 		"archived skill must be rejected on lifecycle alone, with zero enabled lookups")
 }
 
-// TestResolve_DR66_DeprecatedFlagOff_DoesNotQueryEnabled proves the short-circuit even
-// holds when an enabled row EXISTS: with deprecatedRuntimeEnabled=false, deprecated is
-// decided on lifecycle alone, so user_enabled_skills is never read.
-func TestResolve_DR66_DeprecatedFlagOff_DoesNotQueryEnabled(t *testing.T) {
+func TestResolve_DR67_DeprecatedNoRow_QueriesEnabledButDoesNotLoadSnapshot(t *testing.T) {
 	database := newTestDB(t)
 	skill, _ := insertRunnableSkill(t, database, deprecatedSkill())
-	require.NoError(t, database.Create(&skillmodel.UserEnabledSkill{
-		UserID: 312, TenantID: 312, SkillID: skill.ID, Enabled: true,
-	}).Error)
 
 	qc := attachQueryCounter(t, database)
 	c := newTestContext(t)
@@ -226,8 +221,10 @@ func TestResolve_DR66_DeprecatedFlagOff_DoesNotQueryEnabled(t *testing.T) {
 	ctx, code := resolve(c, database, skill.ID)
 	assert.Nil(t, ctx)
 	assert.Equal(t, errcodes.ErrSkillNotPublished, code)
-	assert.Equal(t, 0, qc.get("user_enabled_skills"),
-		"deprecated-flag-off must short-circuit before the enabled lookup, even when a row exists")
+	assert.Equal(t, 1, qc.get("user_enabled_skills"),
+		"deprecated+flag-on must check current enablement")
+	assert.Equal(t, 0, qc.get("skill_versions"),
+		"deprecated without enablement must not load any SkillVersion data")
 }
 
 // ---- missing active version: lifecycle wins over the enabled lookup ----
@@ -296,9 +293,10 @@ func TestResolve_DR66_GateFail_NeverLoadsSnapshot(t *testing.T) {
 		"gate failure must return before any skill_versions snapshot SELECT (no prompt load)")
 }
 
-// TestResolve_DR66_Success_LoadsSnapshotExactlyOnce is the positive control: a passing
-// gate proceeds to exactly one snapshot SELECT, confirming the counter is meaningful.
-func TestResolve_DR66_Success_LoadsSnapshotExactlyOnce(t *testing.T) {
+// TestResolve_DR67_Success_LoadsVersionMetadataThenPromptSnapshot is the positive
+// control: a passing gate reads entitlement metadata first, then prompt-bearing
+// snapshot after entitlement succeeds.
+func TestResolve_DR67_Success_LoadsVersionMetadataThenPromptSnapshot(t *testing.T) {
 	database := newTestDB(t)
 	skill, _ := insertRunnableSkill(t, database, defaultSkill())
 	enableSkillRow(t, database, 321, skill.ID)
@@ -311,5 +309,6 @@ func TestResolve_DR66_Success_LoadsSnapshotExactlyOnce(t *testing.T) {
 	require.Equal(t, errcodes.ErrorCode(""), code)
 	require.NotNil(t, ctx)
 	assert.Equal(t, 1, qc.get("user_enabled_skills"), "success must query enabled exactly once")
-	assert.Equal(t, 1, qc.get("skill_versions"), "success must load the snapshot exactly once")
+	assert.Equal(t, 2, qc.get("skill_versions"), "success must load version metadata and then the prompt snapshot")
+	assert.Equal(t, 1, qc.get("skill_versions_prompt"), "success must load prompt-bearing snapshot exactly once")
 }

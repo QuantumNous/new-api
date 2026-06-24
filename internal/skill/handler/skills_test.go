@@ -1151,6 +1151,95 @@ func TestCreateAdminSkill_CreatesDraftFromAuthAndHidesFromMarketplace(t *testing
 	assert.Contains(t, detailW.Body.String(), `"code":"SKILL_NOT_FOUND"`)
 }
 
+func TestPatchAdminSkill_UpdatesConfigAndAuditLog(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	maxInput := 2000
+	s := testSkill("patch-skill", "draft")
+	s.PublishedAt = nil
+	s.MaxInputTokens = &maxInput
+	require.NoError(t, db.Create(&s).Error)
+
+	body := `{
+		"name":"Patched Skill",
+		"short_description":"updated short",
+		"description":"updated long body",
+		"category":"analysis",
+		"tags":["analysis","ops"],
+		"input_hints":[{"name":"brief"}],
+		"example_inputs":[{"brief":"summarize"}],
+		"example_outputs":[{"summary":"done"}],
+		"required_plan":"pro",
+		"monetization_type":"token_markup",
+		"price_markup":0.15,
+		"free_quota_per_month":null,
+		"max_input_tokens":3000,
+		"model_whitelist":["smart-tier","fast-tier"],
+		"timeout_seconds":60,
+		"is_kids_safe":true,
+		"is_kids_exclusive":true,
+		"kids_approval_status":"pending",
+		"featured_flag":true,
+		"featured_rank":2
+	}`
+	c, w := testContextWithMethod(http.MethodPatch, "/api/v1/admin/skills/"+s.ID, body)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
+	c.Set("id", 88)
+	c.Set("role", 100)
+
+	PatchAdminSkill(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "id = ?", s.ID).Error)
+	assert.Equal(t, "Patched Skill", persisted.Name)
+	assert.Equal(t, enums.RequiredPlanPro, persisted.RequiredPlan)
+	assert.Equal(t, enums.MonetizationTypeTokenMarkup, persisted.MonetizationType)
+	assert.Equal(t, 0.15, persisted.PriceMarkup)
+	assert.Nil(t, persisted.FreeQuotaPerMonth)
+	require.NotNil(t, persisted.MaxInputTokens)
+	assert.Equal(t, 3000, *persisted.MaxInputTokens)
+	assert.True(t, persisted.IsKidsExclusive)
+	require.NotNil(t, persisted.FeaturedRank)
+	assert.Equal(t, 2, *persisted.FeaturedRank)
+
+	var audit skillmodel.SkillAuditLog
+	require.NoError(t, db.First(&audit, "skill_id = ? AND action = ?", s.ID, "skill_updated").Error)
+	assert.Equal(t, int64(88), audit.ActorID)
+	require.NotNil(t, audit.BeforeValue)
+	require.NotNil(t, audit.AfterValue)
+	assert.Contains(t, string(audit.ChangedFields), `"model_whitelist"`)
+	assert.NotContains(t, string(*audit.AfterValue), "updated long body", "audit values must store description hash only")
+
+	auditC, auditW := testContext("/api/v1/admin/skills/" + s.ID + "/audit-log")
+	auditC.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
+	ListAdminSkillAuditLog(auditC)
+	require.Equal(t, http.StatusOK, auditW.Code)
+	assert.Contains(t, auditW.Body.String(), `"action":"skill_updated"`)
+	assert.NotContains(t, auditW.Body.String(), "updated long body")
+}
+
+func TestPatchAdminSkill_FreeQuotaRequiresMaxInputTokens(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	maxInput := 2000
+	s := testSkill("patch-free-quota", "draft")
+	s.PublishedAt = nil
+	s.RequiredPlan = enums.RequiredPlanPro
+	s.MonetizationType = enums.MonetizationTypePlanIncluded
+	s.MaxInputTokens = &maxInput
+	require.NoError(t, db.Create(&s).Error)
+
+	body := `{"free_quota_per_month":10,"max_input_tokens":null}`
+	c, w := testContextWithMethod(http.MethodPatch, "/api/v1/admin/skills/"+s.ID, body)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
+
+	PatchAdminSkill(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), `"reason":"MAX_INPUT_TOKENS_REQUIRED"`)
+}
+
 func TestCreateAdminSkill_FreeConfigurationsRequireMaxInputTokens(t *testing.T) {
 	cases := []struct {
 		name string
@@ -1576,6 +1665,51 @@ func TestActivateAdminSkillVersion_DemotesPriorActiveAndAudits(t *testing.T) {
 	assert.Equal(t, v2.ID, after["skill_version_id"])
 	assert.Equal(t, v1.ID, after["previous_active_version_id"])
 	assert.Equal(t, string(enums.SkillVersionStatusActive), after["status"])
+}
+
+func TestActivateAdminSkillVersion_PersistsVersionPackageArtifact(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s := testSkill("version-activate-package", "published")
+	maxInput := 2048
+	s.MaxInputTokens = &maxInput
+	require.NoError(t, db.Create(&s).Error)
+	v1 := validHandlerSkillVersion(s.ID, 1)
+	v1.Status = enums.SkillVersionStatusActive
+	require.NoError(t, db.Create(&v1).Error)
+	v2 := validHandlerSkillVersion(s.ID, 2)
+	v2.InstructionTemplate = "activated v2 package template"
+	sum := sha256.Sum256([]byte(v2.InstructionTemplate))
+	v2.InstructionTemplateSHA256 = hex.EncodeToString(sum[:])
+	require.NoError(t, db.Create(&v2).Error)
+	require.NoError(t, db.Model(&skillmodel.Skill{}).Where("id = ?", s.ID).Update("active_version_id", v1.ID).Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/versions/"+v2.ID+"/activate", `{"reason":"activate package artifact"}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}, {Key: "version_id", Value: v2.ID}}
+	c.Set("id", 101)
+	c.Set("role", 100)
+
+	ActivateAdminSkillVersion(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var stored skillmodel.SkillVersion
+	require.NoError(t, db.First(&stored, "id = ?", v2.ID).Error)
+	require.NotEmpty(t, stored.PackageZip)
+	require.NotNil(t, stored.PackageSHA256)
+	require.NotNil(t, stored.PackageBuiltAt)
+	packageSum := sha256.Sum256(stored.PackageZip)
+	assert.Equal(t, hex.EncodeToString(packageSum[:]), *stored.PackageSHA256)
+	assert.Equal(t, "activated v2 package template", readZipEntry(t, stored.PackageZip, "instruction_template.md"))
+
+	downloadC, downloadW := testContext("/api/v1/marketplace/skill-versions/" + v2.ID + "/download")
+	downloadC.Params = gin.Params{{Key: "skill_version_id", Value: v2.ID}}
+	downloadC.Set("id", 7)
+	downloadC.Set("group", "default")
+	DownloadSkillVersionPackage(downloadC)
+
+	require.Equal(t, http.StatusOK, downloadW.Code)
+	assert.Equal(t, stored.PackageZip, downloadW.Body.Bytes(), "activated version download must serve stored publish-time bytes")
+	assert.Equal(t, "activated v2 package template", readZipEntry(t, downloadW.Body.Bytes(), "instruction_template.md"))
 }
 
 func TestPublishAdminSkill_PublishesAndEmitsAuditAndEvent(t *testing.T) {

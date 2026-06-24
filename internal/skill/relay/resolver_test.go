@@ -27,7 +27,15 @@ func newTestDB(t *testing.T) *gorm.DB {
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}, &skillmodel.UserEnabledSkill{}, &platformmodel.User{}))
+	require.NoError(t, database.AutoMigrate(
+		&skillmodel.Skill{},
+		&skillmodel.SkillVersion{},
+		&skillmodel.UserEnabledSkill{},
+		&platformmodel.User{},
+		&platformmodel.SubscriptionPlan{},
+		&platformmodel.UserSubscription{},
+		&platformmodel.SubscriptionPreConsumeRecord{},
+	))
 	return database
 }
 
@@ -118,11 +126,55 @@ func defaultSkillVersion(skillID string, versionID string) *skillmodel.SkillVers
 		InstructionTemplate:       "You are the immutable skill executor.",
 		InstructionTemplateSHA256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		ModelWhitelistSnapshot:    skillmodel.SkillJSONB(`["gpt-4o-mini","gpt-4o"]`),
-		RequiredPlanSnapshot:      enums.RequiredPlanPro,
+		RequiredPlanSnapshot:      enums.RequiredPlanFree,
 		MonetizationSnapshot:      skillmodel.SkillJSONB(`{"mode":"plan_included"}`),
 		MaxInputTokensSnapshot:    &maxTokens,
 		CreatedBy:                 1,
 	}
+}
+
+func addActiveSubscription(t *testing.T, database *gorm.DB, userID int, upgradeGroup string) {
+	t.Helper()
+	plan := &platformmodel.SubscriptionPlan{
+		Title:         "Test " + upgradeGroup,
+		DurationUnit:  platformmodel.SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		UpgradeGroup:  upgradeGroup,
+	}
+	require.NoError(t, database.Create(plan).Error)
+	now := common.GetTimestamp()
+	require.NoError(t, database.Create(&platformmodel.UserSubscription{
+		UserId:       userID,
+		PlanId:       plan.Id,
+		StartTime:    now - 60,
+		EndTime:      now + 3600,
+		Status:       "active",
+		Source:       "admin",
+		UpgradeGroup: upgradeGroup,
+	}).Error)
+}
+
+func addExpiredSubscription(t *testing.T, database *gorm.DB, userID int, upgradeGroup string) {
+	t.Helper()
+	plan := &platformmodel.SubscriptionPlan{
+		Title:         "Expired " + upgradeGroup,
+		DurationUnit:  platformmodel.SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		UpgradeGroup:  upgradeGroup,
+	}
+	require.NoError(t, database.Create(plan).Error)
+	now := common.GetTimestamp()
+	require.NoError(t, database.Create(&platformmodel.UserSubscription{
+		UserId:       userID,
+		PlanId:       plan.Id,
+		StartTime:    now - 7200,
+		EndTime:      now - 3600,
+		Status:       "expired",
+		Source:       "admin",
+		UpgradeGroup: upgradeGroup,
+	}).Error)
 }
 
 func enabledUser(id int) *platformmodel.User {
@@ -337,6 +389,138 @@ func TestResolve_FreePlan_UserNotSkill(t *testing.T) {
 		"Plan must come from user.Group (free), not skill.RequiredPlan (pro)")
 }
 
+func TestResolve_DR67_FreeUser_ProSnapshot_ReturnsPlanRequired_NoCharge(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(27)
+	user.Group = "default"
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+	require.NotNil(t, skill.ActiveVersionID)
+	version := defaultSkillVersion(skill.ID, *skill.ActiveVersionID)
+	version.RequiredPlanSnapshot = enums.RequiredPlanPro
+	insertSkillVersion(t, database, version)
+	enableSkillRow(t, database, 27, skill.ID)
+
+	qc := attachQueryCounter(t, database)
+	ctx, code := resolve(c, database, skill.ID)
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrSkillPlanRequired, code)
+	assert.Equal(t, 1, qc.get("skill_versions"), "plan block may read version entitlement metadata only")
+	assert.Equal(t, 0, qc.get("skill_versions_prompt"), "plan block must not load prompt-bearing snapshot")
+
+	var charges int64
+	require.NoError(t, database.Model(&platformmodel.SubscriptionPreConsumeRecord{}).Count(&charges).Error)
+	assert.Equal(t, int64(0), charges, "entitlement block must create no subscription charge/pre-consume record")
+}
+
+func TestResolve_DR67_ProUser_ActiveSubscription_ProSnapshot_Succeeds(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(28)
+	user.Group = "pro"
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+	require.NotNil(t, skill.ActiveVersionID)
+	version := defaultSkillVersion(skill.ID, *skill.ActiveVersionID)
+	version.RequiredPlanSnapshot = enums.RequiredPlanPro
+	insertSkillVersion(t, database, version)
+	enableSkillRow(t, database, 28, skill.ID)
+	addActiveSubscription(t, database, 28, "pro")
+
+	ctx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, ctx)
+	assert.Equal(t, enums.RequiredPlanPro, ctx.Plan)
+	assert.True(t, ctx.SubActive)
+}
+
+func TestResolve_DR67_ProUser_ExpiredSubscription_ProSnapshot_ReturnsSubscriptionInactive(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(29)
+	user.Group = "pro"
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+	require.NotNil(t, skill.ActiveVersionID)
+	version := defaultSkillVersion(skill.ID, *skill.ActiveVersionID)
+	version.RequiredPlanSnapshot = enums.RequiredPlanPro
+	insertSkillVersion(t, database, version)
+	enableSkillRow(t, database, 29, skill.ID)
+	addExpiredSubscription(t, database, 29, "pro")
+
+	ctx, code := resolve(c, database, skill.ID)
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrSkillSubscriptionInactive, code)
+}
+
+func TestResolve_DR67_EnterpriseUser_ActiveSubscription_SatisfiesProSnapshot(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(32)
+	user.Group = "enterprise"
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+	require.NotNil(t, skill.ActiveVersionID)
+	version := defaultSkillVersion(skill.ID, *skill.ActiveVersionID)
+	version.RequiredPlanSnapshot = enums.RequiredPlanPro
+	insertSkillVersion(t, database, version)
+	enableSkillRow(t, database, 32, skill.ID)
+	addActiveSubscription(t, database, 32, "enterprise")
+
+	ctx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, ctx)
+	assert.Equal(t, enums.RequiredPlanEnterprise, ctx.Plan)
+	assert.True(t, ctx.SubActive)
+}
+
+func TestResolve_DR67_ProUser_EnterpriseSnapshot_ReturnsPlanRequired(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(33)
+	user.Group = "pro"
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	skill := insertSkill(t, database, defaultSkill())
+	require.NotNil(t, skill.ActiveVersionID)
+	version := defaultSkillVersion(skill.ID, *skill.ActiveVersionID)
+	version.RequiredPlanSnapshot = enums.RequiredPlanEnterprise
+	insertSkillVersion(t, database, version)
+	enableSkillRow(t, database, 33, skill.ID)
+	addActiveSubscription(t, database, 33, "pro")
+
+	ctx, code := resolve(c, database, skill.ID)
+	assert.Nil(t, ctx)
+	assert.Equal(t, errcodes.ErrSkillPlanRequired, code)
+}
+
+func TestResolve_DR67_UsesRequiredPlanSnapshotNotMutableSkillPlan(t *testing.T) {
+	c := newTestContext(t)
+	user := enabledUser(34)
+	user.Group = "default"
+	setContextUser(c, user)
+
+	database := newTestDB(t)
+	proSkill := defaultSkill()
+	proSkill.RequiredPlan = enums.RequiredPlanPro
+	skill := insertSkill(t, database, proSkill)
+	require.NotNil(t, skill.ActiveVersionID)
+	version := defaultSkillVersion(skill.ID, *skill.ActiveVersionID)
+	version.RequiredPlanSnapshot = enums.RequiredPlanFree
+	insertSkillVersion(t, database, version)
+	enableSkillRow(t, database, 34, skill.ID)
+
+	ctx, code := resolve(c, database, skill.ID)
+	require.Equal(t, errcodes.ErrorCode(""), code)
+	require.NotNil(t, ctx)
+	assert.Equal(t, enums.RequiredPlanFree, ctx.SkillVersion.RequiredPlanSnapshot)
+}
+
 func TestResolve_Success_ProPlan(t *testing.T) {
 	c := newTestContext(t)
 	user := enabledUser(21)
@@ -401,7 +585,7 @@ func TestResolve_NonKidsSession_Propagated(t *testing.T) {
 	assert.False(t, skillCtx.IsKidsSession)
 }
 
-func TestResolve_SubActiveAlwaysTrue(t *testing.T) {
+func TestResolve_FreeSkill_SubActiveTrue(t *testing.T) {
 	c := newTestContext(t)
 	user := enabledUser(25)
 	setContextUser(c, user)
@@ -460,6 +644,7 @@ func TestResolve_ContextFieldsPopulated(t *testing.T) {
 	database := newTestDB(t)
 	skill, version := insertRunnableSkill(t, database, defaultSkill())
 	enableSkillRow(t, database, 40, skill.ID)
+	addActiveSubscription(t, database, 40, "pro")
 
 	skillCtx, code := resolve(c, database, skill.ID)
 	require.Equal(t, errcodes.ErrorCode(""), code)

@@ -10,17 +10,9 @@ import (
 )
 
 // deprecatedRuntimeEnabled gates whether deprecated+enabled skills may execute.
-// D3=b (DR-66): kept FALSE — deprecated stays fail-closed (SKILL_NOT_PUBLISHED)
-// until DR-67 adds the step-9 use-time entitlement check ("already-enabled AND
-// STILL-entitled", tasks/05 §5.1 + tasks/01 §6 status table).
-//
-// DR-67 flips this constant in the SAME PR that adds the use-time entitlement
-// gate. Never flip alone: flipping without DR-67 would re-open the "enabled is
-// enough, still-entitled missing" gap that D3=b exists to avoid. The open branch
-// (allowDeprecated && enabled → pass) is implemented + tested now (see
-// TestLifecycleEnabledDecision_FutureDR67_DeprecatedEnabledAllowedWhenFlagOn) but
-// not live — this is a staged cross-ticket handoff seam, not dead code.
-const deprecatedRuntimeEnabled = false
+// DR-67 flips this on together with use-time entitlement: deprecated Skills can
+// execute only for users who are currently enabled AND still entitled.
+const deprecatedRuntimeEnabled = true
 
 // lifecycleEnabledDecision is the pure-function form of the DR-66 lifecycle +
 // enabled-state truth table (no DB, exhaustively unit-testable in both flag states).
@@ -41,8 +33,8 @@ func lifecycleEnabledDecision(status enums.SkillStatus, hasActiveVersion, enable
 		}
 		return errcodes.ErrSkillNotEnabled
 	case enums.SkillStatusDeprecated:
-		// Opened by DR-67 (flag flip + entitlement gate). D3=b: fail-closed here;
-		// this also serves the "unavailable deprecated" case for non-enabled users.
+		// DR-67 opens this only for currently enabled users. Use-time entitlement
+		// still runs after this lifecycle decision.
 		if allowDeprecated && enabled {
 			return ""
 		}

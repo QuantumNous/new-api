@@ -11,8 +11,9 @@ import (
 // ---- lifecycleEnabledDecision: pure-function truth table (DR-66 §4) ----
 //
 // Coverage: every (status, hasActiveVersion, enabled) combination in both flag
-// states. allowDeprecated=false is the live DR-66 behavior; allowDeprecated=true
-// is the staged DR-67 seam (deprecated becomes executable for enabled users).
+// states. allowDeprecated=true is the live DR-67 behavior (deprecated becomes
+// executable for enabled, still-entitled users); allowDeprecated=false remains
+// covered as the old DR-66 fail-closed behavior.
 
 func TestLifecycleEnabledDecision_NoActiveVersion_AlwaysNotPublished(t *testing.T) {
 	// hasActiveVersion=false short-circuits regardless of status / enabled / flag.
@@ -50,10 +51,9 @@ func TestLifecycleEnabledDecision_Published_NotEnabled_NotEnabled(t *testing.T) 
 	assert.Equal(t, errcodes.ErrSkillNotEnabled, got, "published + not-enabled must be SKILL_NOT_ENABLED")
 }
 
-// ---- deprecated: live (flag=false) fail-closed (D3=b) ----
+// ---- deprecated: old DR-66 fail-closed behavior (flag=false) ----
 
 func TestLifecycleEnabledDecision_Deprecated_FlagOff_AlwaysNotPublished(t *testing.T) {
-	// DR-66 keeps deprecated fail-closed: even an enabled user gets NOT_PUBLISHED.
 	enabled := lifecycleEnabledDecision(enums.SkillStatusDeprecated, true, true, false)
 	assert.Equal(t, errcodes.ErrSkillNotPublished, enabled,
 		"deprecated + enabled with flag OFF must be NOT_PUBLISHED (D3=b fail-closed)")
@@ -63,13 +63,9 @@ func TestLifecycleEnabledDecision_Deprecated_FlagOff_AlwaysNotPublished(t *testi
 		"deprecated + not-enabled with flag OFF must be NOT_PUBLISHED")
 }
 
-// ---- deprecated: staged DR-67 seam (flag=true) ----
+// ---- deprecated: live DR-67 behavior (flag=true) ----
 
-// TestLifecycleEnabledDecision_FutureDR67_DeprecatedEnabledAllowedWhenFlagOn proves
-// the open branch is implemented and correct, but it is NOT live: deprecatedRuntimeEnabled
-// is false in DR-66. DR-67 flips that constant in the same PR that adds the use-time
-// entitlement gate. This is a staged cross-ticket seam, not dead code.
-func TestLifecycleEnabledDecision_FutureDR67_DeprecatedEnabledAllowedWhenFlagOn(t *testing.T) {
+func TestLifecycleEnabledDecision_DeprecatedEnabledAllowedWhenFlagOn(t *testing.T) {
 	allowed := lifecycleEnabledDecision(enums.SkillStatusDeprecated, true, true, true)
 	assert.Equal(t, errcodes.ErrorCode(""), allowed,
 		"deprecated + enabled with flag ON must allow (DR-67 behavior)")
@@ -79,9 +75,9 @@ func TestLifecycleEnabledDecision_FutureDR67_DeprecatedEnabledAllowedWhenFlagOn(
 		"deprecated + not-enabled must stay blocked even with flag ON")
 }
 
-// TestDeprecatedRuntimeEnabled_IsFalseInDR66 pins the live flag value so a future
-// accidental flip (without DR-67's entitlement gate) is caught by CI.
-func TestDeprecatedRuntimeEnabled_IsFalseInDR66(t *testing.T) {
-	assert.False(t, deprecatedRuntimeEnabled,
-		"DR-66 must ship with deprecatedRuntimeEnabled=false; DR-67 flips it WITH the entitlement gate")
+// TestDeprecatedRuntimeEnabled_IsTrueInDR67 pins the live flag value together
+// with the use-time entitlement gate.
+func TestDeprecatedRuntimeEnabled_IsTrueInDR67(t *testing.T) {
+	assert.True(t, deprecatedRuntimeEnabled,
+		"DR-67 must ship with deprecatedRuntimeEnabled=true together with the entitlement gate")
 }
