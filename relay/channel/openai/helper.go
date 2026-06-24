@@ -175,6 +175,13 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		// truncate the stream without proper terminators, and Claude Code hangs
 		// indefinitely without message_stop.
 		if !info.ClaudeConvertInfo.Done {
+			// Close any open content blocks first so the event sequence stays
+			// valid (content_block_start … content_block_stop pairs).
+			for _, stopBlock := range service.GenerateClaudeStopBlocksForOpenInfo(info) {
+				_ = helper.ClaudeData(c, *stopBlock)
+			}
+			info.ClaudeConvertInfo.LastMessagesType = relaycommon.LastMessageTypeNone
+
 			stopReason := service.StopReasonOpenAI2Claude(info.FinishReason)
 			if stopReason == "" {
 				stopReason = "end_turn"

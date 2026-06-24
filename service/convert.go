@@ -223,6 +223,29 @@ func generateStopBlock(index int) *dto.ClaudeResponse {
 	}
 }
 
+// GenerateClaudeStopBlocksForOpenInfo returns the content_block_stop events
+// required to close any open Claude content blocks tracked in
+// info.ClaudeConvertInfo. Used by fallback paths that need to emit a valid
+// terminal event sequence without re-implementing the block-tracking logic.
+//
+// Returns an empty slice if no block is currently open.
+func GenerateClaudeStopBlocksForOpenInfo(info *relaycommon.RelayInfo) []*dto.ClaudeResponse {
+	if info == nil {
+		return nil
+	}
+	var responses []*dto.ClaudeResponse
+	switch info.ClaudeConvertInfo.LastMessagesType {
+	case relaycommon.LastMessageTypeText, relaycommon.LastMessageTypeThinking:
+		responses = append(responses, generateStopBlock(info.ClaudeConvertInfo.Index))
+	case relaycommon.LastMessageTypeTools:
+		base := info.ClaudeConvertInfo.ToolCallBaseIndex
+		for offset := 0; offset <= info.ClaudeConvertInfo.ToolCallMaxIndexOffset; offset++ {
+			responses = append(responses, generateStopBlock(base+offset))
+		}
+	}
+	return responses
+}
+
 func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 	if oaiUsage == nil {
 		return nil
@@ -425,12 +448,27 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			if oaiUsage == nil {
 				oaiUsage = info.ClaudeConvertInfo.Usage
 			}
+			// Always emit message_delta + message_stop, even when usage is
+			// missing. Some OpenAI-compatible upstreams (e.g. LiteLLM) send
+			// finish_reason without usage; skipping the terminal events
+			// would leave Claude clients hanging.
+			stopReason := stopReasonOpenAI2Claude(info.FinishReason)
+			if stopReason == "" {
+				stopReason = "end_turn"
+			}
 			if oaiUsage != nil {
 				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 					Type:  "message_delta",
 					Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
 					Delta: &dto.ClaudeMediaMessage{
-						StopReason: common.GetPointer[string](stopReasonOpenAI2Claude(info.FinishReason)),
+						StopReason: common.GetPointer[string](stopReason),
+					},
+				})
+			} else {
+				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+					Type: "message_delta",
+					Delta: &dto.ClaudeMediaMessage{
+						StopReason: common.GetPointer[string](stopReason),
 					},
 				})
 			}
