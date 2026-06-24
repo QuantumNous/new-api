@@ -3,16 +3,14 @@ package middleware
 // Skill-relay distributor tests (DR-68).
 // Functions under test live in middleware/skill_distributor.go.
 //
-// Coverage (2026-06-21, post-DR-68 fourth-pass):
-//   prepareSkillRelayForDistribution:  89.5%
-//   replaceReusableRequestBody:        76.5%
-//
-// Coverage note: the TOCTOU guard in TextHelper's Resolve block
+// Coverage note: this file focuses on distributor-side skill relay rewrite and
+// blocked-path behavior. The TOCTOU guard in TextHelper's Resolve block
 // is tested in relay/compatible_handler_skill_test.go
 // (TestTextHelper_SkillRelay_TOCTOU_PinnedVersionIDPreserved).
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -24,12 +22,15 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
+	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
 	skillrelay "github.com/QuantumNous/new-api/internal/skill/relay"
 	"github.com/QuantumNous/new-api/internal/smart_router_client"
 	platformmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -45,7 +46,20 @@ func newSkillDistributionDB(t *testing.T) *gorm.DB {
 	if err := database.AutoMigrate(&skillmodel.Skill{}, &skillmodel.SkillVersion{}, &skillmodel.UserEnabledSkill{}); err != nil {
 		t.Fatalf("migrate skill tables: %v", err)
 	}
+	if err := skillmodel.MigrateSkillUsageEvents(database); err != nil {
+		t.Fatalf("migrate skill usage events: %v", err)
+	}
 	return database
+}
+
+func enableDistributionSkillRow(t *testing.T, db *gorm.DB, userID int, skillID string) {
+	t.Helper()
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:   int64(userID),
+		TenantID: int64(userID),
+		SkillID:  skillID,
+		Enabled:  true,
+	}).Error)
 }
 
 func insertDistributionSkill(t *testing.T, db *gorm.DB, template string, whitelist []string) (*skillmodel.Skill, *skillmodel.SkillVersion) {
@@ -86,18 +100,14 @@ func insertDistributionSkill(t *testing.T, db *gorm.DB, template string, whiteli
 		t.Fatalf("activate version: %v", err)
 	}
 	skill.ActiveVersionID = &version.ID
-	// DR-66: published skills require the caller to be enabled before the gate lets
-	// resolution proceed. All distribution-path tests act as user 7 (see
-	// newSkillDistributionCtx), so seed an enabled row for (7, tenant=7, skill).
-	if err := db.Create(&skillmodel.UserEnabledSkill{
-		UserID: 7, TenantID: 7, SkillID: skill.ID, Enabled: true,
-	}).Error; err != nil {
-		t.Fatalf("seed enabled row: %v", err)
-	}
 	return skill, version
 }
 
 func newSkillDistributionCtx(t *testing.T, body any) (*gin.Context, *httptest.ResponseRecorder) {
+	return newSkillDistributionCtxWithPath(t, "/v1/routing/chat/completions", body)
+}
+
+func newSkillDistributionCtxWithPath(t *testing.T, path string, body any) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
 	buf, err := common.Marshal(body)
 	if err != nil {
@@ -105,7 +115,7 @@ func newSkillDistributionCtx(t *testing.T, body any) (*gin.Context, *httptest.Re
 	}
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/routing/chat/completions", bytes.NewReader(buf))
+	c.Request = httptest.NewRequest(http.MethodPost, path, bytes.NewReader(buf))
 	c.Request.Header.Set("Content-Type", "application/json")
 	common.SetContextKey(c, constant.ContextKeyUserId, 7)
 	common.SetContextKey(c, constant.ContextKeyAirbotixUser, &platformmodel.User{
@@ -116,9 +126,17 @@ func newSkillDistributionCtx(t *testing.T, body any) (*gin.Context, *httptest.Re
 	return c, w
 }
 
+func countBlockedEvents(t *testing.T, db *gorm.DB) []skillmodel.SkillUsageEvent {
+	t.Helper()
+	var events []skillmodel.SkillUsageEvent
+	require.NoError(t, db.Where("event_type = ?", enums.SkillUsageEventTypeBlocked).Find(&events).Error)
+	return events
+}
+
 func TestResolveAutoModel_SkillRelayUsesServerSnapshotBeforeSmartRouter(t *testing.T) {
 	db := newSkillDistributionDB(t)
 	skill, version := insertDistributionSkill(t, db, "server snapshot template", []string{VirtualModelAuto})
+	enableDistributionSkillRow(t, db, 7, skill.ID)
 	skillrelay.SetDB(db)
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
@@ -234,15 +252,76 @@ func TestPrepareSkillRelay_UnknownSkillID_ReturnsError(t *testing.T) {
 		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
 		"deeprouter": map[string]any{"skill_id": "does-not-exist"},
 	})
+	common.SetContextKey(c, constant.ContextKeySkillRelayEntryPoint, string(enums.EntryPointSkillPackage))
 	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
-	if errCode == "" {
-		t.Fatal("unknown skill_id must return an error code")
-	}
+	require.Equal(t, errcodes.ErrSkillNotFound, errCode)
+
+	events := countBlockedEvents(t, db)
+	require.Len(t, events, 1, "route-derived entry_point must emit one skill_blocked event on distribute resolve failure")
+	require.NotNil(t, events[0].BlockReason)
+	assert.Equal(t, enums.BlockReasonSkillNotFound, *events[0].BlockReason)
+	require.NotNil(t, events[0].ErrorCode)
+	assert.Equal(t, string(errcodes.ErrSkillNotFound), *events[0].ErrorCode)
+	assert.Equal(t, enums.EntryPointSkillPackage, events[0].EntryPoint)
+	require.NotNil(t, events[0].SkillID)
+	assert.Equal(t, "does-not-exist", *events[0].SkillID)
+	require.NotNil(t, events[0].UserID)
+	assert.Equal(t, int64(7), *events[0].UserID)
+	require.NotNil(t, events[0].TenantID)
+	assert.Equal(t, int64(7), *events[0].TenantID)
+	assert.Nil(t, events[0].SkillVersionID)
+	require.NotNil(t, events[0].RequestID)
+	assert.NotEmpty(t, *events[0].RequestID)
+	assert.True(t, common.GetContextKeyBool(c, constant.ContextKeySkillBlockedHandled))
+	assert.True(t, common.GetContextKeyBool(c, constant.ContextKeySkillBlockedEmitted))
+}
+
+func TestPrepareSkillRelay_UnknownSkillID_RequestBodyEntryPoint_EmitsBlocked(t *testing.T) {
+	db := newSkillDistributionDB(t)
+	skillrelay.SetDB(db)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c, _ := newSkillDistributionCtx(t, map[string]any{
+		"model":      "gpt-4o",
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"deeprouter": map[string]any{"skill_id": "does-not-exist", "entry_point": string(enums.EntryPointAdminPreview)},
+	})
+
+	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
+	require.Equal(t, errcodes.ErrSkillNotFound, errCode)
+
+	events := countBlockedEvents(t, db)
+	require.Len(t, events, 1, "request-derived entry_point must emit one skill_blocked event on distribute resolve failure")
+	assert.Equal(t, enums.EntryPointAdminPreview, events[0].EntryPoint)
+	require.NotNil(t, events[0].BlockReason)
+	assert.Equal(t, enums.BlockReasonSkillNotFound, *events[0].BlockReason)
+}
+
+func TestPrepareSkillRelay_NormalChatCompletions_RequestBodyEntryPoint_EmitsBlocked(t *testing.T) {
+	db := newSkillDistributionDB(t)
+	skillrelay.SetDB(db)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c, _ := newSkillDistributionCtxWithPath(t, "/v1/chat/completions", map[string]any{
+		"model":      "gpt-4o",
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"deeprouter": map[string]any{"skill_id": "does-not-exist", "entry_point": string(enums.EntryPointAdminPreview)},
+	})
+
+	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
+	require.Equal(t, errcodes.ErrSkillNotFound, errCode)
+
+	events := countBlockedEvents(t, db)
+	require.Len(t, events, 1, "normal chat path must emit one skill_blocked event when body entry_point is valid")
+	assert.Equal(t, enums.EntryPointAdminPreview, events[0].EntryPoint)
+	require.NotNil(t, events[0].BlockReason)
+	assert.Equal(t, enums.BlockReasonSkillNotFound, *events[0].BlockReason)
 }
 
 func TestPrepareSkillRelay_EmptyWhitelist_ReturnsInternalError(t *testing.T) {
 	db := newSkillDistributionDB(t)
-	skill, _ := insertDistributionSkill(t, db, "tmpl", []string{}) // empty whitelist
+	skill, version := insertDistributionSkill(t, db, "tmpl", []string{}) // empty whitelist
+	enableDistributionSkillRow(t, db, 7, skill.ID)
 	skillrelay.SetDB(db)
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
@@ -251,15 +330,24 @@ func TestPrepareSkillRelay_EmptyWhitelist_ReturnsInternalError(t *testing.T) {
 		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
 		"deeprouter": map[string]any{"skill_id": skill.ID},
 	})
+	common.SetContextKey(c, constant.ContextKeySkillRelayEntryPoint, string(enums.EntryPointSkillPackage))
 	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
-	if errCode == "" {
-		t.Fatal("empty whitelist must return an error code")
-	}
+	require.Equal(t, errcodes.ErrSkillInternalError, errCode)
+	assert.Empty(t, countBlockedEvents(t, db), "SKILL_INTERNAL_ERROR must stay outside DR-70 skill_blocked on distribute path")
+
+	sCtx, ok := skillrelay.Get(c)
+	require.True(t, ok, "post-resolve LoadAndApply failure must preserve SkillRelayContext for later blocked helper reads")
+	assert.Equal(t, skill.ID, sCtx.SkillID)
+	assert.Equal(t, version.ID, sCtx.SkillVersionID, "post-resolve failure must keep the already bound SkillVersionID on context")
+	require.NotNil(t, sCtx.SkillVersion)
+	assert.Equal(t, version.ID, sCtx.SkillVersion.ID, "post-resolve failure must keep the bound SkillVersion snapshot on context")
+	assert.Equal(t, string(enums.EntryPointSkillPackage), sCtx.EntryPoint)
 }
 
 func TestPrepareSkillRelay_NoUserMessage_ReturnsInvalidRequest(t *testing.T) {
 	db := newSkillDistributionDB(t)
 	skill, _ := insertDistributionSkill(t, db, "tmpl", []string{"gpt-4o-mini"})
+	enableDistributionSkillRow(t, db, 7, skill.ID)
 	skillrelay.SetDB(db)
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
@@ -268,69 +356,115 @@ func TestPrepareSkillRelay_NoUserMessage_ReturnsInvalidRequest(t *testing.T) {
 		"messages":   []map[string]string{{"role": "system", "content": "sys"}},
 		"deeprouter": map[string]any{"skill_id": skill.ID},
 	})
+	common.SetContextKey(c, constant.ContextKeySkillRelayEntryPoint, string(enums.EntryPointSkillPackage))
 	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
-	if errCode == "" {
-		t.Fatal("no user message must return an error code")
-	}
+	require.Equal(t, errcodes.ErrInvalidRequest, errCode)
+	assert.Empty(t, countBlockedEvents(t, db), "INVALID_REQUEST must not emit skill_blocked on distribute LoadAndApply path")
+
+	sCtx, ok := skillrelay.Get(c)
+	require.True(t, ok, "post-resolve INVALID_REQUEST must still keep SkillRelayContext on context")
+	assert.Equal(t, skill.ID, sCtx.SkillID)
+	assert.NotEmpty(t, sCtx.SkillVersionID, "resolved version binding must stay on context even when LoadAndApply rejects the request")
+	require.NotNil(t, sCtx.SkillVersion)
+	assert.Equal(t, string(enums.EntryPointSkillPackage), sCtx.EntryPoint)
 }
 
-// TestPrepareSkillRelay_DR66_NotEnabled_NoSnapshotNoRewrite is the Distribute-path
-// no-snapshot regression for DR-66: a published skill the caller has not enabled is
-// rejected before the version snapshot is queried, and the request body is left
-// unrewritten (client model preserved, no instruction_template injected).
-func TestPrepareSkillRelay_DR66_NotEnabled_NoSnapshotNoRewrite(t *testing.T) {
+func TestPrepareSkillRelay_UnknownSkillID_NoRealEntryPoint_OmitsBlocked(t *testing.T) {
 	db := newSkillDistributionDB(t)
-	skill, _ := insertDistributionSkill(t, db, "SENTINEL_DR66_TEMPLATE", []string{VirtualModelAuto})
-	// Disable the enabled row seeded for user 7 (see insertDistributionSkill) so the gate fails.
-	if err := db.Model(&skillmodel.UserEnabledSkill{}).
-		Where("user_id = ? AND skill_id = ?", 7, skill.ID).
-		Update("enabled", false).Error; err != nil {
-		t.Fatalf("disable enabled row: %v", err)
-	}
-
-	var snapshotSelects int
-	if err := db.Callback().Query().After("gorm:query").Register("dr66_count", func(d *gorm.DB) {
-		if strings.Contains(strings.ToLower(d.Statement.SQL.String()), "skill_versions") {
-			snapshotSelects++
-		}
-	}); err != nil {
-		t.Fatalf("register counter: %v", err)
-	}
-
 	skillrelay.SetDB(db)
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
 	c, _ := newSkillDistributionCtx(t, map[string]any{
-		"model":      "client-model",
+		"model":      "gpt-4o",
 		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
-		"deeprouter": map[string]any{"skill_id": skill.ID},
+		"deeprouter": map[string]any{"skill_id": "does-not-exist"},
 	})
-	modelRequest := &ModelRequest{Model: "client-model"}
+	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
+	require.Equal(t, errcodes.ErrSkillNotFound, errCode)
+	assert.Empty(t, countBlockedEvents(t, db), "missing real route-derived entry_point must omit skill_blocked on distribute path")
+	assert.True(t, common.GetContextKeyBool(c, constant.ContextKeySkillBlockedHandled))
+	assert.False(t, common.GetContextKeyBool(c, constant.ContextKeySkillBlockedEmitted))
+}
 
-	errCode := prepareSkillRelayForDistribution(c, modelRequest)
-	if string(errCode) != "SKILL_NOT_ENABLED" {
-		t.Fatalf("errCode = %q, want SKILL_NOT_ENABLED", errCode)
-	}
-	if snapshotSelects != 0 {
-		t.Fatalf("skill_versions SELECT count = %d, want 0 (no snapshot on gate failure)", snapshotSelects)
-	}
-	if modelRequest.Model != "client-model" {
-		t.Fatalf("modelRequest.Model = %q, must be unchanged on gate failure", modelRequest.Model)
-	}
+func TestPrepareSkillRelay_InvalidRequestEntryPoint_ReturnsInvalidRequestWithoutEmit(t *testing.T) {
+	db := newSkillDistributionDB(t)
+	skillrelay.SetDB(db)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
-	// Body must be untouched: still the client model, no injected sentinel template.
-	var body dto.GeneralOpenAIRequest
-	if err := common.UnmarshalBodyReusable(c, &body); err != nil {
-		t.Fatalf("unmarshal body: %v", err)
-	}
-	if body.Model != "client-model" {
-		t.Fatalf("rewritten body model = %q, must be unchanged", body.Model)
-	}
-	for _, m := range body.Messages {
-		if strings.Contains(m.StringContent(), "SENTINEL_DR66_TEMPLATE") {
-			t.Fatalf("instruction template must not be injected on gate failure")
-		}
-	}
+	c, _ := newSkillDistributionCtx(t, map[string]any{
+		"model":      "gpt-4o",
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"deeprouter": map[string]any{"skill_id": "does-not-exist", "entry_point": "not_a_real_entry_point"},
+	})
+
+	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
+	require.Equal(t, errcodes.ErrInvalidRequest, errCode)
+	assert.Empty(t, countBlockedEvents(t, db), "invalid request-provided entry_point must not emit skill_blocked on distribute path")
+	assert.False(t, common.GetContextKeyBool(c, constant.ContextKeySkillBlockedHandled))
+	assert.False(t, common.GetContextKeyBool(c, constant.ContextKeySkillBlockedEmitted))
+}
+
+func TestPrepareSkillRelay_UnknownSkillID_KidsSession_UsesPseudonymousIdentity(t *testing.T) {
+	t.Setenv("SKILL_KIDS_ANALYTICS_SALT_VERSION", "2026-06-24")
+	t.Setenv("SKILL_KIDS_ANALYTICS_DAILY_SALT", "test-daily-salt")
+
+	db := newSkillDistributionDB(t)
+	skillrelay.SetDB(db)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c, _ := newSkillDistributionCtxWithPath(t, "/v1/chat/completions", map[string]any{
+		"model":      "gpt-4o",
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"deeprouter": map[string]any{"skill_id": "does-not-exist", "entry_point": string(enums.EntryPointAdminPreview)},
+	})
+	common.SetContextKey(c, constant.ContextKeyAirbotixUser, &platformmodel.User{
+		Id:       7,
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+		KidsMode: true,
+	})
+
+	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
+	require.Equal(t, errcodes.ErrSkillNotFound, errCode)
+
+	events := countBlockedEvents(t, db)
+	require.Len(t, events, 1, "kids-session distribute resolve-time block must still emit")
+	assert.Equal(t, enums.EntryPointAdminPreview, events[0].EntryPoint)
+	assert.Nil(t, events[0].UserID, "kids blocked event must not persist real user_id")
+	assert.Nil(t, events[0].TenantID, "kids blocked event must not persist real tenant_id")
+	assert.True(t, events[0].IsKidsSession)
+	require.NotNil(t, events[0].SessionID)
+	assert.NotEmpty(t, *events[0].SessionID)
+	require.NotNil(t, events[0].BlockReason)
+	assert.Equal(t, enums.BlockReasonSkillNotFound, *events[0].BlockReason)
+}
+
+func TestPrepareSkillRelay_UnknownSkillID_WriterFailurePreservesErrcode(t *testing.T) {
+	db := newSkillDistributionDB(t)
+	skillrelay.SetDB(db)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	writeErr := errors.New("skill_blocked write failed")
+	var writeCalls int
+	restore := skillrelay.SetBlockedEventWriterForTest(func(_ *gin.Context, event *skillmodel.SkillUsageEvent) error {
+		writeCalls++
+		return writeErr
+	})
+	t.Cleanup(restore)
+
+	c, _ := newSkillDistributionCtx(t, map[string]any{
+		"model":      "gpt-4o",
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"deeprouter": map[string]any{"skill_id": "does-not-exist"},
+	})
+	common.SetContextKey(c, constant.ContextKeySkillRelayEntryPoint, string(enums.EntryPointSkillPackage))
+
+	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
+	require.Equal(t, errcodes.ErrSkillNotFound, errCode)
+	assert.Equal(t, 1, writeCalls, "writer failure path must attempt exactly one blocked-event write and must not retry")
+	assert.True(t, common.GetContextKeyBool(c, constant.ContextKeySkillBlockedHandled))
+	assert.False(t, common.GetContextKeyBool(c, constant.ContextKeySkillBlockedEmitted))
+	assert.Empty(t, countBlockedEvents(t, db), "writer failure path must not persist a partial skill_blocked row")
 }
 
 // TestPrepareSkillRelay_SetsSkillVersionID verifies that prepareSkillRelayForDistribution
@@ -338,6 +472,7 @@ func TestPrepareSkillRelay_DR66_NotEnabled_NoSnapshotNoRewrite(t *testing.T) {
 func TestPrepareSkillRelay_SetsSkillVersionID(t *testing.T) {
 	db := newSkillDistributionDB(t)
 	skill, version := insertDistributionSkill(t, db, "tmpl", []string{"gpt-4o-mini"})
+	enableDistributionSkillRow(t, db, 7, skill.ID)
 	skillrelay.SetDB(db)
 	t.Cleanup(func() { skillrelay.SetDB(nil) })
 
