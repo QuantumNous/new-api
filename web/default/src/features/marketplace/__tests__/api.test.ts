@@ -112,9 +112,6 @@ describe('Marketplace API review regressions', () => {
       event_type: 'skill_impression',
       skill_id: 'writing-helper',
       entry_point: 'marketplace_card',
-      metadata: {
-        surface_id: 'marketplace_grid',
-      },
     })
 
     expect(api.post).toHaveBeenCalledWith(

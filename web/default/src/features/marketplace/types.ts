@@ -112,14 +112,8 @@ export interface MarketplaceEventPayload {
   event_type: 'skill_impression' | 'skill_detail_view'
   skill_id: string
   entry_point: 'marketplace_card'
-  metadata?: {
-    surface_id?: string
-    card_position?: number
-    source_entry_point?: 'marketplace_card'
-    schema_version?: string
-    producer?: 'frontend'
-    client_event_time?: string
-  }
+}
+
 export interface DownloadCTA {
   url: string
   // Backend returns "GET"; kept as string to tolerate future methods.

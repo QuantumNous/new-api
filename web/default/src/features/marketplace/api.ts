@@ -130,6 +130,8 @@ export async function emitMarketplaceEvent(
     event_type: payload.event_type,
     entry_point: payload.entry_point,
   })
+}
+
 export async function getMarketplaceSkill(
   idOrSlug: string
 ): Promise<PublicSkillDetail> {

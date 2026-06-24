@@ -18,19 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { Search, ShieldCheck, SlidersHorizontal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import {
   InputGroup,
   InputGroupAddon,
@@ -48,30 +40,33 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { SectionPageLayout } from '@/components/layout'
-import { emitMarketplaceEvent, getAllMarketplaceSkills } from './api'
+import {
+  emitMarketplaceEvent,
+  getAllMarketplaceSkills,
+  recordMarketplaceSkillEvent,
+} from './api'
 import {
   EmptyState,
   ErrorBanner,
-  KidsBadge,
-  PlanBadge,
+  NewSkillBanner,
   SkillCard,
-  SkillCTA,
 } from './components'
 import {
   filterMarketplaceSkills,
   marketplaceEmptyState,
   resolveMarketplaceSkill,
-  skillStatusFilterValue,
-  type ResolvedMarketplaceSkill,
 } from './lib'
 import type {
   MarketplaceFilters,
+  MarketplaceSkill,
   MarketplaceStatusFilter,
-  SkillCTAAction,
+  SkillGrowthEntryPoint,
   SkillPlan,
 } from './types'
 
 const ALL_VALUE = '__all__'
+const SEARCH_DEBOUNCE_MS = 300
+const NEW_SKILL_BANNER_DISMISS_KEY = 'dr78_new_skill_banner_dismissed'
 
 const initialFilters: MarketplaceFilters = {
   query: '',
@@ -84,6 +79,24 @@ const initialFilters: MarketplaceFilters = {
 const kidsFilterEnabled =
   import.meta.env.VITE_SKILL_KIDS_FILTER === 'true' ||
   import.meta.env.VITE_DEEPROUTER_KIDS_MARKETPLACE === 'true'
+
+function readDismissed(key: string): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(key) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeDismissed(key: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(key, '1')
+  } catch {
+    /* private mode */
+  }
+}
 
 function labelForPlan(plan: SkillPlan) {
   if (plan === 'free') return 'Free'
@@ -113,20 +126,29 @@ export function Marketplace() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
   const [filters, setFilters] = useState<MarketplaceFilters>(initialFilters)
-  const [selectedSkill, setSelectedSkill] =
-    useState<ResolvedMarketplaceSkill | null>(null)
+  const [debouncedQuery, setDebouncedQuery] = useState(initialFilters.query)
+  const [newSkillBannerDismissed, setNewSkillBannerDismissed] = useState(() =>
+    readDismissed(NEW_SKILL_BANNER_DISMISS_KEY)
+  )
   const observedCards = useRef(new Map<string, HTMLDivElement>())
   const observerRef = useRef<IntersectionObserver | null>(null)
   const emittedImpressions = useRef(new Set<string>())
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedQuery(filters.query)
+    }, SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [filters.query])
+
   const serverFilters = useMemo(
     () => ({
-      query: filters.query,
+      query: debouncedQuery,
       category: filters.category,
       plan: filters.plan,
       kidsSafeOnly: filters.kidsSafeOnly,
     }),
-    [filters.category, filters.kidsSafeOnly, filters.plan, filters.query]
+    [debouncedQuery, filters.category, filters.kidsSafeOnly, filters.plan]
   )
 
   const skillsQuery = useQuery({
@@ -147,6 +169,11 @@ export function Marketplace() {
       ),
     [skillsQuery.data?.data, user]
   )
+  const newSkill = useMemo(
+    () => skills.find((skill) => skill.featured === true) ?? skills[0],
+    [skills]
+  )
+  const showNewSkillBanner = newSkill != null && !newSkillBannerDismissed
   const categories = useMemo(
     () =>
       Array.from(
@@ -161,13 +188,19 @@ export function Marketplace() {
   const filterSignature = useMemo(
     () =>
       JSON.stringify({
-        query: filters.query.trim(),
+        query: debouncedQuery.trim(),
         category: filters.category,
         plan: filters.plan,
         status: filters.status,
         kidsSafeOnly: filters.kidsSafeOnly,
       }),
-    [filters]
+    [
+      debouncedQuery,
+      filters.category,
+      filters.kidsSafeOnly,
+      filters.plan,
+      filters.status,
+    ]
   )
   const emptyKind = marketplaceEmptyState(
     skills.length,
@@ -197,8 +230,16 @@ export function Marketplace() {
   }, [filterSignature])
 
   useEffect(() => {
+    if (!newSkill || newSkillBannerDismissed) return
+    void recordMarketplaceSkillEvent(newSkill.slug || newSkill.id, {
+      event_type: 'skill_impression',
+      entry_point: 'new',
+    }).catch(() => undefined)
+  }, [newSkill, newSkillBannerDismissed])
+
+  useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') {
-      filteredSkills.forEach((skill, index) => {
+      filteredSkills.forEach((skill) => {
         const key = `${filterSignature}:${skill.id}`
         if (emittedImpressions.current.has(key)) return
         emittedImpressions.current.add(key)
@@ -206,13 +247,6 @@ export function Marketplace() {
           event_type: 'skill_impression',
           skill_id: skill.id,
           entry_point: 'marketplace_card',
-          metadata: {
-            surface_id: 'marketplace_grid',
-            card_position: index,
-            schema_version: '1.0',
-            producer: 'frontend',
-            client_event_time: new Date().toISOString(),
-          },
         })
       })
       return
@@ -224,9 +258,6 @@ export function Marketplace() {
         entries.forEach((entry) => {
           if (!entry.isIntersecting) return
           const skillId = (entry.target as HTMLElement).dataset.skillId
-          const position = Number(
-            (entry.target as HTMLElement).dataset.skillPosition ?? '0'
-          )
           if (!skillId) return
           const key = `${filterSignature}:${skillId}`
           if (emittedImpressions.current.has(key)) return
@@ -235,13 +266,6 @@ export function Marketplace() {
             event_type: 'skill_impression',
             skill_id: skillId,
             entry_point: 'marketplace_card',
-            metadata: {
-              surface_id: 'marketplace_grid',
-              card_position: position,
-              schema_version: '1.0',
-              producer: 'frontend',
-              client_event_time: new Date().toISOString(),
-            },
           })
         })
       },
@@ -263,82 +287,38 @@ export function Marketplace() {
     setFilters(initialFilters)
   }
 
-  function handleOpenSkill(skill: ResolvedMarketplaceSkill) {
-    setSelectedSkill(skill)
-    emitEvent({
-      event_type: 'skill_detail_view',
-      skill_id: skill.id,
-      entry_point: 'marketplace_card',
-      metadata: {
-        source_entry_point: 'marketplace_card',
-        schema_version: '1.0',
-        producer: 'frontend',
-        client_event_time: new Date().toISOString(),
-      },
-    })
-  }
-
-  function handleCTA(skill: ResolvedMarketplaceSkill) {
-    const action = (skill.availability.cta ?? 'enable') as SkillCTAAction
-    switch (action) {
-      case 'login':
-        window.location.assign('/sign-in')
-        break
-      case 'upgrade':
-      case 'renew':
-        window.location.assign('/wallet')
-        break
-      case 'contact_sales':
-        window.location.href = 'mailto:support@deeprouter.co'
-        break
-      case 'enable':
-      case 'download':
-        window.location.href = `/api/v1/marketplace/skills/${encodeURIComponent(
-          skill.slug || skill.id
-        )}/download`
-        break
-      case 'use':
-        toast.info(t('Download the Skill package and use it in your tool.'))
-        break
-      case 'unavailable':
-      default:
-        break
-    }
-  }
-
-  function cardRef(skillId: string, index: number) {
+  function cardRef(skillId: string) {
     return (node: HTMLDivElement | null) => {
       if (node == null) {
         observedCards.current.delete(skillId)
         return
       }
       node.dataset.skillId = skillId
-      node.dataset.skillPosition = String(index)
       observedCards.current.set(skillId, node)
       observerRef.current?.observe(node)
     }
-    if (!newSkill || newSkillBannerDismissed) return
-    void recordMarketplaceSkillEvent(newSkill.slug || newSkill.id, {
-      event_type: 'skill_impression',
-      entry_point: 'new',
-    }).catch(() => undefined)
-  }, [newSkill, newSkillBannerDismissed])
+  }
 
-  // Every Marketplace discovery surface (card + new-skill banner) routes to the
-  // Skill Detail page. The real Download action lives only on that page, where it
-  // goes through downloadSkillPackage() (axios api client → New-Api-User header).
-  // We never trigger a download URL directly from the list/banner: native
-  // navigation omits New-Api-User (SkillUserAuth 401) and would bypass the detail
-  // page's runtime-key copy + plan/auth/download error mapping.
   const goToSkillDetail = (
     skill: MarketplaceSkill,
     entryPoint: SkillGrowthEntryPoint
   ) => {
-    void recordMarketplaceSkillEvent(skill.slug || skill.id, {
-      event_type: 'skill_detail_view',
-      entry_point: entryPoint,
-    }).catch(() => undefined)
-    void navigate({ to: '/skills/$slug', params: { slug: skill.slug } })
+    if (entryPoint === 'marketplace_card') {
+      emitEvent({
+        event_type: 'skill_detail_view',
+        skill_id: skill.id,
+        entry_point: 'marketplace_card',
+      })
+    } else {
+      void recordMarketplaceSkillEvent(skill.slug || skill.id, {
+        event_type: 'skill_detail_view',
+        entry_point: entryPoint,
+      }).catch(() => undefined)
+    }
+    void navigate({
+      to: '/skills/$slug',
+      params: { slug: skill.slug || skill.id },
+    })
   }
 
   return (
@@ -497,17 +477,18 @@ export function Marketplace() {
             </div>
           ) : filteredSkills.length > 0 ? (
             <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
-              {filteredSkills.map((skill, index) => (
+              {filteredSkills.map((skill) => (
                 <SkillCard
                   key={skill.id}
                   skill={skill}
+                  cta='view'
                   onOpen={(cardSkill) =>
-                    handleOpenSkill(cardSkill as ResolvedMarketplaceSkill)
+                    goToSkillDetail(cardSkill, 'marketplace_card')
                   }
                   onCTA={(cardSkill) =>
-                    handleCTA(cardSkill as ResolvedMarketplaceSkill)
+                    goToSkillDetail(cardSkill, 'marketplace_card')
                   }
-                  cardRef={cardRef(skill.id, index)}
+                  cardRef={cardRef(skill.id)}
                 />
               ))}
             </div>
@@ -527,52 +508,6 @@ export function Marketplace() {
           )}
         </div>
       </SectionPageLayout.Content>
-      <Dialog
-        open={selectedSkill != null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedSkill(null)
-        }}
-      >
-        {selectedSkill != null && (
-          <DialogContent className='sm:max-w-lg'>
-            <DialogHeader>
-              <div className='flex flex-wrap items-center gap-2'>
-                <PlanBadge plan={selectedSkill.required_plan} />
-                {selectedSkill.is_kids_safe && <KidsBadge state='kids_safe' />}
-                {selectedSkill.is_kids_exclusive && (
-                  <KidsBadge state='kids_exclusive' />
-                )}
-              </div>
-              <DialogTitle>{selectedSkill.name}</DialogTitle>
-              <DialogDescription>
-                {selectedSkill.short_description ||
-                  selectedSkill.description ||
-                  t('No description provided.')}
-              </DialogDescription>
-            </DialogHeader>
-            <div className='grid gap-3 text-sm'>
-              <div className='flex items-center justify-between rounded-lg border p-3'>
-                <span className='text-muted-foreground'>{t('Category')}</span>
-                <span>{selectedSkill.category || t('Uncategorized')}</span>
-              </div>
-              <div className='flex items-center justify-between rounded-lg border p-3'>
-                <span className='text-muted-foreground'>{t('Status')}</span>
-                <span>
-                  {t(labelForStatus(skillStatusFilterValue(selectedSkill)))}
-                </span>
-              </div>
-            </div>
-            <DialogFooter>
-              <SkillCTA
-                action={
-                  (selectedSkill.availability.cta ?? 'enable') as SkillCTAAction
-                }
-                onClick={() => handleCTA(selectedSkill)}
-              />
-            </DialogFooter>
-          </DialogContent>
-        )}
-      </Dialog>
     </SectionPageLayout>
   )
 }

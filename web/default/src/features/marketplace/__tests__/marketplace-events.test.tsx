@@ -4,7 +4,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 */
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Marketplace } from '../index'
@@ -16,6 +16,8 @@ const mockGetAllMarketplaceSkills = vi.hoisted(() =>
 const mockEmitMarketplaceEvent = vi.hoisted(() =>
   vi.fn<(payload: MarketplaceEventPayload) => Promise<void>>()
 )
+const mockRecordMarketplaceSkillEvent = vi.hoisted(() => vi.fn())
+const mockNavigate = vi.hoisted(() => vi.fn())
 
 class MockIntersectionObserver {
   static instances: MockIntersectionObserver[] = []
@@ -55,6 +57,11 @@ class MockIntersectionObserver {
 vi.mock('../api', () => ({
   getAllMarketplaceSkills: mockGetAllMarketplaceSkills,
   emitMarketplaceEvent: mockEmitMarketplaceEvent,
+  recordMarketplaceSkillEvent: mockRecordMarketplaceSkillEvent,
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => mockNavigate,
 }))
 
 vi.mock('react-i18next', () => ({
@@ -161,6 +168,7 @@ vi.mock('../components', () => ({
   EmptyState: ({ kind }: { kind: string }) => <div>{kind}</div>,
   ErrorBanner: () => <div>error</div>,
   KidsBadge: () => <span>Kids Safe</span>,
+  NewSkillBanner: () => <div>new skill banner</div>,
   PlanBadge: ({ plan }: { plan: string }) => <span>{plan}</span>,
   SkillCTA: ({ action }: { action: string }) => <button>{action}</button>,
   SkillCard: ({
@@ -212,9 +220,11 @@ describe('Marketplace analytics events', () => {
       ],
     })
     mockEmitMarketplaceEvent.mockResolvedValue()
+    mockRecordMarketplaceSkillEvent.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
@@ -230,26 +240,22 @@ describe('Marketplace analytics events', () => {
     await waitFor(() => {
       expect(mockEmitMarketplaceEvent).toHaveBeenCalled()
     })
-    expect(mockEmitMarketplaceEvent.mock.calls[0][0]).toEqual(
-      expect.objectContaining({
-        event_type: 'skill_impression',
-        skill_id: 'skill-1',
-        entry_point: 'marketplace_card',
-      })
-    )
+    expect(mockEmitMarketplaceEvent.mock.calls[0][0]).toEqual({
+      event_type: 'skill_impression',
+      skill_id: 'skill-1',
+      entry_point: 'marketplace_card',
+    })
   })
 
   it('fires detail view when a card opens', async () => {
     renderMarketplace()
     await userEvent.click(await screen.findByText('Draft Helper'))
 
-    expect(mockEmitMarketplaceEvent.mock.calls[0][0]).toEqual(
-      expect.objectContaining({
-        event_type: 'skill_detail_view',
-        skill_id: 'skill-1',
-        entry_point: 'marketplace_card',
-      })
-    )
+    expect(mockEmitMarketplaceEvent.mock.calls[0][0]).toEqual({
+      event_type: 'skill_detail_view',
+      skill_id: 'skill-1',
+      entry_point: 'marketplace_card',
+    })
   })
 
   it('keeps server search results that match tokens but not a contiguous substring', async () => {
@@ -280,5 +286,25 @@ describe('Marketplace analytics events', () => {
       )
     })
     expect(screen.getByText('Draft Legal Helper')).toBeInTheDocument()
+  })
+
+  it('debounces search before refetching server-filtered pages', async () => {
+    renderMarketplace()
+    await screen.findByText('Draft Helper')
+    mockGetAllMarketplaceSkills.mockClear()
+
+    fireEvent.change(await screen.findByLabelText('Search Skills'), {
+      target: { value: 'draft helper' },
+    })
+
+    expect(mockGetAllMarketplaceSkills).not.toHaveBeenCalled()
+
+    await waitFor(() => {
+      expect(mockGetAllMarketplaceSkills).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          query: 'draft helper',
+        })
+      )
+    })
   })
 })
