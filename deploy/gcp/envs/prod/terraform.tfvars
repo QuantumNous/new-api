@@ -43,11 +43,11 @@ enable_usage_recon_token = true
 enable_staging         = true
 enable_staging_domains = true
 
-// --- Go runtime split (Phase 1: create services/backends, no traffic cutover) ---
-// Creates `newapi-router` as NODE_TYPE=slave and `newapi-console` as NODE_TYPE=master.
-// The LB host rules stay absent while the
-// domain lists remain [], so router.flatkey.ai / console.flatkey.ai keep their
-// current routing until a later, explicit cutover apply.
+// --- Go runtime split (live) ---
+// `newapi-router` serves model/API traffic as NODE_TYPE=slave.
+// `newapi-console` serves dashboard/admin/API traffic as NODE_TYPE=master.
+// The LB host rules below route router.flatkey.ai and console.flatkey.ai to
+// their dedicated backend services; legacy `newapi` remains the default backend.
 enable_runtime_split = true
 router_service_name  = "newapi-router"
 console_service_name = "newapi-console"
@@ -69,16 +69,15 @@ console_min_instances = 1
 console_max_instances = 5
 console_concurrency   = 80
 
-// --- Standalone Next.js website (apex flatkey.ai + www → Node; everything else → Go) ---
+// --- Standalone Next.js website (apex flatkey.ai + www → Node) ---
 // website_domains are served through Cloudflare orange-cloud (depth ≤ 2, covered by
 // Universal SSL), so they are intentionally NOT in lb_domains: no managed-cert rotation,
-// no HTTPS downtime window. The Go console moves to console.flatkey.ai (also orange,
-// reached via the LB default backend — no lb_domains change needed for it either).
+// no HTTPS downtime window. The Go console is reached at console.flatkey.ai,
+// Cloudflare-proxied, and routed by the dedicated console LB host_rule.
 enable_website             = true
 website_service_name       = "newapi-web"
 website_app_console_origin = "https://console.flatkey.ai"
 website_site_origin        = "https://flatkey.ai"
-// Phase C (flipped): apex + www are routed to the Next.js website backend via the
-// LB host_rule; everything else (console/router/etc.) stays on the Go app.
-// Reverting to [] and re-applying instantly rolls back (host_rule disappears).
+// Apex + www are routed to the Next.js website backend via the LB host_rule.
+// Reverting to [] and re-applying rolls website hosts back to the default backend.
 website_domains = ["flatkey.ai", "www.flatkey.ai"]
