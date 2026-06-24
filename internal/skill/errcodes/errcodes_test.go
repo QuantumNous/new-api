@@ -234,6 +234,26 @@ func TestDR70BlockedMapping_DependencyGated(t *testing.T) {
 	}
 }
 
+// TestDR70BlockedMapping_RuntimeBlockedCodes locks the runtime blocked mappings
+// that DR-70 currently includes in SkillBlockedReasonFor even when individual
+// production call sites may be covered by separate integration-style tests.
+func TestDR70BlockedMapping_RuntimeBlockedCodes(t *testing.T) {
+	cases := []struct {
+		code   ErrorCode
+		reason enums.BlockReason
+	}{
+		{ErrSkillKidsModeBlocked, enums.BlockReasonKidsModeBlocked},
+		{ErrSkillContextTooLong, enums.BlockReasonContextTooLong},
+		{ErrSkillRateLimited, enums.BlockReasonRateLimited},
+	}
+
+	for _, tc := range cases {
+		got, ok := SkillBlockedReasonFor(tc.code)
+		require.True(t, ok, "expected DR-70 runtime mapping for %q", tc.code)
+		assert.Equal(t, tc.reason, got, "SkillBlockedReasonFor(%q)", tc.code)
+	}
+}
+
 // TestDR70BlockedMapping_TimeoutIsMappingOnly locks the canonical timeout mapping
 // without implying the current runtime already has a live pre-injection timeout path.
 func TestDR70BlockedMapping_TimeoutIsMappingOnly(t *testing.T) {

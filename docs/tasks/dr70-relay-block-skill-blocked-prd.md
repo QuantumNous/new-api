@@ -197,7 +197,7 @@ Blocked-event target contract:
 - `error_code`: required uppercase
 - `block_reason`: required lowercase
 - server timestamp: required; represented as event `timestamp` and persisted `occurred_at`
-- `metadata.schema_version`: required and fixed to string `"1.0"`
+- `metadata.schema_version`: required and stamped centrally by the DR-74 persistence / `BeforeCreate` hook
 - `skill_id`: use the request-supplied or route-supplied skill identifier when present; nullable only if the request was already classified as a Skill execution attempt but the identifier could not be extracted or resolved
 - `skill_version_id`: nullable before version binding; required once request-entry binding resolves it
 - `user_id` and `tenant_id`: nullable for `AUTH_REQUIRED` before identity resolution
@@ -506,7 +506,10 @@ Phase 0 for DR-70 is complete only when the following decisions are recorded in 
    - if no real `entry_point` can be determined, skip emission, log the omission, and disclose it in PR notes
 
 2. Lock `metadata.schema_version`.
-   Use `metadata.schema_version = "1.0"` and assert that exact string in tests.
+   Decision:
+   - DR-70 must not manually stamp `metadata.schema_version`
+   - `metadata.schema_version = "1.0"` is stamped centrally by the DR-74 persistence / `BeforeCreate` hook
+   - DR-70 tests verify blocked-event persistence behavior, but do not duplicate schema-version ownership
 
 3. Add a single blocked-emission owner.
    Introduce one request-scoped helper at the relay boundary that:
@@ -523,21 +526,21 @@ Phase 0 for DR-70 is complete only when the following decisions are recorded in 
    - generated request ID is correlation-only and does not imply successful `Resolve()`
 
 5. Confirm the current in-scope blocked taxonomy against executable code.
-   Required now:
+   Mapped in DR-70:
    - `AUTH_REQUIRED`
    - `SKILL_NOT_FOUND`
    - `SKILL_NOT_PUBLISHED`
    - `SKILL_NOT_ENABLED`
-   Optional only when a real current path exists:
-   - `SKILL_KIDS_MODE_BLOCKED`
-   - `SKILL_CONTEXT_TOO_LONG`
-   - `SKILL_RATE_LIMITED`
-   Reserved only until a real path exists:
-   - `SKILL_TIMEOUT`
-   Dependency-gated:
    - `SKILL_PLAN_REQUIRED`
    - `SKILL_SUBSCRIPTION_INACTIVE`
    - `SKILL_QUOTA_EXCEEDED`
+   - `SKILL_KIDS_MODE_BLOCKED`
+   - `SKILL_CONTEXT_TOO_LONG`
+   - `SKILL_RATE_LIMITED`
+   - `SKILL_TIMEOUT`
+   Coverage note:
+   - some mapped codes are dependency-gated or mapping-only until their live pre-provider blocked paths exist
+   - mapping presence does not claim every code currently has a live production path
 
 6. Add an analytics writer seam before claiming failure-path coverage.
    `skillmodel.EmitSkillUsageEvent(db, event)` currently calls `db.Create(...)` directly, so a focused write-failure test needs an injectable wrapper or equivalent seam.
