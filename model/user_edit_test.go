@@ -36,3 +36,21 @@ func TestUserEditPreservesEnterpriseFlagWhenRequestOmitsIt(t *testing.T) {
 	require.Equal(t, "Renamed User", got.DisplayName)
 	require.Equal(t, "updated", got.Remark)
 }
+
+func TestAdminInsertDefaultsToDefaultGroup(t *testing.T) {
+	truncateTables(t)
+
+	user := &User{
+		Username:    "admin_default_group",
+		DisplayName: "Admin Default Group",
+		Password:    "password123",
+		Role:        common.RoleAdminUser,
+		Status:      common.UserStatusEnabled,
+	}
+	require.NoError(t, user.Insert(0))
+
+	var got User
+	require.NoError(t, DB.First(&got, user.Id).Error)
+	require.Equal(t, defaultUserGroup, got.Group)
+	require.True(t, got.IsEnterprise)
+}

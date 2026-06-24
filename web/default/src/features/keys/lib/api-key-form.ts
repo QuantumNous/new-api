@@ -92,14 +92,14 @@ export function getApiKeyFormDefaultValues(
 /**
  * Transform form data to API payload
  *
- * Non-enterprise (PLG) users have the group concept hidden; their keys are
- * always forced to the `plg` group (cross-group retry never applies).
+ * PLG users have the group concept hidden; their keys are always forced to the `plg`
+ * group (cross-group retry never applies).
  */
 export function transformFormDataToPayload(
   data: ApiKeyFormValues,
-  isEnterprise = true
+  canUseGroups = true
 ): ApiKeyFormData {
-  const group = isEnterprise ? data.group || '' : PLG_GROUP
+  const group = canUseGroups ? data.group || '' : PLG_GROUP
   return {
     name: data.name,
     remain_quota: data.unlimited_quota
