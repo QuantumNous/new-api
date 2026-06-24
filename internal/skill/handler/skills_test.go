@@ -1578,6 +1578,51 @@ func TestActivateAdminSkillVersion_DemotesPriorActiveAndAudits(t *testing.T) {
 	assert.Equal(t, string(enums.SkillVersionStatusActive), after["status"])
 }
 
+func TestActivateAdminSkillVersion_PersistsVersionPackageArtifact(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s := testSkill("version-activate-package", "published")
+	maxInput := 2048
+	s.MaxInputTokens = &maxInput
+	require.NoError(t, db.Create(&s).Error)
+	v1 := validHandlerSkillVersion(s.ID, 1)
+	v1.Status = enums.SkillVersionStatusActive
+	require.NoError(t, db.Create(&v1).Error)
+	v2 := validHandlerSkillVersion(s.ID, 2)
+	v2.InstructionTemplate = "activated v2 package template"
+	sum := sha256.Sum256([]byte(v2.InstructionTemplate))
+	v2.InstructionTemplateSHA256 = hex.EncodeToString(sum[:])
+	require.NoError(t, db.Create(&v2).Error)
+	require.NoError(t, db.Model(&skillmodel.Skill{}).Where("id = ?", s.ID).Update("active_version_id", v1.ID).Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/versions/"+v2.ID+"/activate", `{"reason":"activate package artifact"}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}, {Key: "version_id", Value: v2.ID}}
+	c.Set("id", 101)
+	c.Set("role", 100)
+
+	ActivateAdminSkillVersion(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var stored skillmodel.SkillVersion
+	require.NoError(t, db.First(&stored, "id = ?", v2.ID).Error)
+	require.NotEmpty(t, stored.PackageZip)
+	require.NotNil(t, stored.PackageSHA256)
+	require.NotNil(t, stored.PackageBuiltAt)
+	packageSum := sha256.Sum256(stored.PackageZip)
+	assert.Equal(t, hex.EncodeToString(packageSum[:]), *stored.PackageSHA256)
+	assert.Equal(t, "activated v2 package template", readZipEntry(t, stored.PackageZip, "instruction_template.md"))
+
+	downloadC, downloadW := testContext("/api/v1/marketplace/skill-versions/" + v2.ID + "/download")
+	downloadC.Params = gin.Params{{Key: "skill_version_id", Value: v2.ID}}
+	downloadC.Set("id", 7)
+	downloadC.Set("group", "default")
+	DownloadSkillVersionPackage(downloadC)
+
+	require.Equal(t, http.StatusOK, downloadW.Code)
+	assert.Equal(t, stored.PackageZip, downloadW.Body.Bytes(), "activated version download must serve stored publish-time bytes")
+	assert.Equal(t, "activated v2 package template", readZipEntry(t, downloadW.Body.Bytes(), "instruction_template.md"))
+}
+
 func TestPublishAdminSkill_PublishesAndEmitsAuditAndEvent(t *testing.T) {
 	db := testSkillDB(t)
 	SetDB(db)
