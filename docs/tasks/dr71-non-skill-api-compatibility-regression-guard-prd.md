@@ -1,11 +1,11 @@
 # DR-71 Non-Skill API Compatibility Regression Guard PRD
 
-Status: eval
+Status: ship
 Owner: DeepRouter
 Ticket: DR-71
 Phase: 1
 Module: M05
-Updated: 2026-06-23
+Updated: 2026-06-24
 
 ## Scope
 
@@ -38,3 +38,12 @@ behavior changes.
 - Captured upstream provider payload for a normal request equals the expected
   legacy payload.
 - Focused regression test passes.
+
+## Ship Notes
+
+- Implemented guard in `relay/compatible_handler.go`: the Skill relay path only
+  resolves/loads when `deeprouter.skill_id` is non-empty.
+- Added focused regression coverage in `relay/compatible_handler_skill_test.go`
+  for normal chat-completions requests without `skill_id`, including upstream
+  payload equality and untouched smart-router context.
+- Verified on 2026-06-24 with focused relay regression tests.

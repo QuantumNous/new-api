@@ -63,6 +63,7 @@ func SetSkillRouter(router *gin.Engine) {
 			adminRoute.POST("/skills/:skill_id/versions", skillhandler.CreateAdminSkillVersion)
 			adminRoute.GET("/skills/:skill_id/versions/:version_id", skillhandler.GetAdminSkillVersion)
 			adminRoute.POST("/skills/:skill_id/versions/:version_id/activate", skillhandler.ActivateAdminSkillVersion)
+			adminRoute.POST("/skills/:skill_id/publish", skillhandler.PublishAdminSkill)
 		}
 
 		opsRoute := v1.Group("/ops")
