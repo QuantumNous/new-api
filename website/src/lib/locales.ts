@@ -20,6 +20,13 @@ export function isLocale(value: string | undefined): value is Locale {
   return LOCALES.some((locale) => locale === value);
 }
 
+export function resolveLocaleFromPathname(pathname: string | null | undefined): Locale {
+  if (!pathname) return DEFAULT_LOCALE;
+  const normalized = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  const [, firstSegment] = normalized.split("/");
+  return isLocale(firstSegment) ? firstSegment : DEFAULT_LOCALE;
+}
+
 export function localizePath(pathname: string, locale: Locale): string {
   const normalized = pathname.startsWith("/") ? pathname : `/${pathname}`;
   if (locale === DEFAULT_LOCALE) return normalized;

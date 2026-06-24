@@ -19,6 +19,7 @@ const INTERNAL_PUBLIC_PATH_PREFIXES = [
   "/refund-policy",
   "/sign-in",
   "/sign-up",
+  "/setup",
   "/sla",
   "/terms",
   "/use-case",
@@ -308,7 +309,7 @@ export function sanitizeBlogHtml(html: string, locale: Locale = DEFAULT_LOCALE):
 }
 
 export function rewriteBlogHref(href: string | undefined, locale: Locale = DEFAULT_LOCALE): string | undefined {
-  const value = href?.trim();
+  const value = normalizeHtmlAttributeValue(href);
   if (!value) return value;
   if (
     value.startsWith("#") ||
@@ -428,7 +429,20 @@ function rewriteBlogAnchorAttributes(
   locale: Locale
 ): Record<string, string> {
   const href = rewriteBlogHref(attribs.href, locale);
-  return href ? { ...attribs, href } : attribs;
+  const target = normalizeHtmlAttributeValue(attribs.target);
+  const rel = normalizeHtmlAttributeValue(attribs.rel);
+
+  const nextAttribs = { ...attribs };
+  if (href) nextAttribs.href = href;
+  else delete nextAttribs.href;
+
+  if (target) nextAttribs.target = target;
+  else delete nextAttribs.target;
+
+  if (rel) nextAttribs.rel = rel;
+  else delete nextAttribs.rel;
+
+  return nextAttribs;
 }
 
 function localizeInternalPublicPath(pathname: string, locale: Locale): string | null {
@@ -443,4 +457,29 @@ function localizeInternalPublicPath(pathname: string, locale: Locale): string | 
 function shouldLocalizeInternalPublicPath(pathname: string): boolean {
   if (pathname === "/") return true;
   return INTERNAL_PUBLIC_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
+function normalizeHtmlAttributeValue(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return trimmed;
+
+  let normalized = trimmed;
+  let previous = "";
+
+  while (normalized && normalized !== previous) {
+    previous = normalized;
+    normalized = normalized
+      .replace(/^\\+/, "")
+      .replace(/\\+$/, "")
+      .trim();
+
+    if (
+      (normalized.startsWith('"') && normalized.endsWith('"')) ||
+      (normalized.startsWith("'") && normalized.endsWith("'"))
+    ) {
+      normalized = normalized.slice(1, -1).trim();
+    }
+  }
+
+  return normalized.replace(/^['"]+/, "").replace(/['"]+$/, "").trim() || undefined;
 }

@@ -18,6 +18,16 @@ describe("rewriteBlogHref", () => {
     expect(rewriteBlogHref("https://example.com/blog/post", "zh")).toBe("https://example.com/blog/post");
     expect(rewriteBlogHref("#section-1", "zh")).toBe("#section-1");
   });
+
+  test("normalizes quoted internal and external links before rewriting", () => {
+    expect(rewriteBlogHref('\\"/setup\\"', "ja")).toBe("/ja/setup");
+    expect(rewriteBlogHref('\\"https://flatkey.ai/pricing?tab=image\\"', "vi")).toBe(
+      "https://flatkey.ai/vi/pricing?tab=image"
+    );
+    expect(rewriteBlogHref('\\"https://ai.google.dev/gemini-api/docs/pricing\\"', "ja")).toBe(
+      "https://ai.google.dev/gemini-api/docs/pricing"
+    );
+  });
 });
 
 describe("sanitizeBlogHtml", () => {
@@ -29,5 +39,18 @@ describe("sanitizeBlogHtml", () => {
 
     expect(html).toContain('href="/zh/pricing"');
     expect(html).toContain('href="https://flatkey.ai/zh/sign-up"');
+  });
+
+  test("normalizes malformed quoted href, rel, and target values", () => {
+    const html = sanitizeBlogHtml(
+      `<p><a href='\\"/sign-up\\"' rel='\\"noopener' target='\\"_blank\\"'>Start</a></p>
+       <p><a href='\\"https://ai.google.dev/gemini-api/docs/image-generation\\"'>Docs</a></p>`,
+      "vi"
+    );
+
+    expect(html).toContain('href="/vi/sign-up"');
+    expect(html).toContain('rel="noopener"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('href="https://ai.google.dev/gemini-api/docs/image-generation"');
   });
 });
