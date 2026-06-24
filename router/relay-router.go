@@ -115,10 +115,13 @@ func SetRelayRouter(router *gin.Engine) {
 
 		// image related routes
 		httpRouter.POST("/edits", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
+			if isAsyncImageRequest(c) {
+				controller.RelayAsyncImage(c)
+			} else {
+				controller.Relay(c, types.RelayFormatOpenAIImage)
+			}
 		})
 		httpRouter.POST("/images/generations", func(c *gin.Context) {
-			// Check for async mode by peeking at the request body
 			if isAsyncImageRequest(c) {
 				controller.RelayAsyncImage(c)
 			} else {
@@ -126,7 +129,11 @@ func SetRelayRouter(router *gin.Engine) {
 			}
 		})
 		httpRouter.POST("/images/edits", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
+			if isAsyncImageRequest(c) {
+				controller.RelayAsyncImage(c)
+			} else {
+				controller.Relay(c, types.RelayFormatOpenAIImage)
+			}
 		})
 
 		// embedding related routes
