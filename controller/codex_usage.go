@@ -21,6 +21,12 @@ import (
 )
 
 const codexLimitReportRequestTimeout = 60 * time.Second
+const maxCodexInviteRequestBodyBytes int64 = 8 << 10
+
+type codexInviteRequest struct {
+	Emails                    []string `json:"emails"`
+	ConfirmedRecipientConsent bool     `json:"confirmed_recipient_consent"`
+}
 
 func GetCodexChannelUsage(c *gin.Context) {
 	channelId, err := strconv.Atoi(c.Param("id"))
@@ -308,6 +314,128 @@ func ConsumeCodexResetCredit(c *gin.Context) {
 	}
 	if err != nil {
 		common.SysError("failed to consume codex reset credit: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	var payload any
+	if common.Unmarshal(body, &payload) != nil {
+		payload = string(body)
+	}
+	ok := statusCode >= 200 && statusCode < 300
+	resp := gin.H{
+		"success":         ok,
+		"message":         "",
+		"upstream_status": statusCode,
+		"data":            payload,
+	}
+	if !ok {
+		resp["message"] = fmt.Sprintf("upstream status: %d", statusCode)
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func GetCodexInviteStatus(c *gin.Context) {
+	channelId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
+		return
+	}
+
+	ch, err := model.GetChannelById(channelId, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if ch == nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
+		return
+	}
+
+	statusCode, body, refreshed, err := codexChannelUpstreamWithRefresh(
+		c.Request.Context(), ch,
+		func(client *http.Client, accessToken, accountID string) (int, []byte, error) {
+			reqCtx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+			defer cancel()
+			return service.FetchCodexInviteStatus(reqCtx, client, ch.GetBaseURL(), accessToken, accountID)
+		},
+	)
+	if refreshed {
+		rebuildCodexChannelCache()
+	}
+	writeCodexUpstreamResponse(c, "failed to fetch codex invite status: ", statusCode, body, err)
+}
+
+func SendCodexInvite(c *gin.Context) {
+	channelId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
+		return
+	}
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxCodexInviteRequestBodyBytes)
+	var req codexInviteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	normalizedEmails, err := service.NormalizeCodexInviteEmails(req.Emails)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	ch, err := model.GetChannelById(channelId, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if ch == nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
+		return
+	}
+
+	statusCode, body, refreshed, err := codexChannelUpstreamWithRefresh(
+		c.Request.Context(), ch,
+		func(client *http.Client, accessToken, accountID string) (int, []byte, error) {
+			statusCtx, statusCancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+			statusCode, statusBody, err := service.FetchCodexInviteStatus(statusCtx, client, ch.GetBaseURL(), accessToken, accountID)
+			statusCancel()
+			if err != nil || statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+				return statusCode, statusBody, err
+			}
+			if err := ensureCodexInviteRecipientConsent(statusBody, req.ConfirmedRecipientConsent); err != nil {
+				payload, marshalErr := common.Marshal(gin.H{"message": err.Error()})
+				if marshalErr != nil {
+					return 0, nil, marshalErr
+				}
+				return http.StatusBadRequest, payload, nil
+			}
+			sendCtx, sendCancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+			defer sendCancel()
+			return service.SendCodexInvite(sendCtx, client, ch.GetBaseURL(), accessToken, accountID, normalizedEmails)
+		},
+	)
+	if refreshed {
+		rebuildCodexChannelCache()
+	}
+	writeCodexUpstreamResponse(c, "failed to send codex invite: ", statusCode, body, err)
+}
+
+func ensureCodexInviteRecipientConsent(statusBody []byte, confirmed bool) error {
+	requiresConsent, err := service.CodexInviteRequiresRecipientConsent(statusBody)
+	if err != nil {
+		return fmt.Errorf("failed to parse codex invite status: %w", err)
+	}
+	if requiresConsent && !confirmed {
+		return fmt.Errorf("recipient consent confirmation is required before sending Codex invites")
+	}
+	return nil
+}
+
+func writeCodexUpstreamResponse(c *gin.Context, logPrefix string, statusCode int, body []byte, err error) {
+	if err != nil {
+		common.SysError(logPrefix + err.Error())
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}

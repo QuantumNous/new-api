@@ -821,6 +821,7 @@
     "Codes copied!": "コードをコピーしました！",
     "Codex": "Codex",
     "Codex Account & Usage": "Codex アカウントと使用量",
+    "Codex Invites": "Codex 招待",
     "Codex Authorization": "Codex認証",
     "Codex Channels": "Codex チャネル",
     "Codex channels do not support batch creation": "Codex チャネルは一括作成をサポートしていません",
@@ -1720,6 +1721,15 @@
     "Failed to fetch upstream prices": "上流価格の取得に失敗しました",
     "Failed to fetch upstream ratios": "アップストリーム比率の取得に失敗しました",
     "Failed to fetch usage": "利用状況の取得に失敗しました",
+    "Enter at least one invite email": "招待メールアドレスを少なくとも 1 件入力してください",
+    "Enter invite emails separated by comma, space, or new line": "招待メールアドレスをカンマ、スペース、または改行で区切って入力してください",
+    "Up to {{max}} invite emails at a time": "一度に招待できるメールアドレスは最大 {{max}} 件です",
+    "Invalid invite email: {{email}}": "招待メールアドレスが無効です: {{email}}",
+    "Failed to load Codex invite status": "Codex 招待ステータスの読み込みに失敗しました",
+    "Confirm recipient consent before sending Codex invites": "Codex 招待を送信する前に受信者の同意を確認してください",
+    "Failed to send Codex invite": "Codex 招待の送信に失敗しました",
+    "Codex invite sent": "Codex 招待を送信しました",
+    "Invite failed for: {{emails}}": "招待に失敗しました: {{emails}}",
     "Failed to fetch user information": "ユーザー情報の取得に失敗しました",
     "Failed to fix abilities": "アビリティの修正に失敗しました",
     "Failed to generate token": "トークンの生成に失敗しました",
@@ -3915,6 +3925,8 @@
     "Selected when creating a token and used as the default billing group for API calls.": "トークン作成時に選択され、API 呼び出しのデフォルト課金グループとして使われます。",
     "Self-Use Mode": "セルフユースモード",
     "Send": "送信",
+    "Sending Codex invite...": "Codex 招待を送信中...",
+    "Send Codex invite": "Codex 招待を送信",
     "Send a DingTalk group robot alert when a scheduled channel test fails": "スケジュールされたチャネルテストが失敗したときに DingTalk グループロボットへアラートを送信します",
     "Send a request": "リクエストを送信",
     "Send code": "コードを送信",
@@ -5133,6 +5145,7 @@
     "Bonus is granted only to the selected user groups. Leave groups empty to grant to nobody; pick \"all\" to grant to every group.": "ボーナスは選択したユーザーグループにのみ付与されます。空のままにすると誰にも付与されません。「all」を選ぶとすべてのグループに付与されます。",
     "Tip: pick eligible user groups here. To change a tier later, click edit on its row.": "ヒント：ここで対象ユーザーグループを選択します。後で階層を変更するには、その行の編集をクリックしてください。",
     "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "各階層でボーナス対象となるユーザーグループのホワイトリスト（JSON オブジェクト）。空配列 = 誰にも付与しない、[\"all\"] = すべてのグループ。",
-    "A bonus tier with this recharge amount already exists.": "このチャージ金額のボーナス段階はすでに存在します。"
+    "A bonus tier with this recharge amount already exists.": "このチャージ金額のボーナス段階はすでに存在します。",
+    "I confirm these recipients consented to receive Codex invite emails": "これらの受信者が Codex 招待メールの受信に同意したことを確認します"
   }
 }

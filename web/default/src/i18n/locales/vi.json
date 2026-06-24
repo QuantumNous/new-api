@@ -821,6 +821,7 @@
     "Codes copied!": "Đã sao chép mã!",
     "Codex": "Codex",
     "Codex Account & Usage": "Tài khoản và sử dụng Codex",
+    "Codex Invites": "Lời mời Codex",
     "Codex Authorization": "Ủy quyền Codex",
     "Codex Channels": "Kênh Codex",
     "Codex channels do not support batch creation": "Kênh Codex không hỗ trợ tạo hàng loạt",
@@ -1720,6 +1721,15 @@
     "Failed to fetch upstream prices": "Không thể lấy giá từ upstream",
     "Failed to fetch upstream ratios": "Không thể lấy tỷ lệ upstream",
     "Failed to fetch usage": "Không lấy được mức sử dụng",
+    "Enter at least one invite email": "Nhập ít nhất một email để mời",
+    "Enter invite emails separated by comma, space, or new line": "Nhập email mời, phân tách bằng dấu phẩy, khoảng trắng hoặc dòng mới",
+    "Up to {{max}} invite emails at a time": "Mỗi lần có thể mời tối đa {{max}} email",
+    "Invalid invite email: {{email}}": "Email mời không hợp lệ: {{email}}",
+    "Failed to load Codex invite status": "Không tải được trạng thái lời mời Codex",
+    "Confirm recipient consent before sending Codex invites": "Xác nhận người nhận đồng ý trước khi gửi lời mời Codex",
+    "Failed to send Codex invite": "Không gửi được lời mời Codex",
+    "Codex invite sent": "Đã gửi lời mời Codex",
+    "Invite failed for: {{emails}}": "Mời thất bại cho: {{emails}}",
     "Failed to fetch user information": "Không lấy được thông tin người dùng",
     "Failed to fix abilities": "Không thể khắc phục các khả năng",
     "Failed to generate token": "Không thể tạo token",
@@ -3915,6 +3925,8 @@
     "Selected when creating a token and used as the default billing group for API calls.": "Được chọn khi tạo token và dùng làm nhóm tính phí mặc định cho các lệnh gọi API.",
     "Self-Use Mode": "Chế độ tự sử dụng",
     "Send": "Gửi",
+    "Sending Codex invite...": "Đang gửi lời mời Codex...",
+    "Send Codex invite": "Gửi lời mời Codex",
     "Send a DingTalk group robot alert when a scheduled channel test fails": "Gửi cảnh báo robot nhóm DingTalk khi kiểm thử kênh theo lịch thất bại",
     "Send a request": "Gửi yêu cầu",
     "Send code": "Gửi mã",
@@ -5133,6 +5145,7 @@
     "Bonus is granted only to the selected user groups. Leave groups empty to grant to nobody; pick \"all\" to grant to every group.": "Tiền thưởng chỉ được tặng cho các nhóm người dùng đã chọn. Để trống nghĩa là không tặng cho ai; chọn “all” để tặng cho mọi nhóm.",
     "Tip: pick eligible user groups here. To change a tier later, click edit on its row.": "Mẹo: chọn nhóm người dùng đủ điều kiện tại đây. Để thay đổi một mức sau này, nhấn sửa ở hàng của mức đó.",
     "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "Danh sách trắng các nhóm đủ điều kiện nhận thưởng theo từng mức (đối tượng JSON). Mảng rỗng = không ai; [\"all\"] = mọi nhóm.",
-    "A bonus tier with this recharge amount already exists.": "Đã tồn tại một mức thưởng với số tiền nạp này."
+    "A bonus tier with this recharge amount already exists.": "Đã tồn tại một mức thưởng với số tiền nạp này.",
+    "I confirm these recipients consented to receive Codex invite emails": "Tôi xác nhận các người nhận này đã đồng ý nhận email mời Codex"
   }
 }

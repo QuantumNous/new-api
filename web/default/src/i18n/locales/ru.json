@@ -821,6 +821,7 @@
     "Codes copied!": "Коды скопированы!",
     "Codex": "Codex",
     "Codex Account & Usage": "Аккаунт и использование Codex",
+    "Codex Invites": "Приглашения Codex",
     "Codex Authorization": "Авторизация Codex",
     "Codex Channels": "Каналы Codex",
     "Codex channels do not support batch creation": "Каналы Codex не поддерживают пакетное создание",
@@ -1720,6 +1721,15 @@
     "Failed to fetch upstream prices": "Не удалось получить цены провайдера",
     "Failed to fetch upstream ratios": "Не удалось получить коэффициенты upstream",
     "Failed to fetch usage": "Не удалось получить данные об использовании",
+    "Enter at least one invite email": "Введите хотя бы один адрес для приглашения",
+    "Enter invite emails separated by comma, space, or new line": "Введите адреса для приглашения через запятую, пробел или с новой строки",
+    "Up to {{max}} invite emails at a time": "За раз можно пригласить до {{max}} адресов",
+    "Invalid invite email: {{email}}": "Недопустимый адрес для приглашения: {{email}}",
+    "Failed to load Codex invite status": "Не удалось загрузить статус приглашений Codex",
+    "Confirm recipient consent before sending Codex invites": "Подтвердите согласие получателей перед отправкой приглашений Codex",
+    "Failed to send Codex invite": "Не удалось отправить приглашение Codex",
+    "Codex invite sent": "Приглашение Codex отправлено",
+    "Invite failed for: {{emails}}": "Не удалось пригласить: {{emails}}",
     "Failed to fetch user information": "Не удалось получить данные пользователя",
     "Failed to fix abilities": "Не удалось исправить способности",
     "Failed to generate token": "Не удалось сгенерировать токен",
@@ -3915,6 +3925,8 @@
     "Selected when creating a token and used as the default billing group for API calls.": "Выбирается при создании токена и используется как группа тарификации по умолчанию для вызовов API.",
     "Self-Use Mode": "Режим самоиспользования",
     "Send": "Отправить",
+    "Sending Codex invite...": "Отправка приглашения Codex...",
+    "Send Codex invite": "Отправить приглашение Codex",
     "Send a DingTalk group robot alert when a scheduled channel test fails": "Отправлять оповещение роботу группы DingTalk при сбое запланированного теста канала",
     "Send a request": "Отправить запрос",
     "Send code": "Отправить код",
@@ -5133,6 +5145,7 @@
     "Bonus is granted only to the selected user groups. Leave groups empty to grant to nobody; pick \"all\" to grant to every group.": "Бонус начисляется только выбранным группам пользователей. Оставьте пустым, чтобы не начислять никому; выберите «all», чтобы начислять всем группам.",
     "Tip: pick eligible user groups here. To change a tier later, click edit on its row.": "Совет: выберите подходящие группы здесь. Чтобы изменить уровень позже, нажмите «изменить» в его строке.",
     "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "Белый список групп, которым доступен бонус на каждом уровне (объект JSON). Пустой массив = никому; [\"all\"] = всем группам.",
-    "A bonus tier with this recharge amount already exists.": "Уровень бонуса с этой суммой пополнения уже существует."
+    "A bonus tier with this recharge amount already exists.": "Уровень бонуса с этой суммой пополнения уже существует.",
+    "I confirm these recipients consented to receive Codex invite emails": "Я подтверждаю, что эти получатели согласились получать письма с приглашением Codex"
   }
 }
