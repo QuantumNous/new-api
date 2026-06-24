@@ -202,9 +202,9 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 	}
 }
 
-func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamResponse, data string) {
+func sendResponsesStreamData(c *gin.Context, eventType string, data string) {
 	if data == "" {
 		return
 	}
-	helper.ResponseChunkData(c, streamResponse, data)
+	helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: eventType}, data)
 }

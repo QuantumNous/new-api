@@ -14,6 +14,8 @@ import (
 type BodyStorage interface {
 	io.ReadSeeker
 	io.Closer
+	// Open creates an independent reader for the stored body.
+	Open() (io.ReadCloser, error)
 	// Bytes 获取全部内容
 	Bytes() ([]byte, error)
 	// Size 获取数据大小
@@ -69,6 +71,15 @@ func (m *memoryStorage) Close() error {
 		DecrementMemoryBuffers(m.size)
 	}
 	return nil
+}
+
+func (m *memoryStorage) Open() (io.ReadCloser, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if atomic.LoadInt32(&m.closed) == 1 {
+		return nil, ErrStorageClosed
+	}
+	return io.NopCloser(bytes.NewReader(m.data)), nil
 }
 
 func (m *memoryStorage) Bytes() ([]byte, error) {
@@ -193,6 +204,15 @@ func (d *diskStorage) Close() error {
 		DecrementDiskFiles(d.size)
 	}
 	return nil
+}
+
+func (d *diskStorage) Open() (io.ReadCloser, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if atomic.LoadInt32(&d.closed) == 1 {
+		return nil, ErrStorageClosed
+	}
+	return os.Open(d.filePath)
 }
 
 func (d *diskStorage) Bytes() ([]byte, error) {

@@ -6,6 +6,13 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
+type ReplayableBody interface {
+	io.Reader
+	Open() (io.ReadCloser, error)
+	Size() int64
+	Close() error
+}
+
 // NewOutboundJSONBody wraps the already-marshaled upstream request body into a
 // BodyStorage. When disk cache is enabled and the payload exceeds the configured
 // threshold, the data is written to a temp file and the original []byte can be
@@ -28,4 +35,8 @@ func NewOutboundJSONBody(data []byte) (body io.Reader, size int64, closer io.Clo
 		return nil, 0, nil, err
 	}
 	return common.ReaderOnly(storage), storage.Size(), storage, nil
+}
+
+func NewReplayableOutboundJSONBody(data []byte) (ReplayableBody, error) {
+	return common.CreateBodyStorage(data)
 }

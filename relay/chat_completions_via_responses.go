@@ -124,17 +124,19 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 
-	body, size, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
+	body, err := relaycommon.NewReplayableOutboundJSONBody(jsonData)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
-	defer closer.Close()
 	jsonData = nil
-	info.UpstreamRequestBodySize = size
+	info.UpstreamRequestBodySize = body.Size()
 	var requestBody io.Reader = body
 
 	var httpResp *http.Response
-	resp, err := adaptor.DoRequest(c, info, requestBody)
+	resp, err := func() (any, error) {
+		defer closeReplayableOutboundBody(c, body, "outbound chat responses body")
+		return adaptor.DoRequest(c, info, requestBody)
+	}()
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
