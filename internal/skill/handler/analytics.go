@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -15,8 +16,23 @@ import (
 
 const (
 	defaultAnalyticsWindow = 7 * 24 * time.Hour
+	maxAnalyticsWindow     = 30 * 24 * time.Hour
 	wasuWindow             = 7 * 24 * time.Hour
+	freshnessDelayedAfter  = 15 * time.Minute
+	freshnessFailedAfter   = 60 * time.Minute
 )
+
+var analyticsNow = func() time.Time { return time.Now().UTC() }
+
+var p0AnalyticsEventTypes = []enums.SkillUsageEventType{
+	enums.SkillUsageEventTypeImpression,
+	enums.SkillUsageEventTypeDetailView,
+	enums.SkillUsageEventTypeEnabled,
+	enums.SkillUsageEventTypeFirstUse,
+	enums.SkillUsageEventTypeRepeatUse,
+	enums.SkillUsageEventTypeUsed,
+	enums.SkillUsageEventTypeBlocked,
+}
 
 type SkillAnalyticsOverview struct {
 	WASU                 int64    `json:"wasu"`
@@ -77,6 +93,11 @@ func GetOpsSkillAnalyticsOverview(c *gin.Context) {
 	}
 	wasuStart := period.End.Add(-wasuWindow)
 
+	dataFreshness, err := dataFreshness(db)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
 	wasu, err := countWASU(db, wasuStart, period.End)
 	if err != nil {
 		writeDBError(c, err)
@@ -134,7 +155,7 @@ func GetOpsSkillAnalyticsOverview(c *gin.Context) {
 		TopBlockReason:       topReason,
 		RevenueAttributionUS: nil,
 		ChargingEnabled:      false,
-		DataFreshness:        "ok",
+		DataFreshness:        dataFreshness,
 		PeriodStart:          period.Start.Format(time.RFC3339),
 		PeriodEnd:            period.End.Format(time.RFC3339),
 	})
@@ -235,7 +256,7 @@ type analyticsPeriod struct {
 }
 
 func parseAnalyticsPeriod(c *gin.Context) (analyticsPeriod, bool) {
-	now := time.Now().UTC()
+	now := analyticsNow().UTC()
 	end := now
 	start := now.Add(-defaultAnalyticsWindow)
 	if rawEnd := strings.TrimSpace(c.Query("end")); rawEnd != "" {
@@ -258,6 +279,10 @@ func parseAnalyticsPeriod(c *gin.Context) (analyticsPeriod, bool) {
 		writeAnalyticsQueryError(c, "INVALID_RANGE", "start must be before end")
 		return analyticsPeriod{}, false
 	}
+	if end.Sub(start) > maxAnalyticsWindow {
+		writeAnalyticsQueryError(c, "INVALID_RANGE", "date range must be 30 days or less")
+		return analyticsPeriod{}, false
+	}
 	return analyticsPeriod{Start: start, End: end}, true
 }
 
@@ -269,6 +294,50 @@ func analyticsEventsQuery(db *gorm.DB, start, end time.Time) *gorm.DB {
 	return db.Model(&skillmodel.SkillUsageEvent{}).
 		Where("occurred_at >= ? AND occurred_at < ?", start.UTC(), end.UTC()).
 		Where("entry_point <> ?", enums.EntryPointAdminPreview)
+}
+
+func p0AnalyticsEventsQuery(db *gorm.DB) *gorm.DB {
+	return db.Model(&skillmodel.SkillUsageEvent{}).
+		Where("entry_point <> ?", enums.EntryPointAdminPreview).
+		Where("event_type IN ?", p0AnalyticsEventTypes)
+}
+
+func dataFreshness(db *gorm.DB) (string, error) {
+	latest, ok, err := latestP0AnalyticsEventOccurredAt(db)
+	if err != nil {
+		return "", err
+	}
+	return dataFreshnessFromLatest(latest, ok, analyticsNow()), nil
+}
+
+func latestP0AnalyticsEventOccurredAt(db *gorm.DB) (time.Time, bool, error) {
+	var event skillmodel.SkillUsageEvent
+	err := p0AnalyticsEventsQuery(db).
+		Select("occurred_at").
+		Order("occurred_at DESC").
+		Limit(1).
+		Take(&event).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return time.Time{}, false, nil
+		}
+		return time.Time{}, false, err
+	}
+	return event.OccurredAt.UTC(), true, nil
+}
+
+func dataFreshnessFromLatest(latest time.Time, hasLatest bool, now time.Time) string {
+	if !hasLatest {
+		return "failed"
+	}
+	lag := now.UTC().Sub(latest.UTC())
+	if lag <= freshnessDelayedAfter {
+		return "ok"
+	}
+	if lag <= freshnessFailedAfter {
+		return "delayed"
+	}
+	return "failed"
 }
 
 func countWASU(db *gorm.DB, start, end time.Time) (int64, error) {

@@ -20,6 +20,7 @@ func TestGetOpsSkillAnalyticsOverviewAggregatesUsageEvents(t *testing.T) {
 	db := newAnalyticsTestDB(t)
 	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+	withAnalyticsNow(t, end.Add(10*time.Minute))
 	skillA := createAnalyticsSkill(t, db, "alpha", enums.RequiredPlanFree)
 	skillB := createAnalyticsSkill(t, db, "beta", enums.RequiredPlanPro)
 
@@ -35,6 +36,7 @@ func TestGetOpsSkillAnalyticsOverviewAggregatesUsageEvents(t *testing.T) {
 	emitAnalyticsEvent(t, db, start.Add(9*time.Hour), enums.SkillUsageEventTypeUsed, 2, skillB.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
 	emitAnalyticsEvent(t, db, start.Add(10*time.Hour), enums.SkillUsageEventTypeUsed, 3, skillB.ID, enums.EntryPointSkillPackage, boolPtr(false), nil)
 	emitAnalyticsEvent(t, db, start.Add(11*time.Hour), enums.SkillUsageEventTypeUsed, 9, skillB.ID, enums.EntryPointAdminPreview, boolPtr(true), nil)
+	emitAnalyticsEvent(t, db, end.Add(5*time.Minute), enums.SkillUsageEventTypeImpression, 10, skillB.ID, enums.EntryPointMarketplaceCard, nil, nil)
 
 	w := performAnalyticsHandlerRequest(t, "/?start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339), GetOpsSkillAnalyticsOverview)
 
@@ -144,6 +146,31 @@ func TestGetOpsSkillAnalyticsSkillsPaginatesDBOrderedRows(t *testing.T) {
 	assert.True(t, got.Pagination.HasNext)
 }
 
+func TestDataFreshnessFromLatestP0Event(t *testing.T) {
+	now := time.Date(2026, 6, 8, 12, 0, 0, 0, time.UTC)
+
+	assert.Equal(t, "ok", dataFreshnessFromLatest(now.Add(-15*time.Minute), true, now))
+	assert.Equal(t, "delayed", dataFreshnessFromLatest(now.Add(-16*time.Minute), true, now))
+	assert.Equal(t, "delayed", dataFreshnessFromLatest(now.Add(-60*time.Minute), true, now))
+	assert.Equal(t, "failed", dataFreshnessFromLatest(now.Add(-61*time.Minute), true, now))
+	assert.Equal(t, "failed", dataFreshnessFromLatest(time.Time{}, false, now))
+}
+
+func TestDataFreshnessIgnoresAdminPreview(t *testing.T) {
+	db := newAnalyticsTestDB(t)
+	now := time.Date(2026, 6, 8, 12, 0, 0, 0, time.UTC)
+	withAnalyticsNow(t, now)
+	skill := createAnalyticsSkill(t, db, "freshness", enums.RequiredPlanFree)
+
+	emitAnalyticsEvent(t, db, now.Add(-2*time.Hour), enums.SkillUsageEventTypeUsed, 1, skill.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
+	emitAnalyticsEvent(t, db, now.Add(-5*time.Minute), enums.SkillUsageEventTypeUsed, 2, skill.ID, enums.EntryPointAdminPreview, boolPtr(true), nil)
+
+	got, err := dataFreshness(db)
+
+	require.NoError(t, err)
+	assert.Equal(t, "failed", got)
+}
+
 func TestGetOpsSkillAnalyticsRejectsInvalidDateRange(t *testing.T) {
 	_ = newAnalyticsTestDB(t)
 	w := performAnalyticsHandlerRequest(t, "/?start=2026-06-08T00:00:00Z&end=2026-06-01T00:00:00Z", GetOpsSkillAnalyticsOverview)
@@ -151,6 +178,16 @@ func TestGetOpsSkillAnalyticsRejectsInvalidDateRange(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), `"code":"INVALID_REQUEST"`)
 	assert.Contains(t, w.Body.String(), `"reason":"INVALID_RANGE"`)
+}
+
+func TestGetOpsSkillAnalyticsRejectsRangeAboveMaxWindow(t *testing.T) {
+	_ = newAnalyticsTestDB(t)
+	w := performAnalyticsHandlerRequest(t, "/?start=2026-06-01T00:00:00Z&end=2026-07-02T00:00:00Z", GetOpsSkillAnalyticsOverview)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"INVALID_REQUEST"`)
+	assert.Contains(t, w.Body.String(), `"reason":"INVALID_RANGE"`)
+	assert.Contains(t, w.Body.String(), "30 days or less")
 }
 
 func newAnalyticsTestDB(t *testing.T) *gorm.DB {
@@ -162,6 +199,15 @@ func newAnalyticsTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
 	SetDB(db)
 	return db
+}
+
+func withAnalyticsNow(t *testing.T, now time.Time) {
+	t.Helper()
+	previous := analyticsNow
+	analyticsNow = func() time.Time { return now.UTC() }
+	t.Cleanup(func() {
+		analyticsNow = previous
+	})
 }
 
 func createAnalyticsSkill(t *testing.T, db *gorm.DB, name string, plan enums.RequiredPlan) skillmodel.Skill {
