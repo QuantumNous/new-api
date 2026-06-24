@@ -144,16 +144,16 @@ export function useSidebarData(): SidebarData {
             icon: CreditCard,
           },
           {
-            title: t('System Settings'),
-            url: '/system-settings/site',
-            activeUrls: ['/system-settings'],
-            icon: Settings,
-          },
-          {
             title: t('System Info'),
             url: '/system-info',
             icon: ServerCog,
             requiredRole: ROLE.SUPER_ADMIN,
+          },
+          {
+            title: t('System Settings'),
+            url: '/system-settings/site',
+            activeUrls: ['/system-settings'],
+            icon: Settings,
           },
         ],
       },
