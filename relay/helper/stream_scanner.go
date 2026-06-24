@@ -54,12 +54,13 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	streamingTimeout := time.Duration(constant.StreamingTimeout) * time.Second
 
 	var (
-		stopChan   = make(chan bool, 3) // 增加缓冲区避免阻塞
-		scanner    = NewStreamScanner(resp.Body)
-		ticker     = time.NewTicker(streamingTimeout)
-		pingTicker *time.Ticker
-		writeMutex sync.Mutex     // Mutex to protect concurrent writes
-		wg         sync.WaitGroup // 用于等待所有 goroutine 退出
+		stopChan    = make(chan bool, 3) // 增加缓冲区避免阻塞
+		scanner     = NewStreamScanner(resp.Body)
+		ticker      = time.NewTicker(streamingTimeout)
+		pingTicker  *time.Ticker
+		writeMutex  sync.Mutex     // Mutex to protect concurrent writes
+		wg          sync.WaitGroup // 用于等待所有 goroutine 退出
+		cleanupOnce sync.Once
 	)
 
 	generalSettings := operation_setting.GetGeneralSetting()
@@ -79,20 +80,23 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	logger.LogDebug(c, "streaming timeout seconds: %d", int64(streamingTimeout.Seconds()))
 	logger.LogDebug(c, "ping interval seconds: %d", int64(pingInterval.Seconds()))
 
+	cleanup := func() {
+		cleanupOnce.Do(func() {
+			cancel()
+			if resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+
+			ticker.Stop()
+			if pingTicker != nil {
+				pingTicker.Stop()
+			}
+
+			wg.Wait()
+		})
+	}
 	// Ensure gin.Context is not returned to Gin's pool while any stream goroutine can still use it.
-	defer func() {
-		cancel()
-		if resp.Body != nil {
-			_ = resp.Body.Close()
-		}
-
-		ticker.Stop()
-		if pingTicker != nil {
-			pingTicker.Stop()
-		}
-
-		wg.Wait()
-	}()
+	defer cleanup()
 
 	scanner.Split(bufio.ScanLines)
 	SetEventStreamHeaders(c)
@@ -257,6 +261,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	}
 
 done:
+	cleanup()
 	if info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() {
 		logger.LogInfo(c, fmt.Sprintf("stream ended: %s", info.StreamStatus.Summary()))
 	} else {
