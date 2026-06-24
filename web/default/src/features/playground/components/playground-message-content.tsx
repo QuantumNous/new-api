@@ -36,6 +36,7 @@ import {
 } from '@/components/ai-elements/sources'
 import { cn } from '@/lib/utils'
 
+import { MESSAGE_STATUS } from '../constants'
 import { getMessageContentState, isErrorMessage } from '../lib'
 import { getMessageContentStyles } from '../lib/message-styles'
 import type { Message } from '../types'
@@ -65,6 +66,9 @@ export function PlaygroundMessageContent({
     sources,
   } = getMessageContentState(message, versionContent)
   const isError = isErrorMessage(message)
+  const isMessageFinal =
+    message.status !== MESSAGE_STATUS.LOADING &&
+    message.status !== MESSAGE_STATUS.STREAMING
 
   return (
     <>
@@ -84,10 +88,7 @@ export function PlaygroundMessageContent({
       )}
 
       {hasReasoning && (
-        <Reasoning
-          defaultOpen={true}
-          isStreaming={message.isReasoningStreaming}
-        >
+        <Reasoning defaultOpen isStreaming={message.isReasoningStreaming}>
           <ReasoningTrigger />
           <ReasoningContent>{reasoningContent}</ReasoningContent>
         </Reasoning>
@@ -103,13 +104,11 @@ export function PlaygroundMessageContent({
       )}
 
       {isError && (
-        <>
-          <MessageError
-            actions={errorActions}
-            message={message}
-            className='mb-2'
-          />
-        </>
+        <MessageError
+          actions={errorActions}
+          message={message}
+          className='mb-2'
+        />
       )}
 
       {!isError && showMessageContent && (
@@ -118,7 +117,7 @@ export function PlaygroundMessageContent({
             variant='flat'
             className={cn(getMessageContentStyles())}
           >
-            <Response>{displayContent}</Response>
+            <Response final={isMessageFinal}>{displayContent}</Response>
           </MessageContent>
           {actions}
         </>
