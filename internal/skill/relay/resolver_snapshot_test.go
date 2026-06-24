@@ -256,6 +256,7 @@ func TestResolve_BindsSnapshotAtEntryEvenIfActiveVersionChangesMidFlight(t *test
 	require.NoError(t, database.Model(&skillmodel.Skill{}).
 		Where("id = ?", skill.ID).
 		Update("active_version_id", versionV2ID).Error)
+	addActiveSubscription(t, database, 108, "enterprise")
 
 	assert.Equal(t, versionV1.ID, skillCtx.SkillVersionID)
 	assert.Equal(t, versionV1.ID, skillCtx.SkillVersion.ID)
