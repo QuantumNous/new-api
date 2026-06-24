@@ -18,14 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import {
   IconDiscord,
   IconGithub,
   IconLinuxDo,
   IconWeChat,
 } from '@/assets/brand-icons'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+
 import { useOAuthLogin } from '../hooks/use-oauth-login'
 import type { SystemStatus } from '../types'
 
@@ -43,6 +45,23 @@ type ProviderButton = {
   onClick: () => void
   icon?: ReactNode
   disabled?: boolean
+}
+
+function CustomProviderIcon(props: { icon?: string; name: string }) {
+  if (!props.icon) return null
+
+  return (
+    <img
+      src={props.icon}
+      alt={props.name}
+      className='h-4 w-4 rounded-sm object-contain'
+      loading='lazy'
+      referrerPolicy='no-referrer'
+      onError={(event) => {
+        event.currentTarget.style.display = 'none'
+      }}
+    />
+  )
 }
 
 export function OAuthProviders({
@@ -129,6 +148,7 @@ export function OAuthProviders({
         key: `custom-${provider.slug}`,
         label: t('Continue with {{name}}', { name: provider.name }),
         onClick: () => handleCustomOAuthLogin(provider),
+        icon: <CustomProviderIcon icon={provider.icon} name={provider.name} />,
       })
     }
   }
