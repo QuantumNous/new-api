@@ -26,7 +26,7 @@ Assertions:
 - Plan blocks read version entitlement metadata only, do not load prompt-bearing snapshot, and create no subscription pre-consume records.
 
 Coverage:
-- 88.5% statements for `internal/skill/relay`.
+- 81.1% statements for `internal/skill/relay` after merging latest `origin/main`.
 
 Result:
 - PASS.
@@ -73,9 +73,9 @@ Coverage:
   - `internal/skill/availability`: 96.7%
   - `internal/skill/enums`: 88.9%
   - `internal/skill/errcodes`: 100.0%
-  - `internal/skill/handler`: 75.2%
-  - `internal/skill/model`: 50.2%
-  - `internal/skill/relay`: 88.5%
+  - `internal/skill/handler`: 75.7%
+  - `internal/skill/model`: 50.5%
+  - `internal/skill/relay`: 81.1%
   - `internal/skill/seed`: 79.4%
   - `internal/skill/tiers`: 100.0%
 
@@ -84,7 +84,7 @@ Result:
 
 ## Middleware and relay integration regression
 
-Command:
+Pre-latest-main command:
 
 ```bash
 mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./middleware ./relay -count=1
@@ -106,26 +106,17 @@ Coverage:
 Result:
 - PASS before merging `origin/main`.
 
-Post-merge combined focused command:
+Latest-main command:
 
 ```bash
-mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/... ./middleware ./relay -count=1 -cover
+go test ./middleware ./relay -count=1 -cover
 ```
 
-Post-merge coverage:
-- `internal/skill/api`: 77.8%
-- `internal/skill/availability`: 96.7%
-- `internal/skill/enums`: 88.9%
-- `internal/skill/errcodes`: 100.0%
-- `internal/skill/handler`: 76.0%
-- `internal/skill/model`: 50.2%
-- `internal/skill/relay`: 88.5%
-- `internal/skill/seed`: 79.4%
-- `internal/skill/tiers`: 100.0%
-- `middleware`: 14.4%
-- `relay`: 14.7%
+Latest-main coverage:
+- `middleware`: 15.0%
+- `relay`: 13.1%
 
-Post-merge result:
+Latest-main result:
 - PASS.
 
 ## Full Go regression
@@ -161,3 +152,6 @@ mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcac
 
 Isolation result:
 - PASS.
+- After merging latest `origin/main` again: FAIL only at root package setup:
+  - `main.go:45:12: pattern web/classic/dist: no matching files found`
+- All listed non-root packages, including `relay/helper`, completed with PASS.
