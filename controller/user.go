@@ -266,8 +266,12 @@ func Register(c *gin.Context) {
 			UnlimitedQuota:     true,
 			ModelLimitsEnabled: false,
 		}
-		if setting.DefaultUseAutoGroup {
+		if insertedUser.Group == plgGroup {
+			token.Group = plgGroup
+			token.CrossGroupRetry = false
+		} else if setting.DefaultUseAutoGroup {
 			token.Group = "auto"
+			token.CrossGroupRetry = true
 		}
 		if err := model.CreateUserToken(insertedUser.Id, &token, operation_setting.GetMaxUserTokens()); err != nil && !errors.Is(err, model.ErrUserTokenLimitReached) {
 			common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)

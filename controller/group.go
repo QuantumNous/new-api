@@ -20,11 +20,18 @@ import (
 // represent a freshly registered user's group.
 const defaultUserGroup = "default"
 
-// plgGroup is the single group assigned to every non-enterprise (PLG) user. New users
-// default into it (model.User.Group default), the group concept is hidden from them in the
-// UI, and the backend forces their tokens/requests onto it. Shared across the controller
-// package (group.go, token.go).
+// plgGroup is the single group assigned to PLG users. New users default into it, the
+// group concept is hidden from them in the UI, and the backend forces their tokens
+// onto it. Shared across the controller package (group.go, token.go).
 const plgGroup = "plg"
+
+func userCanUseGroups(userId int) (bool, error) {
+	userGroup, err := model.GetUserGroup(userId, true)
+	if err != nil {
+		return false, err
+	}
+	return userGroup != "" && userGroup != plgGroup, nil
+}
 
 func GetGroups(c *gin.Context) {
 	// type=user returns the user identity groups (user.Group), whose authoritative
@@ -77,12 +84,16 @@ func GetUserGroups(c *gin.Context) {
 	usableGroups := make(map[string]map[string]interface{})
 	userGroup := ""
 	userId := c.GetInt("id")
-	userGroup, _ = model.GetUserGroup(userId, false)
+	userGroup, _ = model.GetUserGroup(userId, true)
 
-	// PLG (non-enterprise) users never see the group concept — they only ever get the
-	// single plg group. Enterprise users (admin-flagged, plus all backfilled legacy users)
-	// fall through to the full usable-group resolution below.
-	if userCache, err := model.GetUserCache(userId); err == nil && !userCache.IsEnterprise {
+	// PLG users never see the group concept — they only ever get the single plg group.
+	// Any non-plg user group keeps full usable-group resolution.
+	canUseGroups, err := userCanUseGroups(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !canUseGroups {
 		usableGroups[plgGroup] = map[string]interface{}{
 			"ratio": service.GetUserGroupRatio(userGroup, plgGroup),
 			"desc":  setting.GetUsableGroupDescription(plgGroup),

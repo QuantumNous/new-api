@@ -22,9 +22,33 @@ import (
 	"gorm.io/gorm"
 )
 
-// plgGroup is the single group every non-enterprise (PLG) user is served from.
+// plgGroup is the single group every PLG user is served from.
 // Mirrors the constant of the same name in the controller package.
 const plgGroup = "plg"
+
+func userCanUseGroups(userCache *model.UserBase) bool {
+	return userCache != nil && userCache.Group != "" && userCache.Group != plgGroup
+}
+
+func resolveTokenGroupsForUser(userCache *model.UserBase, token *model.Token) (string, string, model.Token) {
+	userGroup := ""
+	if userCache != nil {
+		userGroup = userCache.Group
+	}
+	tokenGroup := ""
+	contextToken := model.Token{}
+	if token != nil {
+		tokenGroup = token.Group
+		contextToken = *token
+	}
+	if !userCanUseGroups(userCache) {
+		userGroup = plgGroup
+		tokenGroup = ""
+		contextToken.Group = plgGroup
+		contextToken.CrossGroupRetry = false
+	}
+	return userGroup, tokenGroup, contextToken
+}
 
 func validUserInfo(username string, role int) bool {
 	// check username is empty
@@ -383,15 +407,11 @@ func TokenAuth() func(c *gin.Context) {
 
 		userCache.WriteContext(c)
 
-		userGroup := userCache.Group
-		tokenGroup := token.Group
-		// PLG (non-enterprise) users are always served from the plg group, ignoring any
-		// group carried on the token. Defense-in-depth: the token API already forces plg,
-		// this guarantees it even for tokens minted before the flag flipped.
-		if !userCache.IsEnterprise {
-			userGroup = plgGroup
-			tokenGroup = ""
-		}
+		// PLG users are always served from the plg group, ignoring any group carried on
+		// the token. Defense-in-depth: the token API already forces plg, this guarantees
+		// it even for old or manually inserted tokens.
+		userGroup, tokenGroup, contextToken := resolveTokenGroupsForUser(userCache, token)
+		common.SetContextKey(c, constant.ContextKeyUserGroup, userGroup)
 		if tokenGroup != "" {
 			// check common.UserUsableGroups[userGroup]
 			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
@@ -409,7 +429,7 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
 
-		err = SetupContextForToken(c, token, parts...)
+		err = SetupContextForToken(c, &contextToken, parts...)
 		if err != nil {
 			return
 		}

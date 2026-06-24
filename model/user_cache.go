@@ -47,12 +47,8 @@ func (user *UserBase) GetSetting() dto.UserSetting {
 
 // getUserCacheKey returns the key for user cache.
 //
-// The `v2:` prefix was bumped when the UserBase schema gained IsEnterprise. Old `user:%d`
-// hashes (written before the field existed) lack it, so RedisHGetObj would deserialize
-// IsEnterprise=false and wrongly treat backfilled enterprise users as PLG until the stale
-// entry expired. Bumping the prefix forces a cache miss → DB rebuild on the new schema
-// instead of reading a stale struct — safe across processes/nodes and needs no flush
-// (which is impossible here anyway: the backfill runs before Redis is initialized).
+// The cache prefix is bumped whenever cached UserBase fields change.
+// v2 added IsEnterprise to UserBase.
 func getUserCacheKey(userId int) string {
 	return fmt.Sprintf("user:v2:%d", userId)
 }

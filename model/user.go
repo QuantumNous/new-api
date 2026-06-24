@@ -18,6 +18,8 @@ import (
 )
 
 const UserNameMaxLength = 20
+const defaultUserGroup = "default"
+const plgUserGroup = "plg"
 
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
@@ -420,13 +422,17 @@ func (user *User) Insert(inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
-	// New users default into the PLG group (groups hidden, forced plg). An explicit
-	// group (e.g. admin creating an enterprise user) is preserved; only empties fall back.
+	// New common users default into the PLG group (groups hidden, forced plg).
+	// Admin/root users keep group controls, so an empty admin group becomes default.
 	if user.Group == "" {
-		user.Group = "plg"
+		if user.Role >= common.RoleAdminUser {
+			user.Group = defaultUserGroup
+		} else {
+			user.Group = plgUserGroup
+		}
 	}
-	// Admins/root must keep group control — never silently demote them to PLG even if the
-	// caller didn't set the flag (the PLG enforcement keys off is_enterprise, not role).
+	// Deprecated compatibility field: callers may still read is_enterprise, but group is
+	// the source of truth for PLG vs group-enabled behavior.
 	if user.Role >= common.RoleAdminUser {
 		user.IsEnterprise = true
 	}
@@ -490,7 +496,14 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	}
 	user.Quota = common.QuotaForNewUser
 	user.AffCode = common.GetRandomString(4)
-	// Admins/root must keep group control — never silently demote them to PLG (see Insert).
+	if user.Group == "" {
+		if user.Role >= common.RoleAdminUser {
+			user.Group = defaultUserGroup
+		} else {
+			user.Group = plgUserGroup
+		}
+	}
+	// Deprecated compatibility field: group is the source of truth (see Insert).
 	if user.Role >= common.RoleAdminUser {
 		user.IsEnterprise = true
 	}
@@ -585,30 +598,6 @@ func (user *User) Edit(updatePassword bool) error {
 
 	// Update cache
 	return updateUserCache(*user)
-}
-
-// backfillEnterpriseFlag runs exactly once (gated by an option marker). It marks every
-// pre-existing user as enterprise so legacy users keep full group visibility after the PLG
-// rollout — new users (created after this runs) default to is_enterprise=false (forced plg).
-func backfillEnterpriseFlag() error {
-	const flagKey = "PlgEnterpriseBackfilled"
-	var cnt int64
-	// `key` is a reserved word in MySQL — must use the DB-specific quoted column
-	// (commonKeyCol, set by initCol() before InitDB runs). A raw "key = ?" parses on
-	// SQLite but is a syntax error on MySQL (Error 1064), which is why this only surfaced
-	// in prod. See CLAUDE.md Rule 2.
-	if err := DB.Model(&Option{}).Where(commonKeyCol+" = ?", flagKey).Count(&cnt).Error; err != nil {
-		return err
-	}
-	if cnt > 0 {
-		return nil // already backfilled
-	}
-	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&User{}).Where("is_enterprise = ?", false).Update("is_enterprise", true).Error; err != nil {
-			return err
-		}
-		return tx.Create(&Option{Key: flagKey, Value: "true"}).Error
-	})
 }
 
 func (user *User) ClearBinding(bindingType string) error {
@@ -922,7 +911,11 @@ func GetUserGroup(id int, fromDB bool) (group string, err error) {
 		// Don't return error - fall through to DB
 	}
 	fromDB = true
-	err = DB.Model(&User{}).Where("id = ?", id).Select(commonGroupCol).Find(&group).Error
+	groupCol := commonGroupCol
+	if groupCol == "" {
+		groupCol = "group"
+	}
+	err = DB.Model(&User{}).Where("id = ?", id).Select(groupCol).Find(&group).Error
 	if err != nil {
 		return "", err
 	}

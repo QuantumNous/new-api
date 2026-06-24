@@ -185,9 +185,13 @@ func validateTokenCreatePayload(c *gin.Context, token *model.Token) bool {
 	return true
 }
 
-func buildTokenForInsert(c *gin.Context, token model.Token, key string) model.Token {
-	// PLG (non-enterprise) users cannot pick a group — force every token onto plg.
-	if uc, ucErr := model.GetUserCache(c.GetInt("id")); ucErr == nil && !uc.IsEnterprise {
+func buildTokenForInsert(c *gin.Context, token model.Token, key string) (model.Token, error) {
+	// PLG users cannot pick a group — force every token onto plg.
+	canUseGroups, err := userCanUseGroups(c.GetInt("id"))
+	if err != nil {
+		return model.Token{}, err
+	}
+	if !canUseGroups {
 		token.Group = plgGroup
 		token.CrossGroupRetry = false
 	}
@@ -205,21 +209,27 @@ func buildTokenForInsert(c *gin.Context, token model.Token, key string) model.To
 		AllowIps:           token.AllowIps,
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
-	}
+	}, nil
 }
 
-func applyInitialTokenDefaults(c *gin.Context, token *model.Token) {
+func applyInitialTokenDefaults(c *gin.Context, token *model.Token) error {
 	if token == nil {
-		return
+		return nil
 	}
-	userCache, err := model.GetUserCache(c.GetInt("id"))
-	if err != nil || !userCache.IsEnterprise {
-		return
+	canUseGroups, err := userCanUseGroups(c.GetInt("id"))
+	if err != nil {
+		return err
+	}
+	if !canUseGroups {
+		token.Group = plgGroup
+		token.CrossGroupRetry = false
+		return nil
 	}
 	if setting.DefaultUseAutoGroup {
 		token.Group = "auto"
 		token.CrossGroupRetry = true
 	}
+	return nil
 }
 
 func AddToken(c *gin.Context) {
@@ -239,7 +249,11 @@ func AddToken(c *gin.Context) {
 		common.SysLog("failed to generate token key: " + err.Error())
 		return
 	}
-	cleanToken := buildTokenForInsert(c, token, key)
+	cleanToken, err := buildTokenForInsert(c, token, key)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	err = model.CreateUserToken(c.GetInt("id"), &cleanToken, maxTokens)
 	if err != nil {
 		if errors.Is(err, model.ErrUserTokenLimitReached) {
@@ -279,8 +293,15 @@ func EnsureInitialToken(c *gin.Context) {
 		return
 	}
 
-	cleanToken := buildTokenForInsert(c, token, key)
-	applyInitialTokenDefaults(c, &cleanToken)
+	cleanToken, err := buildTokenForInsert(c, token, key)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := applyInitialTokenDefaults(c, &cleanToken); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	maxTokens := operation_setting.GetMaxUserTokens()
 	createdToken, created, err := model.EnsureInitialUserToken(c.GetInt("id"), cleanToken, maxTokens)
 	if err != nil {
@@ -367,8 +388,13 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
-		// PLG (non-enterprise) users cannot pick a group — force every token onto plg.
-		if uc, ucErr := model.GetUserCache(userId); ucErr == nil && !uc.IsEnterprise {
+		// PLG users cannot pick a group — force every token onto plg.
+		canUseGroups, err := userCanUseGroups(userId)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if !canUseGroups {
 			cleanToken.Group = plgGroup
 			cleanToken.CrossGroupRetry = false
 		}

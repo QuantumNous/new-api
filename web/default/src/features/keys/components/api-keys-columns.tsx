@@ -21,7 +21,7 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { getUserGroups } from '@/lib/api'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
-import { useIsEnterprise } from '@/hooks/use-enterprise'
+import { useCanUseGroups } from '@/hooks/use-enterprise'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
@@ -71,8 +71,8 @@ function useGroupRatios(enabled: boolean): Record<string, number> {
 
 export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
   const { t } = useTranslation()
-  const isEnterprise = useIsEnterprise()
-  const groupRatios = useGroupRatios(isEnterprise)
+  const canUseGroups = useCanUseGroups()
+  const groupRatios = useGroupRatios(canUseGroups)
   return [
     {
       id: 'select',
@@ -194,9 +194,9 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       },
       meta: { label: t('Quota') },
     },
-    // Group column is hidden for non-enterprise (PLG) users — it only ever
-    // shows `plg` for them, which leaks the group concept and is useless.
-    ...(isEnterprise
+    // Group column is hidden for PLG users — it only ever shows `plg` for them,
+    // which leaks the group concept and is useless.
+    ...(canUseGroups
       ? [
           {
             accessorKey: 'group',

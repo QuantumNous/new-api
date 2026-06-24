@@ -23,7 +23,7 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { useOnboardingStore } from '@/stores/onboarding-store'
-import { useIsEnterprise } from '@/hooks/use-enterprise'
+import { useCanUseGroups } from '@/hooks/use-enterprise'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
@@ -40,12 +40,12 @@ import {
 } from './lib'
 import type { Message as MessageType } from './types'
 
-// Non-enterprise (PLG) users are always pinned to the single `plg` group.
+// PLG users are always pinned to the single `plg` group.
 const PLG_GROUP = 'plg'
 
 export function Playground({ firstRun = false }: { firstRun?: boolean }) {
   const navigate = useNavigate()
-  const isEnterprise = useIsEnterprise()
+  const canUseGroups = useCanUseGroups()
   const { playgroundDefaultModel, enableStripeCardBind } = useSystemConfig()
   const authUser = useAuthStore((state) => state.auth.user)
   const openOnboarding = useOnboardingStore((state) => state.openOnboarding)
@@ -120,7 +120,7 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     },
   })
 
-  // Load groups (enterprise users only — PLG users are pinned to `plg`)
+  // Load groups only when the current user can choose token groups.
   const { data: groupsData } = useQuery({
     queryKey: ['playground-groups'],
     queryFn: async () => {
@@ -135,7 +135,7 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
         return []
       }
     },
-    enabled: isEnterprise,
+    enabled: canUseGroups,
   })
 
   const firstRunModel = useMemo(() => {
@@ -164,10 +164,10 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
 
   // PLG users are pinned to the `plg` group so model fetching uses it.
   useEffect(() => {
-    if (!isEnterprise && config.group !== PLG_GROUP) {
+    if (authUser && !canUseGroups && config.group !== PLG_GROUP) {
       updateConfig('group', PLG_GROUP)
     }
-  }, [isEnterprise, config.group, updateConfig])
+  }, [authUser, canUseGroups, config.group, updateConfig])
 
   // Update models when data changes
   useEffect(() => {
@@ -391,7 +391,7 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
         <PlaygroundInput
           disabled={isGenerating}
           submitDisabled={!isFirstRunModelReady}
-          showGroupSelector={isEnterprise}
+          showGroupSelector={canUseGroups}
           groups={groups}
           groupValue={config.group}
           isGenerating={isGenerating}

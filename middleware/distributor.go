@@ -29,6 +29,39 @@ type ModelRequest struct {
 	Group string `json:"group,omitempty"`
 }
 
+func resolvePlaygroundUsingGroup(c *gin.Context, usingGroup string, requestedGroup string) (string, error) {
+	userGroup := ""
+	if userID := c.GetInt("id"); userID > 0 {
+		var err error
+		userGroup, err = model.GetUserGroup(userID, true)
+		if err != nil || userGroup == "" {
+			return "", fmt.Errorf("group access denied")
+		}
+	}
+	if userGroup == "" {
+		userGroup = common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+	}
+	if userGroup == "" {
+		userGroup = c.GetString("group")
+	}
+	if userGroup == "" {
+		return "", fmt.Errorf("group access denied")
+	}
+	if userGroup == plgGroup {
+		return plgGroup, nil
+	}
+	if usingGroup == "" {
+		usingGroup = userGroup
+	}
+	if requestedGroup == "" {
+		return usingGroup, nil
+	}
+	if !service.GroupInUserUsableGroups(userGroup, requestedGroup) && requestedGroup != userGroup {
+		return "", fmt.Errorf("group access denied")
+	}
+	return requestedGroup, nil
+}
+
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
@@ -91,14 +124,13 @@ func Distribute() func(c *gin.Context) {
 						abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidPlayground, map[string]any{"Error": err.Error()}))
 						return
 					}
-					if playgroundRequest.Group != "" {
-						if !service.GroupInUserUsableGroups(usingGroup, playgroundRequest.Group) && playgroundRequest.Group != usingGroup {
-							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
-							return
-						}
-						usingGroup = playgroundRequest.Group
-						common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
+					usingGroup, err = resolvePlaygroundUsingGroup(c, usingGroup, playgroundRequest.Group)
+					if err != nil {
+						abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
+						return
 					}
+					common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
+					common.SetContextKey(c, constant.ContextKeyTokenGroup, usingGroup)
 				}
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {

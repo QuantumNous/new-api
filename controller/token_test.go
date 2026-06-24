@@ -510,7 +510,12 @@ func TestGetTokenMasksKeyInResponse(t *testing.T) {
 }
 
 func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
-	db := setupTokenControllerTestDB(t)
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 1)
+	user.Group = "Enterprise"
+	if err := db.Save(user).Error; err != nil {
+		t.Fatalf("failed to update user: %v", err)
+	}
 	token := seedToken(t, db, 1, "editable-token", "yzab1234cdef5678")
 
 	body := map[string]any{
@@ -624,6 +629,60 @@ func TestEnsureInitialTokenCreatesAndRevealsOnlyWhenUserHasNoTokens(t *testing.T
 	}
 	if stored.Group != plgGroup {
 		t.Fatalf("expected non-enterprise token group to be forced to %q, got %q", plgGroup, stored.Group)
+	}
+}
+
+func TestApplyInitialTokenDefaultsForcesPlgWhenGroupsDisabled(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	seedTokenUser(t, db, 22)
+
+	token := &model.Token{Group: "default", CrossGroupRetry: true}
+	ctx, _ := newAuthenticatedContext(t, http.MethodPost, "/api/token/ensure_initial", nil, 22)
+
+	if err := applyInitialTokenDefaults(ctx, token); err != nil {
+		t.Fatalf("expected initial token defaults to succeed: %v", err)
+	}
+	if token.Group != plgGroup {
+		t.Fatalf("expected token group to be forced to %q, got %q", plgGroup, token.Group)
+	}
+	if token.CrossGroupRetry {
+		t.Fatalf("expected cross group retry to be disabled for plg users")
+	}
+}
+
+func TestAddTokenAllowsNonPlgUserToChooseGroupWithoutEnterpriseFlag(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 16)
+	user.Group = "Enterprise"
+	user.IsEnterprise = false
+	if err := db.Save(user).Error; err != nil {
+		t.Fatalf("failed to update user: %v", err)
+	}
+
+	body := map[string]any{
+		"name":                 "enterprise-key",
+		"expired_time":         -1,
+		"remain_quota":         0,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 16)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected add token to succeed, got message: %s", response.Message)
+	}
+
+	var stored model.Token
+	if err := db.First(&stored, "user_id = ? AND name = ?", 16, "enterprise-key").Error; err != nil {
+		t.Fatalf("failed to load created token: %v", err)
+	}
+	if stored.Group != "default" {
+		t.Fatalf("expected non-plg user token group to remain %q, got %q", "default", stored.Group)
 	}
 }
 

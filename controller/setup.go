@@ -116,9 +116,10 @@ func PostSetup(c *gin.Context) {
 			Role:         common.RoleRootUser,
 			Status:       common.UserStatusEnabled,
 			DisplayName:  "Root User",
+			Group:        defaultUserGroup,
 			AccessToken:  nil,
 			Quota:        100000000,
-			IsEnterprise: true, // admins/root keep full group control; never default them to PLG
+			IsEnterprise: true, // deprecated compatibility field; group controls PLG behavior
 		}
 		err = model.DB.Create(&rootUser).Error
 		if err != nil {
