@@ -27,7 +27,7 @@ lb_domains = [
 // INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER.
 cloud_run_ingress = "INGRESS_TRAFFIC_ALL"
 
-frontend_base_url = "https://new-api.app.flatkey.ai"
+frontend_base_url = "https://console.flatkey.ai"
 
 // Set this to receive uptime failure alerts. Leave empty to skip the alert policy.
 alert_email = ""
