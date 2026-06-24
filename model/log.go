@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -115,21 +114,18 @@ func applyLogUsernameFilter(tx *gorm.DB, usernameColumn string, userIDColumn str
 	if userID, err := strconv.Atoi(value); err == nil {
 		return tx.Where("("+usernameColumn+" = ? OR "+userIDColumn+" = ?)", value, userID), nil
 	}
-	// 单字符关键词：退回精确匹配，避免过宽的前导通配 LIKE 导致全表扫描；但仍
-	// 经 user 表精确解析 user_id（精确查询走索引、无扫描风险），补齐用户改名前
-	// 写入历史日志的情况。
-	if utf8.RuneCountInString(value) < 2 {
-		userIDs, err := getUserIDsByUsernameFilter(value, false)
-		if err != nil {
-			return nil, err
-		}
-		if len(userIDs) > 0 {
-			return tx.Where("("+usernameColumn+" = ? OR "+userIDColumn+" IN ?)", value, userIDs), nil
-		}
-		return tx.Where(usernameColumn+" = ?", value), nil
+	// 纯文本关键词：精确匹配 logs.username 快照，并经 user 表把用户名解析成
+	// user_id，补齐用户改名前写入的历史日志。精确查询走索引、无前导通配扫描，
+	// 不会像 "%kw%" 那样在大日志表上全表扫描（#222）。需要模糊时由用户在输入
+	// 框显式输入 % 触发，走上面的 strings.Contains(value, "%") 分支。
+	userIDs, err := getUserIDsByUsernameFilter(value, false)
+	if err != nil {
+		return nil, err
 	}
-	// 纯文本关键词：自动子串模糊，管理员输入部分用户名即可命中。
-	return applyFuzzyUsernameFilter(tx, usernameColumn, userIDColumn, "%"+value+"%")
+	if len(userIDs) > 0 {
+		return tx.Where("("+usernameColumn+" = ? OR "+userIDColumn+" IN ?)", value, userIDs), nil
+	}
+	return tx.Where(usernameColumn+" = ?", value), nil
 }
 
 type Log struct {
