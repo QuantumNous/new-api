@@ -4,6 +4,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-24
 
+- 更新 DR-71 PRD 状态为 ship，记录非 Skill API 兼容性回归守卫已在 main 中实现并通过聚焦 relay 回归测试验证（`docs/tasks/dr71-non-skill-api-compatibility-regression-guard-prd.md`）
 - 修复 DR-75 后续 PR review 问题：overview/per-skill funnel 改为按 analytics identity（`user_id` 优先，否则 `session_id`）+ `skill_id` 聚合各阶段首个 `occurred_at`，并强制 `impression <= detail <= enable <= first_use` 后再计算转化；匿名/Kids session 不再因 `user_id=NULL` 被静默丢弃，Kids GA business metrics 默认过滤并可通过 `include_kids=true` 显式纳入；`data_freshness` 无 P0 事件时返回 `ok`，避免低流量误报 pipeline failed；同步更新 DR-75 PRD 和回归测试（`internal/skill/handler/analytics.go`, `internal/skill/handler/analytics_test.go`, `docs/tasks/dr75-analytics-aggregation-api-prd.md`）
 - 修复 DR-75 PR review 问题：`data_freshness` 不再硬编码 `ok`，改为基于最新非 `admin_preview` P0 analytics event 的 `occurred_at` 判断（≤15m ok、≤60m delayed、>60m failed；无事件按 no-data/低流量处理为 ok）；overview/skills 查询窗口限制为 30 天，超限返回 `INVALID_REQUEST`/`INVALID_RANGE`，避免无界聚合扫描；补 freshness 阈值、admin_preview 排除和超窗口回归测试（`internal/skill/handler/analytics.go`, `internal/skill/handler/analytics_test.go`）
 - 修复 DR-57 Marketplace 列表后续 review 问题：恢复卡片真实 CTA 矩阵显示（Enable/Use/Upgrade/Renew/Contact Sales/Log in/Unavailable），列表点击进入详情页处理实际动作；Marketplace API 改为保留服务端分页、不再全量拉取所有页，status 过滤仅作用于当前页；补 CTA 矩阵与单页分页回归测试（`web/default/src/features/marketplace/`）
