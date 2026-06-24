@@ -117,6 +117,31 @@ type feishuContactUserResp struct {
 	} `json:"data"`
 }
 
+// findExistingFeishuUser 按 open_id / union_id / user_id 三重查重。
+// 任一标识命中已存在用户即返回该用户，确保一个飞书账号只能创建一个 new-api 用户。
+func findExistingFeishuUser(openID, unionID, userID string) (model.User, bool) {
+	var user model.User
+	openID = strings.TrimSpace(openID)
+	unionID = strings.TrimSpace(unionID)
+	userID = strings.TrimSpace(userID)
+	if openID != "" {
+		if err := model.DB.Where("feishu_id = ?", openID).First(&user).Error; err == nil && user.Id > 0 {
+			return user, true
+		}
+	}
+	if unionID != "" {
+		if err := model.DB.Where("feishu_union_id = ?", unionID).First(&user).Error; err == nil && user.Id > 0 {
+			return user, true
+		}
+	}
+	if userID != "" {
+		if err := model.DB.Where("feishu_user_id = ?", userID).First(&user).Error; err == nil && user.Id > 0 {
+			return user, true
+		}
+	}
+	return model.User{}, false
+}
+
 func resolveFeishuIdentifiers(ctx *gin.Context, openID, unionID, userID string) (string, string, string) {
 	openID = strings.TrimSpace(openID)
 	unionID = strings.TrimSpace(unionID)
@@ -568,9 +593,8 @@ func BatchCreateFeishuUsers(c *gin.Context) {
 			continue
 		}
 
-		existingUser := model.User{}
-		err := model.DB.Where("feishu_id = ?", openId).First(&existingUser).Error
-		if err == nil && existingUser.Id > 0 {
+		existingUser, exists := findExistingFeishuUser(openId, unionId, userId)
+		if exists {
 			result.Skipped++
 			result.Results = append(result.Results, FeishuUserInitResultItem{
 				FeishuOpenId:  openId,
@@ -583,21 +607,22 @@ func BatchCreateFeishuUsers(c *gin.Context) {
 			continue
 		}
 
-		username := strings.TrimSpace(item.Username)
-		if username == "" {
-			if resolvedName != "" {
-				username = resolvedName
-			} else if displayName := strings.TrimSpace(item.DisplayName); displayName != "" {
-				username = displayName
-			} else {
-				username = "feishu_user"
-			}
+		// 用户名优先用飞书解析出的正确名称，避免调用方乱传。
+		username := ""
+		if resolvedName != "" {
+			username = resolvedName
+		} else if displayName := strings.TrimSpace(item.DisplayName); displayName != "" {
+			username = displayName
+		} else if u := strings.TrimSpace(item.Username); u != "" {
+			username = u
+		} else {
+			username = "feishu_user"
 		}
 		if resolvedEmployeeNo != "" {
 			username = username + "_" + resolvedEmployeeNo
 		}
 
-		username, err = allocateAvailableUsername(username)
+		username, err := allocateAvailableUsername(username)
 		if err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, fmt.Sprintf("open_id=%s: allocate username failed: %s", openId, err.Error()))
@@ -1219,9 +1244,8 @@ func FeishuInitWebhook(c *gin.Context) {
 			continue
 		}
 
-		existingUser := model.User{}
-		err := model.DB.Where("feishu_id = ?", openId).First(&existingUser).Error
-		if err == nil && existingUser.Id > 0 {
+		existingUser, exists := findExistingFeishuUser(openId, unionId, userId)
+		if exists {
 			result.Skipped++
 			existingTokens, tokenErr := model.GetAllUserTokens(existingUser.Id, 0, operation_setting.GetMaxUserTokens())
 			if tokenErr == nil {
@@ -1252,20 +1276,21 @@ func FeishuInitWebhook(c *gin.Context) {
 			continue
 		}
 
-		username := strings.TrimSpace(item.Username)
-		if username == "" {
-			if resolvedName != "" {
-				username = resolvedName
-			} else if displayName := strings.TrimSpace(item.DisplayName); displayName != "" {
-				username = displayName
-			} else {
-				username = "feishu_user"
-			}
+		// 用户名优先用飞书解析出的正确名称，避免调用方乱传。
+		username := ""
+		if resolvedName != "" {
+			username = resolvedName
+		} else if displayName := strings.TrimSpace(item.DisplayName); displayName != "" {
+			username = displayName
+		} else if u := strings.TrimSpace(item.Username); u != "" {
+			username = u
+		} else {
+			username = "feishu_user"
 		}
 		if resolvedEmployeeNo != "" {
 			username = username + "_" + resolvedEmployeeNo
 		}
-		username, err = allocateAvailableUsername(username)
+		username, err := allocateAvailableUsername(username)
 		if err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, fmt.Sprintf("open_id=%s: allocate username failed: %s", openId, err.Error()))
