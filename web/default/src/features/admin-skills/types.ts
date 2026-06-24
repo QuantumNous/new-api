@@ -81,3 +81,85 @@ export interface AdminSkillListParams {
   required_plan?: SkillPlan
   kids_approval_status?: AdminSkillKidsApprovalStatus
 }
+
+export interface AdminSkillDraftPayload {
+  slug: string
+  name: string
+  short_description: string
+  description: string
+  category: string
+  required_plan: SkillPlan
+  monetization_type: AdminSkillMonetizationType
+  price_markup?: number
+  free_quota_per_month?: number | null
+  max_input_tokens?: number | null
+}
+
+export interface AdminSkillPatchPayload {
+  name?: string
+  short_description?: string
+  description?: string
+  category?: string
+  tags?: unknown[]
+  icon_url?: string | null
+  input_hints?: unknown[]
+  example_inputs?: unknown[]
+  example_outputs?: unknown[]
+  required_plan?: SkillPlan
+  monetization_type?: AdminSkillMonetizationType
+  price_markup?: number
+  free_quota_per_month?: number | null
+  max_input_tokens?: number | null
+  model_whitelist?: unknown[]
+  timeout_seconds?: number
+  is_kids_safe?: boolean
+  is_kids_exclusive?: boolean
+  kids_approval_status?: AdminSkillKidsApprovalStatus
+  ai_disclosure_required?: boolean
+  featured_flag?: boolean
+  featured_rank?: number | null
+}
+
+export interface AdminSkillVersion {
+  id: string
+  skill_id: string
+  version_number: number
+  status: 'draft' | 'active' | 'inactive' | 'archived'
+  instruction_template_sha256: string
+  has_prompt_guard_template: boolean
+  has_output_schema: boolean
+  model_whitelist_snapshot: unknown[]
+  required_plan_snapshot: SkillPlan
+  monetization_snapshot: Record<string, unknown>
+  max_input_tokens_snapshot?: number | null
+  rollout_percentage: number
+  experiment_name?: string | null
+  created_by: number
+  created_at: string
+  activated_at?: string | null
+  archived_at?: string | null
+}
+
+export interface AdminSkillVersionDetail extends AdminSkillVersion {
+  instruction_template: string
+  prompt_guard_template?: string | null
+  output_schema?: unknown | null
+}
+
+export interface AdminSkillVersionPayload {
+  instruction_template: string
+  output_schema?: unknown | null
+}
+
+export interface AdminSkillAuditEntry {
+  id: string
+  skill_id?: string | null
+  skill_version_id?: string | null
+  actor_id: number
+  actor_role: string
+  action: string
+  action_reason?: string | null
+  changed_fields: string[]
+  request_id?: string | null
+  created_at: string
+}

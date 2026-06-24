@@ -28,27 +28,23 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useMediaQuery } from '@/hooks'
-import { DataTablePage } from '@/components/data-table'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { Button } from '@/components/ui/button'
+import { DataTablePage, DataTableToolbar } from '@/components/data-table'
 import { getAdminSkills } from '../api'
 import {
   getAdminSkillKidsOptions,
   getAdminSkillPlanOptions,
   getAdminSkillStatusOptions,
 } from '../constants'
-import type {
-  AdminSkill,
-  AdminSkillKidsApprovalStatus,
-} from '../types'
-import {
-  AdminSkillEditDialog,
-  AdminSkillPreviewDialog,
-} from './admin-skill-dialogs'
-import { AdminSkillsMobileList } from './admin-skills-mobile-list'
+import type { AdminSkill, AdminSkillKidsApprovalStatus } from '../types'
+import { AdminSkillPreviewDialog } from './admin-skill-dialogs'
+import { AdminSkillEditorDialog } from './admin-skill-editor-dialog'
 import { useAdminSkillsColumns } from './admin-skills-columns'
+import { AdminSkillsMobileList } from './admin-skills-mobile-list'
 
 const route = getRouteApi('/_authenticated/skills/admin/')
 
@@ -67,6 +63,7 @@ export function AdminSkillsTable() {
   const isMobile = useMediaQuery('(max-width: 640px)')
   const [previewSkill, setPreviewSkill] = useState<AdminSkill | null>(null)
   const [editSkill, setEditSkill] = useState<AdminSkill | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
 
   const columns = useAdminSkillsColumns({
     onEdit: setEditSkill,
@@ -103,11 +100,10 @@ export function AdminSkillsTable() {
     columnFilters,
     'required_plan'
   )
-  const kidsApprovalStatus =
-    singleFilterValue<AdminSkillKidsApprovalStatus>(
-      columnFilters,
-      'kids_approval_status'
-    )
+  const kidsApprovalStatus = singleFilterValue<AdminSkillKidsApprovalStatus>(
+    columnFilters,
+    'kids_approval_status'
+  )
 
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: [
@@ -179,29 +175,39 @@ export function AdminSkillsTable() {
         emptyTitle={t('No Skills Found')}
         emptyDescription={t('No admin skills match the selected filters.')}
         skeletonKeyPrefix='admin-skills-skeleton'
-        toolbarProps={{
-          customSearch: null,
-          filters: [
-            {
-              columnId: 'status',
-              title: t('Status'),
-              options: getAdminSkillStatusOptions(t),
-              singleSelect: true,
-            },
-            {
-              columnId: 'required_plan',
-              title: t('Required Plan'),
-              options: getAdminSkillPlanOptions(t),
-              singleSelect: true,
-            },
-            {
-              columnId: 'kids_approval_status',
-              title: t('Kids Status'),
-              options: getAdminSkillKidsOptions(t),
-              singleSelect: true,
-            },
-          ],
-        }}
+        toolbar={
+          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+            <DataTableToolbar
+              table={table}
+              customSearch={null}
+              filters={[
+                {
+                  columnId: 'status',
+                  title: t('Status'),
+                  options: getAdminSkillStatusOptions(t),
+                  singleSelect: true,
+                },
+                {
+                  columnId: 'required_plan',
+                  title: t('Required Plan'),
+                  options: getAdminSkillPlanOptions(t),
+                  singleSelect: true,
+                },
+                {
+                  columnId: 'kids_approval_status',
+                  title: t('Kids Status'),
+                  options: getAdminSkillKidsOptions(t),
+                  singleSelect: true,
+                },
+              ]}
+            />
+            {!isMobile ? (
+              <Button onClick={() => setCreateOpen(true)}>
+                {t('Create Skill Draft')}
+              </Button>
+            ) : null}
+          </div>
+        }
         mobile={
           <AdminSkillsMobileList
             table={table}
@@ -227,7 +233,14 @@ export function AdminSkillsTable() {
         open={!!previewSkill}
         onOpenChange={(open) => !open && setPreviewSkill(null)}
       />
-      <AdminSkillEditDialog
+      <AdminSkillEditorDialog
+        mode='create'
+        skill={null}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+      />
+      <AdminSkillEditorDialog
+        mode='edit'
         skill={editSkill}
         open={!!editSkill}
         onOpenChange={(open) => !open && setEditSkill(null)}
