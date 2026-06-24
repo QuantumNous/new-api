@@ -1,7 +1,7 @@
 name: GCP Deploy
 
-# Build runs automatically on every push to main.
-# Deploy is gated by the "production" GitHub Environment — slZhong must Approve.
+# Build runs automatically on every push to main. Production deploys are manual
+# workflow_dispatch runs only, gated by the "production" GitHub Environment.
 
 on:
   push:
@@ -98,6 +98,7 @@ jobs:
           cache-to: type=gha,mode=max,ignore-error=true
 
   deploy:
+    if: github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     environment: production   # ← manual approval gate happens here
@@ -112,27 +113,21 @@ jobs:
           LEGACY_RUN_SERVICE: ${{ vars.GCP_RUN_SERVICE }}
           CONSOLE_RUN_SERVICE: ${{ vars.GCP_CONSOLE_RUN_SERVICE }}
           ROUTER_RUN_SERVICE: ${{ vars.GCP_ROUTER_RUN_SERVICE }}
-          LEGACY_HEALTH_URL: ${{ vars.GCP_RUN_HEALTH_URL }}
-          CONSOLE_HEALTH_URL: ${{ vars.GCP_CONSOLE_HEALTH_URL }}
-          ROUTER_HEALTH_URL: ${{ vars.GCP_ROUTER_HEALTH_URL }}
         run: |
           set -euo pipefail
           target="${INPUT_TARGET:-legacy-newapi}"
           case "${target}" in
             console)
               run_service="${CONSOLE_RUN_SERVICE:-newapi-console}"
-              health_url="${CONSOLE_HEALTH_URL:-https://console.flatkey.ai}"
               node_type="master"
               ;;
             router)
               run_service="${ROUTER_RUN_SERVICE:-newapi-router}"
-              health_url="${ROUTER_HEALTH_URL:-https://router.flatkey.ai}"
               node_type="slave"
               ;;
             legacy-newapi)
               run_service="${LEGACY_RUN_SERVICE:-newapi}"
-              health_url="${LEGACY_HEALTH_URL:-https://router.flatkey.ai}"
-              node_type="master"
+              node_type="slave"
               ;;
             *)
               echo "Unknown deploy target: ${target}" >&2
@@ -141,7 +136,6 @@ jobs:
           esac
           echo "target=${target}" >> "$GITHUB_OUTPUT"
           echo "run_service=${run_service}" >> "$GITHUB_OUTPUT"
-          echo "health_url=${health_url}" >> "$GITHUB_OUTPUT"
           echo "node_type=${node_type}" >> "$GITHUB_OUTPUT"
 
       - name: Auth to GCP via WIF
@@ -228,8 +222,8 @@ jobs:
             --project="${PROJECT_ID}" --region="${REGION}" \
             --format='value(status.traffic[].url)' | tr ';' '\n' | grep canary || true)"
           if [[ -z "${tag_url}" ]]; then
-            # Fall back: just probe latest URL
-            tag_url="${{ steps.target.outputs.health_url }}"
+            echo "Failed to resolve canary tag URL for ${{ steps.target.outputs.run_service }}; refusing to probe a shared production hostname." >&2
+            exit 1
           fi
           echo "Probing ${tag_url}/api/status ..."
           for i in $(seq 1 30); do

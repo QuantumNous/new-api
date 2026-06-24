@@ -241,6 +241,41 @@ resource "google_compute_url_map" "https" {
       default_service = google_compute_backend_service.console[0].id
     }
   }
+
+  lifecycle {
+    precondition {
+      condition = length(distinct(concat(
+        var.website_domains,
+        var.router_domains,
+        var.console_domains,
+      ))) == length(concat(
+        var.website_domains,
+        var.router_domains,
+        var.console_domains,
+      ))
+      error_message = "website_domains, router_domains, and console_domains must not overlap."
+    }
+
+    precondition {
+      condition     = length(var.router_domains) == 0 || var.router_cloud_run_service_name != ""
+      error_message = "router_domains must not be set unless router_cloud_run_service_name is also set."
+    }
+
+    precondition {
+      condition     = length(var.console_domains) == 0 || var.console_cloud_run_service_name != ""
+      error_message = "console_domains must not be set unless console_cloud_run_service_name is also set."
+    }
+
+    precondition {
+      condition     = length(setsubtract(toset(var.router_domains), toset(var.domains))) == 0
+      error_message = "router_domains must also be included in domains so the GCP HTTPS certificate covers them."
+    }
+
+    precondition {
+      condition     = length(setsubtract(toset(var.console_domains), toset(var.domains))) == 0
+      error_message = "console_domains must also be included in domains so the GCP HTTPS certificate covers them."
+    }
+  }
 }
 
 resource "google_compute_target_https_proxy" "https" {
