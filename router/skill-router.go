@@ -49,7 +49,6 @@ func SetSkillRouter(router *gin.Engine) {
 		}
 		{
 			downloadRoute.GET("/skills/:id/download", skillhandler.DownloadSkillPackage)
-			downloadRoute.GET("/skill-versions/:skill_version_id/download", skillhandler.DownloadSkillVersionPackage)
 		}
 
 		adminRoute := v1.Group("/admin")
