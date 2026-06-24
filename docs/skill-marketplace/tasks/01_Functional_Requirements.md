@@ -50,7 +50,7 @@ Admin 创建 Skill（SKILL.md + 可选 scripts/references/sub-agents）
 | Marketplace | 用户浏览、搜索、分类筛选、查看详情、下载 Skill 包 | P0 |
 | Marketplace Actions | 用户可收藏（save/favorite）、评分（1-5 星 + 短评）、举报 Skill | P0 |
 | My Skills | 用户查看已下载 Skill、订阅状态、锁定原因 | P0 |
-| Entitlement | 下载时一次性校验订阅级别；执行无服务端校验 | P0 |
+| Entitlement | 下载资格与执行 entitlement 分离；执行期由 Relay 做服务端 runtime 校验 | P0 |
 | Tier 1 Tracking | 平台侧事件：impression / detail_view / save / download / favorite / rating / report | P0 |
 | Tier 2 Tracking | 用户在账号设置中授权后，回传 installed / used 本地行为数据 | P1 |
 | Analytics | 关键事件、下载漏斗、转化率、评分、Evaluation 结果 | P0 |
@@ -319,19 +319,19 @@ skillname/
 | FR-E7 | Admin can change entitlement config | P0 | Change is audited; existing enabled users are checked at use time |
 | FR-E8 | Support Enterprise contact-sales state | P1 | CTA does not imply entitlement |
 
-### 4.6 Entitlement（下载时）
+### 4.6 Entitlement（下载 + 执行）
 
-V1 仅在下载时做一次性订阅校验。执行无服务端 entitlement。
+V1 将下载资格与执行时 entitlement 分开处理。下载阶段可以校验订阅/Kids 资格，但 Relay 仍是执行期 authority，必须在每次 Skill 调用时重新校验 entitlement、状态、quota、Kids 与其他 runtime guard。
 
 | ID | Requirement | Priority | Acceptance Notes |
 |---|---|---|---|
 | FR-E1 | 下载时校验用户订阅级别 vs `required_plan` | P0 | free/pro/enterprise；不符合返回 403 + upgrade CTA |
-| FR-E2 | 订阅校验时机：点击 Download 时，非执行时 | P0 | 已下载的 zip 不受后续订阅变化影响 |
+| FR-E2 | 订阅校验时机：Download 时可预检查，执行时仍需 Relay 再校验 | P0 | 已下载 zip 不保证后续 execution entitlement；订阅/配额/Kids 状态变化在下次调用时生效 |
 | FR-E3 | Free Skill 任何登录用户可下载 | P0 | 无需订阅 |
 | FR-E4 | Pro Skill 须 Pro 或 Enterprise 订阅 | P0 | Free 用户看到 locked + Upgrade CTA |
 | FR-E5 | Enterprise Skill 须 Enterprise 订阅 | P0 | 非 Enterprise 用户看到 Contact Sales CTA |
 | FR-E6 | Kids Safe 过滤在下载时应用 | P0 if Kids enabled | Kids Session 不可下载非 kids_safe Skill |
-| FR-E7 | 订阅状态变化不影响已下载的 zip | P0 | 下载权是一次性的；执行权在用户本地 |
+| FR-E7 | 订阅状态变化不影响已下载 zip 的可用性，但会影响后续执行权 | P0 | 下载权是一次性的；执行权由 Relay 在每次调用时决定 |
 
 ### 4.7 Analytics & Data Entry
 
@@ -420,14 +420,10 @@ V1 仅在下载时做一次性订阅校验。执行无服务端 entitlement。
 | `deprecated` | No for new users | No for new users or disabled prior users | Yes only when `user_enabled_skills.enabled=true` at use time | Limited | Used for phase-out; disabled users cannot re-enable unless Super Admin republishes |
 | `archived` | No | No | No | No except restore metadata by Super Admin | Hard unavailable |
 
-> **⚠ DR-66 staged deviation (current LIVE behavior):** the relay gate ships
-> **fail-closed for `deprecated`** — until DR-67 adds the use-time entitlement
-> check, a `deprecated` Skill returns `skill_not_published` for **all** callers,
-> including already-enabled users. This intentionally overrides the
-> "Executable by already-enabled user = Yes" cell above. DR-67 flips the
-> `deprecatedRuntimeEnabled` constant (together with the entitlement gate, in the
-> same PR) to restore the documented behavior. Source of truth:
-> `docs/tasks/dr-66-lifecycle-enabled-gate-prd.md` (decision D3).
+> **DR-67 live behavior:** the relay gate now allows `deprecated` Skills only for
+> callers that already have `user_enabled_skills.enabled=true` and still pass the
+> use-time entitlement check against the active `required_plan_snapshot`.
+> New users and disabled prior users remain blocked with `skill_not_published`.
 
 ### 5.2 Promotion Flags
 
@@ -483,12 +479,11 @@ V1 仅在下载时做一次性订阅校验。执行无服务端 entitlement。
 | Kids Session | Non-Kids-Safe Skill | Any | Any | Block before injection | `kids_mode_blocked` |
 | Normal Session | Kids Exclusive Skill | Any | Any | Block or hide | `kids_mode_blocked` |
 
-> **⚠ DR-66 staged deviation (current LIVE behavior):** the
+> **DR-67 implementation note:** the
 > "Existing enabled user / Deprecated Skill / … / Allow with warning / None" row
-> is **not yet live**. DR-66 fail-closes `deprecated` for every caller
-> (`skill_not_published`) until DR-67 adds the use-time entitlement check and
-> flips `deprecatedRuntimeEnabled` in the same PR. See
-> `docs/tasks/dr-66-lifecycle-enabled-gate-prd.md` (decision D3).
+> is live only after the runtime use-time entitlement gate passes. Deprecated
+> Skills still require `user_enabled_skills.enabled=true` and a current
+> `required_plan_snapshot` entitlement.
 
 ---
 

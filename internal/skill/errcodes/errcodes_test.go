@@ -30,7 +30,7 @@ func TestHTTPStatus_AllCodes(t *testing.T) {
 		{ErrSkillContextTooLong, 400},
 		{ErrSkillRateLimited, 429},
 		{ErrSkillTimeout, 504},
-		{ErrSkillSafetyViolation, 403}, // 403, not 200 — see PR description for tasks/01 §8 rationale
+		{ErrSkillSafetyViolation, 403}, // 403, not 200 - see PR description for tasks/01 §8 rationale
 		{ErrSkillInternalError, 500},   // 500 is a legitimate catalog value, not a fallback
 	}
 	for _, tc := range cases {
@@ -69,7 +69,7 @@ func TestHTTPStatusCatalog_DefensiveCopy(t *testing.T) {
 		"HTTPStatusCatalog must return a defensive copy, not the internal map")
 }
 
-// TestMapping_RoundTrip verifies BlockReason→ErrorCode→BlockReason round-trips
+// TestMapping_RoundTrip verifies BlockReason->ErrorCode->BlockReason round-trips
 // correctly for every entry in blockReasonToCode.
 func TestMapping_RoundTrip(t *testing.T) {
 	for br := range blockReasonToCode {
@@ -89,6 +89,9 @@ func TestMapping_UnknownValues(t *testing.T) {
 	_, ok = BlockReasonFor("UNKNOWN_CODE")
 	assert.False(t, ok, "unknown ErrorCode must return false")
 
+	_, ok = SkillBlockedReasonFor("UNKNOWN_CODE")
+	assert.False(t, ok, "unknown ErrorCode must not map into DR-70 skill_blocked")
+
 	assert.Equal(t, 500, HTTPStatusFor("UNKNOWN_CODE"),
 		"unknown ErrorCode must fall back to 500")
 }
@@ -103,7 +106,7 @@ func TestAllBlockReasons_Coverage(t *testing.T) {
 	}
 }
 
-// TestCatalog_Exhaustiveness ensures no catalog has orphan entries — every slice
+// TestCatalog_Exhaustiveness ensures no catalog has orphan entries - every slice
 // and map must have exactly the same cardinality, and every key/value must be valid.
 func TestCatalog_Exhaustiveness(t *testing.T) {
 	assert.Equal(t, len(allErrorCodes), len(httpStatusByCode),
@@ -145,6 +148,8 @@ func TestRateLimitedCode(t *testing.T) {
 }
 
 // TestErrorCodeStringValues verifies all ErrorCode string values verbatim.
+// 14 are from tasks/03 §7.2; ErrForbidden and ErrSkillConflict are intentional
+// reviewed extensions without BlockReason counterparts.
 func TestErrorCodeStringValues(t *testing.T) {
 	assert.Equal(t, "INVALID_REQUEST", string(ErrInvalidRequest))
 	assert.Equal(t, "AUTH_REQUIRED", string(ErrAuthRequired))
@@ -187,4 +192,90 @@ func TestBlockReasonMappingSpotCheck(t *testing.T) {
 	code, ok = ErrorCodeFor(enums.BlockReasonEvaluationNotPassed)
 	require.True(t, ok)
 	assert.Equal(t, ErrSkillEvaluationNotPassed, code)
+}
+
+// TestDR70BlockedMapping_AlwaysRequired locks the blocked-path mapping that DR-70
+// treats as always-required regardless of dependency-gated runtime coverage.
+func TestDR70BlockedMapping_AlwaysRequired(t *testing.T) {
+	cases := []struct {
+		code   ErrorCode
+		reason enums.BlockReason
+	}{
+		{ErrAuthRequired, enums.BlockReasonAuthRequired},
+		{ErrSkillNotFound, enums.BlockReasonSkillNotFound},
+		{ErrSkillNotPublished, enums.BlockReasonSkillNotPublished},
+		{ErrSkillNotEnabled, enums.BlockReasonSkillNotEnabled},
+	}
+
+	for _, tc := range cases {
+		got, ok := SkillBlockedReasonFor(tc.code)
+		require.True(t, ok, "expected DR-70 always-required mapping for %q", tc.code)
+		assert.Equal(t, tc.reason, got, "SkillBlockedReasonFor(%q)", tc.code)
+	}
+}
+
+// TestDR70BlockedMapping_DependencyGated locks the canonical reverse mapping for
+// codes that DR-70 documents as dependency-gated: the mapping exists even when a
+// live blocked path may not yet be wired in the current runtime.
+func TestDR70BlockedMapping_DependencyGated(t *testing.T) {
+	cases := []struct {
+		code   ErrorCode
+		reason enums.BlockReason
+	}{
+		{ErrSkillPlanRequired, enums.BlockReasonPlanRequired},
+		{ErrSkillSubscriptionInactive, enums.BlockReasonSubscriptionInactive},
+		{ErrSkillQuotaExceeded, enums.BlockReasonQuotaExceeded},
+	}
+
+	for _, tc := range cases {
+		got, ok := SkillBlockedReasonFor(tc.code)
+		require.True(t, ok, "expected dependency-gated mapping for %q", tc.code)
+		assert.Equal(t, tc.reason, got, "SkillBlockedReasonFor(%q)", tc.code)
+	}
+}
+
+// TestDR70BlockedMapping_RuntimeBlockedCodes locks the runtime blocked mappings
+// that DR-70 currently includes in SkillBlockedReasonFor even when individual
+// production call sites may be covered by separate integration-style tests.
+func TestDR70BlockedMapping_RuntimeBlockedCodes(t *testing.T) {
+	cases := []struct {
+		code   ErrorCode
+		reason enums.BlockReason
+	}{
+		{ErrSkillKidsModeBlocked, enums.BlockReasonKidsModeBlocked},
+		{ErrSkillContextTooLong, enums.BlockReasonContextTooLong},
+		{ErrSkillRateLimited, enums.BlockReasonRateLimited},
+	}
+
+	for _, tc := range cases {
+		got, ok := SkillBlockedReasonFor(tc.code)
+		require.True(t, ok, "expected DR-70 runtime mapping for %q", tc.code)
+		assert.Equal(t, tc.reason, got, "SkillBlockedReasonFor(%q)", tc.code)
+	}
+}
+
+// TestDR70BlockedMapping_TimeoutIsMappingOnly locks the canonical timeout mapping
+// without implying the current runtime already has a live pre-injection timeout path.
+func TestDR70BlockedMapping_TimeoutIsMappingOnly(t *testing.T) {
+	got, ok := SkillBlockedReasonFor(ErrSkillTimeout)
+	require.True(t, ok, "SKILL_TIMEOUT must keep a canonical reverse mapping")
+	assert.Equal(t, enums.BlockReasonTimeout, got)
+}
+
+// TestDR70BlockedMapping_DefaultExclusions confirms the reverse mapping excludes
+// codes that DR-70 does not currently classify into skill_blocked by default.
+func TestDR70BlockedMapping_DefaultExclusions(t *testing.T) {
+	cases := []ErrorCode{
+		ErrInvalidRequest,
+		ErrForbidden,
+		ErrSkillConflict,
+		ErrSkillEvaluationNotPassed,
+		ErrSkillInternalError,
+		ErrSkillSafetyViolation,
+	}
+
+	for _, code := range cases {
+		_, ok := SkillBlockedReasonFor(code)
+		assert.False(t, ok, "SkillBlockedReasonFor(%q) must stay unmapped by default for DR-70", code)
+	}
 }

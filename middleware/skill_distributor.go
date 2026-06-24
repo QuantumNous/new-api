@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	skillrelay "github.com/QuantumNous/new-api/internal/skill/relay"
@@ -28,12 +29,31 @@ func prepareSkillRelayForDistribution(c *gin.Context, modelRequest *ModelRequest
 		return ""
 	}
 
-	skillCtx, errCode := skillrelay.ResolveVersion(c, request.Deeprouter.SkillID, request.Deeprouter.SkillVersionID)
+	entryPoint, errCode := distributeSkillEntryPoint(c, &request)
 	if errCode != "" {
 		return errCode
 	}
+	skillCtx, errCode := skillrelay.ResolveVersion(c, request.Deeprouter.SkillID, request.Deeprouter.SkillVersionID)
+	if errCode != "" {
+		skillrelay.AbortSkillRelayBlocked(c, skillrelay.AbortSkillRelayBlockedInput{
+			ErrorCode:  errCode,
+			EntryPoint: entryPoint,
+			SkillID:    request.Deeprouter.SkillID,
+		}, nil)
+		return errCode
+	}
+	skillCtx.EntryPoint = entryPoint
+	// Persist the request-entry-bound snapshot context before LoadAndApply so any
+	// post-resolve blocked path can still emit snapshot fields (SkillVersionID,
+	// plan, user context) through the shared blocked helper.
+	skillrelay.Set(c, skillCtx)
 	rewritten, errCode := skillrelay.LoadAndApply(skillCtx, &request)
 	if errCode != "" {
+		skillrelay.AbortSkillRelayBlocked(c, skillrelay.AbortSkillRelayBlockedInput{
+			ErrorCode:  errCode,
+			EntryPoint: entryPoint,
+			SkillID:    request.Deeprouter.SkillID,
+		}, nil)
 		return errCode
 	}
 	// Keep the skill marker only until TextHelper sees it and strips it before
@@ -44,7 +64,6 @@ func prepareSkillRelayForDistribution(c *gin.Context, modelRequest *ModelRequest
 		return errCode
 	}
 	modelRequest.Model = rewritten.Model
-	skillrelay.Set(c, skillCtx)
 	return ""
 }
 
@@ -77,4 +96,16 @@ func replaceReusableRequestBody(c *gin.Context, request *dto.GeneralOpenAIReques
 	c.Request.ContentLength = int64(len(jsonData))
 	c.Request.Header.Set("Content-Type", "application/json")
 	return ""
+}
+
+func distributeSkillEntryPoint(c *gin.Context, request *dto.GeneralOpenAIRequest) (string, errcodes.ErrorCode) {
+	requested := ""
+	if request != nil && request.Deeprouter != nil {
+		requested = request.Deeprouter.EntryPoint
+	}
+	return skillrelay.ResolveEffectiveEntryPoint(
+		common.GetContextKeyString(c, constant.ContextKeySkillRelayEntryPoint),
+		requested,
+		"",
+	)
 }

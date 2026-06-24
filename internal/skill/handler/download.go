@@ -3,12 +3,15 @@ package handler
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"mime"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	skillapi "github.com/QuantumNous/new-api/internal/skill/api"
@@ -24,6 +27,8 @@ import (
 var (
 	errNoActiveSkillVersion       = errors.New("no active skill version for package build")
 	errMissingInstructionTemplate = errors.New("active skill version missing instruction_template")
+	errMissingPackageArtifact     = errors.New("skill version package artifact missing")
+	errSkillPackageGuardFailed    = errors.New("skill package build guard failed")
 )
 
 const (
@@ -58,13 +63,54 @@ func DownloadSkillPackage(c *gin.Context) {
 		return
 	}
 
-	zipBytes, err := buildSkillPackage(db, s)
+	version, zipBytes, err := packageBytesForCurrentSkillVersion(db, s)
 	if err != nil {
 		logSkillPackageBuildFailure(s, err)
 		skillapi.Error(c, errcodes.ErrSkillInternalError, "Failed to build skill package.", nil)
 		return
 	}
 
+	sendSkillPackageDownload(c, db, s, version, zipBytes)
+}
+
+// DownloadSkillVersionPackage handles GET /api/v1/marketplace/skill-versions/:skill_version_id/download.
+// It serves the immutable publish-time artifact pinned to that skill_version_id.
+func DownloadSkillVersionPackage(c *gin.Context) {
+	db, ok := skillDB(c)
+	if !ok {
+		return
+	}
+
+	versionID := strings.TrimSpace(c.Param("skill_version_id"))
+	var version skillmodel.SkillVersion
+	if err := db.First(&version, "id = ?", versionID).Error; err != nil {
+		writeSkillLookupError(c, err)
+		return
+	}
+
+	var s skillmodel.Skill
+	if err := db.Where("status = ?", enums.SkillStatusPublished).First(&s, "id = ?", version.SkillID).Error; err != nil {
+		writeSkillLookupError(c, err)
+		return
+	}
+
+	if !downloadEntitled(s.RequiredPlan, c.GetString("group")) {
+		skillapi.Error(c, errcodes.ErrSkillPlanRequired,
+			fmt.Sprintf("This skill requires the %s plan.", s.RequiredPlan), nil)
+		return
+	}
+
+	zipBytes, err := storedPackageBytes(version)
+	if err != nil {
+		logSkillPackageBuildFailure(s, err)
+		skillapi.Error(c, errcodes.ErrSkillInternalError, "Skill version package artifact is unavailable.", nil)
+		return
+	}
+
+	sendSkillPackageDownload(c, db, s, version, zipBytes)
+}
+
+func sendSkillPackageDownload(c *gin.Context, db *gorm.DB, s skillmodel.Skill, version skillmodel.SkillVersion, zipBytes []byte) {
 	userID := int64(c.GetInt("id"))
 	// DR-55 contract: download creates a download/enablement state record, NOT a
 	// standalone execution grant. This row may be used by Relay as one runtime
@@ -78,11 +124,9 @@ func DownloadSkillPackage(c *gin.Context) {
 	}
 
 	entryPoint := downloadEntryPoint(c.Query("entry_point"))
-	// Emit analytics event with the user's resolved plan (not the skill's required_plan).
-	// Log on failure but do not block the download response.
 	userPlan := groupToPlan(c.GetString("group"))
 	if err := emitSkillEnabledForDownload(db, userID, s, userPlan, entryPoint); err != nil {
-		common.SysLog("EmitSkillEnabled failed for skill " + s.ID + ": " + err.Error())
+		common.SysLog("EmitSkillEnabled failed for skill " + s.ID + " version " + version.ID + ": " + err.Error())
 	}
 
 	c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{
@@ -216,7 +260,10 @@ func buildSkillPackage(db *gorm.DB, s skillmodel.Skill) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	return buildSkillPackageForVersion(s, version)
+}
 
+func buildSkillPackageForVersion(s skillmodel.Skill, version skillmodel.SkillVersion) ([]byte, error) {
 	manifest := skillManifest{
 		SchemaVersion:         "1.0",
 		SkillID:               s.ID,
@@ -242,6 +289,46 @@ func buildSkillPackage(db *gorm.DB, s skillmodel.Skill) ([]byte, error) {
 	return buildSkillPackageZip(skillPackageKindFor(s), files)
 }
 
+func packageBytesForCurrentSkillVersion(db *gorm.DB, s skillmodel.Skill) (skillmodel.SkillVersion, []byte, error) {
+	version, err := activeSkillVersionForPackage(db, s)
+	if err != nil {
+		return skillmodel.SkillVersion{}, nil, err
+	}
+	zipBytes, err := storedPackageBytes(version)
+	if err == nil {
+		return version, zipBytes, nil
+	}
+	if !errors.Is(err, errMissingPackageArtifact) {
+		return skillmodel.SkillVersion{}, nil, err
+	}
+	// Compatibility for pre-DR-79 published Skills and old tests: new publishes
+	// persist package_zip, but existing rows may not have an artifact yet.
+	zipBytes, err = buildSkillPackageForVersion(s, version)
+	if err != nil {
+		return skillmodel.SkillVersion{}, nil, err
+	}
+	return version, zipBytes, nil
+}
+
+func storedPackageBytes(version skillmodel.SkillVersion) ([]byte, error) {
+	if len(version.PackageZip) == 0 {
+		return nil, errMissingPackageArtifact
+	}
+	return append([]byte(nil), version.PackageZip...), nil
+}
+
+func storeVersionPackageArtifact(tx *gorm.DB, versionID string, zipBytes []byte, builtAt time.Time) error {
+	sum := sha256.Sum256(zipBytes)
+	sha := hex.EncodeToString(sum[:])
+	return tx.Model(&skillmodel.SkillVersion{}).
+		Where("id = ?", versionID).
+		Updates(map[string]any{
+			"package_zip":      append([]byte(nil), zipBytes...),
+			"package_sha256":   sha,
+			"package_built_at": builtAt,
+		}).Error
+}
+
 func skillPackageKindFor(s skillmodel.Skill) skillPackageKind {
 	if s.ActiveVersionID == nil {
 		return skillPackageKindLegacy
@@ -251,6 +338,10 @@ func skillPackageKindFor(s skillmodel.Skill) skillPackageKind {
 
 func buildSkillPackageZip(kind skillPackageKind, files []skillPackageFile) ([]byte, error) {
 	if err := validateSkillPackageRuntimeDependency(kind, files); err != nil {
+		common.SysLog("Skill package build rejected: " + err.Error())
+		return nil, err
+	}
+	if err := validateSkillPackageSecurity(files); err != nil {
 		common.SysLog("Skill package build rejected: " + err.Error())
 		return nil, err
 	}
@@ -267,6 +358,56 @@ func buildSkillPackageZip(kind skillPackageKind, files []skillPackageFile) ([]by
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func validateSkillPackageSecurity(files []skillPackageFile) error {
+	for _, file := range files {
+		lower := strings.ToLower(string(file.Content))
+		for _, marker := range providerCredentialMarkers() {
+			if strings.Contains(lower, marker) {
+				return fmt.Errorf("%w: provider credential marker %q in %s", errSkillPackageGuardFailed, marker, file.Name)
+			}
+		}
+		for _, marker := range serverRoutingLogicMarkers() {
+			if strings.Contains(lower, marker) {
+				return fmt.Errorf("%w: server-side routing/model-selection marker %q in %s", errSkillPackageGuardFailed, marker, file.Name)
+			}
+		}
+	}
+	return nil
+}
+
+func providerCredentialMarkers() []string {
+	return []string{
+		"openai_api_key",
+		"anthropic_api_key",
+		"deepseek_api_key",
+		"gemini_api_key",
+		"google_api_key",
+		"azure_openai_api_key",
+		"aws_access_key_id",
+		"aws_secret_access_key",
+		"bedrock_access_key",
+		"sk-ant-",
+		"sk-proj-",
+		"sk-or-",
+	}
+}
+
+func serverRoutingLogicMarkers() []string {
+	return []string{
+		"getrandomsatisfiedchannel",
+		"model_whitelist_snapshot",
+		"smart_router_client",
+		"relay/channel",
+		"channel.key",
+		"channel_id",
+		"key_index",
+		"selectmodel(",
+		"loadandapply",
+		"provider key",
+		"priority tier",
+	}
 }
 
 func activeSkillVersionForPackage(db *gorm.DB, s skillmodel.Skill) (skillmodel.SkillVersion, error) {
@@ -337,7 +478,7 @@ func validateSkillPackageRuntimeDependency(kind skillPackageKind, files []skillP
 
 	workStep := extractSkillWorkStep(skillMD)
 	if !hasDeepRouterRoutingCall(workStep) {
-		return fmt.Errorf("D-09 runtime dependency guard rejected capability package: work step has no DeepRouter public routing API call")
+		return fmt.Errorf("%w: D-09 runtime dependency guard rejected capability package: work step has no DeepRouter public routing API call", errSkillPackageGuardFailed)
 	}
 	return nil
 }

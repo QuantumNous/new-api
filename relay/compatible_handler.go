@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -63,6 +64,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	hadDeeprouterExtension := request.Deeprouter != nil
 	if hadDeeprouterExtension {
 		if request.Deeprouter.SkillID != "" {
+			entryPoint, entryPointErr := resolveDirectSkillEntryPoint(c, request)
+			if entryPointErr != nil {
+				return entryPointErr
+			}
 			// TOCTOU guard: if Distribute's prepareSkillRelayForDistribution already
 			// ran, SkillRelayContext has a pinned SkillVersionID. Re-calling Resolve
 			// would return a fresh zero-SkillVersionID context; skillrelay.Set below
@@ -76,6 +81,11 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			} else {
 				resolved, errCode := skillrelay.ResolveVersion(c, request.Deeprouter.SkillID, request.Deeprouter.SkillVersionID)
 				if errCode != "" {
+					skillrelay.AbortSkillRelayBlocked(c, skillrelay.AbortSkillRelayBlockedInput{
+						ErrorCode:  errCode,
+						EntryPoint: entryPoint,
+						SkillID:    request.Deeprouter.SkillID,
+					}, nil)
 					return types.NewErrorWithStatusCode(
 						fmt.Errorf("%s", errCode),
 						skillRelayErrType(errCode),
@@ -85,24 +95,8 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 				}
 				skillCtx = resolved
 			}
-			// Carry entry_point into relay context for analytics (tasks/03 section 9).
-			// Package routing API forces skill_package so package-provided values
-			// cannot spoof analytics surfaces; regular relay keeps the explicit enum.
-			skillCtx.EntryPoint = string(enums.EntryPointPlaygroundPicker)
-			if forcedEntryPoint := common.GetContextKeyString(c, constant.ContextKeySkillRelayEntryPoint); forcedEntryPoint != "" {
-				skillCtx.EntryPoint = forcedEntryPoint
-			} else if request.Deeprouter.EntryPoint != "" {
-				ep := enums.EntryPoint(request.Deeprouter.EntryPoint)
-				if !ep.Valid() {
-					return types.NewErrorWithStatusCode(
-						fmt.Errorf("invalid entry_point: %q", request.Deeprouter.EntryPoint),
-						types.ErrorCodeInvalidRequest,
-						http.StatusBadRequest,
-						types.ErrOptionWithSkipRetry(),
-					)
-				}
-				skillCtx.EntryPoint = string(ep)
-			}
+			// Carry the already-validated real entry_point into relay context for analytics.
+			skillCtx.EntryPoint = entryPoint
 			skillrelay.Set(c, skillCtx)
 		}
 		request.Deeprouter = nil // always strip vendor extension before provider forwarding
@@ -145,6 +139,11 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	if skillCtx, isSkill := skillrelay.Get(c); isSkill && (skillCtx.SkillVersion != nil || skillCtx.SkillVersionID == "") {
 		rewritten, execErrCode := skillrelay.LoadAndApply(skillCtx, request)
 		if execErrCode != "" {
+			skillrelay.AbortSkillRelayBlocked(c, skillrelay.AbortSkillRelayBlockedInput{
+				ErrorCode:  execErrCode,
+				EntryPoint: skillCtx.EntryPoint,
+				SkillID:    skillCtx.SkillID,
+			}, nil)
 			return types.NewErrorWithStatusCode(
 				fmt.Errorf("%s", execErrCode),
 				skillRelayErrType(execErrCode),
@@ -209,6 +208,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		} else {
 			service.PostTextConsumeQuota(c, info, usage, nil)
 		}
+		emitSuccessfulSkillRelay(c, info, request.Model, usage)
 		return nil
 	}
 
@@ -334,6 +334,8 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		}
 	}
 
+	setSuccessfulSkillRelayDisclosure(c)
+
 	usage, newApiErr := adaptor.DoResponse(c, httpResp, info)
 	if newApiErr != nil {
 		// reset status code
@@ -349,7 +351,57 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	} else {
 		service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	}
+	emitSuccessfulSkillRelay(c, info, request.Model, usage.(*dto.Usage))
 	return nil
+}
+
+func setSuccessfulSkillRelayDisclosure(c *gin.Context) {
+	if _, isSkill := skillrelay.Get(c); isSkill {
+		c.Writer.Header().Set(skillrelay.AIDisclosureHeader, skillrelay.AIDisclosureText)
+	}
+}
+
+func emitSuccessfulSkillRelay(c *gin.Context, info *relaycommon.RelayInfo, requestModel string, usage *dto.Usage) {
+	if skillCtx, isSkill := skillrelay.Get(c); isSkill {
+		modelName := successfulSkillRelayModel(info, requestModel)
+		latencyMS := int(time.Since(info.StartTime).Milliseconds())
+		if err := skillrelay.EmitSuccessfulExecution(skillrelay.SuccessfulExecutionEventInput{
+			Context:   skillCtx,
+			Usage:     usage,
+			Model:     modelName,
+			LatencyMS: latencyMS,
+		}); err != nil {
+			logger.LogError(c, fmt.Sprintf("skill usage event emit failed: %s", err.Error()))
+		}
+	}
+}
+
+func successfulSkillRelayModel(info *relaycommon.RelayInfo, requestModel string) string {
+	if info != nil && info.UpstreamModelName != "" {
+		return info.UpstreamModelName
+	}
+	return requestModel
+}
+
+func resolveDirectSkillEntryPoint(c *gin.Context, request *dto.GeneralOpenAIRequest) (string, *types.NewAPIError) {
+	requested := ""
+	if request.Deeprouter != nil {
+		requested = request.Deeprouter.EntryPoint
+	}
+	entryPoint, errCode := skillrelay.ResolveEffectiveEntryPoint(
+		common.GetContextKeyString(c, constant.ContextKeySkillRelayEntryPoint),
+		requested,
+		string(enums.EntryPointPlaygroundPicker),
+	)
+	if errCode != "" {
+		return "", types.NewErrorWithStatusCode(
+			fmt.Errorf("invalid entry_point: %q", requested),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
+	}
+	return entryPoint, nil
 }
 
 // skillRelayErrType maps a skill errcodes.ErrorCode to the appropriate

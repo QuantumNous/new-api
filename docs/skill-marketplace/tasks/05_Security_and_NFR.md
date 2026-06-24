@@ -40,9 +40,9 @@
 | Item | Decision |
 |---|---|
 | User-created Skills | Not supported in V1 |
-| Public routing/execution API for Skills | **Not in scope (D-09)**; DeepRouter does not execute Skills; users run downloaded zip locally with any LLM |
+| Public routing/execution API for Skills | In scope for V1 authenticated Skill execution. Downloaded packages and first-party surfaces may call the DeepRouter public routing/execution API, and Relay remains the runtime authority |
 | Prompt confidentiality for published Skills | **Not a security control**; published SKILL.md content ships in the package and is readable by design |
-| Per-execution entitlement / billing | **Not in scope**; entitlement is checked once at download time; no execution token billing |
+| Per-execution entitlement / billing | In scope at runtime; Relay re-checks entitlement on every execution and billing attribution runs only for allowed execution paths. Blocked paths must not create billing rows |
 | Client-side DRM | Not trusted as a security control |
 | Full DLP for all user conversations | Existing platform scope; this file covers Skill Marketplace-specific data paths |
 

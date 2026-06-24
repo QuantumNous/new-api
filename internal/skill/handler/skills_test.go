@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"archive/zip"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1665,6 +1667,51 @@ func TestActivateAdminSkillVersion_DemotesPriorActiveAndAudits(t *testing.T) {
 	assert.Equal(t, string(enums.SkillVersionStatusActive), after["status"])
 }
 
+func TestActivateAdminSkillVersion_PersistsVersionPackageArtifact(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s := testSkill("version-activate-package", "published")
+	maxInput := 2048
+	s.MaxInputTokens = &maxInput
+	require.NoError(t, db.Create(&s).Error)
+	v1 := validHandlerSkillVersion(s.ID, 1)
+	v1.Status = enums.SkillVersionStatusActive
+	require.NoError(t, db.Create(&v1).Error)
+	v2 := validHandlerSkillVersion(s.ID, 2)
+	v2.InstructionTemplate = "activated v2 package template"
+	sum := sha256.Sum256([]byte(v2.InstructionTemplate))
+	v2.InstructionTemplateSHA256 = hex.EncodeToString(sum[:])
+	require.NoError(t, db.Create(&v2).Error)
+	require.NoError(t, db.Model(&skillmodel.Skill{}).Where("id = ?", s.ID).Update("active_version_id", v1.ID).Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/versions/"+v2.ID+"/activate", `{"reason":"activate package artifact"}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}, {Key: "version_id", Value: v2.ID}}
+	c.Set("id", 101)
+	c.Set("role", 100)
+
+	ActivateAdminSkillVersion(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var stored skillmodel.SkillVersion
+	require.NoError(t, db.First(&stored, "id = ?", v2.ID).Error)
+	require.NotEmpty(t, stored.PackageZip)
+	require.NotNil(t, stored.PackageSHA256)
+	require.NotNil(t, stored.PackageBuiltAt)
+	packageSum := sha256.Sum256(stored.PackageZip)
+	assert.Equal(t, hex.EncodeToString(packageSum[:]), *stored.PackageSHA256)
+	assert.Equal(t, "activated v2 package template", readZipEntry(t, stored.PackageZip, "instruction_template.md"))
+
+	downloadC, downloadW := testContext("/api/v1/marketplace/skill-versions/" + v2.ID + "/download")
+	downloadC.Params = gin.Params{{Key: "skill_version_id", Value: v2.ID}}
+	downloadC.Set("id", 7)
+	downloadC.Set("group", "default")
+	DownloadSkillVersionPackage(downloadC)
+
+	require.Equal(t, http.StatusOK, downloadW.Code)
+	assert.Equal(t, stored.PackageZip, downloadW.Body.Bytes(), "activated version download must serve stored publish-time bytes")
+	assert.Equal(t, "activated v2 package template", readZipEntry(t, downloadW.Body.Bytes(), "instruction_template.md"))
+}
+
 func TestPublishAdminSkill_PublishesAndEmitsAuditAndEvent(t *testing.T) {
 	db := testSkillDB(t)
 	SetDB(db)
@@ -1729,6 +1776,79 @@ func TestPublishAdminSkill_PublishesAndEmitsAuditAndEvent(t *testing.T) {
 	ListMarketplaceSkills(marketplaceCtx)
 	require.Equal(t, http.StatusOK, marketplaceW.Code)
 	assert.Contains(t, marketplaceW.Body.String(), "publish-ready")
+}
+
+func TestPublishAdminSkill_PersistsImmutableVersionPackage(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s, version := createPublishReadySkill(t, db, "publish-package")
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/publish", `{"reason":"package ready"}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
+	c.Set("id", 42)
+	c.Set("role", 100)
+
+	PublishAdminSkill(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var stored skillmodel.SkillVersion
+	require.NoError(t, db.First(&stored, "id = ?", version.ID).Error)
+	require.NotEmpty(t, stored.PackageZip)
+	require.NotNil(t, stored.PackageSHA256)
+	require.NotNil(t, stored.PackageBuiltAt)
+	sum := sha256.Sum256(stored.PackageZip)
+	assert.Equal(t, hex.EncodeToString(sum[:]), *stored.PackageSHA256)
+	assert.Equal(t, "handler version template", readZipEntry(t, stored.PackageZip, "instruction_template.md"))
+
+	require.NoError(t, db.Model(&skillmodel.Skill{}).Where("id = ?", s.ID).Update("description", "mutated description "+routedWorkStepFixture()).Error)
+	require.NoError(t, db.Model(&skillmodel.SkillVersion{}).Where("id = ?", version.ID).Update("instruction_template", "mutated template").Error)
+
+	downloadC, downloadW := testContext("/api/v1/marketplace/skill-versions/" + version.ID + "/download")
+	downloadC.Params = gin.Params{{Key: "skill_version_id", Value: version.ID}}
+	downloadC.Set("id", 7)
+	downloadC.Set("group", "default")
+	DownloadSkillVersionPackage(downloadC)
+
+	require.Equal(t, http.StatusOK, downloadW.Code)
+	assert.Equal(t, stored.PackageZip, downloadW.Body.Bytes(), "version download must serve the immutable publish-time bytes")
+	assert.Equal(t, "handler version template", readZipEntry(t, downloadW.Body.Bytes(), "instruction_template.md"))
+	assert.NotContains(t, readZipEntry(t, downloadW.Body.Bytes(), "SKILL.md"), "mutated description")
+}
+
+func TestPublishAdminSkill_BlocksPackageWithProviderCredentialMarker(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s, version := createPublishReadySkill(t, db, "publish-provider-credential")
+	require.NoError(t, db.Model(&skillmodel.SkillVersion{}).
+		Where("id = ?", version.ID).
+		Update("instruction_template", "Never ship OPENAI_API_KEY in a package.").Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/publish", `{"reason":"try publish"}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
+
+	PublishAdminSkill(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "PUBLISH_PACKAGE_INVALID")
+	assertPublishPackageRejectedWithoutSideEffects(t, db, s.ID, version.ID)
+}
+
+func TestPublishAdminSkill_BlocksPackageWithServerRoutingLogicMarker(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s, version := createPublishReadySkill(t, db, "publish-routing-logic")
+	require.NoError(t, db.Model(&skillmodel.SkillVersion{}).
+		Where("id = ?", version.ID).
+		Update("instruction_template", "Do not embed GetRandomSatisfiedChannel in the package.").Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/publish", `{"reason":"try publish"}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
+
+	PublishAdminSkill(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "PUBLISH_PACKAGE_INVALID")
+	assertPublishPackageRejectedWithoutSideEffects(t, db, s.ID, version.ID)
 }
 
 func TestPublishAdminSkill_RequiresReason(t *testing.T) {
@@ -1892,6 +2012,46 @@ type listResponse struct {
 
 // ptr returns a pointer to a copy of v (avoids loop-variable aliasing).
 func ptr[T any](v T) *T { return &v }
+
+func readZipEntry(t *testing.T, zipBytes []byte, name string) string {
+	t.Helper()
+	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
+	require.NoError(t, err)
+	for _, f := range zr.File {
+		if f.Name != name {
+			continue
+		}
+		rc, err := f.Open()
+		require.NoError(t, err)
+		body, err := io.ReadAll(rc)
+		rc.Close()
+		require.NoError(t, err)
+		return string(body)
+	}
+	t.Fatalf("zip entry %s not found", name)
+	return ""
+}
+
+func assertPublishPackageRejectedWithoutSideEffects(t *testing.T, db *gorm.DB, skillID, versionID string) {
+	t.Helper()
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "id = ?", skillID).Error)
+	assert.Equal(t, enums.SkillStatusDraft, persisted.Status)
+	assert.Nil(t, persisted.PublishedAt)
+
+	var version skillmodel.SkillVersion
+	require.NoError(t, db.First(&version, "id = ?", versionID).Error)
+	assert.Empty(t, version.PackageZip)
+	assert.Nil(t, version.PackageSHA256)
+	assert.Nil(t, version.PackageBuiltAt)
+
+	var auditCount int64
+	require.NoError(t, db.Model(&skillmodel.SkillAuditLog{}).Where("skill_id = ? AND action = ?", skillID, "publish").Count(&auditCount).Error)
+	assert.Zero(t, auditCount)
+	var eventCount int64
+	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).Where("skill_id = ? AND event_type = ?", skillID, enums.SkillUsageEventTypeAdminAction).Count(&eventCount).Error)
+	assert.Zero(t, eventCount)
+}
 
 func testSkillDB(t *testing.T) *gorm.DB {
 	t.Helper()

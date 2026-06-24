@@ -99,14 +99,14 @@ func resolveVersion(c *gin.Context, database *gorm.DB, skillID string, skillVers
 
 	// DR-66 lifecycle + enabled-state gate (tasks/05 §5.1 step 8, before the
 	// SkillVersion snapshot SELECT / LoadAndApply). Gate failure returns here, so a
-	// disabled / draft / archived / (fail-closed) deprecated skill never loads a
+	// disabled / draft / archived skill never loads a
 	// snapshot or prompt ("No prompt load", tasks/05 error table; threat T-05).
 	//
 	// Short-circuit (fixed requirement, not an optimisation): only a published
 	// skill WITH an active version (and, once DR-67 flips the flag, deprecated)
 	// needs the enabled lookup. A missing active version, draft, archived, or
-	// deprecated-while-flag-off is rejected on lifecycle alone, so it must NOT query
-	// user_enabled_skills. Gating the lookup on hasActiveVersion also preserves error
+	// deprecated without DR-67's live flag is rejected on lifecycle alone, so it must
+	// NOT query user_enabled_skills. Gating the lookup on hasActiveVersion also preserves error
 	// priority: a published-but-no-active-version skill returns SKILL_NOT_PUBLISHED
 	// even when the enabled lookup would have hit a DB error (which must not mask the
 	// higher-priority lifecycle failure with SKILL_INTERNAL_ERROR).
@@ -140,6 +140,35 @@ func resolveVersion(c *gin.Context, database *gorm.DB, skillID string, skillVers
 	}
 
 	var skillVersion skillmodel.SkillVersion
+	var versionEntitlement struct {
+		ID                   string
+		SkillID              string
+		Status               enums.SkillVersionStatus
+		RequiredPlanSnapshot enums.RequiredPlan
+	}
+	if err := database.Model(&skillmodel.SkillVersion{}).
+		Select([]string{
+			"id",
+			"skill_id",
+			"status",
+			"required_plan_snapshot",
+		}).
+		Where("id = ? AND skill_id = ? AND status = ?", selectedVersionID, skill.ID, enums.SkillVersionStatusActive).
+		Take(&versionEntitlement).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errcodes.ErrSkillNotPublished
+		}
+		return nil, errcodes.ErrSkillInternalError
+	}
+
+	entitlement, err := resolveRuntimeEntitlement(database, userID, user.Group)
+	if err != nil {
+		return nil, errcodes.ErrSkillInternalError
+	}
+	if code := useTimeEntitlementDecision(versionEntitlement.RequiredPlanSnapshot, entitlement.Plan, entitlement.SubActive); code != "" {
+		return nil, code
+	}
+
 	if err := database.
 		Select([]string{
 			"id",
@@ -168,8 +197,8 @@ func resolveVersion(c *gin.Context, database *gorm.DB, skillID string, skillVers
 		SkillVersionID: skillVersion.ID,
 		UserID:         userID,
 		IsKidsSession:  user.KidsMode,
-		Plan:           groupToPlan(user.Group),
-		SubActive:      true, // TODO(DR-subscription): replace with subscription table lookup
+		Plan:           entitlement.Plan,
+		SubActive:      entitlement.SubActive,
 		Skill:          &skill,
 		SkillVersion:   &skillVersion,
 	}, ""

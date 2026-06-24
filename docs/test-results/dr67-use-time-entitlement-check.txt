@@ -1,0 +1,157 @@
+# DR-67 Use-Time Entitlement Check Test Results
+
+Date: 2026-06-24
+
+## Focused relay entitlement regression
+
+Command:
+
+```bash
+mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/relay -count=1 -cover
+```
+
+Dataset / fixtures:
+- In-memory SQLite.
+- `skills`, `skill_versions`, `user_enabled_skills`, `subscription_plans`, `user_subscriptions`, and `subscription_pre_consume_records`.
+- Free, Pro, Enterprise, expired subscription, deprecated Skill, and version-snapshot mismatch fixtures.
+
+Assertions:
+- `required_plan_snapshot` is the runtime entitlement source.
+- Free user on Pro snapshot returns `SKILL_PLAN_REQUIRED`.
+- Active Pro user on Pro snapshot succeeds.
+- Expired Pro user on Pro snapshot returns `SKILL_SUBSCRIPTION_INACTIVE`.
+- Active Enterprise user satisfies Pro snapshot.
+- Pro user on Enterprise snapshot returns `SKILL_PLAN_REQUIRED`.
+- Deprecated+enabled users pass lifecycle and still go through entitlement.
+- Plan blocks read version entitlement metadata only, do not load prompt-bearing snapshot, and create no subscription pre-consume records.
+
+Coverage:
+- 81.1% statements for `internal/skill/relay` after merging latest `origin/main`.
+
+Result:
+- PASS.
+
+## Availability decision table regression
+
+Command:
+
+```bash
+mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/availability -count=1 -cover
+```
+
+Dataset / fixtures:
+- Pure in-memory decision table fixtures for anonymous, Free, Pro, Enterprise, expired, deprecated, quota, and Kids cases.
+
+Assertions:
+- Existing tasks/01 §6 allow/block + error-code matrix remains stable.
+- `SKILL_PLAN_REQUIRED` and `SKILL_SUBSCRIPTION_INACTIVE` precedence remains correct.
+
+Coverage:
+- 96.7% statements for `internal/skill/availability`.
+
+Result:
+- PASS.
+
+## Related skill package regression
+
+Command:
+
+```bash
+mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/... -count=1 -cover
+```
+
+Dataset / fixtures:
+- Existing package-specific in-memory fixtures across `internal/skill/{api,availability,enums,errcodes,handler,model,relay,seed,tiers}`.
+
+Assertions:
+- Handler/model/seed/relay behavior remains compatible with the added runtime entitlement lookup.
+- Download and analytics paths are not regressed by resolver subscription-table reads.
+
+Coverage:
+- Package-level coverage reported by Go:
+  - `internal/skill/api`: 77.8%
+  - `internal/skill/availability`: 96.7%
+  - `internal/skill/enums`: 88.9%
+  - `internal/skill/errcodes`: 100.0%
+  - `internal/skill/handler`: 75.7%
+  - `internal/skill/model`: 50.5%
+  - `internal/skill/relay`: 81.1%
+  - `internal/skill/seed`: 79.4%
+  - `internal/skill/tiers`: 100.0%
+
+Result:
+- PASS.
+
+## Middleware and relay integration regression
+
+Pre-latest-main command:
+
+```bash
+mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./middleware ./relay -count=1
+```
+
+Dataset / fixtures:
+- Existing middleware and relay integration-light fixtures.
+- In-memory Skill fixture DBs migrated with subscription tables for DR-67 resolver reads.
+- Local `httptest` servers for smart-router and relay billing paths.
+
+Assertions:
+- Skill relay distribution still loads and applies server-bound SkillVersion snapshots before smart-router.
+- TextHelper skill relay path still stores SkillRelayContext and preserves entry-point behavior.
+- Relay billing integration remains compatible.
+
+Coverage:
+- Not requested in this command.
+
+Result:
+- PASS before merging `origin/main`.
+
+Latest-main command:
+
+```bash
+go test ./middleware ./relay -count=1 -cover
+```
+
+Latest-main coverage:
+- `middleware`: 15.0%
+- `relay`: 13.1%
+
+Latest-main result:
+- PASS.
+
+## Full Go regression
+
+Command:
+
+```bash
+mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./... -count=1
+```
+
+Dataset / fixtures:
+- Full repository Go test suite.
+
+Assertions:
+- All packages that could be loaded ran their existing tests.
+- All loaded packages passed after DR-67 fixture updates.
+
+Coverage:
+- Not requested in this command.
+
+Result:
+- Before merging `origin/main`: FAIL only at root package setup:
+  - `main.go:45:12: pattern web/classic/dist: no matching files found`
+- All listed non-root packages completed with PASS.
+- After merging `origin/main`: FAIL with the same root package setup blocker, and one order/config-sensitive `relay/helper` failure:
+  - root package: `main.go:45:12: pattern web/classic/dist: no matching files found`
+  - `relay/helper`: `TestStreamScannerHandler_DoneStopsScanner` panicked with `non-positive interval for NewTicker`
+- Follow-up isolation rerun passed:
+
+```bash
+mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./relay/helper -count=1
+```
+
+Isolation result:
+- PASS.
+- After merging latest `origin/main` again: FAIL only at root package setup:
+  - `main.go:45:12: pattern web/classic/dist: no matching files found`
+- All listed non-root packages, including `relay/helper`, completed with PASS.
