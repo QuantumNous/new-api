@@ -42,7 +42,7 @@ import { Switch } from '@/components/ui/switch'
 import { SectionPageLayout } from '@/components/layout'
 import {
   emitMarketplaceEvent,
-  getAllMarketplaceSkills,
+  getMarketplaceSkills,
   recordMarketplaceSkillEvent,
 } from './api'
 import {
@@ -127,6 +127,7 @@ export function Marketplace() {
   const user = useAuthStore((state) => state.auth.user)
   const [filters, setFilters] = useState<MarketplaceFilters>(initialFilters)
   const [debouncedQuery, setDebouncedQuery] = useState(initialFilters.query)
+  const [page, setPage] = useState(1)
   const [newSkillBannerDismissed, setNewSkillBannerDismissed] = useState(() =>
     readDismissed(NEW_SKILL_BANNER_DISMISS_KEY)
   )
@@ -152,8 +153,8 @@ export function Marketplace() {
   )
 
   const skillsQuery = useQuery({
-    queryKey: ['marketplace-skills', serverFilters],
-    queryFn: () => getAllMarketplaceSkills(serverFilters),
+    queryKey: ['marketplace-skills', serverFilters, page],
+    queryFn: () => getMarketplaceSkills(serverFilters, page),
     placeholderData: (prev) => prev,
   })
 
@@ -185,6 +186,7 @@ export function Marketplace() {
     () => filterMarketplaceSkills(skills, filters),
     [filters, skills]
   )
+  const pagination = skillsQuery.data?.pagination
   const filterSignature = useMemo(
     () =>
       JSON.stringify({
@@ -281,10 +283,12 @@ export function Marketplace() {
     value: MarketplaceFilters[K]
   ) {
     setFilters((prev) => ({ ...prev, [key]: value }))
+    setPage(1)
   }
 
   function clearFilters() {
     setFilters(initialFilters)
+    setPage(1)
   }
 
   function cardRef(skillId: string) {
@@ -481,7 +485,6 @@ export function Marketplace() {
                 <SkillCard
                   key={skill.id}
                   skill={skill}
-                  cta='view'
                   onOpen={(cardSkill) =>
                     goToSkillDetail(cardSkill, 'marketplace_card')
                   }
@@ -506,6 +509,32 @@ export function Marketplace() {
               onAction={clearFilters}
             />
           )}
+          {pagination != null &&
+            (pagination.page > 1 || pagination.has_next) && (
+              <div className='flex items-center justify-end gap-2'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  disabled={pagination.page <= 1 || skillsQuery.isFetching}
+                  onClick={() =>
+                    setPage((currentPage) => Math.max(1, currentPage - 1))
+                  }
+                >
+                  {t('Previous')}
+                </Button>
+                <span className='text-muted-foreground min-w-16 text-center text-sm tabular-nums'>
+                  {t('Page')} {pagination.page}
+                </span>
+                <Button
+                  type='button'
+                  variant='outline'
+                  disabled={!pagination.has_next || skillsQuery.isFetching}
+                  onClick={() => setPage((currentPage) => currentPage + 1)}
+                >
+                  {t('Next')}
+                </Button>
+              </div>
+            )}
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>

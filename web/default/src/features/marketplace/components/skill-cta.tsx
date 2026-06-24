@@ -52,7 +52,7 @@ const ctaConfig = {
     label: 'Contact Sales',
     variant: 'outline',
   },
-  login: { icon: UserRound, label: 'Sign in', variant: 'outline' },
+  login: { icon: UserRound, label: 'Log in', variant: 'outline' },
   remove: {
     icon: Trash2,
     label: 'Remove from My Skills',

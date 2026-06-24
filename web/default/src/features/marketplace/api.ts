@@ -51,9 +51,11 @@ export interface MarketplaceSkillsParams {
 }
 
 export async function getMarketplaceSkills(
-  filters?: Partial<MarketplaceFilters>
+  filters?: Partial<MarketplaceFilters>,
+  page = 1
 ): Promise<MarketplaceListResponse<MarketplaceSkill>> {
   return getMarketplaceSkillsWithParams({
+    page,
     limit: 100,
     sort: 'featured_rank',
     query: filters?.query || undefined,
@@ -74,46 +76,6 @@ export async function getMarketplaceSkillsWithParams(
     skipErrorHandler: true,
   } as Record<string, unknown>)
   return res.data
-}
-
-export async function getAllMarketplaceSkills(
-  filters?: Partial<MarketplaceFilters>
-): Promise<MarketplaceListResponse<MarketplaceSkill>> {
-  const firstPage = await getMarketplaceSkills(filters)
-  const allSkills = [...(firstPage.data ?? [])]
-  const pagination = firstPage.pagination
-  if (pagination?.has_next) {
-    const totalPages = Math.ceil(pagination.total / pagination.limit)
-    for (let page = pagination.page + 1; page <= totalPages; page += 1) {
-      const nextPage = await getMarketplaceSkillsWithParams({
-        page,
-        limit: pagination.limit,
-        sort: 'featured_rank',
-        query: filters?.query || undefined,
-        category: filters?.category || undefined,
-        plan:
-          filters?.plan != null && filters.plan !== 'all'
-            ? filters.plan
-            : undefined,
-        kids_safe: filters?.kidsSafeOnly || undefined,
-      })
-      allSkills.push(...(nextPage.data ?? []))
-      if (nextPage.pagination?.has_next !== true) break
-    }
-  }
-  return {
-    ...firstPage,
-    data: allSkills,
-    pagination:
-      firstPage.pagination == null
-        ? undefined
-        : {
-            ...firstPage.pagination,
-            page: 1,
-            limit: allSkills.length,
-            has_next: false,
-          },
-  }
 }
 
 export async function getMySkills(): Promise<MarketplaceListResponse<MySkill>> {

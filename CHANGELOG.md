@@ -4,6 +4,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-24
 
+- 修复 DR-57 Marketplace 列表后续 review 问题：恢复卡片真实 CTA 矩阵显示（Enable/Use/Upgrade/Renew/Contact Sales/Log in/Unavailable），列表点击进入详情页处理实际动作；Marketplace API 改为保留服务端分页、不再全量拉取所有页，status 过滤仅作用于当前页；补 CTA 矩阵与单页分页回归测试（`web/default/src/features/marketplace/`）
 - 修复 DR-57 合并后 review blocker：Marketplace 列表保留 main 的 Skill Detail/New Skill banner/axios download flow，列表 CTA 统一进入详情页不直连下载 URL；移除未落库的前端 analytics metadata；搜索 query 进入 server-filtered 全分页查询前增加 debounce，降低输入请求风暴风险（`web/default/src/features/marketplace/`）
 - 修复 DR-57 review blocker：Marketplace 客户端过滤只保留 personalized status，query/category/plan/Kids Safe 仅交给 server filters，避免 PG token 搜索结果被 substring 二次过滤误删；修正 mutation 测试断言为单参数 payload，并补非连续 substring 搜索回归测试（`web/default/src/features/marketplace/`）
 

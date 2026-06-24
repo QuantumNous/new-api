@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
 import {
   emitMarketplaceEvent,
-  getAllMarketplaceSkills,
   getMarketplaceSkills,
   recordMarketplaceSkillEvent,
   skillDownloadURL,
@@ -55,42 +54,27 @@ describe('Marketplace API review regressions', () => {
     )
   })
 
-  it('loads every server-filtered page before client-only status filtering', async () => {
-    vi.mocked(api.get)
-      .mockResolvedValueOnce({
-        data: {
-          data: [{ id: 'skill-1' }],
-          pagination: { page: 1, limit: 100, total: 201, has_next: true },
-        },
-      })
-      .mockResolvedValueOnce({
-        data: {
-          data: [{ id: 'skill-2' }],
-          pagination: { page: 2, limit: 100, total: 201, has_next: true },
-        },
-      })
-      .mockResolvedValueOnce({
-        data: {
-          data: [{ id: 'skill-3' }],
-          pagination: { page: 3, limit: 100, total: 201, has_next: false },
-        },
-      })
-
-    const result = await getAllMarketplaceSkills({
-      query: 'legal',
-      category: 'review',
-      plan: 'enterprise',
-      status: 'locked',
-      kidsSafeOnly: false,
+  it('loads only the requested server-filtered page', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      data: {
+        data: [{ id: 'skill-2' }],
+        pagination: { page: 2, limit: 100, total: 201, has_next: true },
+      },
     })
 
-    expect(result.data.map((skill) => skill.id)).toEqual([
-      'skill-1',
-      'skill-2',
-      'skill-3',
-    ])
-    expect(api.get).toHaveBeenNthCalledWith(
-      2,
+    const result = await getMarketplaceSkills(
+      {
+        query: 'legal',
+        category: 'review',
+        plan: 'enterprise',
+        status: 'locked',
+        kidsSafeOnly: false,
+      },
+      2
+    )
+
+    expect(result.data.map((skill) => skill.id)).toEqual(['skill-2'])
+    expect(api.get).toHaveBeenCalledWith(
       '/api/v1/marketplace/skills',
       expect.objectContaining({
         params: expect.objectContaining({
@@ -102,7 +86,34 @@ describe('Marketplace API review regressions', () => {
         }),
       })
     )
-    expect(api.get).toHaveBeenCalledTimes(3)
+    expect(api.get).toHaveBeenCalledTimes(1)
+  })
+
+  it('defaults to page one for marketplace list calls', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      data: {
+        data: [],
+        pagination: { page: 1, limit: 100, total: 0, has_next: false },
+      },
+    })
+
+    await getMarketplaceSkills({
+      query: 'legal',
+      category: 'review',
+      plan: 'enterprise',
+      status: 'locked',
+      kidsSafeOnly: false,
+    })
+
+    expect(api.get).toHaveBeenCalledWith(
+      '/api/v1/marketplace/skills',
+      expect.objectContaining({
+        params: expect.objectContaining({
+          page: 1,
+          limit: 100,
+        }),
+      })
+    )
   })
 
   it('records marketplace events through the existing skill-scoped endpoint', async () => {

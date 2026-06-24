@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Marketplace } from '../index'
 import type { MarketplaceEventPayload, MarketplaceSkill } from '../types'
 
-const mockGetAllMarketplaceSkills = vi.hoisted(() =>
+const mockGetMarketplaceSkills = vi.hoisted(() =>
   vi.fn<() => Promise<{ data: MarketplaceSkill[] }>>()
 )
 const mockEmitMarketplaceEvent = vi.hoisted(() =>
@@ -55,7 +55,7 @@ class MockIntersectionObserver {
 }
 
 vi.mock('../api', () => ({
-  getAllMarketplaceSkills: mockGetAllMarketplaceSkills,
+  getMarketplaceSkills: mockGetMarketplaceSkills,
   emitMarketplaceEvent: mockEmitMarketplaceEvent,
   recordMarketplaceSkillEvent: mockRecordMarketplaceSkillEvent,
 }))
@@ -207,7 +207,7 @@ describe('Marketplace analytics events', () => {
     vi.clearAllMocks()
     MockIntersectionObserver.instances = []
     vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
-    mockGetAllMarketplaceSkills.mockResolvedValue({
+    mockGetMarketplaceSkills.mockResolvedValue({
       data: [
         {
           id: 'skill-1',
@@ -259,7 +259,7 @@ describe('Marketplace analytics events', () => {
   })
 
   it('keeps server search results that match tokens but not a contiguous substring', async () => {
-    mockGetAllMarketplaceSkills.mockResolvedValue({
+    mockGetMarketplaceSkills.mockResolvedValue({
       data: [
         {
           id: 'skill-token-match',
@@ -279,10 +279,11 @@ describe('Marketplace analytics events', () => {
     )
 
     await waitFor(() => {
-      expect(mockGetAllMarketplaceSkills).toHaveBeenLastCalledWith(
+      expect(mockGetMarketplaceSkills).toHaveBeenLastCalledWith(
         expect.objectContaining({
           query: 'draft helper',
-        })
+        }),
+        1
       )
     })
     expect(screen.getByText('Draft Legal Helper')).toBeInTheDocument()
@@ -291,19 +292,20 @@ describe('Marketplace analytics events', () => {
   it('debounces search before refetching server-filtered pages', async () => {
     renderMarketplace()
     await screen.findByText('Draft Helper')
-    mockGetAllMarketplaceSkills.mockClear()
+    mockGetMarketplaceSkills.mockClear()
 
     fireEvent.change(await screen.findByLabelText('Search Skills'), {
       target: { value: 'draft helper' },
     })
 
-    expect(mockGetAllMarketplaceSkills).not.toHaveBeenCalled()
+    expect(mockGetMarketplaceSkills).not.toHaveBeenCalled()
 
     await waitFor(() => {
-      expect(mockGetAllMarketplaceSkills).toHaveBeenLastCalledWith(
+      expect(mockGetMarketplaceSkills).toHaveBeenLastCalledWith(
         expect.objectContaining({
           query: 'draft helper',
-        })
+        }),
+        1
       )
     })
   })
