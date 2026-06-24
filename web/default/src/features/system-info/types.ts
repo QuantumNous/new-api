@@ -42,6 +42,24 @@ export type SystemInstanceInfo = {
     hostname?: string
     [key: string]: unknown
   }
+  resources?: {
+    cpu?: {
+      usage_percent?: number
+      [key: string]: unknown
+    }
+    memory?: {
+      usage_percent?: number
+      [key: string]: unknown
+    }
+    storage?: {
+      total_bytes?: number
+      used_bytes?: number
+      free_bytes?: number
+      used_percent?: number
+      [key: string]: unknown
+    }
+    [key: string]: unknown
+  }
   [key: string]: unknown
 }
 

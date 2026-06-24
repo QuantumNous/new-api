@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, CircleAlert, RefreshCw, ServerCog } from 'lucide-react'
+import { AlertTriangle, RefreshCw, ServerCog } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { formatTimestampToDate } from '@/lib/format'
+import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ErrorState } from '@/components/error-state'
 import { Badge } from '@/components/ui/badge'
@@ -90,38 +91,155 @@ function getNodeName(instance: SystemInstance) {
   return instance.info?.node?.name || instance.node_name
 }
 
+function formatPercent(value?: number) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '-'
+  return `${new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 1,
+  }).format(value)}%`
+}
+
+function formatBytes(bytes?: number): string {
+  if (typeof bytes !== 'number' || Number.isNaN(bytes)) return '-'
+  if (bytes === 0) return '0 B'
+  if (bytes < 0) return `-${formatBytes(-bytes)}`
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const index = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+    units.length - 1
+  )
+  const value = bytes / 1024 ** index
+  return `${new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: index === 0 ? 0 : 1,
+  }).format(value)} ${units[index]}`
+}
+
+function ringColorClass(percent: number | null) {
+  if (percent === null) return 'text-muted-foreground/40'
+  if (percent >= 90) return 'text-red-500'
+  if (percent >= 70) return 'text-amber-500'
+  return 'text-emerald-500'
+}
+
+type RingProgressProps = {
+  percent: number | null
+  size?: number
+}
+
+function RingProgress(props: RingProgressProps) {
+  const size = props.size ?? 22
+  const stroke = 2.5
+  const radius = (size - stroke) / 2
+  const circumference = 2 * Math.PI * radius
+  const offset =
+    props.percent === null
+      ? circumference
+      : circumference - (props.percent / 100) * circumference
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className='shrink-0 -rotate-90'
+      aria-hidden='true'
+    >
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill='none'
+        strokeWidth={stroke}
+        stroke='currentColor'
+        className='text-muted'
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill='none'
+        strokeWidth={stroke}
+        strokeLinecap='round'
+        stroke='currentColor'
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        className={cn(
+          'transition-[stroke-dashoffset] duration-500',
+          ringColorClass(props.percent)
+        )}
+      />
+    </svg>
+  )
+}
+
+type ResourceCellProps = {
+  value?: number
+  tooltip?: ReactNode
+}
+
+function ResourceCell(props: ResourceCellProps) {
+  const percent =
+    typeof props.value === 'number' && !Number.isNaN(props.value)
+      ? Math.max(0, Math.min(100, props.value))
+      : null
+  const content = (
+    <div className='flex items-center gap-2'>
+      <RingProgress percent={percent} />
+      <span className='font-mono text-[11px] tabular-nums'>
+        {formatPercent(props.value)}
+      </span>
+    </div>
+  )
+
+  if (!props.tooltip) return content
+
+  return (
+    <TooltipProvider delay={100}>
+      <Tooltip>
+        <TooltipTrigger className='block w-full rounded-sm text-left focus-visible:ring-2 focus-visible:outline-none'>
+          {content}
+        </TooltipTrigger>
+        <TooltipContent className='max-w-80'>{props.tooltip}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
 type SystemInstancesTableProps = {
   instances: SystemInstance[]
 }
 
-function SystemInstancesTable(props: SystemInstancesTableProps) {
-  const { t } = useTranslation()
+function SystemInstancesList(props: SystemInstancesTableProps) {
+  const { t, i18n } = useTranslation()
 
   return (
     <div className='overflow-x-auto rounded-md border'>
-      <Table className='min-w-[980px]'>
+      <Table className='min-w-[1140px]'>
         <TableHeader>
           <TableRow className='bg-muted/40 hover:bg-muted/40'>
-            <TableHead className='h-9 w-[240px] px-4 text-xs'>
-              {t('Instance')}
-            </TableHead>
-            <TableHead className='h-9 w-[120px] text-xs'>
-              {t('Status')}
+            <TableHead className='h-9 min-w-[240px] px-4 text-xs'>
+              {t('Instances')}
             </TableHead>
             <TableHead className='h-9 w-[110px] text-xs'>
-              {t('Role')}
+              {t('Status')}
             </TableHead>
-            <TableHead className='h-9 w-[120px] text-xs'>
+            <TableHead className='h-9 w-[100px] text-xs'>{t('Role')}</TableHead>
+            <TableHead className='h-9 w-[96px] text-xs'>{t('CPU')}</TableHead>
+            <TableHead className='h-9 w-[96px] text-xs'>{t('Memory')}</TableHead>
+            <TableHead className='h-9 w-[96px] text-xs'>
+              {t('Storage')}
+            </TableHead>
+            <TableHead className='h-9 w-[100px] text-xs'>
               {t('Version')}
             </TableHead>
-            <TableHead className='h-9 w-[190px] text-xs'>
+            <TableHead className='h-9 w-[140px] text-xs'>
+              {t('Runtime')}
+            </TableHead>
+            <TableHead className='h-9 w-[170px] text-xs'>
               {t('Started')}
             </TableHead>
-            <TableHead className='h-9 w-[190px] text-xs'>
+            <TableHead className='h-9 w-[170px] pr-4 text-xs'>
               {t('Last Seen')}
-            </TableHead>
-            <TableHead className='h-9 w-[220px] pr-4 text-xs'>
-              {t('Runtime')}
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -129,68 +247,77 @@ function SystemInstancesTable(props: SystemInstancesTableProps) {
           {props.instances.map((instance) => {
             const shouldConfigure =
               instance.info?.node?.should_configure_manually === true
+            const resources = instance.info?.resources
+            const storage = resources?.storage
             return (
               <TableRow key={instance.node_name} className='hover:bg-muted/30'>
-                <TableCell className='px-4 py-3 align-middle'>
-                  <div className='space-y-1'>
-                    <div className='flex min-w-0 items-center gap-2'>
-                      <span className='truncate font-medium'>
-                        {getNodeName(instance)}
-                      </span>
-                      {shouldConfigure && (
-                        <Popover>
-                          <PopoverTrigger
-                            className='inline-flex shrink-0 rounded-full focus-visible:ring-2 focus-visible:outline-none'
-                            aria-label={t('Configure NODE_NAME')}
-                          >
-                            <Badge
-                              variant='outline'
-                              className='border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300'
-                            >
-                              <AlertTriangle
-                                data-icon='inline-start'
-                                className='size-3'
-                                aria-hidden='true'
-                              />
-                              {t('Configure NODE_NAME')}
-                            </Badge>
-                          </PopoverTrigger>
-                          <PopoverContent align='start' className='w-80'>
-                            <PopoverHeader>
-                              <PopoverTitle>
-                                {t('Configure NODE_NAME')}
-                              </PopoverTitle>
-                              <PopoverDescription>
-                                {t(
-                                  'This instance is using an automatic hostname. Set NODE_NAME to a stable unique value for multi-instance management.'
-                                )}
-                              </PopoverDescription>
-                            </PopoverHeader>
-                            <div className='space-y-2 text-xs'>
-                              <div>
-                                <div className='mb-1 font-medium'>
-                                  {t('Example')}
-                                </div>
-                                <code className='bg-muted block rounded-md px-2 py-1.5 font-mono text-[11px] break-all'>
-                                  NODE_NAME=new-api-master-1
-                                </code>
-                              </div>
-                              <p className='text-muted-foreground'>
-                                {t(
-                                  'Use a different stable value for each instance, then restart the service.'
-                                )}
-                              </p>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
+                <TableCell className='px-4 py-2.5 align-middle'>
+                  <div className='flex min-w-0 items-center gap-2'>
+                    <span
+                      className={cn(
+                        'size-2 shrink-0 rounded-full',
+                        STATUS_DOT_CLASS_NAME[instance.status]
                       )}
-                    </div>
-                    <div className='text-muted-foreground max-w-[220px] truncate font-mono text-[11px]'>
-                      {instance.info?.host?.hostname || '-'}
+                      aria-hidden='true'
+                    />
+                    <div className='min-w-0'>
+                      <div className='flex min-w-0 items-center gap-1.5'>
+                        <span className='truncate text-sm font-medium'>
+                          {getNodeName(instance)}
+                        </span>
+                        {shouldConfigure && (
+                          <Popover>
+                            <PopoverTrigger
+                              className='inline-flex shrink-0 rounded-full focus-visible:ring-2 focus-visible:outline-none'
+                              aria-label={t('Configure NODE_NAME')}
+                            >
+                              <Badge
+                                variant='outline'
+                                className='border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300'
+                              >
+                                <AlertTriangle
+                                  className='size-3'
+                                  aria-hidden='true'
+                                />
+                              </Badge>
+                            </PopoverTrigger>
+                            <PopoverContent align='start' className='w-80'>
+                              <PopoverHeader>
+                                <PopoverTitle>
+                                  {t('Configure NODE_NAME')}
+                                </PopoverTitle>
+                                <PopoverDescription>
+                                  {t(
+                                    'This instance is using an automatic hostname. Set NODE_NAME to a stable unique value for multi-instance management.'
+                                  )}
+                                </PopoverDescription>
+                              </PopoverHeader>
+                              <div className='space-y-2 text-xs'>
+                                <div>
+                                  <div className='mb-1 font-medium'>
+                                    {t('Example')}
+                                  </div>
+                                  <code className='bg-muted block rounded-md px-2 py-1.5 font-mono text-[11px] break-all'>
+                                    NODE_NAME=new-api-master-1
+                                  </code>
+                                </div>
+                                <p className='text-muted-foreground'>
+                                  {t(
+                                    'Use a different stable value for each instance, then restart the service.'
+                                  )}
+                                </p>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      </div>
+                      <div className='text-muted-foreground truncate font-mono text-[11px]'>
+                        {instance.info?.host?.hostname || '-'}
+                      </div>
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className='py-3 align-middle'>
+                <TableCell className='py-2.5 align-middle'>
                   <Badge
                     variant='secondary'
                     className={cn('gap-1.5', STATUS_CLASS_NAME[instance.status])}
@@ -205,35 +332,80 @@ function SystemInstancesTable(props: SystemInstancesTableProps) {
                     {t(instance.status)}
                   </Badge>
                 </TableCell>
-                <TableCell className='py-3 align-middle'>
-                  <div className='flex items-center gap-1.5'>
-                    <Badge variant='outline'>{roleLabel(instance)}</Badge>
-                    <TooltipProvider delay={100}>
-                      <Tooltip>
-                        <TooltipTrigger
-                          className='text-muted-foreground hover:text-foreground inline-flex size-5 items-center justify-center rounded-full focus-visible:ring-2 focus-visible:outline-none'
-                          aria-label={t('Node role')}
-                        >
-                          <CircleAlert className='size-3.5' aria-hidden='true' />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {t(roleDescriptionKey(instance))}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                <TableCell className='py-2.5 align-middle'>
+                  <TooltipProvider delay={100}>
+                    <Tooltip>
+                      <TooltipTrigger
+                        className='inline-flex shrink-0 rounded-full focus-visible:ring-2 focus-visible:outline-none'
+                        aria-label={t('Node role')}
+                      >
+                        <Badge variant='outline'>{roleLabel(instance)}</Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {t(roleDescriptionKey(instance))}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </TableCell>
+                <TableCell className='py-2.5 align-middle'>
+                  <ResourceCell value={resources?.cpu?.usage_percent} />
+                </TableCell>
+                <TableCell className='py-2.5 align-middle'>
+                  <ResourceCell value={resources?.memory?.usage_percent} />
+                </TableCell>
+                <TableCell className='py-2.5 align-middle'>
+                  <ResourceCell
+                    value={storage?.used_percent}
+                    tooltip={
+                      storage ? (
+                        <div className='space-y-1 text-xs'>
+                          <div className='grid grid-cols-[auto_1fr] gap-x-3 gap-y-1'>
+                            <span className='text-muted-foreground'>
+                              {t('Used')}
+                            </span>
+                            <span className='font-mono'>
+                              {formatBytes(storage.used_bytes)}
+                            </span>
+                            <span className='text-muted-foreground'>
+                              {t('Free')}
+                            </span>
+                            <span className='font-mono'>
+                              {formatBytes(storage.free_bytes)}
+                            </span>
+                            <span className='text-muted-foreground'>
+                              {t('Total')}
+                            </span>
+                            <span className='font-mono'>
+                              {formatBytes(storage.total_bytes)}
+                            </span>
+                          </div>
+                        </div>
+                      ) : undefined
+                    }
+                  />
+                </TableCell>
+                <TableCell className='py-2.5 align-middle'>
+                  <div className='truncate font-mono text-xs'>
+                    {instance.info?.runtime?.version || '-'}
                   </div>
                 </TableCell>
-                <TableCell className='text-muted-foreground py-3 font-mono text-xs align-middle'>
-                  {instance.info?.runtime?.version || '-'}
+                <TableCell className='py-2.5 align-middle'>
+                  <div className='truncate font-mono text-xs'>
+                    {runtimeLabel(instance)}
+                  </div>
                 </TableCell>
-                <TableCell className='text-muted-foreground py-3 text-xs whitespace-nowrap align-middle'>
+                <TableCell className='text-muted-foreground py-2.5 text-xs whitespace-nowrap align-middle'>
                   {formatTimestampToDate(instance.started_at)}
                 </TableCell>
-                <TableCell className='text-muted-foreground py-3 text-xs whitespace-nowrap align-middle'>
-                  {formatTimestampToDate(instance.last_seen_at)}
-                </TableCell>
-                <TableCell className='text-muted-foreground py-3 pr-4 font-mono text-xs align-middle'>
-                  {runtimeLabel(instance)}
+                <TableCell
+                  className='text-muted-foreground py-2.5 pr-4 text-xs whitespace-nowrap align-middle'
+                  title={formatTimestampToDate(instance.last_seen_at)}
+                >
+                  {formatTimestampRelative(
+                    instance.last_seen_at,
+                    'seconds',
+                    i18n.language
+                  )}
                 </TableCell>
               </TableRow>
             )
@@ -340,7 +512,7 @@ export function SystemInstancesPanel() {
           </div>
         ) : (
           <div className='p-4 sm:p-5'>
-            <SystemInstancesTable instances={instances} />
+            <SystemInstancesList instances={instances} />
           </div>
         )}
       </div>

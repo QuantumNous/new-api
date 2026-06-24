@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { ListChecks, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatTimestampToDate } from '@/lib/format'
+import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ErrorState } from '@/components/error-state'
 import { Badge } from '@/components/ui/badge'
@@ -98,7 +98,7 @@ type SystemTasksTableProps = {
 }
 
 function SystemTasksTable(props: SystemTasksTableProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   return (
     <div className='overflow-x-auto rounded-md border'>
@@ -172,8 +172,15 @@ function SystemTasksTable(props: SystemTasksTableProps) {
                 <TableCell className='text-muted-foreground max-w-[280px] truncate py-3 font-mono text-xs align-middle'>
                   {task.locked_by || '-'}
                 </TableCell>
-                <TableCell className='text-muted-foreground py-3 text-xs whitespace-nowrap align-middle'>
-                  {formatTimestampToDate(task.updated_at)}
+                <TableCell
+                  className='text-muted-foreground py-3 text-xs whitespace-nowrap align-middle'
+                  title={formatTimestampToDate(task.updated_at)}
+                >
+                  {formatTimestampRelative(
+                    task.updated_at,
+                    'seconds',
+                    i18n.language
+                  )}
                 </TableCell>
                 <TableCell
                   className='text-destructive max-w-[220px] truncate py-3 pr-4 text-xs align-middle'
