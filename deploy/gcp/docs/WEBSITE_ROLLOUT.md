@@ -1,6 +1,8 @@
 # 官网（Next.js）上线 Runbook
 
-把独立 Next.js 营销站（`website/`）作为**第二个 Cloud Run 服务**接入现有 GCP LB，用**按域名分流**：`flatkey.ai` / `www.flatkey.ai` → Node（官网），其余 host（`console.flatkey.ai`、`router.flatkey.ai` …）→ Go（app/relay）。
+> 历史上线方案。当前生产形态已完成 website + console + router 三服务拆分；最新资源清单和日常操作以 `INFRASTRUCTURE.md` / `DEPLOYMENT.md` / `OPERATIONS.md` 为准。
+
+把独立 Next.js 营销站（`website/`）接入 GCP LB，用**按域名分流**：`flatkey.ai` / `www.flatkey.ai` → Node 官网；`console.flatkey.ai` → Go 控制台服务 `newapi-console`；`router.flatkey.ai` → Go 模型调用服务 `newapi-router`。
 
 > 配套阅读：`OPERATIONS.md`（雷区）、`INFRASTRUCTURE.md`（资源清单）、`DEPLOYMENT.md`（发布流程）。
 
@@ -8,9 +10,9 @@
 | Host | 后端 | 说明 |
 |---|---|---|
 | `flatkey.ai`、`www.flatkey.ai` | Node `newapi-web` | 官网；www 建议 301→apex |
-| `console.flatkey.ai` | Go `newapi` | 控制台（原 `flatkey.ai/dashboard` 迁来）|
-| `router.flatkey.ai` | Go `newapi` | 大模型 API，不变 |
-| `new-api.app/api.*` | 废弃 | 后续清理 |
+| `console.flatkey.ai` | Go `newapi-console` | 控制台/API，`NODE_TYPE=master` |
+| `router.flatkey.ai` | Go `newapi-router` | 大模型 API，`NODE_TYPE=slave` |
+| `new-api.app/api.*` | legacy/default `newapi` | 兼容入口，后续按日志清理 |
 
 ## 本次代码改动（已在分支 `ops/website-infra-cicd`）
 - 新模块 `deploy/gcp/modules/cloud-run-web/`：Node 专用 Cloud Run（端口 4000、无 VPC/SQL、min=1、最小权限 SA）。
@@ -63,9 +65,9 @@ gcloud iam service-accounts add-iam-policy-binding \
    curl -sS https://newapi-web-xxxx.run.app/sitemap.xml | head
    ```
 
-## Phase B —— 立 console + 迁 app 对外地址（低峰）
+## Phase B —— 立 console + 迁 app 对外地址（已完成）
 
-7. **CF 加 `console.flatkey.ai`**：橙云，CNAME→`one`（或 A→`34.54.128.101`）。Go 对任意 Host 都服务，`console.flatkey.ai/dashboard` 立即可用：
+7. **CF 加 `console.flatkey.ai`**：当前为橙云 Proxied，A → `34.54.128.101`，LB host_rule 路由到 `newapi-console`：
    ```bash
    curl -sS https://console.flatkey.ai/api/status      # 期望 200
    ```
@@ -94,8 +96,8 @@ gcloud iam service-accounts add-iam-policy-binding \
     ```bash
     curl -I https://flatkey.ai/                 # Next
     curl -I https://www.flatkey.ai/             # Next（或 301→apex）
-    curl -sS https://console.flatkey.ai/api/status   # Go 200
-    curl -sS https://router.flatkey.ai/api/status    # Go 200
+    curl -sS https://console.flatkey.ai/api/status   # newapi-console 200
+    curl -sS https://router.flatkey.ai/api/status    # newapi-router 200
     ```
 
 ## 回滚
@@ -107,5 +109,5 @@ gcloud iam service-accounts add-iam-policy-binding \
 - [ ] `terraform plan` Phase A 只新增 web 服务/SA/NEG/backend，url map 无 host_rule
 - [ ] `newapi-web` run.app 直连 `/`、`/sitemap.xml` 正常
 - [ ] console.flatkey.ai 控制台可用、OAuth 回调通
-- [ ] 翻转后 apex=Node、console/router=Go，301 兜底生效
+- [ ] 翻转后 apex=Node、console=newapi-console、router=newapi-router，301 兜底生效
 - [ ] 回滚演练（`website_domains=[]`）验证过

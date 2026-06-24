@@ -23,7 +23,7 @@ flatkey.ai 的**对外公开官网**：首页/营销、定价（pricing）、排
 | `src/content/pages.ts` / `src/content/legal/` | 静态页文案与本地化法务文档 |
 
 ## Conventions（务必遵守）
-- **路由分流**：生产用 host 分流——`flatkey.ai` + `www.flatkey.ai` → 本站（Cloud Run `newapi-web`）；`console.flatkey.ai` / `router.flatkey.ai` → Go 应用。本站不承载任何 `/dashboard`、`/api/*`（除自身 `/api/perf-metrics` 代理）、`/v1`。
+- **路由分流**：生产用 host 分流——`flatkey.ai` + `www.flatkey.ai` → 本站（Cloud Run `newapi-web`）；`console.flatkey.ai` → Go 控制台服务 `newapi-console`（`NODE_TYPE=master`）；`router.flatkey.ai` → Go 模型调用服务 `newapi-router`（`NODE_TYPE=slave`）。本站不承载任何 `/dashboard`、`/api/*`（除自身 `/api/perf-metrics` 代理）、`/v1`。
 - **origin 一律走 env**（`src/lib/origins.ts`），禁止硬编码 `flatkey.ai`/`console`/`router`；canonical/sitemap/hreflang 也应取 `SITE_ORIGIN`。
 - **i18n**：en 在根路径、其余 7 种在 `/[locale]`；`[locale]` 路由对 `en` 与未知 locale `notFound()` 防重复内容。新增/改文案要**真翻译全 8 种**，正文别只写英文（与 `web/default` 的 i18n 体系**互相独立**）。
 - **博客 HTML** 经 `sanitize-html` 白名单后才 `dangerouslySetInnerHTML`；slug 用 `encodeURIComponent`。
@@ -48,8 +48,8 @@ cd website
 bun install
 bun run lint && bun run typecheck && bun run build   # 提交前必过
 # 本地容器冒烟：
-docker build -t flatkey-website:local --build-arg APP_CONSOLE_ORIGIN=https://router.flatkey.ai --build-arg SITE_ORIGIN=https://flatkey.ai .
-docker run --rm -p 4000:4000 -e APP_CONSOLE_ORIGIN=https://router.flatkey.ai flatkey-website:local
+docker build -t flatkey-website:local --build-arg APP_CONSOLE_ORIGIN=https://console.flatkey.ai --build-arg SITE_ORIGIN=https://flatkey.ai .
+docker run --rm -p 4000:4000 -e APP_CONSOLE_ORIGIN=https://console.flatkey.ai flatkey-website:local
 curl -s http://localhost:4000/pricing | grep -i '<title>'   # 确认 SSR 出 TDK
 ```
 

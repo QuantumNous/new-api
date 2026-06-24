@@ -164,9 +164,9 @@ When onboarding a **new seedance-based video channel supplier** (any upstream se
 The public-facing official website — home/marketing, pricing, rankings, blog, legal pages, and SEO surfaces (`sitemap.xml` / `robots.txt` / `llms.txt`, canonical/hreflang) — is maintained **exclusively** in the standalone Next.js project under `website/`. Read `website/AGENTS.md` before touching it.
 
 - **Do NOT** add, restore, or maintain public website / marketing / landing / legal / pricing pages in the Go application or in `web/default`. `web/default` is the authenticated **console/dashboard SPA only**; the old in-SPA marketing pages are deprecated — extend the public site in `website/`, never in `web/default` or the Go app.
-- Production routing is **host-based** at the GCP LB: `flatkey.ai` + `www.flatkey.ai` → the Next website (Cloud Run `newapi-web`); `console.flatkey.ai` / `router.flatkey.ai` → the Go app. Do not reintroduce public pages on the Go hosts.
+- Production routing is **host-based** at the GCP LB: `flatkey.ai` + `www.flatkey.ai` → the Next website (Cloud Run `newapi-web`); `console.flatkey.ai` → Go console service `newapi-console` (`NODE_TYPE=master`); `router.flatkey.ai` → Go router service `newapi-router` (`NODE_TYPE=slave`). The legacy `newapi` service remains the default/fallback backend. Do not reintroduce public pages on the Go hosts.
 - Cross-app wiring is **environment-driven** — never hardcode the peer origin: `APP_CONSOLE_ORIGIN` (website → Go console/API), `SITE_ORIGIN` / `NEXT_PUBLIC_SITE_ORIGIN` (website's own canonical origin), `OFFICIAL_WEBSITE_ORIGIN` (console → website).
-- CI/CD & infra: `website/` builds and deploys via `.github/workflows/gcp-deploy-website.yml` (separate Cloud Run service, container port 4000); the Go app uses `gcp-deploy.yml` (which `paths-ignore`s `website/**`). LB host-split + second Cloud Run live in `deploy/gcp/` — see `deploy/gcp/docs/WEBSITE_ROLLOUT.md`.
+- CI/CD & infra: `website/` builds and deploys via `.github/workflows/gcp-deploy-website.yml` (separate Cloud Run service, container port 4000); the Go app uses `gcp-deploy.yml` (which `paths-ignore`s `website/**`). Production LB host-split, website service, and console/router runtime split live in `deploy/gcp/` — see `deploy/gcp/docs/INFRASTRUCTURE.md` and `deploy/gcp/docs/DEPLOYMENT.md`.
 
 ### Rule 10: GitHub Issues And Pull Requests Must Preserve The Reasoning Trail
 
@@ -185,7 +185,20 @@ Production runs as a multi-node deployment. Code changes and technical plans MUS
 - Cache invalidation, background jobs, startup initialization, scheduled work, and one-time migrations must be safe when executed by more than one node.
 - PRs and technical designs that touch auth, billing, quota, token/key creation, relay routing, caches, jobs, or configuration writes must explicitly mention the multi-node behavior or why it is not relevant.
 
-### Rule 12: Staging Deploys From The `staging` Branch
+### Rule 12: Code Reviews Must Include Production Deployment Advice
+
+When reviewing a PR or performing a code review, the review output MUST include a **production deployment recommendation** for the current diff. The recommendation must explicitly answer whether the production router nodes need to be deployed.
+
+Required output:
+
+- `Router deploy`: `required`, `not required`, or `unclear`.
+- `Reason`: cite the changed surfaces that drive the decision, especially relay/model invocation paths, provider adapters, billing/quota logic used by relay, shared middleware, shared config, DB migrations, or runtime env changes.
+- `Other deploy targets`: mention whether `newapi-console`, `newapi-web`, legacy `newapi`, staging, Terraform, or Cloudflare are also involved.
+- `Risk / validation`: note production risk and the minimum validation before release.
+
+Default guidance: mark router deploy `required` when changes can affect `/v1`, relay/model calls, provider routing, streaming, auth/rate-limit middleware used by API traffic, billing/quota settlement, shared Go runtime initialization, shared config/env parsing, DB schema used by router requests, or any code imported by those paths. Mark router deploy `not required` only when the diff is clearly limited to website-only code, console-only UI/admin behavior, docs, tests, or tooling with no runtime effect on router paths. Use `unclear` when the dependency path is uncertain and call out what must be checked.
+
+### Rule 13: Staging Deploys From The `staging` Branch
 
 The GCP staging environment is deployed by GitHub Actions from the remote `staging` branch. To deploy staging, merge or push the desired code into branch `staging`; this automatically builds and deploys staging without the production approval gate.
 
