@@ -20,6 +20,13 @@ For commercial licensing, please contact support@quantumnous.com
 'use client'
 
 import {
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CopyIcon,
+  DownloadIcon,
+} from 'lucide-react'
+import {
   type ComponentProps,
   createContext,
   type HTMLAttributes,
@@ -29,22 +36,16 @@ import {
   useMemo,
   useState,
 } from 'react'
-import {
-  CheckIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  CopyIcon,
-  DownloadIcon,
-} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { BundledLanguage, ShikiTransformer } from 'shiki'
-import { cn } from '@/lib/utils'
+
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
   code: string
@@ -344,7 +345,7 @@ export const CodeBlock = ({
             style={{ maxHeight: bodyMaxHeight }}
           />
           {isCodeCollapsed && (
-            <div className='from-muted/20 pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-b to-background' />
+            <div className='from-muted/20 to-background pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-b' />
           )}
           {!showToolbar && children && (
             <div className='absolute top-2 right-2 flex items-center gap-1'>
