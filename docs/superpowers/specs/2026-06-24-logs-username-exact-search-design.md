@@ -132,8 +132,14 @@ logs.username LIKE 'goo%le' ESCAPE '!' OR logs.user_id IN (<user 表 LIKE 命中
 - 精确路径补齐历史日志：用户当前名 = `google_765`，另有改名前日志 `old_name`，
   搜 `google_765` 应经 user_id IN 同时命中两条。
 
+### 需局部调整的用例
+- `TestSumUsedQuotaSelfStatIsExactByUserID`：self-stat 越权防护主断言**不改**（self 路径本就走
+  `selfUserId` 精确，与本次无关）。但其末尾有一句"管理员搜 `alice`（selfUserId=0）模糊命中
+  `alice`/`alice2`/`malice`，quota=1110"的对照断言依赖**默认模糊** —— 改为默认精确后 `alice`
+  只命中自己（quota=10）。需把该对照断言改成精确语义（want 10），并补一条显式 `%alice%` 仍命中
+  1110 的对照。
+
 ### 保持不动的用例
-- `TestSumUsedQuotaSelfStatIsExactByUserID`（self-stat 越权防护）—— 不改。
 - `TestGetAllLogsFiltersNumericUsernameAsUserID` / `TestSumUsedQuotaFiltersNumericUsernameAsUserID`
   （纯数字、引号、padding）—— 不改。
 
