@@ -29,6 +29,7 @@ import {
   TabPane,
   Popover,
   Modal,
+  Form,
 } from '@douyinfe/semi-ui';
 import {
   IconMail,
@@ -99,6 +100,13 @@ const AccountManagement = ({
   const isBound = (accountId) => Boolean(accountId);
   const [showTelegramBindModal, setShowTelegramBindModal] =
     React.useState(false);
+  const [showLDAPBindModal, setShowLDAPBindModal] = React.useState(false);
+  const [ldapBinding, setLDAPBinding] = React.useState(null);
+  const [ldapCredentials, setLDAPCredentials] = React.useState({
+    username: '',
+    password: '',
+  });
+  const [ldapBindLoading, setLDAPBindLoading] = React.useState(false);
   const [customOAuthBindings, setCustomOAuthBindings] = React.useState([]);
   const [customOAuthLoading, setCustomOAuthLoading] = React.useState({});
 
@@ -112,7 +120,9 @@ const AccountManagement = ({
         showError(res.data.message || t('获取绑定信息失败'));
       }
     } catch (error) {
-      showError(error.response?.data?.message || error.message || t('获取绑定信息失败'));
+      showError(
+        error.response?.data?.message || error.message || t('获取绑定信息失败'),
+      );
     }
   };
 
@@ -126,7 +136,9 @@ const AccountManagement = ({
       onOk: async () => {
         setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: true }));
         try {
-          const res = await API.delete(`/api/user/oauth/bindings/${providerId}`);
+          const res = await API.delete(
+            `/api/user/oauth/bindings/${providerId}`,
+          );
           if (res.data.success) {
             showSuccess(t('解绑成功'));
             await loadCustomOAuthBindings();
@@ -134,7 +146,9 @@ const AccountManagement = ({
             showError(res.data.message);
           }
         } catch (error) {
-          showError(error.response?.data?.message || error.message || t('操作失败'));
+          showError(
+            error.response?.data?.message || error.message || t('操作失败'),
+          );
         } finally {
           setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: false }));
         }
@@ -147,26 +161,97 @@ const AccountManagement = ({
     onCustomOAuthClicked(provider);
   };
 
+  const loadLDAPBinding = async () => {
+    if (!status.ldap_enabled) {
+      setLDAPBinding(null);
+      return;
+    }
+    try {
+      const res = await API.get('/api/user/ldap/binding');
+      if (res.data.success) {
+        setLDAPBinding(res.data.data || null);
+      } else {
+        showError(res.data.message || t('获取绑定信息失败'));
+      }
+    } catch (error) {
+      showError(
+        error.response?.data?.message || error.message || t('获取绑定信息失败'),
+      );
+    }
+  };
+
+  const handleLDAPCredentialChange = (name, value) => {
+    setLDAPCredentials((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleBindLDAP = async () => {
+    if (!ldapCredentials.username.trim() || !ldapCredentials.password) {
+      showError(t('请输入 LDAP 用户名和密码'));
+      return;
+    }
+    setLDAPBindLoading(true);
+    try {
+      const res = await API.post('/api/oauth/ldap/bind', {
+        username: ldapCredentials.username.trim(),
+        password: ldapCredentials.password,
+      });
+      if (res.data.success) {
+        showSuccess(t('LDAP 账户绑定成功'));
+        setShowLDAPBindModal(false);
+        setLDAPCredentials({ username: '', password: '' });
+        await loadLDAPBinding();
+      } else {
+        showError(res.data.message || t('LDAP 账户绑定失败'));
+      }
+    } catch (error) {
+      showError(
+        error.response?.data?.message ||
+          error.message ||
+          t('LDAP 账户绑定失败'),
+      );
+    } finally {
+      setLDAPBindLoading(false);
+    }
+  };
+
   // Check if custom OAuth provider is bound
   const isCustomOAuthBound = (providerId) => {
     const normalizedId = Number(providerId);
-    return customOAuthBindings.some((b) => Number(b.provider_id) === normalizedId);
+    return customOAuthBindings.some(
+      (b) => Number(b.provider_id) === normalizedId,
+    );
   };
 
   // Get binding info for a provider
   const getCustomOAuthBinding = (providerId) => {
     const normalizedId = Number(providerId);
-    return customOAuthBindings.find((b) => Number(b.provider_id) === normalizedId);
+    return customOAuthBindings.find(
+      (b) => Number(b.provider_id) === normalizedId,
+    );
   };
 
   React.useEffect(() => {
     loadCustomOAuthBindings();
   }, []);
 
+  React.useEffect(() => {
+    loadLDAPBinding();
+  }, [status.ldap_enabled]);
+
   const passkeyEnabled = passkeyStatus?.enabled;
   const lastUsedLabel = passkeyStatus?.last_used_at
     ? new Date(passkeyStatus.last_used_at).toLocaleString()
     : t('尚未使用');
+  const ldapBindingValue =
+    ldapBinding?.ldap_username ||
+    ldapBinding?.ldap_display_name ||
+    ldapBinding?.ldap_email ||
+    ldapBinding?.ldap_user_id ||
+    '';
+  const ldapBindingLabel =
+    ldapBinding?.ldap_groups && ldapBinding.ldap_groups.length > 0
+      ? `${t('所属 LDAP 组')}：${ldapBinding.ldap_groups.join(', ')}`
+      : t('LDAP 绑定信息');
 
   return (
     <Card className='!rounded-2xl'>
@@ -476,6 +561,83 @@ const AccountManagement = ({
                 </div>
               </Modal>
 
+              {/* LDAP绑定 */}
+              <Card className='!rounded-xl'>
+                <div className='flex items-center justify-between gap-3'>
+                  <div className='flex items-center flex-1 min-w-0'>
+                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                      <IconKey
+                        size='default'
+                        className='text-slate-600 dark:text-slate-300'
+                      />
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <div className='font-medium text-gray-900'>
+                        {t('LDAP')}
+                      </div>
+                      <div className='text-sm text-gray-500 truncate'>
+                        {!status.ldap_enabled
+                          ? t('未启用')
+                          : ldapBinding
+                            ? renderAccountInfo(
+                                ldapBindingValue,
+                                ldapBindingLabel,
+                              )
+                            : t('未绑定')}
+                      </div>
+                    </div>
+                  </div>
+                  <div className='flex-shrink-0'>
+                    <Button
+                      type='primary'
+                      theme='outline'
+                      size='small'
+                      disabled={!status.ldap_enabled || Boolean(ldapBinding)}
+                      onClick={() => setShowLDAPBindModal(true)}
+                    >
+                      {!status.ldap_enabled
+                        ? t('未启用')
+                        : ldapBinding
+                          ? t('已绑定')
+                          : t('绑定')}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+              <Modal
+                title={t('绑定 LDAP 账户')}
+                visible={showLDAPBindModal}
+                onCancel={() => setShowLDAPBindModal(false)}
+                onOk={handleBindLDAP}
+                okText={t('绑定')}
+                cancelText={t('取消')}
+                okButtonProps={{ loading: ldapBindLoading }}
+              >
+                <Form>
+                  <Form.Input
+                    field='ldap_bind_username'
+                    label={t('LDAP 用户名')}
+                    placeholder={t('请输入 LDAP 用户名')}
+                    value={ldapCredentials.username}
+                    onChange={(value) =>
+                      handleLDAPCredentialChange('username', value)
+                    }
+                    prefix={<IconMail />}
+                  />
+                  <Form.Input
+                    field='ldap_bind_password'
+                    label={t('LDAP 密码')}
+                    placeholder={t('请输入 LDAP 密码')}
+                    mode='password'
+                    value={ldapCredentials.password}
+                    onChange={(value) =>
+                      handleLDAPCredentialChange('password', value)
+                    }
+                    prefix={<IconLock />}
+                  />
+                </Form>
+              </Modal>
+
               {/* LinuxDO绑定 */}
               <Card className='!rounded-xl'>
                 <div className='flex items-center justify-between gap-3'>
@@ -554,7 +716,10 @@ const AccountManagement = ({
                               size='small'
                               loading={customOAuthLoading[provider.id]}
                               onClick={() =>
-                                handleUnbindCustomOAuth(provider.id, provider.name)
+                                handleUnbindCustomOAuth(
+                                  provider.id,
+                                  provider.name,
+                                )
                               }
                             >
                               {t('解绑')}

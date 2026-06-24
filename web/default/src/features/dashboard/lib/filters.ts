@@ -161,9 +161,10 @@ export function buildQueryParams(
   default_time: string
   username?: string
 } {
+  const username = filters?.username?.trim()
   return {
     ...timeRange,
     default_time: getSavedGranularity(filters?.time_granularity),
-    ...(filters?.username && { username: filters.username }),
+    ...(username && { username }),
   }
 }

@@ -45,7 +45,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
-import { login, wechatLoginByCode } from '@/features/auth/api'
+import { ldapLogin, login, wechatLoginByCode } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { loginFormSchema } from '@/features/auth/constants'
@@ -67,6 +67,10 @@ export function UserAuthForm({
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false)
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
+  const [isLDAPDialogOpen, setIsLDAPDialogOpen] = useState(false)
+  const [isLDAPSubmitting, setIsLDAPSubmitting] = useState(false)
+  const [ldapUsername, setLDAPUsername] = useState('')
+  const [ldapPassword, setLDAPPassword] = useState('')
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
   const loginFailedMessage = t('Login failed')
 
@@ -95,10 +99,12 @@ export function UserAuthForm({
     !passkeySupported ||
     (requiresLegalConsent && !agreedToLegal)
   const hasWeChatLogin = Boolean(status?.wechat_login)
+  const hasLDAPLogin = Boolean(status?.ldap_enabled)
   const hasOAuthLogin = Boolean(
     status?.github_oauth ||
     status?.discord_oauth ||
     status?.oidc_enabled ||
+    status?.ldap_enabled ||
     status?.linuxdo_oauth ||
     status?.telegram_oauth ||
     (status?.custom_oauth_providers?.length ?? 0) > 0
@@ -191,6 +197,24 @@ export function UserAuthForm({
     }
   }
 
+  const handleOpenLDAPDialog = () => {
+    if (requiresLegalConsent && !agreedToLegal) {
+      toast.error(legalConsentErrorMessage)
+      return
+    }
+
+    setIsLDAPDialogOpen(true)
+  }
+
+  const handleLDAPDialogChange = (open: boolean) => {
+    setIsLDAPDialogOpen(open)
+    if (!open) {
+      setLDAPUsername('')
+      setLDAPPassword('')
+      setIsLDAPSubmitting(false)
+    }
+  }
+
   async function handleWeChatLogin() {
     if (!wechatCode.trim()) {
       toast.error(t('Please enter the verification code'))
@@ -211,6 +235,32 @@ export function UserAuthForm({
       toast.error(loginFailedMessage)
     } finally {
       setIsWeChatSubmitting(false)
+    }
+  }
+
+  async function handleLDAPLogin() {
+    if (!ldapUsername.trim() || !ldapPassword) {
+      toast.error(t('Please enter your LDAP username and password'))
+      return
+    }
+
+    setIsLDAPSubmitting(true)
+    try {
+      const res = await ldapLogin({
+        username: ldapUsername.trim(),
+        password: ldapPassword,
+      })
+      if (res.success) {
+        await handleLoginSuccess(res.data as { id?: number } | null, redirectTo)
+        toast.success(t('Signed in with LDAP'))
+        handleLDAPDialogChange(false)
+      } else {
+        toast.error(res.message || loginFailedMessage)
+      }
+    } catch (_error) {
+      toast.error(loginFailedMessage)
+    } finally {
+      setIsLDAPSubmitting(false)
     }
   }
 
@@ -313,7 +363,9 @@ export function UserAuthForm({
         status={status}
         disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
         onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
+        onLDAPLogin={hasLDAPLogin ? handleOpenLDAPDialog : undefined}
         isWeChatLoading={isWeChatSubmitting}
+        isLDAPLoading={isLDAPSubmitting}
       />
     </>
   )
@@ -464,6 +516,68 @@ export function UserAuthForm({
               value={wechatCode}
               onChange={(event) => setWeChatCode(event.target.value)}
               autoComplete='one-time-code'
+            />
+          </div>
+        </Dialog>
+      )}
+
+      {hasLDAPLogin && (
+        <Dialog
+          open={isLDAPDialogOpen}
+          onOpenChange={handleLDAPDialogChange}
+          title={t('LDAP sign in')}
+          description={t('Use your directory account to sign in.')}
+          contentClassName='max-w-sm'
+          headerClassName='text-left'
+          contentHeight='auto'
+          bodyClassName='grid gap-4'
+          footer={
+            <>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => handleLDAPDialogChange(false)}
+                disabled={isLDAPSubmitting}
+              >
+                {t('Cancel')}
+              </Button>
+              <Button
+                type='button'
+                onClick={handleLDAPLogin}
+                disabled={
+                  isLDAPSubmitting ||
+                  !ldapUsername.trim() ||
+                  !ldapPassword ||
+                  (requiresLegalConsent && !agreedToLegal)
+                }
+                className='gap-2'
+              >
+                {isLDAPSubmitting ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : null}
+                {t('Sign in')}
+              </Button>
+            </>
+          }
+        >
+          <div className='grid gap-2'>
+            <Label htmlFor='ldap-username'>{t('LDAP username')}</Label>
+            <Input
+              id='ldap-username'
+              value={ldapUsername}
+              onChange={(event) => setLDAPUsername(event.target.value)}
+              autoComplete='username'
+              placeholder={t('Enter your LDAP username')}
+            />
+          </div>
+          <div className='grid gap-2'>
+            <Label htmlFor='ldap-password'>{t('Password')}</Label>
+            <PasswordInput
+              id='ldap-password'
+              value={ldapPassword}
+              onChange={(event) => setLDAPPassword(event.target.value)}
+              autoComplete='current-password'
+              placeholder={t('Enter password')}
             />
           </div>
         </Dialog>

@@ -293,6 +293,7 @@ func migrateDB() error {
 		&SubscriptionPreConsumeRecord{},
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
+		&UserLDAPBinding{},
 		&PerfMetric{},
 		&SystemTask{},
 	)
@@ -343,6 +344,7 @@ func migrateDBFast() error {
 		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
+		{&UserLDAPBinding{}, "UserLDAPBinding"},
 		{&PerfMetric{}, "PerfMetric"},
 		{&SystemTask{}, "SystemTask"},
 	}

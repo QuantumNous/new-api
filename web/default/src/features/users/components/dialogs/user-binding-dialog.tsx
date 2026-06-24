@@ -27,6 +27,7 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  KeyRound,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SiGithub, SiDiscord } from 'react-icons/si'
@@ -47,9 +48,11 @@ import { StatusBadge } from '@/components/status-badge'
 import {
   getUser,
   getUserOAuthBindings,
+  getUserLDAPBinding,
   adminClearUserBinding,
   adminUnbindCustomOAuth,
   type OAuthBinding,
+  type LDAPBinding,
 } from '../../api'
 import type { User } from '../../types'
 
@@ -78,6 +81,7 @@ interface StatusInfo {
   wechat_login?: boolean
   telegram_oauth?: boolean
   linuxdo_oauth?: boolean
+  ldap_enabled?: boolean
   custom_oauth_providers?: Array<{
     id: string
     name: string
@@ -143,6 +147,18 @@ const BUILTIN_BINDINGS: ReadonlyArray<{
   },
 ]
 
+function formatLDAPBindingValue(binding: LDAPBinding | null) {
+  if (!binding) return ''
+  const identity =
+    binding.ldap_username ||
+    binding.ldap_display_name ||
+    binding.ldap_email ||
+    binding.ldap_user_id
+  const groups = binding.ldap_groups?.filter(Boolean) ?? []
+  if (groups.length === 0) return identity
+  return `${identity} · ${groups.join(', ')}`
+}
+
 function CustomProviderIcon(props: { iconUrl?: string }) {
   if (!props.iconUrl) return <Link2 className='h-4 w-4' />
   return (
@@ -161,6 +177,7 @@ export function UserBindingDialog(props: Props) {
   const { t } = useTranslation()
   const [user, setUser] = useState<User | null>(null)
   const [oauthBindings, setOauthBindings] = useState<OAuthBinding[]>([])
+  const [ldapBinding, setLDAPBinding] = useState<LDAPBinding | null>(null)
   const [statusInfo, setStatusInfo] = useState<StatusInfo>({})
   const [loading, setLoading] = useState(false)
   const [showBoundOnly, setShowBoundOnly] = useState(true)
@@ -171,11 +188,15 @@ export function UserBindingDialog(props: Props) {
     if (!props.userId) return
     setLoading(true)
     try {
-      const [userRes, oauthRes, statusRes] = await Promise.all([
+      const [userRes, oauthRes, ldapRes, statusRes] = await Promise.all([
         getUser(props.userId),
         getUserOAuthBindings(props.userId).catch(() => ({
           success: false,
           data: [],
+        })),
+        getUserLDAPBinding(props.userId).catch(() => ({
+          success: false,
+          data: null,
         })),
         api
           .get('/api/status')
@@ -190,6 +211,9 @@ export function UserBindingDialog(props: Props) {
       }
       if (oauthRes.success && oauthRes.data) {
         setOauthBindings(oauthRes.data as OAuthBinding[])
+      }
+      if (ldapRes.success) {
+        setLDAPBinding((ldapRes.data as LDAPBinding | null) ?? null)
       }
       if (statusRes.success && statusRes.data) {
         setStatusInfo(statusRes.data as StatusInfo)
@@ -208,6 +232,7 @@ export function UserBindingDialog(props: Props) {
     } else {
       setUser(null)
       setOauthBindings([])
+      setLDAPBinding(null)
       setStatusInfo({})
     }
   }, [props.open, props.userId, fetchData])
@@ -233,6 +258,16 @@ export function UserBindingDialog(props: Props) {
         isEnabled,
       })
     }
+
+    items.push({
+      key: 'ldap',
+      label: t('LDAP'),
+      icon: <KeyRound className='h-4 w-4' />,
+      value: formatLDAPBindingValue(ldapBinding),
+      type: 'builtin',
+      isBound: !!ldapBinding,
+      isEnabled: Boolean(statusInfo.ldap_enabled),
+    })
 
     const oauthBindingMap = new Map(
       oauthBindings.map((b) => [String(b.provider_id), b])
@@ -272,7 +307,7 @@ export function UserBindingDialog(props: Props) {
     }
 
     return items
-  }, [user, oauthBindings, statusInfo])
+  }, [user, oauthBindings, ldapBinding, statusInfo])
 
   const displayedBindings = showBoundOnly
     ? allBindings.filter((b) => b.isBound)

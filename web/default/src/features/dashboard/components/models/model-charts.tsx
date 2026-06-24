@@ -52,6 +52,7 @@ interface ModelChartsProps {
   loading?: boolean
   timeGranularity?: TimeGranularity
   defaultChartTab?: ModelAnalyticsChartTab
+  onChartTabChange?: (tab: ModelAnalyticsChartTab) => void
 }
 
 export function ModelCharts(props: ModelChartsProps) {
@@ -74,6 +75,11 @@ export function ModelCharts(props: ModelChartsProps) {
   useEffect(() => {
     if (props.defaultChartTab) setActiveTab(props.defaultChartTab)
   }, [props.defaultChartTab])
+
+  const handleChartTabChange = (tab: ModelAnalyticsChartTab) => {
+    setActiveTab(tab)
+    props.onChartTabChange?.(tab)
+  }
 
   useEffect(() => {
     const updateTheme = async () => {
@@ -134,7 +140,7 @@ export function ModelCharts(props: ModelChartsProps) {
             <button
               key={tab.value}
               type='button'
-              onClick={() => setActiveTab(tab.value)}
+              onClick={() => handleChartTabChange(tab.value)}
               className={`shrink-0 rounded-md px-3 text-xs font-medium transition-colors ${
                 activeTab === tab.value
                   ? 'bg-background text-foreground shadow-sm'

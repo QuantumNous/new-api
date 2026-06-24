@@ -32,7 +32,6 @@ import {
 } from '@/components/ui/tooltip'
 import { SectionPageLayout } from '@/components/layout'
 import { FadeIn } from '@/components/page-transition'
-import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
@@ -204,11 +203,13 @@ export function Dashboard() {
     []
   )
 
-  const handleChartPreferencesChange = useCallback(
-    (preferences: DashboardChartPreferences) => {
-      setChartPreferences(preferences)
-      setModelFilters(buildDefaultDashboardFilters(preferences))
-      saveChartPreferences(preferences)
+  const handleChartPreferencesPatch = useCallback(
+    (patch: Partial<DashboardChartPreferences>) => {
+      setChartPreferences((current) => {
+        const next = { ...current, ...patch }
+        saveChartPreferences(next)
+        return next
+      })
     },
     []
   )
@@ -235,18 +236,13 @@ export function Dashboard() {
     activeSection !== 'overview' && visibleSections.length > 1
   const modelActions =
     activeSection === 'models' ? (
-      <>
-        <ModelsChartPreferences
-          preferences={chartPreferences}
-          onPreferencesChange={handleChartPreferencesChange}
-        />
-        <ModelsFilter
-          preferences={chartPreferences}
-          currentFilters={modelFilters}
-          onFilterChange={handleFilterChange}
-          onReset={handleResetFilters}
-        />
-      </>
+      <ModelsFilter
+        filters={modelFilters}
+        preferences={chartPreferences}
+        onFilterChange={handleFilterChange}
+        onPreferencesChange={handleChartPreferencesPatch}
+        onReset={handleResetFilters}
+      />
     ) : null
   const flowActions =
     activeSection === 'flow' ? (
@@ -276,12 +272,11 @@ export function Dashboard() {
           </TooltipContent>
         </Tooltip>
         <ModelsFilter
+          filters={modelFilters}
           preferences={chartPreferences}
-          currentFilters={modelFilters}
           onFilterChange={handleFilterChange}
+          onPreferencesChange={handleChartPreferencesPatch}
           onReset={handleResetFilters}
-          titleKey='Flow Filters'
-          descriptionKey='Filter the traffic flow view by time range and user.'
         />
       </>
     ) : null
@@ -340,6 +335,11 @@ export function Dashboard() {
                     defaultChartType={
                       chartPreferences.consumptionDistributionChart
                     }
+                    onChartTypeChange={(type) =>
+                      handleChartPreferencesPatch({
+                        consumptionDistributionChart: type,
+                      })
+                    }
                     timeGranularity={
                       modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
                     }
@@ -352,6 +352,9 @@ export function Dashboard() {
                     data={modelData}
                     loading={dataLoading}
                     defaultChartTab={chartPreferences.modelAnalyticsChart}
+                    onChartTabChange={(tab) =>
+                      handleChartPreferencesPatch({ modelAnalyticsChart: tab })
+                    }
                     timeGranularity={
                       modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
                     }

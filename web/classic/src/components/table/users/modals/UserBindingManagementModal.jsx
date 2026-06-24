@@ -39,6 +39,7 @@ import {
   IconMail,
   IconDelete,
   IconGithubLogo,
+  IconKey,
 } from '@douyinfe/semi-icons';
 import { SiDiscord, SiTelegram, SiWechat, SiLinux } from 'react-icons/si';
 
@@ -56,19 +57,26 @@ const UserBindingManagementModal = ({
   const [showBoundOnly, setShowBoundOnly] = React.useState(true);
   const [statusInfo, setStatusInfo] = React.useState({});
   const [customOAuthBindings, setCustomOAuthBindings] = React.useState([]);
+  const [ldapBinding, setLDAPBinding] = React.useState(null);
   const [builtInBindings, setBuiltInBindings] = React.useState({});
   const [bindingActionLoading, setBindingActionLoading] = React.useState({});
 
   const loadBindingData = React.useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      setLDAPBinding(null);
+      return;
+    }
 
+    setLDAPBinding(null);
     setBindingLoading(true);
     try {
-      const [statusRes, customBindingRes, userRes] = await Promise.all([
-        API.get('/api/status'),
-        API.get(`/api/user/${userId}/oauth/bindings`),
-        API.get(`/api/user/${userId}`),
-      ]);
+      const [statusRes, customBindingRes, userRes, ldapBindingRes] =
+        await Promise.all([
+          API.get('/api/status'),
+          API.get(`/api/user/${userId}/oauth/bindings`),
+          API.get(`/api/user/${userId}`),
+          API.get(`/api/user/${userId}/ldap/binding`),
+        ]);
 
       if (statusRes.data?.success) {
         setStatusInfo(statusRes.data.data || {});
@@ -96,7 +104,15 @@ const UserBindingManagementModal = ({
       } else {
         showError(userRes.data?.message || t('操作失败'));
       }
+
+      if (ldapBindingRes.data?.success) {
+        setLDAPBinding(ldapBindingRes.data.data || null);
+      } else {
+        setLDAPBinding(null);
+        showError(ldapBindingRes.data?.message || t('操作失败'));
+      }
     } catch (error) {
+      setLDAPBinding(null);
       showError(
         error.response?.data?.message || error.message || t('操作失败'),
       );
@@ -135,11 +151,17 @@ const UserBindingManagementModal = ({
             showError(res.data?.message || t('操作失败'));
             return;
           }
-          setBuiltInBindings((prev) => ({
-            ...prev,
-            [bindingItem.field]: '',
-          }));
-          formApiRef.current?.setValue(bindingItem.field, '');
+          if (bindingItem.key === 'ldap') {
+            setLDAPBinding(null);
+          } else {
+            setBuiltInBindings((prev) => ({
+              ...prev,
+              [bindingItem.field]: '',
+            }));
+            if (bindingItem.field) {
+              formApiRef.current?.setValue(bindingItem.field, '');
+            }
+          }
           showSuccess(t('解绑成功'));
         } catch (error) {
           showError(
@@ -191,6 +213,16 @@ const UserBindingManagementModal = ({
   const currentValues = formApiRef.current?.getValues?.() || {};
   const getBuiltInBindingValue = (field) =>
     builtInBindings[field] || currentValues[field] || '';
+  const ldapBindingValue =
+    ldapBinding?.ldap_username ||
+    ldapBinding?.ldap_display_name ||
+    ldapBinding?.ldap_email ||
+    ldapBinding?.ldap_user_id ||
+    '';
+  const ldapBindingDescription =
+    ldapBinding?.ldap_groups && ldapBinding.ldap_groups.length > 0
+      ? `${t('所属 LDAP 组')}：${ldapBinding.ldap_groups.join(', ')}`
+      : '';
 
   const builtInBindingItems = [
     {
@@ -237,6 +269,20 @@ const UserBindingManagementModal = ({
       value: getBuiltInBindingValue('oidc_id'),
       icon: (
         <IconLink
+          size='default'
+          className='text-slate-600 dark:text-slate-300'
+        />
+      ),
+    },
+    {
+      key: 'ldap',
+      field: null,
+      name: 'LDAP',
+      enabled: Boolean(statusInfo.ldap_enabled),
+      value: ldapBindingValue,
+      description: ldapBindingDescription,
+      icon: (
+        <IconKey
           size='default'
           className='text-slate-600 dark:text-slate-300'
         />
@@ -396,6 +442,11 @@ const UserBindingManagementModal = ({
                           <div className='text-sm text-gray-500 truncate'>
                             {statusText}
                           </div>
+                          {item.description && (
+                            <div className='text-xs text-gray-400 truncate'>
+                              {item.description}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <Button

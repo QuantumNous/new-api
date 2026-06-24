@@ -88,8 +88,15 @@ const RegisterForm = () => {
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
   const [showWeChatLoginModal, setShowWeChatLoginModal] = useState(false);
+  const [showLDAPLoginModal, setShowLDAPLoginModal] = useState(false);
+  const [ldapCredentials, setLdapCredentials] = useState({
+    username: '',
+    password: '',
+  });
   const [showEmailRegister, setShowEmailRegister] = useState(false);
   const [wechatLoading, setWechatLoading] = useState(false);
+  const [ldapLoading, setLdapLoading] = useState(false);
+  const [ldapSubmitLoading, setLdapSubmitLoading] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
   const [discordLoading, setDiscordLoading] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
@@ -133,12 +140,13 @@ const RegisterForm = () => {
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthRegisterOptions = Boolean(
     status.github_oauth ||
-      status.discord_oauth ||
-      status.oidc_enabled ||
-      status.wechat_login ||
-      status.linuxdo_oauth ||
-      status.telegram_oauth ||
-      hasCustomOAuthProviders,
+    status.discord_oauth ||
+    status.oidc_enabled ||
+    status.ldap_enabled ||
+    status.wechat_login ||
+    status.linuxdo_oauth ||
+    status.telegram_oauth ||
+    hasCustomOAuthProviders,
   );
 
   const [showEmailVerification, setShowEmailVerification] = useState(false);
@@ -180,6 +188,47 @@ const RegisterForm = () => {
     setWechatLoading(true);
     setShowWeChatLoginModal(true);
     setWechatLoading(false);
+  };
+
+  const onLDAPLoginClicked = () => {
+    setLdapLoading(true);
+    setShowLDAPLoginModal(true);
+    setLdapLoading(false);
+  };
+
+  const handleLDAPCredentialChange = (name, value) => {
+    setLdapCredentials((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const onSubmitLDAPLogin = async () => {
+    if (!ldapCredentials.username.trim() || !ldapCredentials.password) {
+      showInfo(t('请输入 LDAP 用户名和密码'));
+      return;
+    }
+    setLdapSubmitLoading(true);
+    try {
+      const res = await API.post('/api/oauth/ldap/login', {
+        username: ldapCredentials.username.trim(),
+        password: ldapCredentials.password,
+      });
+      const { success, message, data } = res.data;
+      if (success) {
+        userDispatch({ type: 'login', payload: data });
+        localStorage.setItem('user', JSON.stringify(data));
+        setUserData(data);
+        updateAPI();
+        showSuccess(t('登录成功！'));
+        setShowLDAPLoginModal(false);
+        setLdapCredentials({ username: '', password: '' });
+        navigate('/console');
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(t('LDAP 登录失败，请重试'));
+    } finally {
+      setLdapSubmitLoading(false);
+    }
   };
 
   const onSubmitWeChatVerificationCode = async () => {
@@ -470,6 +519,19 @@ const RegisterForm = () => {
                     loading={oidcLoading}
                   >
                     <span className='ml-3'>{t('使用 OIDC 继续')}</span>
+                  </Button>
+                )}
+
+                {status.ldap_enabled && (
+                  <Button
+                    theme='outline'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    type='tertiary'
+                    icon={<IconKey size='large' />}
+                    onClick={onLDAPLoginClicked}
+                    loading={ldapLoading}
+                  >
+                    <span className='ml-3'>{t('使用 LDAP 继续')}</span>
                   </Button>
                 )}
 
@@ -769,6 +831,43 @@ const RegisterForm = () => {
     );
   };
 
+  const renderLDAPLoginModal = () => {
+    return (
+      <Modal
+        title={t('LDAP 登录')}
+        visible={showLDAPLoginModal}
+        maskClosable={true}
+        onOk={onSubmitLDAPLogin}
+        onCancel={() => setShowLDAPLoginModal(false)}
+        okText={t('登录')}
+        centered={true}
+        okButtonProps={{
+          loading: ldapSubmitLoading,
+        }}
+      >
+        <Form>
+          <Form.Input
+            field='ldap_username'
+            label={t('LDAP 用户名')}
+            placeholder={t('请输入 LDAP 用户名')}
+            value={ldapCredentials.username}
+            onChange={(value) => handleLDAPCredentialChange('username', value)}
+            prefix={<IconUser />}
+          />
+          <Form.Input
+            field='ldap_password'
+            label={t('LDAP 密码')}
+            placeholder={t('请输入 LDAP 密码')}
+            mode='password'
+            value={ldapCredentials.password}
+            onChange={(value) => handleLDAPCredentialChange('password', value)}
+            prefix={<IconLock />}
+          />
+        </Form>
+      </Modal>
+    );
+  };
+
   return (
     <div className='classic-page-fill relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
       {/* 背景模糊晕染球 */}
@@ -781,11 +880,11 @@ const RegisterForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailRegister ||
-        !hasOAuthRegisterOptions
+        {showEmailRegister || !hasOAuthRegisterOptions
           ? renderEmailRegisterForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}
+        {renderLDAPLoginModal()}
 
         {turnstileEnabled && (
           <div className='flex justify-center mt-6'>

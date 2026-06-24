@@ -448,6 +448,11 @@ func GetSelf(c *gin.Context) {
 	userSetting := user.GetSetting()
 
 	// 构建响应数据，包含用户信息和权限
+	ldapBinding, err := getLDAPBindingResponseForUser(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	responseData := map[string]interface{}{
 		"id":                user.Id,
 		"username":          user.Username,
@@ -472,6 +477,7 @@ func GetSelf(c *gin.Context) {
 		"linux_do_id":       user.LinuxDOId,
 		"setting":           user.Setting,
 		"stripe_customer":   user.StripeCustomer,
+		"ldap_binding":      ldapBinding,
 		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":       permissions,                // 新增权限字段
 	}
@@ -670,6 +676,18 @@ func AdminClearUserBinding(c *gin.Context) {
 	myRole := c.GetInt("role")
 	if !canManageTargetRole(myRole, user.Role) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
+		return
+	}
+	if bindingType == "ldap" {
+		if err := model.DeleteUserLDAPBindingByUserId(user.Id); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		model.RecordLog(user.Id, model.LogTypeManage, fmt.Sprintf("admin cleared %s binding for user %s", bindingType, user.Username))
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "success",
+		})
 		return
 	}
 

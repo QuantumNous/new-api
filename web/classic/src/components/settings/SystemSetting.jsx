@@ -63,6 +63,23 @@ const SystemSetting = () => {
     'oidc.authorization_endpoint': '',
     'oidc.token_endpoint': '',
     'oidc.user_info_endpoint': '',
+    'ldap.enabled': '',
+    'ldap.url': '',
+    'ldap.base_dn': '',
+    'ldap.user_dn': '',
+    'ldap.bind_dn': '',
+    'ldap.bind_pass': '',
+    'ldap.user_filter': '(&(objectClass=Person)(sAMAccountName=%s))',
+    'ldap.username_attr': 'sAMAccountName',
+    'ldap.display_name_attr': 'cn',
+    'ldap.email_attr': 'mail',
+    'ldap.group_filter': '(&(objectClass=group)(member=%s))',
+    'ldap.group_name_attr': 'cn',
+    'ldap.member_attr': 'member',
+    'ldap.use_tls': '',
+    'ldap.insecure': '',
+    'ldap.group_whitelist': '',
+    'ldap.user_whitelist': '',
     Notice: '',
     SMTPServer: '',
     SMTPPort: '',
@@ -189,6 +206,9 @@ const SystemSetting = () => {
           case 'LinuxDOOAuthEnabled':
           case 'discord.enabled':
           case 'oidc.enabled':
+          case 'ldap.enabled':
+          case 'ldap.use_tls':
+          case 'ldap.insecure':
           case 'passkey.enabled':
           case 'passkey.allow_insecure_origin':
           case 'WorkerAllowHttpImageRequestEnabled':
@@ -595,6 +615,124 @@ const SystemSetting = () => {
 
     if (options.length > 0) {
       await updateOptions(options);
+    }
+  };
+
+  const submitLDAPSettings = async () => {
+    const formValues = formApiRef.current?.getValues() || {};
+    const getValue = (key, fallback = '') =>
+      typeof formValues[key] !== 'undefined'
+        ? formValues[key]
+        : inputs[key] || fallback;
+
+    const options = [
+      { key: 'ldap.url', value: getValue('ldap.url') },
+      { key: 'ldap.base_dn', value: getValue('ldap.base_dn') },
+      { key: 'ldap.user_dn', value: getValue('ldap.user_dn') },
+      { key: 'ldap.bind_dn', value: getValue('ldap.bind_dn') },
+      {
+        key: 'ldap.user_filter',
+        value:
+          getValue('ldap.user_filter') ||
+          '(&(objectClass=Person)(sAMAccountName=%s))',
+      },
+      {
+        key: 'ldap.username_attr',
+        value: getValue('ldap.username_attr') || 'sAMAccountName',
+      },
+      {
+        key: 'ldap.display_name_attr',
+        value: getValue('ldap.display_name_attr') || 'cn',
+      },
+      { key: 'ldap.email_attr', value: getValue('ldap.email_attr') || 'mail' },
+      {
+        key: 'ldap.group_filter',
+        value:
+          getValue('ldap.group_filter') || '(&(objectClass=group)(member=%s))',
+      },
+      {
+        key: 'ldap.group_name_attr',
+        value: getValue('ldap.group_name_attr') || 'cn',
+      },
+      {
+        key: 'ldap.member_attr',
+        value: getValue('ldap.member_attr') || 'member',
+      },
+      { key: 'ldap.use_tls', value: Boolean(getValue('ldap.use_tls')) },
+      { key: 'ldap.insecure', value: Boolean(getValue('ldap.insecure')) },
+      { key: 'ldap.group_whitelist', value: getValue('ldap.group_whitelist') },
+      { key: 'ldap.user_whitelist', value: getValue('ldap.user_whitelist') },
+    ];
+
+    const bindPass = getValue('ldap.bind_pass');
+    if (originInputs['ldap.bind_pass'] !== bindPass && bindPass !== '') {
+      options.splice(4, 0, { key: 'ldap.bind_pass', value: bindPass });
+    }
+
+    options.push({
+      key: 'ldap.enabled',
+      value: Boolean(getValue('ldap.enabled')),
+    });
+
+    const savedInputs = {};
+    let currentOpt = null;
+    setLoading(true);
+    try {
+      for (const opt of options) {
+        currentOpt = opt;
+        const res = await API.put('/api/option/', {
+          key: opt.key,
+          value:
+            typeof opt.value === 'boolean' ? opt.value.toString() : opt.value,
+        });
+        if (!res.data.success) {
+          showError(res.data.message);
+          const inputUpdates = { ...savedInputs };
+          if (Object.keys(savedInputs).length > 0) {
+            setOriginInputs((prev) => ({ ...prev, ...savedInputs }));
+          }
+          if (
+            opt.key === 'ldap.group_whitelist' ||
+            opt.key === 'ldap.user_whitelist'
+          ) {
+            const savedValue = originInputs[opt.key] || '';
+            inputUpdates[opt.key] = savedValue;
+            formApiRef.current?.setValue(opt.key, savedValue);
+          }
+          if (Object.keys(inputUpdates).length > 0) {
+            setInputs((prev) => ({ ...prev, ...inputUpdates }));
+          }
+          return;
+        }
+        savedInputs[opt.key] = opt.value;
+      }
+
+      showSuccess(t('更新成功'));
+      const newInputs = { ...inputs };
+      options.forEach((opt) => {
+        newInputs[opt.key] = opt.value;
+      });
+      setInputs(newInputs);
+      setOriginInputs((prev) => ({ ...prev, ...newInputs }));
+    } catch (error) {
+      const inputUpdates = { ...savedInputs };
+      if (Object.keys(savedInputs).length > 0) {
+        setOriginInputs((prev) => ({ ...prev, ...savedInputs }));
+      }
+      if (
+        currentOpt?.key === 'ldap.group_whitelist' ||
+        currentOpt?.key === 'ldap.user_whitelist'
+      ) {
+        const savedValue = originInputs[currentOpt.key] || '';
+        inputUpdates[currentOpt.key] = savedValue;
+        formApiRef.current?.setValue(currentOpt.key, savedValue);
+      }
+      if (Object.keys(inputUpdates).length > 0) {
+        setInputs((prev) => ({ ...prev, ...inputUpdates }));
+      }
+      showError(t('更新失败'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1126,6 +1264,15 @@ const SystemSetting = () => {
                       >
                         {t('允许通过 OIDC 进行登录')}
                       </Form.Checkbox>
+                      <Form.Checkbox
+                        field="['ldap.enabled']"
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('ldap.enabled', e)
+                        }
+                      >
+                        {t('允许通过 LDAP 账户登录 & 注册')}
+                      </Form.Checkbox>
                     </Col>
                   </Row>
                 </Form.Section>
@@ -1475,6 +1622,172 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitOIDCSettings}>
                     {t('保存 OIDC 设置')}
+                  </Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('配置 LDAP 登录')}>
+                  <Text>
+                    {t(
+                      '用以支持通过 LDAP 进行登录注册，系统只会读取 LDAP 用户和组信息',
+                    )}
+                  </Text>
+                  <Banner
+                    type='info'
+                    description={t(
+                      'LDAP 组白名单为空时允许所有通过认证的 LDAP 用户；填写多个组时每行一个组名，支持嵌套组判断',
+                    )}
+                    style={{ marginBottom: 20, marginTop: 16 }}
+                  />
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                      <Form.Checkbox field="['ldap.enabled']" noLabel>
+                        {t('允许通过 LDAP 账户登录 & 注册')}
+                      </Form.Checkbox>
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['ldap.url']"
+                        label={t('LDAP URL')}
+                        placeholder='ldap://ldap.example.com:389'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['ldap.base_dn']"
+                        label={t('LDAP Base DN')}
+                        placeholder='DC=example,DC=com'
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['ldap.user_dn']"
+                        label={t('LDAP 用户搜索 DN')}
+                        placeholder='OU=Users,DC=example,DC=com'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['ldap.bind_dn']"
+                        label={t('LDAP Bind DN')}
+                        placeholder='ldap-reader@example.com'
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['ldap.bind_pass']"
+                        label={t('LDAP Bind 密码')}
+                        type='password'
+                        placeholder={t('敏感信息不会发送到前端显示')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['ldap.user_filter']"
+                        label={t('LDAP 用户过滤器')}
+                        placeholder='(&(objectClass=Person)(sAMAccountName=%s))'
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Input
+                        field="['ldap.username_attr']"
+                        label={t('LDAP 用户名属性')}
+                        placeholder='sAMAccountName'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Input
+                        field="['ldap.display_name_attr']"
+                        label={t('LDAP 显示名属性')}
+                        placeholder='cn'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Input
+                        field="['ldap.email_attr']"
+                        label={t('LDAP 邮箱属性')}
+                        placeholder='mail'
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['ldap.group_filter']"
+                        label={t('LDAP 组过滤器')}
+                        placeholder='(&(objectClass=group)(member=%s))'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={6} lg={6} xl={6}>
+                      <Form.Input
+                        field="['ldap.group_name_attr']"
+                        label={t('LDAP 组名属性')}
+                        placeholder='cn'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={6} lg={6} xl={6}>
+                      <Form.Input
+                        field="['ldap.member_attr']"
+                        label={t('LDAP 成员属性')}
+                        placeholder='member'
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Checkbox field="['ldap.use_tls']" noLabel>
+                        {t('对 ldap:// 连接使用 StartTLS')}
+                      </Form.Checkbox>
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Checkbox field="['ldap.insecure']" noLabel>
+                        {t('允许无法验证的 LDAP TLS 证书')}
+                      </Form.Checkbox>
+                    </Col>
+                  </Row>
+                  <Form.TextArea
+                    field="['ldap.group_whitelist']"
+                    label={t('LDAP 组白名单')}
+                    placeholder={'g-ai\ng-admin'}
+                    autosize
+                    extraText={t('留空则允许所有 LDAP 用户')}
+                  />
+                  <Form.TextArea
+                    field="['ldap.user_whitelist']"
+                    label={t('LDAP 用户白名单')}
+                    placeholder={
+                      'alice\nalice@example.com\nCN=Alice,OU=Users,DC=example,DC=com'
+                    }
+                    autosize
+                    extraText={t(
+                      '每行一个 LDAP 用户，可填写用户名、邮箱或 DN；DN 中包含逗号也不会被拆分',
+                    )}
+                  />
+                  <Button onClick={submitLDAPSettings}>
+                    {t('保存 LDAP 登录设置')}
                   </Button>
                 </Form.Section>
               </Card>

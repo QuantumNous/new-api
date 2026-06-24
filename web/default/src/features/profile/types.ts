@@ -81,6 +81,18 @@ export interface UserProfile {
   telegram_id?: string
   /** LinuxDO ID (OAuth) */
   linux_do_id?: string
+  /** LDAP binding snapshot */
+  ldap_binding?: LDAPBinding | null
+}
+
+export interface LDAPBinding {
+  user_id: number
+  ldap_user_id: string
+  ldap_username?: string
+  ldap_display_name?: string
+  ldap_email?: string
+  ldap_groups?: string[]
+  last_sync_time?: number
 }
 
 /**

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import type {
   LoginPayload,
+  LDAPLoginPayload,
   LoginResponse,
   Login2FAResponse,
   TwoFAPayload,
@@ -44,6 +45,12 @@ export async function login(payload: LoginPayload) {
       password: payload.password,
     }
   )
+  return res.data
+}
+
+// User login with LDAP credentials
+export async function ldapLogin(payload: LDAPLoginPayload) {
+  const res = await api.post<LoginResponse>('/api/oauth/ldap/login', payload)
   return res.data
 }
 

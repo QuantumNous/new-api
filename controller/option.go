@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -81,12 +82,7 @@ func GetOptions(c *gin.Context) {
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
 		value := common.Interface2String(v)
-		isSensitiveKey := strings.HasSuffix(k, "Token") ||
-			strings.HasSuffix(k, "Secret") ||
-			strings.HasSuffix(k, "Key") ||
-			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key")
-		if isSensitiveKey {
+		if isSensitiveOptionKey(k) {
 			continue
 		}
 		options = append(options, &model.Option{
@@ -110,6 +106,43 @@ func GetOptions(c *gin.Context) {
 		"message": "",
 		"data":    options,
 	})
+}
+
+func isSensitiveOptionKey(key string) bool {
+	return strings.HasSuffix(key, "Token") ||
+		strings.HasSuffix(key, "Secret") ||
+		strings.HasSuffix(key, "Key") ||
+		strings.HasSuffix(key, "secret") ||
+		strings.HasSuffix(key, "api_key") ||
+		strings.HasSuffix(key, "_pass") ||
+		strings.HasSuffix(key, ".bind_pass")
+}
+
+func validateLDAPEnable(value string, options map[string]string) error {
+	if value != "true" {
+		return nil
+	}
+	required := []string{"ldap.url", "ldap.bind_dn", "ldap.bind_pass", "ldap.user_filter"}
+	for _, key := range required {
+		if strings.TrimSpace(options[key]) == "" {
+			return errors.New("无法启用 LDAP 登录，请先填入 LDAP 连接、绑定账号和用户过滤器配置！")
+		}
+	}
+	if strings.TrimSpace(options["ldap.user_dn"]) == "" && strings.TrimSpace(options["ldap.base_dn"]) == "" {
+		return errors.New("无法启用 LDAP 登录，请先填入 LDAP 用户搜索 DN 或 Base DN！")
+	}
+	return nil
+}
+
+func optionSnapshotWithOverride(key, value string) map[string]string {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	options := make(map[string]string, len(common.OptionMap)+1)
+	for k, v := range common.OptionMap {
+		options[k] = v
+	}
+	options[key] = value
+	return options
 }
 
 type OptionUpdateRequest struct {
@@ -171,6 +204,22 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用 OIDC 登录，请先填入 OIDC Client Id 以及 OIDC Client Secret！",
+			})
+			return
+		}
+	case "ldap.enabled":
+		if err := validateLDAPEnable(option.Value.(string), optionSnapshotWithOverride(option.Key, option.Value.(string))); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+	case "ldap.group_whitelist", "ldap.user_whitelist":
+		if err := validateLDAPWhitelistOption(option.Key, option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
 			})
 			return
 		}

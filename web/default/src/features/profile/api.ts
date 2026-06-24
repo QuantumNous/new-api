@@ -23,6 +23,7 @@ import type {
   UpdateUserRequest,
   UpdateUserSettingsRequest,
   DeleteAccountRequest,
+  LDAPBinding,
   CheckinStatusResponse,
   CheckinResponse,
 } from './types'
@@ -125,6 +126,21 @@ export async function bindEmail(
  */
 export async function bindWeChat(code: string): Promise<ApiResponse> {
   const res = await api.get(`/api/oauth/wechat/bind?code=${code}`)
+  return res.data
+}
+
+export async function bindLDAP(payload: {
+  username: string
+  password: string
+}): Promise<ApiResponse<LDAPBinding>> {
+  const res = await api.post('/api/oauth/ldap/bind', payload)
+  return res.data
+}
+
+export async function getSelfLDAPBinding(): Promise<
+  ApiResponse<LDAPBinding | null>
+> {
+  const res = await api.get('/api/user/ldap/binding')
   return res.data
 }
 

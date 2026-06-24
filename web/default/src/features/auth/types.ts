@@ -28,6 +28,11 @@ export interface LoginPayload {
   turnstile?: string
 }
 
+export interface LDAPLoginPayload {
+  username: string
+  password: string
+}
+
 export interface TwoFAPayload {
   code: string
 }
@@ -97,6 +102,7 @@ export interface SystemStatus {
     discord_oauth?: boolean
     discord_client_id?: string
     oidc_enabled?: boolean
+    ldap_enabled?: boolean
     oidc_authorization_endpoint?: string
     oidc_client_id?: string
     linuxdo_oauth?: boolean
@@ -140,6 +146,7 @@ export interface SystemStatus {
   discord_oauth?: boolean
   discord_client_id?: string
   oidc_enabled?: boolean
+  ldap_enabled?: boolean
   oidc_authorization_endpoint?: string
   oidc_client_id?: string
   linuxdo_oauth?: boolean
@@ -181,7 +188,14 @@ export interface SystemStatus {
 
 export interface OAuthProvider {
   name: string
-  type: 'github' | 'discord' | 'oidc' | 'linuxdo' | 'telegram' | 'wechat'
+  type:
+    | 'github'
+    | 'discord'
+    | 'oidc'
+    | 'ldap'
+    | 'linuxdo'
+    | 'telegram'
+    | 'wechat'
   enabled: boolean
   clientId?: string
   authEndpoint?: string

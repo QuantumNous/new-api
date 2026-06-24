@@ -24,6 +24,7 @@ import {
   IconLinuxDo,
   IconWeChat,
 } from '@/assets/brand-icons'
+import { KeyRound } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useOAuthLogin } from '../hooks/use-oauth-login'
@@ -34,7 +35,9 @@ type OAuthProvidersProps = {
   disabled?: boolean
   className?: string
   onWeChatLogin?: () => void
+  onLDAPLogin?: () => void
   isWeChatLoading?: boolean
+  isLDAPLoading?: boolean
 }
 
 type ProviderButton = {
@@ -50,7 +53,9 @@ export function OAuthProviders({
   disabled = false,
   className,
   onWeChatLogin,
+  onLDAPLogin,
   isWeChatLoading = false,
+  isLDAPLoading = false,
 }: OAuthProvidersProps) {
   const { t } = useTranslation()
   const {
@@ -101,6 +106,16 @@ export function OAuthProviders({
       key: 'oidc',
       label: t('Continue with OIDC'),
       onClick: handleOIDCLogin,
+    })
+  }
+
+  if (status?.ldap_enabled && onLDAPLogin) {
+    providerButtons.push({
+      key: 'ldap',
+      label: t('Continue with LDAP'),
+      onClick: onLDAPLogin,
+      icon: <KeyRound className='h-4 w-4' />,
+      disabled: isLDAPLoading,
     })
   }
 
