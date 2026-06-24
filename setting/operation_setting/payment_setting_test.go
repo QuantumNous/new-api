@@ -30,3 +30,19 @@ func TestAmountDiscountConfigExactAmountCompatibility(t *testing.T) {
 	require.Equal(t, 1.0, discounts.DiscountForAmount(99))
 	require.Equal(t, 0.95, discounts.DiscountForAmount(100))
 }
+
+func TestAmountDiscountConfigExactAmountPrecedence(t *testing.T) {
+	discounts := AmountDiscountConfig{
+		Exact: map[int]float64{
+			100: 0.95,
+		},
+		Thresholds: []ThresholdDiscount{
+			{MinAmount: 50, Discount: 0.9},
+			{MinAmount: 150, Discount: 0.85},
+		},
+	}
+
+	require.Equal(t, 0.9, discounts.DiscountForAmount(99))
+	require.Equal(t, 0.95, discounts.DiscountForAmount(100))
+	require.Equal(t, 0.85, discounts.DiscountForAmount(200))
+}

@@ -16,9 +16,10 @@ import (
 )
 
 const YooKassaCurrencyRUB = "RUB"
+const yooKassaRequestTimeout = 15 * time.Second
 
 var YooKassaAPIBaseURL = "https://api.yookassa.ru/v3"
-var YooKassaHTTPClient = http.DefaultClient
+var YooKassaHTTPClient = &http.Client{Timeout: yooKassaRequestTimeout}
 
 type YooKassaAmount struct {
 	Value    string `json:"value"`
@@ -118,6 +119,12 @@ func (client *YooKassaClient) GetPayment(ctx context.Context, paymentID string) 
 }
 
 func (client *YooKassaClient) do(ctx context.Context, method string, path string, idempotenceKey string, body any) (*YooKassaPayment, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, yooKassaRequestTimeout)
+		defer cancel()
+	}
+
 	var reader io.Reader
 	if body != nil {
 		bodyBytes, err := common.Marshal(body)
@@ -160,5 +167,5 @@ func (client *YooKassaClient) do(ctx context.Context, method string, path string
 }
 
 func YooKassaRequestTimeoutContext(parent context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(parent, 15*time.Second)
+	return context.WithTimeout(parent, yooKassaRequestTimeout)
 }

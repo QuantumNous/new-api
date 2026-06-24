@@ -87,4 +87,18 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 			require.InDelta(t, tc.expected, actual, 0.000001)
 		})
 	}
+
+	t.Run("threshold discount uses highest matching min amount", func(t *testing.T) {
+		operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+		operation_setting.GetPaymentSetting().AmountDiscount = operation_setting.AmountDiscountConfig{
+			Thresholds: []operation_setting.ThresholdDiscount{
+				{MinAmount: 5, Discount: 0.9},
+				{MinAmount: 10, Discount: 0.85},
+				{MinAmount: 20, Discount: 0.7},
+			},
+		}
+
+		actual := getWaffoPancakePayMoney(15, "default")
+		require.InDelta(t, 31.875, actual, 0.000001)
+	})
 }

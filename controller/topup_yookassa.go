@@ -37,6 +37,13 @@ func formatYooKassaAmount(amount float64) string {
 	return decimal.NewFromFloat(amount).Round(2).StringFixed(2)
 }
 
+func getYooKassaQuotaToAdd(amount int64) int {
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		return int(amount)
+	}
+	return int(decimal.NewFromInt(amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+}
+
 func getYooKassaReturnURL() string {
 	if strings.TrimSpace(setting.YooKassaReturnURL) != "" {
 		return setting.YooKassaReturnURL
@@ -118,14 +125,9 @@ func RequestYooKassaPay(c *gin.Context) {
 	}
 
 	tradeNo := fmt.Sprintf("USR%dNO%s%d", id, common.GetRandomString(6), time.Now().Unix())
-	amount := req.Amount
-	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		amount = decimal.NewFromInt(req.Amount).Div(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()
-	}
-
 	topUp := &model.TopUp{
 		UserId:          id,
-		Amount:          amount,
+		Amount:          req.Amount,
 		Money:           payMoney,
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodYooKassaSBP,
@@ -135,25 +137,6 @@ func RequestYooKassaPay(c *gin.Context) {
 	}
 	if err := topUp.Insert(); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("YooKassa 创建充值订单失败 user_id=%d trade_no=%s amount=%d error=%q", id, tradeNo, req.Amount, err.Error()))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
-		return
-	}
-
-	metadataBytes, _ := common.Marshal(map[string]string{
-		"trade_no": tradeNo,
-		"user_id":  fmt.Sprintf("%d", id),
-		"topup_id": fmt.Sprintf("%d", topUp.Id),
-	})
-	paymentMetadata := &model.PaymentMetadata{
-		TradeNo:         tradeNo,
-		PaymentProvider: model.PaymentProviderYooKassa,
-		Metadata:        string(metadataBytes),
-		CreateTime:      time.Now().Unix(),
-		UpdateTime:      time.Now().Unix(),
-	}
-	if err := paymentMetadata.Insert(); err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("YooKassa 保存支付元数据失败 user_id=%d trade_no=%s error=%q", id, tradeNo, err.Error()))
-		_ = model.UpdatePendingTopUpStatus(tradeNo, model.PaymentProviderYooKassa, common.TopUpStatusFailed)
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
 		return
 	}
@@ -169,10 +152,25 @@ func RequestYooKassaPay(c *gin.Context) {
 		return
 	}
 
-	paymentMetadata.ExternalPaymentID = payment.ID
-	paymentMetadata.UpdateTime = time.Now().Unix()
-	if err := paymentMetadata.Update(); err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("YooKassa 更新支付元数据失败 trade_no=%s payment_id=%s error=%q", tradeNo, payment.ID, err.Error()))
+	metadataBytes, _ := common.Marshal(map[string]string{
+		"trade_no":     tradeNo,
+		"user_id":      fmt.Sprintf("%d", id),
+		"topup_id":     fmt.Sprintf("%d", topUp.Id),
+		"quota_to_add": fmt.Sprintf("%d", getYooKassaQuotaToAdd(req.Amount)),
+	})
+	paymentMetadata := &model.PaymentMetadata{
+		TradeNo:           tradeNo,
+		PaymentProvider:   model.PaymentProviderYooKassa,
+		ExternalPaymentID: payment.ID,
+		Metadata:          string(metadataBytes),
+		CreateTime:        time.Now().Unix(),
+		UpdateTime:        time.Now().Unix(),
+	}
+	if err := paymentMetadata.Insert(); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("YooKassa 保存支付元数据失败 trade_no=%s payment_id=%s error=%q", tradeNo, payment.ID, err.Error()))
+		_ = model.UpdatePendingTopUpStatus(tradeNo, model.PaymentProviderYooKassa, common.TopUpStatusFailed)
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
+		return
 	}
 
 	confirmationURL := strings.TrimSpace(payment.Confirmation.ConfirmationURL)
@@ -275,7 +273,7 @@ func validateYooKassaPayment(payment *service.YooKassaPayment, topUp *model.TopU
 	if !actualAmount.Equal(expectedAmount) {
 		return fmt.Errorf("amount mismatch expected %s actual %s", expectedAmount.StringFixed(2), actualAmount.StringFixed(2))
 	}
-	if payment.Metadata["trade_no"] != topUp.TradeNo {
+	if metadataTradeNo := payment.Metadata["trade_no"]; metadataTradeNo != "" && metadataTradeNo != topUp.TradeNo {
 		return fmt.Errorf("trade_no mismatch")
 	}
 	return nil

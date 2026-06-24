@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -599,7 +600,7 @@ func RechargeYooKassa(tradeNo string, callerIp string) (err error) {
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		refCol = `"trade_no"`
 	}
 
@@ -621,7 +622,7 @@ func RechargeYooKassa(tradeNo string, callerIp string) (err error) {
 			return errors.New("充值订单状态错误")
 		}
 
-		quotaToAdd = int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+		quotaToAdd = getYooKassaTopUpQuota(tx, topUp)
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
 		}
@@ -649,4 +650,18 @@ func RechargeYooKassa(tradeNo string, callerIp string) (err error) {
 	}
 
 	return nil
+}
+
+func getYooKassaTopUpQuota(tx *gorm.DB, topUp *TopUp) int {
+	var paymentMetadata PaymentMetadata
+	if err := tx.Where("trade_no = ?", topUp.TradeNo).First(&paymentMetadata).Error; err == nil {
+		var metadata map[string]string
+		if err := common.UnmarshalJsonStr(paymentMetadata.Metadata, &metadata); err == nil {
+			quotaToAdd, err := strconv.Atoi(metadata["quota_to_add"])
+			if err == nil && quotaToAdd > 0 {
+				return quotaToAdd
+			}
+		}
+	}
+	return int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
 }

@@ -107,7 +107,7 @@ func isYooKassaWebhookConfigured() bool {
 }
 
 func isYooKassaWebhookEnabled() bool {
-	return isYooKassaTopUpEnabled()
+	return isYooKassaWebhookConfigured()
 }
 
 func isEpayTopUpEnabled() bool {

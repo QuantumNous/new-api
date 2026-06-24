@@ -54,11 +54,11 @@ func (discounts *AmountDiscountConfig) UnmarshalJSON(data []byte) error {
 }
 
 func (discounts AmountDiscountConfig) DiscountForAmount(amount int) float64 {
-	discount := 1.0
 	if exactDiscount, ok := discounts.Exact[amount]; ok && exactDiscount > 0 {
-		discount = exactDiscount
+		return exactDiscount
 	}
 
+	discount := 1.0
 	bestMinAmount := -1
 	for _, threshold := range discounts.Thresholds {
 		if threshold.MinAmount <= amount && threshold.MinAmount > bestMinAmount && threshold.Discount > 0 {

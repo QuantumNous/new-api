@@ -71,13 +71,16 @@ export function usePayment() {
         const isStripe = isStripePayment(paymentType)
         const isPancake = isWaffoPancakePayment(paymentType)
         const isYooKassa = isYooKassaPayment(paymentType)
-        const response = isStripe
-          ? await calculateStripeAmount({ amount: topupAmount })
-          : isPancake
-            ? await calculateWaffoPancakeAmount({ amount: topupAmount })
-            : isYooKassa
-              ? await calculateYooKassaAmount({ amount: topupAmount })
-              : await calculateAmount({ amount: topupAmount })
+        let response
+        if (isStripe) {
+          response = await calculateStripeAmount({ amount: topupAmount })
+        } else if (isPancake) {
+          response = await calculateWaffoPancakeAmount({ amount: topupAmount })
+        } else if (isYooKassa) {
+          response = await calculateYooKassaAmount({ amount: topupAmount })
+        } else {
+          response = await calculateAmount({ amount: topupAmount })
+        }
 
         if (isApiSuccess(response) && response.data) {
           const calculatedAmount = parseFloat(response.data)
@@ -106,22 +109,23 @@ export function usePayment() {
 
         const isStripe = isStripePayment(paymentType)
         const isYooKassa = isYooKassaPayment(paymentType)
-        const amount = Math.floor(topupAmount)
-
-        const response = isStripe
-          ? await requestStripePayment({
-              amount,
-              payment_method: 'stripe',
-            })
-          : isYooKassa
-            ? await requestYooKassaPayment({
-                amount,
-                payment_method: 'yookassa_sbp',
-              })
-            : await requestPayment({
-                amount,
-                payment_method: paymentType,
-              })
+        let response
+        if (isStripe) {
+          response = await requestStripePayment({
+            amount: topupAmount,
+            payment_method: 'stripe',
+          })
+        } else if (isYooKassa) {
+          response = await requestYooKassaPayment({
+            amount: Math.floor(topupAmount),
+            payment_method: 'yookassa_sbp',
+          })
+        } else {
+          response = await requestPayment({
+            amount: topupAmount,
+            payment_method: paymentType,
+          })
+        }
 
         if (!isApiSuccess(response)) {
           toast.error(response.message || i18next.t('Payment request failed'))

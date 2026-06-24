@@ -3,8 +3,8 @@ package model
 type PaymentMetadata struct {
 	Id                int    `json:"id"`
 	TradeNo           string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentProvider   string `json:"payment_provider" gorm:"type:varchar(50);index"`
-	ExternalPaymentID string `json:"external_payment_id" gorm:"type:varchar(255);index"`
+	PaymentProvider   string `json:"payment_provider" gorm:"type:varchar(50);index;uniqueIndex:idx_payment_provider_external_id"`
+	ExternalPaymentID string `json:"external_payment_id" gorm:"type:varchar(255);index;uniqueIndex:idx_payment_provider_external_id"`
 	Metadata          string `json:"metadata" gorm:"type:text"`
 	CreateTime        int64  `json:"create_time"`
 	UpdateTime        int64  `json:"update_time"`
