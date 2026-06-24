@@ -41,7 +41,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.3.0",
     "dayjs": "catalog:",
-    "dompurify": "3.4.5",
+    "dompurify": "3.4.11",
     "i18next": "^26.2.0",
     "i18next-browser-languagedetector": "^8.2.1",
     "input-otp": "^1.4.2",
@@ -93,7 +93,7 @@
   },
   "overrides": {
     "brace-expansion": "2.1.1",
-    "dompurify": "3.4.5",
+    "dompurify": "3.4.11",
     "fast-uri": "3.1.2",
     "hono": "4.12.22",
     "ip-address": "10.2.0",
