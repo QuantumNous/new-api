@@ -8,7 +8,9 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -45,11 +47,6 @@ func emitSuccessfulExecution(database *gorm.DB, input SuccessfulExecutionEventIn
 	}
 
 	return database.Transaction(func(tx *gorm.DB) error {
-		usedBefore, err := successfulUseCount(tx, input.Context)
-		if err != nil {
-			return err
-		}
-
 		if err := skillmodel.EmitSkillUsageEvent(tx, buildSuccessfulExecutionEvent(
 			input,
 			enums.SkillUsageEventTypeUsed,
@@ -58,21 +55,41 @@ func emitSuccessfulExecution(database *gorm.DB, input SuccessfulExecutionEventIn
 			return err
 		}
 
-		if usedBefore == 0 {
-			return skillmodel.EmitSkillUsageEvent(tx, buildSuccessfulExecutionEvent(
-				input,
-				enums.SkillUsageEventTypeFirstUse,
-				nil,
-			))
+		insertedFirstUse, err := tryInsertFirstUse(tx, input)
+		if err != nil {
+			return err
+		}
+		if insertedFirstUse {
+			return nil
 		}
 
-		repeatIndex := int(usedBefore) + 1
+		successfulUseCount, err := successfulUseCount(tx, input.Context)
+		if err != nil {
+			return err
+		}
+		repeatIndex := int(successfulUseCount)
 		return skillmodel.EmitSkillUsageEvent(tx, buildSuccessfulExecutionEvent(
 			input,
 			enums.SkillUsageEventTypeRepeatUse,
 			&repeatIndex,
 		))
 	})
+}
+
+func tryInsertFirstUse(tx *gorm.DB, input SuccessfulExecutionEventInput) (bool, error) {
+	firstUseEvent := buildSuccessfulExecutionEvent(input, enums.SkillUsageEventTypeFirstUse, nil)
+	firstUseEvent.EventID = uuid.New().String()
+	firstUseEvent.FirstUseKey = firstUseKey(input.Context)
+	result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&firstUseEvent)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func firstUseKey(ctx *SkillRelayContext) *string {
+	key := fmt.Sprintf("%d:%s", ctx.UserID, ctx.SkillID)
+	return &key
 }
 
 func successfulUseCount(tx *gorm.DB, ctx *SkillRelayContext) (int64, error) {
@@ -137,12 +154,10 @@ func buildSuccessfulExecutionEvent(input SuccessfulExecutionEventInput, eventTyp
 }
 
 func normalizedSuccessEntryPoint(entryPoint string) enums.EntryPoint {
-	// DR-73: new R2 execution events must emit skill_package. The legacy
-	// playground_picker value remains parseable for historical rows only.
-	if entryPoint == "" || enums.EntryPoint(entryPoint) == enums.EntryPointPlaygroundPicker {
-		return enums.EntryPointSkillPackage
-	}
-	return enums.EntryPoint(entryPoint)
+	// DR-73: successful server-side Skill executions are package executions.
+	// Client-provided discovery entry points remain valid for marketplace events,
+	// but must not label execution lifecycle events.
+	return enums.EntryPointSkillPackage
 }
 
 func tokenCounts(usage *dto.Usage) (*int, *int, *int) {

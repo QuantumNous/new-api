@@ -1,6 +1,8 @@
 package skillrelay
 
 import (
+	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -21,6 +23,11 @@ func newUsageEventTestDB(t *testing.T) *gorm.DB {
 	})
 	require.NoError(t, err)
 	require.NoError(t, skillmodel.MigrateSkillUsageEvents(database))
+	sqlDB, err := database.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, sqlDB.Close())
+	})
 	return database
 }
 
@@ -57,6 +64,12 @@ func TestEmitSuccessfulExecution_FirstAndRepeatEvents(t *testing.T) {
 	})
 	for _, event := range firstRows {
 		assert.Equal(t, enums.EntryPointSkillPackage, event.EntryPoint)
+		if event.EventType == enums.SkillUsageEventTypeFirstUse {
+			require.NotNil(t, event.FirstUseKey)
+			assert.Equal(t, "42:11111111-1111-4111-8111-111111111111", *event.FirstUseKey)
+		} else {
+			assert.Nil(t, event.FirstUseKey)
+		}
 		require.NotNil(t, event.Success)
 		assert.True(t, *event.Success)
 		require.NotNil(t, event.SkillID)
@@ -104,7 +117,7 @@ func TestEmitSuccessfulExecution_FirstAndRepeatEvents(t *testing.T) {
 	assert.EqualValues(t, 2, usedCount)
 }
 
-func TestEmitSuccessfulExecution_NormalizesLegacyEntryPointToSkillPackage(t *testing.T) {
+func TestEmitSuccessfulExecution_ForcesSuccessEntryPointToSkillPackage(t *testing.T) {
 	database := newUsageEventTestDB(t)
 	ctx := &SkillRelayContext{
 		RequestID:      "req-dr69-legacy",
@@ -113,7 +126,7 @@ func TestEmitSuccessfulExecution_NormalizesLegacyEntryPointToSkillPackage(t *tes
 		UserID:         7,
 		Plan:           enums.RequiredPlanFree,
 		SubActive:      true,
-		EntryPoint:     string(enums.EntryPointPlaygroundPicker),
+		EntryPoint:     string(enums.EntryPointSearchResults),
 	}
 
 	require.NoError(t, emitSuccessfulExecution(database, SuccessfulExecutionEventInput{
@@ -130,6 +143,85 @@ func TestEmitSuccessfulExecution_NormalizesLegacyEntryPointToSkillPackage(t *tes
 		assert.Equal(t, enums.EntryPointSkillPackage, event.EntryPoint)
 		require.NotNil(t, event.TotalTokens)
 		assert.Equal(t, 7, *event.TotalTokens)
+	}
+}
+
+func TestEmitSuccessfulExecution_ConcurrentFirstUseEmitsOneFirstUse(t *testing.T) {
+	database, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "usage-events.db")), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	require.NoError(t, err)
+	require.NoError(t, skillmodel.MigrateSkillUsageEvents(database))
+	sqlDB, err := database.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, sqlDB.Close())
+	})
+
+	ctx := &SkillRelayContext{
+		RequestID:      "req-dr69-concurrent",
+		SkillID:        "77777777-7777-4777-8777-777777777777",
+		SkillVersionID: "88888888-8888-4888-8888-888888888888",
+		UserID:         77,
+		Plan:           enums.RequiredPlanFree,
+		SubActive:      true,
+		EntryPoint:     string(enums.EntryPointMarketplaceCard),
+	}
+	usage := &dto.Usage{PromptTokens: 2, CompletionTokens: 3, TotalTokens: 5}
+
+	const runs = 8
+	var wg sync.WaitGroup
+	errs := make(chan error, runs)
+	for i := 0; i < runs; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- emitSuccessfulExecution(database, SuccessfulExecutionEventInput{
+				Context:   ctx,
+				Usage:     usage,
+				Model:     "approved-model",
+				LatencyMS: 50,
+			})
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	countByType := func(eventType enums.SkillUsageEventType) int64 {
+		t.Helper()
+		var count int64
+		require.NoError(t, database.Model(&skillmodel.SkillUsageEvent{}).
+			Where("event_type = ? AND user_id = ? AND skill_id = ?", eventType, int64(ctx.UserID), ctx.SkillID).
+			Count(&count).Error)
+		return count
+	}
+
+	assert.EqualValues(t, runs, countByType(enums.SkillUsageEventTypeUsed))
+	assert.EqualValues(t, 1, countByType(enums.SkillUsageEventTypeFirstUse))
+	assert.EqualValues(t, runs-1, countByType(enums.SkillUsageEventTypeRepeatUse))
+
+	var firstUse skillmodel.SkillUsageEvent
+	require.NoError(t, database.Where("event_type = ?", enums.SkillUsageEventTypeFirstUse).Take(&firstUse).Error)
+	require.NotNil(t, firstUse.FirstUseKey)
+	assert.Equal(t, "77:77777777-7777-4777-8777-777777777777", *firstUse.FirstUseKey)
+
+	var repeats []skillmodel.SkillUsageEvent
+	require.NoError(t, database.Where("event_type = ?", enums.SkillUsageEventTypeRepeatUse).Find(&repeats).Error)
+	seenRepeatIndexes := map[int]struct{}{}
+	for _, event := range repeats {
+		assert.Nil(t, event.FirstUseKey)
+		assert.Equal(t, enums.EntryPointSkillPackage, event.EntryPoint)
+		var metadata map[string]any
+		require.NoError(t, common.Unmarshal(event.Metadata, &metadata))
+		idx, ok := metadata["repeat_index"].(float64)
+		require.True(t, ok, "repeat_index must be numeric metadata")
+		seenRepeatIndexes[int(idx)] = struct{}{}
+	}
+	for i := 2; i <= runs; i++ {
+		assert.Contains(t, seenRepeatIndexes, i)
 	}
 }
 

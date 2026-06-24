@@ -29,6 +29,7 @@ func TestMigrateSkillUsageEvents_SQLite_CreatesDR43Schema(t *testing.T) {
 		"request_id",
 		"skill_id",
 		"skill_version_id",
+		"first_use_key",
 		"entry_point",
 		"plan",
 		"subscription_status",
@@ -160,6 +161,102 @@ func TestMigrateSkillUsageEvents_SQLite_Idempotent(t *testing.T) {
 	}
 	if err := MigrateSkillUsageEvents(db); err != nil {
 		t.Fatalf("second MigrateSkillUsageEvents: %v", err)
+	}
+}
+
+func TestMigrateSkillUsageEvents_SQLite_FirstUseKeyUniqueIndex(t *testing.T) {
+	db := openSQLiteDB(t)
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatalf("MigrateSkillUsageEvents: %v", err)
+	}
+	if !db.Migrator().HasColumn(&SkillUsageEvent{}, "first_use_key") {
+		t.Fatal("skill_usage_events missing first_use_key column")
+	}
+	if !db.Migrator().HasIndex(&SkillUsageEvent{}, "idx_sue_first_use_key_unique") {
+		t.Fatal("skill_usage_events missing unique first_use_key index")
+	}
+
+	if err := db.Exec(
+		`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, user_id, skill_id, first_use_key, entry_point, success, metadata)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"first-use-1", "skill_first_use", testTS, 42, "skill-a", "42:skill-a", "skill_package", true, `{}`,
+	).Error; err != nil {
+		t.Fatalf("first first-use row must insert: %v", err)
+	}
+	if err := db.Exec(
+		`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, user_id, skill_id, first_use_key, entry_point, success, metadata)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"first-use-duplicate", "skill_first_use", testTS, 42, "skill-a", "42:skill-a", "skill_package", true, `{}`,
+	).Error; err == nil {
+		t.Fatal("unique first_use_key index must reject duplicate first-use rows")
+	}
+	for _, id := range []string{"used-1", "used-2"} {
+		if err := db.Exec(
+			`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, user_id, skill_id, entry_point, success, metadata)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, "skill_used", testTS, 42, "skill-a", "skill_package", true, `{}`,
+		).Error; err != nil {
+			t.Fatalf("skill_used rows with NULL first_use_key must remain repeatable: %v", err)
+		}
+	}
+
+	uid := int64(43)
+	skillID := "skill-b"
+	success := true
+	if err := EmitSkillUsageEvent(db, SkillUsageEvent{
+		EventType:  enums.SkillUsageEventTypeFirstUse,
+		UserID:     &uid,
+		SkillID:    &skillID,
+		EntryPoint: enums.EntryPointSkillPackage,
+		Success:    &success,
+		Metadata:   SkillJSONB(`{}`),
+	}); err != nil {
+		t.Fatalf("EmitSkillUsageEvent must derive first_use_key: %v", err)
+	}
+	var derived SkillUsageEvent
+	if err := db.Where("user_id = ? AND skill_id = ?", uid, skillID).Take(&derived).Error; err != nil {
+		t.Fatalf("read derived first_use_key row: %v", err)
+	}
+	if derived.FirstUseKey == nil || *derived.FirstUseKey != "43:skill-b" {
+		t.Fatalf("derived first_use_key = %v, want 43:skill-b", derived.FirstUseKey)
+	}
+}
+
+func TestMigrateSkillUsageEvents_SQLite_AddsFirstUseKeyToExistingDR43Table(t *testing.T) {
+	db := openSQLiteDB(t)
+	ddlWithoutFirstUseKey := strings.Replace(
+		sueCreateTableDDL("skill_usage_events"),
+		"\n\t\t\"first_use_key\"           TEXT,",
+		"",
+		1,
+	)
+	if err := db.Exec(ddlWithoutFirstUseKey).Error; err != nil {
+		t.Fatalf("create DR-43 table without first_use_key: %v", err)
+	}
+	if err := db.Exec(
+		`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, entry_point, metadata)
+		 VALUES (?, ?, ?, ?, ?)`,
+		"existing-dr43-row", "skill_used", testTS, "skill_detail", `{}`,
+	).Error; err != nil {
+		t.Fatalf("seed existing DR-43 row: %v", err)
+	}
+
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatalf("MigrateSkillUsageEvents: %v", err)
+	}
+
+	if !db.Migrator().HasColumn(&SkillUsageEvent{}, "first_use_key") {
+		t.Fatal("MigrateSkillUsageEvents must add first_use_key to existing DR-43 tables")
+	}
+	if !db.Migrator().HasIndex(&SkillUsageEvent{}, "idx_sue_first_use_key_unique") {
+		t.Fatal("MigrateSkillUsageEvents must add first_use_key unique index to existing DR-43 tables")
+	}
+	var count int64
+	if err := db.Raw(`SELECT COUNT(*) FROM skill_usage_events WHERE event_id = ?`, "existing-dr43-row").Scan(&count).Error; err != nil {
+		t.Fatalf("count existing DR-43 row after first_use_key upgrade: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("existing row must survive additive first_use_key migration, got %d", count)
 	}
 }
 
@@ -360,6 +457,7 @@ func TestMigrateSkillUsageEvents_SQLite_UpgradesPreDR43Table(t *testing.T) {
 		"idx_usage_user_time",
 		"idx_usage_plan_persona_time",
 		"idx_usage_request_id",
+		"idx_sue_first_use_key_unique",
 	} {
 		if !db.Migrator().HasIndex(&SkillUsageEvent{}, name) {
 			t.Errorf("index %q missing after upgrade", name)
