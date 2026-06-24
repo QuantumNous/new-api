@@ -52,7 +52,7 @@ describe("console redirects", () => {
 
     expect(response.status).toBe(301);
     expect(response.headers.get("location")).toBe(
-      "https://router.flatkey.ai/sign-up?utm_source=blog&redirect=%2Fkeys"
+      "https://console.flatkey.ai/sign-up?utm_source=blog&redirect=%2Fkeys"
     );
   });
 
@@ -66,7 +66,7 @@ describe("console redirects", () => {
 
     expect(response.status).toBe(301);
     expect(response.headers.get("location")).toBe(
-      "https://router.flatkey.ai/sign-up?redirect=%2Fdashboard&utm_source=blog"
+      "https://console.flatkey.ai/sign-up?redirect=%2Fdashboard&utm_source=blog"
     );
   });
 });

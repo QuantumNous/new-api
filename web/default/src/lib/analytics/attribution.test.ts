@@ -363,4 +363,68 @@ describe('attribution normalization', () => {
       })
     }
   })
+
+  test('capture path imports paid Google keyword attribution from shared cookie', () => {
+    const storage = new Map<string, string>()
+    const originalWindow = globalThis.window
+    const originalDocument = globalThis.document
+    const sharedAttribution = encodeURIComponent(
+      JSON.stringify({
+        gclid: 'google-click-id',
+        utm_source: 'google',
+        utm_medium: 'cpc',
+        utm_campaign: 'brand-search',
+        utm_term: 'flatkey api',
+        landing_path: '/pricing',
+        captured_at: '2026-06-24T00:00:00.000Z',
+      })
+    )
+
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        location: {
+          origin: 'https://console.flatkey.ai',
+          pathname: '/sign-up',
+          search: '',
+        },
+        localStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          setItem: (key: string, value: string) => storage.set(key, value),
+        },
+      },
+    })
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: {
+        cookie: `flatkey_ads_attribution=${sharedAttribution}; other=value`,
+        referrer: '',
+      },
+    })
+
+    try {
+      const captured = captureAdsAttribution()
+
+      expect(captured.gclid).toBe('google-click-id')
+      expect(captured.utm_source).toBe('google')
+      expect(captured.utm_medium).toBe('cpc')
+      expect(captured.utm_campaign).toBe('brand-search')
+      expect(captured.utm_term).toBe('flatkey api')
+      expect(captured.source_type).toBe('paid')
+      expect(captured.source).toBe('google')
+      expect(captured.medium).toBe('cpc')
+      expect(captured.campaign).toBe('brand-search')
+      expect(captured.keyword).toBe('flatkey api')
+      expect(captured.landing_path).toBe('/pricing')
+    } finally {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: originalWindow,
+      })
+      Object.defineProperty(globalThis, 'document', {
+        configurable: true,
+        value: originalDocument,
+      })
+    }
+  })
 })
