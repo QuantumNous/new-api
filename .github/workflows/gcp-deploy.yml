@@ -1,8 +1,8 @@
 name: GCP Deploy
 
-# Push to main builds the Go image only. Production deploys are manual
-# workflow_dispatch runs, and every deploy job is gated by the "production"
-# GitHub Environment.
+# Push to main builds the Go image and opens console/router production deploy
+# approval jobs. Nothing reaches production unless an authorized reviewer
+# approves the target job in the "production" GitHub Environment.
 
 on:
   push:
@@ -53,7 +53,11 @@ jobs:
         id: compute_target
         run: |
           set -euo pipefail
-          deploy_target="${{ inputs.deploy_target || 'none' }}"
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            deploy_target="console+router approval"
+          else
+            deploy_target="${{ inputs.deploy_target || 'none' }}"
+          fi
           echo "deploy_target=${deploy_target}" >> "$GITHUB_OUTPUT"
           echo "Deploy target: ${deploy_target}"
 
@@ -114,12 +118,12 @@ jobs:
           echo "- Image: \`${{ steps.compute_image.outputs.image_uri }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Deploy target: \`${{ steps.compute_target.outputs.deploy_target }}\`" >> "$GITHUB_STEP_SUMMARY"
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "- Production deploy: skipped on push; use workflow_dispatch." >> "$GITHUB_STEP_SUMMARY"
+            echo "- Production deploy: approve \`deploy console\` and/or \`deploy router\` in this run." >> "$GITHUB_STEP_SUMMARY"
           fi
 
   deploy-console:
     name: deploy console
-    if: github.event_name == 'workflow_dispatch' && (inputs.deploy_target == 'console' || inputs.deploy_target == 'both')
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.deploy_target == 'console' || inputs.deploy_target == 'both'))
     needs: build
     runs-on: ubuntu-latest
     environment: production
@@ -253,7 +257,7 @@ jobs:
 
   deploy-router:
     name: deploy router
-    if: github.event_name == 'workflow_dispatch' && (inputs.deploy_target == 'router' || inputs.deploy_target == 'both')
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.deploy_target == 'router' || inputs.deploy_target == 'both'))
     needs: build
     runs-on: ubuntu-latest
     environment: production

@@ -11,13 +11,13 @@
 | 模型调用、relay、provider 适配 | `router.flatkey.ai` | `newapi-router` | `gcp-deploy.yml` | Go app，`NODE_TYPE=slave`，容量按模型调用配置 |
 | legacy fallback | default backend | `newapi` | 仅兜底/同步需要 | 未命中 host_rule 的请求进入这里 |
 
-Go app workflow 构建同一份 Go 镜像；生产部署必须手动选择 `console`、`router`、`both` 或 `none`，并经过 `production` Environment 审批。不要把 website 变更放到 Go workflow，也不要在 `web/default` 里恢复公开网站页面。
+Go app workflow 构建同一份 Go 镜像；生产部署必须经过 `production` Environment 审批。push 到 `main` 后会在同一个 run 里挂出 `deploy console` 和 `deploy router` 两个审批 job；有权限的人 approve 哪个，哪个才会真正部署。不要把 website 变更放到 Go workflow，也不要在 `web/default` 里恢复公开网站页面。
 
 ## 日常发布
 
 ### 触发方式
 
-1. **自动 build**：PR 合并到 `main` 后，Go app workflow 只构建并推送镜像，不自动部署生产。
+1. **push main**：PR 合并到 `main` 后，Go app workflow 构建并推送镜像，然后 `deploy console` / `deploy router` 两个 job 等待 `production` 审批。只 approve 需要发布的目标；未 approve 的目标不会部署。
 2. **手动 deploy**：GitHub → Actions → `GCP Deploy` → Run workflow，选择 `deploy_target`。生产 deploy job 仍需 `production` Environment 审批。
 
 `deploy_target` 行为：
@@ -27,7 +27,7 @@ Go app workflow 构建同一份 Go 镜像；生产部署必须手动选择 `cons
 | `console` | 只发布 `newapi-console` |
 | `router` | 只发布 `newapi-router` |
 | `both` | 同一镜像分别发布到 `newapi-console` 和 `newapi-router` |
-| `none` | 只 build / 复用镜像，不发布生产 |
+| `none` | 手动 run 时只 build / 复用镜像，不发布生产 |
 
 ### Go app 发布流程
 
@@ -35,7 +35,9 @@ Go app workflow 构建同一份 Go 镜像；生产部署必须手动选择 `cons
 push main
   -> GitHub Actions build Go image
   -> push Artifact Registry
-  -> 完成，不自动部署生产
+  -> deploy console waits for production approval
+  -> deploy router waits for production approval
+  -> approved target(s) deploy new revision and shift traffic
 
 workflow_dispatch deploy_target=console/router/both
   -> build Go image or reuse image_tag
@@ -49,9 +51,9 @@ workflow_dispatch deploy_target=console/router/both
 
 - Cloud Run 流量切换不会中断已经在旧 revision 上运行的请求；旧 revision 会继续 drain。
 - 如果健康检查失败，新 revision 不应接流量，旧 revision 继续服务。
-- `deploy-console` 和 `deploy-router` 是两个独立 job，GitHub Actions 图里会分别显示；选择 `both` 时两个 job 都会走生产审批和各自的健康检查/切流量。
+- `deploy-console` 和 `deploy-router` 是两个独立 job，GitHub Actions 图里会分别显示；push run 会同时挂出两个审批 job，手动 run 则按 `deploy_target` 挂出目标 job。
 - 如果代码改动同时影响 console/router，两边都要发布并验证；不要只看一个域名。
-- router 承载 LLM API/relay 真实流量，只有 review 明确要求或手动选择 `router` / `both` 时才发布。
+- router 承载 LLM API/relay 真实流量，只有 review 明确要求时才 approve `deploy router`。
 
 ### Website 发布流程
 
