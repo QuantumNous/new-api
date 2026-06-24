@@ -104,6 +104,28 @@ Coverage:
 - Not requested in this command.
 
 Result:
+- PASS before merging `origin/main`.
+
+Post-merge combined focused command:
+
+```bash
+mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/... ./middleware ./relay -count=1 -cover
+```
+
+Post-merge coverage:
+- `internal/skill/api`: 77.8%
+- `internal/skill/availability`: 96.7%
+- `internal/skill/enums`: 88.9%
+- `internal/skill/errcodes`: 100.0%
+- `internal/skill/handler`: 76.0%
+- `internal/skill/model`: 50.2%
+- `internal/skill/relay`: 88.5%
+- `internal/skill/seed`: 79.4%
+- `internal/skill/tiers`: 100.0%
+- `middleware`: 14.4%
+- `relay`: 14.7%
+
+Post-merge result:
 - PASS.
 
 ## Full Go regression
@@ -125,6 +147,17 @@ Coverage:
 - Not requested in this command.
 
 Result:
-- FAIL only at root package setup:
+- Before merging `origin/main`: FAIL only at root package setup:
   - `main.go:45:12: pattern web/classic/dist: no matching files found`
 - All listed non-root packages completed with PASS.
+- After merging `origin/main`: FAIL with the same root package setup blocker, and one order/config-sensitive `relay/helper` failure:
+  - root package: `main.go:45:12: pattern web/classic/dist: no matching files found`
+  - `relay/helper`: `TestStreamScannerHandler_DoneStopsScanner` panicked with `non-positive interval for NewTicker`
+- Follow-up isolation rerun passed:
+
+```bash
+mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./relay/helper -count=1
+```
+
+Isolation result:
+- PASS.
