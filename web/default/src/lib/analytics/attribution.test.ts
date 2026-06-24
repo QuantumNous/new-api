@@ -304,4 +304,63 @@ describe('attribution normalization', () => {
       })
     }
   })
+
+  test('capture path imports attribution from the shared flatkey cookie', () => {
+    const storage = new Map<string, string>()
+    const originalWindow = globalThis.window
+    const originalDocument = globalThis.document
+    const sharedAttribution = encodeURIComponent(
+      JSON.stringify({
+        utm_source: 'newsletter',
+        utm_medium: 'email',
+        utm_campaign: 'june',
+        landing_path: '/',
+        captured_at: '2026-06-24T00:00:00.000Z',
+      })
+    )
+
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        location: {
+          origin: 'https://console.flatkey.ai',
+          pathname: '/sign-up',
+          search: '',
+        },
+        localStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          setItem: (key: string, value: string) => storage.set(key, value),
+        },
+      },
+    })
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: {
+        cookie: `flatkey_ads_attribution=${sharedAttribution}; other=value`,
+        referrer: '',
+      },
+    })
+
+    try {
+      const captured = captureAdsAttribution()
+
+      expect(captured.utm_source).toBe('newsletter')
+      expect(captured.utm_medium).toBe('email')
+      expect(captured.utm_campaign).toBe('june')
+      expect(captured.landing_path).toBe('/')
+      expect(captured.source_type).toBe('utm')
+      expect(captured.source).toBe('newsletter')
+      expect(captured.medium).toBe('email')
+      expect(captured.campaign).toBe('june')
+    } finally {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: originalWindow,
+      })
+      Object.defineProperty(globalThis, 'document', {
+        configurable: true,
+        value: originalDocument,
+      })
+    }
+  })
 })

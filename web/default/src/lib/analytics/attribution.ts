@@ -31,6 +31,7 @@ const ATTRIBUTION_KEYS = new Set([
 ])
 
 const ATTRIBUTION_STORAGE_KEY = 'ads:attribution'
+const SHARED_ATTRIBUTION_COOKIE_KEY = 'flatkey_ads_attribution'
 const PAID_CLICK_IDS = new Set([
   'fbclid',
   'gbraid',
@@ -98,6 +99,32 @@ function collectAttributionFromSearch(search: string): Record<string, string> {
     }
   }
   return values
+}
+
+function getSharedAdsAttribution(): Record<string, string> {
+  if (typeof document === 'undefined') {
+    return {}
+  }
+
+  const cookieString =
+    typeof document.cookie === 'string' ? document.cookie : ''
+  const prefix = `${SHARED_ATTRIBUTION_COOKIE_KEY}=`
+  const cookie = cookieString
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
+
+  if (!cookie) {
+    return {}
+  }
+
+  try {
+    return parseAttributionPayload(
+      decodeURIComponent(cookie.slice(prefix.length))
+    )
+  } catch {
+    return {}
+  }
 }
 
 function cleanAttributionValues(values: AttributionValues): AttributionValues {
@@ -365,10 +392,20 @@ export function captureAdsAttribution(): Record<string, string> {
     return {}
   }
 
+  const queryAttribution = collectAttributionFromSearch(window.location.search)
+  const sharedAttribution = getSharedAdsAttribution()
   const current: AttributionValues = {
-    ...collectAttributionFromSearch(window.location.search),
-    landing_path: window.location.pathname,
-    captured_at: new Date().toISOString(),
+    ...(hasCampaignSignal(queryAttribution)
+      ? { ...sharedAttribution, ...queryAttribution }
+      : { ...queryAttribution, ...sharedAttribution }),
+    landing_path:
+      hasCampaignSignal(queryAttribution) || !sharedAttribution.landing_path
+        ? window.location.pathname
+        : sharedAttribution.landing_path,
+    captured_at:
+      hasCampaignSignal(queryAttribution) || !sharedAttribution.captured_at
+        ? new Date().toISOString()
+        : sharedAttribution.captured_at,
   }
   if (isExternalReferrer(document.referrer)) {
     const keyword = getSearchKeyword(document.referrer)
