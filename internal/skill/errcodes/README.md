@@ -9,13 +9,14 @@ for the Skill Marketplace. Source of truth:
 | Symbol | Type | Description |
 |---|---|---|
 | `ErrorCode` | `type string` | Uppercase API error code, for example `"SKILL_NOT_FOUND"` |
-| `ErrInvalidRequest` ... `ErrSkillInternalError` | `ErrorCode` constants | Stable error codes, including Skill Marketplace extensions such as `SKILL_CONFLICT` |
+| `ErrInvalidRequest` ... `ErrSkillInternalError` | `ErrorCode` constants | 14 stable error codes |
 | `ErrorCode.Valid()` | method | Reports whether the code is catalog-registered |
 | `HTTPStatusFor(code)` | func | Returns canonical HTTP status; 500 for unknown codes |
 | `HTTPStatusCatalog()` | func | Returns a defensive copy of the full code-to-status map |
-| `AllErrorCodes()` | func | Returns a defensive copy of all codes in declaration order |
+| `AllErrorCodes()` | func | Returns a defensive copy of all 14 codes in declaration order |
 | `ErrorCodeFor(BlockReason)` | func | Translates data-model BlockReason to API ErrorCode |
-| `BlockReasonFor(ErrorCode)` | func | Reverse translation |
+| `BlockReasonFor(ErrorCode)` | func | Generic reverse translation |
+| `SkillBlockedReasonFor(ErrorCode)` | func | DR-70 blocked-event reverse translation |
 | `RateLimitedCode` | const | Alias for `ErrSkillRateLimited`, the one code requiring a Retry-After header |
 
 ## Why httpStatusByCode is unexported
@@ -50,6 +51,23 @@ cannot reconstruct it reliably:
 | `skill_not_found` | `SKILL_NOT_FOUND` (SKILL_ present on both sides but for different reasons) |
 
 Never use `strings.ToUpper` or prefix manipulation to derive an `ErrorCode` from a `BlockReason`.
+
+## DR-70 `skill_blocked` mapping
+
+`BlockReasonFor` is the generic reverse translation for the shared catalog.
+`SkillBlockedReasonFor` is narrower: it returns only the codes that DR-70 treats
+as part of the default `skill_blocked` taxonomy.
+
+Excluded by default from `SkillBlockedReasonFor`:
+
+- `INVALID_REQUEST`
+- `FORBIDDEN`
+- `SKILL_EVALUATION_NOT_PASSED`
+- `SKILL_INTERNAL_ERROR`
+- `SKILL_SAFETY_VIOLATION`
+
+`SKILL_TIMEOUT` remains present in `SkillBlockedReasonFor` as a canonical
+mapping-only entry until a real pre-injection timeout path exists.
 
 ## Exhaustiveness guarantees
 
