@@ -235,14 +235,24 @@ func TestSumUsedQuotaSelfStatIsExactByUserID(t *testing.T) {
 		t.Fatalf("self stat tpm = %d, want 5", stat.Tpm)
 	}
 
-	// 对照：管理员搜索 "alice"（selfUserId=0）会模糊命中三者，证明模糊能力仍在、
-	// 仅 self 路径被收紧。quota = 10+100+1000 = 1110。
+	// 对照：管理员搜索完整用户名 "alice"（selfUserId=0）现在默认精确匹配，
+	// 只命中 alice 自己（quota=10），不再把 alice2/malice 带进来。要模糊需显式
+	// 输入 %alice% —— 见 TestGetAllLogsExplicitWildcard。
 	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "alice", "", 0, "", 0, 0)
 	if err != nil {
-		t.Fatalf("SumUsedQuota admin fuzzy: %v", err)
+		t.Fatalf("SumUsedQuota admin exact: %v", err)
+	}
+	if stat.Quota != 10 {
+		t.Fatalf("admin exact quota = %d, want 10 (exact match, not 1110)", stat.Quota)
+	}
+
+	// 显式模糊 %alice% 仍可命中三者：10+100+1000 = 1110。
+	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "%alice%", "", 0, "", 0, 0)
+	if err != nil {
+		t.Fatalf("SumUsedQuota admin explicit fuzzy: %v", err)
 	}
 	if stat.Quota != 1110 {
-		t.Fatalf("admin fuzzy quota = %d, want 1110 (10+100+1000)", stat.Quota)
+		t.Fatalf("admin explicit fuzzy quota = %d, want 1110 (10+100+1000)", stat.Quota)
 	}
 }
 
