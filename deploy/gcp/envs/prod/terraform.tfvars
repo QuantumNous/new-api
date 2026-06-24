@@ -51,7 +51,7 @@ enable_staging_domains = true
 enable_runtime_split = true
 router_service_name  = "newapi-router"
 console_service_name = "newapi-console"
-router_domains       = []
+router_domains       = ["router.flatkey.ai"]
 console_domains      = []
 
 // Router keeps the current production capacity profile for long-lived model
