@@ -3,7 +3,7 @@
 Status: eval
 Date: 2026-06-25
 Ticket: DR-59 (Phase 1, Module M03)
-PRD refs: `docs/skill-marketplace/tasks/02_UX_Design.md §4.3`; `tasks/01_Functional_Requirements.md FR-U5`
+PRD refs: `docs/skill-marketplace/tasks/02_UX_Design.md §4.3`; `docs/skill-marketplace/tasks/01_Functional_Requirements.md FR-U5`
 Depends on: DR-54 (My Skills API), DR-56 (Remove from My Skills), DR-61 (component library) — all merged.
 
 ## Context
@@ -72,6 +72,9 @@ backend signals (DR-54 `availability` + `skill_status`).
   follow-up ticket that wires the CTA routing. **Follow-up (to be filed):**
   plan/renew/contact-sales routing for skill lock states. A component test guards
   the absence of these CTAs against regression.
+  **Merge condition:** DR-59 may merge only with explicit reviewer/product
+  sign-off on this FR-U6 deviation, or after a follow-up/docs-sync records the
+  narrowed scope — not a silent merge.
 - **Quota reset time not rendered.** DR-54 `availability` has no reset-time field.
 - **Header wording.** Neutral "{{count}} Skills in My Skills" (docs carry both
   "enabled" §4.3.2 and "downloaded" FR-U5 phrasings; DR-55 makes download ==
@@ -88,7 +91,7 @@ backend signals (DR-54 `availability` + `skill_status`).
   emits `skill_used`. Deprecated/archived names are not navigable.
 - Remove opens a confirm dialog, calls `removeMySkill(skill_id)`, invalidates the
   My Skills + Marketplace queries, and closes the dialog.
-- Empty state prompts Explore Marketplace (`/skills`).
+- Empty state prompts Explore Skills (`/skills`).
 - No "Disable" wording and no Playground action anywhere on the page.
 - Locked rows render no Upgrade/Renew/Contact-Sales CTA (the FR-U6 deviation),
   guarded by a negative-assertion test.
