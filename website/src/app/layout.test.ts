@@ -7,6 +7,11 @@ describe("resolveHtmlLang", () => {
     expect(resolveHtmlLang("pricing")).toBe("en");
   });
 
+  test("falls back to the pathname locale when available", () => {
+    expect(resolveHtmlLang(undefined, "/zh/pricing")).toBe("zh");
+    expect(resolveHtmlLang(null, "/ja/blog/test")).toBe("ja");
+  });
+
   test("uses the supported locale directly", () => {
     expect(resolveHtmlLang("es")).toBe("es");
     expect(resolveHtmlLang("fr")).toBe("fr");
