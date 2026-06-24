@@ -2,8 +2,13 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-06-25
+
+- 新增 DR-59 My Skills UI 任务 PRD（补齐 AGENTS.md Rule 11 要求的 task PRD，DR-59 PR review 驳回项）：记录 `tasks/02 §4.3` 管理界面范围、Use→Skill Detail（D-09）、published-only 的 Use/name gating（deprecated/archived 无 Use、名称纯文本，避免 published-only Detail 404）、**FR-U6 锁定态 CTA（Upgrade/Renew/Contact Sales）有意延后**（需 reviewer/product 显式 sign-off，否则 fallback 为 CTA-routing follow-up ticket）、deprecated-enabled detail/download 后续项、文档漂移与验收口径（`docs/tasks/dr59-my-skills-ui-prd.md`）
+
 ## 2026-06-24
 
+- 实现 DR-59 My Skills UI：将 My Skills 占位 SkillCard 网格替换为管理界面（header 计数、All/Available/Locked/Deprecated 筛选、桌面表格 + 移动卡片列表、状态行与操作、空/加载/错误态）；行状态由纯函数映射（action 优先级 archived>locked>deprecated>executable，`isDeprecated` 为独立装饰，Deprecated 筛选按 `skill_status`，Locked 含 archived/unavailable），Use 仅导航至 Skill Detail（D-09，不执行、不发 `skill_used`），且 Use 与技能名链接均仅对 published 行开放（`canUse`/`canOpen` 按 `skill_status==='published'` 把关）—— deprecated/archived 行只显示 warning/原因 + Remove、技能名为纯文本，避免导航到 published-only 的 Detail 形成 404 死路（deprecated「Use with warning」延后到后端/产品 follow-up）；Remove 走 DR-56 `DELETE /api/v1/marketplace/my-skills/:id` 并带确认弹窗（确认后关闭弹窗）、不再出现 Disable 文案；locked 行仅显示原因 + Remove（plan-upgrade 流程尚未接入，故不渲染失效 CTA）；`MySkill` 类型独立化以匹配 DR-54 live 响应；前端 only，不改后端/availability/ListMySkills；纯函数与组件测试覆盖行状态、筛选分桶、deprecated/archived 无 Use 与名称不可导航、published 可导航、操作与空/错误态（`web/default/src/features/marketplace/{my-skills.tsx,lib/my-skills-row-state.ts,components/my-skills-*.tsx,__tests__/my-skills*.test.*}`, `web/default/src/i18n/locales/{en,zh}.json`）
 - 新增 DR-50 Admin Skill editor UI：管理端支持创建 Skill 草稿、分区编辑 Metadata/User Guidance/Entitlement/Execution/Safety/Promotion，保存 metadata/config 到 admin create/patch API，instruction template 变更时提示并创建 DR-47 draft version；新增 Version History/Audit Log 读取，补 Free/free-quota `max_input_tokens` 前后端校验、PATCH/audit-log 管理端接口、聚焦回归测试与 en/zh 文案（`internal/skill/handler/skills.go`, `router/skill-router.go`, `web/default/src/features/admin-skills/`, `web/default/src/i18n/locales/`, `internal/skill/handler/skills_test.go`）
 - 新增 DR-50 Admin Skill editor UI 任务 PRD，锁定分区编辑器、DR-46/DR-47 接口串联、Free/free-quota `max_input_tokens` 校验与版本变更提示范围（`docs/tasks/dr50-admin-skill-editor-ui-prd.md`）
 - 撤回 DR-77 Per-Skill Analytics Table UI 合并内容，恢复 DR-75 per-skill analytics 与 Skill Analytics 页面到合并前状态（`internal/skill/handler/analytics.go`, `web/default/src/features/skill-analytics/`, `docs/tasks/dr77-per-skill-analytics-table-ui-prd.md`）

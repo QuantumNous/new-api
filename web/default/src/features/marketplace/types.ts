@@ -130,12 +130,25 @@ export interface PublicSkillDetail extends MarketplaceSkill {
   download_cta: DownloadCTA
 }
 
-export interface MySkill extends MarketplaceSkill {
+// MySkill mirrors the DR-54 `GET /api/v1/marketplace/my-skills` response item
+// (internal/skill/handler/skills.go): the live payload carries `skill_id` (not
+// `id`) and no `category`. `id`/`category`/`status` are kept optional only for
+// forward-compat and normalization — the live API does not send them — so this
+// is a standalone interface, not an extension of the (id/category-required)
+// MarketplaceSkill listing type.
+export interface MySkill {
   skill_id?: string
+  id?: string
+  slug: string
+  name: string
+  category?: string
   skill_status?: SkillStatus
+  status?: SkillStatus
+  required_plan: SkillPlan
   enabled?: boolean
   enabled_at?: string | null
   last_used_at?: string | null
+  availability?: SkillAvailability
 }
 
 export interface MarketplacePagination {
