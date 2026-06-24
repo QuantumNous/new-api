@@ -52,7 +52,12 @@ enable_runtime_split = true
 router_service_name  = "newapi-router"
 console_service_name = "newapi-console"
 router_domains       = ["router.flatkey.ai"]
-console_domains      = []
+console_domains      = ["console.flatkey.ai"]
+
+// console.flatkey.ai is Cloudflare-proxied (orange-cloud) and origin routing
+// has been verified with curl --resolve -k. Keep it out of lb_domains to avoid
+// GCP managed-cert rotation and the associated HTTPS downtime window.
+console_domains_require_managed_cert = false
 
 // Router keeps the current production capacity profile for long-lived model
 // calls. Console starts smaller because it handles authenticated UI/API traffic
