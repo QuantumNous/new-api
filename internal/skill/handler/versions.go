@@ -19,6 +19,7 @@ import (
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type CreateSkillVersionRequest struct {
@@ -174,7 +175,7 @@ func ActivateAdminSkillVersion(c *gin.Context) {
 	var activated skillmodel.SkillVersion
 	err := database.Transaction(func(tx *gorm.DB) error {
 		var skill skillmodel.Skill
-		if err := tx.First(&skill, "id = ?", skillID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&skill, "id = ?", skillID).Error; err != nil {
 			return err
 		}
 		var version skillmodel.SkillVersion
@@ -183,6 +184,9 @@ func ActivateAdminSkillVersion(c *gin.Context) {
 		}
 		if version.Status == enums.SkillVersionStatusArchived {
 			return errArchivedVersion
+		}
+		if !publishMaxInputTokensSnapshotValid(skill, version) {
+			return errVersionMaxInputSnapshotInvalid
 		}
 		before := versionAuditBefore(&version)
 
@@ -460,8 +464,9 @@ func findSkillVersion(db *gorm.DB, skillID, versionID string) (skillmodel.SkillV
 }
 
 var (
-	errArchivedVersion       = errors.New("archived skill version cannot be activated")
-	errVersionNumberConflict = errors.New("skill version number allocation conflicted")
+	errArchivedVersion                = errors.New("archived skill version cannot be activated")
+	errVersionNumberConflict          = errors.New("skill version number allocation conflicted")
+	errVersionMaxInputSnapshotInvalid = errors.New("skill version max_input_tokens_snapshot invalid")
 )
 
 func isSkillVersionNumberConflict(err error) bool {
@@ -495,6 +500,10 @@ func writeSkillVersionMutationError(c *gin.Context, err error) {
 				RequestID: skillapi.RequestID(c),
 			},
 		})
+		return
+	}
+	if errors.Is(err, errVersionMaxInputSnapshotInvalid) {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "max_input_tokens_snapshot is required and must match max_input_tokens for Free/free-quota Skills.", gin.H{"reason": "VERSION_MAX_INPUT_TOKENS_SNAPSHOT_INVALID"})
 		return
 	}
 	writeDBError(c, err)

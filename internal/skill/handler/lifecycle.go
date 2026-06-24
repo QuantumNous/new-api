@@ -114,6 +114,7 @@ func publishDraftSkill(tx *gorm.DB, skill skillmodel.Skill, version skillmodel.S
 	}
 	result := tx.Model(&skillmodel.Skill{}).
 		Where("id = ? AND status = ? AND active_version_id = ?", skill.ID, enums.SkillStatusDraft, version.ID).
+		Where("EXISTS (SELECT 1 FROM skill_versions WHERE id = ? AND skill_id = ? AND status = ?)", version.ID, skill.ID, enums.SkillVersionStatusActive).
 		Updates(updates)
 	if result.Error != nil {
 		return result.Error
@@ -129,7 +130,7 @@ func loadActivePublishVersion(tx *gorm.DB, skill skillmodel.Skill) (skillmodel.S
 		return skillmodel.SkillVersion{}, errMissingActiveVersion
 	}
 	var version skillmodel.SkillVersion
-	if err := tx.First(&version, "id = ? AND skill_id = ? AND status = ?", *skill.ActiveVersionID, skill.ID, enums.SkillVersionStatusActive).Error; err != nil {
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&version, "id = ? AND skill_id = ? AND status = ?", *skill.ActiveVersionID, skill.ID, enums.SkillVersionStatusActive).Error; err != nil {
 		return skillmodel.SkillVersion{}, err
 	}
 	if strings.TrimSpace(version.InstructionTemplate) == "" {
@@ -145,7 +146,7 @@ func buildPublishChecklist(skill skillmodel.Skill, version skillmodel.SkillVersi
 		checklistItem("examples", jsonArrayHasAny(skill.ExampleInputs) && jsonArrayHasAny(skill.ExampleOutputs), "At least one example input and output are required."),
 		checklistItem("plan_and_monetization", skill.RequiredPlan.Valid() && skill.MonetizationType.Valid(), "Required plan and monetization type are required."),
 		checklistItem("model_whitelist", jsonArrayHasNonEmptyString(skill.ModelWhitelist) && jsonArrayHasNonEmptyString(version.ModelWhitelistSnapshot), "Model whitelist is required."),
-		checklistItem("max_input_tokens", !publishRequiresMaxInputTokens(skill) || skill.MaxInputTokens != nil, "max_input_tokens is required for Free/free-quota Skills."),
+		checklistItem("max_input_tokens", publishMaxInputTokensSnapshotValid(skill, version), "max_input_tokens and active version max_input_tokens_snapshot are required and must match for Free/free-quota Skills."),
 	}
 }
 
@@ -182,6 +183,16 @@ func publishRequiresMaxInputTokens(skill skillmodel.Skill) bool {
 	return skill.RequiredPlan == enums.RequiredPlanFree ||
 		skill.MonetizationType == enums.MonetizationTypeFree ||
 		skill.FreeQuotaPerMonth != nil
+}
+
+func publishMaxInputTokensSnapshotValid(skill skillmodel.Skill, version skillmodel.SkillVersion) bool {
+	if !publishRequiresMaxInputTokens(skill) {
+		return true
+	}
+	if skill.MaxInputTokens == nil || version.MaxInputTokensSnapshot == nil {
+		return false
+	}
+	return *skill.MaxInputTokens == *version.MaxInputTokensSnapshot
 }
 
 func jsonArrayHasAny(raw skillmodel.SkillJSONB) bool {

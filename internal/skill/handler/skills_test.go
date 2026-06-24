@@ -1521,6 +1521,8 @@ func TestActivateAdminSkillVersion_DemotesPriorActiveAndAudits(t *testing.T) {
 	db := testSkillDB(t)
 	SetDB(db)
 	s := testSkill("version-activate", "published")
+	maxInput := 2048
+	s.MaxInputTokens = &maxInput
 	require.NoError(t, db.Create(&s).Error)
 	v1 := validHandlerSkillVersion(s.ID, 1)
 	v1.Status = enums.SkillVersionStatusActive
@@ -1681,6 +1683,33 @@ func TestPublishAdminSkill_BlocksWhenChecklistFails(t *testing.T) {
 	assert.Equal(t, enums.SkillStatusDraft, persisted.Status)
 }
 
+func TestPublishAdminSkill_BlocksWhenVersionTokenSnapshotMissing(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s, version := createPublishReadySkill(t, db, "publish-missing-token-snapshot")
+	require.NoError(t, db.Model(&skillmodel.SkillVersion{}).Where("id = ?", version.ID).Updates(map[string]any{"max_input_tokens_snapshot": nil}).Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/publish", `{"reason":"try publish"}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
+
+	PublishAdminSkill(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "PUBLISH_CHECKLIST_FAILED")
+	assert.Contains(t, w.Body.String(), "max_input_tokens")
+
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "id = ?", s.ID).Error)
+	assert.Equal(t, enums.SkillStatusDraft, persisted.Status)
+
+	var auditCount int64
+	require.NoError(t, db.Model(&skillmodel.SkillAuditLog{}).Where("skill_id = ? AND action = ?", s.ID, "publish").Count(&auditCount).Error)
+	assert.Zero(t, auditCount)
+	var eventCount int64
+	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).Where("skill_id = ? AND event_type = ?", s.ID, enums.SkillUsageEventTypeAdminAction).Count(&eventCount).Error)
+	assert.Zero(t, eventCount)
+}
+
 func TestPublishDraftSkill_BlocksWhenActiveVersionSnapshotChanges(t *testing.T) {
 	db := testSkillDB(t)
 	SetDB(db)
@@ -1699,6 +1728,57 @@ func TestPublishDraftSkill_BlocksWhenActiveVersionSnapshotChanges(t *testing.T) 
 	require.NotNil(t, persisted.ActiveVersionID)
 	assert.Equal(t, changedVersionID, *persisted.ActiveVersionID)
 	assert.Nil(t, persisted.PublishedAt)
+}
+
+func TestPublishDraftSkill_BlocksWhenActiveVersionStatusChanges(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s, version := createPublishReadySkill(t, db, "publish-version-inactive")
+	require.NoError(t, db.Model(&skillmodel.SkillVersion{}).Where("id = ?", version.ID).Update("status", enums.SkillVersionStatusInactive).Error)
+
+	err := db.Transaction(func(tx *gorm.DB) error {
+		return publishDraftSkill(tx, s, version, 42, time.Now().UTC())
+	})
+
+	require.ErrorIs(t, err, errPublishStateChanged)
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "id = ?", s.ID).Error)
+	assert.Equal(t, enums.SkillStatusDraft, persisted.Status)
+	require.NotNil(t, persisted.ActiveVersionID)
+	assert.Equal(t, version.ID, *persisted.ActiveVersionID)
+	assert.Nil(t, persisted.PublishedAt)
+}
+
+func TestActivateAdminSkillVersion_BlocksWhenVersionTokenSnapshotMissing(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s, v1 := createPublishReadySkill(t, db, "activate-missing-token-snapshot")
+	require.NoError(t, db.Model(&skillmodel.Skill{}).Where("id = ?", s.ID).Update("status", enums.SkillStatusPublished).Error)
+	v2 := validHandlerSkillVersion(s.ID, 2)
+	v2.MaxInputTokensSnapshot = nil
+	require.NoError(t, db.Create(&v2).Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/versions/"+v2.ID+"/activate", `{"reason":"activate bad snapshot"}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}, {Key: "version_id", Value: v2.ID}}
+	c.Set("id", 42)
+	c.Set("role", 100)
+
+	ActivateAdminSkillVersion(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "VERSION_MAX_INPUT_TOKENS_SNAPSHOT_INVALID")
+	var gotV1, gotV2 skillmodel.SkillVersion
+	require.NoError(t, db.First(&gotV1, "id = ?", v1.ID).Error)
+	require.NoError(t, db.First(&gotV2, "id = ?", v2.ID).Error)
+	assert.Equal(t, enums.SkillVersionStatusActive, gotV1.Status)
+	assert.Equal(t, enums.SkillVersionStatusDraft, gotV2.Status)
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "id = ?", s.ID).Error)
+	require.NotNil(t, persisted.ActiveVersionID)
+	assert.Equal(t, v1.ID, *persisted.ActiveVersionID)
+	var auditCount int64
+	require.NoError(t, db.Model(&skillmodel.SkillAuditLog{}).Where("skill_version_id = ? AND action = ?", v2.ID, "version_activated").Count(&auditCount).Error)
+	assert.Zero(t, auditCount)
 }
 
 func TestSkillVersionNumberConflictDetection(t *testing.T) {
