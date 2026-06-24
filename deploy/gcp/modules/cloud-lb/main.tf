@@ -277,8 +277,8 @@ resource "google_compute_url_map" "https" {
     }
 
     precondition {
-      condition     = length(setsubtract(toset(var.console_domains), toset(var.domains))) == 0
-      error_message = "console_domains must also be included in domains so the GCP HTTPS certificate covers them."
+      condition     = !var.console_domains_require_managed_cert || length(setsubtract(toset(var.console_domains), toset(var.domains))) == 0
+      error_message = "console_domains must also be included in domains so the GCP HTTPS certificate covers them, unless console_domains_require_managed_cert is false for explicitly verified Cloudflare-proxied domains."
     }
   }
 }

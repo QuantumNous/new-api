@@ -346,10 +346,11 @@ module "cloud_lb" {
 
   // Runtime split: create optional backend services first with domains=[], then
   // add host rules in a later apply to cut traffic over without cert/DNS churn.
-  router_cloud_run_service_name  = var.enable_runtime_split ? module.cloud_run_router[0].service_name : ""
-  router_domains                 = var.router_domains
-  console_cloud_run_service_name = var.enable_runtime_split ? module.cloud_run_console[0].service_name : ""
-  console_domains                = var.console_domains
+  router_cloud_run_service_name        = var.enable_runtime_split ? module.cloud_run_router[0].service_name : ""
+  router_domains                       = var.router_domains
+  console_cloud_run_service_name       = var.enable_runtime_split ? module.cloud_run_console[0].service_name : ""
+  console_domains                      = var.console_domains
+  console_domains_require_managed_cert = var.console_domains_require_managed_cert
 
   depends_on = [
     module.apis,
