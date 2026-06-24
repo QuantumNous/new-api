@@ -22,25 +22,47 @@ import (
 	"gorm.io/gorm"
 )
 
+// tolerantInt64 unmarshals JSON numbers, quoted numbers, and empty strings as int64.
+// Handles upstream APIs that return "" or "123" for timestamp fields.
+type tolerantInt64 int64
+
+func (t *tolerantInt64) UnmarshalJSON(data []byte) error {
+	s := strings.Trim(string(data), `"`)
+	if s == "" || s == "null" {
+		*t = 0
+		return nil
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return err
+	}
+	*t = tolerantInt64(n)
+	return nil
+}
+
+func (t tolerantInt64) MarshalJSON() ([]byte, error) {
+	return json.Marshal(int64(t))
+}
+
 type OpenAIModel struct {
 	ID         string         `json:"id"`
 	Object     string         `json:"object"`
-	Created    int64          `json:"created"`
+	Created    tolerantInt64  `json:"created"`
 	OwnedBy    string         `json:"owned_by"`
 	Metadata   map[string]any `json:"metadata,omitempty"`
 	Permission []struct {
-		ID                 string `json:"id"`
-		Object             string `json:"object"`
-		Created            int64  `json:"created"`
-		AllowCreateEngine  bool   `json:"allow_create_engine"`
-		AllowSampling      bool   `json:"allow_sampling"`
-		AllowLogprobs      bool   `json:"allow_logprobs"`
-		AllowSearchIndices bool   `json:"allow_search_indices"`
-		AllowView          bool   `json:"allow_view"`
-		AllowFineTuning    bool   `json:"allow_fine_tuning"`
-		Organization       string `json:"organization"`
-		Group              string `json:"group"`
-		IsBlocking         bool   `json:"is_blocking"`
+		ID                 string       `json:"id"`
+		Object             string       `json:"object"`
+		Created            tolerantInt64 `json:"created"`
+		AllowCreateEngine  bool         `json:"allow_create_engine"`
+		AllowSampling      bool         `json:"allow_sampling"`
+		AllowLogprobs      bool         `json:"allow_logprobs"`
+		AllowSearchIndices bool         `json:"allow_search_indices"`
+		AllowView          bool         `json:"allow_view"`
+		AllowFineTuning    bool         `json:"allow_fine_tuning"`
+		Organization       string       `json:"organization"`
+		Group              string       `json:"group"`
+		IsBlocking         bool         `json:"is_blocking"`
 	} `json:"permission"`
 	Root   string `json:"root"`
 	Parent string `json:"parent"`
