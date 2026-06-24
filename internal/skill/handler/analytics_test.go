@@ -60,6 +60,79 @@ func TestGetOpsSkillAnalyticsOverviewAggregatesUsageEvents(t *testing.T) {
 	assert.NotContains(t, w.Body.String(), "metadata")
 }
 
+func TestGetOpsSkillAnalyticsOverviewEnforcesOrderedFunnelAndSessionIdentity(t *testing.T) {
+	db := newAnalyticsTestDB(t)
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+	withAnalyticsNow(t, end.Add(10*time.Minute))
+	skill := createAnalyticsSkill(t, db, "ordered", enums.RequiredPlanFree)
+
+	emitAnalyticsEvent(t, db, start.Add(time.Hour), enums.SkillUsageEventTypeImpression, 1, skill.ID, enums.EntryPointMarketplaceCard, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeDetailView, 1, skill.ID, enums.EntryPointSkillDetail, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(3*time.Hour), enums.SkillUsageEventTypeEnabled, 1, skill.ID, enums.EntryPointSkillPackage, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(4*time.Hour), enums.SkillUsageEventTypeFirstUse, 1, skill.ID, enums.EntryPointSkillPackage, nil, nil)
+
+	anonSession := "anon-session-1"
+	emitAnalyticsSessionEvent(t, db, start.Add(time.Hour), enums.SkillUsageEventTypeImpression, nil, &anonSession, skill.ID, enums.EntryPointMarketplaceCard, false, nil, nil)
+	emitAnalyticsSessionEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeDetailView, nil, &anonSession, skill.ID, enums.EntryPointSkillDetail, false, nil, nil)
+	emitAnalyticsSessionEvent(t, db, start.Add(3*time.Hour), enums.SkillUsageEventTypeEnabled, nil, &anonSession, skill.ID, enums.EntryPointSkillPackage, false, nil, nil)
+	emitAnalyticsSessionEvent(t, db, start.Add(4*time.Hour), enums.SkillUsageEventTypeFirstUse, nil, &anonSession, skill.ID, enums.EntryPointSkillPackage, false, nil, nil)
+
+	// This identity has all funnel stages but in the wrong order. It contributes
+	// to the impression denominator only; later stages must not inflate conversion.
+	emitAnalyticsEvent(t, db, start.Add(9*time.Hour), enums.SkillUsageEventTypeFirstUse, 2, skill.ID, enums.EntryPointSkillPackage, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(10*time.Hour), enums.SkillUsageEventTypeEnabled, 2, skill.ID, enums.EntryPointSkillPackage, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(11*time.Hour), enums.SkillUsageEventTypeDetailView, 2, skill.ID, enums.EntryPointSkillDetail, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(12*time.Hour), enums.SkillUsageEventTypeImpression, 2, skill.ID, enums.EntryPointMarketplaceCard, nil, nil)
+
+	kidsSession := "kids-session-1"
+	emitAnalyticsSessionEvent(t, db, start.Add(time.Hour), enums.SkillUsageEventTypeImpression, nil, &kidsSession, skill.ID, enums.EntryPointMarketplaceCard, true, nil, nil)
+	emitAnalyticsSessionEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeDetailView, nil, &kidsSession, skill.ID, enums.EntryPointSkillDetail, true, nil, nil)
+	emitAnalyticsSessionEvent(t, db, start.Add(3*time.Hour), enums.SkillUsageEventTypeEnabled, nil, &kidsSession, skill.ID, enums.EntryPointSkillPackage, true, nil, nil)
+	emitAnalyticsSessionEvent(t, db, start.Add(4*time.Hour), enums.SkillUsageEventTypeFirstUse, nil, &kidsSession, skill.ID, enums.EntryPointSkillPackage, true, nil, nil)
+
+	w := performAnalyticsHandlerRequest(t, "/?include_kids=true&start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339), GetOpsSkillAnalyticsOverview)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got SkillAnalyticsOverview
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.NotNil(t, got.DetailCTR)
+	require.NotNil(t, got.EnableRate)
+	require.NotNil(t, got.FirstUseRate)
+	assert.InDelta(t, 0.75, *got.DetailCTR, 0.0001)
+	assert.InDelta(t, 1.0, *got.EnableRate, 0.0001)
+	assert.InDelta(t, 1.0, *got.FirstUseRate, 0.0001)
+}
+
+func TestGetOpsSkillAnalyticsOverviewKidsSessionsExcludedByDefaultAndIncludedWhenRequested(t *testing.T) {
+	db := newAnalyticsTestDB(t)
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+	withAnalyticsNow(t, end.Add(10*time.Minute))
+	skill := createAnalyticsSkill(t, db, "kids", enums.RequiredPlanFree)
+	kidsSession := "kids-session-runs"
+
+	emitAnalyticsSessionEvent(t, db, start.Add(time.Hour), enums.SkillUsageEventTypeImpression, nil, &kidsSession, skill.ID, enums.EntryPointMarketplaceCard, true, nil, nil)
+	emitAnalyticsSessionEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeUsed, nil, &kidsSession, skill.ID, enums.EntryPointSkillPackage, true, boolPtr(true), nil)
+
+	defaultW := performAnalyticsHandlerRequest(t, "/?start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339), GetOpsSkillAnalyticsOverview)
+	require.Equal(t, http.StatusOK, defaultW.Code)
+	var defaultGot SkillAnalyticsOverview
+	require.NoError(t, common.Unmarshal(defaultW.Body.Bytes(), &defaultGot))
+	assert.Equal(t, int64(0), defaultGot.WASU)
+	assert.Equal(t, int64(0), defaultGot.TotalSkillRuns)
+	assert.Nil(t, defaultGot.DetailCTR)
+
+	includeW := performAnalyticsHandlerRequest(t, "/?include_kids=true&start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339), GetOpsSkillAnalyticsOverview)
+	require.Equal(t, http.StatusOK, includeW.Code)
+	var includeGot SkillAnalyticsOverview
+	require.NoError(t, common.Unmarshal(includeW.Body.Bytes(), &includeGot))
+	assert.Equal(t, int64(1), includeGot.WASU)
+	assert.Equal(t, int64(1), includeGot.TotalSkillRuns)
+	require.NotNil(t, includeGot.DetailCTR)
+	assert.InDelta(t, 0.0, *includeGot.DetailCTR, 0.0001)
+}
+
 func TestGetOpsSkillAnalyticsSkillsReturnsPerSkillRows(t *testing.T) {
 	db := newAnalyticsTestDB(t)
 	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
@@ -114,6 +187,42 @@ func TestGetOpsSkillAnalyticsSkillsReturnsPerSkillRows(t *testing.T) {
 	assert.NotContains(t, w.Body.String(), "metadata")
 }
 
+func TestGetOpsSkillAnalyticsSkillsEnforcesOrderedFunnelWithSessionIdentity(t *testing.T) {
+	db := newAnalyticsTestDB(t)
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+	skill := createAnalyticsSkill(t, db, "skill-funnel", enums.RequiredPlanFree)
+
+	emitAnalyticsEvent(t, db, start.Add(time.Hour), enums.SkillUsageEventTypeImpression, 1, skill.ID, enums.EntryPointMarketplaceCard, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeDetailView, 1, skill.ID, enums.EntryPointSkillDetail, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(3*time.Hour), enums.SkillUsageEventTypeEnabled, 1, skill.ID, enums.EntryPointSkillPackage, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(4*time.Hour), enums.SkillUsageEventTypeFirstUse, 1, skill.ID, enums.EntryPointSkillPackage, nil, nil)
+
+	anonSession := "anon-skill-funnel"
+	emitAnalyticsSessionEvent(t, db, start.Add(time.Hour), enums.SkillUsageEventTypeImpression, nil, &anonSession, skill.ID, enums.EntryPointMarketplaceCard, false, nil, nil)
+	emitAnalyticsSessionEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeDetailView, nil, &anonSession, skill.ID, enums.EntryPointSkillDetail, false, nil, nil)
+	emitAnalyticsSessionEvent(t, db, start.Add(3*time.Hour), enums.SkillUsageEventTypeEnabled, nil, &anonSession, skill.ID, enums.EntryPointSkillPackage, false, nil, nil)
+	emitAnalyticsSessionEvent(t, db, start.Add(4*time.Hour), enums.SkillUsageEventTypeFirstUse, nil, &anonSession, skill.ID, enums.EntryPointSkillPackage, false, nil, nil)
+
+	emitAnalyticsEvent(t, db, start.Add(9*time.Hour), enums.SkillUsageEventTypeEnabled, 2, skill.ID, enums.EntryPointSkillPackage, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(10*time.Hour), enums.SkillUsageEventTypeDetailView, 2, skill.ID, enums.EntryPointSkillDetail, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(11*time.Hour), enums.SkillUsageEventTypeImpression, 2, skill.ID, enums.EntryPointMarketplaceCard, nil, nil)
+
+	w := performAnalyticsHandlerRequest(t, "/?start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339), GetOpsSkillAnalyticsSkills)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got SkillAnalyticsSkillsResponse
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Skills, 1)
+	row := got.Skills[0]
+	require.NotNil(t, row.DetailCTR)
+	require.NotNil(t, row.EnableRate)
+	require.NotNil(t, row.FirstUseRate)
+	assert.InDelta(t, float64(2)/float64(3), *row.DetailCTR, 0.0001)
+	assert.InDelta(t, 1.0, *row.EnableRate, 0.0001)
+	assert.InDelta(t, 1.0, *row.FirstUseRate, 0.0001)
+}
+
 func TestGetOpsSkillAnalyticsSkillsPaginatesDBOrderedRows(t *testing.T) {
 	db := newAnalyticsTestDB(t)
 	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
@@ -153,7 +262,17 @@ func TestDataFreshnessFromLatestP0Event(t *testing.T) {
 	assert.Equal(t, "delayed", dataFreshnessFromLatest(now.Add(-16*time.Minute), true, now))
 	assert.Equal(t, "delayed", dataFreshnessFromLatest(now.Add(-60*time.Minute), true, now))
 	assert.Equal(t, "failed", dataFreshnessFromLatest(now.Add(-61*time.Minute), true, now))
-	assert.Equal(t, "failed", dataFreshnessFromLatest(time.Time{}, false, now))
+	assert.Equal(t, "ok", dataFreshnessFromLatest(time.Time{}, false, now))
+}
+
+func TestDataFreshnessNoEventsIsOKForLowTraffic(t *testing.T) {
+	db := newAnalyticsTestDB(t)
+	withAnalyticsNow(t, time.Date(2026, 6, 8, 12, 0, 0, 0, time.UTC))
+
+	got, err := dataFreshness(db)
+
+	require.NoError(t, err)
+	assert.Equal(t, "ok", got)
 }
 
 func TestDataFreshnessIgnoresAdminPreview(t *testing.T) {
@@ -188,6 +307,15 @@ func TestGetOpsSkillAnalyticsRejectsRangeAboveMaxWindow(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"code":"INVALID_REQUEST"`)
 	assert.Contains(t, w.Body.String(), `"reason":"INVALID_RANGE"`)
 	assert.Contains(t, w.Body.String(), "30 days or less")
+}
+
+func TestGetOpsSkillAnalyticsRejectsInvalidIncludeKids(t *testing.T) {
+	_ = newAnalyticsTestDB(t)
+	w := performAnalyticsHandlerRequest(t, "/?include_kids=sometimes", GetOpsSkillAnalyticsOverview)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"INVALID_REQUEST"`)
+	assert.Contains(t, w.Body.String(), `"reason":"INVALID_INCLUDE_KIDS"`)
 }
 
 func newAnalyticsTestDB(t *testing.T) *gorm.DB {
@@ -264,6 +392,39 @@ func emitAnalyticsEvent(
 		IsKidsSession: false,
 		Metadata:      skillmodel.SkillJSONB(`{}`),
 	}))
+}
+
+func emitAnalyticsSessionEvent(
+	t *testing.T,
+	db *gorm.DB,
+	occurredAt time.Time,
+	eventType enums.SkillUsageEventType,
+	userID *int64,
+	sessionID *string,
+	skillID string,
+	entryPoint enums.EntryPoint,
+	isKidsSession bool,
+	success *bool,
+	blockReason *enums.BlockReason,
+) {
+	t.Helper()
+	sid := skillID
+	event := skillmodel.SkillUsageEvent{
+		EventType:     eventType,
+		OccurredAt:    occurredAt,
+		UserID:        userID,
+		SkillID:       &sid,
+		SessionID:     sessionID,
+		EntryPoint:    entryPoint,
+		Success:       success,
+		BlockReason:   blockReason,
+		IsKidsSession: isKidsSession,
+		Metadata:      skillmodel.SkillJSONB(`{}`),
+	}
+	if userID != nil {
+		event.TenantID = userID
+	}
+	require.NoError(t, skillmodel.EmitSkillUsageEvent(db, event))
 }
 
 func performAnalyticsHandlerRequest(t *testing.T, target string, handler gin.HandlerFunc) *httptest.ResponseRecorder {

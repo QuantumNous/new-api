@@ -45,7 +45,7 @@ References:
 ### 4.1 Overview
 
 ```
-GET /api/v1/ops/skill-analytics/overview?start=<ISO8601>&end=<ISO8601>
+GET /api/v1/ops/skill-analytics/overview?start=<ISO8601>&end=<ISO8601>&include_kids=<bool>
 ```
 
 Returns:
@@ -67,7 +67,7 @@ Returns:
 ### 4.2 Per-Skill
 
 ```
-GET /api/v1/ops/skill-analytics/skills?start=<ISO8601>&end=<ISO8601>&page=1&limit=20
+GET /api/v1/ops/skill-analytics/skills?start=<ISO8601>&end=<ISO8601>&page=1&limit=20&include_kids=<bool>
 ```
 
 Each row returns:
@@ -89,14 +89,28 @@ Each row returns:
 ## 5. Metric Semantics
 
 - Successful runs: `event_type=skill_used AND success=true`.
-- WASU: distinct `user_id` with successful `skill_used` in the rolling 7 days
-  ending at `period_end`.
-- Funnel rates use distinct `(user_id, skill_id)` pairs and return `null` when
+- WASU: distinct analytics identity with successful `skill_used` in the rolling
+  7 days ending at `period_end`.
+- Analytics identity is `user_id` when present; otherwise `session_id`. This
+  allows anonymous impression/detail events and Kids pseudonymous session events
+  to participate where explicitly included, while keeping real Kids user IDs out
+  of analytics.
+- Kids traffic is excluded from GA business metrics by default. Passing
+  `include_kids=true` includes `is_kids_session=true` rows for Safety/internal
+  review surfaces.
+- Funnel rates are ordered by identity + skill: first timestamps per stage are
+  aggregated, then stages count only when
+  `impression_at <= detail_at <= enable_at <= first_use_at`. Return `null` when
   the denominator is zero.
-- Repeat use rate: distinct `(user_id, skill_id)` pairs with two or more
-  successful `skill_used` events divided by distinct pairs with one or more.
+- Repeat use rate: distinct `(analytics identity, skill_id)` pairs with two or
+  more successful `skill_used` events divided by distinct pairs with one or
+  more.
 - Block rate: `skill_blocked / (skill_blocked + successful skill_used)`.
 - `admin_preview` is excluded before aggregation.
+- `data_freshness` returns `ok` when there are no P0 events at all, treating it
+  as a no-data/low-traffic state rather than a pipeline failure. Delayed/failed
+  still use the latest non-`admin_preview` P0 event timestamp until an ingestion
+  heartbeat/watermark table exists.
 - Revenue fields return `null` with `charging_enabled=false` until M07 billing
   events are available.
 

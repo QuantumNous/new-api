@@ -4,7 +4,8 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-24
 
-- 修复 DR-75 PR review 问题：`data_freshness` 不再硬编码 `ok`，改为基于最新非 `admin_preview` P0 analytics event 的 `occurred_at` 判断（≤15m ok、≤60m delayed、>60m/无事件 failed）；overview/skills 查询窗口限制为 30 天，超限返回 `INVALID_REQUEST`/`INVALID_RANGE`，避免无界聚合扫描；补 freshness 阈值、admin_preview 排除和超窗口回归测试（`internal/skill/handler/analytics.go`, `internal/skill/handler/analytics_test.go`）
+- 修复 DR-75 后续 PR review 问题：overview/per-skill funnel 改为按 analytics identity（`user_id` 优先，否则 `session_id`）+ `skill_id` 聚合各阶段首个 `occurred_at`，并强制 `impression <= detail <= enable <= first_use` 后再计算转化；匿名/Kids session 不再因 `user_id=NULL` 被静默丢弃，Kids GA business metrics 默认过滤并可通过 `include_kids=true` 显式纳入；`data_freshness` 无 P0 事件时返回 `ok`，避免低流量误报 pipeline failed；同步更新 DR-75 PRD 和回归测试（`internal/skill/handler/analytics.go`, `internal/skill/handler/analytics_test.go`, `docs/tasks/dr75-analytics-aggregation-api-prd.md`）
+- 修复 DR-75 PR review 问题：`data_freshness` 不再硬编码 `ok`，改为基于最新非 `admin_preview` P0 analytics event 的 `occurred_at` 判断（≤15m ok、≤60m delayed、>60m failed；无事件按 no-data/低流量处理为 ok）；overview/skills 查询窗口限制为 30 天，超限返回 `INVALID_REQUEST`/`INVALID_RANGE`，避免无界聚合扫描；补 freshness 阈值、admin_preview 排除和超窗口回归测试（`internal/skill/handler/analytics.go`, `internal/skill/handler/analytics_test.go`）
 - 更新 DR-74 PRD 状态为 eval，符合任务 PRD 生命周期并记录当前 awaiting review 状态（`docs/tasks/dr74-event-schema-version-occurred-at-prd.md`）
 
 ## 2026-06-23
