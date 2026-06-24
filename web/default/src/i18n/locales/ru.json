@@ -2829,7 +2829,7 @@
     "Node filters": "Фильтры узлов",
     "Node Name": "Имя узла",
     "Node role": "Роль узла",
-    "Nodes reporting from this deployment and their latest heartbeat.": "Узлы этого развертывания и их последний heartbeat.",
+    "Nodes reporting from this deployment and their latest heartbeat.": "Узлы этого развертывания и их последнее сердцебиение.",
     "Non-stream": "Не потоковый",
     "Non-zero invitation rewards require compliance confirmation in Payment Gateway settings.": "Ненулевые награды за приглашения требуют подтверждения соответствия в настройках платежного шлюза.",
     "None": "Нет",

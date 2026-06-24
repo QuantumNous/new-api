@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -77,7 +78,16 @@ func StartSystemInstanceReporter() {
 
 func ReportCurrentSystemInstance() error {
 	identity := common.GetNodeIdentity()
-	hostname, _ := os.Hostname()
+	hostname, hostnameErr := os.Hostname()
+	if strings.TrimSpace(identity.Name) == "" {
+		if hostnameErr != nil || strings.TrimSpace(hostname) == "" {
+			return fmt.Errorf("system instance node name is empty")
+		}
+		identity.Name = hostname
+		identity.Source = common.NodeNameSourceHostname
+		identity.ManuallyConfigured = false
+		identity.ShouldConfigureManually = true
+	}
 	systemStatus := common.GetSystemStatus()
 	diskInfo := common.GetDiskSpaceInfo()
 	info := SystemInstanceInfo{
