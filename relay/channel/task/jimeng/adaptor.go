@@ -69,7 +69,8 @@ type responseTask struct {
 
 const (
 	// 即梦限制单个文件最大4.7MB https://www.volcengine.com/docs/85621/1747301
-	MaxFileSize int64 = 4*1024*1024 + 700*1024 // 4.7MB (4MB + 724KB)
+	MaxFileSize             int64 = 4*1024*1024 + 700*1024 // 4.7MB (4MB + 724KB)
+	defaultJimengTaskReqKey       = "jimeng_vgfm_t2v_l20"
 )
 
 // ============================
@@ -169,6 +170,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, errors.Wrap(err, "convert request payload failed")
 	}
+	if info.TaskRelayInfo != nil {
+		info.TaskRelayInfo.UpstreamRequestKey = body.ReqKey
+	}
 	data, err := common.Marshal(body)
 	if err != nil {
 		return nil, err
@@ -223,7 +227,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		uri = fmt.Sprintf("%s/jimeng/?Action=CVSync2AsyncGetResult&Version=2022-08-31", a.baseURL)
 	}
 	payload := map[string]string{
-		"req_key": "jimeng_vgfm_t2v_l20", // This is fixed value from doc: https://www.volcengine.com/docs/85621/1544774
+		"req_key": jimengFetchReqKey(body),
 		"task_id": taskID,
 	}
 	payloadBytes, err := common.Marshal(payload)
@@ -403,26 +407,62 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
 
+	imageLen := lo.Max([]int{len(req.Images), len(r.BinaryDataBase64), len(r.ImageUrls)})
+	r.ReqKey = resolveJimengReqKey(r.ReqKey, imageLen)
+
+	return &r, nil
+}
+
+func resolveJimengReqKey(reqKey string, imageLen int) string {
 	// 即梦视频3.0 ReqKey转换
 	// https://www.volcengine.com/docs/85621/1792707
-	imageLen := lo.Max([]int{len(req.Images), len(r.BinaryDataBase64), len(r.ImageUrls)})
-	if strings.Contains(r.ReqKey, "jimeng_v30") {
-		if r.ReqKey == "jimeng_v30_pro" {
-			// 3.0 pro只有固定的jimeng_ti2v_v30_pro
-			r.ReqKey = "jimeng_ti2v_v30_pro"
-		} else if imageLen > 1 {
-			// 多张图片：首尾帧生成
-			r.ReqKey = strings.TrimSuffix(strings.Replace(r.ReqKey, "jimeng_v30", "jimeng_i2v_first_tail_v30", 1), "p")
-		} else if imageLen == 1 {
-			// 单张图片：图生视频
-			r.ReqKey = strings.TrimSuffix(strings.Replace(r.ReqKey, "jimeng_v30", "jimeng_i2v_first_v30", 1), "p")
-		} else {
-			// 无图片：文生视频
-			r.ReqKey = strings.Replace(r.ReqKey, "jimeng_v30", "jimeng_t2v_v30", 1)
+	if !strings.Contains(reqKey, "jimeng_v30") {
+		return reqKey
+	}
+	if reqKey == "jimeng_v30_pro" {
+		// 3.0 pro只有固定的jimeng_ti2v_v30_pro
+		return "jimeng_ti2v_v30_pro"
+	}
+	if imageLen > 1 {
+		// 多张图片：首尾帧生成
+		return strings.TrimSuffix(strings.Replace(reqKey, "jimeng_v30", "jimeng_i2v_first_tail_v30", 1), "p")
+	}
+	if imageLen == 1 {
+		// 单张图片：图生视频
+		return strings.TrimSuffix(strings.Replace(reqKey, "jimeng_v30", "jimeng_i2v_first_v30", 1), "p")
+	}
+	// 无图片：文生视频
+	return strings.Replace(reqKey, "jimeng_v30", "jimeng_t2v_v30", 1)
+}
+
+func jimengFetchReqKey(body map[string]any) string {
+	for _, field := range []string{"upstream_request_key", "req_key"} {
+		if value, ok := body[field].(string); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
 		}
 	}
 
-	return &r, nil
+	reqKey := ""
+	for _, field := range []string{"upstream_model_name", "origin_model_name"} {
+		if value, ok := body[field].(string); ok && strings.TrimSpace(value) != "" {
+			reqKey = strings.TrimSpace(value)
+			break
+		}
+	}
+	if reqKey == "" {
+		return defaultJimengTaskReqKey
+	}
+	return resolveJimengReqKey(reqKey, jimengFetchImageLen(body))
+}
+
+func jimengFetchImageLen(body map[string]any) int {
+	if imageCount, ok := body["image_count"].(int); ok && imageCount > 0 {
+		return imageCount
+	}
+	if action, ok := body["action"].(string); ok && action == constant.TaskActionFirstTailGenerate {
+		return 2
+	}
+	return 0
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
