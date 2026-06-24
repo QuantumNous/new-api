@@ -262,6 +262,42 @@ func TestListMarketplaceSkills_DR52AuthenticatedAvailability(t *testing.T) {
 	assert.Equal(t, "use", got.Data[0].Availability.CTA)
 }
 
+func TestListMarketplaceSkills_RemovedSkillIsNotShownAsEnabled(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	require.NoError(t, db.AutoMigrate(&appmodel.User{}))
+	s := testSkill("removed-skill", "published")
+	require.NoError(t, db.Create(&s).Error)
+	require.NoError(t, db.Create(&appmodel.User{
+		Id:       42,
+		Username: "removed-user",
+		Password: "password123",
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+	}).Error)
+	require.NoError(t, skillmodel.EnableSkillForUser(db, 42, 42, s.ID, "marketplace"))
+	require.NoError(t, skillmodel.RemoveSkillFromMySkills(db, 42, 42, s.ID))
+
+	c, w := testContext("/api/v1/marketplace/skills")
+	c.Set("id", 42)
+	ListMarketplaceSkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Availability struct {
+				Enabled *bool  `json:"enabled"`
+				CTA     string `json:"cta"`
+			} `json:"availability"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 1)
+	require.NotNil(t, got.Data[0].Availability.Enabled)
+	assert.False(t, *got.Data[0].Availability.Enabled, "removed library rows must not count as My Skills enabled")
+	assert.Equal(t, "enable", got.Data[0].Availability.CTA)
+}
+
 func TestListMarketplaceSkillsRejectsInvalidPagination(t *testing.T) {
 	SetDB(testSkillDB(t))
 	c, w := testContext("/api/v1/marketplace/skills?limit=101")
@@ -486,8 +522,9 @@ func TestListMySkillsReturnsCallerEnabledSkillsWithAvailability(t *testing.T) {
 	deprecated := testSkill("deprecated-enabled", "deprecated")
 	archived := testSkill("archived-enabled", "archived")
 	disabled := testSkill("disabled-skill", "published")
+	removed := testSkill("removed-skill", "published")
 	otherUser := testSkill("other-user-skill", "published")
-	for _, s := range []*skillmodel.Skill{&published, &deprecated, &archived, &disabled, &otherUser} {
+	for _, s := range []*skillmodel.Skill{&published, &deprecated, &archived, &disabled, &removed, &otherUser} {
 		require.NoError(t, db.Create(s).Error)
 	}
 
@@ -527,6 +564,15 @@ func TestListMySkillsReturnsCallerEnabledSkillsWithAvailability(t *testing.T) {
 		Source:    "marketplace",
 	}).Error)
 	require.NoError(t, skillmodel.DisableSkillForUser(db, 42, 42, disabled.ID))
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:    42,
+		TenantID:  42,
+		SkillID:   removed.ID,
+		Enabled:   true,
+		EnabledAt: enabledAt,
+		RemovedAt: ptr(enabledAt.Add(time.Hour)),
+		Source:    "marketplace",
+	}).Error)
 	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
 		UserID:    99,
 		TenantID:  99,
@@ -596,6 +642,7 @@ func TestListMySkillsReturnsCallerEnabledSkillsWithAvailability(t *testing.T) {
 	assert.Contains(t, bySlug, "deprecated-enabled")
 	assert.Contains(t, bySlug, "archived-enabled")
 	assert.NotContains(t, bySlug, "disabled-skill")
+	assert.NotContains(t, bySlug, "removed-skill")
 	assert.NotContains(t, bySlug, "other-user-skill")
 
 	assert.True(t, bySlug["published-enabled"].Executable)
@@ -613,6 +660,61 @@ func TestListMySkillsReturnsCallerEnabledSkillsWithAvailability(t *testing.T) {
 	assert.True(t, bySlug["archived-enabled"].Locked)
 	assert.Equal(t, "SKILL_NOT_PUBLISHED", *bySlug["archived-enabled"].LockCode)
 	assert.Equal(t, "unavailable", bySlug["archived-enabled"].CTA)
+}
+
+func TestRemoveMySkillHidesLibraryOnlyAndPreservesRuntimeEnabledState(t *testing.T) {
+	db := testMySkillDB(t)
+	SetDB(db)
+
+	s := testSkill("remove-me", "published")
+	require.NoError(t, db.Create(&s).Error)
+	require.NoError(t, skillmodel.EnableSkillForUser(db, 42, 42, s.ID, "skill_package"))
+
+	c, w := testContextWithMethod(http.MethodDelete, "/api/v1/marketplace/my-skills/remove-me", "")
+	c.Params = gin.Params{{Key: "id", Value: "remove-me"}}
+	c.Set("id", 42)
+
+	RemoveMySkill(c)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+	var row skillmodel.UserEnabledSkill
+	require.NoError(t, db.First(&row, "user_id = ? AND tenant_id = ? AND skill_id = ?", 42, 42, s.ID).Error)
+	assert.True(t, row.Enabled, "remove from My Skills must not disable runtime enabled-state")
+	assert.NotNil(t, row.RemovedAt)
+	assert.Nil(t, row.DisabledAt)
+
+	listC, listW := testContext("/api/v1/marketplace/my-skills")
+	listC.Set("id", 42)
+	listC.Set("group", "default")
+	ListMySkills(listC)
+	require.Equal(t, http.StatusOK, listW.Code)
+	var got struct {
+		Data []MySkill `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(listW.Body.Bytes(), &got))
+	assert.Empty(t, got.Data, "removed Skill must disappear from My Skills")
+}
+
+func TestRemoveMySkillIsIdempotentForAlreadyRemovedRows(t *testing.T) {
+	db := testMySkillDB(t)
+	SetDB(db)
+
+	s := testSkill("already-removed", "published")
+	require.NoError(t, db.Create(&s).Error)
+	require.NoError(t, skillmodel.EnableSkillForUser(db, 42, 42, s.ID, "skill_package"))
+	require.NoError(t, skillmodel.RemoveSkillFromMySkills(db, 42, 42, s.ID))
+
+	c, w := testContextWithMethod(http.MethodDelete, "/api/v1/marketplace/my-skills/already-removed", "")
+	c.Params = gin.Params{{Key: "id", Value: "already-removed"}}
+	c.Set("id", 42)
+
+	RemoveMySkill(c)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+	var row skillmodel.UserEnabledSkill
+	require.NoError(t, db.First(&row, "user_id = ? AND tenant_id = ? AND skill_id = ?", 42, 42, s.ID).Error)
+	assert.True(t, row.Enabled)
+	assert.NotNil(t, row.RemovedAt)
 }
 
 func TestListMySkillsPlanLockUsesAvailabilityResolver(t *testing.T) {

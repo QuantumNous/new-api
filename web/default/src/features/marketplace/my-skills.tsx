@@ -16,19 +16,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { SectionPageLayout } from '@/components/layout'
-import { getMySkills } from './api'
+import { getMySkills, removeMySkill } from './api'
 import { EmptyState, ErrorBanner, SkillCard } from './components'
 
 export function MySkills() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const skillsQuery = useQuery({
     queryKey: ['marketplace-my-skills'],
     queryFn: getMySkills,
     retry: false,
     placeholderData: (prev) => prev,
+  })
+  const removeMutation = useMutation({
+    mutationFn: removeMySkill,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['marketplace-my-skills'] }),
+        queryClient.invalidateQueries({ queryKey: ['marketplace-skills'] }),
+      ])
+      toast.success(t('Removed from My Skills'))
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || t('Unable to remove this skill.'))
+    },
   })
 
   const skills = skillsQuery.data?.data ?? []
@@ -52,7 +67,7 @@ export function MySkills() {
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('My Skills')}</SectionPageLayout.Title>
       <SectionPageLayout.Description>
-        {t('Skills you have enabled will appear here')}
+        {t('Skills you have downloaded will appear here')}
       </SectionPageLayout.Description>
       <SectionPageLayout.Content>
         <div className='flex flex-col gap-4'>
@@ -83,6 +98,13 @@ export function MySkills() {
                       enabled: skill.enabled,
                       cta: skill.enabled ? 'use' : 'enable',
                     },
+                  }}
+                  cta='remove'
+                  ctaDisabled={removeMutation.isPending}
+                  onCTA={(selectedSkill) => {
+                    removeMutation.mutate(
+                      selectedSkill.id ?? selectedSkill.slug
+                    )
                   }}
                 />
               ))}
