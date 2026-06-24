@@ -53,6 +53,9 @@ func TestSkillVersions_AcceptanceColumnsPresent_SQLite(t *testing.T) {
 		"required_plan_snapshot",
 		"monetization_snapshot",
 		"max_input_tokens_snapshot",
+		"package_zip",
+		"package_sha256",
+		"package_built_at",
 	} {
 		if !db.Migrator().HasColumn(&SkillVersion{}, col) {
 			t.Fatalf("skill_versions missing required column %s", col)

@@ -191,6 +191,15 @@ func ActivateAdminSkillVersion(c *gin.Context) {
 		before := versionAuditBefore(&version)
 
 		now := time.Now().UTC()
+		if skill.Status == enums.SkillStatusPublished {
+			zipBytes, err := buildSkillPackageForVersion(skill, version)
+			if err != nil {
+				return err
+			}
+			if err := storeVersionPackageArtifact(tx, version.ID, zipBytes, now); err != nil {
+				return err
+			}
+		}
 		var prior *skillmodel.SkillVersion
 		var active skillmodel.SkillVersion
 		if err := tx.Where("skill_id = ? AND status = ?", skillID, enums.SkillVersionStatusActive).First(&active).Error; err == nil {
@@ -504,6 +513,12 @@ func writeSkillVersionMutationError(c *gin.Context, err error) {
 	}
 	if errors.Is(err, errVersionMaxInputSnapshotInvalid) {
 		skillapi.Error(c, errcodes.ErrInvalidRequest, "max_input_tokens_snapshot is required and must match max_input_tokens for Free/free-quota Skills.", gin.H{"reason": "VERSION_MAX_INPUT_TOKENS_SNAPSHOT_INVALID"})
+		return
+	}
+	if errors.Is(err, errSkillPackageGuardFailed) {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "Skill package build failed.", gin.H{
+			"reason": "VERSION_PACKAGE_INVALID",
+		})
 		return
 	}
 	writeDBError(c, err)
