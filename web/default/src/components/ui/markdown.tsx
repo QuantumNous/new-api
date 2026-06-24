@@ -123,7 +123,7 @@ const allowedTags = [
   'tspan',
 ]
 
-const sanitizeOptions = {
+export const markdownSanitizeOptions = {
   ADD_ATTR: allowedAttributes,
   ADD_TAGS: allowedTags,
 } as const
@@ -696,9 +696,23 @@ function addExternalLinkAttributes(html: string): string {
 
 function renderMarkdown(markdown: string): string {
   const parsedHtml = markdownParser.parse(markdown, markdownOptions)
-  const html = DOMPurify.sanitize(parsedHtml, sanitizeOptions)
+  const html = DOMPurify.sanitize(parsedHtml, markdownSanitizeOptions)
 
   return addExternalLinkAttributes(html)
+}
+
+export function HtmlContent(props: MarkdownProps) {
+  const html = useMemo(
+    () => DOMPurify.sanitize(props.children, markdownSanitizeOptions),
+    [props.children]
+  )
+
+  return (
+    <div
+      className={props.className}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
 }
 
 export function Markdown(props: MarkdownProps) {
