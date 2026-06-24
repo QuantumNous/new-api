@@ -2929,6 +2929,7 @@
     "Only configured combinations are overridden. All other calls keep the token group base ratio.": "Chỉ các tổ hợp đã cấu hình mới bị ghi đè. Các lệnh gọi khác giữ tỷ lệ cơ bản của nhóm token.",
     "Only enter the site origin, for example https://api.example.com. Do not include any path such as /api/user/epay/notify. Leave blank to use the server address.": "Chỉ nhập origin của trang, ví dụ https://api.example.com. Không nhập đường dẫn như /api/user/epay/notify. Để trống để dùng địa chỉ máy chủ.",
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "Chỉ các trường được chọn sẽ bị ghi đè. Bạn có thể chạy lại trình hướng dẫn đồng bộ hóa nếu có xung đột mới xuất hiện.",
+    "Only SBP is supported for YooKassa payments": "Chỉ hỗ trợ SBP cho thanh toán YooKassa",
     "Only successful requests": "Chỉ các yêu cầu thành công",
     "Only successful requests count toward this limit.": "Chỉ những yêu cầu thành công mới được tính vào giới hạn này.",
     "Only the last {{value}} log files will be retained; the rest will be deleted.": "Chỉ giữ lại {{value}} tệp nhật ký gần nhất; phần còn lại sẽ bị xóa.",

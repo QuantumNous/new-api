@@ -205,3 +205,16 @@ func TestYooKassaWebhookUsesPaymentMetadataWhenProviderMetadataMissingTradeNo(t 
 	require.NoError(t, model.DB.First(&user, 1).Error)
 	assert.Equal(t, 123456, user.Quota)
 }
+
+func TestYooKassaPaymentMethodIsSBPOnly(t *testing.T) {
+	originalPaymentMethods := setting.YooKassaPaymentMethods
+	t.Cleanup(func() {
+		setting.YooKassaPaymentMethods = originalPaymentMethods
+	})
+
+	setting.YooKassaPaymentMethods = "sbp,bank_card"
+
+	assert.True(t, isYooKassaPaymentMethodEnabled(model.PaymentMethodYooKassaSBP))
+	assert.True(t, isYooKassaPaymentMethodEnabled("sbp"))
+	assert.False(t, isYooKassaPaymentMethodEnabled("bank_card"))
+}

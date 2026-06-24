@@ -201,7 +201,9 @@ const paymentSchema = z.object({
     if (!trimmed) return true
     return /^https?:\/\//.test(trimmed)
   }, 'Provide a valid URL starting with http:// or https://'),
-  YooKassaPaymentMethods: z.string(),
+  YooKassaPaymentMethods: z.string().refine((value) => {
+    return value.trim().toLowerCase() === 'sbp'
+  }, 'Only SBP is supported for YooKassa payments'),
 })
 
 type PaymentFormValues = z.infer<typeof paymentSchema>
@@ -237,6 +239,10 @@ function parseWaffoPayMethods(value: string): PayMethod[] {
   } catch {
     return []
   }
+}
+
+function normalizeYooKassaPaymentMethods(_value: string): string {
+  return 'sbp'
 }
 
 export function PaymentSettingsSection({
@@ -487,7 +493,9 @@ export function PaymentSettingsSection({
       YooKassaShopID: values.YooKassaShopID.trim(),
       YooKassaSecretKey: values.YooKassaSecretKey.trim(),
       YooKassaReturnURL: removeTrailingSlash(values.YooKassaReturnURL.trim()),
-      YooKassaPaymentMethods: values.YooKassaPaymentMethods.trim(),
+      YooKassaPaymentMethods: normalizeYooKassaPaymentMethods(
+        values.YooKassaPaymentMethods
+      ),
     }
 
     const initial = {
@@ -1422,7 +1430,7 @@ export function PaymentSettingsSection({
                         <FormLabel>{t('Payment return URL')}</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder='https://example.com/console/topup'
+                            placeholder='https://example.com'
                             {...field}
                             onChange={(event) =>
                               field.onChange(event.target.value)
@@ -1453,7 +1461,7 @@ export function PaymentSettingsSection({
                           />
                         </FormControl>
                         <FormDescription>
-                          {t('Comma-separated YooKassa payment method types')}
+                          {t('Only SBP is supported for YooKassa payments')}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

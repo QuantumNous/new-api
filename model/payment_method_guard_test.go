@@ -102,6 +102,58 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 101))
 }
 
+func TestRechargeYooKassa_IsIdempotent(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 102, 0)
+	topUp := &TopUp{
+		UserId:          102,
+		Amount:          10,
+		Money:           100,
+		TradeNo:         "yookassa-idempotent",
+		PaymentMethod:   PaymentMethodYooKassaSBP,
+		PaymentProvider: PaymentProviderYooKassa,
+		QuotaToAdd:      12345,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      time.Now().Unix(),
+	}
+	require.NoError(t, topUp.Insert())
+
+	require.NoError(t, RechargeYooKassa("yookassa-idempotent", "127.0.0.1"))
+	require.NoError(t, RechargeYooKassa("yookassa-idempotent", "127.0.0.1"))
+
+	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, "yookassa-idempotent"))
+	assert.Equal(t, 12345, getUserQuotaForPaymentGuardTest(t, 102))
+
+	var topupLogs int64
+	require.NoError(t, LOG_DB.Model(&Log{}).Where("user_id = ? AND type = ?", 102, LogTypeTopup).Count(&topupLogs).Error)
+	assert.Equal(t, int64(1), topupLogs)
+}
+
+func TestRechargeYooKassa_RollsBackWhenUserMissing(t *testing.T) {
+	truncateTables(t)
+
+	topUp := &TopUp{
+		UserId:          999,
+		Amount:          10,
+		Money:           100,
+		TradeNo:         "yookassa-missing-user",
+		PaymentMethod:   PaymentMethodYooKassaSBP,
+		PaymentProvider: PaymentProviderYooKassa,
+		QuotaToAdd:      12345,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      time.Now().Unix(),
+	}
+	require.NoError(t, topUp.Insert())
+
+	require.Error(t, RechargeYooKassa("yookassa-missing-user", "127.0.0.1"))
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, "yookassa-missing-user"))
+
+	var topupLogs int64
+	require.NoError(t, LOG_DB.Model(&Log{}).Where("user_id = ? AND type = ?", 999, LogTypeTopup).Count(&topupLogs).Error)
+	assert.Zero(t, topupLogs)
+}
+
 func TestUpdatePendingTopUpStatus_RejectsMismatchedPaymentProvider(t *testing.T) {
 	testCases := []struct {
 		name                    string

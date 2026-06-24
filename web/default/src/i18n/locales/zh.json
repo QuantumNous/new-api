@@ -2929,6 +2929,7 @@
     "Only configured combinations are overridden. All other calls keep the token group base ratio.": "只有已配置的组合会被覆盖，其他调用仍使用令牌分组的基础倍率。",
     "Only enter the site origin, for example https://api.example.com. Do not include any path such as /api/user/epay/notify. Leave blank to use the server address.": "只填写站点根域名，例如 https://api.example.com。不要填写 /api/user/epay/notify 这类路径。留空则使用服务器地址。",
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "仅选定的字段将被覆盖。如果出现新的冲突，您可以重新运行同步向导。",
+    "Only SBP is supported for YooKassa payments": "YooKassa 支付仅支持 SBP",
     "Only successful requests": "仅成功的请求",
     "Only successful requests count toward this limit.": "仅成功的请求计入此限制。",
     "Only the last {{value}} log files will be retained; the rest will be deleted.": "将只保留最近 {{value}} 个日志文件，其余将被删除。",

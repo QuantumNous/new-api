@@ -2929,6 +2929,7 @@
     "Only configured combinations are overridden. All other calls keep the token group base ratio.": "設定済みの組み合わせだけが上書きされます。他の呼び出しはトークングループの基本倍率を維持します。",
     "Only enter the site origin, for example https://api.example.com. Do not include any path such as /api/user/epay/notify. Leave blank to use the server address.": "サイトのオリジンのみを入力してください。例: https://api.example.com。/api/user/epay/notify などのパスは含めないでください。空欄の場合はサーバーアドレスを使用します。",
     "Only selected fields will be overwritten. You can re-run the sync wizard if new conflicts appear.": "選択されたフィールドのみが上書きされます。新しい競合が発生した場合は、同期ウィザードを再実行できます。",
+    "Only SBP is supported for YooKassa payments": "YooKassa 決済では SBP のみサポートされています",
     "Only successful requests": "成功したリクエストのみ",
     "Only successful requests count toward this limit.": "成功したリクエストのみがこの制限にカウントされます。",
     "Only the last {{value}} log files will be retained; the rest will be deleted.": "最新の{{value}}個のログファイルのみ保持され、残りは削除されます。",

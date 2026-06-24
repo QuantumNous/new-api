@@ -60,6 +60,9 @@ func isYooKassaPaymentMethodEnabled(paymentMethod string) bool {
 	if method == model.PaymentMethodYooKassaSBP {
 		method = "sbp"
 	}
+	if !strings.EqualFold(method, "sbp") {
+		return false
+	}
 	for _, configured := range strings.Split(setting.YooKassaPaymentMethods, ",") {
 		if strings.EqualFold(strings.TrimSpace(configured), method) {
 			return true

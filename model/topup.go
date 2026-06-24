@@ -597,16 +597,11 @@ func RechargeYooKassa(tradeNo string, callerIp string) (err error) {
 	}
 
 	var quotaToAdd int
+	var quotaCredited bool
 	topUp := &TopUp{}
 
-	refCol := "`trade_no`"
-	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
-		refCol = `"trade_no"`
-	}
-
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error
-		if err != nil {
+		if err := tx.Where("trade_no = ?", tradeNo).First(topUp).Error; err != nil {
 			return errors.New("充值订单不存在")
 		}
 
@@ -629,13 +624,34 @@ func RechargeYooKassa(tradeNo string, callerIp string) (err error) {
 
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
-		if err := tx.Save(topUp).Error; err != nil {
-			return err
+		result := tx.Model(&TopUp{}).
+			Where("id = ? AND payment_provider = ? AND status = ?", topUp.Id, PaymentProviderYooKassa, common.TopUpStatusPending).
+			Updates(map[string]interface{}{
+				"complete_time": topUp.CompleteTime,
+				"status":        common.TopUpStatusSuccess,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			current := &TopUp{}
+			if err := tx.Where("id = ?", topUp.Id).First(current).Error; err != nil {
+				return err
+			}
+			if current.Status == common.TopUpStatusSuccess {
+				return nil
+			}
+			return ErrTopUpStatusInvalid
 		}
 
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
-			return err
+		quotaResult := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd))
+		if quotaResult.Error != nil {
+			return quotaResult.Error
 		}
+		if quotaResult.RowsAffected == 0 {
+			return errors.New("充值用户不存在")
+		}
+		quotaCredited = true
 
 		return nil
 	})
@@ -645,7 +661,7 @@ func RechargeYooKassa(tradeNo string, callerIp string) (err error) {
 		return errors.New("充值失败，请稍后重试")
 	}
 
-	if quotaToAdd > 0 {
+	if quotaCredited {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("YooKassa充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentProviderYooKassa)
 	}
 
