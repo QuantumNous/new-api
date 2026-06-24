@@ -138,7 +138,7 @@ function RootComponent() {
       saveAffiliateCode(aff)
     }
     captureAdsAttribution()
-  }, [])
+  }, [location.search])
 
   useEffect(() => {
     if (!isPublicWebsitePath(location.pathname)) return
