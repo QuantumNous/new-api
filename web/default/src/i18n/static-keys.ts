@@ -45,6 +45,12 @@ export const STATIC_I18N_KEYS = [
   'Routing Reliability',
   'Maintenance',
 
+  // System info
+  'online',
+  'stale',
+  'Master instances run scheduled background tasks.',
+  'Worker instances do not run master-only background tasks.',
+
   // Pricing constants
   'Name',
   'Price: Low to High',
