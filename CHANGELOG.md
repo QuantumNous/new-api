@@ -11,6 +11,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 - 修复 DR-57 PR review 阻断问题：Marketplace API 文件恢复编译、补 `MarketplaceSkillsParams` 与 `skillDownloadURL` re-export；前端事件改走既有 `/marketplace/skills/:id/events` privacy-safe handler；列表查询按 search/category/plan/Kids Safe 传 server filters 并分页取完整 server-filtered 集合，避免只在首 100 条上过滤；补 API 回归测试（`web/default/src/features/marketplace/`, `router/skill-router.go`）
 - 更新 DR-74 PRD 状态为 eval，符合任务 PRD 生命周期并记录当前 awaiting review 状态（`docs/tasks/dr74-event-schema-version-occurred-at-prd.md`）
+- 新增 DR-56 Remove from My Skills：`user_enabled_skills` 增加 `removed_at` 区分 My Skills 可见性与 runtime `enabled` gate；新增 `DELETE /api/v1/marketplace/my-skills/:id`；My Skills UI 改为 Remove from My Skills，并补回归测试、测试环境 Storage shim 与测试结果记录（`internal/skill/{model,handler}`, `router/skill-router.go`, `web/default/src/features/marketplace/`, `web/default/src/test-utils/setup.ts`, `docs/tasks/dr56-remove-from-my-skills-prd.md`, `docs/test-results/dr56-remove-from-my-skills.txt`）
 
 ## 2026-06-23
 

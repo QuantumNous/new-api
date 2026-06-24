@@ -52,6 +52,7 @@ func migrateUESSQLite(db *gorm.DB) error {
 			"enabled"      NUMERIC  NOT NULL DEFAULT 1,
 			"enabled_at"   DATETIME NOT NULL,
 			"disabled_at"  DATETIME NULL,
+			"removed_at"   DATETIME NULL,
 			"source"       TEXT     NOT NULL DEFAULT 'marketplace',
 			"last_used_at" DATETIME NULL,
 			"created_at"   DATETIME NOT NULL,
@@ -60,6 +61,11 @@ func migrateUESSQLite(db *gorm.DB) error {
 			FOREIGN KEY ("skill_id") REFERENCES "skills"("id")
 		)`).Error; err != nil {
 		return fmt.Errorf("create user_enabled_skills (SQLite): %w", err)
+	}
+	if !db.Migrator().HasColumn(&UserEnabledSkill{}, "removed_at") {
+		if err := db.Migrator().AddColumn(&UserEnabledSkill{}, "RemovedAt"); err != nil {
+			return fmt.Errorf("add removed_at to user_enabled_skills (SQLite): %w", err)
+		}
 	}
 	return createUESIndexes(db)
 }

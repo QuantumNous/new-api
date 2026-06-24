@@ -1,0 +1,120 @@
+# DR-56 Remove from My Skills — test results
+
+Date: 2026-06-24
+
+## Backend focused regression
+
+Command:
+
+```bash
+mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test -cover ./internal/skill/model ./internal/skill/handler ./router -count=1
+```
+
+Dataset / fixtures:
+- In-memory SQLite skill tables migrated through `MigrateSkills`, `MigrateUserEnabledSkills`, `MigrateSkillVersions`, `MigrateSkillAuditLog`, and `MigrateSkillUsageEvents`.
+- Seeded platform users, published/deprecated/archived Skills, and `user_enabled_skills` rows covering enabled, disabled, removed, other-user, and re-download states.
+
+Verification points:
+- `RemoveSkillFromMySkills` sets `removed_at` while preserving `enabled=true` and `disabled_at=NULL`.
+- Re-downloading via `EnableSkillForUser` clears `removed_at`.
+- `GET /api/v1/marketplace/my-skills` hides removed rows.
+- `DELETE /api/v1/marketplace/my-skills/:id` is idempotent and library-only.
+- Marketplace availability treats removed rows as not in My Skills.
+- Skill router registers the DELETE route.
+
+Coverage:
+- `github.com/QuantumNous/new-api/internal/skill/model`: 50.2% statements
+- `github.com/QuantumNous/new-api/internal/skill/handler`: 73.6% statements
+- `github.com/QuantumNous/new-api/router`: 7.1% statements
+
+Result: PASS
+
+## Frontend marketplace regression
+
+Command:
+
+```bash
+cd web/default && bunx vitest run src/features/marketplace/__tests__/my-skills.test.tsx src/features/marketplace/__tests__/growth-surfaces.test.tsx src/features/marketplace/marketplace.test.tsx src/features/marketplace/download-utils.test.ts --coverage --coverage.include='src/features/marketplace/**/*.{ts,tsx}'
+```
+
+Dataset / fixtures:
+- Mocked `/api/v1/marketplace/my-skills` response with one enabled Skill.
+- Mocked DELETE endpoint and React Query client.
+- Existing DR-78 marketplace growth fixtures.
+- Existing DR-58 marketplace detail and download utility fixtures.
+
+Verification points:
+- My Skills renders `Remove from My Skills`, not `Disable Skill`.
+- Clicking remove calls `DELETE /api/v1/marketplace/my-skills/skill-1`.
+- The My Skills query refreshes after successful removal.
+- Existing marketplace growth download URL behavior remains intact.
+
+Coverage:
+- Marketplace slice overall: 55.89% statements / 49.8% branches / 57.62% functions / 56.54% lines
+- `my-skills.tsx`: 87.5% statements
+- `skill-cta.tsx`: 100% statements
+- `skill-card.tsx`: 64% statements
+
+Result: PASS (4 files, 23 tests)
+
+## Extended skill regression
+
+Command:
+
+```bash
+mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test -cover ./internal/skill/... ./router -count=1
+```
+
+Dataset / fixtures:
+- Existing skill package, marketplace, availability, relay, seed, model, and router fixtures.
+- Includes `httptest.NewServer` package-runtime tests; first sandboxed attempt failed with `bind: operation not permitted`, then the same command passed with approved elevated execution.
+
+Verification points:
+- DR-56 model/handler behavior remains compatible with the full `internal/skill` package set.
+- Relay lifecycle/enabled-state gate still passes with `removed_at` present.
+- Router registration remains valid.
+
+Coverage:
+- `internal/skill/api`: 77.8% statements
+- `internal/skill/availability`: 96.7% statements
+- `internal/skill/enums`: 88.9% statements
+- `internal/skill/errcodes`: 100.0% statements
+- `internal/skill/handler`: 73.6% statements
+- `internal/skill/model`: 50.2% statements
+- `internal/skill/relay`: 92.3% statements
+- `internal/skill/seed`: 79.4% statements
+- `internal/skill/tiers`: 100.0% statements
+- `router`: 7.1% statements
+
+Result: PASS
+
+## Frontend typecheck
+
+Command:
+
+```bash
+cd web/default && bun run typecheck
+```
+
+Verification points:
+- TypeScript compile for updated marketplace API, CTA action union, My Skills mutation, and tests.
+
+Coverage: N/A (static typecheck)
+
+Result: PASS
+
+## i18n sync
+
+Command:
+
+```bash
+cd web/default && bun run i18n:sync
+```
+
+Verification points:
+- New UI text has locale entries in the currently present locale files (`en.json`, `zh.json`).
+- Sync report: `en.missingCount=0`, `zh.missingCount=0`.
+
+Coverage: N/A (translation sync)
+
+Result: PASS

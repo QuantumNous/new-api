@@ -46,6 +46,7 @@ export type SkillCTAAction =
   | 'renew'
   | 'contact_sales'
   | 'login'
+  | 'remove'
   | 'unavailable'
 
 export type SkillGrowthEntryPoint =

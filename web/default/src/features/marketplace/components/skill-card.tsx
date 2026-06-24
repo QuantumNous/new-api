@@ -58,6 +58,7 @@ interface SkillCardProps {
   onOpen?: (skill: MarketplaceSkill) => void
   cardRef?: (node: HTMLDivElement | null) => void
   className?: string
+  ctaDisabled?: boolean
 }
 
 function getSkillVariant(
@@ -80,6 +81,7 @@ function getSkillCTA(skill: MarketplaceSkill): SkillCTAAction {
     action === 'renew' ||
     action === 'contact_sales' ||
     action === 'login' ||
+    action === 'remove' ||
     action === 'unavailable'
   ) {
     return action
@@ -96,6 +98,7 @@ export function SkillCard({
   onOpen,
   cardRef,
   className,
+  ctaDisabled,
 }: SkillCardProps) {
   const { t } = useTranslation()
   const resolvedVariant =
@@ -213,6 +216,7 @@ export function SkillCard({
         </span>
         <SkillCTA
           action={action}
+          disabled={ctaDisabled}
           onClick={(event) => {
             event.stopPropagation()
             onCTA?.(skill)
