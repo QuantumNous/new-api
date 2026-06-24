@@ -42,7 +42,9 @@ jobs:
 
       - name: Terraform plan
         id: plan
-        run: terraform plan -input=false -no-color -out=tfplan | tee plan.txt
+        run: |
+          set -o pipefail
+          terraform plan -input=false -no-color -out=tfplan | tee plan.txt
 
       - name: Comment plan on PR
         if: github.event_name == 'pull_request'
