@@ -24,7 +24,7 @@ import { Rankings } from '@/features/rankings'
 
 const rankingsSearchSchema = z.object({
   period: z
-    .enum(['today', 'week', 'month', 'year', 'all'])
+    .enum(['today', 'week', 'month', 'year'])
     .optional()
     .catch(undefined),
 })

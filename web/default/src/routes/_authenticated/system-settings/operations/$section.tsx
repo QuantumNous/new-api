@@ -27,6 +27,13 @@ export const Route = createFileRoute(
   '/_authenticated/system-settings/operations/$section'
 )({
   beforeLoad: ({ params }) => {
+    if (params.section === 'monitoring') {
+      throw redirect({
+        to: '/system-settings/models/$section',
+        params: { section: 'routing-reliability' },
+      })
+    }
+
     const validSections = OPERATIONS_SECTION_IDS as unknown as string[]
     if (!validSections.includes(params.section)) {
       throw redirect({

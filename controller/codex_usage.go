@@ -18,6 +18,46 @@ import (
 )
 
 func GetCodexChannelUsage(c *gin.Context) {
+	fetchCodexChannelWhamData(
+		c,
+		service.FetchCodexWhamUsage,
+		"failed to fetch codex usage",
+		"获取用量信息失败，请稍后重试",
+	)
+}
+
+func GetCodexChannelRateLimitResetCredits(c *gin.Context) {
+	fetchCodexChannelWhamData(
+		c,
+		service.FetchCodexWhamRateLimitResetCredits,
+		"failed to fetch codex reset credits",
+		"获取重置次数详情失败，请稍后重试",
+	)
+}
+
+func ResetCodexChannelUsage(c *gin.Context) {
+	fetchCodexChannelWhamData(
+		c,
+		service.ConsumeCodexWhamRateLimitResetCredit,
+		"failed to reset codex usage",
+		"重置用量失败，请稍后重试",
+	)
+}
+
+type codexWhamFetchFunc func(
+	ctx context.Context,
+	client *http.Client,
+	baseURL string,
+	accessToken string,
+	accountID string,
+) (statusCode int, body []byte, err error)
+
+func fetchCodexChannelWhamData(
+	c *gin.Context,
+	fetch codexWhamFetchFunc,
+	logPrefix string,
+	userMessage string,
+) {
 	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
@@ -68,10 +108,10 @@ func GetCodexChannelUsage(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 
-	statusCode, body, err := service.FetchCodexWhamUsage(ctx, client, ch.GetBaseURL(), accessToken, accountID)
+	statusCode, body, err := fetch(ctx, client, ch.GetBaseURL(), accessToken, accountID)
 	if err != nil {
-		common.SysError("failed to fetch codex usage: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取用量信息失败，请稍后重试"})
+		common.SysError(logPrefix + ": " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": userMessage})
 		return
 	}
 
@@ -98,10 +138,10 @@ func GetCodexChannelUsage(c *gin.Context) {
 
 			ctx2, cancel2 := context.WithTimeout(c.Request.Context(), 15*time.Second)
 			defer cancel2()
-			statusCode, body, err = service.FetchCodexWhamUsage(ctx2, client, ch.GetBaseURL(), oauthKey.AccessToken, accountID)
+			statusCode, body, err = fetch(ctx2, client, ch.GetBaseURL(), oauthKey.AccessToken, accountID)
 			if err != nil {
-				common.SysError("failed to fetch codex usage after refresh: " + err.Error())
-				c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取用量信息失败，请稍后重试"})
+				common.SysError(logPrefix + " after refresh: " + err.Error())
+				c.JSON(http.StatusOK, gin.H{"success": false, "message": userMessage})
 				return
 			}
 		}

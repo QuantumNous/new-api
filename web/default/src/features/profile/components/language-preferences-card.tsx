@@ -105,6 +105,7 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
       title={t('Language Preferences')}
       description={t('Set the language used across the interface')}
       icon={<Languages className='h-4 w-4' />}
+      disableHoverEffect
     >
       <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
         <div className='space-y-1'>

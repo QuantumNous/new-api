@@ -45,14 +45,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
@@ -274,84 +267,80 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
             checked={isEnabled}
             onCheckedChange={handleToggleEnabled}
             label={t('Enabled')}
-            className='border-b-0 py-0'
+            className='py-0'
           />
         </div>
 
-        <div className='rounded-md border'>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className='w-12'>
-                  <Checkbox
-                    checked={
-                      selectedIds.length === groups.length && groups.length > 0
-                    }
-                    onCheckedChange={toggleSelectAll}
-                  />
-                </TableHead>
-                <TableHead>{t('Category Name')}</TableHead>
-                <TableHead>{t('Uptime Kuma URL')}</TableHead>
-                <TableHead>{t('Status Page Slug')}</TableHead>
-                <TableHead className='w-32'>{t('Actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {groups.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className='h-24 text-center'>
-                    {t(
-                      'No Uptime Kuma groups yet. Click "Add Group" to create one.'
-                    )}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                groups.map((group) => (
-                  <TableRow key={group.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.includes(group.id)}
-                        onCheckedChange={(checked) =>
-                          toggleSelectOne(group.id, checked as boolean)
-                        }
-                      />
-                    </TableCell>
-                    <TableCell className='font-medium'>
-                      {group.categoryName}
-                    </TableCell>
-                    <TableCell
-                      className='text-primary max-w-xs truncate font-mono text-sm'
-                      title={group.url}
-                    >
-                      {group.url}
-                    </TableCell>
-                    <TableCell className='text-muted-foreground font-mono text-sm'>
-                      {group.slug}
-                    </TableCell>
-                    <TableCell>
-                      <div className='flex gap-2'>
-                        <Button
-                          onClick={() => handleEdit(group)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Edit className='h-4 w-4' />
-                        </Button>
-                        <Button
-                          onClick={() => handleDelete(group)}
-                          size='sm'
-                          variant='ghost'
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <StaticDataTable
+          data={groups}
+          getRowKey={(group) => group.id}
+          emptyContent={t(
+            'No Uptime Kuma groups yet. Click "Add Group" to create one.'
+          )}
+          columns={[
+            {
+              id: 'select',
+              header: (
+                <Checkbox
+                  checked={
+                    selectedIds.length === groups.length && groups.length > 0
+                  }
+                  onCheckedChange={toggleSelectAll}
+                />
+              ),
+              className: 'w-12',
+              cell: (group) => (
+                <Checkbox
+                  checked={selectedIds.includes(group.id)}
+                  onCheckedChange={(checked) =>
+                    toggleSelectOne(group.id, checked as boolean)
+                  }
+                />
+              ),
+            },
+            {
+              id: 'category',
+              header: t('Category Name'),
+              cellClassName: 'font-medium',
+              cell: (group) => group.categoryName,
+            },
+            {
+              id: 'url',
+              header: t('Uptime Kuma URL'),
+              cellClassName: 'text-primary max-w-xs truncate font-mono text-sm',
+              cell: (group) => group.url,
+            },
+            {
+              id: 'slug',
+              header: t('Status Page Slug'),
+              cellClassName: 'text-muted-foreground font-mono text-sm',
+              cell: (group) => group.slug,
+            },
+            {
+              id: 'actions',
+              header: t('Actions'),
+              className: 'w-32',
+              cell: (group) => (
+                <div className='flex gap-2'>
+                  <Button
+                    onClick={() => handleEdit(group)}
+                    size='sm'
+                    variant='ghost'
+                  >
+                    <Edit className='h-4 w-4' />
+                  </Button>
+                  <Button
+                    onClick={() => handleDelete(group)}
+                    size='sm'
+                    variant='ghost'
+                  >
+                    <Trash2 className='h-4 w-4' />
+                  </Button>
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
 
       <Dialog

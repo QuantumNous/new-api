@@ -16,27 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import {
-  type ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
+import { type ColumnDef } from '@tanstack/react-table'
 import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
-import { TableCell, TableRow } from '@/components/ui/table'
-import { DataTablePage } from '@/components/data-table'
+import {
+  DataTablePage,
+  DataTableRow,
+  useDataTable,
+} from '@/components/data-table'
 import {
   DEFAULT_LOGS_DATA,
   LOG_TYPE_ALL_VALUE,
@@ -54,6 +47,13 @@ const route = getRouteApi('/_authenticated/usage-logs/$section')
 const logTypeRowTint: Record<number, string> = {
   [LOG_TYPE_ENUM.ERROR]: 'bg-rose-50/40 dark:bg-rose-950/20',
   [LOG_TYPE_ENUM.REFUND]: 'bg-blue-50/30 dark:bg-blue-950/15',
+}
+
+function getColumnVisibilityStorageKey(
+  logCategory: LogCategory,
+  isAdmin: boolean
+): string {
+  return `usage-logs:${logCategory}:${isAdmin ? 'admin' : 'user'}:column-visibility`
 }
 
 function deserializeLogTypeFilter(value: unknown): unknown[] {
@@ -149,30 +149,23 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const columns = useColumnsByCategory(logCategory, isAdmin)
   const isLoadingData = isLoading || (isFetching && !data)
 
-  const table = useReactTable({
+  const { table } = useDataTable({
     data: logs as Record<string, unknown>[],
     columns: columns as ColumnDef<Record<string, unknown>>[],
-    state: {
-      columnFilters,
-      pagination,
-    },
+    columnFilters,
+    columnVisibilityStorageKey: getColumnVisibilityStorageKey(
+      logCategory,
+      isAdmin
+    ),
+    pagination,
     enableRowSelection: false,
     onPaginationChange,
     onColumnFiltersChange,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
     manualPagination: true,
     manualFiltering: true,
-    pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
+    totalCount: data?.total || 0,
+    ensurePageInRange,
   })
-
-  const pageCount = table.getPageCount()
-  useEffect(() => {
-    ensurePageInRange(pageCount)
-  }, [pageCount, ensurePageInRange])
 
   const isCommon = logCategory === 'common'
 
@@ -187,11 +180,10 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         'No usage logs available. Logs will appear here once API calls are made.'
       )}
       skeletonKeyPrefix='usage-log-skeleton'
+      applyHeaderSize
       tableClassName={cn(
-        'overflow-x-auto',
         '[&_[data-slot=table]]:text-[13px] [&_[data-slot=table]_td]:text-[13px] [&_[data-slot=table]_td_*]:text-[13px] [&_[data-slot=table]_th]:text-[13px] [&_[data-slot=table]_th_*]:text-[13px]'
       )}
-      tableHeaderClassName='bg-muted/30 sticky top-0 z-10'
       mobile={
         <UsageLogsMobileList
           table={table}
@@ -214,13 +206,12 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
           isCommon && logType != null ? (logTypeRowTint[logType] ?? '') : ''
 
         return (
-          <TableRow key={row.id} className={cn('transition-colors', tintClass)}>
-            {row.getVisibleCells().map((cell) => (
-              <TableCell key={cell.id} className={isCommon ? 'py-2' : 'py-3.5'}>
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </TableCell>
-            ))}
-          </TableRow>
+          <DataTableRow
+            key={row.id}
+            row={row}
+            className={cn('transition-colors', tintClass)}
+            getColumnClassName={() => (isCommon ? 'py-2' : 'py-3.5')}
+          />
         )
       }}
     />

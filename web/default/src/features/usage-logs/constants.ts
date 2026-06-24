@@ -58,6 +58,7 @@ export const LOG_TYPE_ENUM = {
   SYSTEM: 4,
   ERROR: 5,
   REFUND: 6,
+  LOGIN: 7,
 } as const
 
 /**
@@ -95,6 +96,7 @@ export const LOG_TYPES = [
   { value: 4, label: 'System', color: 'purple' },
   { value: 5, label: 'Error', color: 'red' },
   { value: 6, label: 'Refund', color: 'blue' },
+  { value: 7, label: 'Login', color: 'teal' },
 ] as const
 
 /**
@@ -113,11 +115,11 @@ export const LOG_TYPE_FILTERS = [
 ] as const
 
 // ============================================================================
-// Drawing Logs (Midjourney) Constants
+// Drawing Logs (MjProxy) Constants
 // ============================================================================
 
 /**
- * Midjourney task types
+ * MjProxy task types
  * Must match backend constants in constant/midjourney.go
  */
 export const MJ_TASK_TYPES = {
@@ -142,7 +144,7 @@ export const MJ_TASK_TYPES = {
 } as const
 
 /**
- * Midjourney task status
+ * MjProxy task status
  */
 export const MJ_TASK_STATUS = {
   NOT_START: 'NOT_START', // 未启动
@@ -154,7 +156,7 @@ export const MJ_TASK_STATUS = {
 } as const
 
 /**
- * Midjourney submit result codes
+ * MjProxy submit result codes
  */
 export const MJ_SUBMIT_RESULT_CODES = {
   NOT_SUBMITTED: 0, // 未提交
@@ -221,7 +223,7 @@ export interface StatusMapping {
 }
 
 /**
- * Midjourney task type mappings
+ * MjProxy task type mappings
  */
 export const MJ_TASK_TYPE_MAPPINGS: Record<string, StatusMapping> = {
   [MJ_TASK_TYPES.IMAGINE]: { label: 'Draw', variant: 'blue' },
@@ -244,7 +246,7 @@ export const MJ_TASK_TYPE_MAPPINGS: Record<string, StatusMapping> = {
 }
 
 /**
- * Midjourney task status mappings
+ * MjProxy task status mappings
  */
 export const MJ_STATUS_MAPPINGS: Record<string, StatusMapping> = {
   [MJ_TASK_STATUS.SUCCESS]: { label: 'Success', variant: 'green' },
@@ -256,7 +258,7 @@ export const MJ_STATUS_MAPPINGS: Record<string, StatusMapping> = {
 }
 
 /**
- * Midjourney submit result mappings
+ * MjProxy submit result mappings
  */
 export const MJ_SUBMIT_RESULT_MAPPINGS: Record<string, StatusMapping> = {
   [String(MJ_SUBMIT_RESULT_CODES.SUBMITTED)]: {
