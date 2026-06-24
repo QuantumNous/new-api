@@ -258,8 +258,8 @@ func runSystemTaskClaimPass(runnerID string) {
 
 // runSystemTaskScheduler creates a new task row for each enabled scheduled
 // handler whose interval has elapsed since its last run and that has no active
-// row. The per-type lock guarantees only one run can execute even if concurrent
-// masters briefly create more than one pending row.
+// row. The task active_key unique index deduplicates concurrent creation while
+// the per-type lock guarantees only one runner executes the task.
 func runSystemTaskScheduler() {
 	now := common.GetTimestamp()
 	handlers := registeredSystemTaskHandlers()
@@ -289,6 +289,13 @@ func runSystemTaskScheduler() {
 			}
 		}
 		if _, err := model.CreateSystemTask(scheduled.Type(), scheduled.NewPayload(), nil); err != nil {
+			activeTask, activeErr := model.GetActiveSystemTask(scheduled.Type())
+			if activeErr == nil && activeTask != nil {
+				continue
+			}
+			if activeErr != nil {
+				logger.LogWarn(context.Background(), fmt.Sprintf("system task scheduler active lookup failed: type=%s err=%v", scheduled.Type(), activeErr))
+			}
 			logger.LogWarn(context.Background(), fmt.Sprintf("system task scheduler create failed: type=%s err=%v", scheduled.Type(), err))
 			continue
 		}

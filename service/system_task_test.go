@@ -173,8 +173,14 @@ func TestSystemTaskClaimPassDispatchesEarliestPendingByType(t *testing.T) {
 
 	firstA, err := model.CreateSystemTask(handlerA.taskType, nil, nil)
 	require.NoError(t, err)
-	secondA, err := model.CreateSystemTask(handlerA.taskType, nil, nil)
+	secondTaskID, err := model.GenerateSystemTaskID()
 	require.NoError(t, err)
+	secondA := &model.SystemTask{
+		TaskID: secondTaskID,
+		Type:   handlerA.taskType,
+		Status: model.SystemTaskStatusPending,
+	}
+	require.NoError(t, model.DB.Create(secondA).Error)
 	firstB, err := model.CreateSystemTask(handlerB.taskType, nil, nil)
 	require.NoError(t, err)
 

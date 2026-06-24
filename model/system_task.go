@@ -30,6 +30,7 @@ type SystemTask struct {
 	TaskID    string           `json:"task_id" gorm:"type:varchar(64);uniqueIndex"`
 	Type      string           `json:"type" gorm:"type:varchar(64);index"`
 	Status    SystemTaskStatus `json:"status" gorm:"type:varchar(32);index"`
+	ActiveKey *string          `json:"active_key,omitempty" gorm:"type:varchar(64);uniqueIndex"`
 	Payload   string           `json:"payload" gorm:"type:text"`
 	State     string           `json:"state" gorm:"type:text"`
 	Result    string           `json:"result" gorm:"type:text"`
@@ -52,6 +53,7 @@ type SystemTaskResponse struct {
 	TaskID    string           `json:"task_id"`
 	Type      string           `json:"type"`
 	Status    SystemTaskStatus `json:"status"`
+	ActiveKey *string          `json:"active_key,omitempty"`
 	Payload   any              `json:"payload"`
 	State     any              `json:"state"`
 	Result    any              `json:"result"`
@@ -102,11 +104,12 @@ func CreateSystemTask(taskType string, payload any, state any) (*SystemTask, err
 	}
 
 	task := &SystemTask{
-		TaskID:  taskID,
-		Type:    taskType,
-		Status:  SystemTaskStatusPending,
-		Payload: payloadText,
-		State:   stateText,
+		TaskID:    taskID,
+		Type:      taskType,
+		Status:    SystemTaskStatusPending,
+		ActiveKey: &taskType,
+		Payload:   payloadText,
+		State:     stateText,
 	}
 
 	if err := DB.Create(task).Error; err != nil {
@@ -347,6 +350,7 @@ func MarkSystemTaskLeaseExpired(taskID string) error {
 		Where("task_id = ? AND status = ?", taskID, SystemTaskStatusRunning).
 		Updates(map[string]any{
 			"status":     SystemTaskStatusFailed,
+			"active_key": nil,
 			"error":      "task lease expired",
 			"updated_at": common.GetTimestamp(),
 		})
@@ -387,6 +391,7 @@ func FinishSystemTask(taskID string, lockedBy string, status SystemTaskStatus, r
 		Where("EXISTS (SELECT 1 FROM system_task_locks WHERE system_task_locks.task_id = system_tasks.task_id AND system_task_locks.locked_by = ? AND system_task_locks.locked_until >= ?)", lockedBy, now).
 		Updates(map[string]any{
 			"status":     status,
+			"active_key": nil,
 			"result":     resultText,
 			"error":      errorMessage,
 			"updated_at": now,
@@ -414,6 +419,7 @@ func (task *SystemTask) ToResponse() SystemTaskResponse {
 		TaskID:    task.TaskID,
 		Type:      task.Type,
 		Status:    task.Status,
+		ActiveKey: task.ActiveKey,
 		Payload:   decodeSystemTaskJSONValue(task.Payload),
 		State:     decodeSystemTaskJSONValue(task.State),
 		Result:    decodeSystemTaskJSONValue(task.Result),
