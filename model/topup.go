@@ -3,7 +3,6 @@ package model
 import (
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -20,6 +19,7 @@ type TopUp struct {
 	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	QuotaToAdd      int     `json:"quota_to_add"`
 	CreateTime      int64   `json:"create_time"`
 	CompleteTime    int64   `json:"complete_time"`
 	Status          string  `json:"status"`
@@ -622,7 +622,7 @@ func RechargeYooKassa(tradeNo string, callerIp string) (err error) {
 			return errors.New("充值订单状态错误")
 		}
 
-		quotaToAdd = getYooKassaTopUpQuota(tx, topUp)
+		quotaToAdd = getYooKassaTopUpQuota(topUp)
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
 		}
@@ -652,16 +652,6 @@ func RechargeYooKassa(tradeNo string, callerIp string) (err error) {
 	return nil
 }
 
-func getYooKassaTopUpQuota(tx *gorm.DB, topUp *TopUp) int {
-	var paymentMetadata PaymentMetadata
-	if err := tx.Where("trade_no = ?", topUp.TradeNo).First(&paymentMetadata).Error; err == nil {
-		var metadata map[string]string
-		if err := common.UnmarshalJsonStr(paymentMetadata.Metadata, &metadata); err == nil {
-			quotaToAdd, err := strconv.Atoi(metadata["quota_to_add"])
-			if err == nil && quotaToAdd > 0 {
-				return quotaToAdd
-			}
-		}
-	}
-	return int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+func getYooKassaTopUpQuota(topUp *TopUp) int {
+	return topUp.QuotaToAdd
 }

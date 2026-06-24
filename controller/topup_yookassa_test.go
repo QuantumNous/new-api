@@ -24,6 +24,15 @@ func setupYooKassaWebhookTest(t *testing.T, paymentResponse string) *gin.Engine 
 
 	originalMainDatabaseType := common.MainDatabaseType()
 	originalLogDatabaseType := common.LogDatabaseType()
+	originalRedisEnabled := common.RedisEnabled
+	originalYooKassaEnabled := setting.YooKassaEnabled
+	originalYooKassaShopID := setting.YooKassaShopID
+	originalYooKassaSecretKey := setting.YooKassaSecretKey
+	originalYooKassaReturnURL := setting.YooKassaReturnURL
+	originalYooKassaPaymentMethods := setting.YooKassaPaymentMethods
+	originalPaymentSetting := *operation_setting.GetPaymentSetting()
+	originalYooKassaAPIBaseURL := service.YooKassaAPIBaseURL
+	originalYooKassaHTTPClient := service.YooKassaHTTPClient
 	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -39,13 +48,15 @@ func setupYooKassaWebhookTest(t *testing.T, paymentResponse string) *gin.Engine 
 	operation_setting.GetPaymentSetting().ComplianceConfirmed = true
 	operation_setting.GetPaymentSetting().ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
 	t.Cleanup(func() {
-		setting.YooKassaEnabled = false
-		setting.YooKassaShopID = ""
-		setting.YooKassaSecretKey = ""
-		operation_setting.GetPaymentSetting().ComplianceConfirmed = false
-		operation_setting.GetPaymentSetting().ComplianceTermsVersion = ""
-		service.YooKassaAPIBaseURL = "https://api.yookassa.ru/v3"
-		service.YooKassaHTTPClient = http.DefaultClient
+		common.RedisEnabled = originalRedisEnabled
+		setting.YooKassaEnabled = originalYooKassaEnabled
+		setting.YooKassaShopID = originalYooKassaShopID
+		setting.YooKassaSecretKey = originalYooKassaSecretKey
+		setting.YooKassaReturnURL = originalYooKassaReturnURL
+		setting.YooKassaPaymentMethods = originalYooKassaPaymentMethods
+		*operation_setting.GetPaymentSetting() = originalPaymentSetting
+		service.YooKassaAPIBaseURL = originalYooKassaAPIBaseURL
+		service.YooKassaHTTPClient = originalYooKassaHTTPClient
 		common.SetDatabaseTypes(originalMainDatabaseType, originalLogDatabaseType)
 	})
 
@@ -65,10 +76,13 @@ func setupYooKassaWebhookTest(t *testing.T, paymentResponse string) *gin.Engine 
 	return router
 }
 
-func insertYooKassaOrderForWebhookTest(t *testing.T, metadata string) {
+func insertYooKassaOrderForWebhookTest(t *testing.T, metadata string, quotaToAdd int) {
 	t.Helper()
 	if metadata == "" {
 		metadata = `{"quota_to_add":"500000"}`
+	}
+	if quotaToAdd <= 0 {
+		quotaToAdd = 500000
 	}
 	require.NoError(t, model.DB.Create(&model.User{
 		Id:       1,
@@ -85,6 +99,7 @@ func insertYooKassaOrderForWebhookTest(t *testing.T, metadata string) {
 		TradeNo:         "trade-1",
 		PaymentMethod:   model.PaymentMethodYooKassaSBP,
 		PaymentProvider: model.PaymentProviderYooKassa,
+		QuotaToAdd:      quotaToAdd,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}).Error)
@@ -101,7 +116,8 @@ func insertYooKassaOrderForWebhookTest(t *testing.T, metadata string) {
 func postYooKassaWebhook(t *testing.T, router *gin.Engine) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/api/user/yookassa/notify", strings.NewReader(`{
-		"type":"payment.succeeded",
+		"type":"notification",
+		"event":"payment.succeeded",
 		"object":{"id":"pay_1"}
 	}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -122,7 +138,7 @@ func yookassaPaymentResponse(status string, paid bool, amount string) string {
 
 func TestYooKassaWebhookPaymentSucceeded(t *testing.T) {
 	router := setupYooKassaWebhookTest(t, yookassaPaymentResponse("succeeded", true, "100.00"))
-	insertYooKassaOrderForWebhookTest(t, "")
+	insertYooKassaOrderForWebhookTest(t, "", 500000)
 
 	recorder := postYooKassaWebhook(t, router)
 	assert.Equal(t, http.StatusOK, recorder.Code)
@@ -137,7 +153,7 @@ func TestYooKassaWebhookPaymentSucceeded(t *testing.T) {
 
 func TestYooKassaWebhookIsIdempotent(t *testing.T) {
 	router := setupYooKassaWebhookTest(t, yookassaPaymentResponse("succeeded", true, "100.00"))
-	insertYooKassaOrderForWebhookTest(t, "")
+	insertYooKassaOrderForWebhookTest(t, "", 500000)
 
 	assert.Equal(t, http.StatusOK, postYooKassaWebhook(t, router).Code)
 	assert.Equal(t, http.StatusOK, postYooKassaWebhook(t, router).Code)
@@ -149,7 +165,7 @@ func TestYooKassaWebhookIsIdempotent(t *testing.T) {
 
 func TestYooKassaWebhookRejectsInvalidAmount(t *testing.T) {
 	router := setupYooKassaWebhookTest(t, yookassaPaymentResponse("succeeded", true, "99.99"))
-	insertYooKassaOrderForWebhookTest(t, "")
+	insertYooKassaOrderForWebhookTest(t, "", 500000)
 
 	recorder := postYooKassaWebhook(t, router)
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
@@ -161,7 +177,7 @@ func TestYooKassaWebhookRejectsInvalidAmount(t *testing.T) {
 
 func TestYooKassaWebhookRejectsInvalidStatus(t *testing.T) {
 	router := setupYooKassaWebhookTest(t, yookassaPaymentResponse("pending", false, "100.00"))
-	insertYooKassaOrderForWebhookTest(t, "")
+	insertYooKassaOrderForWebhookTest(t, "", 500000)
 
 	recorder := postYooKassaWebhook(t, router)
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
@@ -180,7 +196,7 @@ func TestYooKassaWebhookUsesPaymentMetadataWhenProviderMetadataMissingTradeNo(t 
 		"metadata":{"user_id":"1","topup_id":"1"}
 	}`
 	router := setupYooKassaWebhookTest(t, paymentResponse)
-	insertYooKassaOrderForWebhookTest(t, `{"quota_to_add":"123456"}`)
+	insertYooKassaOrderForWebhookTest(t, `{"quota_to_add":"123456"}`, 123456)
 
 	recorder := postYooKassaWebhook(t, router)
 	assert.Equal(t, http.StatusOK, recorder.Code)

@@ -24,6 +24,7 @@ type YooKassaPayRequest struct {
 
 type yooKassaWebhookPayload struct {
 	Type   string `json:"type"`
+	Event  string `json:"event"`
 	Object struct {
 		ID string `json:"id"`
 	} `json:"object"`
@@ -125,6 +126,7 @@ func RequestYooKassaPay(c *gin.Context) {
 	}
 
 	tradeNo := fmt.Sprintf("USR%dNO%s%d", id, common.GetRandomString(6), time.Now().Unix())
+	quotaToAdd := getYooKassaQuotaToAdd(req.Amount)
 	topUp := &model.TopUp{
 		UserId:          id,
 		Amount:          req.Amount,
@@ -132,6 +134,7 @@ func RequestYooKassaPay(c *gin.Context) {
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodYooKassaSBP,
 		PaymentProvider: model.PaymentProviderYooKassa,
+		QuotaToAdd:      quotaToAdd,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
@@ -156,7 +159,7 @@ func RequestYooKassaPay(c *gin.Context) {
 		"trade_no":     tradeNo,
 		"user_id":      fmt.Sprintf("%d", id),
 		"topup_id":     fmt.Sprintf("%d", topUp.Id),
-		"quota_to_add": fmt.Sprintf("%d", getYooKassaQuotaToAdd(req.Amount)),
+		"quota_to_add": fmt.Sprintf("%d", quotaToAdd),
 	})
 	paymentMetadata := &model.PaymentMetadata{
 		TradeNo:           tradeNo,
@@ -168,9 +171,6 @@ func RequestYooKassaPay(c *gin.Context) {
 	}
 	if err := paymentMetadata.Insert(); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("YooKassa 保存支付元数据失败 trade_no=%s payment_id=%s error=%q", tradeNo, payment.ID, err.Error()))
-		_ = model.UpdatePendingTopUpStatus(tradeNo, model.PaymentProviderYooKassa, common.TopUpStatusFailed)
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
-		return
 	}
 
 	confirmationURL := strings.TrimSpace(payment.Confirmation.ConfirmationURL)
@@ -205,8 +205,8 @@ func YooKassaNotify(c *gin.Context) {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
-	if payload.Type != "payment.succeeded" {
-		logger.LogInfo(c.Request.Context(), fmt.Sprintf("YooKassa webhook 忽略事件 event_type=%s payment_id=%s client_ip=%s", payload.Type, payload.Object.ID, c.ClientIP()))
+	if payload.Event != "payment.succeeded" {
+		logger.LogInfo(c.Request.Context(), fmt.Sprintf("YooKassa webhook 忽略事件 notification_type=%s event=%s payment_id=%s client_ip=%s", payload.Type, payload.Event, payload.Object.ID, c.ClientIP()))
 		c.Status(http.StatusOK)
 		return
 	}

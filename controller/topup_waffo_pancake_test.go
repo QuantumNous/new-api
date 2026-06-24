@@ -6,6 +6,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -99,6 +100,6 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 		}
 
 		actual := getWaffoPancakePayMoney(15, "default")
-		require.InDelta(t, 31.875, actual, 0.000001)
+		assert.InDelta(t, 31.875, actual, 0.000001)
 	})
 }
