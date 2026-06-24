@@ -4938,6 +4938,18 @@
     "Unable to remove this skill.": "Unable to remove this skill.",
     "Skills you have downloaded will appear here": "Skills you have downloaded will appear here",
     "No skills in My Skills": "No skills in My Skills",
-    "Downloaded skills will appear here after you add them.": "Downloaded skills will appear here after you add them."
+    "Downloaded skills will appear here after you add them.": "Downloaded skills will appear here after you add them.",
+    "{{count}} Skills in My Skills": "{{count}} Skills in My Skills",
+    "Explore Skills": "Explore Skills",
+    "No Skills match this filter.": "No Skills match this filter.",
+    "Plan, quota, kids-mode, or unavailable Skills.": "Plan, quota, kids-mode, or unavailable Skills.",
+    "Skills in My Skills, with their status and actions.": "Skills in My Skills, with their status and actions.",
+    "Required plan": "Required plan",
+    "Last used": "Last used",
+    "Status: {{status}}": "Status: {{status}}",
+    "Use": "Use",
+    "Remove from My Skills?": "Remove from My Skills?",
+    "Remove this skill from My Skills? This changes your library and hides the row from this page.": "Remove this skill from My Skills? This changes your library and hides the row from this page.",
+    "This Skill is deprecated. You can keep using it for now, but it may be retired.": "This Skill is deprecated. You can keep using it for now, but it may be retired."
   }
 }

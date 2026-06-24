@@ -16,22 +16,45 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
+import { Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { SectionPageLayout } from '@/components/layout'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useMediaQuery } from '@/hooks'
 import { getMySkills, removeMySkill } from './api'
-import { EmptyState, ErrorBanner, SkillCard } from './components'
+import { EmptyState, ErrorBanner } from './components'
+import { MySkillsFilter } from './components/my-skills-filter'
+import { MySkillsMobileList } from './components/my-skills-mobile-list'
+import { MySkillsTable } from './components/my-skills-table'
+import {
+  resolveMySkillRow,
+  rowMatchesFilter,
+  skillKey,
+  type MySkillFilter,
+  type MySkillRowItem,
+} from './lib/my-skills-row-state'
+import type { MySkill } from './types'
 
 export function MySkills() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const isMobile = useMediaQuery('(max-width: 640px)')
+  const [filter, setFilter] = useState<MySkillFilter>('all')
+  const [removingId, setRemovingId] = useState<string | null>(null)
+
   const skillsQuery = useQuery({
     queryKey: ['marketplace-my-skills'],
     queryFn: getMySkills,
     retry: false,
     placeholderData: (prev) => prev,
   })
+
   const removeMutation = useMutation({
     mutationFn: removeMySkill,
     onSuccess: async () => {
@@ -44,9 +67,32 @@ export function MySkills() {
     onError: (error: Error) => {
       toast.error(error.message || t('Unable to remove this skill.'))
     },
+    onSettled: () => setRemovingId(null),
   })
 
-  const skills = skillsQuery.data?.data ?? []
+  const skills = useMemo(
+    () => skillsQuery.data?.data ?? [],
+    [skillsQuery.data]
+  )
+  const rows = useMemo<MySkillRowItem[]>(
+    () => skills.map((skill) => ({ skill, view: resolveMySkillRow(skill) })),
+    [skills]
+  )
+  const counts = useMemo(
+    () => ({
+      all: rows.length,
+      available: rows.filter((r) => r.view.filterBucket === 'available').length,
+      locked: rows.filter((r) => r.view.filterBucket === 'locked').length,
+      deprecated: rows.filter((r) => r.view.filterBucket === 'deprecated')
+        .length,
+    }),
+    [rows]
+  )
+  const filteredRows = useMemo(
+    () => rows.filter((r) => rowMatchesFilter(r.view, filter)),
+    [rows, filter]
+  )
+
   const requestId =
     skillsQuery.data?.meta?.request_id ??
     (
@@ -63,11 +109,27 @@ export function MySkills() {
     )?.response?.data?.error?.message ??
     (skillsQuery.error as Error | null)?.message
 
+  // Use and skill-name open both navigate to the Skill Detail page. This is
+  // navigation only — DR-59 never executes a Skill and never emits skill_used
+  // (V1 execution happens through the downloaded package, D-09).
+  const goToDetail = (skill: MySkill) => {
+    void navigate({
+      to: '/skills/$slug',
+      params: { slug: skill.slug || skillKey(skill) },
+    })
+  }
+
+  const handleRemove = (skill: MySkill) => {
+    const id = skillKey(skill)
+    setRemovingId(id)
+    removeMutation.mutate(id)
+  }
+
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('My Skills')}</SectionPageLayout.Title>
       <SectionPageLayout.Description>
-        {t('Skills you have downloaded will appear here')}
+        {t('{{count}} Skills in My Skills', { count: counts.all })}
       </SectionPageLayout.Description>
       <SectionPageLayout.Content>
         <div className='flex flex-col gap-4'>
@@ -79,40 +141,54 @@ export function MySkills() {
               onRetry={() => void skillsQuery.refetch()}
             />
           )}
+
           {skillsQuery.isLoading ? (
-            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
-              {Array.from({ length: 3 }).map((_, index) => (
-                <SkillCard key={index} variant='loading' />
+            <div className='flex flex-col gap-3'>
+              {Array.from({ length: 4 }).map((_, index) => (
+                <Skeleton key={index} className='h-14 w-full' />
               ))}
             </div>
-          ) : skills.length > 0 ? (
-            <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
-              {skills.map((skill) => (
-                <SkillCard
-                  key={skill.id ?? skill.skill_id}
-                  skill={{
-                    ...skill,
-                    id: skill.id ?? skill.skill_id ?? skill.slug,
-                    status: skill.status ?? skill.skill_status,
-                    availability: skill.availability ?? {
-                      enabled: skill.enabled,
-                      cta: skill.enabled ? 'use' : 'enable',
-                    },
-                  }}
-                  cta='remove'
-                  ctaDisabled={removeMutation.isPending}
-                  onCTA={(selectedSkill) => {
-                    removeMutation.mutate(
-                      selectedSkill.id ?? selectedSkill.slug
-                    )
-                  }}
-                />
-              ))}
-            </div>
+          ) : skills.length === 0 ? (
+            !skillsQuery.isError && (
+              <EmptyState kind='my-skills'>
+                <Button
+                  type='button'
+                  onClick={() => void navigate({ to: '/skills' })}
+                >
+                  <Sparkles data-icon='inline-start' />
+                  {t('Explore Skills')}
+                </Button>
+              </EmptyState>
+            )
           ) : (
-            <EmptyState
-              kind={skillsQuery.isError ? 'feature-off' : 'my-skills'}
-            />
+            <>
+              <MySkillsFilter
+                value={filter}
+                counts={counts}
+                onChange={setFilter}
+              />
+              {filteredRows.length === 0 ? (
+                <p className='text-muted-foreground py-8 text-center text-sm'>
+                  {t('No Skills match this filter.')}
+                </p>
+              ) : isMobile ? (
+                <MySkillsMobileList
+                  rows={filteredRows}
+                  removingId={removingId}
+                  onOpen={goToDetail}
+                  onUse={goToDetail}
+                  onRemove={handleRemove}
+                />
+              ) : (
+                <MySkillsTable
+                  rows={filteredRows}
+                  removingId={removingId}
+                  onOpen={goToDetail}
+                  onUse={goToDetail}
+                  onRemove={handleRemove}
+                />
+              )}
+            </>
           )}
         </div>
       </SectionPageLayout.Content>

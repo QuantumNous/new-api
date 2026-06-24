@@ -4938,6 +4938,18 @@
     "Unable to remove this skill.": "无法移除此技能。",
     "Skills you have downloaded will appear here": "你下载过的技能会显示在这里",
     "No skills in My Skills": "我的技能中暂无技能",
-    "Downloaded skills will appear here after you add them.": "添加后，已下载的技能会显示在这里。"
+    "Downloaded skills will appear here after you add them.": "添加后，已下载的技能会显示在这里。",
+    "{{count}} Skills in My Skills": "我的技能中有 {{count}} 个",
+    "Explore Skills": "浏览技能",
+    "No Skills match this filter.": "没有符合此筛选条件的技能。",
+    "Plan, quota, kids-mode, or unavailable Skills.": "套餐、配额、儿童模式或不可用的技能。",
+    "Skills in My Skills, with their status and actions.": "我的技能及其状态和操作。",
+    "Required plan": "所需套餐",
+    "Last used": "最近使用",
+    "Status: {{status}}": "状态：{{status}}",
+    "Use": "使用",
+    "Remove from My Skills?": "从我的技能中移除？",
+    "Remove this skill from My Skills? This changes your library and hides the row from this page.": "要将此技能从我的技能中移除吗？此操作会更改您的技能库，并将该行从此页面隐藏。",
+    "This Skill is deprecated. You can keep using it for now, but it may be retired.": "该技能已弃用。您暂时仍可使用，但它可能会被下线。"
   }
 }
