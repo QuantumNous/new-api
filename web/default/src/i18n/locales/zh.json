@@ -4917,6 +4917,12 @@
     "Try {{name}} for guided {{category}} work.": "试试 {{name}}，用引导式流程完成 {{category}} 工作。",
     "Marketplace skills are ready.": "技能市场已准备好。",
     "Start with a ready-made skill when you want a guided workflow instead of a blank prompt.": "当你需要引导式流程而不是空白提示时，可以从现成技能开始。",
-    "Browse skills": "浏览技能"
+    "Browse skills": "浏览技能",
+    "Remove from My Skills": "从我的技能中移除",
+    "Removed from My Skills": "已从我的技能中移除",
+    "Unable to remove this skill.": "无法移除此技能。",
+    "Skills you have downloaded will appear here": "你下载过的技能会显示在这里",
+    "No skills in My Skills": "我的技能中暂无技能",
+    "Downloaded skills will appear here after you add them.": "添加后，已下载的技能会显示在这里。"
   }
 }

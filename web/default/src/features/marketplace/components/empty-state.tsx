@@ -66,8 +66,8 @@ const emptyStateConfig = {
   },
   'my-skills': {
     icon: Sparkles,
-    title: 'No enabled skills',
-    description: 'Enabled skills will appear here after you add them.',
+    title: 'No skills in My Skills',
+    description: 'Downloaded skills will appear here after you add them.',
   },
   analytics: {
     icon: BarChart3,

@@ -364,7 +364,7 @@ func RecordMarketplaceSkillEvent(c *gin.Context) {
 }
 
 // ListMySkills serves GET /api/v1/marketplace/my-skills.
-// It returns the caller's enabled skills, including deprecated/archived rows,
+// It returns the caller's visible enabled skills, including deprecated/archived rows,
 // with execution availability resolved through the DR-72 entitlement resolver.
 func ListMySkills(c *gin.Context) {
 	db, ok := skillDB(c)
@@ -398,7 +398,7 @@ func ListMySkills(c *gin.Context) {
 			skills.required_plan, skills.is_kids_safe, skills.is_kids_exclusive,
 			skills.free_quota_per_month, ues.enabled, ues.enabled_at, ues.last_used_at`).
 		Joins("JOIN skills ON skills.id = ues.skill_id").
-		Where("ues.user_id = ? AND ues.tenant_id = ? AND ues.enabled = ?", userID, userID, true).
+		Where("ues.user_id = ? AND ues.tenant_id = ? AND ues.enabled = ? AND ues.removed_at IS NULL", userID, userID, true).
 		Order("ues.enabled_at DESC, skills.name ASC").
 		Scan(&rows).Error; err != nil {
 		writeDBError(c, err)
@@ -441,6 +441,39 @@ func ListMySkills(c *gin.Context) {
 	}
 
 	skillapi.Success(c, out)
+}
+
+// RemoveMySkill serves DELETE /api/v1/marketplace/my-skills/:id.
+// It removes the Skill from the user's library only. The row remains
+// enabled=true so downloaded packages continue through runtime authorization.
+func RemoveMySkill(c *gin.Context) {
+	db, ok := skillDB(c)
+	if !ok {
+		return
+	}
+
+	userID := int64(c.GetInt("id"))
+	if userID <= 0 {
+		skillapi.Error(c, errcodes.ErrAuthRequired, "Authentication required.", nil)
+		return
+	}
+
+	var s skillmodel.Skill
+	err := db.Select("id").
+		Where("id = ? OR slug = ?", c.Param("id"), c.Param("id")).
+		First(&s).Error
+	if err != nil {
+		writeSkillLookupError(c, err)
+		return
+	}
+
+	if err := skillmodel.RemoveSkillFromMySkills(db, userID, userID, s.ID); err != nil {
+		writeDBError(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+	c.Writer.WriteHeaderNow()
 }
 
 // listAdminSkillsSafeQuery returns a GORM query base scoped to the admin-safe
@@ -830,13 +863,13 @@ func marketplaceEnablementBySkillID(db *gorm.DB, user marketplaceUserContext, sk
 		ids = append(ids, s.ID)
 	}
 	var rows []skillmodel.UserEnabledSkill
-	if err := db.Select([]string{"skill_id", "enabled"}).
+	if err := db.Select([]string{"skill_id", "enabled", "removed_at"}).
 		Where("user_id = ? AND tenant_id = ? AND skill_id IN ?", user.UserID, user.UserID, ids).
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
-		enabled[row.SkillID] = row.Enabled
+		enabled[row.SkillID] = row.Enabled && row.RemovedAt == nil
 	}
 	return enabled, nil
 }

@@ -123,6 +123,15 @@ export async function downloadSkillPackage(
   }
 }
 
+export async function removeMySkill(skillId: string): Promise<void> {
+  await api.delete(
+    `/api/v1/marketplace/my-skills/${encodeURIComponent(skillId)}`,
+    {
+      skipErrorHandler: true,
+    } as Record<string, unknown>
+  )
+}
+
 export async function recordMarketplaceSkillEvent(
   skillId: string,
   event: {

@@ -24,6 +24,7 @@ import {
   Play,
   RefreshCcw,
   Sparkles,
+  Trash2,
   UserRound,
   UsersRound,
   Zap,
@@ -51,6 +52,11 @@ const ctaConfig = {
     variant: 'outline',
   },
   login: { icon: UserRound, label: 'Sign in', variant: 'outline' },
+  remove: {
+    icon: Trash2,
+    label: 'Remove from My Skills',
+    variant: 'destructive',
+  },
   unavailable: {
     icon: LockKeyhole,
     label: 'Unavailable',

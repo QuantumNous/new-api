@@ -56,6 +56,7 @@ interface SkillCardProps {
   cta?: SkillCTAAction
   onCTA?: (skill: MarketplaceSkill) => void
   className?: string
+  ctaDisabled?: boolean
 }
 
 function getSkillVariant(
@@ -78,6 +79,7 @@ function getSkillCTA(skill: MarketplaceSkill): SkillCTAAction {
     action === 'renew' ||
     action === 'contact_sales' ||
     action === 'login' ||
+    action === 'remove' ||
     action === 'unavailable'
   ) {
     return action
@@ -92,6 +94,7 @@ export function SkillCard({
   cta,
   onCTA,
   className,
+  ctaDisabled,
 }: SkillCardProps) {
   const { t } = useTranslation()
   const resolvedVariant =
@@ -193,7 +196,11 @@ export function SkillCard({
         <span className='text-muted-foreground min-w-0 truncate text-xs'>
           {statusLabel}
         </span>
-        <SkillCTA action={action} onClick={() => onCTA?.(skill)} />
+        <SkillCTA
+          action={action}
+          disabled={ctaDisabled}
+          onClick={() => onCTA?.(skill)}
+        />
       </CardFooter>
     </Card>
   )

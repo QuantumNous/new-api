@@ -4917,6 +4917,12 @@
     "Try {{name}} for guided {{category}} work.": "Try {{name}} for guided {{category}} work.",
     "Marketplace skills are ready.": "Marketplace skills are ready.",
     "Start with a ready-made skill when you want a guided workflow instead of a blank prompt.": "Start with a ready-made skill when you want a guided workflow instead of a blank prompt.",
-    "Browse skills": "Browse skills"
+    "Browse skills": "Browse skills",
+    "Remove from My Skills": "Remove from My Skills",
+    "Removed from My Skills": "Removed from My Skills",
+    "Unable to remove this skill.": "Unable to remove this skill.",
+    "Skills you have downloaded will appear here": "Skills you have downloaded will appear here",
+    "No skills in My Skills": "No skills in My Skills",
+    "Downloaded skills will appear here after you add them.": "Downloaded skills will appear here after you add them."
   }
 }
