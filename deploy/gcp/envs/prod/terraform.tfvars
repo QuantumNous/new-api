@@ -38,6 +38,32 @@ alert_email = ""
 // otherwise a future `terraform apply` would strip the env. Keep this true.
 enable_usage_recon_token = true
 
+// Staging resources already exist in Terraform state. Keep these explicit so
+// any prod-env plan preserves staging instead of planning count-based destroys.
+enable_staging         = true
+enable_staging_domains = true
+
+// --- Go runtime split (Phase 1: create services/backends, no traffic cutover) ---
+// Creates `newapi-router` as NODE_TYPE=slave and `newapi-console` as NODE_TYPE=master.
+// The LB host rules stay absent while the
+// domain lists remain [], so router.flatkey.ai / console.flatkey.ai keep their
+// current routing until a later, explicit cutover apply.
+enable_runtime_split = true
+router_service_name  = "newapi-router"
+console_service_name = "newapi-console"
+router_domains       = []
+console_domains      = []
+
+// Router keeps the current production capacity profile for long-lived model
+// calls. Console starts smaller because it handles authenticated UI/API traffic
+// and is the high-frequency deploy target.
+router_min_instances  = 4
+router_max_instances  = 10
+router_concurrency    = 50
+console_min_instances = 1
+console_max_instances = 5
+console_concurrency   = 80
+
 // --- Standalone Next.js website (apex flatkey.ai + www → Node; everything else → Go) ---
 // website_domains are served through Cloudflare orange-cloud (depth ≤ 2, covered by
 // Universal SSL), so they are intentionally NOT in lb_domains: no managed-cert rotation,

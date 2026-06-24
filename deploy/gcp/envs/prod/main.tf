@@ -208,6 +208,82 @@ module "cloud_run" {
   ]
 }
 
+module "cloud_run_router" {
+  count = var.enable_runtime_split ? 1 : 0
+
+  source           = "../../modules/cloud-run"
+  project_id       = var.project_id
+  region           = var.region
+  service_name     = var.router_service_name
+  runtime_sa_email = module.service_accounts.runtime_email
+  ingress          = var.cloud_run_ingress
+
+  network_id = module.network.network_id
+  subnet_id  = module.network.subnet_id
+
+  cloudsql_connection_name = module.cloud_sql.connection_name
+  db_user                  = module.cloud_sql.app_user
+  db_name                  = module.cloud_sql.database_name
+
+  sql_dsn_secret_id   = google_secret_manager_secret.sql_dsn.secret_id
+  redis_url_secret_id = google_secret_manager_secret.redis_url.secret_id
+  session_secret_id   = module.secrets.session_secret_id
+  crypto_secret_id    = module.secrets.crypto_secret_id
+
+  usage_recon_token_secret_id = var.enable_usage_recon_token ? google_secret_manager_secret.blockrun_usage_summary_token.secret_id : ""
+
+  frontend_base_url = var.frontend_base_url
+  custom_domains    = []
+  min_instances     = var.router_min_instances
+  max_instances     = var.router_max_instances
+  concurrency       = var.router_concurrency
+  node_type         = "slave"
+
+  depends_on = [
+    module.apis,
+    google_secret_manager_secret_version.sql_dsn,
+    google_secret_manager_secret_version.redis_url,
+  ]
+}
+
+module "cloud_run_console" {
+  count = var.enable_runtime_split ? 1 : 0
+
+  source           = "../../modules/cloud-run"
+  project_id       = var.project_id
+  region           = var.region
+  service_name     = var.console_service_name
+  runtime_sa_email = module.service_accounts.runtime_email
+  ingress          = var.cloud_run_ingress
+
+  network_id = module.network.network_id
+  subnet_id  = module.network.subnet_id
+
+  cloudsql_connection_name = module.cloud_sql.connection_name
+  db_user                  = module.cloud_sql.app_user
+  db_name                  = module.cloud_sql.database_name
+
+  sql_dsn_secret_id   = google_secret_manager_secret.sql_dsn.secret_id
+  redis_url_secret_id = google_secret_manager_secret.redis_url.secret_id
+  session_secret_id   = module.secrets.session_secret_id
+  crypto_secret_id    = module.secrets.crypto_secret_id
+
+  usage_recon_token_secret_id = var.enable_usage_recon_token ? google_secret_manager_secret.blockrun_usage_summary_token.secret_id : ""
+
+  frontend_base_url = ""
+  custom_domains    = []
+  min_instances     = var.console_min_instances
+  max_instances     = var.console_max_instances
+  concurrency       = var.console_concurrency
+  node_type         = "master"
+
+  depends_on = [
+    module.apis,
+    google_secret_manager_secret_version.sql_dsn,
+    google_secret_manager_secret_version.redis_url,
+  ]
+}
+
 // External HTTPS LB sitting in front of Cloud Run, used when the operator lacks
 // run.domainmappings.create permission.
 // --- Standalone Next.js marketing website (apex flatkey.ai + www) ---
@@ -268,7 +344,20 @@ module "cloud_lb" {
   website_cloud_run_service_name = var.enable_website ? module.cloud_run_web[0].service_name : ""
   website_domains                = var.website_domains
 
-  depends_on = [module.apis, module.cloud_run, module.cloud_run_web]
+  // Runtime split: create optional backend services first with domains=[], then
+  // add host rules in a later apply to cut traffic over without cert/DNS churn.
+  router_cloud_run_service_name  = var.enable_runtime_split ? module.cloud_run_router[0].service_name : ""
+  router_domains                 = var.router_domains
+  console_cloud_run_service_name = var.enable_runtime_split ? module.cloud_run_console[0].service_name : ""
+  console_domains                = var.console_domains
+
+  depends_on = [
+    module.apis,
+    module.cloud_run,
+    module.cloud_run_web,
+    module.cloud_run_router,
+    module.cloud_run_console,
+  ]
 }
 
 // Uptime check target priority:

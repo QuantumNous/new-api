@@ -82,6 +82,78 @@ resource "google_compute_backend_service" "website" {
   enable_cdn = false
 }
 
+// --- Router Go backend — optional runtime split target for model invocation traffic ---
+
+resource "google_compute_region_network_endpoint_group" "router" {
+  count = var.router_cloud_run_service_name != "" ? 1 : 0
+
+  project               = var.project_id
+  name                  = "${var.name_prefix}-router-cr-neg"
+  region                = var.region
+  network_endpoint_type = "SERVERLESS"
+
+  cloud_run {
+    service = var.router_cloud_run_service_name
+  }
+}
+
+resource "google_compute_backend_service" "router" {
+  count = var.router_cloud_run_service_name != "" ? 1 : 0
+
+  project               = var.project_id
+  name                  = "${var.name_prefix}-router-backend"
+  protocol              = "HTTPS"
+  port_name             = "http"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+
+  log_config {
+    enable      = true
+    sample_rate = 1.0
+  }
+
+  backend {
+    group = google_compute_region_network_endpoint_group.router[0].id
+  }
+
+  enable_cdn = false
+}
+
+// --- Console Go backend — optional runtime split target for console/API traffic ---
+
+resource "google_compute_region_network_endpoint_group" "console" {
+  count = var.console_cloud_run_service_name != "" ? 1 : 0
+
+  project               = var.project_id
+  name                  = "${var.name_prefix}-console-cr-neg"
+  region                = var.region
+  network_endpoint_type = "SERVERLESS"
+
+  cloud_run {
+    service = var.console_cloud_run_service_name
+  }
+}
+
+resource "google_compute_backend_service" "console" {
+  count = var.console_cloud_run_service_name != "" ? 1 : 0
+
+  project               = var.project_id
+  name                  = "${var.name_prefix}-console-backend"
+  protocol              = "HTTPS"
+  port_name             = "http"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+
+  log_config {
+    enable      = true
+    sample_rate = 1.0
+  }
+
+  backend {
+    group = google_compute_region_network_endpoint_group.console[0].id
+  }
+
+  enable_cdn = false
+}
+
 // Random suffix tied to domain list + a manual rotation counter.
 // Bumping `cert_rotation` (a variable, default 1) forces a fresh provisioning
 // attempt — useful when Google probed before DNS was in place and got stuck on
@@ -135,6 +207,38 @@ resource "google_compute_url_map" "https" {
     content {
       name            = "website"
       default_service = google_compute_backend_service.website[0].id
+    }
+  }
+
+  dynamic "host_rule" {
+    for_each = var.router_cloud_run_service_name != "" && length(var.router_domains) > 0 ? [1] : []
+    content {
+      hosts        = var.router_domains
+      path_matcher = "router"
+    }
+  }
+
+  dynamic "path_matcher" {
+    for_each = var.router_cloud_run_service_name != "" && length(var.router_domains) > 0 ? [1] : []
+    content {
+      name            = "router"
+      default_service = google_compute_backend_service.router[0].id
+    }
+  }
+
+  dynamic "host_rule" {
+    for_each = var.console_cloud_run_service_name != "" && length(var.console_domains) > 0 ? [1] : []
+    content {
+      hosts        = var.console_domains
+      path_matcher = "console"
+    }
+  }
+
+  dynamic "path_matcher" {
+    for_each = var.console_cloud_run_service_name != "" && length(var.console_domains) > 0 ? [1] : []
+    content {
+      name            = "console"
+      default_service = google_compute_backend_service.console[0].id
     }
   }
 }

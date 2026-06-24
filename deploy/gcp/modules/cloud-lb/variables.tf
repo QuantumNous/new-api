@@ -41,3 +41,27 @@ variable "website_domains" {
   description = "Hosts routed to the website backend (host-based split), e.g. [\"flatkey.ai\", \"www.flatkey.ai\"]. Served via Cloudflare orange-cloud, so they need NOT be added to var.domains / the managed cert."
   default     = []
 }
+
+variable "router_cloud_run_service_name" {
+  type        = string
+  description = "Name of the router Cloud Run service. When empty, no router backend/host_rule is created."
+  default     = ""
+}
+
+variable "router_domains" {
+  type        = list(string)
+  description = "Hosts routed to the router backend, e.g. [\"router.flatkey.ai\"]."
+  default     = []
+}
+
+variable "console_cloud_run_service_name" {
+  type        = string
+  description = "Name of the console Cloud Run service. When empty, no console backend/host_rule is created."
+  default     = ""
+}
+
+variable "console_domains" {
+  type        = list(string)
+  description = "Hosts routed to the console backend, e.g. [\"console.flatkey.ai\"]."
+  default     = []
+}
