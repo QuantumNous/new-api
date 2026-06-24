@@ -30,6 +30,16 @@ export type UserStatus = z.infer<typeof userStatusSchema>
 export const userRoleSchema = z.number()
 export type UserRole = z.infer<typeof userRoleSchema>
 
+const ldapBindingSchema = z.object({
+  user_id: z.number(),
+  ldap_user_id: z.string(),
+  ldap_username: z.string().optional(),
+  ldap_display_name: z.string().optional(),
+  ldap_email: z.string().optional(),
+  ldap_groups: z.array(z.string()).optional(),
+  last_sync_time: z.number().optional(),
+})
+
 export const userSchema = z.object({
   id: z.number(),
   username: z.string(),
@@ -50,7 +60,7 @@ export const userSchema = z.object({
   aff_history_quota: z.number().optional(),
   inviter_id: z.number().optional(),
   linux_do_id: z.string().optional(),
-  ldap_binding: z.any().nullable().optional(),
+  ldap_binding: ldapBindingSchema.nullable().optional(),
   status: userStatusSchema,
   role: userRoleSchema,
   created_at: z.number().optional(),

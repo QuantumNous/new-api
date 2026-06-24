@@ -494,43 +494,19 @@ export function SignUpForm({
       )}
 
       {hasLDAPLogin && (
-        <Dialog open={isLDAPDialogOpen} onOpenChange={handleLDAPDialogChange}>
-          <DialogContent className='max-w-sm'>
-            <DialogHeader className='text-left'>
-              <DialogTitle>{t('LDAP sign in')}</DialogTitle>
-              <DialogDescription>
-                {t(
-                  'Use your directory account to sign in. A local account will be created automatically if registration is enabled.'
-                )}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className='grid gap-4'>
-              <div className='grid gap-2'>
-                <Label htmlFor='ldap-register-username'>
-                  {t('LDAP username')}
-                </Label>
-                <Input
-                  id='ldap-register-username'
-                  value={ldapUsername}
-                  onChange={(event) => setLDAPUsername(event.target.value)}
-                  autoComplete='username'
-                  placeholder={t('Enter your LDAP username')}
-                />
-              </div>
-              <div className='grid gap-2'>
-                <Label htmlFor='ldap-register-password'>{t('Password')}</Label>
-                <PasswordInput
-                  id='ldap-register-password'
-                  value={ldapPassword}
-                  onChange={(event) => setLDAPPassword(event.target.value)}
-                  autoComplete='current-password'
-                  placeholder={t('Enter password')}
-                />
-              </div>
-            </div>
-
-            <DialogFooter>
+        <Dialog
+          open={isLDAPDialogOpen}
+          onOpenChange={handleLDAPDialogChange}
+          title={t('LDAP sign in')}
+          description={t(
+            'Use your directory account to sign in. A local account will be created automatically if registration is enabled.'
+          )}
+          contentClassName='max-w-sm'
+          headerClassName='text-left'
+          contentHeight='auto'
+          bodyClassName='grid gap-4'
+          footer={
+            <>
               <Button
                 type='button'
                 variant='outline'
@@ -555,8 +531,29 @@ export function SignUpForm({
                 ) : null}
                 {t('Sign in')}
               </Button>
-            </DialogFooter>
-          </DialogContent>
+            </>
+          }
+        >
+          <div className='grid gap-2'>
+            <Label htmlFor='ldap-register-username'>{t('LDAP username')}</Label>
+            <Input
+              id='ldap-register-username'
+              value={ldapUsername}
+              onChange={(event) => setLDAPUsername(event.target.value)}
+              autoComplete='username'
+              placeholder={t('Enter your LDAP username')}
+            />
+          </div>
+          <div className='grid gap-2'>
+            <Label htmlFor='ldap-register-password'>{t('Password')}</Label>
+            <PasswordInput
+              id='ldap-register-password'
+              value={ldapPassword}
+              onChange={(event) => setLDAPPassword(event.target.value)}
+              autoComplete='current-password'
+              placeholder={t('Enter password')}
+            />
+          </div>
         </Dialog>
       )}
     </Form>

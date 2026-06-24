@@ -674,9 +674,12 @@ const SystemSetting = () => {
       value: Boolean(getValue('ldap.enabled')),
     });
 
+    const savedInputs = {};
+    let currentOpt = null;
     setLoading(true);
     try {
       for (const opt of options) {
+        currentOpt = opt;
         const res = await API.put('/api/option/', {
           key: opt.key,
           value:
@@ -684,16 +687,24 @@ const SystemSetting = () => {
         });
         if (!res.data.success) {
           showError(res.data.message);
+          const inputUpdates = { ...savedInputs };
+          if (Object.keys(savedInputs).length > 0) {
+            setOriginInputs((prev) => ({ ...prev, ...savedInputs }));
+          }
           if (
             opt.key === 'ldap.group_whitelist' ||
             opt.key === 'ldap.user_whitelist'
           ) {
             const savedValue = originInputs[opt.key] || '';
-            setInputs((prev) => ({ ...prev, [opt.key]: savedValue }));
+            inputUpdates[opt.key] = savedValue;
             formApiRef.current?.setValue(opt.key, savedValue);
+          }
+          if (Object.keys(inputUpdates).length > 0) {
+            setInputs((prev) => ({ ...prev, ...inputUpdates }));
           }
           return;
         }
+        savedInputs[opt.key] = opt.value;
       }
 
       showSuccess(t('更新成功'));
@@ -704,6 +715,21 @@ const SystemSetting = () => {
       setInputs(newInputs);
       setOriginInputs((prev) => ({ ...prev, ...newInputs }));
     } catch (error) {
+      const inputUpdates = { ...savedInputs };
+      if (Object.keys(savedInputs).length > 0) {
+        setOriginInputs((prev) => ({ ...prev, ...savedInputs }));
+      }
+      if (
+        currentOpt?.key === 'ldap.group_whitelist' ||
+        currentOpt?.key === 'ldap.user_whitelist'
+      ) {
+        const savedValue = originInputs[currentOpt.key] || '';
+        inputUpdates[currentOpt.key] = savedValue;
+        formApiRef.current?.setValue(currentOpt.key, savedValue);
+      }
+      if (Object.keys(inputUpdates).length > 0) {
+        setInputs((prev) => ({ ...prev, ...inputUpdates }));
+      }
       showError(t('更新失败'));
     } finally {
       setLoading(false);

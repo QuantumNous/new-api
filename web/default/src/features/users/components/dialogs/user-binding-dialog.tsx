@@ -261,7 +261,7 @@ export function UserBindingDialog(props: Props) {
 
     items.push({
       key: 'ldap',
-      label: 'LDAP',
+      label: t('LDAP'),
       icon: <KeyRound className='h-4 w-4' />,
       value: formatLDAPBindingValue(ldapBinding),
       type: 'builtin',

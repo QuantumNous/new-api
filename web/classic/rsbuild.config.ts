@@ -10,6 +10,14 @@ const semiUiDir = path.resolve(
   path.dirname(require.resolve('@douyinfe/semi-ui')),
   '../..',
 )
+const semiFoundationDir = path.resolve(
+  path.dirname(require.resolve('@douyinfe/semi-foundation')),
+  '../../..',
+)
+const semiFoundationDateFnsDir = path.join(
+  semiFoundationDir,
+  'node_modules/date-fns',
+)
 
 export default defineConfig(({ envMode }) => {
   const env = loadEnv({ mode: envMode, prefixes: ['VITE_'] })
@@ -43,6 +51,7 @@ export default defineConfig(({ envMode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        'date-fns': semiFoundationDateFnsDir,
         '@douyinfe/semi-ui/dist/css/semi.css': path.resolve(
           semiUiDir,
           'dist/css/semi.css',

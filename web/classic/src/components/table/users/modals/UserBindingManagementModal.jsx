@@ -62,8 +62,12 @@ const UserBindingManagementModal = ({
   const [bindingActionLoading, setBindingActionLoading] = React.useState({});
 
   const loadBindingData = React.useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      setLDAPBinding(null);
+      return;
+    }
 
+    setLDAPBinding(null);
     setBindingLoading(true);
     try {
       const [statusRes, customBindingRes, userRes, ldapBindingRes] =
@@ -108,6 +112,7 @@ const UserBindingManagementModal = ({
         showError(ldapBindingRes.data?.message || t('操作失败'));
       }
     } catch (error) {
+      setLDAPBinding(null);
       showError(
         error.response?.data?.message || error.message || t('操作失败'),
       );
