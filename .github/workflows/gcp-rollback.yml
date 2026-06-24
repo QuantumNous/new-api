@@ -3,6 +3,14 @@ name: GCP Rollback
 on:
   workflow_dispatch:
     inputs:
+      rollback_target:
+        description: "Production target to roll back"
+        required: true
+        default: "console"
+        type: choice
+        options:
+          - console
+          - router
       revision:
         description: "Revision name to roll back to (gcloud run revisions list)"
         required: true
@@ -27,12 +35,16 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Switch 100% traffic to the named revision
+        env:
+          RUN_SERVICE: ${{ inputs.rollback_target == 'router' && 'newapi-router' || 'newapi-console' }}
         run: |
           set -euo pipefail
-          gcloud run services update-traffic "${{ vars.GCP_RUN_SERVICE }}" \
+          gcloud run services update-traffic "${RUN_SERVICE}" \
             --project="${{ vars.GCP_PROJECT_ID }}" \
             --region="${{ vars.GCP_REGION }}" \
             --to-revisions="${{ inputs.revision }}=100" \
             --quiet
           echo "### Rolled back" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Target: \`${{ inputs.rollback_target }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Service: \`${RUN_SERVICE}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Revision now serving 100%: \`${{ inputs.revision }}\`" >> "$GITHUB_STEP_SUMMARY"
