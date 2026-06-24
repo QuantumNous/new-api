@@ -21,17 +21,26 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { SkillAnalyticsDashboard } from '../index'
-import type { SkillAnalyticsOverview } from '../types'
+import type { SkillAnalyticsOverview, SkillAnalyticsSkillsResponse } from '../types'
 
 // ── vi.hoisted: initialise mock BEFORE vi.mock factory ────────────────────────
 const mockGetOverview = vi.hoisted(() =>
   vi.fn<(range: { start: string; end: string }) => Promise<SkillAnalyticsOverview>>()
+)
+const mockGetSkills = vi.hoisted(() =>
+  vi.fn<
+    (
+      range: { start: string; end: string },
+      params: Record<string, unknown>
+    ) => Promise<SkillAnalyticsSkillsResponse>
+  >()
 )
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
 vi.mock('../api', () => ({
   getSkillAnalyticsOverview: mockGetOverview,
+  getSkillAnalyticsSkills: mockGetSkills,
 }))
 
 const translations: Record<string, string> = {
@@ -80,6 +89,50 @@ vi.mock('@/components/ui/button', () => ({
   ),
 }))
 
+vi.mock('@/components/ui/input', () => ({
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <input {...props} />
+  ),
+}))
+
+vi.mock('@/components/ui/native-select', () => ({
+  NativeSelect: ({
+    children,
+    ...props
+  }: React.SelectHTMLAttributes<HTMLSelectElement> & { size?: string }) => (
+    <select {...props}>{children}</select>
+  ),
+}))
+
+vi.mock('@/components/ui/table', () => ({
+  Table: ({ children, ...props }: React.TableHTMLAttributes<HTMLTableElement>) => (
+    <table {...props}>{children}</table>
+  ),
+  TableHeader: (props: React.HTMLAttributes<HTMLTableSectionElement>) => (
+    <thead {...props} />
+  ),
+  TableBody: (props: React.HTMLAttributes<HTMLTableSectionElement>) => (
+    <tbody {...props} />
+  ),
+  TableRow: (props: React.HTMLAttributes<HTMLTableRowElement>) => <tr {...props} />,
+  TableHead: (props: React.ThHTMLAttributes<HTMLTableCellElement>) => (
+    <th {...props} />
+  ),
+  TableCell: (props: React.TdHTMLAttributes<HTMLTableCellElement>) => (
+    <td {...props} />
+  ),
+}))
+
+vi.mock('@/components/status-badge', () => ({
+  StatusBadge: ({
+    label,
+    children,
+  }: {
+    label?: string
+    children?: ReactNode
+  }) => <span>{children ?? label}</span>,
+}))
+
 vi.mock('@/components/ui/skeleton', () => ({
   Skeleton: ({ className }: { className?: string }) => (
     <div data-testid='skeleton' className={className} />
@@ -106,6 +159,49 @@ const FULL_DATA: SkillAnalyticsOverview = {
   revenue_attribution_usd: 1234.56,
   charging_enabled: true,
   data_freshness: 'ok',
+  period_start: '2026-06-14T00:00:00.000Z',
+  period_end: '2026-06-21T00:00:00.000Z',
+}
+
+const SKILLS_DATA: SkillAnalyticsSkillsResponse = {
+  skills: [
+    {
+      skill_id: 'skill-alpha',
+      skill_name: 'Alpha Writer',
+      status: 'published',
+      required_plan: 'free',
+      enabled_users: 42,
+      active_users: 20,
+      successful_runs: 88,
+      detail_ctr: 0.5,
+      enable_rate: 0.4,
+      first_use_rate: 0.35,
+      repeat_use_rate: 0.6,
+      one_time_rate: 0.4,
+      block_rate: 0.05,
+      revenue_attribution_usd: null,
+      trend: 'up',
+    },
+    {
+      skill_id: 'skill-beta',
+      skill_name: 'Beta Legal',
+      status: 'published',
+      required_plan: 'pro',
+      enabled_users: 7,
+      active_users: 3,
+      successful_runs: 4,
+      detail_ctr: 0.2,
+      enable_rate: 0.1,
+      first_use_rate: 0.1,
+      repeat_use_rate: 0,
+      one_time_rate: 1,
+      block_rate: 0.5,
+      revenue_attribution_usd: null,
+      trend: 'down',
+    },
+  ],
+  pagination: { page: 1, limit: 20, total: 24, has_next: true },
+  charging_enabled: false,
   period_start: '2026-06-14T00:00:00.000Z',
   period_end: '2026-06-21T00:00:00.000Z',
 }
@@ -146,6 +242,7 @@ async function waitForDataReady() {
 describe('SkillAnalyticsDashboard — integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetSkills.mockResolvedValue(SKILLS_DATA)
   })
 
   afterEach(() => {
@@ -227,6 +324,72 @@ describe('SkillAnalyticsDashboard — integration', () => {
     renderDashboard()
     await waitForDataReady()
     expect(screen.getByText('$1,234.56')).toBeInTheDocument()
+  })
+
+  // ── DR-77 Per-skill table ────────────────────────────────────────────────
+
+  it('renders the per-skill analytics table columns and aggregate rows', async () => {
+    mockGetOverview.mockResolvedValue(FULL_DATA)
+    renderDashboard()
+    await waitForDataReady()
+
+    expect(screen.getByText('Per-Skill Analytics')).toBeInTheDocument()
+    expect(screen.getByText('Alpha Writer')).toBeInTheDocument()
+    expect(screen.getByText('Beta Legal')).toBeInTheDocument()
+    expect(screen.getByText('One-time rate')).toBeInTheDocument()
+    expect(screen.getByText('Repeat use rate')).toBeInTheDocument()
+    expect(screen.getByText('Block rate')).toBeInTheDocument()
+    expect(screen.getByText('60.0%')).toBeInTheDocument()
+    expect(screen.getByText('100.0%')).toBeInTheDocument()
+    expect(screen.getAllByText('50.0%').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('hides the export control while export is not permissioned', async () => {
+    mockGetOverview.mockResolvedValue(FULL_DATA)
+    renderDashboard()
+    await waitForDataReady()
+    expect(screen.queryByText('Export')).not.toBeInTheDocument()
+  })
+
+  it('sends plan and persona slices to the per-skill endpoint', async () => {
+    mockGetOverview.mockResolvedValue(FULL_DATA)
+    renderDashboard()
+    await waitForDataReady()
+
+    await userEvent.selectOptions(screen.getByLabelText('Audience plan'), 'pro')
+    await userEvent.selectOptions(screen.getByLabelText('Persona'), 'casual')
+
+    await waitFor(() => {
+      const params = mockGetSkills.mock.lastCall?.[1]
+      expect(params).toMatchObject({ plan: 'pro', persona: 'casual', page: 1 })
+    })
+  })
+
+  it('sorts by one-time rate through the server-backed sort param', async () => {
+    mockGetOverview.mockResolvedValue(FULL_DATA)
+    renderDashboard()
+    await waitForDataReady()
+
+    await userEvent.click(screen.getByRole('button', { name: /One-time rate/i }))
+
+    await waitFor(() => {
+      expect(mockGetSkills.mock.lastCall?.[1]).toMatchObject({
+        sort: '-one_time_rate',
+        page: 1,
+      })
+    })
+  })
+
+  it('paginates per-skill rows through the server-backed page param', async () => {
+    mockGetOverview.mockResolvedValue(FULL_DATA)
+    renderDashboard()
+    await waitForDataReady()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+    await waitFor(() => {
+      expect(mockGetSkills.mock.lastCall?.[1]).toMatchObject({ page: 2 })
+    })
   })
 
   // ── Null metric values → no-data state ────────────────────────────────────

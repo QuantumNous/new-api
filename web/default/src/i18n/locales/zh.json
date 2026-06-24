@@ -4938,6 +4938,22 @@
     "Unable to remove this skill.": "无法移除此技能。",
     "Skills you have downloaded will appear here": "你下载过的技能会显示在这里",
     "No skills in My Skills": "我的技能中暂无技能",
-    "Downloaded skills will appear here after you add them.": "添加后，已下载的技能会显示在这里。"
+    "Downloaded skills will appear here after you add them.": "添加后，已下载的技能会显示在这里。",
+    "Active users": "活跃用户",
+    "Aggregate table for usage, activation, stickiness, one-time use, and blocks.": "按 Skill 汇总使用、激活、粘性、一次性使用和阻断情况。",
+    "Audience plan": "用户套餐",
+    "Down": "下降",
+    "Enabled users": "启用用户",
+    "Flat": "持平",
+    "Loading analytics rows": "正在加载分析行",
+    "No per-skill analytics match the selected filters.": "没有符合当前筛选条件的单 Skill 分析数据。",
+    "One-time rate": "一次性使用率",
+    "Per-Skill Analytics": "单 Skill 分析",
+    "Per-skill analytics data is unavailable.": "单 Skill 分析数据暂不可用。",
+    "Search skills": "搜索 Skill",
+    "Showing {{from}}-{{to}} of {{total}} skills": "显示 {{from}}-{{to}} / 共 {{total}} 个 Skill",
+    "Skill name": "Skill 名称",
+    "Successful runs": "成功运行数",
+    "Up": "上升"
   }
 }

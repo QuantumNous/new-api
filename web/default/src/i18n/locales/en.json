@@ -4938,6 +4938,22 @@
     "Unable to remove this skill.": "Unable to remove this skill.",
     "Skills you have downloaded will appear here": "Skills you have downloaded will appear here",
     "No skills in My Skills": "No skills in My Skills",
-    "Downloaded skills will appear here after you add them.": "Downloaded skills will appear here after you add them."
+    "Downloaded skills will appear here after you add them.": "Downloaded skills will appear here after you add them.",
+    "Active users": "Active users",
+    "Aggregate table for usage, activation, stickiness, one-time use, and blocks.": "Aggregate table for usage, activation, stickiness, one-time use, and blocks.",
+    "Audience plan": "Audience plan",
+    "Down": "Down",
+    "Enabled users": "Enabled users",
+    "Flat": "Flat",
+    "Loading analytics rows": "Loading analytics rows",
+    "No per-skill analytics match the selected filters.": "No per-skill analytics match the selected filters.",
+    "One-time rate": "One-time rate",
+    "Per-Skill Analytics": "Per-Skill Analytics",
+    "Per-skill analytics data is unavailable.": "Per-skill analytics data is unavailable.",
+    "Search skills": "Search skills",
+    "Showing {{from}}-{{to}} of {{total}} skills": "Showing {{from}}-{{to}} of {{total}} skills",
+    "Skill name": "Skill name",
+    "Successful runs": "Successful runs",
+    "Up": "Up"
   }
 }
