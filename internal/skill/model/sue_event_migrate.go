@@ -32,7 +32,7 @@ const sueRestrictedMetadataJSONPaths = "'$.instruction_template', '$.prompt', '$
 var sueAllDR43Columns = []string{
 	"event_id", "event_type", "occurred_at",
 	"user_id", "tenant_id", "session_id", "request_id",
-	"skill_id", "skill_version_id",
+	"skill_id", "skill_version_id", "first_use_key",
 	"entry_point", "plan", "subscription_status",
 	"persona", "persona_source", "model",
 	"is_kids_session", "is_kids_safe_skill", "is_kids_exclusive_skill",
@@ -57,6 +57,7 @@ func sueCreateTableDDL(tableName string) string {
 		"request_id"              TEXT,
 		"skill_id"                TEXT,
 		"skill_version_id"        TEXT,
+		"first_use_key"           VARCHAR(128),
 		"entry_point"             TEXT     NOT NULL,
 		"plan"                    TEXT,
 		"subscription_status"     TEXT,
@@ -179,7 +180,12 @@ func upgradeSUETableSQLite(db *gorm.DB) error {
 		return fmt.Errorf("read skill_usage_events DDL for upgrade check: %w", err)
 	}
 	if strings.Contains(ddl, "chk_sue_kids_privacy") {
-		return nil // already DR-43 schema: idempotent no-op
+		if !db.Migrator().HasColumn(&SkillUsageEvent{}, "first_use_key") {
+			if err := db.Exec(`ALTER TABLE "skill_usage_events" ADD COLUMN "first_use_key" VARCHAR(128)`).Error; err != nil {
+				return fmt.Errorf("add skill_usage_events.first_use_key (SQLite): %w", err)
+			}
+		}
+		return nil // already DR-43 schema: idempotent no-op beyond additive columns
 	}
 	return rebuildSUETableSQLite(db)
 }
@@ -377,6 +383,10 @@ func createSUEIndexes(db *gorm.DB) error {
 		{
 			"idx_usage_request_id",
 			"CREATE INDEX idx_usage_request_id ON skill_usage_events(request_id)",
+		},
+		{
+			"idx_sue_first_use_key_unique",
+			"CREATE UNIQUE INDEX idx_sue_first_use_key_unique ON skill_usage_events(first_use_key)",
 		},
 	}
 	for _, idx := range indexes {

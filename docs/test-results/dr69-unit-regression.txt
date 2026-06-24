@@ -1,0 +1,115 @@
+DR-69 Provider response + usage events focused regression
+Date: 2026-06-24
+
+Command:
+go test ./internal/skill/relay ./relay -run 'TestEmitSuccessfulExecution|TestTextHelper_SkillRelay_ResponsesPath' -count=1 -cover
+
+Fixtures:
+- In-memory SQLite migrated with SkillUsageEvent schema.
+- Synthetic SkillRelayContext with server-bound skill_id, skill_version_id, user_id, plan, entry_point, Skill kids flags, model, latency, and dto.Usage token counts.
+- File-backed SQLite usage event DB for concurrent first-use regression.
+- Relay TextHelper fixture with real OpenAI adaptor, local httptest upstream, DR-68 Skill/SkillVersion/UserEnabledSkill records, forced chat-completions-to-responses policy, and provider Responses JSON carrying output + usage.
+
+Assertions:
+- First successful run inserts skill_used + skill_first_use with skill_id, skill_version_id, entry_point=skill_package, model, token counts, latency_ms, and success=true.
+- Second successful run inserts skill_used + skill_repeat_use with metadata.repeat_index=2.
+- Concurrent first successful executions for the same (user, skill) emit exactly one skill_first_use, one skill_used per success, and repeat_index values 2..N.
+- first_use_key is populated only on skill_first_use and remains nil on skill_used/skill_repeat_use.
+- Client-controlled deeprouter.entry_point values such as search_results/marketplace_card cannot label successful execution events; all success events persist entry_point=skill_package.
+- Chat Completions -> Responses successful Skill execution returns the AI disclosure header, calls /v1/responses, preserves the DR-68 instruction template in the provider payload, and writes skill_used + skill_first_use with usage token counts.
+- Metadata contains only safe schema_version/producer/repeat_index values and no prompt/raw/provider/output keys.
+- Kids analytics does not persist real identity when pseudonymous salt is unavailable.
+
+Result:
+PASS
+Coverage:
+- internal/skill/relay: 18.7% after database-level first-use uniqueness fix
+- relay: 6.2%
+
+Command:
+go test ./internal/skill/model -run 'TestMigrateSkillUsageEvents_SQLite_(CreatesDR43Schema|FirstUseKeyUniqueIndex|AddsFirstUseKeyToExistingDR43Table|Idempotent|UpgradesPreDR43Table)' -count=1 -cover
+
+Fixtures:
+- File-backed SQLite migration DBs using the SkillUsageEvent schema migration helper.
+- Fresh skill_usage_events table, existing DR-43 table missing first_use_key, and pre-DR-43 rebuild fixture.
+- Raw SQL inserts for duplicate skill_first_use first_use_key and repeated skill_used rows with NULL first_use_key.
+
+Assertions:
+- MigrateSkillUsageEvents creates/adds first_use_key and the unique idx_sue_first_use_key_unique index.
+- Existing DR-43 tables get first_use_key through additive migration without rebuilding or losing rows.
+- Duplicate first-use keys are rejected by the database unique index.
+- Multiple skill_used rows remain legal because first_use_key is NULL outside skill_first_use.
+- Pre-DR-43 rebuild still preserves rows and creates required indexes.
+
+Result:
+PASS
+Coverage:
+- internal/skill/model: 18.4%
+
+Command:
+go test ./internal/skill/... ./relay -count=1 -cover
+
+Fixtures:
+- Package test fixtures across internal Skill API, availability, enums, errcodes, handlers, model migration/validation, relay helpers, and relay integration-light tests.
+- In-memory SQLite fixtures for Skill usage event persistence and Skill relay execution tests.
+- Local httptest upstream for relay success-path integration tests.
+
+Assertions:
+- Existing Skill API/model/handler behavior remains compatible with the new DR-69 emitter.
+- Relay package compiles and existing Skill relay entry, public routing API, DR-68 request rewrite, chat-completions-to-responses, and TextHelper regression tests pass with disclosure/event hooks in place.
+
+Result:
+PASS
+Coverage:
+- internal/skill/api: 77.8%
+- internal/skill/availability: 96.7%
+- internal/skill/enums: 88.9%
+- internal/skill/errcodes: 100.0%
+- internal/skill/handler: 75.7%
+- internal/skill/model: 50.7%
+- internal/skill/packageassets: 0.0%
+- internal/skill/analytics: 0.0%
+- internal/skill/relay: 81.5%
+- internal/skill/seed: 79.4%
+- internal/skill/tiers: 100.0%
+- relay: 16.5%
+
+Command:
+make build-all-frontends
+
+Fixtures:
+- Existing default and classic frontend dependency sets from bun lockfiles.
+- Production build pipelines for web/default and web/classic, used so Go embed targets are present before full Go suite.
+
+Assertions:
+- Frontend production bundles build successfully.
+- No DR-69 source behavior is exercised here; this is full-suite preparation for packages that embed frontend dist assets.
+
+Result:
+PASS
+Notes:
+- Existing warnings only: classic Vite build reports stale Browserslist data, lottie-web eval warning, and large chunk warnings.
+
+Command:
+rm -f /tmp/dr69-full.cover && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./... -count=1 -coverprofile=/tmp/dr69-full.cover
+GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go tool cover -func=/tmp/dr69-full.cover | tail -1
+
+Fixtures:
+- Entire Go package tree with existing package fixtures, in-memory/file-backed SQLite test DBs, httptest upstreams, and package-local mocks.
+- DR-69 added fixtures: forced chat-completions-to-responses policy, local Responses upstream, Skill/SkillVersion/UserEnabledSkill records, concurrent usage event writes.
+
+Assertions:
+- Full Go suite remains green after DR-69 review fixes.
+- Coverage profile is generated successfully.
+- Key DR-69 behavior remains covered in full-suite context: Responses path disclosure + usage events, server-forced skill_package entry_point, first/repeat event semantics, metadata privacy, and no prompt text in events.
+
+Result:
+PASS
+Coverage:
+- total: 13.4%
+- internal/skill/model: 50.7%
+- internal/skill/relay: 81.5%
+- relay: 16.5%
+- relay/helper: 32.9%
+- service: 14.5%
+- middleware: 15.0%
