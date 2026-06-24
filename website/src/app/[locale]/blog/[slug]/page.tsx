@@ -2,14 +2,12 @@ import { notFound } from "next/navigation";
 import { BlogArticlePage } from "@/components/blog-pages";
 import { getBlogPost } from "@/lib/blog";
 import { getCopy } from "@/lib/copy";
-import { isLocale, LOCALES } from "@/lib/locales";
+import { isLocale } from "@/lib/locales";
 import { buildMetadata } from "@/lib/seo";
 
 type Props = { params: Promise<{ locale: string; slug: string }> };
 
-export function generateStaticParams() {
-  return LOCALES.filter((locale) => locale !== "en").map((locale) => ({ locale }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata(props: Props) {
   const params = await props.params;
