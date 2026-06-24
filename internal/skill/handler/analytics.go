@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -64,10 +63,8 @@ type SkillAnalyticsSkillRow struct {
 	EnableRate           *float64           `json:"enable_rate"`
 	FirstUseRate         *float64           `json:"first_use_rate"`
 	RepeatUseRate        *float64           `json:"repeat_use_rate"`
-	OneTimeRate          *float64           `json:"one_time_rate"`
 	BlockRate            *float64           `json:"block_rate"`
 	RevenueAttributionUS *float64           `json:"revenue_attribution_usd"`
-	Trend                string             `json:"trend"`
 }
 
 type SkillAnalyticsSkillsResponse struct {
@@ -89,16 +86,6 @@ type skillAnalyticsPageRow struct {
 type analyticsRequest struct {
 	Period      analyticsPeriod
 	IncludeKids bool
-	Filters     analyticsFilters
-	Sort        string
-}
-
-type analyticsFilters struct {
-	Plan         *enums.RequiredPlan
-	Persona      *string
-	Status       *enums.SkillStatus
-	RequiredPlan *enums.RequiredPlan
-	Query        string
 }
 
 type orderedFunnelCounts struct {
@@ -127,32 +114,32 @@ func GetOpsSkillAnalyticsOverview(c *gin.Context) {
 		writeDBError(c, err)
 		return
 	}
-	wasu, err := countWASU(db, wasuStart, period.End, req.IncludeKids, req.Filters)
+	wasu, err := countWASU(db, wasuStart, period.End, req.IncludeKids)
 	if err != nil {
 		writeDBError(c, err)
 		return
 	}
-	funnel, err := countOrderedFunnel(db, period.Start, period.End, req.IncludeKids, req.Filters)
+	funnel, err := countOrderedFunnel(db, period.Start, period.End, req.IncludeKids)
 	if err != nil {
 		writeDBError(c, err)
 		return
 	}
-	totalRuns, err := countSuccessfulRuns(db, period.Start, period.End, req.IncludeKids, req.Filters)
+	totalRuns, err := countSuccessfulRuns(db, period.Start, period.End, req.IncludeKids)
 	if err != nil {
 		writeDBError(c, err)
 		return
 	}
-	activePairs, repeatPairs, err := countRepeatPairs(db, period.Start, period.End, req.IncludeKids, req.Filters)
+	activePairs, repeatPairs, err := countRepeatPairs(db, period.Start, period.End, req.IncludeKids)
 	if err != nil {
 		writeDBError(c, err)
 		return
 	}
-	blocked, err := countEvents(db, period.Start, period.End, enums.SkillUsageEventTypeBlocked, req.IncludeKids, req.Filters)
+	blocked, err := countEvents(db, period.Start, period.End, enums.SkillUsageEventTypeBlocked, req.IncludeKids)
 	if err != nil {
 		writeDBError(c, err)
 		return
 	}
-	topReason, err := topBlockReason(db, period.Start, period.End, req.IncludeKids, req.Filters)
+	topReason, err := topBlockReason(db, period.Start, period.End, req.IncludeKids)
 	if err != nil {
 		writeDBError(c, err)
 		return
@@ -191,7 +178,7 @@ func GetOpsSkillAnalyticsSkills(c *gin.Context) {
 		return
 	}
 
-	pageRows, err := loadSkillAnalyticsRows(db, period.Start, period.End, req.IncludeKids, req.Filters)
+	pageRows, total, err := loadSkillAnalyticsPage(db, period.Start, period.End, req.IncludeKids, page)
 	if err != nil {
 		writeDBError(c, err)
 		return
@@ -206,30 +193,25 @@ func GetOpsSkillAnalyticsSkills(c *gin.Context) {
 		writeDBError(c, err)
 		return
 	}
-	funnel, err := countOrderedFunnelBySkill(db, period.Start, period.End, req.IncludeKids, req.Filters, skillIDs)
+	funnel, err := countOrderedFunnelBySkill(db, period.Start, period.End, req.IncludeKids, skillIDs)
 	if err != nil {
 		writeDBError(c, err)
 		return
 	}
-	activePairs, repeatPairs, oneTimePairs, err := countUsePairsBySkill(db, period.Start, period.End, req.IncludeKids, req.Filters, skillIDs)
+	activePairs, repeatPairs, err := countRepeatPairsBySkill(db, period.Start, period.End, req.IncludeKids, skillIDs)
 	if err != nil {
 		writeDBError(c, err)
 		return
 	}
-	blocked, err := countEventsBySkill(db, period.Start, period.End, req.IncludeKids, req.Filters, skillIDs, enums.SkillUsageEventTypeBlocked)
-	if err != nil {
-		writeDBError(c, err)
-		return
-	}
-	trend, err := loadSkillAnalyticsTrends(db, period.Start, period.End, req.IncludeKids, req.Filters, skillIDs)
+	blocked, err := countEventsBySkill(db, period.Start, period.End, skillIDs, enums.SkillUsageEventTypeBlocked, req.IncludeKids)
 	if err != nil {
 		writeDBError(c, err)
 		return
 	}
 
-	allRows := make([]SkillAnalyticsSkillRow, 0, len(pageRows))
+	rows := make([]SkillAnalyticsSkillRow, 0, len(pageRows))
 	for _, skill := range pageRows {
-		allRows = append(allRows, SkillAnalyticsSkillRow{
+		rows = append(rows, SkillAnalyticsSkillRow{
 			SkillID:              skill.ID,
 			SkillName:            skill.Name,
 			Status:               skill.Status,
@@ -241,15 +223,10 @@ func GetOpsSkillAnalyticsSkills(c *gin.Context) {
 			EnableRate:           ratio64(funnel[skill.ID].Enables, funnel[skill.ID].Details),
 			FirstUseRate:         ratio64(funnel[skill.ID].FirstUses, funnel[skill.ID].Enables),
 			RepeatUseRate:        ratio64(repeatPairs[skill.ID], activePairs[skill.ID]),
-			OneTimeRate:          ratio64(oneTimePairs[skill.ID], activePairs[skill.ID]),
 			BlockRate:            ratio64(blocked[skill.ID], blocked[skill.ID]+skill.SuccessfulRuns),
 			RevenueAttributionUS: nil,
-			Trend:                trend[skill.ID],
 		})
 	}
-	sortSkillAnalyticsRows(allRows, req.Sort)
-	total := int64(len(allRows))
-	rows := paginateSkillAnalyticsRows(allRows, page)
 
 	c.JSON(http.StatusOK, SkillAnalyticsSkillsResponse{
 		Skills:          rows,
@@ -274,20 +251,7 @@ func parseAnalyticsRequest(c *gin.Context) (analyticsRequest, bool) {
 	if !valid {
 		return analyticsRequest{}, false
 	}
-	filters, valid := parseAnalyticsFilters(c)
-	if !valid {
-		return analyticsRequest{}, false
-	}
-	sortKey, valid := parseAnalyticsSort(c)
-	if !valid {
-		return analyticsRequest{}, false
-	}
-	return analyticsRequest{
-		Period:      period,
-		IncludeKids: includeKids,
-		Filters:     filters,
-		Sort:        sortKey,
-	}, true
+	return analyticsRequest{Period: period, IncludeKids: includeKids}, true
 }
 
 func parseAnalyticsPeriod(c *gin.Context) (analyticsPeriod, bool) {
@@ -334,86 +298,16 @@ func parseAnalyticsIncludeKids(c *gin.Context) (bool, bool) {
 	return includeKids, true
 }
 
-func parseAnalyticsFilters(c *gin.Context) (analyticsFilters, bool) {
-	var filters analyticsFilters
-	if raw := strings.TrimSpace(c.Query("plan")); raw != "" {
-		plan := enums.RequiredPlan(raw)
-		if !plan.Valid() {
-			writeAnalyticsQueryError(c, "INVALID_PLAN", "plan must be free, pro, or enterprise")
-			return analyticsFilters{}, false
-		}
-		filters.Plan = &plan
-	}
-	if raw := strings.TrimSpace(c.Query("required_plan")); raw != "" {
-		plan := enums.RequiredPlan(raw)
-		if !plan.Valid() {
-			writeAnalyticsQueryError(c, "INVALID_REQUIRED_PLAN", "required_plan must be free, pro, or enterprise")
-			return analyticsFilters{}, false
-		}
-		filters.RequiredPlan = &plan
-	}
-	if raw := strings.TrimSpace(c.Query("status")); raw != "" {
-		status := enums.SkillStatus(raw)
-		if !status.Valid() {
-			writeAnalyticsQueryError(c, "INVALID_STATUS", "status must be draft, published, deprecated, or archived")
-			return analyticsFilters{}, false
-		}
-		filters.Status = &status
-	}
-	if raw := strings.TrimSpace(c.Query("persona")); raw != "" {
-		persona := strings.ToLower(raw)
-		switch persona {
-		case "casual", "dev", "team", "unset":
-			filters.Persona = &persona
-		default:
-			writeAnalyticsQueryError(c, "INVALID_PERSONA", "persona must be casual, dev, team, or unset")
-			return analyticsFilters{}, false
-		}
-	}
-	filters.Query = strings.TrimSpace(c.Query("q"))
-	return filters, true
-}
-
-func parseAnalyticsSort(c *gin.Context) (string, bool) {
-	sortKey := strings.TrimSpace(c.Query("sort"))
-	if sortKey == "" {
-		return "-successful_runs", true
-	}
-	allowed := map[string]struct{}{
-		"skill_name":      {},
-		"enabled_users":   {},
-		"active_users":    {},
-		"successful_runs": {},
-		"detail_ctr":      {},
-		"enable_rate":     {},
-		"first_use_rate":  {},
-		"repeat_use_rate": {},
-		"one_time_rate":   {},
-		"block_rate":      {},
-	}
-	if validationErr := skillapi.ValidateSort(sortKey, allowed); validationErr != nil {
-		skillapi.AbortQueryError(c, validationErr)
-		return "", false
-	}
-	return sortKey, true
-}
-
 func writeAnalyticsQueryError(c *gin.Context, reason, message string) {
 	skillapi.Error(c, errcodes.ErrInvalidRequest, message, gin.H{"reason": reason})
 }
 
-func analyticsEventsQuery(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters) *gorm.DB {
+func analyticsEventsQuery(db *gorm.DB, start, end time.Time, includeKids bool) *gorm.DB {
 	query := db.Model(&skillmodel.SkillUsageEvent{}).
 		Where("occurred_at >= ? AND occurred_at < ?", start.UTC(), end.UTC()).
 		Where("entry_point <> ?", enums.EntryPointAdminPreview)
 	if !includeKids {
 		query = query.Where("is_kids_session = ?", false)
-	}
-	if filters.Plan != nil {
-		query = query.Where("plan = ?", *filters.Plan)
-	}
-	if filters.Persona != nil {
-		query = query.Where("persona = ?", *filters.Persona)
 	}
 	return query
 }
@@ -462,9 +356,9 @@ func dataFreshnessFromLatest(latest time.Time, hasLatest bool, now time.Time) st
 	return "failed"
 }
 
-func countWASU(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters) (int64, error) {
+func countWASU(db *gorm.DB, start, end time.Time, includeKids bool) (int64, error) {
 	var count int64
-	identities := analyticsEventsQuery(db, start, end, includeKids, filters).
+	identities := analyticsEventsQuery(db, start, end, includeKids).
 		Select("user_id, "+analyticsSessionIdentityExpr+" AS session_identity").
 		Where("event_type = ? AND success = ? AND (user_id IS NOT NULL OR session_id IS NOT NULL)", enums.SkillUsageEventTypeUsed, true).
 		Group("user_id, " + analyticsSessionIdentityExpr)
@@ -472,24 +366,24 @@ func countWASU(db *gorm.DB, start, end time.Time, includeKids bool, filters anal
 	return count, err
 }
 
-func countSuccessfulRuns(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters) (int64, error) {
+func countSuccessfulRuns(db *gorm.DB, start, end time.Time, includeKids bool) (int64, error) {
 	var count int64
-	err := analyticsEventsQuery(db, start, end, includeKids, filters).
+	err := analyticsEventsQuery(db, start, end, includeKids).
 		Where("event_type = ? AND success = ?", enums.SkillUsageEventTypeUsed, true).
 		Count(&count).Error
 	return count, err
 }
 
-func countEvents(db *gorm.DB, start, end time.Time, eventType enums.SkillUsageEventType, includeKids bool, filters analyticsFilters) (int64, error) {
+func countEvents(db *gorm.DB, start, end time.Time, eventType enums.SkillUsageEventType, includeKids bool) (int64, error) {
 	var count int64
-	err := analyticsEventsQuery(db, start, end, includeKids, filters).
+	err := analyticsEventsQuery(db, start, end, includeKids).
 		Where("event_type = ?", eventType).
 		Count(&count).Error
 	return count, err
 }
 
-func countRepeatPairs(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters) (active int64, repeat int64, err error) {
-	pairs := successfulPairCountsQuery(db, start, end, includeKids, filters, nil)
+func countRepeatPairs(db *gorm.DB, start, end time.Time, includeKids bool) (active int64, repeat int64, err error) {
+	pairs := successfulPairCountsQuery(db, start, end, includeKids, nil)
 	if err = db.Table("(?) AS analytics_success_pairs", pairs).Count(&active).Error; err != nil {
 		return 0, 0, err
 	}
@@ -499,8 +393,8 @@ func countRepeatPairs(db *gorm.DB, start, end time.Time, includeKids bool, filte
 	return active, repeat, err
 }
 
-func countOrderedFunnel(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters) (orderedFunnelCounts, error) {
-	stages := orderedFunnelStagesQuery(db, start, end, includeKids, filters, nil)
+func countOrderedFunnel(db *gorm.DB, start, end time.Time, includeKids bool) (orderedFunnelCounts, error) {
+	stages := orderedFunnelStagesQuery(db, start, end, includeKids, nil)
 	impressions, err := countOrderedFunnelRows(db, stages, "impression_at IS NOT NULL")
 	if err != nil {
 		return orderedFunnelCounts{}, err
@@ -533,8 +427,8 @@ func countOrderedFunnelRows(db *gorm.DB, stages *gorm.DB, condition string) (int
 	return count, err
 }
 
-func orderedFunnelStagesQuery(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters, skillIDs []string) *gorm.DB {
-	query := analyticsEventsQuery(db, start, end, includeKids, filters).
+func orderedFunnelStagesQuery(db *gorm.DB, start, end time.Time, includeKids bool, skillIDs []string) *gorm.DB {
+	query := analyticsEventsQuery(db, start, end, includeKids).
 		Select(`
 			skill_id,
 			user_id,
@@ -564,12 +458,12 @@ func orderedFunnelStagesQuery(db *gorm.DB, start, end time.Time, includeKids boo
 	return query
 }
 
-func topBlockReason(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters) (*string, error) {
+func topBlockReason(db *gorm.DB, start, end time.Time, includeKids bool) (*string, error) {
 	var rows []struct {
 		BlockReason *enums.BlockReason
 		Count       int64
 	}
-	err := analyticsEventsQuery(db, start, end, includeKids, filters).
+	err := analyticsEventsQuery(db, start, end, includeKids).
 		Select("block_reason, count(*) as count").
 		Where("event_type = ?", enums.SkillUsageEventTypeBlocked).
 		Group("block_reason").
@@ -595,27 +489,25 @@ func topBlockReason(db *gorm.DB, start, end time.Time, includeKids bool, filters
 	return &top, nil
 }
 
-func loadSkillAnalyticsRows(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters) ([]skillAnalyticsPageRow, error) {
-	successes := analyticsEventsQuery(db, start, end, includeKids, filters).
+func loadSkillAnalyticsPage(db *gorm.DB, start, end time.Time, includeKids bool, page skillapi.PageParams) ([]skillAnalyticsPageRow, int64, error) {
+	var total int64
+	if err := db.Model(&skillmodel.Skill{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	successes := analyticsEventsQuery(db, start, end, includeKids).
 		Select("skill_id, count(*) AS successful_runs").
 		Where("event_type = ? AND success = ? AND skill_id IS NOT NULL", enums.SkillUsageEventTypeUsed, true).
 		Group("skill_id")
 	var rows []skillAnalyticsPageRow
-	query := db.Model(&skillmodel.Skill{}).
+	err := db.Model(&skillmodel.Skill{}).
 		Select("skills.id, skills.name, skills.status, skills.required_plan, COALESCE(successes.successful_runs, 0) AS successful_runs").
-		Joins("LEFT JOIN (?) AS successes ON successes.skill_id = skills.id", successes)
-	if filters.Status != nil {
-		query = query.Where("skills.status = ?", *filters.Status)
-	}
-	if filters.RequiredPlan != nil {
-		query = query.Where("skills.required_plan = ?", *filters.RequiredPlan)
-	}
-	if filters.Query != "" {
-		like := "%" + strings.ToLower(filters.Query) + "%"
-		query = query.Where("LOWER(skills.name) LIKE ? OR LOWER(skills.slug) LIKE ?", like, like)
-	}
-	err := query.Scan(&rows).Error
-	return rows, err
+		Joins("LEFT JOIN (?) AS successes ON successes.skill_id = skills.id", successes).
+		Order("COALESCE(successes.successful_runs, 0) DESC").
+		Order("LOWER(skills.name) ASC").
+		Offset(page.Offset).
+		Limit(page.Limit).
+		Scan(&rows).Error
+	return rows, total, err
 }
 
 func loadEnabledUsersBySkill(db *gorm.DB, skillIDs []string) (map[string]int64, error) {
@@ -641,7 +533,7 @@ func loadEnabledUsersBySkill(db *gorm.DB, skillIDs []string) (map[string]int64, 
 	return out, nil
 }
 
-func countOrderedFunnelBySkill(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters, skillIDs []string) (map[string]orderedFunnelCounts, error) {
+func countOrderedFunnelBySkill(db *gorm.DB, start, end time.Time, includeKids bool, skillIDs []string) (map[string]orderedFunnelCounts, error) {
 	if len(skillIDs) == 0 {
 		return map[string]orderedFunnelCounts{}, nil
 	}
@@ -649,7 +541,7 @@ func countOrderedFunnelBySkill(db *gorm.DB, start, end time.Time, includeKids bo
 	for _, skillID := range skillIDs {
 		result[skillID] = orderedFunnelCounts{}
 	}
-	stages := orderedFunnelStagesQuery(db, start, end, includeKids, filters, skillIDs)
+	stages := orderedFunnelStagesQuery(db, start, end, includeKids, skillIDs)
 	queries := []struct {
 		condition string
 		apply     func(*orderedFunnelCounts, int64)
@@ -709,7 +601,7 @@ func countOrderedFunnelRowsBySkill(db *gorm.DB, stages *gorm.DB, condition strin
 	return rows, err
 }
 
-func countEventsBySkill(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters, skillIDs []string, eventType enums.SkillUsageEventType) (map[string]int64, error) {
+func countEventsBySkill(db *gorm.DB, start, end time.Time, skillIDs []string, eventType enums.SkillUsageEventType, includeKids bool) (map[string]int64, error) {
 	out := make(map[string]int64, len(skillIDs))
 	if len(skillIDs) == 0 {
 		return out, nil
@@ -718,7 +610,7 @@ func countEventsBySkill(db *gorm.DB, start, end time.Time, includeKids bool, fil
 		SkillID string
 		Count   int64
 	}
-	err := analyticsEventsQuery(db, start, end, includeKids, filters).
+	err := analyticsEventsQuery(db, start, end, includeKids).
 		Select("skill_id, count(*) AS count").
 		Where("event_type = ? AND skill_id IN ?", eventType, skillIDs).
 		Group("skill_id").
@@ -732,36 +624,45 @@ func countEventsBySkill(db *gorm.DB, start, end time.Time, includeKids bool, fil
 	return out, nil
 }
 
-func countUsePairsBySkill(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters, skillIDs []string) (map[string]int64, map[string]int64, map[string]int64, error) {
+func countRepeatPairsBySkill(db *gorm.DB, start, end time.Time, includeKids bool, skillIDs []string) (map[string]int64, map[string]int64, error) {
 	active := make(map[string]int64, len(skillIDs))
 	repeat := make(map[string]int64, len(skillIDs))
-	oneTime := make(map[string]int64, len(skillIDs))
 	if len(skillIDs) == 0 {
-		return active, repeat, oneTime, nil
+		return active, repeat, nil
 	}
-	pairs := successfulPairCountsQuery(db, start, end, includeKids, filters, skillIDs)
-	var rows []struct {
-		SkillID        string
-		SuccessfulRuns int64
+	pairs := successfulPairCountsQuery(db, start, end, includeKids, skillIDs)
+	var activeRows []struct {
+		SkillID string
+		Count   int64
 	}
 	if err := db.Table("(?) AS analytics_success_pairs", pairs).
-		Select("skill_id, successful_runs").
-		Scan(&rows).Error; err != nil {
-		return nil, nil, nil, err
+		Select("skill_id, count(*) AS count").
+		Group("skill_id").
+		Scan(&activeRows).Error; err != nil {
+		return nil, nil, err
 	}
-	for _, row := range rows {
-		active[row.SkillID]++
-		if row.SuccessfulRuns >= 2 {
-			repeat[row.SkillID]++
-		} else if row.SuccessfulRuns == 1 {
-			oneTime[row.SkillID]++
-		}
+	for _, row := range activeRows {
+		active[row.SkillID] = row.Count
 	}
-	return active, repeat, oneTime, nil
+	var repeatRows []struct {
+		SkillID string
+		Count   int64
+	}
+	if err := db.Table("(?) AS analytics_success_pairs", pairs).
+		Select("skill_id, count(*) AS count").
+		Where("successful_runs >= ?", 2).
+		Group("skill_id").
+		Scan(&repeatRows).Error; err != nil {
+		return nil, nil, err
+	}
+	for _, row := range repeatRows {
+		repeat[row.SkillID] = row.Count
+	}
+	return active, repeat, nil
 }
 
-func successfulPairCountsQuery(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters, skillIDs []string) *gorm.DB {
-	query := analyticsEventsQuery(db, start, end, includeKids, filters).
+func successfulPairCountsQuery(db *gorm.DB, start, end time.Time, includeKids bool, skillIDs []string) *gorm.DB {
+	query := analyticsEventsQuery(db, start, end, includeKids).
 		Select("skill_id, user_id, "+analyticsSessionIdentityExpr+" AS session_identity, count(*) AS successful_runs").
 		Where("event_type = ? AND success = ? AND skill_id IS NOT NULL AND (user_id IS NOT NULL OR session_id IS NOT NULL)", enums.SkillUsageEventTypeUsed, true).
 		Group("skill_id, user_id, " + analyticsSessionIdentityExpr)
@@ -769,113 +670,6 @@ func successfulPairCountsQuery(db *gorm.DB, start, end time.Time, includeKids bo
 		query = query.Where("skill_id IN ?", skillIDs)
 	}
 	return query
-}
-
-func loadSkillAnalyticsTrends(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters, skillIDs []string) (map[string]string, error) {
-	out := make(map[string]string, len(skillIDs))
-	for _, skillID := range skillIDs {
-		out[skillID] = "flat"
-	}
-	if len(skillIDs) == 0 {
-		return out, nil
-	}
-	midpoint := start.UTC().Add(end.UTC().Sub(start.UTC()) / 2)
-	firstHalf, err := countSuccessfulRunsBySkill(db, start, midpoint, includeKids, filters, skillIDs)
-	if err != nil {
-		return nil, err
-	}
-	secondHalf, err := countSuccessfulRunsBySkill(db, midpoint, end, includeKids, filters, skillIDs)
-	if err != nil {
-		return nil, err
-	}
-	for _, skillID := range skillIDs {
-		switch {
-		case secondHalf[skillID] > firstHalf[skillID]:
-			out[skillID] = "up"
-		case secondHalf[skillID] < firstHalf[skillID]:
-			out[skillID] = "down"
-		default:
-			out[skillID] = "flat"
-		}
-	}
-	return out, nil
-}
-
-func countSuccessfulRunsBySkill(db *gorm.DB, start, end time.Time, includeKids bool, filters analyticsFilters, skillIDs []string) (map[string]int64, error) {
-	out := make(map[string]int64, len(skillIDs))
-	if len(skillIDs) == 0 {
-		return out, nil
-	}
-	var rows []struct {
-		SkillID string
-		Count   int64
-	}
-	err := analyticsEventsQuery(db, start, end, includeKids, filters).
-		Select("skill_id, count(*) AS count").
-		Where("event_type = ? AND success = ? AND skill_id IN ?", enums.SkillUsageEventTypeUsed, true, skillIDs).
-		Group("skill_id").
-		Scan(&rows).Error
-	if err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		out[row.SkillID] = row.Count
-	}
-	return out, nil
-}
-
-func sortSkillAnalyticsRows(rows []SkillAnalyticsSkillRow, sortKey string) {
-	desc := strings.HasPrefix(sortKey, "-")
-	key := strings.TrimPrefix(sortKey, "-")
-	sort.SliceStable(rows, func(i, j int) bool {
-		if desc {
-			return skillAnalyticsRowLess(rows[j], rows[i], key)
-		}
-		return skillAnalyticsRowLess(rows[i], rows[j], key)
-	})
-}
-
-func skillAnalyticsRowLess(a, b SkillAnalyticsSkillRow, key string) bool {
-	switch key {
-	case "skill_name":
-		return strings.ToLower(a.SkillName) < strings.ToLower(b.SkillName)
-	case "enabled_users":
-		return a.EnabledUsers < b.EnabledUsers
-	case "active_users":
-		return a.ActiveUsers < b.ActiveUsers
-	case "detail_ctr":
-		return ptrMetric(a.DetailCTR) < ptrMetric(b.DetailCTR)
-	case "enable_rate":
-		return ptrMetric(a.EnableRate) < ptrMetric(b.EnableRate)
-	case "first_use_rate":
-		return ptrMetric(a.FirstUseRate) < ptrMetric(b.FirstUseRate)
-	case "repeat_use_rate":
-		return ptrMetric(a.RepeatUseRate) < ptrMetric(b.RepeatUseRate)
-	case "one_time_rate":
-		return ptrMetric(a.OneTimeRate) < ptrMetric(b.OneTimeRate)
-	case "block_rate":
-		return ptrMetric(a.BlockRate) < ptrMetric(b.BlockRate)
-	default:
-		return a.SuccessfulRuns < b.SuccessfulRuns
-	}
-}
-
-func ptrMetric(v *float64) float64 {
-	if v == nil {
-		return -1
-	}
-	return *v
-}
-
-func paginateSkillAnalyticsRows(rows []SkillAnalyticsSkillRow, page skillapi.PageParams) []SkillAnalyticsSkillRow {
-	if page.Offset >= len(rows) {
-		return []SkillAnalyticsSkillRow{}
-	}
-	end := page.Offset + page.Limit
-	if end > len(rows) {
-		end = len(rows)
-	}
-	return rows[page.Offset:end]
 }
 
 func ratio64(numerator, denominator int64) *float64 {

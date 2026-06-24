@@ -5,28 +5,6 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 export type DateRangePreset = '24h' | '7d' | '30d'
 
-export type SkillAnalyticsSortKey =
-  | 'skill_name'
-  | 'enabled_users'
-  | 'active_users'
-  | 'successful_runs'
-  | 'detail_ctr'
-  | 'enable_rate'
-  | 'first_use_rate'
-  | 'repeat_use_rate'
-  | 'one_time_rate'
-  | 'block_rate'
-
-export type SkillAnalyticsSort = SkillAnalyticsSortKey | `-${SkillAnalyticsSortKey}`
-
-export type SkillAnalyticsTrend = 'up' | 'down' | 'flat'
-
-export type SkillAnalyticsStatus = 'draft' | 'published' | 'deprecated' | 'archived'
-
-export type SkillAnalyticsPlan = 'free' | 'pro' | 'enterprise'
-
-export type SkillAnalyticsPersona = 'casual' | 'dev' | 'team' | 'unset'
-
 export type BlockReason =
   | 'plan_required'
   | 'subscription_inactive'
@@ -52,50 +30,6 @@ export interface SkillAnalyticsOverview {
   data_freshness: DataFreshness
   period_start: string
   period_end: string
-}
-
-export interface SkillAnalyticsSkillRow {
-  skill_id: string
-  skill_name: string
-  status: SkillAnalyticsStatus
-  required_plan: SkillAnalyticsPlan
-  enabled_users: number
-  active_users: number
-  successful_runs: number
-  detail_ctr: number | null
-  enable_rate: number | null
-  first_use_rate: number | null
-  repeat_use_rate: number | null
-  one_time_rate: number | null
-  block_rate: number | null
-  revenue_attribution_usd: number | null
-  trend: SkillAnalyticsTrend
-}
-
-export interface SkillAnalyticsPagination {
-  page: number
-  limit: number
-  total: number
-  has_next: boolean
-}
-
-export interface SkillAnalyticsSkillsResponse {
-  skills: SkillAnalyticsSkillRow[]
-  pagination: SkillAnalyticsPagination
-  charging_enabled: boolean
-  period_start: string
-  period_end: string
-}
-
-export interface SkillAnalyticsSkillsParams {
-  page?: number
-  limit?: number
-  sort?: SkillAnalyticsSort
-  status?: SkillAnalyticsStatus
-  required_plan?: SkillAnalyticsPlan
-  plan?: SkillAnalyticsPlan
-  persona?: SkillAnalyticsPersona
-  q?: string
 }
 
 export interface DateRange {

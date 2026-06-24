@@ -255,40 +255,6 @@ func TestGetOpsSkillAnalyticsSkillsPaginatesDBOrderedRows(t *testing.T) {
 	assert.True(t, got.Pagination.HasNext)
 }
 
-func TestGetOpsSkillAnalyticsSkillsFiltersPersonaPlanAndSortsOneTimeRate(t *testing.T) {
-	db := newAnalyticsTestDB(t)
-	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
-	end := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
-	sticky := createAnalyticsSkill(t, db, "sticky", enums.RequiredPlanPro)
-	oneDone := createAnalyticsSkill(t, db, "one-done", enums.RequiredPlanFree)
-	filteredOut := createAnalyticsSkill(t, db, "filtered-out", enums.RequiredPlanFree)
-	plan := enums.RequiredPlanPro
-	persona := "casual"
-	otherPersona := "dev"
-
-	emitAnalyticsEventWithAudience(t, db, start.Add(time.Hour), enums.SkillUsageEventTypeUsed, 1, sticky.ID, enums.EntryPointSkillPackage, boolPtr(true), nil, &plan, &persona)
-	emitAnalyticsEventWithAudience(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeUsed, 1, sticky.ID, enums.EntryPointSkillPackage, boolPtr(true), nil, &plan, &persona)
-	emitAnalyticsEventWithAudience(t, db, start.Add(3*time.Hour), enums.SkillUsageEventTypeUsed, 2, oneDone.ID, enums.EntryPointSkillPackage, boolPtr(true), nil, &plan, &persona)
-	emitAnalyticsEventWithAudience(t, db, start.Add(4*time.Hour), enums.SkillUsageEventTypeUsed, 3, filteredOut.ID, enums.EntryPointSkillPackage, boolPtr(true), nil, &plan, &otherPersona)
-
-	w := performAnalyticsHandlerRequest(
-		t,
-		"/?start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339)+"&plan=pro&persona=casual&sort=-one_time_rate",
-		GetOpsSkillAnalyticsSkills,
-	)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	var got SkillAnalyticsSkillsResponse
-	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
-	require.Len(t, got.Skills, 3)
-	assert.Equal(t, oneDone.ID, got.Skills[0].SkillID)
-	require.NotNil(t, got.Skills[0].OneTimeRate)
-	assert.InDelta(t, 1.0, *got.Skills[0].OneTimeRate, 0.0001)
-	require.NotNil(t, got.Skills[1].RepeatUseRate)
-	assert.InDelta(t, 1.0, *got.Skills[1].RepeatUseRate, 0.0001)
-	assert.Equal(t, int64(0), got.Skills[2].SuccessfulRuns)
-}
-
 func TestDataFreshnessFromLatestP0Event(t *testing.T) {
 	now := time.Date(2026, 6, 8, 12, 0, 0, 0, time.UTC)
 
@@ -421,38 +387,6 @@ func emitAnalyticsEvent(
 		TenantID:      &uid,
 		SkillID:       &sid,
 		EntryPoint:    entryPoint,
-		Success:       success,
-		BlockReason:   blockReason,
-		IsKidsSession: false,
-		Metadata:      skillmodel.SkillJSONB(`{}`),
-	}))
-}
-
-func emitAnalyticsEventWithAudience(
-	t *testing.T,
-	db *gorm.DB,
-	occurredAt time.Time,
-	eventType enums.SkillUsageEventType,
-	userID int64,
-	skillID string,
-	entryPoint enums.EntryPoint,
-	success *bool,
-	blockReason *enums.BlockReason,
-	plan *enums.RequiredPlan,
-	persona *string,
-) {
-	t.Helper()
-	uid := userID
-	sid := skillID
-	require.NoError(t, skillmodel.EmitSkillUsageEvent(db, skillmodel.SkillUsageEvent{
-		EventType:     eventType,
-		OccurredAt:    occurredAt,
-		UserID:        &uid,
-		TenantID:      &uid,
-		SkillID:       &sid,
-		EntryPoint:    entryPoint,
-		Plan:          plan,
-		Persona:       persona,
 		Success:       success,
 		BlockReason:   blockReason,
 		IsKidsSession: false,
