@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import { Loader } from '@/components/ai-elements/loader'
 import { MessageContent } from '@/components/ai-elements/message'
 import {
@@ -34,8 +34,10 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from '@/components/ai-elements/sources'
-import { getMessageContentStyles } from '../lib/message-styles'
+import { cn } from '@/lib/utils'
+
 import { getMessageContentState, isErrorMessage } from '../lib'
+import { getMessageContentStyles } from '../lib/message-styles'
 import type { Message } from '../types'
 import { MessageError } from './message-error'
 

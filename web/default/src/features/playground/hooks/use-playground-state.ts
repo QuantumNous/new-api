@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useCallback } from 'react'
+
 import { DEFAULT_CONFIG, DEFAULT_PARAMETER_ENABLED } from '../constants'
 import {
   saveConfig,
@@ -79,16 +80,13 @@ export function usePlaygroundState() {
   )
 
   // Update messages with automatic save
-  const updateMessages = useCallback(
-    (updater: MessageStateUpdater) => {
-      setMessages((prev) => {
-        const newMessages = applyMessageStateUpdate(prev, updater)
-        saveMessages(newMessages)
-        return newMessages
-      })
-    },
-    []
-  )
+  const updateMessages = useCallback((updater: MessageStateUpdater) => {
+    setMessages((prev) => {
+      const newMessages = applyMessageStateUpdate(prev, updater)
+      saveMessages(newMessages)
+      return newMessages
+    })
+  }, [])
 
   // Clear all messages
   const clearMessages = useCallback(() => {

@@ -18,12 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
-import { type ComponentProps, useCallback } from 'react'
 import { ArrowDownIcon } from 'lucide-react'
+import { type ComponentProps, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StickToBottom, useStickToBottomContext } from 'use-stick-to-bottom'
-import { cn } from '@/lib/utils'
+
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 export type ConversationProps = ComponentProps<typeof StickToBottom>
 

@@ -18,12 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { ERROR_MESSAGES, MESSAGE_ROLES, MESSAGE_STATUS } from '../constants'
 import type { ChatCompletionResponse, Message } from '../types'
+import { parseThinkTags } from './message-reasoning-utils'
 import {
   getCurrentVersion,
   hasMessageContent,
   updateCurrentVersionContent,
 } from './message-utils'
-import { parseThinkTags } from './message-reasoning-utils'
 
 /**
  * Process content chunk during streaming.
@@ -126,7 +126,7 @@ export function isAssistantMessagePending(message: Message): boolean {
 export function isPendingAssistantMessage(message?: Message): boolean {
   return Boolean(
     message?.from === MESSAGE_ROLES.ASSISTANT &&
-      isAssistantMessagePending(message)
+    isAssistantMessagePending(message)
   )
 }
 

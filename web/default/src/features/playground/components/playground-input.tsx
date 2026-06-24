@@ -18,12 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import {
   PromptInput,
   PromptInputFooter,
   PromptInputTextarea,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
+
 import { getSubmittableInputText } from '../lib'
 import type { ModelOption, GroupOption } from '../types'
 import { PlaygroundInputControls } from './playground-input-controls'

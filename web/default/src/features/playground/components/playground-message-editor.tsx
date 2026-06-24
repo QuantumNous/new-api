@@ -1,3 +1,4 @@
+import { Check, RotateCcw, Send, X } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,10 +18,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useRef, type KeyboardEvent } from 'react'
-import { Check, RotateCcw, Send, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+
 import { getMessageEditorState } from '../lib'
 import type { Message } from '../types'
 
@@ -88,7 +90,7 @@ export function PlaygroundMessageEditor({
   }
 
   return (
-    <div className='rounded-lg border bg-background/80 p-2 shadow-sm'>
+    <div className='bg-background/80 rounded-lg border p-2 shadow-sm'>
       <Textarea
         aria-label={t('Edit')}
         className='min-h-36 resize-y font-mono text-sm leading-6 md:min-h-48'
@@ -100,7 +102,7 @@ export function PlaygroundMessageEditor({
       />
 
       <div className='mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
-        <p className='text-xs text-muted-foreground'>
+        <p className='text-muted-foreground text-xs'>
           {hasChanged ? t('Unsaved changes') : t('No changes')}
         </p>
 

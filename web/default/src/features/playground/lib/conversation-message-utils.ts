@@ -1,3 +1,4 @@
+import { MESSAGE_ROLES } from '../constants'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,7 +18,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { Message } from '../types'
-import { MESSAGE_ROLES } from '../constants'
 import {
   createLoadingAssistantMessage,
   createUserMessage,
@@ -51,7 +51,9 @@ export function createRegeneratedMessages(
   messages: Message[],
   messageKey: string
 ): Message[] | null {
-  const messageIndex = messages.findIndex((message) => message.key === messageKey)
+  const messageIndex = messages.findIndex(
+    (message) => message.key === messageKey
+  )
 
   if (messageIndex === -1) {
     return null
@@ -86,7 +88,9 @@ export function applyMessageEdit(
   content: string,
   shouldSubmit: boolean
 ): ApplyMessageEditResult | null {
-  const messageIndex = messages.findIndex((message) => message.key === messageKey)
+  const messageIndex = messages.findIndex(
+    (message) => message.key === messageKey
+  )
 
   if (messageIndex === -1) {
     return null

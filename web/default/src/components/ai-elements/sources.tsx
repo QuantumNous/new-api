@@ -18,15 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
-import type { ComponentProps } from 'react'
 import { BookIcon, ChevronDownIcon } from 'lucide-react'
+import type { ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { cn } from '@/lib/utils'
 
 export type SourcesProps = ComponentProps<'div'>
 

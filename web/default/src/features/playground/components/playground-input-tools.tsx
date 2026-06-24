@@ -20,6 +20,11 @@ import { GlobeIcon, PaperclipIcon, Trash2Icon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import {
+  PromptInputButton,
+  PromptInputTools,
+} from '@/components/ai-elements/prompt-input'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   DropdownMenu,
@@ -27,10 +32,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  PromptInputButton,
-  PromptInputTools,
-} from '@/components/ai-elements/prompt-input'
+
 import {
   ATTACHMENT_ACTIONS,
   getAttachmentActionNotice,
@@ -111,7 +113,7 @@ export function PlaygroundInputTools({
         </PromptInputButton>
 
         <PromptInputButton
-          className='border font-medium text-muted-foreground hover:text-destructive'
+          className='text-muted-foreground hover:text-destructive border font-medium'
           disabled={disabled || !hasMessages || !onClearMessages}
           onClick={() => setClearConfirmOpen(true)}
           variant='outline'

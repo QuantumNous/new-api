@@ -28,11 +28,12 @@ import {
   useState,
 } from 'react'
 import { Streamdown, type Components } from 'streamdown'
-import { cn } from '@/lib/utils'
+
 import {
   CodeBlock,
   CodeBlockCopyButton,
 } from '@/components/ai-elements/code-block'
+import { cn } from '@/lib/utils'
 
 type ResponseProps = ComponentProps<typeof Streamdown>
 

@@ -27,7 +27,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -37,12 +37,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+
 import { MESSAGE_ACTION_LABELS } from '../constants'
 import { useMessageActionGuard } from '../hooks/use-message-action-guard'
-import {
-  getMessageActionState,
-  getMessageActionsVisibilityClass,
-} from '../lib'
+import { getMessageActionState, getMessageActionsVisibilityClass } from '../lib'
 import type { Message } from '../types'
 import { MessageActionButton } from './message-action-button'
 
@@ -104,7 +103,9 @@ export function MessageActions({
     actions.push({
       className: isCopied ? 'text-green-600' : '',
       icon: isCopied ? Check : Copy,
-      label: isCopied ? MESSAGE_ACTION_LABELS.COPIED : MESSAGE_ACTION_LABELS.COPY,
+      label: isCopied
+        ? MESSAGE_ACTION_LABELS.COPIED
+        : MESSAGE_ACTION_LABELS.COPY,
       onClick: handleCopy,
     })
   }
@@ -165,7 +166,7 @@ export function MessageActions({
             render={
               <Button
                 aria-label={t('Open menu')}
-                className='data-popup-open:bg-muted size-11 text-muted-foreground hover:text-foreground'
+                className='data-popup-open:bg-muted text-muted-foreground hover:text-foreground size-11'
                 size='icon'
                 variant='ghost'
               />
