@@ -39,6 +39,7 @@ func SetSkillRouter(router *gin.Engine) {
 		}
 		{
 			mySkillsRoute.GET("/my-skills", skillhandler.ListMySkills)
+			mySkillsRoute.DELETE("/my-skills/:id", skillhandler.RemoveMySkill)
 		}
 
 		downloadRoute := v1.Group("/marketplace")

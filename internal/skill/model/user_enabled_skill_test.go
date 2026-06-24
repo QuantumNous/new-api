@@ -184,6 +184,27 @@ func TestEnableSkillForUser_Reenable(t *testing.T) {
 	assert.Equal(t, int64(1), count, "must remain exactly 1 row after re-enable")
 }
 
+func TestEnableSkillForUser_ReaddAfterRemoveClearsRemovedAt(t *testing.T) {
+	db := openTestDB(t)
+	skillID := seedSkillForTest(t, db)
+
+	require.NoError(t, EnableSkillForUser(db, 1, 1, skillID, ""))
+	require.NoError(t, RemoveSkillFromMySkills(db, 1, 1, skillID))
+
+	var removed UserEnabledSkill
+	require.NoError(t, db.First(&removed, "user_id = ? AND tenant_id = ? AND skill_id = ?", 1, 1, skillID).Error)
+	require.NotNil(t, removed.RemovedAt, "removed_at must be set after Remove")
+
+	time.Sleep(20 * time.Millisecond)
+	require.NoError(t, EnableSkillForUser(db, 1, 1, skillID, ""))
+
+	var row UserEnabledSkill
+	require.NoError(t, db.First(&row, "user_id = ? AND tenant_id = ? AND skill_id = ?", 1, 1, skillID).Error)
+	assert.True(t, row.Enabled, "enabled must stay true after re-add")
+	assert.Nil(t, row.RemovedAt, "removed_at must be cleared when the package is downloaded again")
+	assert.True(t, row.EnabledAt.After(removed.EnabledAt), "enabled_at must advance on re-add")
+}
+
 func TestEnableSkillForUser_AlreadyEnabled(t *testing.T) {
 	db := openTestDB(t)
 	skillID := seedSkillForTest(t, db)
@@ -296,6 +317,42 @@ func TestDisableSkillForUser_RepairsMissingDisabledAtWhenEnabledFalse(t *testing
 	assert.NotNil(t, row.DisabledAt, "disabled_at must be repaired (non-NULL)")
 }
 
+func TestRemoveSkillFromMySkills_PreservesEnabled(t *testing.T) {
+	db := openTestDB(t)
+	skillID := seedSkillForTest(t, db)
+
+	require.NoError(t, EnableSkillForUser(db, 1, 1, skillID, ""))
+	require.NoError(t, RemoveSkillFromMySkills(db, 1, 1, skillID))
+
+	var row UserEnabledSkill
+	require.NoError(t, db.First(&row, "user_id = ? AND tenant_id = ? AND skill_id = ?", 1, 1, skillID).Error)
+	assert.True(t, row.Enabled, "remove from My Skills must not disable runtime enabled-state")
+	assert.NotNil(t, row.RemovedAt, "removed_at must be set")
+	assert.Nil(t, row.DisabledAt, "disabled_at must remain untouched")
+}
+
+func TestRemoveSkillFromMySkills_Idempotent(t *testing.T) {
+	db := openTestDB(t)
+	skillID := seedSkillForTest(t, db)
+
+	require.NoError(t, EnableSkillForUser(db, 1, 1, skillID, ""))
+	require.NoError(t, RemoveSkillFromMySkills(db, 1, 1, skillID))
+
+	var afterFirst UserEnabledSkill
+	require.NoError(t, db.First(&afterFirst, "user_id = ? AND tenant_id = ? AND skill_id = ?", 1, 1, skillID).Error)
+
+	time.Sleep(5 * time.Millisecond)
+	require.NoError(t, RemoveSkillFromMySkills(db, 1, 1, skillID))
+
+	var afterSecond UserEnabledSkill
+	require.NoError(t, db.First(&afterSecond, "user_id = ? AND tenant_id = ? AND skill_id = ?", 1, 1, skillID).Error)
+	assert.Equal(t, afterFirst.RemovedAt, afterSecond.RemovedAt, "removed_at must not change on repeated Remove")
+	assert.Equal(t, afterFirst.UpdatedAt.UTC().Truncate(time.Millisecond),
+		afterSecond.UpdatedAt.UTC().Truncate(time.Millisecond),
+		"updated_at must not change on repeated Remove")
+	assert.True(t, afterSecond.Enabled)
+}
+
 func TestEnableSkillForUser_EnabledAtNotClearedOnDisable(t *testing.T) {
 	db := openTestDB(t)
 	skillID := seedSkillForTest(t, db)
@@ -397,6 +454,38 @@ func TestColumnDefaults_SQLite_EnabledAndSource(t *testing.T) {
 	require.NoError(t, db.First(&row, "user_id = ? AND tenant_id = ? AND skill_id = ?", 1, 1, skillID).Error)
 	assert.True(t, row.Enabled, "enabled must default to true from SQLite DDL DEFAULT 1")
 	assert.Equal(t, "marketplace", row.Source, "source must default to 'marketplace' from SQLite DDL DEFAULT")
+}
+
+func TestMigrateUserEnabledSkills_SQLite_AddsRemovedAtToExistingTable(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "removed_at_upgrade.db") + "?_pragma=foreign_keys(1)"
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if sqlDB, err := db.DB(); err == nil {
+			sqlDB.Close()
+		}
+	})
+	require.NoError(t, MigrateSkills(db))
+	require.NoError(t, db.Exec(`
+		CREATE TABLE user_enabled_skills (
+			user_id INTEGER NOT NULL,
+			tenant_id INTEGER NOT NULL,
+			skill_id TEXT(36) NOT NULL,
+			enabled NUMERIC NOT NULL DEFAULT 1,
+			enabled_at DATETIME NOT NULL,
+			disabled_at DATETIME NULL,
+			source TEXT NOT NULL DEFAULT 'marketplace',
+			last_used_at DATETIME NULL,
+			created_at DATETIME NOT NULL,
+			updated_at DATETIME NOT NULL,
+			PRIMARY KEY (user_id, tenant_id, skill_id)
+		)`).Error)
+
+	require.NoError(t, MigrateUserEnabledSkills(db))
+
+	assert.True(t, db.Migrator().HasColumn(&UserEnabledSkill{}, "removed_at"),
+		"SQLite upgrade must add removed_at to pre-DR-56 tables")
 }
 
 func TestEnableSkillForUser_Reenable_PreservesOriginalSource(t *testing.T) {

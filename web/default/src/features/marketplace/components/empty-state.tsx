@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import type { ReactNode } from 'react'
 import {
   BarChart3,
+  FilterX,
   FolderSearch,
   PackageOpen,
   SearchX,
@@ -40,6 +41,9 @@ import { SkillCTA } from './skill-cta'
 export type MarketplaceEmptyStateKind =
   | 'search'
   | 'category'
+  | 'kids'
+  | 'filters'
+  | 'load-error'
   | 'my-skills'
   | 'analytics'
   | 'feature-off'
@@ -56,18 +60,33 @@ interface EmptyStateProps {
 const emptyStateConfig = {
   search: {
     icon: SearchX,
-    title: 'No matching skills',
-    description: 'Try a different search or clear the current filters.',
+    title: 'No Skills match this search.',
+    description: 'Clear search to browse the full marketplace.',
   },
   category: {
     icon: FolderSearch,
-    title: 'No skills in this category',
-    description: 'Choose another category or browse the full marketplace.',
+    title: 'No Skills are available in this category yet.',
+    description: 'View all Skills to keep browsing.',
+  },
+  kids: {
+    icon: FilterX,
+    title: 'No Skills are available in Kids Mode for this filter.',
+    description: 'Clear filter to view all Kids Safe Skills.',
+  },
+  filters: {
+    icon: FilterX,
+    title: 'No Skills match these filters.',
+    description: 'Clear filters to browse the full marketplace.',
+  },
+  'load-error': {
+    icon: ToggleLeft,
+    title: 'Skills could not be loaded.',
+    description: 'Retry loading the Marketplace.',
   },
   'my-skills': {
     icon: Sparkles,
-    title: 'No enabled skills',
-    description: 'Enabled skills will appear here after you add them.',
+    title: 'No skills in My Skills',
+    description: 'Downloaded skills will appear here after you add them.',
   },
   analytics: {
     icon: BarChart3,
@@ -76,7 +95,7 @@ const emptyStateConfig = {
   },
   'feature-off': {
     icon: ToggleLeft,
-    title: 'Skill Marketplace is unavailable',
+    title: 'Skill Marketplace is not available yet.',
     description: 'This feature is currently disabled for your workspace.',
   },
   marketplace: {

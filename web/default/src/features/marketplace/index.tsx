@@ -16,21 +16,69 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import { Search, ShieldCheck, SlidersHorizontal, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
+import { Button } from '@/components/ui/button'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from '@/components/ui/input-group'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { SectionPageLayout } from '@/components/layout'
-import { getMarketplaceSkills, recordMarketplaceSkillEvent } from './api'
+import {
+  emitMarketplaceEvent,
+  getMarketplaceSkills,
+  recordMarketplaceSkillEvent,
+} from './api'
 import {
   EmptyState,
   ErrorBanner,
   NewSkillBanner,
   SkillCard,
 } from './components'
-import type { MarketplaceSkill, SkillGrowthEntryPoint } from './types'
+import {
+  filterMarketplaceSkills,
+  marketplaceEmptyState,
+  resolveMarketplaceSkill,
+} from './lib'
+import type {
+  MarketplaceFilters,
+  MarketplaceSkill,
+  MarketplaceStatusFilter,
+  SkillGrowthEntryPoint,
+  SkillPlan,
+} from './types'
 
+const ALL_VALUE = '__all__'
+const SEARCH_DEBOUNCE_MS = 300
 const NEW_SKILL_BANNER_DISMISS_KEY = 'dr78_new_skill_banner_dismissed'
+
+const initialFilters: MarketplaceFilters = {
+  query: '',
+  category: '',
+  plan: 'all',
+  status: 'all',
+  kidsSafeOnly: false,
+}
+
+const kidsFilterEnabled =
+  import.meta.env.VITE_SKILL_KIDS_FILTER === 'true' ||
+  import.meta.env.VITE_DEEPROUTER_KIDS_MARKETPLACE === 'true'
 
 function readDismissed(key: string): boolean {
   if (typeof window === 'undefined') return false
@@ -50,26 +98,119 @@ function writeDismissed(key: string): void {
   }
 }
 
+function labelForPlan(plan: SkillPlan) {
+  if (plan === 'free') return 'Free'
+  if (plan === 'pro') return 'Pro'
+  return 'Enterprise'
+}
+
+function labelForStatus(status: MarketplaceStatusFilter) {
+  switch (status) {
+    case 'available':
+      return 'Available'
+    case 'enabled':
+      return 'Enabled'
+    case 'locked':
+      return 'Locked'
+    case 'unavailable':
+      return 'Unavailable'
+    case 'all':
+      return 'All statuses'
+  }
+}
+
 export { SkillDetail } from './skill-detail'
 
 export function Marketplace() {
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const user = useAuthStore((state) => state.auth.user)
+  const [filters, setFilters] = useState<MarketplaceFilters>(initialFilters)
+  const [debouncedQuery, setDebouncedQuery] = useState(initialFilters.query)
+  const [page, setPage] = useState(1)
+  const [newSkillBannerDismissed, setNewSkillBannerDismissed] = useState(() =>
+    readDismissed(NEW_SKILL_BANNER_DISMISS_KEY)
+  )
+  const observedCards = useRef(new Map<string, HTMLDivElement>())
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const emittedImpressions = useRef(new Set<string>())
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedQuery(filters.query)
+    }, SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [filters.query])
+
+  const serverFilters = useMemo(
+    () => ({
+      query: debouncedQuery,
+      category: filters.category,
+      plan: filters.plan,
+      kidsSafeOnly: filters.kidsSafeOnly,
+    }),
+    [debouncedQuery, filters.category, filters.kidsSafeOnly, filters.plan]
+  )
+
   const skillsQuery = useQuery({
-    queryKey: ['marketplace-skills'],
-    queryFn: getMarketplaceSkills,
+    queryKey: ['marketplace-skills', serverFilters, page],
+    queryFn: () => getMarketplaceSkills(serverFilters, page),
     placeholderData: (prev) => prev,
   })
 
-  const skills = skillsQuery.data?.data ?? []
+  const { mutate: emitEvent } = useMutation({
+    mutationFn: emitMarketplaceEvent,
+    retry: false,
+  })
+
+  const skills = useMemo(
+    () =>
+      (skillsQuery.data?.data ?? []).map((skill) =>
+        resolveMarketplaceSkill(skill, user)
+      ),
+    [skillsQuery.data?.data, user]
+  )
   const newSkill = useMemo(
     () => skills.find((skill) => skill.featured === true) ?? skills[0],
     [skills]
   )
-  const [newSkillBannerDismissed, setNewSkillBannerDismissed] = useState(() =>
-    readDismissed(NEW_SKILL_BANNER_DISMISS_KEY)
-  )
   const showNewSkillBanner = newSkill != null && !newSkillBannerDismissed
+  const categories = useMemo(
+    () =>
+      Array.from(
+        new Set(skills.map((skill) => skill.category).filter(Boolean))
+      ).sort((a, b) => a.localeCompare(b)),
+    [skills]
+  )
+  const filteredSkills = useMemo(
+    () => filterMarketplaceSkills(skills, filters),
+    [filters, skills]
+  )
+  const pagination = skillsQuery.data?.pagination
+  const filterSignature = useMemo(
+    () =>
+      JSON.stringify({
+        query: debouncedQuery.trim(),
+        category: filters.category,
+        plan: filters.plan,
+        status: filters.status,
+        kidsSafeOnly: filters.kidsSafeOnly,
+      }),
+    [
+      debouncedQuery,
+      filters.category,
+      filters.kidsSafeOnly,
+      filters.plan,
+      filters.status,
+    ]
+  )
+  const emptyKind = marketplaceEmptyState(
+    skills.length,
+    filteredSkills.length,
+    filters,
+    skillsQuery.isError
+  )
+
   const requestId =
     skillsQuery.data?.meta?.request_id ??
     (
@@ -87,6 +228,10 @@ export function Marketplace() {
     (skillsQuery.error as Error | null)?.message
 
   useEffect(() => {
+    emittedImpressions.current.clear()
+  }, [filterSignature])
+
+  useEffect(() => {
     if (!newSkill || newSkillBannerDismissed) return
     void recordMarketplaceSkillEvent(newSkill.slug || newSkill.id, {
       event_type: 'skill_impression',
@@ -94,21 +239,90 @@ export function Marketplace() {
     }).catch(() => undefined)
   }, [newSkill, newSkillBannerDismissed])
 
-  // Every Marketplace discovery surface (card + new-skill banner) routes to the
-  // Skill Detail page. The real Download action lives only on that page, where it
-  // goes through downloadSkillPackage() (axios api client → New-Api-User header).
-  // We never trigger a download URL directly from the list/banner: native
-  // navigation omits New-Api-User (SkillUserAuth 401) and would bypass the detail
-  // page's runtime-key copy + plan/auth/download error mapping.
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') {
+      filteredSkills.forEach((skill) => {
+        const key = `${filterSignature}:${skill.id}`
+        if (emittedImpressions.current.has(key)) return
+        emittedImpressions.current.add(key)
+        emitEvent({
+          event_type: 'skill_impression',
+          skill_id: skill.id,
+          entry_point: 'marketplace_card',
+        })
+      })
+      return
+    }
+
+    observerRef.current?.disconnect()
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return
+          const skillId = (entry.target as HTMLElement).dataset.skillId
+          if (!skillId) return
+          const key = `${filterSignature}:${skillId}`
+          if (emittedImpressions.current.has(key)) return
+          emittedImpressions.current.add(key)
+          emitEvent({
+            event_type: 'skill_impression',
+            skill_id: skillId,
+            entry_point: 'marketplace_card',
+          })
+        })
+      },
+      { threshold: 0.5 }
+    )
+
+    observedCards.current.forEach((node) => observerRef.current?.observe(node))
+    return () => observerRef.current?.disconnect()
+  }, [emitEvent, filterSignature, filteredSkills])
+
+  function updateFilter<K extends keyof MarketplaceFilters>(
+    key: K,
+    value: MarketplaceFilters[K]
+  ) {
+    setFilters((prev) => ({ ...prev, [key]: value }))
+    setPage(1)
+  }
+
+  function clearFilters() {
+    setFilters(initialFilters)
+    setPage(1)
+  }
+
+  function cardRef(skillId: string) {
+    return (node: HTMLDivElement | null) => {
+      if (node == null) {
+        observedCards.current.delete(skillId)
+        return
+      }
+      node.dataset.skillId = skillId
+      observedCards.current.set(skillId, node)
+      observerRef.current?.observe(node)
+    }
+  }
+
   const goToSkillDetail = (
     skill: MarketplaceSkill,
     entryPoint: SkillGrowthEntryPoint
   ) => {
-    void recordMarketplaceSkillEvent(skill.slug || skill.id, {
-      event_type: 'skill_detail_view',
-      entry_point: entryPoint,
-    }).catch(() => undefined)
-    void navigate({ to: '/skills/$slug', params: { slug: skill.slug } })
+    if (entryPoint === 'marketplace_card') {
+      emitEvent({
+        event_type: 'skill_detail_view',
+        skill_id: skill.id,
+        entry_point: 'marketplace_card',
+      })
+    } else {
+      void recordMarketplaceSkillEvent(skill.slug || skill.id, {
+        event_type: 'skill_detail_view',
+        entry_point: entryPoint,
+      }).catch(() => undefined)
+    }
+    void navigate({
+      to: '/skills/$slug',
+      params: { slug: skill.slug || skill.id },
+    })
   }
 
   return (
@@ -121,6 +335,126 @@ export function Marketplace() {
       </SectionPageLayout.Description>
       <SectionPageLayout.Content>
         <div className='flex flex-col gap-4'>
+          <div className='bg-card grid gap-3 rounded-xl border p-3 sm:grid-cols-[minmax(220px,1fr)_auto]'>
+            <InputGroup className='bg-background/50 h-10'>
+              <InputGroupAddon>
+                <Search className='size-4' aria-hidden='true' />
+              </InputGroupAddon>
+              <InputGroupInput
+                value={filters.query}
+                onChange={(event) => updateFilter('query', event.target.value)}
+                placeholder={t('Search Skills by name or description')}
+                aria-label={t('Search Skills')}
+              />
+              {filters.query && (
+                <InputGroupAddon align='inline-end'>
+                  <InputGroupButton
+                    size='icon-xs'
+                    aria-label={t('Clear search')}
+                    onClick={() => updateFilter('query', '')}
+                  >
+                    <X className='size-3.5' aria-hidden='true' />
+                  </InputGroupButton>
+                </InputGroupAddon>
+              )}
+            </InputGroup>
+            <div className='flex flex-wrap items-center gap-2'>
+              <Select
+                value={filters.category || ALL_VALUE}
+                onValueChange={(value) => {
+                  if (value == null) return
+                  updateFilter('category', value === ALL_VALUE ? '' : value)
+                }}
+              >
+                <SelectTrigger className='bg-background/50 h-10 min-w-36'>
+                  <SelectValue placeholder={t('Category')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value={ALL_VALUE}>
+                      {t('All categories')}
+                    </SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {t(category)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <Select
+                value={filters.plan}
+                onValueChange={(value) =>
+                  updateFilter('plan', value as MarketplaceFilters['plan'])
+                }
+              >
+                <SelectTrigger className='bg-background/50 h-10 min-w-32'>
+                  <SelectValue placeholder={t('Plan')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value='all'>{t('All plans')}</SelectItem>
+                    {(['free', 'pro', 'enterprise'] as const).map((plan) => (
+                      <SelectItem key={plan} value={plan}>
+                        {t(labelForPlan(plan))}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <Select
+                value={filters.status}
+                onValueChange={(value) =>
+                  updateFilter('status', value as MarketplaceFilters['status'])
+                }
+              >
+                <SelectTrigger className='bg-background/50 h-10 min-w-36'>
+                  <SelectValue placeholder={t('Status')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {(
+                      [
+                        'all',
+                        'available',
+                        'enabled',
+                        'locked',
+                        'unavailable',
+                      ] as const
+                    ).map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {t(labelForStatus(status))}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              {kidsFilterEnabled && (
+                <Label className='border-input bg-background/50 h-10 rounded-lg border px-3'>
+                  <ShieldCheck className='size-4' aria-hidden='true' />
+                  <span>{t('Kids Safe')}</span>
+                  <Switch
+                    size='sm'
+                    checked={filters.kidsSafeOnly}
+                    onCheckedChange={(checked) =>
+                      updateFilter('kidsSafeOnly', checked)
+                    }
+                    aria-label={t('Show Kids Safe Skills only')}
+                  />
+                </Label>
+              )}
+              <Button
+                type='button'
+                variant='outline'
+                className='h-10'
+                onClick={clearFilters}
+              >
+                <SlidersHorizontal data-icon='inline-start' />
+                {t('Clear filters')}
+              </Button>
+            </div>
+          </div>
+
           {showNewSkillBanner && (
             <NewSkillBanner
               skill={newSkill}
@@ -145,28 +479,62 @@ export function Marketplace() {
                 <SkillCard key={index} variant='loading' />
               ))}
             </div>
-          ) : skills.length > 0 ? (
+          ) : filteredSkills.length > 0 ? (
             <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
-              {skills.map((skill) => (
+              {filteredSkills.map((skill) => (
                 <SkillCard
                   key={skill.id}
                   skill={skill}
-                  // Card click always opens the detail page, so the CTA must
-                  // read "View" — not the backend availability.cta (Upgrade /
-                  // Sign in / Use / Unavailable), which would mislabel a button
-                  // that only navigates. The actual action (Download / upgrade)
-                  // lives on the detail page. Shares goToSkillDetail with the
-                  // new-skill banner (records the DR-78 detail-view event, then navigates).
-                  cta='view'
-                  onCTA={(s) => goToSkillDetail(s, 'marketplace_card')}
+                  onOpen={(cardSkill) =>
+                    goToSkillDetail(cardSkill, 'marketplace_card')
+                  }
+                  onCTA={(cardSkill) =>
+                    goToSkillDetail(cardSkill, 'marketplace_card')
+                  }
+                  cardRef={cardRef(skill.id)}
                 />
               ))}
             </div>
           ) : (
             <EmptyState
-              kind={skillsQuery.isError ? 'feature-off' : 'marketplace'}
+              kind={emptyKind}
+              action={
+                emptyKind === 'search' ||
+                emptyKind === 'category' ||
+                emptyKind === 'kids' ||
+                emptyKind === 'filters'
+                  ? 'view'
+                  : undefined
+              }
+              onAction={clearFilters}
             />
           )}
+          {pagination != null &&
+            (pagination.page > 1 || pagination.has_next) && (
+              <div className='flex items-center justify-end gap-2'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  disabled={pagination.page <= 1 || skillsQuery.isFetching}
+                  onClick={() =>
+                    setPage((currentPage) => Math.max(1, currentPage - 1))
+                  }
+                >
+                  {t('Previous')}
+                </Button>
+                <span className='text-muted-foreground min-w-16 text-center text-sm tabular-nums'>
+                  {t('Page')} {pagination.page}
+                </span>
+                <Button
+                  type='button'
+                  variant='outline'
+                  disabled={!pagination.has_next || skillsQuery.isFetching}
+                  onClick={() => setPage((currentPage) => currentPage + 1)}
+                >
+                  {t('Next')}
+                </Button>
+              </div>
+            )}
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>

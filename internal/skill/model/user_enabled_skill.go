@@ -32,6 +32,7 @@ type UserEnabledSkill struct {
 	Enabled    bool       `gorm:"column:enabled;not null;default:true"`
 	EnabledAt  time.Time  `gorm:"column:enabled_at;not null"`
 	DisabledAt *time.Time `gorm:"column:disabled_at"`
+	RemovedAt  *time.Time `gorm:"column:removed_at"`
 	Source     string     `gorm:"column:source;type:varchar(64);not null;default:marketplace"`
 	LastUsedAt *time.Time `gorm:"column:last_used_at"`
 
@@ -52,8 +53,9 @@ func (u *UserEnabledSkill) BeforeCreate(tx *gorm.DB) error {
 }
 
 // EnableSkillForUser atomically upserts the enablement row for (userID, tenantID, skillID).
-// On conflict: sets enabled=true, updates enabled_at to now, clears disabled_at.
-// source is NOT overwritten on re-enable — only enabled/enabled_at/disabled_at/updated_at change.
+// On conflict: sets enabled=true, updates enabled_at to now, clears disabled_at
+// and removed_at so a fresh download restores My Skills visibility.
+// source is NOT overwritten on re-enable — only enabled/enabled_at/disabled_at/removed_at/updated_at change.
 // The caller is responsible for validating Skill status and user entitlement.
 func EnableSkillForUser(db *gorm.DB, userID, tenantID int64, skillID, source string) error {
 	now := time.Now().UTC()
@@ -63,20 +65,21 @@ func EnableSkillForUser(db *gorm.DB, userID, tenantID int64, skillID, source str
 	if db.Dialector.Name() == "mysql" {
 		return db.Exec(`
 			INSERT INTO user_enabled_skills
-			  (user_id, tenant_id, skill_id, enabled, enabled_at, disabled_at, source, created_at, updated_at)
-			VALUES (?, ?, ?, 1, ?, NULL, ?, ?, ?)
+			  (user_id, tenant_id, skill_id, enabled, enabled_at, disabled_at, removed_at, source, created_at, updated_at)
+			VALUES (?, ?, ?, 1, ?, NULL, NULL, ?, ?, ?)
 			ON DUPLICATE KEY UPDATE
-			  enabled = 1, enabled_at = VALUES(enabled_at), disabled_at = NULL, updated_at = VALUES(updated_at)`,
+			  enabled = 1, enabled_at = VALUES(enabled_at), disabled_at = NULL,
+			  removed_at = NULL, updated_at = VALUES(updated_at)`,
 			userID, tenantID, skillID, now, source, now, now,
 		).Error
 	}
 	return db.Exec(`
 		INSERT INTO user_enabled_skills
-		  (user_id, tenant_id, skill_id, enabled, enabled_at, disabled_at, source, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
+		  (user_id, tenant_id, skill_id, enabled, enabled_at, disabled_at, removed_at, source, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)
 		ON CONFLICT (user_id, tenant_id, skill_id) DO UPDATE SET
 		  enabled = true, enabled_at = EXCLUDED.enabled_at,
-		  disabled_at = NULL, updated_at = EXCLUDED.updated_at`,
+		  disabled_at = NULL, removed_at = NULL, updated_at = EXCLUDED.updated_at`,
 		userID, tenantID, skillID, true, now, source, now, now,
 	).Error
 }
@@ -95,6 +98,21 @@ func DisableSkillForUser(db *gorm.DB, userID, tenantID int64, skillID string) er
 		false, now, now,
 		userID, tenantID, skillID,
 		true,
+	).Error
+}
+
+// RemoveSkillFromMySkills hides a downloaded Skill from the user's My Skills
+// library without changing enabled. Existing downloaded packages therefore keep
+// using the runtime authorization path, where enabled remains one input.
+func RemoveSkillFromMySkills(db *gorm.DB, userID, tenantID int64, skillID string) error {
+	now := time.Now().UTC()
+	return db.Exec(`
+		UPDATE user_enabled_skills
+		SET removed_at = ?, updated_at = ?
+		WHERE user_id = ? AND tenant_id = ? AND skill_id = ?
+		  AND removed_at IS NULL`,
+		now, now,
+		userID, tenantID, skillID,
 	).Error
 }
 
