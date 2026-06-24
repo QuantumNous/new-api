@@ -65,3 +65,9 @@ variable "console_domains" {
   description = "Hosts routed to the console backend, e.g. [\"console.flatkey.ai\"]."
   default     = []
 }
+
+variable "console_domains_require_managed_cert" {
+  type        = bool
+  description = "Require console_domains to be covered by the GCP managed cert. Keep true unless every console domain is Cloudflare proxied and origin TLS behavior has been explicitly verified."
+  default     = true
+}

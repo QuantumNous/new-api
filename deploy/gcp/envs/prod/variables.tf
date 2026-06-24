@@ -100,6 +100,12 @@ variable "console_domains" {
   default     = []
 }
 
+variable "console_domains_require_managed_cert" {
+  type        = bool
+  description = "Require console_domains to be covered by the GCP managed cert. Set false only for Cloudflare-proxied console domains after origin routing has been verified."
+  default     = true
+}
+
 variable "router_min_instances" {
   type        = number
   description = "Minimum Cloud Run instances for the router service."
