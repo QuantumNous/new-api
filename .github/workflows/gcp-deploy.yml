@@ -16,12 +16,13 @@ on:
       target:
         description: "Cloud Run service target to deploy"
         required: false
-        default: "legacy-newapi"
+        default: "console"
         type: choice
         options:
-          - legacy-newapi
           - console
           - router
+          - legacy-newapi
+          - legacy-newapi-slave
       image_tag:
         description: "Existing image tag to deploy (skip build). Format: sha-<commit> or v1.2.3"
         required: false
@@ -115,7 +116,7 @@ jobs:
           ROUTER_RUN_SERVICE: ${{ vars.GCP_ROUTER_RUN_SERVICE }}
         run: |
           set -euo pipefail
-          target="${INPUT_TARGET:-legacy-newapi}"
+          target="${INPUT_TARGET:-console}"
           case "${target}" in
             console)
               run_service="${CONSOLE_RUN_SERVICE:-newapi-console}"
@@ -126,6 +127,10 @@ jobs:
               node_type="slave"
               ;;
             legacy-newapi)
+              run_service="${LEGACY_RUN_SERVICE:-newapi}"
+              node_type="master"
+              ;;
+            legacy-newapi-slave)
               run_service="${LEGACY_RUN_SERVICE:-newapi}"
               node_type="slave"
               ;;

@@ -257,6 +257,11 @@ resource "google_compute_url_map" "https" {
     }
 
     precondition {
+      condition     = length(var.website_domains) == 0 || var.website_cloud_run_service_name != ""
+      error_message = "website_domains must not be set unless website_cloud_run_service_name is also set."
+    }
+
+    precondition {
       condition     = length(var.router_domains) == 0 || var.router_cloud_run_service_name != ""
       error_message = "router_domains must not be set unless router_cloud_run_service_name is also set."
     }
