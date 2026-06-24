@@ -183,7 +183,20 @@ Production runs as a multi-node deployment. Code changes and technical plans MUS
 - Cache invalidation, background jobs, startup initialization, scheduled work, and one-time migrations must be safe when executed by more than one node.
 - PRs and technical designs that touch auth, billing, quota, token/key creation, relay routing, caches, jobs, or configuration writes must explicitly mention the multi-node behavior or why it is not relevant.
 
-### Rule 12: Staging Deploys From The `staging` Branch
+### Rule 12: Code Reviews Must Include Production Deployment Advice
+
+When reviewing a PR or performing a code review, the review output MUST include a **production deployment recommendation** for the current diff. The recommendation must explicitly answer whether the production router nodes need to be deployed.
+
+Required output:
+
+- `Router deploy`: `required`, `not required`, or `unclear`.
+- `Reason`: cite the changed surfaces that drive the decision, especially relay/model invocation paths, provider adapters, billing/quota logic used by relay, shared middleware, shared config, DB migrations, or runtime env changes.
+- `Other deploy targets`: mention whether `newapi-console`, `newapi-web`, legacy `newapi`, staging, Terraform, or Cloudflare are also involved.
+- `Risk / validation`: note production risk and the minimum validation before release.
+
+Default guidance: mark router deploy `required` when changes can affect `/v1`, relay/model calls, provider routing, streaming, auth/rate-limit middleware used by API traffic, billing/quota settlement, shared Go runtime initialization, shared config/env parsing, DB schema used by router requests, or any code imported by those paths. Mark router deploy `not required` only when the diff is clearly limited to website-only code, console-only UI/admin behavior, docs, tests, or tooling with no runtime effect on router paths. Use `unclear` when the dependency path is uncertain and call out what must be checked.
+
+### Rule 13: Staging Deploys From The `staging` Branch
 
 The GCP staging environment is deployed by GitHub Actions from the remote `staging` branch. To deploy staging, merge or push the desired code into branch `staging`; this automatically builds and deploys staging without the production approval gate.
 
