@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -22,10 +23,17 @@ import (
 // useless localhost link to API callers.
 func topUpURL() string {
 	base := strings.TrimRight(system_setting.ServerAddress, "/")
-	if base == "" || strings.Contains(base, "localhost") {
+	if base == "" {
 		return ""
 	}
-	return base + "/topup"
+	host := base
+	if parsed, err := url.Parse(base); err == nil && parsed.Hostname() != "" {
+		host = parsed.Hostname()
+	}
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return ""
+	}
+	return PaymentReturnURL("/console/topup")
 }
 
 func ReturnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
