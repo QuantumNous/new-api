@@ -32,6 +32,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 import {
   ATTACHMENT_ACTIONS,
@@ -73,55 +78,79 @@ export function PlaygroundInputTools({
 
   return (
     <>
-      <PromptInputTools>
-        <DropdownMenu>
-          <DropdownMenuTrigger
+      <PromptInputTools className='bg-background/70 border-border/60 rounded-lg border p-1 shadow-xs'>
+        <Tooltip>
+          <DropdownMenu>
+            <TooltipTrigger
+              render={
+                <DropdownMenuTrigger
+                  render={
+                    <PromptInputButton
+                      aria-label={t('Attach')}
+                      className='text-muted-foreground hover:text-foreground hover:bg-muted/70 font-medium'
+                      disabled={disabled}
+                      variant='ghost'
+                    />
+                  }
+                >
+                  <PaperclipIcon size={16} />
+                </DropdownMenuTrigger>
+              }
+            />
+            <TooltipContent>
+              <p>{t('Attach')}</p>
+            </TooltipContent>
+            <DropdownMenuContent align='start'>
+              {ATTACHMENT_ACTIONS.map(({ action, icon: Icon, label }) => (
+                <DropdownMenuItem
+                  key={action}
+                  onClick={() => handleFileAction(action)}
+                >
+                  <Icon className='mr-2' size={16} />
+                  {t(label)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger
             render={
               <PromptInputButton
-                className='border font-medium'
+                aria-label={t('Search')}
+                className='text-muted-foreground hover:text-foreground hover:bg-muted/70 font-medium'
                 disabled={disabled}
-                variant='outline'
-              />
-            }
-          >
-            <PaperclipIcon size={16} />
-            <span className='hidden sm:inline'>{t('Attach')}</span>
-            <span className='sr-only sm:hidden'>{t('Attach')}</span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='start'>
-            {ATTACHMENT_ACTIONS.map(({ action, icon: Icon, label }) => (
-              <DropdownMenuItem
-                key={action}
-                onClick={() => handleFileAction(action)}
+                onClick={handleSearchAction}
+                variant='ghost'
               >
-                <Icon className='mr-2' size={16} />
-                {t(label)}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                <GlobeIcon size={16} />
+              </PromptInputButton>
+            }
+          />
+          <TooltipContent>
+            <p>{t('Search')}</p>
+          </TooltipContent>
+        </Tooltip>
 
-        <PromptInputButton
-          className='border font-medium'
-          disabled={disabled}
-          onClick={handleSearchAction}
-          variant='outline'
-        >
-          <GlobeIcon size={16} />
-          <span className='hidden sm:inline'>{t('Search')}</span>
-          <span className='sr-only sm:hidden'>{t('Search')}</span>
-        </PromptInputButton>
-
-        <PromptInputButton
-          className='text-muted-foreground hover:text-destructive border font-medium'
-          disabled={disabled || !hasMessages || !onClearMessages}
-          onClick={() => setClearConfirmOpen(true)}
-          variant='outline'
-        >
-          <Trash2Icon size={16} />
-          <span className='hidden sm:inline'>{t('Clear chat history')}</span>
-          <span className='sr-only sm:hidden'>{t('Clear chat history')}</span>
-        </PromptInputButton>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <PromptInputButton
+                aria-label={t('Clear chat history')}
+                className='text-muted-foreground hover:text-destructive hover:bg-destructive/10 font-medium'
+                disabled={disabled || !hasMessages || !onClearMessages}
+                onClick={() => setClearConfirmOpen(true)}
+                variant='ghost'
+              >
+                <Trash2Icon size={16} />
+              </PromptInputButton>
+            }
+          />
+          <TooltipContent>
+            <p>{t('Clear chat history')}</p>
+          </TooltipContent>
+        </Tooltip>
       </PromptInputTools>
 
       <ConfirmDialog

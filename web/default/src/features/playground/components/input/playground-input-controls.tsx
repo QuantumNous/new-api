@@ -69,7 +69,6 @@ export function PlaygroundInputControls({
 
   const renderSelector = () => (
     <ModelGroupSelector
-      className='gap-1.5 md:gap-2'
       selectedModel={modelValue}
       models={models}
       onModelChange={onModelChange}
@@ -83,7 +82,7 @@ export function PlaygroundInputControls({
   const renderSubmitButton = () =>
     shouldShowStop ? (
       <PromptInputButton
-        className='text-foreground font-medium'
+        className='border-destructive/25 bg-destructive/10 text-destructive hover:bg-destructive/15 font-medium'
         onClick={onStop}
         variant='secondary'
       >
@@ -93,10 +92,10 @@ export function PlaygroundInputControls({
       </PromptInputButton>
     ) : (
       <PromptInputButton
-        className='text-foreground font-medium'
+        className='bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground h-8 px-3 font-medium shadow-sm'
         disabled={!canSubmit}
         type='submit'
-        variant='secondary'
+        variant='default'
       >
         <SendIcon size={16} />
         <span className='hidden sm:inline'>{t('Send')}</span>
@@ -105,7 +104,7 @@ export function PlaygroundInputControls({
     )
 
   return (
-    <div className='flex w-full flex-col gap-2 md:flex-row md:items-center md:justify-between'>
+    <div className='flex w-full flex-col gap-2.5 md:flex-row md:items-center md:justify-between'>
       <div className='flex min-w-0 items-center justify-end md:hidden'>
         {renderSelector()}
       </div>
@@ -117,7 +116,7 @@ export function PlaygroundInputControls({
         </div>
       </div>
 
-      <div className='hidden items-center gap-2 md:flex'>
+      <div className='hidden min-w-0 items-center gap-2 md:flex'>
         {renderSelector()}
         {renderSubmitButton()}
       </div>
