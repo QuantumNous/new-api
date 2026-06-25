@@ -21,7 +21,7 @@
   - 完整背景手册
   - 记录线上真实结构、风险点、验收与恢复方式
 
-日常发布优先使用统一脚本入口：
+日常发布优先使用统一脚本入口查看 SOP：
 
 ```bash
 REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh help
@@ -29,17 +29,20 @@ REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh help
 
 使用提醒：
 
-- `REMOTE_HOST` 需要显式传入
-- 其他环境变量不要直接按本地脚本默认值假定，先上机器核对当前实际部署目录、远端用户名、临时目录和校验方式，再决定是否覆盖
-- 只有在远端用户名、部署目录、临时目录、备份目录或本地校验端口需要覆盖默认行为时，才需要额外设置
+- `release.sh` 现在是纯文档入口，不会执行真实的 `docker`、`ssh`、`scp`、发版、回滚或状态检查
+- 正确方式是先运行对应命令查看 SOP，再手工执行
+- 线上一律以远端机器上的真实 compose、env、容器名、目录和镜像状态为准
 
 推荐对应关系：
 
-- 一键半自动发版：`REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh release`
-- 日常发版：`./deploy/newapi-local/release.sh build` / `./deploy/newapi-local/release.sh verify-image` / `REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh upload` / `REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh deploy`
-- 备份环境变量：`REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh backup-env`
-- 查看线上状态：`REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh status`
-- 应用级回滚：`REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh rollback <tag>`
+- 发布总览：`./deploy/newapi-local/release.sh release`
+- 本地构建说明：`./deploy/newapi-local/release.sh build`
+- 本地镜像验收说明：`./deploy/newapi-local/release.sh verify-image`
+- 远端备份说明：`./deploy/newapi-local/release.sh backup-env`
+- 远端上传说明：`./deploy/newapi-local/release.sh upload`
+- 远端发布说明：`./deploy/newapi-local/release.sh deploy`
+- 线上状态检查说明：`./deploy/newapi-local/release.sh status`
+- 应用级回滚说明：`./deploy/newapi-local/release.sh rollback`
 
 只有在下面这些场景，才需要回到本文逐段排查：
 

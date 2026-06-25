@@ -35,7 +35,7 @@
 
 ## 1. 推荐入口
 
-如果你是在发 104，优先使用：
+如果你是在发 104，优先先看：
 
 ```bash
 ./deploy/newapi-local/release.sh <command>
@@ -62,31 +62,32 @@
 
 使用提醒：
 
-- `REMOTE_HOST` 需要显式传入
-- 其他环境变量不要直接按本地脚本默认值假定，先上机器核对当前实际部署目录、远端用户名、临时目录和校验方式，再决定是否覆盖
-- 只有在远端用户名、部署目录、临时目录、备份目录或本地校验端口需要覆盖默认行为时，才需要额外设置
+- 这个脚本现在只是“操作手册入口”，不会执行真实的 `docker`、`ssh`、`scp`、发布、回滚或状态查询
+- 正确用法是先运行它查看对应 SOP，再手工执行命令
+- 线上环境一定先以远端机器上的真实 compose、env、容器名和目录为准，不要把本地模板文件直接当生产真相
 
 ## 2. 日常推荐流程
 
 ### 2.1 最推荐的发布方式
 
 ```bash
-REMOTE_HOST='104.xx.xx.xx' REMOTE_PASS='your-password' ./deploy/newapi-local/release.sh release
+./deploy/newapi-local/release.sh release
 ```
 
-这个命令会按顺序执行：
+这个命令现在只会打印推荐发布检查清单。实际发布建议按下面顺序手工执行：
 
 1. `build`
 2. `verify-image`
-3. 停在确认步骤
-4. 只有你输入 `yes`，才继续 `upload` 和 `deploy`
+3. `backup-env`
+4. `upload`
+5. `deploy`
 
 ### 2.2 只改了后端代码
 
 ```bash
 ./deploy/newapi-local/release.sh build
-REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh upload
-REMOTE_HOST='104.xx.xx.xx' REMOTE_PASS='your-password' ./deploy/newapi-local/release.sh deploy
+./deploy/newapi-local/release.sh upload
+./deploy/newapi-local/release.sh deploy
 ```
 
 ### 2.3 改了前端页面或静态资源
@@ -94,27 +95,29 @@ REMOTE_HOST='104.xx.xx.xx' REMOTE_PASS='your-password' ./deploy/newapi-local/rel
 ```bash
 ./deploy/newapi-local/release.sh build
 ./deploy/newapi-local/release.sh verify-image
-REMOTE_HOST='104.xx.xx.xx' ./deploy/newapi-local/release.sh upload
-REMOTE_HOST='104.xx.xx.xx' REMOTE_PASS='your-password' ./deploy/newapi-local/release.sh deploy
+./deploy/newapi-local/release.sh upload
+./deploy/newapi-local/release.sh deploy
 ```
 
 ### 2.4 发布前先备份线上环境变量
 
 ```bash
-REMOTE_HOST='104.xx.xx.xx' REMOTE_PASS='your-password' ./deploy/newapi-local/release.sh backup-env
+./deploy/newapi-local/release.sh backup-env
 ```
 
 ### 2.5 看线上当前状态
 
 ```bash
-REMOTE_HOST='104.xx.xx.xx' REMOTE_PASS='your-password' ./deploy/newapi-local/release.sh status
+./deploy/newapi-local/release.sh status
 ```
 
 ### 2.6 回滚到远端已有旧镜像
 
 ```bash
-REMOTE_HOST='104.xx.xx.xx' REMOTE_PASS='your-password' ./deploy/newapi-local/release.sh rollback deploy-dev-c9c8b1e7
+./deploy/newapi-local/release.sh rollback
 ```
+
+上面的命令都只输出说明，不会实际执行。
 
 如果你要看 104 机器当前真实状态、当前线上容器名、以及当前最安全的发布方式，优先看：
 
