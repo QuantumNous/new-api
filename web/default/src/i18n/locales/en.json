@@ -4201,6 +4201,7 @@
     "These toggles affect whether certain request fields are passed through to the upstream provider.": "These toggles affect whether certain request fields are passed through to the upstream provider.",
     "Thinking Suffix Adapter": "Thinking Suffix Adapter",
     "Thinking to Content": "Thinking to Content",
+    "Thinking...": "Thinking...",
     "Third-party account bindings (read-only, managed by user in profile settings)": "Third-party account bindings (read-only, managed by user in profile settings)",
     "Third-party Payment Config": "Third-party Payment Config",
     "This action cannot be undone.": "This action cannot be undone.",
@@ -4232,6 +4233,7 @@
     "This removes {{count}} failed models from this channel. This action cannot be undone.": "This removes {{count}} failed models from this channel. This action cannot be undone.",
     "This site currently has {{count}} models enabled": "This site currently has {{count}} models enabled",
     "This tier catches any request that did not match earlier tiers.": "This tier catches any request that did not match earlier tiers.",
+    "Thought for {{duration}} seconds": "Thought for {{duration}} seconds",
     "this token group": "this token group",
     "this user group": "this user group",
     "This user has no bindings": "This user has no bindings",
@@ -4823,6 +4825,20 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "An unknown error occurred": "An unknown error occurred",
+    "No content to copy": "No content to copy",
+    "Please wait for the current generation to complete": "Please wait for the current generation to complete",
+    "Request error occurred": "Request error occurred",
+    "Network connection failed or server not responding": "Network connection failed or server not responding",
+    "Error parsing response data": "Error parsing response data",
+    "Error establishing connection": "Error establishing connection",
+    "Connection closed": "Connection closed",
+    "Generation was interrupted": "Generation was interrupted",
+    "Note": "Note",
+    "Tip": "Tip",
+    "Important": "Important",
+    "Image not available": "Image not available",
+    "Back to footnote {{id}} reference": "Back to footnote {{id}} reference"
   }
 }

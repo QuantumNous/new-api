@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
+import { t } from 'i18next'
 import type { BlockquoteNode, ParsedNode } from 'stream-markdown-parser'
 
 import { cn } from '@/lib/utils'
@@ -149,7 +150,7 @@ export function renderBlockquote(
             config.markerClassName
           )}
         >
-          {config.label}
+          {t(config.label)}
         </div>
         {options.renderChildren(alertChildren)}
       </aside>

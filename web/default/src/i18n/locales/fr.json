@@ -4201,6 +4201,7 @@
     "These toggles affect whether certain request fields are passed through to the upstream provider.": "Ces bascules déterminent si certains champs de demande sont transmis au fournisseur en amont.",
     "Thinking Suffix Adapter": "Adaptateur de suffixe thinking",
     "Thinking to Content": "Réflexion vers Contenu",
+    "Thinking...": "Réflexion...",
     "Third-party account bindings (read-only, managed by user in profile settings)": "Liaisons de comptes tiers (lecture seule, gérées par l'utilisateur dans les paramètres de profil)",
     "Third-party Payment Config": "Configuration de paiement tiers",
     "This action cannot be undone.": "Cette action est irréversible.",
@@ -4232,6 +4233,7 @@
     "This removes {{count}} failed models from this channel. This action cannot be undone.": "Cela supprime {{count}} modèles en échec de ce canal. Cette action est irréversible.",
     "This site currently has {{count}} models enabled": "Ce site compte actuellement {{count}} modèles activés",
     "This tier catches any request that did not match earlier tiers.": "Ce palier récupère toute requête qui ne correspond à aucun palier précédent.",
+    "Thought for {{duration}} seconds": "Réflexion pendant {{duration}} secondes",
     "this token group": "ce groupe de jetons",
     "this user group": "ce groupe d'utilisateurs",
     "This user has no bindings": "Cet utilisateur n'a aucune liaison",
@@ -4823,6 +4825,20 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "An unknown error occurred": "Une erreur inconnue est survenue",
+    "No content to copy": "Aucun contenu à copier",
+    "Please wait for the current generation to complete": "Veuillez attendre la fin de la génération en cours",
+    "Request error occurred": "Une erreur de requête est survenue",
+    "Network connection failed or server not responding": "La connexion réseau a échoué ou le serveur ne répond pas",
+    "Error parsing response data": "Erreur lors de l’analyse des données de réponse",
+    "Error establishing connection": "Erreur lors de l’établissement de la connexion",
+    "Connection closed": "Connexion fermée",
+    "Generation was interrupted": "La génération a été interrompue",
+    "Note": "Note",
+    "Tip": "Astuce",
+    "Important": "Important",
+    "Image not available": "Image indisponible",
+    "Back to footnote {{id}} reference": "Retour à la référence de la note {{id}}"
   }
 }

@@ -4201,6 +4201,7 @@
     "These toggles affect whether certain request fields are passed through to the upstream provider.": "これらの切り替えは、特定の要求フィールドがアップストリームプロバイダーに渡されるかどうかに影響します。",
     "Thinking Suffix Adapter": "思考サフィックスアダプター",
     "Thinking to Content": "思考からコンテンツへ",
+    "Thinking...": "思考中...",
     "Third-party account bindings (read-only, managed by user in profile settings)": "サードパーティアカウントのバインディング（読み取り専用、プロファイル設定でユーザーが管理）",
     "Third-party Payment Config": "サードパーティ決済設定",
     "This action cannot be undone.": "この操作は元に戻せません。",
@@ -4232,6 +4233,7 @@
     "This removes {{count}} failed models from this channel. This action cannot be undone.": "この操作はこのチャンネルから失敗した {{count}} 個のモデルを削除します。元に戻せません。",
     "This site currently has {{count}} models enabled": "このサイトでは現在 {{count}} 個のモデルが有効です",
     "This tier catches any request that did not match earlier tiers.": "この段階は、前の段階に一致しなかったすべてのリクエストを受け取ります。",
+    "Thought for {{duration}} seconds": "{{duration}} 秒間思考しました",
     "this token group": "このトークングループ",
     "this user group": "このユーザーグループ",
     "This user has no bindings": "このユーザーには連携がありません",
@@ -4823,6 +4825,20 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "An unknown error occurred": "不明なエラーが発生しました",
+    "No content to copy": "コピーする内容がありません",
+    "Please wait for the current generation to complete": "現在の生成が完了するまでお待ちください",
+    "Request error occurred": "リクエストエラーが発生しました",
+    "Network connection failed or server not responding": "ネットワーク接続に失敗したか、サーバーが応答していません",
+    "Error parsing response data": "レスポンスデータの解析に失敗しました",
+    "Error establishing connection": "接続の確立に失敗しました",
+    "Connection closed": "接続が閉じられました",
+    "Generation was interrupted": "生成が中断されました",
+    "Note": "注記",
+    "Tip": "ヒント",
+    "Important": "重要",
+    "Image not available": "画像を利用できません",
+    "Back to footnote {{id}} reference": "脚注 {{id}} の参照元に戻る"
   }
 }

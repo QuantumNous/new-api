@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
+  FALLBACK_ERROR_CONTENT,
   getMessageErrorState,
   isAdminRole,
   MODEL_PRICING_SETTINGS_PATH,
@@ -55,12 +56,17 @@ export function MessageError({
   }
 
   if (errorState.kind === 'model-price') {
+    const content =
+      errorState.content === FALLBACK_ERROR_CONTENT
+        ? t(FALLBACK_ERROR_CONTENT)
+        : errorState.content
+
     return (
       <Alert variant='default' className={className}>
         <AlertTriangle className='text-orange-500' />
         <AlertTitle>{t('Model Price Not Configured')}</AlertTitle>
         <AlertDescription className='space-y-2'>
-          <p>{errorState.content}</p>
+          <p>{content}</p>
           {errorState.showSettingsLink && (
             <Button
               variant='outline'
@@ -82,7 +88,11 @@ export function MessageError({
       <AlertCircle />
       <AlertTitle>{t('Error')}</AlertTitle>
       <AlertDescription className='space-y-2'>
-        <p>{errorState.content}</p>
+        <p>
+          {errorState.content === FALLBACK_ERROR_CONTENT
+            ? t(FALLBACK_ERROR_CONTENT)
+            : errorState.content}
+        </p>
         {actions}
       </AlertDescription>
     </Alert>

@@ -85,7 +85,7 @@ export function MessageActions({
 
   const handleCopy = () => {
     if (!content) {
-      toast.warning(MESSAGE_ACTION_LABELS.NO_CONTENT)
+      toast.warning(t(MESSAGE_ACTION_LABELS.NO_CONTENT))
       return
     }
     copyToClipboard(content)
@@ -152,7 +152,7 @@ export function MessageActions({
               disabled={action.disabled}
               icon={action.icon}
               key={action.label}
-              label={action.label}
+              label={t(action.label)}
               onClick={action.onClick}
               variant={action.variant}
             />
@@ -187,7 +187,7 @@ export function MessageActions({
                   onClick={action.onClick}
                   variant={action.variant}
                 >
-                  {action.label}
+                  {t(action.label)}
                   <DropdownMenuShortcut>
                     <Icon className='size-4' />
                   </DropdownMenuShortcut>

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { sendChatCompletion } from '../api'
@@ -42,6 +43,8 @@ interface UseChatHandlerOptions {
   onMessageUpdate: (updater: (prev: Message[]) => Message[]) => void
 }
 
+const KNOWN_ERROR_MESSAGES = new Set<string>(Object.values(ERROR_MESSAGES))
+
 /**
  * Hook for handling chat message sending and receiving
  */
@@ -50,10 +53,29 @@ export function useChatHandler({
   parameterEnabled,
   onMessageUpdate,
 }: UseChatHandlerOptions) {
+  const { t } = useTranslation()
   const { sendStreamRequest, stopStream, isStreaming } = useStreamRequest()
   const [isRequesting, setIsRequesting] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
   const requestIdRef = useRef(0)
+
+  const getDisplayError = useCallback(
+    (error: string) => {
+      if (KNOWN_ERROR_MESSAGES.has(error)) {
+        return t(error)
+      }
+
+      const connectionClosedSuffix = `: ${ERROR_MESSAGES.CONNECTION_CLOSED}`
+      if (error.endsWith(connectionClosedSuffix)) {
+        return `${error.slice(0, -ERROR_MESSAGES.CONNECTION_CLOSED.length)}${t(
+          ERROR_MESSAGES.CONNECTION_CLOSED
+        )}`
+      }
+
+      return error
+    },
+    [t]
+  )
 
   // Handle stream update
   const handleStreamUpdate = useCallback(
@@ -83,12 +105,19 @@ export function useChatHandler({
   const handleStreamError = useCallback(
     (error: string, errorCode?: string) => {
       setIsRequesting(false)
-      toast.error(error)
+      const displayError = getDisplayError(error)
+      toast.error(displayError)
+      const errorTitle = t(ERROR_MESSAGES.API_REQUEST_ERROR)
       onMessageUpdate((prev) =>
-        updateAssistantMessageWithError(prev, error, errorCode)
+        updateAssistantMessageWithError(
+          prev,
+          displayError,
+          errorCode,
+          errorTitle
+        )
       )
     },
-    [onMessageUpdate]
+    [getDisplayError, onMessageUpdate, t]
   )
 
   // Send streaming chat request

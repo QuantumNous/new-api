@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
+import { t } from 'i18next'
 import type { FootnoteNode } from 'stream-markdown-parser'
 
 import type { BlockRendererOptions } from './response-types'
@@ -38,11 +39,13 @@ export function renderFootnotes(
               {options.renderChildren(footnote.children)}
             </div>
             <a
-              aria-label={`Back to footnote ${footnote.id} reference`}
+              aria-label={t('Back to footnote {{id}} reference', {
+                id: footnote.id,
+              })}
               className='text-primary ml-2 underline-offset-2 hover:underline'
               href={`#footnote-ref-${footnote.id}`}
             >
-              Back
+              {t('Back')}
             </a>
           </li>
         ))}

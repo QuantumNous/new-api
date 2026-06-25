@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
+import { t } from 'i18next'
 import type { HtmlBlockNode, ParsedNode } from 'stream-markdown-parser'
 
 import { hasParsedChildren, isHtmlBlockNode } from './response-node-guards'
@@ -56,7 +57,7 @@ function getDetailsSummary(
   options: BlockRendererOptions
 ): ReactNode {
   if (!node || !hasParsedChildren(node)) {
-    return 'Details'
+    return t('Details')
   }
 
   return options.renderChildren(node.children)

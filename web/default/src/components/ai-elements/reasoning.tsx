@@ -27,6 +27,7 @@ import {
   useEffect,
   useState,
 } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
   Collapsible,
@@ -140,36 +141,35 @@ export const Reasoning = memo(
 
 export type ReasoningTriggerProps = ComponentProps<typeof CollapsibleTrigger>
 
-const getThinkingMessage = (isStreaming: boolean, duration?: number) => {
-  if (isStreaming) {
-    return <Shimmer duration={1}>Thinking...</Shimmer>
-  }
-  // When duration is unknown or 0 (e.g., non-streaming responses), show a generic message
-  if (duration === undefined || duration === 0) {
-    return <p>Thought for a few seconds</p>
-  }
-  return <p>Thought for {duration} seconds</p>
-}
-
 export const ReasoningTrigger = memo(
   ({ className, children, ...props }: ReasoningTriggerProps) => {
     const { isStreaming, isOpen, duration } = useReasoning()
+    const { t } = useTranslation()
+    const thinkingText = t('Thought for {{duration}} seconds', {
+      duration: duration ?? 0,
+    })
 
     return (
       <CollapsibleTrigger
         className={cn(
-          'text-muted-foreground hover:text-foreground flex w-full items-center gap-2 text-sm transition-colors',
+          'text-muted-foreground hover:text-foreground inline-flex w-fit max-w-full items-center gap-1.5 text-sm leading-none transition-colors [&_p]:m-0',
           className
         )}
         {...props}
       >
         {children ?? (
           <>
-            <BrainIcon className='size-4' />
-            {getThinkingMessage(isStreaming, duration)}
+            <BrainIcon className='size-3.5 shrink-0' />
+            <span className='min-w-0 truncate leading-none'>
+              {isStreaming ? (
+                <Shimmer duration={1}>{t('Thinking...')}</Shimmer>
+              ) : (
+                thinkingText
+              )}
+            </span>
             <ChevronDownIcon
               className={cn(
-                'size-4 transition-transform',
+                'size-3.5 shrink-0 transition-transform',
                 isOpen ? 'rotate-180' : 'rotate-0'
               )}
             />
@@ -190,13 +190,15 @@ export const ReasoningContent = memo(
   ({ className, children, ...props }: ReasoningContentProps) => (
     <CollapsibleContent
       className={cn(
-        'border-border/70 mt-3 ml-2 border-l pl-4 text-sm',
+        'border-border/70 mt-2 ml-1.5 border-l pl-3 text-sm leading-5',
         'data-closed:fade-out-0 data-closed:slide-out-to-top-2 data-open:slide-in-from-top-2 text-muted-foreground data-closed:animate-out data-open:animate-in outline-none',
         className
       )}
       {...props}
     >
-      <Response className='grid gap-2'>{children}</Response>
+      <Response className='grid gap-1.5 [&_li]:my-0.5 [&_ol]:my-1.5 [&_p]:my-1.5 [&_p]:leading-5 [&_ul]:my-1.5'>
+        {children}
+      </Response>
     </CollapsibleContent>
   )
 )

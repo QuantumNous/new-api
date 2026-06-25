@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { sanitizeImageSrc, type ImageNode } from 'stream-markdown-parser'
 
 type ResponseImageProps = {
@@ -24,13 +25,14 @@ type ResponseImageProps = {
 }
 
 export function ResponseImage(props: ResponseImageProps) {
+  const { t } = useTranslation()
   const [hasError, setHasError] = useState(false)
   const src = sanitizeImageSrc(props.node.src)
 
   if (!src || hasError) {
     return (
       <span className='border-border/70 text-muted-foreground my-4 inline-flex rounded-md border px-3 py-2 text-xs italic'>
-        {props.node.alt || 'Image not available'}
+        {props.node.alt || t('Image not available')}
       </span>
     )
   }

@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { t } from 'i18next'
+
 import { ERROR_MESSAGES, MESSAGE_ROLES, MESSAGE_STATUS } from '../constants'
 import type { ChatCompletionResponse, Message } from '../types'
 import { parseThinkTags } from './message-reasoning-utils'
@@ -196,7 +198,9 @@ export function sanitizeMessagesOnLoad(messages: Message[]): Message[] {
       : {
           ...updateCurrentVersionContent(
             finalized,
-            `${ERROR_MESSAGES.API_REQUEST_ERROR}: ${ERROR_MESSAGES.INTERRUPTED}`
+            `${t(ERROR_MESSAGES.API_REQUEST_ERROR)}: ${t(
+              ERROR_MESSAGES.INTERRUPTED
+            )}`
           ),
           status: MESSAGE_STATUS.ERROR,
           isReasoningStreaming: false,

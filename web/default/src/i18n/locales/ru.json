@@ -4201,6 +4201,7 @@
     "These toggles affect whether certain request fields are passed through to the upstream provider.": "Эти переключатели влияют на то, передаются ли определенные поля запроса вышестоящему поставщику.",
     "Thinking Suffix Adapter": "Адаптер суффикса thinking",
     "Thinking to Content": "Мышление в контент",
+    "Thinking...": "Размышление...",
     "Third-party account bindings (read-only, managed by user in profile settings)": "Привязки сторонних учетных записей (только для чтения, управляется пользователем в настройках профиля)",
     "Third-party Payment Config": "Настройка стороннего платежа",
     "This action cannot be undone.": "Это действие невозможно отменить.",
@@ -4232,6 +4233,7 @@
     "This removes {{count}} failed models from this channel. This action cannot be undone.": "Это удалит {{count}} неуспешных моделей из этого канала. Действие необратимо.",
     "This site currently has {{count}} models enabled": "На этом сайте сейчас включено моделей: {{count}}",
     "This tier catches any request that did not match earlier tiers.": "Этот уровень обрабатывает все запросы, которые не совпали с предыдущими уровнями.",
+    "Thought for {{duration}} seconds": "Размышлял {{duration}} сек.",
     "this token group": "эта группа токенов",
     "this user group": "эта группа пользователей",
     "This user has no bindings": "У этого пользователя нет привязок",
@@ -4823,6 +4825,20 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "An unknown error occurred": "Произошла неизвестная ошибка",
+    "No content to copy": "Нет содержимого для копирования",
+    "Please wait for the current generation to complete": "Дождитесь завершения текущей генерации",
+    "Request error occurred": "Произошла ошибка запроса",
+    "Network connection failed or server not responding": "Сбой сетевого подключения или сервер не отвечает",
+    "Error parsing response data": "Ошибка при разборе данных ответа",
+    "Error establishing connection": "Ошибка при установлении соединения",
+    "Connection closed": "Соединение закрыто",
+    "Generation was interrupted": "Генерация была прервана",
+    "Note": "Примечание",
+    "Tip": "Совет",
+    "Important": "Важно",
+    "Image not available": "Изображение недоступно",
+    "Back to footnote {{id}} reference": "Вернуться к ссылке на сноску {{id}}"
   }
 }

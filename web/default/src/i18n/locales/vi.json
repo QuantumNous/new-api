@@ -4201,6 +4201,7 @@
     "These toggles affect whether certain request fields are passed through to the upstream provider.": "Các chuyển đổi này ảnh hưởng đến việc các trường yêu cầu nhất định có được chuyển đến nhà cung cấp dịch vụ đầu vào hay không.",
     "Thinking Suffix Adapter": "Adapter hậu tố thinking",
     "Thinking to Content": "Suy nghĩ thành Nội dung",
+    "Thinking...": "Đang suy nghĩ...",
     "Third-party account bindings (read-only, managed by user in profile settings)": "Liên kết tài khoản bên thứ ba (chỉ đọc, do người dùng quản lý trong cài đặt hồ sơ)",
     "Third-party Payment Config": "Cấu hình thanh toán bên thứ ba",
     "This action cannot be undone.": "Hành động này không thể hoàn tác.",
@@ -4232,6 +4233,7 @@
     "This removes {{count}} failed models from this channel. This action cannot be undone.": "Thao tác này sẽ xóa {{count}} mô hình thất bại khỏi kênh này. Không thể hoàn tác.",
     "This site currently has {{count}} models enabled": "Trang này hiện đã bật {{count}} mô hình",
     "This tier catches any request that did not match earlier tiers.": "Tầng này bắt mọi yêu cầu không khớp với các tầng trước.",
+    "Thought for {{duration}} seconds": "Đã suy nghĩ trong {{duration}} giây",
     "this token group": "nhóm token này",
     "this user group": "nhóm người dùng này",
     "This user has no bindings": "Người dùng này không có liên kết nào",
@@ -4823,6 +4825,20 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "An unknown error occurred": "Đã xảy ra lỗi không xác định",
+    "No content to copy": "Không có nội dung để sao chép",
+    "Please wait for the current generation to complete": "Vui lòng đợi lượt tạo hiện tại hoàn tất",
+    "Request error occurred": "Đã xảy ra lỗi yêu cầu",
+    "Network connection failed or server not responding": "Kết nối mạng thất bại hoặc máy chủ không phản hồi",
+    "Error parsing response data": "Lỗi khi phân tích dữ liệu phản hồi",
+    "Error establishing connection": "Lỗi khi thiết lập kết nối",
+    "Connection closed": "Kết nối đã đóng",
+    "Generation was interrupted": "Quá trình tạo đã bị gián đoạn",
+    "Note": "Ghi chú",
+    "Tip": "Mẹo",
+    "Important": "Quan trọng",
+    "Image not available": "Hình ảnh không khả dụng",
+    "Back to footnote {{id}} reference": "Quay lại tham chiếu chú thích {{id}}"
   }
 }
