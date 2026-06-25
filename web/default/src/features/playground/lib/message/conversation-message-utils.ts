@@ -61,6 +61,13 @@ export function createRegeneratedMessages(
     return null
   }
 
+  if (messages[messageIndex].from === MESSAGE_ROLES.USER) {
+    return [
+      ...messages.slice(0, messageIndex + 1),
+      createLoadingAssistantMessage(),
+    ]
+  }
+
   return [...messages.slice(0, messageIndex), createLoadingAssistantMessage()]
 }
 

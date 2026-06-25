@@ -41,7 +41,10 @@ import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 import { MESSAGE_ACTION_LABELS } from '../../constants'
 import { useMessageActionGuard } from '../../hooks/use-message-action-guard'
-import { getMessageActionState, getMessageActionsVisibilityClass } from '../../lib'
+import {
+  getMessageActionState,
+  getMessageActionsVisibilityClass,
+} from '../../lib'
 import type { Message } from '../../types'
 import { MessageActionButton } from './message-action-button'
 
@@ -79,7 +82,7 @@ export function MessageActions({
   const { copiedText, copyToClipboard } = useCopyToClipboard()
   const { guardAction } = useMessageActionGuard(isGenerating)
 
-  const { content, hasContent, isAssistant, isLoading } =
+  const { content, hasContent, isAssistant, isLoading, isUser } =
     getMessageActionState(message)
   const isCopied = copiedText === content
 
@@ -110,7 +113,7 @@ export function MessageActions({
     })
   }
 
-  if (isAssistant && !isLoading && onRegenerate) {
+  if ((isAssistant || isUser) && hasContent && !isLoading && onRegenerate) {
     actions.push({
       disabled: isGenerating,
       icon: RefreshCw,
