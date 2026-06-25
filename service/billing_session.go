@@ -201,7 +201,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 	if effectiveQuota > 0 {
 		if err := PreConsumeTokenQuota(s.relayInfo, effectiveQuota); err != nil {
 			if errors.Is(err, ErrInsufficientTokenQuota) {
-				return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+				return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 			}
 			// DB/system failure: keep 5xx and record it, do not mask as quota exhaustion.
 			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
@@ -222,7 +222,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 		// TODO: model 层应定义哨兵错误（如 ErrNoActiveSubscription），用 errors.Is 替代字符串匹配
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "no active subscription") || strings.Contains(errMsg, "subscription quota insufficient") {
-			return types.NewErrorWithStatusCode(fmt.Errorf("%s", common.TranslateMessage(c, "quota.subscription_insufficient", map[string]any{"Detail": errMsg})), types.ErrorCodeInsufficientUserQuota, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+			return types.NewErrorWithStatusCode(fmt.Errorf("%s", common.TranslateMessage(c, "quota.subscription_insufficient", map[string]any{"Detail": errMsg})), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 	}
@@ -248,7 +248,7 @@ func (s *BillingSession) reserveFunding(delta int) error {
 			return types.NewErrorWithStatusCode(
 				fmt.Errorf("%s", i18n.Translate(s.relayInfo.UserSetting.Language, "quota.subscription_insufficient", map[string]any{"Detail": err.Error()})),
 				types.ErrorCodeInsufficientUserQuota,
-				http.StatusTooManyRequests,
+				http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(),
 				types.ErrOptionWithNoRecordErrorLog(),
 			)
@@ -280,7 +280,7 @@ func (s *BillingSession) reserveToken(delta int) error {
 	}
 	if err := PreConsumeTokenQuota(s.relayInfo, delta); err != nil {
 		if errors.Is(err, ErrInsufficientTokenQuota) {
-			return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+			return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		// DB/system failure: keep 5xx and record it, do not mask as quota exhaustion.
 		return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
@@ -365,13 +365,13 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		if userQuota <= 0 {
 			return nil, types.NewErrorWithStatusCode(
 				fmt.Errorf("%s", common.TranslateMessage(c, "quota.user_insufficient", map[string]any{"Quota": logger.FormatQuota(userQuota)})),
-				types.ErrorCodeInsufficientUserQuota, http.StatusTooManyRequests,
+				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		if userQuota-preConsumedQuota < 0 {
 			return nil, types.NewErrorWithStatusCode(
 				fmt.Errorf("%s", common.TranslateMessage(c, "quota.pre_consume_failed", map[string]any{"Remaining": logger.FormatQuota(userQuota), "Required": logger.FormatQuota(preConsumedQuota)})),
-				types.ErrorCodeInsufficientUserQuota, http.StatusTooManyRequests,
+				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		relayInfo.UserQuota = userQuota

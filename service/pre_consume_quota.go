@@ -69,10 +69,10 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 		if url := topUpURL(); url != "" {
 			msg += " " + common.TranslateMessage(c, "quota.topup_hint", map[string]any{"URL": url})
 		}
-		return types.NewErrorWithStatusCode(fmt.Errorf("%s", msg), types.ErrorCodeInsufficientUserQuota, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		return types.NewErrorWithStatusCode(fmt.Errorf("%s", msg), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 	}
 	if userQuota-preConsumedQuota < 0 {
-		return types.NewErrorWithStatusCode(fmt.Errorf("%s", common.TranslateMessage(c, "quota.pre_consume_failed", map[string]any{"Remaining": logger.FormatQuota(userQuota), "Required": logger.FormatQuota(preConsumedQuota)})), types.ErrorCodeInsufficientUserQuota, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		return types.NewErrorWithStatusCode(fmt.Errorf("%s", common.TranslateMessage(c, "quota.pre_consume_failed", map[string]any{"Remaining": logger.FormatQuota(userQuota), "Required": logger.FormatQuota(preConsumedQuota)})), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 	}
 
 	trustQuota := common.GetTrustQuota()
@@ -100,7 +100,7 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 		err := PreConsumeTokenQuota(relayInfo, preConsumedQuota)
 		if err != nil {
 			if errors.Is(err, ErrInsufficientTokenQuota) {
-				return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusTooManyRequests, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+				return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 			}
 			// DB/system failure (GetTokenByKey / DecreaseTokenQuota): keep 5xx and record it
 			// so storage-layer faults are not masked as quota exhaustion.

@@ -24,7 +24,7 @@ func TestTokenAuthErrorResponseDistinguishesExhaustedQuota(t *testing.T) {
 
 	status, message, codes := tokenAuthErrorResponse(&gin.Context{}, model.ErrTokenExhausted)
 
-	require.Equal(t, http.StatusTooManyRequests, status)
+	require.Equal(t, http.StatusForbidden, status)
 	require.Equal(t, i18n.MsgTokenExhausted, message)
 	require.Equal(t, []types.ErrorCode{types.ErrorCodeInsufficientUserQuota}, codes)
 }

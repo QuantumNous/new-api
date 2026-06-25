@@ -444,7 +444,7 @@ func tokenAuthErrorResponse(c *gin.Context, err error) (int, string, []types.Err
 	case errors.Is(err, model.ErrTokenExpired):
 		return http.StatusUnauthorized, common.TranslateMessage(c, i18n.MsgTokenExpired), nil
 	case errors.Is(err, model.ErrTokenExhausted):
-		return http.StatusTooManyRequests, common.TranslateMessage(c, i18n.MsgTokenExhausted), []types.ErrorCode{types.ErrorCodeInsufficientUserQuota}
+		return http.StatusForbidden, common.TranslateMessage(c, i18n.MsgTokenExhausted), []types.ErrorCode{types.ErrorCodeInsufficientUserQuota}
 	case errors.Is(err, model.ErrTokenUnavailable):
 		return http.StatusForbidden, common.TranslateMessage(c, i18n.MsgTokenStatusUnavailable), []types.ErrorCode{types.ErrorCodeAccessDenied}
 	default:

@@ -384,7 +384,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 // returned by PreConsumeTokenQuota. It is distinct from the DB/system errors the
 // same function may surface (GetTokenByKey / DecreaseTokenQuota failures, the
 // negative-quota invariant). Callers MUST use errors.Is to map only this case to
-// 429 + skip-retry; other errors stay 5xx and are recorded, so storage-layer
+// 403 + skip-retry; other errors stay 5xx and are recorded, so storage-layer
 // failures are not masked as quota exhaustion.
 var ErrInsufficientTokenQuota = errors.New("insufficient token quota")
 
