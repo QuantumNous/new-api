@@ -77,6 +77,7 @@ export function PaymentConfirmDialog({
   const hasDiscount = discountRate > 0 && discountRate < 1 && paymentAmount > 0
   const originalAmount = hasDiscount ? paymentAmount / discountRate : 0
   const discountAmount = hasDiscount ? originalAmount - paymentAmount : 0
+  const isStripePayment = paymentMethod?.type === 'stripe'
   const hiddenLocalTopupAmount = formatLocalCurrencyAmount(
     topupAmount * usdExchangeRate,
     {
@@ -137,10 +138,20 @@ export function PaymentConfirmDialog({
 
           <div className='flex items-center justify-between'>
             <span className='text-muted-foreground text-sm'>
-              {t('You Pay')} <span className='text-xs'>USD</span>
+              {isStripePayment ? t('Checkout Amount') : t('You Pay')}{' '}
+              {!isStripePayment && <span className='text-xs'>USD</span>}
             </span>
             {calculating ? (
               <Skeleton className='h-6 w-24' />
+            ) : isStripePayment ? (
+              <div className='text-right'>
+                <span className='text-base font-semibold'>
+                  {t('Final amount shown by Stripe')}
+                </span>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  {t('Stripe will apply your local currency and coupon code at checkout.')}
+                </p>
+              </div>
             ) : (
               <div className='flex items-baseline gap-2'>
                 <span className='text-2xl font-semibold'>

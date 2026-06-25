@@ -62,6 +62,11 @@ var (
 	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
 )
 
+type PaymentSnapshot struct {
+	Money    float64
+	Currency string
+}
+
 func (topUp *TopUp) Insert() error {
 	var err error
 	err = DB.Create(topUp).Error
@@ -182,6 +187,10 @@ func AttachPaddleGatewayTradeNo(tradeNo string, userId int, gatewayTradeNo strin
 }
 
 func Recharge(referenceId string, customerId string, callerIp string) (bool, error) {
+	return RechargeWithPaymentSnapshot(referenceId, customerId, callerIp, PaymentSnapshot{})
+}
+
+func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp string, snapshot PaymentSnapshot) (bool, error) {
 	if referenceId == "" {
 		return false, errors.New("未提供支付单号")
 	}
@@ -226,6 +235,12 @@ func Recharge(referenceId string, customerId string, callerIp string) (bool, err
 
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
+		if snapshot.Money > 0 {
+			topUp.Money = snapshot.Money
+		}
+		if strings.TrimSpace(snapshot.Currency) != "" {
+			topUp.PaymentCurrency = strings.ToUpper(strings.TrimSpace(snapshot.Currency))
+		}
 		err = tx.Save(topUp).Error
 		if err != nil {
 			return err

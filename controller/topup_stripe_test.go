@@ -37,6 +37,62 @@ func TestStripeMinorUnitAmount(t *testing.T) {
 	require.Equal(t, int64(1235), amount)
 }
 
+func TestBuildStripeTopUpLineItemUsesConfiguredMultiCurrencyPrice(t *testing.T) {
+	lineItem := buildStripeTopUpLineItem("price_multi_currency", 20)
+
+	require.NotNil(t, lineItem.Price)
+	require.Equal(t, "price_multi_currency", *lineItem.Price)
+	require.NotNil(t, lineItem.Quantity)
+	require.Equal(t, int64(20), *lineItem.Quantity)
+	require.Nil(t, lineItem.PriceData)
+}
+
+func TestBuildStripeCheckoutSessionParamsAlwaysAllowsPromotionCodes(t *testing.T) {
+	originalPriceId := setting.StripePriceId
+	t.Cleanup(func() {
+		setting.StripePriceId = originalPriceId
+	})
+	setting.StripePriceId = "price_multi_currency"
+
+	params := buildStripeCheckoutSessionParams(
+		"ref_123",
+		"",
+		"user@example.com",
+		20,
+		"https://flatkey.ai/wallet?show_history=true",
+		"https://flatkey.ai/wallet",
+		false,
+		false,
+	)
+
+	require.NotNil(t, params.AllowPromotionCodes)
+	require.True(t, *params.AllowPromotionCodes)
+	require.Len(t, params.LineItems, 1)
+	require.NotNil(t, params.LineItems[0].Price)
+	require.Equal(t, setting.StripePriceId, *params.LineItems[0].Price)
+	require.Nil(t, params.LineItems[0].PriceData)
+}
+
+func TestStripePaymentSnapshotFromEventUsesCurrencyMinorUnits(t *testing.T) {
+	event := stripe.Event{Data: &stripe.EventData{Object: map[string]interface{}{
+		"amount_total": float64(12345),
+		"currency":     "brl",
+	}}}
+
+	snapshot := stripePaymentSnapshotFromEvent(event)
+	require.Equal(t, 123.45, snapshot.Money)
+	require.Equal(t, "BRL", snapshot.Currency)
+
+	event = stripe.Event{Data: &stripe.EventData{Object: map[string]interface{}{
+		"amount_total": float64(5000),
+		"currency":     "jpy",
+	}}}
+
+	snapshot = stripePaymentSnapshotFromEvent(event)
+	require.Equal(t, 5000.0, snapshot.Money)
+	require.Equal(t, "JPY", snapshot.Currency)
+}
+
 func TestValidateStripeRedirectURLAllowsSameRequestHost(t *testing.T) {
 	originalDomains := constant.TrustedRedirectDomains
 	t.Cleanup(func() {

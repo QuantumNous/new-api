@@ -1874,7 +1874,9 @@ export function PaymentSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Stripe product price ID')}
+                      {t(
+                        'Use a Stripe multi-currency Price ID. Set USD as the default currency so Stripe can fall back to USD when a buyer currency is not configured.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -1935,9 +1937,9 @@ export function PaymentSettingsSection({
                 render={({ field }) => (
                   <SettingsSwitchItem>
                     <SettingsSwitchContent>
-                      <FormLabel>{t('Promotion codes')}</FormLabel>
+                      <FormLabel>{t('Promotion codes always enabled')}</FormLabel>
                       <FormDescription>
-                        {t('Allow users to enter promo codes')}
+                        {t('Stripe Checkout always shows the coupon code field. This legacy switch is kept for compatibility.')}
                       </FormDescription>
                     </SettingsSwitchContent>
                     <FormControl>

@@ -83,6 +83,7 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
+  currentPaymentType?: string
 }
 
 export function RechargeFormCard({
@@ -111,6 +112,7 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
+  currentPaymentType,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -175,6 +177,7 @@ export function RechargeFormCard({
   const hasStripePaymentMethod =
     topupInfo?.enable_stripe_topup ||
     topupInfo?.pay_methods?.some((method) => method.type === 'stripe')
+  const isCurrentStripePayment = currentPaymentType === 'stripe'
 
   const updateInvoiceField = (field: keyof InvoiceProfile, value: string) => {
     setInvoiceProfile((current) => ({
@@ -339,6 +342,10 @@ export function RechargeFormCard({
                     </span>
                     {calculating ? (
                       <Skeleton className='h-5 w-16' />
+                    ) : isCurrentStripePayment ? (
+                      <span className='text-sm font-semibold'>
+                        {t('Final amount shown by Stripe')}
+                      </span>
                     ) : (
                       <span className='text-sm font-semibold'>
                         {formatUsdAmount(paymentAmount)}
