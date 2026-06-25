@@ -77,3 +77,22 @@ export const DEFAULT_MIN_TOPUP = 1
 
 export const GLASS_CARD_CLS =
   'rounded-2xl border border-white/70 bg-white/80 shadow-sm backdrop-blur dark:border-zinc-700/50 dark:bg-zinc-800/60'
+
+/**
+ * Local payment methods Clink adds on top of global cards (Visa/Mastercard).
+ * Shown as a compact country-code strip on the Clink top-up entry, with the
+ * full mapping in a hover tooltip. `code` = ISO country, `method` = local brand
+ * (proper noun, no i18n), `currency` = ISO 4217. Ordered by audience relevance.
+ */
+export const CLINK_LOCAL_METHODS = [
+  { code: 'IN', method: 'UPI', currency: 'INR' },
+  { code: 'BR', method: 'PIX', currency: 'BRL' },
+  { code: 'ID', method: 'QRIS', currency: 'IDR' },
+  { code: 'PH', method: 'GCash', currency: 'PHP' },
+  { code: 'TH', method: 'PromptPay', currency: 'THB' },
+  { code: 'MY', method: "Touch 'n Go", currency: 'MYR' },
+  { code: 'KR', method: 'Kakao Pay', currency: 'KRW' },
+] as const
+
+/** How many country codes to show inline before collapsing into "+N". */
+export const CLINK_STRIP_VISIBLE = 5

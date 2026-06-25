@@ -23,15 +23,17 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { CryptoDepositModal } from './crypto-deposit-modal'
 import { getTopupInfo, requestPayment, requestPayPalPayment, isApiSuccess, getUserBillingHistory, getFirstTopupPromo } from '../api'
 import type { FirstTopupPromoInfo } from '../api'
 import { paymentErrorMessage } from '../lib/payment'
-import { GLASS_CARD_CLS } from '../constants'
+import { GLASS_CARD_CLS, CLINK_LOCAL_METHODS } from '../constants'
 import { useWaffoPancakePayment } from '../hooks/use-waffo-pancake-payment'
 import { usePlategaPayment } from '../hooks/use-platega-payment'
 import { useClinkPayment } from '../hooks/use-clink-payment'
 import { WaffoPayMethodHints } from './waffo-pay-method-hints'
+import { ClinkPayMethodHints } from './clink-pay-method-hints'
 import type { TopupInfo } from '../types'
 
 const HINT_LS_KEY = 'payment_hint_shown'
@@ -384,27 +386,47 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
               )}
 
               {clinkEnabled && (
-                <button
-                  type='button'
-                  disabled={effectiveAmount <= 0 || clinkLoading}
-                  onClick={handleClinkPay}
-                  className={cn(
-                    'flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40',
-                    selectedMethod === 'clink'
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-border bg-white hover:border-green-500'
-                  )}
-                >
-                  <div className='flex size-9 shrink-0 items-center justify-center rounded-lg' style={{ background: 'linear-gradient(135deg, #22c55e, #15803d)' }}>
-                    {clinkLoading
-                      ? <Loader2 className='size-4 animate-spin text-white' />
-                      : <Globe className='size-4 text-white' />}
-                  </div>
-                  <div className='min-w-0'>
-                    <div className='truncate text-sm font-semibold text-gray-800'>Clink</div>
-                    <div className='truncate text-[11px] text-gray-400'>{t('Global cards and local methods')}</div>
-                  </div>
-                </button>
+                <TooltipProvider delay={0}>
+                  <Tooltip>
+                    <TooltipTrigger render={
+                      <button
+                        type='button'
+                        disabled={effectiveAmount <= 0 || clinkLoading}
+                        onClick={handleClinkPay}
+                        className={cn(
+                          'flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40',
+                          selectedMethod === 'clink'
+                            ? 'border-green-500 bg-green-50'
+                            : 'border-border bg-white hover:border-green-500'
+                        )}
+                      >
+                        <div className='flex size-9 shrink-0 items-center justify-center rounded-lg' style={{ background: 'linear-gradient(135deg, #22c55e, #15803d)' }}>
+                          {clinkLoading
+                            ? <Loader2 className='size-4 animate-spin text-white' />
+                            : <Globe className='size-4 text-white' />}
+                        </div>
+                        <div className='min-w-0'>
+                          <div className='truncate text-sm font-semibold text-gray-800'>Clink</div>
+                          <ClinkPayMethodHints />
+                        </div>
+                      </button>
+                    } />
+                    <TooltipContent className='max-w-[260px]'>
+                      <div className='space-y-1.5'>
+                        <div className='text-[11px] font-semibold'>{t('Global cards and local methods')}</div>
+                        <div className='flex flex-col gap-1'>
+                          {CLINK_LOCAL_METHODS.map((m) => (
+                            <div key={m.code} className='flex items-center gap-2 text-[11px]'>
+                              <span className='inline-flex w-6 shrink-0 justify-center rounded bg-white/20 px-1 py-px font-mono text-[10px]'>{m.code}</span>
+                              <span className='font-medium'>{m.method}</span>
+                              <span className='ml-auto opacity-70'>{m.currency}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
 
               <button
