@@ -3674,6 +3674,7 @@
     "Rows per page": "Строк на страницу",
     "RPM": "RPM",
     "Cache Hit Rate": "Попадание в кэш",
+    "Cache hit rate across all models": "Кэш-хиты по всем моделям",
     "RPM = requests per minute, TPM = tokens per minute, RPD = requests per day. Limits apply per token group.": "RPM = запросов в минуту, TPM = токенов в минуту, RPD = запросов в день. Ограничения применяются к каждой группе токенов.",
     "RSA Private Key (Production)": "RSA-приватный ключ (Продакшн)",
     "RSA Private Key (Sandbox)": "RSA-приватный ключ (Песочница)",

@@ -644,8 +644,8 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 		return stat, errors.New("查询统计数据失败")
 	}
 
-	// 计算缓存命中率（最近60秒内的 cache_tokens / prompt_tokens）
-	cacheTokens, totalPrompt, err := sumCacheTokens(modelName, username, tokenName, channel, group)
+	// 计算缓存命中率（使用请求的时间范围）
+	cacheTokens, totalPrompt, err := sumCacheTokens(modelName, username, tokenName, channel, group, startTimestamp, endTimestamp)
 	if err != nil {
 		common.SysError("failed to query cache stat: " + err.Error())
 		// 缓存统计数据失败不影响主流程
@@ -659,7 +659,7 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	return stat, nil
 }
 
-func sumCacheTokens(modelName string, username string, tokenName string, channel int, group string) (cacheTokens int, totalPrompt int, err error) {
+func sumCacheTokens(modelName string, username string, tokenName string, channel int, group string, startTimestamp int64, endTimestamp int64) (cacheTokens int, totalPrompt int, err error) {
 	var rows []struct {
 		PromptTokens int
 		Other        string
@@ -667,8 +667,16 @@ func sumCacheTokens(modelName string, username string, tokenName string, channel
 
 	query := LOG_DB.Table("logs").
 		Select("prompt_tokens, other").
-		Where("type = ?", LogTypeConsume).
-		Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
+		Where("type = ?", LogTypeConsume)
+
+	if startTimestamp != 0 {
+		query = query.Where("created_at >= ?", startTimestamp)
+	} else {
+		query = query.Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
+	}
+	if endTimestamp != 0 {
+		query = query.Where("created_at <= ?", endTimestamp)
+	}
 
 	if username != "" {
 		if query, err = applyExplicitLogTextFilter(query, "username", username); err != nil {
@@ -709,6 +717,75 @@ func sumCacheTokens(modelName string, username string, tokenName string, channel
 	}
 
 	return cacheTokens, totalPrompt, nil
+}
+
+type ModelCacheStat struct {
+	ModelName    string  `json:"model_name"`
+	CacheTokens  int     `json:"cache_tokens"`
+	TotalPrompt  int     `json:"total_prompt"`
+	CacheHitRate float64 `json:"cache_hit_rate"`
+}
+
+func SumCacheTokensByModel(startTimestamp int64, endTimestamp int64, username string) ([]ModelCacheStat, error) {
+	var rows []struct {
+		ModelName    string
+		PromptTokens int
+		Other        string
+	}
+
+	query := LOG_DB.Table("logs").
+		Select("model_name, prompt_tokens, other").
+		Where("type = ?", LogTypeConsume).
+		Where("model_name != ''")
+
+	if username != "" {
+		var err error
+		if query, err = applyExplicitLogTextFilter(query, "username", username); err != nil {
+			return nil, err
+		}
+	}
+	if startTimestamp != 0 {
+		query = query.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		query = query.Where("created_at <= ?", endTimestamp)
+	}
+
+	if err := query.Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	modelData := make(map[string]*ModelCacheStat)
+	for _, row := range rows {
+		if row.ModelName == "" {
+			continue
+		}
+		if _, exists := modelData[row.ModelName]; !exists {
+			modelData[row.ModelName] = &ModelCacheStat{ModelName: row.ModelName}
+		}
+		stat := modelData[row.ModelName]
+		stat.TotalPrompt += row.PromptTokens
+		if row.Other != "" {
+			otherMap, mapErr := common.StrToMap(row.Other)
+			if mapErr == nil && otherMap != nil {
+				if ct, ok := otherMap["cache_tokens"]; ok {
+					if f, ok := ct.(float64); ok {
+						stat.CacheTokens += int(f)
+					}
+				}
+			}
+		}
+	}
+
+	result := make([]ModelCacheStat, 0, len(modelData))
+	for _, stat := range modelData {
+		if stat.TotalPrompt > 0 {
+			stat.CacheHitRate = float64(stat.CacheTokens) / float64(stat.TotalPrompt) * 100
+		}
+		result = append(result, *stat)
+	}
+
+	return result, nil
 }
 
 func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string) (token int) {

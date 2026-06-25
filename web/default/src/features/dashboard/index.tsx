@@ -96,8 +96,8 @@ const LazyFlowCharts = lazy(() =>
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
-      <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
-        {Array.from({ length: 5 }).map((_, i) => (
+      <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-6'>
+        {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className='px-4 py-3.5 sm:px-5 sm:py-4'>
             <Skeleton className='h-3.5 w-16' />
             <Skeleton className='mt-2 h-7 w-20' />

@@ -3674,6 +3674,7 @@
     "Rows per page": "Rows per page",
     "RPM": "RPM",
     "Cache Hit Rate": "Cache Hit Rate",
+    "Cache hit rate across all models": "Cache hit rate across all models",
     "RPM = requests per minute, TPM = tokens per minute, RPD = requests per day. Limits apply per token group.": "RPM = requests per minute, TPM = tokens per minute, RPD = requests per day. Limits apply per token group.",
     "RSA Private Key (Production)": "RSA Private Key (Production)",
     "RSA Private Key (Sandbox)": "RSA Private Key (Sandbox)",

@@ -33,6 +33,13 @@ export interface QuotaDataItem {
   quota?: number
 }
 
+export interface ModelCacheStat {
+  model_name: string
+  cache_tokens: number
+  total_prompt: number
+  cache_hit_rate: number
+}
+
 export interface FlowQuotaDataItem {
   user_id?: number
   username?: string

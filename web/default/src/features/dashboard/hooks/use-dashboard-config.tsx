@@ -25,6 +25,7 @@ import {
   Flame,
   TrendingUp,
   Activity,
+  Database,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -78,6 +79,13 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       icon: Zap,
       getValue: (stat, timeRangeMinutes = 1) =>
         safeDivide(stat?.tpm ?? 0, timeRangeMinutes),
+    },
+    {
+      key: 'cacheHitRate',
+      title: t('Cache Hit Rate'),
+      description: t('Cache hit rate across all models'),
+      icon: Database,
+      getValue: (stat) => stat?.cacheHitRate ?? 0,
     },
   ]
 }

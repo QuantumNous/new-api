@@ -23,7 +23,7 @@ import { formatCompactNumber, formatNumber, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getUserQuotaDates } from '@/features/dashboard/api'
+import { getUserQuotaDates, getModelCacheStats } from '@/features/dashboard/api'
 import { useModelStatCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import {
   buildQueryParams,
@@ -64,6 +64,7 @@ export function LogStatCards(props: LogStatCardsProps) {
     totalQuota: number
     totalCount: number
     totalTokens: number
+    cacheHitRate: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -88,11 +89,34 @@ export function LogStatCards(props: LogStatCardsProps) {
     const timeDiff = (timeRange.end_timestamp - timeRange.start_timestamp) / 60
     setTimeRangeMinutes(timeDiff)
 
-    getUserQuotaDates(buildQueryParams(timeRange, filters), isAdmin)
-      .then((res) => {
+    const params = buildQueryParams(timeRange, filters)
+
+    Promise.all([
+      getUserQuotaDates(params, isAdmin),
+      getModelCacheStats(params, isAdmin),
+    ])
+      .then(([quotaRes, cacheRes]) => {
         if (abortController.signal.aborted) return
-        const data = res?.data || []
-        setStats(calculateDashboardStats(data))
+        const data = quotaRes?.data || []
+        const baseStats = calculateDashboardStats(data)
+
+        let cacheHitRate = 0
+        const cacheData = cacheRes?.data || []
+        if (cacheData.length > 0) {
+          const totalCacheTokens = cacheData.reduce(
+            (sum, m) => sum + m.cache_tokens,
+            0
+          )
+          const totalPromptTokens = cacheData.reduce(
+            (sum, m) => sum + m.total_prompt,
+            0
+          )
+          if (totalPromptTokens > 0) {
+            cacheHitRate = (totalCacheTokens / totalPromptTokens) * 100
+          }
+        }
+
+        setStats({ ...baseStats, cacheHitRate })
         onDataUpdate?.(data, false)
       })
       .catch(() => {
@@ -116,6 +140,7 @@ export function LogStatCards(props: LogStatCardsProps) {
     rpm: stats?.totalCount ?? 0,
     quota: stats?.totalQuota ?? 0,
     tpm: stats?.totalTokens ?? 0,
+    cacheHitRate: stats?.cacheHitRate ?? 0,
   }
 
   const items = statCardsConfig.map((config) => {
@@ -127,7 +152,12 @@ export function LogStatCards(props: LogStatCardsProps) {
             displayValue: formatQuota(rawValue),
             fullValue: formatQuota(rawValue),
           }
-        : formatStatNumber(rawValue, locale)
+        : config.key === 'cacheHitRate'
+          ? {
+              displayValue: `${rawValue.toFixed(1)}%`,
+              fullValue: `${rawValue.toFixed(1)}%`,
+            }
+          : formatStatNumber(rawValue, locale)
 
     return {
       title: config.title,
@@ -140,7 +170,7 @@ export function LogStatCards(props: LogStatCardsProps) {
 
   return (
     <div className='overflow-hidden rounded-lg border'>
-      <div className='divide-border/60 grid min-w-0 grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
+      <div className='divide-border/60 grid min-w-0 grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-6'>
         {items.map((it, idx) => {
           const Icon = it.icon
           return (

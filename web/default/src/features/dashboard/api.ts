@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import type {
   FlowQuotaDataItem,
+  ModelCacheStat,
   QuotaDataItem,
   UptimeGroupResult,
 } from './types'
@@ -44,6 +45,23 @@ export async function getUserQuotaDates(
 ) {
   const endpoint = isAdmin ? '/api/data' : '/api/data/self'
   const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
+    endpoint,
+    { params }
+  )
+  return res.data
+}
+
+// Get per-model cache hit rate for the dashboard
+export async function getModelCacheStats(
+  params: {
+    start_timestamp: number
+    end_timestamp: number
+    username?: string
+  },
+  isAdmin = false
+) {
+  const endpoint = isAdmin ? '/api/data/cache' : '/api/data/cache/self'
+  const res = await api.get<{ success: boolean; data: ModelCacheStat[] }>(
     endpoint,
     { params }
   )

@@ -3674,6 +3674,7 @@
     "Rows per page": "Số hàng trên trang",
     "RPM": "RPM",
     "Cache Hit Rate": "Tỷ lệ truy cập bộ nhớ đệm",
+    "Cache hit rate across all models": "Tỷ lệ truy cập bộ nhớ đệm trên tất cả mô hình",
     "RPM = requests per minute, TPM = tokens per minute, RPD = requests per day. Limits apply per token group.": "RPM = yêu cầu mỗi phút, TPM = token mỗi phút, RPD = yêu cầu mỗi ngày. Giới hạn áp dụng cho từng nhóm token.",
     "RSA Private Key (Production)": "RSA Private Key (Sản xuất)",
     "RSA Private Key (Sandbox)": "Khóa riêng RSA (Sandbox)",
