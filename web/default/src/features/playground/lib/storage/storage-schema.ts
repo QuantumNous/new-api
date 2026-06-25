@@ -20,16 +20,19 @@ import { z } from 'zod'
 
 export const STORAGE_VERSION = 1
 export const MAX_STORED_MESSAGES = 100
+export const MAX_STORED_MESSAGES_BYTES = 1024 * 1024
+export const MAX_LOADED_MESSAGES_CHARS = 120_000
+export const MAX_LOADED_MESSAGE_CHARS = 40_000
 
 export const playgroundConfigSchema = z.object({
   model: z.string().optional(),
   group: z.string().optional(),
-  temperature: z.number().finite().optional(),
-  top_p: z.number().finite().optional(),
-  max_tokens: z.number().finite().optional(),
-  frequency_penalty: z.number().finite().optional(),
-  presence_penalty: z.number().finite().optional(),
-  seed: z.number().finite().nullable().optional(),
+  temperature: z.number().optional(),
+  top_p: z.number().optional(),
+  max_tokens: z.number().optional(),
+  frequency_penalty: z.number().optional(),
+  presence_penalty: z.number().optional(),
+  seed: z.number().nullable().optional(),
   stream: z.boolean().optional(),
 })
 
@@ -62,13 +65,20 @@ const sourceSchema = z.object({
 
 const reasoningSchema = z.object({
   content: z.string(),
-  duration: z.number().finite(),
+  duration: z.number(),
+  startedAt: z.number().optional(),
+  completedAt: z.number().optional(),
+  durationMs: z.number().optional(),
 })
 
 const messageSchema = z.object({
   key: z.string(),
   from: messageRoleSchema,
   versions: z.array(messageVersionSchema).min(1),
+  createdAt: z.number().optional(),
+  startedAt: z.number().optional(),
+  completedAt: z.number().optional(),
+  durationMs: z.number().optional(),
   sources: z.array(sourceSchema).optional(),
   reasoning: reasoningSchema.optional(),
   isReasoningStreaming: z.boolean().optional(),

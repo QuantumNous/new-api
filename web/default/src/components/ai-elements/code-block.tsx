@@ -83,6 +83,8 @@ const LANGUAGE_ALIASES: Record<string, BundledLanguage> = {
   ts: 'typescript',
 }
 
+const LANGUAGE_PATTERN = /^[a-z0-9][a-z0-9+#._-]{0,31}$/i
+
 const lineNumberTransformer: ShikiTransformer = {
   name: 'line-numbers',
   line(node, line) {
@@ -106,6 +108,10 @@ const lineNumberTransformer: ShikiTransformer = {
 
 function getRequestedCodeLanguage(language?: string) {
   const normalized = language?.trim().toLowerCase() || 'plaintext'
+  if (!LANGUAGE_PATTERN.test(normalized)) {
+    return 'plaintext'
+  }
+
   return LANGUAGE_ALIASES[normalized] ?? normalized
 }
 
@@ -121,11 +127,11 @@ async function normalizeCodeLanguage(language?: string) {
 
 function escapeCodeHtml(code: string) {
   return code
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
 }
 
 function renderPlainCodeHtml(code: string, showLineNumbers: boolean) {
@@ -203,6 +209,22 @@ function getCodeBlockHeight(lines: number) {
   return `${Math.max(4, lines) * 1.5 + 2}rem`
 }
 
+function getCodeBlockMaxHeight(
+  isCodeCollapsed: boolean,
+  previewLines: number,
+  maxExpandedLines?: number
+): string | undefined {
+  if (isCodeCollapsed) {
+    return getCodeBlockHeight(previewLines)
+  }
+
+  if (maxExpandedLines) {
+    return getCodeBlockHeight(maxExpandedLines)
+  }
+
+  return undefined
+}
+
 export const CodeBlock = ({
   code,
   collapsedLines = 12,
@@ -228,25 +250,29 @@ export const CodeBlock = ({
   const canCollapse = enableCollapse && lineCount > previewLines
   const isCodeCollapsed = canCollapse && isCollapsed
   const displayTitle = title ?? displayLanguage
-  const bodyMaxHeight = isCodeCollapsed
-    ? getCodeBlockHeight(previewLines)
-    : maxExpandedLines
-      ? getCodeBlockHeight(maxExpandedLines)
-      : undefined
+  const bodyMaxHeight = getCodeBlockMaxHeight(
+    isCodeCollapsed,
+    previewLines,
+    maxExpandedLines
+  )
 
   useEffect(() => {
     let cancelled = false
-    highlightCode(code, language, showLineNumbers)
-      .then((next) => {
+
+    async function updateHighlightedCode(): Promise<void> {
+      try {
+        const nextHtml = await highlightCode(code, language, showLineNumbers)
         if (!cancelled) {
-          setHtml(next)
+          setHtml(nextHtml)
         }
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
           setHtml(renderPlainCodeHtml(code, showLineNumbers))
         }
-      })
+      }
+    }
+
+    void updateHighlightedCode()
     return () => {
       cancelled = true
     }

@@ -64,6 +64,18 @@ function shouldShowMessageContent(
   )
 }
 
+function getDisplayContent(message: Message, versionContent: string): string {
+  if (message.from !== MESSAGE_ROLES.ASSISTANT) {
+    return versionContent
+  }
+
+  if (!versionContent.includes('<think>')) {
+    return versionContent
+  }
+
+  return parseThinkTags(versionContent).visibleContent
+}
+
 export function getMessageContentState(
   message: Message,
   versionContent: string
@@ -79,9 +91,7 @@ export function getMessageContentState(
   const showMessageContent = shouldShowMessageContent(message, versionContent)
 
   const baseState: MessageContentStateBase = {
-    displayContent: isAssistant
-      ? parseThinkTags(versionContent).visibleContent
-      : versionContent,
+    displayContent: getDisplayContent(message, versionContent),
     hasSources: sources.length > 0,
     isAssistant,
     showLoader,

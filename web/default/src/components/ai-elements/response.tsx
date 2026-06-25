@@ -28,17 +28,21 @@ import { renderChildren, renderFootnotes } from './response-renderer'
 import type { ResponseProps } from './response-types'
 
 const markdown = getMarkdown('new-api-response')
+const MAX_PARSED_MARKDOWN_CHARS = 20_000
 
 export const Response = memo((props: ResponseProps) => {
   const content = getMarkdownContent(props.children)
-  const nodes = useMemo(
-    () =>
-      parseMarkdownToStructure(content, markdown, {
-        final: props.final ?? true,
-        validateLink: markdown.options.validateLink,
-      }),
-    [content, props.final]
-  )
+  const shouldParseMarkdown = content.length <= MAX_PARSED_MARKDOWN_CHARS
+  const nodes = useMemo(() => {
+    if (!shouldParseMarkdown) {
+      return []
+    }
+
+    return parseMarkdownToStructure(content, markdown, {
+      final: props.final ?? true,
+      validateLink: markdown.options.validateLink,
+    })
+  }, [content, props.final, shouldParseMarkdown])
   const parsedContent = useMemo(() => parseResponseContent(nodes), [nodes])
   const renderedContent =
     parsedContent.bodyNodes.length > 0

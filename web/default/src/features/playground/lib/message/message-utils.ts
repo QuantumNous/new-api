@@ -74,22 +74,30 @@ export function updateCurrentVersionContent(
 /**
  * Create a user message
  */
-export function createUserMessage(content: string): Message {
+export function createUserMessage(
+  content: string,
+  createdAt: number = Date.now()
+): Message {
   return {
     key: nanoid(),
     from: MESSAGE_ROLES.USER,
     versions: [createMessageVersion(content)],
+    createdAt,
   }
 }
 
 /**
  * Create a loading assistant message
  */
-export function createLoadingAssistantMessage(): Message {
+export function createLoadingAssistantMessage(
+  startedAt: number = Date.now()
+): Message {
   return {
     key: nanoid(),
     from: MESSAGE_ROLES.ASSISTANT,
     versions: [createMessageVersion('')],
+    createdAt: startedAt,
+    startedAt,
     reasoning: undefined,
     isReasoningComplete: false,
     isContentComplete: false,

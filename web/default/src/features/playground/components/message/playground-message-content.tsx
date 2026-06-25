@@ -37,13 +37,20 @@ import {
 import { cn } from '@/lib/utils'
 
 import { MESSAGE_STATUS } from '../../constants'
-import { getMessageContentState, isErrorMessage } from '../../lib'
+import {
+  getMessageAlignmentClass,
+  getMessageContentState,
+  isErrorMessage,
+  type MessageAlignment,
+} from '../../lib'
 import { getMessageContentStyles } from '../../lib/message/message-styles'
 import type { Message } from '../../types'
 import { MessageError } from './message-error'
+import { MessageMetadata } from './message-metadata'
 
 type PlaygroundMessageContentProps = {
   actions: ReactNode
+  alignment: MessageAlignment
   errorActions?: ReactNode
   message: Message
   versionContent: string
@@ -51,6 +58,7 @@ type PlaygroundMessageContentProps = {
 
 export function PlaygroundMessageContent({
   actions,
+  alignment,
   errorActions,
   message,
   versionContent,
@@ -71,7 +79,12 @@ export function PlaygroundMessageContent({
     message.status !== MESSAGE_STATUS.STREAMING
 
   return (
-    <>
+    <div
+      className={cn(
+        'flex w-full min-w-0 flex-col',
+        getMessageAlignmentClass(alignment)
+      )}
+    >
       {hasSources && (
         <Sources>
           <SourcesTrigger count={sources.length} />
@@ -88,7 +101,11 @@ export function PlaygroundMessageContent({
       )}
 
       {hasReasoning && (
-        <Reasoning defaultOpen isStreaming={message.isReasoningStreaming}>
+        <Reasoning
+          defaultOpen
+          duration={message.reasoning?.duration}
+          isStreaming={message.isReasoningStreaming}
+        >
           <ReasoningTrigger />
           <ReasoningContent>{reasoningContent}</ReasoningContent>
         </Reasoning>
@@ -104,11 +121,11 @@ export function PlaygroundMessageContent({
       )}
 
       {isError && (
-        <MessageError
-          actions={errorActions}
-          message={message}
-          className='mb-2'
-        />
+        <>
+          <MessageError message={message} className='mb-2' />
+          <MessageMetadata alignment={alignment} message={message} />
+          {errorActions}
+        </>
       )}
 
       {!isError && showMessageContent && (
@@ -119,9 +136,10 @@ export function PlaygroundMessageContent({
           >
             <Response final={isMessageFinal}>{displayContent}</Response>
           </MessageContent>
+          <MessageMetadata alignment={alignment} message={message} />
           {actions}
         </>
       )}
-    </>
+    </div>
   )
 }

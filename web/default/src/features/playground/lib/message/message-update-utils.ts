@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { ERROR_MESSAGES, MESSAGE_ROLES, MESSAGE_STATUS } from '../../constants'
 import type { Message } from '../../types'
+import { completeAssistantTiming } from './message-timing-utils'
 import { updateCurrentVersionContent } from './message-utils'
 
 /**
@@ -35,12 +36,12 @@ export function updateAssistantMessageWithError(
       `${title}: ${errorMessage}`
     )
 
-    return {
+    return completeAssistantTiming({
       ...updatedMessage,
       status: MESSAGE_STATUS.ERROR,
       isReasoningStreaming: false,
       errorCode: errorCode || null,
-    }
+    })
   })
 }
 

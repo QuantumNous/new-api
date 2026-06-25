@@ -30,6 +30,7 @@ export function Playground() {
     config,
     parameterEnabled,
     messages,
+    isLoadingMessages,
     models,
     groups,
     updateMessages,
@@ -78,6 +79,7 @@ export function Playground() {
       <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
         <PlaygroundChat
           messages={messages}
+          isLoadingMessages={isLoadingMessages}
           onRegenerateMessage={handleRegenerateMessage}
           onEditMessage={handleEditMessage}
           onDeleteMessage={handleDeleteMessage}

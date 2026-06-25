@@ -17,26 +17,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation'
+import { Loader } from '@/components/ai-elements/loader'
 import { Message } from '@/components/ai-elements/message'
 
 import {
   getChatMessageRenderState,
   getEditingMessageContent,
+  getMessageAlignment,
   getPreviousUserMessage,
   isErrorMessage,
 } from '../../lib'
-import type { Message as MessageType } from '../../types'
+import type {
+  Message as MessageType,
+  PlaygroundMessageLayoutMode,
+} from '../../types'
 import { MessageActions } from '../message/message-actions'
 import { MessageErrorActions } from '../message/message-error-actions'
-import { PlaygroundEmptyState } from './playground-empty-state'
 import { PlaygroundMessageContent } from '../message/playground-message-content'
 import { PlaygroundMessageEditor } from '../message/playground-message-editor'
+import { PlaygroundEmptyState } from './playground-empty-state'
+
+const MAX_RENDERED_HISTORY_MESSAGES = 24
 
 interface PlaygroundChatProps {
   messages: MessageType[]
@@ -46,10 +54,12 @@ interface PlaygroundChatProps {
   onDeleteMessage?: (message: MessageType) => void
   onSelectPrompt?: (prompt: string) => void
   isGenerating?: boolean
+  isLoadingMessages?: boolean
   editingKey?: string | null
   onSaveEdit?: (newContent: string) => void
   onCancelEdit?: (open: boolean) => void
   onSaveEditAndSubmit?: (newContent: string) => void
+  messageLayoutMode?: PlaygroundMessageLayoutMode
 }
 
 export function PlaygroundChat({
@@ -60,13 +70,21 @@ export function PlaygroundChat({
   onDeleteMessage,
   onSelectPrompt,
   isGenerating = false,
+  isLoadingMessages = false,
   editingKey,
   onSaveEdit,
   onCancelEdit,
   onSaveEditAndSubmit,
+  messageLayoutMode = 'alternating',
 }: PlaygroundChatProps) {
+  const { t } = useTranslation()
   const [editText, setEditText] = useState('')
   const [originalText, setOriginalText] = useState('')
+  const visibleMessageOffset = Math.max(
+    0,
+    messages.length - MAX_RENDERED_HISTORY_MESSAGES
+  )
+  const visibleMessages = messages.slice(visibleMessageOffset)
 
   useEffect(() => {
     if (!editingKey) return
@@ -77,94 +95,106 @@ export function PlaygroundChat({
     setOriginalText(content)
   }, [editingKey, messages])
 
+  let chatContent = visibleMessages.map((message, visibleMessageIndex) => {
+    const messageIndex = visibleMessageOffset + visibleMessageIndex
+    const { alwaysShowActions, content, isEditing } = getChatMessageRenderState(
+      messages,
+      message,
+      messageIndex,
+      editingKey
+    )
+    const isError = isErrorMessage(message)
+    const previousUserMessage = isError
+      ? getPreviousUserMessage(messages, messageIndex)
+      : null
+    const alignment = getMessageAlignment(message, messageLayoutMode)
+
+    return (
+      <Message
+        className='group flex-row-reverse py-2.5'
+        from={message.from}
+        key={message.key}
+      >
+        <div className='w-full min-w-0 flex-1 basis-full'>
+          {isEditing ? (
+            <PlaygroundMessageEditor
+              editText={editText}
+              message={message}
+              onCancelEdit={onCancelEdit}
+              onEditTextChange={setEditText}
+              onSaveEdit={onSaveEdit}
+              onSaveEditAndSubmit={onSaveEditAndSubmit}
+              originalText={originalText}
+            />
+          ) : (
+            <PlaygroundMessageContent
+              alignment={alignment}
+              actions={
+                <MessageActions
+                  message={message}
+                  onCopy={onCopyMessage}
+                  onRegenerate={onRegenerateMessage}
+                  onEdit={onEditMessage}
+                  onDelete={onDeleteMessage}
+                  isGenerating={isGenerating}
+                  alwaysVisible={alwaysShowActions}
+                  className='mt-1.5'
+                />
+              }
+              message={message}
+              errorActions={
+                isError ? (
+                  <MessageErrorActions
+                    disabled={isGenerating}
+                    onRetry={
+                      onRegenerateMessage
+                        ? () => onRegenerateMessage(message)
+                        : undefined
+                    }
+                    onEditPrompt={
+                      onEditMessage && previousUserMessage
+                        ? () => onEditMessage(previousUserMessage)
+                        : undefined
+                    }
+                    onDelete={
+                      onDeleteMessage
+                        ? () => onDeleteMessage(message)
+                        : undefined
+                    }
+                  />
+                ) : undefined
+              }
+              versionContent={content}
+            />
+          )}
+        </div>
+      </Message>
+    )
+  })
+
+  if (visibleMessages.length === 0 && onSelectPrompt) {
+    chatContent = [
+      <PlaygroundEmptyState key='empty' onSelectPrompt={onSelectPrompt} />,
+    ]
+  }
+
+  if (isLoadingMessages) {
+    chatContent = [
+      <div
+        className='text-muted-foreground flex min-h-[min(520px,calc(100svh-18rem))] items-center justify-center gap-2 text-sm'
+        key='loading'
+      >
+        <Loader />
+        <span>{t('Loading conversation...')}</span>
+      </div>,
+    ]
+  }
+
   return (
     <Conversation>
       {/* Remove outer padding; apply padding to inner centered container to align with input */}
       <ConversationContent className='p-0'>
-        <div className='mx-auto w-full max-w-4xl px-4 py-4'>
-          {messages.length === 0 && onSelectPrompt ? (
-            <PlaygroundEmptyState onSelectPrompt={onSelectPrompt} />
-          ) : (
-            messages.map((message, messageIndex) => {
-              const { alwaysShowActions, content, isEditing } =
-                getChatMessageRenderState(
-                  messages,
-                  message,
-                  messageIndex,
-                  editingKey
-                )
-              const isError = isErrorMessage(message)
-              const previousUserMessage = isError
-                ? getPreviousUserMessage(messages, messageIndex)
-                : null
-
-              return (
-                <Message
-                  className={
-                    message.from === 'assistant'
-                      ? 'group flex-row-reverse py-3'
-                      : 'group flex-row-reverse py-1.5'
-                  }
-                  from={message.from}
-                  key={message.key}
-                >
-                  <div className='w-full min-w-0 flex-1 basis-full'>
-                    {isEditing ? (
-                      <PlaygroundMessageEditor
-                        editText={editText}
-                        message={message}
-                        onCancelEdit={onCancelEdit}
-                        onEditTextChange={setEditText}
-                        onSaveEdit={onSaveEdit}
-                        onSaveEditAndSubmit={onSaveEditAndSubmit}
-                        originalText={originalText}
-                      />
-                    ) : (
-                      <PlaygroundMessageContent
-                        actions={
-                          <MessageActions
-                            message={message}
-                            onCopy={onCopyMessage}
-                            onRegenerate={onRegenerateMessage}
-                            onEdit={onEditMessage}
-                            onDelete={onDeleteMessage}
-                            isGenerating={isGenerating}
-                            alwaysVisible={alwaysShowActions}
-                            className='mt-2'
-                          />
-                        }
-                        message={message}
-                        errorActions={
-                          isError ? (
-                            <MessageErrorActions
-                              disabled={isGenerating}
-                              onRetry={
-                                onRegenerateMessage
-                                  ? () => onRegenerateMessage(message)
-                                  : undefined
-                              }
-                              onEditPrompt={
-                                onEditMessage && previousUserMessage
-                                  ? () => onEditMessage(previousUserMessage)
-                                  : undefined
-                              }
-                              onDelete={
-                                onDeleteMessage
-                                  ? () => onDeleteMessage(message)
-                                  : undefined
-                              }
-                            />
-                          ) : undefined
-                        }
-                        versionContent={content}
-                      />
-                    )}
-                  </div>
-                </Message>
-              )
-            })
-          )}
-        </div>
+        <div className='mx-auto w-full max-w-4xl px-4 py-4'>{chatContent}</div>
       </ConversationContent>
       <ConversationScrollButton />
     </Conversation>

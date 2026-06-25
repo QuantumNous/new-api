@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -44,6 +44,23 @@ interface UseChatHandlerOptions {
 }
 
 const KNOWN_ERROR_MESSAGES = new Set<string>(Object.values(ERROR_MESSAGES))
+const STREAM_UPDATE_FLUSH_MS = 50
+
+type PendingStreamChunks = {
+  content: string
+  reasoning: string
+}
+
+function mergePendingStreamChunk(
+  currentChunk: string,
+  nextChunk: string
+): string {
+  if (!currentChunk || !nextChunk.startsWith(currentChunk)) {
+    return currentChunk + nextChunk
+  }
+
+  return nextChunk
+}
 
 /**
  * Hook for handling chat message sending and receiving
@@ -58,6 +75,68 @@ export function useChatHandler({
   const [isRequesting, setIsRequesting] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
   const requestIdRef = useRef(0)
+  const pendingStreamChunksRef = useRef<PendingStreamChunks>({
+    content: '',
+    reasoning: '',
+  })
+  const streamFlushTimerRef = useRef<number | null>(null)
+
+  const flushStreamUpdates = useCallback(() => {
+    if (streamFlushTimerRef.current !== null) {
+      window.clearTimeout(streamFlushTimerRef.current)
+      streamFlushTimerRef.current = null
+    }
+
+    const pendingChunks = pendingStreamChunksRef.current
+    if (!pendingChunks.reasoning && !pendingChunks.content) {
+      return
+    }
+
+    pendingStreamChunksRef.current = { content: '', reasoning: '' }
+    onMessageUpdate((prev) =>
+      updateLastAssistantMessage(prev, (message) => {
+        let updatedMessage = message
+
+        if (pendingChunks.reasoning) {
+          updatedMessage = applyStreamingChunk(
+            updatedMessage,
+            'reasoning',
+            pendingChunks.reasoning
+          )
+        }
+
+        if (pendingChunks.content) {
+          updatedMessage = applyStreamingChunk(
+            updatedMessage,
+            'content',
+            pendingChunks.content
+          )
+        }
+
+        return updatedMessage
+      })
+    )
+  }, [onMessageUpdate])
+
+  const scheduleStreamFlush = useCallback(() => {
+    if (streamFlushTimerRef.current !== null) {
+      return
+    }
+
+    streamFlushTimerRef.current = window.setTimeout(
+      flushStreamUpdates,
+      STREAM_UPDATE_FLUSH_MS
+    )
+  }, [flushStreamUpdates])
+
+  useEffect(
+    () => () => {
+      if (streamFlushTimerRef.current !== null) {
+        window.clearTimeout(streamFlushTimerRef.current)
+      }
+    },
+    []
+  )
 
   const getDisplayError = useCallback(
     (error: string) => {
@@ -80,17 +159,18 @@ export function useChatHandler({
   // Handle stream update
   const handleStreamUpdate = useCallback(
     (type: 'reasoning' | 'content', chunk: string) => {
-      onMessageUpdate((prev) =>
-        updateLastAssistantMessage(prev, (message) =>
-          applyStreamingChunk(message, type, chunk)
-        )
+      pendingStreamChunksRef.current[type] = mergePendingStreamChunk(
+        pendingStreamChunksRef.current[type],
+        chunk
       )
+      scheduleStreamFlush()
     },
-    [onMessageUpdate]
+    [scheduleStreamFlush]
   )
 
   // Handle stream complete
   const handleStreamComplete = useCallback(() => {
+    flushStreamUpdates()
     setIsRequesting(false)
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) =>
@@ -99,11 +179,12 @@ export function useChatHandler({
           : completeAssistantMessage(message)
       )
     )
-  }, [onMessageUpdate])
+  }, [flushStreamUpdates, onMessageUpdate])
 
   // Handle stream error
   const handleStreamError = useCallback(
     (error: string, errorCode?: string) => {
+      flushStreamUpdates()
       setIsRequesting(false)
       const displayError = getDisplayError(error)
       toast.error(displayError)
@@ -117,7 +198,7 @@ export function useChatHandler({
         )
       )
     },
-    [getDisplayError, onMessageUpdate, t]
+    [flushStreamUpdates, getDisplayError, onMessageUpdate, t]
   )
 
   // Send streaming chat request
@@ -213,6 +294,7 @@ export function useChatHandler({
   // Stop generation
   const stopGeneration = useCallback(() => {
     stopStream()
+    flushStreamUpdates()
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
     setIsRequesting(false)
@@ -223,7 +305,7 @@ export function useChatHandler({
           : message
       )
     )
-  }, [stopStream, onMessageUpdate])
+  }, [stopStream, flushStreamUpdates, onMessageUpdate])
 
   return {
     sendChat,

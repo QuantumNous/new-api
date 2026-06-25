@@ -40,10 +40,12 @@ export function appendUserMessagePair(
   messages: Message[],
   content: string
 ): Message[] {
+  const submittedAt = Date.now()
+
   return [
     ...messages,
-    createUserMessage(content),
-    createLoadingAssistantMessage(),
+    createUserMessage(content, submittedAt),
+    createLoadingAssistantMessage(submittedAt),
   ]
 }
 
@@ -88,6 +90,7 @@ export function applyMessageEdit(
   content: string,
   shouldSubmit: boolean
 ): ApplyMessageEditResult | null {
+  const submittedAt = Date.now()
   const messageIndex = messages.findIndex(
     (message) => message.key === messageKey
   )
@@ -98,7 +101,10 @@ export function applyMessageEdit(
 
   const updatedMessages = messages.map((message) =>
     message.key === messageKey
-      ? updateCurrentVersionContent(message, content)
+      ? {
+          ...updateCurrentVersionContent(message, content),
+          createdAt: shouldSubmit ? submittedAt : message.createdAt,
+        }
       : message
   )
 
@@ -112,7 +118,7 @@ export function applyMessageEdit(
   return {
     messages: [
       ...updatedMessages.slice(0, messageIndex + 1),
-      createLoadingAssistantMessage(),
+      createLoadingAssistantMessage(submittedAt),
     ],
     shouldSend: true,
   }
