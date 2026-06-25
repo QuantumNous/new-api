@@ -3,7 +3,7 @@ region                = "us-west1"
 zone                  = "us-west1-a"
 service_name          = "newapi"
 github_repository     = "SolveaCX/new-api"
-enable_legacy_runtime = true
+enable_legacy_runtime = false
 
 // Domain mappings (free, simple) require run.domainmappings.create — the caller lacks it.
 // We use a GCP HTTPS LB instead. Once an org admin grants roles/run.admin, you can switch
