@@ -31,6 +31,7 @@ import {
   NotepadTextIcon,
   CodeSquareIcon,
   GraduationCapIcon,
+  SquarePenIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -64,6 +65,8 @@ interface PlaygroundInputProps {
   groups: GroupOption[]
   groupValue: string
   onGroupChange: (value: string) => void
+  onNewChat?: () => void
+  hasMessages?: boolean
 }
 
 const suggestions = [
@@ -87,6 +90,8 @@ export function PlaygroundInput({
   groups,
   groupValue,
   onGroupChange,
+  onNewChat,
+  hasMessages = false,
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -128,6 +133,19 @@ export function PlaygroundInput({
 
         <PromptInputFooter className='p-2.5'>
           <PromptInputTools>
+            {onNewChat && (
+              <PromptInputButton
+                className='border font-medium'
+                disabled={!hasMessages}
+                onClick={onNewChat}
+                variant='outline'
+              >
+                <SquarePenIcon size={16} />
+                <span className='hidden sm:inline'>{t('New chat')}</span>
+                <span className='sr-only sm:hidden'>{t('New chat')}</span>
+              </PromptInputButton>
+            )}
+
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
