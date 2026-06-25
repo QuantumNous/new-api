@@ -3,12 +3,15 @@ package controller
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/gin-gonic/gin"
 )
 
 func TestNewCodexLimitReportContextUsesSixtySecondDeadline(t *testing.T) {
@@ -155,5 +158,35 @@ func TestCodexChannelUpstreamWithRefreshRejectsMultiKey(t *testing.T) {
 	}
 	if called {
 		t.Fatal("do must not be called for a multi-key channel")
+	}
+}
+
+func TestEnsureCodexInviteRecipientConsentRequiresConfirmation(t *testing.T) {
+	statusBody := []byte(`{"invite_eligibility":{"requires_explicit_confirmation":true}}`)
+	if err := ensureCodexInviteRecipientConsent(statusBody, false); err == nil {
+		t.Fatal("expected missing confirmation to be rejected")
+	}
+	if err := ensureCodexInviteRecipientConsent(statusBody, true); err != nil {
+		t.Fatalf("confirmed consent rejected: %v", err)
+	}
+}
+
+func TestSendCodexInviteRejectsOversizedBodyBeforeChannelLookup(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	body := `{"emails":["` + strings.Repeat("a", int(maxCodexInviteRequestBodyBytes)) + `@example.com"]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/channel/1/codex/invite", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	c.Params = gin.Params{{Key: "id", Value: "1"}}
+
+	SendCodexInvite(c)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if !strings.Contains(recorder.Body.String(), "http: request body too large") {
+		t.Fatalf("response body = %s", recorder.Body.String())
 	}
 }

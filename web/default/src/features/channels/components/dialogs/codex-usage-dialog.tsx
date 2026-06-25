@@ -36,6 +36,7 @@ import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
+import { CodexInvitePanel } from './codex-invite-panel'
 
 type CodexRateLimitWindow = {
   used_percent?: number
@@ -531,6 +532,14 @@ export function CodexUsageDialog({
             />
           </div>
         </div>
+
+        {channelId && (
+          <CodexInvitePanel
+            key={`${channelId}-${open ? 'open' : 'closed'}`}
+            open={open}
+            channelId={channelId}
+          />
+        )}
 
         {/* Rate limit windows */}
         <div className='space-y-5'>

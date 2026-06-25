@@ -73,6 +73,29 @@ export type CodexUsageResponse = {
   data?: Record<string, unknown>
 }
 
+export type CodexInviteStatusResponse = {
+  success: boolean
+  message?: string
+  upstream_status?: number
+  data?: {
+    referral_key?: string
+    invite_eligibility?: Record<string, unknown>
+    eligibility_rules?: Record<string, unknown> | string[] | unknown[]
+    status_errors?: Record<string, unknown>
+  }
+}
+
+export type CodexInviteSendResponse = {
+  success: boolean
+  message?: string
+  upstream_status?: number
+  data?: {
+    invites?: Array<Record<string, unknown>>
+    failed_emails?: string[]
+    message?: string
+  } & Record<string, unknown>
+}
+
 export type CodexCredentialRefreshResponse = {
   success: boolean
   message?: string
@@ -84,6 +107,20 @@ export type CodexCredentialRefreshResponse = {
     channel_id?: number
     channel_type?: number
     channel_name?: string
+  }
+}
+
+export type CodexInviteSendOptions = {
+  confirmedRecipientConsent?: boolean
+}
+
+export function buildCodexInviteRequestBody(
+  emails: string[],
+  options: CodexInviteSendOptions = {}
+): { emails: string[]; confirmed_recipient_consent: boolean } {
+  return {
+    emails,
+    confirmed_recipient_consent: options.confirmedRecipientConsent === true,
   }
 }
 
@@ -333,6 +370,29 @@ export async function consumeCodexReset(
   const res = await api.post(
     `/api/channel/${channelId}/codex/reset-credit`,
     {},
+    channelActionConfig({ disableDuplicate: true })
+  )
+  return res.data
+}
+
+export async function getCodexInviteStatus(
+  channelId: number
+): Promise<CodexInviteStatusResponse> {
+  const res = await api.get(
+    `/api/channel/${channelId}/codex/invite/status`,
+    channelActionConfig({ disableDuplicate: true })
+  )
+  return res.data
+}
+
+export async function sendCodexInvite(
+  channelId: number,
+  emails: string[],
+  options: CodexInviteSendOptions = {}
+): Promise<CodexInviteSendResponse> {
+  const res = await api.post(
+    `/api/channel/${channelId}/codex/invite`,
+    buildCodexInviteRequestBody(emails, options),
     channelActionConfig({ disableDuplicate: true })
   )
   return res.data

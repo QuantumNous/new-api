@@ -821,6 +821,7 @@
     "Codes copied!": "Códigos copiados!",
     "Codex": "Códice",
     "Codex Account & Usage": "Conta e uso do Codex",
+    "Codex Invites": "Convites do Codex",
     "Codex Authorization": "Autorização do Codex",
     "Codex Channels": "Canais do Codex",
     "Codex channels do not support batch creation": "Canais Codex não suportam criação em lote",
@@ -1720,6 +1721,15 @@
     "Failed to fetch upstream prices": "Falha ao buscar preços upstream",
     "Failed to fetch upstream ratios": "Falha ao buscar proporções upstream",
     "Failed to fetch usage": "Falha ao buscar uso",
+    "Enter at least one invite email": "Insira pelo menos um e-mail para convidar",
+    "Enter invite emails separated by comma, space, or new line": "Insira e-mails para convidar separados por vírgula, espaço ou nova linha",
+    "Up to {{max}} invite emails at a time": "Até {{max}} e-mails de convite por vez",
+    "Invalid invite email: {{email}}": "E-mail de convite inválido: {{email}}",
+    "Failed to load Codex invite status": "Não foi possível carregar o status dos convites do Codex",
+    "Confirm recipient consent before sending Codex invites": "Confirme o consentimento dos destinatários antes de enviar convites do Codex",
+    "Failed to send Codex invite": "Não foi possível enviar o convite do Codex",
+    "Codex invite sent": "Convite do Codex enviado",
+    "Invite failed for: {{emails}}": "Falha ao convidar: {{emails}}",
     "Failed to fetch user information": "Falha ao buscar informações do usuário",
     "Failed to fix abilities": "Falha ao corrigir habilidades",
     "Failed to generate token": "Falha ao gerar token",
@@ -3915,6 +3925,8 @@
     "Selected when creating a token and used as the default billing group for API calls.": "Selecionado ao criar um token e usado como grupo de cobrança padrão para chamadas de API.",
     "Self-Use Mode": "Modo de auto-uso",
     "Send": "Enviar",
+    "Sending Codex invite...": "Enviando convite do Codex...",
+    "Send Codex invite": "Enviar convite do Codex",
     "Send a DingTalk group robot alert when a scheduled channel test fails": "Envie um alerta de robô de grupo DingTalk quando um teste de canal agendado falhar",
     "Send a request": "Envie uma solicitação",
     "Send code": "Enviar código",
@@ -5133,6 +5145,7 @@
     "Bonus is granted only to the selected user groups. Leave groups empty to grant to nobody; pick \"all\" to grant to every group.": "O bônus é concedido apenas aos grupos de usuários selecionados. Deixe vazio para não conceder a ninguém; escolha “all” para conceder a todos os grupos.",
     "Tip: pick eligible user groups here. To change a tier later, click edit on its row.": "Dica: escolha aqui os grupos elegíveis. Para alterar um nível depois, clique em editar na linha dele.",
     "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "Lista de permissões de grupos elegíveis ao bônus por nível (objeto JSON). Array vazio = ninguém; [\"all\"] = todos os grupos.",
-    "A bonus tier with this recharge amount already exists.": "Já existe um nível de bônus com este valor de recarga."
+    "A bonus tier with this recharge amount already exists.": "Já existe um nível de bônus com este valor de recarga.",
+    "I confirm these recipients consented to receive Codex invite emails": "Confirmo que estes destinatários consentiram em receber e-mails de convite do Codex"
   }
 }

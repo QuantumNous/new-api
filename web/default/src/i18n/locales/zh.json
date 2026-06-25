@@ -821,6 +821,7 @@
     "Codes copied!": "代码已复制！",
     "Codex": "Codex",
     "Codex Account & Usage": "Codex 账户和用量",
+    "Codex Invites": "Codex 邀请",
     "Codex Authorization": "Codex 授权",
     "Codex Channels": "Codex 渠道",
     "Codex channels do not support batch creation": "Codex 渠道不支持批量创建",
@@ -1720,6 +1721,15 @@
     "Failed to fetch upstream prices": "获取上游价格失败",
     "Failed to fetch upstream ratios": "获取上游比率失败",
     "Failed to fetch usage": "获取用量失败",
+    "Enter at least one invite email": "请输入至少一个邀请邮箱",
+    "Enter invite emails separated by comma, space, or new line": "输入邀请邮箱，支持逗号、空格或换行分隔",
+    "Up to {{max}} invite emails at a time": "一次最多邀请 {{max}} 个邮箱",
+    "Invalid invite email: {{email}}": "邀请邮箱格式不正确：{{email}}",
+    "Failed to load Codex invite status": "加载 Codex 邀请状态失败",
+    "Confirm recipient consent before sending Codex invites": "发送 Codex 邀请前请先确认收件人同意",
+    "Failed to send Codex invite": "发送 Codex 邀请失败",
+    "Codex invite sent": "Codex 邀请已发送",
+    "Invite failed for: {{emails}}": "以下邮箱邀请失败：{{emails}}",
     "Failed to fetch user information": "获取用户信息失败",
     "Failed to fix abilities": "修复能力失败",
     "Failed to generate token": "生成令牌失败",
@@ -3915,6 +3925,8 @@
     "Selected when creating a token and used as the default billing group for API calls.": "创建令牌时选择，用作 API 调用的默认计费分组。",
     "Self-Use Mode": "自用模式",
     "Send": "发送",
+    "Sending Codex invite...": "正在发送 Codex 邀请...",
+    "Send Codex invite": "发送 Codex 邀请",
     "Send a DingTalk group robot alert when a scheduled channel test fails": "定期渠道测试失败时发送钉钉群机器人报警",
     "Send a request": "发送请求",
     "Send code": "发送验证码",
@@ -5133,6 +5145,7 @@
     "Bonus is granted only to the selected user groups. Leave groups empty to grant to nobody; pick \"all\" to grant to every group.": "赠送仅发放给所选用户组。不选任何组表示对所有人都不发放；选择“all”表示对所有用户组发放。",
     "Tip: pick eligible user groups here. To change a tier later, click edit on its row.": "提示：在此为档位选择生效用户组。之后要修改某档位，点击该行的编辑按钮。",
     "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "各档位可享赠送的用户组白名单（JSON 对象）。空数组 = 谁都不发；[\"all\"] = 所有用户组。",
-    "A bonus tier with this recharge amount already exists.": "该充值金额的赠送档位已存在。"
+    "A bonus tier with this recharge amount already exists.": "该充值金额的赠送档位已存在。",
+    "I confirm these recipients consented to receive Codex invite emails": "我确认这些收件人同意接收 Codex 邀请邮件"
   }
 }
