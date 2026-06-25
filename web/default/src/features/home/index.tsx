@@ -21,7 +21,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { Markdown } from '@/components/ui/markdown'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
-import { CTA, Features, Hero, HowItWorks, Stats } from './components'
+import { CTA, Features, Hero, HomeNoticeDialog, HowItWorks, Stats } from './components'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -40,34 +40,35 @@ export function Home() {
     )
   }
 
-  if (content) {
-    return (
-      <PublicLayout showMainContainer={false}>
-        <main className='overflow-x-hidden'>
-          {isUrl ? (
-            <iframe
-              src={content}
-              className='h-screen w-full border-none'
-              title={t('Custom Home Page')}
-            />
-          ) : (
-            <div className='container mx-auto py-8'>
-              <Markdown className='custom-home-content'>{content}</Markdown>
-            </div>
-          )}
-        </main>
-      </PublicLayout>
-    )
-  }
-
   return (
-    <PublicLayout showMainContainer={false}>
-      <Hero isAuthenticated={isAuthenticated} />
-      <Stats />
-      <Features />
-      <HowItWorks />
-      <CTA isAuthenticated={isAuthenticated} />
-      <Footer />
-    </PublicLayout>
+    <>
+      <HomeNoticeDialog />
+      {content ? (
+        <PublicLayout showMainContainer={false}>
+          <main className='overflow-x-hidden'>
+            {isUrl ? (
+              <iframe
+                src={content}
+                className='h-screen w-full border-none'
+                title={t('Custom Home Page')}
+              />
+            ) : (
+              <div className='container mx-auto py-8'>
+                <Markdown className='custom-home-content'>{content}</Markdown>
+              </div>
+            )}
+          </main>
+        </PublicLayout>
+      ) : (
+        <PublicLayout showMainContainer={false}>
+          <Hero isAuthenticated={isAuthenticated} />
+          <Stats />
+          <Features />
+          <HowItWorks />
+          <CTA isAuthenticated={isAuthenticated} />
+          <Footer />
+        </PublicLayout>
+      )}
+    </>
   )
 }
