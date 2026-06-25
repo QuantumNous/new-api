@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { isValidMediaPreviewURL } from '../../lib/media-preview'
 import { downloadMediaFile } from '../../lib/download-media'
 import { MediaDialogFooter } from './media-dialog-footer'
 import { RequestDataPanel } from './request-data-panel'
@@ -34,6 +35,7 @@ import { RequestDataPanel } from './request-data-panel'
 interface ImageDialogProps {
   imageUrl: string
   taskId?: string
+  errorMessage?: string
   requestData?: Record<string, unknown> | null
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -42,19 +44,21 @@ interface ImageDialogProps {
 export function ImageDialog({
   imageUrl,
   taskId,
+  errorMessage,
   requestData,
   open,
   onOpenChange,
 }: ImageDialogProps) {
   const { t } = useTranslation()
-  const [isLoading, setIsLoading] = useState(true)
-  const [hasError, setHasError] = useState(false)
+  const hasValidUrl = isValidMediaPreviewURL(imageUrl)
+  const [isLoading, setIsLoading] = useState(hasValidUrl)
+  const [hasError, setHasError] = useState(!hasValidUrl)
   const [isDownloading, setIsDownloading] = useState(false)
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
-      setIsLoading(true)
-      setHasError(false)
+      setIsLoading(hasValidUrl)
+      setHasError(!hasValidUrl)
     }
     onOpenChange(newOpen)
   }
@@ -70,7 +74,7 @@ export function ImageDialog({
   }
 
   const handleDownload = async () => {
-    if (!imageUrl || hasError || isDownloading) return
+    if (!hasValidUrl || hasError || isDownloading) return
     setIsDownloading(true)
     try {
       await downloadMediaFile(imageUrl, 'generated-image.png')
@@ -78,6 +82,10 @@ export function ImageDialog({
       setIsDownloading(false)
     }
   }
+
+  const failureText =
+    errorMessage ||
+    (hasError && !hasValidUrl ? t('Image generation failed') : t('Failed to load image'))
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -103,40 +111,52 @@ export function ImageDialog({
 
         <div className='min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5'>
           <div className='bg-muted/30 relative flex max-h-[min(32vh,260px)] min-h-[140px] items-center justify-center rounded-lg border p-2'>
-            {(isLoading || hasError) && (
-              <Skeleton className='absolute inset-2 rounded-md' />
-            )}
+            {hasValidUrl ? (
+              <>
+                {isLoading && (
+                  <Skeleton className='absolute inset-2 rounded-md' />
+                )}
 
-            <img
-              src={imageUrl}
-              alt={t('Generated image')}
-              className={`max-h-[min(32vh,240px)] max-w-full rounded-md object-contain ${
-                isLoading || hasError ? 'opacity-0' : 'opacity-100'
-              }`}
-              onLoad={handleImageLoad}
-              onError={handleImageError}
-              loading='lazy'
-            />
+                <img
+                  src={imageUrl}
+                  alt={t('Generated image')}
+                  className={`max-h-[min(32vh,240px)] max-w-full rounded-md object-contain ${
+                    isLoading || hasError ? 'opacity-0' : 'opacity-100'
+                  }`}
+                  onLoad={handleImageLoad}
+                  onError={handleImageError}
+                  loading='lazy'
+                />
 
-            {hasError && (
-              <div className='absolute inset-0 flex items-center justify-center'>
-                <p className='text-muted-foreground text-sm'>
-                  {t('Failed to load image')}
+                {hasError && (
+                  <div className='absolute inset-0 flex items-center justify-center px-4 text-center'>
+                    <p className='text-muted-foreground text-sm'>{failureText}</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className='px-4 text-center'>
+                <p className='text-destructive text-sm leading-relaxed break-words'>
+                  {failureText}
                 </p>
               </div>
             )}
           </div>
 
-          <p className='text-muted-foreground text-center text-xs'>
-            {t('Generated images and videos are only kept for 3 days.')}
-          </p>
+          {hasValidUrl ? (
+            <>
+              <p className='text-muted-foreground text-center text-xs'>
+                {t('Generated images and videos are only kept for 3 days.')}
+              </p>
 
-          <MediaDialogFooter
-            mediaUrl={imageUrl}
-            disabled={isLoading || hasError}
-            isDownloading={isDownloading}
-            onDownload={() => void handleDownload()}
-          />
+              <MediaDialogFooter
+                mediaUrl={imageUrl}
+                disabled={isLoading || hasError}
+                isDownloading={isDownloading}
+                onDownload={() => void handleDownload()}
+              />
+            </>
+          ) : null}
 
           <RequestDataPanel data={requestData} />
         </div>

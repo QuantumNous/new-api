@@ -296,7 +296,11 @@ function MediaPreviewCell({
 
   const label =
     preview.kind === 'image'
-      ? t('Click to preview image')
+      ? preview.url || preview.errorMessage
+        ? preview.errorMessage
+          ? t('View task details')
+          : t('Click to preview image')
+        : t('View task details')
       : t('Click to preview video')
   const Icon = preview.kind === 'image' ? ImageIcon : Video
 
@@ -319,6 +323,7 @@ function MediaPreviewCell({
         <ImageDialog
           imageUrl={preview.url}
           taskId={preview.taskId}
+          errorMessage={preview.errorMessage}
           requestData={other?.request_data}
           open={dialogOpen}
           onOpenChange={setDialogOpen}

@@ -15,3 +15,21 @@ func TestExtractFirstImageURLFromResponse_asyncPoll(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestIsValidMediaResultURL(t *testing.T) {
+	cases := []struct {
+		url  string
+		want bool
+	}{
+		{"https://apimaster.ai/imgs/abc.png", true},
+		{"http://example.com/a.jpg", true},
+		{"upstream task failed", false},
+		{"", false},
+		{"not-a-url", false},
+	}
+	for _, c := range cases {
+		if got := IsValidMediaResultURL(c.url); got != c.want {
+			t.Errorf("IsValidMediaResultURL(%q) = %v, want %v", c.url, got, c.want)
+		}
+	}
+}

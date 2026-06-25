@@ -20,8 +20,16 @@ import type { UsageLog } from '../data/schema'
 import type { LogOtherData } from '../types'
 
 export type LogMediaPreview =
-  | { kind: 'image'; url: string; taskId?: string }
+  | { kind: 'image'; url: string; taskId?: string; errorMessage?: string }
   | { kind: 'video'; url: string; taskId: string }
+
+export function isValidMediaPreviewURL(url: string): boolean {
+  const u = url.trim()
+  if (!u) return false
+  if (u.startsWith('data:image')) return true
+  if (u.startsWith('http://') || u.startsWith('https://')) return true
+  return u.startsWith('/')
+}
 
 export function isLogMediaImageModel(modelName: string): boolean {
   const model = modelName.trim().toLowerCase()
@@ -44,8 +52,17 @@ export function getLogMediaPreview(
   const taskId = other.task_id?.trim()
 
   if (isLogMediaImageModel(modelName)) {
-    if (resultURL) {
+    if (resultURL && isValidMediaPreviewURL(resultURL)) {
       return { kind: 'image', url: resultURL, taskId: taskId || undefined }
+    }
+    if (taskId && (resultURL || other.request_data)) {
+      return {
+        kind: 'image',
+        url: '',
+        taskId,
+        errorMessage:
+          resultURL && !isValidMediaPreviewURL(resultURL) ? resultURL : undefined,
+      }
     }
     return null
   }
@@ -54,7 +71,7 @@ export function getLogMediaPreview(
     if (taskId && (log.use_time ?? 0) > 0) {
       return { kind: 'video', url: `/v1/videos/${taskId}/content`, taskId }
     }
-    if (resultURL && (resultURL.startsWith('http') || resultURL.startsWith('/'))) {
+    if (resultURL && isValidMediaPreviewURL(resultURL)) {
       return { kind: 'video', url: resultURL, taskId: taskId || '' }
     }
   }

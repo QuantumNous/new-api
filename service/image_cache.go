@@ -221,3 +221,19 @@ func shouldCacheImageURL(u string) bool {
 	}
 	return strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://")
 }
+
+// IsValidMediaResultURL reports whether a stored result_url is a real media location
+// (not a legacy FailReason string accidentally written via GetResultURL fallback).
+func IsValidMediaResultURL(u string) bool {
+	u = strings.TrimSpace(u)
+	if u == "" {
+		return false
+	}
+	if strings.HasPrefix(u, "data:image") {
+		return true
+	}
+	if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
+		return true
+	}
+	return strings.HasPrefix(u, "/")
+}

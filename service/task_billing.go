@@ -95,7 +95,7 @@ func BackfillTaskLogDuration(ctx context.Context, task *model.Task) {
 		return
 	}
 	extra := map[string]interface{}{}
-	if resultURL := strings.TrimSpace(task.GetResultURL()); resultURL != "" {
+	if resultURL := strings.TrimSpace(task.PrivateData.ResultURL); IsValidMediaResultURL(resultURL) {
 		extra["result_url"] = resultURL
 	}
 	if err := model.UpdateLogResultByTaskID(task.UserId, task.TaskID, elapsed, extra); err != nil {
