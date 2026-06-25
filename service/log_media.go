@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -49,6 +50,13 @@ func EnrichLogMediaURL(log *model.Log) {
 				otherMap["task_fail_code"] = code
 			}
 			changed = true
+		}
+	}
+	if taskID := strings.TrimSpace(fmtTaskID(otherMap["task_id"])); taskID != "" {
+		if task, exist, err := model.GetByOnlyTaskId(taskID); err == nil && exist {
+			if task.Status == model.TaskStatusFailure {
+				RefundImageAsyncTaskQuota(context.Background(), task, task.FailReason)
+			}
 		}
 	}
 	if _, ok := otherMap["request_data"]; !ok {

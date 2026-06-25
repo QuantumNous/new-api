@@ -138,6 +138,7 @@ func serveTrackedImageTask(c *gin.Context, taskID string) bool {
 		c.JSON(http.StatusOK, buildImageTaskStatusResponse("succeeded", task.GetResultURL()))
 		return true
 	case model.TaskStatusFailure:
+		service.RefundImageAsyncTaskQuota(c.Request.Context(), task, task.FailReason)
 		c.JSON(http.StatusOK, buildImageTaskStatusResponse("failed", ""))
 		return true
 	}
@@ -241,6 +242,7 @@ func serveTrackedImageTask(c *gin.Context, taskID string) bool {
 		if uerr := model.UpdateLogResultByTaskID(task.UserId, task.TaskID, elapsed, extraOther); uerr != nil {
 			logger.LogWarn(c.Request.Context(), fmt.Sprintf("failed to backfill task failure for %s: %v", task.TaskID, uerr))
 		}
+		service.RefundImageAsyncTaskQuota(c.Request.Context(), task, failReason)
 		c.JSON(http.StatusOK, buildImageTaskStatusResponse("failed", ""))
 	default:
 		c.JSON(http.StatusOK, buildImageTaskStatusResponse("in_progress", ""))

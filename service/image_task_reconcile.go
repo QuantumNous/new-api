@@ -155,8 +155,10 @@ func fetchImageTaskStatusOnce(baseURL, apiKey, taskID string) (ImageTaskPollResu
 			Result struct {
 				Images []imageTaskPollImage `json:"images"`
 			} `json:"result"`
-			URL string `json:"url"`
-			B64 string `json:"b64_json"`
+			URL         string  `json:"url"`
+			B64         string  `json:"b64_json"`
+			Cost        float64 `json:"cost"`
+			CreditsCost float64 `json:"credits_cost"`
 		} `json:"data"`
 	}
 	if common.Unmarshal(body, &result) != nil {
@@ -167,13 +169,20 @@ func fetchImageTaskStatusOnce(baseURL, apiKey, taskID string) (ImageTaskPollResu
 	case "failed", "error", "cancelled":
 		failCode, failReason := parseImageTaskUpstreamError(result.Data.Error.Code, result.Data.Error.Message)
 		return ImageTaskPollResult{
-			Status:     result.Data.Status,
-			FailCode:   failCode,
-			FailReason: failReason,
+			Status:       result.Data.Status,
+			FailCode:     failCode,
+			FailReason:   failReason,
+			UpstreamCost: result.Data.Cost,
+			CreditsCost:  result.Data.CreditsCost,
 		}, nil
 	case "succeeded", "success", "completed":
 		if url := extractImageTaskURL(result.Data.URL, result.Data.Result.Images); url != "" {
-			return ImageTaskPollResult{Status: result.Data.Status, ImageURL: url}, nil
+			return ImageTaskPollResult{
+				Status:       result.Data.Status,
+				ImageURL:     url,
+				UpstreamCost: result.Data.Cost,
+				CreditsCost:  result.Data.CreditsCost,
+			}, nil
 		}
 		if result.Data.B64 != "" {
 			// Normalize to a data URI so callers can treat it exactly like a URL —

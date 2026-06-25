@@ -130,6 +130,27 @@ func findConsumeLogRowForTask(userID int, taskID string) (*Log, error) {
 	return &row, nil
 }
 
+// FindConsumeLogRowForTask locates the consume log row associated with a public task_id.
+func FindConsumeLogRowForTask(userID int, taskID string) (*Log, error) {
+	return findConsumeLogRowForTask(userID, taskID)
+}
+
+// HasRefundLogForTask reports whether a refund log already exists for the task_id.
+func HasRefundLogForTask(userID int, taskID string) (bool, error) {
+	taskID = strings.TrimSpace(taskID)
+	if userID <= 0 || taskID == "" {
+		return false, nil
+	}
+	var count int64
+	err := LOG_DB.Model(&Log{}).
+		Where("user_id = ? AND type = ? AND other LIKE ?", userID, LogTypeRefund, "%"+taskID+"%").
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // UpdateLogResultByTaskID backfills the "耗时" (use_time) on the consumption log row for an
 // async task once the real result is known, and merges extraOther into its `other` JSON
 // (e.g. fallback_triggered for gpt-image race-fallback). Async submits bill/log at submit
