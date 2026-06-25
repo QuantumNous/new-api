@@ -71,12 +71,12 @@ export function VideoDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className='gap-4 sm:max-w-2xl'>
-        <DialogHeader className='gap-3'>
+      <DialogContent className='flex max-h-[min(88vh,640px)] flex-col gap-3 overflow-hidden sm:max-w-lg'>
+        <DialogHeader className='shrink-0 gap-1.5'>
           <DialogTitle>{t('Video Preview')}</DialogTitle>
           {taskId ? (
-            <div className='bg-muted/50 flex items-center gap-2 rounded-md border px-3 py-2'>
-              <DialogDescription className='min-w-0 flex-1 font-mono text-xs leading-snug break-all'>
+            <div className='flex items-center gap-1.5'>
+              <DialogDescription className='min-w-0 flex-1 truncate font-mono text-xs'>
                 {t('Task ID:')} {taskId}
               </DialogDescription>
               <CopyButton
@@ -91,48 +91,50 @@ export function VideoDialog({
           )}
         </DialogHeader>
 
-        <div className='bg-muted/30 relative flex min-h-[220px] w-full items-center justify-center overflow-hidden rounded-xl border p-4'>
-          {(isLoading || hasError) && (
-            <Skeleton className='absolute inset-4 rounded-lg' />
-          )}
+        <div className='min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5'>
+          <div className='bg-muted/30 relative flex max-h-[min(32vh,260px)] min-h-[140px] items-center justify-center rounded-lg border p-2'>
+            {(isLoading || hasError) && (
+              <Skeleton className='absolute inset-2 rounded-md' />
+            )}
 
-          <video
-            src={videoUrl}
-            controls
-            className={`max-h-[min(52vh,520px)] max-w-full rounded-lg shadow-md ${
-              isLoading || hasError ? 'opacity-0' : 'opacity-100'
-            }`}
-            onLoadedData={() => {
-              setIsLoading(false)
-              setHasError(false)
-            }}
-            onError={() => {
-              setIsLoading(false)
-              setHasError(true)
-            }}
+            <video
+              src={videoUrl}
+              controls
+              className={`max-h-[min(32vh,240px)] max-w-full rounded-md ${
+                isLoading || hasError ? 'opacity-0' : 'opacity-100'
+              }`}
+              onLoadedData={() => {
+                setIsLoading(false)
+                setHasError(false)
+              }}
+              onError={() => {
+                setIsLoading(false)
+                setHasError(true)
+              }}
+            />
+
+            {hasError && (
+              <div className='absolute inset-0 flex items-center justify-center'>
+                <p className='text-muted-foreground text-sm'>
+                  {t('Failed to load video')}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <p className='text-muted-foreground text-center text-xs'>
+            {t('Generated images and videos are only kept for 3 days.')}
+          </p>
+
+          <MediaDialogFooter
+            mediaUrl={videoUrl}
+            disabled={isLoading || hasError}
+            isDownloading={isDownloading}
+            onDownload={() => void handleDownload()}
           />
 
-          {hasError && (
-            <div className='absolute inset-0 flex items-center justify-center'>
-              <p className='text-muted-foreground text-sm'>
-                {t('Failed to load video')}
-              </p>
-            </div>
-          )}
+          <RequestDataPanel data={requestData} />
         </div>
-
-        <p className='text-muted-foreground text-center text-xs'>
-          {t('Generated images and videos are only kept for 3 days.')}
-        </p>
-
-        <MediaDialogFooter
-          mediaUrl={videoUrl}
-          disabled={isLoading || hasError}
-          isDownloading={isDownloading}
-          onDownload={() => void handleDownload()}
-        />
-
-        <RequestDataPanel data={requestData} />
       </DialogContent>
     </Dialog>
   )

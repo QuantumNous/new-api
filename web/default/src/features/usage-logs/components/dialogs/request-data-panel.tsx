@@ -20,6 +20,7 @@ import { useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CopyButton } from '@/components/copy-button'
+import { Badge } from '@/components/ui/badge'
 import {
   Collapsible,
   CollapsibleContent,
@@ -27,11 +28,7 @@ import {
 } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
 
-const SUMMARY_FIELDS: Array<{
-  key: string
-  labelKey: string
-}> = [
-  { key: 'prompt', labelKey: 'Prompt' },
+const META_FIELDS: Array<{ key: string; labelKey: string }> = [
   { key: 'model', labelKey: 'Model' },
   { key: 'quality', labelKey: 'Quality' },
   { key: 'n', labelKey: 'Count' },
@@ -63,6 +60,7 @@ export function RequestDataPanel({
   data?: Record<string, unknown> | null
 }) {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
   const [rawOpen, setRawOpen] = useState(false)
 
   const rawJson = useMemo(
@@ -70,73 +68,106 @@ export function RequestDataPanel({
     [data]
   )
 
-  const summaryItems = useMemo(() => {
+  const prompt = useMemo(
+    () => (data ? formatSummaryValue(data.prompt) : null),
+    [data]
+  )
+
+  const metaItems = useMemo(() => {
     if (!data) return []
-    return SUMMARY_FIELDS.flatMap(({ key, labelKey }) => {
+    return META_FIELDS.flatMap(({ key, labelKey }) => {
       const value = formatSummaryValue(data[key])
       if (!value) return []
       return [{ key, label: t(labelKey), value }]
     })
   }, [data, t])
 
+  const previewLine = useMemo(() => {
+    const parts = metaItems.map((item) => item.value)
+    if (prompt) {
+      const short =
+        prompt.length > 48 ? `${prompt.slice(0, 48).trim()}…` : prompt
+      parts.unshift(short)
+    }
+    return parts.join(' · ')
+  }, [metaItems, prompt])
+
   if (!data || Object.keys(data).length === 0) return null
 
   return (
-    <div className='space-y-3 rounded-lg border bg-muted/20 p-3'>
-      <div className='flex items-center justify-between gap-2'>
-        <p className='text-sm font-medium'>{t('Request Data')}</p>
-        <CopyButton
-          value={rawJson}
-          variant='ghost'
-          size='sm'
-          className='h-7 px-2'
-          iconClassName='size-3.5'
-          tooltip={t('Copy to clipboard')}
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className='hover:bg-muted/50 flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors'>
+        <ChevronDown
+          className={cn(
+            'text-muted-foreground size-4 shrink-0 transition-transform',
+            open && 'rotate-180'
+          )}
         />
-      </div>
+        <span className='shrink-0 text-sm font-medium'>{t('Request Data')}</span>
+        {!open && previewLine ? (
+          <span className='text-muted-foreground min-w-0 flex-1 truncate text-xs'>
+            {previewLine}
+          </span>
+        ) : null}
+      </CollapsibleTrigger>
 
-      {summaryItems.length > 0 && (
-        <dl className='grid gap-2 sm:grid-cols-2'>
-          {summaryItems.map((item) => (
-            <div
-              key={item.key}
-              className={cn(
-                'space-y-0.5 rounded-md bg-background/80 px-2.5 py-2',
-                item.key === 'prompt' && 'sm:col-span-2'
-              )}
-            >
-              <dt className='text-muted-foreground text-[11px] font-medium tracking-wide uppercase'>
-                {item.label}
-              </dt>
-              <dd
-                className={cn(
-                  'text-sm leading-snug break-words',
-                  item.key === 'prompt' && 'line-clamp-4'
-                )}
-              >
-                {item.value}
-              </dd>
+      <CollapsibleContent className='space-y-2 pt-2'>
+        {prompt ? (
+          <div className='space-y-1.5'>
+            <div className='flex items-center justify-between gap-2'>
+              <p className='text-muted-foreground text-xs font-medium'>
+                {t('Prompt')}
+              </p>
+              <CopyButton
+                value={prompt}
+                variant='ghost'
+                size='icon-sm'
+                tooltip={t('Copy to clipboard')}
+              />
             </div>
-          ))}
-        </dl>
-      )}
+            <div className='bg-muted/40 max-h-36 overflow-y-auto rounded-md border px-2.5 py-2 text-xs leading-relaxed break-words whitespace-pre-wrap'>
+              {prompt}
+            </div>
+          </div>
+        ) : null}
 
-      <Collapsible open={rawOpen} onOpenChange={setRawOpen}>
-        <CollapsibleTrigger className='text-muted-foreground hover:text-foreground flex w-full items-center gap-1.5 text-xs font-medium transition-colors'>
-          <ChevronDown
-            className={cn(
-              'size-3.5 shrink-0 transition-transform',
-              rawOpen && 'rotate-180'
-            )}
-          />
-          {rawOpen ? t('Hide raw JSON') : t('Show raw JSON')}
-        </CollapsibleTrigger>
-        <CollapsibleContent className='pt-2'>
-          <pre className='bg-muted max-h-40 overflow-auto rounded-md p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words'>
-            {rawJson}
-          </pre>
-        </CollapsibleContent>
-      </Collapsible>
-    </div>
+        {metaItems.length > 0 ? (
+          <div className='flex flex-wrap gap-1.5'>
+            {metaItems.map((item) => (
+              <Badge key={item.key} variant='secondary' className='font-normal'>
+                <span className='text-muted-foreground mr-1'>{item.label}</span>
+                {item.value}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
+
+        <Collapsible open={rawOpen} onOpenChange={setRawOpen}>
+          <CollapsibleTrigger className='text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs'>
+            <ChevronDown
+              className={cn(
+                'size-3.5 shrink-0 transition-transform',
+                rawOpen && 'rotate-180'
+              )}
+            />
+            {rawOpen ? t('Hide raw JSON') : t('Show raw JSON')}
+          </CollapsibleTrigger>
+          <CollapsibleContent className='pt-1.5'>
+            <div className='relative'>
+              <CopyButton
+                value={rawJson}
+                variant='ghost'
+                size='icon-sm'
+                className='absolute top-1.5 right-1.5 z-10'
+                tooltip={t('Copy to clipboard')}
+              />
+              <pre className='bg-muted max-h-32 overflow-auto rounded-md p-3 pr-10 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words'>
+                {rawJson}
+              </pre>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
