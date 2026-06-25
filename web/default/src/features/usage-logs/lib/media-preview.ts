@@ -20,7 +20,7 @@ import type { UsageLog } from '../data/schema'
 import type { LogOtherData } from '../types'
 
 export type LogMediaPreview =
-  | { kind: 'image'; url: string; taskId?: string; errorMessage?: string }
+  | { kind: 'image'; url: string; taskId?: string; errorMessage?: string; errorCode?: string }
   | { kind: 'video'; url: string; taskId: string }
 
 export function isValidMediaPreviewURL(url: string): boolean {
@@ -50,18 +50,22 @@ export function getLogMediaPreview(
   const modelName = (log.model_name || '').trim()
   const resultURL = other.result_url?.trim()
   const taskId = other.task_id?.trim()
+  const taskFailReason = other.task_fail_reason?.trim()
+  const taskFailCode = other.task_fail_code?.trim()
 
   if (isLogMediaImageModel(modelName)) {
     if (resultURL && isValidMediaPreviewURL(resultURL)) {
       return { kind: 'image', url: resultURL, taskId: taskId || undefined }
     }
-    if (taskId && (resultURL || other.request_data)) {
+    if (taskId && (resultURL || other.request_data || taskFailReason)) {
+      const legacyInvalidURL =
+        resultURL && !isValidMediaPreviewURL(resultURL) ? resultURL : undefined
       return {
         kind: 'image',
         url: '',
         taskId,
-        errorMessage:
-          resultURL && !isValidMediaPreviewURL(resultURL) ? resultURL : undefined,
+        errorMessage: taskFailReason || legacyInvalidURL,
+        errorCode: taskFailCode || undefined,
       }
     }
     return null

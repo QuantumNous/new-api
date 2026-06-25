@@ -177,7 +177,7 @@ func serveTrackedImageTask(c *gin.Context, taskID string) bool {
 		}
 	}
 
-	winner, status, imageURL := service.CheckImageTaskTargetsOnce(targets)
+	winner, status, imageURL, failReason, failCode := service.CheckImageTaskTargetsOnce(targets)
 	fromStatus := task.Status
 	switch status {
 	case "succeeded", "success", "completed":
@@ -218,10 +218,29 @@ func serveTrackedImageTask(c *gin.Context, taskID string) bool {
 		}
 		c.JSON(http.StatusOK, buildImageTaskStatusResponse("succeeded", task.GetResultURL()))
 	case "failed", "error", "cancelled":
+		if failReason == "" {
+			failReason = "upstream task failed"
+		}
 		task.Status = model.TaskStatusFailure
-		task.FailReason = "upstream task failed"
+		task.FailReason = failReason
 		task.FinishTime = time.Now().Unix()
+		if task.Progress == "" {
+			task.Progress = "100%"
+		}
 		_, _ = task.UpdateWithStatus(fromStatus)
+		elapsed := int(task.FinishTime - task.SubmitTime)
+		if elapsed <= 0 {
+			elapsed = 1
+		}
+		extraOther := map[string]interface{}{
+			"task_fail_reason": failReason,
+		}
+		if failCode != "" {
+			extraOther["task_fail_code"] = failCode
+		}
+		if uerr := model.UpdateLogResultByTaskID(task.UserId, task.TaskID, elapsed, extraOther); uerr != nil {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("failed to backfill task failure for %s: %v", task.TaskID, uerr))
+		}
 		c.JSON(http.StatusOK, buildImageTaskStatusResponse("failed", ""))
 	default:
 		c.JSON(http.StatusOK, buildImageTaskStatusResponse("in_progress", ""))

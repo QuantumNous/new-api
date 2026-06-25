@@ -786,7 +786,7 @@ func scheduleAsyncImageRaceHedge(publicTaskID, modelName string, requestBody []b
 		if apiErr != nil {
 			return
 		}
-		_, status, _ := service.CheckImageTaskTargetsOnce([]service.ImageTaskTarget{{
+		_, status, _, _, _ := service.CheckImageTaskTargetsOnce([]service.ImageTaskTarget{{
 			ChannelID: primaryChannel.Id,
 			BaseURL:   primaryChannel.GetBaseURL(),
 			APIKey:    primaryKey,

@@ -324,6 +324,7 @@ function MediaPreviewCell({
           imageUrl={preview.url}
           taskId={preview.taskId}
           errorMessage={preview.errorMessage}
+          errorCode={preview.kind === 'image' ? preview.errorCode : undefined}
           requestData={other?.request_data}
           open={dialogOpen}
           onOpenChange={setDialogOpen}

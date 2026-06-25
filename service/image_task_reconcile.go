@@ -89,39 +89,42 @@ func runImageTaskReconcile(job imageReconcileJob) {
 	defer imageReconcileClaim.Delete(job.taskID)
 
 	deadline := job.startedAt.Add(time.Duration(imageReconcileExtraSec) * time.Second)
-	status, _ := pollUpstreamImageTaskStatus(job.baseURL, job.apiKey, job.taskID, deadline)
+	status, _, failReason := pollUpstreamImageTaskStatus(job.baseURL, job.apiKey, job.taskID, deadline)
 
 	switch status {
 	case "succeeded", "success", "completed":
 		finalizeImageReconcileSuccess(job)
 	case "failed", "error", "cancelled":
-		finalizeImageReconcileFailure(job, fmt.Sprintf("upstream task %s failed", job.taskID))
+		if failReason == "" {
+			failReason = fmt.Sprintf("upstream task %s failed", job.taskID)
+		}
+		finalizeImageReconcileFailure(job, failReason)
 	default:
 		finalizeImageReconcileFailure(job, fmt.Sprintf("image task %s reconcile timeout after sync poll", job.taskID))
 	}
 }
 
-func pollUpstreamImageTaskStatus(baseURL, apiKey, taskID string, deadline time.Time) (string, string) {
+func pollUpstreamImageTaskStatus(baseURL, apiKey, taskID string, deadline time.Time) (status string, imageURL string, failReason string) {
 	for time.Now().Before(deadline) {
-		status, imageURL, err := fetchImageTaskStatusOnce(baseURL, apiKey, taskID)
+		poll, err := fetchImageTaskStatusOnce(baseURL, apiKey, taskID)
 		if err != nil {
 			logger.LogWarn(context.Background(), fmt.Sprintf("image reconcile poll error task=%s: %v", taskID, err))
 			time.Sleep(4 * time.Second)
 			continue
 		}
-		switch status {
+		switch poll.Status {
 		case "failed", "error", "cancelled", "succeeded", "success", "completed":
-			return status, imageURL
+			return poll.Status, poll.ImageURL, poll.DisplayFailReason()
 		}
 		time.Sleep(4 * time.Second)
 	}
-	return "timeout", ""
+	return "timeout", "", ""
 }
 
 // fetchImageTaskStatusOnce issues a single GET /v1/tasks/{taskID} against baseURL and
-// parses the upstream status. status is "" (not err) when the body didn't parse —
+// parses the upstream status. An empty Status (not err) means the body didn't parse —
 // callers should treat that as "still pending" and retry later.
-func fetchImageTaskStatusOnce(baseURL, apiKey, taskID string) (status string, imageURL string, err error) {
+func fetchImageTaskStatusOnce(baseURL, apiKey, taskID string) (ImageTaskPollResult, error) {
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
 	}
@@ -130,13 +133,13 @@ func fetchImageTaskStatusOnce(baseURL, apiKey, taskID string) (status string, im
 
 	req, err := http.NewRequest(http.MethodGet, pollURL, nil)
 	if err != nil {
-		return "", "", err
+		return ImageTaskPollResult{}, err
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", "", err
+		return ImageTaskPollResult{}, err
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
@@ -144,6 +147,11 @@ func fetchImageTaskStatusOnce(baseURL, apiKey, taskID string) (status string, im
 	var result struct {
 		Data struct {
 			Status string `json:"status"`
+			Error  struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+				Type    string `json:"type"`
+			} `json:"error"`
 			Result struct {
 				Images []imageTaskPollImage `json:"images"`
 			} `json:"result"`
@@ -152,24 +160,32 @@ func fetchImageTaskStatusOnce(baseURL, apiKey, taskID string) (status string, im
 		} `json:"data"`
 	}
 	if common.Unmarshal(body, &result) != nil {
-		return "", "", nil
+		return ImageTaskPollResult{}, nil
 	}
 
 	switch result.Data.Status {
 	case "failed", "error", "cancelled":
-		return result.Data.Status, "", nil
+		failCode, failReason := parseImageTaskUpstreamError(result.Data.Error.Code, result.Data.Error.Message)
+		return ImageTaskPollResult{
+			Status:     result.Data.Status,
+			FailCode:   failCode,
+			FailReason: failReason,
+		}, nil
 	case "succeeded", "success", "completed":
 		if url := extractImageTaskURL(result.Data.URL, result.Data.Result.Images); url != "" {
-			return result.Data.Status, url, nil
+			return ImageTaskPollResult{Status: result.Data.Status, ImageURL: url}, nil
 		}
 		if result.Data.B64 != "" {
 			// Normalize to a data URI so callers can treat it exactly like a URL —
 			// CacheImageLocally/RewriteImageResponseBody already no-op on "data:" prefixes.
-			return result.Data.Status, "data:image/png;base64," + result.Data.B64, nil
+			return ImageTaskPollResult{
+				Status:   result.Data.Status,
+				ImageURL: "data:image/png;base64," + result.Data.B64,
+			}, nil
 		}
-		return result.Data.Status, "", nil
+		return ImageTaskPollResult{Status: result.Data.Status}, nil
 	default:
-		return result.Data.Status, "", nil
+		return ImageTaskPollResult{Status: result.Data.Status}, nil
 	}
 }
 

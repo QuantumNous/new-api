@@ -36,6 +36,7 @@ interface ImageDialogProps {
   imageUrl: string
   taskId?: string
   errorMessage?: string
+  errorCode?: string
   requestData?: Record<string, unknown> | null
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -45,6 +46,7 @@ export function ImageDialog({
   imageUrl,
   taskId,
   errorMessage,
+  errorCode,
   requestData,
   open,
   onOpenChange,
@@ -135,10 +137,13 @@ export function ImageDialog({
                 )}
               </>
             ) : (
-              <div className='px-4 text-center'>
+              <div className='space-y-2 px-4 text-center'>
                 <p className='text-destructive text-sm leading-relaxed break-words'>
                   {failureText}
                 </p>
+                {errorCode ? (
+                  <p className='text-muted-foreground font-mono text-xs'>{errorCode}</p>
+                ) : null}
               </div>
             )}
           </div>

@@ -135,7 +135,10 @@ func findConsumeLogRowForTask(userID int, taskID string) (*Log, error) {
 // (e.g. fallback_triggered for gpt-image race-fallback). Async submits bill/log at submit
 // time with use_time=0; this rewrites the same row once polling confirms the task finished.
 func UpdateLogResultByTaskID(userID int, taskID string, useTimeSeconds int, extraOther map[string]interface{}) error {
-	if userID <= 0 || strings.TrimSpace(taskID) == "" || useTimeSeconds <= 0 {
+	if userID <= 0 || strings.TrimSpace(taskID) == "" {
+		return nil
+	}
+	if useTimeSeconds <= 0 && len(extraOther) == 0 {
 		return nil
 	}
 	row, err := findConsumeLogRowForTask(userID, taskID)
@@ -152,10 +155,13 @@ func UpdateLogResultByTaskID(userID int, taskID string, useTimeSeconds int, extr
 	for k, v := range extraOther {
 		otherMap[k] = v
 	}
-	return LOG_DB.Model(&Log{}).Where("id = ?", row.Id).Updates(map[string]interface{}{
-		"use_time": useTimeSeconds,
-		"other":    common.MapToJsonStr(otherMap),
-	}).Error
+	updates := map[string]interface{}{
+		"other": common.MapToJsonStr(otherMap),
+	}
+	if useTimeSeconds > 0 {
+		updates["use_time"] = useTimeSeconds
+	}
+	return LOG_DB.Model(&Log{}).Where("id = ?", row.Id).Updates(updates).Error
 }
 
 // FindRecentImageChannelID returns the channel from the user's latest gpt-image consume within withinSec.

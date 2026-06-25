@@ -86,7 +86,7 @@ func RaceImageTask(targets []ImageTaskTarget, deadline time.Time) (won ImageTask
 	for _, t := range targets {
 		t := t
 		go func() {
-			status, url := pollUpstreamImageTaskStatus(t.BaseURL, t.APIKey, t.TaskID, deadline)
+			status, url, _ := pollUpstreamImageTaskStatus(t.BaseURL, t.APIKey, t.TaskID, deadline)
 			resultCh <- imageRaceResult{target: t, status: status, imageURL: url}
 		}()
 	}
@@ -103,24 +103,32 @@ func RaceImageTask(targets []ImageTaskTarget, deadline time.Time) (won ImageTask
 // CheckImageTaskTargetsOnce issues a single non-blocking status check against every
 // target (used by the client-poll controller, which must respond to one GET quickly
 // rather than block for the full race deadline like RaceImageTask does).
-func CheckImageTaskTargetsOnce(targets []ImageTaskTarget) (won ImageTaskTarget, status string, imageURL string) {
+func CheckImageTaskTargetsOnce(targets []ImageTaskTarget) (won ImageTaskTarget, status string, imageURL string, failReason string, failCode string) {
 	if len(targets) == 0 {
-		return ImageTaskTarget{}, "", ""
+		return ImageTaskTarget{}, "", "", "", ""
 	}
 	type checkResult struct {
-		target   ImageTaskTarget
-		status   string
-		imageURL string
+		target     ImageTaskTarget
+		status     string
+		imageURL   string
+		failReason string
+		failCode   string
 	}
 	resultCh := make(chan checkResult, len(targets))
 	for _, t := range targets {
 		t := t
 		go func() {
-			status, imageURL, err := fetchImageTaskStatusOnce(t.BaseURL, t.APIKey, t.TaskID)
+			poll, err := fetchImageTaskStatusOnce(t.BaseURL, t.APIKey, t.TaskID)
 			if err != nil {
-				status = ""
+				poll.Status = ""
 			}
-			resultCh <- checkResult{target: t, status: status, imageURL: imageURL}
+			resultCh <- checkResult{
+				target:     t,
+				status:     poll.Status,
+				imageURL:   poll.ImageURL,
+				failReason: poll.FailReason,
+				failCode:   poll.FailCode,
+			}
 		}()
 	}
 	results := make([]checkResult, 0, len(targets))
@@ -131,7 +139,7 @@ func CheckImageTaskTargetsOnce(targets []ImageTaskTarget) (won ImageTaskTarget, 
 	for _, r := range results {
 		switch r.status {
 		case "succeeded", "success", "completed":
-			return r.target, r.status, r.imageURL
+			return r.target, r.status, r.imageURL, "", ""
 		}
 	}
 	// otherwise report the first definitive failure only if every target failed
@@ -148,7 +156,8 @@ func CheckImageTaskTargetsOnce(targets []ImageTaskTarget) (won ImageTaskTarget, 
 		}
 	}
 	if allFailed && firstFailure.status != "" {
-		return firstFailure.target, firstFailure.status, ""
+		display := FormatImageTaskFailReason(firstFailure.failCode, firstFailure.failReason)
+		return firstFailure.target, firstFailure.status, "", display, firstFailure.failCode
 	}
-	return ImageTaskTarget{}, "pending", ""
+	return ImageTaskTarget{}, "pending", "", "", ""
 }
