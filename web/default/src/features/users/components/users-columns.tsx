@@ -119,6 +119,31 @@ export function useUsersColumns(): ColumnDef<User>[] {
       meta: { label: t('Username'), mobileTitle: true },
     },
     {
+      id: 'registration_provider',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Registration Method')} />
+      ),
+      cell: ({ row }) => {
+        const provider = row.original.registration_provider
+        const labels: Record<string, string> = {
+          email: 'Email',
+          google: 'Google',
+          github: 'GitHub',
+          twitter: 'Twitter',
+        }
+        if (!provider || !labels[provider]) {
+          return <span className='text-muted-foreground text-sm'>-</span>
+        }
+        return (
+          <StatusBadge variant='info' copyable={false}>
+            {labels[provider]}
+          </StatusBadge>
+        )
+      },
+      enableSorting: false,
+      meta: { label: t('Registration Method'), mobileHidden: true },
+    },
+    {
       accessorKey: 'country',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title='国家' />

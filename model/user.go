@@ -60,6 +60,7 @@ type User struct {
 	RegistrationSourceURL    string `json:"registration_source_url,omitempty" gorm:"-:all"`
 	RegistrationUTM          string `json:"registration_utm,omitempty" gorm:"-:all"`
 	RegistrationInviterEmail string `json:"registration_inviter_email,omitempty" gorm:"-:all"`
+	RegistrationProvider     string `json:"registration_provider,omitempty" gorm:"-:all"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
