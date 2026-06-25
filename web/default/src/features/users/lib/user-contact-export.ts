@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { formatQuota } from '@/lib/format'
 import type { User } from '../types'
+import { formatUserQuotaDisplay } from './user-quota-display'
 
 const UTF8_BOM = '\uFEFF'
 const CSV_ROW_SEPARATOR = '\r\n'
@@ -26,11 +26,12 @@ const LEADING_CONTROL_PREFIXES = new Set(['\t', '\r', '\n'])
 
 export const USER_CONTACT_EXPORT_PAGE_SIZE = 100
 
-export type UserContactsCsvHeaders = {
+export type UserContactsCsvText = {
   id: string
   username: string
   displayName: string
   quota: string
+  noQuota: string
   email: string
   wechatId: string
   telegramId: string
@@ -50,11 +51,12 @@ export type UserContactExportPageFetcher = (
   request: UserContactExportPageRequest
 ) => Promise<UserContactExportPage>
 
-const DEFAULT_HEADERS: UserContactsCsvHeaders = {
+const DEFAULT_TEXT: UserContactsCsvText = {
   id: 'ID',
   username: 'Username',
   displayName: 'Display Name',
   quota: 'Quota',
+  noQuota: 'No Quota',
   email: 'Email',
   wechatId: 'WeChat ID',
   telegramId: 'Telegram ID',
@@ -82,23 +84,23 @@ function neutralizeSpreadsheetFormula(text: string): string {
 
 export function buildUserContactsCsv(
   users: User[],
-  headers: UserContactsCsvHeaders = DEFAULT_HEADERS
+  text: UserContactsCsvText = DEFAULT_TEXT
 ): string {
   const rows: Array<Array<string | number | undefined>> = [
     [
-      headers.id,
-      headers.username,
-      headers.displayName,
-      headers.quota,
-      headers.email,
-      headers.wechatId,
-      headers.telegramId,
+      text.id,
+      text.username,
+      text.displayName,
+      text.quota,
+      text.email,
+      text.wechatId,
+      text.telegramId,
     ],
     ...users.map((user) => [
       user.id,
       user.username,
       user.display_name,
-      formatQuota(user.quota),
+      formatUserQuotaDisplay(user, text.noQuota),
       user.email,
       user.wechat_id,
       user.telegram_id,

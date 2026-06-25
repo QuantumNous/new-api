@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { formatQuota } from '@/lib/format'
+import { formatUserQuotaDisplay } from './user-quota-display'
 import {
   buildUserContactsCsv,
   collectUserContactsForExport,
@@ -74,7 +75,7 @@ describe('user contact export', () => {
     assert.equal(
       csv,
       `\uFEFFID,Username,Display Name,Quota,Email,WeChat ID,Telegram ID\r\n` +
-        `8,bob,,${formatQuota(0)},,,\r\n`
+        `8,bob,,${formatUserQuotaDisplay(makeUser({ quota: 0, used_quota: 0 }))},,,\r\n`
     )
   })
 
