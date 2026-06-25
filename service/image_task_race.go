@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,41 @@ import (
 	"github.com/QuantumNous/new-api/model"
 )
 
+// rewriteImageRequestModelForChannel rewrites the top-level "model" field of an already
+// converted image request body so a race-hedge resubmission uses the model name the
+// *target* channel expects (its own mapping of the canonical model), instead of leaking
+// the primary channel's mapped upstream name baked into the reused body.
+func rewriteImageRequestModelForChannel(requestBody []byte, channel *model.Channel, canonicalModel string) []byte {
+	if len(requestBody) == 0 {
+		return requestBody
+	}
+	target := ResolveChannelUpstreamModel(channel, NormalizeGptImage2ModelName(strings.TrimSpace(canonicalModel)))
+	if strings.TrimSpace(target) == "" {
+		return requestBody
+	}
+	var root map[string]json.RawMessage
+	if err := common.Unmarshal(requestBody, &root); err != nil {
+		return requestBody
+	}
+	var currentModel string
+	if rawModel, ok := root["model"]; ok {
+		_ = common.Unmarshal(rawModel, &currentModel)
+	}
+	if currentModel == target {
+		return requestBody
+	}
+	newModel, err := common.Marshal(target)
+	if err != nil {
+		return requestBody
+	}
+	root["model"] = newModel
+	rewritten, err := common.Marshal(root)
+	if err != nil {
+		return requestBody
+	}
+	return rewritten
+}
+
 // ImageTaskTarget is one upstream channel candidate (the primary submission or
 // a hedge submitted to a second channel) being raced for an image task result.
 type ImageTaskTarget struct {
@@ -22,14 +58,17 @@ type ImageTaskTarget struct {
 	TaskID    string
 }
 
-// SubmitImageGenerationToChannel re-submits the same already-converted request body
-// (as built once for the primary channel) to a different channel, for the gpt-image-2
-// race fallback. Channels racing for the same model are all OpenAI-compatible image
-// hubs, so the converted JSON body is reused verbatim — only base_url/key differ.
-func SubmitImageGenerationToChannel(ctx context.Context, channel *model.Channel, requestBody []byte, asyncPath bool) (taskID string, err error) {
+// SubmitImageGenerationToChannel re-submits the already-converted request body (built
+// once for the primary channel) to a different channel, for the gpt-image-2 race
+// fallback. Channels racing for the same model are all OpenAI-compatible image hubs, so
+// the body is reused — but the top-level "model" field is rewritten to the hedge
+// channel's own mapping of canonicalModel, so the primary channel's mapped upstream name
+// (e.g. gpt-image-2-official) does not leak to a channel that expects gpt-image-2.
+func SubmitImageGenerationToChannel(ctx context.Context, channel *model.Channel, requestBody []byte, canonicalModel string, asyncPath bool) (taskID string, err error) {
 	if channel == nil {
 		return "", fmt.Errorf("submit image generation: channel is nil")
 	}
+	requestBody = rewriteImageRequestModelForChannel(requestBody, channel, canonicalModel)
 	key, _, apiErr := channel.GetNextEnabledKey()
 	if apiErr != nil {
 		return "", apiErr.Err

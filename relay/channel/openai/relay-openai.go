@@ -734,7 +734,7 @@ func startImageRaceHedge(c *gin.Context, info *relaycommon.RelayInfo) (target se
 		return service.ImageTaskTarget{}, nil, false
 	}
 	asyncPath := isClientAsyncImageGenerationsPath(c)
-	taskID, err := service.SubmitImageGenerationToChannel(c.Request.Context(), channel, requestBody, asyncPath)
+	taskID, err := service.SubmitImageGenerationToChannel(c.Request.Context(), channel, requestBody, info.OriginModelName, asyncPath)
 	if err != nil {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("image race hedge submit to channel #%d failed: %v", channel.Id, err))
 		return service.ImageTaskTarget{}, nil, false
@@ -805,7 +805,7 @@ func scheduleAsyncImageRaceHedge(publicTaskID, modelName string, requestBody []b
 		if err != nil || channelB == nil {
 			return
 		}
-		hedgeTaskID, err := service.SubmitImageGenerationToChannel(context.Background(), channelB, requestBody, true)
+		hedgeTaskID, err := service.SubmitImageGenerationToChannel(context.Background(), channelB, requestBody, modelName, true)
 		if err != nil {
 			logger.LogWarn(context.Background(), fmt.Sprintf("async image race hedge submit to channel #%d failed: %v", channelB.Id, err))
 			return

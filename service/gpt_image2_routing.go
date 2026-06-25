@@ -382,6 +382,39 @@ func ShouldHideGptImage2OfficialModel(modelName string) bool {
 	return strings.EqualFold(strings.TrimSpace(modelName), gptImage2OfficialAliasModel)
 }
 
+// ResolveChannelUpstreamModel applies a channel's own model_mapping chain to modelName,
+// returning the upstream model id that channel expects. A channel without a matching
+// mapping returns modelName unchanged. Used so a race-hedge resubmission derives the
+// upstream model from the *hedge* channel's mapping rather than inheriting the primary
+// channel's mapped name embedded in the reused request body.
+func ResolveChannelUpstreamModel(channel *model.Channel, modelName string) string {
+	if channel == nil {
+		return modelName
+	}
+	mapping := strings.TrimSpace(channel.GetModelMapping())
+	if mapping == "" || mapping == "{}" {
+		return modelName
+	}
+	var modelMap map[string]string
+	if err := json.Unmarshal([]byte(mapping), &modelMap); err != nil {
+		return modelName
+	}
+	current := modelName
+	visited := map[string]bool{current: true}
+	for {
+		mapped, ok := modelMap[current]
+		if !ok || strings.TrimSpace(mapped) == "" {
+			break
+		}
+		if visited[mapped] {
+			break
+		}
+		visited[mapped] = true
+		current = mapped
+	}
+	return current
+}
+
 // ClassifyGptImage2ProfileFromImageRequest classifies from a parsed ImageRequest (tests/helpers).
 func ClassifyGptImage2ProfileFromImageRequest(req *dto.ImageRequest) GptImage2Profile {
 	if req == nil {
