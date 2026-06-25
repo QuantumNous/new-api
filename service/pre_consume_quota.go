@@ -4,41 +4,16 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 )
-
-// topUpURL returns the public top-up page URL derived from the configured server
-// address, or "" when only the localhost default is set — so we never surface a
-// useless localhost link to API callers.
-func topUpURL() string {
-	base := strings.TrimRight(system_setting.ServerAddress, "/")
-	if base == "" {
-		return ""
-	}
-	parseBase := base
-	if !strings.Contains(parseBase, "://") {
-		parseBase = "http://" + parseBase
-	}
-	host := ""
-	if parsed, err := url.Parse(parseBase); err == nil {
-		host = parsed.Hostname()
-	}
-	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-		return ""
-	}
-	return PaymentReturnURL("/console/topup")
-}
 
 func ReturnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
 	if relayInfo.FinalPreConsumedQuota != 0 {
@@ -65,14 +40,10 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 	// Never blocks this request; the checks below still apply to the current call.
 	MaybeTriggerStripeAutoCharge(relayInfo.UserId, userQuota)
 	if userQuota <= 0 {
-		msg := common.TranslateMessage(c, "quota.user_insufficient", map[string]any{"Quota": logger.FormatQuota(userQuota)})
-		if url := topUpURL(); url != "" {
-			msg += " " + common.TranslateMessage(c, "quota.topup_hint", map[string]any{"URL": url})
-		}
-		return types.NewErrorWithStatusCode(fmt.Errorf("%s", msg), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		return types.NewErrorWithStatusCode(fmt.Errorf("%s", buildUserQuotaInsufficientMessage(c, userQuota)), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(), walletTopUpHintPreserveOption())
 	}
 	if userQuota-preConsumedQuota < 0 {
-		return types.NewErrorWithStatusCode(fmt.Errorf("%s", common.TranslateMessage(c, "quota.pre_consume_failed", map[string]any{"Remaining": logger.FormatQuota(userQuota), "Required": logger.FormatQuota(preConsumedQuota)})), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		return types.NewErrorWithStatusCode(fmt.Errorf("%s", buildPreConsumeQuotaFailedMessage(c, userQuota, preConsumedQuota)), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(), walletTopUpHintPreserveOption())
 	}
 
 	trustQuota := common.GetTrustQuota()

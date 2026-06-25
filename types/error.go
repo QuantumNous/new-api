@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -89,14 +90,15 @@ const (
 )
 
 type NewAPIError struct {
-	Err            error
-	RelayError     any
-	skipRetry      bool
-	recordErrorLog *bool
-	errorType      ErrorType
-	errorCode      ErrorCode
-	StatusCode     int
-	Metadata       json.RawMessage
+	Err                error
+	RelayError         any
+	skipRetry          bool
+	recordErrorLog     *bool
+	preservedFragments []string
+	errorType          ErrorType
+	errorCode          ErrorCode
+	StatusCode         int
+	Metadata           json.RawMessage
 }
 
 // Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.
@@ -260,9 +262,7 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 			Code:    e.errorCode,
 		}
 	}
-	if e.errorCode != ErrorCodeCountTokenFailed {
-		result.Message = common.MaskSensitiveInfo(result.Message)
-	}
+	result.Message = e.sanitizeMessage(result.Message)
 	if result.Message == "" {
 		result.Message = string(e.errorType)
 	}
@@ -289,13 +289,62 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 			Type:    string(e.errorType),
 		}
 	}
-	if e.errorCode != ErrorCodeCountTokenFailed {
-		result.Message = common.MaskSensitiveInfo(result.Message)
-	}
+	result.Message = e.sanitizeMessage(result.Message)
 	if result.Message == "" {
 		result.Message = string(e.errorType)
 	}
 	return result
+}
+
+func (e *NewAPIError) sanitizeMessage(message string) string {
+	if e == nil || e.errorCode == ErrorCodeCountTokenFailed {
+		return message
+	}
+	if len(e.preservedFragments) == 0 {
+		return common.MaskSensitiveInfo(message)
+	}
+	sanitizedInput := message
+	placeholders := make([]string, 0, len(e.preservedFragments))
+	fragments := make([]string, 0, len(e.preservedFragments))
+	for idx, fragment := range e.preservedFragments {
+		if fragment == "" {
+			continue
+		}
+		placeholder := fmt.Sprintf("__NEWAPI_PRESERVE_%d__", idx)
+		sanitizedInput = strings.ReplaceAll(sanitizedInput, fragment, placeholder)
+		placeholders = append(placeholders, placeholder)
+		fragments = append(fragments, fragment)
+	}
+	sanitized := common.MaskSensitiveInfo(sanitizedInput)
+	for idx, placeholder := range placeholders {
+		fragment := fragments[idx]
+		if !isSafePreservedMessageFragment(fragment) {
+			fragment = common.MaskSensitiveInfo(fragment)
+		}
+		sanitized = strings.ReplaceAll(sanitized, placeholder, fragment)
+	}
+	return sanitized
+}
+
+func isSafePreservedMessageFragment(fragment string) bool {
+	candidate := strings.TrimSpace(fragment)
+	if candidate == "" {
+		return false
+	}
+	if !strings.Contains(candidate, "://") {
+		candidate = "http://" + candidate
+	}
+	parsed, err := url.Parse(candidate)
+	if err != nil {
+		return false
+	}
+	if parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	return true
 }
 
 type NewAPIErrorOptions func(*NewAPIError)
@@ -461,6 +510,17 @@ func ErrOptionWithHideErrMsg(replaceStr string) NewAPIErrorOptions {
 			fmt.Printf("ErrOptionWithHideErrMsg: %s, origin error: %s", replaceStr, e.Err)
 		}
 		e.Err = errors.New(replaceStr)
+	}
+}
+
+func ErrOptionWithPreservedMessageFragments(fragments ...string) NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		for _, fragment := range fragments {
+			fragment = strings.TrimSpace(fragment)
+			if fragment != "" {
+				e.preservedFragments = append(e.preservedFragments, fragment)
+			}
+		}
 	}
 }
 
