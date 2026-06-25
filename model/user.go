@@ -236,6 +236,28 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	return users, total, nil
 }
 
+// GetRecallCandidates returns activated-but-unpaid, low-balance self-serve users for
+// 1:1 re-engagement outreach. "Activated" = request_count >= minCalls; "unpaid" = no
+// successful top-up; "low balance" = quota <= maxQuota. Restricted to the plg group so
+// enterprise/admin/internal accounts are excluded. Ordered by request_count desc so the
+// most-engaged users surface first. Read-only and stateless — safe under multi-node.
+func GetRecallCandidates(minCalls int, maxQuota int, limit int) ([]*User, error) {
+	var users []*User
+	paidUserIDs := DB.Model(&TopUp{}).
+		Select("user_id").
+		Where("status = ?", common.TopUpStatusSuccess)
+	err := DB.Model(&User{}).
+		Where(commonGroupCol+" = ?", "plg").
+		Where("request_count >= ?", minCalls).
+		Where("quota <= ?", maxQuota).
+		Where("id NOT IN (?)", paidUserIDs).
+		Order("request_count desc").
+		Limit(limit).
+		Omit("password").
+		Find(&users).Error
+	return users, err
+}
+
 func SearchUsers(keyword string, group string, role *int, status *int, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64

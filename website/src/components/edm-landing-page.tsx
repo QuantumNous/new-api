@@ -2,6 +2,7 @@ import { ArrowRight, CheckCircle2, ExternalLink, ShieldCheck, Sparkles } from "l
 import Image from "next/image";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { LpLimitedOfferModal } from "@/components/lp-limited-offer-modal";
 import type { EdmCampaignCopy } from "@/lib/edm-landing";
 import { getEdmCtaUrl } from "@/lib/edm-landing";
 import type { Locale } from "@/lib/locales";
@@ -246,6 +247,7 @@ export function EdmLandingPage(props: Props) {
         </div>
       </section>
       <SiteFooter locale={props.locale} />
+      <LpLimitedOfferModal ctaLabel={props.campaign.primaryCta} ctaUrl={ctaUrl} locale={props.locale} />
       </main>
     </>
   );

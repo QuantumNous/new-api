@@ -42,6 +42,10 @@ import {
   isUserDeleted,
 } from '../constants'
 import {
+  getSafeAttributionTooltipRaw,
+  getUserAttributionDisplay,
+} from '../lib/user-attribution'
+import {
   formatUserQuotaDisplay,
   getUserQuotaSummary,
 } from '../lib/user-quota-display'
@@ -52,21 +56,6 @@ function getQuotaProgressColor(percentage: number): string {
   if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
   if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-amber-500'
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
-}
-
-function parseAdsAttribution(raw?: string): Record<string, string> {
-  if (!raw) return {}
-  try {
-    const parsed = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return {}
-    }
-    return Object.fromEntries(
-      Object.entries(parsed).filter(([, value]) => typeof value === 'string')
-    ) as Record<string, string>
-  } catch {
-    return {}
-  }
 }
 
 export function useUsersColumns(): ColumnDef<User>[] {
@@ -330,26 +319,18 @@ export function useUsersColumns(): ColumnDef<User>[] {
     {
       accessorKey: 'ads_attribution',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Ad Source')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Acquisition Source')}
+        />
       ),
       cell: ({ row }) => {
-        const attribution = parseAdsAttribution(row.original.ads_attribution)
-        const source =
-          attribution.utm_source ||
-          (attribution.gclid || attribution.gbraid || attribution.wbraid
-            ? 'google_ads'
-            : '')
-        const campaign =
-          attribution.utm_campaign ||
-          attribution.hsa_cam ||
-          attribution.gad_campaignid ||
-          ''
-        const term = attribution.utm_term || attribution.hsa_kw || ''
+        const display = getUserAttributionDisplay(row.original.ads_attribution)
 
-        if (!source && !campaign && !term) {
+        if (!display.hasAttribution) {
           return (
             <StatusBadge
-              label={t('No ad source')}
+              label={t(display.badgeLabel)}
               variant='neutral'
               copyable={false}
             />
@@ -361,27 +342,45 @@ export function useUsersColumns(): ColumnDef<User>[] {
             <TooltipTrigger render={<div className='max-w-[180px]' />}>
               <div className='flex flex-col gap-1 text-xs'>
                 <StatusBadge
-                  label={source || t('Ads')}
-                  variant='success'
+                  label={t(display.badgeLabel)}
+                  variant={
+                    display.sourceType === 'paid' ? 'success' : 'neutral'
+                  }
                   copyable={false}
                 />
-                {(campaign || term) && (
+                {display.sourceMedium && (
+                  <LongText className='text-foreground max-w-[170px]'>
+                    {display.sourceMedium}
+                  </LongText>
+                )}
+                {display.detail && (
                   <LongText className='text-muted-foreground max-w-[170px]'>
-                    {[campaign, term].filter(Boolean).join(' / ')}
+                    {display.detail}
                   </LongText>
                 )}
               </div>
             </TooltipTrigger>
             <TooltipContent className='max-w-sm'>
-              <pre className='whitespace-pre-wrap text-xs'>
-                {JSON.stringify(attribution, null, 2)}
-              </pre>
+              <div className='space-y-2 text-xs'>
+                {display.landingPath && (
+                  <p>
+                    {t('Landing Page')}: {display.landingPath}
+                  </p>
+                )}
+                <pre className='whitespace-pre-wrap'>
+                  {JSON.stringify(
+                    getSafeAttributionTooltipRaw(display.raw),
+                    null,
+                    2
+                  )}
+                </pre>
+              </div>
             </TooltipContent>
           </Tooltip>
         )
       },
       enableSorting: false,
-      meta: { label: t('Ad Source'), mobileHidden: true },
+      meta: { label: t('Acquisition Source'), mobileHidden: true },
     },
     {
       id: 'invite_info',

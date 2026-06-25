@@ -1,18 +1,29 @@
 name: GCP Deploy
 
-# Build runs automatically on every push to main.
-# Deploy is gated by the "production" GitHub Environment — slZhong must Approve.
+# Push to main builds the Go image and opens separate console/router production
+# deploy approval jobs. Nothing reaches production unless an authorized reviewer
+# approves the target-specific GitHub Environment.
 
 on:
   push:
     branches: [main]
-    # Skip the Go app deploy for website-only changes (those are handled by
-    # gcp-deploy-website.yml). A push that also touches app code still runs.
+    # Skip the Go app build for website-only changes (those are handled by
+    # gcp-deploy-website.yml). A push that also touches app code still builds.
     paths-ignore:
       - 'website/**'
       - '.github/workflows/gcp-deploy-website.yml'
   workflow_dispatch:
     inputs:
+      deploy_target:
+        description: "Production target to deploy"
+        required: true
+        default: "console"
+        type: choice
+        options:
+          - console
+          - router
+          - both
+          - none
       image_tag:
         description: "Existing image tag to deploy (skip build). Format: sha-<commit> or v1.2.3"
         required: false
@@ -23,11 +34,9 @@ permissions:
   id-token: write   # required for Workload Identity Federation
 
 env:
-  PROJECT_ID:   ${{ vars.GCP_PROJECT_ID }}
-  REGION:       ${{ vars.GCP_REGION }}
-  AR_REPO_URL:  ${{ vars.GCP_AR_REPO_URL }}
-  RUN_SERVICE:  ${{ vars.GCP_RUN_SERVICE }}
-  HEALTH_URL:   ${{ vars.GCP_RUN_HEALTH_URL }}
+  PROJECT_ID:  ${{ vars.GCP_PROJECT_ID }}
+  REGION:      ${{ vars.GCP_REGION }}
+  AR_REPO_URL: ${{ vars.GCP_AR_REPO_URL }}
 
 jobs:
   build:
@@ -35,9 +44,22 @@ jobs:
     outputs:
       image_uri: ${{ steps.compute_image.outputs.image_uri }}
       short_sha: ${{ steps.compute_image.outputs.short_sha }}
+      deploy_target: ${{ steps.compute_target.outputs.deploy_target }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Compute deploy target
+        id: compute_target
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            deploy_target="console+router approval"
+          else
+            deploy_target="${{ inputs.deploy_target || 'none' }}"
+          fi
+          echo "deploy_target=${deploy_target}" >> "$GITHUB_OUTPUT"
+          echo "Deploy target: ${deploy_target}"
 
       - name: Compute image URI
         id: compute_image
@@ -90,10 +112,25 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max,ignore-error=true
 
-  deploy:
+      - name: Summary
+        run: |
+          echo "### Go image build" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: \`${{ steps.compute_image.outputs.image_uri }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Deploy target: \`${{ steps.compute_target.outputs.deploy_target }}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "- Production deploy: approve \`deploy console\` and/or \`deploy router\` in their separate environments." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  deploy-console:
+    name: deploy console
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.deploy_target == 'console' || inputs.deploy_target == 'both'))
     needs: build
     runs-on: ubuntu-latest
-    environment: production   # ← manual approval gate happens here
+    environment: production-console
+    env:
+      RUN_SERVICE: newapi-console
+      NODE_TYPE: master
+      APP_ROLE: console
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -142,7 +179,8 @@ jobs:
             PADDLE_LIVE_PRODUCT_ID PADDLE_LIVE_CURRENCY PADDLE_LIVE_UNIT_PRICE PADDLE_LIVE_MIN_TOPUP \
             PADDLE_LIVE_API_KEY PADDLE_LIVE_CLIENT_TOKEN PADDLE_LIVE_WEBHOOK_SECRET \
             GA_MEASURE_PROTOCOL_API_SECRET GA_MESSUREMENT_ID \
-            OFFICIAL_WEBSITE_ORIGIN APP_CONSOLE_ORIGIN COOKIE_SESSION_DOMAIN SESSION_COOKIE_SECURE; do
+            OFFICIAL_WEBSITE_ORIGIN APP_CONSOLE_ORIGIN COOKIE_SESSION_DOMAIN SESSION_COOKIE_SECURE \
+            NODE_TYPE APP_ROLE; do
             value="${!name:-}"
             if [[ -n "${value}" ]]; then
               env_vars+=("${name}=${value}")
@@ -168,10 +206,9 @@ jobs:
           echo "new_revision=${new_rev}" >> "$GITHUB_OUTPUT"
           echo "Deployed revision: ${new_rev}"
 
-      - name: Health check the new revision (via Cloud Run revision URL)
+      - name: Health check the new revision
         run: |
           set -euo pipefail
-          # Tag the new revision so we can hit it via a dedicated URL.
           gcloud run services update-traffic "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" --region="${REGION}" \
             --update-tags=canary="${{ steps.deploy.outputs.new_revision }}" \
@@ -180,13 +217,13 @@ jobs:
             --project="${PROJECT_ID}" --region="${REGION}" \
             --format='value(status.traffic[].url)' | tr ';' '\n' | grep canary || true)"
           if [[ -z "${tag_url}" ]]; then
-            # Fall back: just probe latest URL
-            tag_url="${HEALTH_URL}"
+            echo "Failed to resolve canary tag URL for ${RUN_SERVICE}; refusing to probe a shared production hostname." >&2
+            exit 1
           fi
           echo "Probing ${tag_url}/api/status ..."
           for i in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w '%{http_code}' "${tag_url}/api/status" || true)
-            echo "attempt $i → $code"
+            echo "attempt $i -> $code"
             if [[ "${code}" == "200" ]]; then exit 0; fi
             sleep 5
           done
@@ -211,6 +248,143 @@ jobs:
 
       - name: Summary
         run: |
-          echo "### Deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Console deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Service: \`${RUN_SERVICE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Node type: \`${NODE_TYPE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- App role: \`${APP_ROLE}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Revision: \`${{ steps.deploy.outputs.new_revision }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Image:    \`${{ needs.build.outputs.image_uri }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: \`${{ needs.build.outputs.image_uri }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-router:
+    name: deploy router
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.deploy_target == 'router' || inputs.deploy_target == 'both'))
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production-router
+    env:
+      RUN_SERVICE: newapi-router
+      NODE_TYPE: slave
+      APP_ROLE: router
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Auth to GCP via WIF
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy new revision with NO traffic
+        id: deploy
+        env:
+          PADDLE_ENVIRONMENT: ${{ vars.PADDLE_ENVIRONMENT }}
+          PADDLE_SANDBOX_PRODUCT_ID: ${{ vars.PADDLE_SANDBOX_PRODUCT_ID }}
+          PADDLE_SANDBOX_CURRENCY: ${{ vars.PADDLE_SANDBOX_CURRENCY }}
+          PADDLE_SANDBOX_UNIT_PRICE: ${{ vars.PADDLE_SANDBOX_UNIT_PRICE }}
+          PADDLE_SANDBOX_MIN_TOPUP: ${{ vars.PADDLE_SANDBOX_MIN_TOPUP }}
+          PADDLE_SANDBOX_API_KEY: ${{ secrets.PADDLE_SANDBOX_API_KEY }}
+          PADDLE_SANDBOX_CLIENT_TOKEN: ${{ secrets.PADDLE_SANDBOX_CLIENT_TOKEN }}
+          PADDLE_SANDBOX_WEBHOOK_SECRET: ${{ secrets.PADDLE_SANDBOX_WEBHOOK_SECRET }}
+          PADDLE_LIVE_PRODUCT_ID: ${{ vars.PADDLE_LIVE_PRODUCT_ID }}
+          PADDLE_LIVE_CURRENCY: ${{ vars.PADDLE_LIVE_CURRENCY }}
+          PADDLE_LIVE_UNIT_PRICE: ${{ vars.PADDLE_LIVE_UNIT_PRICE }}
+          PADDLE_LIVE_MIN_TOPUP: ${{ vars.PADDLE_LIVE_MIN_TOPUP }}
+          PADDLE_LIVE_API_KEY: ${{ secrets.PADDLE_LIVE_API_KEY }}
+          PADDLE_LIVE_CLIENT_TOKEN: ${{ secrets.PADDLE_LIVE_CLIENT_TOKEN }}
+          PADDLE_LIVE_WEBHOOK_SECRET: ${{ secrets.PADDLE_LIVE_WEBHOOK_SECRET }}
+          GA_MEASURE_PROTOCOL_API_SECRET: ${{ secrets.GA_MEASURE_PROTOCOL_API_SECRET }}
+          GA_MESSUREMENT_ID: ${{ secrets.GA_MESSUREMENT_ID }}
+          OFFICIAL_WEBSITE_ORIGIN: ${{ secrets.OFFICIAL_WEBSITE_ORIGIN }}
+          APP_CONSOLE_ORIGIN: ${{ secrets.APP_CONSOLE_ORIGIN }}
+          COOKIE_SESSION_DOMAIN: ${{ secrets.COOKIE_SESSION_DOMAIN }}
+          SESSION_COOKIE_SECURE: ${{ secrets.SESSION_COOKIE_SECURE }}
+        run: |
+          set -euo pipefail
+          revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
+          env_vars=()
+          for name in \
+            PADDLE_ENVIRONMENT \
+            PADDLE_SANDBOX_PRODUCT_ID PADDLE_SANDBOX_CURRENCY PADDLE_SANDBOX_UNIT_PRICE PADDLE_SANDBOX_MIN_TOPUP \
+            PADDLE_SANDBOX_API_KEY PADDLE_SANDBOX_CLIENT_TOKEN PADDLE_SANDBOX_WEBHOOK_SECRET \
+            PADDLE_LIVE_PRODUCT_ID PADDLE_LIVE_CURRENCY PADDLE_LIVE_UNIT_PRICE PADDLE_LIVE_MIN_TOPUP \
+            PADDLE_LIVE_API_KEY PADDLE_LIVE_CLIENT_TOKEN PADDLE_LIVE_WEBHOOK_SECRET \
+            GA_MEASURE_PROTOCOL_API_SECRET GA_MESSUREMENT_ID \
+            OFFICIAL_WEBSITE_ORIGIN APP_CONSOLE_ORIGIN COOKIE_SESSION_DOMAIN SESSION_COOKIE_SECURE \
+            NODE_TYPE APP_ROLE; do
+            value="${!name:-}"
+            if [[ -n "${value}" ]]; then
+              env_vars+=("${name}=${value}")
+            fi
+          done
+          env_args=()
+          if (( ${#env_vars[@]} > 0 )); then
+            IFS=,
+            env_args=(--update-env-vars="${env_vars[*]}")
+            unset IFS
+          fi
+          gcloud run services update "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --image="${{ needs.build.outputs.image_uri }}" \
+            --revision-suffix="${revision_suffix}" \
+            --no-traffic \
+            "${env_args[@]}" \
+            --quiet
+          new_rev="$(gcloud run services describe "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --format='value(status.latestCreatedRevisionName)')"
+          echo "new_revision=${new_rev}" >> "$GITHUB_OUTPUT"
+          echo "Deployed revision: ${new_rev}"
+
+      - name: Health check the new revision
+        run: |
+          set -euo pipefail
+          gcloud run services update-traffic "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --update-tags=canary="${{ steps.deploy.outputs.new_revision }}" \
+            --quiet
+          tag_url="$(gcloud run services describe "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --format='value(status.traffic[].url)' | tr ';' '\n' | grep canary || true)"
+          if [[ -z "${tag_url}" ]]; then
+            echo "Failed to resolve canary tag URL for ${RUN_SERVICE}; refusing to probe a shared production hostname." >&2
+            exit 1
+          fi
+          echo "Probing ${tag_url}/api/status ..."
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${tag_url}/api/status" || true)
+            echo "attempt $i -> $code"
+            if [[ "${code}" == "200" ]]; then exit 0; fi
+            sleep 5
+          done
+          echo "Health check failed" >&2
+          exit 1
+
+      - name: Canary 10% for 3 minutes
+        run: |
+          gcloud run services update-traffic "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --to-revisions="${{ steps.deploy.outputs.new_revision }}=10" \
+            --quiet
+          echo "Sleeping 180s while canary observes traffic..."
+          sleep 180
+
+      - name: Promote to 100%
+        run: |
+          gcloud run services update-traffic "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --to-revisions="${{ steps.deploy.outputs.new_revision }}=100" \
+            --quiet
+
+      - name: Summary
+        run: |
+          echo "### Router deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Service: \`${RUN_SERVICE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Node type: \`${NODE_TYPE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- App role: \`${APP_ROLE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Revision: \`${{ steps.deploy.outputs.new_revision }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: \`${{ needs.build.outputs.image_uri }}\`" >> "$GITHUB_STEP_SUMMARY"

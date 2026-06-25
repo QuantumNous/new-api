@@ -5,6 +5,8 @@ import { buildMetadata } from "@/lib/seo";
 
 type Props = { params: Promise<{ slug: string }> };
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(props: Props) {
   const params = await props.params;
   const post = await getBlogPost(params.slug, "en");

@@ -1,87 +1,109 @@
 # new-api 生产环境基础设施清单
 
-> 这是 `vocai-gemini-prod` 项目内 new-api 生产环境的资源参考手册。所有资源都由 Terraform 管理（代码位于 `deploy/gcp/`），state 存放在 GCS bucket。
+> 这是 `vocai-gemini-prod` 项目内 new-api 生产环境的资源参考手册。所有 GCP 基础设施由 Terraform 管理（代码位于 `deploy/gcp/`），state 存放在 GCS bucket。操作前先读 `OPERATIONS.md`，发布和回滚步骤见 `DEPLOYMENT.md`。
 
 ## 项目上下文
 
 | 字段 | 值 |
 |---|---|
 | GCP 项目名 / ID | `vocai-gemini-prod` |
-| 项目编号 (project number) | `528088078482` |
-| 结算账户 | `017771-4E540B-88F75B` |
+| 项目编号 | `528088078482` |
 | 区域 | `us-west1`（Oregon） |
 | 可用区 | `us-west1-a` |
-| 应用代码仓库 | https://github.com/SolveaCX/new-api |
+| 应用代码仓库 | `https://github.com/SolveaCX/new-api` |
 | Cloudflare zone | `flatkey.ai` |
+| LB 静态 IP | `34.54.128.101` |
 
-## 拓扑总览
+## 当前生产拓扑
 
+```text
+Internet
+  |
+  +-- Cloudflare DNS/Proxy
+        |
+        | flatkey.ai / www.flatkey.ai       Proxied
+        | console.flatkey.ai                Proxied
+        | router.flatkey.ai                 DNS only
+        v
+  GCP global HTTPS LB newapi-https-fwd (34.54.128.101)
+        |
+        +-- host flatkey.ai,www.flatkey.ai -> backend newapi-web-backend
+        |      -> Cloud Run newapi-web (Next.js website, port 4000)
+        |
+        +-- host console.flatkey.ai -> backend newapi-console-backend
+        |      -> Cloud Run newapi-console (Go app, NODE_TYPE=master, APP_ROLE=console)
+        |
+        +-- host router.flatkey.ai -> backend newapi-router-backend
+        |      -> Cloud Run newapi-router (Go app, NODE_TYPE=slave, APP_ROLE=router)
+        |
+        +-- default -> backend newapi-backend
+               -> Cloud Run newapi (legacy Go fallback)
+
+All Go services share Cloud SQL, Redis, Secret Manager, runtime SA, and VPC egress.
 ```
-                 Internet
-                    │
-        ┌───────────┴───────────┐
-        │  Cloudflare DNS only  │   (new-api.app / new-api.api)
-        └───────────┬───────────┘
-                    │ A 记录 → 34.54.128.101
-                    ▼
-        ┌───────────────────────┐
-        │  GCP HTTPS LB (443)   │   托管 SSL 证书（newapi-cert）
-        │  HTTP→HTTPS 301 (80)  │
-        └───────────┬───────────┘
-                    │ Serverless NEG
-                    ▼
-        ┌───────────────────────┐
-        │  Cloud Run "newapi"   │   us-west1, min=4 max=10
-        │  ingress = ALL        │   timeout 3600s, concurrency 50
-        └────────┬──────┬───────┘
-                 │      │ Direct VPC Egress (private-ranges-only)
-                 │      ▼
-                 │   ┌──────────────────────┐
-                 │   │  VPC: newapi-vpc     │
-                 │   │  Subnet 10.20.0.0/24 │
-                 │   └──────┬───────────────┘
-                 │          │
-                 │          ▼
-                 │   ┌──────────────────────┐
-                 │   │  Memorystore Redis   │   Basic 1GB
-                 │   │  newapi-redis        │
-                 │   └──────────────────────┘
-                 │
-                 │ Unix socket /cloudsql/...
-                 ▼
-        ┌───────────────────────┐
-        │  Cloud SQL MySQL 8.0  │   db-custom-2-4096
-        │  newapi-mysql         │   ZONAL, 100GB SSD, PITR 7d
-        └───────────────────────┘
+
+当前 URL map 应满足：
+
+```yaml
+defaultService: .../backendServices/newapi-backend
+hostRules:
+- hosts: [flatkey.ai, www.flatkey.ai]
+  pathMatcher: website
+- hosts: [console.flatkey.ai]
+  pathMatcher: console
+- hosts: [router.flatkey.ai]
+  pathMatcher: router
+pathMatchers:
+- name: website
+  defaultService: .../backendServices/newapi-web-backend
+- name: console
+  defaultService: .../backendServices/newapi-console-backend
+- name: router
+  defaultService: .../backendServices/newapi-router-backend
+```
+
+验证命令：
+
+```bash
+gcloud compute url-maps describe newapi-urlmap \
+  --project=vocai-gemini-prod --global \
+  --format='yaml(hostRules,pathMatchers,defaultService)'
 ```
 
 ## 计算
 
-### Cloud Run service `newapi`
+### Cloud Run services
+
+| Service | 角色 | 入口 | NODE_TYPE / APP_ROLE | Min / Max | Concurrency | 端口 |
+|---|---|---|---|---|---|---|
+| `newapi-web` | 独立 Next.js 官网 | `flatkey.ai`, `www.flatkey.ai` | n/a | Terraform 管理 | 80 | 4000 |
+| `newapi-console` | 控制台、后台 API、高频发布目标 | `console.flatkey.ai` | `master` / `console` | 1 / 5 | 80 | 3000 |
+| `newapi-router` | 模型调用、relay、长流式请求 | `router.flatkey.ai` | `slave` / `router` | 4 / 10 | 50 | 3000 |
+| `newapi` | 旧 Go 服务、default/fallback backend | 未命中 host_rule 的 host | 旧配置，未显式设置 | 4 / 10 | 50 | 3000 |
+
+共同配置：
 
 | 字段 | 值 |
 |---|---|
 | Region | `us-west1` |
-| URL（直连） | `https://newapi-5qjldqffdq-uw.a.run.app` |
 | CPU / Memory | 1 vCPU / 1 GiB |
-| Min / Max instances | 4 / 10 |
-| Concurrency | 50 |
-| Request timeout | 3600 s（兼容长流式响应） |
-| CPU 调度 | `cpu_idle=false`、`startup_cpu_boost=true` |
-| Ingress | `INGRESS_TRAFFIC_ALL`（计划后续锁到 `INTERNAL_LOAD_BALANCER`） |
-| Container port | 3000 |
+| Request timeout | 3600s（兼容长流式响应） |
 | Runtime SA | `newapi-runtime@vocai-gemini-prod.iam.gserviceaccount.com` |
-| Cloud SQL 挂载 | `volumes.cloud_sql_instance = vocai-gemini-prod:us-west1:newapi-mysql` |
-| VPC 接入 | Direct VPC Egress（子网 `newapi-subnet-us-west1`，egress=`PRIVATE_RANGES_ONLY`） |
-| Health probe | `tcp_socket :3000` + `http_get /api/status :3000` |
+| Cloud SQL 挂载 | `vocai-gemini-prod:us-west1:newapi-mysql` |
+| VPC 接入 | Direct VPC Egress，子网 `newapi-subnet-us-west1` |
+| Health probe | TCP `:3000` + HTTP `/api/status`（Go）；website 由容器端口 4000 服务 |
 
-容器环境变量见 `deploy/gcp/modules/cloud-run/main.tf`。敏感值（`SQL_DSN`、`REDIS_CONN_STRING`、`SESSION_SECRET`、`CRYPTO_SECRET`、`BLOCKRUN_USAGE_SUMMARY_TOKEN`）通过 `value_source.secret_key_ref` 从 Secret Manager 注入，**Terraform state 里看不到明文**。
+CI/CD 拥有镜像、revision、traffic 和运行时 env；Terraform 对这些字段做 `lifecycle.ignore_changes`。不要用 Terraform 去回滚应用镜像。
 
-> `BLOCKRUN_USAGE_SUMMARY_TOKEN`（用量对账接口 `/usage/summary`、`/usage/transactions` 的静态 Bearer 鉴权）由开关 `enable_usage_recon_token`（`envs/prod/terraform.tfvars`，**当前 true**）控制是否注入；密钥为 `newapi-blockrun-usage-summary-token`。运维细节与雷区见 `OPERATIONS.md`「Usage reconciliation token」。
+直连 URL 示例：
 
-镜像由 CI/CD 滚动更新；Terraform 的 `lifecycle.ignore_changes` 包含 `template[0].containers[0].image`，所以 `terraform apply` 不会回滚到 placeholder。
+```bash
+gcloud run services describe newapi-console --project=vocai-gemini-prod --region=us-west1 --format='value(status.url)'
+gcloud run services describe newapi-router  --project=vocai-gemini-prod --region=us-west1 --format='value(status.url)'
+gcloud run services describe newapi-web     --project=vocai-gemini-prod --region=us-west1 --format='value(status.url)'
+```
 
-## 数据
+## 数据层
 
 ### Cloud SQL `newapi-mysql`
 
@@ -92,15 +114,14 @@
 | 机型 | `db-custom-2-4096`（2 vCPU / 4 GiB） |
 | 存储 | 100 GB SSD，自动扩容启用 |
 | Availability | `ZONAL`（单 zone，无 HA） |
-| 公网 IP | 启用（仅 Auth Proxy 使用，无 authorized networks） |
 | SSL 模式 | `ENCRYPTED_ONLY` |
-| 备份 | 每天 11:00 UTC（= 04:00 PT），保留 7 份 |
+| 备份 | 每天 11:00 UTC，保留 7 份 |
 | Binlog / PITR | 启用，7 天 |
-| 维护窗口 | 周日 11:00 UTC，`update_track=stable` |
 | Deletion protection | 开启 |
 
-Database flags：
-```
+Database flags:
+
+```text
 max_connections=300
 character_set_server=utf8mb4
 collation_server=utf8mb4_unicode_ci
@@ -110,61 +131,83 @@ long_query_time=1
 default_time_zone=+00:00
 ```
 
-应用 DB：`newapi`；应用用户：`newapi_app`（密码来自 Secret Manager）。
+所有 Go 节点共享同一个 DB。生产是多节点：涉及初始化、缓存、任务、计费、quota、token/key 写入的代码必须跨实例安全。
 
 ### Memorystore Redis `newapi-redis`
 
 | 字段 | 值 |
 |---|---|
-| 名称 | `newapi-redis` |
 | Tier | `BASIC`（单实例，无 HA） |
 | 容量 | 1 GB |
 | Redis 版本 | 7.0 |
 | Authorized network | `newapi-vpc` |
 | Connect mode | `DIRECT_PEERING` |
-| 维护窗口 | 周日 11:00 UTC |
 
-Host/port 通过 Terraform output 注入到 `newapi-redis-url` secret，再由 Cloud Run 读取。
+## 网络与负载均衡
 
-## 网络
-
-### VPC `newapi-vpc`
+### VPC
 
 | 字段 | 值 |
 |---|---|
-| Routing mode | `REGIONAL` |
-| 自动子网 | 关 |
-| 子网 | `newapi-subnet-us-west1`，CIDR `10.20.0.0/24` |
+| VPC | `newapi-vpc` |
+| Subnet | `newapi-subnet-us-west1`, CIDR `10.20.0.0/24` |
 | Private Google access | 开启 |
 
 ### HTTPS Load Balancer
 
-| 资源 | 名称 | 备注 |
+| 资源 | 名称 | 说明 |
 |---|---|---|
-| 全局静态 IPv4 | `newapi-lb-ip` | **34.54.128.101**（Cloudflare A 记录指向这里） |
-| Serverless NEG | `newapi-cr-neg` | us-west1 区域，cloud_run.service=`newapi` |
-| Backend service | `newapi-backend` | 协议 HTTPS，无 health check（Serverless NEG 自管） |
-| URL map (HTTPS) | `newapi-urlmap` | 默认全部路由到 `newapi-backend` |
-| URL map (HTTP) | `newapi-http-redirect` | 301 重定向到 HTTPS |
-| Target HTTPS proxy | `newapi-https-proxy` | 绑定 `newapi-cert` |
-| Target HTTP proxy | `newapi-http-proxy` | 绑定 `newapi-http-redirect` |
-| Global forwarding rule (443) | `newapi-https-fwd` | `EXTERNAL_MANAGED` |
-| Global forwarding rule (80) | `newapi-http-fwd` | 触发重定向 |
+| 全局静态 IPv4 | `newapi-lb-ip` | `34.54.128.101` |
+| URL map (HTTPS) | `newapi-urlmap` | host-based routing |
+| URL map (HTTP) | `newapi-http-redirect` | HTTP 301 到 HTTPS |
+| Target HTTPS proxy | `newapi-https-proxy` | 绑定 Google-managed cert |
+| Backend service | `newapi-web-backend` | `newapi-web` |
+| Backend service | `newapi-console-backend` | `newapi-console` |
+| Backend service | `newapi-router-backend` | `newapi-router` |
+| Backend service | `newapi-backend` | legacy `newapi` default backend |
+| Serverless NEG | `newapi-web-cr-neg` | Cloud Run `newapi-web` |
+| Serverless NEG | `newapi-console-cr-neg` | Cloud Run `newapi-console` |
+| Serverless NEG | `newapi-router-cr-neg` | Cloud Run `newapi-router` |
+| Serverless NEG | `newapi-cr-neg` | Cloud Run `newapi` |
 
-### SSL 证书
+## TLS 与域名
 
-| 字段 | 值 |
-|---|---|
-| 名称 | `newapi-cert` |
-| 类型 | Google-managed |
-| 覆盖域名 | `new-api.app.flatkey.ai`、`new-api.api.flatkey.ai` |
-| 自动续期 | 是 |
+### GCP managed certificate
+
+`lb_domains` 当前包含：
+
+- `new-api.app.flatkey.ai`
+- `new-api.api.flatkey.ai`
+- `one.flatkey.ai`
+- `router.flatkey.ai`
+
+`router.flatkey.ai` 由 GCP managed cert 覆盖，因此 Cloudflare 可以保持 DNS only，由 Google LB 终结 TLS。
+
+`console.flatkey.ai` 和 `flatkey.ai` / `www.flatkey.ai` 不在 `lb_domains`，依赖 Cloudflare Proxied 的边缘证书，再回源到 GCP LB。这样避免修改 `lb_domains` 触发 managed cert rotation 的 HTTPS 窗口。
 
 查询状态：
+
 ```bash
-gcloud compute ssl-certificates describe newapi-cert --global \
-  --format="value(managed.status,managed.domainStatus)"
+gcloud compute ssl-certificates describe newapi-cert-4dc684 \
+  --project=vocai-gemini-prod --global \
+  --format='yaml(name,managed.status,managed.domainStatus)'
 ```
+
+> 注意：`lb_domains` 任意变更都会重建 managed cert。新证书从 `PROVISIONING` 到 `ACTIVE` 前，相关 HTTPS 流量可能出现 TLS 握手失败。详见 `OPERATIONS.md`。
+
+### Cloudflare DNS
+
+| FQDN | 记录 | Proxy 模式 | 后端 |
+|---|---|---|---|
+| `flatkey.ai` | A -> `34.54.128.101` | Proxied | `newapi-web` |
+| `www.flatkey.ai` | A/CNAME -> LB | Proxied | `newapi-web` |
+| `console.flatkey.ai` | A -> `34.54.128.101` | Proxied | `newapi-console` |
+| `router.flatkey.ai` | A -> `34.54.128.101` | DNS only | `newapi-router` |
+| `new-api.app.flatkey.ai` | A -> `34.54.128.101` | DNS only | legacy/default |
+| `new-api.api.flatkey.ai` | A -> `34.54.128.101` | DNS only | legacy/default |
+| `one.flatkey.ai` | A -> `34.54.128.101` | DNS only | legacy/default |
+
+Cloudflare 显示 “origin IP partially exposed” 是当前混合模式的预期现象：同一个 LB IP 同时有 Proxied 和 DNS-only 记录。
 
 ## 镜像仓库
 
@@ -175,10 +218,10 @@ gcloud compute ssl-certificates describe newapi-cert --global \
 | 格式 | Docker |
 | 清理策略 | 保留最近 50 个版本；untagged 7 天后删除 |
 
-CI/CD 推到的镜像 tag：
-- `:sha-<short_sha>`（每次 push 都打）
-- `:main-latest`（main 分支最新）
-- `:v<x.y.z>`（仅在打 tag 触发时）
+Go app 和 website 使用不同 workflow / image target：
+
+- Go app：`.github/workflows/gcp-deploy.yml`
+- Website：`.github/workflows/gcp-deploy-website.yml`
 
 ## 密钥
 
@@ -186,115 +229,95 @@ CI/CD 推到的镜像 tag：
 
 | Secret ID | 类型 | 由谁写入 |
 |---|---|---|
-| `newapi-db-app-password` | 32 字节随机 | Terraform `random_password` |
-| `newapi-session-secret` | 48 字节随机 | Terraform `random_password` |
-| `newapi-crypto-secret` | 48 字节随机 | Terraform `random_password` |
-| `newapi-initial-token` | 48 字节随机 | Terraform `random_password` |
-| `newapi-sql-dsn` | 完整 DSN 字符串 | Terraform 拼装后写入 |
-| `newapi-redis-url` | `redis://host:port/0` | Terraform 拼装后写入 |
-| `newapi-github-client-id` | 空占位 | 运维手动 `gcloud secrets versions add` |
-| `newapi-github-client-secret` | 空占位 | 运维手动 |
-| `newapi-stripe-secret-key` | 空占位 | 运维手动 |
+| `newapi-db-app-password` | DB 用户密码 | Terraform `random_password` |
+| `newapi-session-secret` | session secret | Terraform `random_password` |
+| `newapi-crypto-secret` | crypto secret | Terraform `random_password` |
+| `newapi-initial-token` | 初始 token | Terraform `random_password` |
+| `newapi-sql-dsn` | 完整 DSN | Terraform 拼装后写入 |
+| `newapi-redis-url` | Redis URL | Terraform 拼装后写入 |
+| `newapi-blockrun-usage-summary-token` | 用量对账 Bearer token | 运维写入值，Terraform 管理 secret |
+| `newapi-github-client-id` | 占位 | 运维手动 |
+| `newapi-github-client-secret` | 占位 | 运维手动 |
+| `newapi-stripe-secret-key` | 占位 | 运维手动 |
 
-`replication = auto`（Google 多区域副本）。Cloud Run 运行时 SA 持有这些 secret 的 `roles/secretmanager.secretAccessor`。
+Cloud Run 运行时 SA 持有这些 secret 的 `roles/secretmanager.secretAccessor`。密钥值不应进入仓库或 Terraform state 明文。
 
 ## 身份与权限
 
-### Service Accounts
-
 | 邮箱 | 用途 | 关键权限 |
 |---|---|---|
-| `newapi-runtime@vocai-gemini-prod.iam.gserviceaccount.com` | Cloud Run revision 运行时身份 | `cloudsql.client`、`logging.logWriter`、`monitoring.metricWriter`、`cloudtrace.agent`、6 个 secret 的 `secretAccessor` |
-| `newapi-ci-deployer@vocai-gemini-prod.iam.gserviceaccount.com` | GitHub Actions 通过 WIF 假装为它 | `run.developer`、`artifactregistry.writer`、`iam.serviceAccountUser`（给 runtime SA） |
+| `newapi-runtime@vocai-gemini-prod.iam.gserviceaccount.com` | Cloud Run revision 运行时身份 | `cloudsql.client`、`logging.logWriter`、`monitoring.metricWriter`、`cloudtrace.agent`、secret accessor |
+| `newapi-ci-deployer@vocai-gemini-prod.iam.gserviceaccount.com` | GitHub Actions WIF deployer | `run.developer`、`artifactregistry.writer`、`iam.serviceAccountUser` |
 
-### Workload Identity Federation
+WIF provider：
 
-| 字段 | 值 |
-|---|---|
-| Pool ID | `github-actions` |
-| Provider | `github` |
-| Provider resource name | `projects/528088078482/locations/global/workloadIdentityPools/github-actions/providers/github` |
-| Issuer | `https://token.actions.githubusercontent.com` |
-| Attribute condition | `assertion.repository == 'SolveaCX/new-api'` |
-| 绑定 | deployer SA 上挂 `principalSet://.../attribute.repository/SolveaCX/new-api` 的 `roles/iam.workloadIdentityUser` |
+```text
+projects/528088078482/locations/global/workloadIdentityPools/github-actions/providers/github
+```
 
-**没有任何 service account JSON 密钥被创建或下载**。
+Attribute condition 必须限定：
 
-## 域名
-
-| FQDN | DNS 记录 | Cloudflare Proxy |
-|---|---|---|
-| `new-api.app.flatkey.ai` | A → `34.54.128.101` | DNS only（灰云，证书签发期间） |
-| `new-api.api.flatkey.ai` | A → `34.54.128.101` | DNS only |
-
-### 为什么是 DNS only（决策记录）
-
-试图把这两个 hostname 切到 Cloudflare Proxied（橙云）会遇到 TLS 握手失败 —— Cloudflare Universal SSL 只覆盖一级深度子域（`flatkey.ai` 和 `*.flatkey.ai`），不覆盖 `new-api.app.flatkey.ai` / `new-api.api.flatkey.ai` 这种三级深度。
-
-要让代理模式可用，三个路径：
-
-| 路径 | 月成本 | 适用 |
-|---|---|---|
-| 保持 DNS only（当前） | $0 | 默认推荐：业务是动态 API，CF 缓存帮不上忙；GCP LB 自带 DDoS 防护；TLS 由 Google-managed cert 终结，评级 A |
-| 买 Cloudflare ACM | $10/月/zone | 只在需要 CF WAF/Bot 防护时考虑 |
-| 改成单级子域（如 `newapi.flatkey.ai`） | $0 但改动大 | 需要重签 GCP cert、改应用 OAuth 回调、改邮件链接 |
-
-GCP Cloud Armor（按请求计费，~$5/月起）通常比 Cloudflare Free 的 WAF 能力更强、更可控，所以业务真需要 WAF 时优先考虑它而不是 CF ACM。
+```text
+assertion.repository == 'SolveaCX/new-api'
+```
 
 ## 监控
 
-| 资源 | 名称 |
+| 类型 | 资源 |
 |---|---|
-| Uptime check | `new-api-api-status-PpeCuNMssAs`（探测 `https://new-api.app.flatkey.ai/api/status`） |
-| 通知通道 | 暂无（`alert_email` 为空，不创建邮件告警策略） |
+| Uptime check | `new-api-api-status-*` |
+| Cloud Run logs | `resource.type="cloud_run_revision"` |
+| LB logs | `resource.type="http_load_balancer"` |
+| Cloud SQL logs | `resource.type="cloudsql_database"` |
 
-Cloud Logging 自动收集 Cloud Run / Cloud SQL / LB 全部日志；slow query log 来自 Cloud SQL flag，自动收。
+生产分流验证常用日志：
 
-## 状态文件
+```bash
+gcloud logging read \
+  'resource.type="http_load_balancer" AND resource.labels.backend_service_name="newapi-console-backend"' \
+  --project=vocai-gemini-prod --freshness=10m --limit=100 --format=json
+
+gcloud logging read \
+  'resource.type="http_load_balancer" AND resource.labels.backend_service_name="newapi-router-backend"' \
+  --project=vocai-gemini-prod --freshness=10m --limit=100 --format=json
+```
+
+## Terraform state
 
 | 字段 | 值 |
 |---|---|
 | Bucket | `gs://vocai-gemini-prod-newapi-tfstate` |
-| Location | `us-west1` |
-| Public access | `enforced`（禁止公网访问） |
-| Uniform bucket-level access | 启用 |
-| Soft delete | 7 天（GCS 默认，足够防误删） |
-| Versioning / Lifecycle | 未启用（`partner@solvea.cx` 缺 `storage.buckets.update` 权限；后续可由组织管理员开启） |
-| 加密 | Google-managed key（默认） |
-
-state prefix：`envs/prod`，所以完整路径是 `gs://vocai-gemini-prod-newapi-tfstate/envs/prod/default.tfstate`。
+| Prefix | `envs/prod` |
+| Working directory | `deploy/gcp/envs/prod/` |
 
 ## 月度成本估算
 
 | 项 | 月费用 |
 |---|---|
-| Cloud Run（min=4 + 流量） | $80–120 |
+| Cloud Run Go services（router 4 min + console 1 min + legacy 4 min + 流量） | ~$120-180 |
+| Cloud Run website | 按流量，低基线 |
 | Cloud SQL `db-custom-2-4096` + 100GB SSD | ~$99 |
 | Memorystore Redis Basic 1GB | ~$35 |
 | HTTPS LB 转发规则 + 静态 IP | ~$22 |
-| Artifact Registry + 日志 + 监控 | ~$10 |
-| **合计** | **~$215–245** |
+| Artifact Registry + 日志 + 监控 | ~$10+ |
 
-跨 region 流量、Egress 到客户端等按量项目额外。
+实际费用会随请求量、日志量、egress 和 min instance 调整变化。
 
 ## 已知限制 & 未完成事项
 
-1. **缺 `roles/run.admin`**：`partner@solvea.cx` 没有 `run.domainmappings.create`，所以走 LB 不走域名映射；后续拿到权限可以切回域名映射，省 ~$22/月 LB 费用。
-2. **缺 `roles/storage.admin` 在 state bucket 上**：deployer SA 暂时没法用 `gcp-infra.yml` workflow 跑 `terraform plan`。基础设施变更目前由运维本地 `terraform apply` 执行。组织管理员可以在 state bucket 加 `roles/storage.objectUser` 给 deployer SA 解决。
-3. **Cloud SQL 单区域**：节省成本但是单点故障。要 HA 改 `availability_type = "REGIONAL"`，在线升级，不停机。
-4. **Memorystore Basic 单实例**：同理，要 HA 升级到 Standard tier（多 ~$35/月）。
-5. **静态出口 IP 未开**：如果某个上游 AI 服务要白名单出口 IP，需要加 Cloud NAT + 保留 IP（~$15/月）。
-6. **Cloud Run ingress 暂为 ALL**：意味着 `*.run.app` 直连可达（虽然不曝光）。证书签好且 LB 稳定后可锁到 `INTERNAL_LOAD_BALANCER`。
-7. **Cloudflare DNS only（灰云）**：尝试翻 Proxied（橙云）会 TLS 握手失败，因为 Universal SSL 只覆盖 1 级深度子域；要解锁需要 Cloudflare ACM（$10/月/zone）或改 hostname 到单级。详见上面"为什么是 DNS only"。
+1. **CI Terraform plan/apply IAM 不完整**：`gcp-infra.yml` 的 plan/apply 不能作为唯一依据；本地 Owner ADC 的 `terraform plan` 才是当前生产 infra 变更的可信来源。详见 `OPERATIONS.md`。
+2. **Cloud SQL 单区域**：节省成本但不是 HA。升级为 `REGIONAL` 需要单独规划。
+3. **Memorystore Basic 单实例**：Redis 不是 HA。
+4. **Cloud Run ingress 暂为 ALL**：`*.run.app` 直连仍可达。锁到 `INTERNAL_LOAD_BALANCER` 前要确认 CI/CD 健康检查路径和回滚路径。
+5. **legacy `newapi` 仍保留**：它是 URL map default backend 和快速回退兜底。移除前必须确认没有未知 host / 旧入口流量依赖它。
+6. **Cloudflare 混合模式**：`console`/website Proxied，`router` DNS-only。不要为了消除 Cloudflare warning 直接切换 proxy 模式；先评估 TLS 与证书覆盖。
 
 ## 升级路径
 
-| 想做的事 | 改什么 | 是否停机 |
+| 想做的事 | 改什么 | 是否停机 / 风险 |
 |---|---|---|
-| Cloud SQL 加 HA | `availability_type=REGIONAL` | 否 |
-| Redis 加 HA | tier 改 `STANDARD_HA` | 否（自动重建？需要规划） |
-| Cloud SQL 扩容 CPU/RAM | 改 `tier` | 是（1-2 分钟重启） |
-| 加只读 DB 副本 | 新 `google_sql_database_instance.replica` 资源 | 否 |
-| 加多 region 容灾 | 启用 `staging` 环境到 us-central1 + Cloud Run multi-region | 否 |
-| 开启 Cloud Armor WAF | 新 `google_compute_security_policy` 资源，绑 backend service | 否 |
-| 锁 ingress 到 LB only | tfvars 改 `cloud_run_ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"` | 否 |
+| Cloud SQL 加 HA | `availability_type=REGIONAL` | 通常在线，仍需维护窗口 |
+| Redis 加 HA | tier 改 `STANDARD_HA` | 需要规划重建/迁移 |
+| 开启 Cloud Armor WAF | 新 `google_compute_security_policy`，绑 backend service | 通常不停机，规则误伤风险 |
+| 锁 Cloud Run ingress 到 LB only | `cloud_run_ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"` | 通常不停机，但会影响 `*.run.app` 直连 |
+| 移除 legacy `newapi` | 改 URL map default 和 Terraform module | 高风险，必须先看 LB 日志 |

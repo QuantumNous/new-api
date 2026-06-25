@@ -235,18 +235,28 @@ func TestSumUsedQuotaSelfStatIsExactByUserID(t *testing.T) {
 		t.Fatalf("self stat tpm = %d, want 5", stat.Tpm)
 	}
 
-	// 对照：管理员搜索 "alice"（selfUserId=0）会模糊命中三者，证明模糊能力仍在、
-	// 仅 self 路径被收紧。quota = 10+100+1000 = 1110。
+	// 对照：管理员搜索完整用户名 "alice"（selfUserId=0）现在默认精确匹配，
+	// 只命中 alice 自己（quota=10），不再把 alice2/malice 带进来。要模糊需显式
+	// 输入 %alice% —— 见 TestGetAllLogsExplicitWildcard。
 	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "alice", "", 0, "", 0, 0)
 	if err != nil {
-		t.Fatalf("SumUsedQuota admin fuzzy: %v", err)
+		t.Fatalf("SumUsedQuota admin exact: %v", err)
+	}
+	if stat.Quota != 10 {
+		t.Fatalf("admin exact quota = %d, want 10 (exact match, not 1110)", stat.Quota)
+	}
+
+	// 显式模糊 %alice% 仍可命中三者：10+100+1000 = 1110。
+	stat, err = SumUsedQuota(LogTypeConsume, 0, 0, "", "%alice%", "", 0, "", 0, 0)
+	if err != nil {
+		t.Fatalf("SumUsedQuota admin explicit fuzzy: %v", err)
 	}
 	if stat.Quota != 1110 {
-		t.Fatalf("admin fuzzy quota = %d, want 1110 (10+100+1000)", stat.Quota)
+		t.Fatalf("admin explicit fuzzy quota = %d, want 1110 (10+100+1000)", stat.Quota)
 	}
 }
 
-func TestGetAllLogsFuzzyUsernameMatch(t *testing.T) {
+func TestGetAllLogsExactUsernameMatch(t *testing.T) {
 	resetUsageTables(t)
 	resetLogFilterTestUser(t, 301)
 	resetLogFilterTestUser(t, 302)
@@ -256,7 +266,8 @@ func TestGetAllLogsFuzzyUsernameMatch(t *testing.T) {
 	mustCreateUsage(t, &User{Id: 302, Username: "github_bob", DisplayName: "Bob", AffCode: "log-filter-302"})
 
 	// user 301 has one log under the current name and one under an older name;
-	// resolving the keyword through the user table must catch both.
+	// resolving the EXACT current username through the user table must still
+	// catch the renamed-historical log via user_id.
 	mustCreateUsage(t, &Log{
 		UserId:    301,
 		Username:  "google_alice",
@@ -282,56 +293,54 @@ func TestGetAllLogsFuzzyUsernameMatch(t *testing.T) {
 		Quota:     1,
 	})
 
-	// Partial keyword "google" should fuzzily match every log for user 301
-	// (current + historical name, resolved via the user table), and nothing
-	// belonging to user 302.
-	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "google", "", 0, 20, 0, "", "", "", 0)
+	// Exact full username "google_alice" matches BOTH of user 301's logs
+	// (current snapshot + renamed-historical via user_id), and nothing of 302.
+	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "google_alice", "", 0, 20, 0, "", "", "", 0)
 	if err != nil {
-		t.Fatalf("GetAllLogs fuzzy google: %v", err)
+		t.Fatalf("GetAllLogs exact google_alice: %v", err)
 	}
 	if total != 2 {
-		t.Fatalf("fuzzy google total = %d, want 2", total)
+		t.Fatalf("exact google_alice total = %d, want 2", total)
 	}
 	for _, l := range logs {
 		if l.UserId != 301 {
-			t.Fatalf("fuzzy google matched unexpected user_id %d", l.UserId)
+			t.Fatalf("exact google_alice matched unexpected user_id %d", l.UserId)
 		}
 	}
 
-	// Partial keyword "bob" should match only user 302.
-	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "bob", "", 0, 20, 0, "", "", "", 0)
+	// Partial keyword "google" must NOT match anymore — default is exact, no
+	// auto substring fuzzy. This is the core #222 regression guard.
+	_, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "google", "", 0, 20, 0, "", "", "", 0)
 	if err != nil {
-		t.Fatalf("GetAllLogs fuzzy bob: %v", err)
+		t.Fatalf("GetAllLogs partial google: %v", err)
+	}
+	if total != 0 {
+		t.Fatalf("partial google total = %d, want 0 (exact match only)", total)
+	}
+
+	// Exact "github_bob" matches only user 302.
+	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "github_bob", "", 0, 20, 0, "", "", "", 0)
+	if err != nil {
+		t.Fatalf("GetAllLogs exact github_bob: %v", err)
 	}
 	if total != 1 {
-		t.Fatalf("fuzzy bob total = %d, want 1", total)
+		t.Fatalf("exact github_bob total = %d, want 1", total)
 	}
 	if len(logs) != 1 || logs[0].UserId != 302 {
-		t.Fatalf("fuzzy bob logs = %+v, want only user_id 302", logs)
+		t.Fatalf("exact github_bob logs = %+v, want only user_id 302", logs)
 	}
 
-	// A keyword matching no username at all returns nothing.
+	// A username matching nobody returns nothing.
 	_, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "no_such_user", "", 0, 20, 0, "", "", "", 0)
 	if err != nil {
-		t.Fatalf("GetAllLogs fuzzy miss: %v", err)
+		t.Fatalf("GetAllLogs exact miss: %v", err)
 	}
 	if total != 0 {
-		t.Fatalf("fuzzy miss total = %d, want 0", total)
-	}
-
-	// Single-character keywords stay exact to avoid an over-broad leading-wildcard
-	// scan: "g" must NOT fuzzily match "google_alice"/"github_bob".
-	_, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "g", "", 0, 20, 0, "", "", "", 0)
-	if err != nil {
-		t.Fatalf("GetAllLogs single-char keyword: %v", err)
-	}
-	if total != 0 {
-		t.Fatalf("single-char keyword total = %d, want 0 (exact match only)", total)
+		t.Fatalf("exact miss total = %d, want 0", total)
 	}
 
 	// A single-character username is still resolved through the user table, so a
-	// log written under the user's previous name is matched via user_id even
-	// though the keyword is too short for a fuzzy LIKE.
+	// log written under the user's previous name is matched via user_id.
 	resetLogFilterTestUser(t, 303)
 	mustCreateUsage(t, &User{Id: 303, Username: "x", DisplayName: "X", AffCode: "log-filter-303"})
 	mustCreateUsage(t, &Log{
@@ -349,11 +358,50 @@ func TestGetAllLogsFuzzyUsernameMatch(t *testing.T) {
 	if total != 1 || len(logs) != 1 || logs[0].UserId != 303 {
 		t.Fatalf("single-char exact username logs = %+v / total %d, want 1 log for user 303", logs, total)
 	}
+}
 
+func TestGetAllLogsExplicitWildcard(t *testing.T) {
+	resetUsageTables(t)
+	resetLogFilterTestUser(t, 311)
+	resetLogFilterTestUser(t, 312)
+
+	mustCreateUsage(t, &User{Id: 311, Username: "google_alice", DisplayName: "Alice", AffCode: "log-filter-311"})
+	mustCreateUsage(t, &User{Id: 312, Username: "mygoogle", DisplayName: "My", AffCode: "log-filter-312"})
+	mustCreateUsage(t, &Log{
+		UserId: 311, Username: "google_alice", Type: LogTypeConsume,
+		CreatedAt: 3000, ModelName: "gpt-4o", Quota: 1,
+	})
+	mustCreateUsage(t, &Log{
+		UserId: 312, Username: "mygoogle", Type: LogTypeConsume,
+		CreatedAt: 3001, ModelName: "gpt-4o", Quota: 1,
+	})
+
+	// Explicit "google%" is a prefix fuzzy: matches "google_alice" (starts with
+	// google) but NOT "mygoogle" (no leading wildcard was added by the system).
+	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "google%", "", 0, 20, 0, "", "", "", 0)
+	if err != nil {
+		t.Fatalf("GetAllLogs explicit google%%: %v", err)
+	}
+	if total != 1 || len(logs) != 1 || logs[0].UserId != 311 {
+		t.Fatalf("explicit google%% logs = %+v / total %d, want only user 311", logs, total)
+	}
+
+	// Explicit leading wildcard "%google" matches the suffix — "mygoogle" only.
+	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "%google", "", 0, 20, 0, "", "", "", 0)
+	if err != nil {
+		t.Fatalf("GetAllLogs explicit %%google: %v", err)
+	}
+	if total != 1 || len(logs) != 1 || logs[0].UserId != 312 {
+		t.Fatalf("explicit %%google logs = %+v / total %d, want only user 312", logs, total)
+	}
+}
+
+func TestGetAllLogsExplicitWildcardOverLimitDegradation(t *testing.T) {
+	resetUsageTables(t)
 	// Over-limit degradation: when more than fuzzyUsernameUserIDLimit users match
-	// the keyword, the user-table resolution returns an empty id set and the query
-	// degrades to a pure logs.username LIKE — it must NOT match a renamed user's
-	// historical log via user_id (that would require the now-discarded id set).
+	// the EXPLICIT wildcard keyword in the user table, the user-table resolution
+	// returns an empty id set and the query degrades to a pure logs.username LIKE
+	// — it must NOT match a renamed user's historical log via user_id.
 	origLimit := fuzzyUsernameUserIDLimit
 	fuzzyUsernameUserIDLimit = 2
 	defer func() { fuzzyUsernameUserIDLimit = origLimit }()
@@ -376,12 +424,13 @@ func TestGetAllLogsFuzzyUsernameMatch(t *testing.T) {
 		UserId: 502, Username: "over_limit_kw_2", Type: LogTypeConsume,
 		CreatedAt: 5001, ModelName: "gpt-4o", Quota: 1,
 	})
-	logs, total, err = GetAllLogs(LogTypeConsume, 0, 0, "", "over_limit_kw", "", 0, 20, 0, "", "", "", 0)
+	// Explicit trailing wildcard triggers the fuzzy path (default text no longer does).
+	logs, total, err := GetAllLogs(LogTypeConsume, 0, 0, "", "over_limit_kw%", "", 0, 20, 0, "", "", "", 0)
 	if err != nil {
-		t.Fatalf("GetAllLogs over-limit fuzzy: %v", err)
+		t.Fatalf("GetAllLogs over-limit explicit wildcard: %v", err)
 	}
 	if total != 1 || len(logs) != 1 || logs[0].UserId != 502 {
-		t.Fatalf("over-limit fuzzy logs = %+v / total %d, want only the LIKE-matched log of user 502", logs, total)
+		t.Fatalf("over-limit explicit wildcard logs = %+v / total %d, want only the LIKE-matched log of user 502", logs, total)
 	}
 }
 
