@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -23,20 +24,44 @@ import (
 type Adaptor struct {
 }
 
+var geminiGetBase64Data = service.GetBase64Data
+
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
 	if len(request.Contents) > 0 {
-		for i, content := range request.Contents {
+		for i := range request.Contents {
 			if i == 0 {
 				if request.Contents[0].Role == "" {
 					request.Contents[0].Role = "user"
 				}
 			}
-			for _, part := range content.Parts {
-				if part.FileData != nil {
-					if part.FileData.MimeType == "" && strings.Contains(part.FileData.FileUri, "www.youtube.com") {
-						part.FileData.MimeType = "video/webm"
-					}
+			for j := range request.Contents[i].Parts {
+				part := &request.Contents[i].Parts[j]
+				if part.FileData == nil {
+					continue
 				}
+				if part.FileData.MimeType == "" && strings.Contains(part.FileData.FileUri, "www.youtube.com") {
+					part.FileData.MimeType = "video/webm"
+					continue
+				}
+				if !part.FileData.ShouldDownload() {
+					continue
+				}
+				source := types.NewURLFileSource(part.FileData.FileUri)
+				base64Data, mimeType, err := geminiGetBase64Data(c, source, "formatting Gemini fileData for upstream")
+				if err != nil {
+					return nil, fmt.Errorf("get file data from '%s' failed: %w", source.GetIdentifier(), err)
+				}
+				if part.FileData.MimeType != "" {
+					mimeType = part.FileData.MimeType
+				}
+				if _, ok := geminiSupportedMimeTypes[strings.ToLower(mimeType)]; !ok {
+					return nil, fmt.Errorf("mime type is not supported by Gemini: '%s', url: '%s', supported types are: %v", mimeType, source.GetIdentifier(), getSupportedMimeTypesList())
+				}
+				part.InlineData = &dto.GeminiInlineData{
+					MimeType: mimeType,
+					Data:     base64Data,
+				}
+				part.FileData = nil
 			}
 		}
 	}

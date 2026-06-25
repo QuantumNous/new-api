@@ -2,6 +2,7 @@ package dto
 
 import (
 	"encoding/json"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -80,22 +81,12 @@ func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
 			if part.Text != "" {
 				inputTexts = append(inputTexts, part.Text)
 			}
+			if part.FileData != nil && strings.TrimSpace(part.FileData.FileUri) != "" {
+				files = append(files, geminiPartFileMeta(part.FileData.MimeType, types.NewURLFileSource(strings.TrimSpace(part.FileData.FileUri))))
+				continue
+			}
 			if source := part.InlineData.ToFileSource(); source != nil {
-				mimeType := part.InlineData.MimeType
-				var fileType types.FileType
-				if strings.HasPrefix(mimeType, "image/") {
-					fileType = types.FileTypeImage
-				} else if strings.HasPrefix(mimeType, "audio/") {
-					fileType = types.FileTypeAudio
-				} else if strings.HasPrefix(mimeType, "video/") {
-					fileType = types.FileTypeVideo
-				} else {
-					fileType = types.FileTypeFile
-				}
-				files = append(files, &types.FileMeta{
-					FileType: fileType,
-					Source:   source,
-				})
+				files = append(files, geminiPartFileMeta(part.InlineData.MimeType, source))
 			}
 		}
 	}
@@ -105,6 +96,24 @@ func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		CombineText: inputText,
 		Files:       files,
 		MaxTokens:   maxTokens,
+	}
+}
+
+func geminiPartFileMeta(mimeType string, source types.FileSource) *types.FileMeta {
+	var fileType types.FileType
+	mimeType = strings.ToLower(strings.TrimSpace(mimeType))
+	if strings.HasPrefix(mimeType, "image/") {
+		fileType = types.FileTypeImage
+	} else if strings.HasPrefix(mimeType, "audio/") {
+		fileType = types.FileTypeAudio
+	} else if strings.HasPrefix(mimeType, "video/") {
+		fileType = types.FileTypeVideo
+	} else {
+		fileType = types.FileTypeFile
+	}
+	return &types.FileMeta{
+		FileType: fileType,
+		Source:   source,
 	}
 }
 
@@ -266,6 +275,50 @@ type GeminiFileData struct {
 	FileUri  string `json:"fileUri,omitempty"`
 }
 
+// UnmarshalJSON allows GeminiFileData to accept both snake_case and camelCase fields.
+func (g *GeminiFileData) UnmarshalJSON(data []byte) error {
+	type Alias GeminiFileData
+	var aux struct {
+		Alias
+		MimeTypeSnake string `json:"mime_type,omitempty"`
+		FileUriSnake  string `json:"file_uri,omitempty"`
+	}
+
+	if err := common.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	*g = GeminiFileData(aux.Alias)
+	if aux.MimeTypeSnake != "" {
+		g.MimeType = aux.MimeTypeSnake
+	}
+	if aux.FileUriSnake != "" {
+		g.FileUri = aux.FileUriSnake
+	}
+	return nil
+}
+
+func (g *GeminiFileData) ShouldDownload() bool {
+	if g == nil {
+		return false
+	}
+	fileURI := strings.TrimSpace(g.FileUri)
+	if fileURI == "" {
+		return false
+	}
+	parsed, err := url.Parse(fileURI)
+	if err != nil || !parsed.IsAbs() || parsed.Host == "" {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	if strings.Contains(strings.ToLower(fileURI), "www.youtube.com") {
+		return false
+	}
+	return true
+}
+
 type GeminiPart struct {
 	Text             string                  `json:"text,omitempty"`
 	Thought          bool                    `json:"thought,omitempty"`
@@ -288,6 +341,7 @@ func (p *GeminiPart) UnmarshalJSON(data []byte) error {
 	var aux struct {
 		Alias
 		InlineDataSnake *GeminiInlineData `json:"inline_data,omitempty"` // snake_case variant
+		FileDataSnake   *GeminiFileData   `json:"file_data,omitempty"`   // snake_case variant
 	}
 
 	if err := common.Unmarshal(data, &aux); err != nil {
@@ -302,6 +356,11 @@ func (p *GeminiPart) UnmarshalJSON(data []byte) error {
 		p.InlineData = aux.InlineDataSnake
 	} else if aux.InlineData != nil { // Fallback to camelCase from Alias
 		p.InlineData = aux.InlineData
+	}
+	if aux.FileDataSnake != nil {
+		p.FileData = aux.FileDataSnake
+	} else if aux.FileData != nil {
+		p.FileData = aux.FileData
 	}
 	// Other fields like Text, FunctionCall etc. are already populated via aux.Alias
 

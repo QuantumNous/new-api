@@ -142,6 +142,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}
 
+	if needCountToken && relayFormat == types.RelayFormatGemini {
+		if geminiRequest, ok := request.(*dto.GeminiChatRequest); ok {
+			if err := normalizeGeminiTokenCountMeta(c, geminiRequest, meta); err != nil {
+				newAPIError = types.NewError(err, types.ErrorCodeCountTokenFailed)
+				return
+			}
+		}
+	}
+
 	tokens, err := service.EstimateRequestToken(c, meta, relayInfo)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeCountTokenFailed)
