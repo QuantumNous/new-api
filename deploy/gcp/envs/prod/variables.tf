@@ -35,7 +35,7 @@ variable "custom_domains" {
 variable "frontend_base_url" {
   type        = string
   description = "Primary user-facing URL (used by new-api for OAuth callbacks / mails)"
-  default     = "https://new-api.app.flatkey.ai"
+  default     = "https://console.flatkey.ai"
 }
 
 variable "alert_email" {
