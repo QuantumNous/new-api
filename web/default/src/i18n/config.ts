@@ -54,6 +54,8 @@ export const resources = {
 } as const
 
 const APIMASTER_STORAGE_KEY = 'apimaster-locale'
+const PANEL_LOCALE_MANUAL_KEY = 'panel-locale-manual-at'
+const PANEL_LOCALE_MANUAL_MS = 3000
 
 // APIMaster locale -> i18next supported lang
 const APIMASTER_LOCALE_MAP: Record<string, string> = {
@@ -101,6 +103,15 @@ function syncApimasterLocale() {
 function applyApimasterLocale(locale: unknown) {
   if (typeof locale !== 'string') return
 
+  try {
+    const manualAt = Number(sessionStorage.getItem(PANEL_LOCALE_MANUAL_KEY) || '0')
+    if (manualAt > 0 && Date.now() - manualAt < PANEL_LOCALE_MANUAL_MS) {
+      return
+    }
+  } catch {
+    // sessionStorage not available
+  }
+
   const lng = APIMASTER_LOCALE_MAP[locale]
   if (!lng) return
 
@@ -122,6 +133,7 @@ export async function setPanelLanguage(code: string) {
 
   const apimasterLocale = PANEL_TO_APIMASTER_LOCALE[lng] ?? lng
   try {
+    sessionStorage.setItem(PANEL_LOCALE_MANUAL_KEY, String(Date.now()))
     localStorage.setItem(APIMASTER_STORAGE_KEY, apimasterLocale)
   } catch {
     // localStorage not available
@@ -152,8 +164,6 @@ i18n
   })
 
 if (typeof window !== 'undefined') {
-  const handleLocaleSync = () => syncApimasterLocale()
-
   window.addEventListener('storage', (event) => {
     if (event.key === APIMASTER_STORAGE_KEY) {
       syncApimasterLocale()
@@ -169,11 +179,6 @@ if (typeof window !== 'undefined') {
     ) {
       applyApimasterLocale('locale' in data ? data.locale : undefined)
     }
-  })
-  window.addEventListener('focus', handleLocaleSync)
-  window.addEventListener('pageshow', handleLocaleSync)
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) syncApimasterLocale()
   })
 }
 
