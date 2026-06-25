@@ -155,6 +155,14 @@ function type2secretPrompt(type) {
       return '按照如下格式输入: AccessKey|SecretAccessKey';
     case 57:
       return '请输入 JSON 格式的 OAuth 凭据（必须包含 access_token 和 account_id）';
+    case 58:
+      return 'apiwenhao_key_prompt';
+    case 59:
+      return 'apimart_key_prompt';
+    case 60:
+      return 'agnes_key_prompt';
+    case 61:
+      return 'vyro_key_prompt';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -673,6 +681,31 @@ const EditChannelModal = (props) => {
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://ark.cn-beijing.volces.com',
+          }));
+          break;
+        case 58: // ApiWenhao
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://saast.fuwenhao.com',
+          }));
+          break;
+        case 59: // ApiMart
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://api.apimart.ai',
+          }));
+          break;
+        case 60: // Agnes
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://apihub.agnes-ai.com',
+          }));
+          break;
+        case 61: // VyroSeedance (uu-comic)
+          localModels = ['vyro-seedance-2-fast'];
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://www.uu-comic.com/v1',
           }));
           break;
         default:
@@ -2662,6 +2695,17 @@ const EditChannelModal = (props) => {
                         className='mb-4 rounded-xl'
                         description={t(
                           '免责声明：仅限个人使用，请勿分发或共享任何凭证。该渠道存在前置条件与使用门槛，请在充分了解流程与风险后使用，并遵守 OpenAI 的相关条款与政策。相关凭证与配置仅限接入 Codex CLI 使用，不适用于其他客户端、平台或渠道。',
+                        )}
+                      />
+                    )}
+
+                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61) && (
+                      <Banner
+                        type='info'
+                        closeIcon={null}
+                        className='mb-4 rounded-xl'
+                        description={t(
+                          inputs.type === 61 ? 'VyroSeedance 渠道说明' : '异步视频渠道通用说明',
                         )}
                       />
                     )}

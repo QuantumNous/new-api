@@ -704,9 +704,12 @@ func (t *TaskSubmitReq) HasImage() bool {
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	type Alias TaskSubmitReq
 	aux := &struct {
-		Metadata json.RawMessage `json:"metadata,omitempty"`
-		Duration json.RawMessage `json:"duration,omitempty"`
-		Image    json.RawMessage `json:"image,omitempty"`
+		Metadata      json.RawMessage `json:"metadata,omitempty"`
+		Duration      json.RawMessage `json:"duration,omitempty"`
+		Image         json.RawMessage `json:"image,omitempty"`
+		GenerateAudio json.RawMessage `json:"generate_audio,omitempty"`
+		Watermark     json.RawMessage `json:"watermark,omitempty"`
+		Draft         json.RawMessage `json:"draft,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -723,6 +726,12 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 
 	unmarshalTaskSubmitDuration(aux.Duration, t)
 	unmarshalTaskSubmitMetadata(aux.Metadata, t)
+
+	// Flexible bools from form-data (often arrive as "1"/"0"/"true" strings)
+	unmarshalTaskSubmitBool(aux.GenerateAudio, &t.GenerateAudio)
+	unmarshalTaskSubmitBool(aux.Watermark, &t.Watermark)
+	unmarshalTaskSubmitBool(aux.Draft, &t.Draft)
+
 	return nil
 }
 func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {

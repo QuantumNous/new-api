@@ -334,6 +334,32 @@ func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
 		}
 	}
 
+	// Support sending text fields (especially long "prompt") as file parts using curl -F "prompt=@file.txt"
+	// This is very common for video generation with large prompts.
+	// We read the file content as the string value for these fields.
+	textFieldsAsFiles := map[string]bool{
+		"prompt": true, "model": true, "mode": true, "size": true,
+		"seconds": true, "duration": true, "aspect_ratio": true,
+		"resolution": true, "image": true,
+	}
+	for key, fhs := range form.File {
+		if !textFieldsAsFiles[key] || len(fhs) == 0 {
+			continue
+		}
+		if existing, ok := formMap[key]; ok {
+			if s, _ := existing.(string); strings.TrimSpace(s) != "" {
+				continue // already have a text value
+			}
+		}
+		fh := fhs[0]
+		if f, err := fh.Open(); err == nil {
+			if content, err := io.ReadAll(f); err == nil && len(content) > 0 {
+				formMap[key] = string(content)
+			}
+			f.Close()
+		}
+	}
+
 	return processFormMap(formMap, v)
 }
 

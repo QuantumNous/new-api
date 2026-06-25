@@ -170,6 +170,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       other: 'Text: /v1/chat/completions; Image: /v1/images/generations; Video: POST /v1/videos + GET /v1/videos/{task_id}',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'openai',
+    defaultBaseUrl: 'https://www.uu-comic.com/v1',
+    hints: {
+      key: 'Bearer token',
+      models: 'vyro-seedance-2-fast',
+      baseUrl: 'Default: https://www.uu-comic.com/v1',
+      other: 'Video only: POST /videos (multipart, reference_images as files) + GET /videos/{id}. Supports text_to_video and reference_to_video.',
+    },
+  },
 }
 
 /**

@@ -411,6 +411,8 @@ export function getChannelIcon(channelType) {
       return <OpenAI size={iconSize} />;
     case 60: // Agnes (text/image/video)
       return <OpenAI size={iconSize} />;
+    case 61: // VyroSeedance (vyro seedance 2)
+      return <OpenAI size={iconSize} />;
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;

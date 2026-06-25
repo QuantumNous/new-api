@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -111,9 +112,52 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 		Metadata: make(map[string]interface{}),
 	}
 
+	// Also support prompt (and a few other text fields) sent as file parts
+	// e.g. curl -F "prompt=@long_prompt.txt"
+	if fullForm, err := c.MultipartForm(); err == nil && fullForm != nil {
+		for _, key := range []string{"prompt", "model", "mode", "size"} {
+			if v := formData.Get(key); strings.TrimSpace(v) != "" {
+				continue
+			}
+			if fhs := fullForm.File[key]; len(fhs) > 0 {
+				if f, err := fhs[0].Open(); err == nil {
+					if b, err := io.ReadAll(f); err == nil && len(b) > 0 {
+						switch key {
+						case "prompt":
+							req.Prompt = string(b)
+						case "model":
+							req.Model = string(b)
+						case "mode":
+							req.Mode = string(b)
+						case "size":
+							req.Size = string(b)
+						}
+					}
+					f.Close()
+				}
+			}
+		}
+	}
+
 	if durationStr := formData.Get("seconds"); durationStr != "" {
 		if duration, err := strconv.Atoi(durationStr); err == nil {
 			req.Duration = duration
+		}
+	}
+
+	// Parse known bool fields from form (accept 1/0/true/false)
+	for _, key := range []string{"generate_audio", "watermark", "draft"} {
+		if v := formData.Get(key); v != "" {
+			if b, ok := parseBoolFlexible(v); ok {
+				switch key {
+				case "generate_audio":
+					req.GenerateAudio = &b
+				case "watermark":
+					req.Watermark = &b
+				case "draft":
+					req.Draft = &b
+				}
+			}
 		}
 	}
 
@@ -201,6 +245,22 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 	return nil
 }
 
+// parseBoolFlexible converts common form representations of bool to a bool value.
+func parseBoolFlexible(s string) (bool, bool) {
+	ls := strings.ToLower(strings.TrimSpace(s))
+	switch ls {
+	case "1", "true", "yes", "on":
+		return true, true
+	case "0", "false", "no", "off", "":
+		return false, true
+	}
+	// try numeric
+	if i, err := strconv.Atoi(ls); err == nil {
+		return i != 0, true
+	}
+	return false, false
+}
+
 func isKnownTaskField(field string) bool {
 	knownFields := map[string]bool{
 		"prompt":          true,
@@ -210,7 +270,13 @@ func isKnownTaskField(field string) bool {
 		"images":          true,
 		"size":            true,
 		"duration":        true,
+		"seconds":         true,
 		"input_reference": true, // Sora 特有字段
+		"generate_audio":  true,
+		"aspect_ratio":    true,
+		"resolution":      true,
+		"watermark":       true,
+		"draft":           true,
 	}
 	return knownFields[field]
 }

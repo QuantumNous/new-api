@@ -104,6 +104,7 @@ export function getChannelTypeIcon(type: number): string {
     58: 'OpenAI', // ApiWenhao (async video)
     59: 'OpenAI', // ApiMart (async video)
     60: 'OpenAI', // Agnes (text/image/video)
+    61: 'OpenAI', // VyroSeedance (vyro-seedance-2-fast)
 
     // Tools & Platforms
     37: 'Dify', // Dify

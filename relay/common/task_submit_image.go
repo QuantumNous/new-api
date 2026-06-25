@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/tidwall/gjson"
 )
 
@@ -111,5 +112,26 @@ func unmarshalTaskSubmitMetadata(raw json.RawMessage, t *TaskSubmitReq) {
 	var metadataObj map[string]interface{}
 	if err := common.Unmarshal(raw, &metadataObj); err == nil {
 		t.Metadata = metadataObj
+	}
+}
+
+// unmarshalTaskSubmitBool handles bool fields that may arrive from multipart form
+// as strings ("1", "0", "true", "false") or numbers, common when clients use -F.
+func unmarshalTaskSubmitBool(raw json.RawMessage, target **bool) {
+	if len(raw) == 0 || target == nil {
+		return
+	}
+
+	var bv dto.BoolValue
+	if err := common.Unmarshal(raw, &bv); err == nil {
+		b := bool(bv)
+		*target = &b
+		return
+	}
+
+	// Fallback: try direct bool
+	var b bool
+	if err := common.Unmarshal(raw, &b); err == nil {
+		*target = &b
 	}
 }

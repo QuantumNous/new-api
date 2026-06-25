@@ -58,6 +58,7 @@ const (
 	ChannelTypeApiWenhao      = 58
 	ChannelTypeApimart        = 59
 	ChannelTypeAgnes          = 60
+	ChannelTypeVyroSeedance   = 61
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -124,6 +125,7 @@ var ChannelBaseURLs = []string{
 	"https://saast.fuwenhao.com",                //58 ApiWenhao
 	"https://api.apimart.ai",                    //59 ApiMart
 	"https://apihub.agnes-ai.com",               //60 Agnes
+	"https://www.uu-comic.com/v1",               //61 VyroSeedance (uu-comic vyro-seedance-2)
 }
 
 var ChannelTypeNames = map[int]string{
@@ -184,6 +186,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeApiWenhao:      "ApiWenhao",
 	ChannelTypeApimart:        "ApiMart",
 	ChannelTypeAgnes:          "Agnes",
+	ChannelTypeVyroSeedance:  "VyroSeedance",
 }
 
 func GetChannelTypeName(channelType int) string {

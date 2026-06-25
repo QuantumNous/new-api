@@ -2,7 +2,9 @@ package dto
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
+	"strings"
 )
 
 type StringValue string
@@ -54,23 +56,58 @@ func (i IntValue) MarshalJSON() ([]byte, error) {
 type BoolValue bool
 
 func (b *BoolValue) UnmarshalJSON(data []byte) error {
+	// 1. Try direct bool (true/false)
 	var boolean bool
 	if err := json.Unmarshal(data, &boolean); err == nil {
 		*b = BoolValue(boolean)
 		return nil
 	}
+
+	// 2. Try as number (1 / 0 / 1.0 etc)
+	var num json.Number
+	if err := json.Unmarshal(data, &num); err == nil {
+		if i, err := num.Int64(); err == nil {
+			*b = BoolValue(i != 0)
+			return nil
+		}
+		if f, err := num.Float64(); err == nil {
+			*b = BoolValue(f != 0)
+			return nil
+		}
+	}
+
+	// 3. Try as string ("true", "false", "1", "0", "yes"...)
 	var str string
 	if err := json.Unmarshal(data, &str); err != nil {
-		return err
-	}
-	if str == "true" {
-		*b = BoolValue(true)
-	} else if str == "false" {
-		*b = BoolValue(false)
-	} else {
+		// last resort: force bool
 		return json.Unmarshal(data, &boolean)
 	}
-	return nil
+	ls := strings.ToLower(strings.TrimSpace(str))
+	switch ls {
+	case "1", "true", "yes", "on":
+		*b = BoolValue(true)
+		return nil
+	case "0", "false", "no", "off", "":
+		*b = BoolValue(false)
+		return nil
+	}
+
+	// try parse the string as number
+	if i, err := strconv.ParseInt(ls, 10, 64); err == nil {
+		*b = BoolValue(i != 0)
+		return nil
+	}
+	if f, err := strconv.ParseFloat(ls, 64); err == nil {
+		*b = BoolValue(f != 0)
+		return nil
+	}
+
+	// fallback
+	if err := json.Unmarshal(data, &boolean); err == nil {
+		*b = BoolValue(boolean)
+		return nil
+	}
+	return fmt.Errorf("cannot parse %q as bool", str)
 }
 func (b BoolValue) MarshalJSON() ([]byte, error) {
 	return json.Marshal(bool(b))
