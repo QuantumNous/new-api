@@ -37,7 +37,13 @@ const SENSITIVE_MASK = '••••'
  * priority/weight spinners, balance refresh, response/test times, tag
  * expand-collapse, and the per-row (or per-tag) actions menu.
  */
-function ChannelCardComponent({ row }: { row: Row<Channel> }) {
+function ChannelCardComponent({
+  row,
+  isSelected,
+}: {
+  row: Row<Channel>
+  isSelected: boolean
+}) {
   const { t } = useTranslation()
   const { sensitiveVisible } = useChannels()
   const isTagRow = isTagAggregateRow(row.original)
@@ -81,16 +87,19 @@ function ChannelCardComponent({ row }: { row: Row<Channel> }) {
       row.original.status !== CHANNEL_STATUS.MANUAL_DISABLED)
 
   return (
-    <div className='flex flex-col gap-3'>
+    <div
+      data-state={isSelected ? 'selected' : undefined}
+      className='flex flex-col gap-3'
+    >
       {/* Row 1: selection + type, with status badge + actions menu */}
       <div className='flex items-center justify-between gap-2'>
         <div className='flex min-w-0 flex-1 items-center gap-2'>
           {!isTagRow && selectCell && (
-            <span className='flex-shrink-0'>{selectCell}</span>
+            <span className='shrink-0'>{selectCell}</span>
           )}
           <div className='min-w-0 overflow-hidden'>{typeCell}</div>
         </div>
-        <div className='flex flex-shrink-0 items-center gap-1.5'>
+        <div className='flex shrink-0 items-center gap-1.5'>
           {showStatusBadge && statusCell}
           <ChannelRowActionsLayoutContext.Provider value='card'>
             {actionsCell}
@@ -122,7 +131,7 @@ function ChannelCardComponent({ row }: { row: Row<Channel> }) {
         {/* Right column (sits on the right, content left-aligned). A single
             grid with content-sized columns keeps Priority/Weight and
             Response/Last Tested aligned without wasting horizontal space. */}
-        <div className='grid flex-shrink-0 grid-cols-[auto_auto] items-center gap-x-3 gap-y-1'>
+        <div className='grid shrink-0 grid-cols-[auto_auto] items-center gap-x-3 gap-y-1'>
           <span className={labelClass}>{t('Priority')}</span>
           <span className={labelClass}>{t('Weight')}</span>
           <div className='flex justify-start'>{priorityCell}</div>

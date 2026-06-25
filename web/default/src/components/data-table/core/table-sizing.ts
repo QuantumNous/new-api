@@ -19,11 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 import type * as React from 'react'
 import type { Table as TanstackTable } from '@tanstack/react-table'
 
+import { isContentSizedColumn } from './content-sized-columns'
+
 export function getTableSizeStyle<TData>(
   table: TanstackTable<TData>
 ): React.CSSProperties {
   const width = table
     .getVisibleLeafColumns()
+    .filter((column) => !isContentSizedColumn(column.id))
     .reduce((total, column) => total + column.getSize(), 0)
 
   return {

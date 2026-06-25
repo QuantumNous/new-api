@@ -200,8 +200,11 @@ function PriorityCell({ channel }: { channel: Channel }) {
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
           title={t('Confirm Batch Update')}
-          desc={`This will update the priority to ${pendingValue} for all ${channelCount} channel(s) with tag "${tag}". Continue?`}
-          confirmText='Update'
+          desc={t(
+            'This will update the priority to {{value}} for all {{count}} channel(s) with tag "{{tag}}". Continue?',
+            { value: pendingValue, count: channelCount, tag }
+          )}
+          confirmText={t('Update')}
           handleConfirm={() => {
             if (pendingValue !== null) {
               handleUpdateTagField(tag, 'priority', pendingValue, queryClient)
@@ -255,8 +258,11 @@ function WeightCell({ channel }: { channel: Channel }) {
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
           title={t('Confirm Batch Update')}
-          desc={`This will update the weight to ${pendingValue} for all ${channelCount} channel(s) with tag "${tag}". Continue?`}
-          confirmText='Update'
+          desc={t(
+            'This will update the weight to {{value}} for all {{count}} channel(s) with tag "{{tag}}". Continue?',
+            { value: pendingValue, count: channelCount, tag }
+          )}
+          confirmText={t('Update')}
           handleConfirm={() => {
             if (pendingValue !== null) {
               handleUpdateTagField(tag, 'weight', pendingValue, queryClient)
@@ -1108,7 +1114,6 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
 
           return <DataTableRowActions row={row} />
         },
-        size: 132,
         enableSorting: false,
         enableHiding: false,
         meta: { pinned: 'right' as const },

@@ -48,7 +48,9 @@ func TestMain(m *testing.M) {
 		&UserSubscription{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&SystemInstance{},
 		&SystemTask{},
+		&SystemTaskLock{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -72,6 +74,8 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM user_subscriptions")
 		DB.Exec("DELETE FROM user_oauth_bindings")
 		DB.Exec("DELETE FROM perf_metrics")
+		DB.Exec("DELETE FROM system_instances")
+		DB.Exec("DELETE FROM system_task_locks")
 		DB.Exec("DELETE FROM system_tasks")
 	})
 }
