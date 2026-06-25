@@ -1,4 +1,3 @@
-import { Check, RotateCcw, Send, X } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,11 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useRef, type KeyboardEvent } from 'react'
+import { Check, RotateCcw, Send, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { CodeBlockEditor } from '@/components/ai-elements/code-block'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 
 import { getMessageEditorState } from '../../lib'
 import type { Message } from '../../types'
@@ -46,16 +45,11 @@ export function PlaygroundMessageEditor({
   originalText,
 }: PlaygroundMessageEditorProps) {
   const { t } = useTranslation()
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { canSave, hasChanged, showSaveAndSubmit } = getMessageEditorState(
     message,
     editText,
     originalText
   )
-
-  useEffect(() => {
-    textareaRef.current?.focus()
-  }, [])
 
   const handleCancel = () => {
     if (
@@ -70,7 +64,7 @@ export function PlaygroundMessageEditor({
     onCancelEdit?.(false)
   }
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') {
       event.preventDefault()
       handleCancel()
@@ -89,70 +83,73 @@ export function PlaygroundMessageEditor({
     }
   }
 
+  const editorActions = (
+    <>
+      {showSaveAndSubmit && (
+        <Button
+          aria-label={t('Save & Submit')}
+          disabled={!canSave}
+          onClick={() => onSaveEditAndSubmit?.(editText)}
+          size='icon-sm'
+          type='button'
+        >
+          <Send className='size-4' />
+        </Button>
+      )}
+
+      <Button
+        aria-label={t('Save')}
+        disabled={!canSave}
+        onClick={() => onSaveEdit?.(editText)}
+        size='icon-sm'
+        type='button'
+        variant={showSaveAndSubmit ? 'ghost' : 'default'}
+      >
+        <Check className='size-4' />
+      </Button>
+
+      {hasChanged && (
+        <Button
+          aria-label={t('Reset')}
+          onClick={() => onEditTextChange(originalText)}
+          size='icon-sm'
+          type='button'
+          variant='ghost'
+        >
+          <RotateCcw className='size-4' />
+        </Button>
+      )}
+
+      <Button
+        aria-label={t('Cancel')}
+        onClick={handleCancel}
+        size='icon-sm'
+        type='button'
+        variant='ghost'
+      >
+        <X className='size-4' />
+      </Button>
+    </>
+  )
+
   return (
-    <div className='bg-background/80 rounded-lg border p-2 shadow-sm'>
-      <Textarea
-        aria-label={t('Edit')}
-        className='min-h-36 resize-y font-mono text-sm leading-6 md:min-h-48'
-        onChange={(event) => onEditTextChange(event.target.value)}
-        onKeyDown={handleKeyDown}
-        ref={textareaRef}
-        rows={8}
-        value={editText}
-      />
-
-      <div className='mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
-        <p className='text-muted-foreground text-xs'>
-          {hasChanged ? t('Unsaved changes') : t('No changes')}
-        </p>
-
-        <div className='grid gap-2 sm:flex sm:justify-end'>
-          {showSaveAndSubmit && (
-            <Button
-              className='max-md:min-h-11'
-              disabled={!canSave}
-              onClick={() => onSaveEditAndSubmit?.(editText)}
-              size='sm'
-            >
-              <Send className='size-3.5' />
-              {t('Save & Submit')}
-            </Button>
-          )}
-
-          <Button
-            className='max-md:min-h-11'
-            disabled={!canSave}
-            onClick={() => onSaveEdit?.(editText)}
-            size='sm'
-            variant={showSaveAndSubmit ? 'outline' : 'default'}
-          >
-            <Check className='size-3.5' />
-            {t('Save')}
-          </Button>
-
-          {hasChanged && (
-            <Button
-              className='max-md:min-h-11'
-              onClick={() => onEditTextChange(originalText)}
-              size='sm'
-              variant='outline'
-            >
-              <RotateCcw className='size-3.5' />
-              {t('Reset')}
-            </Button>
-          )}
-
-          <Button
-            className='max-md:min-h-11'
-            onClick={handleCancel}
-            size='sm'
-            variant='outline'
-          >
-            <X className='size-3.5' />
-            {t('Cancel')}
-          </Button>
-        </div>
-      </div>
-    </div>
+    <CodeBlockEditor
+      actions={editorActions}
+      ariaLabel={t('Edit')}
+      className='my-0 group-[.is-assistant]:w-full group-[.is-assistant]:max-w-[78ch] group-[.is-user]:max-w-[85%] sm:group-[.is-user]:max-w-[62ch] md:group-[.is-user]:max-w-[68ch] lg:group-[.is-user]:max-w-[72ch]'
+      language='markdown'
+      onChange={onEditTextChange}
+      onKeyDown={handleKeyDown}
+      rows={8}
+      title={
+        <span className='inline-flex items-center gap-2'>
+          <span>{t('Edit')}</span>
+          <span className='text-muted-foreground/80 normal-case'>
+            {hasChanged ? t('Unsaved changes') : t('No changes')}
+          </span>
+        </span>
+      }
+      value={editText}
+    />
   )
 }

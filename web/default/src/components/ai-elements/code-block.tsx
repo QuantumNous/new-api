@@ -19,6 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 /* eslint-disable react-refresh/only-export-components */
 'use client'
 
+import { markdown } from '@codemirror/lang-markdown'
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { EditorState, type Extension } from '@codemirror/state'
+import { EditorView, lineNumbers } from '@codemirror/view'
+import { tags as highlightTags } from '@lezer/highlight'
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -29,15 +34,17 @@ import {
 import {
   type ComponentProps,
   createContext,
+  type CSSProperties,
   type HTMLAttributes,
   type ReactNode,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { BundledLanguage, ShikiTransformer } from 'shiki'
+import type { BundledLanguage } from 'shiki'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -62,6 +69,42 @@ type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
   title?: ReactNode
 }
 
+type CodeBlockEditorProps = Omit<
+  HTMLAttributes<HTMLDivElement>,
+  'onChange' | 'onKeyDown' | 'title'
+> & {
+  actions?: ReactNode
+  ariaLabel: string
+  language: BundledLanguage | string
+  onChange: (value: string) => void
+  onKeyDown?: (event: globalThis.KeyboardEvent) => void
+  rows?: number
+  title?: ReactNode
+  value: string
+}
+
+type CodeMirrorCodeViewProps = {
+  ariaLabel: string
+  autoFocus?: boolean
+  language: BundledLanguage | string
+  onChange?: (value: string) => void
+  onKeyDown?: (event: globalThis.KeyboardEvent) => void
+  readOnly?: boolean
+  rows?: number
+  showLineNumbers?: boolean
+  value: string
+}
+
+type CodeBlockFrameProps = Omit<HTMLAttributes<HTMLDivElement>, 'title'> & {
+  bodyClassName?: string
+  bodyMaxHeight?: string
+  bodyOverlay?: ReactNode
+  children: ReactNode
+  endActions?: ReactNode
+  showToolbar?: boolean
+  title?: ReactNode
+}
+
 type CodeBlockContextType = {
   code: string
   language: string
@@ -71,8 +114,6 @@ const CodeBlockContext = createContext<CodeBlockContextType>({
   code: '',
   language: 'plaintext',
 })
-
-const highlightCache = new Map<string, string>()
 
 const LANGUAGE_ALIASES: Record<string, BundledLanguage> = {
   csharp: 'c#',
@@ -84,27 +125,84 @@ const LANGUAGE_ALIASES: Record<string, BundledLanguage> = {
 }
 
 const LANGUAGE_PATTERN = /^[a-z0-9][a-z0-9+#._-]{0,31}$/i
-
-const lineNumberTransformer: ShikiTransformer = {
-  name: 'line-numbers',
-  line(node, line) {
-    node.children.unshift({
-      type: 'element',
-      tagName: 'span',
-      properties: {
-        className: [
-          'inline-block',
-          'min-w-10',
-          'mr-4',
-          'text-right',
-          'select-none',
-          'text-muted-foreground',
-        ],
-      },
-      children: [{ type: 'text', value: String(line) }],
-    })
+const codeMirrorTheme = EditorView.theme({
+  '&': {
+    background: 'transparent',
+    color: 'var(--foreground)',
+    fontSize: '13px',
   },
-}
+  '.cm-content': {
+    caretColor: 'var(--foreground)',
+    fontFamily: 'var(--font-mono)',
+    lineHeight: '1.5rem',
+    minHeight: 'var(--code-editor-min-height)',
+    minWidth: 'max-content',
+    padding: '1rem 1rem 1rem 0',
+  },
+  '.cm-editor': {
+    background: 'transparent',
+    width: '100%',
+  },
+  '.cm-focused': {
+    outline: 'none',
+  },
+  '.cm-gutters': {
+    background: 'transparent',
+    borderRight: '0',
+    color: 'var(--muted-foreground)',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '13px',
+    lineHeight: '1.5rem',
+    padding: '1rem 1rem 1rem 0',
+  },
+  '.cm-gutters:empty': {
+    display: 'none',
+  },
+  '.cm-lineNumbers .cm-gutterElement': {
+    minWidth: '2.5rem',
+    padding: '0 1rem 0 0',
+    textAlign: 'right',
+  },
+  '.cm-line': {
+    padding: '0',
+  },
+  '.cm-scroller': {
+    fontFamily: 'var(--font-mono)',
+    lineHeight: '1.5rem',
+    minHeight: 'var(--code-editor-min-height)',
+    overflow: 'auto',
+  },
+  '.cm-selectionBackground': {
+    background:
+      'color-mix(in oklch, var(--primary) 28%, transparent) !important',
+  },
+})
+
+const codeMirrorHighlightStyle = syntaxHighlighting(
+  HighlightStyle.define([
+    { tag: highlightTags.heading, color: '#e06c75', fontWeight: '600' },
+    { tag: [highlightTags.strong, highlightTags.emphasis], color: '#d19a66' },
+    { tag: [highlightTags.link, highlightTags.url], color: '#61afef' },
+    {
+      tag: [highlightTags.monospace, highlightTags.contentSeparator],
+      color: '#98c379',
+    },
+    {
+      tag: [highlightTags.keyword, highlightTags.processingInstruction],
+      color: '#c678dd',
+    },
+    {
+      tag: [highlightTags.atom, highlightTags.bool, highlightTags.number],
+      color: '#d19a66',
+    },
+    { tag: [highlightTags.string, highlightTags.inserted], color: '#98c379' },
+    { tag: [highlightTags.deleted, highlightTags.invalid], color: '#e06c75' },
+    {
+      tag: [highlightTags.meta, highlightTags.comment],
+      color: 'var(--muted-foreground)',
+    },
+  ])
+)
 
 function getRequestedCodeLanguage(language?: string) {
   const normalized = language?.trim().toLowerCase() || 'plaintext'
@@ -115,77 +213,17 @@ function getRequestedCodeLanguage(language?: string) {
   return LANGUAGE_ALIASES[normalized] ?? normalized
 }
 
-async function normalizeCodeLanguage(language?: string) {
-  const aliased = getRequestedCodeLanguage(language)
-  const { bundledLanguages } = await import('shiki')
-  if (aliased in bundledLanguages) {
-    return aliased as BundledLanguage
+function getCodeMirrorLanguageExtension(language: BundledLanguage | string) {
+  const requestedLanguage = getRequestedCodeLanguage(language)
+  if (
+    requestedLanguage === 'markdown' ||
+    requestedLanguage === 'md' ||
+    requestedLanguage === 'mdx'
+  ) {
+    return markdown()
   }
 
-  return 'plaintext'
-}
-
-function escapeCodeHtml(code: string) {
-  return code
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
-}
-
-function renderPlainCodeHtml(code: string, showLineNumbers: boolean) {
-  const lines = code.split('\n')
-  const renderedCode = lines
-    .map((line, index) => {
-      const escapedLine = escapeCodeHtml(line) || ' '
-      if (!showLineNumbers) {
-        return escapedLine
-      }
-
-      return `<span class="inline-block min-w-10 mr-4 text-right select-none text-muted-foreground">${index + 1}</span>${escapedLine}`
-    })
-    .join('\n')
-
-  return `<pre class="shiki"><code>${renderedCode}</code></pre>`
-}
-
-export async function highlightCode(
-  code: string,
-  language: BundledLanguage | string,
-  showLineNumbers = false
-) {
-  const resolvedLanguage = await normalizeCodeLanguage(language)
-  const cacheKey = `${resolvedLanguage}:${showLineNumbers ? 'line' : 'plain'}:${code}`
-  const cachedHtml = highlightCache.get(cacheKey)
-
-  if (cachedHtml) {
-    return cachedHtml
-  }
-
-  const transformers: ShikiTransformer[] = showLineNumbers
-    ? [lineNumberTransformer]
-    : []
-
-  if (resolvedLanguage === 'plaintext') {
-    const html = renderPlainCodeHtml(code, showLineNumbers)
-    highlightCache.set(cacheKey, html)
-    return html
-  }
-
-  const { codeToHtml } = await import('shiki')
-  const html = await codeToHtml(code, {
-    lang: resolvedLanguage,
-    themes: {
-      light: 'one-light',
-      dark: 'one-dark-pro',
-    },
-    defaultColor: false,
-    transformers,
-  })
-
-  highlightCache.set(cacheKey, html)
-  return html
+  return []
 }
 
 function getCodeLineCount(code: string) {
@@ -225,6 +263,180 @@ function getCodeBlockMaxHeight(
   return undefined
 }
 
+function getCodeMirrorExtensions(options: {
+  language: BundledLanguage | string
+  onKeyDown?: (event: globalThis.KeyboardEvent) => void
+  readOnly: boolean
+  showLineNumbers: boolean
+}): Extension[] {
+  const extensions: Extension[] = [
+    getCodeMirrorLanguageExtension(options.language),
+    codeMirrorHighlightStyle,
+    codeMirrorTheme,
+    EditorState.tabSize.of(2),
+    EditorState.readOnly.of(options.readOnly),
+    EditorView.editable.of(!options.readOnly),
+  ]
+
+  if (options.showLineNumbers) {
+    extensions.unshift(lineNumbers())
+  }
+
+  if (options.onKeyDown) {
+    extensions.push(
+      EditorView.domEventHandlers({
+        keydown(event) {
+          options.onKeyDown?.(event)
+          return event.defaultPrevented
+        },
+      })
+    )
+  }
+
+  return extensions
+}
+
+function CodeMirrorCodeView({
+  ariaLabel,
+  autoFocus = false,
+  language,
+  onChange,
+  onKeyDown,
+  readOnly = false,
+  rows = 8,
+  showLineNumbers = true,
+  value,
+}: CodeMirrorCodeViewProps) {
+  const editorHostRef = useRef<HTMLDivElement>(null)
+  const editorViewRef = useRef<EditorView | null>(null)
+  const initialValueRef = useRef(value)
+  const onChangeRef = useRef(onChange)
+  const editorMinHeight = `${Math.max(4, rows) * 1.5 + 2}rem`
+  const editorExtensions = useMemo(
+    () =>
+      getCodeMirrorExtensions({
+        language,
+        onKeyDown,
+        readOnly,
+        showLineNumbers,
+      }),
+    [language, onKeyDown, readOnly, showLineNumbers]
+  )
+
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
+
+  useEffect(() => {
+    const editorHost = editorHostRef.current
+    if (!editorHost) {
+      return
+    }
+
+    const editorView = new EditorView({
+      doc: initialValueRef.current,
+      extensions: [
+        ...editorExtensions,
+        EditorView.updateListener.of((update) => {
+          if (update.docChanged) {
+            onChangeRef.current?.(update.state.doc.toString())
+          }
+        }),
+      ],
+      parent: editorHost,
+    })
+    editorViewRef.current = editorView
+    if (autoFocus) {
+      editorView.focus()
+    }
+
+    return () => {
+      editorView.destroy()
+      editorViewRef.current = null
+    }
+  }, [autoFocus, editorExtensions])
+
+  useEffect(() => {
+    const editorView = editorViewRef.current
+    if (!editorView) {
+      return
+    }
+
+    const currentValue = editorView.state.doc.toString()
+    if (currentValue === value) {
+      return
+    }
+
+    editorView.dispatch({
+      changes: {
+        from: 0,
+        to: editorView.state.doc.length,
+        insert: value,
+      },
+    })
+  }, [value])
+
+  return (
+    <div
+      aria-label={ariaLabel}
+      aria-readonly={readOnly}
+      className='min-h-(--code-editor-min-height)'
+      ref={editorHostRef}
+      role='textbox'
+      style={
+        {
+          '--code-editor-min-height': editorMinHeight,
+        } as CSSProperties
+      }
+    />
+  )
+}
+
+export const CodeBlockFrame = ({
+  bodyClassName,
+  bodyMaxHeight,
+  bodyOverlay,
+  children,
+  className,
+  endActions,
+  showToolbar = false,
+  title,
+  ...props
+}: CodeBlockFrameProps) => (
+  <div
+    className={cn(
+      'group/code-block bg-muted/20 text-foreground my-3 w-full max-w-full overflow-hidden rounded-lg border shadow-xs',
+      className
+    )}
+    {...props}
+  >
+    {showToolbar && (
+      <div className='bg-muted/35 border-border/70 flex min-h-10 items-center gap-2 border-b px-2 py-1.5'>
+        <div className='min-w-0 flex-1'>
+          <div className='text-muted-foreground truncate font-mono text-[11px] font-medium tracking-wide uppercase'>
+            {title}
+          </div>
+        </div>
+        {endActions && (
+          <div className='flex shrink-0 items-center gap-1'>{endActions}</div>
+        )}
+      </div>
+    )}
+    <div className='relative min-w-0'>
+      <div
+        className={cn(
+          'code-block-scroll max-w-full overflow-auto transition-[max-height] duration-200 ease-out',
+          bodyClassName
+        )}
+        style={{ maxHeight: bodyMaxHeight }}
+      >
+        {children}
+      </div>
+      {bodyOverlay}
+    </div>
+  </div>
+)
+
 export const CodeBlock = ({
   code,
   collapsedLines = 12,
@@ -242,7 +454,6 @@ export const CodeBlock = ({
   ...props
 }: CodeBlockProps) => {
   const { t } = useTranslation()
-  const [html, setHtml] = useState<string>('')
   const [isCollapsed, setIsCollapsed] = useState(Boolean(defaultCollapsed))
   const displayLanguage = getRequestedCodeLanguage(language)
   const lineCount = useMemo(() => getCodeLineCount(code), [code])
@@ -255,28 +466,6 @@ export const CodeBlock = ({
     previewLines,
     maxExpandedLines
   )
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function updateHighlightedCode(): Promise<void> {
-      try {
-        const nextHtml = await highlightCode(code, language, showLineNumbers)
-        if (!cancelled) {
-          setHtml(nextHtml)
-        }
-      } catch {
-        if (!cancelled) {
-          setHtml(renderPlainCodeHtml(code, showLineNumbers))
-        }
-      }
-    }
-
-    void updateHighlightedCode()
-    return () => {
-      cancelled = true
-    }
-  }, [code, language, showLineNumbers])
 
   const downloadCode = () => {
     if (typeof window === 'undefined') {
@@ -294,93 +483,122 @@ export const CodeBlock = ({
 
   return (
     <CodeBlockContext.Provider value={{ code, language: displayLanguage }}>
-      <div
-        className={cn(
-          'group/code-block bg-muted/20 text-foreground my-3 w-full max-w-full overflow-hidden rounded-lg border shadow-xs',
-          className
-        )}
-        {...props}
-      >
-        {showToolbar && (
-          <div className='bg-muted/35 border-border/70 flex min-h-10 items-center gap-2 border-b px-2 py-1.5'>
-            <div className='min-w-0 flex-1'>
-              <div className='text-muted-foreground truncate font-mono text-[11px] font-medium tracking-wide uppercase'>
-                {displayTitle}
+      <CodeBlockFrame
+        bodyClassName='p-0'
+        bodyMaxHeight={bodyMaxHeight}
+        bodyOverlay={
+          <>
+            {isCodeCollapsed && (
+              <div className='from-muted/20 to-background pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-b' />
+            )}
+            {!showToolbar && children && (
+              <div className='absolute top-2 right-2 flex items-center gap-1'>
+                {children}
               </div>
-            </div>
-            <div className='flex shrink-0 items-center gap-1'>
-              {canCollapse && (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        aria-label={
-                          isCodeCollapsed ? t('Expand') : t('Collapse')
-                        }
-                        className='size-8'
-                        onClick={() => setIsCollapsed((value) => !value)}
-                        size='icon-sm'
-                        type='button'
-                        variant='ghost'
-                      >
-                        {isCodeCollapsed ? (
-                          <ChevronRightIcon className='size-4' />
-                        ) : (
-                          <ChevronDownIcon className='size-4' />
-                        )}
-                      </Button>
-                    }
-                  />
-                  <TooltipContent>
-                    <p>{isCodeCollapsed ? t('Expand') : t('Collapse')}</p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              {children}
+            )}
+          </>
+        }
+        className={className}
+        endActions={
+          <>
+            {canCollapse && (
               <Tooltip>
                 <TooltipTrigger
                   render={
                     <Button
-                      aria-label={t('Download')}
+                      aria-label={isCodeCollapsed ? t('Expand') : t('Collapse')}
                       className='size-8'
-                      onClick={downloadCode}
+                      onClick={() => setIsCollapsed((value) => !value)}
                       size='icon-sm'
                       type='button'
                       variant='ghost'
                     >
-                      <DownloadIcon className='size-4' />
+                      {isCodeCollapsed ? (
+                        <ChevronRightIcon className='size-4' />
+                      ) : (
+                        <ChevronDownIcon className='size-4' />
+                      )}
                     </Button>
                   }
                 />
                 <TooltipContent>
-                  <p>{t('Download')}</p>
+                  <p>{isCodeCollapsed ? t('Expand') : t('Collapse')}</p>
                 </TooltipContent>
               </Tooltip>
-            </div>
-          </div>
-        )}
-        <div className='relative min-w-0'>
-          <div
-            className={cn(
-              'code-block-scroll max-w-full overflow-auto transition-[max-height] duration-200 ease-out',
-              '[&_.shiki]:bg-transparent! [&_.shiki]:text-foreground! [&_code]:font-mono [&_code]:text-[13px] [&_code]:leading-6',
-              '[&>pre]:m-0 [&>pre]:min-w-max [&>pre]:p-4 [&>pre]:text-[13px] [&>pre]:leading-6'
             )}
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: "this is needed."
-            dangerouslySetInnerHTML={{ __html: html }}
-            style={{ maxHeight: bodyMaxHeight }}
-          />
-          {isCodeCollapsed && (
-            <div className='from-muted/20 to-background pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-b' />
-          )}
-          {!showToolbar && children && (
-            <div className='absolute top-2 right-2 flex items-center gap-1'>
-              {children}
-            </div>
-          )}
-        </div>
-      </div>
+            {showToolbar && children}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    aria-label={t('Download')}
+                    className='size-8'
+                    onClick={downloadCode}
+                    size='icon-sm'
+                    type='button'
+                    variant='ghost'
+                  >
+                    <DownloadIcon className='size-4' />
+                  </Button>
+                }
+              />
+              <TooltipContent>
+                <p>{t('Download')}</p>
+              </TooltipContent>
+            </Tooltip>
+          </>
+        }
+        showToolbar={showToolbar}
+        title={displayTitle}
+        {...props}
+      >
+        <CodeMirrorCodeView
+          ariaLabel={
+            typeof displayTitle === 'string' ? displayTitle : displayLanguage
+          }
+          language={language}
+          readOnly
+          rows={Math.min(Math.max(lineCount, 4), maxExpandedLines ?? lineCount)}
+          showLineNumbers={showLineNumbers}
+          value={code}
+        />
+      </CodeBlockFrame>
     </CodeBlockContext.Provider>
+  )
+}
+
+export const CodeBlockEditor = ({
+  actions,
+  ariaLabel,
+  className,
+  language,
+  onChange,
+  onKeyDown,
+  rows = 8,
+  title,
+  value,
+  ...props
+}: CodeBlockEditorProps) => {
+  return (
+    <CodeBlockFrame
+      bodyClassName='p-0'
+      className={className}
+      endActions={actions}
+      showToolbar
+      title={title}
+      {...props}
+    >
+      <CodeMirrorCodeView
+        ariaLabel={ariaLabel}
+        autoFocus
+        language={language}
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+        rows={rows}
+        showLineNumbers
+        value={value}
+      />
+    </CodeBlockFrame>
   )
 }
 
