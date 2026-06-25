@@ -2,6 +2,7 @@ package dto
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -181,4 +182,100 @@ type ImageData struct {
 	Url           string `json:"url"`
 	B64Json       string `json:"b64_json"`
 	RevisedPrompt string `json:"revised_prompt"`
+}
+
+func (i *ImageRequest) InputImageSources() ([]types.FileSource, error) {
+	values := make([]string, 0)
+	for _, raw := range []json.RawMessage{i.Image, i.Images} {
+		parsed, err := parseImageSourceValues(raw)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, parsed...)
+	}
+	return fileSourcesFromImageValues(values), nil
+}
+
+func parseImageSourceValues(raw json.RawMessage) ([]string, error) {
+	if len(raw) == 0 || common.GetJsonType(raw) == "null" {
+		return nil, nil
+	}
+
+	var values []string
+	switch common.GetJsonType(raw) {
+	case "string":
+		var value string
+		if err := common.Unmarshal(raw, &value); err != nil {
+			return nil, err
+		}
+		values = append(values, value)
+	case "array":
+		var items []json.RawMessage
+		if err := common.Unmarshal(raw, &items); err != nil {
+			return nil, err
+		}
+		for _, item := range items {
+			itemValues, err := parseImageSourceValues(item)
+			if err != nil {
+				return nil, err
+			}
+			values = append(values, itemValues...)
+		}
+	case "object":
+		value, err := parseImageSourceObject(raw)
+		if err != nil {
+			return nil, err
+		}
+		if value != "" {
+			values = append(values, value)
+		}
+	default:
+		return nil, fmt.Errorf("image input must be a string, object, or array")
+	}
+
+	return values, nil
+}
+
+func fileSourcesFromImageValues(values []string) []types.FileSource {
+	sources := make([]types.FileSource, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		sources = append(sources, types.NewFileSourceFromData(value, ""))
+	}
+	return sources
+}
+
+func parseImageSourceObject(raw json.RawMessage) (string, error) {
+	var item map[string]json.RawMessage
+	if err := common.Unmarshal(raw, &item); err != nil {
+		return "", err
+	}
+
+	for _, key := range []string{"url", "image_url", "b64_json", "base64", "data"} {
+		rawValue, ok := item[key]
+		if !ok || common.GetJsonType(rawValue) == "null" {
+			continue
+		}
+		if key == "image_url" && common.GetJsonType(rawValue) == "object" {
+			if value, err := parseImageSourceObject(rawValue); err != nil || value != "" {
+				return value, err
+			}
+			continue
+		}
+		if common.GetJsonType(rawValue) != "string" {
+			continue
+		}
+		var value string
+		if err := common.Unmarshal(rawValue, &value); err != nil {
+			return "", err
+		}
+		if strings.TrimSpace(value) != "" {
+			return value, nil
+		}
+	}
+
+	return "", nil
 }

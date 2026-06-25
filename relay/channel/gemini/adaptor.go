@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
@@ -58,10 +60,26 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
-		return nil, errors.New("not supported model for image generation, only imagen models are supported")
+	sources, err := request.InputImageSources()
+	if err != nil {
+		return nil, fmt.Errorf("invalid image input: %w", err)
 	}
 
+	if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
+		return convertOpenAIImageRequestToGeminiGenerateContent(c, info, request, sources)
+	}
+
+	if len(sources) > 0 {
+		return nil, errors.New("input images are supported only by Gemini image generation models")
+	}
+
+	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
+		return nil, errors.New("not supported model for image generation, only imagen and Gemini image models are supported")
+	}
+	return convertOpenAIImageRequestToImagenPredict(request), nil
+}
+
+func convertOpenAIImageRequestToImagenPredict(request dto.ImageRequest) dto.GeminiImageRequest {
 	// convert size to aspect ratio but allow user to specify aspect ratio
 	aspectRatio := "1:1" // default aspect ratio
 	size := strings.TrimSpace(request.Size)
@@ -120,7 +138,119 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		geminiRequest.Parameters.ImageSize = imageSize
 	}
 
-	return geminiRequest, nil
+	return geminiRequest
+}
+
+func convertOpenAIImageRequestToGeminiGenerateContent(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest, sources []types.FileSource) (*dto.GeminiChatRequest, error) {
+	if request.Stream != nil && *request.Stream {
+		return nil, errors.New("streaming is not supported for Gemini image generation through images/generations")
+	}
+
+	parts := make([]dto.GeminiPart, 0, len(sources)+1)
+	if strings.TrimSpace(request.Prompt) != "" {
+		parts = append(parts, dto.GeminiPart{Text: request.Prompt})
+	}
+	for _, source := range sources {
+		base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image generation input for Gemini")
+		if err != nil {
+			return nil, fmt.Errorf("get image input from '%s' failed: %w", source.GetIdentifier(), err)
+		}
+		normalizedMimeType := strings.ToLower(mimeType)
+		if !strings.HasPrefix(normalizedMimeType, "image/") {
+			return nil, fmt.Errorf("mime type is not supported for Gemini image generation: '%s', url: '%s'", mimeType, source.GetIdentifier())
+		}
+		if _, ok := geminiSupportedMimeTypes[normalizedMimeType]; !ok {
+			return nil, fmt.Errorf("mime type is not supported by Gemini: '%s', url: '%s', supported types are: %v", mimeType, source.GetIdentifier(), getSupportedMimeTypesList())
+		}
+		parts = append(parts, dto.GeminiPart{
+			InlineData: &dto.GeminiInlineData{
+				MimeType: mimeType,
+				Data:     base64Data,
+			},
+		})
+	}
+	if len(parts) == 0 {
+		return nil, errors.New("prompt or image is required")
+	}
+
+	if request.N != nil && *request.N > 1 {
+		return nil, errors.New("Gemini image generation supports only n=1")
+	}
+
+	info.RelayMode = constant.RelayModeImagesGenerations
+	geminiRequest := dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{
+			{
+				Role:  "user",
+				Parts: parts,
+			},
+		},
+		GenerationConfig: dto.GeminiChatGenerationConfig{
+			ResponseModalities: []string{"TEXT", "IMAGE"},
+		},
+		SafetySettings: make([]dto.GeminiChatSafetySettings, 0, len(SafetySettingList)),
+	}
+
+	for _, category := range SafetySettingList {
+		geminiRequest.SafetySettings = append(geminiRequest.SafetySettings, dto.GeminiChatSafetySettings{
+			Category:  category,
+			Threshold: model_setting.GetGeminiSafetySetting(category),
+		})
+	}
+
+	imageConfig := map[string]interface{}{}
+	if aspectRatio := geminiAspectRatioFromSize(request.Size); aspectRatio != "" {
+		imageConfig["aspectRatio"] = aspectRatio
+	}
+	if imageSize := geminiImageSizeFromQuality(request.Quality); imageSize != "" {
+		imageConfig["imageSize"] = imageSize
+	}
+	if len(imageConfig) > 0 {
+		imageConfigBytes, err := common.Marshal(imageConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal image config: %w", err)
+		}
+		geminiRequest.GenerationConfig.ImageConfig = imageConfigBytes
+	}
+
+	return &geminiRequest, nil
+}
+
+func geminiAspectRatioFromSize(size string) string {
+	size = strings.TrimSpace(size)
+	if size == "" {
+		return ""
+	}
+	if strings.Contains(size, ":") {
+		return size
+	}
+	switch size {
+	case "256x256", "512x512", "1024x1024":
+		return "1:1"
+	case "1536x1024":
+		return "3:2"
+	case "1024x1536":
+		return "2:3"
+	case "1024x1792":
+		return "9:16"
+	case "1792x1024":
+		return "16:9"
+	default:
+		return ""
+	}
+}
+
+func geminiImageSizeFromQuality(quality string) string {
+	switch strings.TrimSpace(quality) {
+	case "":
+		return ""
+	case "hd", "high", "2K":
+		return "2K"
+	case "standard", "medium", "low", "auto", "1K":
+		return "1K"
+	default:
+		return "1K"
+	}
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -261,6 +391,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return GeminiImageHandler(c, info, resp)
+	}
+
+	if info.RelayMode == constant.RelayModeImagesGenerations {
+		return GeminiGenerateContentImageHandler(c, info, resp)
 	}
 
 	// check if the model is an embedding model
