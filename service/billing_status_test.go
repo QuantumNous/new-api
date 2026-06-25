@@ -7,9 +7,11 @@ import (
 	"testing"
 	_ "unsafe"
 
+	"github.com/QuantumNous/new-api/common"
 	i18n2 "github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -45,6 +47,8 @@ func resetBillingStatusTables(t *testing.T) {
 
 	modelCommonKeyCol = "`key`"
 	require.NoError(t, i18n2.Init())
+	require.NoError(t, model.DB.AutoMigrate(&model.SubscriptionPreConsumeRecord{}))
+	require.NoError(t, model.DB.Exec("DELETE FROM subscription_pre_consume_records").Error)
 	require.NoError(t, model.DB.Exec("DELETE FROM user_subscriptions").Error)
 	require.NoError(t, model.DB.Exec("DELETE FROM tokens").Error)
 	require.NoError(t, model.DB.Exec("DELETE FROM users").Error)
@@ -160,6 +164,145 @@ func TestBillingSessionPreConsumeReturnsForbiddenForQuotaErrors(t *testing.T) {
 
 		require.NotNil(t, apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+	})
+}
+
+func TestNewBillingSessionWalletErrorsIncludeTopUpHint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	originalServerAddress := system_setting.ServerAddress
+	originalTheme := common.GetTheme()
+	t.Cleanup(func() {
+		resetBillingStatusTables(t)
+	})
+	t.Cleanup(func() {
+		system_setting.ServerAddress = originalServerAddress
+		common.SetTheme(originalTheme)
+	})
+
+	common.SetTheme("default")
+	system_setting.ServerAddress = "https://console.flatkey.ai"
+
+	t.Run("user quota exhausted", func(t *testing.T) {
+		const userID = 10108
+		resetBillingStatusTables(t)
+		seedUser(t, userID, 0)
+
+		c := newTestGinContext()
+		relayInfo := newQuotaStatusRelayInfo(userID, 0, "")
+		relayInfo.UserSetting.BillingPreference = "wallet_only"
+
+		session, apiErr := NewBillingSession(c, relayInfo, 1)
+
+		require.Nil(t, session)
+		require.NotNil(t, apiErr)
+		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+		require.Contains(t, apiErr.Error(), "https://console.flatkey.ai/wallet")
+	})
+
+	t.Run("pre consume exceeds remaining quota", func(t *testing.T) {
+		const userID = 10109
+		resetBillingStatusTables(t)
+		seedUser(t, userID, 100)
+
+		c := newTestGinContext()
+		relayInfo := newQuotaStatusRelayInfo(userID, 0, "")
+		relayInfo.UserSetting.BillingPreference = "wallet_only"
+
+		session, apiErr := NewBillingSession(c, relayInfo, 200)
+
+		require.Nil(t, session)
+		require.NotNil(t, apiErr)
+		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+		require.Contains(t, apiErr.Error(), "https://console.flatkey.ai/wallet")
+	})
+
+	t.Run("wallet first dual failure keeps wallet hint", func(t *testing.T) {
+		const (
+			userID   = 10110
+			tokenID  = 10210
+			tokenKey = "billing-status-wallet-first-token"
+		)
+		resetBillingStatusTables(t)
+		seedUser(t, userID, 0)
+		seedToken(t, tokenID, userID, tokenKey, 1000)
+
+		c := newTestGinContext()
+		relayInfo := newQuotaStatusRelayInfo(userID, tokenID, tokenKey)
+		relayInfo.IsPlayground = true
+		relayInfo.RequestId = "wallet-first-dual-failure"
+		relayInfo.UserSetting.BillingPreference = "wallet_first"
+
+		session, apiErr := NewBillingSession(c, relayInfo, 1)
+
+		require.Nil(t, session)
+		require.NotNil(t, apiErr)
+		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+		require.Contains(t, apiErr.Error(), "https://console.flatkey.ai/wallet")
+	})
+
+	t.Run("loopback host omits hint", func(t *testing.T) {
+		const userID = 10112
+		resetBillingStatusTables(t)
+		seedUser(t, userID, 0)
+		system_setting.ServerAddress = "http://127.0.0.1:3000"
+
+		c := newTestGinContext()
+		relayInfo := newQuotaStatusRelayInfo(userID, 0, "")
+		relayInfo.UserSetting.BillingPreference = "wallet_only"
+
+		session, apiErr := NewBillingSession(c, relayInfo, 1)
+
+		require.Nil(t, session)
+		require.NotNil(t, apiErr)
+		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+		require.NotContains(t, apiErr.Error(), "http://127.0.0.1:3000")
+		require.NotContains(t, apiErr.Error(), "/wallet")
+	})
+}
+
+func TestPreConsumeQuotaWalletErrorsIncludeTopUpHint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	originalServerAddress := system_setting.ServerAddress
+	originalTheme := common.GetTheme()
+	t.Cleanup(func() {
+		resetBillingStatusTables(t)
+	})
+	t.Cleanup(func() {
+		system_setting.ServerAddress = originalServerAddress
+		common.SetTheme(originalTheme)
+	})
+
+	common.SetTheme("default")
+	system_setting.ServerAddress = "https://console.flatkey.ai"
+
+	t.Run("user quota exhausted", func(t *testing.T) {
+		const userID = 10111
+		resetBillingStatusTables(t)
+		seedUser(t, userID, 0)
+
+		c := newTestGinContext()
+		relayInfo := newQuotaStatusRelayInfo(userID, 0, "")
+		apiErr := PreConsumeQuota(c, 1, relayInfo)
+
+		require.NotNil(t, apiErr)
+		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+		require.Contains(t, apiErr.Error(), "https://console.flatkey.ai/wallet")
+	})
+
+	t.Run("pre consume exceeds remaining quota", func(t *testing.T) {
+		const userID = 10113
+		resetBillingStatusTables(t)
+		seedUser(t, userID, 100)
+
+		c := newTestGinContext()
+		relayInfo := newQuotaStatusRelayInfo(userID, 0, "")
+		apiErr := PreConsumeQuota(c, 200, relayInfo)
+
+		require.NotNil(t, apiErr)
+		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+		require.Contains(t, apiErr.Error(), "https://console.flatkey.ai/wallet")
 	})
 }
 

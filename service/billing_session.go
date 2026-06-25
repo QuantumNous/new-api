@@ -364,13 +364,13 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		}
 		if userQuota <= 0 {
 			return nil, types.NewErrorWithStatusCode(
-				fmt.Errorf("%s", common.TranslateMessage(c, "quota.user_insufficient", map[string]any{"Quota": logger.FormatQuota(userQuota)})),
+				fmt.Errorf("%s", buildUserQuotaInsufficientMessage(c, userQuota)),
 				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		if userQuota-preConsumedQuota < 0 {
 			return nil, types.NewErrorWithStatusCode(
-				fmt.Errorf("%s", common.TranslateMessage(c, "quota.pre_consume_failed", map[string]any{"Remaining": logger.FormatQuota(userQuota), "Required": logger.FormatQuota(preConsumedQuota)})),
+				fmt.Errorf("%s", buildPreConsumeQuotaFailedMessage(c, userQuota, preConsumedQuota)),
 				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
@@ -414,14 +414,21 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	case "wallet_only":
 		return tryWallet()
 	case "wallet_first":
-		session, err := tryWallet()
-		if err != nil {
-			if err.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
-				return trySubscription()
-			}
-			return nil, err
+		session, walletErr := tryWallet()
+		if walletErr == nil {
+			return session, nil
 		}
-		return session, nil
+		if walletErr.GetErrorCode() != types.ErrorCodeInsufficientUserQuota {
+			return nil, walletErr
+		}
+		session, subErr := trySubscription()
+		if subErr == nil {
+			return session, nil
+		}
+		if subErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+			return nil, walletErr
+		}
+		return nil, subErr
 	case "subscription_first":
 		fallthrough
 	default:
