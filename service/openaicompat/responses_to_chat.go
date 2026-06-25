@@ -4,8 +4,34 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 )
+
+func ResponsesFinishReasonFromStatus(resp *dto.OpenAIResponsesResponse) (string, bool) {
+	if resp == nil {
+		return "", false
+	}
+
+	status := ""
+	if len(resp.Status) > 0 {
+		_ = common.Unmarshal(resp.Status, &status)
+		status = strings.TrimSpace(status)
+	}
+
+	if status != "incomplete" {
+		return "", false
+	}
+
+	reason := ""
+	if resp.IncompleteDetails != nil {
+		reason = strings.TrimSpace(resp.IncompleteDetails.Reason)
+	}
+	if reason == "content_filter" {
+		return "content_filter", true
+	}
+	return "length", true
+}
 
 func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesResponse, id string) (*dto.OpenAITextResponse, *dto.Usage, error) {
 	if resp == nil {
@@ -42,7 +68,7 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 	created := resp.CreatedAt
 
 	var toolCalls []dto.ToolCallResponse
-	if text == "" && len(resp.Output) > 0 {
+	if len(resp.Output) > 0 {
 		for _, out := range resp.Output {
 			if out.Type != "function_call" {
 				continue
@@ -67,7 +93,9 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 	}
 
 	finishReason := "stop"
-	if len(toolCalls) > 0 {
+	if mappedReason, ok := ResponsesFinishReasonFromStatus(resp); ok {
+		finishReason = mappedReason
+	} else if len(toolCalls) > 0 {
 		finishReason = "tool_calls"
 	}
 
@@ -77,7 +105,6 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 	}
 	if len(toolCalls) > 0 {
 		msg.SetToolCalls(toolCalls)
-		msg.Content = ""
 	}
 
 	out := &dto.OpenAITextResponse{
