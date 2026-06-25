@@ -11,17 +11,22 @@ services:
     restart: unless-stopped
     command: --log-dir /app/logs
     ports:
-      - "3000:3000"
+      - "${NEWAPI_BIND_ADDRESS:-0.0.0.0}:${NEWAPI_PORT:-3000}:3000"
     volumes:
       - ./data:/data
       - ./logs:/app/logs
+    env_file:
+      - .env
     environment:
-      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
-      - REDIS_CONN_STRING=redis://:123456@redis:6379
-      - TZ=Asia/Shanghai
-      - ERROR_LOG_ENABLED=true
-      - BATCH_UPDATE_ENABLED=true
-      - NODE_NAME=new-api-local
+      - SQL_DSN=postgresql://${NEWAPI_POSTGRES_USER:-root}:${NEWAPI_POSTGRES_PASSWORD:-123456}@postgres:5432/${NEWAPI_POSTGRES_DB:-new-api}
+      - REDIS_CONN_STRING=redis://:${NEWAPI_REDIS_PASSWORD:-123456}@redis:6379
+      - TZ=${TZ:-Asia/Shanghai}
+      - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET must be set in .env or shell environment}
+      - CRYPTO_SECRET=${CRYPTO_SECRET:?CRYPTO_SECRET must be set in .env or shell environment}
+      - OPTION_CRYPT_KEY=${OPTION_CRYPT_KEY:-}
+      - ERROR_LOG_ENABLED=${ERROR_LOG_ENABLED:-true}
+      - BATCH_UPDATE_ENABLED=${BATCH_UPDATE_ENABLED:-true}
+      - NODE_NAME=${NODE_NAME:-new-api-local}
       - SKILL_HUB_OSS_ENDPOINT=${SKILL_HUB_OSS_ENDPOINT:-}
       - SKILL_HUB_OSS_BUCKET=${SKILL_HUB_OSS_BUCKET:-}
       - SKILL_HUB_OSS_ACCESS_KEY_ID=${SKILL_HUB_OSS_ACCESS_KEY_ID:-}
@@ -50,7 +55,7 @@ services:
     image: redis:latest
     container_name: new-api-local-redis
     restart: unless-stopped
-    command: ["redis-server", "--requirepass", "123456"]
+    command: ["redis-server", "--requirepass", "${NEWAPI_REDIS_PASSWORD:-123456}"]
     networks:
       - new-api-local-network
 
@@ -59,9 +64,10 @@ services:
     container_name: new-api-local-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: 123456
-      POSTGRES_DB: new-api
+      POSTGRES_USER: ${NEWAPI_POSTGRES_USER:-root}
+      POSTGRES_PASSWORD: ${NEWAPI_POSTGRES_PASSWORD:-123456}
+      POSTGRES_DB: ${NEWAPI_POSTGRES_DB:-new-api}
+      TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - pg_data_local:/var/lib/postgresql/data
     networks:
