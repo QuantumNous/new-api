@@ -267,6 +267,28 @@ func TestNewBillingSessionWalletErrorsIncludeTopUpHint(t *testing.T) {
 		require.Contains(t, apiErr.ToOpenAIError().Message, "console.flatkey.ai/wallet")
 	})
 
+	t.Run("console origin env overrides router server address for wallet hint", func(t *testing.T) {
+		const userID = 10116
+		resetBillingStatusTables(t)
+		seedUser(t, userID, 0)
+		t.Setenv("APP_CONSOLE_ORIGIN", "https://staging-console.flatkey.ai")
+		system_setting.ServerAddress = "https://staging-router.flatkey.ai"
+		system_setting.GetTopupHintSettings().AllowedHosts = []string{"staging-console.flatkey.ai"}
+
+		c := newTestGinContext()
+		relayInfo := newQuotaStatusRelayInfo(userID, 0, "")
+		relayInfo.UserSetting.BillingPreference = "wallet_only"
+
+		session, apiErr := NewBillingSession(c, relayInfo, 1)
+
+		require.Nil(t, session)
+		require.NotNil(t, apiErr)
+		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+		require.Contains(t, apiErr.Error(), "https://staging-console.flatkey.ai/wallet")
+		require.Contains(t, apiErr.ToOpenAIError().Message, "https://staging-console.flatkey.ai/wallet")
+		require.NotContains(t, apiErr.ToOpenAIError().Message, "https://***.ai/***")
+	})
+
 	t.Run("loopback host omits hint", func(t *testing.T) {
 		const userID = 10112
 		resetBillingStatusTables(t)

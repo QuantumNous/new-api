@@ -36,6 +36,23 @@ func TestTopUpURLUsesThemeAwareTopupPath(t *testing.T) {
 	}
 }
 
+func TestTopUpURLPrefersConsoleOriginEnv(t *testing.T) {
+	originalServerAddress := system_setting.ServerAddress
+	originalTheme := common.GetTheme()
+	t.Cleanup(func() {
+		system_setting.ServerAddress = originalServerAddress
+		common.SetTheme(originalTheme)
+	})
+
+	t.Setenv("APP_CONSOLE_ORIGIN", "https://staging-console.flatkey.ai")
+	system_setting.ServerAddress = "https://staging-router.flatkey.ai"
+	common.SetTheme("default")
+
+	if got := topUpURL(); got != "https://staging-console.flatkey.ai/wallet" {
+		t.Fatalf("topUpURL() = %q, want %q", got, "https://staging-console.flatkey.ai/wallet")
+	}
+}
+
 func TestTopUpURLSkipsLoopbackServerAddress(t *testing.T) {
 	originalServerAddress := system_setting.ServerAddress
 	originalTheme := common.GetTheme()

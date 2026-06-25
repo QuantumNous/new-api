@@ -2,6 +2,7 @@ package service
 
 import (
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -14,7 +15,7 @@ import (
 // topUpURL suppresses only the known loopback addresses we already avoid
 // surfacing to API callers; it is not a full public-address validator.
 func topUpURL() string {
-	base := strings.TrimRight(system_setting.ServerAddress, "/")
+	base := strings.TrimRight(topUpBaseOrigin(), "/")
 	if base == "" {
 		return ""
 	}
@@ -29,7 +30,14 @@ func topUpURL() string {
 	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
 		return ""
 	}
-	return PaymentReturnURL("/console/topup")
+	return base + common.ThemeAwarePath("/console/topup")
+}
+
+func topUpBaseOrigin() string {
+	if consoleOrigin := strings.TrimSpace(os.Getenv("APP_CONSOLE_ORIGIN")); consoleOrigin != "" {
+		return consoleOrigin
+	}
+	return system_setting.ServerAddress
 }
 
 func appendWalletTopUpHint(c *gin.Context, msg string) string {
