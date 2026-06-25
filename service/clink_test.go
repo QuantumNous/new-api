@@ -34,3 +34,14 @@ func TestClinkCheckoutDefaultPriceDataList(t *testing.T) {
 		t.Fatalf("unexpected priceDataList: %+v", req.PriceDataList)
 	}
 }
+
+func TestDecodeClinkAPIEnvelope(t *testing.T) {
+	body := []byte(`{"code":200,"msg":"Success","data":{"sessionId":"sess_test","paymentStatus":"paid","merchantReferenceId":"CLINK-1-1-abc","amountTotal":1}}`)
+	var session ClinkCheckoutSessionDetail
+	if err := decodeClinkAPIEnvelope(body, &session); err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+	if session.SessionID != "sess_test" || session.PaymentStatus != "paid" {
+		t.Fatalf("unexpected session: %+v", session)
+	}
+}

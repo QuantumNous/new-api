@@ -43,6 +43,8 @@ import type {
   PlategaPaymentResponse,
   ClinkPaymentRequest,
   ClinkPaymentResponse,
+  ClinkConfirmRequest,
+  ClinkConfirmResponse,
 } from './types'
 
 // ============================================================================
@@ -228,6 +230,18 @@ export async function requestClinkPayment(
   request: ClinkPaymentRequest
 ): Promise<ClinkPaymentResponse> {
   const res = await api.post('/api/user/clink/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Confirm Clink payment after hosted checkout redirect (sessionId in return URL).
+ */
+export async function confirmClinkPayment(
+  request: ClinkConfirmRequest
+): Promise<ClinkConfirmResponse> {
+  const res = await api.post('/api/user/clink/confirm', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data

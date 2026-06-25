@@ -23,6 +23,7 @@ import { RechargePanel } from './components/recharge-panel'
 import { RedemptionCodeCard } from './components/redemption-code-card'
 import { ReferralCard } from './components/referral-card'
 import { TransactionHistory } from './components/transaction-history'
+import { useClinkReturnConfirm } from './hooks/use-clink-return-confirm'
 import type { UserWalletData } from './types'
 
 export function Wallet() {
@@ -52,6 +53,8 @@ export function Wallet() {
     fetchUser()
     setHistoryKey((k) => k + 1)
   }
+
+  useClinkReturnConfirm(handleSuccess)
 
   return (
     <div className='w-full min-w-0 bg-gradient-to-br from-violet-50 via-rose-50 to-sky-50 dark:from-zinc-900 dark:via-zinc-950 dark:to-zinc-900'>

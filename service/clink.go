@@ -55,6 +55,15 @@ type ClinkCheckoutSessionData struct {
 	OriginalCurrency    string  `json:"originalCurrency"`
 }
 
+type ClinkCheckoutSessionDetail struct {
+	SessionID           string            `json:"sessionId"`
+	Status              string            `json:"status"`
+	PaymentStatus       string            `json:"paymentStatus"`
+	AmountTotal         float64           `json:"amountTotal"`
+	MerchantReferenceID string            `json:"merchantReferenceId"`
+	Metadata            map[string]string `json:"metadata"`
+}
+
 type clinkAPIEnvelope struct {
 	Code int             `json:"code"`
 	Msg  string          `json:"msg"`
@@ -163,27 +172,76 @@ func CreateClinkCheckoutSession(ctx context.Context, req *ClinkCheckoutCreateReq
 		return nil, fmt.Errorf("clink checkout error (%d): %s", resp.StatusCode, string(respBody))
 	}
 
-	var envelope clinkAPIEnvelope
-	if err := json.Unmarshal(respBody, &envelope); err != nil {
-		return nil, fmt.Errorf("decode clink checkout envelope: %w", err)
-	}
-	if envelope.Code != 0 && envelope.Code != http.StatusOK {
-		return nil, fmt.Errorf("clink checkout rejected: %s", envelope.Msg)
-	}
-
 	var session ClinkCheckoutSessionData
-	if len(envelope.Data) > 0 {
-		if err := json.Unmarshal(envelope.Data, &session); err != nil {
-			return nil, fmt.Errorf("decode clink checkout data: %w", err)
-		}
-	} else if err := json.Unmarshal(respBody, &session); err != nil {
-		return nil, fmt.Errorf("decode clink checkout response: %w", err)
+	if err := decodeClinkAPIEnvelope(respBody, &session); err != nil {
+		return nil, err
 	}
 
 	if strings.TrimSpace(session.URL) == "" {
 		return nil, fmt.Errorf("clink checkout returned empty url")
 	}
 	return &session, nil
+}
+
+func GetClinkCheckoutSession(ctx context.Context, sessionID string) (*ClinkCheckoutSessionDetail, error) {
+	if !ClinkConfigured() {
+		return nil, fmt.Errorf("clink secret key not configured")
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return nil, fmt.Errorf("missing clink session id")
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, ClinkBaseURL()+"/checkout/session/"+sessionID, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := applyClinkAuthHeaders(httpReq); err != nil {
+		return nil, err
+	}
+
+	resp, err := clinkHTTPClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("clink get session failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read clink session response: %w", err)
+	}
+	if resp.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("clink get session error (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var session ClinkCheckoutSessionDetail
+	if err := decodeClinkAPIEnvelope(respBody, &session); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(session.SessionID) == "" {
+		session.SessionID = sessionID
+	}
+	return &session, nil
+}
+
+func decodeClinkAPIEnvelope(respBody []byte, target any) error {
+	var envelope clinkAPIEnvelope
+	if err := json.Unmarshal(respBody, &envelope); err != nil {
+		return fmt.Errorf("decode clink envelope: %w", err)
+	}
+	if envelope.Code != 0 && envelope.Code != http.StatusOK {
+		return fmt.Errorf("clink api rejected: %s", envelope.Msg)
+	}
+	if len(envelope.Data) > 0 {
+		if err := json.Unmarshal(envelope.Data, target); err != nil {
+			return fmt.Errorf("decode clink data: %w", err)
+		}
+		return nil
+	}
+	if err := json.Unmarshal(respBody, target); err != nil {
+		return fmt.Errorf("decode clink response: %w", err)
+	}
+	return nil
 }
 
 func applyClinkAuthHeaders(req *http.Request) error {

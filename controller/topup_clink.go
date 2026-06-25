@@ -28,6 +28,10 @@ type ClinkPayRequest struct {
 	CancelURL     string `json:"cancel_url,omitempty"`
 }
 
+type ClinkConfirmRequest struct {
+	SessionID string `json:"session_id"`
+}
+
 func getClinkMinTopup() int64 {
 	minTopup := setting.ClinkMinTopUp
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
@@ -161,6 +165,78 @@ func RequestClinkPay(c *gin.Context) {
 	})
 }
 
+func ConfirmClinkPay(c *gin.Context) {
+	if !isClinkTopUpEnabled() {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Clink 充值未启用"})
+		return
+	}
+
+	var req ClinkConfirmRequest
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.SessionID) == "" {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgInvalidParams)})
+		return
+	}
+
+	userID := c.GetInt("id")
+	session, err := service.GetClinkCheckoutSession(c.Request.Context(), req.SessionID)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Clink 查询 Session 失败 user_id=%d session_id=%s error=%q", userID, req.SessionID, err.Error()))
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentStartFailed)})
+		return
+	}
+
+	if strings.ToLower(strings.TrimSpace(session.PaymentStatus)) != "paid" {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentStartFailed)})
+		return
+	}
+
+	tradeNo := strings.TrimSpace(session.MerchantReferenceID)
+	if tradeNo == "" && session.Metadata != nil {
+		tradeNo = strings.TrimSpace(session.Metadata["trade_no"])
+	}
+	if tradeNo == "" {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentStartFailed)})
+		return
+	}
+
+	topUp := model.GetTopUpByTradeNo(tradeNo)
+	if topUp == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentStartFailed)})
+		return
+	}
+	if topUp.UserId != userID {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentStartFailed)})
+		return
+	}
+	if topUp.Status == common.TopUpStatusSuccess {
+		c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"order_id": tradeNo, "status": "success"}})
+		return
+	}
+
+	if session.AmountTotal > 0 && !service.ClinkAmountsMatch(topUp.Money, session.AmountTotal) {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Clink confirm amount mismatch user_id=%d trade_no=%s expected=%.2f actual=%.2f", userID, tradeNo, topUp.Money, session.AmountTotal))
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentStartFailed)})
+		return
+	}
+
+	LockOrder(tradeNo)
+	defer UnlockOrder(tradeNo)
+	if err := model.RechargeClink(tradeNo, c.ClientIP()); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Clink confirm 入账失败 user_id=%d trade_no=%s error=%q", userID, tradeNo, err.Error()))
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentStartFailed)})
+		return
+	}
+
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Clink confirm 入账成功 user_id=%d trade_no=%s session_id=%s", userID, tradeNo, req.SessionID))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+		"data": gin.H{
+			"order_id": tradeNo,
+			"status":   "success",
+		},
+	})
+}
+
 func ClinkWebhook(c *gin.Context) {
 	if !isClinkWebhookEnabled() {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Clink webhook rejected reason=disabled client_ip=%s", c.ClientIP()))
@@ -223,6 +299,7 @@ func handleClinkWebhook(c *gin.Context, bodyBytes []byte) error {
 		}
 		return completeClinkTopUp(c, session.MerchantReferenceID, session.AmountTotal)
 	default:
+		logger.LogInfo(c.Request.Context(), fmt.Sprintf("Clink webhook ignored event_type=%s", event.Type))
 		return nil
 	}
 }

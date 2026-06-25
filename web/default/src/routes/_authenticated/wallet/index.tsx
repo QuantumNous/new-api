@@ -22,6 +22,7 @@ import { Wallet } from '@/features/wallet'
 
 const walletSearchSchema = z.object({
   show_history: z.boolean().optional(),
+  sessionId: z.string().optional(),
 })
 
 export const Route = createFileRoute('/_authenticated/wallet/')({

@@ -234,6 +234,15 @@ export type ClinkPaymentResponse = ApiResponse<{
   order_id: string
 }>
 
+export interface ClinkConfirmRequest {
+  session_id: string
+}
+
+export type ClinkConfirmResponse = ApiResponse<{
+  order_id: string
+  status: string
+}>
+
 /**
  * Amount calculation request
  */
