@@ -161,6 +161,71 @@ Add regression coverage at the service layer rather than full HTTP e2e:
 
 Existing `topUpURL()` tests already cover classic/default theme path mapping and loopback filtering, so the new tests should focus on message wiring.
 
+## Config Rollout
+
+The allowlist is persisted in the existing `options` table through the layered config key:
+
+- key: `topup_hint.allowed_hosts`
+- value: JSON string array, for example `["console.flatkey.ai"]`
+
+This is DB-backed config, not a GCP / Cloud Run environment variable.
+
+### Production SQL
+
+```sql
+-- MySQL
+INSERT INTO options (`key`, `value`)
+VALUES ('topup_hint.allowed_hosts', '["console.flatkey.ai"]')
+ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);
+```
+
+```sql
+-- PostgreSQL
+INSERT INTO options ("key", "value")
+VALUES ('topup_hint.allowed_hosts', '["console.flatkey.ai"]')
+ON CONFLICT ("key") DO UPDATE
+SET "value" = EXCLUDED."value";
+```
+
+```sql
+-- SQLite
+INSERT INTO options (`key`, `value`)
+VALUES ('topup_hint.allowed_hosts', '["console.flatkey.ai"]')
+ON CONFLICT(`key`) DO UPDATE
+SET `value` = excluded.`value`;
+```
+
+### Staging SQL
+
+```sql
+-- MySQL
+INSERT INTO options (`key`, `value`)
+VALUES ('topup_hint.allowed_hosts', '["staging-console.flatkey.ai"]')
+ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);
+```
+
+```sql
+-- PostgreSQL
+INSERT INTO options ("key", "value")
+VALUES ('topup_hint.allowed_hosts', '["staging-console.flatkey.ai"]')
+ON CONFLICT ("key") DO UPDATE
+SET "value" = EXCLUDED."value";
+```
+
+```sql
+-- SQLite
+INSERT INTO options (`key`, `value`)
+VALUES ('topup_hint.allowed_hosts', '["staging-console.flatkey.ai"]')
+ON CONFLICT(`key`) DO UPDATE
+SET `value` = excluded.`value`;
+```
+
+### Activation Notes
+
+- If the value is written through the root `PUT /api/option` path, the service writes DB and publishes an immediate config-change notification.
+- If the value is written by direct SQL, it does not trigger pubsub; instances pick it up on the normal options reload loop or after restart.
+- Default sync frequency is `60s`, so direct SQL may take up to about one minute to become visible without a restart.
+
 ## Deployment Impact
 
 - **Router deploy:** required

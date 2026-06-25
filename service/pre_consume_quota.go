@@ -40,10 +40,10 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 	// Never blocks this request; the checks below still apply to the current call.
 	MaybeTriggerStripeAutoCharge(relayInfo.UserId, userQuota)
 	if userQuota <= 0 {
-		return types.NewErrorWithStatusCode(fmt.Errorf("%s", buildUserQuotaInsufficientMessage(c, userQuota)), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		return types.NewErrorWithStatusCode(fmt.Errorf("%s", buildUserQuotaInsufficientMessage(c, userQuota)), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(), walletTopUpHintPreserveOption())
 	}
 	if userQuota-preConsumedQuota < 0 {
-		return types.NewErrorWithStatusCode(fmt.Errorf("%s", buildPreConsumeQuotaFailedMessage(c, userQuota, preConsumedQuota)), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		return types.NewErrorWithStatusCode(fmt.Errorf("%s", buildPreConsumeQuotaFailedMessage(c, userQuota, preConsumedQuota)), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(), walletTopUpHintPreserveOption())
 	}
 
 	trustQuota := common.GetTrustQuota()

@@ -172,16 +172,19 @@ func TestNewBillingSessionWalletErrorsIncludeTopUpHint(t *testing.T) {
 
 	originalServerAddress := system_setting.ServerAddress
 	originalTheme := common.GetTheme()
+	originalAllowedHosts := append([]string(nil), system_setting.GetTopupHintSettings().AllowedHosts...)
 	t.Cleanup(func() {
 		resetBillingStatusTables(t)
 	})
 	t.Cleanup(func() {
 		system_setting.ServerAddress = originalServerAddress
 		common.SetTheme(originalTheme)
+		system_setting.GetTopupHintSettings().AllowedHosts = originalAllowedHosts
 	})
 
 	common.SetTheme("default")
 	system_setting.ServerAddress = "https://console.flatkey.ai"
+	system_setting.GetTopupHintSettings().AllowedHosts = []string{"console.flatkey.ai"}
 
 	t.Run("user quota exhausted", func(t *testing.T) {
 		const userID = 10108
@@ -198,6 +201,7 @@ func TestNewBillingSessionWalletErrorsIncludeTopUpHint(t *testing.T) {
 		require.NotNil(t, apiErr)
 		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
 		require.Contains(t, apiErr.Error(), "https://console.flatkey.ai/wallet")
+		require.Contains(t, apiErr.ToOpenAIError().Message, "https://console.flatkey.ai/wallet")
 	})
 
 	t.Run("pre consume exceeds remaining quota", func(t *testing.T) {
@@ -215,6 +219,7 @@ func TestNewBillingSessionWalletErrorsIncludeTopUpHint(t *testing.T) {
 		require.NotNil(t, apiErr)
 		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
 		require.Contains(t, apiErr.Error(), "https://console.flatkey.ai/wallet")
+		require.Contains(t, apiErr.ToOpenAIError().Message, "https://console.flatkey.ai/wallet")
 	})
 
 	t.Run("wallet first dual failure keeps wallet hint", func(t *testing.T) {
@@ -239,6 +244,7 @@ func TestNewBillingSessionWalletErrorsIncludeTopUpHint(t *testing.T) {
 		require.NotNil(t, apiErr)
 		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
 		require.Contains(t, apiErr.Error(), "https://console.flatkey.ai/wallet")
+		require.Contains(t, apiErr.ToOpenAIError().Message, "https://console.flatkey.ai/wallet")
 	})
 
 	t.Run("loopback host omits hint", func(t *testing.T) {
@@ -266,16 +272,19 @@ func TestPreConsumeQuotaWalletErrorsIncludeTopUpHint(t *testing.T) {
 
 	originalServerAddress := system_setting.ServerAddress
 	originalTheme := common.GetTheme()
+	originalAllowedHosts := append([]string(nil), system_setting.GetTopupHintSettings().AllowedHosts...)
 	t.Cleanup(func() {
 		resetBillingStatusTables(t)
 	})
 	t.Cleanup(func() {
 		system_setting.ServerAddress = originalServerAddress
 		common.SetTheme(originalTheme)
+		system_setting.GetTopupHintSettings().AllowedHosts = originalAllowedHosts
 	})
 
 	common.SetTheme("default")
 	system_setting.ServerAddress = "https://console.flatkey.ai"
+	system_setting.GetTopupHintSettings().AllowedHosts = []string{"console.flatkey.ai"}
 
 	t.Run("user quota exhausted", func(t *testing.T) {
 		const userID = 10111
@@ -289,6 +298,7 @@ func TestPreConsumeQuotaWalletErrorsIncludeTopUpHint(t *testing.T) {
 		require.NotNil(t, apiErr)
 		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
 		require.Contains(t, apiErr.Error(), "https://console.flatkey.ai/wallet")
+		require.Contains(t, apiErr.ToOpenAIError().Message, "https://console.flatkey.ai/wallet")
 	})
 
 	t.Run("pre consume exceeds remaining quota", func(t *testing.T) {
@@ -303,6 +313,24 @@ func TestPreConsumeQuotaWalletErrorsIncludeTopUpHint(t *testing.T) {
 		require.NotNil(t, apiErr)
 		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
 		require.Contains(t, apiErr.Error(), "https://console.flatkey.ai/wallet")
+		require.Contains(t, apiErr.ToOpenAIError().Message, "https://console.flatkey.ai/wallet")
+	})
+
+	t.Run("missing allowlist keeps client-facing url masked", func(t *testing.T) {
+		const userID = 10114
+		resetBillingStatusTables(t)
+		seedUser(t, userID, 0)
+		system_setting.GetTopupHintSettings().AllowedHosts = nil
+
+		c := newTestGinContext()
+		relayInfo := newQuotaStatusRelayInfo(userID, 0, "")
+		apiErr := PreConsumeQuota(c, 1, relayInfo)
+
+		require.NotNil(t, apiErr)
+		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+		require.Contains(t, apiErr.Error(), "https://console.flatkey.ai/wallet")
+		require.NotContains(t, apiErr.ToOpenAIError().Message, "https://console.flatkey.ai/wallet")
+		require.Contains(t, apiErr.ToOpenAIError().Message, "https://***.ai/***")
 	})
 }
 

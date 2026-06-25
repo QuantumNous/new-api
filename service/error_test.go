@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -227,6 +229,24 @@ func TestScrubWhitelabelError(t *testing.T) {
 			ScrubWhitelabelError(context.Background(), nil, constant.ChannelTypeBlockRun)
 		})
 	})
+}
+
+func TestToOpenAIErrorDoesNotUnmaskAllowlistedHostWithoutExplicitOptIn(t *testing.T) {
+	originalAllowedHosts := append([]string(nil), system_setting.GetTopupHintSettings().AllowedHosts...)
+	t.Cleanup(func() {
+		system_setting.GetTopupHintSettings().AllowedHosts = originalAllowedHosts
+	})
+
+	system_setting.GetTopupHintSettings().AllowedHosts = []string{"console.flatkey.ai"}
+
+	err := types.NewErrorWithStatusCode(
+		errors.New("boom https://console.flatkey.ai/wallet"),
+		types.ErrorCodeInsufficientUserQuota,
+		http.StatusForbidden,
+	)
+
+	require.NotContains(t, err.ToOpenAIError().Message, "https://console.flatkey.ai/wallet")
+	require.Contains(t, err.ToOpenAIError().Message, "https://***.ai/***")
 }
 
 func withDebugEnabled(t *testing.T, enabled bool) {

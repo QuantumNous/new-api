@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/setting/system_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -36,6 +37,13 @@ func appendWalletTopUpHint(c *gin.Context, msg string) string {
 		return msg + " " + common.TranslateMessage(c, "quota.topup_hint", map[string]any{"URL": topUp})
 	}
 	return msg
+}
+
+func walletTopUpHintPreserveOption() types.NewAPIErrorOptions {
+	if topUp := topUpURL(); topUp != "" && system_setting.TopupHintHostAllowed(topUp) {
+		return types.ErrOptionWithPreservedMessageFragments(topUp)
+	}
+	return func(*types.NewAPIError) {}
 }
 
 func buildUserQuotaInsufficientMessage(c *gin.Context, quota int) string {
