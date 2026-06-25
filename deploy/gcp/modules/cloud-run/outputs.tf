@@ -1,9 +1,9 @@
 output "service_name" {
-  value = google_cloud_run_v2_service.main.name
+  value = try(google_cloud_run_v2_service.main[0].name, null)
 }
 
 output "service_uri" {
-  value = google_cloud_run_v2_service.main.uri
+  value = try(google_cloud_run_v2_service.main[0].uri, null)
 }
 
 output "domain_mappings" {

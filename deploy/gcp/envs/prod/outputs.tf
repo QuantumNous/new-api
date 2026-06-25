@@ -1,6 +1,6 @@
 output "cloud_run_uri" {
   description = "Direct Cloud Run *.run.app URL (used by GHA smoke test)"
-  value       = module.cloud_run.service_uri
+  value       = var.enable_legacy_runtime ? module.cloud_run.service_uri : null
 }
 
 output "artifact_registry_url" {
@@ -14,7 +14,7 @@ output "cloudsql_connection_name" {
 
 output "domain_mappings" {
   description = "Cloudflare DNS targets — create one CNAME per host, pointing to ghs.googlehosted.com"
-  value       = module.cloud_run.domain_mappings
+  value       = var.enable_legacy_runtime ? module.cloud_run.domain_mappings : {}
 }
 
 output "github_wif_provider" {

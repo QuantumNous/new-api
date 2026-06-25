@@ -6,6 +6,8 @@
 //   - Sensitive values are injected from Secret Manager, not stored in env state.
 
 resource "google_cloud_run_v2_service" "main" {
+  count = var.enabled ? 1 : 0
+
   project  = var.project_id
   name     = var.service_name
   location = var.region
@@ -247,11 +249,11 @@ resource "google_cloud_run_v2_service" "main" {
 
 // Allow unauthenticated invocations (Cloudflare will sit in front).
 resource "google_cloud_run_v2_service_iam_member" "public" {
-  count = var.allow_unauthenticated ? 1 : 0
+  count = var.enabled && var.allow_unauthenticated ? 1 : 0
 
   project  = var.project_id
-  location = google_cloud_run_v2_service.main.location
-  name     = google_cloud_run_v2_service.main.name
+  location = google_cloud_run_v2_service.main[0].location
+  name     = google_cloud_run_v2_service.main[0].name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
@@ -259,7 +261,7 @@ resource "google_cloud_run_v2_service_iam_member" "public" {
 // Custom domain mappings (one per FQDN). Cloud Run Domain Mapping = free, auto-cert via Google.
 // Cloudflare DNS points each host as CNAME → ghs.googlehosted.com.
 resource "google_cloud_run_domain_mapping" "domains" {
-  for_each = toset(var.custom_domains)
+  for_each = var.enabled ? toset(var.custom_domains) : toset([])
 
   project  = var.project_id
   location = var.region
@@ -270,7 +272,7 @@ resource "google_cloud_run_domain_mapping" "domains" {
   }
 
   spec {
-    route_name       = google_cloud_run_v2_service.main.name
+    route_name       = google_cloud_run_v2_service.main[0].name
     certificate_mode = "AUTOMATIC"
   }
 }

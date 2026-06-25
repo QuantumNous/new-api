@@ -14,6 +14,12 @@ variable "service_name" {
   default     = "newapi"
 }
 
+variable "enabled" {
+  type        = bool
+  description = "Whether to manage this Cloud Run service and its related resources."
+  default     = true
+}
+
 variable "image_uri" {
   type        = string
   description = "Initial container image (will be replaced by CI/CD on every deploy)"

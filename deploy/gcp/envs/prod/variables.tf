@@ -18,6 +18,12 @@ variable "service_name" {
   default = "newapi"
 }
 
+variable "enable_legacy_runtime" {
+  type        = bool
+  description = "Keep the legacy monolithic newapi Cloud Run service/resources alive. Flip to false only when ready to destroy legacy newapi."
+  default     = true
+}
+
 variable "github_repository" {
   type        = string
   description = "OWNER/REPO that is allowed to deploy via WIF"
@@ -54,6 +60,17 @@ variable "lb_domains" {
   type        = list(string)
   description = "Domains for the managed SSL cert on the LB. DNS in Cloudflare must point to the LB IP first."
   default     = []
+}
+
+variable "lb_default_backend" {
+  type        = string
+  description = "Default LB backend for hosts that do not match an explicit host_rule."
+  default     = "primary"
+
+  validation {
+    condition     = contains(["primary", "console", "router"], var.lb_default_backend)
+    error_message = "lb_default_backend must be one of: primary, console, router."
+  }
 }
 
 variable "cloud_run_ingress" {

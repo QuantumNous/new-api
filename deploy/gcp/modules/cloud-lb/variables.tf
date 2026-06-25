@@ -19,6 +19,17 @@ variable "cloud_run_service_name" {
   description = "Name of the Cloud Run service the LB sends traffic to"
 }
 
+variable "default_backend" {
+  type        = string
+  description = "Default backend target for hosts that do not match an explicit host_rule."
+  default     = "primary"
+
+  validation {
+    condition     = contains(["primary", "console", "router"], var.default_backend)
+    error_message = "default_backend must be one of: primary, console, router."
+  }
+}
+
 variable "domains" {
   type        = list(string)
   description = "FQDNs covered by the Google-managed cert. DNS must point to the LB IP before the cert can provision."
