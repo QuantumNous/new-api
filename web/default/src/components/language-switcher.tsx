@@ -21,6 +21,7 @@ import { Languages, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
+import { setPanelLanguage } from '@/i18n/config'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -46,7 +47,7 @@ export function LanguageSwitcher() {
 
   const handleChangeLanguage = useCallback(
     async (code: string) => {
-      await i18n.changeLanguage(code)
+      await setPanelLanguage(code)
       if (user) {
         try {
           await api.put('/api/user/self', { language: code })
@@ -55,7 +56,7 @@ export function LanguageSwitcher() {
         }
       }
     },
-    [i18n, user]
+    [user]
   )
 
   return (

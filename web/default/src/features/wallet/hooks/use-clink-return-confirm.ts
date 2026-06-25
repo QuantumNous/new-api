@@ -27,6 +27,11 @@ export function useClinkReturnConfirm(onSuccess: () => void) {
   const navigate = useNavigate({ from: Route.fullPath })
   const search = Route.useSearch()
   const confirmingRef = useRef(false)
+  const onSuccessRef = useRef(onSuccess)
+
+  useEffect(() => {
+    onSuccessRef.current = onSuccess
+  }, [onSuccess])
 
   useEffect(() => {
     const sessionId = search.sessionId?.trim()
@@ -45,7 +50,7 @@ export function useClinkReturnConfirm(onSuccess: () => void) {
         }
         if (isApiSuccess(response)) {
           toast.success(i18next.t('Payment successful'))
-          onSuccess()
+          onSuccessRef.current()
         } else {
           toast.error(i18next.t('Payment confirmation failed'))
         }
@@ -69,5 +74,5 @@ export function useClinkReturnConfirm(onSuccess: () => void) {
     return () => {
       cancelled = true
     }
-  }, [search.sessionId, navigate, onSuccess])
+  }, [search.sessionId, navigate])
 }

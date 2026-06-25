@@ -74,6 +74,11 @@ const APIMASTER_LOCALE_MAP: Record<string, string> = {
   tr: 'tr',
 }
 
+// i18next lang -> apimaster-locale storage value
+const PANEL_TO_APIMASTER_LOCALE: Record<string, string> = Object.fromEntries(
+  Object.entries(APIMASTER_LOCALE_MAP).map(([apimaster, panel]) => [panel, apimaster])
+)
+
 function resolveInitialLng(): string | undefined {
   try {
     const stored = localStorage.getItem(APIMASTER_STORAGE_KEY)
@@ -108,6 +113,21 @@ function applyApimasterLocale(locale: unknown) {
   if (i18n.resolvedLanguage !== lng && i18n.language !== lng) {
     void i18n.changeLanguage(lng)
   }
+}
+
+/** User-initiated language change inside the panel — keep apimaster-locale in sync. */
+export async function setPanelLanguage(code: string) {
+  const lng = code.trim()
+  if (!lng) return
+
+  const apimasterLocale = PANEL_TO_APIMASTER_LOCALE[lng] ?? lng
+  try {
+    localStorage.setItem(APIMASTER_STORAGE_KEY, apimasterLocale)
+  } catch {
+    // localStorage not available
+  }
+
+  await i18n.changeLanguage(lng)
 }
 
 i18n
@@ -155,9 +175,6 @@ if (typeof window !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) syncApimasterLocale()
   })
-  window.setInterval(() => {
-    if (!document.hidden) syncApimasterLocale()
-  }, 1000)
 }
 
 export default i18n
