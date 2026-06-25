@@ -152,14 +152,16 @@ export const ReasoningTrigger = memo(
     return (
       <CollapsibleTrigger
         className={cn(
-          'text-muted-foreground hover:text-foreground inline-flex w-fit max-w-full items-center gap-1.5 text-sm leading-none transition-colors [&_p]:m-0',
+          'text-muted-foreground hover:text-foreground inline-grid w-fit max-w-full grid-cols-[0.875rem_minmax(0,auto)_0.875rem] items-center gap-1.5 text-sm leading-none transition-colors [&_p]:m-0',
           className
         )}
         {...props}
       >
         {children ?? (
           <>
-            <BrainIcon className='size-3.5 shrink-0' />
+            <span className='grid size-3.5 place-items-center'>
+              <BrainIcon className='size-3.5' />
+            </span>
             <span className='min-w-0 truncate leading-none'>
               {isStreaming ? (
                 <Shimmer duration={1}>{t('Thinking...')}</Shimmer>
@@ -167,12 +169,14 @@ export const ReasoningTrigger = memo(
                 thinkingText
               )}
             </span>
-            <ChevronDownIcon
-              className={cn(
-                'size-3.5 shrink-0 transition-transform',
-                isOpen ? 'rotate-180' : 'rotate-0'
-              )}
-            />
+            <span className='grid size-3.5 place-items-center'>
+              <ChevronDownIcon
+                className={cn(
+                  'size-3.5 transition-transform duration-200 ease-out',
+                  isOpen ? 'rotate-180' : 'rotate-0'
+                )}
+              />
+            </span>
           </>
         )}
       </CollapsibleTrigger>
