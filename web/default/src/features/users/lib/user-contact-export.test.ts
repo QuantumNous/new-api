@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
+import { formatQuota } from '@/lib/format'
+import { formatUserQuotaDisplay } from './user-quota-display'
 import {
   buildUserContactsCsv,
   collectUserContactsForExport,
@@ -47,6 +49,7 @@ describe('user contact export', () => {
         id: 7,
         username: 'alice, admin',
         display_name: 'Alice "A"',
+        quota: 500000,
         email: 'alice@example.com',
         wechat_id: 'wx\nline',
         telegram_id: '@alice',
@@ -55,8 +58,8 @@ describe('user contact export', () => {
 
     assert.equal(
       csv,
-      '\uFEFFID,Username,Display Name,Email,WeChat ID,Telegram ID\r\n' +
-        '7,"alice, admin","Alice ""A""",alice@example.com,"wx\nline",\'@alice\r\n'
+      '\uFEFFID,Username,Display Name,Quota,Email,WeChat ID,Telegram ID\r\n' +
+        `7,"alice, admin","Alice ""A""",${formatQuota(500000)},alice@example.com,"wx\nline",'@alice\r\n`
     )
   })
 
@@ -71,8 +74,8 @@ describe('user contact export', () => {
 
     assert.equal(
       csv,
-      '\uFEFFID,Username,Display Name,Email,WeChat ID,Telegram ID\r\n' +
-        '8,bob,,,,\r\n'
+      `\uFEFFID,Username,Display Name,Quota,Email,WeChat ID,Telegram ID\r\n` +
+        `8,bob,,${formatUserQuotaDisplay(makeUser({ quota: 0, used_quota: 0 }))},,,\r\n`
     )
   })
 
@@ -82,6 +85,7 @@ describe('user contact export', () => {
         id: 9,
         username: '=HYPERLINK("https://example.com","click")',
         display_name: '+SUM(1,1)',
+        quota: 500000,
         email: '-10+20@example.com',
         wechat_id: '@wechat',
         telegram_id: '\t=cmd',
@@ -90,8 +94,8 @@ describe('user contact export', () => {
 
     assert.equal(
       csv,
-      '\uFEFFID,Username,Display Name,Email,WeChat ID,Telegram ID\r\n' +
-        '9,"\'=HYPERLINK(""https://example.com"",""click"")","\'+SUM(1,1)",\'-10+20@example.com,\'@wechat,\'\t=cmd\r\n'
+      '\uFEFFID,Username,Display Name,Quota,Email,WeChat ID,Telegram ID\r\n' +
+        `9,"'=HYPERLINK(""https://example.com"",""click"")","'+SUM(1,1)",${formatQuota(500000)},'-10+20@example.com,'@wechat,'\t=cmd\r\n`
     )
   })
 

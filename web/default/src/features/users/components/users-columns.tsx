@@ -45,6 +45,10 @@ import {
   getSafeAttributionTooltipRaw,
   getUserAttributionDisplay,
 } from '../lib/user-attribution'
+import {
+  formatUserQuotaDisplay,
+  getUserQuotaSummary,
+} from '../lib/user-quota-display'
 import { type User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
@@ -180,15 +184,12 @@ export function useUsersColumns(): ColumnDef<User>[] {
       ),
       cell: ({ row }) => {
         const user = row.original
-        const used = user.used_quota
-        const remaining = user.quota
-        const total = used + remaining
-        const percentage = total > 0 ? (remaining / total) * 100 : 0
+        const quotaSummary = getUserQuotaSummary(user)
 
-        if (total === 0) {
+        if (quotaSummary.isEmpty) {
           return (
             <StatusBadge
-              label={t('No Quota')}
+              label={formatUserQuotaDisplay(user, t('No Quota'))}
               variant='neutral'
               copyable={false}
             />
@@ -202,30 +203,33 @@ export function useUsersColumns(): ColumnDef<User>[] {
             >
               <div className='flex justify-between text-xs'>
                 <span className='font-medium tabular-nums'>
-                  {formatQuota(remaining)}
+                  {formatQuota(quotaSummary.remaining)}
                 </span>
                 <span className='text-muted-foreground tabular-nums'>
-                  {formatQuota(total)}
+                  {formatQuota(quotaSummary.total)}
                 </span>
               </div>
               <Progress
-                value={percentage}
-                className={cn('h-1.5', getQuotaProgressColor(percentage))}
+                value={quotaSummary.percentage}
+                className={cn(
+                  'h-1.5',
+                  getQuotaProgressColor(quotaSummary.percentage)
+                )}
               />
             </TooltipTrigger>
             <TooltipContent>
               <div className='space-y-1 text-xs'>
                 <div>
-                  {t('Used:')} {formatQuota(used)}
+                  {t('Used:')} {formatQuota(quotaSummary.used)}
                 </div>
                 <div>
-                  {t('Remaining:')} {formatQuota(remaining)}
+                  {t('Remaining:')} {formatQuota(quotaSummary.remaining)}
                 </div>
                 <div>
-                  {t('Total:')} {formatQuota(total)}
+                  {t('Total:')} {formatQuota(quotaSummary.total)}
                 </div>
                 <div>
-                  {t('Percentage:')} {percentage.toFixed(1)}%
+                  {t('Percentage:')} {quotaSummary.percentage.toFixed(1)}%
                 </div>
               </div>
             </TooltipContent>
