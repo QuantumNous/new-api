@@ -30,7 +30,6 @@ import { getSubmittableInputText } from '../../lib'
 import type { ModelOption, GroupOption } from '../../types'
 import { PlaygroundInputControls } from './playground-input-controls'
 import { PlaygroundInputTools } from './playground-input-tools'
-import { PlaygroundSuggestions } from './playground-suggestions'
 
 interface PlaygroundInputProps {
   onSubmit: (text: string) => void
@@ -116,8 +115,6 @@ export function PlaygroundInput({
           />
         </PromptInputFooter>
       </PromptInput>
-
-      <PlaygroundSuggestions onSelect={onSubmit} />
     </div>
   )
 }
