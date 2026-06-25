@@ -41,6 +41,18 @@ func SetVideoRouter(router *gin.Engine) {
 		klingV1Router.GET("/videos/image2video/:task_id", controller.RelayTaskFetch)
 	}
 
+	// Seedance official API routes - use a dedicated prefix like /kling to avoid
+	// changing response formats on the generic video endpoints.
+	seedanceOfficialGroup := router.Group("/seedance/api/v3/contents/generations")
+	seedanceOfficialGroup.Use(middleware.RouteTag("relay"))
+	seedanceOfficialGroup.Use(middleware.SeedanceRequestConvert(), middleware.TokenAuth())
+	{
+		// Maps to: POST/GET /api/v3/contents/generations/tasks
+		seedanceOfficialGroup.POST("/tasks", middleware.Distribute(), controller.RelaySeedanceTask)
+		seedanceOfficialGroup.GET("/tasks", controller.RelaySeedanceTaskFetch)
+		seedanceOfficialGroup.GET("/tasks/:task_id", controller.RelaySeedanceTaskFetch)
+	}
+
 	// Jimeng official API routes - direct mapping to official API format
 	jimengOfficialGroup := router.Group("jimeng")
 	jimengOfficialGroup.Use(middleware.RouteTag("relay"))
