@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -855,7 +856,7 @@ func NotifyPaymentSuccess(userId int, quotaAdded int, paymentMethod string) {
 	}
 	go func() {
 		var user User
-		if err := DB.Select("email, country").Where("id = ?", userId).First(&user).Error; err != nil {
+		if err := DB.Select("email, country, created_at").Where("id = ?", userId).First(&user).Error; err != nil {
 			user.Email = fmt.Sprintf("user#%d", userId)
 		}
 		email := user.Email
@@ -866,6 +867,14 @@ func NotifyPaymentSuccess(userId int, quotaAdded int, paymentMethod string) {
 		if country == "" {
 			country = "—"
 		}
+		registeredAt := "—"
+		if user.CreatedAt > 0 {
+			loc, err := time.LoadLocation("Asia/Shanghai")
+			if err != nil {
+				loc = time.FixedZone("CST", 8*3600)
+			}
+			registeredAt = time.Unix(user.CreatedAt, 0).In(loc).Format("2006-01-02 15:04")
+		}
 		usdAmount := float64(quotaAdded) / common.QuotaPerUnit
 		methodLabel := FormatPaymentMethodLabel(paymentMethod)
 		lines := []string{
@@ -873,6 +882,7 @@ func NotifyPaymentSuccess(userId int, quotaAdded int, paymentMethod string) {
 			fmt.Sprintf("金额：$%.2f", usdAmount),
 			fmt.Sprintf("国家：%s", country),
 			fmt.Sprintf("方式：%s", methodLabel),
+			fmt.Sprintf("注册于：%s", registeredAt),
 		}
 		_ = common.SendFeishuCard(chatID, "💰 付款成功", lines)
 	}()
