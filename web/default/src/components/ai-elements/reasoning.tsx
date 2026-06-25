@@ -194,15 +194,17 @@ export const ReasoningContent = memo(
   ({ className, children, ...props }: ReasoningContentProps) => (
     <CollapsibleContent
       className={cn(
-        'border-border/70 mt-2 ml-1.5 border-l pl-3 text-sm leading-5',
-        'data-closed:fade-out-0 data-closed:slide-out-to-top-2 data-open:slide-in-from-top-2 text-muted-foreground data-closed:animate-out data-open:animate-in outline-none',
+        'CollapsibleContent group/reasoning-content border-border/70 mt-2 ml-1.5 border-l pl-3 text-sm leading-5',
+        'text-muted-foreground outline-none',
         className
       )}
       {...props}
     >
-      <Response className='grid gap-1.5 [&_li]:my-0.5 [&_ol]:my-1.5 [&_p]:my-1.5 [&_p]:leading-5 [&_ul]:my-1.5'>
-        {children}
-      </Response>
+      <div className='transition-[opacity,transform] duration-200 ease-out group-data-[closed]/reasoning-content:-translate-y-1 group-data-[closed]/reasoning-content:opacity-0 group-data-[open]/reasoning-content:translate-y-0 group-data-[open]/reasoning-content:opacity-100 motion-reduce:transition-none'>
+        <Response className='grid gap-1.5 [&_li]:my-0.5 [&_ol]:my-1.5 [&_p]:my-1.5 [&_p]:leading-5 [&_ul]:my-1.5'>
+          {children}
+        </Response>
+      </div>
     </CollapsibleContent>
   )
 )
