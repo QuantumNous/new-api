@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// The 3 PreConsumeTokenQuota call sites map only ErrInsufficientTokenQuota to 429;
+// The 3 PreConsumeTokenQuota call sites map only ErrInsufficientTokenQuota to 403;
 // every other error must stay 5xx. These tests pin that contract.
 func TestInsufficientTokenQuotaErrorMatchesSentinel(t *testing.T) {
 	e := &insufficientTokenQuotaError{msg: "令牌额度不足, 令牌剩余额度: $0.10, 需要额度: $1.00"}
