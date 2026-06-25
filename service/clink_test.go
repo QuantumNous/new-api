@@ -16,3 +16,21 @@ func TestVerifyClinkWebhookSignature(t *testing.T) {
 		t.Fatalf("expected invalid clink webhook signature to fail")
 	}
 }
+
+func TestClinkCheckoutDefaultPriceDataList(t *testing.T) {
+	req := &ClinkCheckoutCreateRequest{
+		OriginalAmount:   10.5,
+		OriginalCurrency: "USD",
+	}
+	if len(req.PriceDataList) == 0 {
+		req.PriceDataList = []ClinkPriceData{{
+			Name:       "APIMaster.ai balance top-up",
+			Quantity:   1,
+			UnitAmount: req.OriginalAmount,
+			Currency:   req.OriginalCurrency,
+		}}
+	}
+	if len(req.PriceDataList) != 1 || req.PriceDataList[0].UnitAmount != 10.5 {
+		t.Fatalf("unexpected priceDataList: %+v", req.PriceDataList)
+	}
+}

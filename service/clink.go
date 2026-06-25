@@ -27,16 +27,24 @@ const (
 
 var clinkHTTPClient = &http.Client{Timeout: clinkHTTPTimeout}
 
+type ClinkPriceData struct {
+	Name       string  `json:"name"`
+	Quantity   int     `json:"quantity"`
+	UnitAmount float64 `json:"unitAmount"`
+	Currency   string  `json:"currency"`
+}
+
 type ClinkCheckoutCreateRequest struct {
-	CustomerEmail         string            `json:"customerEmail,omitempty"`
-	ReferenceCustomerID   string            `json:"referenceCustomerId,omitempty"`
-	OriginalAmount        float64           `json:"originalAmount"`
-	OriginalCurrency      string            `json:"originalCurrency"`
-	MerchantReferenceID   string            `json:"merchantReferenceId,omitempty"`
-	UIMode                string            `json:"uiMode,omitempty"`
-	SuccessURL            string            `json:"successUrl,omitempty"`
-	CancelURL             string            `json:"cancelUrl,omitempty"`
-	Metadata              map[string]string `json:"metadata,omitempty"`
+	CustomerEmail       string            `json:"customerEmail,omitempty"`
+	ReferenceCustomerID string            `json:"referenceCustomerId,omitempty"`
+	OriginalAmount      float64           `json:"originalAmount"`
+	OriginalCurrency    string            `json:"originalCurrency"`
+	MerchantReferenceID string            `json:"merchantReferenceId,omitempty"`
+	PriceDataList       []ClinkPriceData  `json:"priceDataList,omitempty"`
+	UIMode              string            `json:"uiMode,omitempty"`
+	SuccessURL          string            `json:"successUrl,omitempty"`
+	CancelURL           string            `json:"cancelUrl,omitempty"`
+	Metadata            map[string]string `json:"metadata,omitempty"`
 }
 
 type ClinkCheckoutSessionData struct {
@@ -117,6 +125,14 @@ func CreateClinkCheckoutSession(ctx context.Context, req *ClinkCheckoutCreateReq
 	}
 	if strings.TrimSpace(req.UIMode) == "" {
 		req.UIMode = "hostedPage"
+	}
+	if len(req.PriceDataList) == 0 {
+		req.PriceDataList = []ClinkPriceData{{
+			Name:       "APIMaster.ai balance top-up",
+			Quantity:   1,
+			UnitAmount: req.OriginalAmount,
+			Currency:   req.OriginalCurrency,
+		}}
 	}
 
 	body, err := json.Marshal(req)
