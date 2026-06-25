@@ -50,6 +50,8 @@ func TestTopUpURLSkipsLoopbackServerAddress(t *testing.T) {
 		name          string
 		serverAddress string
 	}{
+		{name: "localhost without scheme", serverAddress: "localhost:3000"},
+		{name: "ipv4 loopback without scheme", serverAddress: "127.0.0.1:3000"},
 		{name: "ipv4 loopback", serverAddress: "http://127.0.0.1:3000"},
 		{name: "ipv6 loopback", serverAddress: "http://[::1]:3000"},
 	}

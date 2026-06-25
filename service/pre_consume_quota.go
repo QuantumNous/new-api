@@ -26,8 +26,12 @@ func topUpURL() string {
 	if base == "" {
 		return ""
 	}
-	host := base
-	if parsed, err := url.Parse(base); err == nil && parsed.Hostname() != "" {
+	parseBase := base
+	if !strings.Contains(parseBase, "://") {
+		parseBase = "http://" + parseBase
+	}
+	host := ""
+	if parsed, err := url.Parse(parseBase); err == nil {
 		host = parsed.Hostname()
 	}
 	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
