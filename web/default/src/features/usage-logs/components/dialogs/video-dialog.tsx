@@ -17,9 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
-import { Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/copy-button'
 import {
   Dialog,
   DialogContent,
@@ -29,6 +28,7 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { downloadMediaFile } from '../../lib/download-media'
+import { MediaDialogFooter } from './media-dialog-footer'
 import { RequestDataPanel } from './request-data-panel'
 
 interface VideoDialogProps {
@@ -71,72 +71,68 @@ export function VideoDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className='gap-4 sm:max-w-lg'>
-        <DialogHeader>
+      <DialogContent className='gap-4 sm:max-w-2xl'>
+        <DialogHeader className='gap-3'>
           <DialogTitle>{t('Video Preview')}</DialogTitle>
-          <DialogDescription>
-            {taskId
-              ? `${t('Task ID:')} ${taskId}`
-              : t('View the generated video')}
-          </DialogDescription>
+          {taskId ? (
+            <div className='bg-muted/50 flex items-center gap-2 rounded-md border px-3 py-2'>
+              <DialogDescription className='min-w-0 flex-1 font-mono text-xs leading-snug break-all'>
+                {t('Task ID:')} {taskId}
+              </DialogDescription>
+              <CopyButton
+                value={taskId}
+                variant='ghost'
+                size='icon-sm'
+                tooltip={t('Copy to clipboard')}
+              />
+            </div>
+          ) : (
+            <DialogDescription>{t('View the generated video')}</DialogDescription>
+          )}
         </DialogHeader>
 
-        <RequestDataPanel data={requestData} />
+        <div className='bg-muted/30 relative flex min-h-[220px] w-full items-center justify-center overflow-hidden rounded-xl border p-4'>
+          {(isLoading || hasError) && (
+            <Skeleton className='absolute inset-4 rounded-lg' />
+          )}
 
-        <div className='space-y-3'>
-          <div className='bg-muted/40 mx-auto flex w-full max-w-[360px] items-center justify-center rounded-lg border p-3'>
-            <div className='relative flex min-h-[180px] w-full items-center justify-center'>
-              {(isLoading || hasError) && (
-                <Skeleton className='absolute inset-0 rounded-md' />
-              )}
+          <video
+            src={videoUrl}
+            controls
+            className={`max-h-[min(52vh,520px)] max-w-full rounded-lg shadow-md ${
+              isLoading || hasError ? 'opacity-0' : 'opacity-100'
+            }`}
+            onLoadedData={() => {
+              setIsLoading(false)
+              setHasError(false)
+            }}
+            onError={() => {
+              setIsLoading(false)
+              setHasError(true)
+            }}
+          />
 
-              <video
-                src={videoUrl}
-                controls
-                className={`max-h-[240px] max-w-full rounded-md shadow-sm ${
-                  isLoading || hasError ? 'opacity-0' : 'opacity-100'
-                }`}
-                onLoadedData={() => {
-                  setIsLoading(false)
-                  setHasError(false)
-                }}
-                onError={() => {
-                  setIsLoading(false)
-                  setHasError(true)
-                }}
-              />
-
-              {hasError && (
-                <div className='absolute inset-0 flex items-center justify-center'>
-                  <p className='text-muted-foreground text-sm'>
-                    {t('Failed to load video')}
-                  </p>
-                </div>
-              )}
+          {hasError && (
+            <div className='absolute inset-0 flex items-center justify-center'>
+              <p className='text-muted-foreground text-sm'>
+                {t('Failed to load video')}
+              </p>
             </div>
-          </div>
-
-          <p className='text-muted-foreground text-center text-xs'>
-            {t('Generated images and videos are only kept for 3 days.')}
-          </p>
-
-          <div className='bg-muted flex items-start gap-3 rounded-md p-3'>
-            <p className='text-muted-foreground min-w-0 flex-1 font-mono text-xs break-all'>
-              {videoUrl}
-            </p>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              className='shrink-0'
-              disabled={isLoading || hasError || isDownloading}
-              onClick={() => void handleDownload()}
-            >
-              <Download className='size-4' />
-              {t('Download')}
-            </Button>
-          </div>
+          )}
         </div>
+
+        <p className='text-muted-foreground text-center text-xs'>
+          {t('Generated images and videos are only kept for 3 days.')}
+        </p>
+
+        <MediaDialogFooter
+          mediaUrl={videoUrl}
+          disabled={isLoading || hasError}
+          isDownloading={isDownloading}
+          onDownload={() => void handleDownload()}
+        />
+
+        <RequestDataPanel data={requestData} />
       </DialogContent>
     </Dialog>
   )
