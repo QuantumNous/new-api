@@ -19,33 +19,36 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
+import i18next from 'i18next'
 import { toast } from 'sonner'
-import { useIsEnterprise } from '@/hooks/use-enterprise'
+import { useAuthStore } from '@/stores/auth-store'
+import { useOnboardingStore } from '@/stores/onboarding-store'
+import { useCanUseGroups } from '@/hooks/use-enterprise'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
-import {
-  FirstRunWelcome,
-  GetKeyCard,
-} from './components/playground-first-run'
+import { FirstRunWelcome, GetKeyCard } from './components/playground-first-run'
 import { PlaygroundInput } from './components/playground-input'
 import { MESSAGE_ROLES, MESSAGE_STATUS } from './constants'
 import { usePlaygroundState, useChatHandler } from './hooks'
-import { createUserMessage, createLoadingAssistantMessage } from './lib'
+import {
+  createUserMessage,
+  createLoadingAssistantMessage,
+  getFirstRunChatOverride as resolveFirstRunChatOverride,
+  pickFirstRunModel,
+  shouldOpenFirstRunTopupPrompt,
+} from './lib'
 import type { Message as MessageType } from './types'
 
-// Non-enterprise (PLG) users are always pinned to the single `plg` group.
+// PLG users are always pinned to the single `plg` group.
 const PLG_GROUP = 'plg'
 
-// Cheap, reliable model forced for the very first message of a brand-new user.
-// With the small free credit, a single Opus message could be costly — a cheap
-// model keeps the first call cheap and unlikely to fail on quota.
-const FIRST_RUN_DEFAULT_MODEL = 'claude-haiku-4-5'
-
 export function Playground({ firstRun = false }: { firstRun?: boolean }) {
-  const { t } = useTranslation()
   const navigate = useNavigate()
-  const isEnterprise = useIsEnterprise()
+  const canUseGroups = useCanUseGroups()
+  const { playgroundDefaultModel, enableStripeCardBind } = useSystemConfig()
+  const authUser = useAuthStore((state) => state.auth.user)
+  const openOnboarding = useOnboardingStore((state) => state.openOnboarding)
   const {
     config,
     parameterEnabled,
@@ -62,6 +65,7 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     config,
     parameterEnabled,
     onMessageUpdate: updateMessages,
+    minimalParameters: firstRun,
   })
 
   // Edit dialog state
@@ -77,25 +81,23 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
   // The get-key card keys off this (not raw messages) so a stale localStorage
   // conversation can't prematurely surface it.
   const [sentThisSession, setSentThisSession] = useState(false)
-  // Guards so the cheap-model override and the get-key card each fire at most
-  // once per session (refs survive re-renders without retriggering effects).
-  const appliedFirstRunModelRef = useRef(false)
+  // Guards so one-shot first-run cards fire at most once per session (refs
+  // survive re-renders without retriggering effects).
+  const clearedFirstRunMessagesRef = useRef(false)
   const getKeyCardShownRef = useRef(false)
-  const userPickedModelRef = useRef(false)
+  const topupPromptShownRef = useRef(false)
+  const [userPickedModel, setUserPickedModel] = useState(false)
 
-  // Initialize first-run mode once on mount: start from a clean slate and force a
-  // cheap default model (unless the user already picked one). The clean slate
-  // matters because a just-registered user may be in a browser that still holds a
-  // previous account's persisted conversation, which would otherwise suppress the
-  // welcome banner (gated on messages.length === 0).
+  // Initialize first-run mode once on mount. The clean slate matters because a
+  // just-registered user may be in a browser that still holds a previous
+  // account's persisted conversation, which would otherwise suppress the welcome
+  // banner (gated on messages.length === 0).
   useEffect(() => {
     if (!firstRun) return
-    if (appliedFirstRunModelRef.current) return
-    if (userPickedModelRef.current) return
-    appliedFirstRunModelRef.current = true
+    if (clearedFirstRunMessagesRef.current) return
+    clearedFirstRunMessagesRef.current = true
     if (messages.length > 0) updateMessages([])
-    updateConfig('model', FIRST_RUN_DEFAULT_MODEL)
-  }, [firstRun, messages.length, updateConfig, updateMessages])
+  }, [firstRun, messages.length, updateMessages])
 
   // Whether the empty-state welcome/example chips should show: first-run mode
   // with no conversation yet.
@@ -111,14 +113,14 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
         toast.error(
           error instanceof Error
             ? error.message
-            : t('Failed to load playground models')
+            : i18next.t('Failed to load playground models')
         )
         return []
       }
     },
   })
 
-  // Load groups (enterprise users only — PLG users are pinned to `plg`)
+  // Load groups only when the current user can choose token groups.
   const { data: groupsData } = useQuery({
     queryKey: ['playground-groups'],
     queryFn: async () => {
@@ -128,20 +130,44 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
         toast.error(
           error instanceof Error
             ? error.message
-            : t('Failed to load playground groups')
+            : i18next.t('Failed to load playground groups')
         )
         return []
       }
     },
-    enabled: isEnterprise,
+    enabled: canUseGroups,
   })
+
+  const firstRunModel = useMemo(() => {
+    if (!firstRun || !modelsData?.length) return undefined
+    return pickFirstRunModel(modelsData, playgroundDefaultModel)
+  }, [firstRun, modelsData, playgroundDefaultModel])
+
+  const isCurrentModelValid =
+    !!config.model &&
+    !!modelsData?.some((model) => model.value === config.model)
+  const isFirstRunModelApplied =
+    !!firstRunModel &&
+    isCurrentModelValid &&
+    (userPickedModel || config.model === firstRunModel)
+  const isFirstRunModelReady = !firstRun || isFirstRunModelApplied
+  const getFirstRunChatOverride = useCallback(
+    () =>
+      resolveFirstRunChatOverride({
+        firstRun,
+        firstRunModel,
+        currentModel: config.model,
+        userPickedModel,
+      }),
+    [firstRun, firstRunModel, config.model, userPickedModel]
+  )
 
   // PLG users are pinned to the `plg` group so model fetching uses it.
   useEffect(() => {
-    if (!isEnterprise && config.group !== PLG_GROUP) {
+    if (authUser && !canUseGroups && config.group !== PLG_GROUP) {
       updateConfig('group', PLG_GROUP)
     }
-  }, [isEnterprise, config.group, updateConfig])
+  }, [authUser, canUseGroups, config.group, updateConfig])
 
   // Update models when data changes
   useEffect(() => {
@@ -149,12 +175,26 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
 
     setModels(modelsData)
 
+    if (firstRun && !userPickedModel && !!firstRunModel) {
+      if (config.model === firstRunModel) return
+      updateConfig('model', firstRunModel)
+      return
+    }
+
     // Set default model if current model is not available
     const isCurrentModelValid = modelsData.some((m) => m.value === config.model)
     if (!isCurrentModelValid) {
       updateConfig('model', modelsData[0]?.value ?? '')
     }
-  }, [modelsData, config.model, setModels, updateConfig])
+  }, [
+    modelsData,
+    config.model,
+    firstRun,
+    firstRunModel,
+    userPickedModel,
+    setModels,
+    updateConfig,
+  ])
 
   // Update groups when data changes
   useEffect(() => {
@@ -192,15 +232,49 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     if (!sentThisSession) return
     if (!hasCompletedAssistant) return
     getKeyCardShownRef.current = true
-    setShowGetKeyCard(true)
-    // First call succeeded — drop `?first=1` from the URL so a reload/back-nav
-    // doesn't replay the one-shot onboarding (welcome banner + cheap-model force).
-    // The card is driven by showGetKeyCard state, so it stays after firstRun flips.
-    navigate({ to: '/playground', replace: true })
+    const showCardTimer = window.setTimeout(() => {
+      setShowGetKeyCard(true)
+      // First call succeeded — drop `?first=1` from the URL so a reload/back-nav
+      // doesn't replay the one-shot onboarding (welcome banner + model force).
+      // The card is driven by showGetKeyCard state, so it stays after firstRun flips.
+      navigate({ to: '/playground', replace: true })
+    }, 0)
+    return () => window.clearTimeout(showCardTimer)
   }, [firstRun, sentThisSession, hasCompletedAssistant, navigate])
 
-  const handleSendMessage = (text: string) => {
+  useEffect(() => {
+    const shouldOpen = shouldOpenFirstRunTopupPrompt({
+      firstRun,
+      sentThisSession,
+      hasCompletedAssistant,
+      promptShown: topupPromptShownRef.current,
+      enableStripeCardBind,
+      stripeCardBound: authUser?.stripe_card_bound,
+    })
+    if (!shouldOpen) return
+
+    topupPromptShownRef.current = true
+    openOnboarding()
+  }, [
+    firstRun,
+    sentThisSession,
+    hasCompletedAssistant,
+    enableStripeCardBind,
+    authUser?.stripe_card_bound,
+    openOnboarding,
+  ])
+
+  const prepareFirstRunSend = useCallback(() => {
+    if (firstRun && !isFirstRunModelApplied) {
+      toast.error(i18next.t('Failed to load playground models'))
+      return false
+    }
     if (firstRun) setSentThisSession(true)
+    return true
+  }, [firstRun, isFirstRunModelApplied])
+
+  const handleSendMessage = (text: string) => {
+    if (!prepareFirstRunSend()) return
     const userMessage = createUserMessage(text)
     const assistantMessage = createLoadingAssistantMessage()
 
@@ -208,7 +282,7 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     updateMessages(newMessages)
 
     // Send chat request
-    sendChat(newMessages)
+    sendChat(newMessages, getFirstRunChatOverride())
   }
 
   const handleCopyMessage = (message: MessageType) => {
@@ -228,7 +302,7 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     const newMessages = [...messagesUpToHere, loadingMessage]
 
     updateMessages(newMessages)
-    sendChat(newMessages)
+    sendChat(newMessages, getFirstRunChatOverride())
   }
 
   const handleEditMessage = useCallback((message: MessageType) => {
@@ -263,10 +337,18 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
         ...updated.slice(0, index + 1),
         createLoadingAssistantMessage(),
       ]
+      if (!prepareFirstRunSend()) return
       updateMessages(toSubmit)
-      sendChat(toSubmit)
+      sendChat(toSubmit, getFirstRunChatOverride())
     },
-    [editingMessageKey, messages, updateMessages, sendChat]
+    [
+      editingMessageKey,
+      messages,
+      prepareFirstRunSend,
+      updateMessages,
+      sendChat,
+      getFirstRunChatOverride,
+    ]
   )
 
   const handleDeleteMessage = (message: MessageType) => {
@@ -278,7 +360,10 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     <div className='relative flex size-full flex-col overflow-hidden'>
       {/* First-run welcome banner + example prompts (empty state only) */}
       {showWelcome && (
-        <FirstRunWelcome onPickExample={handleSendMessage} />
+        <FirstRunWelcome
+          disabled={!isFirstRunModelReady}
+          onPickExample={handleSendMessage}
+        />
       )}
       {/* Full-width scroll container: scrolling works even over side whitespace */}
       <div className='flex flex-1 flex-col overflow-hidden'>
@@ -305,7 +390,8 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
       <div className='mx-auto w-full max-w-4xl'>
         <PlaygroundInput
           disabled={isGenerating}
-          showGroupSelector={isEnterprise}
+          submitDisabled={!isFirstRunModelReady}
+          showGroupSelector={canUseGroups}
           groups={groups}
           groupValue={config.group}
           isGenerating={isGenerating}
@@ -316,7 +402,7 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
           onModelChange={(value) => {
             // Mark that the user explicitly chose a model so the first-run cheap
             // default never overrides their choice.
-            userPickedModelRef.current = true
+            setUserPickedModel(true)
             updateConfig('model', value)
           }}
           onStop={stopGeneration}

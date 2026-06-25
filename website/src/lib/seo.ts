@@ -4,7 +4,7 @@ import { DEFAULT_LOCALE, type Locale, localeAlternates, localizePath } from "./l
 export const SITE_ORIGIN = "https://flatkey.ai";
 export const SITE_NAME = "flatkey.ai";
 
-type SeoInput = {
+export type SeoInput = {
   title: string;
   description: string;
   pathname: string;

@@ -17,6 +17,13 @@ import { getCopy } from "@/lib/copy";
 import type { Locale } from "@/lib/locales";
 import { localizePath } from "@/lib/locales";
 import { consoleUrl } from "@/lib/origins";
+import {
+  buildBlogArticleSchema,
+  buildBlogCategorySchema,
+  buildBlogIndexSchema,
+  stringifyJsonLd,
+  type JsonLdGraph,
+} from "@/lib/schema";
 import { cn } from "@/lib/utils";
 
 type BlogSearchState = {
@@ -27,6 +34,10 @@ type BlogSearchState = {
 type Props = {
   locale: Locale;
 };
+
+function JsonLdScript(props: { data: JsonLdGraph }) {
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: stringifyJsonLd(props.data) }} />;
+}
 
 function Badge(props: { children: React.ReactNode; className?: string }) {
   return (
@@ -276,6 +287,7 @@ export async function BlogIndexPage(props: Props & { search?: BlogSearchState })
 
   return (
     <SiteShell locale={props.locale} pathname="/blog">
+      <JsonLdScript data={buildBlogIndexSchema({ locale: props.locale, title: copy.title, description: copy.description })} />
       <main>
         <BlogHero
           locale={props.locale}
@@ -323,6 +335,7 @@ export async function BlogArticlePage(props: Props & { slug: string }) {
 
   return (
     <SiteShell locale={props.locale} pathname={`/blog/${props.slug}`}>
+      <JsonLdScript data={buildBlogArticleSchema({ locale: props.locale, post })} />
       <main>
         <section className="border-b border-border/50 bg-muted/30 pt-28 pb-12">
           <div className="container mx-auto max-w-4xl px-4">
@@ -416,6 +429,7 @@ export async function BlogCategoryPage(props: Props & { slug: string; search?: B
 
   return (
     <SiteShell locale={props.locale} pathname={`/blog/category/${props.slug}`}>
+      <JsonLdScript data={buildBlogCategorySchema({ locale: props.locale, slug: props.slug, name: category.name, description })} />
       <main>
         <BlogHero locale={props.locale} title={currentCategory.name} description={description} copy={copy} query={query} categorySlug={props.slug} />
         <section className="container mx-auto max-w-6xl px-4 py-12">

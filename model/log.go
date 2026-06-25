@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +30,102 @@ func applyExplicitLogTextFilter(tx *gorm.DB, column string, value string) (*gorm
 		return tx.Where(column+" LIKE ? ESCAPE '!'", pattern), nil
 	}
 	return tx.Where(column+" = ?", value), nil
+}
+
+func normalizeLogTextFilterValue(value string) string {
+	value = strings.TrimSpace(value)
+	if unquoted, err := strconv.Unquote(value); err == nil {
+		return strings.TrimSpace(unquoted)
+	}
+	return value
+}
+
+// fuzzyUsernameUserIDLimit 限制模糊匹配时从 user 表物化到内存的 user_id 数量。
+// 日志库可能经 LOG_SQL_DSN 独立部署（LOG_DB != DB，见 model/main.go），因此不能
+// 用基于主库 DB 的子查询去拼 LOG_DB 的 WHERE（会产生跨库引用）；只能在应用侧把
+// user_id 物化成 IN 列表。该上限防止过宽关键词（如 2 字符）命中海量用户导致内存/
+// SQL 参数膨胀甚至超过数据库参数上限。
+//
+// 关键：超过上限时必须返回空列表（全有或全无），而不是返回被截断的前 N 个 id。
+// 截断列表会让调用方静默地用残缺的 user_id 集合，漏掉第 N+1 个及之后用户改名前
+// 的历史日志，产生“看起来正常但结果不全”的边界漏数。返回空后调用方退化为仅按
+// logs.username 快照 LIKE，结果仍正确（只是放弃用 user 表补齐改名前历史日志这一
+// 增强）——宁可不补齐，也不返回不完整的集合。
+//
+// 用 var 而非 const 仅为便于测试覆盖超限降级分支（造上千用户代价过高）。
+var fuzzyUsernameUserIDLimit = 1000
+
+func getUserIDsByUsernameFilter(value string, fuzzy bool) ([]int, error) {
+	if DB == nil {
+		return nil, nil
+	}
+	var userIDs []int
+	tx := DB.Model(&User{}).Select("id")
+	if fuzzy {
+		pattern, err := sanitizeLikePattern(value)
+		if err != nil {
+			return nil, err
+		}
+		// 多查 1 条以判断是否真的超过上限。
+		tx = tx.Where("username LIKE ? ESCAPE '!'", pattern).Limit(fuzzyUsernameUserIDLimit + 1)
+	} else {
+		tx = tx.Where("username = ?", value)
+	}
+	if err := tx.Find(&userIDs).Error; err != nil {
+		return nil, err
+	}
+	// 命中数超过上限：返回空，让调用方退化为纯 LIKE，避免用截断后的不完整集合。
+	if fuzzy && len(userIDs) > fuzzyUsernameUserIDLimit {
+		return nil, nil
+	}
+	return userIDs, nil
+}
+
+// applyFuzzyUsernameFilter 对日志用户名做模糊匹配：既匹配 logs 表里的用户名
+// 快照（历史改名前写入的记录），又通过 user 表把关键词解析成 user_id 列表，
+// 再用 user_id IN 命中该用户改名后的全部日志。rawPattern 形如 "%kw%" 或用户
+// 显式给出的含 % 模式。
+func applyFuzzyUsernameFilter(tx *gorm.DB, usernameColumn string, userIDColumn string, rawPattern string) (*gorm.DB, error) {
+	pattern, err := sanitizeLikePattern(rawPattern)
+	if err != nil {
+		return nil, err
+	}
+	userIDs, err := getUserIDsByUsernameFilter(rawPattern, true)
+	if err != nil {
+		return nil, err
+	}
+	if len(userIDs) > 0 {
+		return tx.Where("("+usernameColumn+" LIKE ? ESCAPE '!' OR "+userIDColumn+" IN ?)", pattern, userIDs), nil
+	}
+	return tx.Where(usernameColumn+" LIKE ? ESCAPE '!'", pattern), nil
+}
+
+func applyLogUsernameFilter(tx *gorm.DB, usernameColumn string, userIDColumn string, value string) (*gorm.DB, error) {
+	value = normalizeLogTextFilterValue(value)
+	if value == "" {
+		return tx, nil
+	}
+	// 用户显式使用 % 通配符：按其给定的模式模糊匹配。
+	if strings.Contains(value, "%") {
+		return applyFuzzyUsernameFilter(tx, usernameColumn, userIDColumn, value)
+	}
+	// 纯数字：按 user_id 精确匹配，用于 /users「使用日志」行内跳转以及按 ID
+	// 精确定位单个用户（用户名唯一，但管理员也可能直接输 ID）。
+	if userID, err := strconv.Atoi(value); err == nil {
+		return tx.Where("("+usernameColumn+" = ? OR "+userIDColumn+" = ?)", value, userID), nil
+	}
+	// 纯文本关键词：精确匹配 logs.username 快照，并经 user 表把用户名解析成
+	// user_id，补齐用户改名前写入的历史日志。精确查询走索引、无前导通配扫描，
+	// 不会像 "%kw%" 那样在大日志表上全表扫描（#222）。需要模糊时由用户在输入
+	// 框显式输入 % 触发，走上面的 strings.Contains(value, "%") 分支。
+	userIDs, err := getUserIDsByUsernameFilter(value, false)
+	if err != nil {
+		return nil, err
+	}
+	if len(userIDs) > 0 {
+		return tx.Where("("+usernameColumn+" = ? OR "+userIDColumn+" IN ?)", value, userIDs), nil
+	}
+	return tx.Where(usernameColumn+" = ?", value), nil
 }
 
 type Log struct {
@@ -333,7 +430,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
 		return nil, 0, err
 	}
-	if tx, err = applyExplicitLogTextFilter(tx, "logs.username", username); err != nil {
+	if tx, err = applyLogUsernameFilter(tx, "logs.username", "logs.user_id", username); err != nil {
 		return nil, 0, err
 	}
 	if excludeUserId != 0 {
@@ -501,17 +598,28 @@ func GetCodexChannelUsageStats(
 	return result, nil
 }
 
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, excludeUserId int) (stat Stat, err error) {
+// SumUsedQuota 聚合用量统计。
+//
+// selfUserId 用于「查自己」场景的身份约束：非 0 时强制 user_id = selfUserId 精确
+// 过滤，且忽略 username 模糊搜索（username 自 fuzzy 化后会把 alice2/malice 等带进
+// alice 的统计，绝不能用于身份约束）。管理员搜索路径传 0，按 username 模糊匹配。
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, excludeUserId int, selfUserId int) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
 
-	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
-		return stat, err
-	}
-	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "username", username); err != nil {
-		return stat, err
+	if selfUserId != 0 {
+		// 身份约束：只统计本人日志，精确按 user_id，不掺入 username 模糊匹配。
+		tx = tx.Where("user_id = ?", selfUserId)
+		rpmTpmQuery = rpmTpmQuery.Where("user_id = ?", selfUserId)
+	} else {
+		if tx, err = applyLogUsernameFilter(tx, "username", "user_id", username); err != nil {
+			return stat, err
+		}
+		if rpmTpmQuery, err = applyLogUsernameFilter(rpmTpmQuery, "username", "user_id", username); err != nil {
+			return stat, err
+		}
 	}
 	if tokenName != "" {
 		tx = tx.Where("token_name = ?", tokenName)

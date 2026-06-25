@@ -22,6 +22,8 @@ type Option struct {
 	Value string `json:"value"`
 }
 
+const OptionKeyPlaygroundDefaultModel = "PlaygroundDefaultModel"
+
 func AllOption() ([]*Option, error) {
 	var options []*Option
 	var err error
@@ -171,6 +173,7 @@ func InitOptionMap() {
 	common.OptionMap["DataExportInterval"] = strconv.Itoa(common.DataExportInterval)
 	common.OptionMap["DataExportDefaultTime"] = common.DataExportDefaultTime
 	common.OptionMap["DefaultCollapseSidebar"] = strconv.FormatBool(common.DefaultCollapseSidebar)
+	common.OptionMap[OptionKeyPlaygroundDefaultModel] = "gpt-4o"
 	common.OptionMap["MjNotifyEnabled"] = strconv.FormatBool(setting.MjNotifyEnabled)
 	common.OptionMap["MjAccountFilterEnabled"] = strconv.FormatBool(setting.MjAccountFilterEnabled)
 	common.OptionMap["MjModeClearEnabled"] = strconv.FormatBool(setting.MjModeClearEnabled)
@@ -276,7 +279,29 @@ func UpdateOptionsBulk(values map[string]string) error {
 		return nil
 	}
 	normalizedValues := make(map[string]string, len(values))
+	var incomingAmountBonus map[int]int64
+	if value, ok := values["payment_setting.amount_bonus"]; ok {
+		normalizedValue, err := validateAndNormalizeOptionValue("payment_setting.amount_bonus", value)
+		if err != nil {
+			return err
+		}
+		normalizedValues["payment_setting.amount_bonus"] = normalizedValue
+		if err := common.UnmarshalJsonStr(normalizedValue, &incomingAmountBonus); err != nil {
+			return err
+		}
+	}
 	for k, v := range values {
+		if k == "payment_setting.amount_bonus" {
+			continue
+		}
+		if k == "payment_setting.amount_bonus_groups" && incomingAmountBonus != nil {
+			normalizedValue, err := normalizeAmountBonusGroupsOptionValueForBonusTiers(v, incomingAmountBonus)
+			if err != nil {
+				return err
+			}
+			normalizedValues[k] = normalizedValue
+			continue
+		}
 		normalizedValue, err := validateAndNormalizeOptionValue(k, v)
 		if err != nil {
 			return err
@@ -300,13 +325,16 @@ func UpdateOptionsBulk(values map[string]string) error {
 		return err
 	}
 	for k, v := range normalizedValues {
-		if err := updateOptionMap(k, v); err != nil {
+		if err := applyOptionMapValue(k, v); err != nil {
 			return err
 		}
 	}
 	if hasPaddleOptionKey(normalizedValues) {
 		setting.ApplyPaddleEnvOverrides()
 		syncPaddleOptionMap()
+	}
+	if pubErr := common.PublishConfigChanged(context.Background(), common.ConfigScopeOptions); pubErr != nil {
+		common.SysError("pubsub: failed to publish options change: " + pubErr.Error())
 	}
 	return nil
 }
@@ -320,6 +348,9 @@ func validateAndNormalizeOptionValue(key string, value string) (string, error) {
 	}
 	if key == "payment_setting.amount_bonus_limit" {
 		return normalizeAmountBonusLimitOptionValue(value)
+	}
+	if key == "payment_setting.amount_bonus_groups" {
+		return normalizeAmountBonusGroupsOptionValue(value)
 	}
 	return value, nil
 }
@@ -366,6 +397,72 @@ func normalizeAmountBonusLimitOptionValue(value string) (string, error) {
 	return trimmed, nil
 }
 
+func normalizeAmountBonusGroupsOptionValue(value string) (string, error) {
+	return normalizeAmountBonusGroupsOptionValueForBonusTiers(
+		value,
+		operation_setting.GetPaymentSetting().AmountBonus,
+	)
+}
+
+func normalizeAmountBonusGroupsOptionValueForBonusTiers(value string, bonusTiers map[int]int64) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "{}", nil
+	}
+
+	var groups map[int][]string
+	if err := common.UnmarshalJsonStr(trimmed, &groups); err != nil {
+		return "", errors.New("充值赠送用户组白名单必须是充值金额到用户组数组的 JSON 对象")
+	}
+	if groups == nil {
+		return "", errors.New("充值赠送用户组白名单必须是充值金额到用户组数组的 JSON 对象")
+	}
+
+	// 真实用户身份组集合：用于检测保留关键字 "all" 冲突。"all" 是白名单里「全部用户组」的
+	// 通配符（对应 controller.TopUpBonusGroupAll），若系统里真存在名为 all 的用户组，
+	// 白名单中的 all 将无法区分「通配符」与「该组」，故拒绝这种有歧义的配置。
+	realUserGroups := make(map[string]struct{})
+	for _, name := range common.GetTopupGroupRatioKeys() {
+		realUserGroups[name] = struct{}{}
+	}
+	for _, name := range ratio_setting.GetGroupGroupRatioKeys() {
+		realUserGroups[name] = struct{}{}
+	}
+
+	// 组名是精确匹配的标识符：trim 后落库，避免带首尾空格的组名（如 " plg "）通过校验、
+	// 却在发放时因精确匹配永不命中而静默不发赠送。归一化后重新序列化存储。
+	const allKeyword = "all" // 与 controller.TopUpBonusGroupAll 保持一致
+	normalized := make(map[int][]string, len(groups))
+	for amount, names := range groups {
+		if amount <= 0 {
+			return "", errors.New("充值赠送用户组白名单的充值金额必须为正整数")
+		}
+		// 白名单只能挂在已存在的赠送档位上；孤儿档位静默丢弃，不落库。
+		if _, ok := bonusTiers[amount]; !ok {
+			continue
+		}
+		cleaned := make([]string, 0, len(names))
+		for _, name := range names {
+			trimmedName := strings.TrimSpace(name)
+			if trimmedName == "" {
+				return "", errors.New("充值赠送用户组白名单的用户组名不能为空")
+			}
+			if trimmedName == allKeyword {
+				if _, conflict := realUserGroups[allKeyword]; conflict {
+					return "", errors.New("用户组名 all 与保留关键字冲突：all 仅表示「全部用户组」，请重命名该用户组后再配置赠送白名单")
+				}
+			}
+			cleaned = append(cleaned, trimmedName)
+		}
+		normalized[amount] = cleaned
+	}
+	out, err := common.Marshal(normalized)
+	if err != nil {
+		return "", errors.New("充值赠送用户组白名单序列化失败")
+	}
+	return string(out), nil
+}
+
 func isPaddleOptionKey(key string) bool {
 	return key == "PaddleApiKey" ||
 		key == "PaddleClientToken" ||
@@ -391,8 +488,10 @@ func updateOptionMap(key string, value string) (err error) {
 	if err != nil {
 		return err
 	}
-	value = normalizedValue
+	return applyOptionMapValue(key, normalizedValue)
+}
 
+func applyOptionMapValue(key string, value string) (err error) {
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
 	common.OptionMap[key] = value

@@ -1,4 +1,5 @@
-import { RootDocument, rootMetadata } from "@/components/root-document";
+import Script from "next/script";
+import { ATTRIBUTION_COOKIE_SCRIPT, RootDocument, rootMetadata } from "@/components/root-document";
 import { DEFAULT_LOCALE } from "@/lib/locales";
 import "../globals.css";
 
@@ -9,5 +10,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return <RootDocument lang={DEFAULT_LOCALE}>{children}</RootDocument>;
+  return (
+    <RootDocument
+      lang={DEFAULT_LOCALE}
+      bodyStart={
+        <Script id="flatkey-attribution-cookie" strategy="beforeInteractive">
+          {ATTRIBUTION_COOKIE_SCRIPT}
+        </Script>
+      }
+    >
+      {children}
+    </RootDocument>
+  );
 }

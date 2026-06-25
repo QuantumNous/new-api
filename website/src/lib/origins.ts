@@ -1,4 +1,4 @@
-const DEFAULT_APP_CONSOLE_ORIGIN = "https://router.flatkey.ai";
+const DEFAULT_APP_CONSOLE_ORIGIN = "https://console.flatkey.ai";
 const DEFAULT_SITE_ORIGIN = "https://flatkey.ai";
 
 export function normalizeOrigin(origin: string | undefined, fallback: string): string {

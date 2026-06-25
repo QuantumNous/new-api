@@ -266,10 +266,14 @@ func Register(c *gin.Context) {
 			UnlimitedQuota:     true,
 			ModelLimitsEnabled: false,
 		}
-		if setting.DefaultUseAutoGroup {
+		if insertedUser.Group == plgGroup {
+			token.Group = plgGroup
+			token.CrossGroupRetry = false
+		} else if setting.DefaultUseAutoGroup {
 			token.Group = "auto"
+			token.CrossGroupRetry = true
 		}
-		if err := token.Insert(); err != nil {
+		if err := model.CreateUserToken(insertedUser.Id, &token, operation_setting.GetMaxUserTokens()); err != nil && !errors.Is(err, model.ErrUserTokenLimitReached) {
 			common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
 			return
 		}
@@ -281,20 +285,7 @@ func Register(c *gin.Context) {
 	// (e.g. the Playground onboarding) without having to sign in again. setupLogin
 	// establishes the session cookie AND writes the JSON success response, marking
 	// is_new_user=true so the frontend can trigger the first-run onboarding flow.
-	//
-	// Guard: only auto-login when email verification is NOT required. When it is
-	// enabled we keep the legacy behavior (frontend redirects to sign-in) to avoid
-	// changing the verified-registration UX. In this deployment EmailVerification is
-	// off, so the common path auto-logs-in.
-	if !common.EmailVerificationEnabled {
-		setupLogin(&insertedUser, c, true)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
+	setupLogin(&insertedUser, c, true)
 	return
 }
 
@@ -339,6 +330,39 @@ func SearchUsers(c *gin.Context) {
 	pageInfo.SetItems(users)
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+// GetRecallCandidates surfaces activated-but-unpaid, low-balance users for 1:1
+// re-engagement outreach — productizes the manual "active but never topped up" recall
+// list so ops/growth can target the users most likely to convert to a first top-up.
+// Query params: min_calls (default 1), max_balance in USD (default 1), limit (default
+// 100, max 1000). Admin-only; read-only.
+func GetRecallCandidates(c *gin.Context) {
+	minCalls := 1
+	if v := c.Query("min_calls"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			minCalls = n
+		}
+	}
+	maxBalanceUSD := 1.0
+	if v := c.Query("max_balance"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 {
+			maxBalanceUSD = f
+		}
+	}
+	limit := 100
+	if v := c.Query("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 1000 {
+			limit = n
+		}
+	}
+	maxQuota := int(maxBalanceUSD * common.QuotaPerUnit)
+	users, err := model.GetRecallCandidates(minCalls, maxQuota, limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, users)
 }
 
 func canManageTargetRole(myRole int, targetRole int) bool {

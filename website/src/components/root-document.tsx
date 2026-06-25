@@ -9,6 +9,8 @@ const GTM_ID = "GTM-5T5LPLSZ";
 const LIVECHAT_EMBED_SRC =
   "https://app.solvea.cx/api_v2/gpt/bots/livechat/embed.js?pid=1773&token=9454e15203254694a03d75fadbf9a6d4";
 
+export const ATTRIBUTION_COOKIE_SCRIPT = `(function(){try{var keep={aff:1,fbclid:1,gad_campaignid:1,gad_source:1,gbraid:1,gclid:1,lng:1,msclkid:1,ttclid:1,wbraid:1};var params=new URLSearchParams(window.location.search||"");var values={};params.forEach(function(value,key){if(!value)return;if(keep[key]||key.indexOf("utm_")===0||key.indexOf("hsa_")===0){values[key]=value;}});if(!Object.keys(values).length)return;values.landing_path=window.location.pathname||"/";values.captured_at=new Date().toISOString();var host=window.location.hostname;var attrs=["path=/","max-age=7776000","SameSite=Lax"];if(host==="flatkey.ai"||host.endsWith(".flatkey.ai"))attrs.push("domain=.flatkey.ai");if(window.location.protocol==="https:")attrs.push("Secure");document.cookie="flatkey_ads_attribution="+encodeURIComponent(JSON.stringify(values))+"; "+attrs.join("; ");}catch(e){}})();`;
+
 export const rootMetadata: Metadata = {
   applicationName: "flatkey.ai",
   title: {
@@ -18,14 +20,16 @@ export const rootMetadata: Metadata = {
 };
 
 type RootDocumentProps = {
+  bodyStart?: ReactNode;
   children: ReactNode;
   lang: Locale;
 };
 
-export function RootDocument({ children, lang }: RootDocumentProps) {
+export function RootDocument({ bodyStart, children, lang }: RootDocumentProps) {
   return (
     <html lang={lang} suppressHydrationWarning>
       <body>
+        {bodyStart}
         <Script id="google-tag-manager" strategy="afterInteractive">
           {`
             (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':

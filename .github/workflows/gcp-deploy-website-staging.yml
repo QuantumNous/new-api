@@ -1,0 +1,154 @@
+name: GCP Deploy Website Staging
+
+# Staging 官网自动部署：push 到 staging 分支且改动 website/ 即自动 build + deploy
+# 到 newapi-web-staging。与生产 gcp-deploy-website.yml 隔离：触发分支 staging、
+# 镜像 tag staging-*、服务名写死 newapi-web-staging。staging 不挂人工审批。
+
+on:
+  push:
+    branches: [staging]
+    paths:
+      - "website/**"
+      - ".github/workflows/gcp-deploy-website-staging.yml"
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Existing website image tag to deploy (skip build). Format: staging-sha-<commit>"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write   # required for Workload Identity Federation
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION }}
+  AR_REPO_URL: ${{ vars.GCP_AR_REPO_URL }}
+  RUN_SERVICE: newapi-web-staging
+  # staging 官网指向 staging 后端（不串生产）。GitHub vars 可覆盖，默认用已确认域名。
+  APP_CONSOLE_ORIGIN: ${{ vars.STAGING_WEBSITE_APP_CONSOLE_ORIGIN || 'https://staging-console.flatkey.ai' }}
+  SITE_ORIGIN: ${{ vars.STAGING_WEBSITE_SITE_ORIGIN || 'https://staging-website.flatkey.ai' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image_uri: ${{ steps.compute_image.outputs.image_uri }}
+      short_sha: ${{ steps.compute_image.outputs.short_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute image URI
+        id: compute_image
+        run: |
+          short_sha="${GITHUB_SHA::12}"
+          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
+          if [[ -n "${{ inputs.image_tag }}" ]]; then
+            echo "image_uri=${AR_REPO_URL}/website:${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
+          else
+            echo "image_uri=${AR_REPO_URL}/website:staging-sha-${short_sha}" >> "$GITHUB_OUTPUT"
+            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Auth to GCP via WIF
+        if: env.SKIP_BUILD != 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - name: Configure docker for Artifact Registry
+        if: env.SKIP_BUILD != 'true'
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Set up Docker buildx
+        if: env.SKIP_BUILD != 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push (website/Dockerfile)
+        if: env.SKIP_BUILD != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./website
+          file: ./website/Dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            APP_CONSOLE_ORIGIN=${{ env.APP_CONSOLE_ORIGIN }}
+            SITE_ORIGIN=${{ env.SITE_ORIGIN }}
+          tags: |
+            ${{ steps.compute_image.outputs.image_uri }}
+            ${{ env.AR_REPO_URL }}/website:staging-latest
+          cache-from: type=gha,scope=website-staging
+          cache-to: type=gha,mode=max,scope=website-staging,ignore-error=true
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # 无 environment：staging 不挂人工审批
+    steps:
+      - name: Auth to GCP via WIF
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy new revision (direct 100% traffic — staging)
+        id: deploy
+        run: |
+          set -euo pipefail
+          revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
+          env_args=()
+          if [[ -n "${APP_CONSOLE_ORIGIN}" && -n "${SITE_ORIGIN}" ]]; then
+            env_args=(--update-env-vars="APP_CONSOLE_ORIGIN=${APP_CONSOLE_ORIGIN},SITE_ORIGIN=${SITE_ORIGIN}")
+          fi
+          gcloud run services update "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --image="${{ needs.build.outputs.image_uri }}" \
+            --port=4000 \
+            --revision-suffix="${revision_suffix}" \
+            "${env_args[@]}" \
+            --quiet
+          new_rev="$(gcloud run services describe "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --format='value(status.latestCreatedRevisionName)')"
+          echo "new_revision=${new_rev}" >> "$GITHUB_OUTPUT"
+          echo "Deployed revision: ${new_rev}"
+
+      - name: Health check
+        run: |
+          set -euo pipefail
+          url="$(gcloud run services describe "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --format='value(status.url)')"
+          if [[ -z "${url}" ]]; then
+            echo "Could not resolve Cloud Run service URL" >&2
+            exit 1
+          fi
+          echo "Probing ${url}/ ..."
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${url}/" || true)
+            echo "attempt $i → $code"
+            if [[ "${code}" == "200" ]]; then exit 0; fi
+            sleep 5
+          done
+          echo "Health check failed" >&2
+          exit 1
+
+      - name: Summary
+        run: |
+          url="$(gcloud run services describe "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --format='value(status.url)')"
+          echo "### Staging website deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Service:  \`${RUN_SERVICE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Revision: \`${{ steps.deploy.outputs.new_revision }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image:    \`${{ needs.build.outputs.image_uri }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL:      ${url}" >> "$GITHUB_STEP_SUMMARY"

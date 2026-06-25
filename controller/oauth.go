@@ -162,7 +162,7 @@ func HandleOAuth(c *gin.Context) {
 	}
 
 	// 9. Setup login. Pass isNewUser so the frontend can trigger first-login onboarding for
-	// OAuth registrations (mirrors the password-register pending-onboarding flow).
+	// OAuth registrations (mirrors password registration's route-level Playground first-run contract).
 	setupLogin(user, c, isNewUser)
 }
 

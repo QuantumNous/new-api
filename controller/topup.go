@@ -149,8 +149,9 @@ func GetTopUpInfo(c *gin.Context) {
 		}(),
 		"amount_options": operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":       operation_setting.GetPaymentSetting().AmountDiscount,
-		"bonus":          operation_setting.GetPaymentSetting().AmountBonus,
-		"bonus_limit":    operation_setting.GetPaymentSetting().AmountBonusLimit,
+		// 仅下发当前用户组可享的赠送档位，避免「看得到拿不到」（实际是否发放仍以支付回调时后端判定为准）。
+		"bonus":       visibleTopUpBonusForUser(c, operation_setting.GetPaymentSetting().AmountBonus),
+		"bonus_limit": operation_setting.GetPaymentSetting().AmountBonusLimit,
 		"bonus_remaining": func() map[int]int {
 			remaining, err := model.GetTopUpBonusRemaining(c.GetInt("id"))
 			if err != nil {
@@ -234,7 +235,7 @@ func normalizeTopUpBonusAmount(amount int64) int64 {
 	return normalizeTopUpDisplayAmount(amount, false)
 }
 
-func configuredTopUpBonusAmount(requestAmount int64) int64 {
+func configuredTopUpBonusAmount(requestAmount int64, group string) int64 {
 	if requestAmount <= 0 {
 		return 0
 	}
@@ -242,12 +243,57 @@ func configuredTopUpBonusAmount(requestAmount int64) int64 {
 	if !ok {
 		return 0
 	}
+	// opt-in 白名单：该档位未授权当前用户组则不发赠送（后端为发钱的唯一权威）。
+	if !topUpBonusGroupAllowed(int(requestAmount), group) {
+		return 0
+	}
 	return normalizeTopUpBonusAmount(bonus)
 }
 
-func configuredTopUpAmounts(requestAmount int64) (int64, int64) {
+// TopUpBonusGroupAll 是用户组白名单中的保留关键字，表示「所有用户组都可享」。
+const TopUpBonusGroupAll = "all"
+
+// topUpBonusGroupAllowed 判定 group 是否可享 tier 档位的充值赠送（opt-in 语义）。
+// 未配 / 空数组 = 谁都不送；含 "all" = 全送；否则仅命中列表内组名才送。
+// 组名按 trim 后比较：兼容历史上可能已落库的带首尾空格的脏数据，避免精确匹配漏命中。
+func topUpBonusGroupAllowed(tier int, group string) bool {
+	groups := operation_setting.GetPaymentSetting().AmountBonusGroups[tier]
+	if len(groups) == 0 {
+		return false
+	}
+	for _, g := range groups {
+		g = strings.TrimSpace(g)
+		if g == TopUpBonusGroupAll || g == group {
+			return true
+		}
+	}
+	return false
+}
+
+// visibleTopUpBonusForUser 过滤出当前登录用户可见（= 其用户组可享）的赠送档位。
+// 仅用于前端展示，避免「看得到拿不到」；实际是否发放仍以支付回调时后端判定为准。
+// 取用户组失败时保守返回空 map（不展示赠送），避免给用户错误预期。
+func visibleTopUpBonusForUser(c *gin.Context, bonus map[int]int64) map[int]int64 {
+	visible := make(map[int]int64, len(bonus))
+	if len(bonus) == 0 {
+		return visible
+	}
+	group, err := model.GetUserGroup(c.GetInt("id"), true)
+	if err != nil {
+		logger.LogError(c.Request.Context(), "获取用户分组失败（充值赠送展示过滤）: "+err.Error())
+		return visible
+	}
+	for tier, amount := range bonus {
+		if topUpBonusGroupAllowed(tier, group) {
+			visible[tier] = amount
+		}
+	}
+	return visible
+}
+
+func configuredTopUpAmounts(requestAmount int64, group string) (int64, int64) {
 	amount := normalizeTopUpAmount(requestAmount)
-	bonus := configuredTopUpBonusAmount(requestAmount)
+	bonus := configuredTopUpBonusAmount(requestAmount, group)
 	// Amount 只存本金；赠送是否发放推迟到支付成功回调时按档位限次裁决。
 	return amount, bonus
 }
@@ -335,7 +381,7 @@ func RequestEpay(c *gin.Context) {
 		return
 	}
 
-	amount, bonusAmount := configuredTopUpAmounts(req.Amount)
+	amount, bonusAmount := configuredTopUpAmounts(req.Amount, group)
 	if amount <= 0 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值数量无效"})
 		return

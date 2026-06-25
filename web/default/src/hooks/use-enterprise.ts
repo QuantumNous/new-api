@@ -17,18 +17,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 /**
- * Hook for checking whether the current user is an enterprise user.
+ * Hook for checking whether the current user can use group selection.
  *
- * Non-enterprise (PLG) users have the group concept hidden everywhere in
- * their UI; their API keys are always forced to the `plg` group by the
- * backend. Enterprise users (and admins, who are backfilled as enterprise)
- * keep the full group UI.
+ * PLG users have the group concept hidden everywhere in their UI; their API keys
+ * are always forced to the `plg` group by the backend. Any non-plg user group keeps
+ * the full group UI. The old is_enterprise flag is intentionally ignored.
  */
 import { useAuthStore } from '@/stores/auth-store'
 
 /**
- * Returns true when the current user is an enterprise user.
+ * Returns true when the current user can use group selection.
  */
-export function useIsEnterprise(): boolean {
-  return useAuthStore((state) => !!state.auth.user?.is_enterprise)
+export function useCanUseGroups(): boolean {
+  return useAuthStore((state) => {
+    const user = state.auth.user
+    if (!user) return false
+    const group = user.group
+    if (group === undefined) return false
+    return group !== '' && group !== 'plg'
+  })
 }
+
+export const useIsEnterprise = useCanUseGroups

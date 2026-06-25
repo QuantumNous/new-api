@@ -23,6 +23,14 @@ import type {
   ParameterEnabled,
 } from '../types'
 import { formatMessageForAPI, isValidMessage } from './message-utils'
+import {
+  isParameterAllowedForModel,
+  isReasoningModel,
+} from './model-parameter-profile'
+
+interface BuildChatCompletionPayloadOptions {
+  minimalParameters?: boolean
+}
 
 /**
  * Build API request payload from messages and config
@@ -30,7 +38,8 @@ import { formatMessageForAPI, isValidMessage } from './message-utils'
 export function buildChatCompletionPayload(
   messages: Message[],
   config: PlaygroundConfig,
-  parameterEnabled: ParameterEnabled
+  parameterEnabled: ParameterEnabled,
+  options: BuildChatCompletionPayloadOptions = {}
 ): ChatCompletionRequest {
   // Filter and format valid messages
   const processedMessages = messages
@@ -44,7 +53,20 @@ export function buildChatCompletionPayload(
     stream: config.stream,
   }
 
-  // Add enabled parameters
+  if (options.minimalParameters) {
+    return payload
+  }
+
+  if (
+    isReasoningModel(config.model) &&
+    parameterEnabled.max_tokens &&
+    config.max_tokens !== undefined &&
+    config.max_tokens !== null
+  ) {
+    payload.max_completion_tokens = config.max_tokens
+  }
+
+  // Add enabled parameters that are compatible with the selected model family.
   const parameterKeys: Array<keyof ParameterEnabled> = [
     'temperature',
     'top_p',
@@ -55,6 +77,7 @@ export function buildChatCompletionPayload(
   ]
 
   parameterKeys.forEach((key) => {
+    if (!isParameterAllowedForModel(config.model, key)) return
     if (parameterEnabled[key]) {
       const value = config[key as keyof PlaygroundConfig]
       if (value !== undefined && value !== null) {

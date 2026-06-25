@@ -7,7 +7,7 @@ RUN bun install --frozen-lockfile
 FROM oven/bun:1 AS builder
 WORKDIR /app
 
-ARG APP_CONSOLE_ORIGIN=https://router.flatkey.ai
+ARG APP_CONSOLE_ORIGIN=https://console.flatkey.ai
 ARG SITE_ORIGIN=https://flatkey.ai
 ENV APP_CONSOLE_ORIGIN=${APP_CONSOLE_ORIGIN}
 ENV SITE_ORIGIN=${SITE_ORIGIN}

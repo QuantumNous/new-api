@@ -29,8 +29,8 @@ import { SignUpForm } from './components/sign-up-form'
 export function SignUp() {
   const { t } = useTranslation()
   const { status } = useStatus()
-  // Preserve the post-auth destination (e.g. ?redirect=/keys from "Get API Key") through
-  // registration and the cross-link to sign-in, so the new user lands on the right tab.
+  // Keep redirect available for alternate sign-up providers and the sign-in cross-link.
+  // Password registration ignores it after success because new users go to Playground first-run.
   const { redirect } = useSearch({ from: '/(auth)/sign-up' })
 
   useEffect(() => {

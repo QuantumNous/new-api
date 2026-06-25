@@ -18,6 +18,8 @@ import (
 )
 
 const UserNameMaxLength = 20
+const defaultUserGroup = "default"
+const plgUserGroup = "plg"
 
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
@@ -234,6 +236,28 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	return users, total, nil
 }
 
+// GetRecallCandidates returns activated-but-unpaid, low-balance self-serve users for
+// 1:1 re-engagement outreach. "Activated" = request_count >= minCalls; "unpaid" = no
+// successful top-up; "low balance" = quota <= maxQuota. Restricted to the plg group so
+// enterprise/admin/internal accounts are excluded. Ordered by request_count desc so the
+// most-engaged users surface first. Read-only and stateless — safe under multi-node.
+func GetRecallCandidates(minCalls int, maxQuota int, limit int) ([]*User, error) {
+	var users []*User
+	paidUserIDs := DB.Model(&TopUp{}).
+		Select("user_id").
+		Where("status = ?", common.TopUpStatusSuccess)
+	err := DB.Model(&User{}).
+		Where(commonGroupCol+" = ?", "plg").
+		Where("request_count >= ?", minCalls).
+		Where("quota <= ?", maxQuota).
+		Where("id NOT IN (?)", paidUserIDs).
+		Order("request_count desc").
+		Limit(limit).
+		Omit("password").
+		Find(&users).Error
+	return users, err
+}
+
 func SearchUsers(keyword string, group string, role *int, status *int, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
@@ -398,13 +422,17 @@ func (user *User) Insert(inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
-	// New users default into the PLG group (groups hidden, forced plg). An explicit
-	// group (e.g. admin creating an enterprise user) is preserved; only empties fall back.
+	// New common users default into the PLG group (groups hidden, forced plg).
+	// Admin/root users keep group controls, so an empty admin group becomes default.
 	if user.Group == "" {
-		user.Group = "plg"
+		if user.Role >= common.RoleAdminUser {
+			user.Group = defaultUserGroup
+		} else {
+			user.Group = plgUserGroup
+		}
 	}
-	// Admins/root must keep group control — never silently demote them to PLG even if the
-	// caller didn't set the flag (the PLG enforcement keys off is_enterprise, not role).
+	// Deprecated compatibility field: callers may still read is_enterprise, but group is
+	// the source of truth for PLG vs group-enabled behavior.
 	if user.Role >= common.RoleAdminUser {
 		user.IsEnterprise = true
 	}
@@ -468,7 +496,14 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	}
 	user.Quota = common.QuotaForNewUser
 	user.AffCode = common.GetRandomString(4)
-	// Admins/root must keep group control — never silently demote them to PLG (see Insert).
+	if user.Group == "" {
+		if user.Role >= common.RoleAdminUser {
+			user.Group = defaultUserGroup
+		} else {
+			user.Group = plgUserGroup
+		}
+	}
+	// Deprecated compatibility field: group is the source of truth (see Insert).
 	if user.Role >= common.RoleAdminUser {
 		user.IsEnterprise = true
 	}
@@ -547,11 +582,10 @@ func (user *User) Edit(updatePassword bool) error {
 
 	newUser := *user
 	updates := map[string]interface{}{
-		"username":      newUser.Username,
-		"display_name":  newUser.DisplayName,
-		"group":         newUser.Group,
-		"remark":        newUser.Remark,
-		"is_enterprise": newUser.IsEnterprise,
+		"username":     newUser.Username,
+		"display_name": newUser.DisplayName,
+		"group":        newUser.Group,
+		"remark":       newUser.Remark,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password
@@ -564,30 +598,6 @@ func (user *User) Edit(updatePassword bool) error {
 
 	// Update cache
 	return updateUserCache(*user)
-}
-
-// backfillEnterpriseFlag runs exactly once (gated by an option marker). It marks every
-// pre-existing user as enterprise so legacy users keep full group visibility after the PLG
-// rollout — new users (created after this runs) default to is_enterprise=false (forced plg).
-func backfillEnterpriseFlag() error {
-	const flagKey = "PlgEnterpriseBackfilled"
-	var cnt int64
-	// `key` is a reserved word in MySQL — must use the DB-specific quoted column
-	// (commonKeyCol, set by initCol() before InitDB runs). A raw "key = ?" parses on
-	// SQLite but is a syntax error on MySQL (Error 1064), which is why this only surfaced
-	// in prod. See CLAUDE.md Rule 2.
-	if err := DB.Model(&Option{}).Where(commonKeyCol+" = ?", flagKey).Count(&cnt).Error; err != nil {
-		return err
-	}
-	if cnt > 0 {
-		return nil // already backfilled
-	}
-	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&User{}).Where("is_enterprise = ?", false).Update("is_enterprise", true).Error; err != nil {
-			return err
-		}
-		return tx.Create(&Option{Key: flagKey, Value: "true"}).Error
-	})
 }
 
 func (user *User) ClearBinding(bindingType string) error {
@@ -901,7 +911,11 @@ func GetUserGroup(id int, fromDB bool) (group string, err error) {
 		// Don't return error - fall through to DB
 	}
 	fromDB = true
-	err = DB.Model(&User{}).Where("id = ?", id).Select(commonGroupCol).Find(&group).Error
+	groupCol := commonGroupCol
+	if groupCol == "" {
+		groupCol = "group"
+	}
+	err = DB.Model(&User{}).Where("id = ?", id).Select(groupCol).Find(&group).Error
 	if err != nil {
 		return "", err
 	}

@@ -179,6 +179,49 @@ gcloud run services update-traffic newapi --region=us-west1 --project=vocai-gemi
   --to-revisions=<previous-revision-name>=100
 ```
 
+The same rule applies to the split production services:
+
+| Service | Role | Normal traffic owner |
+|---|---|---|
+| `newapi-console` | console/admin/API, `NODE_TYPE=master` | `console.flatkey.ai` |
+| `newapi-router` | model relay/API, `NODE_TYPE=slave` | `router.flatkey.ai` |
+| `newapi-web` | public website | `flatkey.ai`, `www.flatkey.ai` |
+| `newapi` | legacy default/fallback | URL map default backend |
+
+When rolling back or shifting traffic, target the specific service that serves the failing host. Do not assume a `newapi` rollback affects `console.flatkey.ai` or `router.flatkey.ai`; after the runtime split, those hosts route to their own Cloud Run services.
+
+---
+
+## Production runtime split
+
+Current production routing is host-based at the GCP LB:
+
+| Host | Backend service | Cloud Run service | Runtime role |
+|---|---|---|---|
+| `flatkey.ai`, `www.flatkey.ai` | `newapi-web-backend` | `newapi-web` | Next.js website |
+| `console.flatkey.ai` | `newapi-console-backend` | `newapi-console` | Go app, `NODE_TYPE=master`, `APP_ROLE=console` |
+| `router.flatkey.ai` | `newapi-router-backend` | `newapi-router` | Go app, `NODE_TYPE=slave`, `APP_ROLE=router` |
+| default | `newapi-backend` | `newapi` | legacy fallback |
+
+Verify the live URL map before and after any host-split change:
+
+```bash
+gcloud compute url-maps describe newapi-urlmap \
+  --project=vocai-gemini-prod --global \
+  --format='yaml(hostRules,pathMatchers,defaultService)'
+```
+
+Rollback levers:
+
+- Bad console revision: `gcloud run services update-traffic newapi-console ... --to-revisions=<old>=100`
+- Bad router revision: `gcloud run services update-traffic newapi-router ... --to-revisions=<old>=100`
+- Bad website revision: `gcloud run services update-traffic newapi-web ... --to-revisions=<old>=100`
+- Bad console host split: set `console_domains = []`, plan, review URL map diff, apply
+- Bad router host split: set `router_domains = []`, plan, review URL map diff, apply
+- Bad website host split: set `website_domains = []`, plan, review URL map diff, apply
+
+Host-rule rollback sends new requests to the URL map default backend (`newapi-backend`). It does not stop in-flight requests on the previous Cloud Run revision, but it can change application behavior if the fallback service has different image/env. Check logs before choosing host-rule rollback over revision rollback.
+
 ---
 
 ## HTTPS LB cert rotation has a downtime window
@@ -207,12 +250,25 @@ curl -sS -H "Authorization: Bearer $TOKEN" \
 
 ## Cloudflare DNS mode
 
-Two pairs of hostnames are live:
+Current production uses a deliberate mixed Cloudflare mode:
 
-- **Long form** (depth 3): `new-api.app.flatkey.ai`, `new-api.api.flatkey.ai` — **must stay DNS-only** (gray cloud). Cloudflare Universal SSL only covers `flatkey.ai` and `*.flatkey.ai` (depth ≤ 2). Switching to Proxied (orange cloud) fails with `sslv3 alert handshake failure` because CF has no cert for these.
-- **Short form** (depth 2): `one.flatkey.ai`, `router.flatkey.ai` — covered by Universal SSL, can go Proxied if needed. Currently DNS-only.
+| Host | Mode | Why |
+|---|---|---|
+| `flatkey.ai`, `www.flatkey.ai` | Proxied | Public website, covered by Cloudflare Universal SSL |
+| `console.flatkey.ai` | Proxied | Console is intentionally kept out of GCP `lb_domains` to avoid managed-cert rotation |
+| `router.flatkey.ai` | DNS only | Covered by GCP managed cert; avoids proxy behavior on long-lived model calls |
+| `new-api.app.flatkey.ai`, `new-api.api.flatkey.ai` | DNS only | Depth-3 names are not covered by Cloudflare Universal SSL |
+| `one.flatkey.ai` | DNS only | Legacy/compatibility entry |
 
-To use Proxied for depth-3 names would require Total TLS ($10/mo) — declined per cost.
+Cloudflare's "origin IP partially exposed" warning is expected because the same GCP LB IP has both Proxied and DNS-only records.
+
+Do not flip DNS modes casually:
+
+- Switching depth-3 names to Proxied fails unless Cloudflare Total TLS / ACM is enabled.
+- Switching `console.flatkey.ai` to DNS-only would require adding it to GCP `lb_domains`, which triggers managed cert rotation and a possible HTTPS downtime window.
+- Switching `router.flatkey.ai` to Proxied is technically possible at depth 2, but should be tested for streaming/model-call behavior first.
+
+To use Proxied for depth-3 names would require Total TLS ($10/mo) — previously declined per cost.
 
 ---
 
@@ -230,6 +286,8 @@ To use Proxied for depth-3 names would require Total TLS ($10/mo) — declined p
 - Any change to `lb_domains` (causes HTTPS downtime window — see above)
 - `terraform destroy` on any module (obviously)
 - Bumping `cert_rotation` while a cert is currently ACTIVE (causes new downtime window unnecessarily)
+- Removing or changing `router_domains`, `console_domains`, or `website_domains` (changes live host routing)
+- Changing Cloudflare proxy mode for `console.flatkey.ai` or `router.flatkey.ai`
 - Editing `ServerAddress` admin setting (breaks OAuth callbacks, video proxy URLs, email reset links until rolled to all instances)
 - Setting `enable_usage_recon_token = false` or removing the `BLOCKRUN_USAGE_SUMMARY_TOKEN` secret env (breaks the `/usage` reconciliation endpoints → 503; see the section above)
 

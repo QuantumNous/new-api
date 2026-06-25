@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { ATTRIBUTION_COOKIE_SCRIPT } from "@/components/root-document";
 import { resolveLocaleFromPathname } from "@/lib/locales";
 
 describe("resolveLocaleFromPathname", () => {
@@ -15,5 +16,14 @@ describe("resolveLocaleFromPathname", () => {
   test("ignores unsupported path locales", () => {
     expect(resolveLocaleFromPathname("/pricing/model")).toBe("en");
     expect(resolveLocaleFromPathname("/xx/blog")).toBe("en");
+  });
+});
+
+describe("ATTRIBUTION_COOKIE_SCRIPT", () => {
+  test("stores campaign parameters in a shared flatkey cookie", () => {
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("flatkey_ads_attribution");
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("utm_");
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("domain=.flatkey.ai");
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("SameSite=Lax");
   });
 });

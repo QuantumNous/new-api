@@ -26,7 +26,7 @@ interface OnboardingState {
 
 /**
  * Controls the card-binding onboarding dialog that floats over the console.
- * Opened on first login (for new, unbound users) or via the card-bind banner.
+ * Opened from onboarding entry points for new, unbound users or via the card-bind banner.
  */
 export const useOnboardingStore = create<OnboardingState>((set) => ({
   open: false,

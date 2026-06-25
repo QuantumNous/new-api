@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import z from 'zod'
+import { useCallback } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { ApiKeys } from '@/features/keys'
 import { API_KEY_STATUS_OPTIONS } from '@/features/keys/constants'
@@ -32,7 +33,40 @@ const apiKeySearchSchema = z.object({
   token: z.string().optional().catch(''),
 })
 
+export function validateApiKeySearch(search: Record<string, unknown>) {
+  const parsed = apiKeySearchSchema.parse(search)
+  const create = search.create
+  const isAutoCreate =
+    create === '1' || create === 1 || create === true || create === 'true'
+
+  return {
+    ...parsed,
+    ...(isAutoCreate ? { create: 1 as const } : {}),
+  }
+}
+
 export const Route = createFileRoute('/_authenticated/keys/')({
-  validateSearch: apiKeySearchSchema,
-  component: ApiKeys,
+  validateSearch: validateApiKeySearch,
+  component: ApiKeysRoute,
 })
+
+function ApiKeysRoute() {
+  const { create } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const handleAutoCreateConsumed = useCallback(() => {
+    navigate({
+      replace: true,
+      search: (prev) => ({
+        ...prev,
+        create: undefined,
+      }),
+    })
+  }, [navigate])
+
+  return (
+    <ApiKeys
+      autoCreateRequested={create === 1}
+      onAutoCreateConsumed={handleAutoCreateConsumed}
+    />
+  )
+}

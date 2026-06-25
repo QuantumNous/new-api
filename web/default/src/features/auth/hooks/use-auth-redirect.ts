@@ -93,13 +93,13 @@ export function useAuthRedirect() {
       console.error('Failed to fetch user data:', error)
     }
 
-    // Always consume the pending-onboarding flag so it can never leak into a later
-    // login (e.g. when this login carried a redirectTo and skipped onboarding).
+    // Always consume legacy onboarding so it can never leak into a later login.
+    // New-user Playground first-run is now delivered by an explicit registration
+    // target, so normal logins only honor safe redirects or the dashboard default.
     const pendingOnboarding = consumePendingOnboarding()
 
-    // Navigate to target page. First-time registrants land on the dashboard with
-    // the card-binding onboarding dialog opened over it (unless they already bound
-    // a card), as long as the feature is enabled. An explicit redirectTo always wins.
+    // Navigate to target page. Existing redirect behavior and legacy
+    // card-bind/top-up onboarding are unchanged for non-registration logins.
     // redirectTo originates from the ?redirect= URL param, so validate it as an internal
     // path before navigating to avoid an open-redirect. Treat an invalid redirect as "no
     // redirect" everywhere (not just for navigation) so it can't suppress the onboarding

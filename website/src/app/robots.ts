@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/cdn-cgi/", "/_next/", "/dashboard/"],
+        disallow: ["/cdn-cgi/", "/_next/", "/dashboard/", "/lp/"],
       },
     ],
     sitemap: "https://flatkey.ai/sitemap.xml",

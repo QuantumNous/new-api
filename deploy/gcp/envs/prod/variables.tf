@@ -68,6 +68,80 @@ variable "enable_usage_recon_token" {
   default     = false
 }
 
+// --- Go app runtime split (router.flatkey.ai / console.flatkey.ai) ---
+
+variable "enable_runtime_split" {
+  type        = bool
+  description = "Create separate Cloud Run services for router and console traffic. Defaults false so existing newapi remains the only runtime until explicitly enabled."
+  default     = false
+}
+
+variable "router_service_name" {
+  type        = string
+  description = "Cloud Run service name for model invocation traffic."
+  default     = "newapi-router"
+}
+
+variable "console_service_name" {
+  type        = string
+  description = "Cloud Run service name for console/API traffic."
+  default     = "newapi-console"
+}
+
+variable "router_domains" {
+  type        = list(string)
+  description = "Hosts the LB routes to the router backend. Keep [] during service bring-up; add [\"router.flatkey.ai\"] only when cutting router traffic over."
+  default     = []
+}
+
+variable "console_domains" {
+  type        = list(string)
+  description = "Hosts the LB routes to the console backend. Keep [] during service bring-up; add [\"console.flatkey.ai\"] only after Cloudflare/LB TLS behavior is confirmed."
+  default     = []
+}
+
+variable "console_domains_require_managed_cert" {
+  type        = bool
+  description = "Require console_domains to be covered by the GCP managed cert. Set false only for Cloudflare-proxied console domains after origin routing has been verified."
+  default     = true
+}
+
+variable "router_min_instances" {
+  type        = number
+  description = "Minimum Cloud Run instances for the router service."
+  default     = 4
+}
+
+variable "router_max_instances" {
+  type        = number
+  description = "Maximum Cloud Run instances for the router service."
+  default     = 10
+}
+
+variable "router_concurrency" {
+  type        = number
+  description = "Cloud Run request concurrency for the router service."
+  default     = 50
+}
+
+variable "console_min_instances" {
+  type        = number
+  description = "Minimum Cloud Run instances for the console service."
+  default     = 1
+}
+
+variable "console_max_instances" {
+  type        = number
+  description = "Maximum Cloud Run instances for the console service."
+  default     = 5
+}
+
+variable "console_concurrency" {
+  type        = number
+  description = "Cloud Run request concurrency for the console service."
+  default     = 80
+}
+
 // --- Standalone Next.js website (website/) ---
 
 variable "enable_website" {

@@ -50,6 +50,17 @@ variable "request_timeout_seconds" {
   default = 3600
 }
 
+variable "node_type" {
+  type        = string
+  description = "Runtime node role. Use slave for services that must not run master-only background jobs."
+  default     = "master"
+
+  validation {
+    condition     = contains(["master", "slave"], var.node_type)
+    error_message = "node_type must be either master or slave."
+  }
+}
+
 variable "runtime_sa_email" {
   type        = string
   description = "Service account email attached to the Cloud Run revision"

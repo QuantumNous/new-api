@@ -55,7 +55,6 @@ import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import {
   getAffiliateCode,
   saveAffiliateCode,
-  setPendingOnboarding,
 } from '@/features/auth/lib/storage'
 
 export function SignUpForm({
@@ -78,7 +77,7 @@ export function SignUpForm({
     setTurnstileToken,
     validateTurnstile,
   } = useTurnstile()
-  const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
+  const { handleLoginSuccess } = useAuthRedirect()
   const {
     isSending: isSendingCode,
     secondsLeft,
@@ -186,27 +185,17 @@ export function SignUpForm({
         trackAdsFunnelEvent('flatkey_signup_success', {
           method: 'password',
         })
-        if (emailVerificationRequired) {
-          // Email verification on: the backend does NOT auto-login the new user.
-          // Arm the legacy first-login card-bind onboarding so it can trigger after
-          // they sign in manually (handleLoginSuccess opens it only when there is no
-          // explicit redirect and the feature is enabled).
-          setPendingOnboarding()
-          toast.success(t('Account created! Please sign in'))
-          redirectToLogin(redirectTo)
-        } else {
-          // Auto-logged-in (session cookie set by setupLogin). Activation-first: land
-          // them in the Playground first-run so they make their first API call with
-          // zero config. We intentionally do NOT arm the card-bind promo dialog here —
-          // top-up is surfaced later via the low-balance banner, once the user has
-          // experienced value. An explicit redirectTo (e.g. ?redirect=/keys from
-          // "Get API Key") still wins.
-          toast.success(t('Account created!'))
-          await handleLoginSuccess(
-            res.data as { id?: number } | null,
-            redirectTo || '/playground?first=1'
-          )
-        }
+        // Auto-logged-in (session cookie set by setupLogin). Activation-first: land
+        // them in the Playground first-run so they make their first API call with
+        // zero config. We intentionally do NOT arm the card-bind promo dialog here —
+        // top-up is surfaced later via the low-balance banner, once the user has
+        // experienced value. Registration-time redirects intentionally do not win
+        // over this new-user activation path.
+        toast.success(t('Account created!'))
+        await handleLoginSuccess(
+          res.data as { id?: number } | null,
+          '/playground?first=1'
+        )
       } else {
         trackAdsFunnelEvent('flatkey_signup_error', {
           method: 'password',

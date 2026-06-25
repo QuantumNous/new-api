@@ -34,7 +34,10 @@ interface UseChatHandlerOptions {
   config: PlaygroundConfig
   parameterEnabled: ParameterEnabled
   onMessageUpdate: (updater: (prev: Message[]) => Message[]) => void
+  minimalParameters?: boolean
 }
+
+type ChatConfigOverride = Partial<Pick<PlaygroundConfig, 'model' | 'group'>>
 
 /**
  * Hook for handling chat message sending and receiving
@@ -43,6 +46,7 @@ export function useChatHandler({
   config,
   parameterEnabled,
   onMessageUpdate,
+  minimalParameters = false,
 }: UseChatHandlerOptions) {
   const { sendStreamRequest, stopStream, isStreaming } = useStreamRequest()
 
@@ -102,11 +106,13 @@ export function useChatHandler({
 
   // Send streaming chat request
   const sendStreamingChat = useCallback(
-    (messages: Message[]) => {
+    (messages: Message[], configOverride?: ChatConfigOverride) => {
+      const requestConfig = { ...config, ...configOverride }
       const payload = buildChatCompletionPayload(
         messages,
-        config,
-        parameterEnabled
+        requestConfig,
+        parameterEnabled,
+        { minimalParameters }
       )
       sendStreamRequest(
         payload,
@@ -118,6 +124,7 @@ export function useChatHandler({
     [
       config,
       parameterEnabled,
+      minimalParameters,
       sendStreamRequest,
       handleStreamUpdate,
       handleStreamComplete,
@@ -127,11 +134,13 @@ export function useChatHandler({
 
   // Send non-streaming chat request
   const sendNonStreamingChat = useCallback(
-    async (messages: Message[]) => {
+    async (messages: Message[], configOverride?: ChatConfigOverride) => {
+      const requestConfig = { ...config, ...configOverride }
       const payload = buildChatCompletionPayload(
         messages,
-        config,
-        parameterEnabled
+        requestConfig,
+        parameterEnabled,
+        { minimalParameters }
       )
 
       try {
@@ -171,16 +180,22 @@ export function useChatHandler({
         )
       }
     },
-    [config, parameterEnabled, onMessageUpdate, handleStreamError]
+    [
+      config,
+      parameterEnabled,
+      minimalParameters,
+      onMessageUpdate,
+      handleStreamError,
+    ]
   )
 
   // Send chat request (stream or non-stream based on config)
   const sendChat = useCallback(
-    (messages: Message[]) => {
+    (messages: Message[], configOverride?: ChatConfigOverride) => {
       if (config.stream) {
-        sendStreamingChat(messages)
+        sendStreamingChat(messages, configOverride)
       } else {
-        sendNonStreamingChat(messages)
+        sendNonStreamingChat(messages, configOverride)
       }
     },
     [config.stream, sendStreamingChat, sendNonStreamingChat]

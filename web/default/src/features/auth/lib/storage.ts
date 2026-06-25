@@ -29,6 +29,7 @@ const STORAGE_KEYS = {
   AFFILIATE: 'aff',
   STATUS: 'status',
   PENDING_ONBOARDING: 'pending_onboarding',
+  LEGACY_PENDING_PLAYGROUND_FIRST_RUN: 'pending_playground_first_run',
   // Post-login destination to honor after an OAuth round-trip. Lives in sessionStorage
   // (tab-scoped) because OAuth providers redirect to a fixed redirect_uri (/oauth/<p>)
   // that can't carry our ?redirect=... param, so the URL alone would lose the intent.
@@ -119,6 +120,9 @@ export function setPendingOnboarding(): void {
 export function consumePendingOnboarding(): boolean {
   if (typeof window === 'undefined') return false
   try {
+    window.localStorage.removeItem(
+      STORAGE_KEYS.LEGACY_PENDING_PLAYGROUND_FIRST_RUN
+    )
     const value = window.localStorage.getItem(STORAGE_KEYS.PENDING_ONBOARDING)
     if (value) {
       window.localStorage.removeItem(STORAGE_KEYS.PENDING_ONBOARDING)

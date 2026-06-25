@@ -63,6 +63,7 @@ import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 import {
+  getAmountBonusGroupsJsonError,
   getAmountBonusJsonError,
   getAmountBonusLimitJsonError,
 } from './amount-bonus-utils'
@@ -324,6 +325,15 @@ const paymentSchema = z
     }),
     AmountBonusLimit: z.string().superRefine((value, ctx) => {
       const error = getAmountBonusLimitJsonError(value)
+      if (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: error,
+        })
+      }
+    }),
+    AmountBonusGroups: z.string().superRefine((value, ctx) => {
+      const error = getAmountBonusGroupsJsonError(value)
       if (error) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -621,6 +631,9 @@ export function PaymentSettingsSection({
       AmountOptions: formatJsonForEditor(initialFormValues.AmountOptions),
       AmountBonus: formatJsonForEditor(initialFormValues.AmountBonus),
       AmountBonusLimit: formatJsonForEditor(initialFormValues.AmountBonusLimit),
+      AmountBonusGroups: formatJsonForEditor(
+        initialFormValues.AmountBonusGroups
+      ),
       AmountDiscount: formatJsonForEditor(initialFormValues.AmountDiscount),
       CreemProducts: formatJsonForEditor(initialFormValues.CreemProducts),
     },
@@ -683,6 +696,7 @@ export function PaymentSettingsSection({
       AmountOptions: formatJsonForEditor(parsedDefaults.AmountOptions),
       AmountBonus: formatJsonForEditor(parsedDefaults.AmountBonus),
       AmountBonusLimit: formatJsonForEditor(parsedDefaults.AmountBonusLimit),
+      AmountBonusGroups: formatJsonForEditor(parsedDefaults.AmountBonusGroups),
       AmountDiscount: formatJsonForEditor(parsedDefaults.AmountDiscount),
       CreemProducts: formatJsonForEditor(parsedDefaults.CreemProducts),
     })
@@ -700,6 +714,7 @@ export function PaymentSettingsSection({
       AmountOptions: values.AmountOptions.trim(),
       AmountBonus: values.AmountBonus.trim(),
       AmountBonusLimit: values.AmountBonusLimit.trim(),
+      AmountBonusGroups: values.AmountBonusGroups.trim(),
       AmountDiscount: values.AmountDiscount.trim(),
       StripeApiSecret: values.StripeApiSecret.trim(),
       StripeWebhookSecret: values.StripeWebhookSecret.trim(),
@@ -754,6 +769,7 @@ export function PaymentSettingsSection({
       AmountOptions: initialRef.current.AmountOptions.trim(),
       AmountBonus: initialRef.current.AmountBonus.trim(),
       AmountBonusLimit: initialRef.current.AmountBonusLimit.trim(),
+      AmountBonusGroups: initialRef.current.AmountBonusGroups.trim(),
       AmountDiscount: initialRef.current.AmountDiscount.trim(),
       StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
       StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
@@ -861,6 +877,16 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'payment_setting.amount_bonus_limit',
         value: sanitized.AmountBonusLimit,
+      })
+    }
+
+    if (
+      normalizeJsonForComparison(sanitized.AmountBonusGroups) !==
+      normalizeJsonForComparison(initial.AmountBonusGroups)
+    ) {
+      updates.push({
+        key: 'payment_setting.amount_bonus_groups',
+        value: sanitized.AmountBonusGroups,
       })
     }
 
@@ -1492,6 +1518,13 @@ export function PaymentSettingsSection({
                               shouldValidate: true,
                             })
                           }
+                          groupsValue={form.watch('AmountBonusGroups')}
+                          onGroupsChange={(next) =>
+                            form.setValue('AmountBonusGroups', next, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
                         />
                       ) : (
                         <Textarea
@@ -1534,6 +1567,34 @@ export function PaymentSettingsSection({
                       <FormDescription>
                         {t(
                           'Per-user lifetime claim limit by recharge amount (JSON object). 0 or unset means unlimited.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {!amountBonusVisualMode && (
+                <FormField
+                  control={form.control}
+                  name='AmountBonusGroups'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Eligible user groups')}</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          rows={3}
+                          placeholder='{"20":["plg"],"50":["all"]}'
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; ["all"] = every group.'
                         )}
                       </FormDescription>
                       <FormMessage />

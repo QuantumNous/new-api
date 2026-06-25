@@ -13,7 +13,10 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	backendI18n "github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"gorm.io/driver/mysql"
@@ -42,27 +45,33 @@ type tokenKeyResponse struct {
 	Key string `json:"key"`
 }
 
+type ensureInitialTokenResponse struct {
+	Created bool   `json:"created"`
+	ID      int    `json:"id"`
+	Key     string `json:"key"`
+}
+
 type sqliteColumnInfo struct {
 	Name string `gorm:"column:name"`
 	Type string `gorm:"column:type"`
 }
 
 type legacyToken struct {
-	Id                 int            `gorm:"primaryKey"`
-	UserId             int            `gorm:"index"`
-	Key                string         `gorm:"column:key;type:char(48);uniqueIndex"`
-	Status             int            `gorm:"default:1"`
-	Name               string         `gorm:"index"`
-	CreatedTime        int64          `gorm:"bigint"`
-	AccessedTime       int64          `gorm:"bigint"`
-	ExpiredTime        int64          `gorm:"bigint;default:-1"`
-	RemainQuota        int            `gorm:"default:0"`
+	Id                 int    `gorm:"primaryKey"`
+	UserId             int    `gorm:"index"`
+	Key                string `gorm:"column:key;type:char(48);uniqueIndex"`
+	Status             int    `gorm:"default:1"`
+	Name               string `gorm:"index"`
+	CreatedTime        int64  `gorm:"bigint"`
+	AccessedTime       int64  `gorm:"bigint"`
+	ExpiredTime        int64  `gorm:"bigint;default:-1"`
+	RemainQuota        int    `gorm:"default:0"`
 	UnlimitedQuota     bool
 	ModelLimitsEnabled bool
-	ModelLimits        string         `gorm:"type:text"`
-	AllowIps           *string        `gorm:"default:''"`
-	UsedQuota          int            `gorm:"default:0"`
-	Group              string         `gorm:"column:group;default:''"`
+	ModelLimits        string  `gorm:"type:text"`
+	AllowIps           *string `gorm:"default:''"`
+	UsedQuota          int     `gorm:"default:0"`
+	Group              string  `gorm:"column:group;default:''"`
 	CrossGroupRetry    bool
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
@@ -111,6 +120,16 @@ func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
 
 	db := openTokenControllerTestDB(t)
 	migrateTokenControllerTestDB(t, db)
+	return db
+}
+
+func setupInitialTokenControllerTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	db := setupTokenControllerTestDB(t)
+	if err := db.AutoMigrate(&model.User{}); err != nil {
+		t.Fatalf("failed to migrate user table: %v", err)
+	}
 	return db
 }
 
@@ -180,6 +199,26 @@ func seedToken(t *testing.T, db *gorm.DB, userID int, name string, rawKey string
 		t.Fatalf("failed to create token: %v", err)
 	}
 	return token
+}
+
+func seedTokenUser(t *testing.T, db *gorm.DB, userID int) *model.User {
+	t.Helper()
+
+	user := &model.User{
+		Id:           userID,
+		Username:     fmt.Sprintf("token-user-%d", userID),
+		Password:     "password123",
+		DisplayName:  fmt.Sprintf("Token User %d", userID),
+		Role:         common.RoleCommonUser,
+		Status:       common.UserStatusEnabled,
+		Email:        fmt.Sprintf("token-user-%d@example.com", userID),
+		Group:        "plg",
+		IsEnterprise: false,
+	}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+	return user
 }
 
 func newAuthenticatedContext(t *testing.T, method string, target string, body any, userID int) (*gin.Context, *httptest.ResponseRecorder) {
@@ -471,7 +510,12 @@ func TestGetTokenMasksKeyInResponse(t *testing.T) {
 }
 
 func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
-	db := setupTokenControllerTestDB(t)
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 1)
+	user.Group = "Enterprise"
+	if err := db.Save(user).Error; err != nil {
+		t.Fatalf("failed to update user: %v", err)
+	}
 	token := seedToken(t, db, 1, "editable-token", "yzab1234cdef5678")
 
 	body := map[string]any{
@@ -537,5 +581,300 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	}
 	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
 		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
+	}
+}
+
+func TestEnsureInitialTokenCreatesAndRevealsOnlyWhenUserHasNoTokens(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	seedTokenUser(t, db, 11)
+
+	body := map[string]any{
+		"name":                 "default",
+		"expired_time":         -1,
+		"remain_quota":         0,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/ensure_initial", body, 11)
+	EnsureInitialToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected ensure initial token to succeed, got message: %s", response.Message)
+	}
+
+	var data ensureInitialTokenResponse
+	if err := common.Unmarshal(response.Data, &data); err != nil {
+		t.Fatalf("failed to decode ensure initial token response: %v", err)
+	}
+	if !data.Created {
+		t.Fatalf("expected ensure initial token to create a token")
+	}
+	if data.ID == 0 {
+		t.Fatalf("expected created token id")
+	}
+	if data.Key == "" {
+		t.Fatalf("expected one-time raw key reveal")
+	}
+
+	var stored model.Token
+	if err := db.First(&stored, "id = ? AND user_id = ?", data.ID, 11).Error; err != nil {
+		t.Fatalf("failed to load created token: %v", err)
+	}
+	if stored.Key != data.Key {
+		t.Fatalf("expected stored raw key %q, got %q", data.Key, stored.Key)
+	}
+	if stored.Group != plgGroup {
+		t.Fatalf("expected non-enterprise token group to be forced to %q, got %q", plgGroup, stored.Group)
+	}
+}
+
+func TestApplyInitialTokenDefaultsForcesPlgWhenGroupsDisabled(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	seedTokenUser(t, db, 22)
+
+	token := &model.Token{Group: "default", CrossGroupRetry: true}
+	ctx, _ := newAuthenticatedContext(t, http.MethodPost, "/api/token/ensure_initial", nil, 22)
+
+	if err := applyInitialTokenDefaults(ctx, token); err != nil {
+		t.Fatalf("expected initial token defaults to succeed: %v", err)
+	}
+	if token.Group != plgGroup {
+		t.Fatalf("expected token group to be forced to %q, got %q", plgGroup, token.Group)
+	}
+	if token.CrossGroupRetry {
+		t.Fatalf("expected cross group retry to be disabled for plg users")
+	}
+}
+
+func TestAddTokenAllowsNonPlgUserToChooseGroupWithoutEnterpriseFlag(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 16)
+	user.Group = "Enterprise"
+	user.IsEnterprise = false
+	if err := db.Save(user).Error; err != nil {
+		t.Fatalf("failed to update user: %v", err)
+	}
+
+	body := map[string]any{
+		"name":                 "enterprise-key",
+		"expired_time":         -1,
+		"remain_quota":         0,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 16)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected add token to succeed, got message: %s", response.Message)
+	}
+
+	var stored model.Token
+	if err := db.First(&stored, "user_id = ? AND name = ?", 16, "enterprise-key").Error; err != nil {
+		t.Fatalf("failed to load created token: %v", err)
+	}
+	if stored.Group != "default" {
+		t.Fatalf("expected non-plg user token group to remain %q, got %q", "default", stored.Group)
+	}
+}
+
+func TestAddTokenRespectsMaxUserTokensInsideCreateTransaction(t *testing.T) {
+	if err := backendI18n.Init(); err != nil {
+		t.Fatalf("failed to init i18n: %v", err)
+	}
+	db := setupInitialTokenControllerTestDB(t)
+	seedTokenUser(t, db, 15)
+	seedToken(t, db, 15, "existing-token", "existing1234token9012")
+
+	tokenSetting := operation_setting.GetTokenSetting()
+	previousMaxUserTokens := tokenSetting.MaxUserTokens
+	tokenSetting.MaxUserTokens = 1
+	t.Cleanup(func() {
+		tokenSetting.MaxUserTokens = previousMaxUserTokens
+	})
+
+	body := map[string]any{
+		"name":                 "second",
+		"expired_time":         -1,
+		"remain_quota":         0,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 15)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected add token to fail when user is already at max tokens")
+	}
+	if !strings.Contains(response.Message, "Maximum token limit reached (1)") {
+		t.Fatalf("expected max token limit message, got %q", response.Message)
+	}
+
+	total, err := model.CountUserTokens(15)
+	if err != nil {
+		t.Fatalf("failed to count tokens: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("expected no extra token to be created, got %d tokens", total)
+	}
+}
+
+func TestEnsureInitialTokenUsesAutoGroupForEnterpriseDefault(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 14)
+	user.IsEnterprise = true
+	user.Group = "default"
+	if err := db.Save(user).Error; err != nil {
+		t.Fatalf("failed to update user: %v", err)
+	}
+
+	previousDefaultUseAutoGroup := setting.DefaultUseAutoGroup
+	setting.DefaultUseAutoGroup = true
+	t.Cleanup(func() {
+		setting.DefaultUseAutoGroup = previousDefaultUseAutoGroup
+	})
+
+	body := map[string]any{
+		"name":                 "default",
+		"expired_time":         -1,
+		"remain_quota":         0,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/ensure_initial", body, 14)
+	EnsureInitialToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected ensure initial token to succeed, got message: %s", response.Message)
+	}
+
+	var data ensureInitialTokenResponse
+	if err := common.Unmarshal(response.Data, &data); err != nil {
+		t.Fatalf("failed to decode ensure initial token response: %v", err)
+	}
+	if !data.Created {
+		t.Fatalf("expected ensure initial token to create a token")
+	}
+
+	var stored model.Token
+	if err := db.First(&stored, "id = ? AND user_id = ?", data.ID, 14).Error; err != nil {
+		t.Fatalf("failed to load created token: %v", err)
+	}
+	if stored.Group != "auto" {
+		t.Fatalf("expected enterprise initial token group to be auto, got %q", stored.Group)
+	}
+	if !stored.CrossGroupRetry {
+		t.Fatalf("expected enterprise initial token to enable cross group retry")
+	}
+}
+
+func TestEnsureInitialTokenSkipsExistingTokensWithoutRevealingKey(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	seedTokenUser(t, db, 12)
+	existing := seedToken(t, db, 12, "existing-token", "existing1234token5678")
+
+	body := map[string]any{
+		"name":                 "default",
+		"expired_time":         -1,
+		"remain_quota":         0,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/ensure_initial", body, 12)
+	EnsureInitialToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected ensure initial token to succeed, got message: %s", response.Message)
+	}
+
+	var data ensureInitialTokenResponse
+	if err := common.Unmarshal(response.Data, &data); err != nil {
+		t.Fatalf("failed to decode ensure initial token response: %v", err)
+	}
+	if data.Created {
+		t.Fatalf("expected ensure initial token to skip creation")
+	}
+	if data.Key != "" {
+		t.Fatalf("expected no raw key reveal for existing token, got %q", data.Key)
+	}
+
+	total, err := model.CountUserTokens(12)
+	if err != nil {
+		t.Fatalf("failed to count tokens: %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("expected exactly one token after skipped ensure, got %d", total)
+	}
+
+	var stored model.Token
+	if err := db.First(&stored, "id = ?", existing.Id).Error; err != nil {
+		t.Fatalf("failed to load existing token: %v", err)
+	}
+	if stored.Key != existing.Key {
+		t.Fatalf("expected existing token key to remain %q, got %q", existing.Key, stored.Key)
+	}
+}
+
+func TestEnsureInitialTokenRespectsMaxUserTokensZero(t *testing.T) {
+	if err := backendI18n.Init(); err != nil {
+		t.Fatalf("failed to init i18n: %v", err)
+	}
+	db := setupInitialTokenControllerTestDB(t)
+	seedTokenUser(t, db, 13)
+
+	tokenSetting := operation_setting.GetTokenSetting()
+	previousMaxUserTokens := tokenSetting.MaxUserTokens
+	tokenSetting.MaxUserTokens = 0
+	t.Cleanup(func() {
+		tokenSetting.MaxUserTokens = previousMaxUserTokens
+	})
+
+	body := map[string]any{
+		"name":                 "default",
+		"expired_time":         -1,
+		"remain_quota":         0,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/ensure_initial", body, 13)
+	EnsureInitialToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected ensure initial token to fail when max user tokens is zero")
+	}
+	if !strings.Contains(response.Message, "Maximum token limit reached (0)") {
+		t.Fatalf("expected max token limit message, got %q", response.Message)
+	}
+
+	total, err := model.CountUserTokens(13)
+	if err != nil {
+		t.Fatalf("failed to count tokens: %v", err)
+	}
+	if total != 0 {
+		t.Fatalf("expected no token to be created when max user tokens is zero, got %d", total)
 	}
 }

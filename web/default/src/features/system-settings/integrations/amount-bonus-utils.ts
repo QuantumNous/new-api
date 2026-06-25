@@ -179,3 +179,91 @@ export function setAmountBonusLimit(
     .map(([a, l]) => [String(a), l] as const)
   return JSON.stringify(Object.fromEntries(sortedEntries), null, 2)
 }
+
+// AmountBonusGroups：充值档位 → 可享该档位赠送的用户组白名单（opt-in 语义）。
+// 未配 / 空数组 = 谁都不送；含 "all" = 所有用户组都送；否则仅命中列表内组名才送。
+export const AMOUNT_BONUS_GROUP_ALL = 'all'
+
+export const AMOUNT_BONUS_GROUPS_MAP_ERROR =
+  'Amount bonus group entries must map positive integer recharge amounts to arrays of non-empty group names'
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
+export function getAmountBonusGroupsJsonError(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch (error) {
+    return error instanceof Error ? error.message : 'Invalid JSON'
+  }
+
+  if (!isObjectRecord(parsed)) {
+    return 'JSON structure is invalid'
+  }
+
+  const valid = Object.entries(parsed).every(([amount, groups]) => {
+    return (
+      isPositiveIntegerKey(amount) &&
+      isStringArray(groups) &&
+      groups.every((group) => group.trim().length > 0)
+    )
+  })
+
+  return valid ? null : AMOUNT_BONUS_GROUPS_MAP_ERROR
+}
+
+export function parseAmountBonusGroupsJson(
+  value: string
+): Record<number, string[]> {
+  const result: Record<number, string[]> = {}
+  for (const [amount, groups] of Object.entries(
+    parseAmountBonusRecord(value)
+  )) {
+    const amountNumber = Number(amount)
+    if (isPositiveInteger(amountNumber) && isStringArray(groups)) {
+      const cleaned = groups
+        .map((group) => group.trim())
+        .filter((group) => group.length > 0)
+      result[amountNumber] = cleaned
+    }
+  }
+  return result
+}
+
+// setAmountBonusGroups 写入某档位的白名单。空数组也会被保留（语义为「显式配置为不送」），
+// 仅当 amount 非正整数时忽略；档位本身的增删由 amount-bonus 表格驱动，这里只更新组列表。
+export function setAmountBonusGroups(
+  value: string,
+  amount: number,
+  groups: string[]
+): string {
+  const all = parseAmountBonusGroupsJson(value)
+  if (isPositiveInteger(amount)) {
+    all[amount] = groups
+      .map((group) => group.trim())
+      .filter((group) => group.length > 0)
+  }
+  const sortedEntries = Object.entries(all)
+    .map(([a, g]) => [Number(a), g] as const)
+    .sort((a, b) => a[0] - b[0])
+    .map(([a, g]) => [String(a), g] as const)
+  return JSON.stringify(Object.fromEntries(sortedEntries), null, 2)
+}
+
+// removeAmountBonusGroups 删除某档位的白名单（档位被删除时同步清理，避免孤儿残留）。
+export function removeAmountBonusGroups(value: string, amount: number): string {
+  const all = parseAmountBonusGroupsJson(value)
+  delete all[amount]
+  const sortedEntries = Object.entries(all)
+    .map(([a, g]) => [Number(a), g] as const)
+    .sort((a, b) => a[0] - b[0])
+    .map(([a, g]) => [String(a), g] as const)
+  return JSON.stringify(Object.fromEntries(sortedEntries), null, 2)
+}

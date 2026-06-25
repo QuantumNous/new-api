@@ -90,6 +90,21 @@ export async function getUserInfo(
   return res.data
 }
 
+/**
+ * Get all billing/channel groups that can appear in the logs `group` column.
+ * Mirrors the channel-config source (`GET /api/group/`, GetGroupRatioCopy on the
+ * backend) — the authoritative set of groups requests are actually billed under,
+ * used to populate the common-logs group filter dropdown.
+ */
+export async function getGroups(): Promise<{
+  success: boolean
+  message?: string
+  data?: string[]
+}> {
+  const res = await api.get('/api/group/')
+  return res.data
+}
+
 // ============================================================================
 // Midjourney (Drawing) Logs API
 // ============================================================================

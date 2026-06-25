@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import { API_ENDPOINTS } from './constants'
+import { isPlaygroundChatModelName } from './lib/playground-model-filter'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
@@ -50,7 +51,7 @@ export async function getUserModels(group?: string): Promise<ModelOption[]> {
     return []
   }
 
-  return data.data.map((model: string) => ({
+  return data.data.filter(isPlaygroundChatModelName).map((model: string) => ({
     label: model,
     value: model,
   }))

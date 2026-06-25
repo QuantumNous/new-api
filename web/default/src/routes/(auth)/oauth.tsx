@@ -25,6 +25,18 @@ import { getSelf } from '@/lib/api'
 import { wechatLoginByCode } from '@/features/auth/api'
 import { isSafeInternalPath } from '@/features/auth/lib/storage'
 
+type WeChatOAuthTargetOptions = {
+  isNewUser: boolean
+  redirect?: string
+}
+
+export function getPostWechatLoginTarget(
+  options: WeChatOAuthTargetOptions
+): string {
+  if (options.isNewUser) return '/playground?first=1'
+  return isSafeInternalPath(options.redirect) ? options.redirect : '/dashboard'
+}
+
 function OAuthComponent() {
   const navigate = useNavigate()
   const search = useSearch({ from: '/(auth)/oauth' }) as {
@@ -37,18 +49,30 @@ function OAuthComponent() {
   useEffect(() => {
     ;(async () => {
       try {
+        let isNewWechatUser = false
         if (search?.provider === 'wechat' && search.code) {
-          await wechatLoginByCode(search.code)
+          const loginResponse = await wechatLoginByCode(search.code)
+          const loginUser = (loginResponse.data ?? null) as AuthUser | null
+          isNewWechatUser = loginUser?.is_new_user === true
         }
         const res = await getSelf()
         if (res?.success) {
           useAuthStore.getState().auth.setUser(res.data as AuthUser)
-          // redirect is user-controllable; validate it as an internal path to avoid an
-          // open-redirect, falling back to the dashboard.
-          const target = isSafeInternalPath(search?.redirect)
-            ? search.redirect
-            : '/dashboard'
-          navigate({ to: target, replace: true })
+          const target = getPostWechatLoginTarget({
+            isNewUser: isNewWechatUser,
+            redirect: search?.redirect,
+          })
+          const parsed = new URL(target, window.location.origin)
+          if (parsed.search || parsed.hash) {
+            navigate({
+              to: parsed.pathname,
+              search: Object.fromEntries(parsed.searchParams),
+              hash: parsed.hash ? parsed.hash.slice(1) : undefined,
+              replace: true,
+            })
+          } else {
+            navigate({ to: parsed.pathname, replace: true })
+          }
           return
         }
       } catch {

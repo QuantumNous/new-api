@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
-import { useIsEnterprise } from '@/hooks/use-enterprise'
+import { useCanUseGroups } from '@/hooks/use-enterprise'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import {
@@ -82,7 +82,7 @@ export function ApiKeysMutateDrawer({
   const isUpdate = !!currentRow
   const { triggerRefresh } = useApiKeys()
   const { status } = useStatus()
-  const isEnterprise = useIsEnterprise()
+  const canUseGroups = useCanUseGroups()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [revealKey, setRevealKey] = useState<string | null>(null)
   const defaultUseAutoGroup = status?.default_use_auto_group === true
@@ -94,12 +94,12 @@ export function ApiKeysMutateDrawer({
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   })
 
-  // Fetch groups (enterprise users only — PLG users don't see the group concept)
+  // Fetch groups only when the current user can choose token groups.
   const { data: groupsData } = useQuery({
     queryKey: ['user-groups'],
     queryFn: getUserGroups,
     staleTime: 5 * 60 * 1000,
-    enabled: isEnterprise,
+    enabled: canUseGroups,
   })
 
   const models = modelsData?.data || []
@@ -154,7 +154,7 @@ export function ApiKeysMutateDrawer({
   const onSubmit = async (data: ApiKeyFormValues) => {
     setIsSubmitting(true)
     try {
-      const basePayload = transformFormDataToPayload(data, isEnterprise)
+      const basePayload = transformFormDataToPayload(data, canUseGroups)
 
       if (isUpdate && currentRow) {
         const result = await updateApiKey({
@@ -306,9 +306,8 @@ export function ApiKeysMutateDrawer({
               )}
             />
 
-            {/* Enterprise users can pick a group at create time. PLG (non-enterprise)
-                users never see groups; their keys are forced to plg server-side. */}
-            {!isUpdate && isEnterprise && (
+            {/* PLG users never see groups; their keys are forced to plg server-side. */}
+            {!isUpdate && canUseGroups && (
               <>
                 <FormField
                   control={form.control}
@@ -507,7 +506,7 @@ export function ApiKeysMutateDrawer({
 
             {isUpdate && (
               <>
-                {isEnterprise && (
+                {canUseGroups && (
                   <FormField
                     control={form.control}
                     name='group'
@@ -528,7 +527,7 @@ export function ApiKeysMutateDrawer({
                   />
                 )}
 
-                {isEnterprise && selectedGroup === 'auto' && (
+                {canUseGroups && selectedGroup === 'auto' && (
                   <FormField
                     control={form.control}
                     name='cross_group_retry'

@@ -23,10 +23,18 @@ import { ApiKeysPrimaryButtons } from './components/api-keys-primary-buttons'
 import { ApiKeysProvider } from './components/api-keys-provider'
 import { ApiKeysTable } from './components/api-keys-table'
 
-export function ApiKeys() {
+type ApiKeysProps = {
+  autoCreateRequested?: boolean
+  onAutoCreateConsumed?: () => void
+}
+
+export function ApiKeys(props: ApiKeysProps) {
   const { t } = useTranslation()
   return (
-    <ApiKeysProvider>
+    <ApiKeysProvider
+      autoCreateRequested={props.autoCreateRequested}
+      onAutoCreateConsumed={props.onAutoCreateConsumed}
+    >
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('API Keys')}</SectionPageLayout.Title>
         <SectionPageLayout.Actions>

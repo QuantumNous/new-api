@@ -32,6 +32,10 @@ interface UseSystemConfigOptions {
   autoLoad?: boolean
 }
 
+type SystemConfigWithPlaygroundDefaults = SystemConfig & {
+  playgroundDefaultModel?: string
+}
+
 interface StatusApiResponse {
   success: boolean
   data: {
@@ -49,6 +53,7 @@ interface StatusApiResponse {
     usd_exchange_rate?: number
     custom_currency_symbol?: string
     custom_currency_exchange_rate?: number
+    playground_default_model?: string
   }
 }
 
@@ -94,7 +99,9 @@ export function mapStatusDataToConfig(
     ),
   }
 
-  return {
+  const mappedConfig: Partial<SystemConfig> & {
+    playgroundDefaultModel?: string
+  } = {
     systemName: data.system_name || DEFAULT_SYSTEM_NAME,
     logo: data.logo || DEFAULT_LOGO,
     footerHtml: data.footer_html,
@@ -103,8 +110,10 @@ export function mapStatusDataToConfig(
     serverAddress: data.server_address,
     enableStripeCardBind: data.enable_stripe_card_bind,
     stripeNewUserBonusAmount: data.stripe_new_user_bonus_amount,
+    playgroundDefaultModel: data.playground_default_model?.trim() || undefined,
     currency,
   }
+  return mappedConfig
 }
 
 // Fetch system config from API
@@ -156,6 +165,7 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
     setLoadedLogoUrl,
     setLoading,
   } = useSystemConfigStore()
+  const extendedConfig = config as SystemConfigWithPlaygroundDefaults
 
   // Load config from backend
   const loadConfig = useCallback(async () => {
@@ -202,7 +212,7 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
   }, [config.logo, loadedLogoUrl, setLoadedLogoUrl])
 
   return {
-    ...config,
+    ...extendedConfig,
     loading,
     logoLoaded: config.logo === loadedLogoUrl && !!loadedLogoUrl,
   }

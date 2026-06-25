@@ -1,5 +1,6 @@
+import Script from "next/script";
 import { notFound } from "next/navigation";
-import { RootDocument, rootMetadata } from "@/components/root-document";
+import { ATTRIBUTION_COOKIE_SCRIPT, RootDocument, rootMetadata } from "@/components/root-document";
 import { DEFAULT_LOCALE, LOCALES, isLocale } from "@/lib/locales";
 import "../globals.css";
 
@@ -19,5 +20,16 @@ export default async function RootLayout({ children, params }: Props) {
 
   if (!isLocale(locale) || locale === DEFAULT_LOCALE) notFound();
 
-  return <RootDocument lang={locale}>{children}</RootDocument>;
+  return (
+    <RootDocument
+      lang={locale}
+      bodyStart={
+        <Script id="flatkey-attribution-cookie" strategy="beforeInteractive">
+          {ATTRIBUTION_COOKIE_SCRIPT}
+        </Script>
+      }
+    >
+      {children}
+    </RootDocument>
+  );
 }
