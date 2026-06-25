@@ -3673,6 +3673,7 @@
     "Routing Strategy": "ルーティング戦略",
     "Rows per page": "ページあたりの行数",
     "RPM": "RPM",
+    "Cache Hit Rate": "キャッシュヒット率",
     "RPM = requests per minute, TPM = tokens per minute, RPD = requests per day. Limits apply per token group.": "RPM = 1 分あたりリクエスト数、TPM = 1 分あたりトークン数、RPD = 1 日あたりリクエスト数。制限はトークングループ単位で適用されます。",
     "RSA Private Key (Production)": "RSA秘密鍵（本番）",
     "RSA Private Key (Sandbox)": "RSA秘密鍵（サンドボックス）",

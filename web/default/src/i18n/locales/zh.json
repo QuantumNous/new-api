@@ -3673,6 +3673,7 @@
     "Routing Strategy": "路由策略",
     "Rows per page": "每页行数",
     "RPM": "RPM",
+    "Cache Hit Rate": "缓存命中率",
     "RPM = requests per minute, TPM = tokens per minute, RPD = requests per day. Limits apply per token group.": "RPM = 每分钟请求数，TPM = 每分钟 token 数，RPD = 每日请求数。限制按令牌分组生效。",
     "RSA Private Key (Production)": "RSA 私钥（生产）",
     "RSA Private Key (Sandbox)": "RSA 私钥（沙盒）",

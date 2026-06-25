@@ -3673,6 +3673,7 @@
     "Routing Strategy": "Stratégie de routage",
     "Rows per page": "Lignes par page",
     "RPM": "RPM",
+    "Cache Hit Rate": "Taux de cache",
     "RPM = requests per minute, TPM = tokens per minute, RPD = requests per day. Limits apply per token group.": "RPM = requêtes/minute, TPM = jetons/minute, RPD = requêtes/jour. Les limites s'appliquent par groupe de jetons.",
     "RSA Private Key (Production)": "Clé privée RSA (Production)",
     "RSA Private Key (Sandbox)": "Clé privée RSA (Sandbox)",
