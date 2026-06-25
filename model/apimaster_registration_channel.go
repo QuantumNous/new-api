@@ -148,7 +148,7 @@ type RegistrationChannelStat struct {
 // otherwise the managed channel name (if any) or the raw code.
 const channelDisplayExpr = `CASE
 		WHEN u.registration_channel_code = 'referral' THEN COALESCE(NULLIF(inv.email, ''), 'referral')
-		WHEN u.registration_channel_code = 'direct' THEN 'direct'
+		WHEN u.registration_channel_code = 'direct' OR u.registration_channel_code IS NULL OR u.registration_channel_code = '' THEN 'direct'
 		ELSE COALESCE(NULLIF(c.name, ''), u.registration_channel_code)
 	END`
 
@@ -174,8 +174,7 @@ func ListRegistrationChannelStats(days int) ([]RegistrationChannelStat, error) {
 		FROM users u
 		LEFT JOIN registration_channels c ON c.code = u.registration_channel_code
 		LEFT JOIN users inv ON inv.id = u.referred_by
-		WHERE u.registration_channel_code IS NOT NULL AND u.registration_channel_code <> ''
-		  AND u.created_at >= now() - (? * interval '1 day')
+		WHERE u.created_at >= now() - (? * interval '1 day')
 		GROUP BY 1
 	`, days).Scan(&regRows).Error; err != nil {
 		return nil, err
@@ -192,7 +191,6 @@ func ListRegistrationChannelStats(days int) ([]RegistrationChannelStat, error) {
 		FROM users u
 		LEFT JOIN registration_channels c ON c.code = u.registration_channel_code
 		LEFT JOIN users inv ON inv.id = u.referred_by
-		WHERE u.registration_channel_code IS NOT NULL AND u.registration_channel_code <> ''
 	`).Scan(&userChans).Error; err != nil {
 		return nil, err
 	}
