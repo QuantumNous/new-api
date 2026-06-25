@@ -41,6 +41,8 @@ import type {
   WaffoPancakePaymentResponse,
   PlategaPaymentRequest,
   PlategaPaymentResponse,
+  ClinkPaymentRequest,
+  ClinkPaymentResponse,
 } from './types'
 
 // ============================================================================
@@ -214,6 +216,18 @@ export async function requestPlategaPayment(
   request: PlategaPaymentRequest
 ): Promise<PlategaPaymentResponse> {
   const res = await api.post('/api/user/platega/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request Clink hosted checkout payment
+ */
+export async function requestClinkPayment(
+  request: ClinkPaymentRequest
+): Promise<ClinkPaymentResponse> {
+  const res = await api.post('/api/user/clink/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data

@@ -209,6 +209,14 @@ const BILLING_SECTIONS = [
           PlategaFailedURL: settings.PlategaFailedURL ?? '',
           PlategaFeePercent: settings.PlategaFeePercent ?? 8.5,
         }}
+        clinkDefaultValues={{
+          ClinkEnabled: settings.ClinkEnabled ?? false,
+          ClinkSandbox: settings.ClinkSandbox ?? true,
+          ClinkMinTopUp: settings.ClinkMinTopUp ?? 1,
+          ClinkCurrency: settings.ClinkCurrency ?? 'USD',
+          ClinkSuccessURL: settings.ClinkSuccessURL ?? '',
+          ClinkCancelURL: settings.ClinkCancelURL ?? '',
+        }}
       />
     ),
   },

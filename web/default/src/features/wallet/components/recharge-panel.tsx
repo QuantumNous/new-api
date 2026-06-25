@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback } from 'react'
-import { Bitcoin, CreditCard, Loader2 } from 'lucide-react'
+import { Bitcoin, CreditCard, Globe, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -30,6 +30,7 @@ import { paymentErrorMessage } from '../lib/payment'
 import { GLASS_CARD_CLS } from '../constants'
 import { useWaffoPancakePayment } from '../hooks/use-waffo-pancake-payment'
 import { usePlategaPayment } from '../hooks/use-platega-payment'
+import { useClinkPayment } from '../hooks/use-clink-payment'
 import { WaffoPayMethodHints } from './waffo-pay-method-hints'
 import type { TopupInfo } from '../types'
 
@@ -53,6 +54,7 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
   const [paypalLoading, setPaypalLoading] = useState(false)
   const { processing: pancakeLoading, processWaffoPancakePayment } = useWaffoPancakePayment()
   const { processing: plategaLoading, processPlategaPayment } = usePlategaPayment()
+  const { processing: clinkLoading, processClinkPayment } = useClinkPayment()
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
   const [showHint, setShowHint] = useState(false)
   const [promoInfo, setPromoInfo] = useState<FirstTopupPromoInfo | null>(null)
@@ -206,10 +208,21 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
     await processPlategaPayment(Math.round(effectiveAmount))
   }
 
+  async function handleClinkPay() {
+    const minTopup = topupInfo?.clink_min_topup ?? 1
+    if (effectiveAmount < minTopup) {
+      toast.error(`${t('Minimum top-up')}: $${minTopup}`)
+      return
+    }
+    handleMethodSelect('clink')
+    await processClinkPayment(Math.round(effectiveAmount))
+  }
+
   const epayEnabled = topupInfo?.enable_online_topup ?? false
   const paypalEnabled = topupInfo?.enable_paypal_topup ?? false
   const pancakeEnabled = topupInfo?.enable_waffo_pancake_topup ?? false
   const plategaEnabled = topupInfo?.enable_platega_topup ?? false
+  const clinkEnabled = topupInfo?.enable_clink_topup ?? false
   const epayMethods = topupInfo?.pay_methods ?? []
   const hasAlipay = epayEnabled && epayMethods.some((m) => m.type === 'alipay')
   const hasWechat = epayEnabled && epayMethods.some((m) => m.type === 'wxpay')
@@ -366,6 +379,30 @@ export function RechargePanel({ onSuccess }: RechargePanelProps) {
                   <div className='min-w-0'>
                     <div className='truncate text-sm font-semibold text-gray-800'>{t('Russian SBP QR')}</div>
                     <div className='truncate text-[11px] text-gray-400'>{t('Russian SBP QR hint')}</div>
+                  </div>
+                </button>
+              )}
+
+              {clinkEnabled && (
+                <button
+                  type='button'
+                  disabled={effectiveAmount <= 0 || clinkLoading}
+                  onClick={handleClinkPay}
+                  className={cn(
+                    'flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40',
+                    selectedMethod === 'clink'
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-border bg-white hover:border-green-500'
+                  )}
+                >
+                  <div className='flex size-9 shrink-0 items-center justify-center rounded-lg' style={{ background: 'linear-gradient(135deg, #22c55e, #15803d)' }}>
+                    {clinkLoading
+                      ? <Loader2 className='size-4 animate-spin text-white' />
+                      : <Globe className='size-4 text-white' />}
+                  </div>
+                  <div className='min-w-0'>
+                    <div className='truncate text-sm font-semibold text-gray-800'>Clink</div>
+                    <div className='truncate text-[11px] text-gray-400'>{t('Global cards and local methods')}</div>
                   </div>
                 </button>
               )}

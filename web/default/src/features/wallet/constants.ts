@@ -38,6 +38,7 @@ export const PAYMENT_TYPES = {
   WAFFO: 'waffo',
   WAFFO_PANCAKE: 'waffo_pancake',
   PLATEGA: 'platega',
+  CLINK: 'clink',
 } as const
 
 /**
@@ -56,6 +57,7 @@ export const PAYMENT_ICON_COLORS = {
   [PAYMENT_TYPES.WAFFO]: '#2563EB',
   [PAYMENT_TYPES.WAFFO_PANCAKE]: '#F97316',
   [PAYMENT_TYPES.PLATEGA]: '#2563EB',
+  [PAYMENT_TYPES.CLINK]: '#16A34A',
 } as const
 
 /**

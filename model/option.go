@@ -129,6 +129,12 @@ func InitOptionMap() {
 	common.OptionMap["PlategaReturnURL"] = setting.PlategaReturnURL
 	common.OptionMap["PlategaFailedURL"] = setting.PlategaFailedURL
 	common.OptionMap["PlategaFeePercent"] = strconv.FormatFloat(setting.PlategaFeePercent, 'f', -1, 64)
+	common.OptionMap["ClinkEnabled"] = strconv.FormatBool(setting.ClinkEnabled)
+	common.OptionMap["ClinkSandbox"] = strconv.FormatBool(setting.ClinkSandbox)
+	common.OptionMap["ClinkMinTopUp"] = strconv.Itoa(setting.ClinkMinTopUp)
+	common.OptionMap["ClinkCurrency"] = setting.ClinkCurrency
+	common.OptionMap["ClinkSuccessURL"] = setting.ClinkSuccessURL
+	common.OptionMap["ClinkCancelURL"] = setting.ClinkCancelURL
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -485,6 +491,18 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.PlategaFailedURL = value
 	case "PlategaFeePercent":
 		setting.PlategaFeePercent, _ = strconv.ParseFloat(value, 64)
+	case "ClinkEnabled":
+		setting.ClinkEnabled = value == "true"
+	case "ClinkSandbox":
+		setting.ClinkSandbox = value == "true"
+	case "ClinkMinTopUp":
+		setting.ClinkMinTopUp, _ = strconv.Atoi(value)
+	case "ClinkCurrency":
+		setting.ClinkCurrency = value
+	case "ClinkSuccessURL":
+		setting.ClinkSuccessURL = value
+	case "ClinkCancelURL":
+		setting.ClinkCancelURL = value
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

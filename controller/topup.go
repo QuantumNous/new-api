@@ -92,6 +92,42 @@ func GetTopUpInfo(c *gin.Context) {
 	}
 
 	enablePlatega := isPlategaTopUpEnabled()
+	if enablePlatega {
+		hasPlatega := false
+		for _, method := range payMethods {
+			if method["type"] == model.PaymentMethodPlatega {
+				hasPlatega = true
+				break
+			}
+		}
+		if !hasPlatega {
+			payMethods = append(payMethods, map[string]string{
+				"name":      "Russian SBP QR",
+				"type":      model.PaymentMethodPlatega,
+				"color":     "rgba(var(--semi-blue-5), 1)",
+				"min_topup": strconv.Itoa(setting.PlategaMinTopUp),
+			})
+		}
+	}
+
+	enableClink := isClinkTopUpEnabled()
+	if enableClink {
+		hasClink := false
+		for _, method := range payMethods {
+			if method["type"] == model.PaymentMethodClink {
+				hasClink = true
+				break
+			}
+		}
+		if !hasClink {
+			payMethods = append(payMethods, map[string]string{
+				"name":      "Clink (Global Payment)",
+				"type":      model.PaymentMethodClink,
+				"color":     "rgba(var(--semi-green-5), 1)",
+				"min_topup": strconv.Itoa(setting.ClinkMinTopUp),
+			})
+		}
+	}
 
 	data := gin.H{
 		"enable_online_topup":        isEpayTopUpEnabled(),
@@ -101,6 +137,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_waffo_topup":         enableWaffo,
 		"enable_waffo_pancake_topup": enableWaffoPancake,
 		"enable_platega_topup":       enablePlatega,
+		"enable_clink_topup":         enableClink,
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
 				return setting.GetWaffoPayMethods()
@@ -116,6 +153,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
 		"platega_min_topup":       setting.PlategaMinTopUp,
 		"platega_usd_rate":        setting.PlategaUSDRate,
+		"clink_min_topup":         setting.ClinkMinTopUp,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":              common.TopUpLink,

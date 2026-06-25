@@ -39,6 +39,7 @@ const (
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
 	PaymentMethodPlatega      = "platega"
+	PaymentMethodClink        = "clink"
 )
 
 const (
@@ -49,6 +50,7 @@ const (
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
 	PaymentProviderPlatega      = "platega"
+	PaymentProviderClink        = "clink"
 )
 
 var (
@@ -76,6 +78,8 @@ func FormatPaymentMethodLabel(method string) string {
 		return "Waffo Pancake"
 	case PaymentMethodPlatega:
 		return "Russian SBP QR"
+	case PaymentMethodClink:
+		return "Clink"
 	case "crypto":
 		return "加密货币"
 	case "epay":
@@ -270,6 +274,58 @@ func RechargePayPal(referenceId string, callerIp string) (err error) {
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用 PayPal 充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(int(quota)), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodPayPal)
 	OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodPayPal, topUp.TradeNo)
+
+	return nil
+}
+
+func RechargeClink(referenceId string, callerIp string) (err error) {
+	if referenceId == "" {
+		return errors.New("未提供支付单号")
+	}
+
+	var quota float64
+	topUp := &TopUp{}
+
+	refCol := "`trade_no`"
+	if common.UsingPostgreSQL {
+		refCol = `"trade_no"`
+	}
+
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", referenceId).First(topUp).Error
+		if err != nil {
+			return errors.New("充值订单不存在")
+		}
+
+		if topUp.PaymentProvider != PaymentProviderClink {
+			return ErrPaymentMethodMismatch
+		}
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil
+		}
+		if topUp.Status != common.TopUpStatusPending {
+			return errors.New("充值订单状态错误")
+		}
+
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+
+		quota = topUp.Money * common.QuotaPerUnit
+		return tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quota)).Error
+	})
+
+	if err != nil {
+		common.SysError("clink topup failed: " + err.Error())
+		return errors.New("充值失败，请稍后重试")
+	}
+
+	if quota > 0 {
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("Clink 充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(int(quota)), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodClink)
+		OnTopupSucceeded(topUp.UserId, int(quota), PaymentMethodClink, topUp.TradeNo)
+	}
 
 	return nil
 }

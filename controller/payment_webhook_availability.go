@@ -107,6 +107,17 @@ func isPlategaWebhookEnabled() bool {
 	return isPlategaTopUpEnabled()
 }
 
+func isClinkTopUpEnabled() bool {
+	if !setting.ClinkEnabled {
+		return false
+	}
+	return service.ClinkConfigured()
+}
+
+func isClinkWebhookEnabled() bool {
+	return isClinkTopUpEnabled()
+}
+
 func isEpayTopUpEnabled() bool {
 	return isEpayWebhookConfigured() && len(operation_setting.PayMethods) > 0
 }

@@ -57,6 +57,10 @@ import {
   type PlategaSettingsValues,
 } from './platega-settings-section'
 import {
+  ClinkSettingsSection,
+  type ClinkSettingsValues,
+} from './clink-settings-section'
+import {
   WaffoSettingsSection,
   type WaffoSettingsValues,
 } from './waffo-settings-section'
@@ -139,6 +143,7 @@ type PaymentSettingsSectionProps = {
   waffoDefaultValues: WaffoSettingsValues
   waffoPancakeDefaultValues: WaffoPancakeSettingsValues
   plategaDefaultValues: PlategaSettingsValues
+  clinkDefaultValues: ClinkSettingsValues
 }
 
 export function PaymentSettingsSection({
@@ -146,6 +151,7 @@ export function PaymentSettingsSection({
   waffoDefaultValues,
   waffoPancakeDefaultValues,
   plategaDefaultValues,
+  clinkDefaultValues,
 }: PaymentSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -1543,6 +1549,10 @@ export function PaymentSettingsSection({
       <Separator />
 
       <PlategaSettingsSection defaultValues={plategaDefaultValues} />
+
+      <Separator />
+
+      <ClinkSettingsSection defaultValues={clinkDefaultValues} />
       {/* eslint-enable react-hooks/refs */}
     </SettingsSection>
   )

@@ -272,6 +272,12 @@ export type BillingSettings = {
   PlategaReturnURL: string
   PlategaFailedURL: string
   PlategaFeePercent: number
+  ClinkEnabled: boolean
+  ClinkSandbox: boolean
+  ClinkMinTopUp: number
+  ClinkCurrency: string
+  ClinkSuccessURL: string
+  ClinkCancelURL: string
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number

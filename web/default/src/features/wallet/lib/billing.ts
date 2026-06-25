@@ -65,6 +65,7 @@ export const PAYMENT_METHOD_NAMES: Record<string, string> = {
   waffo: 'Waffo',
   waffo_pancake: 'Waffo (Pancake)',
   platega: 'Russian SBP QR',
+  clink: 'Clink',
   creem: 'Creem',
   crypto: 'Crypto (USDT)',
   custom1: 'Custom 1',

@@ -156,6 +156,10 @@ export interface TopupInfo {
   platega_min_topup?: number
   /** USD to RUB rate for Platega */
   platega_usd_rate?: number
+  /** Whether Clink topup is enabled */
+  enable_clink_topup?: boolean
+  /** Minimum topup amount for Clink */
+  clink_min_topup?: number
 }
 
 /**
@@ -217,6 +221,17 @@ export type PlategaPaymentResponse = ApiResponse<{
   order_id: string
   rub_amount: number
   status: string
+}>
+
+export interface ClinkPaymentRequest {
+  amount: number
+  payment_method?: string
+}
+
+export type ClinkPaymentResponse = ApiResponse<{
+  checkout_url: string
+  session_id: string
+  order_id: string
 }>
 
 /**
