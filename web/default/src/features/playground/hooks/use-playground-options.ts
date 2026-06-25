@@ -26,6 +26,7 @@ import {
   getGroupFallback,
   getModelFallback,
   getOptionLoadErrorMessage,
+  shouldClearModelForGroup,
 } from '../lib'
 import type { GroupOption, ModelOption, PlaygroundConfig } from '../types'
 
@@ -55,8 +56,9 @@ export function usePlaygroundOptions({
     isError: isModelsError,
     isLoading: isLoadingModels,
   } = useQuery({
-    queryKey: ['playground-models'],
-    queryFn: getUserModels,
+    queryKey: ['playground-models', currentGroup],
+    queryFn: () => getUserModels(currentGroup),
+    enabled: currentGroup !== '',
   })
 
   const {
@@ -98,6 +100,11 @@ export function usePlaygroundOptions({
 
     if (fallback) {
       updateConfig('model', fallback)
+      return
+    }
+
+    if (shouldClearModelForGroup(modelsData, currentModel)) {
+      updateConfig('model', '')
     }
   }, [modelsData, currentModel, setModels, updateConfig])
 

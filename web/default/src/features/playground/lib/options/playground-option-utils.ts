@@ -31,6 +31,17 @@ export function getModelFallback(
   return models[0].value
 }
 
+export function shouldClearModelForGroup(
+  models: ModelOption[],
+  currentModel: string
+): boolean {
+  if (currentModel === '') {
+    return false
+  }
+
+  return !models.some((model) => model.value === currentModel)
+}
+
 export function getGroupFallback(
   groups: GroupOption[],
   currentGroup: string

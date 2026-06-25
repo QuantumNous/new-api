@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Edit, RefreshCw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { MessageActionButton } from './message-action-button'
 
 type MessageErrorActionsProps = {
   disabled?: boolean
@@ -41,43 +41,33 @@ export function MessageErrorActions({
   }
 
   return (
-    <div className='flex flex-wrap gap-2 pt-2'>
+    <div className='flex flex-wrap items-center gap-0.5 pt-2'>
       {onRetry && (
-        <Button
-          className='max-md:min-h-11'
+        <MessageActionButton
           disabled={disabled}
+          icon={RefreshCw}
+          label={t('Retry')}
           onClick={onRetry}
-          size='sm'
-        >
-          <RefreshCw className='size-3.5' />
-          {t('Retry')}
-        </Button>
+        />
       )}
 
       {onEditPrompt && (
-        <Button
-          className='max-md:min-h-11'
+        <MessageActionButton
           disabled={disabled}
+          icon={Edit}
+          label={t('Edit')}
           onClick={onEditPrompt}
-          size='sm'
-          variant='outline'
-        >
-          <Edit className='size-3.5' />
-          {t('Edit')}
-        </Button>
+        />
       )}
 
       {onDelete && (
-        <Button
-          className='max-md:min-h-11'
+        <MessageActionButton
           disabled={disabled}
+          icon={Trash2}
+          label={t('Delete')}
           onClick={onDelete}
-          size='sm'
           variant='destructive'
-        >
-          <Trash2 className='size-3.5' />
-          {t('Delete')}
-        </Button>
+        />
       )}
     </div>
   )

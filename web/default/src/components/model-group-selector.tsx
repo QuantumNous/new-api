@@ -574,50 +574,25 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
     () => groups.find((group) => group.value === selectedGroup),
     [groups, selectedGroup]
   )
-  const groupedModels = useMemo(
-    () =>
-      models.reduce(
-        (acc, model) => {
-          const category = model.category || t('Other')
-          if (!acc[category]) {
-            acc[category] = []
-          }
-          acc[category].push(model)
-          return acc
-        },
-        {} as Record<string, ModelOption[]>
-      ),
-    [models, t]
-  )
   const filteredModels = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     if (!query) {
-      return groupedModels
+      return models
     }
 
-    const filtered: Record<string, ModelOption[]> = {}
+    return models.filter((model) => {
+      const searchableText = [
+        model.label,
+        model.value,
+        model.description || '',
+        model.category || '',
+      ]
+        .join(' ')
+        .toLowerCase()
 
-    for (const [category, categoryModels] of Object.entries(groupedModels)) {
-      const matches = categoryModels.filter((model) => {
-        const searchableText = [
-          model.label,
-          model.value,
-          model.description || '',
-          model.category || '',
-        ]
-          .join(' ')
-          .toLowerCase()
-
-        return searchableText.includes(query)
-      })
-
-      if (matches.length > 0) {
-        filtered[category] = matches
-      }
-    }
-
-    return filtered
-  }, [groupedModels, searchQuery])
+      return searchableText.includes(query)
+    })
+  }, [models, searchQuery])
 
   const handleModelChange = useCallback(
     (value: string) => {
@@ -661,8 +636,8 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   )
 
   const renderGroupList = () => (
-    <div className='min-w-0 space-y-1.5'>
-      <div className='text-muted-foreground px-1 text-[10px] font-medium tracking-wide uppercase'>
+    <div className='min-w-0 space-y-2'>
+      <div className='text-muted-foreground px-1 text-[11px] leading-4 font-medium'>
         {t('Model Group')}
       </div>
       <div className='grid gap-1'>
@@ -672,7 +647,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
           return (
             <button
               className={cn(
-                'flex min-w-0 items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors',
+                'flex min-w-0 items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-[12px] leading-4 transition-colors',
                 isSelected
                   ? 'bg-primary/10 text-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -700,57 +675,49 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
 
   const renderModelList = () => (
     <Command
-      className='min-w-0 rounded-lg border-0 bg-transparent'
+      className='min-w-0 rounded-lg border-0 bg-transparent p-1'
       filter={() => 1}
       shouldFilter={false}
     >
       <CommandInput
-        className='h-9'
+        className='h-8 text-[13px]'
         onValueChange={setSearchQuery}
         placeholder={t('Search models...')}
         value={searchQuery}
       />
-      <CommandEmpty>{t('No model found.')}</CommandEmpty>
       <CommandList className={isMobile ? 'max-h-[45vh]' : 'max-h-[20rem]'}>
-        {Object.keys(filteredModels).length === 0 ? (
-          <div className='text-muted-foreground px-3 py-6 text-xs'>
+        {filteredModels.length === 0 ? (
+          <div className='text-muted-foreground px-3 py-8 text-center text-[12px] leading-5'>
             {t('No model found.')}
           </div>
         ) : (
-          Object.entries(filteredModels).map(([category, categoryModels]) => (
-            <CommandGroup key={category}>
-              <div className='text-muted-foreground px-2 py-1 text-[10px] font-medium'>
-                {t('{{category}} Models', { category })}
-              </div>
-              {categoryModels.map((model) => (
-                <CommandItem
-                  className='mb-0.5 flex items-center justify-between rounded-lg px-2 py-1.5 text-xs transition-colors'
-                  key={model.value}
-                  onSelect={handleModelChange}
-                  value={model.value}
-                >
-                  <span className='min-w-0 truncate font-medium'>
-                    {model.label}
-                  </span>
-                  <Check
-                    className={cn(
-                      'size-3.5 shrink-0',
-                      selectedModel === model.value
-                        ? 'opacity-100'
-                        : 'opacity-0'
-                    )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          ))
+          <CommandGroup className='p-1'>
+            {filteredModels.map((model) => (
+              <CommandItem
+                className='mb-0.5 flex items-center justify-between rounded-md px-2 py-1.5 text-[12px] leading-4 transition-colors'
+                key={model.value}
+                onSelect={handleModelChange}
+                value={model.value}
+              >
+                <span className='min-w-0 truncate font-medium'>
+                  {model.label}
+                </span>
+                <Check
+                  className={cn(
+                    'size-3.5 shrink-0',
+                    selectedModel === model.value ? 'opacity-100' : 'opacity-0'
+                  )}
+                />
+              </CommandItem>
+            ))}
+          </CommandGroup>
         )}
       </CommandList>
     </Command>
   )
 
   const renderContent = () => (
-    <div className='grid gap-3 p-2 md:grid-cols-[9rem_minmax(0,1fr)]'>
+    <div className='grid gap-3 p-2 md:grid-cols-[9.5rem_minmax(0,1fr)]'>
       {renderGroupList()}
       <div className='min-w-0 overflow-hidden rounded-lg border'>
         {renderModelList()}

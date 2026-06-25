@@ -58,10 +58,11 @@ export function getInputControlState({
   models,
   text,
 }: InputControlStateOptions): InputControlState {
+  const hasModels = models.length > 0
+
   return {
-    canSubmit: !disabled && text.trim().length > 0,
-    isSelectorDisabled:
-      disabled || isModelLoading || models.length === 0 || groups.length === 0,
+    canSubmit: !disabled && hasModels && text.trim().length > 0,
+    isSelectorDisabled: disabled || isModelLoading || groups.length === 0,
     shouldShowStop: Boolean(isGenerating && hasStopHandler),
   }
 }
