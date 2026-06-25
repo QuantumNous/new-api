@@ -43,6 +43,7 @@ func TestNormalizeCodexInviteEmailsRejectsInvalidAndTooMany(t *testing.T) {
 }
 
 func TestSendCodexInviteSendsExpectedRequest(t *testing.T) {
+	withCodexInviteRedis(t)
 	var gotPath string
 	var gotHeaders http.Header
 	var gotBody map[string]any
@@ -410,6 +411,7 @@ func TestBuildCodexInviteURLRejectsUntrustedTargets(t *testing.T) {
 }
 
 func TestCodexInviteRedirectRejectsUntrustedTarget(t *testing.T) {
+	withCodexInviteRedis(t)
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "https://evil.example/backend-api/wham/referrals/invite", http.StatusFound)
 	}))

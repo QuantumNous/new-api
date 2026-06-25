@@ -24,6 +24,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { getCodexInviteStatus, type CodexInviteStatusResponse } from '../../api'
 import { useCodexInviteSender } from '../../hooks/use-codex-invite-sender'
+import { getCodexInviteRecipientBatchKey } from '../../lib/codex-invite-recipient-batch'
 import { canSendCodexInvite } from '../../lib/codex-invite-send-guard'
 import { isCurrentCodexInviteStatusRequest } from '../../lib/codex-invite-status-guard'
 import { getCodexInviteStatusFailureMessage } from '../../lib/codex-invite-status-message'
@@ -49,6 +50,7 @@ type ChannelScopedString = {
 
 type ChannelScopedConsent = {
   channelId: number
+  batchKey: string
   value: boolean
 }
 
@@ -122,8 +124,15 @@ export function CodexInvitePanel(props: CodexInvitePanelProps) {
 
   const status =
     statusState?.channelId === props.channelId ? statusState.value : null
+  const recipientBatchKey = useMemo(
+    () => getCodexInviteRecipientBatchKey(emailInput),
+    [emailInput]
+  )
   const consentConfirmed =
-    consentState?.channelId === props.channelId ? consentState.value : false
+    consentState?.channelId === props.channelId &&
+    consentState.batchKey === recipientBatchKey
+      ? consentState.value
+      : false
   const error =
     errorState?.channelId === props.channelId ? errorState.value : ''
   const rules = useMemo(() => extractRules(status), [status])
@@ -299,6 +308,7 @@ export function CodexInvitePanel(props: CodexInvitePanelProps) {
             onCheckedChange={(checked) =>
               setConsentState({
                 channelId: props.channelId,
+                batchKey: recipientBatchKey,
                 value: checked === true,
               })
             }

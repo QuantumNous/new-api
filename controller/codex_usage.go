@@ -395,7 +395,7 @@ func SendCodexInvite(c *gin.Context) {
 		return
 	}
 
-	statusCode, body, refreshed, err := codexChannelUpstreamWithRefresh(
+	statusCode, statusBody, refreshed, err := codexChannelUpstreamWithRefresh(
 		c.Request.Context(), ch,
 		func(client *http.Client, accessToken, accountID string) (int, []byte, error) {
 			statusCtx, statusCancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
@@ -411,15 +411,62 @@ func SendCodexInvite(c *gin.Context) {
 				}
 				return http.StatusBadRequest, payload, nil
 			}
-			sendCtx, sendCancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
-			defer sendCancel()
-			return service.SendCodexInvite(sendCtx, client, ch.GetBaseURL(), accessToken, accountID, normalizedEmails)
+			return http.StatusOK, statusBody, nil
 		},
 	)
 	if refreshed {
 		rebuildCodexChannelCache()
 	}
-	writeCodexUpstreamResponse(c, "failed to send codex invite: ", statusCode, body, err)
+	if err != nil {
+		common.SysError("failed to fetch codex invite status: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		writeCodexUpstreamResponse(c, "failed to prepare codex invite send: ", statusCode, statusBody, nil)
+		return
+	}
+	if refreshed {
+		ch, err = model.GetChannelById(channelId, true)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if ch == nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
+			return
+		}
+	}
+
+	sendClient, err := service.NewProxyHttpClient(ch.GetSetting().Proxy)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	oauthKey, err := codex.ParseOAuthKey(strings.TrimSpace(ch.Key))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	sendCtx, sendCancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer sendCancel()
+	statusCode, body, err := service.SendCodexInvite(sendCtx, sendClient, ch.GetBaseURL(), strings.TrimSpace(oauthKey.AccessToken), strings.TrimSpace(oauthKey.AccountID), normalizedEmails)
+	if err != nil {
+		common.SysError("failed to send codex invite: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	ok := statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices
+	var payload any
+	if common.Unmarshal(body, &payload) != nil {
+		payload = string(body)
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success":         ok,
+		"message":         "",
+		"upstream_status": statusCode,
+		"data":            payload,
+	})
 }
 
 func ensureCodexInviteRecipientConsent(statusBody []byte, confirmed bool) error {

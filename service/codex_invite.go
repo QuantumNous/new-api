@@ -131,7 +131,7 @@ func SendCodexInvite(ctx context.Context, client *http.Client, baseURL string, a
 	if err != nil {
 		return 0, nil, err
 	}
-	_, dedupeAcquired, err := acquireCodexInviteDedupe(ctx, baseURL, accessToken, accountID, normalized)
+	dedupeKey, dedupeAcquired, err := acquireCodexInviteDedupe(ctx, baseURL, accessToken, accountID, normalized)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -146,7 +146,13 @@ func SendCodexInvite(ctx context.Context, client *http.Client, baseURL string, a
 		return http.StatusConflict, body, nil
 	}
 
-	return postCodexInviteJSON(ctx, client, baseURL, accessToken, accountID, "/backend-api/wham/referrals/invite", payload)
+	statusCode, body, err = postCodexInviteJSON(ctx, client, baseURL, accessToken, accountID, "/backend-api/wham/referrals/invite", payload)
+	if isCodexInviteAuthFailure(statusCode) {
+		releaseCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		releaseCodexInviteDedupe(releaseCtx, dedupeKey)
+	}
+	return statusCode, body, err
 }
 
 func isCodexInviteAuthFailure(statusCode int) bool {
@@ -155,7 +161,7 @@ func isCodexInviteAuthFailure(statusCode int) bool {
 
 func acquireCodexInviteDedupe(ctx context.Context, baseURL string, accessToken string, accountID string, emails []string) (string, bool, error) {
 	if !common.RedisEnabled || common.RDB == nil {
-		return "", true, nil
+		return "", false, fmt.Errorf("codex invite dedupe is unavailable")
 	}
 	dedupeEmails := make([]string, 0, len(emails))
 	for _, email := range emails {
@@ -177,9 +183,18 @@ func acquireCodexInviteDedupe(ctx context.Context, baseURL string, accessToken s
 	ok, err := common.RDB.SetNX(ctx, key, "1", codexInviteDedupeTTL).Result()
 	if err != nil {
 		common.SysError("acquire codex invite dedupe: " + err.Error())
-		return "", true, nil
+		return "", false, fmt.Errorf("acquire codex invite dedupe: %w", err)
 	}
 	return key, ok, nil
+}
+
+func releaseCodexInviteDedupe(ctx context.Context, key string) {
+	if key == "" || !common.RedisEnabled || common.RDB == nil {
+		return
+	}
+	if err := common.RDB.Del(ctx, key).Err(); err != nil {
+		common.SysError("release codex invite dedupe: " + err.Error())
+	}
 }
 
 func CodexInviteRequiresRecipientConsent(body []byte) (bool, error) {
