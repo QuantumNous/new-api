@@ -12,20 +12,16 @@ import (
 )
 
 // AutoCheapestGroup is the magic token group name that activates routing
-// algorithm 0.1:
-//   - retry 0: cheapest enabled channel (distributor + first attempt)
-//   - retry >= 1: most expensive among remaining (premium fallback)
+// algorithm 0.1: on every attempt pick the cheapest enabled channel among those
+// not already tried this request (price ascending fallback).
 const AutoCheapestGroup = "default"
-
-// autoCheapestPremiumFallbackRetry is the relay retry index at which
-// auto-cheapest switches from price-ascending to price-descending selection.
-const autoCheapestPremiumFallbackRetry = 1
 
 const HeaderApimasterRoutingRetry = "X-Apimaster-Routing-Retry"
 
 // RoutingRetryFromHeader reads the initial auto-cheapest retry index for this
-// request (0 = cheapest channel, ≥1 = premium / next-tier channel). Used by
-// playground channel fallback without changing the model name.
+// request (0 = first-cheapest channel, ≥1 = skip earlier picks and start from
+// the Nth-cheapest). Used by playground channel fallback without changing the
+// model name.
 func RoutingRetryFromHeader(c *gin.Context) int {
 	if c == nil {
 		return 0

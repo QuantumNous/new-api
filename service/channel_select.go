@@ -88,21 +88,13 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	pickFilter := ChannelPickFilter(param.Ctx, param.ModelName)
 
 	// Routing algorithm 0.1 (auto-cheapest / token group "default"):
-	//   retry 0: cheapest (distributor)
-	//   retry ≥ 1: most expensive remaining channel (premium fallback)
+	//   every retry: cheapest among remaining enabled channels (price ascending).
+	//   Failed channels are excluded via use_channel before each pick.
 	if param.TokenGroup == AutoCheapestGroup {
 		SetGptImage2RoutingRetry(param.Ctx, param.GetRetry())
-		var (
-			ch       *model.Channel
-			selectErr error
-		)
-		if param.GetRetry() >= autoCheapestPremiumFallbackRetry {
-			ch, selectErr = SelectMostExpensiveEnabledChannel(param.Ctx, param.ModelName)
-		} else {
-			ch, selectErr = SelectCheapestEnabledChannel(param.Ctx, param.ModelName)
-		}
+		ch, selectErr := SelectCheapestEnabledChannel(param.Ctx, param.ModelName)
 		if selectErr != nil {
-			if errors.Is(selectErr, ErrNoCheapestChannel) || errors.Is(selectErr, ErrNoMostExpensiveChannel) {
+			if errors.Is(selectErr, ErrNoCheapestChannel) {
 				if policyErr := ClientPolicyChannelError(param.Ctx, param.ModelName); policyErr != nil && RequiresClientExclusivePolicy(param.ModelName) {
 					return nil, AutoCheapestGroup, policyErr
 				}
