@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -42,6 +43,31 @@ func TestSettleTestQuotaUsesTieredBilling(t *testing.T) {
 	require.Equal(t, 1500, quota)
 	require.NotNil(t, result)
 	require.Equal(t, "stream", result.MatchedTier)
+}
+
+func TestSettleTestQuotaIncludesCacheReadTokens(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-test",
+		StartTime:       time.Now(),
+	}
+
+	quota, result := settleTestQuota(info, types.PriceData{
+		ModelRatio:      1.5,
+		CompletionRatio: 5,
+		CacheRatio:      0.1,
+		GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
+	}, &dto.Usage{
+		PromptTokens:     335,
+		CompletionTokens: 15,
+		TotalTokens:      350,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 2492,
+		},
+		UsageSemantic: "anthropic",
+	})
+
+	require.Nil(t, result)
+	require.Equal(t, 989, quota)
 }
 
 func TestBuildTestLogOtherInjectsTieredInfo(t *testing.T) {
