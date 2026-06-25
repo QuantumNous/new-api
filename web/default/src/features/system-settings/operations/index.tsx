@@ -49,6 +49,11 @@ const defaultOperationsSettings: OperationsSettings = {
   SMTPToken: '',
   SMTPSSLEnabled: false,
   SMTPForceAuthLogin: false,
+  AliyunSmsAccessKeyId: '',
+  AliyunSmsAccessKeySecret: '',
+  AliyunSmsSignName: '',
+  AliyunSmsTemplateCode: '',
+  AliyunSmsEndpoint: 'dysmsapi.aliyuncs.com',
   WorkerUrl: '',
   WorkerValidKey: '',
   WorkerAllowHttpImageRequestEnabled: false,
@@ -92,6 +97,7 @@ export function OperationsSettings() {
     | 'behavior'
     | 'monitoring'
     | 'email'
+    | 'sms'
     | 'worker'
     | 'logs'
     | 'performance'

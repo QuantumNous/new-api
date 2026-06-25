@@ -75,6 +75,7 @@ export type AuthSettings = {
   PasswordLoginEnabled: boolean
   PasswordRegisterEnabled: boolean
   EmailVerificationEnabled: boolean
+  SmsLoginEnabled: boolean
   RegisterEnabled: boolean
   EmailDomainRestrictionEnabled: boolean
   EmailAliasRestrictionEnabled: boolean
@@ -304,6 +305,11 @@ export type OperationsSettings = {
   SMTPToken: string
   SMTPSSLEnabled: boolean
   SMTPForceAuthLogin: boolean
+  AliyunSmsAccessKeyId: string
+  AliyunSmsAccessKeySecret: string
+  AliyunSmsSignName: string
+  AliyunSmsTemplateCode: string
+  AliyunSmsEndpoint: string
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean

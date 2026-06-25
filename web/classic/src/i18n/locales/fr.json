@@ -4121,6 +4121,27 @@
     "任务退还费用：{{delta}} 配额": "Remboursement de frais de tâche : {{delta}} de quota",
     "聊天助手": "Assistant de chat",
     "图片助手": "Assistant d'image",
-    "视频助手": "Assistant vidéo"
+    "视频助手": "Assistant vidéo",
+    "使用 短信验证码 登录": "Se connecter avec un code SMS",
+    "请输入有效的中国大陆手机号": "Veuillez saisir un numéro de téléphone valide de Chine continentale",
+    "验证码已发送": "Code de vérification envoyé",
+    "验证码发送失败，请重试": "Échec de l'envoi du code de vérification, veuillez réessayer",
+    "短信验证码登录": "Connexion par code SMS",
+    "请输入中国大陆手机号": "Saisissez un numéro de téléphone de Chine continentale",
+    "手机号": "Numéro de téléphone",
+    "{{count}} 秒后重试": "Réessayez dans {{count}} s",
+    "发送验证码": "Envoyer le code",
+    "允许通过短信验证码登录 & 注册": "Autoriser la connexion et l’inscription par code SMS",
+    "配置阿里云短信": "Configurer Alibaba Cloud SMS",
+    "用以支持通过手机号短信验证码登录注册": "Permet la connexion et l’inscription par code SMS sur téléphone",
+    "短信模板变量需要包含 code，系统会发送 {\"code\":\"123456\"} 格式的模板参数。": "La variable du modèle SMS doit inclure code. Le système envoie les paramètres au format {\"code\":\"123456\"}.",
+    "AccessKey ID": "AccessKey ID",
+    "AccessKey Secret": "AccessKey Secret",
+    "阿里云 AccessKey ID": "AccessKey ID Alibaba Cloud",
+    "短信签名": "Signature SMS",
+    "已审核通过的短信签名": "Signature SMS approuvée",
+    "短信模板 Code": "Code du modèle SMS",
+    "Endpoint": "Endpoint",
+    "保存阿里云短信设置": "Enregistrer les paramètres Alibaba Cloud SMS"
   }
 }

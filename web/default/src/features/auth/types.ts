@@ -28,6 +28,12 @@ export interface LoginPayload {
   turnstile?: string
 }
 
+export interface SmsLoginPayload {
+  phone: string
+  code: string
+  turnstile?: string
+}
+
 export interface TwoFAPayload {
   code: string
 }
@@ -48,6 +54,11 @@ export interface PasswordResetPayload {
 
 export interface EmailVerificationPayload {
   email: string
+  turnstile?: string
+}
+
+export interface SmsVerificationPayload {
+  phone: string
   turnstile?: string
 }
 
@@ -103,6 +114,7 @@ export interface SystemStatus {
     linuxdo_client_id?: string
     telegram_oauth?: boolean
     passkey_login?: boolean
+    sms_login?: boolean
     wechat_login?: boolean
     wechat_qrcode?: string
     wechat_qr_code?: string
@@ -145,6 +157,7 @@ export interface SystemStatus {
   linuxdo_client_id?: string
   telegram_oauth?: boolean
   passkey_login?: boolean
+  sms_login?: boolean
   wechat_login?: boolean
   wechat_qrcode?: string
   wechat_qr_code?: string

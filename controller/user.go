@@ -23,12 +23,26 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
+
+type SmsVerificationRequest struct {
+	Phone string `json:"phone"`
+}
+
+type SmsLoginRequest struct {
+	Phone string `json:"phone"`
+	Code  string `json:"code"`
+}
+
+var errDefaultTokenKey = errors.New("failed to generate default token key")
+
+const smsVerificationSendFailedMessage = "验证码发送失败，请稍后重试"
 
 func Login(c *gin.Context) {
 	if !common.PasswordLoginEnabled {
@@ -88,6 +102,142 @@ func Login(c *gin.Context) {
 	}
 
 	setupLogin(&user, c)
+}
+
+func SendSmsVerification(c *gin.Context) {
+	if !common.SmsLoginEnabled {
+		common.ApiErrorMsg(c, "短信登录未启用")
+		return
+	}
+	var req SmsVerificationRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	phone, err := common.NormalizeMainlandPhone(req.Phone)
+	if err != nil {
+		common.ApiErrorMsg(c, "手机号格式不正确")
+		return
+	}
+	shouldSend, err := shouldSendSmsVerification(phone)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to check SMS verification target %s: %v", common.MaskMainlandPhone(phone), err))
+		common.ApiErrorMsg(c, smsVerificationSendFailedMessage)
+		return
+	}
+	if !shouldSend {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+		})
+		return
+	}
+
+	code, err := common.GenerateNumericVerificationCode(6)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to generate SMS verification code for phone %s: %v", common.MaskMainlandPhone(phone), err))
+		common.ApiErrorMsg(c, smsVerificationSendFailedMessage)
+		return
+	}
+	if err := service.SendSmsLoginCode(phone, code); err != nil {
+		common.SysLog(fmt.Sprintf("failed to send SMS verification code to phone %s: %s", common.MaskMainlandPhone(phone), common.MaskSensitiveInfo(err.Error())))
+		common.ApiErrorMsg(c, smsVerificationSendFailedMessage)
+		return
+	}
+	common.RegisterVerificationCodeWithKey(phone, code, common.SmsLoginPurpose)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}
+
+func shouldSendSmsVerification(phone string) (bool, error) {
+	user, err := model.GetUserByPhone(phone)
+	if err == nil {
+		return user.Status == common.UserStatusEnabled, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, err
+	}
+	return common.RegisterEnabled, nil
+}
+
+func SmsLogin(c *gin.Context) {
+	if !common.SmsLoginEnabled {
+		common.ApiErrorMsg(c, "短信登录未启用")
+		return
+	}
+	var req SmsLoginRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	phone, err := common.NormalizeMainlandPhone(req.Phone)
+	code := strings.TrimSpace(req.Code)
+	if err != nil || !isSmsVerificationCodeFormatValid(code) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if !common.VerifyAndDeleteCodeWithKey(phone, code, common.SmsLoginPurpose) {
+		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+		return
+	}
+
+	user, err := model.GetUserByPhone(phone)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+			return
+		}
+		if !common.RegisterEnabled {
+			common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
+			return
+		}
+		user, err = createUserFromSmsPhone(phone)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to create user from SMS phone %s: %v", common.MaskMainlandPhone(phone), err))
+			common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
+			return
+		}
+	}
+	if user.Status != common.UserStatusEnabled {
+		common.ApiErrorI18n(c, i18n.MsgUserDisabled)
+		return
+	}
+
+	if model.IsTwoFAEnabled(user.Id) {
+		session := sessions.Default(c)
+		session.Set("pending_username", user.Username)
+		session.Set("pending_user_id", user.Id)
+		err := session.Save()
+		if err != nil {
+			common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": i18n.T(c, i18n.MsgUserRequire2FA),
+			"success": true,
+			"data": map[string]interface{}{
+				"require_2fa": true,
+			},
+		})
+		return
+	}
+
+	setupLogin(user, c)
+}
+
+func isSmsVerificationCodeFormatValid(code string) bool {
+	if len(code) != 6 {
+		return false
+	}
+	for _, ch := range code {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // setup session & cookies and then return user info
@@ -197,33 +347,13 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
 		return
 	}
-	// 生成默认令牌
-	if constant.GenerateDefaultToken {
-		key, err := common.GenerateKey()
-		if err != nil {
+	if err := createDefaultTokenForUser(insertedUser.Id, cleanUser.Username); err != nil {
+		if errors.Is(err, errDefaultTokenKey) {
 			common.ApiErrorI18n(c, i18n.MsgUserDefaultTokenFailed)
-			common.SysLog("failed to generate token key: " + err.Error())
 			return
 		}
-		// 生成默认令牌
-		token := model.Token{
-			UserId:             insertedUser.Id, // 使用插入后的用户ID
-			Name:               cleanUser.Username + "的初始令牌",
-			Key:                key,
-			CreatedTime:        common.GetTimestamp(),
-			AccessedTime:       common.GetTimestamp(),
-			ExpiredTime:        -1,     // 永不过期
-			RemainQuota:        500000, // 示例额度
-			UnlimitedQuota:     true,
-			ModelLimitsEnabled: false,
-		}
-		if setting.DefaultUseAutoGroup {
-			token.Group = "auto"
-		}
-		if err := token.Insert(); err != nil {
-			common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
-			return
-		}
+		common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -231,6 +361,81 @@ func Register(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+func createUserFromSmsPhone(phone string) (*model.User, error) {
+	if model.IsPhoneAlreadyTaken(phone) {
+		return nil, errors.New("手机号已被使用")
+	}
+
+	username, err := generateSmsUsername(phone)
+	if err != nil {
+		return nil, err
+	}
+	user := &model.User{
+		Username:    username,
+		DisplayName: username,
+		Phone:       &phone,
+		Role:        common.RoleCommonUser,
+	}
+	if err := user.Insert(0); err != nil {
+		return nil, err
+	}
+	var insertedUser model.User
+	if err := model.DB.Where("phone = ?", phone).First(&insertedUser).Error; err != nil {
+		return nil, err
+	}
+	if err := createDefaultTokenForUser(insertedUser.Id, insertedUser.Username); err != nil {
+		return nil, err
+	}
+	return &insertedUser, nil
+}
+
+func generateSmsUsername(phone string) (string, error) {
+	suffix := phone
+	if len(suffix) > 4 {
+		suffix = suffix[len(suffix)-4:]
+	}
+	for i := 0; i < 10; i++ {
+		username := fmt.Sprintf("u%s%s", suffix, common.GetRandomString(6))
+		exists, err := model.CheckUserExistOrDeleted(username, "")
+		if err != nil {
+			return "", err
+		}
+		if !exists {
+			return username, nil
+		}
+	}
+	return "", errors.New("failed to generate unique username")
+}
+
+func createDefaultTokenForUser(userId int, username string) error {
+	if !constant.GenerateDefaultToken {
+		return nil
+	}
+	key, err := common.GenerateKey()
+	if err != nil {
+		common.SysLog("failed to generate token key: " + err.Error())
+		return errDefaultTokenKey
+	}
+	token := model.Token{
+		UserId:             userId,
+		Name:               username + "的初始令牌",
+		Key:                key,
+		CreatedTime:        common.GetTimestamp(),
+		AccessedTime:       common.GetTimestamp(),
+		ExpiredTime:        -1,
+		RemainQuota:        500000,
+		UnlimitedQuota:     true,
+		ModelLimitsEnabled: false,
+	}
+	if setting.DefaultUseAutoGroup {
+		token.Group = "auto"
+	}
+	if err := token.Insert(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func GetAllUsers(c *gin.Context) {

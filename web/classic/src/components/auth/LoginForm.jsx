@@ -77,9 +77,11 @@ const LoginForm = () => {
   const [inputs, setInputs] = useState({
     username: '',
     password: '',
+    phone: '',
+    sms_verification_code: '',
     wechat_verification_code: '',
   });
-  const { username, password } = inputs;
+  const { username, password, phone, sms_verification_code } = inputs;
   const [searchParams] = useSearchParams();
   const [, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
@@ -87,8 +89,13 @@ const LoginForm = () => {
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
   const [showWeChatLoginModal, setShowWeChatLoginModal] = useState(false);
+  const [showSmsLoginModal, setShowSmsLoginModal] = useState(false);
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [wechatLoading, setWechatLoading] = useState(false);
+  const [smsLoading, setSmsLoading] = useState(false);
+  const [smsCodeLoading, setSmsCodeLoading] = useState(false);
+  const [smsLoginLoading, setSmsLoginLoading] = useState(false);
+  const [smsCountdown, setSmsCountdown] = useState(0);
   const [githubLoading, setGithubLoading] = useState(false);
   const [discordLoading, setDiscordLoading] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
@@ -130,12 +137,13 @@ const LoginForm = () => {
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthLoginOptions = Boolean(
     status.github_oauth ||
-      status.discord_oauth ||
-      status.oidc_enabled ||
-      status.wechat_login ||
-      status.linuxdo_oauth ||
-      status.telegram_oauth ||
-      hasCustomOAuthProviders,
+    status.discord_oauth ||
+    status.oidc_enabled ||
+    status.wechat_login ||
+    status.sms_login ||
+    status.linuxdo_oauth ||
+    status.telegram_oauth ||
+    hasCustomOAuthProviders,
   );
   const authHighlights = [
     {
@@ -181,6 +189,14 @@ const LoginForm = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (smsCountdown <= 0) return;
+    const timer = setTimeout(() => {
+      setSmsCountdown((countdown) => countdown - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [smsCountdown]);
+
   const onWeChatLoginClicked = () => {
     if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
       showInfo(t('请先阅读并同意用户协议和隐私政策'));
@@ -217,6 +233,103 @@ const LoginForm = () => {
       showError(t('登录失败，请重试'));
     } finally {
       setWechatCodeSubmitLoading(false);
+    }
+  };
+
+  const onSmsLoginClicked = () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
+    setSmsLoading(true);
+    setShowSmsLoginModal(true);
+    setSmsLoading(false);
+  };
+
+  const validateSmsPhone = () => {
+    const normalizedPhone = (phone || '').trim();
+    if (!/^1\d{10}$/.test(normalizedPhone)) {
+      showError(t('请输入有效的中国大陆手机号'));
+      return '';
+    }
+    return normalizedPhone;
+  };
+
+  const sendSmsVerificationCode = async () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
+    if (turnstileEnabled && turnstileToken === '') {
+      showInfo(t('请稍后几秒重试，Turnstile 正在检查用户环境！'));
+      return;
+    }
+    const normalizedPhone = validateSmsPhone();
+    if (!normalizedPhone) return;
+
+    setSmsCodeLoading(true);
+    try {
+      const res = await API.post(
+        `/api/sms/verification?turnstile=${turnstileToken}`,
+        {
+          phone: normalizedPhone,
+        },
+      );
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('验证码已发送'));
+        setSmsCountdown(60);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(t('验证码发送失败，请重试'));
+    } finally {
+      setSmsCodeLoading(false);
+    }
+  };
+
+  const onSubmitSmsLogin = async () => {
+    const normalizedPhone = validateSmsPhone();
+    if (!normalizedPhone) return;
+    if (!sms_verification_code) {
+      showError(t('请输入验证码'));
+      return;
+    }
+    if (turnstileEnabled && turnstileToken === '') {
+      showInfo(t('请稍后几秒重试，Turnstile 正在检查用户环境！'));
+      return;
+    }
+
+    setSmsLoginLoading(true);
+    try {
+      const res = await API.post(
+        `/api/user/phone/login?turnstile=${turnstileToken}`,
+        {
+          phone: normalizedPhone,
+          code: sms_verification_code,
+        },
+      );
+      const { success, message, data } = res.data;
+      if (success) {
+        if (data && data.require_2fa) {
+          setShowSmsLoginModal(false);
+          setShowTwoFA(true);
+          return;
+        }
+
+        userDispatch({ type: 'login', payload: data });
+        setUserData(data);
+        updateAPI();
+        showSuccess(t('登录成功！'));
+        navigate('/console');
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(t('登录失败，请重试'));
+    } finally {
+      setSmsLoginLoading(false);
     }
   };
 
@@ -505,7 +618,13 @@ const LoginForm = () => {
   // 返回登录页面
   const handleBackToLogin = () => {
     setShowTwoFA(false);
-    setInputs({ username: '', password: '', wechat_verification_code: '' });
+    setInputs({
+      username: '',
+      password: '',
+      phone: '',
+      sms_verification_code: '',
+      wechat_verification_code: '',
+    });
   };
 
   const renderOAuthOptions = () => (
@@ -531,6 +650,19 @@ const LoginForm = () => {
               loading={wechatLoading}
             >
               <span className='ml-3'>{t('使用 微信 继续')}</span>
+            </Button>
+          )}
+
+          {status.sms_login && (
+            <Button
+              theme='outline'
+              className='auth-provider-button'
+              type='tertiary'
+              icon={<IconMail size='large' />}
+              onClick={onSmsLoginClicked}
+              loading={smsLoading}
+            >
+              <span className='ml-3'>{t('使用 短信验证码 登录')}</span>
             </Button>
           )}
 
@@ -812,6 +944,18 @@ const LoginForm = () => {
               >
                 {t('忘记密码？')}
               </Button>
+
+              {status.sms_login && (
+                <Button
+                  theme='borderless'
+                  type='tertiary'
+                  className='auth-tertiary-button'
+                  onClick={onSmsLoginClicked}
+                  loading={smsLoading}
+                >
+                  {t('短信验证码登录')}
+                </Button>
+              )}
             </div>
           </Form>
 
@@ -894,6 +1038,64 @@ const LoginForm = () => {
     );
   };
 
+  const renderSmsLoginModal = () => {
+    return (
+      <Modal
+        title={t('短信验证码登录')}
+        visible={showSmsLoginModal}
+        maskClosable={true}
+        onCancel={() => setShowSmsLoginModal(false)}
+        footer={
+          <div className='flex justify-end gap-2'>
+            <Button onClick={() => setShowSmsLoginModal(false)}>
+              {t('取消')}
+            </Button>
+            <Button
+              theme='solid'
+              type='primary'
+              onClick={onSubmitSmsLogin}
+              loading={smsLoginLoading}
+            >
+              {t('登录')}
+            </Button>
+          </div>
+        }
+        centered={true}
+      >
+        <Form>
+          <Form.Input
+            field='phone'
+            placeholder={t('请输入中国大陆手机号')}
+            label={t('手机号')}
+            value={phone}
+            onChange={(value) => handleChange('phone', value)}
+            prefix={<IconMail />}
+          />
+          <Form.Input
+            field='sms_verification_code'
+            placeholder={t('验证码')}
+            label={t('验证码')}
+            value={sms_verification_code}
+            onChange={(value) => handleChange('sms_verification_code', value)}
+            suffix={
+              <Button
+                theme='borderless'
+                type='primary'
+                onClick={sendSmsVerificationCode}
+                loading={smsCodeLoading}
+                disabled={smsCountdown > 0}
+              >
+                {smsCountdown > 0
+                  ? t('{{count}} 秒后重试', { count: smsCountdown })
+                  : t('发送验证码')}
+              </Button>
+            }
+          />
+        </Form>
+      </Modal>
+    );
+  };
+
   // 2FA验证弹窗
   const render2FAModal = () => {
     return (
@@ -955,6 +1157,7 @@ const LoginForm = () => {
         ? renderEmailLoginForm()
         : renderOAuthOptions()}
       {renderWeChatLoginModal()}
+      {renderSmsLoginModal()}
       {render2FAModal()}
     </AuthLayout>
   );

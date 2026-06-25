@@ -93,6 +93,7 @@ func GetOptions(c *gin.Context) {
 		isSensitiveKey := strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||
+			k == "AliyunSmsAccessKeyId" ||
 			strings.HasSuffix(k, "secret") ||
 			strings.HasSuffix(k, "api_key")
 		if isSensitiveKey && !isVisiblePublicKeyOption(k) {
@@ -202,6 +203,18 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用邮箱域名限制，请先填入限制的邮箱域名！",
+			})
+			return
+		}
+	case "SmsLoginEnabled":
+		if option.Value == "true" &&
+			(common.AliyunSmsAccessKeyId == "" ||
+				common.AliyunSmsAccessKeySecret == "" ||
+				common.AliyunSmsSignName == "" ||
+				common.AliyunSmsTemplateCode == "") {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用短信登录，请先填入阿里云短信 AccessKey、签名和模板 Code！",
 			})
 			return
 		}

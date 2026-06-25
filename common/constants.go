@@ -84,6 +84,7 @@ var MaxRecentItems = 1000
 var PasswordLoginEnabled = true
 var PasswordRegisterEnabled = true
 var EmailVerificationEnabled = false
+var SmsLoginEnabled = false
 var GitHubOAuthEnabled = false
 var LinuxDOOAuthEnabled = false
 var WeChatAuthEnabled = false
@@ -124,6 +125,12 @@ var SMTPForceAuthLogin = false
 var SMTPAccount = ""
 var SMTPFrom = ""
 var SMTPToken = ""
+
+var AliyunSmsAccessKeyId = ""
+var AliyunSmsAccessKeySecret = ""
+var AliyunSmsSignName = ""
+var AliyunSmsTemplateCode = ""
+var AliyunSmsEndpoint = "dysmsapi.aliyuncs.com"
 
 var GitHubClientId = ""
 var GitHubClientSecret = ""

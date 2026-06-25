@@ -1,6 +1,9 @@
 package common
 
 import (
+	"crypto/rand"
+	"fmt"
+	"math/big"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +19,7 @@ type verificationValue struct {
 const (
 	EmailVerificationPurpose = "v"
 	PasswordResetPurpose     = "r"
+	SmsLoginPurpose          = "s"
 )
 
 var verificationMutex sync.Mutex
@@ -30,6 +34,21 @@ func GenerateVerificationCode(length int) string {
 		return code
 	}
 	return code[:length]
+}
+
+func GenerateNumericVerificationCode(length int) (string, error) {
+	if length <= 0 {
+		return "", nil
+	}
+	code := make([]byte, length)
+	for i := range code {
+		n, err := rand.Int(rand.Reader, big.NewInt(10))
+		if err != nil {
+			return "", fmt.Errorf("generate numeric verification code: %w", err)
+		}
+		code[i] = byte('0' + n.Int64())
+	}
+	return string(code), nil
 }
 
 func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
@@ -53,6 +72,23 @@ func VerifyCodeWithKey(key string, code string, purpose string) bool {
 		return false
 	}
 	return code == value.code
+}
+
+func VerifyAndDeleteCodeWithKey(key string, code string, purpose string) bool {
+	verificationMutex.Lock()
+	defer verificationMutex.Unlock()
+	mapKey := purpose + key
+	value, okay := verificationMap[mapKey]
+	now := time.Now()
+	if !okay || int(now.Sub(value.time).Seconds()) >= VerificationValidMinutes*60 {
+		delete(verificationMap, mapKey)
+		return false
+	}
+	if code != value.code {
+		return false
+	}
+	delete(verificationMap, mapKey)
+	return true
 }
 
 func DeleteKey(key string, purpose string) {

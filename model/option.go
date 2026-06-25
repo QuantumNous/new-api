@@ -38,6 +38,7 @@ func InitOptionMap() {
 	common.OptionMap["PasswordLoginEnabled"] = strconv.FormatBool(common.PasswordLoginEnabled)
 	common.OptionMap["PasswordRegisterEnabled"] = strconv.FormatBool(common.PasswordRegisterEnabled)
 	common.OptionMap["EmailVerificationEnabled"] = strconv.FormatBool(common.EmailVerificationEnabled)
+	common.OptionMap["SmsLoginEnabled"] = strconv.FormatBool(common.SmsLoginEnabled)
 	common.OptionMap["GitHubOAuthEnabled"] = strconv.FormatBool(common.GitHubOAuthEnabled)
 	common.OptionMap["LinuxDOOAuthEnabled"] = strconv.FormatBool(common.LinuxDOOAuthEnabled)
 	common.OptionMap["TelegramOAuthEnabled"] = strconv.FormatBool(common.TelegramOAuthEnabled)
@@ -63,6 +64,11 @@ func InitOptionMap() {
 	common.OptionMap["SMTPToken"] = ""
 	common.OptionMap["SMTPSSLEnabled"] = strconv.FormatBool(common.SMTPSSLEnabled)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
+	common.OptionMap["AliyunSmsAccessKeyId"] = ""
+	common.OptionMap["AliyunSmsAccessKeySecret"] = ""
+	common.OptionMap["AliyunSmsSignName"] = common.AliyunSmsSignName
+	common.OptionMap["AliyunSmsTemplateCode"] = common.AliyunSmsTemplateCode
+	common.OptionMap["AliyunSmsEndpoint"] = common.AliyunSmsEndpoint
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -297,6 +303,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.PasswordLoginEnabled = boolValue
 		case "EmailVerificationEnabled":
 			common.EmailVerificationEnabled = boolValue
+		case "SmsLoginEnabled":
+			common.SmsLoginEnabled = boolValue
 		case "GitHubOAuthEnabled":
 			common.GitHubOAuthEnabled = boolValue
 		case "LinuxDOOAuthEnabled":
@@ -387,6 +395,16 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMTPFrom = value
 	case "SMTPToken":
 		common.SMTPToken = value
+	case "AliyunSmsAccessKeyId":
+		common.AliyunSmsAccessKeyId = value
+	case "AliyunSmsAccessKeySecret":
+		common.AliyunSmsAccessKeySecret = value
+	case "AliyunSmsSignName":
+		common.AliyunSmsSignName = value
+	case "AliyunSmsTemplateCode":
+		common.AliyunSmsTemplateCode = value
+	case "AliyunSmsEndpoint":
+		common.AliyunSmsEndpoint = value
 	case "ServerAddress":
 		system_setting.ServerAddress = value
 	case "WorkerUrl":

@@ -4236,6 +4236,27 @@
     "任务退还费用：{{delta}} 配额": "Task settlement refund: {{delta}} quota",
     "聊天助手": "Chat Assistant",
     "图片助手": "Image Assistant",
-    "视频助手": "Video Assistant"
+    "视频助手": "Video Assistant",
+    "使用 短信验证码 登录": "Sign in with SMS code",
+    "请输入有效的中国大陆手机号": "Please enter a valid Mainland China phone number",
+    "验证码已发送": "Verification code sent",
+    "验证码发送失败，请重试": "Failed to send the verification code, please try again",
+    "短信验证码登录": "SMS code sign-in",
+    "请输入中国大陆手机号": "Enter a Mainland China phone number",
+    "手机号": "Phone number",
+    "{{count}} 秒后重试": "Retry in {{count}}s",
+    "发送验证码": "Send code",
+    "允许通过短信验证码登录 & 注册": "Allow SMS code login & registration",
+    "配置阿里云短信": "Configure Alibaba Cloud SMS",
+    "用以支持通过手机号短信验证码登录注册": "Used to support login and registration with phone SMS codes",
+    "短信模板变量需要包含 code，系统会发送 {\"code\":\"123456\"} 格式的模板参数。": "The SMS template variable must include code. The system sends template parameters in {\"code\":\"123456\"} format.",
+    "AccessKey ID": "AccessKey ID",
+    "AccessKey Secret": "AccessKey Secret",
+    "阿里云 AccessKey ID": "Alibaba Cloud AccessKey ID",
+    "短信签名": "SMS sign name",
+    "已审核通过的短信签名": "Approved SMS sign name",
+    "短信模板 Code": "SMS template code",
+    "Endpoint": "Endpoint",
+    "保存阿里云短信设置": "Save Alibaba Cloud SMS settings"
   }
 }

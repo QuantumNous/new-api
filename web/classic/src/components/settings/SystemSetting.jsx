@@ -50,6 +50,7 @@ const SystemSetting = () => {
     PasswordLoginEnabled: '',
     PasswordRegisterEnabled: '',
     EmailVerificationEnabled: '',
+    SmsLoginEnabled: '',
     GitHubOAuthEnabled: '',
     GitHubClientId: '',
     GitHubClientSecret: '',
@@ -69,6 +70,11 @@ const SystemSetting = () => {
     SMTPAccount: '',
     SMTPFrom: '',
     SMTPToken: '',
+    AliyunSmsAccessKeyId: '',
+    AliyunSmsAccessKeySecret: '',
+    AliyunSmsSignName: '',
+    AliyunSmsTemplateCode: '',
+    AliyunSmsEndpoint: '',
     WorkerUrl: '',
     WorkerValidKey: '',
     WorkerAllowHttpImageRequestEnabled: '',
@@ -175,6 +181,7 @@ const SystemSetting = () => {
           case 'PasswordLoginEnabled':
           case 'PasswordRegisterEnabled':
           case 'EmailVerificationEnabled':
+          case 'SmsLoginEnabled':
           case 'GitHubOAuthEnabled':
           case 'WeChatAuthEnabled':
           case 'TelegramOAuthEnabled':
@@ -342,6 +349,51 @@ const SystemSetting = () => {
       inputs.SMTPToken !== ''
     ) {
       options.push({ key: 'SMTPToken', value: inputs.SMTPToken });
+    }
+
+    if (options.length > 0) {
+      await updateOptions(options);
+    }
+  };
+
+  const submitAliyunSms = async () => {
+    const options = [];
+
+    if (originInputs['AliyunSmsAccessKeyId'] !== inputs.AliyunSmsAccessKeyId) {
+      options.push({
+        key: 'AliyunSmsAccessKeyId',
+        value: inputs.AliyunSmsAccessKeyId,
+      });
+    }
+    if (
+      originInputs['AliyunSmsAccessKeySecret'] !==
+        inputs.AliyunSmsAccessKeySecret &&
+      inputs.AliyunSmsAccessKeySecret !== ''
+    ) {
+      options.push({
+        key: 'AliyunSmsAccessKeySecret',
+        value: inputs.AliyunSmsAccessKeySecret,
+      });
+    }
+    if (originInputs['AliyunSmsSignName'] !== inputs.AliyunSmsSignName) {
+      options.push({
+        key: 'AliyunSmsSignName',
+        value: inputs.AliyunSmsSignName,
+      });
+    }
+    if (
+      originInputs['AliyunSmsTemplateCode'] !== inputs.AliyunSmsTemplateCode
+    ) {
+      options.push({
+        key: 'AliyunSmsTemplateCode',
+        value: inputs.AliyunSmsTemplateCode,
+      });
+    }
+    if (originInputs['AliyunSmsEndpoint'] !== inputs.AliyunSmsEndpoint) {
+      options.push({
+        key: 'AliyunSmsEndpoint',
+        value: inputs.AliyunSmsEndpoint,
+      });
     }
 
     if (options.length > 0) {
@@ -1018,6 +1070,15 @@ const SystemSetting = () => {
                         {t('通过密码注册时需要进行邮箱验证')}
                       </Form.Checkbox>
                       <Form.Checkbox
+                        field='SmsLoginEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('SmsLoginEnabled', e)
+                        }
+                      >
+                        {t('允许通过短信验证码登录 & 注册')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
                         field='RegisterEnabled'
                         noLabel
                         onChange={(e) =>
@@ -1349,6 +1410,66 @@ const SystemSetting = () => {
                     </Col>
                   </Row>
                   <Button onClick={submitSMTP}>{t('保存 SMTP 设置')}</Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('配置阿里云短信')}>
+                  <Text>{t('用以支持通过手机号短信验证码登录注册')}</Text>
+                  <Banner
+                    type='info'
+                    description={t(
+                      '短信模板变量需要包含 code，系统会发送 {\"code\":\"123456\"} 格式的模板参数。',
+                    )}
+                    style={{ marginBottom: 20, marginTop: 16 }}
+                  />
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='AliyunSmsAccessKeyId'
+                        label={t('AccessKey ID')}
+                        placeholder={t('阿里云 AccessKey ID')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='AliyunSmsAccessKeySecret'
+                        label={t('AccessKey Secret')}
+                        type='password'
+                        placeholder={t('敏感信息不会发送到前端显示')}
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Input
+                        field='AliyunSmsSignName'
+                        label={t('短信签名')}
+                        placeholder={t('已审核通过的短信签名')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Input
+                        field='AliyunSmsTemplateCode'
+                        label={t('短信模板 Code')}
+                        placeholder='SMS_123456789'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Input
+                        field='AliyunSmsEndpoint'
+                        label={t('Endpoint')}
+                        placeholder='dysmsapi.aliyuncs.com'
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitAliyunSms}>
+                    {t('保存阿里云短信设置')}
+                  </Button>
                 </Form.Section>
               </Card>
               <Card>
