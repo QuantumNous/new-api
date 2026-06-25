@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { formatQuota } from '@/lib/format'
 import type { User } from '../types'
 
 const UTF8_BOM = '\uFEFF'
@@ -29,6 +30,7 @@ export type UserContactsCsvHeaders = {
   id: string
   username: string
   displayName: string
+  quota: string
   email: string
   wechatId: string
   telegramId: string
@@ -52,6 +54,7 @@ const DEFAULT_HEADERS: UserContactsCsvHeaders = {
   id: 'ID',
   username: 'Username',
   displayName: 'Display Name',
+  quota: 'Quota',
   email: 'Email',
   wechatId: 'WeChat ID',
   telegramId: 'Telegram ID',
@@ -86,6 +89,7 @@ export function buildUserContactsCsv(
       headers.id,
       headers.username,
       headers.displayName,
+      headers.quota,
       headers.email,
       headers.wechatId,
       headers.telegramId,
@@ -94,6 +98,7 @@ export function buildUserContactsCsv(
       user.id,
       user.username,
       user.display_name,
+      formatQuota(user.quota),
       user.email,
       user.wechat_id,
       user.telegram_id,

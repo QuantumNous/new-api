@@ -105,6 +105,7 @@ export function UsersPrimaryButtons() {
           id: t('ID'),
           username: t('Username'),
           displayName: t('Display Name'),
+          quota: t('Quota'),
           email: t('Email'),
           wechatId: t('WeChat ID'),
           telegramId: t('Telegram ID'),
