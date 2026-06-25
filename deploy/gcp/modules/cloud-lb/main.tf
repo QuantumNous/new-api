@@ -12,6 +12,8 @@ resource "google_compute_global_address" "main" {
 }
 
 resource "google_compute_region_network_endpoint_group" "cloud_run" {
+  count = var.cloud_run_service_name != "" ? 1 : 0
+
   project               = var.project_id
   name                  = "${var.name_prefix}-cr-neg"
   region                = var.region
@@ -23,6 +25,8 @@ resource "google_compute_region_network_endpoint_group" "cloud_run" {
 }
 
 resource "google_compute_backend_service" "main" {
+  count = var.cloud_run_service_name != "" ? 1 : 0
+
   project               = var.project_id
   name                  = "${var.name_prefix}-backend"
   protocol              = "HTTPS"
@@ -36,7 +40,7 @@ resource "google_compute_backend_service" "main" {
   }
 
   backend {
-    group = google_compute_region_network_endpoint_group.cloud_run.id
+    group = google_compute_region_network_endpoint_group.cloud_run[0].id
   }
 
   enable_cdn = false
@@ -154,6 +158,14 @@ resource "google_compute_backend_service" "console" {
   enable_cdn = false
 }
 
+locals {
+  default_backend_service = {
+    primary = try(google_compute_backend_service.main[0].id, null)
+    console = try(google_compute_backend_service.console[0].id, null)
+    router  = try(google_compute_backend_service.router[0].id, null)
+  }[var.default_backend]
+}
+
 // Random suffix tied to domain list + a manual rotation counter.
 // Bumping `cert_rotation` (a variable, default 1) forces a fresh provisioning
 // attempt — useful when Google probed before DNS was in place and got stuck on
@@ -188,7 +200,7 @@ resource "google_compute_managed_ssl_certificate" "main" {
 resource "google_compute_url_map" "https" {
   project         = var.project_id
   name            = "${var.name_prefix}-urlmap"
-  default_service = google_compute_backend_service.main.id
+  default_service = local.default_backend_service
 
   // Gated on website_domains being non-empty (not just the service existing) so
   // the rollout can be two-phase: apply once with website_domains=[] to create the
@@ -279,6 +291,21 @@ resource "google_compute_url_map" "https" {
     precondition {
       condition     = !var.console_domains_require_managed_cert || length(setsubtract(toset(var.console_domains), toset(var.domains))) == 0
       error_message = "console_domains must also be included in domains so the GCP HTTPS certificate covers them, unless console_domains_require_managed_cert is false for explicitly verified Cloudflare-proxied domains."
+    }
+
+    precondition {
+      condition     = var.default_backend != "primary" || var.cloud_run_service_name != ""
+      error_message = "default_backend=primary requires cloud_run_service_name to be set."
+    }
+
+    precondition {
+      condition     = var.default_backend != "console" || var.console_cloud_run_service_name != ""
+      error_message = "default_backend=console requires console_cloud_run_service_name to be set."
+    }
+
+    precondition {
+      condition     = var.default_backend != "router" || var.router_cloud_run_service_name != ""
+      error_message = "default_backend=router requires router_cloud_run_service_name to be set."
     }
   }
 }

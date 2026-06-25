@@ -1,8 +1,9 @@
-project_id        = "vocai-gemini-prod"
-region            = "us-west1"
-zone              = "us-west1-a"
-service_name      = "newapi"
-github_repository = "SolveaCX/new-api"
+project_id            = "vocai-gemini-prod"
+region                = "us-west1"
+zone                  = "us-west1-a"
+service_name          = "newapi"
+github_repository     = "SolveaCX/new-api"
+enable_legacy_runtime = true
 
 // Domain mappings (free, simple) require run.domainmappings.create — the caller lacks it.
 // We use a GCP HTTPS LB instead. Once an org admin grants roles/run.admin, you can switch
@@ -15,6 +16,7 @@ custom_domains = []
 // `router.flatkey.ai` pair. Remove the old entries once monitoring shows
 // no traffic on them.
 enable_load_balancer = true
+lb_default_backend   = "console"
 lb_domains = [
   "new-api.app.flatkey.ai",
   "new-api.api.flatkey.ai",
@@ -27,6 +29,8 @@ lb_domains = [
 // INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER.
 cloud_run_ingress = "INGRESS_TRAFFIC_ALL"
 
+// Keep router fallbacks and future bring-up defaults aligned with the active
+// console host rather than the retired new-api.app domain.
 frontend_base_url = "https://console.flatkey.ai"
 
 // Set this to receive uptime failure alerts. Leave empty to skip the alert policy.
@@ -46,8 +50,8 @@ enable_staging_domains = true
 // --- Go runtime split (live) ---
 // `newapi-router` serves model/API traffic as NODE_TYPE=slave.
 // `newapi-console` serves dashboard/admin/API traffic as NODE_TYPE=master.
-// The LB host rules below route router.flatkey.ai and console.flatkey.ai to
-// their dedicated backend services; legacy `newapi` remains the default backend.
+// The LB host rules route router.flatkey.ai and console.flatkey.ai to their
+// dedicated backend services, and unmatched hosts now fall through to console.
 enable_runtime_split = true
 router_service_name  = "newapi-router"
 console_service_name = "newapi-console"

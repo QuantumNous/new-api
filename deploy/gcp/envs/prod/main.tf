@@ -167,6 +167,7 @@ module "github_wif" {
 
 module "cloud_run" {
   source           = "../../modules/cloud-run"
+  enabled          = var.enable_legacy_runtime
   project_id       = var.project_id
   region           = var.region
   service_name     = var.service_name
@@ -336,7 +337,8 @@ module "cloud_lb" {
   source                 = "../../modules/cloud-lb"
   project_id             = var.project_id
   region                 = var.region
-  cloud_run_service_name = module.cloud_run.service_name
+  cloud_run_service_name = var.enable_legacy_runtime ? module.cloud_run.service_name : ""
+  default_backend        = var.lb_default_backend
   domains                = var.lb_domains
 
   // Host-based split: when the website is enabled, route var.website_domains to
@@ -366,10 +368,18 @@ module "cloud_lb" {
 //   2. First custom_domain (when domain mappings are enabled)
 //   3. Cloud Run *.run.app URL (fallback)
 locals {
+  legacy_service_uri  = var.enable_legacy_runtime ? trimprefix(module.cloud_run.service_uri, "https://") : ""
+  console_service_uri = var.enable_runtime_split ? trimprefix(module.cloud_run_console[0].service_uri, "https://") : ""
+  router_service_uri  = var.enable_runtime_split ? trimprefix(module.cloud_run_router[0].service_uri, "https://") : ""
   uptime_host = (
+    var.enable_load_balancer && var.lb_default_backend == "console" && length(var.console_domains) > 0 ? var.console_domains[0] :
+    var.enable_load_balancer && var.lb_default_backend == "router" && length(var.router_domains) > 0 ? var.router_domains[0] :
     var.enable_load_balancer && length(var.lb_domains) > 0 ? var.lb_domains[0] :
-    length(var.custom_domains) > 0 ? var.custom_domains[0] :
-    trimprefix(module.cloud_run.service_uri, "https://")
+    var.enable_legacy_runtime && length(var.custom_domains) > 0 ? var.custom_domains[0] :
+    var.enable_legacy_runtime ? local.legacy_service_uri :
+    var.enable_runtime_split && var.lb_default_backend == "console" ? local.console_service_uri :
+    var.enable_runtime_split && var.lb_default_backend == "router" ? local.router_service_uri :
+    local.console_service_uri
   )
 }
 
@@ -379,5 +389,5 @@ module "monitoring" {
   uptime_host = local.uptime_host
   alert_email = var.alert_email
 
-  depends_on = [module.cloud_run]
+  depends_on = [module.cloud_run, module.cloud_run_console, module.cloud_run_router]
 }
