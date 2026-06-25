@@ -80,11 +80,28 @@ export function PlaygroundChat({
   const { t } = useTranslation()
   const [editText, setEditText] = useState('')
   const [originalText, setOriginalText] = useState('')
+  const [sourceMessageKeys, setSourceMessageKeys] = useState<
+    ReadonlySet<string>
+  >(() => new Set())
   const visibleMessageOffset = Math.max(
     0,
     messages.length - MAX_RENDERED_HISTORY_MESSAGES
   )
   const visibleMessages = messages.slice(visibleMessageOffset)
+
+  function handleToggleMessageSource(message: MessageType): void {
+    setSourceMessageKeys((currentKeys) => {
+      const nextKeys = new Set(currentKeys)
+
+      if (nextKeys.has(message.key)) {
+        nextKeys.delete(message.key)
+      } else {
+        nextKeys.add(message.key)
+      }
+
+      return nextKeys
+    })
+  }
 
   useEffect(() => {
     if (!editingKey) return
@@ -108,6 +125,7 @@ export function PlaygroundChat({
       ? getPreviousUserMessage(messages, messageIndex)
       : null
     const alignment = getMessageAlignment(message, messageLayoutMode)
+    const isSourceVisible = sourceMessageKeys.has(message.key)
 
     return (
       <Message
@@ -134,13 +152,16 @@ export function PlaygroundChat({
                   message={message}
                   onCopy={onCopyMessage}
                   onRegenerate={onRegenerateMessage}
+                  onToggleSource={handleToggleMessageSource}
                   onEdit={onEditMessage}
                   onDelete={onDeleteMessage}
+                  isSourceVisible={isSourceVisible}
                   isGenerating={isGenerating}
                   alwaysVisible={alwaysShowActions}
                   className='mt-1.5'
                 />
               }
+              isSourceVisible={isSourceVisible}
               message={message}
               errorActions={
                 isError ? (
