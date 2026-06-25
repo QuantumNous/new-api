@@ -42,24 +42,24 @@ export function parseThinkTags(content: string): ParsedThinkTags {
 
     if (openPos === -1) {
       if (currentPos < content.length) {
-        visibleParts.push(content.substring(currentPos))
+        visibleParts.push(content.slice(currentPos))
       }
       break
     }
 
     if (openPos > currentPos) {
-      visibleParts.push(content.substring(currentPos, openPos))
+      visibleParts.push(content.slice(currentPos, openPos))
     }
 
     const closePos = content.indexOf('</think>', openPos + 7)
 
     if (closePos === -1) {
-      reasoningParts.push(content.substring(openPos + 7))
+      reasoningParts.push(content.slice(openPos + 7))
       hasUnclosedTag = true
       break
     }
 
-    reasoningParts.push(content.substring(openPos + 7, closePos))
+    reasoningParts.push(content.slice(openPos + 7, closePos))
     currentPos = closePos + 8
   }
 

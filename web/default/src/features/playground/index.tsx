@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { PlaygroundChat } from './components/playground-chat'
-import { PlaygroundInput } from './components/playground-input'
+import { PlaygroundChat } from './components/chat/playground-chat'
+import { PlaygroundInput } from './components/input/playground-input'
 import {
   useChatHandler,
   usePlaygroundConversation,

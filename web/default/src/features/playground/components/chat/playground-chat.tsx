@@ -30,13 +30,13 @@ import {
   getEditingMessageContent,
   getPreviousUserMessage,
   isErrorMessage,
-} from '../lib'
-import type { Message as MessageType } from '../types'
-import { MessageActions } from './message-actions'
-import { MessageErrorActions } from './message-error-actions'
+} from '../../lib'
+import type { Message as MessageType } from '../../types'
+import { MessageActions } from '../message/message-actions'
+import { MessageErrorActions } from '../message/message-error-actions'
 import { PlaygroundEmptyState } from './playground-empty-state'
-import { PlaygroundMessageContent } from './playground-message-content'
-import { PlaygroundMessageEditor } from './playground-message-editor'
+import { PlaygroundMessageContent } from '../message/playground-message-content'
+import { PlaygroundMessageEditor } from '../message/playground-message-editor'
 
 interface PlaygroundChatProps {
   messages: MessageType[]

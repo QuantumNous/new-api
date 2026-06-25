@@ -18,13 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { nanoid } from 'nanoid'
 
-import { MESSAGE_ROLES, MESSAGE_STATUS } from '../constants'
+import { MESSAGE_ROLES, MESSAGE_STATUS } from '../../constants'
 import type {
   Message,
   MessageVersion,
   ChatCompletionMessage,
   ContentPart,
-} from '../types'
+} from '../../types'
 
 /**
  * Create a new message version

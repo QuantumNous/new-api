@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ERROR_MESSAGES } from '../constants'
-import type { ChatCompletionChunk } from '../types'
+import { ERROR_MESSAGES } from '../../constants'
+import type { ChatCompletionChunk } from '../../types'
 
 const STREAM_DONE_MESSAGE = '[DONE]'
 const STREAM_CLOSED_READY_STATE = 2

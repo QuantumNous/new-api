@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { MESSAGE_ROLES, MESSAGE_STATUS } from '../constants'
-import type { Message } from '../types'
+import { MESSAGE_ROLES, MESSAGE_STATUS } from '../../constants'
+import type { Message } from '../../types'
 import { parseThinkTags } from './message-reasoning-utils'
 
 type MessageContentStateBase = {

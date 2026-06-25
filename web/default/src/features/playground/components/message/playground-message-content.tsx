@@ -36,10 +36,10 @@ import {
 } from '@/components/ai-elements/sources'
 import { cn } from '@/lib/utils'
 
-import { MESSAGE_STATUS } from '../constants'
-import { getMessageContentState, isErrorMessage } from '../lib'
-import { getMessageContentStyles } from '../lib/message-styles'
-import type { Message } from '../types'
+import { MESSAGE_STATUS } from '../../constants'
+import { getMessageContentState, isErrorMessage } from '../../lib'
+import { getMessageContentStyles } from '../../lib/message/message-styles'
+import type { Message } from '../../types'
 import { MessageError } from './message-error'
 
 type PlaygroundMessageContentProps = {

@@ -37,7 +37,7 @@ import {
   ATTACHMENT_ACTIONS,
   getAttachmentActionNotice,
   getSearchActionNotice,
-} from '../lib'
+} from '../../lib'
 
 type PlaygroundInputToolsProps = {
   disabled?: boolean

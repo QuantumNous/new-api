@@ -26,8 +26,8 @@ import {
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
 
-import { getSubmittableInputText } from '../lib'
-import type { ModelOption, GroupOption } from '../types'
+import { getSubmittableInputText } from '../../lib'
+import type { ModelOption, GroupOption } from '../../types'
 import { PlaygroundInputControls } from './playground-input-controls'
 import { PlaygroundInputTools } from './playground-input-tools'
 import { PlaygroundSuggestions } from './playground-suggestions'

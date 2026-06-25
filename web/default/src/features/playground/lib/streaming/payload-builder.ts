@@ -21,8 +21,8 @@ import type {
   Message,
   PlaygroundConfig,
   ParameterEnabled,
-} from '../types'
-import { formatMessageForAPI, isValidMessage } from './message-utils'
+} from '../../types'
+import { formatMessageForAPI, isValidMessage } from '../message/message-utils'
 
 /**
  * Build API request payload from messages and config

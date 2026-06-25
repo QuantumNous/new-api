@@ -39,10 +39,10 @@ import {
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
-import { MESSAGE_ACTION_LABELS } from '../constants'
-import { useMessageActionGuard } from '../hooks/use-message-action-guard'
-import { getMessageActionState, getMessageActionsVisibilityClass } from '../lib'
-import type { Message } from '../types'
+import { MESSAGE_ACTION_LABELS } from '../../constants'
+import { useMessageActionGuard } from '../../hooks/use-message-action-guard'
+import { getMessageActionState, getMessageActionsVisibilityClass } from '../../lib'
+import type { Message } from '../../types'
 import { MessageActionButton } from './message-action-button'
 
 interface MessageActionsProps {

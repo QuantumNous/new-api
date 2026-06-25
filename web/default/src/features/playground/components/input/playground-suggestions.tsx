@@ -28,7 +28,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 
-import { getSuggestionDisplayState } from '../lib'
+import { getSuggestionDisplayState } from '../../lib'
 
 type PlaygroundSuggestion = {
   icon: LucideIcon | null

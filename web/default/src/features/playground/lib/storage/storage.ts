@@ -16,9 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { STORAGE_KEYS } from '../constants'
-import type { PlaygroundConfig, ParameterEnabled, Message } from '../types'
-import { sanitizeMessagesOnLoad } from './message-streaming-utils'
+import { STORAGE_KEYS } from '../../constants'
+import type { PlaygroundConfig, ParameterEnabled, Message } from '../../types'
+import { sanitizeMessagesOnLoad } from '../message/message-streaming-utils'
 import {
   MAX_STORED_MESSAGES,
   STORAGE_VERSION,

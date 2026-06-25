@@ -16,33 +16,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ERROR_MESSAGES } from '../constants'
+import { MESSAGE_ROLES } from '../../constants'
+import type { Message } from '../../types'
 
-type RequestErrorLike = {
-  message?: string
-  response?: {
-    data?: {
-      error?: {
-        code?: string
-      }
-      message?: string
-    }
-  }
+type MessageEditorState = {
+  canSave: boolean
+  hasChanged: boolean
+  showSaveAndSubmit: boolean
 }
 
-export type RequestErrorDetails = {
-  errorCode?: string
-  errorMessage: string
-}
-
-export function parseRequestErrorDetails(error: unknown): RequestErrorDetails {
-  const requestError = error as RequestErrorLike
+export function getMessageEditorState(
+  message: Message,
+  editText: string,
+  originalText: string
+): MessageEditorState {
+  const hasText = editText.trim().length > 0
+  const hasChanged = editText !== originalText
 
   return {
-    errorCode: requestError?.response?.data?.error?.code || undefined,
-    errorMessage:
-      requestError?.response?.data?.message ||
-      requestError?.message ||
-      ERROR_MESSAGES.API_REQUEST_ERROR,
+    canSave: hasText && hasChanged,
+    hasChanged,
+    showSaveAndSubmit: message.from === MESSAGE_ROLES.USER,
   }
 }

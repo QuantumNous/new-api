@@ -16,9 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { DEFAULT_CONFIG, DEFAULT_PARAMETER_ENABLED } from '../constants'
-import type { Message, ParameterEnabled, PlaygroundConfig } from '../types'
-import { loadConfig, loadMessages, loadParameterEnabled } from './storage'
+import { DEFAULT_CONFIG, DEFAULT_PARAMETER_ENABLED } from '../../constants'
+import type { Message, ParameterEnabled, PlaygroundConfig } from '../../types'
+import { loadConfig, loadMessages, loadParameterEnabled } from '../storage/storage'
 
 export type MessageStateUpdater =
   | Message[]

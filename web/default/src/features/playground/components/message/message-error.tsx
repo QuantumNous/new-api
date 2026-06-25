@@ -29,8 +29,8 @@ import {
   getMessageErrorState,
   isAdminRole,
   MODEL_PRICING_SETTINGS_PATH,
-} from '../lib'
-import type { Message } from '../types'
+} from '../../lib'
+import type { Message } from '../../types'
 
 interface MessageErrorProps {
   message: Message

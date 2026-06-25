@@ -23,8 +23,8 @@ import { useTranslation } from 'react-i18next'
 import { PromptInputButton } from '@/components/ai-elements/prompt-input'
 import { ModelGroupSelector } from '@/components/model-group-selector'
 
-import { getInputControlState } from '../lib'
-import type { GroupOption, ModelOption } from '../types'
+import { getInputControlState } from '../../lib'
+import type { GroupOption, ModelOption } from '../../types'
 
 type PlaygroundInputControlsProps = {
   disabled?: boolean
@@ -80,32 +80,29 @@ export function PlaygroundInputControls({
     />
   )
 
-  const renderSubmitButton = () => (
-    <>
-      {shouldShowStop ? (
-        <PromptInputButton
-          className='text-foreground font-medium'
-          onClick={onStop}
-          variant='secondary'
-        >
-          <SquareIcon className='fill-current' size={16} />
-          <span className='hidden sm:inline'>{t('Stop')}</span>
-          <span className='sr-only sm:hidden'>{t('Stop')}</span>
-        </PromptInputButton>
-      ) : (
-        <PromptInputButton
-          className='text-foreground font-medium'
-          disabled={!canSubmit}
-          type='submit'
-          variant='secondary'
-        >
-          <SendIcon size={16} />
-          <span className='hidden sm:inline'>{t('Send')}</span>
-          <span className='sr-only sm:hidden'>{t('Send')}</span>
-        </PromptInputButton>
-      )}
-    </>
-  )
+  const renderSubmitButton = () =>
+    shouldShowStop ? (
+      <PromptInputButton
+        className='text-foreground font-medium'
+        onClick={onStop}
+        variant='secondary'
+      >
+        <SquareIcon className='fill-current' size={16} />
+        <span className='hidden sm:inline'>{t('Stop')}</span>
+        <span className='sr-only sm:hidden'>{t('Stop')}</span>
+      </PromptInputButton>
+    ) : (
+      <PromptInputButton
+        className='text-foreground font-medium'
+        disabled={!canSubmit}
+        type='submit'
+        variant='secondary'
+      >
+        <SendIcon size={16} />
+        <span className='hidden sm:inline'>{t('Send')}</span>
+        <span className='sr-only sm:hidden'>{t('Send')}</span>
+      </PromptInputButton>
+    )
 
   return (
     <div className='flex w-full flex-col gap-2 md:flex-row md:items-center md:justify-between'>

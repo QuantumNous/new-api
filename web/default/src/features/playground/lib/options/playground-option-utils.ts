@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { GroupOption, ModelOption } from '../types'
+import type { GroupOption, ModelOption } from '../../types'
 
 export function getModelFallback(
   models: ModelOption[],
