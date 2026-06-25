@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -316,9 +317,34 @@ func (e *NewAPIError) sanitizeMessage(message string) string {
 	}
 	sanitized := common.MaskSensitiveInfo(sanitizedInput)
 	for idx, placeholder := range placeholders {
-		sanitized = strings.ReplaceAll(sanitized, placeholder, fragments[idx])
+		fragment := fragments[idx]
+		if !isSafePreservedMessageFragment(fragment) {
+			fragment = common.MaskSensitiveInfo(fragment)
+		}
+		sanitized = strings.ReplaceAll(sanitized, placeholder, fragment)
 	}
 	return sanitized
+}
+
+func isSafePreservedMessageFragment(fragment string) bool {
+	candidate := strings.TrimSpace(fragment)
+	if candidate == "" {
+		return false
+	}
+	if !strings.Contains(candidate, "://") {
+		candidate = "http://" + candidate
+	}
+	parsed, err := url.Parse(candidate)
+	if err != nil {
+		return false
+	}
+	if parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	return true
 }
 
 type NewAPIErrorOptions func(*NewAPIError)

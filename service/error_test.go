@@ -249,6 +249,18 @@ func TestToOpenAIErrorDoesNotUnmaskAllowlistedHostWithoutExplicitOptIn(t *testin
 	require.Contains(t, err.ToOpenAIError().Message, "https://***.ai/***")
 }
 
+func TestToOpenAIErrorDoesNotRestoreUnsafePreservedURLFragments(t *testing.T) {
+	err := types.NewErrorWithStatusCode(
+		errors.New("boom https://console.flatkey.ai/wallet?token=secret"),
+		types.ErrorCodeInsufficientUserQuota,
+		http.StatusForbidden,
+		types.ErrOptionWithPreservedMessageFragments("https://console.flatkey.ai/wallet?token=secret"),
+	)
+
+	require.NotContains(t, err.ToOpenAIError().Message, "https://console.flatkey.ai/wallet?token=secret")
+	require.Contains(t, err.ToOpenAIError().Message, "https://***.ai/***?token=***")
+}
+
 func withDebugEnabled(t *testing.T, enabled bool) {
 	t.Helper()
 

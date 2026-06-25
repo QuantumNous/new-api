@@ -37,10 +37,14 @@ func TopupHintHostAllowed(rawURL string) bool {
 }
 
 func topupHintURLHost(rawURL string) string {
-	if strings.TrimSpace(rawURL) == "" {
+	candidate := strings.TrimSpace(rawURL)
+	if candidate == "" {
 		return ""
 	}
-	parsed, err := url.Parse(rawURL)
+	if !strings.Contains(candidate, "://") {
+		candidate = "http://" + candidate
+	}
+	parsed, err := url.Parse(candidate)
 	if err != nil {
 		return ""
 	}

@@ -247,6 +247,26 @@ func TestNewBillingSessionWalletErrorsIncludeTopUpHint(t *testing.T) {
 		require.Contains(t, apiErr.ToOpenAIError().Message, "https://console.flatkey.ai/wallet")
 	})
 
+	t.Run("allowlisted host without scheme still preserves client-facing hint", func(t *testing.T) {
+		const userID = 10115
+		resetBillingStatusTables(t)
+		seedUser(t, userID, 0)
+		system_setting.ServerAddress = "console.flatkey.ai"
+		system_setting.GetTopupHintSettings().AllowedHosts = []string{"console.flatkey.ai"}
+
+		c := newTestGinContext()
+		relayInfo := newQuotaStatusRelayInfo(userID, 0, "")
+		relayInfo.UserSetting.BillingPreference = "wallet_only"
+
+		session, apiErr := NewBillingSession(c, relayInfo, 1)
+
+		require.Nil(t, session)
+		require.NotNil(t, apiErr)
+		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+		require.Contains(t, apiErr.Error(), "console.flatkey.ai/wallet")
+		require.Contains(t, apiErr.ToOpenAIError().Message, "console.flatkey.ai/wallet")
+	})
+
 	t.Run("loopback host omits hint", func(t *testing.T) {
 		const userID = 10112
 		resetBillingStatusTables(t)
@@ -331,6 +351,23 @@ func TestPreConsumeQuotaWalletErrorsIncludeTopUpHint(t *testing.T) {
 		require.Contains(t, apiErr.Error(), "https://console.flatkey.ai/wallet")
 		require.NotContains(t, apiErr.ToOpenAIError().Message, "https://console.flatkey.ai/wallet")
 		require.Contains(t, apiErr.ToOpenAIError().Message, "https://***.ai/***")
+	})
+
+	t.Run("allowlisted host without scheme still preserves client-facing hint", func(t *testing.T) {
+		const userID = 10116
+		resetBillingStatusTables(t)
+		seedUser(t, userID, 0)
+		system_setting.ServerAddress = "console.flatkey.ai"
+		system_setting.GetTopupHintSettings().AllowedHosts = []string{"console.flatkey.ai"}
+
+		c := newTestGinContext()
+		relayInfo := newQuotaStatusRelayInfo(userID, 0, "")
+		apiErr := PreConsumeQuota(c, 1, relayInfo)
+
+		require.NotNil(t, apiErr)
+		require.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+		require.Contains(t, apiErr.Error(), "console.flatkey.ai/wallet")
+		require.Contains(t, apiErr.ToOpenAIError().Message, "console.flatkey.ai/wallet")
 	})
 }
 
