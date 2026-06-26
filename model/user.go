@@ -1047,46 +1047,105 @@ func decreaseUserUsedQuota(id int, quota int) {
 }
 
 const usedQuotaRefundRepairOptionKey = "UsedQuotaRefundRepairV1"
+const usedQuotaRefundRepairNetSyncOptionKey = "UsedQuotaRefundRepairV2"
+
+func usedQuotaRepairOptionDone(key string) bool {
+	var opt Option
+	if err := DB.Where("key = ?", key).First(&opt).Error; err != nil {
+		return false
+	}
+	return opt.Value == "true"
+}
+
+func markUsedQuotaRepairOptionDone(key string) bool {
+	if err := DB.Save(&Option{Key: key, Value: "true"}).Error; err != nil {
+		common.SysLog("failed to mark " + key + " complete: " + err.Error())
+		return false
+	}
+	return true
+}
+
+type taskRefundQuotaRow struct {
+	UserId  int `gorm:"column:user_id"`
+	Consume int `gorm:"column:consume"`
+	Refund  int `gorm:"column:refund"`
+}
+
+func queryTaskRefundQuotaRows() ([]taskRefundQuotaRow, error) {
+	var rows []taskRefundQuotaRow
+	err := LOG_DB.Model(&Log{}).
+		Select(`user_id,
+			SUM(CASE WHEN type = ? THEN quota ELSE 0 END) AS consume,
+			SUM(CASE WHEN type = ? AND (other NOT LIKE ? OR other IS NULL OR other = '') THEN quota ELSE 0 END) AS refund`,
+			LogTypeConsume, LogTypeRefund, "%billing_hold_reconcile%").
+		Group("user_id").
+		Having("SUM(CASE WHEN type = ? AND (other NOT LIKE ? OR other IS NULL OR other = '') THEN quota ELSE 0 END) > 0",
+			LogTypeRefund, "%billing_hold_reconcile%").
+		Scan(&rows).Error
+	return rows, err
+}
 
 // migrateRepairUserUsedQuotaAfterRefundLogs backfills users.used_quota for historical task refunds
 // that increased wallet quota but left used_quota unchanged. Skips billing-hold reconcile refunds.
 func migrateRepairUserUsedQuotaAfterRefundLogs() {
-	var opt Option
-	if err := DB.Where("`key` = ?", usedQuotaRefundRepairOptionKey).First(&opt).Error; err == nil && opt.Value == "true" {
-		return
+	if !usedQuotaRepairOptionDone(usedQuotaRefundRepairOptionKey) {
+		rows, err := queryTaskRefundQuotaRows()
+		if err != nil {
+			common.SysLog("failed to query refund logs for used_quota repair: " + err.Error())
+			return
+		}
+		repaired := 0
+		for _, row := range rows {
+			if row.UserId <= 0 || row.Refund <= 0 {
+				continue
+			}
+			decreaseUserUsedQuota(row.UserId, row.Refund)
+			repaired++
+		}
+		if !markUsedQuotaRepairOptionDone(usedQuotaRefundRepairOptionKey) {
+			return
+		}
+		common.SysLog(fmt.Sprintf("used_quota refund repair finished: adjusted %d user(s)", repaired))
 	}
 
-	type refundSum struct {
-		UserId int
-		Total  int
+	migrateSyncUserUsedQuotaToNetFromTaskRefunds()
+}
+
+// migrateSyncUserUsedQuotaToNetFromTaskRefunds fixes under-reported used_quota when V1 ran more than once
+// (e.g. duplicate startup before the option guard worked on PostgreSQL).
+func migrateSyncUserUsedQuotaToNetFromTaskRefunds() {
+	if usedQuotaRepairOptionDone(usedQuotaRefundRepairNetSyncOptionKey) {
+		return
 	}
-	var sums []refundSum
-	err := LOG_DB.Model(&Log{}).
-		Select("user_id, SUM(quota) as total").
-		Where("type = ?", LogTypeRefund).
-		Where("other NOT LIKE ? OR other IS NULL OR other = ''", "%billing_hold_reconcile%").
-		Group("user_id").
-		Scan(&sums).Error
+	rows, err := queryTaskRefundQuotaRows()
 	if err != nil {
-		common.SysLog("failed to query refund logs for used_quota repair: " + err.Error())
+		common.SysLog("failed to query task refund rows for used_quota net sync: " + err.Error())
 		return
 	}
-
-	repaired := 0
-	for _, row := range sums {
-		if row.UserId <= 0 || row.Total <= 0 {
+	adjusted := 0
+	for _, row := range rows {
+		netUsed := row.Consume - row.Refund
+		if row.UserId <= 0 || netUsed < 0 {
 			continue
 		}
-		decreaseUserUsedQuota(row.UserId, row.Total)
-		repaired++
+		var user User
+		if err := DB.Select("used_quota").Where("id = ?", row.UserId).First(&user).Error; err != nil {
+			common.SysLog(fmt.Sprintf("failed to load user %d for used_quota net sync: %s", row.UserId, err.Error()))
+			continue
+		}
+		if user.UsedQuota >= netUsed {
+			continue
+		}
+		if err := DB.Model(&User{}).Where("id = ?", row.UserId).Update("used_quota", netUsed).Error; err != nil {
+			common.SysLog(fmt.Sprintf("failed to sync user %d used_quota to net %d: %s", row.UserId, netUsed, err.Error()))
+			continue
+		}
+		adjusted++
 	}
-
-	value := "true"
-	if err := DB.Save(&Option{Key: usedQuotaRefundRepairOptionKey, Value: value}).Error; err != nil {
-		common.SysLog("failed to mark used_quota refund repair complete: " + err.Error())
+	if !markUsedQuotaRepairOptionDone(usedQuotaRefundRepairNetSyncOptionKey) {
 		return
 	}
-	common.SysLog(fmt.Sprintf("used_quota refund repair finished: adjusted %d user(s)", repaired))
+	common.SysLog(fmt.Sprintf("used_quota net sync finished: adjusted %d user(s)", adjusted))
 }
 
 func updateUserRequestCount(id int, count int) {
