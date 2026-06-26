@@ -91,12 +91,6 @@ func InitOptionMap() {
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
 	common.OptionMap["StripePriceId20"] = setting.StripePriceId20
 	common.OptionMap["StripePriceId200"] = setting.StripePriceId200
-	common.OptionMap["StripePriceIdJPY"] = setting.StripePriceIdJPY
-	common.OptionMap["StripePriceIdJPY20"] = setting.StripePriceIdJPY20
-	common.OptionMap["StripePriceIdJPY200"] = setting.StripePriceIdJPY200
-	common.OptionMap["StripePriceIdBRL"] = setting.StripePriceIdBRL
-	common.OptionMap["StripePriceIdBRL20"] = setting.StripePriceIdBRL20
-	common.OptionMap["StripePriceIdBRL200"] = setting.StripePriceIdBRL200
 	common.OptionMap["StripeUnitPrice"] = strconv.FormatFloat(setting.StripeUnitPrice, 'f', -1, 64)
 	common.OptionMap["StripePromotionCodesEnabled"] = strconv.FormatBool(setting.StripePromotionCodesEnabled)
 	common.OptionMap["StripeCardBindEnabled"] = strconv.FormatBool(setting.StripeCardBindEnabled)
@@ -672,18 +666,6 @@ func applyOptionMapValue(key string, value string) (err error) {
 		setting.StripePriceId20 = value
 	case "StripePriceId200":
 		setting.StripePriceId200 = value
-	case "StripePriceIdJPY":
-		setting.StripePriceIdJPY = value
-	case "StripePriceIdJPY20":
-		setting.StripePriceIdJPY20 = value
-	case "StripePriceIdJPY200":
-		setting.StripePriceIdJPY200 = value
-	case "StripePriceIdBRL":
-		setting.StripePriceIdBRL = value
-	case "StripePriceIdBRL20":
-		setting.StripePriceIdBRL20 = value
-	case "StripePriceIdBRL200":
-		setting.StripePriceIdBRL200 = value
 	case "StripeUnitPrice":
 		setting.StripeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "StripeMinTopUp":

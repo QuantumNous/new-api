@@ -74,65 +74,47 @@ func TestBuildStripeCheckoutSessionParamsAlwaysAllowsPromotionCodes(t *testing.T
 	require.Nil(t, params.LineItems[0].PriceData)
 }
 
-func TestResolveStripeTopUpCheckoutUsesRequestedCurrencyPackage(t *testing.T) {
+func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 	originalPriceId := setting.StripePriceId
 	originalPriceId20 := setting.StripePriceId20
 	originalPriceId200 := setting.StripePriceId200
-	originalJpyPriceId := setting.StripePriceIdJPY
-	originalJpyPriceId20 := setting.StripePriceIdJPY20
-	originalJpyPriceId200 := setting.StripePriceIdJPY200
-	originalBrlPriceId := setting.StripePriceIdBRL
-	originalBrlPriceId20 := setting.StripePriceIdBRL20
-	originalBrlPriceId200 := setting.StripePriceIdBRL200
 	t.Cleanup(func() {
 		setting.StripePriceId = originalPriceId
 		setting.StripePriceId20 = originalPriceId20
 		setting.StripePriceId200 = originalPriceId200
-		setting.StripePriceIdJPY = originalJpyPriceId
-		setting.StripePriceIdJPY20 = originalJpyPriceId20
-		setting.StripePriceIdJPY200 = originalJpyPriceId200
-		setting.StripePriceIdBRL = originalBrlPriceId
-		setting.StripePriceIdBRL20 = originalBrlPriceId20
-		setting.StripePriceIdBRL200 = originalBrlPriceId200
 	})
-	setting.StripePriceId = "price_usd_package"
-	setting.StripePriceId20 = "price_usd_20_package"
-	setting.StripePriceId200 = "price_usd_200_package"
-	setting.StripePriceIdJPY = "price_jpy_package"
-	setting.StripePriceIdJPY20 = "price_jpy_20_package"
-	setting.StripePriceIdJPY200 = "price_jpy_200_package"
-	setting.StripePriceIdBRL = "price_brl_package"
-	setting.StripePriceIdBRL20 = "price_brl_20_package"
-	setting.StripePriceIdBRL200 = "price_brl_200_package"
+	setting.StripePriceId = "price_multi_currency_10"
+	setting.StripePriceId20 = "price_multi_currency_20"
+	setting.StripePriceId200 = "price_multi_currency_200"
 
 	checkout, err := resolveStripeTopUpCheckout(&StripePayRequest{
 		Amount:         10,
 		StripeCurrency: "jpy",
 	}, 10, "default")
 	require.NoError(t, err)
-	require.Equal(t, "price_jpy_package", checkout.PriceId)
+	require.Equal(t, "price_multi_currency_10", checkout.PriceId)
 	require.Equal(t, int64(1), checkout.Quantity)
-	require.Equal(t, "JPY", checkout.PaymentCurrency)
-	require.Equal(t, 1500.0, checkout.Money)
+	require.Empty(t, checkout.PaymentCurrency)
+	require.Equal(t, 10.0, checkout.Money)
 
 	checkout, err = resolveStripeTopUpCheckout(&StripePayRequest{
 		Amount:         20,
 		StripeCurrency: "JPY",
 	}, 20, "default")
 	require.NoError(t, err)
-	require.Equal(t, "price_jpy_20_package", checkout.PriceId)
+	require.Equal(t, "price_multi_currency_20", checkout.PriceId)
 	require.Equal(t, int64(1), checkout.Quantity)
-	require.Equal(t, "JPY", checkout.PaymentCurrency)
-	require.Equal(t, 3000.0, checkout.Money)
+	require.Empty(t, checkout.PaymentCurrency)
+	require.Equal(t, 20.0, checkout.Money)
 
 	checkout, err = resolveStripeTopUpCheckout(&StripePayRequest{
 		Amount:         200,
 		StripeCurrency: "USD",
 	}, 200, "default")
 	require.NoError(t, err)
-	require.Equal(t, "price_usd_200_package", checkout.PriceId)
+	require.Equal(t, "price_multi_currency_200", checkout.PriceId)
 	require.Equal(t, int64(1), checkout.Quantity)
-	require.Equal(t, "USD", checkout.PaymentCurrency)
+	require.Empty(t, checkout.PaymentCurrency)
 	require.Equal(t, 200.0, checkout.Money)
 
 	checkout, err = resolveStripeTopUpCheckout(&StripePayRequest{
@@ -140,10 +122,10 @@ func TestResolveStripeTopUpCheckoutUsesRequestedCurrencyPackage(t *testing.T) {
 		StripeCurrency: "BRL",
 	}, 200, "default")
 	require.NoError(t, err)
-	require.Equal(t, "price_brl_200_package", checkout.PriceId)
+	require.Equal(t, "price_multi_currency_200", checkout.PriceId)
 	require.Equal(t, int64(1), checkout.Quantity)
-	require.Equal(t, "BRL", checkout.PaymentCurrency)
-	require.InEpsilon(t, 1998.00, checkout.Money, 0.0001)
+	require.Empty(t, checkout.PaymentCurrency)
+	require.Equal(t, 200.0, checkout.Money)
 }
 
 func TestResolveStripeTopUpCheckoutRejectsUnsupportedCurrencyPackage(t *testing.T) {
@@ -168,6 +150,13 @@ func TestResolveStripeTopUpCheckoutRejectsUnsupportedPackageAmount(t *testing.T)
 	}, 15, "default")
 
 	require.EqualError(t, err, "Stripe checkout package requires one of: 10, 20, 200 USD credits")
+}
+
+func TestStripeLocationEmailForCheckoutCurrency(t *testing.T) {
+	require.Equal(t, "buyer+location_JP@example.com", stripeLocationEmailForCheckoutCurrency("buyer@example.com", "JPY"))
+	require.Equal(t, "buyer+promo+location_BR@example.com", stripeLocationEmailForCheckoutCurrency("buyer+promo@example.com", "BRL"))
+	require.Equal(t, "buyer@example.com", stripeLocationEmailForCheckoutCurrency("buyer@example.com", "USD"))
+	require.Equal(t, "invalid", stripeLocationEmailForCheckoutCurrency("invalid", "JPY"))
 }
 
 func TestStripePaymentSnapshotFromEventUsesCurrencyMinorUnits(t *testing.T) {

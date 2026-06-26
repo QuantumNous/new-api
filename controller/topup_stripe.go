@@ -69,16 +69,15 @@ const (
 )
 
 type stripeTopUpCheckout struct {
-	PriceId         string
-	Quantity        int64
-	Money           float64
-	PaymentCurrency string
+	PriceId          string
+	Quantity         int64
+	Money            float64
+	PaymentCurrency  string
+	CheckoutCurrency string
 }
 
 type stripeTopUpCurrencyPackage struct {
-	Currency   string
-	PriceId    string
-	UnitAmount float64
+	PriceId string
 }
 
 func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, group string) (*stripeTopUpCheckout, error) {
@@ -95,22 +94,23 @@ func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, g
 		}, nil
 	}
 
-	pkg, ok := stripeTopUpCurrencyPackageFor(requestedCurrency, normalizedAmount)
-	if !ok {
-		if stripeTopUpCurrencySupported(requestedCurrency) {
-			return nil, errors.New("Stripe checkout package requires one of: 10, 20, 200 USD credits")
-		}
+	if !stripeTopUpCurrencySupported(requestedCurrency) {
 		return nil, errors.New("unsupported Stripe checkout currency")
 	}
+
+	pkg, ok := stripeTopUpPackageFor(normalizedAmount)
+	if !ok {
+		return nil, errors.New("Stripe checkout package requires one of: 10, 20, 200 USD credits")
+	}
 	if strings.TrimSpace(pkg.PriceId) == "" {
-		return nil, fmt.Errorf("Stripe %s %d Price ID 未配置", requestedCurrency, normalizedAmount)
+		return nil, fmt.Errorf("Stripe %d Price ID 未配置", normalizedAmount)
 	}
 
 	return &stripeTopUpCheckout{
-		PriceId:         strings.TrimSpace(pkg.PriceId),
-		Quantity:        stripeTopUpLineQuantity,
-		Money:           pkg.UnitAmount,
-		PaymentCurrency: pkg.Currency,
+		PriceId:          strings.TrimSpace(pkg.PriceId),
+		Quantity:         stripeTopUpLineQuantity,
+		Money:            float64(normalizedAmount),
+		CheckoutCurrency: requestedCurrency,
 	}, nil
 }
 
@@ -123,88 +123,19 @@ func stripeTopUpCurrencySupported(currency string) bool {
 	}
 }
 
-func stripeTopUpCurrencyPackageFor(currency string, amount int64) (stripeTopUpCurrencyPackage, bool) {
-	switch strings.ToUpper(strings.TrimSpace(currency)) {
-	case "USD":
-		return stripeTopUpUSDPackageFor(amount)
-	case "JPY":
-		return stripeTopUpJPYPackageFor(amount)
-	case "BRL":
-		return stripeTopUpBRLPackageFor(amount)
-	default:
-		return stripeTopUpCurrencyPackage{}, false
-	}
-}
-
-func stripeTopUpUSDPackageFor(amount int64) (stripeTopUpCurrencyPackage, bool) {
+func stripeTopUpPackageFor(amount int64) (stripeTopUpCurrencyPackage, bool) {
 	switch amount {
 	case stripeTopUpPackage10:
 		return stripeTopUpCurrencyPackage{
-			Currency:   "USD",
-			PriceId:    setting.StripePriceId,
-			UnitAmount: 10,
+			PriceId: setting.StripePriceId,
 		}, true
 	case stripeTopUpPackage20:
 		return stripeTopUpCurrencyPackage{
-			Currency:   "USD",
-			PriceId:    setting.StripePriceId20,
-			UnitAmount: 20,
+			PriceId: setting.StripePriceId20,
 		}, true
 	case stripeTopUpPackage200:
 		return stripeTopUpCurrencyPackage{
-			Currency:   "USD",
-			PriceId:    setting.StripePriceId200,
-			UnitAmount: 200,
-		}, true
-	default:
-		return stripeTopUpCurrencyPackage{}, false
-	}
-}
-
-func stripeTopUpJPYPackageFor(amount int64) (stripeTopUpCurrencyPackage, bool) {
-	switch amount {
-	case stripeTopUpPackage10:
-		return stripeTopUpCurrencyPackage{
-			Currency:   "JPY",
-			PriceId:    setting.StripePriceIdJPY,
-			UnitAmount: 1500,
-		}, true
-	case stripeTopUpPackage20:
-		return stripeTopUpCurrencyPackage{
-			Currency:   "JPY",
-			PriceId:    setting.StripePriceIdJPY20,
-			UnitAmount: 3000,
-		}, true
-	case stripeTopUpPackage200:
-		return stripeTopUpCurrencyPackage{
-			Currency:   "JPY",
-			PriceId:    setting.StripePriceIdJPY200,
-			UnitAmount: 30000,
-		}, true
-	default:
-		return stripeTopUpCurrencyPackage{}, false
-	}
-}
-
-func stripeTopUpBRLPackageFor(amount int64) (stripeTopUpCurrencyPackage, bool) {
-	switch amount {
-	case stripeTopUpPackage10:
-		return stripeTopUpCurrencyPackage{
-			Currency:   "BRL",
-			PriceId:    setting.StripePriceIdBRL,
-			UnitAmount: 99.90,
-		}, true
-	case stripeTopUpPackage20:
-		return stripeTopUpCurrencyPackage{
-			Currency:   "BRL",
-			PriceId:    setting.StripePriceIdBRL20,
-			UnitAmount: 199.80,
-		}, true
-	case stripeTopUpPackage200:
-		return stripeTopUpCurrencyPackage{
-			Currency:   "BRL",
-			PriceId:    setting.StripePriceIdBRL200,
-			UnitAmount: 1998.00,
+			PriceId: setting.StripePriceId200,
 		}, true
 	default:
 		return stripeTopUpCurrencyPackage{}, false
@@ -1090,7 +1021,8 @@ func genStripeLink(referenceId string, customerId string, email string, checkout
 		cancelURL = paymentReturnPath("/console/topup")
 	}
 
-	params := buildStripeCheckoutSessionParams(referenceId, customerId, email, checkout.PriceId, checkout.Quantity, successURL, cancelURL, invoiceRequested, saveCard)
+	localizedEmail := stripeLocationEmailForCheckoutCurrency(email, checkout.CheckoutCurrency)
+	params := buildStripeCheckoutSessionParams(referenceId, customerId, localizedEmail, checkout.PriceId, checkout.Quantity, successURL, cancelURL, invoiceRequested, saveCard)
 
 	// For onboarding promo top-ups, save the card while paying so it can be charged
 	// off-session later (postpaid auto-charge). Plain wallet top-ups don't save the card.
@@ -1236,6 +1168,26 @@ func buildStripeCheckoutSessionParams(referenceId string, customerId string, ema
 	}
 
 	return params
+}
+
+func stripeLocationEmailForCheckoutCurrency(email string, currency string) string {
+	email = strings.TrimSpace(email)
+	at := strings.LastIndex(email, "@")
+	if at <= 0 || at == len(email)-1 {
+		return email
+	}
+
+	var country string
+	switch strings.ToUpper(strings.TrimSpace(currency)) {
+	case "JPY":
+		country = "JP"
+	case "BRL":
+		country = "BR"
+	default:
+		return email
+	}
+
+	return email[:at] + "+location_" + country + email[at:]
 }
 
 func buildStripeTopUpLineItem(priceId string, amount int64) *stripe.CheckoutSessionLineItemParams {

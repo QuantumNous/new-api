@@ -269,12 +269,6 @@ export type BillingSettings = {
   StripePriceId: string
   StripePriceId20: string
   StripePriceId200: string
-  StripePriceIdJPY: string
-  StripePriceIdJPY20: string
-  StripePriceIdJPY200: string
-  StripePriceIdBRL: string
-  StripePriceIdBRL20: string
-  StripePriceIdBRL200: string
   StripeUnitPrice: number
   StripeMinTopUp: number
   StripePromotionCodesEnabled: boolean
