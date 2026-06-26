@@ -612,6 +612,13 @@ func RelayTask(c *gin.Context) {
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
+		if taskReq, reqErr := relaycommon.GetTaskRequest(c); reqErr == nil {
+			if rd := service.BuildVideoRequestDataForLog(&taskReq); len(rd) > 0 {
+				if encoded, merr := common.Marshal(rd); merr == nil {
+					task.PrivateData.RequestData = string(encoded)
+				}
+			}
+		}
 		if insertErr := task.Insert(); insertErr != nil {
 			common.SysError("insert task error: " + insertErr.Error())
 		}

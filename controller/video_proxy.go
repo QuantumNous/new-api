@@ -37,8 +37,7 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetInt("id")
-	task, exists, err := model.GetByTaskId(userID, taskID)
+	task, exists, err := lookupVideoProxyTask(c, taskID)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to query task %s: %s", taskID, err.Error()))
 		videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to query task")
@@ -173,6 +172,25 @@ func VideoProxy(c *gin.Context) {
 	if _, err = io.Copy(c.Writer, resp.Body); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to stream video content: %s", err.Error()))
 	}
+}
+
+// lookupVideoProxyTask returns the task for the authenticated caller.
+// Regular users may only access their own tasks; admins may access any task.
+func lookupVideoProxyTask(c *gin.Context, taskID string) (*model.Task, bool, error) {
+	userID := c.GetInt("id")
+	task, exists, err := model.GetByTaskId(userID, taskID)
+	if err != nil {
+		return nil, false, err
+	}
+	if exists {
+		return task, true, nil
+	}
+
+	role, _ := c.Get("role")
+	if roleInt, ok := role.(int); ok && roleInt >= common.RoleAdminUser {
+		return model.GetByOnlyTaskId(taskID)
+	}
+	return nil, false, nil
 }
 
 func writeVideoDataURL(c *gin.Context, dataURL string) error {

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CopyButton } from '@/components/copy-button'
 import {
@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { downloadMediaFile } from '../../lib/download-media'
+import { loadAuthenticatedMediaUrl } from '../../lib/load-authenticated-media'
 import { MediaDialogFooter } from './media-dialog-footer'
 import { RequestDataPanel } from './request-data-panel'
 
@@ -47,14 +48,55 @@ export function VideoDialog({
   onOpenChange,
 }: VideoDialogProps) {
   const { t } = useTranslation()
+  const [playableUrl, setPlayableUrl] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+
+  useEffect(() => {
+    if (!open || !videoUrl) {
+      setPlayableUrl('')
+      return
+    }
+
+    let objectUrl: string | null = null
+    let cancelled = false
+
+    const load = async () => {
+      setIsLoading(true)
+      setHasError(false)
+      try {
+        const resolved = await loadAuthenticatedMediaUrl(videoUrl)
+        if (cancelled) return
+        if (resolved.revoke) {
+          objectUrl = resolved.url
+        }
+        setPlayableUrl(resolved.url)
+        setIsLoading(false)
+      } catch {
+        if (!cancelled) {
+          setPlayableUrl('')
+          setHasError(true)
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void load()
+
+    return () => {
+      cancelled = true
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
+      }
+    }
+  }, [open, videoUrl])
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
       setIsLoading(true)
       setHasError(false)
+      setPlayableUrl('')
     }
     onOpenChange(newOpen)
   }
@@ -97,24 +139,27 @@ export function VideoDialog({
               <Skeleton className='absolute inset-2 rounded-md' />
             )}
 
-            <video
-              src={videoUrl}
-              controls
-              className={`max-h-[min(32vh,240px)] max-w-full rounded-md ${
-                isLoading || hasError ? 'opacity-0' : 'opacity-100'
-              }`}
-              onLoadedData={() => {
-                setIsLoading(false)
-                setHasError(false)
-              }}
-              onError={() => {
-                setIsLoading(false)
-                setHasError(true)
-              }}
-            />
+            {playableUrl ? (
+              <video
+                key={playableUrl}
+                src={playableUrl}
+                controls
+                className={`max-h-[min(32vh,240px)] max-w-full rounded-md ${
+                  isLoading || hasError ? 'opacity-0' : 'opacity-100'
+                }`}
+                onLoadedData={() => {
+                  setIsLoading(false)
+                  setHasError(false)
+                }}
+                onError={() => {
+                  setIsLoading(false)
+                  setHasError(true)
+                }}
+              />
+            ) : null}
 
             {hasError && (
-              <div className='absolute inset-0 flex items-center justify-center'>
+              <div className='absolute inset-0 flex items-center justify-center px-4 text-center'>
                 <p className='text-muted-foreground text-sm'>
                   {t('Failed to load video')}
                 </p>

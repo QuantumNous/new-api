@@ -31,6 +31,9 @@ import { cn } from '@/lib/utils'
 const META_FIELDS: Array<{ key: string; labelKey: string }> = [
   { key: 'model', labelKey: 'Model' },
   { key: 'quality', labelKey: 'Quality' },
+  { key: 'seconds', labelKey: 'Duration (seconds)' },
+  { key: 'duration', labelKey: 'Duration' },
+  { key: 'size', labelKey: 'Size' },
   { key: 'n', labelKey: 'Count' },
   { key: 'effective_resolution', labelKey: 'Resolution' },
   { key: 'actual_image_count', labelKey: 'Image count' },

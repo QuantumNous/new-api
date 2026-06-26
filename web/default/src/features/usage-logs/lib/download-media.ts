@@ -34,7 +34,7 @@ export async function downloadMediaFile(
   const filename = filenameFromMediaUrl(url, fallbackName)
 
   try {
-    const res = await fetch(url)
+    const res = await fetch(url, { credentials: 'include' })
     if (!res.ok) throw new Error(`download failed: ${res.status}`)
     const blob = await res.blob()
     const objectUrl = URL.createObjectURL(blob)

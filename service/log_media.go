@@ -76,11 +76,37 @@ func resolveLogRequestData(other map[string]interface{}) map[string]interface{} 
 		return nil
 	}
 	task, exist, err := model.GetByOnlyTaskId(taskID)
-	if err != nil || !exist || strings.TrimSpace(task.PrivateData.RequestData) == "" {
+	if err != nil || !exist {
 		return nil
 	}
-	var data map[string]interface{}
-	if err := common.Unmarshal([]byte(task.PrivateData.RequestData), &data); err != nil {
+	if strings.TrimSpace(task.PrivateData.RequestData) != "" {
+		var data map[string]interface{}
+		if err := common.Unmarshal([]byte(task.PrivateData.RequestData), &data); err == nil && len(data) > 0 {
+			return data
+		}
+	}
+	return buildVideoRequestDataFromTaskData(task)
+}
+
+func buildVideoRequestDataFromTaskData(task *model.Task) map[string]interface{} {
+	if task == nil || len(task.Data) == 0 {
+		return nil
+	}
+	var payload map[string]interface{}
+	if err := common.Unmarshal(task.Data, &payload); err != nil {
+		return nil
+	}
+	data := map[string]interface{}{}
+	if modelName := strings.TrimSpace(fmtTaskID(payload["model"])); modelName != "" {
+		data["model"] = modelName
+	}
+	if seconds := strings.TrimSpace(fmtTaskID(payload["seconds"])); seconds != "" {
+		data["seconds"] = seconds
+	}
+	if size := strings.TrimSpace(fmtTaskID(payload["size"])); size != "" {
+		data["size"] = size
+	}
+	if len(data) == 0 {
 		return nil
 	}
 	return data
