@@ -114,40 +114,32 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 
 	requestPath := "/v1/chat/completions"
 
-	// 如果指定了端点类型，使用指定的端点类型
+	// Use the specified endpoint type if specified
 	if endpointType != "" {
 		if endpointInfo, ok := common.GetDefaultEndpointInfo(constant.EndpointType(endpointType)); ok {
 			requestPath = endpointInfo.Path
 		}
-	} else {
-		// 如果没有指定端点类型，使用原有的自动检测逻辑
-
+	} else { // auto detect
 		if strings.Contains(strings.ToLower(testModel), "rerank") {
 			requestPath = "/v1/rerank"
-		}
-
-		// 先判断是否为 Embedding 模型
-		if strings.Contains(strings.ToLower(testModel), "embedding") ||
-			strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
-			strings.Contains(testModel, "bge-") || // bge 系列模型
+		} else if strings.Contains(strings.ToLower(testModel), "embedding") || // embedding models
+			strings.HasPrefix(testModel, "m3e") || // m3e series
+			strings.Contains(testModel, "bge-") || // bge series
 			strings.Contains(testModel, "embed") ||
-			channel.Type == constant.ChannelTypeMokaAI { // 其他 embedding 模型
-			requestPath = "/v1/embeddings" // 修改请求路径
-		}
-
-		// VolcEngine 图像生成模型
-		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
+			channel.Type == constant.ChannelTypeMokaAI { // other embedding models
+			requestPath = "/v1/embeddings"
+		} else if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
+			// VolcEngine image gen models
 			requestPath = "/v1/images/generations"
-		}
-
-		// responses-only models
-		if strings.Contains(strings.ToLower(testModel), "codex") {
-			requestPath = "/v1/responses"
-		}
-
-		// responses compaction models (must use /v1/responses/compact)
-		if strings.HasSuffix(testModel, ratio_setting.CompactModelSuffix) {
+		} else if strings.HasSuffix(testModel, ratio_setting.CompactModelSuffix) {
+			// responses compaction models (must use /v1/responses/compact)
 			requestPath = "/v1/responses/compact"
+		} else if strings.Contains(strings.ToLower(testModel), "codex") {
+			// responses-only models
+			requestPath = "/v1/responses"
+		} else if service.ShouldChatCompletionsUseResponsesGlobal(channel.Id, channel.Type, testModel) {
+			// follow the global setting for using responses instead of completions
+			requestPath = "/v1/responses"
 		}
 	}
 	if strings.HasPrefix(requestPath, "/v1/responses/compact") {
