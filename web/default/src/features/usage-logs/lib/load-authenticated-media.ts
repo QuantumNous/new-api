@@ -17,6 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+export class MediaLoadError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'MediaLoadError'
+    this.status = status
+  }
+}
+
 export interface LoadedMediaUrl {
   url: string
   revoke: boolean
@@ -64,12 +74,26 @@ export async function loadAuthenticatedMediaUrl(
 
   const res = await fetch(trimmed, { credentials: 'include' })
   if (!res.ok) {
-    throw new Error(`media fetch failed: ${res.status}`)
+    let message = `media fetch failed: ${res.status}`
+    const contentType = res.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+      try {
+        const payload = (await res.json()) as {
+          error?: { message?: string }
+        }
+        if (payload.error?.message) {
+          message = payload.error.message
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+    throw new MediaLoadError(message, res.status)
   }
 
   const contentType = res.headers.get('content-type') || ''
   if (contentType.includes('application/json')) {
-    throw new Error('media fetch returned error payload')
+    throw new MediaLoadError('media fetch returned error payload', res.status)
   }
 
   const blob = await res.blob()

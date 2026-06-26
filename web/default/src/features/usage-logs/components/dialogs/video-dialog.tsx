@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { downloadMediaFile } from '../../lib/download-media'
-import { loadAuthenticatedMediaUrl } from '../../lib/load-authenticated-media'
+import { loadAuthenticatedMediaUrl, MediaLoadError } from '../../lib/load-authenticated-media'
 import { MediaDialogFooter } from './media-dialog-footer'
 import { RequestDataPanel } from './request-data-panel'
 
@@ -51,6 +51,7 @@ export function VideoDialog({
   const [playableUrl, setPlayableUrl] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
   const [isDownloading, setIsDownloading] = useState(false)
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export function VideoDialog({
     const load = async () => {
       setIsLoading(true)
       setHasError(false)
+      setErrorMessage('')
       try {
         const resolved = await loadAuthenticatedMediaUrl(videoUrl)
         if (cancelled) return
@@ -73,11 +75,20 @@ export function VideoDialog({
         }
         setPlayableUrl(resolved.url)
         setIsLoading(false)
-      } catch {
+      } catch (err) {
         if (!cancelled) {
           setPlayableUrl('')
           setHasError(true)
           setIsLoading(false)
+          if (err instanceof MediaLoadError) {
+            if (err.status === 410 || err.status === 404) {
+              setErrorMessage(t('Video has expired or been removed from upstream storage'))
+            } else {
+              setErrorMessage(err.message)
+            }
+          } else {
+            setErrorMessage(t('Failed to load video'))
+          }
         }
       }
     }
@@ -96,6 +107,7 @@ export function VideoDialog({
     if (newOpen) {
       setIsLoading(true)
       setHasError(false)
+      setErrorMessage('')
       setPlayableUrl('')
     }
     onOpenChange(newOpen)
@@ -154,14 +166,15 @@ export function VideoDialog({
                 onError={() => {
                   setIsLoading(false)
                   setHasError(true)
+                  setErrorMessage(t('Failed to load video'))
                 }}
               />
             ) : null}
 
             {hasError && (
               <div className='absolute inset-0 flex items-center justify-center px-4 text-center'>
-                <p className='text-muted-foreground text-sm'>
-                  {t('Failed to load video')}
+                <p className='text-muted-foreground text-sm leading-relaxed'>
+                  {errorMessage || t('Failed to load video')}
                 </p>
               </div>
             )}
