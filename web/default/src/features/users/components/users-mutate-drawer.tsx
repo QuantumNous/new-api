@@ -23,9 +23,19 @@ import { useQuery } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_CATALOG,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+  normalizeAdminPermissions,
+} from '@/lib/admin-permissions'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
   FormControl,
@@ -89,6 +99,7 @@ export function UsersMutateDrawer({
   const { t } = useTranslation()
   const isUpdate = !!currentRow
   const { triggerRefresh } = useUsers()
+  const currentUser = useAuthStore((s) => s.auth.user)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
 
@@ -126,6 +137,9 @@ export function UsersMutateDrawer({
   const tokensOnly = currencyMeta.kind === 'tokens'
 
   const currentQuotaRaw = form.watch('quota_dollars') || 0
+  const selectedRole = form.watch('role')
+  const canEditAdminPermissions = currentUser?.role === ROLE.SUPER_ADMIN
+  const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
 
   const onSubmit = async (data: UserFormValues) => {
     if (!isUpdate) {
@@ -414,6 +428,87 @@ export function UsersMutateDrawer({
                       </FormItem>
                     )}
                   />
+                </SideDrawerSection>
+              )}
+
+              {canEditAdminPermissions && targetIsAdmin && (
+                <SideDrawerSection>
+                  <h3 className='text-sm font-medium'>
+                    {t('Admin Permissions')}
+                  </h3>
+                  <p className='text-muted-foreground text-xs'>
+                    {t(
+                      'Default administrator permissions can be overridden for this user.'
+                    )}
+                  </p>
+                  <FormField
+                    control={form.control}
+                    name='admin_permissions'
+                    render={({ field }) => {
+                      const selected = normalizeAdminPermissions(field.value)
+                      return (
+                        <FormItem>
+                          <div className='space-y-3'>
+                            {ADMIN_PERMISSION_CATALOG.map((resource) => (
+                              <div
+                                key={resource.resource}
+                                className='space-y-2 rounded-md border p-3'
+                              >
+                                <div className='text-sm font-medium'>
+                                  {t(resource.labelKey)}
+                                </div>
+                                <div className='space-y-2'>
+                                  {resource.actions.map((option) => (
+                                    <label
+                                      key={option.value}
+                                      className='flex items-start gap-3'
+                                    >
+                                      <Checkbox
+                                        checked={
+                                          selected[resource.resource]?.[
+                                            option.value
+                                          ] === true
+                                        }
+                                        onCheckedChange={(checked) => {
+                                          field.onChange({
+                                            ...selected,
+                                            [resource.resource]: {
+                                              ...selected[resource.resource],
+                                              [option.value]: checked === true,
+                                            },
+                                          })
+                                        }}
+                                      />
+                                      <span className='flex flex-col gap-1'>
+                                        <span className='text-sm font-medium'>
+                                          {t(option.labelKey)}
+                                        </span>
+                                        <span className='text-muted-foreground text-xs'>
+                                          {t(option.descriptionKey)}
+                                        </span>
+                                      </span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )
+                    }}
+                  />
+                  {currentUser && (
+                    <p className='text-muted-foreground text-xs'>
+                      {hasPermission(
+                        currentUser,
+                        ADMIN_PERMISSION_RESOURCES.CHANNEL,
+                        ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
+                      )
+                        ? t('Your account can edit sensitive channel settings.')
+                        : t('Your account cannot edit sensitive channel settings.')}
+                    </p>
+                  )}
                 </SideDrawerSection>
               )}
 

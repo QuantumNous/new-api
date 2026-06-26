@@ -12,11 +12,13 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/authz"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -820,6 +822,11 @@ func EditTagChannels(c *gin.Context) {
 		})
 		return
 	}
+	if (channelTag.ParamOverride != nil || channelTag.HeaderOverride != nil) &&
+		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
+		common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
+		return
+	}
 	if channelTag.ParamOverride != nil {
 		trimmed := strings.TrimSpace(*channelTag.ParamOverride)
 		if trimmed != "" && !json.Valid([]byte(trimmed)) {
@@ -898,8 +905,17 @@ type PatchChannel struct {
 
 func UpdateChannel(c *gin.Context) {
 	channel := PatchChannel{}
-	err := c.ShouldBindJSON(&channel)
+	rawBody, err := c.GetRawData()
 	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := common.Unmarshal(rawBody, &channel); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	var requestData map[string]any
+	if err := common.Unmarshal(rawBody, &requestData); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -924,6 +940,12 @@ func UpdateChannel(c *gin.Context) {
 
 	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
 	channel.ChannelInfo = originChannel.ChannelInfo
+
+	if channelHasSensitiveChanges(&channel, originChannel, requestData) &&
+		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
+		common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
+		return
+	}
 
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
@@ -1050,6 +1072,40 @@ func UpdateChannel(c *gin.Context) {
 		"data":    channel,
 	})
 	return
+}
+
+func channelHasSensitiveChanges(channel *PatchChannel, origin *model.Channel, requestData map[string]any) bool {
+	if _, ok := requestData["type"]; ok && channel.Type != origin.Type {
+		return true
+	}
+	if _, ok := requestData["key"]; ok && channel.Key != "" && channel.Key != origin.Key {
+		return true
+	}
+	if _, ok := requestData["base_url"]; ok && !equalStringPtr(channel.BaseURL, origin.BaseURL) {
+		return true
+	}
+	if _, ok := requestData["openai_organization"]; ok && !equalStringPtr(channel.OpenAIOrganization, origin.OpenAIOrganization) {
+		return true
+	}
+	if _, ok := requestData["header_override"]; ok && !equalStringPtr(channel.HeaderOverride, origin.HeaderOverride) {
+		return true
+	}
+	if _, ok := requestData["param_override"]; ok && !equalStringPtr(channel.ParamOverride, origin.ParamOverride) {
+		return true
+	}
+	if _, ok := requestData["setting"]; ok && !equalStringPtr(channel.Setting, origin.Setting) {
+		return true
+	}
+	if _, ok := requestData["other"]; ok && channel.Other != origin.Other {
+		return true
+	}
+	if _, ok := requestData["settings"]; ok && channel.OtherSettings != origin.OtherSettings {
+		return true
+	}
+	if _, ok := requestData["key_mode"]; ok && channel.KeyMode != nil {
+		return true
+	}
+	return false
 }
 
 // equalStringPtr 比较两个 *string 是否相等（均为 nil 视为相等）。
@@ -1362,6 +1418,11 @@ func ManageMultiKeys(c *gin.Context) {
 			"success": false,
 			"message": "该渠道不是多密钥模式",
 		})
+		return
+	}
+	if multiKeyActionRequiresSensitiveWrite(request.Action) &&
+		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
+		common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
 		return
 	}
 
@@ -1806,6 +1867,10 @@ func ManageMultiKeys(c *gin.Context) {
 		})
 		return
 	}
+}
+
+func multiKeyActionRequiresSensitiveWrite(action string) bool {
+	return action == "delete_key" || action == "delete_disabled_keys"
 }
 
 // OllamaPullModel 拉取 Ollama 模型

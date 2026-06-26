@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
@@ -334,6 +335,7 @@ func GetUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
 		return
 	}
+	user.AdminPermissions = authz.Capabilities(user.Id, user.Role)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -443,6 +445,7 @@ func GetSelf(c *gin.Context) {
 
 	// 计算用户权限信息
 	permissions := calculateUserPermissions(userRole)
+	permissions["admin_permissions"] = authz.Capabilities(id, userRole)
 
 	// 获取用户设置并提取sidebar_modules
 	userSetting := user.GetSetting()
@@ -620,6 +623,9 @@ func UpdateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if updatedUser.Role == 0 {
+		updatedUser.Role = originUser.Role
+	}
 	myRole := c.GetInt("role")
 	if !canManageTargetRole(myRole, originUser.Role) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
@@ -634,6 +640,10 @@ func UpdateUser(c *gin.Context) {
 	}
 	updatePassword := updatedUser.Password != ""
 	if err := updatedUser.Edit(updatePassword); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := updateAdminPermissionsForUser(c, updatedUser.Id, updatedUser.Role, updatedUser.AdminPermissions); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -905,6 +915,10 @@ func CreateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if err := updateAdminPermissionsForUser(c, cleanUser.Id, cleanUser.Role, user.AdminPermissions); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	recordManageAuditFor(c, cleanUser.Id, "user.create", map[string]interface{}{
 		"username": cleanUser.Username,
@@ -915,6 +929,22 @@ func CreateUser(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+func updateAdminPermissionsForUser(c *gin.Context, userID int, userRole int, permissions map[string]map[string]bool) error {
+	if permissions == nil {
+		if userRole < common.RoleAdminUser && c.GetInt("role") == common.RoleRootUser {
+			return authz.ClearUserAuthorization(userID)
+		}
+		return nil
+	}
+	if c.GetInt("role") != common.RoleRootUser {
+		return fmt.Errorf("only root can update admin permissions")
+	}
+	if userRole < common.RoleAdminUser {
+		return authz.ClearUserAuthorization(userID)
+	}
+	return authz.SetUserPermissions(userID, permissions)
 }
 
 type ManageRequest struct {
@@ -1043,6 +1073,12 @@ func ManageUser(c *gin.Context) {
 	if err := user.Update(false); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if req.Action == "demote" {
+		if err := authz.ClearUserAuthorization(user.Id); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	// 禁用 / 角色调整后，强制失效用户缓存与其全部令牌缓存，
 	// 避免在 Redis TTL 过期前仍使用旧状态（尤其是禁用后仍可发起请求的问题）。

@@ -33,6 +33,12 @@ import {
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
+import { useAuthStore } from '@/stores/auth-store'
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuCheckboxItem,
@@ -65,6 +71,12 @@ export function ChannelsPrimaryButtons() {
   } = useChannels()
   const queryClient = useQueryClient()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const currentUser = useAuthStore((s) => s.auth.user)
+  const canEditSensitive = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
+  )
 
   const handleTagModeToggle = (checked: boolean) => {
     localStorage.setItem('enable-tag-mode', String(checked))
@@ -105,17 +117,19 @@ export function ChannelsPrimaryButtons() {
         </div>
 
         {/* Create Channel */}
-        <Button
-          onClick={() => {
-            setCurrentRow(null)
-            setOpen('create-channel')
-          }}
-          size='sm'
-        >
-          <Plus className='h-4 w-4' />
-          <span className='max-sm:hidden'>{t('Create Channel')}</span>
-          <span className='sm:hidden'>{t('Create')}</span>
-        </Button>
+        {canEditSensitive && (
+          <Button
+            onClick={() => {
+              setCurrentRow(null)
+              setOpen('create-channel')
+            }}
+            size='sm'
+          >
+            <Plus className='h-4 w-4' />
+            <span className='max-sm:hidden'>{t('Create Channel')}</span>
+            <span className='sm:hidden'>{t('Create')}</span>
+          </Button>
+        )}
 
         {/* More Actions */}
         <DropdownMenu>
