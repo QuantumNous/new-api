@@ -469,13 +469,16 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	if newAPIError != nil {
 		return newAPIError
 	}
-	if channel.ChannelInfo.IsMultiKey {
-		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)
-		common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, index)
-	} else {
-		// 必须设置为 false，否则在重试到单个 key 的时候会导致日志显示错误
-		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, false)
-	}
+	// Always write the key index, even for single-key channels.
+	// Single-key writes 0 (the only key); multi-key writes the
+	// selected slot. The controller reads this on the error path
+	// via buildChannelErrorFromContext; if we leave it unset for
+	// single-key channels, the controller has no way to know which
+	// key was used and falls back to a hard-coded 0, which marks
+	// the wrong key on cooldown for multi-key channels and causes
+	// repeated failures on the same key slot.
+	common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, channel.ChannelInfo.IsMultiKey)
+	common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, index)
 	// c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", key))
 	common.SetContextKey(c, constant.ContextKeyChannelKey, key)
 	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, channel.GetBaseURL())

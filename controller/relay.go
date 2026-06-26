@@ -229,7 +229,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
-		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		processChannelError(c, buildChannelErrorFromContext(c, channel), newAPIError)
 
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
@@ -358,11 +358,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
-	if service.ShouldDisableChannel(err) && channelError.AutoBan {
-		gopool.Go(func() {
-			service.DisableChannel(channelError, err.ErrorWithStatusCode())
-		})
-	}
+	handleChannelErrorCooldown(channelError, err)
 
 	if constant.ErrorLogEnabled && types.IsRecordErrorLog(err) {
 		// 保存错误日志到mysql中
@@ -554,9 +550,7 @@ func RelayTask(c *gin.Context) {
 		}
 
 		if !taskErr.LocalError {
-			processChannelError(c,
-				*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
-					common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
+			processChannelError(c, buildChannelErrorFromContext(c, channel),
 				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
 		}
 
@@ -652,4 +646,42 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 		return false
 	}
 	return true
+}
+
+// buildChannelErrorFromContext assembles a ChannelError populated from
+// the live request context. The key index is read from the
+// context (set by the distributor middleware right after
+// GetNextEnabledKey) so the cooldown handler can scope the skip
+// to the specific key that produced the error rather than the
+// whole channel.
+//
+// The distributor always writes the key index, even for
+// single-key channels (single-key writes 0, multi-key writes
+// the picked slot). The controller must not hard-code 0 here
+// — that would mark the wrong key on cooldown for multi-key
+// channels and cause repeated failures on the same key slot
+// (the symptom: \"key #0 of channel N hit a business error\"
+// repeated indefinitely while the actual broken key was
+// somewhere else in the pool).
+func buildChannelErrorFromContext(c *gin.Context, channel *model.Channel) types.ChannelError {
+	ce := types.NewChannelError(
+		channel.Id, channel.Type, channel.Name,
+		channel.ChannelInfo.IsMultiKey,
+		common.GetContextKeyString(c, constant.ContextKeyChannelKey),
+		channel.GetAutoBan(),
+	)
+	// Read the key index the distributor wrote. We probe the
+	// context directly with c.Get (which returns ok) rather than
+	// c.GetInt (which returns the zero value when the key is
+	// missing). Without the ok check, a missing key would look
+	// identical to a present key with value 0, and the cooldown
+	// handler would mark key #0 on every error path that bypasses
+	// the distributor — a silent regression back to the
+	// hard-coded-0 behaviour the rewrite was supposed to fix.
+	if raw, ok := c.Get(string(constant.ContextKeyChannelMultiKeyIndex)); ok {
+		if idx, ok := raw.(int); ok && idx >= 0 {
+			ce.KeyIndex = &idx
+		}
+	}
+	return *ce
 }

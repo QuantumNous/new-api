@@ -97,9 +97,16 @@ func main() {
 		go model.SyncChannelCache(common.SyncFrequency)
 	}
 
+	// Cooldown GC runs unconditionally: the cooldown overlay map is
+	// independent of the in-memory channel cache and the selector
+	// consults it on both the cache and DB code paths. Starting it
+	// inside the MemoryCacheEnabled branch would leave deployments
+	// without memory cache (e.g. bare SQLite installs) with stale
+	// cooldowns and the channel filter would never expire.
+	common.SysLog("channel cooldown overlay enabled (GC every 30s)")
+	model.StartCooldownGC(30)
 	// 热更新配置
 	go model.SyncOptions(common.SyncFrequency)
-
 	// 数据看板
 	go model.UpdateQuotaData()
 

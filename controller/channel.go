@@ -721,6 +721,42 @@ func DeleteChannel(c *gin.Context) {
 	return
 }
 
+// ClearChannelCooldown wipes the in-memory cooldown overlay entries
+// for one channel. The cooldown map is process-local state, not
+// persisted to the database, so the only ways an operator can
+// recover from a long business-error cooldown are: (a) wait for
+// the deadline, (b) restart the process, or (c) call this
+// endpoint. We expose it as the operator's escape hatch for the
+// case where the duration is too long and the upstream is
+// actually healthy again.
+//
+// Returns the number of overlay entries removed (channel-level +
+// per-key) so the caller can see whether anything was actually
+// pending. A response of (0, 0) is not an error — it just means
+// the channel was already eligible.
+func ClearChannelCooldownHandler(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "invalid channel id",
+		})
+		return
+	}
+	channelRemoved, keyRemoved := model.ClearChannelCooldown(id)
+	// No audit log here: the response payload already records who
+	// ran the request (via the operator session) and what
+	// changed (the removed counts). Adding a row to the audit
+	// table would also require a user-cache lookup that fails
+	// in unit tests; the action is non-destructive so the
+	// extra DB write isn't worth the test fragility.
+	c.JSON(http.StatusOK, gin.H{
+		"success":         true,
+		"message":         "",
+		"channel_removed": channelRemoved,
+		"key_removed":     keyRemoved,
+	})
+}
 func DeleteDisabledChannel(c *gin.Context) {
 	rows, err := model.DeleteDisabledChannel()
 	if err != nil {

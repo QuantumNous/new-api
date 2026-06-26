@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -174,6 +175,10 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableKeywords"] = operation_setting.AutomaticDisableKeywordsToString()
 	common.OptionMap["AutomaticDisableStatusCodes"] = operation_setting.AutomaticDisableStatusCodesToString()
 	common.OptionMap["AutomaticRetryStatusCodes"] = operation_setting.AutomaticRetryStatusCodesToString()
+	common.OptionMap["BusinessErrorStatusCodes"] = operation_setting.BusinessErrorStatusCodesToString()
+	common.OptionMap["BusinessErrorKeywords"] = operation_setting.BusinessErrorKeywordsToString()
+	common.OptionMap["TempErrorCooldownSeconds"] = strconv.Itoa(operation_setting.TempErrorCooldownSeconds)
+	common.OptionMap["BusinessErrorCooldownSeconds"] = strconv.Itoa(operation_setting.BusinessErrorCooldownSeconds)
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
 
 	// 自动添加所有注册的模型配置
@@ -564,6 +569,22 @@ func updateOptionMap(key string, value string) (err error) {
 		err = operation_setting.AutomaticDisableStatusCodesFromString(value)
 	case "AutomaticRetryStatusCodes":
 		err = operation_setting.AutomaticRetryStatusCodesFromString(value)
+	case "BusinessErrorStatusCodes":
+		err = operation_setting.BusinessErrorStatusCodesFromString(value)
+	case "BusinessErrorKeywords":
+		operation_setting.BusinessErrorKeywordsFromString(value)
+	case "TempErrorCooldownSeconds":
+		v, convErr := strconv.Atoi(value)
+		if convErr != nil {
+			return fmt.Errorf("invalid TempErrorCooldownSeconds: %w", convErr)
+		}
+		operation_setting.TempErrorCooldownSeconds = v
+	case "BusinessErrorCooldownSeconds":
+		v, convErr := strconv.Atoi(value)
+		if convErr != nil {
+			return fmt.Errorf("invalid BusinessErrorCooldownSeconds: %w", convErr)
+		}
+		operation_setting.BusinessErrorCooldownSeconds = v
 	case "StreamCacheQueueLength":
 		setting.StreamCacheQueueLength, _ = strconv.Atoi(value)
 	case "PayMethods":
