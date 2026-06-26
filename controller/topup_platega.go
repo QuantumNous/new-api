@@ -152,7 +152,7 @@ func RequestPlategaPay(c *gin.Context) {
 		CreateTime:      common.GetTimestamp(),
 		Status:          common.TopUpStatusPending,
 	}
-	if err := topUp.Insert(); err != nil {
+	if err := topUp.FillCountryFromIP(c.ClientIP()).Insert(); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Platega 创建本地订单失败 user_id=%d trade_no=%s error=%q", id, tradeNo, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
 		return

@@ -26,10 +26,11 @@ type TopUp struct {
 	CreateTime      int64   `json:"create_time"`
 	CompleteTime    int64   `json:"complete_time"`
 	Status          string  `json:"status"`
+	// Country at order creation (from client IP); not updated when user.country changes.
+	Country string `json:"country,omitempty" gorm:"type:varchar(10);default:''"`
 	// Admin-only computed fields — not stored in DB
 	Username string `json:"username,omitempty" gorm:"-"`
 	Email    string `json:"email,omitempty" gorm:"-"`
-	Country  string `json:"country,omitempty" gorm:"-"`
 	Language string `json:"language,omitempty" gorm:"-"`
 }
 
@@ -99,6 +100,15 @@ func (topUp *TopUp) Insert() error {
 	var err error
 	err = DB.Create(topUp).Error
 	return err
+}
+
+// FillCountryFromIP snapshots geo on the order row at creation time.
+func (topUp *TopUp) FillCountryFromIP(clientIP string) *TopUp {
+	if topUp == nil || topUp.Country != "" {
+		return topUp
+	}
+	topUp.Country = common.LookupCountryByIP(clientIP)
+	return topUp
 }
 
 func (topUp *TopUp) Update() error {
@@ -1009,8 +1019,11 @@ func EnrichTopupsWithUserInfo(topups []*TopUp) {
 		if u, ok := m[t.UserId]; ok {
 			t.Username = u.Username
 			t.Email = u.Email
-			t.Country = u.Country
 			t.Language = u.Language
+			// Legacy rows: country column empty before migration — fall back to user profile.
+			if t.Country == "" {
+				t.Country = u.Country
+			}
 		}
 	}
 }

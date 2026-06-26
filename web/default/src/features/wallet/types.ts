@@ -314,7 +314,7 @@ export interface TopupRecord {
   username?: string
   /** Admin-only: email of the paying user */
   email?: string
-  /** Admin-only: 2-letter country code from login IP */
+  /** Admin-only: 2-letter country code snapshot at order creation */
   country?: string
   /** Admin-only: browser language from registration */
   language?: string

@@ -140,7 +140,7 @@ func RequestPayPalPay(c *gin.Context) {
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
-	if err := topUp.Insert(); err != nil {
+	if err := topUp.FillCountryFromIP(c.ClientIP()).Insert(); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("PayPal 创建充值订单失败 user_id=%d trade_no=%s amount=%d error=%q", id, referenceID, req.Amount, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentCreateFailed)})
 		return
