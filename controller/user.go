@@ -947,6 +947,7 @@ func CreateUser(c *gin.Context) {
 		Group:       user.Group,
 		InviterId:   user.InviterId,
 		Email:       user.Email,
+		GAClientID:  user.GAClientID,
 	}
 	if err := cleanUser.Insert(user.InviterId); err != nil {
 		common.ApiError(c, err)

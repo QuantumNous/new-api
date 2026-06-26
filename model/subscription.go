@@ -577,6 +577,10 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordLog(logUserId, LogTypeTopup, msg)
 	}
+	// 已知缺口（2026-06-26 评估后暂不接入，待产品决定）：这里不调用
+	// OnTopupSucceeded，订阅购买既不算返佣也不上报 GA purchase；同时
+	// upsertSubscriptionTopUpTx 写入的 top_ups.amount=0（Money 才是订阅
+	// 实付金额），导致渠道统计页 SUM(amount) 也看不到这笔收入。
 	return nil
 }
 

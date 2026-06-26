@@ -24,3 +24,13 @@ func ClaimGAPurchase(tradeNo string) bool {
 	err := DB.Create(&GAPurchaseLog{TradeNo: tradeNo, SentAt: common.GetTimestamp()}).Error
 	return err == nil
 }
+
+// ReleaseGAPurchaseClaim undoes a claim whose send attempt did not actually
+// succeed (network error, non-2xx from GA). Without this, a transient failure
+// permanently hides the trade from the daily backfill script's retry query.
+func ReleaseGAPurchaseClaim(tradeNo string) {
+	if tradeNo == "" {
+		return
+	}
+	DB.Where("trade_no = ?", tradeNo).Delete(&GAPurchaseLog{})
+}

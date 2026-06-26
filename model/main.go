@@ -322,6 +322,7 @@ func migrateDB() error {
 		&PerfMetric{},
 		&AffLog{},
 		&BillingHold{},
+		&GAPurchaseLog{},
 	)
 	if err != nil {
 		return err

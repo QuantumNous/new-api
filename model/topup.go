@@ -603,6 +603,10 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 
 	// 事务外记录日志，避免阻塞
 	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+	// 管理员补单代表一笔真实到账，必须走和其它支付方式一样的成功钩子
+	// （返佣 + 飞书通知 + GA4 purchase），否则这笔充值在推广渠道转化漏斗和
+	// GA 里都不存在。
+	OnTopupSucceeded(userId, quotaToAdd, paymentMethod, tradeNo)
 	return nil
 }
 func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
@@ -889,13 +893,18 @@ func NotifyPaymentSuccess(userId int, quotaAdded int, paymentMethod string) {
 }
 
 // SendGAPurchase reports a GA4 `purchase` conversion via Measurement Protocol so
-// the ad → register → topup funnel is complete in GA. It looks up the GA client
-// id stored on the apimaster user at registration (registration_utm.ga_client_id),
-// keyed by the derived username. No-ops if unconfigured or the user has no client
-// id. Runs in a goroutine so it never blocks the topup flow.
+// the ad → register → topup funnel is complete in GA. The GA client id is read
+// from the user's own row (synced at registration time, see naCreateUser);
+// for accounts created before that sync existed, it falls back to a live
+// lookup against the apimaster user (registration_utm.ga_client_id), keyed by
+// the derived username. No-ops if unconfigured or the user has no client id.
+// Runs in a goroutine so it never blocks the topup flow. Idempotent per
+// tradeNo via ClaimGAPurchase, so the daily backfill script (for cases where
+// this live attempt fails, e.g. apimaster PG being briefly unreachable) never
+// double-reports a transaction that already made it to GA.
 func SendGAPurchase(userId int, quotaAdded int, tradeNo string) {
 	apiSecret := os.Getenv("GA_MP_API_SECRET")
-	if apiSecret == "" || APIMASTER_PG_DB == nil {
+	if apiSecret == "" {
 		return
 	}
 	measurementID := os.Getenv("GA_MP_MEASUREMENT_ID")
@@ -909,16 +918,38 @@ func SendGAPurchase(userId int, quotaAdded int, tradeNo string) {
 	}
 	go func() {
 		user, err := GetUserById(userId, false)
-		if err != nil || user == nil || user.Username == "" {
+		if err != nil || user == nil {
 			return
 		}
-		var clientID string
-		if err := APIMASTER_PG_DB.Raw(
-			`SELECT registration_utm->>'ga_client_id' FROM users WHERE LEFT(REPLACE(id::text, '-', ''), 20) = ? LIMIT 1`,
-			user.Username,
-		).Scan(&clientID).Error; err != nil || clientID == "" {
-			return
+		clientID := user.GAClientID
+		if clientID == "" {
+			if APIMASTER_PG_DB == nil || user.Username == "" {
+				common.SysLog(fmt.Sprintf("SendGAPurchase: no ga_client_id for user %d (trade %s)", userId, tradeNo))
+				return
+			}
+			if err := APIMASTER_PG_DB.Raw(
+				`SELECT registration_utm->>'ga_client_id' FROM users WHERE LEFT(REPLACE(id::text, '-', ''), 20) = ? LIMIT 1`,
+				user.Username,
+			).Scan(&clientID).Error; err != nil || clientID == "" {
+				common.SysLog(fmt.Sprintf("SendGAPurchase: no ga_client_id for user %d (trade %s): %v", userId, tradeNo, err))
+				return
+			}
 		}
+		// Claim right before sending (not earlier): a transient failure above
+		// (user lookup, apimaster PG hiccup) must NOT permanently lock this
+		// trade out of the daily backfill script's retry.
+		if tradeNo != "" && !ClaimGAPurchase(tradeNo) {
+			return // already sent (or being sent by the backfill script)
+		}
+		// If the send itself doesn't demonstrably succeed, undo the claim —
+		// otherwise a transient GA/network failure here would permanently
+		// hide this trade from the backfill script's retry query too.
+		sent := false
+		defer func() {
+			if !sent && tradeNo != "" {
+				ReleaseGAPurchaseClaim(tradeNo)
+			}
+		}()
 		payload := map[string]interface{}{
 			"client_id": clientID,
 			"events": []map[string]interface{}{{
@@ -940,7 +971,12 @@ func SendGAPurchase(userId int, quotaAdded int, tradeNo string) {
 			common.SysLog("SendGAPurchase: " + err.Error())
 			return
 		}
-		_ = resp.Body.Close()
+		defer resp.Body.Close()
+		if resp.StatusCode >= 300 {
+			common.SysLog(fmt.Sprintf("SendGAPurchase: GA MP returned %d for trade %s", resp.StatusCode, tradeNo))
+			return
+		}
+		sent = true
 	}()
 }
 

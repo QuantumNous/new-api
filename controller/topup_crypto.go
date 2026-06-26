@@ -383,7 +383,11 @@ func verifyAndCredit(depositId string, rec *depositRecord, cfg cryptoChainConfig
 	rec.Status = "confirmed"
 	common.SysLog(fmt.Sprintf("crypto: confirmed userId=%d txHash=%s usd=%.4f quota=%d", rec.UserId, rec.TxHash, usdValue, quotaToAdd))
 	model.RecordTopupLog(rec.UserId, fmt.Sprintf("使用加密货币充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), usdValue), "", "crypto", "crypto")
-	model.OnTopupSucceeded(rec.UserId, quotaToAdd, "crypto", rec.TxHash)
+	// Use the same tradeNo stored on the TopUp row (not rec.TxHash) — GA dedup
+	// and the backfill script both key off top_ups.trade_no, so a mismatched
+	// id here means the backfill never sees this as "already sent" and re-fires
+	// a duplicate purchase event under a different transaction_id.
+	model.OnTopupSucceeded(rec.UserId, quotaToAdd, "crypto", tradeNo)
 }
 
 // ============================================================================
