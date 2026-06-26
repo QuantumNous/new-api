@@ -387,7 +387,7 @@ export function MultiKeyManageDialog({
                   {
                     id: 'actions',
                     header: t('Actions'),
-                    className: 'w-44 text-right',
+                    className: 'text-right',
                     cell: (key) => (
                       <MultiKeyTableRowActions
                         keyIndex={key.index}

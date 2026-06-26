@@ -19,6 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useMemo } from 'react'
 import { Lightbulb, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
+import { ReactIconByName } from '@/components/react-icon-by-name'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -26,8 +30,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { StaticDataTable } from '@/components/data-table'
-import { ReactIconByName } from '@/components/react-icon-by-name'
+
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isArray } from '../utils/json-validators'
 import {
@@ -362,32 +365,13 @@ export function PaymentMethodsVisualEditor({
                 className: 'text-right',
                 cellClassName: 'text-right',
                 cell: (method) => (
-                  <div className='flex justify-end gap-2'>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='sm'
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleEdit(method)
-                      }}
-                    >
-                      <Pencil className='h-4 w-4' />
-                    </Button>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='sm'
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleDelete(method)
-                      }}
-                    >
-                      <Trash2 className='h-4 w-4' />
-                    </Button>
-                  </div>
+                  <StaticRowActions
+                    editLabel={t('Edit')}
+                    deleteLabel={t('Delete')}
+                    menuLabel={t('Open menu')}
+                    onEdit={() => handleEdit(method)}
+                    onDelete={() => handleDelete(method)}
+                  />
                 ),
               },
             ]}
@@ -395,11 +379,20 @@ export function PaymentMethodsVisualEditor({
 
           {/* Mobile card view */}
           <div className='divide-y md:hidden'>
-            {filteredMethods.map((method, index) => {
+            {filteredMethods.map((method) => {
               const iconName = getEffectiveIconName(method)
+              const methodKey = [
+                method.type,
+                method.name,
+                method.icon,
+                method.min_topup,
+                method.color,
+              ]
+                .filter(Boolean)
+                .join('-')
 
               return (
-                <div key={`${method.type}-${index}`} className='p-4'>
+                <div key={methodKey} className='p-4'>
                   <div className='mb-3 flex items-start justify-between'>
                     <div className='flex-1'>
                       <div className='mb-1 font-medium'>{method.name}</div>

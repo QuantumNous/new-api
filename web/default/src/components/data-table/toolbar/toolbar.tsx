@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
 import { useState, type ReactNode } from 'react'
-import { type Table } from '@tanstack/react-table'
+import type { Table } from '@tanstack/react-table'
 import { useDebounce } from '@/hooks'
 import { ChevronDown, Loader2, X as Cross2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -282,20 +282,25 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   // Reset: outline text-only for form mode (always visible, disabled when
   // nothing to reset); ghost text + X for filter-as-you-type mode (only
   // visible when active filters exist).
-  const resetButton = hasSearch ? (
-    <Button variant='outline' onClick={handleReset} disabled={!isFiltered}>
-      {t('Reset')}
-    </Button>
-  ) : isFiltered ? (
-    <Button
-      variant='ghost'
-      onClick={handleReset}
-      className='text-muted-foreground hover:text-foreground gap-1 px-2'
-    >
-      {t('Reset')}
-      <Cross2Icon />
-    </Button>
-  ) : null
+  let resetButton: ReactNode = null
+  if (hasSearch) {
+    resetButton = (
+      <Button variant='outline' onClick={handleReset} disabled={!isFiltered}>
+        {t('Reset')}
+      </Button>
+    )
+  } else if (isFiltered) {
+    resetButton = (
+      <Button
+        variant='ghost'
+        onClick={handleReset}
+        className='text-muted-foreground hover:text-foreground gap-1 px-2'
+      >
+        {t('Reset')}
+        <Cross2Icon />
+      </Button>
+    )
+  }
 
   const searchButton = hasSearch ? (
     <Button onClick={props.onSearch} disabled={props.searchLoading}>

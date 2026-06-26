@@ -1,3 +1,12 @@
+import {
+  Copy,
+  Check,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw,
+  AlertTriangle,
+} from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,20 +26,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
-import {
-  Copy,
-  Check,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp,
-  RotateCcw,
-  AlertTriangle,
-} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import dayjs from '@/lib/dayjs'
-import { formatDateTimeStr, formatTimestampToDate } from '@/lib/format'
-import { cn } from '@/lib/utils'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Dialog } from '@/components/dialog'
+import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -55,9 +55,11 @@ import {
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import dayjs from '@/lib/dayjs'
+import { formatDateTimeStr, formatTimestampToDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
 import {
   getCodexResetCredits,
   resetCodexUsage,
@@ -137,6 +139,8 @@ type CodexUsageDialogProps = {
   onOpenChange: (open: boolean) => void
   channelName?: string
   channelId?: number
+  channelDisplayName?: string
+  channelDisplayId?: string
   response: CodexUsageDialogData | null
   onRefresh?: () => void | Promise<void>
   isRefreshing?: boolean
@@ -153,9 +157,13 @@ function formatUnixSeconds(unixSeconds: unknown): string {
 }
 
 function formatIsoTimestamp(value: unknown): string {
-  if (typeof value !== 'string' || value.trim() === '') return '-'
+  if (typeof value !== 'string' || value.trim() === '') {
+    return '-'
+  }
   const d = dayjs(value)
-  if (!d.isValid()) return value
+  if (!d.isValid()) {
+    return value
+  }
   return formatDateTimeStr(d.toDate())
 }
 
@@ -164,15 +172,21 @@ function formatDurationSeconds(
   t: (key: string) => string
 ): string {
   const s = Number(seconds)
-  if (!Number.isFinite(s) || s <= 0) return '-'
+  if (!Number.isFinite(s) || s <= 0) {
+    return '-'
+  }
 
   const total = Math.floor(s)
   const hours = Math.floor(total / 3600)
   const minutes = Math.floor((total % 3600) / 60)
   const secs = total % 60
 
-  if (hours > 0) return `${hours}${t('h')} ${minutes}${t('m')}`
-  if (minutes > 0) return `${minutes}${t('m')} ${secs}${t('s')}`
+  if (hours > 0) {
+    return `${hours}${t('h')} ${minutes}${t('m')}`
+  }
+  if (minutes > 0) {
+    return `${minutes}${t('m')} ${secs}${t('s')}`
+  }
   return `${secs}${t('s')}`
 }
 
@@ -180,12 +194,18 @@ function formatTimeLeftUntil(
   value: unknown,
   t: (key: string) => string
 ): string {
-  if (typeof value !== 'string' || value.trim() === '') return '-'
+  if (typeof value !== 'string' || value.trim() === '') {
+    return '-'
+  }
   const expiresAt = dayjs(value)
-  if (!expiresAt.isValid()) return '-'
+  if (!expiresAt.isValid()) {
+    return '-'
+  }
 
   const secondsLeft = expiresAt.diff(dayjs(), 'second')
-  if (secondsLeft <= 0) return t('Expired')
+  if (secondsLeft <= 0) {
+    return t('Expired')
+  }
 
   const days = Math.floor(secondsLeft / (24 * 60 * 60))
   const remainingSeconds = secondsLeft % (24 * 60 * 60)
@@ -198,7 +218,9 @@ function formatTimeLeftUntil(
 }
 
 function normalizePlanType(value: unknown): string {
-  if (value == null) return ''
+  if (value == null) {
+    return ''
+  }
   return String(value).trim().toLowerCase()
 }
 
@@ -220,15 +242,21 @@ function sortResetCredits(credits: CodexResetCredit[]): CodexResetCredit[] {
   return [...credits].sort((a, b) => {
     const aAvailable = normalizeResetCreditStatus(a.status) === 'available'
     const bAvailable = normalizeResetCreditStatus(b.status) === 'available'
-    if (aAvailable !== bAvailable) return aAvailable ? -1 : 1
+    if (aAvailable !== bAvailable) {
+      return aAvailable ? -1 : 1
+    }
 
     const expiresDiff =
       parseTimeValue(a.expires_at) - parseTimeValue(b.expires_at)
-    if (expiresDiff !== 0) return expiresDiff
+    if (expiresDiff !== 0) {
+      return expiresDiff
+    }
 
     const grantedDiff =
       parseTimeValue(a.granted_at) - parseTimeValue(b.granted_at)
-    if (grantedDiff !== 0) return grantedDiff
+    if (grantedDiff !== 0) {
+      return grantedDiff
+    }
 
     return String(a.id || '').localeCompare(String(b.id || ''))
   })
@@ -238,7 +266,9 @@ function classifyWindowByDuration(
   windowData?: CodexRateLimitWindow | null
 ): 'weekly' | 'fiveHour' | null {
   const seconds = Number(windowData?.limit_window_seconds)
-  if (!Number.isFinite(seconds) || seconds <= 0) return null
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return null
+  }
   return seconds >= 24 * 60 * 60 ? 'weekly' : 'fiveHour'
 }
 
@@ -272,7 +302,9 @@ function resolveRateLimitWindows(data: RateLimitSource | null): {
   }
 
   if (planType === 'free') {
-    if (!weeklyWindow) weeklyWindow = primary ?? secondary ?? null
+    if (!weeklyWindow) {
+      weeklyWindow = primary ?? secondary ?? null
+    }
     return { fiveHourWindow: null, weeklyWindow }
   }
 
@@ -338,8 +370,12 @@ function getResetCreditStatusBadge(
 
 function windowLabel(windowData?: CodexRateLimitWindow | null) {
   const percent = clampPercent(windowData?.used_percent)
-  const variant: StatusBadgeProps['variant'] =
-    percent >= 95 ? 'danger' : percent >= 80 ? 'warning' : 'info'
+  let variant: StatusBadgeProps['variant'] = 'info'
+  if (percent >= 95) {
+    variant = 'danger'
+  } else if (percent >= 80) {
+    variant = 'warning'
+  }
   return { percent, variant }
 }
 
@@ -381,7 +417,7 @@ const percentTextClassName: Record<
   grey: 'text-muted-foreground',
   indigo: 'text-chart-1',
   'light-blue': 'text-info',
-  'light-green': 'text-success',
+  'light-green': 'text-emerald-500 dark:text-emerald-300',
   lime: 'text-chart-3',
   orange: 'text-warning',
   pink: 'text-chart-5',
@@ -708,6 +744,51 @@ function ResetCreditsPanel(props: {
     ? String(props.payload?.total_earned_count)
     : '-'
   const canReset = Number(availableCount) > 0
+  let creditsContent: ReactNode
+  if (props.errorMessage) {
+    creditsContent = (
+      <div className='border-destructive/40 bg-destructive/10 text-destructive rounded-lg border px-3 py-2 text-sm'>
+        {props.errorMessage}
+      </div>
+    )
+  } else if (props.isLoading) {
+    creditsContent = (
+      <div className='flex flex-col gap-2'>
+        <Skeleton className='h-24 w-full' />
+        <Skeleton className='h-24 w-full' />
+      </div>
+    )
+  } else if (credits.length > 0) {
+    creditsContent = (
+      <div className='flex flex-col gap-2'>
+        {credits.map((credit, index) => (
+          <ResetCreditItem
+            key={
+              credit.id ??
+              credit.expires_at ??
+              credit.granted_at ??
+              credit.title ??
+              credit.reset_type ??
+              ''
+            }
+            credit={credit}
+            index={index}
+          />
+        ))}
+      </div>
+    )
+  } else {
+    creditsContent = (
+      <Empty className='min-h-32 border'>
+        <EmptyHeader>
+          <EmptyTitle>{t('No reset credits')}</EmptyTitle>
+          <EmptyDescription>
+            {t('Upstream did not return reset credit details.')}
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
 
   return (
     <div className='flex flex-col gap-3 p-3'>
@@ -796,35 +877,7 @@ function ResetCreditsPanel(props: {
         </Alert>
       ) : null}
 
-      {props.errorMessage ? (
-        <div className='border-destructive/40 bg-destructive/10 text-destructive rounded-lg border px-3 py-2 text-sm'>
-          {props.errorMessage}
-        </div>
-      ) : props.isLoading ? (
-        <div className='flex flex-col gap-2'>
-          <Skeleton className='h-24 w-full' />
-          <Skeleton className='h-24 w-full' />
-        </div>
-      ) : credits.length > 0 ? (
-        <div className='flex flex-col gap-2'>
-          {credits.map((credit, index) => (
-            <ResetCreditItem
-              key={`${credit.id ?? credit.expires_at ?? 'credit'}-${index}`}
-              credit={credit}
-              index={index}
-            />
-          ))}
-        </div>
-      ) : (
-        <Empty className='min-h-32 border'>
-          <EmptyHeader>
-            <EmptyTitle>{t('No reset credits')}</EmptyTitle>
-            <EmptyDescription>
-              {t('Upstream did not return reset credit details.')}
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      )}
+      {creditsContent}
     </div>
   )
 }
@@ -834,6 +887,8 @@ export function CodexUsageDialog({
   onOpenChange,
   channelName,
   channelId,
+  channelDisplayName,
+  channelDisplayId,
   response,
   onRefresh,
   isRefreshing,
@@ -853,13 +908,17 @@ export function CodexUsageDialog({
 
   const payload: CodexUsagePayload | null = useMemo(() => {
     const raw = response?.data
-    if (!raw || typeof raw !== 'object') return null
+    if (!raw || typeof raw !== 'object') {
+      return null
+    }
     return raw as CodexUsagePayload
   }, [response?.data])
 
   const resetCreditsPayload: CodexResetCreditsPayload | null = useMemo(() => {
     const raw = resetCreditsResponse?.data
-    if (!raw || typeof raw !== 'object') return null
+    if (!raw || typeof raw !== 'object') {
+      return null
+    }
     return raw as CodexResetCreditsPayload
   }, [resetCreditsResponse?.data])
 
@@ -876,9 +935,14 @@ export function CodexUsageDialog({
     ? String(resetCredits)
     : '-'
   const canResetCodexUsage = Number(resetCredits) > 0
-  const channelLabel = `${channelName || '-'}${
-    channelId ? ` (#${channelId})` : ''
-  }`
+  const channelLabelName = channelDisplayName ?? channelName ?? '-'
+  let channelLabelId = ''
+  if (channelDisplayId != null) {
+    channelLabelId = ` (#${channelDisplayId})`
+  } else if (channelId) {
+    channelLabelId = ` (#${channelId})`
+  }
+  const channelLabel = `${channelLabelName}${channelLabelId}`
   const { fiveHourWindow, weeklyWindow } = resolveRateLimitWindows(payload)
 
   const errorMessage =
@@ -892,7 +956,9 @@ export function CodexUsageDialog({
         setResetCreditsError(t('Channel ID is required'))
         return
       }
-      if (isLoadingResetCredits || (!force && resetCreditsResponse)) return
+      if (isLoadingResetCredits || (!force && resetCreditsResponse)) {
+        return
+      }
 
       setIsLoadingResetCredits(true)
       setResetCreditsError('')
@@ -940,7 +1006,9 @@ export function CodexUsageDialog({
   }
 
   const handleConfirmReset = async () => {
-    if (!channelId || isResetting || !canResetCodexUsage) return
+    if (!channelId || isResetting || !canResetCodexUsage) {
+      return
+    }
 
     setIsResetting(true)
     setResetActionError('')
@@ -975,7 +1043,9 @@ export function CodexUsageDialog({
   }
 
   const rawJsonText = useMemo(() => {
-    if (!response) return ''
+    if (!response) {
+      return ''
+    }
     try {
       return JSON.stringify(
         {
@@ -1002,15 +1072,13 @@ export function CodexUsageDialog({
       contentHeight='auto'
       bodyClassName='flex flex-col gap-4'
       footer={
-        <>
-          <Button
-            type='button'
-            variant='outline'
-            onClick={() => handleDialogOpenChange(false)}
-          >
-            {t('Close')}
-          </Button>
-        </>
+        <Button
+          type='button'
+          variant='outline'
+          onClick={() => handleDialogOpenChange(false)}
+        >
+          {t('Close')}
+        </Button>
       }
     >
       <div className='flex flex-col gap-4'>
@@ -1074,11 +1142,7 @@ export function CodexUsageDialog({
               ) : null}
             </div>
             <div className='mt-4 grid grid-cols-1 gap-3 md:grid-cols-2'>
-              <InfoField
-                label={t('Email')}
-                value={payload?.email}
-                copyable={true}
-              />
+              <InfoField label={t('Email')} value={payload?.email} copyable />
               <InfoField
                 label={t('Channel')}
                 value={channelLabel}
@@ -1171,14 +1235,14 @@ export function CodexUsageDialog({
               )}
             />
             <div className='flex flex-col gap-3'>
-              {additionalRateLimits.map((item, index) => {
+              {additionalRateLimits.map((item) => {
                 const limitName =
                   item.limit_name ||
                   item.metered_feature ||
-                  `${t('Additional Limit')} ${index + 1}`
+                  t('Additional Limit')
                 return (
                   <RateLimitGroupSection
-                    key={`${limitName}-${item.metered_feature ?? ''}-${index}`}
+                    key={`${limitName}-${item.metered_feature ?? ''}-${item.plan_type ?? ''}`}
                     title={limitName}
                     description={t('Additional metered capability')}
                     source={item}

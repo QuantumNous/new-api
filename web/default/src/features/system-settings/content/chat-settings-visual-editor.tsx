@@ -17,11 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useMemo } from 'react'
-import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { StaticDataTable } from '@/components/data-table'
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isArray } from '../utils/json-validators'
 import { ChatDialog, type ChatEntryData } from './chat-dialog'
@@ -171,22 +172,13 @@ export function ChatSettingsVisualEditor({
             className: 'text-right',
             cellClassName: 'text-right',
             cell: (chat) => (
-              <div className='flex justify-end gap-2'>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={() => handleEdit(chat)}
-                >
-                  <Pencil className='h-4 w-4' />
-                </Button>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={() => handleDelete(chat.name)}
-                >
-                  <Trash2 className='h-4 w-4' />
-                </Button>
-              </div>
+              <StaticRowActions
+                editLabel={t('Edit')}
+                deleteLabel={t('Delete')}
+                menuLabel={t('Open menu')}
+                onEdit={() => handleEdit(chat)}
+                onDelete={() => handleDelete(chat.name)}
+              />
             ),
           },
         ]}
