@@ -135,6 +135,22 @@ func FindConsumeLogRowForTask(userID int, taskID string) (*Log, error) {
 	return findConsumeLogRowForTask(userID, taskID)
 }
 
+// HasConsumeLogForRequestId reports whether a consume log already exists for the request.
+func HasConsumeLogForRequestId(userID int, requestId string) (bool, error) {
+	requestId = strings.TrimSpace(requestId)
+	if userID <= 0 || requestId == "" {
+		return false, nil
+	}
+	var count int64
+	err := LOG_DB.Model(&Log{}).
+		Where("user_id = ? AND type = ? AND request_id = ?", userID, LogTypeConsume, requestId).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // HasRefundLogForTask reports whether a refund log already exists for the task_id.
 func HasRefundLogForTask(userID int, taskID string) (bool, error) {
 	taskID = strings.TrimSpace(taskID)
@@ -406,6 +422,7 @@ type RecordTaskBillingLogParams struct {
 	Quota     int
 	TokenId   int
 	Group     string
+	RequestId string
 	Other     map[string]interface{}
 }
 
@@ -432,11 +449,36 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		ChannelId: params.ChannelId,
 		TokenId:   params.TokenId,
 		Group:     params.Group,
+		RequestId: params.RequestId,
 		Other:     common.MapToJsonStr(params.Other),
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		common.SysLog("failed to record task billing log: " + err.Error())
+	}
+}
+
+const billingHoldConfirmLogAsConsumeOptionKey = "BillingHoldConfirmLogAsConsumeV1"
+
+// migrateBillingHoldConfirmManageLogsToConsume reclassifies historical confirm_charge rows as consume logs.
+func migrateBillingHoldConfirmManageLogsToConsume() {
+	if usedQuotaRepairOptionDone(billingHoldConfirmLogAsConsumeOptionKey) {
+		return
+	}
+	res := LOG_DB.Model(&Log{}).
+		Where("type = ?", LogTypeManage).
+		Where("other LIKE ?", "%billing_hold_reconcile%").
+		Where("other LIKE ?", "%confirm_charge%").
+		Update("type", LogTypeConsume)
+	if res.Error != nil {
+		common.SysLog("failed to migrate billing hold confirm logs to consume: " + res.Error.Error())
+		return
+	}
+	if !markUsedQuotaRepairOptionDone(billingHoldConfirmLogAsConsumeOptionKey) {
+		return
+	}
+	if res.RowsAffected > 0 {
+		common.SysLog(fmt.Sprintf("billing hold confirm logs migrated to consume: %d row(s)", res.RowsAffected))
 	}
 }
 

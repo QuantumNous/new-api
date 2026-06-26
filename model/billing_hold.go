@@ -146,7 +146,7 @@ func ConfirmOrphanPreconsumeGap(userId int, quota int, content string) error {
 			UserId:    userId,
 			Username:  username,
 			CreatedAt: common.GetTimestamp(),
-			Type:      LogTypeManage,
+			Type:      LogTypeConsume,
 			Content:   content,
 			Quota:     quota,
 			Other: common.MapToJsonStr(map[string]interface{}{

@@ -277,6 +277,7 @@ func InitLogDB() (err error) {
 	}
 	if common.IsMasterNode {
 		migrateRepairUserUsedQuotaAfterRefundLogs()
+		migrateBillingHoldConfirmManageLogsToConsume()
 	}
 	return nil
 }

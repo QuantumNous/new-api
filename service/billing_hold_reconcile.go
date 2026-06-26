@@ -315,6 +315,7 @@ func RefundBillingHold(hold *model.BillingHold, detail string) error {
 		ModelName: hold.ModelName,
 		ChannelId: hold.ChannelId,
 		Group:     hold.Group,
+		RequestId: hold.RequestId,
 		Other: map[string]interface{}{
 			"billing_hold_reconcile": true,
 			"request_id":             hold.RequestId,
@@ -325,30 +326,37 @@ func RefundBillingHold(hold *model.BillingHold, detail string) error {
 	return model.MarkBillingHoldResolved(hold.Id, model.BillingHoldStatusRefunded, detail)
 }
 
-// ConfirmBillingHold 确认扣款：钱包/令牌已在预扣阶段扣除，补记 used_quota 与管理日志。
+// ConfirmBillingHold 确认扣款：钱包/令牌已在预扣阶段扣除，补记 used_quota 并写入消费日志。
 func ConfirmBillingHold(hold *model.BillingHold, detail string) error {
 	if hold == nil || hold.PreConsumedQuota <= 0 {
 		return fmt.Errorf("invalid billing hold")
 	}
-	model.UpdateUserUsedQuotaAndRequestCount(hold.UserId, hold.PreConsumedQuota)
-	if hold.ChannelId > 0 {
-		model.UpdateChannelUsedQuota(hold.ChannelId, hold.PreConsumedQuota)
+	hasConsume, err := model.HasConsumeLogForRequestId(hold.UserId, hold.RequestId)
+	if err != nil {
+		return err
 	}
-	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
-		UserId:    hold.UserId,
-		LogType:   model.LogTypeManage,
-		Content:   fmt.Sprintf("预扣挂账对账确认扣费 %s", logger.FormatQuota(hold.PreConsumedQuota)),
-		Quota:     hold.PreConsumedQuota,
-		TokenId:   hold.TokenId,
-		ModelName: hold.ModelName,
-		ChannelId: hold.ChannelId,
-		Group:     hold.Group,
-		Other: map[string]interface{}{
-			"billing_hold_reconcile": true,
-			"request_id":             hold.RequestId,
-			"verify_detail":          detail,
-			"action":                 "confirm_charge",
-		},
-	})
+	if !hasConsume {
+		model.UpdateUserUsedQuotaAndRequestCount(hold.UserId, hold.PreConsumedQuota)
+		if hold.ChannelId > 0 {
+			model.UpdateChannelUsedQuota(hold.ChannelId, hold.PreConsumedQuota)
+		}
+		model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
+			UserId:    hold.UserId,
+			LogType:   model.LogTypeConsume,
+			Content:   fmt.Sprintf("预扣挂账对账确认消费 %s", logger.FormatQuota(hold.PreConsumedQuota)),
+			Quota:     hold.PreConsumedQuota,
+			TokenId:   hold.TokenId,
+			ModelName: hold.ModelName,
+			ChannelId: hold.ChannelId,
+			Group:     hold.Group,
+			RequestId: hold.RequestId,
+			Other: map[string]interface{}{
+				"billing_hold_reconcile": true,
+				"request_id":             hold.RequestId,
+				"verify_detail":          detail,
+				"action":                 "confirm_charge",
+			},
+		})
+	}
 	return model.MarkBillingHoldResolved(hold.Id, model.BillingHoldStatusConfirmed, detail)
 }
