@@ -92,9 +92,9 @@ describe('top-up bonus preset metadata', () => {
     expect(isPresetTopupAmount(0, presets)).toBe(false)
   })
 
-  test('locks Stripe top-up amount options to the supported package tiers', () => {
-    expect(getLockedTopupAmountOptions([10, 20, 50, 100, 200], true)).toEqual([
-      10, 20, 200,
+  test('locks Stripe top-up amount options to configured presets', () => {
+    expect(getLockedTopupAmountOptions([10, 20, 50], true)).toEqual([
+      10, 20, 50,
     ])
     expect(getLockedTopupAmountOptions([10, 20, 50], false)).toEqual([
       10, 20, 50,

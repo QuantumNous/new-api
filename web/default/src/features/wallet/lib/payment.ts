@@ -34,7 +34,6 @@ import type { PresetAmount, TopupInfo } from '../types'
 
 const PADDLE_CHECKOUT_URL_FALLBACK_STORAGE_PREFIX =
   'new-api:paddle-checkout-url:'
-const STRIPE_TOPUP_PACKAGE_AMOUNTS = [10, 20, 200]
 
 /**
  * Check if browser is Safari
@@ -411,11 +410,8 @@ export function mergePresetAmounts(
 
 export function getLockedTopupAmountOptions(
   amountOptions: number[],
-  stripeTopupEnabled: boolean
+  _stripeTopupEnabled: boolean
 ): number[] {
-  if (stripeTopupEnabled) {
-    return [...STRIPE_TOPUP_PACKAGE_AMOUNTS]
-  }
   return amountOptions
 }
 

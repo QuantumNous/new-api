@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -63,17 +64,14 @@ type StripeAdaptor struct {
 }
 
 const (
-	stripeTopUpPackage10    int64 = 10
-	stripeTopUpPackage20    int64 = 20
-	stripeTopUpPackage200   int64 = 200
 	stripeTopUpLineQuantity int64 = 1
 )
 
 type stripeTopUpCheckout struct {
-	PriceId          string
-	Quantity         int64
-	Money            float64
-	PaymentCurrency  string
+	PriceId         string
+	Quantity        int64
+	Money           float64
+	PaymentCurrency string
 }
 
 type stripeTopUpCurrencyPackage struct {
@@ -100,10 +98,10 @@ func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, g
 
 	pkg, ok := stripeTopUpPackageFor(normalizedAmount)
 	if !ok {
-		return nil, errors.New("Stripe checkout package requires one of: 10, 20, 200 USD credits")
+		return nil, fmt.Errorf("Stripe checkout package requires one of configured preset amounts: %s USD credits", stripeTopUpPresetAmountLabel())
 	}
 	if strings.TrimSpace(pkg.PriceId) == "" {
-		return nil, fmt.Errorf("Stripe %d Price ID 未配置", normalizedAmount)
+		return nil, fmt.Errorf("Stripe %d Price ID is not configured", normalizedAmount)
 	}
 
 	return &stripeTopUpCheckout{
@@ -123,22 +121,50 @@ func stripeTopUpCurrencySupported(currency string) bool {
 }
 
 func stripeTopUpPackageFor(amount int64) (stripeTopUpCurrencyPackage, bool) {
-	switch amount {
-	case stripeTopUpPackage10:
-		return stripeTopUpCurrencyPackage{
-			PriceId: setting.StripePriceId,
-		}, true
-	case stripeTopUpPackage20:
-		return stripeTopUpCurrencyPackage{
-			PriceId: setting.StripePriceId20,
-		}, true
-	case stripeTopUpPackage200:
-		return stripeTopUpCurrencyPackage{
-			PriceId: setting.StripePriceId200,
-		}, true
-	default:
+	if !stripeTopUpPresetAmountConfigured(amount) {
 		return stripeTopUpCurrencyPackage{}, false
 	}
+	return stripeTopUpCurrencyPackage{
+		PriceId: setting.StripeTopUpPriceIDForAmount(amount),
+	}, true
+}
+
+func stripeTopUpPresetAmountConfigured(amount int64) bool {
+	for _, preset := range stripeTopUpPresetAmounts() {
+		if preset == amount {
+			return true
+		}
+	}
+	return false
+}
+
+func stripeTopUpPresetAmounts() []int64 {
+	seen := map[int64]bool{}
+	amounts := make([]int64, 0, len(operation_setting.GetPaymentSetting().AmountOptions))
+	for _, amount := range operation_setting.GetPaymentSetting().AmountOptions {
+		normalized := int64(amount)
+		if normalized <= 0 || seen[normalized] {
+			continue
+		}
+		seen[normalized] = true
+		amounts = append(amounts, normalized)
+	}
+	sort.Slice(amounts, func(i, j int) bool {
+		return amounts[i] < amounts[j]
+	})
+	return amounts
+}
+
+func stripeTopUpPresetAmountLabel() string {
+	amounts := stripeTopUpPresetAmounts()
+	if len(amounts) == 0 {
+		return "configured preset amounts"
+	}
+	parts := make([]string, 0, len(amounts))
+	for _, amount := range amounts {
+		parts = append(parts, strconv.FormatInt(amount, 10))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {

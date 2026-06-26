@@ -269,6 +269,7 @@ export type BillingSettings = {
   StripePriceId: string
   StripePriceId20: string
   StripePriceId200: string
+  StripeTopUpPriceIds: string
   StripeUnitPrice: number
   StripeMinTopUp: number
   StripePromotionCodesEnabled: boolean

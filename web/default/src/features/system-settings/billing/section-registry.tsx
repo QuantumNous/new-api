@@ -150,6 +150,7 @@ const BILLING_SECTIONS = [
           StripePriceId: settings.StripePriceId,
           StripePriceId20: settings.StripePriceId20 ?? '',
           StripePriceId200: settings.StripePriceId200 ?? '',
+          StripeTopUpPriceIds: settings.StripeTopUpPriceIds ?? '',
           StripeUnitPrice: settings.StripeUnitPrice,
           StripeMinTopUp: settings.StripeMinTopUp,
           StripePromotionCodesEnabled: settings.StripePromotionCodesEnabled,

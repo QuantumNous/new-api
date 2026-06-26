@@ -91,6 +91,7 @@ func InitOptionMap() {
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
 	common.OptionMap["StripePriceId20"] = setting.StripePriceId20
 	common.OptionMap["StripePriceId200"] = setting.StripePriceId200
+	common.OptionMap["StripeTopUpPriceIds"] = setting.StripeTopUpPriceIds
 	common.OptionMap["StripeUnitPrice"] = strconv.FormatFloat(setting.StripeUnitPrice, 'f', -1, 64)
 	common.OptionMap["StripePromotionCodesEnabled"] = strconv.FormatBool(setting.StripePromotionCodesEnabled)
 	common.OptionMap["StripeCardBindEnabled"] = strconv.FormatBool(setting.StripeCardBindEnabled)
@@ -666,6 +667,8 @@ func applyOptionMapValue(key string, value string) (err error) {
 		setting.StripePriceId20 = value
 	case "StripePriceId200":
 		setting.StripePriceId200 = value
+	case "StripeTopUpPriceIds":
+		setting.StripeTopUpPriceIds = value
 	case "StripeUnitPrice":
 		setting.StripeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "StripeMinTopUp":
