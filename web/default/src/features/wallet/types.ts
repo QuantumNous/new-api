@@ -258,6 +258,8 @@ export interface PaymentRequest {
   amount: number
   /** Payment method identifier */
   payment_method: string
+  /** Stripe checkout package currency selected from the current locale */
+  stripe_currency?: 'USD' | 'JPY' | 'BRL'
   /** Save the card during payment (setup_future_usage) for later off-session auto-charge */
   save_card?: boolean
   /** Optional redirect URL after successful hosted checkout */

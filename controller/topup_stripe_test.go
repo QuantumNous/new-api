@@ -58,6 +58,7 @@ func TestBuildStripeCheckoutSessionParamsAlwaysAllowsPromotionCodes(t *testing.T
 		"ref_123",
 		"",
 		"user@example.com",
+		setting.StripePriceId,
 		20,
 		"https://flatkey.ai/wallet?show_history=true",
 		"https://flatkey.ai/wallet",
@@ -71,6 +72,64 @@ func TestBuildStripeCheckoutSessionParamsAlwaysAllowsPromotionCodes(t *testing.T
 	require.NotNil(t, params.LineItems[0].Price)
 	require.Equal(t, setting.StripePriceId, *params.LineItems[0].Price)
 	require.Nil(t, params.LineItems[0].PriceData)
+}
+
+func TestResolveStripeTopUpCheckoutUsesRequestedCurrencyPackage(t *testing.T) {
+	originalPriceId := setting.StripePriceId
+	originalJpyPriceId := setting.StripePriceIdJPY
+	originalBrlPriceId := setting.StripePriceIdBRL
+	t.Cleanup(func() {
+		setting.StripePriceId = originalPriceId
+		setting.StripePriceIdJPY = originalJpyPriceId
+		setting.StripePriceIdBRL = originalBrlPriceId
+	})
+	setting.StripePriceId = "price_usd_package"
+	setting.StripePriceIdJPY = "price_jpy_package"
+	setting.StripePriceIdBRL = "price_brl_package"
+
+	checkout, err := resolveStripeTopUpCheckout(&StripePayRequest{
+		Amount:         10,
+		StripeCurrency: "jpy",
+	}, 10, "default")
+	require.NoError(t, err)
+	require.Equal(t, "price_jpy_package", checkout.PriceId)
+	require.Equal(t, int64(1), checkout.Quantity)
+	require.Equal(t, "JPY", checkout.PaymentCurrency)
+	require.Equal(t, 1500.0, checkout.Money)
+
+	checkout, err = resolveStripeTopUpCheckout(&StripePayRequest{
+		Amount:         30,
+		StripeCurrency: "BRL",
+	}, 30, "default")
+	require.NoError(t, err)
+	require.Equal(t, "price_brl_package", checkout.PriceId)
+	require.Equal(t, int64(3), checkout.Quantity)
+	require.Equal(t, "BRL", checkout.PaymentCurrency)
+	require.InEpsilon(t, 299.70, checkout.Money, 0.0001)
+}
+
+func TestResolveStripeTopUpCheckoutRejectsUnsupportedCurrencyPackage(t *testing.T) {
+	_, err := resolveStripeTopUpCheckout(&StripePayRequest{
+		Amount:         10,
+		StripeCurrency: "eur",
+	}, 10, "default")
+
+	require.EqualError(t, err, "unsupported Stripe checkout currency")
+}
+
+func TestResolveStripeTopUpCheckoutRequiresPackageMultiple(t *testing.T) {
+	originalPriceId := setting.StripePriceId
+	t.Cleanup(func() {
+		setting.StripePriceId = originalPriceId
+	})
+	setting.StripePriceId = "price_usd_package"
+
+	_, err := resolveStripeTopUpCheckout(&StripePayRequest{
+		Amount:         15,
+		StripeCurrency: "USD",
+	}, 15, "default")
+
+	require.EqualError(t, err, "Stripe checkout package requires a 10 USD credit multiple")
 }
 
 func TestStripePaymentSnapshotFromEventUsesCurrencyMinorUnits(t *testing.T) {

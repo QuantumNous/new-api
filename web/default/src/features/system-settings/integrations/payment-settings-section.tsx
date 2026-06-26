@@ -344,6 +344,8 @@ const paymentSchema = z
     StripeApiSecret: z.string(),
     StripeWebhookSecret: z.string(),
     StripePriceId: z.string(),
+    StripePriceIdJPY: z.string(),
+    StripePriceIdBRL: z.string(),
     StripeUnitPrice: z.coerce.number().min(0),
     StripeMinTopUp: z.coerce.number().min(0),
     StripePromotionCodesEnabled: z.boolean(),
@@ -719,6 +721,8 @@ export function PaymentSettingsSection({
       StripeApiSecret: values.StripeApiSecret.trim(),
       StripeWebhookSecret: values.StripeWebhookSecret.trim(),
       StripePriceId: values.StripePriceId.trim(),
+      StripePriceIdJPY: values.StripePriceIdJPY.trim(),
+      StripePriceIdBRL: values.StripePriceIdBRL.trim(),
       StripeUnitPrice: values.StripeUnitPrice,
       StripeMinTopUp: values.StripeMinTopUp,
       StripePromotionCodesEnabled: values.StripePromotionCodesEnabled,
@@ -774,6 +778,8 @@ export function PaymentSettingsSection({
       StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
       StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
       StripePriceId: initialRef.current.StripePriceId.trim(),
+      StripePriceIdJPY: initialRef.current.StripePriceIdJPY.trim(),
+      StripePriceIdBRL: initialRef.current.StripePriceIdBRL.trim(),
       StripeUnitPrice: initialRef.current.StripeUnitPrice,
       StripeMinTopUp: initialRef.current.StripeMinTopUp,
       StripePromotionCodesEnabled:
@@ -919,6 +925,20 @@ export function PaymentSettingsSection({
 
     if (sanitized.StripePriceId !== initial.StripePriceId) {
       updates.push({ key: 'StripePriceId', value: sanitized.StripePriceId })
+    }
+
+    if (sanitized.StripePriceIdJPY !== initial.StripePriceIdJPY) {
+      updates.push({
+        key: 'StripePriceIdJPY',
+        value: sanitized.StripePriceIdJPY,
+      })
+    }
+
+    if (sanitized.StripePriceIdBRL !== initial.StripePriceIdBRL) {
+      updates.push({
+        key: 'StripePriceIdBRL',
+        value: sanitized.StripePriceIdBRL,
+      })
     }
 
     if (sanitized.StripeUnitPrice !== initial.StripeUnitPrice) {
@@ -1865,7 +1885,7 @@ export function PaymentSettingsSection({
                 name='StripePriceId'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Price ID')}</FormLabel>
+                    <FormLabel>{t('Price ID')} (USD)</FormLabel>
                     <FormControl>
                       <Input
                         placeholder={t('price_xxx')}
@@ -1873,11 +1893,42 @@ export function PaymentSettingsSection({
                         onChange={(event) => field.onChange(event.target.value)}
                       />
                     </FormControl>
-                    <FormDescription>
-                      {t(
-                        'Use a Stripe multi-currency Price ID. Set USD as the default currency so Stripe can fall back to USD when a buyer currency is not configured.'
-                      )}
-                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='StripePriceIdJPY'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Price ID')} (JPY)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t('price_xxx')}
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='StripePriceIdBRL'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Price ID')} (BRL)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t('price_xxx')}
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1937,9 +1988,13 @@ export function PaymentSettingsSection({
                 render={({ field }) => (
                   <SettingsSwitchItem>
                     <SettingsSwitchContent>
-                      <FormLabel>{t('Promotion codes always enabled')}</FormLabel>
+                      <FormLabel>
+                        {t('Promotion codes always enabled')}
+                      </FormLabel>
                       <FormDescription>
-                        {t('Stripe Checkout always shows the coupon code field. This legacy switch is kept for compatibility.')}
+                        {t(
+                          'Stripe Checkout always shows the coupon code field. This legacy switch is kept for compatibility.'
+                        )}
                       </FormDescription>
                     </SettingsSwitchContent>
                     <FormControl>

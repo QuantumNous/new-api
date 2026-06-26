@@ -16,12 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// ============================================================================
-// Wallet Library Exports
-// ============================================================================
+export type StripeCheckoutCurrency = 'USD' | 'JPY' | 'BRL'
 
-export * from './affiliate'
-export * from './format'
-export * from './payment'
-export * from './stripe-currency'
-export * from './ui'
+export function getStripeCheckoutCurrencyForLanguage(
+  language: string | undefined
+): StripeCheckoutCurrency {
+  const normalized = language?.trim().toLowerCase().replace('_', '-') ?? ''
+
+  if (normalized === 'ja' || normalized.startsWith('ja-')) {
+    return 'JPY'
+  }
+
+  if (normalized === 'pt' || normalized.startsWith('pt-')) {
+    return 'BRL'
+  }
+
+  return 'USD'
+}
