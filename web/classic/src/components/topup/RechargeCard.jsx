@@ -566,16 +566,7 @@ const RechargeCard = ({
               )}
             </div>
           </Form>
-        ) : (
-          <Banner
-            type='info'
-            description={t(
-              '管理员未开启在线充值功能，请联系管理员开启或使用兑换码充值。',
-            )}
-            className='!rounded-xl'
-            closeIcon={null}
-          />
-        )}
+        ) : null}
       </Card>
 
       {/* 兑换码充值 */}
@@ -588,48 +579,88 @@ const RechargeCard = ({
             </Text>
           }
         >
-          <Form
-            getFormApi={(api) => (redeemFormApiRef.current = api)}
-            initValues={{ redemptionCode: redemptionCode }}
-          >
-            <Form.Input
-              field='redemptionCode'
-              noLabel={true}
-              placeholder={t('请输入兑换码')}
-              value={redemptionCode}
-              onChange={(value) => setRedemptionCode(value)}
-              prefix={<IconGift />}
-              suffix={
+          <div className='space-y-4'>
+            {topUpLink && (
+              <div className='space-y-3'>
                 <div className='flex items-center gap-2'>
+                  <span
+                    className='inline-flex items-center justify-center rounded-full flex-shrink-0'
+                    style={{
+                      width: 22,
+                      height: 22,
+                      background: 'var(--semi-color-primary)',
+                      color: '#fff',
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    1
+                  </span>
+                  <Text strong>{t('购买兑换码')}</Text>
+                </div>
+                <div className='flex items-center justify-between gap-3 pl-[30px]'>
+                  <Text type='tertiary' style={{ fontSize: 13 }}>
+                    {t('还没有兑换码？')}
+                  </Text>
                   <Button
                     type='primary'
                     theme='solid'
-                    onClick={topUp}
-                    loading={isSubmitting}
+                    icon={<ShoppingBag size={16} />}
+                    onClick={openTopUpLink}
                   >
-                    {t('兑换额度')}
+                    {t('购买兑换码')}
                   </Button>
                 </div>
-              }
-              showClear
-              style={{ width: '100%' }}
-              extraText={
-                topUpLink && (
-                  <div
-                    onClick={openTopUpLink}
-                    className='cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold'
-                    style={{
-                      color: 'var(--semi-color-primary)',
-                      background: 'var(--semi-color-primary-light-default)',
-                    }}
-                  >
-                    <ShoppingBag size={16} />
-                    {t('购买兑换码')}
+                <div
+                  className='h-px'
+                  style={{ background: 'var(--semi-color-divider)' }}
+                />
+              </div>
+            )}
+            <div className='flex items-center gap-2'>
+              <span
+                className='inline-flex items-center justify-center rounded-full flex-shrink-0'
+                style={{
+                  width: 22,
+                  height: 22,
+                  background: 'var(--semi-color-primary)',
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {topUpLink ? 2 : 1}
+              </span>
+              <Text strong>{t('输入兑换码')}</Text>
+            </div>
+            <Form
+              getFormApi={(api) => (redeemFormApiRef.current = api)}
+              initValues={{ redemptionCode: redemptionCode }}
+            >
+              <Form.Input
+                field='redemptionCode'
+                noLabel={true}
+                placeholder={t('请输入兑换码')}
+                value={redemptionCode}
+                onChange={(value) => setRedemptionCode(value)}
+                prefix={<IconGift />}
+                suffix={
+                  <div className='flex items-center gap-2'>
+                    <Button
+                      type='primary'
+                      theme='solid'
+                      onClick={topUp}
+                      loading={isSubmitting}
+                    >
+                      {t('兑换额度')}
+                    </Button>
                   </div>
-                )
-              }
-            />
-          </Form>
+                }
+                showClear
+                style={{ width: '100%' }}
+              />
+            </Form>
+          </div>
         </Card>
       ) : (
         <Banner
