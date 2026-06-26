@@ -127,6 +127,11 @@ func RequestPlategaPay(c *gin.Context) {
 	}
 
 	id := c.GetInt("id")
+	user, _ := model.GetUserById(id, false)
+	profileCountry := ""
+	if user != nil {
+		profileCountry = user.Country
+	}
 	group, err := model.GetUserGroup(id, true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
@@ -152,7 +157,7 @@ func RequestPlategaPay(c *gin.Context) {
 		CreateTime:      common.GetTimestamp(),
 		Status:          common.TopUpStatusPending,
 	}
-	if err := topUp.FillCountryFromIP(c.ClientIP()).Insert(); err != nil {
+	if err := topUp.FillCountryFromIP(c.ClientIP(), profileCountry).Insert(); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Platega 创建本地订单失败 user_id=%d trade_no=%s error=%q", id, tradeNo, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
 		return

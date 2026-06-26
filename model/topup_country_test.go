@@ -37,7 +37,7 @@ func TestEnrichTopupsWithUserInfoPreservesStoredCountry(t *testing.T) {
 	require.Equal(t, "u1@example.com", topups[0].Email)
 }
 
-func TestEnrichTopupsWithUserInfoLegacyFallback(t *testing.T) {
+func TestEnrichTopupsWithUserInfoLegacyEmptyCountry(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&User{}, &TopUp{}))
@@ -56,5 +56,5 @@ func TestEnrichTopupsWithUserInfoLegacyFallback(t *testing.T) {
 	require.NoError(t, db.Where("trade_no = ?", "legacy-1").Find(&topups).Error)
 
 	EnrichTopupsWithUserInfo(topups)
-	require.Equal(t, "JP", topups[0].Country)
+	require.Empty(t, topups[0].Country, "must not fill country from live user profile")
 }

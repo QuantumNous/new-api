@@ -287,6 +287,11 @@ func RequestEpay(c *gin.Context) {
 
 	id := c.GetInt("id")
 	TouchUserCountry(id, c.ClientIP())
+	user, _ := model.GetUserById(id, false)
+	profileCountry := ""
+	if user != nil {
+		profileCountry = user.Country
+	}
 	group, err := model.GetUserGroup(id, true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
@@ -343,7 +348,7 @@ func RequestEpay(c *gin.Context) {
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
-	err = topUp.FillCountryFromIP(c.ClientIP()).Insert()
+	err = topUp.FillCountryFromIP(c.ClientIP(), profileCountry).Insert()
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 创建充值订单失败 user_id=%d trade_no=%s payment_method=%s amount=%d error=%q", id, tradeNo, req.PaymentMethod, req.Amount, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentCreateFailed)})

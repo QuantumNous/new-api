@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -103,11 +104,15 @@ func (topUp *TopUp) Insert() error {
 }
 
 // FillCountryFromIP snapshots geo on the order row at creation time.
-func (topUp *TopUp) FillCountryFromIP(clientIP string) *TopUp {
+// profileCountry is only used when IP lookup fails (frozen at insert, never read again from users).
+func (topUp *TopUp) FillCountryFromIP(clientIP string, profileCountry ...string) *TopUp {
 	if topUp == nil || topUp.Country != "" {
 		return topUp
 	}
 	topUp.Country = common.LookupCountryByIP(clientIP)
+	if topUp.Country == "" && len(profileCountry) > 0 {
+		topUp.Country = strings.ToUpper(strings.TrimSpace(profileCountry[0]))
+	}
 	return topUp
 }
 
@@ -1020,10 +1025,7 @@ func EnrichTopupsWithUserInfo(topups []*TopUp) {
 			t.Username = u.Username
 			t.Email = u.Email
 			t.Language = u.Language
-			// Legacy rows: country column empty before migration — fall back to user profile.
-			if t.Country == "" {
-				t.Country = u.Country
-			}
+			// Country comes only from top_ups.country — never users.country (it changes over time).
 		}
 	}
 }
