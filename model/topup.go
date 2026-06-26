@@ -116,6 +116,23 @@ func (topUp *TopUp) FillCountryFromIP(clientIP string, profileCountry ...string)
 	return topUp
 }
 
+// topUpCreditQuota converts a successful order to internal quota units.
+// Amount = USD tier to credit; Money = actual payment (lower when first-topup promo applies).
+func topUpCreditQuota(topUp *TopUp) float64 {
+	if topUp == nil {
+		return 0
+	}
+	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+	switch topUp.PaymentProvider {
+	case PaymentProviderStripe:
+		// Stripe Money already reflects unit price × group ratio (USD charged).
+		return decimal.NewFromFloat(topUp.Money).Mul(dQuotaPerUnit).InexactFloat64()
+	default:
+		// PayPal / Clink / epay / Waffo: credit the selected USD tier (Amount), not discounted Money.
+		return decimal.NewFromInt(topUp.Amount).Mul(dQuotaPerUnit).InexactFloat64()
+	}
+}
+
 func (topUp *TopUp) Update() error {
 	var err error
 	err = DB.Save(topUp).Error
@@ -220,7 +237,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 			return err
 		}
 
-		quota = topUp.Money * common.QuotaPerUnit
+		quota = topUpCreditQuota(topUp)
 		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(map[string]interface{}{"stripe_customer": customerId, "quota": gorm.Expr("quota + ?", quota)}).Error
 		if err != nil {
 			return err
@@ -274,7 +291,7 @@ func RechargePayPal(referenceId string, callerIp string) (err error) {
 			return err
 		}
 
-		quota = topUp.Money * common.QuotaPerUnit
+		quota = topUpCreditQuota(topUp)
 		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quota)).Error
 		if err != nil {
 			return err
@@ -329,7 +346,7 @@ func RechargeClink(referenceId string, callerIp string) (err error) {
 			return err
 		}
 
-		quota = topUp.Money * common.QuotaPerUnit
+		quota = topUpCreditQuota(topUp)
 		return tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quota)).Error
 	})
 
@@ -579,10 +596,8 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return errors.New("订单状态不是待支付，无法补单")
 		}
 
-		// 计算应充值额度：
-		// - Stripe 订单：Money 代表经分组倍率换算后的美元数量，直接 * QuotaPerUnit
-		// - 其他订单（如易支付）：Amount 为美元数量，* QuotaPerUnit
-		if topUp.PaymentProvider == PaymentProviderStripe || topUp.PaymentProvider == PaymentProviderPayPal {
+		// - Stripe：Money 为实收美元；PayPal/Clink 等：Amount 为到账美元档位（促销时 Money 为折扣价）
+		if topUp.PaymentProvider == PaymentProviderStripe {
 			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 			quotaToAdd = int(decimal.NewFromFloat(topUp.Money).Mul(dQuotaPerUnit).IntPart())
 		} else {
