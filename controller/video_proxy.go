@@ -186,8 +186,8 @@ func lookupVideoProxyTask(c *gin.Context, taskID string) (*model.Task, bool, err
 		return task, true, nil
 	}
 
-	role, _ := c.Get("role")
-	if roleInt, ok := role.(int); ok && roleInt >= common.RoleAdminUser {
+	// TokenOrUserAuth session path only sets "id", not "role" — look up admin in DB.
+	if model.IsAdmin(userID) {
 		return model.GetByOnlyTaskId(taskID)
 	}
 	return nil, false, nil

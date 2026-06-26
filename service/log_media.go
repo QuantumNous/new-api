@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -85,31 +86,107 @@ func resolveLogRequestData(other map[string]interface{}) map[string]interface{} 
 			return data
 		}
 	}
-	return buildVideoRequestDataFromTaskData(task)
+	return buildVideoRequestDataFromTask(task)
 }
 
-func buildVideoRequestDataFromTaskData(task *model.Task) map[string]interface{} {
-	if task == nil || len(task.Data) == 0 {
-		return nil
-	}
-	var payload map[string]interface{}
-	if err := common.Unmarshal(task.Data, &payload); err != nil {
+func buildVideoRequestDataFromTask(task *model.Task) map[string]interface{} {
+	if task == nil {
 		return nil
 	}
 	data := map[string]interface{}{}
-	if modelName := strings.TrimSpace(fmtTaskID(payload["model"])); modelName != "" {
+	appendBillingContextRequestData(task, data)
+	appendTaskPayloadRequestData(task.Data, data)
+	return sanitizeRequestDataMap(data)
+}
+
+func appendBillingContextRequestData(task *model.Task, data map[string]interface{}) {
+	bc := task.PrivateData.BillingContext
+	if bc == nil {
+		return
+	}
+	if modelName := strings.TrimSpace(bc.OriginModelName); modelName != "" {
 		data["model"] = modelName
 	}
-	if seconds := strings.TrimSpace(fmtTaskID(payload["seconds"])); seconds != "" {
-		data["seconds"] = seconds
+	if bc.OtherRatios == nil {
+		return
 	}
-	if size := strings.TrimSpace(fmtTaskID(payload["size"])); size != "" {
-		data["size"] = size
+	if value, ok := formatLogRequestScalar(bc.OtherRatios["seconds"]); ok {
+		data["seconds"] = value
 	}
+	if value, ok := formatLogRequestScalar(bc.OtherRatios["size"]); ok {
+		data["size"] = value
+	}
+}
+
+func appendTaskPayloadRequestData(raw []byte, data map[string]interface{}) {
+	if len(raw) == 0 {
+		return
+	}
+	var payload map[string]interface{}
+	if err := common.Unmarshal(raw, &payload); err != nil {
+		return
+	}
+	setRequestDataFieldIfMissing(data, "model", payload["model"])
+	setRequestDataFieldIfMissing(data, "seconds", payload["seconds"])
+	setRequestDataFieldIfMissing(data, "size", payload["size"])
+}
+
+func setRequestDataFieldIfMissing(data map[string]interface{}, key string, value interface{}) {
+	if _, exists := data[key]; exists {
+		return
+	}
+	if formatted, ok := formatLogRequestScalar(value); ok {
+		data[key] = formatted
+	}
+}
+
+func sanitizeRequestDataMap(data map[string]interface{}) map[string]interface{} {
 	if len(data) == 0 {
 		return nil
 	}
-	return data
+	clean := make(map[string]interface{}, len(data))
+	for key, value := range data {
+		if formatted, ok := formatLogRequestScalar(value); ok {
+			clean[key] = formatted
+		}
+	}
+	if len(clean) == 0 {
+		return nil
+	}
+	return clean
+}
+
+func formatLogRequestScalar(value interface{}) (string, bool) {
+	if value == nil {
+		return "", false
+	}
+	switch typed := value.(type) {
+	case string:
+		text := strings.TrimSpace(typed)
+		if text == "" || text == "<nil>" {
+			return "", false
+		}
+		return text, true
+	case float64:
+		if typed == float64(int64(typed)) {
+			return strconv.FormatInt(int64(typed), 10), true
+		}
+		return strconv.FormatFloat(typed, 'f', -1, 64), true
+	case float32:
+		return formatLogRequestScalar(float64(typed))
+	case int:
+		return strconv.Itoa(typed), true
+	case int64:
+		return strconv.FormatInt(typed, 10), true
+	case json.Number:
+		return formatLogRequestScalar(typed.String())
+	default:
+		text := strings.TrimSpace(fmt.Sprint(typed))
+		if text == "" || text == "<nil>" {
+			return "", false
+		}
+		return text, true
+	}
 }
 
 func isLogMediaVideoModel(modelName string) bool {
@@ -176,6 +253,9 @@ func findCachedImageURLInDir(dir string, createdAt int64, useTime int) string {
 }
 
 func fmtTaskID(v interface{}) string {
+	if v == nil {
+		return ""
+	}
 	switch t := v.(type) {
 	case string:
 		return t

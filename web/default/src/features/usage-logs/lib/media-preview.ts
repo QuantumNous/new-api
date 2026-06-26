@@ -72,11 +72,11 @@ export function getLogMediaPreview(
   }
 
   if (isLogMediaVideoModel(modelName)) {
-    if (taskId && (log.use_time ?? 0) > 0) {
-      return { kind: 'video', url: `/v1/videos/${taskId}/content`, taskId }
-    }
     if (resultURL && isValidMediaPreviewURL(resultURL)) {
       return { kind: 'video', url: resultURL, taskId: taskId || '' }
+    }
+    if (taskId && (log.use_time ?? 0) > 0) {
+      return { kind: 'video', url: `/v1/videos/${taskId}/content`, taskId }
     }
   }
 

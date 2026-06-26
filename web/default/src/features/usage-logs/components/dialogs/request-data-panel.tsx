@@ -41,7 +41,11 @@ const META_FIELDS: Array<{ key: string; labelKey: string }> = [
 
 function formatSummaryValue(value: unknown): string | null {
   if (value == null || value === '') return null
-  if (typeof value === 'string') return value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed || trimmed === '<nil>') return null
+    return trimmed
+  }
   if (typeof value === 'number' || typeof value === 'boolean') {
     return String(value)
   }
