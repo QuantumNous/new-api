@@ -271,6 +271,9 @@ export type BillingSettings = {
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
   'tool_price_setting.prices': string
+  'gpt_image1_price_setting.prices': string
+  'gpt_image1_price_setting.default_price': number
+  'gpt_image1_price_setting.use_group_ratio': boolean
   TopupGroupRatio: string
   GroupRatio: string
   UserUsableGroups: string

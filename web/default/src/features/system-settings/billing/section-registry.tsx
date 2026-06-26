@@ -109,7 +109,12 @@ const BILLING_SECTIONS = [
         modelDefaults={getModelDefaults(settings)}
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
-        visibleTabs={['models', 'tool-prices', 'upstream-sync']}
+        gptImagePricesDefault={settings['gpt_image1_price_setting.prices']}
+        gptImageDefaultPrice={settings['gpt_image1_price_setting.default_price']}
+        gptImageUseGroupRatio={
+          settings['gpt_image1_price_setting.use_group_ratio']
+        }
+        visibleTabs={['models', 'tool-prices', 'gpt-image-prices', 'upstream-sync']}
       />
     ),
   },
@@ -122,6 +127,11 @@ const BILLING_SECTIONS = [
         modelDefaults={getModelDefaults(settings)}
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
+        gptImagePricesDefault={settings['gpt_image1_price_setting.prices']}
+        gptImageDefaultPrice={settings['gpt_image1_price_setting.default_price']}
+        gptImageUseGroupRatio={
+          settings['gpt_image1_price_setting.use_group_ratio']
+        }
         visibleTabs={['groups']}
       />
     ),

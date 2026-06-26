@@ -29,6 +29,7 @@ import { resetModelRatios } from '../api'
 import { SettingsPageTitleStatusPortal } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { GPTImagePriceSettings } from './gpt-image-price-settings'
 import { GroupRatioForm } from './group-ratio-form'
 import { ModelRatioForm } from './model-ratio-form'
 import { ToolPriceSettings } from './tool-price-settings'
@@ -128,12 +129,20 @@ const createGroupSchema = (t: Translate) =>
 
 type ModelFormValues = z.infer<ReturnType<typeof createModelSchema>>
 type GroupFormValues = z.infer<ReturnType<typeof createGroupSchema>>
-type RatioTabId = 'models' | 'groups' | 'tool-prices' | 'upstream-sync'
+type RatioTabId =
+  | 'models'
+  | 'groups'
+  | 'tool-prices'
+  | 'gpt-image-prices'
+  | 'upstream-sync'
 
 type RatioSettingsCardProps = {
   modelDefaults: ModelFormValues
   groupDefaults: GroupFormValues
   toolPricesDefault: string
+  gptImagePricesDefault: string
+  gptImageDefaultPrice: number
+  gptImageUseGroupRatio: boolean
   titleKey?: string
   visibleTabs?: RatioTabId[]
 }
@@ -142,8 +151,17 @@ export function RatioSettingsCard({
   modelDefaults,
   groupDefaults,
   toolPricesDefault,
+  gptImagePricesDefault,
+  gptImageDefaultPrice,
+  gptImageUseGroupRatio,
   titleKey = 'Pricing Ratios',
-  visibleTabs = ['models', 'groups', 'tool-prices', 'upstream-sync'],
+  visibleTabs = [
+    'models',
+    'groups',
+    'tool-prices',
+    'gpt-image-prices',
+    'upstream-sync',
+  ],
 }: RatioSettingsCardProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -386,6 +404,7 @@ export function RatioSettingsCard({
     models: 'Model prices',
     groups: 'Group ratios',
     'tool-prices': 'Tool prices',
+    'gpt-image-prices': 'GPT image prices',
     'upstream-sync': 'Upstream price sync',
   }
   const tabsGridClass =
@@ -394,7 +413,8 @@ export function RatioSettingsCard({
       2: 'grid-cols-2',
       3: 'grid-cols-3',
       4: 'grid-cols-4',
-    }[visibleTabs.length] ?? 'grid-cols-4'
+      5: 'grid-cols-5',
+    }[visibleTabs.length] ?? 'grid-cols-5'
   const defaultTab = visibleTabs[0] ?? 'models'
 
   const renderTabContent = (tab: RatioTabId) => {
@@ -421,6 +441,15 @@ export function RatioSettingsCard({
     }
     if (tab === 'tool-prices') {
       return <ToolPriceSettings defaultValue={toolPricesDefault} />
+    }
+    if (tab === 'gpt-image-prices') {
+      return (
+        <GPTImagePriceSettings
+          pricesDefault={gptImagePricesDefault}
+          defaultPriceDefault={gptImageDefaultPrice}
+          useGroupRatioDefault={gptImageUseGroupRatio}
+        />
+      )
     }
     return (
       <UpstreamRatioSync

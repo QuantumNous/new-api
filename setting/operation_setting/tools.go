@@ -146,6 +146,10 @@ func GetToolPrice(toolName string) float64 {
 
 // ---------------------------------------------------------------------------
 // GPT Image 1 per-call pricing (special: depends on quality + size)
+//
+// [custom] The price grid, the fallback default, and whether the surcharge
+// scales with the group ratio are admin-configurable.
+// DB keys: gpt_image1_price_setting.prices / .default_price / .use_group_ratio
 // ---------------------------------------------------------------------------
 
 const (
@@ -160,8 +164,18 @@ const (
 	GPTImage1High1536x1024   = 0.25
 )
 
-func GetGPTImage1PriceOnceCall(quality string, size string) float64 {
-	prices := map[string]map[string]float64{
+// GPTImage1PriceSetting is managed by config.GlobalConfig.Register.
+// Prices maps quality -> size -> $/call. DefaultPrice is the fallback when the
+// quality/size pair is unknown (no longer the highest tier). UseGroupRatio
+// controls whether the image surcharge is multiplied by the group ratio.
+type GPTImage1PriceSetting struct {
+	Prices        map[string]map[string]float64 `json:"prices"`
+	DefaultPrice  float64                        `json:"default_price"`
+	UseGroupRatio bool                           `json:"use_group_ratio"`
+}
+
+var gptImage1PriceSetting = GPTImage1PriceSetting{
+	Prices: map[string]map[string]float64{
 		"low": {
 			"1024x1024": GPTImage1Low1024x1024,
 			"1024x1536": GPTImage1Low1024x1536,
@@ -177,15 +191,36 @@ func GetGPTImage1PriceOnceCall(quality string, size string) float64 {
 			"1024x1536": GPTImage1High1024x1536,
 			"1536x1024": GPTImage1High1536x1024,
 		},
-	}
+	},
+	DefaultPrice:  GPTImage1Medium1024x1024, // 0.042 — no longer falls back to high 0.167
+	UseGroupRatio: false,                    // decoupled by default to stop low-group losses
+}
 
-	if qualityMap, exists := prices[quality]; exists {
-		if price, exists := qualityMap[size]; exists {
+func init() {
+	config.GlobalConfig.Register("gpt_image1_price_setting", &gptImage1PriceSetting)
+}
+
+// GetGPTImage1PriceOnceCall resolves the per-call image price ($/call) for a
+// quality/size pair. Unknown pairs fall back to DefaultPrice instead of the
+// highest tier, guarding against missing fields in upstream responses.
+func GetGPTImage1PriceOnceCall(quality string, size string) float64 {
+	if qualityMap, ok := gptImage1PriceSetting.Prices[quality]; ok {
+		if price, ok := qualityMap[size]; ok {
 			return price
 		}
 	}
+	dp := gptImage1PriceSetting.DefaultPrice
+	if dp <= 0 {
+		dp = GPTImage1Medium1024x1024
+	}
+	return dp
+}
 
-	return GPTImage1High1024x1024
+// GetGPTImage1SurchargeUsesGroupRatio reports whether the image generation
+// surcharge should be scaled by the group ratio. Defaults to false so low-price
+// groups stop bleeding money on image generation.
+func GetGPTImage1SurchargeUsesGroupRatio() bool {
+	return gptImage1PriceSetting.UseGroupRatio
 }
 
 // ---------------------------------------------------------------------------

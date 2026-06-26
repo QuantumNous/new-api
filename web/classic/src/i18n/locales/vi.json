@@ -4216,6 +4216,13 @@
     "、": ", ",
     "CC switch 配置": "Cấu hình CC Switch",
     "还没有兑换码？": "Chưa có mã?",
-    "输入兑换码": "Nhập mã"
+    "输入兑换码": "Nhập mã",
+    "GPT 图像生图定价": "GPT Image Pricing",
+    "画质": "Quality",
+    "配置 GPT 图像生成的每次调用单价（$/次），按画质和尺寸索引。": "Configure per-call unit prices ($/call) for GPT image generation, keyed by quality and size.",
+    "关闭分组倍率开关时，生图附加费不乘分组倍率，可避免低价分组倒亏；开启则恢复旧行为。": "When the group-ratio toggle is off, the image surcharge ignores the group ratio, preventing low-price groups from running at a loss; turn it on to restore the legacy behavior.",
+    "默认单价（quality/size 缺失时兜底）": "Default unit price (fallback when quality/size is missing)",
+    "生图附加费乘分组倍率（开启恢复旧行为）": "Apply group ratio to image surcharge (enable to restore legacy behavior)",
+    "恢复默认": "Restore defaults"
   }
 }

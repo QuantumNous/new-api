@@ -70,15 +70,21 @@ func ComputeToolCallQuota(usage ToolCallUsage, groupRatio float64) ToolCallResul
 
 	if usage.ImageGenerationCall {
 		price := operation_setting.GetGPTImage1PriceOnceCall(usage.ImageGenerationQuality, usage.ImageGenerationSize)
-		quota := int(math.Round(price * common.QuotaPerUnit * groupRatio))
+		// [custom] Mirrors service/text_quota.go: image surcharge decouples from the
+		// group ratio by default to avoid low-price-group losses.
+		quota := price * common.QuotaPerUnit
+		if operation_setting.GetGPTImage1SurchargeUsesGroupRatio() {
+			quota *= groupRatio
+		}
+		quotaInt := int(math.Round(quota))
 		items = append(items, ToolCallItem{
 			Name:       "image_generation",
 			CallCount:  1,
 			PricePer1K: price,
 			TotalPrice: price,
-			Quota:      quota,
+			Quota:      quotaInt,
 		})
-		totalQuota += quota
+		totalQuota += quotaInt
 	}
 
 	return ToolCallResult{

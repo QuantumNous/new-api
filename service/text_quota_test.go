@@ -9,9 +9,11 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -363,6 +365,10 @@ func TestComposeTieredTextQuotaKeepsToolCallSurcharges(t *testing.T) {
 		ActualQuotaAfterGroup:  1000,
 	})
 
+	// GroupRatio is 1 here, so the image surcharge (0.011 × QuotaPerUnit = 5500)
+	// is identical whether or not it is scaled by the group ratio; this test
+	// therefore stays stable after the image/group-ratio decoupling. Decoupling
+	// is verified with GroupRatio != 1 in the TestImageGenSurcharge* cases below.
 	require.Equal(t, int64(13000), summary.ToolCallSurchargeQuota.Round(0).IntPart())
 	require.Equal(t, 14000, quota)
 }
@@ -438,4 +444,131 @@ func TestComposeTieredTextQuotaErrorFallbackUsesPreConsumedQuota(t *testing.T) {
 
 	require.Equal(t, int64(12500), summary.ToolCallSurchargeQuota.Round(0).IntPart())
 	require.Equal(t, 14500, quota)
+}
+
+// ---------------------------------------------------------------------------
+// GPT image generation surcharge decoupling (stops low-price-group losses)
+//
+// Image generation cost is upstream-cost-driven and must not be diluted by a
+// low group ratio. GetGPTImage1SurchargeUsesGroupRatio() defaults to false;
+// the cases below exercise the decoupled default, a high group ratio, the
+// opt-in escape hatch, the fallback-price fix, and coexistence with tools
+// that legitimately scale with the group ratio.
+// ---------------------------------------------------------------------------
+
+const testImageMediumSurcharge = 21000 // 0.042 × QuotaPerUnit(500000)
+
+func newImageGenSurchargeCtx(t *testing.T, groupRatio float64, quality, size string) (*gin.Context, *relaycommon.RelayInfo) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Set("image_generation_call", true)
+	ctx.Set("image_generation_call_quality", quality)
+	ctx.Set("image_generation_call_size", size)
+
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-image-1",
+		PriceData: types.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: groupRatio},
+		},
+		StartTime: time.Now(),
+	}
+	return ctx, relayInfo
+}
+
+func trivialTextUsage() *dto.Usage {
+	return &dto.Usage{PromptTokens: 100, CompletionTokens: 0, TotalTokens: 100}
+}
+
+// setGPTImage1UseGroupRatio flips the config flag through the public config
+// API (same path the admin UI uses) and is the only cross-package way for the
+// service package to mutate the operation_setting toggle.
+func setGPTImage1UseGroupRatio(t *testing.T, enabled bool) {
+	t.Helper()
+	cfg := config.GlobalConfig.Get("gpt_image1_price_setting")
+	require.NotNil(t, cfg)
+	val := "false"
+	if enabled {
+		val = "true"
+	}
+	require.NoError(t, config.UpdateConfigFromMap(cfg, map[string]string{"use_group_ratio": val}))
+}
+
+func TestImageGenSurchargeDecoupledFromLowGroupRatio(t *testing.T) {
+	ctx, relayInfo := newImageGenSurchargeCtx(t, 0.18, "medium", "1024x1024")
+	summary := calculateTextQuotaSummary(ctx, relayInfo, trivialTextUsage())
+
+	// surcharge = 0.042 × QuotaPerUnit — NOT multiplied by the 0.18 group ratio.
+	assert.Equal(t, 0.18, summary.GroupRatio)
+	assert.Equal(t, 0.042, summary.ImageGenerationCallPrice)
+	assert.Equal(t, int64(testImageMediumSurcharge), summary.ToolCallSurchargeQuota.Round(0).IntPart())
+}
+
+func TestImageGenSurchargeDecoupledFromHighGroupRatio(t *testing.T) {
+	ctx, relayInfo := newImageGenSurchargeCtx(t, 1.20, "medium", "1024x1024")
+	summary := calculateTextQuotaSummary(ctx, relayInfo, trivialTextUsage())
+
+	// A high group ratio must not inflate the image surcharge either.
+	assert.Equal(t, 0.042, summary.ImageGenerationCallPrice)
+	assert.Equal(t, int64(testImageMediumSurcharge), summary.ToolCallSurchargeQuota.Round(0).IntPart())
+}
+
+func TestImageGenSurchargeEscapeHatchReAppliesGroupRatio(t *testing.T) {
+	setGPTImage1UseGroupRatio(t, true)
+	t.Cleanup(func() { setGPTImage1UseGroupRatio(t, false) })
+
+	ctx, relayInfo := newImageGenSurchargeCtx(t, 0.18, "medium", "1024x1024")
+	summary := calculateTextQuotaSummary(ctx, relayInfo, trivialTextUsage())
+
+	// Escape hatch: surcharge = 0.042 × 0.18 × QuotaPerUnit = 3780.
+	assert.Equal(t, int64(3780), summary.ToolCallSurchargeQuota.Round(0).IntPart())
+}
+
+func TestImageGenSurchargeFallbackUsesMediumNotHigh(t *testing.T) {
+	ctx, relayInfo := newImageGenSurchargeCtx(t, 0.18, "", "")
+	summary := calculateTextQuotaSummary(ctx, relayInfo, trivialTextUsage())
+
+	// Missing quality/size falls back to DefaultPrice (0.042), never high 0.167.
+	// 0.167 would have produced 83500; the medium fallback yields 21000.
+	assert.Equal(t, 0.042, summary.ImageGenerationCallPrice)
+	assert.Equal(t, int64(testImageMediumSurcharge), summary.ToolCallSurchargeQuota.Round(0).IntPart())
+	assert.Less(t, summary.ToolCallSurchargeQuota.Round(0).IntPart(), int64(83500))
+}
+
+func TestImageGenSurchargeCoexistsWithGroupRatioScaledTools(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Set("image_generation_call", true)
+	ctx.Set("image_generation_call_quality", "medium")
+	ctx.Set("image_generation_call_size", "1024x1024")
+
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-image-1",
+		PriceData: types.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 0.18},
+		},
+		ResponsesUsageInfo: &relaycommon.ResponsesUsageInfo{
+			BuiltInTools: map[string]*relaycommon.BuildInToolInfo{
+				dto.BuildInToolWebSearchPreview: {CallCount: 1},
+				dto.BuildInToolFileSearch:       {CallCount: 2},
+			},
+		},
+		StartTime: time.Now(),
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, trivialTextUsage())
+
+	// image (decoupled) = 21000, web_search_preview (×0.18) = 900,
+	// file_search (×0.18) = 450 → total 22350. The image surcharge ignores the
+	// group ratio while web_search/file_search keep it.
+	assert.Equal(t, int64(22350), summary.ToolCallSurchargeQuota.Round(0).IntPart())
+	assert.Equal(t, 1, summary.WebSearchCallCount)
+	assert.Equal(t, 2, summary.FileSearchCallCount)
+	assert.Equal(t, 0.042, summary.ImageGenerationCallPrice)
 }

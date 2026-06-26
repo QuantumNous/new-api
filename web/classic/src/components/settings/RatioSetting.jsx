@@ -26,6 +26,7 @@ import GroupRatioSettings from '../../pages/Setting/Ratio/GroupRatioSettings';
 import ModelRatioNotSetEditor from '../../pages/Setting/Ratio/ModelRationNotSetEditor';
 import UpstreamRatioSync from '../../pages/Setting/Ratio/UpstreamRatioSync';
 import ToolPriceSettings from '../../pages/Setting/Ratio/ToolPriceSettings';
+import GPTImagePriceSettings from '../../pages/Setting/Ratio/GPTImagePriceSettings';
 
 import { API, showError, toBoolean } from '../../helpers';
 
@@ -111,6 +112,9 @@ const RatioSetting = () => {
           </Tabs.TabPane>
           <Tabs.TabPane tab={t('工具调用定价')} itemKey='tool_price'>
             <ToolPriceSettings options={inputs} />
+          </Tabs.TabPane>
+          <Tabs.TabPane tab={t('GPT 图像生图定价')} itemKey='gpt_image_price'>
+            <GPTImagePriceSettings options={inputs} />
           </Tabs.TabPane>
         </Tabs>
       </Card>

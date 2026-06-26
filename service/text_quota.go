@@ -130,9 +130,14 @@ func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.Rel
 
 	if ctx.GetBool("image_generation_call") {
 		summary.ImageGenerationCallPrice = operation_setting.GetGPTImage1PriceOnceCall(ctx.GetString("image_generation_call_quality"), ctx.GetString("image_generation_call_size"))
-		surcharge = surcharge.Add(decimal.NewFromFloat(summary.ImageGenerationCallPrice).
-			Mul(dGroupRatio).
-			Mul(dQuotaPerUnit))
+		// [custom] Image generation cost is upstream-cost-driven and unrelated to the
+		// group ratio. Decoupling by default prevents low-price groups from running
+		// at a loss; UseGroupRatio is an escape hatch for the old behavior.
+		imageSurcharge := decimal.NewFromFloat(summary.ImageGenerationCallPrice).Mul(dQuotaPerUnit)
+		if operation_setting.GetGPTImage1SurchargeUsesGroupRatio() {
+			imageSurcharge = imageSurcharge.Mul(dGroupRatio)
+		}
+		surcharge = surcharge.Add(imageSurcharge)
 	}
 
 	return surcharge
@@ -359,7 +364,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		extraContent = append(extraContent, fmt.Sprintf("Audio Input 花费 %s", decimal.NewFromFloat(summary.AudioInputPrice).Div(decimal.NewFromInt(1000000)).Mul(decimal.NewFromInt(int64(summary.AudioTokens))).Mul(decimal.NewFromFloat(summary.GroupRatio)).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).String()))
 	}
 	if summary.ImageGenerationCallPrice > 0 {
-		extraContent = append(extraContent, fmt.Sprintf("Image Generation Call 花费 %s", decimal.NewFromFloat(summary.ImageGenerationCallPrice).Mul(decimal.NewFromFloat(summary.GroupRatio)).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).String()))
+		imageGenCost := decimal.NewFromFloat(summary.ImageGenerationCallPrice).Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+		if operation_setting.GetGPTImage1SurchargeUsesGroupRatio() {
+			imageGenCost = imageGenCost.Mul(decimal.NewFromFloat(summary.GroupRatio))
+		}
+		extraContent = append(extraContent, fmt.Sprintf("Image Generation Call 花费 %s", imageGenCost.String()))
 	}
 
 	if summary.TotalTokens == 0 {
@@ -428,6 +437,10 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if summary.ImageGenerationCallPrice > 0 {
 		other["image_generation_call"] = true
 		other["image_generation_call_price"] = summary.ImageGenerationCallPrice
+		// [custom] Records whether this surcharge was scaled by the group ratio, so
+		// log detail UIs can reproduce the actual charge instead of assuming the
+		// legacy (always-scaled) behavior. Absent on old logs => treated as true.
+		other["image_generation_call_use_group_ratio"] = operation_setting.GetGPTImage1SurchargeUsesGroupRatio()
 	}
 	if summary.CacheCreationTokens > 0 {
 		other["cache_creation_tokens"] = summary.CacheCreationTokens
