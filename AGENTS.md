@@ -292,6 +292,16 @@ The GCP staging environment is deployed by GitHub Actions from the remote `stagi
 - `web/classic/AGENTS.md` — 经典主题（React 18 + Vite + Semi Design）
 - `website/AGENTS.md` — 独立官网（Next.js 16 standalone Node 应用；SEO/营销/法务/定价/博客；**新增/修改公开页必读**，→ Rule 9）
 
+## Mixpanel Analytics
+
+- Mixpanel is installed on both maintained web surfaces: `website/` and `web/default/`.
+- Project token: `cf2f149bd61f607c3fd578596ad86921`; override with `NEXT_PUBLIC_MIXPANEL_TOKEN` for `website/` and `VITE_MIXPANEL_TOKEN` for `web/default/`.
+- Consent is mandatory for all users. Do not initialize or track unless `flatkey_analytics_consent` is `granted` in localStorage or cookie. Denial value is `denied`.
+- Website loader: `website/src/lib/mixpanel.ts`, injected by `website/src/components/root-document.tsx`. It exposes `window.flatkeyMixpanelConsent.grant()` / `.deny()` / `.status()` for a CMP or consent UI.
+- Console loader: `web/default/src/lib/analytics/mixpanel.ts`. Use `trackMixpanelEvent`, `trackMixpanelPageView`, `identifyMixpanelUser`, and `resetMixpanelIdentity`; do not call `window.mixpanel` directly.
+- Current events: `page_viewed` on both surfaces and `sign_up_completed` in console signup/OAuth signup flows. No Value Moment event is defined yet; add one only after product confirms the canonical action and properties.
+- Identity: identify with stable numeric user ID after login/app reopen; reset on logout/session reset. Do not use email as distinct ID and do not send raw email to Mixpanel.
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 

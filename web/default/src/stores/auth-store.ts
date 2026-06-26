@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { create } from 'zustand'
+import { resetMixpanelIdentity } from '@/lib/analytics/mixpanel'
 
 export type UserPermissions = {
   sidebar_settings?: boolean
@@ -101,6 +102,7 @@ export const useAuthStore = create<AuthState>()((set) => {
           if (typeof window !== 'undefined') {
             window.localStorage.removeItem('user')
           }
+          resetMixpanelIdentity()
           return {
             ...state,
             auth: { ...state.auth, user: null },

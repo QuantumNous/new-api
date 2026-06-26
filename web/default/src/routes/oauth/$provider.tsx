@@ -31,6 +31,7 @@ import { api, getSelf } from '@/lib/api'
 import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
 import { trackAdsFunnelEvent, trackSignupConversion } from '@/lib/analytics/gtag'
 import { trackPixelsSignup } from '@/lib/analytics/pixels'
+import { identifyMixpanelUser, trackMixpanelEvent } from '@/lib/analytics/mixpanel'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 import {
@@ -186,6 +187,12 @@ function OAuthCallback() {
             method: 'oauth',
             provider,
           })
+          trackMixpanelEvent('sign_up_completed', {
+            sign_up_method: 'oauth',
+            provider,
+            platform: 'web',
+            product_surface: 'console',
+          })
         }
       }
 
@@ -197,6 +204,7 @@ function OAuthCallback() {
           }
           if (selfResponse?.success && selfResponse.data) {
             useAuthStore.getState().auth.setUser(selfResponse.data)
+            identifyMixpanelUser(selfResponse.data)
             try {
               if (
                 typeof window !== 'undefined' &&

@@ -32,6 +32,10 @@ import type { i18n as I18nInstance } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { captureAdsAttribution } from '@/lib/analytics/attribution'
+import {
+  identifyMixpanelUser,
+  trackMixpanelPageView,
+} from '@/lib/analytics/mixpanel'
 import { getSelf } from '@/lib/api'
 import { getPublicPathLanguage, isPublicWebsitePath } from '@/lib/public-locale'
 import { ThemeCustomizationProvider } from '@/context/theme-customization-provider'
@@ -101,6 +105,7 @@ function UserLanguagePreferenceSync() {
 
   useEffect(() => {
     applyUserLanguagePreference(i18n, user)
+    identifyMixpanelUser(user)
   }, [i18n, user])
 
   useEffect(() => {
@@ -148,6 +153,10 @@ function RootComponent() {
       void i18n.changeLanguage(language)
     }
   }, [location.pathname])
+
+  useEffect(() => {
+    trackMixpanelPageView(location.pathname, window.location.search)
+  }, [location.pathname, location.search])
 
   return (
     <ThemeCustomizationProvider>

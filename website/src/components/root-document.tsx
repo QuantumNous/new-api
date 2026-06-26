@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import type { ReactNode } from "react";
+import { MIXPANEL_BROWSER_SCRIPT } from "@/lib/mixpanel";
 import type { Locale } from "@/lib/locales";
 
 const GTM_ID = "GTM-5T5LPLSZ";
@@ -38,6 +39,9 @@ export function RootDocument({ bodyStart, children, lang }: RootDocumentProps) {
             'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
             })(window,document,'script','dataLayer','${GTM_ID}');
           `}
+        </Script>
+        <Script id="mixpanel-consent-gated" strategy="afterInteractive">
+          {MIXPANEL_BROWSER_SCRIPT}
         </Script>
         <noscript>
           <iframe

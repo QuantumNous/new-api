@@ -28,6 +28,7 @@ import {
   trackSignupConversion,
   ensureGtagLoaded,
 } from '@/lib/analytics/gtag'
+import { trackMixpanelEvent } from '@/lib/analytics/mixpanel'
 import { trackPixelsSignup } from '@/lib/analytics/pixels'
 import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
 import { cn } from '@/lib/utils'
@@ -184,6 +185,12 @@ export function SignUpForm({
         trackPixelsSignup()
         trackAdsFunnelEvent('flatkey_signup_success', {
           method: 'password',
+        })
+        trackMixpanelEvent('sign_up_completed', {
+          sign_up_method: 'password',
+          platform: 'web',
+          product_surface: 'console',
+          has_email: Boolean(data.email),
         })
         // Auto-logged-in (session cookie set by setupLogin). Activation-first: land
         // them in the Playground first-run so they make their first API call with
