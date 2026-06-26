@@ -26,7 +26,7 @@
           {
             "name": "keyword",
             "in": "query",
-            "description": "搜索关键字，匹配技能 ID、名称、描述或标签",
+            "description": "搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
             "required": false,
             "schema": {
               "type": "string"
@@ -76,7 +76,7 @@
           {
             "name": "keyword",
             "in": "query",
-            "description": "搜索关键字，匹配标签名称",
+            "description": "搜索关键字，匹配标签名称；最多 128 个字符，%、_、! 按普通字符处理",
             "required": false,
             "schema": {
               "type": "string"
@@ -126,7 +126,7 @@
           {
             "name": "tag_ids",
             "in": "query",
-            "description": "标签 ID，多个 ID 使用英文逗号分隔，例如 1,2；不传时返回全部",
+            "description": "标签 ID，多个 ID 使用英文逗号分隔，例如 1,2；不传或传空字符串时返回全部；最多 50 个 ID",
             "required": false,
             "schema": {
               "type": "string"
@@ -135,7 +135,7 @@
           {
             "name": "keyword",
             "in": "query",
-            "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签",
+            "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
             "required": false,
             "schema": {
               "type": "string"
@@ -373,7 +373,7 @@
           {
             "name": "keyword",
             "in": "query",
-            "description": "搜索关键字，匹配标签名称",
+            "description": "搜索关键字，匹配标签名称；最多 128 个字符，%、_、! 按普通字符处理",
             "required": false,
             "schema": {
               "type": "string"
@@ -473,7 +473,7 @@
           {
             "name": "tag_ids",
             "in": "query",
-            "description": "标签 ID，多个 ID 使用英文逗号分隔，例如 1,2；不传时返回全部",
+            "description": "标签 ID，多个 ID 使用英文逗号分隔，例如 1,2；不传或传空字符串时返回全部；最多 50 个 ID",
             "required": false,
             "schema": {
               "type": "string"
@@ -482,7 +482,7 @@
           {
             "name": "keyword",
             "in": "query",
-            "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签",
+            "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
             "required": false,
             "schema": {
               "type": "string"
@@ -584,7 +584,7 @@
           {
             "name": "keyword",
             "in": "query",
-            "description": "搜索关键字，匹配技能 ID、名称、描述或标签",
+            "description": "搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
             "required": false,
             "schema": {
               "type": "string"
