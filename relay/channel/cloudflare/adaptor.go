@@ -94,8 +94,13 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	requestBody := &bytes.Buffer{}
 
 	// 将上传的文件内容复制到临时文件，限制大小防止内存耗尽
-	if _, err := io.Copy(requestBody, io.LimitReader(file, maxAudioFileSize)); err != nil {
+	// Read one extra byte to detect files that exceed the limit without silent truncation
+	n, err := io.Copy(requestBody, io.LimitReader(file, maxAudioFileSize+1))
+	if err != nil {
 		return nil, err
+	}
+	if n > maxAudioFileSize {
+		return nil, fmt.Errorf("audio file exceeds the maximum allowed size of %d MB", maxAudioFileSize/(1024*1024))
 	}
 	return requestBody, nil
 }

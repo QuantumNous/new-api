@@ -3,38 +3,44 @@ package cloudflare
 import (
 	"bytes"
 	"io"
-	"net/http"
+	"mime/multipart"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
-	"your-module-path/relay/channel/cloudflare"
-	"your-module-path/relay/common"
-	"your-module-path/relay/dto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConvertAudioRequest_MemoryBoundary(t *testing.T) {
 	payloads := []struct {
-		name    string
-		content string
+		name        string
+		contentSize int
+		expectError bool
 	}{
-		{"valid_small", "small audio data"},
-		{"boundary_medium", string(make([]byte, 10*1024*1024))}, // 10MB
-		{"exploit_large", string(make([]byte, 100*1024*1024))},  // 100MB
+		// Small file well under the 25 MB limit — must succeed with full content
+		{"valid_small", len("small audio data"), false},
+		// 10 MB file under the limit — must succeed with full content
+		{"boundary_medium", 10 * 1024 * 1024, false},
+		// 100 MB file over the 25 MB limit — must be rejected with an error
+		{"exploit_large", 100 * 1024 * 1024, true},
 	}
 
 	for _, tc := range payloads {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			content := make([]byte, tc.contentSize)
+
 			// Setup gin context with multipart form
 			body := &bytes.Buffer{}
 			writer := multipart.NewWriter(body)
 			part, err := writer.CreateFormFile("file", "audio.mp3")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := io.WriteString(part, tc.content); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
+
+			_, err = part.Write(content)
+			require.NoError(t, err)
 			writer.Close()
 
 			req := httptest.NewRequest("POST", "/", body)
@@ -50,23 +56,20 @@ func TestConvertAudioRequest_MemoryBoundary(t *testing.T) {
 
 			reader, err := adaptor.ConvertAudioRequest(c, info, audioReq)
 
-			// Security property: function must either succeed with bounded memory usage
-			// or fail gracefully without exhausting memory
-			if err != nil {
-				// Acceptable outcome: function rejected input
+			if tc.expectError {
+				// Security invariant: oversized uploads must be rejected, not silently accepted
+				assert.Error(t, err, "upload exceeding %d MB must be rejected", maxAudioFileSize/(1024*1024))
+				assert.Nil(t, reader)
 				return
 			}
 
-			// If function succeeded, verify we can read result without memory exhaustion
-			result, err := io.ReadAll(reader)
-			if err != nil {
-				t.Errorf("failed to read result: %v", err)
-			}
+			require.NoError(t, err)
+			require.NotNil(t, reader)
 
-			// Security invariant: result size must be proportional to input
-			if len(result) != len(tc.content) {
-				t.Errorf("result size mismatch: got %d, want %d", len(result), len(tc.content))
-			}
+			// Verify full content was preserved for valid uploads
+			result, err := io.ReadAll(reader)
+			require.NoError(t, err)
+			assert.Equal(t, tc.contentSize, len(result), "result size must equal input size for uploads within the limit")
 		})
 	}
 }
