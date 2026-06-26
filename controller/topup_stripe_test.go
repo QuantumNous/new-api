@@ -152,11 +152,21 @@ func TestResolveStripeTopUpCheckoutRejectsUnsupportedPackageAmount(t *testing.T)
 	require.EqualError(t, err, "Stripe checkout package requires one of: 10, 20, 200 USD credits")
 }
 
-func TestStripeLocationEmailForCheckoutCurrency(t *testing.T) {
-	require.Equal(t, "buyer+location_JP@example.com", stripeLocationEmailForCheckoutCurrency("buyer@example.com", "JPY"))
-	require.Equal(t, "buyer+promo+location_BR@example.com", stripeLocationEmailForCheckoutCurrency("buyer+promo@example.com", "BRL"))
-	require.Equal(t, "buyer@example.com", stripeLocationEmailForCheckoutCurrency("buyer@example.com", "USD"))
-	require.Equal(t, "invalid", stripeLocationEmailForCheckoutCurrency("invalid", "JPY"))
+func TestStripeCheckoutSessionKeepsAccountEmailVerbatim(t *testing.T) {
+	params := buildStripeCheckoutSessionParams(
+		"trade_123",
+		"",
+		"buyer+location_JP@example.com",
+		"price_123",
+		1,
+		"https://example.com/success",
+		"https://example.com/cancel",
+		false,
+		false,
+	)
+
+	require.NotNil(t, params.CustomerEmail)
+	require.Equal(t, "buyer+location_JP@example.com", *params.CustomerEmail)
 }
 
 func TestStripePaymentSnapshotFromEventUsesCurrencyMinorUnits(t *testing.T) {

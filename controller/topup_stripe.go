@@ -39,7 +39,8 @@ type StripePayRequest struct {
 	Amount int64 `json:"amount"`
 	// PaymentMethod specifies the payment method (e.g., "stripe").
 	PaymentMethod string `json:"payment_method"`
-	// StripeCurrency selects the server-configured Stripe checkout package currency.
+	// StripeCurrency opts into the supported Stripe top-up package flow.
+	// Stripe Checkout chooses presentment currency from customer location.
 	StripeCurrency string `json:"stripe_currency,omitempty"`
 	// SuccessURL is the optional custom URL to redirect after successful payment.
 	// If empty, defaults to the server's console log page.
@@ -73,7 +74,6 @@ type stripeTopUpCheckout struct {
 	Quantity         int64
 	Money            float64
 	PaymentCurrency  string
-	CheckoutCurrency string
 }
 
 type stripeTopUpCurrencyPackage struct {
@@ -107,10 +107,9 @@ func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, g
 	}
 
 	return &stripeTopUpCheckout{
-		PriceId:          strings.TrimSpace(pkg.PriceId),
-		Quantity:         stripeTopUpLineQuantity,
-		Money:            float64(normalizedAmount),
-		CheckoutCurrency: requestedCurrency,
+		PriceId:  strings.TrimSpace(pkg.PriceId),
+		Quantity: stripeTopUpLineQuantity,
+		Money:    float64(normalizedAmount),
 	}, nil
 }
 
@@ -1021,8 +1020,7 @@ func genStripeLink(referenceId string, customerId string, email string, checkout
 		cancelURL = paymentReturnPath("/console/topup")
 	}
 
-	localizedEmail := stripeLocationEmailForCheckoutCurrency(email, checkout.CheckoutCurrency)
-	params := buildStripeCheckoutSessionParams(referenceId, customerId, localizedEmail, checkout.PriceId, checkout.Quantity, successURL, cancelURL, invoiceRequested, saveCard)
+	params := buildStripeCheckoutSessionParams(referenceId, customerId, strings.TrimSpace(email), checkout.PriceId, checkout.Quantity, successURL, cancelURL, invoiceRequested, saveCard)
 
 	// For onboarding promo top-ups, save the card while paying so it can be charged
 	// off-session later (postpaid auto-charge). Plain wallet top-ups don't save the card.
@@ -1129,8 +1127,8 @@ func buildStripeCheckoutSessionParams(referenceId string, customerId string, ema
 			buildStripeTopUpLineItem(priceId, quantity),
 		},
 		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
-		// Always show Stripe's native promotion code field. Checkout currency is selected
-		// by the server-side Price mapped from the request's whitelisted locale currency.
+		// Always show Stripe's native promotion code field. Checkout chooses the
+		// presentment currency from the multi-currency Price and customer location.
 		AllowPromotionCodes: stripe.Bool(true),
 	}
 
@@ -1168,26 +1166,6 @@ func buildStripeCheckoutSessionParams(referenceId string, customerId string, ema
 	}
 
 	return params
-}
-
-func stripeLocationEmailForCheckoutCurrency(email string, currency string) string {
-	email = strings.TrimSpace(email)
-	at := strings.LastIndex(email, "@")
-	if at <= 0 || at == len(email)-1 {
-		return email
-	}
-
-	var country string
-	switch strings.ToUpper(strings.TrimSpace(currency)) {
-	case "JPY":
-		country = "JP"
-	case "BRL":
-		country = "BR"
-	default:
-		return email
-	}
-
-	return email[:at] + "+location_" + country + email[at:]
 }
 
 func buildStripeTopUpLineItem(priceId string, amount int64) *stripe.CheckoutSessionLineItemParams {
