@@ -32,7 +32,22 @@ function isDirectMediaUrl(url: string): boolean {
 }
 
 function isProxiedMediaUrl(url: string): boolean {
-  return url.startsWith('/v1/videos/') || url.startsWith('/v1/images/')
+  const trimmed = url.trim()
+  if (
+    trimmed.startsWith('/v1/videos/') ||
+    trimmed.startsWith('/v1/images/')
+  ) {
+    return true
+  }
+  try {
+    const parsed = new URL(trimmed, window.location.origin)
+    return (
+      parsed.pathname.startsWith('/v1/videos/') ||
+      parsed.pathname.startsWith('/v1/images/')
+    )
+  } catch {
+    return false
+  }
 }
 
 export async function loadAuthenticatedMediaUrl(

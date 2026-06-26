@@ -82,7 +82,7 @@ func ShouldProxyVideoURL(raw string) bool {
 	if host == "" {
 		return false
 	}
-	if strings.Contains(host, "apimart.ai") || strings.Contains(host, "apib.ai") || strings.Contains(host, "cdn.apimart") {
+	if strings.Contains(host, "apimart.ai") || strings.Contains(host, "apib.ai") || strings.Contains(host, "cdn.apimart") || strings.Contains(host, "getapib.org") {
 		return true
 	}
 	return false

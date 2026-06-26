@@ -54,6 +54,11 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	if info.TaskRelayInfo != nil && strings.TrimSpace(info.TaskRelayInfo.PublicTaskID) != "" {
 		other["task_id"] = info.TaskRelayInfo.PublicTaskID
 	}
+	if taskReq, err := relaycommon.GetTaskRequest(c); err == nil {
+		if rd := BuildVideoRequestDataForLog(&taskReq); len(rd) > 0 {
+			other["request_data"] = rd
+		}
+	}
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ChannelId: info.ChannelId,
 		ModelName: info.OriginModelName,

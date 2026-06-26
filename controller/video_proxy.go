@@ -106,12 +106,7 @@ func VideoProxy(c *gin.Context) {
 			return
 		}
 	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
-		if upstream := task.GetUpstreamVideoURL(); upstream != "" {
-			videoURL = upstream
-		} else {
-			videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
-			req.Header.Set("Authorization", "Bearer "+channel.Key)
-		}
+		videoURL = resolveOpenAIVideoFetchURL(task, baseURL, req, channel.Key)
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()
@@ -191,6 +186,19 @@ func lookupVideoProxyTask(c *gin.Context, taskID string) (*model.Task, bool, err
 		return model.GetByOnlyTaskId(taskID)
 	}
 	return nil, false, nil
+}
+
+func resolveOpenAIVideoFetchURL(task *model.Task, baseURL string, req *http.Request, channelKey string) string {
+	if upstream := strings.TrimSpace(task.GetUpstreamVideoURL()); upstream != "" {
+		return upstream
+	}
+	if direct := strings.TrimSpace(task.PrivateData.ResultURL); service.IsDirectVideoMediaURL(direct) {
+		return direct
+	}
+	if channelKey != "" {
+		req.Header.Set("Authorization", "Bearer "+channelKey)
+	}
+	return fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
 }
 
 func writeVideoDataURL(c *gin.Context, dataURL string) error {
