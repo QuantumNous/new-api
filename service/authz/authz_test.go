@@ -13,8 +13,16 @@ import (
 
 func newAuthzTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
+	wasMaster := common.IsMasterNode
+	common.IsMasterNode = true
+	t.Cleanup(func() {
+		common.IsMasterNode = wasMaster
+	})
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
 	require.NoError(t, db.AutoMigrate(&model.CasbinRule{}, &model.AuthzRole{}))
 	return db
 }
@@ -41,6 +49,30 @@ func TestInitSeedsBuiltInRolesAndPoliciesOnce(t *testing.T) {
 	assert.True(t, Can(2, common.RoleAdminUser, ChannelWrite))
 	assert.False(t, Can(2, common.RoleAdminUser, ChannelSensitiveWrite))
 	assert.False(t, Can(3, common.RoleCommonUser, ChannelRead))
+}
+
+func TestInitOnSlaveOnlyLoadsPolicies(t *testing.T) {
+	wasMaster := common.IsMasterNode
+	common.IsMasterNode = false
+	t.Cleanup(func() {
+		common.IsMasterNode = wasMaster
+	})
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&model.CasbinRule{}, &model.AuthzRole{}))
+
+	require.NoError(t, Init(db))
+
+	var roleCount int64
+	require.NoError(t, db.Model(&model.AuthzRole{}).Count(&roleCount).Error)
+	assert.Equal(t, int64(0), roleCount)
+	var policyCount int64
+	require.NoError(t, db.Model(&model.CasbinRule{}).Count(&policyCount).Error)
+	assert.Equal(t, int64(0), policyCount)
+	assert.False(t, Can(2, common.RoleAdminUser, ChannelRead))
 }
 
 func TestSetUserPermissionsStoresOnlyOverrides(t *testing.T) {
@@ -122,6 +154,63 @@ func TestClearUserAuthorizationRemovesOverrides(t *testing.T) {
 	assert.True(t, Can(90, common.RoleAdminUser, ChannelWrite))
 	assert.False(t, Can(90, common.RoleAdminUser, ChannelSensitiveWrite))
 	assert.False(t, Can(90, common.RoleCommonUser, ChannelRead))
+}
+
+func TestSetUserPermissionsInTxDoesNotMutateEnforcerBeforeReload(t *testing.T) {
+	db := newAuthzTestDB(t)
+	require.NoError(t, Init(db))
+
+	require.NoError(t, db.Transaction(func(tx *gorm.DB) error {
+		return SetUserPermissionsInTx(tx, 42, PermissionsMap{ResourceChannel: {
+			ActionRead:           true,
+			ActionOperate:        true,
+			ActionWrite:          true,
+			ActionSensitiveWrite: true,
+			ActionSecretView:     false,
+		}})
+	}))
+
+	assert.False(t, Can(42, common.RoleAdminUser, ChannelSensitiveWrite))
+	require.NoError(t, ReloadPolicy())
+	assert.True(t, Can(42, common.RoleAdminUser, ChannelSensitiveWrite))
+}
+
+func TestSetUserPermissionsInTxRollbackLeavesNoPolicy(t *testing.T) {
+	db := newAuthzTestDB(t)
+	require.NoError(t, Init(db))
+
+	tx := db.Begin()
+	require.NoError(t, tx.Error)
+	require.NoError(t, SetUserPermissionsInTx(tx, 43, PermissionsMap{ResourceChannel: {
+		ActionSensitiveWrite: true,
+	}}))
+	require.NoError(t, tx.Rollback().Error)
+	require.NoError(t, ReloadPolicy())
+
+	assert.False(t, Can(43, common.RoleAdminUser, ChannelSensitiveWrite))
+	var count int64
+	require.NoError(t, db.Model(&model.CasbinRule{}).Where("v0 = ?", UserSubject(43)).Count(&count).Error)
+	assert.Equal(t, int64(0), count)
+}
+
+func TestAdapterAddPolicyIsIdempotent(t *testing.T) {
+	db := newAuthzTestDB(t)
+	adapter := newGormAdapter(db)
+	rule := []string{UserSubject(55), ResourceChannel, ActionSensitiveWrite, EffectAllow}
+
+	require.NoError(t, adapter.AddPolicy("p", "p", rule))
+	require.NoError(t, adapter.AddPolicy("p", "p", rule))
+
+	var count int64
+	require.NoError(t, db.Model(&model.CasbinRule{}).Where(
+		"ptype = ? AND v0 = ? AND v1 = ? AND v2 = ? AND v3 = ?",
+		"p",
+		UserSubject(55),
+		ResourceChannel,
+		ActionSensitiveWrite,
+		EffectAllow,
+	).Count(&count).Error)
+	assert.Equal(t, int64(1), count)
 }
 
 func TestCapabilitiesUseCatalogShape(t *testing.T) {

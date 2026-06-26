@@ -24,6 +24,7 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type LoginRequest struct {
@@ -623,29 +624,40 @@ func UpdateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if updatedUser.Role == 0 {
-		updatedUser.Role = originUser.Role
+	if updatedUser.Role != common.RoleGuestUser && updatedUser.Role != originUser.Role {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
 	}
+	updatedUser.Role = originUser.Role
 	myRole := c.GetInt("role")
 	if !canManageTargetRole(myRole, originUser.Role) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
-		return
-	}
-	if !canManageTargetRole(myRole, updatedUser.Role) {
-		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
 	}
 	if updatedUser.Password == "$I_LOVE_U" {
 		updatedUser.Password = "" // rollback to what it should be
 	}
 	updatePassword := updatedUser.Password != ""
-	if err := updatedUser.Edit(updatePassword); err != nil {
+	authzTouched := false
+	if err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := updatedUser.EditWithTx(tx, updatePassword); err != nil {
+			return err
+		}
+		touched, err := updateAdminPermissionsForUserInTx(c, tx, updatedUser.Id, originUser.Role, updatedUser.AdminPermissions)
+		authzTouched = touched
+		return err
+	}); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	if err := updateAdminPermissionsForUser(c, updatedUser.Id, updatedUser.Role, updatedUser.AdminPermissions); err != nil {
-		common.ApiError(c, err)
-		return
+	if authzTouched {
+		if err := authz.ReloadPolicy(); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	if err := model.InvalidateUserCache(updatedUser.Id); err != nil {
+		common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %d: %s", updatedUser.Id, err.Error()))
 	}
 	recordManageAuditFor(c, updatedUser.Id, "user.update", map[string]interface{}{
 		"username": originUser.Username,
@@ -911,14 +923,25 @@ func CreateUser(c *gin.Context) {
 		DisplayName: user.DisplayName,
 		Role:        user.Role, // 保持管理员设置的角色
 	}
-	if err := cleanUser.Insert(0); err != nil {
+	authzTouched := false
+	if err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := cleanUser.InsertWithTx(tx, 0); err != nil {
+			return err
+		}
+		touched, err := updateAdminPermissionsForUserInTx(c, tx, cleanUser.Id, cleanUser.Role, user.AdminPermissions)
+		authzTouched = touched
+		return err
+	}); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	if err := updateAdminPermissionsForUser(c, cleanUser.Id, cleanUser.Role, user.AdminPermissions); err != nil {
-		common.ApiError(c, err)
-		return
+	if authzTouched {
+		if err := authz.ReloadPolicy(); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
+	cleanUser.FinishInsert(0)
 
 	recordManageAuditFor(c, cleanUser.Id, "user.create", map[string]interface{}{
 		"username": cleanUser.Username,
@@ -931,20 +954,20 @@ func CreateUser(c *gin.Context) {
 	return
 }
 
-func updateAdminPermissionsForUser(c *gin.Context, userID int, userRole int, permissions map[string]map[string]bool) error {
+func updateAdminPermissionsForUserInTx(c *gin.Context, tx *gorm.DB, userID int, userRole int, permissions map[string]map[string]bool) (bool, error) {
 	if permissions == nil {
 		if userRole < common.RoleAdminUser && c.GetInt("role") == common.RoleRootUser {
-			return authz.ClearUserAuthorization(userID)
+			return true, authz.ClearUserAuthorizationInTx(tx, userID)
 		}
-		return nil
+		return false, nil
 	}
 	if c.GetInt("role") != common.RoleRootUser {
-		return fmt.Errorf("only root can update admin permissions")
+		return false, fmt.Errorf("only root can update admin permissions")
 	}
 	if userRole < common.RoleAdminUser {
-		return authz.ClearUserAuthorization(userID)
+		return true, authz.ClearUserAuthorizationInTx(tx, userID)
 	}
-	return authz.SetUserPermissions(userID, permissions)
+	return true, authz.SetUserPermissionsInTx(tx, userID, permissions)
 }
 
 type ManageRequest struct {
@@ -1070,12 +1093,26 @@ func ManageUser(c *gin.Context) {
 		return
 	}
 
-	if err := user.Update(false); err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	authzTouched := false
 	if req.Action == "demote" {
-		if err := authz.ClearUserAuthorization(user.Id); err != nil {
+		if err := model.DB.Transaction(func(tx *gorm.DB) error {
+			if err := user.UpdateWithTx(tx, false); err != nil {
+				return err
+			}
+			authzTouched = true
+			return authz.ClearUserAuthorizationInTx(tx, user.Id)
+		}); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if authzTouched {
+			if err := authz.ReloadPolicy(); err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
+	} else {
+		if err := user.Update(false); err != nil {
 			common.ApiError(c, err)
 			return
 		}

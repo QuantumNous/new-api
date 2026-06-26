@@ -49,6 +49,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   handleDeleteAllDisabled,
@@ -117,19 +122,28 @@ export function ChannelsPrimaryButtons() {
         </div>
 
         {/* Create Channel */}
-        {canEditSensitive && (
-          <Button
-            onClick={() => {
-              setCurrentRow(null)
-              setOpen('create-channel')
-            }}
-            size='sm'
-          >
-            <Plus className='h-4 w-4' />
-            <span className='max-sm:hidden'>{t('Create Channel')}</span>
-            <span className='sm:hidden'>{t('Create')}</span>
-          </Button>
-        )}
+        <Tooltip>
+          <TooltipTrigger render={<span className='inline-flex' />}>
+            <Button
+              onClick={() => {
+                if (!canEditSensitive) return
+                setCurrentRow(null)
+                setOpen('create-channel')
+              }}
+              size='sm'
+              disabled={!canEditSensitive}
+            >
+              <Plus className='h-4 w-4' />
+              <span className='max-sm:hidden'>{t('Create Channel')}</span>
+              <span className='sm:hidden'>{t('Create')}</span>
+            </Button>
+          </TooltipTrigger>
+          {!canEditSensitive && (
+            <TooltipContent>
+              {t('No permission to perform this action')}
+            </TooltipContent>
+          )}
+        </Tooltip>
 
         {/* More Actions */}
         <DropdownMenu>

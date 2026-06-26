@@ -11,6 +11,7 @@ import (
 	"github.com/casbin/casbin/v2"
 	casbinmodel "github.com/casbin/casbin/v2/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Permission struct {
@@ -112,11 +113,13 @@ m = r.sub == p.sub && r.obj == p.obj && r.act == p.act && p.eft == "allow"
 `
 
 func Init(db *gorm.DB) error {
-	if err := seedBuiltInRoles(db); err != nil {
-		return err
-	}
-	if err := resetBuiltInRolePolicies(db); err != nil {
-		return err
+	if common.IsMasterNode {
+		if err := seedBuiltInRoles(db); err != nil {
+			return err
+		}
+		if err := resetBuiltInRolePolicies(db); err != nil {
+			return err
+		}
 	}
 
 	m, err := casbinmodel.NewModelFromString(modelText)
@@ -133,6 +136,9 @@ func Init(db *gorm.DB) error {
 	enforcer = e
 	enforcerMu.Unlock()
 
+	if !common.IsMasterNode {
+		return nil
+	}
 	return seedDefaultPolicies()
 }
 
@@ -205,6 +211,34 @@ func SetUserPermissions(userID int, permissions PermissionsMap) error {
 	return nil
 }
 
+func SetUserPermissionsInTx(tx *gorm.DB, userID int, permissions PermissionsMap) error {
+	e := currentEnforcer()
+	if e == nil {
+		return fmt.Errorf("authz enforcer is not initialized")
+	}
+
+	for resource, actions := range permissions {
+		if !isKnownResource(resource) {
+			continue
+		}
+		if err := tx.Where("ptype = ? AND v0 = ? AND v1 = ?", "p", UserSubject(userID), resource).Delete(&model.CasbinRule{}).Error; err != nil {
+			return err
+		}
+		policies := userOverridePolicies(e, resource, actions)
+		if len(policies) == 0 {
+			continue
+		}
+		rules := make([]model.CasbinRule, 0, len(policies))
+		for _, policy := range policies {
+			rules = append(rules, newRule("p", []string{UserSubject(userID), policy.Resource, policy.Action, policy.Effect}))
+		}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&rules).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func ClearUserPermissions(userID int) error {
 	e := currentEnforcer()
 	if e == nil {
@@ -219,8 +253,30 @@ func ClearUserPermissions(userID int) error {
 	return nil
 }
 
+func ClearUserPermissionsInTx(tx *gorm.DB, userID int) error {
+	for _, resource := range catalog {
+		if err := tx.Where("ptype = ? AND v0 = ? AND v1 = ?", "p", UserSubject(userID), resource.Resource).Delete(&model.CasbinRule{}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func ClearUserAuthorization(userID int) error {
 	return ClearUserPermissions(userID)
+}
+
+func ClearUserAuthorizationInTx(tx *gorm.DB, userID int) error {
+	return ClearUserPermissionsInTx(tx, userID)
+}
+
+func ReloadPolicy() error {
+	enforcerMu.Lock()
+	defer enforcerMu.Unlock()
+	if enforcer == nil {
+		return fmt.Errorf("authz enforcer is not initialized")
+	}
+	return enforcer.LoadPolicy()
 }
 
 func ExplicitUserPermissions(userID int) PermissionsMap {
@@ -312,23 +368,16 @@ func seedBuiltInRoles(db *gorm.DB) error {
 		},
 	}
 	for _, role := range roles {
-		var existing model.AuthzRole
-		err := db.Where("key = ?", role.Key).First(&existing).Error
-		if err == nil {
-			existing.Name = role.Name
-			existing.Description = role.Description
-			existing.BuiltIn = role.BuiltIn
-			existing.Enabled = role.Enabled
-			existing.Sort = role.Sort
-			if err := db.Save(&existing).Error; err != nil {
-				return err
-			}
-			continue
-		}
-		if err != gorm.ErrRecordNotFound {
-			return err
-		}
-		if err := db.Create(&role).Error; err != nil {
+		if err := db.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "key"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"name",
+				"description",
+				"built_in",
+				"enabled",
+				"sort",
+			}),
+		}).Create(&role).Error; err != nil {
 			return err
 		}
 	}

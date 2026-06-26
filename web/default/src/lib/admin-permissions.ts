@@ -45,6 +45,13 @@ export const ADMIN_PERMISSION_CATALOG = [
         descriptionKey: 'Create channels or edit keys, base URLs, and overrides.',
         defaultAdmin: false,
       },
+      {
+        value: ADMIN_PERMISSION_ACTIONS.SECRET_VIEW,
+        labelKey: 'View channel secrets',
+        descriptionKey:
+          'Reserved for viewing complete channel keys after secure verification.',
+        defaultAdmin: false,
+      },
     ],
   },
 ] as const

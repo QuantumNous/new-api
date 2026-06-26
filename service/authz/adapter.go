@@ -7,6 +7,7 @@ import (
 	casbinmodel "github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type gormAdapter struct {
@@ -62,7 +63,7 @@ func (a *gormAdapter) AddPolicy(_ string, ptype string, rule []string) error {
 	if count > 0 {
 		return nil
 	}
-	return a.db.Create(&casbinRule).Error
+	return a.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&casbinRule).Error
 }
 
 func (a *gormAdapter) RemovePolicy(_ string, ptype string, rule []string) error {

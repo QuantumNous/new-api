@@ -316,12 +316,18 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           <DropdownMenuSeparator />
 
           {/* Copy Channel */}
-          {canEditSensitive && (
-            <DropdownMenuItem onClick={handleCopy}>
-              {t('Copy Channel')}
-              <DropdownMenuShortcut>
-                <Copy size={16} />
-              </DropdownMenuShortcut>
+          <DropdownMenuItem
+            disabled={!canEditSensitive}
+            onClick={canEditSensitive ? handleCopy : undefined}
+          >
+            {t('Copy Channel')}
+            <DropdownMenuShortcut>
+              <Copy size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+          {!canEditSensitive && (
+            <DropdownMenuItem disabled className='text-xs normal-case'>
+              {t('No permission to perform this action')}
             </DropdownMenuItem>
           )}
 
