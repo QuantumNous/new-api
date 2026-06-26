@@ -368,7 +368,7 @@ func verifyAndCredit(depositId string, rec *depositRecord, cfg cryptoChainConfig
 		CompleteTime:    time.Now().Unix(),
 		Status:          "success",
 	}
-	if err := topUp.FillCountryFromIP(c.ClientIP()).Insert(); err != nil {
+	if err := topUp.Insert(); err != nil {
 		common.SysLog(fmt.Sprintf("crypto: DB insert failed txHash=%s err=%v", rec.TxHash, err))
 		rec.Status = "failed"
 		return
