@@ -355,6 +355,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		if !sendStartIfNeeded() {
 			return false
 		}
+		if usage.TotalTokens == 0 {
+			usage = service.ResponseText2Usage(c, usageText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		}
 		if info.RelayFormat == types.RelayFormatClaude && info.ClaudeConvertInfo != nil {
 			info.ClaudeConvertInfo.Usage = usage
 		}
@@ -532,10 +535,6 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 	if streamErr != nil {
 		return nil, streamErr
-	}
-
-	if usage.TotalTokens == 0 {
-		usage = service.ResponseText2Usage(c, usageText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 	}
 
 	if !sendFinalChunk(nil) {
