@@ -1,0 +1,452 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "短信登录接口",
+    "description": "手机号短信验证码登录相关接口，可直接导入 Apifox。业务错误通常仍返回 HTTP 200，需要通过响应体 success 字段判断业务结果。",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "本地开发环境，请在 Apifox 中按实际部署地址调整"
+    }
+  ],
+  "tags": [
+    {
+      "name": "短信登录",
+      "description": "发送短信验证码、手机号验证码登录"
+    }
+  ],
+  "paths": {
+    "/api/sms/verification": {
+      "post": {
+        "tags": [
+          "短信登录"
+        ],
+        "summary": "发送短信验证码",
+        "description": "无需登录。用于向中国大陆手机号发送 6 位数字短信验证码。\n\n前置条件：系统配置 SmsLoginEnabled=true，且阿里云短信参数已配置。若开启 Turnstile，需要在 query 中传 turnstile token。\n\n手机号会规范化为 +86 格式保存；支持 13812345678、+8613812345678、8613812345678、008613812345678 等输入，空格、横线和括号会被忽略。\n\n安全策略：同一手机号 60 秒冷却，24 小时最多 10 次。为防止手机号枚举，当手机号不存在且注册关闭、或手机号属于禁用用户时，接口仍可能返回 success=true，但不会真实发送短信。",
+        "operationId": "sendSmsVerification",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Turnstile"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendSmsVerificationRequest"
+              },
+              "examples": {
+                "mainlandPhone": {
+                  "summary": "中国大陆手机号",
+                  "value": {
+                    "phone": "13812345678"
+                  }
+                },
+                "withCountryCode": {
+                  "summary": "带 +86 国家码",
+                  "value": {
+                    "phone": "+8613812345678"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "接口调用完成。业务成功或失败都可能返回 200，请以 success 判断。",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SmsVerificationSuccessResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApiErrorResponse"
+                    }
+                  ]
+                },
+                "examples": {
+                  "success": {
+                    "summary": "发送成功或为防枚举而静默成功",
+                    "value": {
+                      "success": true,
+                      "message": ""
+                    }
+                  },
+                  "disabled": {
+                    "summary": "短信登录未启用",
+                    "value": {
+                      "success": false,
+                      "message": "短信登录未启用"
+                    }
+                  },
+                  "invalidPhone": {
+                    "summary": "手机号格式不正确",
+                    "value": {
+                      "success": false,
+                      "message": "手机号格式不正确"
+                    }
+                  },
+                  "sendFailed": {
+                    "summary": "发送失败、冷却中、每日次数超限或短信服务异常",
+                    "value": {
+                      "success": false,
+                      "message": "验证码发送失败，请稍后重试"
+                    }
+                  },
+                  "turnstileMissing": {
+                    "summary": "Turnstile 已开启但未传 token",
+                    "value": {
+                      "success": false,
+                      "message": "Turnstile token 为空"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "触发全局 API 限流或关键接口限流，通常无响应体。"
+          },
+          "500": {
+            "description": "限流中间件内部错误等异常场景，可能无响应体。"
+          }
+        }
+      }
+    },
+    "/api/user/phone/login": {
+      "post": {
+        "tags": [
+          "短信登录"
+        ],
+        "summary": "手机号短信验证码登录",
+        "description": "无需登录。使用手机号和 6 位短信验证码登录。\n\n验证码校验成功后会立即消费，不能重复使用。若手机号对应用户不存在，且全站注册 RegisterEnabled=true，会自动创建普通用户；若注册关闭，则登录失败。\n\n若用户启用了 2FA，本接口只建立待验证会话并返回 data.require_2fa=true，客户端随后调用 /api/user/login/2fa 完成二次验证。普通登录成功时会写入登录 session cookie。",
+        "operationId": "smsLogin",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Turnstile"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsLoginRequest"
+              },
+              "examples": {
+                "login": {
+                  "summary": "验证码登录",
+                  "value": {
+                    "phone": "13812345678",
+                    "code": "123456"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "接口调用完成。业务成功、需要 2FA 或业务失败都可能返回 200，请以 success 和 data.require_2fa 判断。",
+            "headers": {
+              "Set-Cookie": {
+                "description": "登录成功或进入 2FA 待验证状态时写入 session cookie。",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/LoginSuccessResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Login2FARequiredResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApiErrorResponse"
+                    }
+                  ]
+                },
+                "examples": {
+                  "success": {
+                    "summary": "登录成功",
+                    "value": {
+                      "success": true,
+                      "message": "",
+                      "data": {
+                        "id": 1,
+                        "username": "u5678abcd",
+                        "display_name": "u5678abcd",
+                        "role": 1,
+                        "status": 1,
+                        "group": "default"
+                      }
+                    }
+                  },
+                  "require2FA": {
+                    "summary": "需要继续完成二次验证",
+                    "value": {
+                      "success": true,
+                      "message": "请输入两步验证码",
+                      "data": {
+                        "require_2fa": true
+                      }
+                    }
+                  },
+                  "invalidParams": {
+                    "summary": "参数错误，例如验证码不是 6 位数字",
+                    "value": {
+                      "success": false,
+                      "message": "无效的参数"
+                    }
+                  },
+                  "invalidCode": {
+                    "summary": "验证码错误或已过期",
+                    "value": {
+                      "success": false,
+                      "message": "验证码错误或已过期"
+                    }
+                  },
+                  "disabled": {
+                    "summary": "短信登录未启用",
+                    "value": {
+                      "success": false,
+                      "message": "短信登录未启用"
+                    }
+                  },
+                  "userDisabled": {
+                    "summary": "用户已被禁用",
+                    "value": {
+                      "success": false,
+                      "message": "该用户已被禁用"
+                    }
+                  },
+                  "registerDisabled": {
+                    "summary": "手机号不存在且注册关闭",
+                    "value": {
+                      "success": false,
+                      "message": "管理员关闭了新用户注册"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "触发全局 API 限流或关键接口限流，通常无响应体。"
+          },
+          "500": {
+            "description": "限流中间件内部错误等异常场景，可能无响应体。"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "Turnstile": {
+        "name": "turnstile",
+        "in": "query",
+        "description": "Cloudflare Turnstile token。仅当系统开启 TurnstileCheckEnabled 时必填；未开启时可不传。",
+        "required": false,
+        "schema": {
+          "type": "string"
+        },
+        "example": "0.xxxxx"
+      }
+    },
+    "schemas": {
+      "SendSmsVerificationRequest": {
+        "type": "object",
+        "required": [
+          "phone"
+        ],
+        "properties": {
+          "phone": {
+            "type": "string",
+            "description": "中国大陆手机号。后端会规范化为 +86 格式。",
+            "example": "13812345678"
+          }
+        }
+      },
+      "SmsLoginRequest": {
+        "type": "object",
+        "required": [
+          "phone",
+          "code"
+        ],
+        "properties": {
+          "phone": {
+            "type": "string",
+            "description": "中国大陆手机号。必须与发码时手机号对应。",
+            "example": "13812345678"
+          },
+          "code": {
+            "type": "string",
+            "description": "6 位数字短信验证码。",
+            "pattern": "^[0-9]{6}$",
+            "example": "123456"
+          }
+        }
+      },
+      "SmsVerificationSuccessResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": ""
+          }
+        }
+      },
+      "LoginSuccessResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "message",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": ""
+          },
+          "data": {
+            "$ref": "#/components/schemas/LoginUserData"
+          }
+        }
+      },
+      "Login2FARequiredResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "message",
+          "data"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "提示用户需要完成 2FA。",
+            "example": "请输入两步验证码"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "require_2fa"
+            ],
+            "properties": {
+              "require_2fa": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ],
+                "example": true
+              }
+            }
+          }
+        }
+      },
+      "LoginUserData": {
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "display_name",
+          "role",
+          "status",
+          "group"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32",
+            "description": "用户 ID。",
+            "example": 1
+          },
+          "username": {
+            "type": "string",
+            "description": "用户名。",
+            "example": "u5678abcd"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "显示名称。",
+            "example": "u5678abcd"
+          },
+          "role": {
+            "type": "integer",
+            "format": "int32",
+            "description": "用户角色。普通用户通常为 1。",
+            "example": 1
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "description": "用户状态。启用为 1，禁用为 2。",
+            "example": 1
+          },
+          "group": {
+            "type": "string",
+            "description": "用户分组。",
+            "example": "default"
+          }
+        }
+      },
+      "ApiErrorResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ],
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "description": "业务错误消息，可能受后端 i18n 影响。",
+            "example": "无效的参数"
+          }
+        }
+      }
+    }
+  }
+}

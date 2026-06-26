@@ -132,9 +132,20 @@ export function useSidebarData(): SidebarData {
             icon: Box,
           },
           {
-            title: t('Skill Hub'),
-            url: '/skill-hub',
+            title: '技能广场管理',
             icon: Puzzle,
+            activeUrls: ['/skill-hub'],
+            configUrls: ['/skill-hub', '/skill-hub/tags'],
+            items: [
+              {
+                title: '技能管理',
+                url: '/skill-hub',
+              },
+              {
+                title: '标签管理',
+                url: '/skill-hub/tags',
+              },
+            ],
           },
           {
             title: t('Users'),

@@ -33,6 +33,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/pricing", middleware.TryUserAuth(), controller.GetPricing)
 		skillHubRoute := apiRouter.Group("/skill-hub")
 		{
+			skillHubRoute.GET("/tags", controller.ListSkillHubTags)
+			skillHubRoute.GET("/tags/skills", controller.ListSkillHubSkillsByTags)
 			skillHubRoute.GET("/skills", controller.ListSkillHubSkills)
 			skillHubRoute.GET("/skills/:id/download", controller.DownloadSkillHubSkill)
 			skillHubRoute.GET("/skills/:id", controller.GetSkillHubSkill)
@@ -214,6 +216,10 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			adminSkillHubRoute.POST("/upload", controller.AdminUploadSkillHubZip)
 			adminSkillHubRoute.POST("/upload-icon", controller.AdminUploadSkillHubIcon)
+			adminSkillHubRoute.GET("/tags", controller.AdminListSkillHubTags)
+			adminSkillHubRoute.GET("/tags/skills", controller.AdminListSkillHubSkillsByTags)
+			adminSkillHubRoute.POST("/tags", controller.AdminCreateSkillHubTag)
+			adminSkillHubRoute.DELETE("/tags/:name", controller.AdminDeleteSkillHubTag)
 			adminSkillHubRoute.GET("/skills", controller.AdminListSkillHubSkills)
 			adminSkillHubRoute.POST("/skills", controller.AdminCreateSkillHubSkill)
 			adminSkillHubRoute.GET("/skills/:id", controller.AdminGetSkillHubSkill)

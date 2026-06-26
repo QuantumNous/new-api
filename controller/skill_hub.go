@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -14,23 +15,22 @@ import (
 )
 
 type skillHubSkillRequest struct {
-	ID            string                      `json:"id"`
-	Name          string                      `json:"name"`
-	Description   string                      `json:"description"`
-	Version       string                      `json:"version"`
-	Author        string                      `json:"author"`
-	Icon          string                      `json:"icon"`
-	Tags          []string                    `json:"tags"`
-	Verified      bool                        `json:"verified"`
-	Recommended   bool                        `json:"recommended"`
-	Published     bool                        `json:"published"`
-	Status        *int                        `json:"status"`
-	Sort          int                         `json:"sort"`
-	Compatibility model.SkillHubCompatibility `json:"compatibility"`
-	Permissions   []string                    `json:"permissions"`
-	Manifest      model.SkillHubManifest      `json:"manifest"`
-	Source        model.SkillHubSource        `json:"source"`
-	Changelog     string                      `json:"changelog"`
+	ID          string               `json:"id"`
+	Name        string               `json:"name"`
+	Description string               `json:"description"`
+	Version     string               `json:"version"`
+	Icon        string               `json:"icon"`
+	Tags        []string             `json:"tags"`
+	Verified    bool                 `json:"verified"`
+	Published   bool                 `json:"published"`
+	Status      *int                 `json:"status"`
+	Sort        int                  `json:"sort"`
+	Source      model.SkillHubSource `json:"source"`
+}
+
+type skillHubTagRequest struct {
+	Name string `json:"name"`
+	Sort int    `json:"sort"`
 }
 
 func ListSkillHubSkills(c *gin.Context) {
@@ -44,6 +44,14 @@ func ListSkillHubSkills(c *gin.Context) {
 		Items: model.SkillHubSkillsToResponses(skills, false),
 		Total: total,
 	})
+}
+
+func ListSkillHubSkillsByTags(c *gin.Context) {
+	listSkillHubSkillsByTags(c, false)
+}
+
+func ListSkillHubTags(c *gin.Context) {
+	listSkillHubTags(c, true)
 }
 
 func GetSkillHubSkill(c *gin.Context) {
@@ -88,6 +96,10 @@ func AdminListSkillHubSkills(c *gin.Context) {
 		Items: model.SkillHubSkillsToResponses(skills, true),
 		Total: total,
 	})
+}
+
+func AdminListSkillHubSkillsByTags(c *gin.Context) {
+	listSkillHubSkillsByTags(c, true)
 }
 
 func AdminGetSkillHubSkill(c *gin.Context) {
@@ -202,7 +214,7 @@ func AdminDeleteSkillHubSkill(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if err := model.DB.Delete(skill).Error; err != nil {
+	if err := model.DeleteSkillHubSkill(skill); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -215,6 +227,120 @@ func AdminPublishSkillHubSkill(c *gin.Context) {
 
 func AdminUnpublishSkillHubSkill(c *gin.Context) {
 	updateSkillHubPublishStatus(c, model.SkillHubStatusDraft)
+}
+
+func AdminListSkillHubTags(c *gin.Context) {
+	listSkillHubTags(c, false)
+}
+
+func listSkillHubTags(c *gin.Context, publishedOnly bool) {
+	pageInfo := common.GetPageQuery(c)
+	var (
+		tags  []*model.SkillHubTag
+		total int64
+		err   error
+	)
+	if publishedOnly {
+		tags, total, err = model.SearchSkillHubTags(c.Query("keyword"), publishedOnly, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	} else {
+		tags, total, err = model.SearchSkillHubTagsWithSync(c.Query("keyword"), publishedOnly, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	responses, err := model.SkillHubTagsToResponses(tags, publishedOnly)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, model.SkillHubTagListResponse{
+		Items: responses,
+		Total: total,
+	})
+}
+
+func listSkillHubSkillsByTags(c *gin.Context, admin bool) {
+	tagIDs, err := parseSkillHubTagIDs(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+	if len(tagIDs) == 0 {
+		skills, total, err := model.SearchSkillHubSkills(c.Query("keyword"), admin, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		common.ApiSuccess(c, model.SkillHubListResponse{
+			Items: model.SkillHubSkillsToResponses(skills, admin),
+			Total: total,
+		})
+		return
+	}
+	skills, total, err := model.SearchSkillHubSkillsByTagIDs(tagIDs, c.Query("keyword"), admin, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, model.SkillHubListResponse{
+		Items: model.SkillHubSkillsToResponses(skills, admin),
+		Total: total,
+	})
+}
+
+func parseSkillHubTagIDs(c *gin.Context) ([]int, error) {
+	values := make([]string, 0)
+	for _, key := range []string{"tag_ids", "tag_id", "ids"} {
+		values = append(values, c.QueryArray(key)...)
+	}
+
+	seen := map[int]struct{}{}
+	ids := make([]int, 0)
+	for _, value := range values {
+		for _, part := range strings.Split(value, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			id, err := strconv.Atoi(part)
+			if err != nil || id <= 0 {
+				return nil, fmt.Errorf("invalid tag id: %s", part)
+			}
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) > 50 {
+		return nil, fmt.Errorf("too many tag ids")
+	}
+	return ids, nil
+}
+
+func AdminCreateSkillHubTag(c *gin.Context) {
+	var request skillHubTagRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	tag, err := model.CreateSkillHubTag(request.Name, request.Sort)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, tag.ToResponse(0, true))
+}
+
+func AdminDeleteSkillHubTag(c *gin.Context) {
+	if err := model.DeleteSkillHubTag(c.Param("name")); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
 }
 
 func updateSkillHubPublishStatus(c *gin.Context, status int) {
@@ -243,11 +369,11 @@ func skillHubRequestToModel(request skillHubSkillRequest, existing *model.SkillH
 	skill.Name = strings.TrimSpace(request.Name)
 	skill.Description = strings.TrimSpace(request.Description)
 	skill.Version = strings.TrimSpace(request.Version)
-	skill.Author = strings.TrimSpace(request.Author)
+	skill.Author = ""
 	skill.Icon = strings.TrimSpace(request.Icon)
 	skill.Tags = model.StringListToJSON(request.Tags)
 	skill.Verified = request.Verified
-	skill.Recommended = request.Recommended
+	skill.Recommended = false
 	skill.Sort = request.Sort
 	if request.Status != nil {
 		skill.Status = *request.Status
@@ -256,23 +382,17 @@ func skillHubRequestToModel(request skillHubSkillRequest, existing *model.SkillH
 	} else {
 		skill.Status = model.SkillHubStatusDraft
 	}
-	skill.ConnectorMinVersion = strings.TrimSpace(request.Compatibility.ConnectorMinVersion)
-	skill.Platforms = model.StringListToJSON(request.Compatibility.Platforms)
-	skill.Permissions = model.StringListToJSON(request.Permissions)
-	skill.ManifestEntry = strings.TrimSpace(request.Manifest.Entry)
-	skill.ManifestPermissions = model.StringListToJSON(request.Manifest.Permissions)
-	skill.ManifestTools = model.StringListToJSON(request.Manifest.Tools)
-	skill.SourceType = strings.ToLower(strings.TrimSpace(request.Source.Type))
+	skill.ConnectorMinVersion = ""
+	skill.Platforms = ""
+	skill.Permissions = ""
+	skill.ManifestEntry = "SKILL.md"
+	skill.ManifestPermissions = ""
+	skill.ManifestTools = ""
+	skill.SourceType = "zip"
 	skill.SourceURL = strings.TrimSpace(request.Source.URL)
 	skill.SourceRef = strings.TrimSpace(request.Source.Ref)
 	skill.SourceChecksum = strings.TrimSpace(request.Source.Checksum)
-	skill.Changelog = strings.TrimSpace(request.Changelog)
-	if skill.SourceType == "" {
-		skill.SourceType = "zip"
-	}
-	if skill.ManifestEntry == "" {
-		skill.ManifestEntry = "SKILL.md"
-	}
+	skill.Changelog = ""
 	return skill
 }
 

@@ -22,6 +22,8 @@ import type {
   SkillHubListResponse,
   SkillHubSkill,
   SkillHubSkillResponse,
+  SkillHubTagListResponse,
+  SkillHubTagResponse,
 } from './types'
 
 export async function listAdminSkillHubSkills(params?: {
@@ -30,6 +32,43 @@ export async function listAdminSkillHubSkills(params?: {
   page_size?: number
 }): Promise<SkillHubListResponse> {
   const res = await api.get('/api/admin/skill-hub/skills', { params })
+  return res.data
+}
+
+export async function listSkillHubSkills(params?: {
+  keyword?: string
+  p?: number
+  page_size?: number
+}): Promise<SkillHubListResponse> {
+  const res = await api.get('/api/skill-hub/skills', { params })
+  return res.data
+}
+
+export async function listSkillHubSkillsByTags(
+  tagIds: number[],
+  params?: {
+    keyword?: string
+    p?: number
+    page_size?: number
+  }
+): Promise<SkillHubListResponse> {
+  const res = await api.get('/api/skill-hub/tags/skills', {
+    params: withTagIds(tagIds, params),
+  })
+  return res.data
+}
+
+export async function listAdminSkillHubSkillsByTags(
+  tagIds: number[],
+  params?: {
+    keyword?: string
+    p?: number
+    page_size?: number
+  }
+): Promise<SkillHubListResponse> {
+  const res = await api.get('/api/admin/skill-hub/tags/skills', {
+    params: withTagIds(tagIds, params),
+  })
   return res.data
 }
 
@@ -71,6 +110,41 @@ export async function setSkillHubSkillPublished(
   return res.data
 }
 
+export async function listAdminSkillHubTags(params?: {
+  keyword?: string
+  p?: number
+  page_size?: number
+}): Promise<SkillHubTagListResponse> {
+  const res = await api.get('/api/admin/skill-hub/tags', { params })
+  return res.data
+}
+
+export async function listSkillHubTags(params?: {
+  keyword?: string
+  p?: number
+  page_size?: number
+}): Promise<SkillHubTagListResponse> {
+  const res = await api.get('/api/skill-hub/tags', { params })
+  return res.data
+}
+
+export async function createSkillHubTag(input: {
+  name: string
+  sort?: number
+}): Promise<SkillHubTagResponse> {
+  const res = await api.post('/api/admin/skill-hub/tags', input)
+  return res.data
+}
+
+export async function deleteSkillHubTag(
+  name: string
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.delete(
+    `/api/admin/skill-hub/tags/${encodeURIComponent(name)}`
+  )
+  return res.data
+}
+
 export async function uploadSkillHubZip(
   file: File,
   form: Pick<SkillHubForm, 'id' | 'version'>
@@ -108,24 +182,15 @@ export function skillToForm(skill?: SkillHubSkill): SkillHubForm {
     name: skill?.name || '',
     description: skill?.description || '',
     version: skill?.version || '1.0.0',
-    author: skill?.author || '',
     icon: skill?.icon || '',
-    tags: listToText(skill?.tags),
+    tags: cleanList(skill?.tags),
     verified: Boolean(skill?.verified),
-    recommended: Boolean(skill?.recommended),
     published: Boolean(skill?.published || skill?.status === 1),
     sort: skill?.sort || 0,
-    connectorMinVersion: skill?.compatibility?.connectorMinVersion || '',
-    platforms: listToText(skill?.compatibility?.platforms),
-    permissions: listToText(skill?.permissions),
-    manifestEntry: skill?.manifest?.entry || 'SKILL.md',
-    manifestPermissions: listToText(skill?.manifest?.permissions),
-    manifestTools: listToText(skill?.manifest?.tools),
     sourceType: 'zip',
     sourceUrl: skill?.source?.url || '',
     sourceRef: skill?.source?.ref || '',
     sourceChecksum: skill?.source?.checksum || '',
-    changelog: skill?.changelog || '',
   }
 }
 
@@ -135,40 +200,45 @@ function formToPayload(form: SkillHubForm) {
     name: form.name.trim(),
     description: form.description.trim(),
     version: form.version.trim(),
-    author: form.author.trim(),
     icon: form.icon.trim(),
-    tags: textToList(form.tags),
+    tags: cleanList(form.tags),
     verified: form.verified,
-    recommended: form.recommended,
     published: form.published,
     sort: Number(form.sort) || 0,
-    compatibility: {
-      connectorMinVersion: form.connectorMinVersion.trim(),
-      platforms: textToList(form.platforms),
-    },
-    permissions: textToList(form.permissions),
-    manifest: {
-      entry: form.manifestEntry.trim() || 'SKILL.md',
-      permissions: textToList(form.manifestPermissions),
-      tools: textToList(form.manifestTools),
-    },
     source: {
       type: 'zip',
       url: form.sourceUrl.trim(),
       ref: form.sourceRef.trim(),
       checksum: form.sourceChecksum.trim(),
     },
-    changelog: form.changelog.trim(),
   }
 }
 
-function listToText(values?: string[]) {
-  return Array.isArray(values) ? values.join(', ') : ''
+function cleanList(values?: string[]) {
+  const seen = new Set<string>()
+  const clean: string[] = []
+
+  for (const value of values || []) {
+    const item = value.trim()
+    const key = item.toLowerCase()
+    if (!item || seen.has(key)) continue
+    seen.add(key)
+    clean.push(item)
+  }
+
+  return clean
 }
 
-function textToList(value: string) {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
+function withTagIds(
+  tagIds: number[],
+  params?: {
+    keyword?: string
+    p?: number
+    page_size?: number
+  }
+) {
+  return {
+    ...params,
+    tag_ids: tagIds.filter((id) => Number.isInteger(id) && id > 0).join(','),
+  }
 }
