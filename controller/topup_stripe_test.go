@@ -76,16 +76,34 @@ func TestBuildStripeCheckoutSessionParamsAlwaysAllowsPromotionCodes(t *testing.T
 
 func TestResolveStripeTopUpCheckoutUsesRequestedCurrencyPackage(t *testing.T) {
 	originalPriceId := setting.StripePriceId
+	originalPriceId20 := setting.StripePriceId20
+	originalPriceId200 := setting.StripePriceId200
 	originalJpyPriceId := setting.StripePriceIdJPY
+	originalJpyPriceId20 := setting.StripePriceIdJPY20
+	originalJpyPriceId200 := setting.StripePriceIdJPY200
 	originalBrlPriceId := setting.StripePriceIdBRL
+	originalBrlPriceId20 := setting.StripePriceIdBRL20
+	originalBrlPriceId200 := setting.StripePriceIdBRL200
 	t.Cleanup(func() {
 		setting.StripePriceId = originalPriceId
+		setting.StripePriceId20 = originalPriceId20
+		setting.StripePriceId200 = originalPriceId200
 		setting.StripePriceIdJPY = originalJpyPriceId
+		setting.StripePriceIdJPY20 = originalJpyPriceId20
+		setting.StripePriceIdJPY200 = originalJpyPriceId200
 		setting.StripePriceIdBRL = originalBrlPriceId
+		setting.StripePriceIdBRL20 = originalBrlPriceId20
+		setting.StripePriceIdBRL200 = originalBrlPriceId200
 	})
 	setting.StripePriceId = "price_usd_package"
+	setting.StripePriceId20 = "price_usd_20_package"
+	setting.StripePriceId200 = "price_usd_200_package"
 	setting.StripePriceIdJPY = "price_jpy_package"
+	setting.StripePriceIdJPY20 = "price_jpy_20_package"
+	setting.StripePriceIdJPY200 = "price_jpy_200_package"
 	setting.StripePriceIdBRL = "price_brl_package"
+	setting.StripePriceIdBRL20 = "price_brl_20_package"
+	setting.StripePriceIdBRL200 = "price_brl_200_package"
 
 	checkout, err := resolveStripeTopUpCheckout(&StripePayRequest{
 		Amount:         10,
@@ -98,14 +116,34 @@ func TestResolveStripeTopUpCheckoutUsesRequestedCurrencyPackage(t *testing.T) {
 	require.Equal(t, 1500.0, checkout.Money)
 
 	checkout, err = resolveStripeTopUpCheckout(&StripePayRequest{
-		Amount:         30,
-		StripeCurrency: "BRL",
-	}, 30, "default")
+		Amount:         20,
+		StripeCurrency: "JPY",
+	}, 20, "default")
 	require.NoError(t, err)
-	require.Equal(t, "price_brl_package", checkout.PriceId)
-	require.Equal(t, int64(3), checkout.Quantity)
+	require.Equal(t, "price_jpy_20_package", checkout.PriceId)
+	require.Equal(t, int64(1), checkout.Quantity)
+	require.Equal(t, "JPY", checkout.PaymentCurrency)
+	require.Equal(t, 3000.0, checkout.Money)
+
+	checkout, err = resolveStripeTopUpCheckout(&StripePayRequest{
+		Amount:         200,
+		StripeCurrency: "USD",
+	}, 200, "default")
+	require.NoError(t, err)
+	require.Equal(t, "price_usd_200_package", checkout.PriceId)
+	require.Equal(t, int64(1), checkout.Quantity)
+	require.Equal(t, "USD", checkout.PaymentCurrency)
+	require.Equal(t, 200.0, checkout.Money)
+
+	checkout, err = resolveStripeTopUpCheckout(&StripePayRequest{
+		Amount:         200,
+		StripeCurrency: "BRL",
+	}, 200, "default")
+	require.NoError(t, err)
+	require.Equal(t, "price_brl_200_package", checkout.PriceId)
+	require.Equal(t, int64(1), checkout.Quantity)
 	require.Equal(t, "BRL", checkout.PaymentCurrency)
-	require.InEpsilon(t, 299.70, checkout.Money, 0.0001)
+	require.InEpsilon(t, 1998.00, checkout.Money, 0.0001)
 }
 
 func TestResolveStripeTopUpCheckoutRejectsUnsupportedCurrencyPackage(t *testing.T) {
@@ -117,7 +155,7 @@ func TestResolveStripeTopUpCheckoutRejectsUnsupportedCurrencyPackage(t *testing.
 	require.EqualError(t, err, "unsupported Stripe checkout currency")
 }
 
-func TestResolveStripeTopUpCheckoutRequiresPackageMultiple(t *testing.T) {
+func TestResolveStripeTopUpCheckoutRejectsUnsupportedPackageAmount(t *testing.T) {
 	originalPriceId := setting.StripePriceId
 	t.Cleanup(func() {
 		setting.StripePriceId = originalPriceId
@@ -129,7 +167,7 @@ func TestResolveStripeTopUpCheckoutRequiresPackageMultiple(t *testing.T) {
 		StripeCurrency: "USD",
 	}, 15, "default")
 
-	require.EqualError(t, err, "Stripe checkout package requires a 10 USD credit multiple")
+	require.EqualError(t, err, "Stripe checkout package requires one of: 10, 20, 200 USD credits")
 }
 
 func TestStripePaymentSnapshotFromEventUsesCurrencyMinorUnits(t *testing.T) {

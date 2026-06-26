@@ -3,8 +3,14 @@ package setting
 var StripeApiSecret = ""
 var StripeWebhookSecret = ""
 var StripePriceId = ""
+var StripePriceId20 = ""
+var StripePriceId200 = ""
 var StripePriceIdJPY = ""
+var StripePriceIdJPY20 = ""
+var StripePriceIdJPY200 = ""
 var StripePriceIdBRL = ""
+var StripePriceIdBRL20 = ""
+var StripePriceIdBRL200 = ""
 var StripeUnitPrice = 8.0
 var StripeMinTopUp = 1
 var StripePromotionCodesEnabled = false

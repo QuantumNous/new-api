@@ -344,8 +344,14 @@ const paymentSchema = z
     StripeApiSecret: z.string(),
     StripeWebhookSecret: z.string(),
     StripePriceId: z.string(),
+    StripePriceId20: z.string(),
+    StripePriceId200: z.string(),
     StripePriceIdJPY: z.string(),
+    StripePriceIdJPY20: z.string(),
+    StripePriceIdJPY200: z.string(),
     StripePriceIdBRL: z.string(),
+    StripePriceIdBRL20: z.string(),
+    StripePriceIdBRL200: z.string(),
     StripeUnitPrice: z.coerce.number().min(0),
     StripeMinTopUp: z.coerce.number().min(0),
     StripePromotionCodesEnabled: z.boolean(),
@@ -642,6 +648,17 @@ export function PaymentSettingsSection({
   })
 
   const { isSubmitting } = form.formState
+  const stripePriceIdFields = [
+    { name: 'StripePriceId', currency: 'USD', amount: 10 },
+    { name: 'StripePriceId20', currency: 'USD', amount: 20 },
+    { name: 'StripePriceId200', currency: 'USD', amount: 200 },
+    { name: 'StripePriceIdJPY', currency: 'JPY', amount: 10 },
+    { name: 'StripePriceIdJPY20', currency: 'JPY', amount: 20 },
+    { name: 'StripePriceIdJPY200', currency: 'JPY', amount: 200 },
+    { name: 'StripePriceIdBRL', currency: 'BRL', amount: 10 },
+    { name: 'StripePriceIdBRL20', currency: 'BRL', amount: 20 },
+    { name: 'StripePriceIdBRL200', currency: 'BRL', amount: 200 },
+  ] as const
 
   const setPaymentValue = React.useCallback(
     (
@@ -721,8 +738,14 @@ export function PaymentSettingsSection({
       StripeApiSecret: values.StripeApiSecret.trim(),
       StripeWebhookSecret: values.StripeWebhookSecret.trim(),
       StripePriceId: values.StripePriceId.trim(),
+      StripePriceId20: values.StripePriceId20.trim(),
+      StripePriceId200: values.StripePriceId200.trim(),
       StripePriceIdJPY: values.StripePriceIdJPY.trim(),
+      StripePriceIdJPY20: values.StripePriceIdJPY20.trim(),
+      StripePriceIdJPY200: values.StripePriceIdJPY200.trim(),
       StripePriceIdBRL: values.StripePriceIdBRL.trim(),
+      StripePriceIdBRL20: values.StripePriceIdBRL20.trim(),
+      StripePriceIdBRL200: values.StripePriceIdBRL200.trim(),
       StripeUnitPrice: values.StripeUnitPrice,
       StripeMinTopUp: values.StripeMinTopUp,
       StripePromotionCodesEnabled: values.StripePromotionCodesEnabled,
@@ -778,8 +801,14 @@ export function PaymentSettingsSection({
       StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
       StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
       StripePriceId: initialRef.current.StripePriceId.trim(),
+      StripePriceId20: initialRef.current.StripePriceId20.trim(),
+      StripePriceId200: initialRef.current.StripePriceId200.trim(),
       StripePriceIdJPY: initialRef.current.StripePriceIdJPY.trim(),
+      StripePriceIdJPY20: initialRef.current.StripePriceIdJPY20.trim(),
+      StripePriceIdJPY200: initialRef.current.StripePriceIdJPY200.trim(),
       StripePriceIdBRL: initialRef.current.StripePriceIdBRL.trim(),
+      StripePriceIdBRL20: initialRef.current.StripePriceIdBRL20.trim(),
+      StripePriceIdBRL200: initialRef.current.StripePriceIdBRL200.trim(),
       StripeUnitPrice: initialRef.current.StripeUnitPrice,
       StripeMinTopUp: initialRef.current.StripeMinTopUp,
       StripePromotionCodesEnabled:
@@ -923,23 +952,11 @@ export function PaymentSettingsSection({
       })
     }
 
-    if (sanitized.StripePriceId !== initial.StripePriceId) {
-      updates.push({ key: 'StripePriceId', value: sanitized.StripePriceId })
-    }
-
-    if (sanitized.StripePriceIdJPY !== initial.StripePriceIdJPY) {
-      updates.push({
-        key: 'StripePriceIdJPY',
-        value: sanitized.StripePriceIdJPY,
-      })
-    }
-
-    if (sanitized.StripePriceIdBRL !== initial.StripePriceIdBRL) {
-      updates.push({
-        key: 'StripePriceIdBRL',
-        value: sanitized.StripePriceIdBRL,
-      })
-    }
+    stripePriceIdFields.forEach(({ name }) => {
+      if (sanitized[name] !== initial[name]) {
+        updates.push({ key: name, value: sanitized[name] })
+      }
+    })
 
     if (sanitized.StripeUnitPrice !== initial.StripeUnitPrice) {
       updates.push({ key: 'StripeUnitPrice', value: sanitized.StripeUnitPrice })
@@ -1880,59 +1897,30 @@ export function PaymentSettingsSection({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name='StripePriceId'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Price ID')} (USD)</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t('price_xxx')}
-                        {...field}
-                        onChange={(event) => field.onChange(event.target.value)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='StripePriceIdJPY'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Price ID')} (JPY)</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t('price_xxx')}
-                        {...field}
-                        onChange={(event) => field.onChange(event.target.value)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='StripePriceIdBRL'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Price ID')} (BRL)</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t('price_xxx')}
-                        {...field}
-                        onChange={(event) => field.onChange(event.target.value)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {stripePriceIdFields.map(({ name, currency, amount }) => (
+                <FormField
+                  key={name}
+                  control={form.control}
+                  name={name}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('Price ID')} ({currency} {amount})
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('price_xxx')}
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ))}
             </div>
 
             <div className='grid gap-6 md:grid-cols-3'>

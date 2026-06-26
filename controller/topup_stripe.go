@@ -61,7 +61,12 @@ type StripePayRequest struct {
 type StripeAdaptor struct {
 }
 
-const stripeTopUpPackageCreditAmount int64 = 10
+const (
+	stripeTopUpPackage10    int64 = 10
+	stripeTopUpPackage20    int64 = 20
+	stripeTopUpPackage200   int64 = 200
+	stripeTopUpLineQuantity int64 = 1
+)
 
 type stripeTopUpCheckout struct {
 	PriceId         string
@@ -90,45 +95,116 @@ func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, g
 		}, nil
 	}
 
-	pkg, ok := stripeTopUpCurrencyPackageFor(requestedCurrency)
+	pkg, ok := stripeTopUpCurrencyPackageFor(requestedCurrency, normalizedAmount)
 	if !ok {
+		if stripeTopUpCurrencySupported(requestedCurrency) {
+			return nil, errors.New("Stripe checkout package requires one of: 10, 20, 200 USD credits")
+		}
 		return nil, errors.New("unsupported Stripe checkout currency")
 	}
 	if strings.TrimSpace(pkg.PriceId) == "" {
-		return nil, fmt.Errorf("Stripe %s Price ID 未配置", requestedCurrency)
-	}
-	if normalizedAmount <= 0 || normalizedAmount%stripeTopUpPackageCreditAmount != 0 {
-		return nil, fmt.Errorf("Stripe checkout package requires a %d USD credit multiple", stripeTopUpPackageCreditAmount)
+		return nil, fmt.Errorf("Stripe %s %d Price ID 未配置", requestedCurrency, normalizedAmount)
 	}
 
-	quantity := normalizedAmount / stripeTopUpPackageCreditAmount
 	return &stripeTopUpCheckout{
 		PriceId:         strings.TrimSpace(pkg.PriceId),
-		Quantity:        quantity,
-		Money:           decimal.NewFromFloat(pkg.UnitAmount).Mul(decimal.NewFromInt(quantity)).InexactFloat64(),
+		Quantity:        stripeTopUpLineQuantity,
+		Money:           pkg.UnitAmount,
 		PaymentCurrency: pkg.Currency,
 	}, nil
 }
 
-func stripeTopUpCurrencyPackageFor(currency string) (stripeTopUpCurrencyPackage, bool) {
+func stripeTopUpCurrencySupported(currency string) bool {
+	switch strings.ToUpper(strings.TrimSpace(currency)) {
+	case "USD", "JPY", "BRL":
+		return true
+	default:
+		return false
+	}
+}
+
+func stripeTopUpCurrencyPackageFor(currency string, amount int64) (stripeTopUpCurrencyPackage, bool) {
 	switch strings.ToUpper(strings.TrimSpace(currency)) {
 	case "USD":
+		return stripeTopUpUSDPackageFor(amount)
+	case "JPY":
+		return stripeTopUpJPYPackageFor(amount)
+	case "BRL":
+		return stripeTopUpBRLPackageFor(amount)
+	default:
+		return stripeTopUpCurrencyPackage{}, false
+	}
+}
+
+func stripeTopUpUSDPackageFor(amount int64) (stripeTopUpCurrencyPackage, bool) {
+	switch amount {
+	case stripeTopUpPackage10:
 		return stripeTopUpCurrencyPackage{
 			Currency:   "USD",
 			PriceId:    setting.StripePriceId,
 			UnitAmount: 10,
 		}, true
-	case "JPY":
+	case stripeTopUpPackage20:
+		return stripeTopUpCurrencyPackage{
+			Currency:   "USD",
+			PriceId:    setting.StripePriceId20,
+			UnitAmount: 20,
+		}, true
+	case stripeTopUpPackage200:
+		return stripeTopUpCurrencyPackage{
+			Currency:   "USD",
+			PriceId:    setting.StripePriceId200,
+			UnitAmount: 200,
+		}, true
+	default:
+		return stripeTopUpCurrencyPackage{}, false
+	}
+}
+
+func stripeTopUpJPYPackageFor(amount int64) (stripeTopUpCurrencyPackage, bool) {
+	switch amount {
+	case stripeTopUpPackage10:
 		return stripeTopUpCurrencyPackage{
 			Currency:   "JPY",
 			PriceId:    setting.StripePriceIdJPY,
 			UnitAmount: 1500,
 		}, true
-	case "BRL":
+	case stripeTopUpPackage20:
+		return stripeTopUpCurrencyPackage{
+			Currency:   "JPY",
+			PriceId:    setting.StripePriceIdJPY20,
+			UnitAmount: 3000,
+		}, true
+	case stripeTopUpPackage200:
+		return stripeTopUpCurrencyPackage{
+			Currency:   "JPY",
+			PriceId:    setting.StripePriceIdJPY200,
+			UnitAmount: 30000,
+		}, true
+	default:
+		return stripeTopUpCurrencyPackage{}, false
+	}
+}
+
+func stripeTopUpBRLPackageFor(amount int64) (stripeTopUpCurrencyPackage, bool) {
+	switch amount {
+	case stripeTopUpPackage10:
 		return stripeTopUpCurrencyPackage{
 			Currency:   "BRL",
 			PriceId:    setting.StripePriceIdBRL,
 			UnitAmount: 99.90,
+		}, true
+	case stripeTopUpPackage20:
+		return stripeTopUpCurrencyPackage{
+			Currency:   "BRL",
+			PriceId:    setting.StripePriceIdBRL20,
+			UnitAmount: 199.80,
+		}, true
+	case stripeTopUpPackage200:
+		return stripeTopUpCurrencyPackage{
+			Currency:   "BRL",
+			PriceId:    setting.StripePriceIdBRL200,
+			UnitAmount: 1998.00,
 		}, true
 	default:
 		return stripeTopUpCurrencyPackage{}, false
