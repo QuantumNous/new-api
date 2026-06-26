@@ -270,6 +270,12 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     window.open(url, '_blank');
   };
 
+  // Open the CC Switch config dialog directly for a token
+  const onOpenCCSwitch = async (record) => {
+    const fullKey = await fetchTokenKey(record);
+    openCCSwitchModal(fullKey);
+  };
+
   // Manage token function (delete, enable, disable)
   const manageToken = async (id, action, record) => {
     setLoading(true);
@@ -505,6 +511,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     copyTokenKey,
     copyTokenConnectionString,
     onOpenLink,
+    onOpenCCSwitch,
     manageToken,
     searchTokens,
     sortToken,
