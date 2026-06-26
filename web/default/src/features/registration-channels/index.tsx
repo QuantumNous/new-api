@@ -38,6 +38,8 @@ type ChannelStat = {
   registered_count: number
   paying_count: number
   topup_amount: number
+  uv: number
+  pv: number
 }
 
 const RANGES = [1, 7, 14, 29]
@@ -123,6 +125,8 @@ export function RegistrationChannels() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t('Channel')}</TableHead>
+                <TableHead className='text-right'>UV</TableHead>
+                <TableHead className='text-right'>PV</TableHead>
                 <TableHead className='text-right'>
                   {t('Registered Users')}
                 </TableHead>
@@ -138,7 +142,7 @@ export function RegistrationChannels() {
               {filtered.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={6}
                     className='text-muted-foreground h-24 text-center'
                   >
                     {loading ? t('Loading...') : t('No data')}
@@ -149,6 +153,12 @@ export function RegistrationChannels() {
                 <TableRow key={s.channel}>
                   <TableCell className='font-medium'>
                     {channelLabel(s.channel)}
+                  </TableCell>
+                  <TableCell className='text-right'>
+                    {s.uv > 0 ? s.uv : '—'}
+                  </TableCell>
+                  <TableCell className='text-right'>
+                    {s.pv > 0 ? s.pv : '—'}
                   </TableCell>
                   <TableCell className='text-right'>
                     {s.registered_count}

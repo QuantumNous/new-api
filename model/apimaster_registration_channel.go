@@ -71,6 +71,17 @@ func EnsureApimasterRegistrationChannelSchema() error {
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_utm jsonb`,
 		`CREATE INDEX IF NOT EXISTS idx_users_registration_channel_code ON users (registration_channel_code)`,
 		`CREATE INDEX IF NOT EXISTS idx_registration_channels_enabled ON registration_channels (enabled)`,
+		// GA4 渠道 UV/PV 缓存表，由 /liz/scripts/channel_funnel_report.py 每天写入
+		// （Go 端没有 GA4 凭证，只读这张表）。这里也建一遍是为了幂等保险——即使
+		// Python 那边还没跑过，这个接口也不会因为表不存在而整体报错。
+		`CREATE TABLE IF NOT EXISTS ga_channel_daily_traffic (
+			day date NOT NULL,
+			channel text NOT NULL,
+			uv int NOT NULL DEFAULT 0,
+			pv int NOT NULL DEFAULT 0,
+			updated_at timestamptz NOT NULL DEFAULT now(),
+			PRIMARY KEY (day, channel)
+		)`,
 	}
 	for _, statement := range statements {
 		if err := APIMASTER_PG_DB.Exec(statement).Error; err != nil {
@@ -141,6 +152,8 @@ type RegistrationChannelStat struct {
 	RegisteredCount int    `json:"registered_count"`
 	PayingCount     int    `json:"paying_count"`
 	TopupAmount     int64  `json:"topup_amount"`
+	UV              int64  `json:"uv"`
+	PV              int64  `json:"pv"`
 }
 
 // channelDisplayExpr maps a user's raw source to its display key:
@@ -215,10 +228,30 @@ func ListRegistrationChannelStats(days int) ([]RegistrationChannelStat, error) {
 		return nil, err
 	}
 
+	// 4) GA4 流量（新用户 UV/PV），来自 channel_funnel_report.py 每天写入的缓存表
+	// —— Go 这边没有 GA4 凭证，只能查这张表，查不到/没配置时 uv/pv 就是 0。
+	type gaRow struct {
+		Channel string
+		UV      int64
+		PV      int64
+	}
+	var gaRows []gaRow
+	if err := APIMASTER_PG_DB.Raw(`
+		SELECT channel, COALESCE(SUM(uv),0) AS uv, COALESCE(SUM(pv),0) AS pv
+		FROM ga_channel_daily_traffic
+		WHERE day >= (now() - (? * interval '1 day'))::date
+		GROUP BY channel
+	`, days).Scan(&gaRows).Error; err != nil {
+		common.SysLog("failed to load ga_channel_daily_traffic (table may not exist yet): " + err.Error())
+		gaRows = nil
+	}
+
 	type agg struct {
 		reg    int
 		paying int
 		amount int64
+		uv     int64
+		pv     int64
 	}
 	byChannel := map[string]*agg{}
 	get := func(ch string) *agg {
@@ -241,6 +274,13 @@ func ListRegistrationChannelStats(days int) ([]RegistrationChannelStat, error) {
 		a.amount += tp.Amount
 		a.paying++
 	}
+	for _, g := range gaRows {
+		// 有流量但 0 注册的渠道（比如 google、toolify）也要在结果里出现，
+		// 不能只在处理注册/充值时才创建 entry。
+		a := get(g.Channel)
+		a.uv += g.UV
+		a.pv += g.PV
+	}
 
 	out := make([]RegistrationChannelStat, 0, len(byChannel))
 	for ch, a := range byChannel {
@@ -249,6 +289,8 @@ func ListRegistrationChannelStats(days int) ([]RegistrationChannelStat, error) {
 			RegisteredCount: a.reg,
 			PayingCount:     a.paying,
 			TopupAmount:     a.amount,
+			UV:              a.uv,
+			PV:              a.pv,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {
