@@ -11,8 +11,9 @@ var ModelList = []string{
 	// preview version
 	"gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts",
 	"gemini-2.5-flash-image", "gemini-2.5-flash-lite-preview-09-2025",
-	"gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-3.1-pro-preview",
-	"gemini-3.1-pro-preview-customtools", "gemini-3.1-flash-lite-preview",
+	"gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-3.5-flash",
+	"gemini-3.1-pro-preview", "gemini-3.1-pro-preview-customtools",
+	"gemini-3.1-flash-lite", "gemini-3.1-flash-lite-preview",
 	"gemini-3-pro-image-preview", "nano-banana-pro-preview",
 	"gemini-3.1-flash-image-preview", "gemini-robotics-er-1.5-preview",
 	"gemini-2.5-computer-use-preview-10-2025", "deep-research-pro-preview-12-2025",
