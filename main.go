@@ -130,6 +130,9 @@ func main() {
 	// Daily USD/CNY exchange rate fetch
 	service.StartExchangeRateFetchTask()
 
+	// Billing hold reconcile (HoldRefund timeout release)
+	service.StartBillingHoldReconcileTask()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)

@@ -316,6 +316,7 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&PerfMetric{},
 		&AffLog{},
+		&BillingHold{},
 	)
 	if err != nil {
 		return err

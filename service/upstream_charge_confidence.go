@@ -94,7 +94,6 @@ func ClassifyUpstreamChargeConfidence(err *types.NewAPIError) UpstreamChargeConf
 		return UpstreamChargeAmbiguous
 	}
 
-	// 默认可确认未扣费：未收到有效 completion 的 4xx 客户端错误。
 	if status >= 400 && status < 500 {
 		return UpstreamChargeConfirmedNot
 	}

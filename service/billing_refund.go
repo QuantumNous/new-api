@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RefundPreConsumeIfSafe 在确认上游未扣费时同步退还预扣费；不确定时 HoldRefund，暂不退款。
+// RefundPreConsumeIfSafe 在确认上游未扣费时同步退还预扣费；不确定时 HoldRefund 并预约超时对账。
 func RefundPreConsumeIfSafe(c *gin.Context, relayInfo *relaycommon.RelayInfo, apiErr *types.NewAPIError) {
 	if relayInfo == nil || relayInfo.Billing == nil || apiErr == nil {
 		return
@@ -30,17 +30,28 @@ func RefundPreConsumeIfSafe(c *gin.Context, relayInfo *relaycommon.RelayInfo, ap
 				relayInfo.UserId, preConsumed, apiErr.StatusCode, apiErr.GetErrorCode(), err.Error()))
 		} else {
 			logger.LogInfo(c, fmt.Sprintf("用户 %d 预扣费已退还 %s（确认上游未计费）",
-				relayInfo.UserId, logger.FormatQuota(relayInfo.Billing.GetPreConsumedQuota())))
+				relayInfo.UserId, logger.FormatQuota(preConsumed)))
 		}
 	case UpstreamChargeAmbiguous:
 		if session, ok := relayInfo.Billing.(*BillingSession); ok {
 			session.HoldRefund()
 		}
-		logger.LogInfo(c, fmt.Sprintf("用户 %d 预扣费 %s 暂不退款，上游计费状态未确认（status=%d, code=%s）",
+		hold, err := RecordBillingHoldAndSchedule(c, relayInfo, apiErr)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("billing hold persist failed userId=%d request=%s: %s",
+				relayInfo.UserId, relayInfo.RequestId, err.Error()))
+		}
+		logger.LogInfo(c, fmt.Sprintf("用户 %d 预扣费 %s 暂不退款，已挂账等待对账（status=%d, code=%s, holdId=%d）",
 			relayInfo.UserId,
 			logger.FormatQuota(relayInfo.Billing.GetPreConsumedQuota()),
 			apiErr.StatusCode,
 			apiErr.GetErrorCode(),
+			func() int {
+				if hold != nil {
+					return hold.Id
+				}
+				return 0
+			}(),
 		))
 	}
 }
