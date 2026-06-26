@@ -37,7 +37,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { getInvoiceProfile, isApiSuccess } from '../api'
-import { formatCurrency, getPaymentIcon, getMinTopupAmount } from '../lib'
+import { getPaymentIcon } from '../lib'
 import {
   EMPTY_INVOICE_PROFILE,
   normalizeInvoiceProfile,
@@ -60,9 +60,6 @@ interface RechargeFormCardProps {
   selectedPreset: number | null
   onSelectPreset: (preset: PresetAmount) => void
   topupAmount: number
-  onTopupAmountChange: (amount: number) => void
-  paymentAmount: number
-  calculating: boolean
   onPaymentMethodSelect: (
     method: PaymentMethod,
     options?: PaymentOptions
@@ -83,7 +80,6 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
-  currentPaymentType?: string
 }
 
 export function RechargeFormCard({
@@ -92,9 +88,6 @@ export function RechargeFormCard({
   selectedPreset,
   onSelectPreset,
   topupAmount,
-  onTopupAmountChange,
-  paymentAmount,
-  calculating,
   onPaymentMethodSelect,
   paymentLoading,
   redemptionCode,
@@ -112,20 +105,13 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
-  currentPaymentType,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
-  const [localAmount, setLocalAmount] = useState(topupAmount.toString())
   const [invoiceRequested, setInvoiceRequested] = useState(false)
   const [invoiceProfile, setInvoiceProfile] = useState<InvoiceProfile>(
     EMPTY_INVOICE_PROFILE
   )
-  const showLocalCurrencyBreakdown = false
   const formatUsdAmount = (amount: number) => `$${formatNumber(amount)} USD`
-
-  useEffect(() => {
-    setLocalAmount(topupAmount.toString())
-  }, [topupAmount])
 
   useEffect(() => {
     let cancelled = false
@@ -146,14 +132,6 @@ export function RechargeFormCard({
     }
   }, [])
 
-  const handleAmountChange = (value: string) => {
-    setLocalAmount(value)
-    const numValue = parseInt(value) || 0
-    if (numValue >= 0) {
-      onTopupAmountChange(numValue)
-    }
-  }
-
   const hasConfigurableTopup =
     topupInfo?.enable_online_topup ||
     topupInfo?.enable_stripe_topup ||
@@ -172,12 +150,10 @@ export function RechargeFormCard({
   const hasStandardPaymentMethods = visiblePayMethods.length > 0
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
-  const minTopup = getMinTopupAmount(topupInfo)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
   const hasStripePaymentMethod =
     topupInfo?.enable_stripe_topup ||
     topupInfo?.pay_methods?.some((method) => method.type === 'stripe')
-  const isCurrentStripePayment = currentPaymentType === 'stripe'
 
   const updateInvoiceField = (field: keyof InvoiceProfile, value: string) => {
     setInvoiceProfile((current) => ({
@@ -222,12 +198,6 @@ export function RechargeFormCard({
                   <Skeleton key={i} className='h-[72px] rounded-lg' />
                 ))}
               </div>
-            </div>
-
-            {/* Custom Amount Input Skeleton */}
-            <div className='space-y-3'>
-              <Skeleton className='h-3 w-28' />
-              <Skeleton className='h-[42px] w-full' />
             </div>
 
             {/* Payment Methods Skeleton */}
@@ -279,7 +249,7 @@ export function RechargeFormCard({
         <div className='space-y-4 sm:space-y-6'>
           {hasConfigurableTopup && (
             <>
-              {presetAmounts.length > 0 && (
+              {presetAmounts.length > 0 ? (
                 <div className='space-y-2.5 sm:space-y-3'>
                   <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
                     {t('Amount')} USD
@@ -315,48 +285,15 @@ export function RechargeFormCard({
                     })}
                   </div>
                 </div>
+              ) : (
+                <Alert>
+                  <AlertDescription>
+                    {t(
+                      'No top-up packages available. Please contact administrator.'
+                    )}
+                  </AlertDescription>
+                </Alert>
               )}
-
-              <div className='space-y-2.5 sm:space-y-3'>
-                <Label
-                  htmlFor='topup-amount'
-                  className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
-                >
-                  {t('Custom Amount')} USD
-                </Label>
-                <div className='grid grid-cols-[minmax(0,1fr)_minmax(110px,0.55fr)] gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center'>
-                  <Input
-                    id='topup-amount'
-                    type='number'
-                    value={localAmount}
-                    onChange={(e) => handleAmountChange(e.target.value)}
-                    min={minTopup}
-                    placeholder={t('Minimum {{amount}}', {
-                      amount: formatUsdAmount(minTopup),
-                    })}
-                    className='h-9 text-base sm:h-10 sm:text-lg'
-                  />
-                  <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
-                    <span className='text-muted-foreground truncate text-xs'>
-                      {t('Amount to pay:')}
-                    </span>
-                    {calculating ? (
-                      <Skeleton className='h-5 w-16' />
-                    ) : isCurrentStripePayment ? (
-                      <span className='text-sm font-semibold'>
-                        {t('Final amount shown by Stripe')}
-                      </span>
-                    ) : (
-                      <span className='text-sm font-semibold'>
-                        {formatUsdAmount(paymentAmount)}
-                      </span>
-                    )}
-                    {!calculating && showLocalCurrencyBreakdown && (
-                      <span hidden>{formatCurrency(paymentAmount)}</span>
-                    )}
-                  </div>
-                </div>
-              </div>
 
               {hasStripePaymentMethod && (
                 <div className='space-y-3 rounded-lg border p-3 sm:p-4'>

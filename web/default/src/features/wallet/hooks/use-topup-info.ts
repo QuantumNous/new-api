@@ -21,6 +21,7 @@ import { getTopupInfo } from '../api'
 import { PAYMENT_TYPES } from '../constants'
 import {
   generatePresetAmounts,
+  getLockedTopupAmountOptions,
   mergePresetAmounts,
   getMinTopupAmount,
 } from '../lib'
@@ -234,9 +235,14 @@ export function useTopupInfo() {
 
       setTopupInfo(processedData)
 
-      if (processedData.amount_options.length > 0) {
+      const lockedAmountOptions = getLockedTopupAmountOptions(
+        processedData.amount_options,
+        processedData.enable_stripe_topup
+      )
+
+      if (lockedAmountOptions.length > 0) {
         const customPresets = mergePresetAmounts(
-          processedData.amount_options,
+          lockedAmountOptions,
           processedData.discount || {},
           processedData.bonus || {},
           processedData.bonus_remaining || {}

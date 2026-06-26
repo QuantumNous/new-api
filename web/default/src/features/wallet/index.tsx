@@ -63,8 +63,10 @@ import {
 import {
   clearPaddleCheckoutUrlFallback,
   getDefaultPaymentType,
+  getInitialPresetTopupAmount,
   getMinTopupAmount,
   getPaddleCheckoutUrlFallback,
+  isPresetTopupAmount,
   isWaffoPancakePayment,
 } from './lib'
 import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
@@ -552,15 +554,28 @@ export function Wallet(props: WalletProps) {
 
   // Initialize topup amount when topup info is loaded
   useEffect(() => {
-    if (topupInfo && topupAmount === 0) {
-      const minTopup = getMinTopupAmount(topupInfo)
-      setTopupAmount(minTopup)
+    if (!topupInfo) return
 
-      // Calculate initial payment amount with default payment type
-      const defaultPaymentType = getDefaultPaymentType(topupInfo)
-      calculatePaymentAmount(minTopup, defaultPaymentType)
+    if (!isPresetTopupAmount(topupAmount, presetAmounts)) {
+      const initialAmount = getInitialPresetTopupAmount(presetAmounts)
+      if (initialAmount <= 0) return
+      const paymentType =
+        selectedPaymentMethod?.type || getDefaultPaymentType(topupInfo)
+
+      const timeoutId = window.setTimeout(() => {
+        setTopupAmount(initialAmount)
+        setSelectedPreset(initialAmount)
+        calculatePaymentAmount(initialAmount, paymentType)
+      }, 0)
+      return () => window.clearTimeout(timeoutId)
     }
-  }, [topupInfo, topupAmount, calculatePaymentAmount])
+  }, [
+    topupInfo,
+    topupAmount,
+    presetAmounts,
+    selectedPaymentMethod?.type,
+    calculatePaymentAmount,
+  ])
 
   // Get current payment type (selected or default)
   const getCurrentPaymentType = useCallback(() => {
@@ -574,13 +589,6 @@ export function Wallet(props: WalletProps) {
     calculatePaymentAmount(preset.value, getCurrentPaymentType())
   }
 
-  // Handle topup amount change
-  const handleTopupAmountChange = (amount: number) => {
-    setTopupAmount(amount)
-    setSelectedPreset(null)
-    calculatePaymentAmount(amount, getCurrentPaymentType())
-  }
-
   // Handle payment method selection
   const handlePaymentMethodSelect = async (
     method: PaymentMethod,
@@ -591,6 +599,11 @@ export function Wallet(props: WalletProps) {
     setPaymentLoading(method.type)
 
     try {
+      if (!isPresetTopupAmount(topupAmount, presetAmounts)) {
+        toast.error(t('Please select a top-up package'))
+        return
+      }
+
       // Validate minimum topup
       const minTopup = getMinTopupAmount(topupInfo)
       if (topupAmount < minTopup) {
@@ -731,9 +744,6 @@ export function Wallet(props: WalletProps) {
                   selectedPreset={selectedPreset}
                   onSelectPreset={handleSelectPreset}
                   topupAmount={topupAmount}
-                  onTopupAmountChange={handleTopupAmountChange}
-                  paymentAmount={paymentAmount}
-                  calculating={calculating}
                   onPaymentMethodSelect={handlePaymentMethodSelect}
                   paymentLoading={paymentLoading}
                   redemptionCode={redemptionCode}
@@ -753,7 +763,6 @@ export function Wallet(props: WalletProps) {
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
                   }
-                  currentPaymentType={getCurrentPaymentType()}
                 />
               </div>
 

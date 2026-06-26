@@ -18,7 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
 import { calculatePresetPricing } from './format'
-import { generatePresetAmounts, mergePresetAmounts } from './payment'
+import {
+  generatePresetAmounts,
+  getInitialPresetTopupAmount,
+  getLockedTopupAmountOptions,
+  isPresetTopupAmount,
+  mergePresetAmounts,
+} from './payment'
 
 describe('top-up bonus preset metadata', () => {
   test('attaches configured bonus amounts to custom presets', () => {
@@ -45,7 +51,9 @@ describe('top-up bonus preset metadata', () => {
 
   test('suppresses bonus when the user has no remaining claims for that tier', () => {
     // 档位 20 剩余 0 次 → 不显示赠送；档位 50 剩余 2 次 → 正常显示
-    expect(mergePresetAmounts([20, 50], {}, { 20: 5, 50: 15 }, { 20: 0, 50: 2 })).toEqual([
+    expect(
+      mergePresetAmounts([20, 50], {}, { 20: 5, 50: 15 }, { 20: 0, 50: 2 })
+    ).toEqual([
       { value: 20, discount: 1 },
       { value: 50, discount: 1, bonus: 15 },
     ])
@@ -63,5 +71,33 @@ describe('top-up bonus preset metadata', () => {
     expect(generatePresetAmounts(20, { 20: 5 }, { 20: 0 })[0]).toEqual({
       value: 20,
     })
+  })
+
+  test('initializes top-up amount from the first configured preset', () => {
+    expect(
+      getInitialPresetTopupAmount([
+        { value: 10 },
+        { value: 20 },
+        { value: 200 },
+      ])
+    ).toBe(10)
+    expect(getInitialPresetTopupAmount([])).toBe(0)
+  })
+
+  test('only accepts top-up amounts that match configured presets', () => {
+    const presets = [{ value: 10 }, { value: 20 }, { value: 200 }]
+
+    expect(isPresetTopupAmount(20, presets)).toBe(true)
+    expect(isPresetTopupAmount(15, presets)).toBe(false)
+    expect(isPresetTopupAmount(0, presets)).toBe(false)
+  })
+
+  test('locks Stripe top-up amount options to the supported package tiers', () => {
+    expect(getLockedTopupAmountOptions([10, 20, 50, 100, 200], true)).toEqual([
+      10, 20, 200,
+    ])
+    expect(getLockedTopupAmountOptions([10, 20, 50], false)).toEqual([
+      10, 20, 50,
+    ])
   })
 })
