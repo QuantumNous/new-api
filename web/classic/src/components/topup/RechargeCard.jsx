@@ -87,6 +87,7 @@ const RechargeCard = ({
   userState,
   renderQuota,
   statusLoading,
+  topupInfoLoading,
   topupInfo,
   onOpenHistory,
   enableWaffoTopUp,
@@ -122,6 +123,11 @@ const RechargeCard = ({
       setActiveTab('topup');
     }
   }, [shouldShowSubscription, activeTab]);
+  const redeemTitle = (
+    <Text type='tertiary' strong>
+      {t('兑换码充值')}
+    </Text>
+  );
   const topupContent = (
     <Space vertical style={{ width: '100%' }}>
       {/* 统计数据 */}
@@ -570,15 +576,14 @@ const RechargeCard = ({
       </Card>
 
       {/* 兑换码充值 */}
-      {enableRedemption ? (
-        <Card
-          className='!rounded-xl w-full'
-          title={
-            <Text type='tertiary' strong>
-              {t('兑换码充值')}
-            </Text>
-          }
-        >
+      {topupInfoLoading ? (
+        <Card className='!rounded-xl w-full' title={redeemTitle}>
+          <div className='py-8 flex justify-center'>
+            <Spin size='large' />
+          </div>
+        </Card>
+      ) : enableRedemption ? (
+        <Card className='!rounded-xl w-full' title={redeemTitle}>
           <div className='space-y-4'>
             {topUpLink && (
               <div className='space-y-3'>

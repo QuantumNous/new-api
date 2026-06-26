@@ -79,6 +79,7 @@ const TopUp = () => {
     statusState?.status?.enable_stripe_topup || false,
   );
   const [statusLoading, setStatusLoading] = useState(true);
+  const [topupInfoLoading, setTopupInfoLoading] = useState(true);
 
   // Creem 相关状态
   const [creemProducts, setCreemProducts] = useState([]);
@@ -784,7 +785,7 @@ const TopUp = () => {
 
   // 在 statusState 可用时获取充值信息
   useEffect(() => {
-    getTopupInfo().then();
+    getTopupInfo().finally(() => setTopupInfoLoading(false));
     getSubscriptionPlans().then();
     getSubscriptionSelf().then();
   }, []);
@@ -1006,6 +1007,7 @@ const TopUp = () => {
           userState={userState}
           renderQuota={renderQuota}
           statusLoading={statusLoading}
+          topupInfoLoading={topupInfoLoading}
           topupInfo={topupInfo}
           onOpenHistory={handleOpenHistory}
           subscriptionLoading={subscriptionLoading}
