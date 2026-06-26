@@ -253,6 +253,65 @@ func TestSearchSkillHubTagsAndSkillsByTagIDsRespectPublishedVisibility(t *testin
 	}
 }
 
+func TestPublicSearchSkillHubTagsDoesNotSyncFromSkills(t *testing.T) {
+	setupSkillHubTestDB(t)
+
+	skill := &SkillHubSkill{
+		SkillID:    "unsynced-skill",
+		Name:       "Unsynced Skill",
+		Version:    "1.0.0",
+		Tags:       StringListToJSON([]string{"unsynced"}),
+		Status:     SkillHubStatusPublished,
+		SourceType: "zip",
+		SourceURL:  "https://example.com/unsynced.zip",
+	}
+	if err := DB.Create(skill).Error; err != nil {
+		t.Fatalf("create skill directly: %v", err)
+	}
+
+	tags, total, err := SearchSkillHubTags("", true, 0, 10)
+	if err != nil {
+		t.Fatalf("SearchSkillHubTags(public) error = %v", err)
+	}
+	if total != 0 || len(tags) != 0 {
+		t.Fatalf("public tags = %#v, total = %d; want empty without implicit sync", tags, total)
+	}
+	var tagCount int64
+	if err := DB.Model(&SkillHubTag{}).Count(&tagCount).Error; err != nil {
+		t.Fatalf("count tags: %v", err)
+	}
+	if tagCount != 0 {
+		t.Fatalf("tag count = %d; want no public read-side writes", tagCount)
+	}
+}
+
+func TestDeleteSkillHubSkillRemovesTagRelations(t *testing.T) {
+	setupSkillHubTestDB(t)
+
+	skill := &SkillHubSkill{
+		SkillID:    "delete-skill",
+		Name:       "Delete Skill",
+		Version:    "1.0.0",
+		Tags:       StringListToJSON([]string{"cleanup"}),
+		Status:     SkillHubStatusPublished,
+		SourceType: "zip",
+		SourceURL:  "https://example.com/delete.zip",
+	}
+	if err := skill.Insert(); err != nil {
+		t.Fatalf("create skill: %v", err)
+	}
+	if err := DeleteSkillHubSkill(skill); err != nil {
+		t.Fatalf("delete skill: %v", err)
+	}
+	counts, err := SkillHubTagUsageCounts([]string{"cleanup"})
+	if err != nil {
+		t.Fatalf("SkillHubTagUsageCounts() error = %v", err)
+	}
+	if counts["cleanup"] != 0 {
+		t.Fatalf("cleanup usage count = %d; want 0", counts["cleanup"])
+	}
+}
+
 func setupSkillHubTestDB(t *testing.T) {
 	t.Helper()
 	originalDB := DB
@@ -260,7 +319,7 @@ func setupSkillHubTestDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite memory db: %v", err)
 	}
-	if err := db.AutoMigrate(&SkillHubSkill{}, &SkillHubTag{}); err != nil {
+	if err := db.AutoMigrate(&SkillHubSkill{}, &SkillHubTag{}, &SkillHubSkillTag{}); err != nil {
 		t.Fatalf("migrate skill hub tables: %v", err)
 	}
 	DB = db

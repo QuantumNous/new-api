@@ -70,7 +70,7 @@
       "get": {
         "summary": "获取技能广场标签列表",
         "deprecated": false,
-        "description": "🔓 无需鉴权；仅返回已发布技能正在使用的标签",
+        "description": "🔓 无需鉴权；仅返回已发布技能正在使用的标签。公开读取不会触发标签同步写入",
         "tags": ["技能广场"],
         "parameters": [
           {
@@ -367,7 +367,7 @@
       "get": {
         "summary": "管理员获取标签列表",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）；返回标签库并统计每个标签被 Skill 使用的数量",
+        "description": "👨‍💼 需要管理员权限（Admin）；返回标签库并统计每个标签被 Skill 使用的数量；会在查询前同步一次 Skill 标签关联",
         "tags": ["技能广场管理"],
         "parameters": [
           {
@@ -1017,7 +1017,7 @@
           },
           "sort": {
             "type": "integer",
-            "description": "排序权重，越大越靠前"
+            "description": "排序权重，越大越靠前；仅管理端返回"
           },
           "usageCount": {
             "type": "integer",
@@ -1026,12 +1026,12 @@
           },
           "createdAt": {
             "type": "string",
-            "description": "创建时间",
+            "description": "创建时间；仅管理端返回",
             "format": "date-time"
           },
           "updatedAt": {
             "type": "string",
-            "description": "更新时间",
+            "description": "更新时间；仅管理端返回",
             "format": "date-time"
           }
         }

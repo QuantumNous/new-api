@@ -96,10 +96,17 @@ type SkillHubTag struct {
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_skill_hub_tag_name_delete_at,priority:2"`
 }
 
+type SkillHubSkillTag struct {
+	Id          int   `json:"-" gorm:"primaryKey"`
+	SkillID     int   `json:"-" gorm:"column:skill_id;not null;uniqueIndex:uk_skill_hub_skill_tag,priority:1;index:idx_skill_hub_skill_tag_skill_id"`
+	TagID       int   `json:"-" gorm:"column:tag_id;not null;uniqueIndex:uk_skill_hub_skill_tag,priority:2;index:idx_skill_hub_skill_tag_tag_id"`
+	CreatedTime int64 `json:"-" gorm:"bigint"`
+}
+
 type SkillHubTagResponse struct {
 	ID         int    `json:"id"`
 	Name       string `json:"name"`
-	Sort       int    `json:"sort"`
+	Sort       int    `json:"sort,omitempty"`
 	UsageCount int64  `json:"usageCount"`
 	CreatedAt  string `json:"createdAt,omitempty"`
 	UpdatedAt  string `json:"updatedAt,omitempty"`
@@ -143,6 +150,13 @@ func (t *SkillHubTag) BeforeSave(tx *gorm.DB) error {
 		t.CreatedTime = now
 	}
 	t.UpdatedTime = now
+	return nil
+}
+
+func (t *SkillHubSkillTag) BeforeCreate(tx *gorm.DB) error {
+	if t.CreatedTime == 0 {
+		t.CreatedTime = common.GetTimestamp()
+	}
 	return nil
 }
 
@@ -252,7 +266,11 @@ func (s *SkillHubSkill) Insert() error {
 		if err := tx.Create(s).Error; err != nil {
 			return err
 		}
-		return upsertSkillHubTagsTx(tx, stringListFromJSON(s.Tags))
+		tags := stringListFromJSON(s.Tags)
+		if err := upsertSkillHubTagsTx(tx, tags); err != nil {
+			return err
+		}
+		return replaceSkillHubSkillTagsTx(tx, s.Id, tags)
 	})
 }
 
@@ -261,7 +279,20 @@ func (s *SkillHubSkill) Update() error {
 		if err := tx.Save(s).Error; err != nil {
 			return err
 		}
-		return upsertSkillHubTagsTx(tx, stringListFromJSON(s.Tags))
+		tags := stringListFromJSON(s.Tags)
+		if err := upsertSkillHubTagsTx(tx, tags); err != nil {
+			return err
+		}
+		return replaceSkillHubSkillTagsTx(tx, s.Id, tags)
+	})
+}
+
+func DeleteSkillHubSkill(skill *SkillHubSkill) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("skill_id = ?", skill.Id).Delete(&SkillHubSkillTag{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(skill).Error
 	})
 }
 
@@ -316,32 +347,21 @@ func SearchSkillHubSkillsByTagIDs(tagIDs []int, keyword string, admin bool, offs
 		return []*SkillHubSkill{}, 0, nil
 	}
 
-	wantedTags := make(map[string]struct{}, len(tags))
-	conditions := make([]string, 0, len(tags))
-	args := make([]any, 0, len(tags))
+	cleanTagIDs := make([]int, 0, len(tags))
 	for _, tag := range tags {
-		name := strings.TrimSpace(tag.Name)
-		if name == "" {
-			continue
+		if tag.Id > 0 {
+			cleanTagIDs = append(cleanTagIDs, tag.Id)
 		}
-		wantedTags[strings.ToLower(name)] = struct{}{}
-		like, err := skillHubContainsLikePattern(name)
-		if err != nil {
-			return nil, 0, err
-		}
-		conditions = append(conditions, "tags LIKE ? ESCAPE '!'")
-		args = append(args, like)
 	}
-	if len(wantedTags) == 0 {
+	if len(cleanTagIDs) == 0 {
 		return []*SkillHubSkill{}, 0, nil
 	}
 
-	db := DB.Model(&SkillHubSkill{})
+	db := DB.Model(&SkillHubSkill{}).
+		Joins("JOIN skill_hub_skill_tags ON skill_hub_skill_tags.skill_id = skill_hub_skills.id").
+		Where("skill_hub_skill_tags.tag_id IN ?", cleanTagIDs)
 	if !admin {
 		db = db.Where("status = ?", SkillHubStatusPublished)
-	}
-	if len(conditions) > 0 {
-		db = db.Where("("+strings.Join(conditions, " OR ")+")", args...)
 	}
 	keywordLike, err := skillHubContainsLikePattern(keyword)
 	if err != nil {
@@ -357,33 +377,17 @@ func SearchSkillHubSkillsByTagIDs(tagIDs []int, keyword string, admin bool, offs
 		)
 	}
 
-	var candidates []*SkillHubSkill
-	if err := db.Order("sort DESC, updated_time DESC, id DESC").Find(&candidates).Error; err != nil {
+	var total int64
+	if err := db.Distinct("skill_hub_skills.id").Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-
-	filtered := make([]*SkillHubSkill, 0, len(candidates))
-	for _, skill := range candidates {
-		if skillHubSkillHasAnyTag(skill, wantedTags) {
-			filtered = append(filtered, skill)
-		}
-	}
-
-	total := int64(len(filtered))
-	if offset < 0 {
-		offset = 0
-	}
-	if limit <= 0 {
-		limit = len(filtered)
-	}
-	if offset >= len(filtered) {
-		return []*SkillHubSkill{}, total, nil
-	}
-	end := offset + limit
-	if end > len(filtered) {
-		end = len(filtered)
-	}
-	return filtered[offset:end], total, nil
+	var skills []*SkillHubSkill
+	err = db.Distinct("skill_hub_skills.*").
+		Order("skill_hub_skills.sort DESC, skill_hub_skills.updated_time DESC, skill_hub_skills.id DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&skills).Error
+	return skills, total, err
 }
 
 func SkillHubSkillsToResponses(skills []*SkillHubSkill, admin bool) []SkillHubSkillResponse {
@@ -418,59 +422,52 @@ func CreateSkillHubTag(name string, sort int) (*SkillHubTag, error) {
 }
 
 func SearchSkillHubTags(keyword string, publishedOnly bool, offset int, limit int) ([]*SkillHubTag, int64, error) {
-	if err := SyncSkillHubTagsFromSkills(); err != nil {
-		return nil, 0, err
+	return searchSkillHubTags(keyword, publishedOnly, false, offset, limit)
+}
+
+func SearchSkillHubTagsWithSync(keyword string, publishedOnly bool, offset int, limit int) ([]*SkillHubTag, int64, error) {
+	return searchSkillHubTags(keyword, publishedOnly, true, offset, limit)
+}
+
+func searchSkillHubTags(keyword string, publishedOnly bool, syncBeforeSearch bool, offset int, limit int) ([]*SkillHubTag, int64, error) {
+	if syncBeforeSearch {
+		if err := SyncSkillHubTagsFromSkills(); err != nil {
+			return nil, 0, err
+		}
 	}
 
 	db := DB.Model(&SkillHubTag{})
+	if publishedOnly {
+		db = db.
+			Joins("JOIN skill_hub_skill_tags ON skill_hub_skill_tags.tag_id = skill_hub_tags.id").
+			Joins("JOIN skill_hub_skills ON skill_hub_skills.id = skill_hub_skill_tags.skill_id AND skill_hub_skills.deleted_at IS NULL").
+			Where("skill_hub_skills.status = ?", SkillHubStatusPublished)
+	}
 	like, err := skillHubContainsLikePattern(keyword)
 	if err != nil {
 		return nil, 0, err
 	}
 	if like != "" {
-		db = db.Where("name LIKE ? ESCAPE '!'", like)
-	}
-	if publishedOnly {
-		var allTags []*SkillHubTag
-		if err := db.Order("sort DESC, name ASC, id DESC").Find(&allTags).Error; err != nil {
-			return nil, 0, err
-		}
-		names := make([]string, 0, len(allTags))
-		for _, tag := range allTags {
-			names = append(names, tag.Name)
-		}
-		counts, err := SkillHubTagUsageCounts(names, true)
-		if err != nil {
-			return nil, 0, err
-		}
-		usedTags := make([]*SkillHubTag, 0, len(allTags))
-		for _, tag := range allTags {
-			if counts[tag.Name] > 0 {
-				usedTags = append(usedTags, tag)
-			}
-		}
-		total := int64(len(usedTags))
-		if offset < 0 {
-			offset = 0
-		}
-		if limit <= 0 {
-			limit = len(usedTags)
-		}
-		if offset >= len(usedTags) {
-			return []*SkillHubTag{}, total, nil
-		}
-		end := offset + limit
-		if end > len(usedTags) {
-			end = len(usedTags)
-		}
-		return usedTags[offset:end], total, nil
+		db = db.Where("skill_hub_tags.name LIKE ? ESCAPE '!'", like)
 	}
 	var total int64
+	if publishedOnly {
+		if err := db.Distinct("skill_hub_tags.id").Count(&total).Error; err != nil {
+			return nil, 0, err
+		}
+		var tags []*SkillHubTag
+		err = db.Distinct("skill_hub_tags.*").
+			Order("skill_hub_tags.sort DESC, skill_hub_tags.name ASC, skill_hub_tags.id DESC").
+			Offset(offset).
+			Limit(limit).
+			Find(&tags).Error
+		return tags, total, err
+	}
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var tags []*SkillHubTag
-	err = db.Order("sort DESC, name ASC, id DESC").Offset(offset).Limit(limit).Find(&tags).Error
+	err = db.Order("skill_hub_tags.sort DESC, skill_hub_tags.name ASC, skill_hub_tags.id DESC").Offset(offset).Limit(limit).Find(&tags).Error
 	return tags, total, err
 }
 
@@ -526,18 +523,21 @@ func SkillHubTagsToResponses(tags []*SkillHubTag, publishedOnly bool) ([]SkillHu
 
 	responses := make([]SkillHubTagResponse, 0, len(tags))
 	for _, tag := range tags {
-		responses = append(responses, tag.ToResponse(counts[tag.Name]))
+		responses = append(responses, tag.ToResponse(counts[tag.Name], !publishedOnly))
 	}
 	return responses, nil
 }
 
-func (t *SkillHubTag) ToResponse(usageCount int64) SkillHubTagResponse {
+func (t *SkillHubTag) ToResponse(usageCount int64, admin bool) SkillHubTagResponse {
 	response := SkillHubTagResponse{
 		ID:         t.Id,
 		Name:       t.Name,
-		Sort:       t.Sort,
 		UsageCount: usageCount,
 	}
+	if !admin {
+		return response
+	}
+	response.Sort = t.Sort
 	if t.CreatedTime > 0 {
 		response.CreatedAt = time.Unix(t.CreatedTime, 0).UTC().Format(time.RFC3339)
 	}
@@ -548,61 +548,79 @@ func (t *SkillHubTag) ToResponse(usageCount int64) SkillHubTagResponse {
 }
 
 func SyncSkillHubTagsFromSkills() error {
-	var skills []SkillHubSkill
-	if err := DB.Select("tags").Find(&skills).Error; err != nil {
-		return err
-	}
-	seen := map[string]string{}
-	for _, skill := range skills {
-		for _, tag := range stringListFromJSON(skill.Tags) {
-			value := strings.TrimSpace(tag)
-			key := strings.ToLower(value)
-			if value == "" || seen[key] != "" {
-				continue
-			}
-			seen[key] = value
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var skills []SkillHubSkill
+		if err := tx.Select("id", "tags").Find(&skills).Error; err != nil {
+			return err
 		}
-	}
-	tags := make([]string, 0, len(seen))
-	for _, tag := range seen {
-		tags = append(tags, tag)
-	}
-	return upsertSkillHubTagsTx(DB, tags)
+		seen := map[string]string{}
+		for _, skill := range skills {
+			for _, tag := range stringListFromJSON(skill.Tags) {
+				value := strings.TrimSpace(tag)
+				key := strings.ToLower(value)
+				if value == "" || seen[key] != "" {
+					continue
+				}
+				seen[key] = value
+			}
+		}
+		tags := make([]string, 0, len(seen))
+		for _, tag := range seen {
+			tags = append(tags, tag)
+		}
+		if err := upsertSkillHubTagsTx(tx, tags); err != nil {
+			return err
+		}
+		if err := tx.Where("skill_id > ?", 0).Delete(&SkillHubSkillTag{}).Error; err != nil {
+			return err
+		}
+		for _, skill := range skills {
+			if err := insertSkillHubSkillTagsTx(tx, skill.Id, stringListFromJSON(skill.Tags)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func SkillHubTagUsageCounts(names []string, publishedOnly ...bool) (map[string]int64, error) {
 	counts := make(map[string]int64, len(names))
-	nameByKey := map[string]string{}
+	cleanNames := make([]string, 0, len(names))
+	seen := map[string]struct{}{}
 	for _, name := range names {
 		name = strings.TrimSpace(name)
 		if name == "" {
 			continue
 		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
 		counts[name] = 0
-		nameByKey[strings.ToLower(name)] = name
+		cleanNames = append(cleanNames, name)
 	}
-	if len(nameByKey) == 0 {
+	if len(cleanNames) == 0 {
 		return counts, nil
 	}
 
-	var skills []SkillHubSkill
-	query := DB.Select("tags")
-	if len(publishedOnly) > 0 && publishedOnly[0] {
-		query = query.Where("status = ?", SkillHubStatusPublished)
+	type tagUsageRow struct {
+		Name  string
+		Count int64
 	}
-	if err := query.Find(&skills).Error; err != nil {
+	query := DB.Model(&SkillHubTag{}).
+		Select("skill_hub_tags.name AS name, COUNT(DISTINCT skill_hub_skill_tags.skill_id) AS count").
+		Joins("JOIN skill_hub_skill_tags ON skill_hub_skill_tags.tag_id = skill_hub_tags.id").
+		Joins("JOIN skill_hub_skills ON skill_hub_skills.id = skill_hub_skill_tags.skill_id AND skill_hub_skills.deleted_at IS NULL").
+		Where("skill_hub_tags.name IN ?", cleanNames)
+	if len(publishedOnly) > 0 && publishedOnly[0] {
+		query = query.Where("skill_hub_skills.status = ?", SkillHubStatusPublished)
+	}
+	var rows []tagUsageRow
+	if err := query.Group("skill_hub_tags.name").Scan(&rows).Error; err != nil {
 		return counts, err
 	}
-	for _, skill := range skills {
-		usedInSkill := map[string]struct{}{}
-		for _, tag := range stringListFromJSON(skill.Tags) {
-			if name, ok := nameByKey[strings.ToLower(strings.TrimSpace(tag))]; ok {
-				usedInSkill[name] = struct{}{}
-			}
-		}
-		for name := range usedInSkill {
-			counts[name]++
-		}
+	for _, row := range rows {
+		counts[row.Name] = row.Count
 	}
 	return counts, nil
 }
@@ -621,23 +639,88 @@ func skillHubContainsLikePattern(value string) (string, error) {
 	return "%" + value + "%", nil
 }
 
-func skillHubSkillHasAnyTag(skill *SkillHubSkill, wantedTags map[string]struct{}) bool {
-	for _, tag := range stringListFromJSON(skill.Tags) {
-		if _, ok := wantedTags[strings.ToLower(strings.TrimSpace(tag))]; ok {
-			return true
-		}
-	}
-	return false
-}
-
 func upsertSkillHubTagsTx(tx *gorm.DB, tags []string) error {
-	for _, tag := range stringListFromJSON(StringListToJSON(tags)) {
-		item := SkillHubTag{Name: tag}
-		if err := tx.Where("name = ?", tag).FirstOrCreate(&item).Error; err != nil {
+	for _, tag := range cleanSkillHubTagNames(tags) {
+		var existing SkillHubTag
+		err := tx.Where("LOWER(name) = ?", strings.ToLower(tag)).First(&existing).Error
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err := tx.Create(&SkillHubTag{Name: tag}).Error; err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func replaceSkillHubSkillTagsTx(tx *gorm.DB, skillID int, tags []string) error {
+	if err := tx.Where("skill_id = ?", skillID).Delete(&SkillHubSkillTag{}).Error; err != nil {
+		return err
+	}
+	return insertSkillHubSkillTagsTx(tx, skillID, tags)
+}
+
+func insertSkillHubSkillTagsTx(tx *gorm.DB, skillID int, tags []string) error {
+	if skillID <= 0 {
+		return nil
+	}
+	tagNames := cleanSkillHubTagNames(tags)
+	if len(tagNames) == 0 {
+		return nil
+	}
+	lowerNames := make([]string, 0, len(tagNames))
+	for _, name := range tagNames {
+		lowerNames = append(lowerNames, strings.ToLower(name))
+	}
+	var tagRows []SkillHubTag
+	if err := tx.Where("LOWER(name) IN ?", lowerNames).Find(&tagRows).Error; err != nil {
+		return err
+	}
+	tagByKey := make(map[string]SkillHubTag, len(tagRows))
+	for _, tag := range tagRows {
+		tagByKey[strings.ToLower(strings.TrimSpace(tag.Name))] = tag
+	}
+	relations := make([]SkillHubSkillTag, 0, len(tagNames))
+	seenTagIDs := map[int]struct{}{}
+	for _, name := range tagNames {
+		tag, ok := tagByKey[strings.ToLower(name)]
+		if !ok || tag.Id <= 0 {
+			continue
+		}
+		if _, ok := seenTagIDs[tag.Id]; ok {
+			continue
+		}
+		seenTagIDs[tag.Id] = struct{}{}
+		relations = append(relations, SkillHubSkillTag{
+			SkillID: skillID,
+			TagID:   tag.Id,
+		})
+	}
+	if len(relations) == 0 {
+		return nil
+	}
+	return tx.Create(&relations).Error
+}
+
+func cleanSkillHubTagNames(tags []string) []string {
+	clean := make([]string, 0, len(tags))
+	seen := map[string]struct{}{}
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		key := strings.ToLower(tag)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		clean = append(clean, tag)
+	}
+	return clean
 }
 
 func (s *SkillHubSkill) ToResponse(admin bool) SkillHubSkillResponse {

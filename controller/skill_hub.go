@@ -214,7 +214,7 @@ func AdminDeleteSkillHubSkill(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if err := model.DB.Delete(skill).Error; err != nil {
+	if err := model.DeleteSkillHubSkill(skill); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -235,7 +235,16 @@ func AdminListSkillHubTags(c *gin.Context) {
 
 func listSkillHubTags(c *gin.Context, publishedOnly bool) {
 	pageInfo := common.GetPageQuery(c)
-	tags, total, err := model.SearchSkillHubTags(c.Query("keyword"), publishedOnly, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	var (
+		tags  []*model.SkillHubTag
+		total int64
+		err   error
+	)
+	if publishedOnly {
+		tags, total, err = model.SearchSkillHubTags(c.Query("keyword"), publishedOnly, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	} else {
+		tags, total, err = model.SearchSkillHubTagsWithSync(c.Query("keyword"), publishedOnly, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -323,7 +332,7 @@ func AdminCreateSkillHubTag(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, tag.ToResponse(0))
+	common.ApiSuccess(c, tag.ToResponse(0, true))
 }
 
 func AdminDeleteSkillHubTag(c *gin.Context) {

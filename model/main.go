@@ -288,6 +288,7 @@ func migrateDB() error {
 		&PerfMetric{},
 		&SkillHubSkill{},
 		&SkillHubTag{},
+		&SkillHubSkillTag{},
 	)
 	if err != nil {
 		return err
@@ -300,6 +301,9 @@ func migrateDB() error {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
 		}
+	}
+	if err := SyncSkillHubTagsFromSkills(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -344,6 +348,7 @@ func migrateDBFast() error {
 		{&PerfMetric{}, "PerfMetric"},
 		{&SkillHubSkill{}, "SkillHubSkill"},
 		{&SkillHubTag{}, "SkillHubTag"},
+		{&SkillHubSkillTag{}, "SkillHubSkillTag"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -376,6 +381,9 @@ func migrateDBFast() error {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
 		}
+	}
+	if err := SyncSkillHubTagsFromSkills(); err != nil {
+		return err
 	}
 	common.SysLog("database migrated")
 	return nil
