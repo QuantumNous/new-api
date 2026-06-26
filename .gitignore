@@ -8,8 +8,12 @@ upload
 build
 *.db-journal
 logs
+.runtime/
+*.tar
 web/default/dist
 web/classic/dist
+web/default/node_modules
+web/classic/node_modules
 web/node_modules
 web/dist
 .env

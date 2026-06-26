@@ -27,7 +27,7 @@ import {
 const defaultSiteSettings: SiteSettings = {
   'theme.frontend': 'default',
   Notice: '',
-  SystemName: 'New API',
+  SystemName: '草莓啵啵奶',
   Logo: '',
   Footer: '',
   About: '',

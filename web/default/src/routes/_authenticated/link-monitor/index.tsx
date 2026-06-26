@@ -16,17 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-/**
- * Application-wide constants
- */
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
+import { LinkMonitor } from '@/features/link-monitor'
 
-// System Configuration Defaults
-export const DEFAULT_SYSTEM_NAME = '草莓啵啵奶'
-export const DEFAULT_LOGO = '/logo.png'
+export const Route = createFileRoute('/_authenticated/link-monitor/')({
+  beforeLoad: () => {
+    const { auth } = useAuthStore.getState()
 
-// LocalStorage Keys
-export const STORAGE_KEYS = {
-  SYSTEM_NAME: 'system_name',
-  LOGO: 'logo',
-  FOOTER_HTML: 'footer_html',
-} as const
+    if (!auth.user || auth.user.role < ROLE.ADMIN) {
+      throw redirect({
+        to: '/403',
+      })
+    }
+  },
+  component: LinkMonitor,
+})

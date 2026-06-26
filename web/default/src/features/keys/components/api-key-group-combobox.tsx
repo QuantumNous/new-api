@@ -105,7 +105,11 @@ export function ApiKeyGroupCombobox({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
-  const selectedOption = options.find((option) => option.value === value)
+  const currentValue = value ?? ''
+  const selectedOption =
+    currentValue === ''
+      ? undefined
+      : options.find((option) => option.value === currentValue)
 
   const filteredOptions = useMemo(() => {
     const search = searchValue.trim().toLowerCase()
@@ -179,12 +183,15 @@ export function ApiKeyGroupCombobox({
                   key={option.value}
                   value={option.value}
                   onSelect={() => handleSelect(option.value)}
-                  className='data-[selected=true]:bg-muted items-start gap-3 rounded-lg px-3 py-3 transition-colors'
+                  data-selected-group={currentValue === option.value}
+                  className='items-start gap-3 rounded-lg px-3 py-3 transition-colors data-[selected=true]:bg-transparent data-[selected-group=true]:bg-muted'
                 >
                   <Check
                     className={cn(
                       'mt-0.5 h-4 w-4',
-                      value === option.value ? 'opacity-100' : 'opacity-0'
+                      currentValue === option.value
+                        ? 'opacity-100'
+                        : 'opacity-0'
                     )}
                   />
                   <span className='min-w-0 flex-1'>

@@ -130,7 +130,12 @@ api.interceptors.response.use(
 function getUserId(): string | null {
   try {
     if (typeof window !== 'undefined') {
-      return window.localStorage.getItem('uid')
+      const storedUserId = window.localStorage.getItem('uid')
+      if (storedUserId) {
+        return storedUserId
+      }
+      const authUserId = useAuthStore.getState().auth.user?.id
+      return authUserId ? String(authUserId) : null
     }
   } catch {
     /* empty */
