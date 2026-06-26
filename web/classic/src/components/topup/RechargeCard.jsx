@@ -43,6 +43,7 @@ import {
   BarChart2,
   TrendingUp,
   Receipt,
+  ShoppingBag,
   Sparkles,
 } from 'lucide-react';
 import { IconGift } from '@douyinfe/semi-icons';
@@ -614,17 +615,17 @@ const RechargeCard = ({
               style={{ width: '100%' }}
               extraText={
                 topUpLink && (
-                  <Text type='tertiary'>
-                    {t('在找兑换码？')}
-                    <Text
-                      type='secondary'
-                      underline
-                      className='cursor-pointer'
-                      onClick={openTopUpLink}
-                    >
-                      {t('购买兑换码')}
-                    </Text>
-                  </Text>
+                  <div
+                    onClick={openTopUpLink}
+                    className='cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold'
+                    style={{
+                      color: 'var(--semi-color-primary)',
+                      background: 'var(--semi-color-primary-light-default)',
+                    }}
+                  >
+                    <ShoppingBag size={16} />
+                    {t('购买兑换码')}
+                  </div>
                 )
               }
             />
