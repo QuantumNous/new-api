@@ -156,8 +156,16 @@ export function About() {
   }
 
   if (isUrl) {
+    let iframeNavHeight: string | null = null
+    try {
+      const url = new URL(rawContent)
+      iframeNavHeight = url.searchParams.get('navHeight')
+    } catch {
+      // ignore
+    }
+
     return (
-      <PublicLayout showMainContainer={false}>
+      <PublicLayout showMainContainer={false} navHeight={iframeNavHeight}>
         <iframe
           src={rawContent}
           className='h-[calc(100vh-3.5rem)] w-full border-0'
