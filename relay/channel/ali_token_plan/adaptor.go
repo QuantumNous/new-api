@@ -32,7 +32,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	case constant.RelayModeRerank:
 		return fmt.Sprintf("%s/compatible-mode/v1/rerank", info.ChannelBaseUrl), nil
 	default:
-		return fmt.Sprintf("%s/compatible-mode/v1/chat/completions", info.ChannelBaseUrl), nil
+		return a.Adaptor.GetRequestURL(info)
 	}
 }
 
