@@ -128,7 +128,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Invoice profile is required"})
 			return
 		}
-		fields, err := validateInvoiceProfile(*req.InvoiceProfile)
+		fields, err := stripeInvoiceProfileForUser(*req.InvoiceProfile, user)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
 			return
@@ -194,15 +194,12 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	}
 
 	// Stripe delivers invoice emails to the Customer object's email. When an invoice is
-	// requested, make sure the Stripe customer carries the billing email entered on the page
+	// requested, make sure the Stripe customer carries the account email from users.email
 	// before we open Checkout: new customers are created with it, and existing customers are
 	// updated to it (Checkout's customer_update cannot set email, so this is the only hook).
-	checkoutEmail := user.Email
+	checkoutEmail := strings.TrimSpace(user.Email)
 	checkoutCustomerId := strings.TrimSpace(user.StripeCustomer)
 	if invoiceRequested {
-		if billing := strings.TrimSpace(invoiceFields.BillingEmail); billing != "" {
-			checkoutEmail = billing
-		}
 		if err := ensureStripeKey(); err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 开票准备客户失败（密钥无效）user_id=%d trade_no=%s error=%q", id, referenceId, err.Error()))
 			topUp.Status = common.TopUpStatusFailed
@@ -281,11 +278,6 @@ func RequestStripeTopUpInvoice(c *gin.Context) {
 		common.ApiErrorMsg(c, "Invalid request parameters")
 		return
 	}
-	fields, err := validateInvoiceProfile(req)
-	if err != nil {
-		common.ApiErrorMsg(c, err.Error())
-		return
-	}
 
 	userId := c.GetInt("id")
 	topUp := model.GetTopUpByTradeNo(tradeNo)
@@ -315,6 +307,11 @@ func RequestStripeTopUpInvoice(c *gin.Context) {
 	user, err := model.GetUserById(userId, false)
 	if err != nil || user == nil {
 		common.ApiErrorMsg(c, "User not found")
+		return
+	}
+	fields, err := stripeInvoiceProfileForUser(req, user)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
 		return
 	}
 
@@ -847,6 +844,10 @@ func ensureStripeInvoiceCustomer(topUp *model.TopUp, user *model.User, fields mo
 }
 
 func stripeCustomerParamsForInvoice(user *model.User, fields model.InvoiceProfileFields) *stripe.CustomerParams {
+	email := ""
+	if user != nil {
+		email = strings.TrimSpace(user.Email)
+	}
 	params := &stripe.CustomerParams{
 		Address: &stripe.AddressParams{
 			City:       stripe.String(fields.City),
@@ -856,17 +857,17 @@ func stripeCustomerParamsForInvoice(user *model.User, fields model.InvoiceProfil
 			PostalCode: stripe.String(fields.PostalCode),
 			State:      stripe.String(fields.State),
 		},
-		Email: stripe.String(fields.BillingEmail),
-		Name:  stripe.String(fields.CompanyName),
+		Name: stripe.String(fields.CompanyName),
 		Metadata: map[string]string{
 			"source": "new-api",
 		},
 	}
+	if email != "" {
+		params.Email = stripe.String(email)
+		params.Metadata["user_email"] = email
+	}
 	if strings.TrimSpace(fields.Phone) != "" {
 		params.Phone = stripe.String(fields.Phone)
-	}
-	if user != nil && strings.TrimSpace(user.Email) != "" {
-		params.Metadata["user_email"] = strings.TrimSpace(user.Email)
 	}
 	return params
 }

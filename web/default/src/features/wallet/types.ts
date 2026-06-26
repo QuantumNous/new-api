@@ -84,7 +84,7 @@ export interface PaddleTopUpStatus {
 
 export interface InvoiceProfile {
   company_name: string
-  billing_email: string
+  billing_email?: string
   tax_id_type?: string
   tax_id?: string
   country: string

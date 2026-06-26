@@ -599,6 +599,7 @@
     "Billing Details": "Chi tiết thanh toán",
     "Billing email": "Email nhận hóa đơn",
     "Billing email is invalid": "Email nhận hóa đơn không hợp lệ",
+    "Account email is required for invoices": "Cần email tài khoản để xuất hóa đơn",
     "Billing History": "Lịch sử thanh toán",
     "Billing Mode": "Chế độ thanh toán",
     "Billing Process": "Quá trình tính phí",

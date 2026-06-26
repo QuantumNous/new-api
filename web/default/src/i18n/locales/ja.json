@@ -599,6 +599,7 @@
     "Billing Details": "課金詳細",
     "Billing email": "請求先メール",
     "Billing email is invalid": "請求先メールが無効です",
+    "Account email is required for invoices": "請求書にはアカウントのメールアドレスが必要です",
     "Billing History": "請求履歴",
     "Billing Mode": "課金モード",
     "Billing Process": "課金プロセス",

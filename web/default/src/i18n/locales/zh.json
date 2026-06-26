@@ -599,6 +599,7 @@
     "Billing Details": "计费详情",
     "Billing email": "开票邮箱",
     "Billing email is invalid": "开票邮箱无效",
+    "Account email is required for invoices": "请先在用户信息中绑定有效邮箱后再开票",
     "Billing History": "计费历史",
     "Billing Mode": "计费模式",
     "Billing Process": "计费过程",

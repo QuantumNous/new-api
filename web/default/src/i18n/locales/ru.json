@@ -599,6 +599,7 @@
     "Billing Details": "Детали биллинга",
     "Billing email": "Email для счетов",
     "Billing email is invalid": "Email для счетов недействителен",
+    "Account email is required for invoices": "Для выставления счетов требуется email аккаунта",
     "Billing History": "История биллинга",
     "Billing Mode": "Режим биллинга",
     "Billing Process": "Процесс тарификации",

@@ -20,7 +20,6 @@ import type { InvoiceProfile } from '../types'
 
 export const EMPTY_INVOICE_PROFILE: InvoiceProfile = {
   company_name: '',
-  billing_email: '',
   tax_id_type: '',
   tax_id: '',
   country: '',
@@ -37,7 +36,6 @@ export function normalizeInvoiceProfile(
 ): InvoiceProfile {
   return {
     company_name: profile.company_name.trim(),
-    billing_email: profile.billing_email.trim(),
     tax_id_type: profile.tax_id_type?.trim().toLowerCase(),
     tax_id: profile.tax_id?.trim(),
     country: profile.country.trim().toUpperCase(),
@@ -53,9 +51,6 @@ export function normalizeInvoiceProfile(
 export function validateInvoiceProfile(profile: InvoiceProfile): string | null {
   const normalized = normalizeInvoiceProfile(profile)
   if (!normalized.company_name) return 'Company name is required'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized.billing_email)) {
-    return 'Billing email is invalid'
-  }
   if (!normalized.country) return 'Country is required'
   if (!normalized.address_line1) return 'Address is required'
   return null

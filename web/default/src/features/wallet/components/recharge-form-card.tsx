@@ -394,22 +394,6 @@ export function RechargeFormCard({
                         />
                       </div>
                       <div className='space-y-1.5'>
-                        <Label htmlFor='invoice-billing-email'>
-                          {t('Billing email')}
-                        </Label>
-                        <Input
-                          id='invoice-billing-email'
-                          type='email'
-                          value={invoiceProfile.billing_email}
-                          onChange={(event) =>
-                            updateInvoiceField(
-                              'billing_email',
-                              event.target.value
-                            )
-                          }
-                        />
-                      </div>
-                      <div className='space-y-1.5'>
                         <Label htmlFor='invoice-country'>{t('Country')}</Label>
                         <Input
                           id='invoice-country'

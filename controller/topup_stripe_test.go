@@ -162,30 +162,64 @@ func TestMapStripeInvoiceStatusUsesLocalStatuses(t *testing.T) {
 func TestValidateInvoiceProfileNormalizesAndReturnsTranslationKeys(t *testing.T) {
 	fields, err := validateInvoiceProfile(model.InvoiceProfileFields{
 		CompanyName:  " Acme Inc ",
-		BillingEmail: " billing@example.com ",
+		BillingEmail: " request@example.com ",
 		TaxIDType:    " EU_VAT ",
 		Country:      " us ",
 		AddressLine1: " 1 Main St ",
 	})
 	require.NoError(t, err)
 	require.Equal(t, "Acme Inc", fields.CompanyName)
-	require.Equal(t, "billing@example.com", fields.BillingEmail)
+	require.Empty(t, fields.BillingEmail)
 	require.Equal(t, "eu_vat", fields.TaxIDType)
 	require.Equal(t, "US", fields.Country)
 	require.Equal(t, "1 Main St", fields.AddressLine1)
 
 	_, err = validateInvoiceProfile(model.InvoiceProfileFields{
-		BillingEmail: "billing@example.com",
 		Country:      "US",
 		AddressLine1: "1 Main St",
 	})
 	require.EqualError(t, err, "Company name is required")
 
-	_, err = validateInvoiceProfile(model.InvoiceProfileFields{
+	fields, err = validateInvoiceProfile(model.InvoiceProfileFields{
 		CompanyName:  "Acme Inc",
-		BillingEmail: "bad-email",
 		Country:      "US",
 		AddressLine1: "1 Main St",
 	})
-	require.EqualError(t, err, "Billing email is invalid")
+	require.NoError(t, err)
+	require.Empty(t, fields.BillingEmail)
+}
+
+func TestStripeCustomerParamsForInvoiceUsesAccountEmail(t *testing.T) {
+	params := stripeCustomerParamsForInvoice(&model.User{Email: " account@example.com "}, model.InvoiceProfileFields{
+		CompanyName:  "Acme Inc",
+		BillingEmail: "request@example.com",
+		Country:      "US",
+		AddressLine1: "1 Main St",
+	})
+
+	require.NotNil(t, params.Email)
+	require.Equal(t, "account@example.com", *params.Email)
+	require.Equal(t, "account@example.com", params.Metadata["user_email"])
+}
+
+func TestStripeInvoiceProfileForUserRequiresAccountEmail(t *testing.T) {
+	_, err := stripeInvoiceProfileForUser(model.InvoiceProfileFields{
+		CompanyName:  "Acme Inc",
+		Country:      "US",
+		AddressLine1: "1 Main St",
+	}, &model.User{})
+
+	require.EqualError(t, err, invoiceAccountEmailRequired)
+}
+
+func TestStripeInvoiceProfileForUserInjectsAccountEmail(t *testing.T) {
+	fields, err := stripeInvoiceProfileForUser(model.InvoiceProfileFields{
+		CompanyName:  "Acme Inc",
+		BillingEmail: "request@example.com",
+		Country:      "US",
+		AddressLine1: "1 Main St",
+	}, &model.User{Email: " account@example.com "})
+
+	require.NoError(t, err)
+	require.Equal(t, "account@example.com", fields.BillingEmail)
 }

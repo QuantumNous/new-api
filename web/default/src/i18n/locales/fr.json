@@ -599,6 +599,7 @@
     "Billing Details": "Détails de facturation",
     "Billing email": "E-mail de facturation",
     "Billing email is invalid": "L’e-mail de facturation est invalide",
+    "Account email is required for invoices": "L’e-mail du compte est requis pour les factures",
     "Billing History": "Historique de facturation",
     "Billing Mode": "Mode de facturation",
     "Billing Process": "Processus de facturation",

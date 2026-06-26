@@ -519,21 +519,13 @@ export function BillingHistoryDialog({
                               </span>
                             )}
                           </div>
-                          <div className='mt-2 grid gap-2 text-xs sm:grid-cols-2'>
+                          <div className='mt-2 grid gap-2 text-xs'>
                             <div>
                               <span className='text-muted-foreground'>
                                 {t('Company name')}:
                               </span>{' '}
                               <span className='font-medium'>
                                 {invoice?.company_name || '-'}
-                              </span>
-                            </div>
-                            <div>
-                              <span className='text-muted-foreground'>
-                                {t('Billing email')}:
-                              </span>{' '}
-                              <span className='font-medium'>
-                                {invoice?.billing_email || '-'}
                               </span>
                             </div>
                           </div>
@@ -710,19 +702,6 @@ export function BillingHistoryDialog({
                     value={invoiceProfile.company_name}
                     onChange={(event) =>
                       updateInvoiceField('company_name', event.target.value)
-                    }
-                  />
-                </div>
-                <div className='space-y-1.5'>
-                  <Label htmlFor='request-invoice-billing-email'>
-                    {t('Billing email')}
-                  </Label>
-                  <Input
-                    id='request-invoice-billing-email'
-                    type='email'
-                    value={invoiceProfile.billing_email}
-                    onChange={(event) =>
-                      updateInvoiceField('billing_email', event.target.value)
                     }
                   />
                 </div>

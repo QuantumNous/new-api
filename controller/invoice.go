@@ -14,13 +14,13 @@ import (
 
 var invoiceEmailPattern = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 
+const invoiceAccountEmailRequired = "Account email is required for invoices"
+
 func validateInvoiceProfile(fields model.InvoiceProfileFields) (model.InvoiceProfileFields, error) {
 	fields = normalizeInvoiceProfileForRequest(fields)
+	fields.BillingEmail = ""
 	if fields.CompanyName == "" {
 		return fields, errInvoiceProfile("Company name is required")
-	}
-	if fields.BillingEmail == "" || !invoiceEmailPattern.MatchString(fields.BillingEmail) {
-		return fields, errInvoiceProfile("Billing email is invalid")
 	}
 	if fields.Country == "" {
 		return fields, errInvoiceProfile("Country is required")
@@ -29,6 +29,30 @@ func validateInvoiceProfile(fields model.InvoiceProfileFields) (model.InvoicePro
 		return fields, errInvoiceProfile("Address is required")
 	}
 	return fields, nil
+}
+
+func stripeInvoiceProfileForUser(fields model.InvoiceProfileFields, user *model.User) (model.InvoiceProfileFields, error) {
+	fields, err := validateInvoiceProfile(fields)
+	if err != nil {
+		return fields, err
+	}
+	email, err := userInvoiceEmail(user)
+	if err != nil {
+		return fields, err
+	}
+	fields.BillingEmail = email
+	return fields, nil
+}
+
+func userInvoiceEmail(user *model.User) (string, error) {
+	if user == nil {
+		return "", errInvoiceProfile(invoiceAccountEmailRequired)
+	}
+	email := strings.TrimSpace(user.Email)
+	if email == "" || !invoiceEmailPattern.MatchString(email) {
+		return "", errInvoiceProfile(invoiceAccountEmailRequired)
+	}
+	return email, nil
 }
 
 type invoiceProfileError string
