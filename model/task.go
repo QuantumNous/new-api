@@ -314,6 +314,21 @@ func GetAllUnFinishSyncTasks(limit int) []*Task {
 	return tasks
 }
 
+// HasUnfinishedSyncTasks reports whether at least one async (Suno/video) task is
+// still in progress. It is a cheap existence check (LIMIT 1) used to decide
+// whether the async_task_poll system task needs to run; when no task is pending
+// the scheduler skips creating a row entirely.
+func HasUnfinishedSyncTasks() bool {
+	var id int64
+	err := DB.Model(&Task{}).
+		Where("progress != ?", "100%").
+		Where("status != ?", TaskStatusFailure).
+		Where("status != ?", TaskStatusSuccess).
+		Limit(1).
+		Pluck("id", &id).Error
+	return err == nil && id != 0
+}
+
 func GetByOnlyTaskId(taskId string) (*Task, bool, error) {
 	if taskId == "" {
 		return nil, false, nil

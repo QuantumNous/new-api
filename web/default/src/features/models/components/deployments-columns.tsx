@@ -16,13 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { Eye, Info, Pencil, Settings2, Timer, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatTimestampToDate } from '@/lib/format'
-import { Button } from '@/components/ui/button'
+
+import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+} from '@/components/ui/dropdown-menu'
+import { formatTimestampToDate } from '@/lib/format'
+
 import { getDeploymentStatusConfig } from '../constants'
 import {
   formatRemainingMinutes,
@@ -113,8 +121,9 @@ export function useDeploymentsColumns(opts: {
       header: t('Provider'),
       cell: ({ row }) => {
         const provider = row.original.provider
-        if (!provider)
+        if (!provider) {
           return <span className='text-muted-foreground text-xs'>-</span>
+        }
         return (
           <StatusBadge
             label={String(provider)}
@@ -194,8 +203,9 @@ export function useDeploymentsColumns(opts: {
           typeof row.original.hardware_quantity === 'number'
             ? row.original.hardware_quantity
             : null
-        if (!hardware)
+        if (!hardware) {
           return <span className='text-muted-foreground text-xs'>-</span>
+        }
         return (
           <div className='flex max-w-full min-w-0 flex-nowrap items-center gap-2 overflow-hidden'>
             <StatusBadge
@@ -218,12 +228,12 @@ export function useDeploymentsColumns(opts: {
       header: t('Created'),
       meta: { mobileHidden: true },
       cell: ({ row }) => {
-        const ts =
-          typeof row.original.created_at === 'number'
-            ? row.original.created_at
-            : typeof row.original.created_at === 'string'
-              ? Number(row.original.created_at)
-              : undefined
+        let ts: number | undefined
+        if (typeof row.original.created_at === 'number') {
+          ts = row.original.created_at
+        } else if (typeof row.original.created_at === 'string') {
+          ts = Number(row.original.created_at)
+        }
         return (
           <div className='min-w-[140px] font-mono text-sm'>
             {formatTimestampToDate(ts)}
@@ -249,56 +259,51 @@ export function useDeploymentsColumns(opts: {
           <div className='-ml-2.5 flex items-center gap-1'>
             <Button
               variant='ghost'
-              size='sm'
+              size='icon-sm'
               onClick={() => opts.onViewLogs(id)}
-              title={t('View logs')}
+              aria-label={t('View logs')}
             >
-              <Eye className='h-4 w-4' />
+              <Eye />
             </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => opts.onViewDetails(id)}
-              title={t('View details')}
-            >
-              <Info className='h-4 w-4' />
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => opts.onUpdateConfig(id)}
-              title={t('Update configuration')}
-            >
-              <Settings2 className='h-4 w-4' />
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => opts.onExtend(id)}
-              title={t('Extend deployment')}
-            >
-              <Timer className='h-4 w-4' />
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => opts.onRename(id, String(currentName))}
-              title={t('Rename deployment')}
-            >
-              <Pencil className='h-4 w-4' />
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => opts.onDelete(row.original)}
-              title={t('Delete')}
-            >
-              <Trash2 className='h-4 w-4 text-red-500' />
-            </Button>
+            <DataTableRowActionMenu ariaLabel={t('Open menu')}>
+              <DropdownMenuItem onClick={() => opts.onViewDetails(id)}>
+                {t('View details')}
+                <DropdownMenuShortcut>
+                  <Info size={16} />
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => opts.onUpdateConfig(id)}>
+                {t('Update configuration')}
+                <DropdownMenuShortcut>
+                  <Settings2 size={16} />
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => opts.onExtend(id)}>
+                {t('Extend deployment')}
+                <DropdownMenuShortcut>
+                  <Timer size={16} />
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => opts.onRename(id, currentName)}>
+                {t('Rename deployment')}
+                <DropdownMenuShortcut>
+                  <Pencil size={16} />
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => opts.onDelete(row.original)}
+                className='text-destructive focus:text-destructive'
+              >
+                {t('Delete')}
+                <DropdownMenuShortcut>
+                  <Trash2 size={16} />
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+            </DataTableRowActionMenu>
           </div>
         )
       },
-      size: 180,
       meta: { pinned: 'right' as const },
     },
   ]

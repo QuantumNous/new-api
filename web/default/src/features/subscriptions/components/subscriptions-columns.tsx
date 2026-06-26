@@ -213,7 +213,6 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         header: () => t('Actions'),
         cell: ({ row }) => <DataTableRowActions row={row} />,
         meta: { pinned: 'right' as const },
-        size: 80,
       },
     ],
     [t]

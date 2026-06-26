@@ -872,7 +872,6 @@ function ChannelTestDialogContent({
           )
         },
         enableSorting: false,
-        size: 120,
       },
     ],
     [
@@ -1068,7 +1067,6 @@ function ChannelTestDialogContent({
                   {
                     columnId: 'actions',
                     side: 'right',
-                    className: 'w-24 min-w-24 sm:w-28 sm:min-w-28',
                     cellClassName: 'bg-popover',
                   },
                 ]}
@@ -1077,7 +1075,7 @@ function ChannelTestDialogContent({
                     <col className='w-10 min-w-10' />
                     <col className='w-auto' />
                     <col className='w-70' />
-                    <col className='w-24 sm:w-28' />
+                    <col className='w-auto' />
                   </colgroup>
                 }
                 getColumnClassName={(columnId) =>

@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { TruncatedCell } from '@/components/data-table'
+import { TruncatedCell } from '@/components/data-table/core/truncated-cell'
 
 interface TruncatedTextProps {
   text: string

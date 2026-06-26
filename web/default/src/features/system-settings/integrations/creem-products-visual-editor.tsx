@@ -21,7 +21,8 @@ import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { StaticDataTable } from '@/components/data-table'
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
 import {
   formatCreemPrice,
   formatQuotaShort,
@@ -220,32 +221,13 @@ export function CreemProductsVisualEditor({
                 className: 'text-right',
                 cellClassName: 'text-right',
                 cell: (product) => (
-                  <div className='flex justify-end gap-2'>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='sm'
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleEdit(product)
-                      }}
-                    >
-                      <Pencil className='h-4 w-4' />
-                    </Button>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='sm'
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleDelete(product)
-                      }}
-                    >
-                      <Trash2 className='h-4 w-4' />
-                    </Button>
-                  </div>
+                  <StaticRowActions
+                    editLabel={t('Edit')}
+                    deleteLabel={t('Delete')}
+                    menuLabel={t('Open menu')}
+                    onEdit={() => handleEdit(product)}
+                    onDelete={() => handleDelete(product)}
+                  />
                 ),
               },
             ]}

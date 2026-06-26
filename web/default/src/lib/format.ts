@@ -145,6 +145,46 @@ export function formatTimestampToDate(
   return dayjs(ms).format('YYYY-MM-DD HH:mm:ss')
 }
 
+/**
+ * Format timestamp as relative time, e.g. "30 seconds ago".
+ * @param timestamp - Timestamp in seconds or milliseconds
+ * @param unit - Unit of the timestamp ('seconds' or 'milliseconds')
+ * @param locales - Locale passed to Intl.RelativeTimeFormat
+ */
+export function formatTimestampRelative(
+  timestamp?: number,
+  unit: 'seconds' | 'milliseconds' = 'seconds',
+  locales?: Intl.LocalesArgument
+): string {
+  if (!timestamp || timestamp === -1 || timestamp === 0) {
+    return '-'
+  }
+
+  const ms = unit === 'seconds' ? timestamp * 1000 : timestamp
+  const diffSeconds = Math.round((ms - Date.now()) / 1000)
+  const absSeconds = Math.abs(diffSeconds)
+  const formatter = new Intl.RelativeTimeFormat(locales, {
+    numeric: 'always',
+  })
+
+  if (absSeconds < 60) {
+    return formatter.format(diffSeconds, 'second')
+  }
+  if (absSeconds < 3600) {
+    return formatter.format(Math.round(diffSeconds / 60), 'minute')
+  }
+  if (absSeconds < 86400) {
+    return formatter.format(Math.round(diffSeconds / 3600), 'hour')
+  }
+  if (absSeconds < 2592000) {
+    return formatter.format(Math.round(diffSeconds / 86400), 'day')
+  }
+  if (absSeconds < 31536000) {
+    return formatter.format(Math.round(diffSeconds / 2592000), 'month')
+  }
+  return formatter.format(Math.round(diffSeconds / 31536000), 'year')
+}
+
 /** Format a Date object to YYYY-MM-DD HH:mm:ss */
 export function formatDateTimeStr(date: Date): string {
   return dayjs(date).format('YYYY-MM-DD HH:mm:ss')

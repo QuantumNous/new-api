@@ -289,7 +289,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
             {
               id: 'actions',
               header: t('Actions'),
-              className: 'w-[80px] text-right',
+              className: 'text-right',
               cellClassName: 'text-right',
               cell: (row) => (
                 <Button
