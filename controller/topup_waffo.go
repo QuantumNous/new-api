@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -57,6 +58,17 @@ func getWaffoCurrency() string {
 		return setting.WaffoCurrency
 	}
 	return "USD"
+}
+
+func buildWaffoTopUpGoodsInfo(amount int64) *order.GoodsInfo {
+	appName := strings.TrimSpace(common.SystemName)
+	if appName == "" {
+		appName = "New API"
+	}
+	return &order.GoodsInfo{
+		GoodsName: fmt.Sprintf("Recharge %d credits", amount),
+		AppName:   appName,
+	}
 }
 
 // zeroDecimalCurrencies 零小数位币种，金额不能带小数点
@@ -242,12 +254,13 @@ func RequestWaffoPay(c *gin.Context) {
 	}
 
 	currency := getWaffoCurrency()
+	goodsInfo := buildWaffoTopUpGoodsInfo(req.Amount)
 	createParams := &order.CreateOrderParams{
 		PaymentRequestID: paymentRequestId,
 		MerchantOrderID:  merchantOrderId,
 		OrderAmount:      formatWaffoAmount(payMoney, currency),
 		OrderCurrency:    currency,
-		OrderDescription: fmt.Sprintf("Recharge %d credits", req.Amount),
+		OrderDescription: goodsInfo.GoodsName,
 		OrderRequestedAt: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
 		NotifyURL:        notifyUrl,
 		MerchantInfo: &order.MerchantInfo{
@@ -263,6 +276,7 @@ func RequestWaffoPay(c *gin.Context) {
 			PayMethodType: resolvedPayMethodType,
 			PayMethodName: resolvedPayMethodName,
 		},
+		GoodsInfo:          goodsInfo,
 		SuccessRedirectURL: returnUrl,
 		FailedRedirectURL:  returnUrl,
 	}

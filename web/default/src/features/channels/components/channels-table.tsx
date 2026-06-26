@@ -370,7 +370,9 @@ export function ChannelsTable() {
       skeletonKeyPrefix='channel-skeleton'
       enableCardView
       viewModeStorageKey={CHANNELS_VIEW_MODE_STORAGE_KEY}
-      renderCard={(row) => <ChannelCard row={row} />}
+      renderCard={(row, { isSelected }) => (
+        <ChannelCard row={row} isSelected={isSelected} />
+      )}
       cardGridClassName='grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3'
       applyHeaderSize
       toolbarProps={{

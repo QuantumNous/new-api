@@ -3,12 +3,27 @@ name: i18n-translate
 description: >-
   Complete and maintain frontend i18n translations for this project. Covers
   finding missing translation keys, detecting untranslated entries, and adding
-  translations for all supported locales (en, zh, fr, ja, ru, vi). Use when the
-  user asks to add translations, fix i18n, complete missing translations, or
-  when new UI text needs to be internationalized.
+  translations for all supported locales (en, zh, fr, ja, ru, vi). Use for any
+  task involving frontend locale files, missing translation keys, untranslated
+  UI text, `t(...)` keys, `useTranslation()`, static i18n keys, button/label/
+  toast/dialog/placeholder/validation copy, or adding/fixing even a single
+  i18n key. Use when review findings mention missing i18n, when new UI text
+  needs translation, or when the user asks to add translations, fix i18n, or
+  complete missing translations.
 ---
 
 # Frontend i18n Translation Workflow
+
+## Scope Checklist
+
+Before editing files, treat the task as covered by this skill if it involves:
+
+- `i18n`, translation, locale files, language packs, missing keys, or untranslated text
+- `t('...')`, `useTranslation()`, `static-keys.ts`, or `locales/*.json`
+- UI copy in buttons, labels, toasts, dialogs, placeholders, validation messages, descriptions, or table/empty states
+- A review finding about missing i18n keys
+
+Do not skip this workflow because the fix is "just one key".
 
 ## Overview
 
@@ -17,6 +32,16 @@ description: >-
 - Base locale: `en.json` (most keys), fallback: `zh` (Chinese)
 - Sync script: `bun run i18n:sync` (from `web/default/`)
 - All `t()` calls must have corresponding keys in every locale file
+
+## Small Fix Path
+
+For a single known missing key:
+
+1. Confirm the exact key at the call site and verify it is absent from all locale files.
+2. Add the key to every supported locale: `en`, `zh`, `fr`, `ja`, `ru`, `vi`.
+3. Preserve the flat `"translation"` object and keep keys alphabetically sorted.
+4. Run a targeted search for the key in code and locale files.
+5. Run `bun run i18n:sync` when practical; if skipped, state that clearly.
 
 ## Workflow
 

@@ -17,8 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useMemo, useEffect, useCallback, memo } from 'react'
-import { Pencil, Plus, Trash2, GripVertical, ChevronDown } from 'lucide-react'
+import { Plus, Trash2, GripVertical, ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -35,8 +39,7 @@ import {
 } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { StaticDataTable } from '@/components/data-table'
-import { Dialog } from '@/components/dialog'
+
 import { safeJsonParse } from '../utils/json-parser'
 
 type GroupRatioVisualEditorProps = {
@@ -95,11 +98,11 @@ function buildGroupPricingRows(
   })
   const names = new Set([...Object.keys(ratioMap), ...Object.keys(usableMap)])
 
-  return Array.from(names).map((name) => ({
+  return [...names].map((name) => ({
     _id: createGroupPricingId(),
     name,
     ratio: normalizeRatio(ratioMap[name]),
-    selectable: Object.prototype.hasOwnProperty.call(usableMap, name),
+    selectable: Object.hasOwn(usableMap, name),
     description: String(usableMap[name] ?? ''),
   }))
 }
@@ -246,7 +249,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       delete map[simpleEditData.name]
     }
 
-    map[name] = parseFloat(value)
+    map[name] = Number.parseFloat(value)
 
     const field =
       simpleDialogType === 'groupRatio' ? 'GroupRatio' : 'TopupGroupRatio'
@@ -441,26 +444,17 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                     className: 'text-right',
                     cellClassName: 'text-right',
                     cell: (group) => (
-                      <div className='flex justify-end gap-2'>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          onClick={() =>
-                            handleSimpleEdit('topupGroupRatio', group)
-                          }
-                        >
-                          <Pencil className='h-4 w-4' />
-                        </Button>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          onClick={() =>
-                            handleSimpleDelete('topupGroupRatio', group.name)
-                          }
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </div>
+                      <StaticRowActions
+                        editLabel={t('Edit')}
+                        deleteLabel={t('Delete')}
+                        menuLabel={t('Open menu')}
+                        onEdit={() =>
+                          handleSimpleEdit('topupGroupRatio', group)
+                        }
+                        onDelete={() =>
+                          handleSimpleDelete('topupGroupRatio', group.name)
+                        }
+                      />
                     ),
                   },
                 ]}
@@ -553,32 +547,23 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                                   className: 'text-right',
                                   cellClassName: 'text-right',
                                   cell: (override) => (
-                                    <div className='flex justify-end gap-2'>
-                                      <Button
-                                        variant='ghost'
-                                        size='sm'
-                                        onClick={() =>
-                                          handleOverrideEdit(
-                                            userGroupData.userGroup,
-                                            override
-                                          )
-                                        }
-                                      >
-                                        <Pencil className='h-4 w-4' />
-                                      </Button>
-                                      <Button
-                                        variant='ghost'
-                                        size='sm'
-                                        onClick={() =>
-                                          handleOverrideDelete(
-                                            userGroupData.userGroup,
-                                            override.targetGroup
-                                          )
-                                        }
-                                      >
-                                        <Trash2 className='h-4 w-4' />
-                                      </Button>
-                                    </div>
+                                    <StaticRowActions
+                                      editLabel={t('Edit')}
+                                      deleteLabel={t('Delete')}
+                                      menuLabel={t('Open menu')}
+                                      onEdit={() =>
+                                        handleOverrideEdit(
+                                          userGroupData.userGroup,
+                                          override
+                                        )
+                                      }
+                                      onDelete={() =>
+                                        handleOverrideDelete(
+                                          userGroupData.userGroup,
+                                          override.targetGroup
+                                        )
+                                      }
+                                    />
                                   ),
                                 },
                               ]}
@@ -615,7 +600,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
               <div className='space-y-2'>
                 {autoGroupsList.map((group, index) => (
                   <div
-                    key={index}
+                    key={group}
                     className='flex items-center gap-2 rounded-md border p-3'
                   >
                     <GripVertical className='text-muted-foreground h-4 w-4' />
@@ -826,7 +811,7 @@ function GroupPricingTable({
       if (!name) continue
       counts.set(name, (counts.get(name) ?? 0) + 1)
     }
-    return Array.from(counts.entries())
+    return [...counts.entries()]
       .filter(([, count]) => count > 1)
       .map(([name]) => name)
   }, [rows])
@@ -929,7 +914,7 @@ function GroupPricingTable({
               {
                 id: 'actions',
                 header: t('Actions'),
-                className: 'w-16 text-right',
+                className: 'text-right',
                 cellClassName: 'text-right',
                 cell: (row) => (
                   <Button
@@ -1037,7 +1022,7 @@ function SimpleGroupDialog({
             value={value}
             onChange={(e) => {
               const val = e.target.value
-              if (val === '' || !isNaN(parseFloat(val))) {
+              if (val === '' || !isNaN(Number.parseFloat(val))) {
                 setValue(val)
               }
             }}
@@ -1082,7 +1067,7 @@ function GroupOverrideDialog({
 
   const handleSave = () => {
     if (!targetGroup.trim() || !ratio.trim()) return
-    const parsedRatio = parseFloat(ratio)
+    const parsedRatio = Number.parseFloat(ratio)
     if (isNaN(parsedRatio)) return
 
     onSave(targetGroup.trim(), parsedRatio, editData?.targetGroup)
@@ -1137,7 +1122,7 @@ function GroupOverrideDialog({
             value={ratio}
             onChange={(e) => {
               const val = e.target.value
-              if (val === '' || !isNaN(parseFloat(val))) {
+              if (val === '' || !isNaN(Number.parseFloat(val))) {
                 setRatio(val)
               }
             }}
