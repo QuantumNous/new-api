@@ -821,10 +821,20 @@ func scheduleAsyncImageRaceHedge(publicTaskID, modelName string, requestBody []b
 	})
 }
 
+// asyncImagePollOutcome is the result of server-side polling for a gpt-image-2 task.
+type asyncImagePollOutcome struct {
+	body           []byte
+	timedOut       bool
+	upstreamFailed bool
+	failReason     string
+	failCode       string
+}
+
 // pollAsyncImageTask polls the upstream /v1/tasks/{id} until done, then returns OpenAI-compatible image JSON.
-// If the primary channel hasn't finished by the race-fallback trigger threshold, it also
-// submits to a second channel and returns whichever finishes first (see startImageRaceHedge).
-func pollAsyncImageTask(c *gin.Context, info *relaycommon.RelayInfo, taskID string) []byte {
+// When GptImage2RaceFallbackEnabled is false (default), only the primary channel is polled; slow tasks
+// time out without racing a second channel. Upstream terminal failures return upstreamFailed so the
+// relay retry loop can pick the next channel.
+func pollAsyncImageTask(c *gin.Context, info *relaycommon.RelayInfo, taskID string) asyncImagePollOutcome {
 	baseURL := strings.TrimRight(common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl), "/")
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
@@ -841,40 +851,72 @@ func pollAsyncImageTask(c *gin.Context, info *relaycommon.RelayInfo, taskID stri
 
 	time.Sleep(3 * time.Second)
 
-	winner, imageURL, ok := service.RaceImageTask([]service.ImageTaskTarget{primary}, raceDeadline)
-	if !ok && raceDeadline.Before(fullDeadline) {
-		if hedgeTarget, hedgeChannel, hedgeOK := startImageRaceHedge(c, info); hedgeOK {
-			winner, imageURL, ok = service.RaceImageTask([]service.ImageTaskTarget{primary, hedgeTarget}, fullDeadline)
-			if ok && winner.ChannelID == hedgeChannel.Id && info != nil {
-				if setupErr := middleware.SetupContextForSelectedChannel(c, hedgeChannel, info.OriginModelName); setupErr == nil {
-					info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
+	var imageURL string
+	var ok bool
+
+	if common.GptImage2RaceFallbackEnabled && raceDeadline.Before(fullDeadline) {
+		_, imageURL, ok = service.RaceImageTask([]service.ImageTaskTarget{primary}, raceDeadline)
+		if !ok {
+			if hedgeTarget, hedgeChannel, hedgeOK := startImageRaceHedge(c, info); hedgeOK {
+				_, imageURL, ok = service.RaceImageTask([]service.ImageTaskTarget{primary, hedgeTarget}, fullDeadline)
+				if ok && hedgeTarget.ChannelID == hedgeChannel.Id && info != nil {
+					if setupErr := middleware.SetupContextForSelectedChannel(c, hedgeChannel, info.OriginModelName); setupErr == nil {
+						info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
+					}
+					addImageRaceHedgeChannel(c, hedgeChannel.Id)
 				}
+			} else {
+				_, imageURL, ok = service.RaceImageTask([]service.ImageTaskTarget{primary}, fullDeadline)
 			}
-		} else {
-			winner, imageURL, ok = service.RaceImageTask([]service.ImageTaskTarget{primary}, fullDeadline)
+		}
+	} else {
+		_, imageURL, ok = service.RaceImageTask([]service.ImageTaskTarget{primary}, fullDeadline)
+	}
+
+	if ok && imageURL != "" {
+		cachedURL := service.CacheImageLocally(imageURL)
+		if cachedURL != "" {
+			c.Set("image_result_url", cachedURL)
+		}
+		c.Set(imagePollTaskIDContextKey, taskID)
+		openaiResp, _ := common.Marshal(map[string]interface{}{
+			"created": time.Now().Unix(),
+			"data":    []map[string]string{{"url": cachedURL}},
+		})
+		return asyncImagePollOutcome{body: openaiResp}
+	}
+
+	_, status, _, failReason, failCode := service.CheckImageTaskTargetsOnce([]service.ImageTaskTarget{primary})
+	switch status {
+	case "failed", "error", "cancelled":
+		display := service.FormatImageTaskFailReason(failCode, failReason)
+		if display == "" {
+			display = fmt.Sprintf("upstream task %s failed", taskID)
+		}
+		return asyncImagePollOutcome{
+			upstreamFailed: true,
+			failReason:     display,
+			failCode:       failCode,
+		}
+	default:
+		logger.LogWarn(context.Background(), fmt.Sprintf("pollAsyncImageTask: timeout for task %s", taskID))
+		return asyncImagePollOutcome{timedOut: true}
+	}
+}
+
+// addImageRaceHedgeChannel appends the hedge channel to use_channel for usage log visibility.
+func addImageRaceHedgeChannel(c *gin.Context, channelID int) {
+	if c == nil || channelID <= 0 {
+		return
+	}
+	useChannel := c.GetStringSlice("use_channel")
+	id := fmt.Sprintf("%d", channelID)
+	for _, existing := range useChannel {
+		if existing == id {
+			return
 		}
 	}
-	_ = winner
-
-	if !ok {
-		logger.LogWarn(context.Background(), fmt.Sprintf("pollAsyncImageTask: timeout/failed for task %s", taskID))
-		return nil
-	}
-	if imageURL == "" {
-		logger.LogWarn(context.Background(), fmt.Sprintf("pollAsyncImageTask: task %s completed but no URL", taskID))
-		return nil
-	}
-	// cache on our server so callers never see the upstream provider URL
-	cachedURL := service.CacheImageLocally(imageURL)
-	if cachedURL != "" {
-		c.Set("image_result_url", cachedURL)
-	}
-	c.Set(imagePollTaskIDContextKey, taskID)
-	openaiResp, _ := common.Marshal(map[string]interface{}{
-		"created": time.Now().Unix(),
-		"data":    []map[string]string{{"url": cachedURL}},
-	})
-	return openaiResp
+	c.Set("use_channel", append(useChannel, id))
 }
 
 // isClientAsyncImageGenerationsPath reports POST /v1/images/generations/async:
@@ -972,8 +1014,20 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 			asyncCheck.Data[0].Status == "submitted" {
 			taskID := asyncCheck.Data[0].TaskID
 			logger.LogInfo(c.Request.Context(), fmt.Sprintf("image task async detected, polling task_id=%s", taskID))
-			if finalBody := pollAsyncImageTask(c, info, taskID); finalBody != nil {
-				responseBody = finalBody
+			pollOutcome := pollAsyncImageTask(c, info, taskID)
+			if pollOutcome.body != nil {
+				responseBody = pollOutcome.body
+			} else if pollOutcome.upstreamFailed {
+				c.Set(imagePollTaskIDContextKey, taskID)
+				failCode := pollOutcome.failCode
+				if failCode == "" {
+					failCode = "image_generation_failed"
+				}
+				return nil, types.WithOpenAIError(types.OpenAIError{
+					Message: pollOutcome.failReason,
+					Type:    "server_error",
+					Code:    failCode,
+				}, http.StatusBadGateway)
 			} else {
 				c.Set(imagePollTaskIDContextKey, taskID)
 				service.ScheduleImageTaskReconcile(c, info, taskID)

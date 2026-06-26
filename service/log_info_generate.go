@@ -58,7 +58,8 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	}
 
 	adminInfo := make(map[string]interface{})
-	adminInfo["use_channel"] = ctx.GetStringSlice("use_channel")
+	useChannels := ctx.GetStringSlice("use_channel")
+	adminInfo["use_channel"] = useChannels
 	isMultiKey := common.GetContextKeyBool(ctx, constant.ContextKeyChannelIsMultiKey)
 	if isMultiKey {
 		adminInfo["is_multi_key"] = true
@@ -73,6 +74,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
 
 	other["admin_info"] = adminInfo
+	appendChannelRetryFallbackInfo(ctx, other, useChannels)
 	appendRequestPath(ctx, relayInfo, other)
 	appendRequestConversionChain(relayInfo, other)
 	appendFinalRequestFormat(relayInfo, other)
@@ -84,6 +86,27 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 		AppendClientExclusiveLogInfo(ctx, relayInfo.OriginModelName, other)
 	}
 	return other
+}
+
+// appendChannelRetryFallbackInfo records relay retry / fallback winner on consume logs.
+func appendChannelRetryFallbackInfo(ctx *gin.Context, other map[string]interface{}, useChannels []string) {
+	if other == nil {
+		return
+	}
+	if len(useChannels) <= 1 {
+		other["fallback_triggered"] = false
+		return
+	}
+	other["fallback_triggered"] = true
+	if ctx == nil {
+		return
+	}
+	if channelID := ctx.GetInt("channel_id"); channelID > 0 {
+		other["fallback_winner_channel_id"] = channelID
+	}
+	if channelName := strings.TrimSpace(ctx.GetString("channel_name")); channelName != "" {
+		other["fallback_winner_channel_name"] = channelName
+	}
 }
 
 func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
