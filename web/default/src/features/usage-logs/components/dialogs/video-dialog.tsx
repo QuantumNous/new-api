@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CopyButton } from '@/components/copy-button'
 import {
@@ -74,7 +75,6 @@ export function VideoDialog({
           objectUrl = resolved.url
         }
         setPlayableUrl(resolved.url)
-        setIsLoading(false)
       } catch (err) {
         if (!cancelled) {
           setPlayableUrl('')
@@ -147,8 +147,15 @@ export function VideoDialog({
 
         <div className='min-h-0 flex-1 space-y-3 overflow-y-auto pr-0.5'>
           <div className='bg-muted/30 relative flex max-h-[min(32vh,260px)] min-h-[140px] items-center justify-center rounded-lg border p-2'>
-            {(isLoading || hasError) && (
+            {isLoading && !hasError && (
               <Skeleton className='absolute inset-2 rounded-md' />
+            )}
+
+            {isLoading && !hasError && (
+              <div className='absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 px-4'>
+                <Loader2 className='text-muted-foreground size-6 animate-spin' />
+                <p className='text-muted-foreground text-sm'>{t('Loading video...')}</p>
+              </div>
             )}
 
             {playableUrl ? (
@@ -172,7 +179,7 @@ export function VideoDialog({
             ) : null}
 
             {hasError && (
-              <div className='absolute inset-0 flex items-center justify-center px-4 text-center'>
+              <div className='absolute inset-0 z-10 flex items-center justify-center px-4 text-center'>
                 <p className='text-muted-foreground text-sm leading-relaxed'>
                   {errorMessage || t('Failed to load video')}
                 </p>

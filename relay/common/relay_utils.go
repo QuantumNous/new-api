@@ -174,6 +174,11 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 			return createTaskError(fmt.Errorf("sora-2 size is invalid"), "invalid_size", http.StatusBadRequest, true)
 		}
 		// OtherRatios 已移到 Sora adaptor 的 EstimateBilling 中设置
+		req.Size = size
+		if seconds > 0 {
+			req.Duration = seconds
+			req.Seconds = strconv.Itoa(seconds)
+		}
 	}
 
 	storeTaskRequest(c, info, action, req)

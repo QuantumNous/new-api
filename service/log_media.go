@@ -83,10 +83,36 @@ func resolveLogRequestData(other map[string]interface{}) map[string]interface{} 
 	if strings.TrimSpace(task.PrivateData.RequestData) != "" {
 		var data map[string]interface{}
 		if err := common.Unmarshal([]byte(task.PrivateData.RequestData), &data); err == nil && len(data) > 0 {
-			return data
+			mergeTaskBillingIntoRequestData(task, data)
+			return EnrichVideoRequestData(data)
 		}
 	}
 	return buildVideoRequestDataFromTask(task)
+}
+
+func mergeTaskBillingIntoRequestData(task *model.Task, data map[string]interface{}) {
+	if task == nil || data == nil {
+		return
+	}
+	bc := task.PrivateData.BillingContext
+	if bc == nil {
+		return
+	}
+	if _, ok := data["model"]; !ok {
+		if modelName := strings.TrimSpace(bc.OriginModelName); modelName != "" {
+			data["model"] = modelName
+		}
+	}
+	if _, ok := data["size_ratio"]; !ok && bc.OtherRatios != nil {
+		if ratio, ok := bc.OtherRatios["size"]; ok {
+			data["size_ratio"] = ratio
+		}
+	}
+	if _, ok := data["duration"]; !ok && bc.OtherRatios != nil {
+		if seconds, ok := bc.OtherRatios["seconds"]; ok && seconds > 0 {
+			data["seconds"] = strconv.FormatFloat(seconds, 'f', -1, 64)
+		}
+	}
 }
 
 func buildVideoRequestDataFromTask(task *model.Task) map[string]interface{} {
@@ -111,10 +137,13 @@ func appendBillingContextRequestData(task *model.Task, data map[string]interface
 		return
 	}
 	if value, ok := formatLogRequestScalar(bc.OtherRatios["seconds"]); ok {
+		if v, err := strconv.Atoi(value); err == nil && v > 0 {
+			data["duration"] = v
+		}
 		data["seconds"] = value
 	}
-	if value, ok := formatLogRequestScalar(bc.OtherRatios["size"]); ok {
-		data["size"] = value
+	if ratio, ok := bc.OtherRatios["size"]; ok {
+		data["size_ratio"] = ratio
 	}
 }
 
@@ -129,6 +158,12 @@ func appendTaskPayloadRequestData(raw []byte, data map[string]interface{}) {
 	setRequestDataFieldIfMissing(data, "model", payload["model"])
 	setRequestDataFieldIfMissing(data, "seconds", payload["seconds"])
 	setRequestDataFieldIfMissing(data, "size", payload["size"])
+	if duration, ok := payload["duration"]; ok {
+		setRequestDataFieldIfMissing(data, "duration", duration)
+	}
+	if prompt, ok := payload["prompt"]; ok {
+		setRequestDataFieldIfMissing(data, "prompt", prompt)
+	}
 }
 
 func setRequestDataFieldIfMissing(data map[string]interface{}, key string, value interface{}) {
@@ -144,16 +179,11 @@ func sanitizeRequestDataMap(data map[string]interface{}) map[string]interface{} 
 	if len(data) == 0 {
 		return nil
 	}
-	clean := make(map[string]interface{}, len(data))
-	for key, value := range data {
-		if formatted, ok := formatLogRequestScalar(value); ok {
-			clean[key] = formatted
-		}
-	}
-	if len(clean) == 0 {
+	enriched := EnrichVideoRequestData(data)
+	if len(enriched) == 0 {
 		return nil
 	}
-	return clean
+	return enriched
 }
 
 func formatLogRequestScalar(value interface{}) (string, bool) {

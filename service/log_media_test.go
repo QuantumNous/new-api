@@ -25,8 +25,10 @@ func TestBuildVideoRequestDataFromTask_BillingContext(t *testing.T) {
 
 	data := buildVideoRequestDataFromTask(task)
 	require.Equal(t, "sora-2", data["model"])
-	require.Equal(t, "8", data["seconds"])
-	require.Equal(t, "1", data["size"])
+	require.Equal(t, 8, data["duration"])
+	require.Equal(t, "720p", data["resolution"])
+	require.Equal(t, "720P", data["effective_resolution"])
+	require.Equal(t, 1, data["actual_image_count"])
 }
 
 func TestBuildVideoRequestDataFromTask_SkipsNilFields(t *testing.T) {
