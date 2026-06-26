@@ -294,6 +294,38 @@ func getFeishuUserIdentifiersByAnyID(ctx *gin.Context, tenantToken, idType, idVa
 	return openID, unionID, userID, nil
 }
 
+// enrichFeishuNameAndEmployeeNo 在已有飞书标识后，补充查询用户的 name 和 employee_no。
+// 用于调用方只传了 open_id/union_id/user_id 但没传 name 或工号的场景。
+func enrichFeishuNameAndEmployeeNo(ctx *gin.Context, idType, idValue string) (string, string) {
+	settings := system_setting.GetFeishuSettings()
+	if settings.AppID == "" || settings.AppSecret == "" {
+		return "", ""
+	}
+	token, err := getFeishuTenantAccessToken(ctx, settings.AppID, settings.AppSecret)
+	if err != nil || token == "" {
+		return "", ""
+	}
+	_, _, _, name, _, _, employeeNo, err := getFeishuUserProfileByAnyID(ctx, token, idType, idValue)
+	if err != nil {
+		return "", ""
+	}
+	return name, employeeNo
+}
+
+// pickFeishuIdType 从已有的飞书标识中选出优先用于查询的类型和值。
+func pickFeishuIdType(openID, userID, unionID string) (string, string) {
+	if openID = strings.TrimSpace(openID); openID != "" {
+		return "open_id", openID
+	}
+	if userID = strings.TrimSpace(userID); userID != "" {
+		return "user_id", userID
+	}
+	if unionID = strings.TrimSpace(unionID); unionID != "" {
+		return "union_id", unionID
+	}
+	return "", ""
+}
+
 func getStringField(m map[string]any, keys ...string) string {
 	for _, key := range keys {
 		if v, ok := m[key]; ok {
@@ -566,6 +598,19 @@ func BatchCreateFeishuUsers(c *gin.Context) {
 		resolvedEmployeeNo := strings.TrimSpace(item.EmployeeID)
 		if openId == "" && unionId == "" && userId == "" {
 			openId, unionId, userId, resolvedName, _, _, resolvedEmployeeNo = resolveFeishuIdentifiersFromReadable(c, item.EmployeeID, item.Mobile, item.Email)
+		}
+		// 如果调用方传了飞书 ID 但没传 name 或工号，去飞书补查。
+		if (resolvedName == "" || resolvedEmployeeNo == "") && (openId != "" || userId != "" || unionId != "") {
+			idType, idValue := pickFeishuIdType(openId, userId, unionId)
+			if idType != "" {
+				name, empNo := enrichFeishuNameAndEmployeeNo(c, idType, idValue)
+				if resolvedName == "" {
+					resolvedName = name
+				}
+				if resolvedEmployeeNo == "" {
+					resolvedEmployeeNo = empNo
+				}
+			}
 		}
 		if openId == "" && unionId == "" && userId == "" {
 			result.Failed++
@@ -1236,6 +1281,19 @@ func FeishuInitWebhook(c *gin.Context) {
 		resolvedEmployeeNo := strings.TrimSpace(item.EmployeeID)
 		if openId == "" && unionId == "" && userId == "" {
 			openId, unionId, userId, resolvedName, _, _, resolvedEmployeeNo = resolveFeishuIdentifiersFromReadable(c, item.EmployeeID, item.Mobile, item.Email)
+		}
+		// 如果调用方传了飞书 ID 但没传 name 或工号，去飞书补查。
+		if (resolvedName == "" || resolvedEmployeeNo == "") && (openId != "" || userId != "" || unionId != "") {
+			idType, idValue := pickFeishuIdType(openId, userId, unionId)
+			if idType != "" {
+				name, empNo := enrichFeishuNameAndEmployeeNo(c, idType, idValue)
+				if resolvedName == "" {
+					resolvedName = name
+				}
+				if resolvedEmployeeNo == "" {
+					resolvedEmployeeNo = empNo
+				}
+			}
 		}
 		if openId == "" && unionId == "" && userId == "" {
 			result.Failed++
