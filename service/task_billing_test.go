@@ -44,6 +44,7 @@ func TestMain(m *testing.M) {
 		&model.Channel{},
 		&model.TopUp{},
 		&model.UserSubscription{},
+		&model.Option{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -146,6 +147,13 @@ func getUserQuota(t *testing.T, id int) int {
 	return user.Quota
 }
 
+func getUserUsedQuota(t *testing.T, id int) int {
+	t.Helper()
+	var user model.User
+	require.NoError(t, model.DB.Select("used_quota").Where("id = ?", id).First(&user).Error)
+	return user.UsedQuota
+}
+
 func getTokenRemainQuota(t *testing.T, id int) int {
 	t.Helper()
 	var token model.Token
@@ -201,11 +209,13 @@ func TestRefundTaskQuota_Wallet(t *testing.T) {
 	seedChannel(t, channelID)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	model.UpdateUserUsedQuotaAndRequestCount(userID, preConsumed)
 
 	RefundTaskQuota(ctx, task, "task failed: upstream error")
 
 	// User quota should increase by preConsumed
 	assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
+	assert.Equal(t, 0, getUserUsedQuota(t, userID))
 
 	// Token remain_quota should increase, used_quota should decrease
 	assert.Equal(t, tokenRemain+preConsumed, getTokenRemainQuota(t, tokenID))
@@ -340,11 +350,13 @@ func TestRecalculate_NegativeDelta(t *testing.T) {
 	seedChannel(t, channelID)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	model.UpdateUserUsedQuotaAndRequestCount(userID, preConsumed)
 
 	RecalculateTaskQuota(ctx, task, actualQuota, "adaptor adjustment")
 
 	// User quota should increase by abs(delta) = 2000 (refund overpayment)
 	assert.Equal(t, initQuota+(preConsumed-actualQuota), getUserQuota(t, userID))
+	assert.Equal(t, actualQuota, getUserUsedQuota(t, userID))
 
 	// Token should be refunded the difference
 	assert.Equal(t, tokenRemain+(preConsumed-actualQuota), getTokenRemainQuota(t, tokenID))

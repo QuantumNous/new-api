@@ -1023,6 +1023,72 @@ func updateUserUsedQuota(id int, quota int) {
 	}
 }
 
+// DecreaseUserUsedQuota reverses gross consumption when quota is refunded (mirrors token used_quota on refund).
+func DecreaseUserUsedQuota(id int, quota int) {
+	if quota <= 0 || id <= 0 {
+		return
+	}
+	if common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeUsedQuota, id, -quota)
+		return
+	}
+	decreaseUserUsedQuota(id, quota)
+}
+
+func decreaseUserUsedQuota(id int, quota int) {
+	err := DB.Model(&User{}).Where("id = ?", id).Updates(
+		map[string]interface{}{
+			"used_quota": gorm.Expr("CASE WHEN used_quota > ? THEN used_quota - ? ELSE 0 END", quota, quota),
+		},
+	).Error
+	if err != nil {
+		common.SysLog("failed to decrease user used quota: " + err.Error())
+	}
+}
+
+const usedQuotaRefundRepairOptionKey = "UsedQuotaRefundRepairV1"
+
+// migrateRepairUserUsedQuotaAfterRefundLogs backfills users.used_quota for historical task refunds
+// that increased wallet quota but left used_quota unchanged. Skips billing-hold reconcile refunds.
+func migrateRepairUserUsedQuotaAfterRefundLogs() {
+	var opt Option
+	if err := DB.Where("`key` = ?", usedQuotaRefundRepairOptionKey).First(&opt).Error; err == nil && opt.Value == "true" {
+		return
+	}
+
+	type refundSum struct {
+		UserId int
+		Total  int
+	}
+	var sums []refundSum
+	err := LOG_DB.Model(&Log{}).
+		Select("user_id, SUM(quota) as total").
+		Where("type = ?", LogTypeRefund).
+		Where("other NOT LIKE ? OR other IS NULL OR other = ''", "%billing_hold_reconcile%").
+		Group("user_id").
+		Scan(&sums).Error
+	if err != nil {
+		common.SysLog("failed to query refund logs for used_quota repair: " + err.Error())
+		return
+	}
+
+	repaired := 0
+	for _, row := range sums {
+		if row.UserId <= 0 || row.Total <= 0 {
+			continue
+		}
+		decreaseUserUsedQuota(row.UserId, row.Total)
+		repaired++
+	}
+
+	value := "true"
+	if err := DB.Save(&Option{Key: usedQuotaRefundRepairOptionKey, Value: value}).Error; err != nil {
+		common.SysLog("failed to mark used_quota refund repair complete: " + err.Error())
+		return
+	}
+	common.SysLog(fmt.Sprintf("used_quota refund repair finished: adjusted %d user(s)", repaired))
+}
+
 func updateUserRequestCount(id int, count int) {
 	err := DB.Model(&User{}).Where("id = ?", id).Update("request_count", gorm.Expr("request_count + ?", count)).Error
 	if err != nil {

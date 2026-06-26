@@ -203,7 +203,10 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	// 2. 退还令牌额度
 	taskAdjustTokenQuota(ctx, task, -quota)
 
-	// 3. 记录日志
+	// 3. 冲销用户已用额度（提交任务时已计入 used_quota）
+	model.DecreaseUserUsedQuota(task.UserId, quota)
+
+	// 4. 记录日志
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
 	other["reason"] = reason
@@ -265,6 +268,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	} else {
 		logType = model.LogTypeRefund
 		logQuota = -quotaDelta
+		model.DecreaseUserUsedQuota(task.UserId, logQuota)
 	}
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
