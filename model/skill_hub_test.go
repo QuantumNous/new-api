@@ -119,39 +119,41 @@ func TestValidateSkillHubSkillRejectsIconURLWithoutImageExtension(t *testing.T) 
 	}
 }
 
-func TestSkillHubSkillToResponseUsesConnectorSchema(t *testing.T) {
+func TestSkillHubSkillToResponseUsesCurrentCatalogSchema(t *testing.T) {
 	skill := &SkillHubSkill{
-		SkillID:             "demo-skill",
-		Name:                "Demo Skill",
-		Version:             "1.2.3",
-		Tags:                StringListToJSON([]string{"code", "demo"}),
-		Permissions:         StringListToJSON([]string{"network"}),
-		ConnectorMinVersion: "0.1.0",
-		Platforms:           StringListToJSON([]string{"windows", "linux"}),
-		ManifestEntry:       "SKILL.md",
-		ManifestPermissions: StringListToJSON([]string{"network"}),
-		SourceType:          "zip",
-		SourceURL:           "https://cdn.example.com/demo.zip",
-		SourceRef:           "skill-hub/skills/demo/1.2.3.zip",
-		SourceChecksum:      "sha256:abc",
-		Status:              SkillHubStatusPublished,
+		SkillID:        "demo-skill",
+		Name:           "Demo Skill",
+		Description:    "Demo description",
+		Version:        "1.2.3",
+		Icon:           "https://cdn.example.com/icon.png",
+		Tags:           StringListToJSON([]string{"code", "demo"}),
+		Verified:       true,
+		Sort:           9,
+		SourceType:     "zip",
+		SourceURL:      "https://cdn.example.com/demo.zip",
+		SourceRef:      "skill-hub/skills/demo/1.2.3.zip",
+		SourceChecksum: "sha256:abc",
+		Status:         SkillHubStatusPublished,
 	}
 
 	response := skill.ToResponse(false)
 	if response.ID != "demo-skill" {
 		t.Fatalf("response.ID = %q", response.ID)
 	}
-	if response.Compatibility.ConnectorMinVersion != "0.1.0" {
-		t.Fatalf("connector min version = %q", response.Compatibility.ConnectorMinVersion)
+	if response.Name != "Demo Skill" || response.Description != "Demo description" || !response.Verified {
+		t.Fatalf("response = %#v", response)
 	}
-	if response.Source.Type != "zip" || response.Source.Checksum != "sha256:abc" {
+	if len(response.Tags) != 2 || response.Tags[0] != "code" || response.Tags[1] != "demo" {
+		t.Fatalf("tags = %#v", response.Tags)
+	}
+	if response.Source.Type != "zip" || response.Source.URL != "https://cdn.example.com/demo.zip" || response.Source.Checksum != "sha256:abc" {
 		t.Fatalf("source = %#v", response.Source)
-	}
-	if len(response.Permissions) != 1 || response.Permissions[0] != "network" {
-		t.Fatalf("permissions = %#v", response.Permissions)
 	}
 	if response.Status != 0 || response.Published {
 		t.Fatalf("public response leaked admin fields: %#v", response)
+	}
+	if response.Sort != 0 {
+		t.Fatalf("public response leaked sort: %#v", response)
 	}
 	if response.Source.Ref != "" {
 		t.Fatalf("public response leaked source ref: %#v", response.Source)

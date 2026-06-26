@@ -68,24 +68,18 @@ type SkillHubSource struct {
 }
 
 type SkillHubSkillResponse struct {
-	ID            string                `json:"id"`
-	Name          string                `json:"name"`
-	Description   string                `json:"description,omitempty"`
-	Version       string                `json:"version"`
-	Author        string                `json:"author,omitempty"`
-	Icon          string                `json:"icon,omitempty"`
-	Tags          []string              `json:"tags,omitempty"`
-	Verified      bool                  `json:"verified"`
-	Recommended   bool                  `json:"recommended"`
-	Published     bool                  `json:"published,omitempty"`
-	Status        int                   `json:"status,omitempty"`
-	Sort          int                   `json:"sort,omitempty"`
-	UpdatedAt     string                `json:"updatedAt,omitempty"`
-	Compatibility SkillHubCompatibility `json:"compatibility,omitempty"`
-	Permissions   []string              `json:"permissions,omitempty"`
-	Manifest      SkillHubManifest      `json:"manifest,omitempty"`
-	Source        SkillHubSource        `json:"source,omitempty"`
-	Changelog     string                `json:"changelog,omitempty"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	Version     string         `json:"version"`
+	Icon        string         `json:"icon,omitempty"`
+	Tags        []string       `json:"tags,omitempty"`
+	Verified    bool           `json:"verified"`
+	Published   bool           `json:"published,omitempty"`
+	Status      int            `json:"status,omitempty"`
+	Sort        int            `json:"sort,omitempty"`
+	UpdatedAt   string         `json:"updatedAt,omitempty"`
+	Source      SkillHubSource `json:"source,omitempty"`
 }
 
 type SkillHubListResponse struct {
@@ -259,32 +253,19 @@ func (s *SkillHubSkill) ToResponse(admin bool) SkillHubSkillResponse {
 		Name:        s.Name,
 		Description: s.Description,
 		Version:     s.Version,
-		Author:      s.Author,
 		Icon:        s.Icon,
 		Tags:        stringListFromJSON(s.Tags),
 		Verified:    s.Verified,
-		Recommended: s.Recommended,
 		Published:   s.Status == SkillHubStatusPublished,
 		Status:      s.Status,
 		Sort:        s.Sort,
 		UpdatedAt:   time.Unix(s.UpdatedTime, 0).UTC().Format(time.RFC3339),
-		Compatibility: SkillHubCompatibility{
-			ConnectorMinVersion: s.ConnectorMinVersion,
-			Platforms:           stringListFromJSON(s.Platforms),
-		},
-		Permissions: stringListFromJSON(s.Permissions),
-		Manifest: SkillHubManifest{
-			Entry:       s.ManifestEntry,
-			Permissions: stringListFromJSON(s.ManifestPermissions),
-			Tools:       stringListFromJSON(s.ManifestTools),
-		},
 		Source: SkillHubSource{
 			Type:     s.SourceType,
 			URL:      s.SourceURL,
 			Ref:      s.SourceRef,
 			Checksum: s.SourceChecksum,
 		},
-		Changelog: s.Changelog,
 	}
 	if !admin {
 		response.Published = false

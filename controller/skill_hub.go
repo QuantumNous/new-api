@@ -14,23 +14,17 @@ import (
 )
 
 type skillHubSkillRequest struct {
-	ID            string                      `json:"id"`
-	Name          string                      `json:"name"`
-	Description   string                      `json:"description"`
-	Version       string                      `json:"version"`
-	Author        string                      `json:"author"`
-	Icon          string                      `json:"icon"`
-	Tags          []string                    `json:"tags"`
-	Verified      bool                        `json:"verified"`
-	Recommended   bool                        `json:"recommended"`
-	Published     bool                        `json:"published"`
-	Status        *int                        `json:"status"`
-	Sort          int                         `json:"sort"`
-	Compatibility model.SkillHubCompatibility `json:"compatibility"`
-	Permissions   []string                    `json:"permissions"`
-	Manifest      model.SkillHubManifest      `json:"manifest"`
-	Source        model.SkillHubSource        `json:"source"`
-	Changelog     string                      `json:"changelog"`
+	ID          string               `json:"id"`
+	Name        string               `json:"name"`
+	Description string               `json:"description"`
+	Version     string               `json:"version"`
+	Icon        string               `json:"icon"`
+	Tags        []string             `json:"tags"`
+	Verified    bool                 `json:"verified"`
+	Published   bool                 `json:"published"`
+	Status      *int                 `json:"status"`
+	Sort        int                  `json:"sort"`
+	Source      model.SkillHubSource `json:"source"`
 }
 
 func ListSkillHubSkills(c *gin.Context) {
@@ -243,11 +237,11 @@ func skillHubRequestToModel(request skillHubSkillRequest, existing *model.SkillH
 	skill.Name = strings.TrimSpace(request.Name)
 	skill.Description = strings.TrimSpace(request.Description)
 	skill.Version = strings.TrimSpace(request.Version)
-	skill.Author = strings.TrimSpace(request.Author)
+	skill.Author = ""
 	skill.Icon = strings.TrimSpace(request.Icon)
 	skill.Tags = model.StringListToJSON(request.Tags)
 	skill.Verified = request.Verified
-	skill.Recommended = request.Recommended
+	skill.Recommended = false
 	skill.Sort = request.Sort
 	if request.Status != nil {
 		skill.Status = *request.Status
@@ -256,23 +250,17 @@ func skillHubRequestToModel(request skillHubSkillRequest, existing *model.SkillH
 	} else {
 		skill.Status = model.SkillHubStatusDraft
 	}
-	skill.ConnectorMinVersion = strings.TrimSpace(request.Compatibility.ConnectorMinVersion)
-	skill.Platforms = model.StringListToJSON(request.Compatibility.Platforms)
-	skill.Permissions = model.StringListToJSON(request.Permissions)
-	skill.ManifestEntry = strings.TrimSpace(request.Manifest.Entry)
-	skill.ManifestPermissions = model.StringListToJSON(request.Manifest.Permissions)
-	skill.ManifestTools = model.StringListToJSON(request.Manifest.Tools)
-	skill.SourceType = strings.ToLower(strings.TrimSpace(request.Source.Type))
+	skill.ConnectorMinVersion = ""
+	skill.Platforms = ""
+	skill.Permissions = ""
+	skill.ManifestEntry = "SKILL.md"
+	skill.ManifestPermissions = ""
+	skill.ManifestTools = ""
+	skill.SourceType = "zip"
 	skill.SourceURL = strings.TrimSpace(request.Source.URL)
 	skill.SourceRef = strings.TrimSpace(request.Source.Ref)
 	skill.SourceChecksum = strings.TrimSpace(request.Source.Checksum)
-	skill.Changelog = strings.TrimSpace(request.Changelog)
-	if skill.SourceType == "" {
-		skill.SourceType = "zip"
-	}
-	if skill.ManifestEntry == "" {
-		skill.ManifestEntry = "SKILL.md"
-	}
+	skill.Changelog = ""
 	return skill
 }
 

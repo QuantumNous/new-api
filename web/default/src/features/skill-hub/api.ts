@@ -108,24 +108,15 @@ export function skillToForm(skill?: SkillHubSkill): SkillHubForm {
     name: skill?.name || '',
     description: skill?.description || '',
     version: skill?.version || '1.0.0',
-    author: skill?.author || '',
     icon: skill?.icon || '',
-    tags: listToText(skill?.tags),
+    tags: cleanList(skill?.tags),
     verified: Boolean(skill?.verified),
-    recommended: Boolean(skill?.recommended),
     published: Boolean(skill?.published || skill?.status === 1),
     sort: skill?.sort || 0,
-    connectorMinVersion: skill?.compatibility?.connectorMinVersion || '',
-    platforms: listToText(skill?.compatibility?.platforms),
-    permissions: listToText(skill?.permissions),
-    manifestEntry: skill?.manifest?.entry || 'SKILL.md',
-    manifestPermissions: listToText(skill?.manifest?.permissions),
-    manifestTools: listToText(skill?.manifest?.tools),
     sourceType: 'zip',
     sourceUrl: skill?.source?.url || '',
     sourceRef: skill?.source?.ref || '',
     sourceChecksum: skill?.source?.checksum || '',
-    changelog: skill?.changelog || '',
   }
 }
 
@@ -135,40 +126,31 @@ function formToPayload(form: SkillHubForm) {
     name: form.name.trim(),
     description: form.description.trim(),
     version: form.version.trim(),
-    author: form.author.trim(),
     icon: form.icon.trim(),
-    tags: textToList(form.tags),
+    tags: cleanList(form.tags),
     verified: form.verified,
-    recommended: form.recommended,
     published: form.published,
     sort: Number(form.sort) || 0,
-    compatibility: {
-      connectorMinVersion: form.connectorMinVersion.trim(),
-      platforms: textToList(form.platforms),
-    },
-    permissions: textToList(form.permissions),
-    manifest: {
-      entry: form.manifestEntry.trim() || 'SKILL.md',
-      permissions: textToList(form.manifestPermissions),
-      tools: textToList(form.manifestTools),
-    },
     source: {
       type: 'zip',
       url: form.sourceUrl.trim(),
       ref: form.sourceRef.trim(),
       checksum: form.sourceChecksum.trim(),
     },
-    changelog: form.changelog.trim(),
   }
 }
 
-function listToText(values?: string[]) {
-  return Array.isArray(values) ? values.join(', ') : ''
-}
+function cleanList(values?: string[]) {
+  const seen = new Set<string>()
+  const clean: string[] = []
 
-function textToList(value: string) {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
+  for (const value of values || []) {
+    const item = value.trim()
+    const key = item.toLowerCase()
+    if (!item || seen.has(key)) continue
+    seen.add(key)
+    clean.push(item)
+  }
+
+  return clean
 }

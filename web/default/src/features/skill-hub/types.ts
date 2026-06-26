@@ -21,32 +21,19 @@ export type SkillHubSkill = {
   name: string
   description?: string
   version: string
-  author?: string
   icon?: string
   tags?: string[]
   verified: boolean
-  recommended: boolean
   published?: boolean
   status?: number
   sort?: number
   updatedAt?: string
-  compatibility?: {
-    connectorMinVersion?: string
-    platforms?: string[]
-  }
-  permissions?: string[]
-  manifest?: {
-    entry?: string
-    permissions?: string[]
-    tools?: string[]
-  }
   source?: {
     type: 'zip'
     url?: string
     ref?: string
     checksum?: string
   }
-  changelog?: string
 }
 
 export type SkillHubListResponse = {
@@ -69,22 +56,13 @@ export type SkillHubForm = {
   name: string
   description: string
   version: string
-  author: string
   icon: string
-  tags: string
+  tags: string[]
   verified: boolean
-  recommended: boolean
   published: boolean
   sort: number
-  connectorMinVersion: string
-  platforms: string
-  permissions: string
-  manifestEntry: string
-  manifestPermissions: string
-  manifestTools: string
   sourceType: 'zip'
   sourceUrl: string
   sourceRef: string
   sourceChecksum: string
-  changelog: string
 }
