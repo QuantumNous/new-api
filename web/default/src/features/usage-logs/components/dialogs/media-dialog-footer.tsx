@@ -20,6 +20,7 @@ import { Download, Link2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CopyButton } from '@/components/copy-button'
 import { Button } from '@/components/ui/button'
+import { formatMediaDisplayUrl } from '../../lib/media-preview'
 
 interface MediaDialogFooterProps {
   mediaUrl: string
@@ -35,6 +36,7 @@ export function MediaDialogFooter({
   onDownload,
 }: MediaDialogFooterProps) {
   const { t } = useTranslation()
+  const displayUrl = formatMediaDisplayUrl(mediaUrl)
 
   return (
     <div className='flex flex-col gap-2 sm:flex-row sm:items-stretch'>
@@ -42,12 +44,12 @@ export function MediaDialogFooter({
         <Link2 className='text-muted-foreground size-4 shrink-0' />
         <p
           className='text-muted-foreground min-w-0 flex-1 truncate font-mono text-xs'
-          title={mediaUrl}
+          title={displayUrl}
         >
-          {mediaUrl}
+          {displayUrl}
         </p>
         <CopyButton
-          value={mediaUrl}
+          value={displayUrl}
           variant='ghost'
           size='icon-sm'
           tooltip={t('Copy to clipboard')}

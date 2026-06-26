@@ -41,6 +41,24 @@ export function isLogMediaVideoModel(modelName: string): boolean {
   return model === 'sora-2' || model === 'sora-2-pro' || model.startsWith('sora-2-')
 }
 
+export function buildVideoProxyUrl(taskId: string): string {
+  const id = taskId.trim()
+  return `/v1/videos/${id}/content`
+}
+
+/** Absolute URL for display/copy in the console (same origin as the panel). */
+export function formatMediaDisplayUrl(url: string): string {
+  const trimmed = url.trim()
+  if (!trimmed) return trimmed
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed
+  }
+  if (typeof window !== 'undefined' && trimmed.startsWith('/')) {
+    return `${window.location.origin}${trimmed}`
+  }
+  return trimmed
+}
+
 export function getLogMediaPreview(
   log: UsageLog,
   other: LogOtherData | null
@@ -72,11 +90,11 @@ export function getLogMediaPreview(
   }
 
   if (isLogMediaVideoModel(modelName)) {
+    if (taskId && (log.use_time ?? 0) > 0) {
+      return { kind: 'video', url: buildVideoProxyUrl(taskId), taskId }
+    }
     if (resultURL && isValidMediaPreviewURL(resultURL)) {
       return { kind: 'video', url: resultURL, taskId: taskId || '' }
-    }
-    if (taskId && (log.use_time ?? 0) > 0) {
-      return { kind: 'video', url: `/v1/videos/${taskId}/content`, taskId }
     }
   }
 
