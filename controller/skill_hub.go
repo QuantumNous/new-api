@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -27,6 +28,11 @@ type skillHubSkillRequest struct {
 	Source      model.SkillHubSource `json:"source"`
 }
 
+type skillHubTagRequest struct {
+	Name string `json:"name"`
+	Sort int    `json:"sort"`
+}
+
 func ListSkillHubSkills(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	skills, total, err := model.SearchSkillHubSkills(c.Query("keyword"), false, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
@@ -38,6 +44,14 @@ func ListSkillHubSkills(c *gin.Context) {
 		Items: model.SkillHubSkillsToResponses(skills, false),
 		Total: total,
 	})
+}
+
+func ListSkillHubSkillsByTags(c *gin.Context) {
+	listSkillHubSkillsByTags(c, false)
+}
+
+func ListSkillHubTags(c *gin.Context) {
+	listSkillHubTags(c, true)
 }
 
 func GetSkillHubSkill(c *gin.Context) {
@@ -82,6 +96,10 @@ func AdminListSkillHubSkills(c *gin.Context) {
 		Items: model.SkillHubSkillsToResponses(skills, true),
 		Total: total,
 	})
+}
+
+func AdminListSkillHubSkillsByTags(c *gin.Context) {
+	listSkillHubSkillsByTags(c, true)
 }
 
 func AdminGetSkillHubSkill(c *gin.Context) {
@@ -209,6 +227,111 @@ func AdminPublishSkillHubSkill(c *gin.Context) {
 
 func AdminUnpublishSkillHubSkill(c *gin.Context) {
 	updateSkillHubPublishStatus(c, model.SkillHubStatusDraft)
+}
+
+func AdminListSkillHubTags(c *gin.Context) {
+	listSkillHubTags(c, false)
+}
+
+func listSkillHubTags(c *gin.Context, publishedOnly bool) {
+	pageInfo := common.GetPageQuery(c)
+	tags, total, err := model.SearchSkillHubTags(c.Query("keyword"), publishedOnly, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	responses, err := model.SkillHubTagsToResponses(tags, publishedOnly)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, model.SkillHubTagListResponse{
+		Items: responses,
+		Total: total,
+	})
+}
+
+func listSkillHubSkillsByTags(c *gin.Context, admin bool) {
+	tagIDs, err := parseSkillHubTagIDs(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+	if len(tagIDs) == 0 {
+		skills, total, err := model.SearchSkillHubSkills(c.Query("keyword"), admin, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		common.ApiSuccess(c, model.SkillHubListResponse{
+			Items: model.SkillHubSkillsToResponses(skills, admin),
+			Total: total,
+		})
+		return
+	}
+	skills, total, err := model.SearchSkillHubSkillsByTagIDs(tagIDs, c.Query("keyword"), admin, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, model.SkillHubListResponse{
+		Items: model.SkillHubSkillsToResponses(skills, admin),
+		Total: total,
+	})
+}
+
+func parseSkillHubTagIDs(c *gin.Context) ([]int, error) {
+	values := make([]string, 0)
+	for _, key := range []string{"tag_ids", "tag_id", "ids"} {
+		values = append(values, c.QueryArray(key)...)
+	}
+
+	seen := map[int]struct{}{}
+	ids := make([]int, 0)
+	for _, value := range values {
+		for _, part := range strings.Split(value, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			id, err := strconv.Atoi(part)
+			if err != nil || id <= 0 {
+				return nil, fmt.Errorf("invalid tag id: %s", part)
+			}
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) > 50 {
+		return nil, fmt.Errorf("too many tag ids")
+	}
+	return ids, nil
+}
+
+func AdminCreateSkillHubTag(c *gin.Context) {
+	var request skillHubTagRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	tag, err := model.CreateSkillHubTag(request.Name, request.Sort)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, tag.ToResponse(0))
+}
+
+func AdminDeleteSkillHubTag(c *gin.Context) {
+	if err := model.DeleteSkillHubTag(c.Param("name")); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
 }
 
 func updateSkillHubPublishStatus(c *gin.Context, status int) {

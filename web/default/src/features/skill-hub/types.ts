@@ -51,6 +51,30 @@ export type SkillHubSkillResponse = {
   data?: SkillHubSkill
 }
 
+export type SkillHubTag = {
+  id: number
+  name: string
+  sort?: number
+  usageCount: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type SkillHubTagListResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    items: SkillHubTag[]
+    total: number
+  }
+}
+
+export type SkillHubTagResponse = {
+  success: boolean
+  message?: string
+  data?: SkillHubTag
+}
+
 export type SkillHubForm = {
   id: string
   name: string

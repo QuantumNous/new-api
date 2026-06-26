@@ -129,8 +129,8 @@ export function SidebarModulesSection({
         description: t('Manage catalog visibility and pricing.'),
       },
       skillHub: {
-        title: t('Skill Hub'),
-        description: t('Manage installable Skill packages.'),
+        title: '技能广场管理',
+        description: '管理技能目录和标签库。',
       },
       redemption: {
         title: t('Redeem codes'),

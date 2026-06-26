@@ -22,6 +22,8 @@ import type {
   SkillHubListResponse,
   SkillHubSkill,
   SkillHubSkillResponse,
+  SkillHubTagListResponse,
+  SkillHubTagResponse,
 } from './types'
 
 export async function listAdminSkillHubSkills(params?: {
@@ -30,6 +32,43 @@ export async function listAdminSkillHubSkills(params?: {
   page_size?: number
 }): Promise<SkillHubListResponse> {
   const res = await api.get('/api/admin/skill-hub/skills', { params })
+  return res.data
+}
+
+export async function listSkillHubSkills(params?: {
+  keyword?: string
+  p?: number
+  page_size?: number
+}): Promise<SkillHubListResponse> {
+  const res = await api.get('/api/skill-hub/skills', { params })
+  return res.data
+}
+
+export async function listSkillHubSkillsByTags(
+  tagIds: number[],
+  params?: {
+    keyword?: string
+    p?: number
+    page_size?: number
+  }
+): Promise<SkillHubListResponse> {
+  const res = await api.get('/api/skill-hub/tags/skills', {
+    params: withTagIds(tagIds, params),
+  })
+  return res.data
+}
+
+export async function listAdminSkillHubSkillsByTags(
+  tagIds: number[],
+  params?: {
+    keyword?: string
+    p?: number
+    page_size?: number
+  }
+): Promise<SkillHubListResponse> {
+  const res = await api.get('/api/admin/skill-hub/tags/skills', {
+    params: withTagIds(tagIds, params),
+  })
   return res.data
 }
 
@@ -67,6 +106,41 @@ export async function setSkillHubSkillPublished(
   const action = published ? 'publish' : 'unpublish'
   const res = await api.post(
     `/api/admin/skill-hub/skills/${encodeURIComponent(id)}/${action}`
+  )
+  return res.data
+}
+
+export async function listAdminSkillHubTags(params?: {
+  keyword?: string
+  p?: number
+  page_size?: number
+}): Promise<SkillHubTagListResponse> {
+  const res = await api.get('/api/admin/skill-hub/tags', { params })
+  return res.data
+}
+
+export async function listSkillHubTags(params?: {
+  keyword?: string
+  p?: number
+  page_size?: number
+}): Promise<SkillHubTagListResponse> {
+  const res = await api.get('/api/skill-hub/tags', { params })
+  return res.data
+}
+
+export async function createSkillHubTag(input: {
+  name: string
+  sort?: number
+}): Promise<SkillHubTagResponse> {
+  const res = await api.post('/api/admin/skill-hub/tags', input)
+  return res.data
+}
+
+export async function deleteSkillHubTag(
+  name: string
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.delete(
+    `/api/admin/skill-hub/tags/${encodeURIComponent(name)}`
   )
   return res.data
 }
@@ -153,4 +227,18 @@ function cleanList(values?: string[]) {
   }
 
   return clean
+}
+
+function withTagIds(
+  tagIds: number[],
+  params?: {
+    keyword?: string
+    p?: number
+    page_size?: number
+  }
+) {
+  return {
+    ...params,
+    tag_ids: tagIds.filter((id) => Number.isInteger(id) && id > 0).join(','),
+  }
 }

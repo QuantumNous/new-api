@@ -50,7 +50,8 @@ const routerMap = {
   task: '/console/task',
   models: '/console/models',
   deployment: '/console/deployment',
-  skillHub: '/console/skill-hub',
+  skillHubSkills: '/console/skill-hub',
+  skillHubTags: '/console/skill-hub/tags',
   playground: '/console/playground',
   'image-playground': '/console/image-playground',
   'video-playground': '/console/video-playground',
@@ -197,9 +198,20 @@ const SiderBar = ({
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
-        text: t('技能广场'),
+        text: t('技能广场管理'),
         itemKey: 'skillHub',
-        to: '/console/skill-hub',
+        items: [
+          {
+            text: t('技能管理'),
+            itemKey: 'skillHubSkills',
+            to: '/console/skill-hub',
+          },
+          {
+            text: t('标签管理'),
+            itemKey: 'skillHubTags',
+            to: '/console/skill-hub/tags',
+          },
+        ],
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
@@ -336,6 +348,11 @@ const SiderBar = ({
     // 如果找到匹配的键，更新选中的键
     if (matchingKey) {
       setSelectedKeys([matchingKey]);
+      if (matchingKey === 'skillHubSkills' || matchingKey === 'skillHubTags') {
+        setOpenedKeys((current) =>
+          current.includes('skillHub') ? current : [...current, 'skillHub'],
+        );
+      }
     }
   }, [location.pathname, routerMapState]);
 
@@ -534,7 +551,7 @@ const SiderBar = ({
                 {!collapsed && (
                   <div className='sidebar-group-label'>{t('管理员')}</div>
                 )}
-                {adminItems.map((item) => renderNavItem(item))}
+                {adminItems.map((item) => renderSubItem(item))}
               </div>
             </>
           )}

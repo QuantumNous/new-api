@@ -33,38 +33,55 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess } from '../../helpers';
 
-const defaultForm = {
+const createDefaultForm = () => ({
   id: '',
   name: '',
   description: '',
   version: '1.0.0',
-  author: '',
   icon: '',
-  tags: '',
+  tags: [],
   verified: false,
-  recommended: false,
   published: false,
   sort: 0,
-  connectorMinVersion: '',
-  platforms: 'windows, macos, linux',
-  permissions: '',
-  manifestEntry: 'SKILL.md',
-  manifestPermissions: '',
-  manifestTools: '',
-  sourceType: 'zip',
   sourceUrl: '',
   sourceRef: '',
   sourceChecksum: '',
-  changelog: '',
+});
+
+const normalizeTags = (value) => {
+  const values = Array.isArray(value)
+    ? value
+    : String(value || '').split(/[,，\n]/);
+  const seen = new Set();
+  const tags = [];
+
+  for (const item of values) {
+    const tag = String(item || '').trim();
+    const key = tag.toLowerCase();
+    if (!tag || seen.has(key)) continue;
+    seen.add(key);
+    tags.push(tag);
+  }
+
+  return tags;
 };
 
-const toList = (value) =>
-  String(value || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
+const addTags = (current, value) => {
+  const next = normalizeTags(current);
+  const seen = new Set(next.map((tag) => tag.toLowerCase()));
 
-const listToText = (value) => (Array.isArray(value) ? value.join(', ') : '');
+  for (const tag of normalizeTags(value)) {
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    next.push(tag);
+  }
+
+  return next;
+};
+
+const isPublishedSkill = (skill) =>
+  Boolean(skill?.published || skill?.status === 1);
 
 const isAllowedZipUrl = (value) => {
   try {
@@ -85,36 +102,27 @@ const isAllowedIconFile = (file) => {
   return /\.(png|jpe?g|webp)$/i.test(file.name || '');
 };
 
-const isImageIcon = (value) =>
-  String(value || '')
+const isImageIcon = (value) => {
+  const trimmed = String(value || '')
     .trim()
-    .toLowerCase()
-    .startsWith('https://');
+    .toLowerCase();
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+};
 
 const skillToForm = (skill) => ({
-  ...defaultForm,
+  ...createDefaultForm(),
   id: skill?.id || '',
   name: skill?.name || '',
   description: skill?.description || '',
   version: skill?.version || '1.0.0',
-  author: skill?.author || '',
   icon: skill?.icon || '',
-  tags: listToText(skill?.tags),
+  tags: normalizeTags(skill?.tags),
   verified: Boolean(skill?.verified),
-  recommended: Boolean(skill?.recommended),
-  published: Boolean(skill?.published || skill?.status === 1),
+  published: isPublishedSkill(skill),
   sort: skill?.sort || 0,
-  connectorMinVersion: skill?.compatibility?.connectorMinVersion || '',
-  platforms: listToText(skill?.compatibility?.platforms),
-  permissions: listToText(skill?.permissions),
-  manifestEntry: skill?.manifest?.entry || 'SKILL.md',
-  manifestPermissions: listToText(skill?.manifest?.permissions),
-  manifestTools: listToText(skill?.manifest?.tools),
-  sourceType: skill?.source?.type || 'zip',
   sourceUrl: skill?.source?.url || '',
   sourceRef: skill?.source?.ref || '',
   sourceChecksum: skill?.source?.checksum || '',
-  changelog: skill?.changelog || '',
 });
 
 const formToPayload = (form) => ({
@@ -122,30 +130,17 @@ const formToPayload = (form) => ({
   name: form.name.trim(),
   description: form.description.trim(),
   version: form.version.trim(),
-  author: form.author.trim(),
   icon: form.icon.trim(),
-  tags: toList(form.tags),
+  tags: normalizeTags(form.tags),
   verified: form.verified,
-  recommended: form.recommended,
   published: form.published,
   sort: Number(form.sort) || 0,
-  compatibility: {
-    connectorMinVersion: form.connectorMinVersion.trim(),
-    platforms: toList(form.platforms),
-  },
-  permissions: toList(form.permissions),
-  manifest: {
-    entry: form.manifestEntry.trim() || 'SKILL.md',
-    permissions: toList(form.manifestPermissions),
-    tools: toList(form.manifestTools),
-  },
   source: {
     type: 'zip',
     url: form.sourceUrl.trim(),
     ref: form.sourceRef.trim(),
     checksum: form.sourceChecksum.trim(),
   },
-  changelog: form.changelog.trim(),
 });
 
 const Field = ({ label, children }) => (
@@ -161,34 +156,112 @@ const Section = ({ title, description, children }) => (
       <div className='text-base font-semibold text-semi-color-text-0'>
         {title}
       </div>
-      <div className='mt-1 text-sm text-semi-color-text-2'>{description}</div>
+      {description ? (
+        <div className='mt-1 text-sm text-semi-color-text-2'>{description}</div>
+      ) : null}
     </div>
     <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>{children}</div>
   </section>
 );
 
-const InstallMethodCard = ({ title, description, selected, disabled }) => (
-  <button
-    type='button'
-    disabled={disabled}
-    className={`rounded border p-3 text-left transition ${
-      selected
-        ? 'border-semi-color-primary bg-semi-color-primary-light-default'
-        : 'border-semi-color-border bg-semi-color-fill-0'
-    } ${disabled ? 'cursor-not-allowed opacity-60' : 'hover:bg-semi-color-fill-1'}`}
-  >
-    <div className='flex items-center justify-between gap-2'>
-      <span className='font-semibold text-semi-color-text-0'>{title}</span>
-      {disabled ? <Tag color='grey'>暂不支持</Tag> : <Tag color='blue'>当前</Tag>}
+const TagEditor = ({ value, suggestions, placeholder, onChange }) => {
+  const [draft, setDraft] = useState('');
+  const tags = normalizeTags(value);
+  const selectedKeys = useMemo(
+    () => new Set(tags.map((tag) => tag.toLowerCase())),
+    [tags],
+  );
+  const availableSuggestions = (suggestions || [])
+    .filter((tag) => !selectedKeys.has(tag.toLowerCase()))
+    .slice(0, 8);
+
+  const resolveKnownTags = (rawValue) => {
+    const known = new Map(
+      (suggestions || []).map((tag) => [tag.toLowerCase(), tag]),
+    );
+    return normalizeTags(rawValue)
+      .map((tag) => known.get(tag.toLowerCase()))
+      .filter(Boolean);
+  };
+
+  const commit = (rawValue = draft) => {
+    const next = addTags(tags, resolveKnownTags(rawValue));
+    if (next.length === tags.length) {
+      setDraft('');
+      return;
+    }
+    onChange(next);
+    setDraft('');
+  };
+
+  const remove = (tag) => {
+    onChange(tags.filter((item) => item !== tag));
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key !== 'Enter' && event.key !== ',' && event.key !== '，')
+      return;
+    event.preventDefault();
+    commit();
+  };
+
+  const handlePaste = (event) => {
+    const text = event.clipboardData?.getData('text');
+    if (!text || !/[,，\n]/.test(text)) return;
+    event.preventDefault();
+    commit(text);
+  };
+
+  return (
+    <div className='flex flex-col gap-2'>
+      <div className='flex min-h-[40px] flex-wrap items-center gap-2 rounded border border-semi-color-border bg-semi-color-bg-0 px-2 py-1'>
+        {tags.map((tag) => (
+          <button
+            key={tag}
+            type='button'
+            className='inline-flex items-center gap-1 rounded bg-semi-color-fill-1 px-2 py-1 text-xs font-medium text-semi-color-text-0 hover:bg-semi-color-fill-2'
+            onClick={() => remove(tag)}
+          >
+            <span>{tag}</span>
+            <span className='text-semi-color-text-2'>×</span>
+          </button>
+        ))}
+        <Input
+          value={draft}
+          placeholder={tags.length ? '' : placeholder}
+          className='min-w-[160px] flex-1'
+          size='small'
+          borderless
+          onChange={setDraft}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          onBlur={() => commit()}
+        />
+      </div>
+      {availableSuggestions.length ? (
+        <div className='flex flex-wrap gap-2'>
+          {availableSuggestions.map((tag) => (
+            <button
+              key={tag}
+              type='button'
+              className='rounded bg-semi-color-fill-0 px-2 py-1 text-xs text-semi-color-text-1 hover:bg-semi-color-fill-1'
+              onClick={() => commit(tag)}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
-    <div className='mt-2 text-sm text-semi-color-text-2'>{description}</div>
-  </button>
-);
+  );
+};
 
 const SkillHub = () => {
   const [skills, setSkills] = useState([]);
+  const [tagOptions, setTagOptions] = useState([]);
+  const [selectedTagIds, setSelectedTagIds] = useState([]);
   const [selectedId, setSelectedId] = useState('');
-  const [form, setForm] = useState(defaultForm);
+  const [form, setForm] = useState(createDefaultForm);
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -206,12 +279,22 @@ const SkillHub = () => {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const loadSkills = async () => {
+  const tagNames = useMemo(
+    () => tagOptions.map((tag) => tag.name),
+    [tagOptions],
+  );
+
+  const loadSkills = async (tagIds = selectedTagIds) => {
     setLoading(true);
     try {
-      const res = await API.get('/api/admin/skill-hub/skills', {
-        params: { keyword, page_size: 200 },
-      });
+      const params = { keyword, page_size: 200 };
+      const res = tagIds.length
+        ? await API.get('/api/admin/skill-hub/tags/skills', {
+            params: { ...params, tag_ids: tagIds.join(',') },
+          })
+        : await API.get('/api/admin/skill-hub/skills', {
+            params,
+          });
       const { success, data, message } = res.data;
       if (!success) {
         showError(message);
@@ -227,8 +310,29 @@ const SkillHub = () => {
     }
   };
 
+  const loadTags = async () => {
+    try {
+      const res = await API.get('/api/admin/skill-hub/tags', {
+        params: { page_size: 500 },
+      });
+      const { success, data, message } = res.data;
+      if (!success) {
+        showError(message || '标签加载失败');
+        return;
+      }
+      const items = data?.items || [];
+      setTagOptions(items);
+      setSelectedTagIds((current) =>
+        current.filter((id) => items.some((tag) => tag.id === id)),
+      );
+    } catch (error) {
+      showError(error.message || '标签加载失败');
+    }
+  };
+
   useEffect(() => {
     loadSkills();
+    loadTags();
   }, []);
 
   useEffect(() => {
@@ -239,7 +343,20 @@ const SkillHub = () => {
 
   const handleNew = () => {
     setSelectedId('');
-    setForm(defaultForm);
+    setForm(createDefaultForm());
+  };
+
+  const applyTagFilter = (tagId) => {
+    const next = selectedTagIds.includes(tagId)
+      ? selectedTagIds.filter((id) => id !== tagId)
+      : [...selectedTagIds, tagId];
+    setSelectedTagIds(next);
+    loadSkills(next);
+  };
+
+  const clearTagFilter = () => {
+    setSelectedTagIds([]);
+    loadSkills([]);
   };
 
   const handleSave = async () => {
@@ -384,15 +501,16 @@ const SkillHub = () => {
         <div className='flex flex-wrap items-center justify-between gap-3'>
           <div>
             <Typography.Title heading={3} className='!mb-1'>
-              技能广场
+              技能管理
             </Typography.Title>
             <Typography.Text type='tertiary'>
-              配置可被本地连接器安装的 Skill 包；当前只支持 HTTPS Zip 包安装。
+              配置可被本地连接器安装的 Skill
+              包；当前只保留目录展示、标签、图标和 Zip 安装数据。
             </Typography.Text>
           </div>
           <Space>
             <Button onClick={handleNew}>新建</Button>
-            <Button onClick={loadSkills} loading={loading}>
+            <Button onClick={() => loadSkills()} loading={loading}>
               刷新
             </Button>
           </Space>
@@ -402,13 +520,36 @@ const SkillHub = () => {
           <Card>
             <div className='mb-3 flex gap-2'>
               <Input
-                placeholder='搜索 ID / 名称'
+                placeholder='搜索 ID / 名称 / 标签'
                 value={keyword}
                 onChange={setKeyword}
-                onEnterPress={loadSkills}
+                onEnterPress={() => loadSkills()}
               />
-              <Button onClick={loadSkills}>搜索</Button>
+              <Button onClick={() => loadSkills()}>搜索</Button>
             </div>
+            {tagOptions.length ? (
+              <div className='mb-3 flex flex-wrap gap-2'>
+                <Button
+                  size='small'
+                  type={selectedTagIds.length ? 'tertiary' : 'primary'}
+                  onClick={clearTagFilter}
+                >
+                  全部标签
+                </Button>
+                {tagOptions.map((tag) => (
+                  <Button
+                    key={tag.id || tag.name}
+                    size='small'
+                    type={
+                      selectedTagIds.includes(tag.id) ? 'primary' : 'tertiary'
+                    }
+                    onClick={() => applyTagFilter(tag.id)}
+                  >
+                    {tag.name}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
             <Spin spinning={loading}>
               <div className='flex max-h-[70vh] flex-col gap-2 overflow-auto pr-1'>
                 {skills.map((skill) => (
@@ -423,17 +564,33 @@ const SkillHub = () => {
                     }`}
                   >
                     <div className='flex items-center justify-between gap-2'>
-                      <span className='font-semibold'>{skill.name}</span>
-                      <Tag color={skill.published ? 'green' : 'grey'}>
-                        {skill.published ? '已发布' : '草稿'}
+                      <span className='truncate font-semibold'>
+                        {skill.name}
+                      </span>
+                      <Tag color={isPublishedSkill(skill) ? 'green' : 'grey'}>
+                        {isPublishedSkill(skill) ? '已发布' : '草稿'}
                       </Tag>
                     </div>
-                    <div className='mt-1 text-xs text-semi-color-text-2'>
+                    <div className='mt-1 truncate text-xs text-semi-color-text-2'>
                       {skill.id} · {skill.version}
                     </div>
-                    <div className='mt-2 line-clamp-2 text-sm text-semi-color-text-1'>
+                    <div className='mt-2 line-clamp-2 min-h-[40px] text-sm text-semi-color-text-1'>
                       {skill.description || '暂无描述'}
                     </div>
+                    {normalizeTags(skill.tags).length ? (
+                      <div className='mt-2 flex max-h-7 flex-wrap gap-1 overflow-hidden'>
+                        {normalizeTags(skill.tags)
+                          .slice(0, 4)
+                          .map((tag) => (
+                            <span
+                              key={tag}
+                              className='rounded bg-semi-color-fill-0 px-2 py-0.5 text-xs text-semi-color-text-2'
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                      </div>
+                    ) : null}
                   </button>
                 ))}
                 {skills.length === 0 && (
@@ -470,56 +627,61 @@ const SkillHub = () => {
                     onChange={(value) => updateForm('version', value)}
                   />
                 </Field>
-                <Field label='作者'>
-                  <Input
-                    value={form.author}
-                    onChange={(value) => updateForm('author', value)}
-                  />
-                </Field>
-                <Field label='图标'>
-                  <div className='flex gap-2'>
-                    <div className='flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded border border-semi-color-border bg-semi-color-fill-0 text-semi-color-text-2'>
-                      {isImageIcon(form.icon) ? (
-                        <img
-                          src={form.icon}
-                          alt=''
-                          referrerPolicy='no-referrer'
-                          className='h-full w-full object-cover'
-                        />
-                      ) : (
-                        <ImageIcon size={16} />
-                      )}
-                    </div>
-                    <div className='flex min-w-0 flex-1 items-center truncate rounded border border-semi-color-border bg-semi-color-fill-0 px-3 text-xs text-semi-color-text-2'>
-                      {form.icon.trim() || '未上传图标'}
-                    </div>
-                    <input
-                      ref={iconInputRef}
-                      type='file'
-                      accept='image/png,image/jpeg,image/webp'
-                      className='hidden'
-                      onChange={(event) => uploadIcon(event.target.files?.[0])}
-                    />
-                    <Button
-                      loading={iconUploading}
-                      onClick={() => iconInputRef.current?.click()}
-                    >
-                      上传
-                    </Button>
-                  </div>
-                </Field>
                 <Field label='排序'>
                   <Input
                     value={String(form.sort)}
                     onChange={(value) => updateForm('sort', value)}
                   />
                 </Field>
-                <Field label='标签（逗号分隔）'>
-                  <Input
-                    value={form.tags}
-                    onChange={(value) => updateForm('tags', value)}
-                  />
-                </Field>
+                <div className='md:col-span-2'>
+                  <Field label='图标'>
+                    <div className='flex gap-2'>
+                      <div className='flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded border border-semi-color-border bg-semi-color-fill-0 text-semi-color-text-2'>
+                        {isImageIcon(form.icon) ? (
+                          <img
+                            src={form.icon}
+                            alt=''
+                            referrerPolicy='no-referrer'
+                            className='h-full w-full object-cover'
+                          />
+                        ) : (
+                          <ImageIcon size={16} />
+                        )}
+                      </div>
+                      <div className='flex min-w-0 flex-1 items-center truncate rounded border border-semi-color-border bg-semi-color-fill-0 px-3 text-xs text-semi-color-text-2'>
+                        {form.icon.trim() || '未上传图标'}
+                      </div>
+                      <input
+                        ref={iconInputRef}
+                        type='file'
+                        accept='image/png,image/jpeg,image/webp'
+                        className='hidden'
+                        onChange={(event) =>
+                          uploadIcon(event.target.files?.[0])
+                        }
+                      />
+                      <Button
+                        loading={iconUploading}
+                        onClick={() => iconInputRef.current?.click()}
+                      >
+                        上传
+                      </Button>
+                    </div>
+                  </Field>
+                </div>
+                <div className='md:col-span-2'>
+                  <Field label='标签'>
+                    <TagEditor
+                      value={form.tags}
+                      suggestions={tagNames}
+                      placeholder='搜索已有标签后按 Enter 添加'
+                      onChange={(tags) => updateForm('tags', tags)}
+                    />
+                    <div className='mt-1 text-xs text-semi-color-text-2'>
+                      新增或删除标签请到「标签管理」维护。
+                    </div>
+                  </Field>
+                </div>
                 <div className='md:col-span-2'>
                   <Field label='描述'>
                     <TextArea
@@ -530,27 +692,6 @@ const SkillHub = () => {
                     />
                   </Field>
                 </div>
-              </Section>
-
-              <Section
-                title='安装方式'
-                description='预留三种方式位置；当前保存时只支持 Zip 包安装。'
-              >
-                <InstallMethodCard
-                  title='通过对话安装'
-                  description='后续用于复制提示词或对话式安装，目前暂不开放。'
-                  disabled
-                />
-                <InstallMethodCard
-                  title='命令行安装'
-                  description='后续可展示 CLI 安装指引；不会下发任意命令给连接器。'
-                  disabled
-                />
-                <InstallMethodCard
-                  title='Zip 包安装'
-                  description='连接器下载 HTTPS Zip 包，校验后安装到本地 Skills。'
-                  selected
-                />
               </Section>
 
               <Section
@@ -573,88 +714,34 @@ const SkillHub = () => {
                       上传 Zip 到 OSS
                     </Button>
                     <Typography.Text type='tertiary'>
-                      最大 50MB，上传成功后自动填入下载地址、OSS Object 和校验值。
+                      最大 50MB，上传成功后自动填入下载地址和校验值。
                     </Typography.Text>
                   </Space>
                 </div>
-                <Field label='Zip 包地址'>
-                  <Input
-                    value={form.sourceUrl}
-                    placeholder='https://.../skill.zip'
-                    onChange={(value) => updateForm('sourceUrl', value)}
-                  />
-                </Field>
-                <Field label='SHA256 校验'>
-                  <Input
-                    value={form.sourceChecksum}
-                    placeholder='sha256:...'
-                    onChange={(value) => updateForm('sourceChecksum', value)}
-                  />
-                </Field>
-                <Field label='OSS Object'>
-                  <Input
-                    value={form.sourceRef}
-                    placeholder='skill-hub/skills/...'
-                    onChange={(value) => updateForm('sourceRef', value)}
-                  />
-                </Field>
-                <Field label='Manifest Entry'>
-                  <Input
-                    value={form.manifestEntry}
-                    onChange={(value) => updateForm('manifestEntry', value)}
-                  />
-                </Field>
-                <Field label='Manifest 权限（逗号分隔）'>
-                  <TextArea
-                    autosize
-                    rows={2}
-                    value={form.manifestPermissions}
-                    onChange={(value) =>
-                      updateForm('manifestPermissions', value)
-                    }
-                  />
-                </Field>
-                <Field label='Manifest 工具（逗号分隔）'>
-                  <TextArea
-                    autosize
-                    rows={2}
-                    value={form.manifestTools}
-                    onChange={(value) => updateForm('manifestTools', value)}
-                  />
-                </Field>
-              </Section>
-
-              <Section
-                title='运行与兼容'
-                description='这些信息会在安装前展示给本地连接器。'
-              >
-                <Field label='平台（逗号分隔）'>
-                  <Input
-                    value={form.platforms}
-                    onChange={(value) => updateForm('platforms', value)}
-                  />
-                </Field>
-                <Field label='最低 Connector 版本'>
-                  <Input
-                    value={form.connectorMinVersion}
-                    onChange={(value) =>
-                      updateForm('connectorMinVersion', value)
-                    }
-                  />
-                </Field>
                 <div className='md:col-span-2'>
-                  <Field label='安装权限（逗号分隔）'>
-                    <TextArea
-                      autosize
-                      rows={2}
-                      value={form.permissions}
-                      onChange={(value) => updateForm('permissions', value)}
+                  <Field label='Zip 包地址'>
+                    <Input
+                      value={form.sourceUrl}
+                      placeholder='https://.../skill.zip'
+                      onChange={(value) => updateForm('sourceUrl', value)}
+                    />
+                  </Field>
+                </div>
+                <div className='md:col-span-2'>
+                  <Field label='SHA256 校验'>
+                    <Input
+                      value={form.sourceChecksum}
+                      placeholder='sha256:...'
+                      onChange={(value) => updateForm('sourceChecksum', value)}
                     />
                   </Field>
                 </div>
               </Section>
 
-              <Section title='发布控制' description='控制目录可见性和信任标记。'>
+              <Section
+                title='发布控制'
+                description='控制目录可见性和信任标记。'
+              >
                 <div className='md:col-span-2'>
                   <Space wrap>
                     <Checkbox
@@ -673,25 +760,7 @@ const SkillHub = () => {
                     >
                       已验证
                     </Checkbox>
-                    <Checkbox
-                      checked={form.recommended}
-                      onChange={(event) =>
-                        updateForm('recommended', event.target.checked)
-                      }
-                    >
-                      推荐
-                    </Checkbox>
                   </Space>
-                </div>
-                <div className='md:col-span-2'>
-                  <Field label='更新日志'>
-                    <TextArea
-                      autosize
-                      rows={2}
-                      value={form.changelog}
-                      onChange={(value) => updateForm('changelog', value)}
-                    />
-                  </Field>
                 </div>
               </Section>
             </div>
@@ -702,9 +771,11 @@ const SkillHub = () => {
                 {selectedSkill && (
                   <>
                     <Button
-                      onClick={() => setPublished(!selectedSkill.published)}
+                      onClick={() =>
+                        setPublished(!isPublishedSkill(selectedSkill))
+                      }
                     >
-                      {selectedSkill.published ? '取消发布' : '发布'}
+                      {isPublishedSkill(selectedSkill) ? '取消发布' : '发布'}
                     </Button>
                     <Button type='danger' onClick={deleteSkill}>
                       删除

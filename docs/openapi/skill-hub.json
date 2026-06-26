@@ -12,7 +12,7 @@
     },
     {
       "name": "技能广场管理",
-      "description": "管理员维护技能、上传资源与发布状态"
+      "description": "管理员维护技能、标签、上传资源与发布状态"
     }
   ],
   "paths": {
@@ -21,9 +21,7 @@
         "summary": "获取技能广场技能列表",
         "deprecated": false,
         "description": "🔓 无需鉴权；仅返回已发布技能",
-        "tags": [
-          "技能广场"
-        ],
+        "tags": ["技能广场"],
         "parameters": [
           {
             "name": "keyword",
@@ -68,14 +66,121 @@
         }
       }
     },
+    "/api/skill-hub/tags": {
+      "get": {
+        "summary": "获取技能广场标签列表",
+        "deprecated": false,
+        "description": "🔓 无需鉴权；仅返回已发布技能正在使用的标签",
+        "tags": ["技能广场"],
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "description": "搜索关键字，匹配标签名称",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "页码",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量，最大 100",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubTagListApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skill-hub/tags/skills": {
+      "get": {
+        "summary": "按标签获取技能广场技能列表",
+        "deprecated": false,
+        "description": "🔓 无需鉴权；按一个或多个标签 ID 返回已发布技能；未传 tag_ids 时返回全部已发布技能",
+        "tags": ["技能广场"],
+        "parameters": [
+          {
+            "name": "tag_ids",
+            "in": "query",
+            "description": "标签 ID，多个 ID 使用英文逗号分隔，例如 1,2；不传时返回全部",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "页码",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubListApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/skill-hub/skills/{id}": {
       "get": {
         "summary": "获取技能广场技能详情",
         "deprecated": false,
         "description": "🔓 无需鉴权；仅可获取已发布技能",
-        "tags": [
-          "技能广场"
-        ],
+        "tags": ["技能广场"],
         "parameters": [
           {
             "name": "id",
@@ -107,9 +212,7 @@
         "summary": "下载技能包",
         "deprecated": false,
         "description": "🔓 无需鉴权；成功时 302 跳转到技能包源地址或签名下载地址",
-        "tags": [
-          "技能广场"
-        ],
+        "tags": ["技能广场"],
         "parameters": [
           {
             "name": "id",
@@ -153,9 +256,7 @@
         "summary": "上传技能包",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）；仅支持 zip 文件，最大 50MB",
-        "tags": [
-          "技能广场管理"
-        ],
+        "tags": ["技能广场管理"],
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -163,10 +264,7 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "file",
-                  "skill_id"
-                ],
+                "required": ["file", "skill_id"],
                 "properties": {
                   "file": {
                     "type": "string",
@@ -216,9 +314,7 @@
         "summary": "上传技能图标",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）；支持 png、jpg、jpeg、webp，最大 1MB",
-        "tags": [
-          "技能广场管理"
-        ],
+        "tags": ["技能广场管理"],
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -226,10 +322,7 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "file",
-                  "skill_id"
-                ],
+                "required": ["file", "skill_id"],
                 "properties": {
                   "file": {
                     "type": "string",
@@ -270,14 +363,223 @@
         ]
       }
     },
+    "/api/admin/skill-hub/tags": {
+      "get": {
+        "summary": "管理员获取标签列表",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）；返回标签库并统计每个标签被 Skill 使用的数量",
+        "tags": ["技能广场管理"],
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "description": "搜索关键字，匹配标签名称",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "页码",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量，最大 100",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubTagListApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "管理员创建标签",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）；标签名称不可重复，不能包含斜杠",
+        "tags": ["技能广场管理"],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillHubTagRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubTagApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/admin/skill-hub/tags/skills": {
+      "get": {
+        "summary": "管理员按标签获取技能列表",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）；按一个或多个标签 ID 返回全部状态技能；未传 tag_ids 时返回全部技能",
+        "tags": ["技能广场管理"],
+        "parameters": [
+          {
+            "name": "tag_ids",
+            "in": "query",
+            "description": "标签 ID，多个 ID 使用英文逗号分隔，例如 1,2；不传时返回全部",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "页码",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubListApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/admin/skill-hub/tags/{name}": {
+      "delete": {
+        "summary": "管理员删除标签",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）；只能删除未被任何 Skill 使用的标签",
+        "tags": ["技能广场管理"],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "标签名称",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubEmptyApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
     "/api/admin/skill-hub/skills": {
       "get": {
         "summary": "管理员获取技能列表",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）；返回全部状态技能",
-        "tags": [
-          "技能广场管理"
-        ],
+        "tags": ["技能广场管理"],
         "parameters": [
           {
             "name": "keyword",
@@ -335,9 +637,7 @@
         "summary": "管理员创建技能",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": [
-          "技能广场管理"
-        ],
+        "tags": ["技能广场管理"],
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -379,9 +679,7 @@
         "summary": "管理员获取技能详情",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": [
-          "技能广场管理"
-        ],
+        "tags": ["技能广场管理"],
         "parameters": [
           {
             "name": "id",
@@ -421,9 +719,7 @@
         "summary": "管理员更新技能",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": [
-          "技能广场管理"
-        ],
+        "tags": ["技能广场管理"],
         "parameters": [
           {
             "name": "id",
@@ -473,9 +769,7 @@
         "summary": "管理员删除技能",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": [
-          "技能广场管理"
-        ],
+        "tags": ["技能广场管理"],
         "parameters": [
           {
             "name": "id",
@@ -517,9 +811,7 @@
         "summary": "管理员发布技能",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": [
-          "技能广场管理"
-        ],
+        "tags": ["技能广场管理"],
         "parameters": [
           {
             "name": "id",
@@ -561,9 +853,7 @@
         "summary": "管理员下架技能",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": [
-          "技能广场管理"
-        ],
+        "tags": ["技能广场管理"],
         "parameters": [
           {
             "name": "id",
@@ -615,58 +905,14 @@
           "data": {}
         }
       },
-      "SkillHubCompatibility": {
-        "type": "object",
-        "properties": {
-          "connectorMinVersion": {
-            "type": "string",
-            "description": "最低连接器版本"
-          },
-          "platforms": {
-            "type": "array",
-            "description": "支持的平台",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "SkillHubManifest": {
-        "type": "object",
-        "properties": {
-          "entry": {
-            "type": "string",
-            "description": "技能入口文件，默认 SKILL.md"
-          },
-          "permissions": {
-            "type": "array",
-            "description": "manifest 中声明的权限",
-            "items": {
-              "type": "string"
-            }
-          },
-          "tools": {
-            "type": "array",
-            "description": "manifest 中声明的工具",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
       "SkillHubSource": {
         "type": "object",
-        "required": [
-          "type",
-          "url"
-        ],
+        "required": ["type", "url"],
         "properties": {
           "type": {
             "type": "string",
             "description": "技能来源类型，目前仅支持 zip",
-            "enum": [
-              "zip"
-            ]
+            "enum": ["zip"]
           },
           "url": {
             "type": "string",
@@ -702,10 +948,6 @@
             "type": "string",
             "description": "技能版本"
           },
-          "author": {
-            "type": "string",
-            "description": "作者"
-          },
           "icon": {
             "type": "string",
             "description": "图标 URL",
@@ -722,10 +964,6 @@
             "type": "boolean",
             "description": "是否认证"
           },
-          "recommended": {
-            "type": "boolean",
-            "description": "是否推荐"
-          },
           "published": {
             "type": "boolean",
             "description": "是否已发布；公开接口不返回有效值"
@@ -733,10 +971,7 @@
           "status": {
             "type": "integer",
             "description": "发布状态：0 草稿，1 已发布；公开接口不返回有效值",
-            "enum": [
-              0,
-              1
-            ]
+            "enum": [0, 1]
           },
           "sort": {
             "type": "integer",
@@ -747,25 +982,8 @@
             "description": "更新时间",
             "format": "date-time"
           },
-          "compatibility": {
-            "$ref": "#/components/schemas/SkillHubCompatibility"
-          },
-          "permissions": {
-            "type": "array",
-            "description": "技能权限",
-            "items": {
-              "type": "string"
-            }
-          },
-          "manifest": {
-            "$ref": "#/components/schemas/SkillHubManifest"
-          },
           "source": {
             "$ref": "#/components/schemas/SkillHubSource"
-          },
-          "changelog": {
-            "type": "string",
-            "description": "更新日志"
           }
         }
       },
@@ -785,14 +1003,73 @@
           }
         }
       },
+      "SkillHubTag": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "标签内部 ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "标签名称，最多 32 个字符，不能包含 / 或 \\",
+            "maxLength": 32
+          },
+          "sort": {
+            "type": "integer",
+            "description": "排序权重，越大越靠前"
+          },
+          "usageCount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "当前被 Skill 使用的数量"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "创建时间",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "更新时间",
+            "format": "date-time"
+          }
+        }
+      },
+      "SkillHubTagListData": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkillHubTag"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "总数"
+          }
+        }
+      },
+      "SkillHubTagRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "标签名称，最多 32 个字符，不能包含 / 或 \\",
+            "maxLength": 32
+          },
+          "sort": {
+            "type": "integer",
+            "description": "排序权重，越大越靠前"
+          }
+        }
+      },
       "SkillHubSkillRequest": {
         "type": "object",
-        "required": [
-          "id",
-          "name",
-          "version",
-          "source"
-        ],
+        "required": ["id", "name", "version", "source"],
         "properties": {
           "id": {
             "type": "string",
@@ -810,10 +1087,6 @@
             "type": "string",
             "description": "技能版本"
           },
-          "author": {
-            "type": "string",
-            "description": "作者"
-          },
           "icon": {
             "type": "string",
             "description": "图标 URL",
@@ -830,10 +1103,6 @@
             "type": "boolean",
             "description": "是否认证"
           },
-          "recommended": {
-            "type": "boolean",
-            "description": "是否推荐"
-          },
           "published": {
             "type": "boolean",
             "description": "是否发布；未传 status 时使用该字段决定状态"
@@ -841,34 +1110,14 @@
           "status": {
             "type": "integer",
             "description": "发布状态：0 草稿，1 已发布；优先级高于 published",
-            "enum": [
-              0,
-              1
-            ]
+            "enum": [0, 1]
           },
           "sort": {
             "type": "integer",
             "description": "排序权重，越大越靠前"
           },
-          "compatibility": {
-            "$ref": "#/components/schemas/SkillHubCompatibility"
-          },
-          "permissions": {
-            "type": "array",
-            "description": "技能权限",
-            "items": {
-              "type": "string"
-            }
-          },
-          "manifest": {
-            "$ref": "#/components/schemas/SkillHubManifest"
-          },
           "source": {
             "$ref": "#/components/schemas/SkillHubSource"
-          },
-          "changelog": {
-            "type": "string",
-            "description": "更新日志"
           }
         }
       },
@@ -920,6 +1169,34 @@
           },
           "data": {
             "$ref": "#/components/schemas/SkillHubSkill"
+          }
+        }
+      },
+      "SkillHubTagListApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SkillHubTagListData"
+          }
+        }
+      },
+      "SkillHubTagApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SkillHubTag"
           }
         }
       },

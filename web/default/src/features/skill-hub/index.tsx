@@ -51,6 +51,8 @@ import { SectionPageLayout } from '@/components/layout'
 import {
   createSkillHubSkill,
   deleteSkillHubSkill,
+  listAdminSkillHubSkillsByTags,
+  listAdminSkillHubTags,
   listAdminSkillHubSkills,
   setSkillHubSkillPublished,
   skillToForm,
@@ -58,11 +60,13 @@ import {
   updateSkillHubSkill,
   uploadSkillHubZip,
 } from './api'
-import type { SkillHubForm, SkillHubSkill } from './types'
+import type { SkillHubForm, SkillHubSkill, SkillHubTag } from './types'
 
 export function SkillHub() {
   const { t } = useTranslation()
   const [skills, setSkills] = useState<SkillHubSkill[]>([])
+  const [tagOptions, setTagOptions] = useState<SkillHubTag[]>([])
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([])
   const [selectedId, setSelectedId] = useState('')
   const [form, setForm] = useState<SkillHubForm>(() => skillToForm())
   const [loading, setLoading] = useState(false)
@@ -77,31 +81,21 @@ export function SkillHub() {
     () => skills.find((skill) => skill.id === selectedId),
     [selectedId, skills]
   )
+  const tagNames = useMemo(
+    () => tagOptions.map((tag) => tag.name),
+    [tagOptions]
+  )
 
-  const tagSuggestions = useMemo(() => {
-    const seen = new Set<string>()
-    const values: string[] = []
-
-    for (const skill of skills) {
-      for (const tag of skill.tags || []) {
-        const value = tag.trim()
-        const key = value.toLowerCase()
-        if (!value || seen.has(key)) continue
-        seen.add(key)
-        values.push(value)
-      }
-    }
-
-    return values.sort((a, b) => a.localeCompare(b))
-  }, [skills])
-
-  async function loadSkills() {
+  async function loadSkills(tagIds = selectedTagIds) {
     setLoading(true)
     try {
-      const payload = await listAdminSkillHubSkills({
+      const params = {
         keyword: keyword.trim(),
         page_size: 100,
-      })
+      }
+      const payload = tagIds.length
+        ? await listAdminSkillHubSkillsByTags(tagIds, params)
+        : await listAdminSkillHubSkills(params)
       if (!payload.success) {
         throw new Error(payload.message || t('Failed to load Skill Hub'))
       }
@@ -115,9 +109,26 @@ export function SkillHub() {
     }
   }
 
+  async function loadTags() {
+    try {
+      const payload = await listAdminSkillHubTags({ page_size: 500 })
+      if (!payload.success) {
+        throw new Error(payload.message || '标签加载失败')
+      }
+      const items = payload.data?.items || []
+      setTagOptions(items)
+      setSelectedTagIds((current) =>
+        current.filter((id) => items.some((tag) => tag.id === id))
+      )
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '标签加载失败')
+    }
+  }
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadSkills()
+      void loadTags()
     }, 0)
 
     return () => window.clearTimeout(timer)
@@ -132,6 +143,19 @@ export function SkillHub() {
   function createDraft() {
     setSelectedId('')
     setForm(skillToForm())
+  }
+
+  function applyTagFilter(tagId: number) {
+    const next = selectedTagIds.includes(tagId)
+      ? selectedTagIds.filter((id) => id !== tagId)
+      : [...selectedTagIds, tagId]
+    setSelectedTagIds(next)
+    void loadSkills(next)
+  }
+
+  function clearTagFilter() {
+    setSelectedTagIds([])
+    void loadSkills([])
   }
 
   async function saveSkill() {
@@ -274,9 +298,13 @@ export function SkillHub() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>{t('Skill Hub')}</SectionPageLayout.Title>
+      <SectionPageLayout.Title>技能管理</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
-        <Button variant='outline' disabled={loading} onClick={loadSkills}>
+        <Button
+          variant='outline'
+          disabled={loading}
+          onClick={() => void loadSkills()}
+        >
           <RefreshCw className='h-4 w-4' />
           {loading ? t('Refreshing') : t('Refresh')}
         </Button>
@@ -301,10 +329,36 @@ export function SkillHub() {
                   onChange={(event) => setKeyword(event.target.value)}
                   placeholder={t('Search skills')}
                 />
-                <Button variant='outline' onClick={loadSkills}>
+                <Button variant='outline' onClick={() => void loadSkills()}>
                   {t('Search')}
                 </Button>
               </div>
+              {tagOptions.length > 0 && (
+                <div className='flex flex-wrap gap-1.5'>
+                  <Button
+                    type='button'
+                    size='sm'
+                    variant={selectedTagIds.length ? 'outline' : 'secondary'}
+                    onClick={clearTagFilter}
+                  >
+                    {t('All Tags')}
+                  </Button>
+                  {tagOptions.map((tag) => {
+                    const selectedTag = selectedTagIds.includes(tag.id)
+                    return (
+                      <Button
+                        key={tag.id || tag.name}
+                        type='button'
+                        size='sm'
+                        variant={selectedTag ? 'default' : 'outline'}
+                        onClick={() => applyTagFilter(tag.id)}
+                      >
+                        {tag.name}
+                      </Button>
+                    )
+                  })}
+                </div>
+              )}
               <div className='space-y-2'>
                 {skills.map((skill) => {
                   const published = skill.published || skill.status === 1
@@ -436,10 +490,13 @@ export function SkillHub() {
                     <Field label={t('Tags')}>
                       <TagEditor
                         value={form.tags}
-                        suggestions={tagSuggestions}
-                        placeholder={t('Type a tag and press Enter')}
+                        suggestions={tagNames}
+                        placeholder='搜索已有标签后按 Enter 添加'
                         onChange={(tags) => update('tags', tags)}
                       />
+                      <p className='text-muted-foreground text-xs'>
+                        新增或删除标签请到「标签管理」维护。
+                      </p>
                     </Field>
                     <Field label={t('Sort')}>
                       <Input
@@ -607,7 +664,7 @@ function TagEditor(props: {
     .slice(0, 10)
 
   function commit(input: string) {
-    const next = mergeTags(props.value, splitTagText(input))
+    const next = mergeTags(props.value, resolveKnownTags(input))
     props.onChange(next)
     setDraft('')
   }
@@ -626,6 +683,15 @@ function TagEditor(props: {
     if (event.key === 'Backspace' && !draft && props.value.length > 0) {
       props.onChange(props.value.slice(0, -1))
     }
+  }
+
+  function resolveKnownTags(input: string) {
+    const known = new Map(
+      props.suggestions.map((tag) => [tag.toLowerCase(), tag])
+    )
+    return splitTagText(input)
+      .map((tag) => known.get(tag.toLowerCase()))
+      .filter((tag): tag is string => Boolean(tag))
   }
 
   return (

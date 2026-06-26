@@ -52,6 +52,7 @@ import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import SkillHub from './pages/SkillHub';
+import SkillHubTags from './pages/SkillHubTags';
 import Playground from './pages/Playground';
 import ImagePlayground from './pages/ImagePlayground';
 import VideoPlayground from './pages/VideoPlayground';
@@ -163,8 +164,20 @@ function App() {
           }
         />
         <Route
+          path='/console/skill-hub/tags'
+          element={
+            <AdminRoute>
+              <SkillHubTags />
+            </AdminRoute>
+          }
+        />
+        <Route
           path='/skill-hub'
           element={<Navigate to='/console/skill-hub' replace />}
+        />
+        <Route
+          path='/skill-hub/tags'
+          element={<Navigate to='/console/skill-hub/tags' replace />}
         />
         <Route
           path='/console/subscription'
