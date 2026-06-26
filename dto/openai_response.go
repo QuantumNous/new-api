@@ -292,6 +292,149 @@ type OpenAIResponsesResponse struct {
 	Metadata           json.RawMessage    `json:"metadata"`
 }
 
+type ResponsesBillingInputTokenDetails struct {
+	CachedTokens int `json:"cached_tokens"`
+	AudioTokens  int `json:"audio_tokens"`
+	ImageTokens  int `json:"image_tokens"`
+}
+
+type ResponsesBillingOutputTokenDetails struct {
+	ReasoningTokens int `json:"reasoning_tokens"`
+}
+
+type ResponsesBillingUsage struct {
+	InputTokens  int `json:"input_tokens"`
+	OutputTokens int `json:"output_tokens"`
+	TotalTokens  int `json:"total_tokens"`
+
+	InputTokensDetails     *ResponsesBillingInputTokenDetails  `json:"input_tokens_details"`
+	OutputTokensDetails    *ResponsesBillingOutputTokenDetails `json:"output_tokens_details"`
+	CompletionTokenDetails *ResponsesBillingOutputTokenDetails `json:"completion_tokens_details"`
+}
+
+type ResponsesBillingTool struct {
+	Type string `json:"type"`
+}
+
+type ResponsesBillingOutput struct {
+	Type    string `json:"type"`
+	Quality string `json:"quality"`
+	Size    string `json:"size"`
+}
+
+type ResponsesBillingMeta struct {
+	Error  json.RawMessage          `json:"error"`
+	Usage  *ResponsesBillingUsage   `json:"usage"`
+	Tools  []ResponsesBillingTool   `json:"tools"`
+	Output []ResponsesBillingOutput `json:"output"`
+}
+
+type ResponsesBillingStreamItem struct {
+	Type string `json:"type"`
+}
+
+type ResponsesBillingStreamResponse struct {
+	Type     string                      `json:"type"`
+	Response *ResponsesBillingMeta       `json:"response,omitempty"`
+	Delta    string                      `json:"delta,omitempty"`
+	Item     *ResponsesBillingStreamItem `json:"item,omitempty"`
+}
+
+type ResponsesTranslatedStreamMeta struct {
+	Model     string                 `json:"model"`
+	CreatedAt int                    `json:"created_at"`
+	Error     json.RawMessage        `json:"error"`
+	Usage     *ResponsesBillingUsage `json:"usage"`
+}
+
+type ResponsesTranslatedStreamItem struct {
+	Type      string          `json:"type"`
+	ID        string          `json:"id"`
+	CallId    string          `json:"call_id,omitempty"`
+	Name      string          `json:"name,omitempty"`
+	Arguments json.RawMessage `json:"arguments,omitempty"`
+}
+
+func (r *ResponsesTranslatedStreamItem) ArgumentsString() string {
+	if r == nil {
+		return ""
+	}
+	return ResponsesArgumentsString(r.Arguments)
+}
+
+type ResponsesTranslatedStreamResponse struct {
+	Type         string                         `json:"type"`
+	Response     *ResponsesTranslatedStreamMeta `json:"response,omitempty"`
+	Delta        string                         `json:"delta,omitempty"`
+	Item         *ResponsesTranslatedStreamItem `json:"item,omitempty"`
+	OutputIndex  *int                           `json:"output_index,omitempty"`
+	ContentIndex *int                           `json:"content_index,omitempty"`
+	SummaryIndex *int                           `json:"summary_index,omitempty"`
+	ItemID       string                         `json:"item_id,omitempty"`
+	Part         *ResponsesReasoningSummaryPart `json:"part,omitempty"`
+}
+
+func getOpenAIErrorFromRawMessage(errorField json.RawMessage) *types.OpenAIError {
+	if len(errorField) == 0 || common.GetJsonType(errorField) == "null" {
+		return nil
+	}
+	var decoded any
+	if err := common.Unmarshal(errorField, &decoded); err != nil {
+		return nil
+	}
+	return GetOpenAIError(decoded)
+}
+
+func (m *ResponsesBillingMeta) GetOpenAIError() *types.OpenAIError {
+	if m == nil {
+		return nil
+	}
+	return getOpenAIErrorFromRawMessage(m.Error)
+}
+
+func (m *ResponsesTranslatedStreamMeta) GetOpenAIError() *types.OpenAIError {
+	if m == nil {
+		return nil
+	}
+	return getOpenAIErrorFromRawMessage(m.Error)
+}
+
+func (m *ResponsesBillingMeta) HasImageGenerationCall() bool {
+	if m == nil || len(m.Output) == 0 {
+		return false
+	}
+	for _, output := range m.Output {
+		if output.Type == ResponsesOutputTypeImageGenerationCall {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *ResponsesBillingMeta) GetQuality() string {
+	if m == nil || len(m.Output) == 0 {
+		return ""
+	}
+	for _, output := range m.Output {
+		if output.Type == ResponsesOutputTypeImageGenerationCall {
+			return output.Quality
+		}
+	}
+	return ""
+}
+
+func (m *ResponsesBillingMeta) GetSize() string {
+	if m == nil || len(m.Output) == 0 {
+		return ""
+	}
+	for _, output := range m.Output {
+		if output.Type == ResponsesOutputTypeImageGenerationCall {
+			return output.Size
+		}
+	}
+	return ""
+}
+
 // GetOpenAIError 从动态错误类型中提取OpenAIError结构
 func (o *OpenAIResponsesResponse) GetOpenAIError() *types.OpenAIError {
 	return GetOpenAIError(o.Error)

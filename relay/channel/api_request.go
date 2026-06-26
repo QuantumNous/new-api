@@ -304,13 +304,36 @@ func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]s
 	}
 }
 
+func newUpstreamRequest(method string, url string, requestBody io.Reader) (*http.Request, error) {
+	if replayableBody, ok := requestBody.(common.ReplayableBody); ok {
+		body, err := replayableBody.Open()
+		if err != nil {
+			return nil, err
+		}
+		req, err := http.NewRequest(method, url, body)
+		if err != nil {
+			_ = body.Close()
+			return nil, err
+		}
+		req.ContentLength = replayableBody.Size()
+		return req, nil
+	}
+	return http.NewRequest(method, url, requestBody)
+}
+
+func closeUpstreamRequestBody(req *http.Request) {
+	if req != nil && req.Body != nil {
+		_ = req.Body.Close()
+	}
+}
+
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
 	logger.LogDebug(c, "fullRequestURL: %s", fullRequestURL)
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+	req, err := newUpstreamRequest(c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
@@ -318,12 +341,14 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	headers := req.Header
 	err = a.SetupRequestHeader(c, &headers, info)
 	if err != nil {
+		closeUpstreamRequestBody(req)
 		return nil, fmt.Errorf("setup request header failed: %w", err)
 	}
 	// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
 	// 这样可以覆盖默认的 Authorization header 设置
 	headerOverride, err := processHeaderOverride(info, c)
 	if err != nil {
+		closeUpstreamRequestBody(req)
 		return nil, err
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
@@ -340,7 +365,7 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
 	logger.LogDebug(c, "fullRequestURL: %s", fullRequestURL)
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+	req, err := newUpstreamRequest(c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
@@ -350,12 +375,14 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	headers := req.Header
 	err = a.SetupRequestHeader(c, &headers, info)
 	if err != nil {
+		closeUpstreamRequestBody(req)
 		return nil, fmt.Errorf("setup request header failed: %w", err)
 	}
 	// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
 	// 这样可以覆盖默认的 Authorization header 设置
 	headerOverride, err := processHeaderOverride(info, c)
 	if err != nil {
+		closeUpstreamRequestBody(req)
 		return nil, err
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
@@ -514,6 +541,8 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		}
 	}
 
+	defer closeUpstreamRequestBody(req)
+
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.LogError(c, "do request failed: "+err.Error())
@@ -527,7 +556,6 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		c.Set(common2.UpstreamRequestIdKey, upID)
 	}
 
-	_ = req.Body.Close()
 	_ = c.Request.Body.Close()
 	return resp, nil
 }

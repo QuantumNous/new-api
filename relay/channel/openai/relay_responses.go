@@ -21,23 +21,23 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	defer service.CloseResponseBodyGracefully(resp)
 
 	// read response body
-	var responsesResponse dto.OpenAIResponsesResponse
+	var billingMeta dto.ResponsesBillingMeta
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
-	err = common.Unmarshal(responseBody, &responsesResponse)
+	err = common.Unmarshal(responseBody, &billingMeta)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
-	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
+	if oaiError := billingMeta.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
-	if responsesResponse.HasImageGenerationCall() {
+	if billingMeta.HasImageGenerationCall() {
 		c.Set("image_generation_call", true)
-		c.Set("image_generation_call_quality", responsesResponse.GetQuality())
-		c.Set("image_generation_call_size", responsesResponse.GetSize())
+		c.Set("image_generation_call_quality", billingMeta.GetQuality())
+		c.Set("image_generation_call_size", billingMeta.GetSize())
 	}
 
 	// 写入新的 response body
@@ -45,22 +45,22 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 
 	// compute usage
 	usage := dto.Usage{}
-	if responsesResponse.Usage != nil {
-		usage.PromptTokens = responsesResponse.Usage.InputTokens
-		usage.CompletionTokens = responsesResponse.Usage.OutputTokens
-		usage.TotalTokens = responsesResponse.Usage.TotalTokens
-		if responsesResponse.Usage.InputTokensDetails != nil {
-			usage.PromptTokensDetails.CachedTokens = responsesResponse.Usage.InputTokensDetails.CachedTokens
+	if billingMeta.Usage != nil {
+		usage.PromptTokens = billingMeta.Usage.InputTokens
+		usage.CompletionTokens = billingMeta.Usage.OutputTokens
+		usage.TotalTokens = billingMeta.Usage.TotalTokens
+		if billingMeta.Usage.InputTokensDetails != nil {
+			usage.PromptTokensDetails.CachedTokens = billingMeta.Usage.InputTokensDetails.CachedTokens
 		}
 	}
 	if info == nil || info.ResponsesUsageInfo == nil || info.ResponsesUsageInfo.BuiltInTools == nil {
 		return &usage, nil
 	}
 	// 解析 Tools 用量
-	for _, tool := range responsesResponse.Tools {
-		buildToolinfo, ok := info.ResponsesUsageInfo.BuiltInTools[common.Interface2String(tool["type"])]
+	for _, tool := range billingMeta.Tools {
+		buildToolinfo, ok := info.ResponsesUsageInfo.BuiltInTools[tool.Type]
 		if !ok || buildToolinfo == nil {
-			logger.LogError(c, fmt.Sprintf("BuiltInTools not found for tool type: %v", tool["type"]))
+			logger.LogError(c, fmt.Sprintf("BuiltInTools not found for tool type: %v", tool.Type))
 			continue
 		}
 		buildToolinfo.CallCount++
@@ -82,13 +82,13 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
 		// 检查当前数据是否包含 completed 状态和 usage 信息
-		var streamResponse dto.ResponsesStreamResponse
+		var streamResponse dto.ResponsesBillingStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
 			logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
 			sr.Error(err)
 			return
 		}
-		sendResponsesStreamData(c, streamResponse, data)
+		sendResponsesStreamData(c, streamResponse.Type, data)
 		switch streamResponse.Type {
 		case "response.completed":
 			if streamResponse.Response != nil {
