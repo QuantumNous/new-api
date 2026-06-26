@@ -12,6 +12,7 @@ describe("language routing", () => {
     expect(resolvePreferredLocale(undefined, "ja-JP,ja;q=0.9,en;q=0.8")).toBe("ja");
     expect(resolvePreferredLocale(undefined, "zh-CN,zh;q=0.9,en;q=0.8")).toBe("zh");
     expect(resolvePreferredLocale(undefined, "pt-BR,pt;q=0.9,en;q=0.8")).toBe("pt");
+    expect(resolvePreferredLocale(undefined, "de-DE,de;q=0.9,en;q=0.8")).toBe("de");
   });
 
   test("uses valid cookie locale before Accept-Language", () => {
@@ -29,6 +30,7 @@ describe("language routing", () => {
   test("redirects ordinary users on non-locale public pages", () => {
     expect(getLanguageRedirectPath({ pathname: "/", method: "GET", acceptLanguage: "ja" })).toBe("/ja");
     expect(getLanguageRedirectPath({ pathname: "/pricing", method: "GET", acceptLanguage: "ja" })).toBe("/ja/pricing");
+    expect(getLanguageRedirectPath({ pathname: "/pricing", method: "GET", acceptLanguage: "de-DE,de;q=0.9" })).toBe("/de/pricing");
     expect(getLanguageRedirectPath({ pathname: "/lp/personal-ai", method: "GET", acceptLanguage: "zh-CN,zh;q=0.9" })).toBe("/zh/lp/personal-ai");
     expect(getLanguageRedirectPath({ pathname: "/pricing", method: "GET", cookieLocale: "fr", acceptLanguage: "ja" })).toBe("/fr/pricing");
   });

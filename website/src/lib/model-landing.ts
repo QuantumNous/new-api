@@ -1,4 +1,5 @@
 import type { Locale } from "./locales";
+import type { PricingModel } from "./pricing";
 
 export type ModelPriceRow = {
   label: string;
@@ -9,6 +10,7 @@ export type ModelPriceRow = {
 
 export type ModelConfig = {
   slug: string;
+  modelIds: string[];
   displayName: string;
   modelId: string;
   officialName: string;
@@ -19,12 +21,20 @@ export type ModelConfig = {
   examplePrompt: string;
   priceUnit: ModelLandingKey;
   rows: ModelPriceRow[];
+  seo: {
+    title: string;
+    description: string;
+  };
+  positioning: ModelLandingKey;
+  useCases: ModelLandingKey[];
+  faq: Array<{ question: ModelLandingKey; answer: ModelLandingKey }>;
 };
 
 const COVERAGE = "GPT · Gemini · Claude · DeepSeek · Seedance";
 
 export const CLAUDE_CONFIG: ModelConfig = {
   slug: "claude-api",
+  modelIds: ["claude-opus-4", "claude-sonnet-4", "claude-haiku"],
   displayName: "Claude Opus 4",
   modelId: "claude-opus-4",
   officialName: "Anthropic",
@@ -42,10 +52,27 @@ export const CLAUDE_CONFIG: ModelConfig = {
     { label: "Cache reads", flatkey: "", value: "50% off" },
     { label: "Coverage", flatkey: "", value: COVERAGE },
   ],
+  seo: {
+    title: "Claude API pricing with one OpenAI-compatible key",
+    description: "Use Claude through flatkey.ai with OpenAI-compatible routing, lower token costs, one API key, and unified billing.",
+  },
+  positioning: "Best for long-context reasoning, coding agents, and production assistants",
+  useCases: ["Coding agents", "Support automation", "Long document analysis"],
+  faq: [
+    {
+      question: "Does this use the same model id in my SDK?",
+      answer: "Yes. Keep your SDK and switch base_url plus api_key.",
+    },
+    {
+      question: "Can I control usage before scaling?",
+      answer: "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded.",
+    },
+  ],
 };
 
 export const GPT_CONFIG: ModelConfig = {
   slug: "gpt-api",
+  modelIds: ["gpt-5", "gpt-5-mini", "gpt-4o", "gpt-4.1"],
   displayName: "GPT-5",
   modelId: "gpt-5",
   officialName: "OpenAI",
@@ -63,10 +90,27 @@ export const GPT_CONFIG: ModelConfig = {
     { label: "Cache reads", flatkey: "", value: "50% off" },
     { label: "Coverage", flatkey: "", value: COVERAGE },
   ],
+  seo: {
+    title: "GPT API pricing with one OpenAI-compatible key",
+    description: "Use GPT models through flatkey.ai with OpenAI-compatible routing, lower token costs, one API key, and unified billing.",
+  },
+  positioning: "Best for general AI apps, agents, search, and high-volume API workloads",
+  useCases: ["AI app backends", "Agent workflows", "Batch content generation"],
+  faq: [
+    {
+      question: "Does this use the same model id in my SDK?",
+      answer: "Yes. Keep your SDK and switch base_url plus api_key.",
+    },
+    {
+      question: "Can I control usage before scaling?",
+      answer: "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded.",
+    },
+  ],
 };
 
 export const SEEDANCE_CONFIG: ModelConfig = {
   slug: "seedance-api",
+  modelIds: ["seedance-2-0", "seedance-2.0", "seedance"],
   displayName: "Seedance 2.0",
   modelId: "seedance-2-0",
   officialName: "fal.ai",
@@ -82,6 +126,22 @@ export const SEEDANCE_CONFIG: ModelConfig = {
     { label: "Image-to-video / sec", flatkey: "$0.04", official: "$0.08" },
     { label: "1080p / sec", flatkey: "$0.05", official: "$0.10" },
     { label: "Coverage", flatkey: "", value: "Seedance · Kling · Veo · Sora · GPT · Claude" },
+  ],
+  seo: {
+    title: "Seedance video API — cheaper than official, one API key",
+    description: "Generate Seedance text/image-to-video through flatkey.ai at lower per-second cost, with one API key and unified billing.",
+  },
+  positioning: "Best for product videos, ad creative, and image-to-video production",
+  useCases: ["UGC ad clips", "Product motion", "Social video variants"],
+  faq: [
+    {
+      question: "Does this use the same model id in my SDK?",
+      answer: "Yes. Keep your SDK and switch base_url plus api_key.",
+    },
+    {
+      question: "Can I control usage before scaling?",
+      answer: "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded.",
+    },
   ],
 };
 
@@ -129,7 +189,54 @@ export type ModelLandingKey =
   | "1080p / sec"
   | "Cache reads"
   | "Coverage"
+  | "AI app backends"
+  | "Agent workflows"
+  | "Batch content generation"
+  | "Best for general AI apps, agents, search, and high-volume API workloads"
+  | "Best for long-context reasoning, coding agents, and production assistants"
+  | "Best for product videos, ad creative, and image-to-video production"
+  | "Can I control usage before scaling?"
+  | "Coding agents"
+  | "Does this use the same model id in my SDK?"
+  | "Live flatkey pricing"
+  | "Live model data from pricing API"
+  | "Long document analysis"
+  | "Matched live models"
+  | "Product motion"
+  | "Social video variants"
+  | "Support automation"
+  | "UGC ad clips"
+  | "Yes. Keep your SDK and switch base_url plus api_key."
+  | "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded."
   | "50% off";
+
+export function getModelLandingConfig(slug: string): ModelConfig | null {
+  return MODEL_CONFIGS[slug] ?? null;
+}
+
+export function getModelLandingConfigForModel(modelId: string): ModelConfig | null {
+  const normalized = normalizeModelId(modelId);
+  return getModelLandingConfigs().find((config) =>
+    config.modelIds.some((configuredId) => normalizeModelId(configuredId) === normalized)
+  ) ?? null;
+}
+
+export function getModelLandingConfigs(): ModelConfig[] {
+  return Object.values(MODEL_CONFIGS);
+}
+
+export function getModelLandingPathnames(): string[] {
+  return getModelLandingConfigs().map((config) => `/models/${config.slug}`);
+}
+
+export function resolveModelLandingModels(config: ModelConfig, models: PricingModel[]): PricingModel[] {
+  const configuredIds = new Set(config.modelIds.map(normalizeModelId));
+  return models.filter((model) => configuredIds.has(normalizeModelId(model.model_name)));
+}
+
+function normalizeModelId(modelId: string): string {
+  return modelId.trim().toLowerCase().replace(/[_\s]+/g, "-");
+}
 
 const en: Record<ModelLandingKey, string> = {
   "↓ Save 50% — double your token budget": "↓ Save 50% — double your token budget",
@@ -170,6 +277,25 @@ const en: Record<ModelLandingKey, string> = {
   "1080p / sec": "1080p / sec",
   "Cache reads": "Cache reads",
   Coverage: "Coverage",
+  "AI app backends": "AI app backends",
+  "Agent workflows": "Agent workflows",
+  "Batch content generation": "Batch content generation",
+  "Best for general AI apps, agents, search, and high-volume API workloads": "Best for general AI apps, agents, search, and high-volume API workloads",
+  "Best for long-context reasoning, coding agents, and production assistants": "Best for long-context reasoning, coding agents, and production assistants",
+  "Best for product videos, ad creative, and image-to-video production": "Best for product videos, ad creative, and image-to-video production",
+  "Can I control usage before scaling?": "Can I control usage before scaling?",
+  "Coding agents": "Coding agents",
+  "Does this use the same model id in my SDK?": "Does this use the same model id in my SDK?",
+  "Live flatkey pricing": "Live flatkey pricing",
+  "Live model data from pricing API": "Live model data from pricing API",
+  "Long document analysis": "Long document analysis",
+  "Matched live models": "Matched live models",
+  "Product motion": "Product motion",
+  "Social video variants": "Social video variants",
+  "Support automation": "Support automation",
+  "UGC ad clips": "UGC ad clips",
+  "Yes. Keep your SDK and switch base_url plus api_key.": "Yes. Keep your SDK and switch base_url plus api_key.",
+  "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded.": "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded.",
   "50% off": "50% off",
 };
 
@@ -214,6 +340,25 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "1080p / sec": "1080p/秒",
     "Cache reads": "缓存读取",
     Coverage: "覆盖范围",
+    "AI app backends": "AI 应用后端",
+    "Agent workflows": "Agent 工作流",
+    "Batch content generation": "批量内容生成",
+    "Best for general AI apps, agents, search, and high-volume API workloads": "适合通用 AI 应用、Agent、搜索和高用量 API 场景",
+    "Best for long-context reasoning, coding agents, and production assistants": "适合长上下文推理、编程 Agent 和生产级助手",
+    "Best for product videos, ad creative, and image-to-video production": "适合产品视频、广告创意和图生视频生产",
+    "Can I control usage before scaling?": "扩量前可以控制用量吗？",
+    "Coding agents": "编程 Agent",
+    "Does this use the same model id in my SDK?": "我的 SDK 里还能用同一个模型 ID 吗？",
+    "Live flatkey pricing": "flatkey 实时价格",
+    "Live model data from pricing API": "来自定价 API 的实时模型数据",
+    "Long document analysis": "长文档分析",
+    "Matched live models": "匹配到的实时模型",
+    "Product motion": "产品动态视频",
+    "Social video variants": "社媒视频变体",
+    "Support automation": "客服自动化",
+    "UGC ad clips": "UGC 广告短片",
+    "Yes. Keep your SDK and switch base_url plus api_key.": "可以。保留现有 SDK，只切换 base_url 和 api_key。",
+    "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded.": "可以。预付余额、用量分析和统一发票能把支出控制在边界内。",
     "50% off": "5 折",
   },
   es: {
@@ -255,6 +400,25 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "1080p / sec": "1080p/seg",
     "Cache reads": "Lecturas de caché",
     Coverage: "Cobertura",
+    "AI app backends": "Backends de apps de IA",
+    "Agent workflows": "Flujos de agentes",
+    "Batch content generation": "Generación de contenido por lotes",
+    "Best for general AI apps, agents, search, and high-volume API workloads": "Ideal para apps de IA generales, agentes, búsqueda y cargas API de alto volumen",
+    "Best for long-context reasoning, coding agents, and production assistants": "Ideal para razonamiento de contexto largo, agentes de código y asistentes en producción",
+    "Best for product videos, ad creative, and image-to-video production": "Ideal para videos de producto, creatividades publicitarias y producción imagen-a-video",
+    "Can I control usage before scaling?": "¿Puedo controlar el uso antes de escalar?",
+    "Coding agents": "Agentes de código",
+    "Does this use the same model id in my SDK?": "¿Uso el mismo id de modelo en mi SDK?",
+    "Live flatkey pricing": "Precio en vivo de flatkey",
+    "Live model data from pricing API": "Datos del modelo en vivo desde la API de precios",
+    "Long document analysis": "Análisis de documentos largos",
+    "Matched live models": "Modelos en vivo coincidentes",
+    "Product motion": "Movimiento de producto",
+    "Social video variants": "Variantes de video social",
+    "Support automation": "Automatización de soporte",
+    "UGC ad clips": "Clips publicitarios UGC",
+    "Yes. Keep your SDK and switch base_url plus api_key.": "Sí. Mantén tu SDK y cambia base_url más api_key.",
+    "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded.": "Sí. Saldo prepago, analítica de uso y una factura mantienen el gasto acotado.",
     "50% off": "50% de descuento",
   },
   fr: {
@@ -296,6 +460,25 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "1080p / sec": "1080p/s",
     "Cache reads": "Lectures de cache",
     Coverage: "Couverture",
+    "AI app backends": "Backends d'apps IA",
+    "Agent workflows": "Workflows d'agents",
+    "Batch content generation": "Génération de contenu par lot",
+    "Best for general AI apps, agents, search, and high-volume API workloads": "Idéal pour apps IA généralistes, agents, recherche et charges API à fort volume",
+    "Best for long-context reasoning, coding agents, and production assistants": "Idéal pour raisonnement long contexte, agents de code et assistants en production",
+    "Best for product videos, ad creative, and image-to-video production": "Idéal pour vidéos produit, créations publicitaires et production image-vers-vidéo",
+    "Can I control usage before scaling?": "Puis-je contrôler l'usage avant de passer à l'échelle ?",
+    "Coding agents": "Agents de code",
+    "Does this use the same model id in my SDK?": "Puis-je garder le même id de modèle dans mon SDK ?",
+    "Live flatkey pricing": "Tarifs flatkey en direct",
+    "Live model data from pricing API": "Données modèle en direct depuis l'API tarifs",
+    "Long document analysis": "Analyse de longs documents",
+    "Matched live models": "Modèles en direct correspondants",
+    "Product motion": "Animation produit",
+    "Social video variants": "Variantes vidéo sociales",
+    "Support automation": "Automatisation du support",
+    "UGC ad clips": "Clips publicitaires UGC",
+    "Yes. Keep your SDK and switch base_url plus api_key.": "Oui. Gardez votre SDK et changez base_url ainsi que api_key.",
+    "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded.": "Oui. Solde prépayé, analyse d'usage et facture unique limitent la dépense.",
     "50% off": "50% de réduction",
   },
   pt: {
@@ -337,6 +520,25 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "1080p / sec": "1080p/seg",
     "Cache reads": "Leituras de cache",
     Coverage: "Cobertura",
+    "AI app backends": "Backends de apps de IA",
+    "Agent workflows": "Fluxos de agentes",
+    "Batch content generation": "Geração de conteúdo em lote",
+    "Best for general AI apps, agents, search, and high-volume API workloads": "Ideal para apps de IA, agentes, busca e cargas API de alto volume",
+    "Best for long-context reasoning, coding agents, and production assistants": "Ideal para raciocínio de contexto longo, agentes de código e assistentes em produção",
+    "Best for product videos, ad creative, and image-to-video production": "Ideal para vídeos de produto, criativos de anúncio e produção imagem-para-vídeo",
+    "Can I control usage before scaling?": "Posso controlar o uso antes de escalar?",
+    "Coding agents": "Agentes de código",
+    "Does this use the same model id in my SDK?": "Uso o mesmo id de modelo no meu SDK?",
+    "Live flatkey pricing": "Preço em tempo real da flatkey",
+    "Live model data from pricing API": "Dados do modelo em tempo real da API de preços",
+    "Long document analysis": "Análise de documentos longos",
+    "Matched live models": "Modelos em tempo real correspondentes",
+    "Product motion": "Movimento de produto",
+    "Social video variants": "Variações de vídeo social",
+    "Support automation": "Automação de suporte",
+    "UGC ad clips": "Clipes de anúncio UGC",
+    "Yes. Keep your SDK and switch base_url plus api_key.": "Sim. Mantenha seu SDK e troque base_url e api_key.",
+    "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded.": "Sim. Saldo pré-pago, análise de uso e uma fatura mantêm o gasto controlado.",
     "50% off": "50% de desconto",
   },
   ru: {
@@ -378,6 +580,25 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "1080p / sec": "1080p/сек",
     "Cache reads": "Чтения из кэша",
     Coverage: "Покрытие",
+    "AI app backends": "Бэкенды AI-приложений",
+    "Agent workflows": "Agent workflow",
+    "Batch content generation": "Пакетная генерация контента",
+    "Best for general AI apps, agents, search, and high-volume API workloads": "Подходит для AI-приложений, агентов, поиска и больших API-нагрузок",
+    "Best for long-context reasoning, coding agents, and production assistants": "Подходит для длинного контекста, кодовых агентов и production-ассистентов",
+    "Best for product videos, ad creative, and image-to-video production": "Подходит для продуктовых видео, рекламы и image-to-video производства",
+    "Can I control usage before scaling?": "Можно ли контролировать расход до масштабирования?",
+    "Coding agents": "Кодовые агенты",
+    "Does this use the same model id in my SDK?": "Можно ли использовать тот же model id в SDK?",
+    "Live flatkey pricing": "Актуальные цены flatkey",
+    "Live model data from pricing API": "Живые данные модели из pricing API",
+    "Long document analysis": "Анализ длинных документов",
+    "Matched live models": "Найденные живые модели",
+    "Product motion": "Product motion",
+    "Social video variants": "Варианты видео для соцсетей",
+    "Support automation": "Автоматизация поддержки",
+    "UGC ad clips": "UGC рекламные клипы",
+    "Yes. Keep your SDK and switch base_url plus api_key.": "Да. Оставьте SDK и смените base_url вместе с api_key.",
+    "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded.": "Да. Предоплаченный баланс, аналитика и единый счет держат расход под контролем.",
     "50% off": "скидка 50%",
   },
   ja: {
@@ -419,6 +640,25 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "1080p / sec": "1080p/秒",
     "Cache reads": "キャッシュ読み取り",
     Coverage: "対応モデル",
+    "AI app backends": "AI アプリのバックエンド",
+    "Agent workflows": "Agent ワークフロー",
+    "Batch content generation": "一括コンテンツ生成",
+    "Best for general AI apps, agents, search, and high-volume API workloads": "汎用 AI アプリ、Agent、検索、高負荷 API ワークロードに最適",
+    "Best for long-context reasoning, coding agents, and production assistants": "長文脈推論、コーディング Agent、本番アシスタントに最適",
+    "Best for product videos, ad creative, and image-to-video production": "商品動画、広告クリエイティブ、画像から動画制作に最適",
+    "Can I control usage before scaling?": "拡張前に使用量を管理できますか？",
+    "Coding agents": "コーディング Agent",
+    "Does this use the same model id in my SDK?": "SDK で同じモデル ID を使えますか？",
+    "Live flatkey pricing": "flatkey のライブ料金",
+    "Live model data from pricing API": "料金 API からのライブモデルデータ",
+    "Long document analysis": "長文書分析",
+    "Matched live models": "一致したライブモデル",
+    "Product motion": "商品モーション",
+    "Social video variants": "SNS 動画バリエーション",
+    "Support automation": "サポート自動化",
+    "UGC ad clips": "UGC 広告クリップ",
+    "Yes. Keep your SDK and switch base_url plus api_key.": "はい。SDK はそのまま、base_url と api_key だけ変更します。",
+    "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded.": "はい。プリペイド残高、利用分析、統一請求で支出を管理できます。",
     "50% off": "50% オフ",
   },
   vi: {
@@ -460,6 +700,25 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "1080p / sec": "1080p/giây",
     "Cache reads": "Đọc bộ nhớ đệm",
     Coverage: "Phạm vi hỗ trợ",
+    "AI app backends": "Backend ứng dụng AI",
+    "Agent workflows": "Quy trình agent",
+    "Batch content generation": "Tạo nội dung hàng loạt",
+    "Best for general AI apps, agents, search, and high-volume API workloads": "Phù hợp cho ứng dụng AI phổ thông, agent, tìm kiếm và tải API lớn",
+    "Best for long-context reasoning, coding agents, and production assistants": "Phù hợp cho suy luận ngữ cảnh dài, agent lập trình và trợ lý production",
+    "Best for product videos, ad creative, and image-to-video production": "Phù hợp cho video sản phẩm, quảng cáo và sản xuất ảnh-thành-video",
+    "Can I control usage before scaling?": "Tôi có thể kiểm soát mức dùng trước khi mở rộng không?",
+    "Coding agents": "Agent lập trình",
+    "Does this use the same model id in my SDK?": "SDK của tôi có dùng cùng model id không?",
+    "Live flatkey pricing": "Giá flatkey trực tiếp",
+    "Live model data from pricing API": "Dữ liệu mô hình trực tiếp từ API giá",
+    "Long document analysis": "Phân tích tài liệu dài",
+    "Matched live models": "Mô hình trực tiếp đã khớp",
+    "Product motion": "Chuyển động sản phẩm",
+    "Social video variants": "Biến thể video mạng xã hội",
+    "Support automation": "Tự động hóa hỗ trợ",
+    "UGC ad clips": "Clip quảng cáo UGC",
+    "Yes. Keep your SDK and switch base_url plus api_key.": "Có. Giữ SDK, chỉ đổi base_url và api_key.",
+    "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded.": "Có. Số dư trả trước, phân tích sử dụng và một hóa đơn giúp kiểm soát chi phí.",
     "50% off": "giảm 50%",
   },
   de: {
@@ -501,6 +760,25 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "1080p / sec": "1080p/Sek.",
     "Cache reads": "Cache-Lesevorgänge",
     Coverage: "Abdeckung",
+    "AI app backends": "Backends für AI-Apps",
+    "Agent workflows": "Agent-Workflows",
+    "Batch content generation": "Batch-Content-Erstellung",
+    "Best for general AI apps, agents, search, and high-volume API workloads": "Ideal für allgemeine AI-Apps, Agents, Suche und API-Workloads mit hohem Volumen",
+    "Best for long-context reasoning, coding agents, and production assistants": "Ideal für Long-Context-Reasoning, Coding-Agents und Produktionsassistenten",
+    "Best for product videos, ad creative, and image-to-video production": "Ideal für Produktvideos, Anzeigen-Creatives und Bild-zu-Video-Produktion",
+    "Can I control usage before scaling?": "Kann ich die Nutzung vor dem Skalieren kontrollieren?",
+    "Coding agents": "Coding-Agents",
+    "Does this use the same model id in my SDK?": "Nutze ich dieselbe Modell-ID in meinem SDK?",
+    "Live flatkey pricing": "Live-Preise von flatkey",
+    "Live model data from pricing API": "Live-Modelldaten aus der Pricing API",
+    "Long document analysis": "Analyse langer Dokumente",
+    "Matched live models": "Passende Live-Modelle",
+    "Product motion": "Produktbewegung",
+    "Social video variants": "Varianten für Social Videos",
+    "Support automation": "Support-Automatisierung",
+    "UGC ad clips": "UGC-Anzeigenclips",
+    "Yes. Keep your SDK and switch base_url plus api_key.": "Ja. Behalte dein SDK und ändere base_url plus api_key.",
+    "Yes. Prepaid balance, usage analytics, and one invoice keep spend bounded.": "Ja. Prepaid-Guthaben, Nutzungsanalyse und eine Rechnung halten Kosten begrenzt.",
     "50% off": "50% Rabatt",
   },
 };

@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
-import { ModelLandingPage } from "@/components/model-landing-page";
+import { ModelsPage, parsePricingSearch } from "@/components/pricing-page";
 import { isLocale, LOCALES } from "@/lib/locales";
-import { SEEDANCE_CONFIG } from "@/lib/model-landing";
 import { buildMetadata } from "@/lib/seo";
 
 type Props = {
   params: Promise<{ locale: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export function generateStaticParams() {
@@ -16,10 +16,9 @@ export async function generateMetadata(props: Props) {
   const params = await props.params;
   if (!isLocale(params.locale)) return {};
   return buildMetadata({
-    title: "Seedance video API — cheaper than official, OpenAI-compatible key",
-    description:
-      "Generate Seedance text/image-to-video through flatkey.ai at lower per-second cost, with OpenAI-compatible routing, one API key, and unified billing.",
-    pathname: "/models/seedance-api",
+    title: "AI model directory and live pricing",
+    description: "Search flatkey.ai supported AI models by provider, endpoint, pricing type, and live availability.",
+    pathname: "/models",
     locale: params.locale,
   });
 }
@@ -27,5 +26,6 @@ export async function generateMetadata(props: Props) {
 export default async function Page(props: Props) {
   const params = await props.params;
   if (!isLocale(params.locale) || params.locale === "en") notFound();
-  return <ModelLandingPage config={SEEDANCE_CONFIG} locale={params.locale} />;
+  const searchParams = await props.searchParams;
+  return <ModelsPage locale={params.locale} search={parsePricingSearch(searchParams)} />;
 }

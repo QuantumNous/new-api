@@ -28,7 +28,7 @@ declare global {
 
 let tallyEmbedScriptPromise: Promise<void> | null = null;
 
-export function FlatkeyTallyEmbed(props: { locale: Locale; className?: string }) {
+export function FlatkeyTallyEmbed(props: { locale: Locale; className?: string; iframeClassName?: string; loading?: "lazy" | "eager" }) {
   const [loadFailed, setLoadFailed] = useState(false);
   const language = getSupportedTallyLanguage(props.locale);
   const tallyFormId = TALLY_FORM_IDS[language];
@@ -59,9 +59,9 @@ export function FlatkeyTallyEmbed(props: { locale: Locale; className?: string })
     <div className={cn("w-full overflow-hidden", props.className)}>
       <iframe
         key={tallyEmbedSrc}
-        className="block h-[760px] w-full border-0 bg-transparent sm:h-[560px] lg:h-[520px]"
+        className={props.iframeClassName ?? "block h-[760px] w-full border-0 bg-transparent sm:h-[560px] lg:h-[520px]"}
         data-tally-src={tallyEmbedSrc}
-        loading="lazy"
+        loading={props.loading ?? "lazy"}
         width="100%"
         height="520"
         frameBorder="0"
