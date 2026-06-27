@@ -40,6 +40,10 @@ function user(overrides: Partial<User>): User {
   }
 }
 
+function waitForNextTick(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 describe('bulk user actions', () => {
   test('uses one eligibility rule for disable actions', () => {
     expect(canDisableUser(user({ id: 1 }))).toBe(true)
@@ -77,6 +81,63 @@ describe('bulk user actions', () => {
     expect(result).toEqual({
       successCount: 1,
       failedCount: 2,
+    })
+  })
+
+  test('filters ineligible users inside batch execution', async () => {
+    const calledIds: number[] = []
+    const result = await disableUsersBatch(
+      [
+        user({ id: 1 }),
+        user({ id: 2, status: USER_STATUS.DISABLED }),
+        user({ id: 3, role: USER_ROLE.ROOT }),
+        user({ id: 4, DeletedAt: '2026-06-28T00:00:00Z' }),
+      ],
+      async (target) => {
+        calledIds.push(target.id)
+        return { success: true }
+      }
+    )
+
+    expect(calledIds).toEqual([1])
+    expect(result).toEqual({
+      successCount: 1,
+      failedCount: 0,
+    })
+  })
+
+  test('limits disable request concurrency', async () => {
+    let activeRequests = 0
+    let maxActiveRequests = 0
+    const releaseNext: Array<() => void> = []
+    const releaseSignal = (_target: User) =>
+      new Promise<{ success: true }>((resolve) => {
+        activeRequests += 1
+        maxActiveRequests = Math.max(maxActiveRequests, activeRequests)
+        releaseNext.push(() => {
+          activeRequests -= 1
+          resolve({ success: true })
+        })
+      })
+
+    const batchPromise = disableUsersBatch(
+      Array.from({ length: 6 }, (_, index) => user({ id: index + 1 })),
+      releaseSignal
+    )
+
+    await Promise.resolve()
+    expect(maxActiveRequests).toBe(5)
+    expect(releaseNext).toHaveLength(5)
+
+    releaseNext.splice(0).forEach((release) => release())
+    await waitForNextTick()
+    expect(maxActiveRequests).toBe(5)
+    expect(releaseNext).toHaveLength(1)
+
+    releaseNext.splice(0).forEach((release) => release())
+    await expect(batchPromise).resolves.toEqual({
+      successCount: 6,
+      failedCount: 0,
     })
   })
 })

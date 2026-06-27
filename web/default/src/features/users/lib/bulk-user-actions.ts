@@ -24,6 +24,8 @@ export type DisableUsersBatchResult = {
   failedCount: number
 }
 
+const DISABLE_USERS_BATCH_CONCURRENCY = 5
+
 export function canDisableUser(user: User): boolean {
   if (isUserDeleted(user)) return false
   if (user.status === USER_STATUS.DISABLED) return false
@@ -40,9 +42,21 @@ export async function disableUsersBatch(
   users: User[],
   disableUser: (user: User) => Promise<ApiResponse<Partial<User>>>
 ): Promise<DisableUsersBatchResult> {
-  const results = await Promise.allSettled(
-    users.map((user) => disableUser(user))
-  )
+  const targets = getBatchDisableUserTargets(users)
+  const results: PromiseSettledResult<ApiResponse<Partial<User>>>[] = []
+
+  for (
+    let index = 0;
+    index < targets.length;
+    index += DISABLE_USERS_BATCH_CONCURRENCY
+  ) {
+    const batch = targets.slice(index, index + DISABLE_USERS_BATCH_CONCURRENCY)
+    const batchResults = await Promise.allSettled(
+      batch.map((user) => disableUser(user))
+    )
+    results.push(...batchResults)
+  }
+
   const successCount = results.filter((result) => {
     return result.status === 'fulfilled' && result.value.success
   }).length
