@@ -1,0 +1,24 @@
+{
+  "name": "gen-video",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Render a timeline animation (a Stage / useTimeline page) to a real .mp4 by driving a headless browser frame-by-frame and piping PNG frames to ffmpeg. Sibling of gen-pptx.",
+  "bin": {
+    "gen-video": "dist/cli.mjs"
+  },
+  "scripts": {
+    "build:cli": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/cli.mjs --external:playwright --banner:js=\"#!/usr/bin/env node\"",
+    "build": "npm run build:cli",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0"
+  }
+}

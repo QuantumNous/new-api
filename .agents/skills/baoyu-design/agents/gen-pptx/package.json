@@ -1,0 +1,26 @@
+{
+  "name": "gen-pptx",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Export an HTML slide deck to PPTX (editable native objects or full-bleed screenshots) via a headless browser + PptxGenJS. Clean-TypeScript port of the claude.ai design gen_pptx tool.",
+  "bin": {
+    "gen-pptx": "dist/cli.mjs"
+  },
+  "scripts": {
+    "build:cli": "esbuild src/cli.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/cli.mjs --external:playwright --external:pptxgenjs --banner:js=\"#!/usr/bin/env node\"",
+    "build:page": "esbuild src/browser/entry.ts --bundle --platform=browser --target=es2020 --format=iife --outfile=dist/capture.iife.js",
+    "build": "npm run build:cli && npm run build:page",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0",
+    "pptxgenjs": "3.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0"
+  }
+}
