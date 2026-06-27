@@ -7,8 +7,9 @@
   ],
   "catalog": {
     "@lobehub/icons": "^5.10.0",
-    "@rsbuild/core": "^2.0.7",
-    "@rsbuild/plugin-react": "^2.0.0",
+    "@rsbuild/core": "^2.1.1",
+    "@rsbuild/plugin-react": "^2.1.0",
+    "@rsbuild/plugin-tailwindcss": "^2.0.3",
     "axios": "^1.16.1",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.20",

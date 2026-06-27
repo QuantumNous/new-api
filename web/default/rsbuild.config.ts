@@ -2,6 +2,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { defineConfig, loadEnv } from '@rsbuild/core'
 import { pluginReact } from '@rsbuild/plugin-react'
+import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss'
 import { tanstackRouter } from '@tanstack/router-plugin/rspack'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -22,7 +23,7 @@ export default defineConfig(({ envMode }) => {
   ) as Record<string, { target: string; changeOrigin: boolean }>
 
   return {
-    plugins: [pluginReact()],
+    plugins: [pluginReact(), pluginTailwindcss({ optimize: false })],
     // Rsbuild 2: replaces deprecated `performance.chunkSplit` (RSPack 2 aligned)
     splitChunks: {
       preset: 'default',
@@ -82,11 +83,7 @@ export default defineConfig(({ envMode }) => {
     performance: {
       // Remove console in production
       removeConsole: isProd ? ['log'] : false,
-      // Speed up repeated `rsbuild build` (local + CI when node_modules/.cache is preserved).
-      // @see https://v2.rsbuild.dev/config/performance/build-cache
-      buildCache: {
-        cacheDigest: [process.env.VITE_REACT_APP_VERSION],
-      },
+      buildCache: false,
     },
     tools: {
       rspack: {
