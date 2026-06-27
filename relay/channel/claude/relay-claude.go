@@ -439,15 +439,18 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	return &claudeRequest, nil
 }
 
-func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCompletionsStreamResponse {
+func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse, claudeInfo *ClaudeResponseInfo) *dto.ChatCompletionsStreamResponse {
+	if claudeInfo == nil {
+		claudeInfo = &ClaudeResponseInfo{}
+	}
 	var response dto.ChatCompletionsStreamResponse
 	response.Object = "chat.completion.chunk"
 	response.Model = claudeResponse.Model
 	response.Choices = make([]dto.ChatCompletionsStreamResponseChoice, 0)
 	tools := make([]dto.ToolCallResponse, 0)
-	fcIdx := 0
+	blockIdx := 0
 	if claudeResponse.Index != nil {
-		fcIdx = *claudeResponse.Index
+		blockIdx = *claudeResponse.Index
 	}
 	var choice dto.ChatCompletionsStreamResponseChoice
 	if claudeResponse.Type == "message_start" {
@@ -466,7 +469,7 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 			}
 			if claudeResponse.ContentBlock.Type == "tool_use" {
 				tools = append(tools, dto.ToolCallResponse{
-					Index: common.GetPointer(fcIdx),
+					Index: common.GetPointer(claudeInfo.toolCallIndex(blockIdx)),
 					ID:    claudeResponse.ContentBlock.Id,
 					Type:  "function",
 					Function: dto.FunctionResponse{
@@ -485,7 +488,7 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 			case "input_json_delta":
 				tools = append(tools, dto.ToolCallResponse{
 					Type:  "function",
-					Index: common.GetPointer(fcIdx),
+					Index: common.GetPointer(claudeInfo.toolCallIndex(blockIdx)),
 					Function: dto.FunctionResponse{
 						Arguments: *claudeResponse.Delta.PartialJson,
 					},
@@ -590,6 +593,23 @@ type ClaudeResponseInfo struct {
 	ResponseText strings.Builder
 	Usage        *dto.Usage
 	Done         bool
+	ToolIndexMap map[int]int
+}
+
+// toolCallIndex maps a Claude content-block index to a 0-based OpenAI tool_call
+// ordinal (Claude counts all blocks; OpenAI counts only tool calls). Call it
+// only for tool_use blocks — for text/thinking blocks it would consume an
+// ordinal and shift later tool indices.
+func (info *ClaudeResponseInfo) toolCallIndex(blockIndex int) int {
+	if info.ToolIndexMap == nil {
+		info.ToolIndexMap = make(map[int]int)
+	}
+	if idx, ok := info.ToolIndexMap[blockIndex]; ok {
+		return idx
+	}
+	idx := len(info.ToolIndexMap)
+	info.ToolIndexMap[blockIndex] = idx
+	return idx
 }
 
 func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
@@ -818,7 +838,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		}
 		helper.ClaudeChunkData(c, claudeResponse, data)
 	} else if info.RelayFormat == types.RelayFormatOpenAI {
-		response := StreamResponseClaude2OpenAI(&claudeResponse)
+		response := StreamResponseClaude2OpenAI(&claudeResponse, claudeInfo)
 
 		if !FormatClaudeResponseInfo(&claudeResponse, response, claudeInfo) {
 			return nil

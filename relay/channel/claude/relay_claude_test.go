@@ -12,6 +12,78 @@ func commonPointer[T any](value T) *T {
 	return &value
 }
 
+func mkToolUseStart(i int, id string) *dto.ClaudeResponse {
+	idx := i
+	return &dto.ClaudeResponse{
+		Type:         "content_block_start",
+		Index:        &idx,
+		ContentBlock: &dto.ClaudeMediaMessage{Type: "tool_use", Id: id, Name: "f"},
+	}
+}
+
+// claude-opus-4-8 回归：前导 text 块不得把后续 tool_use 的工具序号顶离 0。
+func TestStreamToolCallIndex_LeadingTextDoesNotShiftToolIndex(t *testing.T) {
+	info := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+
+	text := "好的，我来安排执行。"
+	textIdx := 0
+	resp := StreamResponseClaude2OpenAI(&dto.ClaudeResponse{
+		Type:         "content_block_start",
+		Index:        &textIdx,
+		ContentBlock: &dto.ClaudeMediaMessage{Type: "text", Text: &text},
+	}, info)
+	require.Len(t, resp.Choices[0].Delta.ToolCalls, 0)
+	require.Empty(t, info.ToolIndexMap, "前导文本块不应分配工具序号")
+
+	blk := 1
+	resp = StreamResponseClaude2OpenAI(&dto.ClaudeResponse{
+		Type:         "content_block_start",
+		Index:        &blk,
+		ContentBlock: &dto.ClaudeMediaMessage{Type: "tool_use", Id: "toolu_1", Name: "execute_task"},
+	}, info)
+	require.Len(t, resp.Choices[0].Delta.ToolCalls, 1)
+	require.NotNil(t, resp.Choices[0].Delta.ToolCalls[0].Index)
+	require.Equal(t, 0, *resp.Choices[0].Delta.ToolCalls[0].Index)
+	require.Equal(t, "toolu_1", resp.Choices[0].Delta.ToolCalls[0].ID)
+
+	pj := `{"intent":"x"}` // input_json_delta 复用 start 分配的序号
+	resp = StreamResponseClaude2OpenAI(&dto.ClaudeResponse{
+		Type:  "content_block_delta",
+		Index: &blk,
+		Delta: &dto.ClaudeMediaMessage{Type: "input_json_delta", PartialJson: &pj},
+	}, info)
+	require.Len(t, resp.Choices[0].Delta.ToolCalls, 1)
+	require.Equal(t, 0, *resp.Choices[0].Delta.ToolCalls[0].Index)
+	require.Equal(t, pj, resp.Choices[0].Delta.ToolCalls[0].Function.Arguments)
+}
+
+// 前导 thinking 块同样不应占用工具序号；其后两个工具应得到连续的 0、1。
+func TestStreamToolCallIndex_LeadingThinkingThenTools(t *testing.T) {
+	info := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+
+	think := "let me think"
+	thIdx := 0
+	StreamResponseClaude2OpenAI(&dto.ClaudeResponse{
+		Type:  "content_block_delta",
+		Index: &thIdx,
+		Delta: &dto.ClaudeMediaMessage{Type: "thinking_delta", Thinking: &think},
+	}, info)
+
+	r1 := StreamResponseClaude2OpenAI(mkToolUseStart(1, "a"), info)
+	r2 := StreamResponseClaude2OpenAI(mkToolUseStart(2, "b"), info)
+	require.Equal(t, 0, *r1.Choices[0].Delta.ToolCalls[0].Index)
+	require.Equal(t, 1, *r2.Choices[0].Delta.ToolCalls[0].Index)
+}
+
+// 无前导块、多工具从块 0 起：序号 0、1 不撞键(对应 ff06067a1)。
+func TestStreamToolCallIndex_MultipleToolsFromZeroNoCollision(t *testing.T) {
+	info := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+	r0 := StreamResponseClaude2OpenAI(mkToolUseStart(0, "a"), info)
+	r1 := StreamResponseClaude2OpenAI(mkToolUseStart(1, "b"), info)
+	require.Equal(t, 0, *r0.Choices[0].Delta.ToolCalls[0].Index)
+	require.Equal(t, 1, *r1.Choices[0].Delta.ToolCalls[0].Index)
+}
+
 func TestFormatClaudeResponseInfo_MessageStart(t *testing.T) {
 	claudeInfo := &ClaudeResponseInfo{
 		Usage: &dto.Usage{},
