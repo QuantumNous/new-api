@@ -5146,6 +5146,12 @@
     "Tip: pick eligible user groups here. To change a tier later, click edit on its row.": "Mẹo: chọn nhóm người dùng đủ điều kiện tại đây. Để thay đổi một mức sau này, nhấn sửa ở hàng của mức đó.",
     "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "Danh sách trắng các nhóm đủ điều kiện nhận thưởng theo từng mức (đối tượng JSON). Mảng rỗng = không ai; [\"all\"] = mọi nhóm.",
     "A bonus tier with this recharge amount already exists.": "Đã tồn tại một mức thưởng với số tiền nạp này.",
-    "I confirm these recipients consented to receive Codex invite emails": "Tôi xác nhận các người nhận này đã đồng ý nhận email mời Codex"
+    "I confirm these recipients consented to receive Codex invite emails": "Tôi xác nhận các người nhận này đã đồng ý nhận email mời Codex",
+    "Disable selected users": "Tắt người dùng đã chọn",
+    "Disable Selected Users?": "Tắt người dùng đã chọn?",
+    "Failed to disable {{count}} user(s)": "Không thể tắt {{count}} người dùng",
+    "No selected users can be disabled": "Không có người dùng đã chọn nào có thể tắt",
+    "Successfully disabled {{count}} user(s)": "Đã tắt thành công {{count}} người dùng",
+    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "Thao tác này sẽ tắt {{count}} người dùng đã chọn. Người dùng Root, người dùng đã bị tắt và người dùng đã xóa sẽ được bỏ qua."
   }
 }

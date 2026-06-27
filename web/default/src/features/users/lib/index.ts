@@ -20,6 +20,12 @@ For commercial licensing, please contact support@quantumnous.com
 // User Actions
 // ============================================================================
 export { getUserActionMessage } from './user-actions'
+export {
+  canDisableUser,
+  disableUsersBatch,
+  getBatchDisableUserTargets,
+  type DisableUsersBatchResult,
+} from './bulk-user-actions'
 
 // ============================================================================
 // Form Utilities

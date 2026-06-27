@@ -5146,6 +5146,12 @@
     "Tip: pick eligible user groups here. To change a tier later, click edit on its row.": "Astuce : choisissez ici les groupes éligibles. Pour modifier un palier plus tard, cliquez sur modifier dans sa ligne.",
     "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "Liste blanche des groupes éligibles au bonus par palier (objet JSON). Tableau vide = personne ; [\"all\"] = tous les groupes.",
     "A bonus tier with this recharge amount already exists.": "Un palier de bonus existe déjà pour ce montant de recharge.",
-    "I confirm these recipients consented to receive Codex invite emails": "Je confirme que ces destinataires ont accepté de recevoir des e-mails d’invitation Codex"
+    "I confirm these recipients consented to receive Codex invite emails": "Je confirme que ces destinataires ont accepté de recevoir des e-mails d’invitation Codex",
+    "Disable selected users": "Désactiver les utilisateurs sélectionnés",
+    "Disable Selected Users?": "Désactiver les utilisateurs sélectionnés ?",
+    "Failed to disable {{count}} user(s)": "Échec de la désactivation de {{count}} utilisateur(s)",
+    "No selected users can be disabled": "Aucun utilisateur sélectionné ne peut être désactivé",
+    "Successfully disabled {{count}} user(s)": "{{count}} utilisateur(s) désactivé(s) avec succès",
+    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "Cela désactivera {{count}} utilisateur(s) sélectionné(s). Les utilisateurs Root, déjà désactivés ou supprimés seront ignorés."
   }
 }
