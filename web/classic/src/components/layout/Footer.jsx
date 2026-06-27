@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { Typography } from '@douyinfe/semi-ui';
 import { getFooterHTML, getLogo, getSystemName } from '../../helpers';
 import { StatusContext } from '../../context/Status';
+import SystemBrandMark from '../common/logo/SystemBrandMark';
 
 const FooterBar = () => {
   const { t } = useTranslation();
@@ -49,10 +50,12 @@ const FooterBar = () => {
         {isDemoSiteMode && (
           <div className='flex flex-col md:flex-row justify-between w-full max-w-[1110px] mb-10 gap-8'>
             <div className='flex-shrink-0'>
-              <img
-                src={logo}
-                alt={systemName}
-                className='w-16 h-16 rounded-full bg-gray-800 p-1.5 object-contain'
+              <SystemBrandMark
+                logo={logo}
+                systemName={systemName}
+                size={64}
+                className='rounded-2xl'
+                imageClassName='w-16 h-16 rounded-full bg-gray-800 p-1.5 object-contain'
               />
             </div>
 

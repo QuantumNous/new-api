@@ -39,7 +39,31 @@ import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useLocation } from 'react-router-dom';
 import { normalizeLanguage } from '../../i18n/language';
+import {
+  getSystemBrandMarkFaviconHref,
+  shouldUseGeneratedBrandMark,
+} from '../common/logo/SystemBrandMark';
 const { Sider, Content, Header } = Layout;
+
+function applyDocumentBranding(systemName, logo) {
+  if (systemName) {
+    document.title = systemName;
+  }
+  const faviconHref = getSystemBrandMarkFaviconHref(systemName, logo);
+  if (!faviconHref) return;
+
+  document
+    .querySelectorAll("link[rel~='icon']")
+    .forEach((linkElement) => linkElement.remove());
+
+  const linkElement = document.createElement('link');
+  linkElement.rel = 'icon';
+  if (shouldUseGeneratedBrandMark(systemName, logo)) {
+    linkElement.type = 'image/svg+xml';
+  }
+  linkElement.href = faviconHref;
+  document.head.appendChild(linkElement);
+}
 
 const PageLayout = () => {
   const [userState, userDispatch] = useContext(UserContext);
@@ -94,6 +118,7 @@ const PageLayout = () => {
       if (success) {
         statusDispatch({ type: 'set', payload: data });
         setStatusData(data);
+        applyDocumentBranding(data.system_name, data.logo || '/logo.png');
       } else {
         showError('Unable to connect to server');
       }
@@ -106,16 +131,24 @@ const PageLayout = () => {
     loadUser();
     loadStatus().catch(console.error);
     let systemName = getSystemName();
-    if (systemName) {
-      document.title = systemName;
-    }
     let logo = getLogo();
-    if (logo) {
-      let linkElement = document.querySelector("link[rel~='icon']");
-      if (linkElement) {
-        linkElement.href = logo;
-      }
-    }
+    applyDocumentBranding(systemName, logo);
+
+    const handleBrandChange = () => {
+      applyDocumentBranding(getSystemName(), getLogo());
+    };
+
+    const handleStorage = (event) => {
+      if (event.key !== 'system_name' && event.key !== 'logo') return;
+      handleBrandChange();
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('system-brand-change', handleBrandChange);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('system-brand-change', handleBrandChange);
+    };
   }, []);
 
   useEffect(() => {
