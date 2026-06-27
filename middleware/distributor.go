@@ -106,7 +106,9 @@ func Distribute() func(c *gin.Context) {
 					tokenModelLimit = map[string]bool{}
 				}
 				matchName := ratio_setting.FormatMatchingModelName(modelRequest.Model) // match gpts & thinking-*
-				if _, ok := tokenModelLimit[matchName]; !ok {
+				// Whitelist match supports trailing-"*" prefix entries (e.g. "claude-*").
+				// This only gates; account/group ability still bounds actual access (DR-1001 §5).
+				if !model.MatchModelLimit(tokenModelLimit, matchName) {
 					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}))
 					return
 				}

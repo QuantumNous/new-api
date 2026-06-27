@@ -374,3 +374,35 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	require.NotContains(t, ids, "zz-token-tiered-missing-expr-model")
 	require.NotContains(t, ids, "zz-token-unpriced-model")
 }
+
+// TestListModelsTokenLimitWildcardExpandsAgainstGroup verifies the DR-1001
+// listing fix: a wildcard whitelist entry ("claude-*") is never listed
+// literally — it expands against the account/group's enabled models, and only
+// matching models appear. Non-matching group models stay hidden.
+func TestListModelsTokenLimitWildcardExpandsAgainstGroup(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	seedListModelsUser(t, db, 1401, "wildcard-list", false)
+	seedListModelsAbilities(t, db, "wildcard-list",
+		"claude-opus-4-8",
+		"claude-sonnet-4-6",
+		"gpt-4o-mini",
+	)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	ctx.Set("id", 1401)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{
+		"claude-*": true,
+	})
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "claude-opus-4-8")
+	require.Contains(t, ids, "claude-sonnet-4-6")
+	require.NotContains(t, ids, "gpt-4o-mini") // not matched by claude-*
+	require.NotContains(t, ids, "claude-*")    // the pattern itself is never listed
+}

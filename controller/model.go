@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -111,6 +112,35 @@ func init() {
 	})
 }
 
+// resolveGroupEnabledModels returns the enabled models for the request's
+// effective group (honoring the "auto" group). Returns an error if the user's
+// group cannot be resolved.
+func resolveGroupEnabledModels(c *gin.Context) ([]string, error) {
+	userId := c.GetInt("id")
+	userGroup, err := model.GetUserGroup(userId, false)
+	if err != nil {
+		return nil, err
+	}
+	group := userGroup
+	tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
+	if tokenGroup != "" {
+		group = tokenGroup
+	}
+	var models []string
+	if tokenGroup == "auto" {
+		for _, autoGroup := range service.GetUserAutoGroup(userGroup) {
+			for _, g := range model.GetGroupEnabledModels(autoGroup) {
+				if !common.StringsContains(models, g) {
+					models = append(models, g)
+				}
+			}
+		}
+	} else {
+		models = model.GetGroupEnabledModels(group)
+	}
+	return models, nil
+}
+
 func ListModels(c *gin.Context, modelType int) {
 	userOpenAiModels := make([]dto.OpenAIModels, 0)
 
@@ -134,7 +164,33 @@ func ListModels(c *gin.Context, modelType int) {
 		} else {
 			tokenModelLimit = map[string]bool{}
 		}
-		for allowModel, _ := range tokenModelLimit {
+
+		// Concrete (non-wildcard) entries are listed directly, as configured.
+		// Wildcard entries (e.g. "claude-*") can't be listed literally, so expand
+		// them against the account/group's enabled models — best-effort: if the
+		// group can't be resolved we just skip expansion rather than failing the
+		// listing. Matching mirrors the relay gate (model.MatchModelLimit) so
+		// /v1/models stays consistent with what actually routes (DR-1001 §6).
+		allowed := make(map[string]bool, len(tokenModelLimit))
+		hasWildcard := false
+		for entry := range tokenModelLimit {
+			if strings.HasSuffix(entry, "*") {
+				hasWildcard = true
+				continue
+			}
+			allowed[entry] = true
+		}
+		if hasWildcard {
+			if groupModels, err := resolveGroupEnabledModels(c); err == nil {
+				for _, gm := range groupModels {
+					if model.MatchModelLimit(tokenModelLimit, gm) {
+						allowed[gm] = true
+					}
+				}
+			}
+		}
+
+		for allowModel := range allowed {
 			if !acceptUnsetRatioModel {
 				if !helper.HasModelBillingConfig(allowModel) {
 					continue
@@ -154,32 +210,13 @@ func ListModels(c *gin.Context, modelType int) {
 			}
 		}
 	} else {
-		userId := c.GetInt("id")
-		userGroup, err := model.GetUserGroup(userId, false)
+		models, err := resolveGroupEnabledModels(c)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "get user group failed",
 			})
 			return
-		}
-		group := userGroup
-		tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
-		if tokenGroup != "" {
-			group = tokenGroup
-		}
-		var models []string
-		if tokenGroup == "auto" {
-			for _, autoGroup := range service.GetUserAutoGroup(userGroup) {
-				groupModels := model.GetGroupEnabledModels(autoGroup)
-				for _, g := range groupModels {
-					if !common.StringsContains(models, g) {
-						models = append(models, g)
-					}
-				}
-			}
-		} else {
-			models = model.GetGroupEnabledModels(group)
 		}
 		for _, modelName := range models {
 			if !acceptUnsetRatioModel {
