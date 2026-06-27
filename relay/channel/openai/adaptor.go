@@ -310,18 +310,20 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 
 	}
-	if strings.HasPrefix(info.UpstreamModelName, "o") || strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
+	isOModel := dto.IsOpenAIReasoningOModel(info.UpstreamModelName)
+	isGPT5Model := dto.IsOpenAIGPT5Model(info.UpstreamModelName)
+	if isOModel || isGPT5Model {
 		if lo.FromPtrOr(request.MaxCompletionTokens, uint(0)) == 0 && lo.FromPtrOr(request.MaxTokens, uint(0)) != 0 {
 			request.MaxCompletionTokens = request.MaxTokens
 			request.MaxTokens = nil
 		}
 
-		if strings.HasPrefix(info.UpstreamModelName, "o") {
+		if isOModel {
 			request.Temperature = nil
 		}
 
 		// gpt-5系列模型适配 归零不再支持的参数
-		if strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
+		if isGPT5Model {
 			request.Temperature = nil
 			request.TopP = nil
 			request.LogProbs = nil
