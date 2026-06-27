@@ -133,6 +133,34 @@ func setupInitialTokenControllerTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+func setupInviteRewardTokenControllerTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	db := setupInitialTokenControllerTestDB(t)
+	if err := db.AutoMigrate(&model.InviteRewardEvent{}, &model.Log{}); err != nil {
+		t.Fatalf("failed to migrate invite reward tables: %v", err)
+	}
+
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalPaymentSetting := *paymentSetting
+	originalQuotaForNewUser := common.QuotaForNewUser
+	originalQuotaForInviter := common.QuotaForInviter
+	originalQuotaForInvitee := common.QuotaForInvitee
+	t.Cleanup(func() {
+		*paymentSetting = originalPaymentSetting
+		common.QuotaForNewUser = originalQuotaForNewUser
+		common.QuotaForInviter = originalQuotaForInviter
+		common.QuotaForInvitee = originalQuotaForInvitee
+	})
+
+	paymentSetting.ComplianceConfirmed = true
+	paymentSetting.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	common.QuotaForNewUser = 0
+	common.QuotaForInviter = 100
+	common.QuotaForInvitee = 50
+	return db
+}
+
 func openTokenControllerExternalDB(t *testing.T, dialect string, dsn string) (*gorm.DB, *bool) {
 	t.Helper()
 
@@ -212,6 +240,7 @@ func seedTokenUser(t *testing.T, db *gorm.DB, userID int) *model.User {
 		Role:         common.RoleCommonUser,
 		Status:       common.UserStatusEnabled,
 		Email:        fmt.Sprintf("token-user-%d@example.com", userID),
+		AffCode:      fmt.Sprintf("tk%d", userID),
 		Group:        "plg",
 		IsEnterprise: false,
 	}
@@ -219,6 +248,19 @@ func seedTokenUser(t *testing.T, db *gorm.DB, userID int) *model.User {
 		t.Fatalf("failed to create user: %v", err)
 	}
 	return user
+}
+
+func seedInvitedTokenUser(t *testing.T, db *gorm.DB, inviterID int, inviteeID int) (*model.User, *model.User) {
+	t.Helper()
+
+	inviter := seedTokenUser(t, db, inviterID)
+	invitee := seedTokenUser(t, db, inviteeID)
+	invitee.InviterId = inviter.Id
+	invitee.InviteRewardStatus = model.InviteRewardStatusPending
+	if err := db.Save(invitee).Error; err != nil {
+		t.Fatalf("failed to mark invitee pending: %v", err)
+	}
+	return inviter, invitee
 }
 
 func newAuthenticatedContext(t *testing.T, method string, target string, body any, userID int) (*gin.Context, *httptest.ResponseRecorder) {
@@ -632,6 +674,54 @@ func TestEnsureInitialTokenCreatesAndRevealsOnlyWhenUserHasNoTokens(t *testing.T
 	}
 }
 
+func TestEnsureInitialTokenCreatedTriggersInviteReward(t *testing.T) {
+	db := setupInviteRewardTokenControllerTestDB(t)
+	inviter, invitee := seedInvitedTokenUser(t, db, 101, 102)
+
+	body := map[string]any{
+		"name":                 "default",
+		"expired_time":         -1,
+		"remain_quota":         0,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/ensure_initial", body, invitee.Id)
+	EnsureInitialToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected ensure initial token to succeed, got message: %s", response.Message)
+	}
+	var data ensureInitialTokenResponse
+	if err := common.Unmarshal(response.Data, &data); err != nil {
+		t.Fatalf("failed to decode ensure initial token response: %v", err)
+	}
+	if !data.Created {
+		t.Fatalf("expected ensure initial token to create")
+	}
+
+	var refreshedInvitee model.User
+	if err := db.First(&refreshedInvitee, invitee.Id).Error; err != nil {
+		t.Fatalf("failed to load invitee: %v", err)
+	}
+	var refreshedInviter model.User
+	if err := db.First(&refreshedInviter, inviter.Id).Error; err != nil {
+		t.Fatalf("failed to load inviter: %v", err)
+	}
+	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusGranted {
+		t.Fatalf("expected invite reward granted, got %q", refreshedInvitee.InviteRewardStatus)
+	}
+	if refreshedInvitee.Quota != 50 {
+		t.Fatalf("expected invitee quota 50, got %d", refreshedInvitee.Quota)
+	}
+	if refreshedInviter.AffQuota != 100 || refreshedInviter.AffHistoryQuota != 100 || refreshedInviter.AffCount != 1 {
+		t.Fatalf("expected inviter reward counters to be 100/100/1, got %d/%d/%d", refreshedInviter.AffQuota, refreshedInviter.AffHistoryQuota, refreshedInviter.AffCount)
+	}
+}
+
 func TestApplyInitialTokenDefaultsForcesPlgWhenGroupsDisabled(t *testing.T) {
 	db := setupInitialTokenControllerTestDB(t)
 	seedTokenUser(t, db, 22)
@@ -683,6 +773,47 @@ func TestAddTokenAllowsNonPlgUserToChooseGroupWithoutEnterpriseFlag(t *testing.T
 	}
 	if stored.Group != "default" {
 		t.Fatalf("expected non-plg user token group to remain %q, got %q", "default", stored.Group)
+	}
+}
+
+func TestAddTokenTriggersInviteReward(t *testing.T) {
+	db := setupInviteRewardTokenControllerTestDB(t)
+	inviter, invitee := seedInvitedTokenUser(t, db, 201, 202)
+
+	body := map[string]any{
+		"name":                 "manual-key",
+		"expired_time":         -1,
+		"remain_quota":         0,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, invitee.Id)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected add token to succeed, got message: %s", response.Message)
+	}
+
+	var refreshedInvitee model.User
+	if err := db.First(&refreshedInvitee, invitee.Id).Error; err != nil {
+		t.Fatalf("failed to load invitee: %v", err)
+	}
+	var refreshedInviter model.User
+	if err := db.First(&refreshedInviter, inviter.Id).Error; err != nil {
+		t.Fatalf("failed to load inviter: %v", err)
+	}
+	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusGranted {
+		t.Fatalf("expected invite reward granted, got %q", refreshedInvitee.InviteRewardStatus)
+	}
+	if refreshedInvitee.Quota != 50 {
+		t.Fatalf("expected invitee quota 50, got %d", refreshedInvitee.Quota)
+	}
+	if refreshedInviter.AffQuota != 100 || refreshedInviter.AffHistoryQuota != 100 || refreshedInviter.AffCount != 1 {
+		t.Fatalf("expected inviter reward counters to be 100/100/1, got %d/%d/%d", refreshedInviter.AffQuota, refreshedInviter.AffHistoryQuota, refreshedInviter.AffCount)
 	}
 }
 
@@ -832,6 +963,98 @@ func TestEnsureInitialTokenSkipsExistingTokensWithoutRevealingKey(t *testing.T) 
 	}
 	if stored.Key != existing.Key {
 		t.Fatalf("expected existing token key to remain %q, got %q", existing.Key, stored.Key)
+	}
+}
+
+func TestEnsureInitialTokenExistingDoesNotTriggerInviteReward(t *testing.T) {
+	db := setupInviteRewardTokenControllerTestDB(t)
+	inviter, invitee := seedInvitedTokenUser(t, db, 301, 302)
+	seedToken(t, db, invitee.Id, "existing-token", "existing-invite-token")
+
+	body := map[string]any{
+		"name":                 "default",
+		"expired_time":         -1,
+		"remain_quota":         0,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/ensure_initial", body, invitee.Id)
+	EnsureInitialToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected ensure initial token to succeed, got message: %s", response.Message)
+	}
+	var data ensureInitialTokenResponse
+	if err := common.Unmarshal(response.Data, &data); err != nil {
+		t.Fatalf("failed to decode ensure initial token response: %v", err)
+	}
+	if data.Created {
+		t.Fatalf("expected existing token path to skip creation")
+	}
+
+	var refreshedInvitee model.User
+	if err := db.First(&refreshedInvitee, invitee.Id).Error; err != nil {
+		t.Fatalf("failed to load invitee: %v", err)
+	}
+	var refreshedInviter model.User
+	if err := db.First(&refreshedInviter, inviter.Id).Error; err != nil {
+		t.Fatalf("failed to load inviter: %v", err)
+	}
+	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusPending {
+		t.Fatalf("expected pending reward to remain pending, got %q", refreshedInvitee.InviteRewardStatus)
+	}
+	if refreshedInvitee.Quota != 0 || refreshedInviter.AffQuota != 0 || refreshedInviter.AffCount != 0 {
+		t.Fatalf("expected no reward grant, got invitee quota %d, inviter quota %d count %d", refreshedInvitee.Quota, refreshedInviter.AffQuota, refreshedInviter.AffCount)
+	}
+}
+
+func TestAddTokenWithPaymentComplianceUnconfirmedStillGrantsReward(t *testing.T) {
+	db := setupInviteRewardTokenControllerTestDB(t)
+	operation_setting.GetPaymentSetting().ComplianceConfirmed = false
+	inviter, invitee := seedInvitedTokenUser(t, db, 401, 402)
+
+	body := map[string]any{
+		"name":                 "manual-key",
+		"expired_time":         -1,
+		"remain_quota":         0,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, invitee.Id)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected add token to succeed, got message: %s", response.Message)
+	}
+
+	var tokenCount int64
+	if err := db.Model(&model.Token{}).Where("user_id = ?", invitee.Id).Count(&tokenCount).Error; err != nil {
+		t.Fatalf("failed to count tokens: %v", err)
+	}
+	if tokenCount != 1 {
+		t.Fatalf("expected created token, got count %d", tokenCount)
+	}
+	var refreshedInvitee model.User
+	if err := db.First(&refreshedInvitee, invitee.Id).Error; err != nil {
+		t.Fatalf("failed to load invitee: %v", err)
+	}
+	var refreshedInviter model.User
+	if err := db.First(&refreshedInviter, inviter.Id).Error; err != nil {
+		t.Fatalf("failed to load inviter: %v", err)
+	}
+	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusGranted {
+		t.Fatalf("expected invite reward granted, got %q", refreshedInvitee.InviteRewardStatus)
+	}
+	if refreshedInvitee.Quota != 50 || refreshedInviter.AffQuota != 100 || refreshedInviter.AffCount != 1 {
+		t.Fatalf("expected reward grant, got invitee quota %d, inviter quota %d count %d", refreshedInvitee.Quota, refreshedInviter.AffQuota, refreshedInviter.AffCount)
 	}
 }
 

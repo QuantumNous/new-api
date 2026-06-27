@@ -43,6 +43,15 @@ func isPositiveOptionValue(value string) bool {
 	return err == nil && floatValue > 0
 }
 
+func isNonNegativeIntegerOptionValue(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+	intValue, err := strconv.Atoi(value)
+	return err == nil && intValue >= 0
+}
+
 func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}) {
 	if strings.TrimSpace(raw) == "" {
 		return
@@ -248,6 +257,11 @@ func prepareOptionUpdate(c *gin.Context, option *OptionUpdateRequest) bool {
 		}
 	}
 	switch option.Key {
+	case "QuotaForInviterMaxCount":
+		if !isNonNegativeIntegerOptionValue(option.Value.(string)) {
+			common.ApiErrorI18n(c, i18n.MsgQuotaInviterRewardLimitInvalid)
+			return false
+		}
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
