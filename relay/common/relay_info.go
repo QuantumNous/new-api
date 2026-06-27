@@ -40,6 +40,10 @@ type ClaudeConvertInfo struct {
 	Usage            *dto.Usage
 	FinishReason     string
 	Done             bool
+	ReasoningContent string
+	ReasoningOpaque  string
+	SentThinking     bool
+	SentSignature    bool
 
 	ToolCallBaseIndex      int
 	ToolCallMaxIndexOffset int
