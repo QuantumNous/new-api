@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -32,6 +33,45 @@ func setupInitialTokenModelTestDB(t *testing.T) {
 		common.UsingMySQL = originalUsingMySQL
 		common.UsingPostgreSQL = originalUsingPostgreSQL
 	})
+}
+
+func TestEnsureInitialUserTokenHonorsZeroTokenLimit(t *testing.T) {
+	setupInitialTokenModelTestDB(t)
+	require.NoError(t, DB.Create(&User{Id: 22, Username: "blocked-owner", AffCode: "own3"}).Error)
+
+	token, created, err := EnsureInitialUserToken(22, Token{
+		Name:           "initial",
+		Key:            "blocked-initial-key",
+		ExpiredTime:    -1,
+		UnlimitedQuota: true,
+	}, 0)
+	require.True(t, errors.Is(err, ErrUserTokenLimitReached), "got %v", err)
+	require.False(t, created)
+	require.Nil(t, token)
+
+	var stored int64
+	require.NoError(t, DB.Model(&Token{}).Where("user_id = ?", 22).Count(&stored).Error)
+	require.Zero(t, stored)
+}
+
+func TestEnsureInitialUserTokenExistingTokenIgnoresZeroTokenLimit(t *testing.T) {
+	setupInitialTokenModelTestDB(t)
+	require.NoError(t, DB.Create(&User{Id: 23, Username: "existing-owner", AffCode: "own4"}).Error)
+	require.NoError(t, DB.Create(&Token{UserId: 23, Name: "existing", Key: "existing-key", ExpiredTime: -1}).Error)
+
+	token, created, err := EnsureInitialUserToken(23, Token{
+		Name:           "initial",
+		Key:            "should-not-create-key",
+		ExpiredTime:    -1,
+		UnlimitedQuota: true,
+	}, 0)
+	require.NoError(t, err)
+	require.False(t, created)
+	require.Nil(t, token)
+
+	var stored int64
+	require.NoError(t, DB.Model(&Token{}).Where("user_id = ?", 23).Count(&stored).Error)
+	require.EqualValues(t, 1, stored)
 }
 
 func TestEnsureInitialUserTokenNormalizesTokenUserId(t *testing.T) {

@@ -293,6 +293,10 @@ const SYSTEM_REWARD_PREFIXES: Array<{ zh: string; key: string }> = [
   { zh: '新用户注册赠送', key: 'New user registration bonus {{amount}}' },
   { zh: '使用邀请码赠送', key: 'Invitation code bonus {{amount}}' },
   { zh: '邀请用户赠送', key: 'Referral reward {{amount}}' },
+  {
+    zh: '已达到邀请奖励上限，不再获得邀请者奖励',
+    key: 'Referral reward limit reached; no inviter reward granted',
+  },
   { zh: '用户签到，获得额度', key: 'Check-in reward {{amount}}' },
 ]
 

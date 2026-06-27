@@ -51,6 +51,7 @@ const quotaSchema = z.object({
   QuotaForNewUser: z.coerce.number().min(0),
   PreConsumedQuota: z.coerce.number().min(0),
   QuotaForInviter: z.coerce.number().min(0),
+  QuotaForInviterMaxCount: z.coerce.number().int().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
   TopUpLink: z.string(),
   general_setting: z.object({
@@ -212,6 +213,34 @@ export function QuotaSettingsSection({
                   </FormControl>
                   <FormDescription>
                     {t('Quota given to invited users')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='QuotaForInviterMaxCount'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Inviter Reward Limit')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      step={1}
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Maximum inviter rewards one account can receive. Set 0 for no limit.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

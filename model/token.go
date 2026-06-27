@@ -298,25 +298,53 @@ func CreateUserToken(userId int, token *Token, maxTokens int) error {
 	}
 
 	return DB.Transaction(func(tx *gorm.DB) error {
-		var user User
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Select("id").
-			Where("id = ?", userId).
-			First(&user).Error; err != nil {
-			return err
-		}
-
-		var total int64
-		if err := tx.Model(&Token{}).Where("user_id = ?", userId).Count(&total).Error; err != nil {
-			return err
-		}
-		if int(total) >= maxTokens {
-			return ErrUserTokenLimitReached
-		}
-
-		token.UserId = userId
-		return tx.Create(token).Error
+		return createUserTokenInTx(tx, userId, token, maxTokens)
 	})
+}
+
+func CreateUserTokenWithInviteReward(userId int, token *Token, maxTokens int, triggerType string) error {
+	if userId == 0 {
+		return errors.New("userId 为空！")
+	}
+	if token == nil {
+		return errors.New("token 为空！")
+	}
+
+	var rewardResult inviteRewardGrantResult
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := createUserTokenInTx(tx, userId, token, maxTokens); err != nil {
+			return err
+		}
+		var err error
+		rewardResult, err = tryGrantInviteRewardInTx(tx, userId, token.Id, triggerType)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	runInviteRewardPostCommitHooks(rewardResult)
+	return nil
+}
+
+func createUserTokenInTx(tx *gorm.DB, userId int, token *Token, maxTokens int) error {
+	var user User
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id").
+		Where("id = ?", userId).
+		First(&user).Error; err != nil {
+		return err
+	}
+
+	var total int64
+	if err := tx.Model(&Token{}).Where("user_id = ?", userId).Count(&total).Error; err != nil {
+		return err
+	}
+	if int(total) >= maxTokens {
+		return ErrUserTokenLimitReached
+	}
+
+	token.UserId = userId
+	return tx.Create(token).Error
 }
 
 func EnsureInitialUserToken(userId int, token Token, maxTokens int) (*Token, bool, error) {
@@ -326,31 +354,9 @@ func EnsureInitialUserToken(userId int, token Token, maxTokens int) (*Token, boo
 
 	var created bool
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		var user User
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Select("id").
-			Where("id = ?", userId).
-			First(&user).Error; err != nil {
-			return err
-		}
-
-		var total int64
-		if err := tx.Model(&Token{}).Where("user_id = ?", userId).Count(&total).Error; err != nil {
-			return err
-		}
-		if total > 0 {
-			return nil
-		}
-		if int(total) >= maxTokens {
-			return ErrUserTokenLimitReached
-		}
-
-		token.UserId = userId
-		if err := tx.Create(&token).Error; err != nil {
-			return err
-		}
-		created = true
-		return nil
+		var err error
+		created, err = ensureInitialUserTokenInTx(tx, userId, &token, maxTokens)
+		return err
 	})
 	if err != nil {
 		return nil, false, err
@@ -359,6 +365,59 @@ func EnsureInitialUserToken(userId int, token Token, maxTokens int) (*Token, boo
 		return nil, false, nil
 	}
 	return &token, true, nil
+}
+
+func EnsureInitialUserTokenWithInviteReward(userId int, token Token, maxTokens int, triggerType string) (*Token, bool, error) {
+	if userId == 0 {
+		return nil, false, errors.New("userId 为空！")
+	}
+
+	var created bool
+	var rewardResult inviteRewardGrantResult
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		created, err = ensureInitialUserTokenInTx(tx, userId, &token, maxTokens)
+		if err != nil || !created {
+			return err
+		}
+		rewardResult, err = tryGrantInviteRewardInTx(tx, userId, token.Id, triggerType)
+		return err
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	if !created {
+		return nil, false, nil
+	}
+	runInviteRewardPostCommitHooks(rewardResult)
+	return &token, true, nil
+}
+
+func ensureInitialUserTokenInTx(tx *gorm.DB, userId int, token *Token, maxTokens int) (bool, error) {
+	var user User
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id").
+		Where("id = ?", userId).
+		First(&user).Error; err != nil {
+		return false, err
+	}
+
+	var total int64
+	if err := tx.Model(&Token{}).Where("user_id = ?", userId).Count(&total).Error; err != nil {
+		return false, err
+	}
+	if total > 0 {
+		return false, nil
+	}
+	if int(total) >= maxTokens {
+		return false, ErrUserTokenLimitReached
+	}
+
+	token.UserId = userId
+	if err := tx.Create(token).Error; err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // Update Make sure your token's fields is completed, because this will update non-zero values

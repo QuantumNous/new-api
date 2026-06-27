@@ -148,6 +148,7 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
+	common.OptionMap["QuotaForInviterMaxCount"] = strconv.Itoa(common.QuotaForInviterMaxCount)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -352,6 +353,13 @@ func validateAndNormalizeOptionValue(key string, value string) (string, error) {
 	if key == "payment_setting.amount_bonus_groups" {
 		return normalizeAmountBonusGroupsOptionValue(value)
 	}
+	if key == "QuotaForInviterMaxCount" {
+		maxCount, err := parseInviterRewardMaxCount(value)
+		if err != nil {
+			return "", err
+		}
+		return strconv.Itoa(maxCount), nil
+	}
 	return value, nil
 }
 
@@ -492,6 +500,14 @@ func updateOptionMap(key string, value string) (err error) {
 }
 
 func applyOptionMapValue(key string, value string) (err error) {
+	var inviterRewardMaxCount int
+	if key == "QuotaForInviterMaxCount" {
+		inviterRewardMaxCount, err = parseInviterRewardMaxCount(value)
+		if err != nil {
+			return err
+		}
+	}
+
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
 	common.OptionMap[key] = value
@@ -769,6 +785,8 @@ func applyOptionMapValue(key string, value string) (err error) {
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
+	case "QuotaForInviterMaxCount":
+		common.QuotaForInviterMaxCount = inviterRewardMaxCount
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":
@@ -941,6 +959,14 @@ func syncRenamedGroupsToChannels(renames map[string]string) error {
 		publishChannelsChanged()
 	}
 	return nil
+}
+
+func parseInviterRewardMaxCount(value string) (int, error) {
+	maxCount, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || maxCount < 0 {
+		return 0, errors.New("inviter reward limit must be a non-negative integer")
+	}
+	return maxCount, nil
 }
 
 func replaceChannelGroupName(groupList, oldName, newName string) (string, bool) {

@@ -168,3 +168,26 @@ func TestUpdateOptionsBulkRejectsNonStringValuesWithoutPartialWrite(t *testing.T
 		t.Fatalf("expected no partial sidebar option write, got %d rows", count)
 	}
 }
+
+func TestUpdateOptionRejectsNullInviterRewardLimit(t *testing.T) {
+	db := setupOptionControllerTestDB(t)
+
+	ctx, recorder := newOptionRequestContext(t, map[string]any{
+		"key":   "QuotaForInviterMaxCount",
+		"value": nil,
+	})
+	UpdateOption(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected null inviter reward limit to fail")
+	}
+
+	var count int64
+	if err := db.Model(&model.Option{}).Where("key = ?", "QuotaForInviterMaxCount").Count(&count).Error; err != nil {
+		t.Fatalf("failed to count inviter reward limit option rows: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected rejected inviter reward limit not to persist, got %d rows", count)
+	}
+}
