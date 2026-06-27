@@ -3885,6 +3885,7 @@
     "Selected nodes": "選択したノード",
     "Selected when creating a token and used as the default billing group for API calls.": "トークン作成時に選択され、API 呼び出しのデフォルト課金グループとして使われます。",
     "Self-Use Mode": "セルフユースモード",
+    "New chat": "新しいチャット",
     "Send": "送信",
     "Send a request": "リクエストを送信",
     "Send code": "コードを送信",

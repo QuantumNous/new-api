@@ -3885,6 +3885,7 @@
     "Selected nodes": "已选节点",
     "Selected when creating a token and used as the default billing group for API calls.": "创建令牌时选择，用作 API 调用的默认计费分组。",
     "Self-Use Mode": "自用模式",
+    "New chat": "新会话",
     "Send": "发送",
     "Send a request": "发送请求",
     "Send code": "发送验证码",

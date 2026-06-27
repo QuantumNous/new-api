@@ -36,6 +36,7 @@ export function Playground() {
     models,
     groups,
     updateMessages,
+    clearMessages,
     setModels,
     setGroups,
     updateConfig,
@@ -46,6 +47,11 @@ export function Playground() {
     parameterEnabled,
     onMessageUpdate: updateMessages,
   })
+
+  const handleNewChat = useCallback(() => {
+    stopGeneration()
+    clearMessages()
+  }, [stopGeneration, clearMessages])
 
   // Edit dialog state
   const [editingMessageKey, setEditingMessageKey] = useState<string | null>(
@@ -216,8 +222,10 @@ export function Playground() {
           isModelLoading={isLoadingModels}
           modelValue={config.model}
           models={models}
+          hasMessages={messages.length > 0}
           onGroupChange={(value) => updateConfig('group', value)}
           onModelChange={(value) => updateConfig('model', value)}
+          onNewChat={handleNewChat}
           onStop={stopGeneration}
           onSubmit={handleSendMessage}
         />
