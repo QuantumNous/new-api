@@ -932,6 +932,7 @@ func UpdateChannel(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+	clearChannelReadOnlyFields(&channel, requestData)
 
 	// 使用统一的校验函数
 	if err := validateChannel(&channel.Channel, false); err != nil {

@@ -50,12 +50,12 @@ func Capabilities(userID int, systemRole int) PermissionsMap {
 	return result
 }
 
-func roleBaselineAllows(e *casbin.Enforcer, roleKey string, permission Permission) bool {
+func roleBaselineAllows(e *casbin.SyncedEnforcer, roleKey string, permission Permission) bool {
 	effect, ok := explicitSubjectEffect(e, RoleSubject(roleKey), permission)
 	return ok && effect == EffectAllow
 }
 
-func explicitSubjectEffect(e *casbin.Enforcer, subject string, permission Permission) (string, bool) {
+func explicitSubjectEffect(e *casbin.SyncedEnforcer, subject string, permission Permission) (string, bool) {
 	policies, err := e.GetFilteredPolicy(0, subject, permission.Resource, permission.Action)
 	if err != nil {
 		return "", false

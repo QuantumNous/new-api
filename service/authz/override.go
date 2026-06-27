@@ -135,7 +135,7 @@ func ExplicitUserOverrides(userID int) PermissionsMap {
 
 // userOverridePolicies returns the override entries that differ from the managed
 // role baseline; entries matching the baseline are omitted.
-func userOverridePolicies(e *casbin.Enforcer, resource string, actions map[string]bool) []overridePolicy {
+func userOverridePolicies(e *casbin.SyncedEnforcer, resource string, actions map[string]bool) []overridePolicy {
 	overrides := make([]overridePolicy, 0, len(actions))
 	for _, action := range catalogActions(resource) {
 		desired, ok := actions[action.Action]

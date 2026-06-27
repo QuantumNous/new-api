@@ -30,6 +30,7 @@ import {
   ADMIN_PERMISSION_RESOURCES,
   hasPermission,
 } from '@/lib/admin-permissions'
+import { cn } from '@/lib/utils'
 import {
   Tooltip,
   TooltipContent,
@@ -181,10 +182,17 @@ export function DataTableBulkActions<TData>({
                   if (!canEditSensitive) return
                   setShowDeleteConfirm(true)
                 }}
-                disabled={!canEditSensitive}
-                className='size-8'
+                aria-disabled={!canEditSensitive}
+                className={cn(
+                  'size-8',
+                  !canEditSensitive && 'cursor-not-allowed opacity-50'
+                )}
                 aria-label={t('Delete selected channels')}
-                title={t('Delete selected channels')}
+                title={
+                  canEditSensitive
+                    ? t('Delete selected channels')
+                    : t('No permission to perform this action')
+                }
               />
             }
           >

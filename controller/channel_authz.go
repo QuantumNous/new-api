@@ -48,6 +48,9 @@ func channelHasSensitiveChanges(channel *PatchChannel, origin *model.Channel, re
 		if _, ok := channelOperationalFields[field]; ok {
 			continue
 		}
+		if _, ok := channelReadOnlyFields[field]; ok {
+			continue
+		}
 		return true
 	}
 	return false
@@ -76,6 +79,38 @@ var channelOperationalFields = map[string]struct{}{
 	"status": {},
 }
 
+// channelReadOnlyFields lists server-managed/accounting fields that the general
+// channel edit endpoint must ignore even if a client sends them.
+var channelReadOnlyFields = map[string]struct{}{
+	"created_time":         {},
+	"test_time":            {},
+	"response_time":        {},
+	"balance":              {},
+	"balance_updated_time": {},
+	"used_quota":           {},
+}
+
+func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]any) {
+	if _, ok := requestData["created_time"]; ok {
+		channel.CreatedTime = 0
+	}
+	if _, ok := requestData["test_time"]; ok {
+		channel.TestTime = 0
+	}
+	if _, ok := requestData["response_time"]; ok {
+		channel.ResponseTime = 0
+	}
+	if _, ok := requestData["balance"]; ok {
+		channel.Balance = 0
+	}
+	if _, ok := requestData["balance_updated_time"]; ok {
+		channel.BalanceUpdatedTime = 0
+	}
+	if _, ok := requestData["used_quota"]; ok {
+		channel.UsedQuota = 0
+	}
+}
+
 // channelNonSensitiveFields lists routing / server-managed channel
 // fields a ChannelWrite admin may edit without ChannelSensitiveWrite. When a new
 // field is added to model.Channel it must be added to either this set or
@@ -83,25 +118,19 @@ var channelOperationalFields = map[string]struct{}{
 // to the fail-closed branch and is treated as sensitive. The
 // TestChannelFieldsAreClassified guard test enforces this.
 var channelNonSensitiveFields = map[string]struct{}{
-	"id":                   {},
-	"test_model":           {},
-	"name":                 {},
-	"weight":               {},
-	"created_time":         {},
-	"test_time":            {},
-	"response_time":        {},
-	"balance":              {},
-	"balance_updated_time": {},
-	"models":               {},
-	"group":                {},
-	"used_quota":           {},
-	"model_mapping":        {},
-	"status_code_mapping":  {},
-	"priority":             {},
-	"auto_ban":             {},
-	"other_info":           {},
-	"tag":                  {},
-	"remark":               {},
-	"channel_info":         {},
-	"multi_key_mode":       {},
+	"id":                  {},
+	"test_model":          {},
+	"name":                {},
+	"weight":              {},
+	"models":              {},
+	"group":               {},
+	"model_mapping":       {},
+	"status_code_mapping": {},
+	"priority":            {},
+	"auto_ban":            {},
+	"other_info":          {},
+	"tag":                 {},
+	"remark":              {},
+	"channel_info":        {},
+	"multi_key_mode":      {},
 }

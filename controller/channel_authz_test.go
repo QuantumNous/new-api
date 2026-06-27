@@ -81,6 +81,52 @@ func TestChannelHasSensitiveChanges(t *testing.T) {
 
 		assert.False(t, channelHasSensitiveChanges(&updated, origin, map[string]any{"status": updated.Status}))
 	})
+
+	t.Run("read-only fields are ignored by sensitivity check", func(t *testing.T) {
+		updated := PatchChannel{Channel: *origin}
+		updated.Balance = 99
+		updated.UsedQuota = 100
+		updated.ResponseTime = 200
+
+		assert.False(t, channelHasSensitiveChanges(&updated, origin, map[string]any{
+			"balance":       updated.Balance,
+			"used_quota":    updated.UsedQuota,
+			"response_time": updated.ResponseTime,
+		}))
+	})
+}
+
+func TestClearChannelReadOnlyFields(t *testing.T) {
+	channel := PatchChannel{Channel: model.Channel{
+		CreatedTime:        11,
+		TestTime:           22,
+		ResponseTime:       33,
+		Balance:            44.5,
+		BalanceUpdatedTime: 55,
+		UsedQuota:          66,
+		Models:             "gpt-4o",
+		Group:              "default",
+	}}
+
+	clearChannelReadOnlyFields(&channel, map[string]any{
+		"created_time":         channel.CreatedTime,
+		"test_time":            channel.TestTime,
+		"response_time":        channel.ResponseTime,
+		"balance":              channel.Balance,
+		"balance_updated_time": channel.BalanceUpdatedTime,
+		"used_quota":           channel.UsedQuota,
+		"models":               channel.Models,
+		"group":                channel.Group,
+	})
+
+	assert.Zero(t, channel.CreatedTime)
+	assert.Zero(t, channel.TestTime)
+	assert.Zero(t, channel.ResponseTime)
+	assert.Zero(t, channel.Balance)
+	assert.Zero(t, channel.BalanceUpdatedTime)
+	assert.Zero(t, channel.UsedQuota)
+	assert.Equal(t, "gpt-4o", channel.Models)
+	assert.Equal(t, "default", channel.Group)
 }
 
 func TestUpdateChannelRejectsStatusField(t *testing.T) {
@@ -126,7 +172,10 @@ func TestChannelFieldsAreClassified(t *testing.T) {
 		if _, ok := channelNonSensitiveFields[name]; ok {
 			return true
 		}
-		_, ok := channelOperationalFields[name]
+		if _, ok := channelOperationalFields[name]; ok {
+			return true
+		}
+		_, ok := channelReadOnlyFields[name]
 		return ok
 	}
 
@@ -150,6 +199,6 @@ func TestChannelFieldsAreClassified(t *testing.T) {
 
 	for _, name := range collect(reflect.TypeOf(PatchChannel{})) {
 		assert.Truef(t, classified(name),
-			"channel field %q is not classified; add it to channelSensitiveFields, channelNonSensitiveFields, or channelOperationalFields in channel_authz.go", name)
+			"channel field %q is not classified; add it to channelSensitiveFields, channelNonSensitiveFields, channelOperationalFields, or channelReadOnlyFields in channel_authz.go", name)
 	}
 }

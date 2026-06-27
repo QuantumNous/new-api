@@ -13,7 +13,7 @@ import (
 
 var (
 	enforcerMu sync.RWMutex
-	enforcer   *casbin.Enforcer
+	enforcer   *casbin.SyncedEnforcer
 )
 
 const modelText = `
@@ -44,7 +44,7 @@ func Init(db *gorm.DB) error {
 	if err != nil {
 		return err
 	}
-	e, err := casbin.NewEnforcer(m, newGormAdapter(db))
+	e, err := casbin.NewSyncedEnforcer(m, newGormAdapter(db))
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func Init(db *gorm.DB) error {
 	return seedDefaultPolicies()
 }
 
-func currentEnforcer() *casbin.Enforcer {
+func currentEnforcer() *casbin.SyncedEnforcer {
 	enforcerMu.RLock()
 	defer enforcerMu.RUnlock()
 	return enforcer
