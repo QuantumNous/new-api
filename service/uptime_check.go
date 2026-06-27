@@ -47,6 +47,8 @@ var ModelIDCandidates = map[string][]string{
 	"claude-opus-4-5":   {"anthropic/claude-opus-4.5"},
 	"minimax-m3":        {"MiniMax-M3", "MiniMax-M3-20260301", "minimax/minimax-m3"},
 	"kimi-k2.7-code":    {"moonshotai/kimi-k2.7-code", "kimi-k2-7-code"},
+	"mimo-v2.5-pro":     {"xiaomi/mimo-v2.5-pro", "mimo-v2-5-pro"},
+	"mimo-v2.5":         {"xiaomi/mimo-v2.5", "mimo-v2-5"},
 	"qwen3.7-max":       {"qwen3-7-max", "Qwen3.7-Max"},
 	"qwen3.7-plus":      {"qwen3-7-plus", "Qwen3.7-Plus"},
 	"doubao-seed-2-1-pro-260628":   {"doubao-seed-2-1-pro"},
