@@ -237,8 +237,10 @@ export function ChannelsPrimaryButtons() {
             <DropdownMenuItem
               onSelect={(e) => {
                 e.preventDefault()
+                if (!canEditSensitive) return
                 setShowDeleteDialog(true)
               }}
+              disabled={!canEditSensitive}
               className='text-destructive focus:text-destructive'
             >
               {t('Delete All Disabled')}
@@ -257,6 +259,7 @@ export function ChannelsPrimaryButtons() {
         desc='This will permanently delete all manually and automatically disabled channels. This action cannot be undone.'
         destructive
         handleConfirm={() => {
+          if (!canEditSensitive) return
           handleDeleteAllDisabled(queryClient, (_count) => {
             // eslint-disable-next-line no-console
             console.log(`Deleted ${_count} channels`)

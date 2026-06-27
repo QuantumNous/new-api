@@ -903,6 +903,15 @@ type PatchChannel struct {
 	KeyMode      *string `json:"key_mode"` // 多key模式下密钥覆盖或者追加
 }
 
+type ChannelStatusRequest struct {
+	Status int `json:"status"`
+}
+
+type ChannelStatusBatchRequest struct {
+	Ids    []int `json:"ids"`
+	Status int   `json:"status"`
+}
+
 func UpdateChannel(c *gin.Context) {
 	channel := PatchChannel{}
 	rawBody, err := c.GetRawData()
@@ -917,6 +926,10 @@ func UpdateChannel(c *gin.Context) {
 	var requestData map[string]any
 	if err := common.Unmarshal(rawBody, &requestData); err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if _, ok := requestData["status"]; ok {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 
@@ -1041,9 +1054,6 @@ func UpdateChannel(c *gin.Context) {
 	service.ResetProxyClientCache()
 	// 记录变更的字段名（语言无关的字段标识），密钥仅记录"已更换"绝不记录内容。
 	changedFields := make([]string, 0)
-	if channel.Status != originChannel.Status {
-		changedFields = append(changedFields, "status")
-	}
 	if channel.Models != originChannel.Models {
 		changedFields = append(changedFields, "models")
 	}
@@ -1072,6 +1082,66 @@ func UpdateChannel(c *gin.Context) {
 		"data":    channel,
 	})
 	return
+}
+
+func UpdateChannelStatus(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	req := ChannelStatusRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil || !isManageableChannelStatus(req.Status) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	changed := model.UpdateChannelStatus(id, "", req.Status, "manual operation")
+	if changed {
+		model.InitChannelCache()
+		service.ResetProxyClientCache()
+	}
+	recordManageAudit(c, "channel.status_update", map[string]interface{}{
+		"id":      id,
+		"status":  req.Status,
+		"changed": changed,
+	})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    changed,
+	})
+}
+
+func BatchUpdateChannelStatus(c *gin.Context) {
+	req := ChannelStatusBatchRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Ids) == 0 || !isManageableChannelStatus(req.Status) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	changedCount := 0
+	for _, id := range req.Ids {
+		if model.UpdateChannelStatus(id, "", req.Status, "manual batch operation") {
+			changedCount++
+		}
+	}
+	if changedCount > 0 {
+		model.InitChannelCache()
+		service.ResetProxyClientCache()
+	}
+	recordManageAudit(c, "channel.status_update_batch", map[string]interface{}{
+		"count":  changedCount,
+		"total":  len(req.Ids),
+		"status": req.Status,
+	})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    changedCount,
+	})
+}
+
+func isManageableChannelStatus(status int) bool {
+	return status == common.ChannelStatusEnabled || status == common.ChannelStatusManuallyDisabled
 }
 
 func channelHasSensitiveChanges(channel *PatchChannel, origin *model.Channel, requestData map[string]any) bool {
@@ -1105,7 +1175,77 @@ func channelHasSensitiveChanges(channel *PatchChannel, origin *model.Channel, re
 	if _, ok := requestData["key_mode"]; ok && channel.KeyMode != nil {
 		return true
 	}
+	// Fail closed: any field present in the request that is neither a known
+	// sensitive field (gated above) nor an explicitly classified non-sensitive
+	// field must be treated as sensitive. This keeps a newly added channel field
+	// from silently becoming editable by ChannelWrite-only admins until it is
+	// consciously classified in channelNonSensitiveFields.
+	for field := range requestData {
+		if _, ok := channelSensitiveFields[field]; ok {
+			continue
+		}
+		if _, ok := channelNonSensitiveFields[field]; ok {
+			continue
+		}
+		if _, ok := channelOperationalFields[field]; ok {
+			continue
+		}
+		return true
+	}
 	return false
+}
+
+// channelSensitiveFields lists the channel fields whose modification requires
+// ChannelSensitiveWrite. They are each checked individually in
+// channelHasSensitiveChanges with a precise old-vs-new comparison; this set is
+// used to exclude them from the fail-closed scan for unknown fields.
+var channelSensitiveFields = map[string]struct{}{
+	"type":                {},
+	"key":                 {},
+	"base_url":            {},
+	"openai_organization": {},
+	"header_override":     {},
+	"param_override":      {},
+	"setting":             {},
+	"other":               {},
+	"settings":            {},
+	"key_mode":            {},
+}
+
+// channelOperationalFields lists fields managed by operation endpoints instead
+// of the general channel edit endpoint.
+var channelOperationalFields = map[string]struct{}{
+	"status": {},
+}
+
+// channelNonSensitiveFields lists routing / server-managed channel
+// fields a ChannelWrite admin may edit without ChannelSensitiveWrite. When a new
+// field is added to model.Channel it must be added to either this set or
+// channelSensitiveFields or channelOperationalFields; otherwise it falls through
+// to the fail-closed branch and is treated as sensitive. The
+// TestChannelFieldsAreClassified guard test enforces this.
+var channelNonSensitiveFields = map[string]struct{}{
+	"id":                   {},
+	"test_model":           {},
+	"name":                 {},
+	"weight":               {},
+	"created_time":         {},
+	"test_time":            {},
+	"response_time":        {},
+	"balance":              {},
+	"balance_updated_time": {},
+	"models":               {},
+	"group":                {},
+	"used_quota":           {},
+	"model_mapping":        {},
+	"status_code_mapping":  {},
+	"priority":             {},
+	"auto_ban":             {},
+	"other_info":           {},
+	"tag":                  {},
+	"remark":               {},
+	"channel_info":         {},
+	"multi_key_mode":       {},
 }
 
 // equalStringPtr 比较两个 *string 是否相等（均为 nil 视为相等）。

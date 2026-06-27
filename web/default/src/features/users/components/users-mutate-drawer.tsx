@@ -25,8 +25,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   ADMIN_PERMISSION_ACTIONS,
-  ADMIN_PERMISSION_CATALOG,
   ADMIN_PERMISSION_RESOURCES,
+  EMPTY_PERMISSION_CATALOG,
   hasPermission,
   normalizeAdminPermissions,
 } from '@/lib/admin-permissions'
@@ -72,7 +72,13 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
-import { createUser, updateUser, getUser, getGroups } from '../api'
+import {
+  createUser,
+  updateUser,
+  getUser,
+  getGroups,
+  getPermissionCatalog,
+} from '../api'
 import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
   userFormSchema,
@@ -111,6 +117,13 @@ export function UsersMutateDrawer({
   })
 
   const groups = groupsData?.data || []
+
+  // Permission catalog is owned by the backend; fetched once and reused.
+  const { data: permissionCatalog = EMPTY_PERMISSION_CATALOG } = useQuery({
+    queryKey: ['admin-permission-catalog'],
+    queryFn: getPermissionCatalog,
+    staleTime: 5 * 60 * 1000,
+  })
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
@@ -155,7 +168,11 @@ export function UsersMutateDrawer({
 
     setIsSubmitting(true)
     try {
-      const payload = transformFormDataToPayload(data, currentRow?.id)
+      const payload = transformFormDataToPayload(
+        data,
+        currentRow?.id,
+        permissionCatalog
+      )
       const result = isUpdate
         ? await updateUser(payload as typeof payload & { id: number })
         : await createUser(payload)
@@ -431,7 +448,9 @@ export function UsersMutateDrawer({
                 </SideDrawerSection>
               )}
 
-              {canEditAdminPermissions && targetIsAdmin && (
+              {canEditAdminPermissions &&
+                targetIsAdmin &&
+                permissionCatalog.resources.length > 0 && (
                 <SideDrawerSection>
                   <h3 className='text-sm font-medium'>
                     {t('Admin Permissions')}
@@ -445,28 +464,31 @@ export function UsersMutateDrawer({
                     control={form.control}
                     name='admin_permissions'
                     render={({ field }) => {
-                      const selected = normalizeAdminPermissions(field.value)
+                      const selected = normalizeAdminPermissions(
+                        field.value,
+                        permissionCatalog
+                      )
                       return (
                         <FormItem>
                           <div className='space-y-3'>
-                            {ADMIN_PERMISSION_CATALOG.map((resource) => (
+                            {permissionCatalog.resources.map((resource) => (
                               <div
                                 key={resource.resource}
                                 className='space-y-2 rounded-md border p-3'
                               >
                                 <div className='text-sm font-medium'>
-                                  {t(resource.labelKey)}
+                                  {t(resource.label_key)}
                                 </div>
                                 <div className='space-y-2'>
                                   {resource.actions.map((option) => (
                                     <label
-                                      key={option.value}
+                                      key={option.action}
                                       className='flex items-start gap-3'
                                     >
                                       <Checkbox
                                         checked={
                                           selected[resource.resource]?.[
-                                            option.value
+                                            option.action
                                           ] === true
                                         }
                                         onCheckedChange={(checked) => {
@@ -474,17 +496,17 @@ export function UsersMutateDrawer({
                                             ...selected,
                                             [resource.resource]: {
                                               ...selected[resource.resource],
-                                              [option.value]: checked === true,
+                                              [option.action]: checked === true,
                                             },
                                           })
                                         }}
                                       />
                                       <span className='flex flex-col gap-1'>
                                         <span className='text-sm font-medium'>
-                                          {t(option.labelKey)}
+                                          {t(option.label_key)}
                                         </span>
                                         <span className='text-muted-foreground text-xs'>
-                                          {t(option.descriptionKey)}
+                                          {t(option.description_key)}
                                         </span>
                                       </span>
                                     </label>

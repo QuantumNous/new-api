@@ -1183,7 +1183,7 @@ export function ChannelMutateDrawer({
               <AlertDescription>
                 {t('Sensitive channel settings are read-only for your account.')}{' '}
                 {t(
-                  'You can still edit non-sensitive operations fields such as models, groups, priority, weight, and status.'
+                  'You can still edit non-sensitive operations fields such as models, groups, priority, and weight.'
                 )}
               </AlertDescription>
             </Alert>
@@ -1264,28 +1264,30 @@ export function ChannelMutateDrawer({
                       </fieldset>
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name='status'
-                      render={({ field }) => (
-                        <FormItem className={sideDrawerSwitchItemClassName()}>
-                          <div className='flex flex-col gap-0.5'>
-                            <FormLabel>{t('Enabled')}</FormLabel>
-                            <FormDescription className='text-xs'>
-                              {t('Enable or disable this channel')}
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value === 1}
-                              onCheckedChange={(checked) =>
-                                field.onChange(checked ? 1 : 2)
-                              }
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
+                    {!isEditing && (
+                      <FormField
+                        control={form.control}
+                        name='status'
+                        render={({ field }) => (
+                          <FormItem className={sideDrawerSwitchItemClassName()}>
+                            <div className='flex flex-col gap-0.5'>
+                              <FormLabel>{t('Enabled')}</FormLabel>
+                              <FormDescription className='text-xs'>
+                                {t('Enable or disable this channel')}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value === 1}
+                                onCheckedChange={(checked) =>
+                                  field.onChange(checked ? 1 : 2)
+                                }
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                     {currentType === 1 && (
                       <fieldset

@@ -16,45 +16,42 @@ export const ADMIN_PERMISSION_ACTIONS = {
   SECRET_VIEW: 'secret_view',
 } as const
 
-export const ADMIN_PERMISSION_CATALOG = [
-  {
-    resource: ADMIN_PERMISSION_RESOURCES.CHANNEL,
-    labelKey: 'Channel Management',
-    actions: [
-      {
-        value: ADMIN_PERMISSION_ACTIONS.READ,
-        labelKey: 'Read channels',
-        descriptionKey: 'View channel lists and details without secrets.',
-        defaultAdmin: true,
-      },
-      {
-        value: ADMIN_PERMISSION_ACTIONS.OPERATE,
-        labelKey: 'Operate channels',
-        descriptionKey: 'Test channels, update balances, and toggle availability.',
-        defaultAdmin: true,
-      },
-      {
-        value: ADMIN_PERMISSION_ACTIONS.WRITE,
-        labelKey: 'Edit channel routing',
-        descriptionKey: 'Edit non-sensitive routing fields such as models and groups.',
-        defaultAdmin: true,
-      },
-      {
-        value: ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE,
-        labelKey: 'Edit sensitive channel settings',
-        descriptionKey: 'Create channels or edit keys, base URLs, and overrides.',
-        defaultAdmin: false,
-      },
-      {
-        value: ADMIN_PERMISSION_ACTIONS.SECRET_VIEW,
-        labelKey: 'View channel secrets',
-        descriptionKey:
-          'Reserved for viewing complete channel keys after secure verification.',
-        defaultAdmin: false,
-      },
-    ],
-  },
-] as const
+// The role whose baseline grants are used as defaults in the permission editor.
+export const ADMIN_ROLE_KEY = 'admin'
+
+// The permission catalog (resources, actions, labels and role baselines) is owned
+// by the backend authz package and fetched from GET /api/authz/catalog. It is
+// intentionally NOT duplicated here so the schema stays defined in one place.
+// These types mirror the backend JSON shape.
+export interface PermissionActionDef {
+  action: string
+  label_key: string
+  description_key: string
+}
+
+export interface PermissionResourceDef {
+  resource: string
+  label_key: string
+  actions: PermissionActionDef[]
+}
+
+export interface PermissionRoleDef {
+  key: string
+  name: string
+  built_in: boolean
+  superuser: boolean
+  grants: AdminPermissionMatrix
+}
+
+export interface PermissionCatalog {
+  resources: PermissionResourceDef[]
+  roles: PermissionRoleDef[]
+}
+
+export const EMPTY_PERMISSION_CATALOG: PermissionCatalog = {
+  resources: [],
+  roles: [],
+}
 
 export function hasPermission(
   user: AuthUser | null | undefined,
@@ -66,15 +63,29 @@ export function hasPermission(
   return user.permissions?.admin_permissions?.[resource]?.[action] === true
 }
 
-export function normalizeAdminPermissions(
-  value: AdminPermissionMatrix | null | undefined
+// roleGrants returns the baseline grant matrix for the given role key.
+export function roleGrants(
+  catalog: PermissionCatalog,
+  roleKey: string
 ): AdminPermissionMatrix {
+  return catalog.roles.find((role) => role.key === roleKey)?.grants ?? {}
+}
+
+// normalizeAdminPermissions produces a full matrix for the catalog, filling any
+// value missing from `value` with the admin role's baseline grant.
+export function normalizeAdminPermissions(
+  value: AdminPermissionMatrix | null | undefined,
+  catalog: PermissionCatalog
+): AdminPermissionMatrix {
+  const baseline = roleGrants(catalog, ADMIN_ROLE_KEY)
   const normalized: AdminPermissionMatrix = {}
-  for (const resource of ADMIN_PERMISSION_CATALOG) {
+  for (const resource of catalog.resources) {
     const actions: Record<string, boolean> = {}
     for (const action of resource.actions) {
-      actions[action.value] =
-        value?.[resource.resource]?.[action.value] ?? action.defaultAdmin
+      actions[action.action] =
+        value?.[resource.resource]?.[action.action] ??
+        baseline[resource.resource]?.[action.action] ??
+        false
     }
     normalized[resource.resource] = actions
   }

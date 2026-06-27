@@ -33,9 +33,11 @@ func TestInitSeedsBuiltInRolesAndPoliciesOnce(t *testing.T) {
 	require.NoError(t, Init(db))
 	require.NoError(t, Init(db))
 
+	// root is a superuser role and is granted everything implicitly, so only the
+	// admin baseline is written as explicit policy rows.
 	var count int64
 	require.NoError(t, db.Model(&model.CasbinRule{}).Count(&count).Error)
-	assert.Equal(t, int64(len(AllPermissions())+len(DefaultAdminPermissions())), count)
+	assert.Equal(t, int64(len(PermissionsForRole(BuiltInRoleAdmin))), count)
 
 	var roles []model.AuthzRole
 	require.NoError(t, db.Order("sort asc").Find(&roles).Error)

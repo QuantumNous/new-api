@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { z } from 'zod'
 import { quotaUnitsToDollars } from '@/lib/format'
 import {
+  type PermissionCatalog,
   type AdminPermissionMatrix,
   normalizeAdminPermissions,
 } from '@/lib/admin-permissions'
@@ -55,7 +56,8 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   quota_dollars: 0,
   group: DEFAULT_GROUP,
   remark: '',
-  admin_permissions: normalizeAdminPermissions(undefined),
+  // Filled against the backend catalog at render time; see UsersMutateDrawer.
+  admin_permissions: {},
 }
 
 // ============================================================================
@@ -67,7 +69,8 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
  */
 export function transformFormDataToPayload(
   data: UserFormValues,
-  userId?: number
+  userId?: number,
+  catalog?: PermissionCatalog
 ): UserFormData & { id?: number } {
   const payload: UserFormData & { id?: number } = {
     username: data.username,
@@ -75,31 +78,35 @@ export function transformFormDataToPayload(
     password: data.password || undefined,
   }
 
+  const role = userId === undefined ? data.role || 1 : (data.role ?? 0)
+
+  // Only send the permission matrix when the target is an admin and the catalog
+  // is available; without the catalog we cannot build a full matrix, so we omit
+  // the field (the backend then leaves existing permissions untouched).
+  if (role >= ROLE.ADMIN && catalog) {
+    payload.admin_permissions = normalizeAdminPermissions(
+      data.admin_permissions as AdminPermissionMatrix | undefined,
+      catalog
+    )
+  }
+
   // For create: only send required fields
   if (userId === undefined) {
-    payload.role = data.role || 1 // Default to common user
-    if (payload.role >= ROLE.ADMIN) {
-      payload.admin_permissions = normalizeAdminPermissions(
-        data.admin_permissions as AdminPermissionMatrix | undefined
-      )
-    }
+    payload.role = role
   } else {
     // For update: quota is adjusted atomically via /api/user/manage, not sent here
     payload.group = data.group
     payload.remark = data.remark || undefined
     payload.id = userId
-    if ((data.role ?? 0) >= ROLE.ADMIN) {
-      payload.admin_permissions = normalizeAdminPermissions(
-        data.admin_permissions as AdminPermissionMatrix | undefined
-      )
-    }
   }
 
   return payload
 }
 
 /**
- * Transform user data to form defaults
+ * Transform user data to form defaults. The admin permission matrix is passed
+ * through as-is (the backend already returns a full matrix); it is filled against
+ * the catalog at render time in UsersMutateDrawer.
  */
 export function transformUserToFormDefaults(user: User): UserFormValues {
   return {
@@ -110,6 +117,6 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
-    admin_permissions: normalizeAdminPermissions(user.admin_permissions),
+    admin_permissions: user.admin_permissions ?? {},
   }
 }

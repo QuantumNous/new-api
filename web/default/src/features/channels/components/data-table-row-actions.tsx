@@ -345,8 +345,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
           {/* Delete */}
           <DropdownMenuItem
+            disabled={!canEditSensitive}
             onSelect={(e) => {
               e.preventDefault()
+              if (!canEditSensitive) return
               setDeleteConfirmOpen(true)
             }}
             className='text-destructive focus:text-destructive'
@@ -367,6 +369,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         confirmText='Delete'
         destructive
         handleConfirm={() => {
+          if (!canEditSensitive) return
           handleDeleteChannel(channel.id, queryClient)
           setDeleteConfirmOpen(false)
         }}
