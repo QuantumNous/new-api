@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -68,6 +69,7 @@ func sweepTimedOutTasks(ctx context.Context) {
 		} else {
 			task.FailReason = reason
 		}
+		task.Data = patchDataStatus(task.Data, string(model.TaskStatusFailure))
 
 		won, err := task.UpdateWithStatus(oldStatus)
 		if err != nil {
@@ -623,6 +625,27 @@ func truncateBase64(s string) string {
 		return s
 	}
 	return s[:maxKeep] + "..."
+}
+
+// patchDataStatus overwrites the "status" field inside a task's Data JSON.
+// If Data is nil/empty or not a JSON object, it returns Data unchanged.
+func patchDataStatus(data json.RawMessage, status string) json.RawMessage {
+	if len(data) == 0 {
+		return data
+	}
+	var m map[string]any
+	if err := common.Unmarshal(data, &m); err != nil {
+		return data
+	}
+	if _, exists := m["status"]; !exists {
+		return data
+	}
+	m["status"] = status
+	b, err := common.Marshal(m)
+	if err != nil {
+		return data
+	}
+	return b
 }
 
 // settleTaskBillingOnComplete 任务完成时的统一计费调整。
