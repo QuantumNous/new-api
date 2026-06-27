@@ -340,7 +340,7 @@ func FixAbility() (int, int, error) {
 	}
 	defer fixLock.Unlock()
 
-	// truncate abilities table
+	// clear abilities table
 	if err := DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&Ability{}).Error; err != nil {
 		common.SysLog(fmt.Sprintf("Delete abilities failed: %s", err.Error()))
 		return 0, 0, err
