@@ -32,7 +32,7 @@ export function ClinkPayMethodHints() {
           aria-hidden='true'
           className='shrink-0 rounded bg-gray-100 px-1 py-px text-[9px] font-semibold leading-none text-gray-500'
         >
-          {m.code}
+          {m.method}
         </span>
       ))}
       {rest > 0 && (

@@ -85,14 +85,14 @@ export const GLASS_CARD_CLS =
  * (proper noun, no i18n), `currency` = ISO 4217. Ordered by audience relevance.
  */
 export const CLINK_LOCAL_METHODS = [
+  { code: 'KR', method: 'Kakao', currency: 'KRW' },
   { code: 'IN', method: 'UPI', currency: 'INR' },
-  { code: 'BR', method: 'PIX', currency: 'BRL' },
   { code: 'ID', method: 'QRIS', currency: 'IDR' },
+  { code: 'BR', method: 'PIX', currency: 'BRL' },
   { code: 'PH', method: 'GCash', currency: 'PHP' },
   { code: 'TH', method: 'PromptPay', currency: 'THB' },
   { code: 'MY', method: "Touch 'n Go", currency: 'MYR' },
-  { code: 'KR', method: 'Kakao Pay', currency: 'KRW' },
 ] as const
 
-/** How many country codes to show inline before collapsing into "+N". */
-export const CLINK_STRIP_VISIBLE = 5
+/** How many methods to show inline before collapsing into "+N". */
+export const CLINK_STRIP_VISIBLE = 4
