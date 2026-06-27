@@ -22,6 +22,34 @@ location ^~ /_panel/ {
 
 ---
 
+## 多渠道 Fallback 策略（2026-06-27）
+
+APIMaster 是多渠道路由架构，单渠道失败应尽量 fallback 到下一个，与上游 new-api 默认行为有差异。
+
+### 改动：`setting/operation_setting/status_code_ranges.go`
+
+上游默认把 504/524 列为 `alwaysSkipRetryStatusCodes`，`bad_response_body` 列为 `alwaysSkipRetryCodes`，这三类直接返回给客户端不重试。
+
+APIMaster fork 改为全部参与重试：
+
+- `alwaysSkipRetryStatusCodes` 清空（移除 504/524）
+- `AutomaticRetryStatusCodeRanges` 的 5xx 段合并为 `{500, 599}`，覆盖 504/524
+- `alwaysSkipRetryCodes` 移除 `bad_response_body`（保留 context overflow 两项）
+
+**原因**：上游假设单渠道场景，504/524 换渠道没意义；我们有多个不同来源的渠道，超时/坏响应换一家可能成功，不应提前放弃。
+
+### 不会 fallback 的情况（有意保留）
+
+| 类型 | 原因 |
+|---|---|
+| `context_length_exceeded` / `context_too_large` | prompt 太长，换渠道同样会拒绝 |
+| 请求体解析失败（413/400） | 客户端请求本身有问题 |
+| 格式转换失败 | 请求在我们这里就处理不了 |
+| `retryTimes` 耗尽（默认 3 次，共 4 轮） | 已经试过所有可用渠道 |
+| `specific_channel_id` 请求头指定了渠道 | 调试/定向请求，不走自动路由 |
+
+---
+
 ## Overview
 
 This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI providers (OpenAI, Claude, Gemini, Azure, AWS Bedrock, etc.) behind a unified API, with user management, billing, rate limiting, and an admin dashboard.
