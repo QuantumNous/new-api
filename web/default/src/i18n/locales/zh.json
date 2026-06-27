@@ -1600,6 +1600,7 @@
     "Failed to load home page content": "加载首页内容失败",
     "Failed to load image": "无法加载图像",
     "Failed to load video": "无法加载视频",
+    "Loading image...": "图片加载中…",
     "Loading video...": "视频加载中…",
     "Aspect ratio": "宽高比",
     "Effective resolution": "有效分辨率",

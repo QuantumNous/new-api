@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CopyButton } from '@/components/copy-button'
 import {
@@ -56,6 +57,12 @@ export function ImageDialog({
   const [isLoading, setIsLoading] = useState(hasValidUrl)
   const [hasError, setHasError] = useState(!hasValidUrl)
   const [isDownloading, setIsDownloading] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setIsLoading(hasValidUrl)
+    setHasError(!hasValidUrl)
+  }, [open, imageUrl, hasValidUrl])
 
   const handleOpenChange = (newOpen: boolean) => {
     if (newOpen) {
@@ -115,11 +122,19 @@ export function ImageDialog({
           <div className='bg-muted/30 relative flex max-h-[min(32vh,260px)] min-h-[140px] items-center justify-center rounded-lg border p-2'>
             {hasValidUrl ? (
               <>
-                {isLoading && (
+                {isLoading && !hasError && (
                   <Skeleton className='absolute inset-2 rounded-md' />
                 )}
 
+                {isLoading && !hasError && (
+                  <div className='absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 px-4'>
+                    <Loader2 className='text-muted-foreground size-6 animate-spin' />
+                    <p className='text-muted-foreground text-sm'>{t('Loading image...')}</p>
+                  </div>
+                )}
+
                 <img
+                  key={imageUrl}
                   src={imageUrl}
                   alt={t('Generated image')}
                   className={`max-h-[min(32vh,240px)] max-w-full rounded-md object-contain ${
@@ -127,11 +142,10 @@ export function ImageDialog({
                   }`}
                   onLoad={handleImageLoad}
                   onError={handleImageError}
-                  loading='lazy'
                 />
 
                 {hasError && (
-                  <div className='absolute inset-0 flex items-center justify-center px-4 text-center'>
+                  <div className='absolute inset-0 z-10 flex items-center justify-center px-4 text-center'>
                     <p className='text-muted-foreground text-sm'>{failureText}</p>
                   </div>
                 )}
