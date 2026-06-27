@@ -5,11 +5,38 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/gin-gonic/gin"
+	"github.com/samber/hot"
 )
+
+const channelRoutingCacheNamespace = "new-api:channel_routing:v1"
+const channelRoutingCacheTTL = 10 * time.Second
+
+var (
+	channelRoutingCacheOnce sync.Once
+	channelRoutingCache     *cachex.HybridCache[int]
+)
+
+func getChannelRoutingCache() *cachex.HybridCache[int] {
+	channelRoutingCacheOnce.Do(func() {
+		channelRoutingCache = cachex.NewHybridCache[int](cachex.HybridCacheConfig[int]{
+			Namespace:    cachex.Namespace(channelRoutingCacheNamespace),
+			Redis:        common.RDB,
+			RedisEnabled: func() bool { return common.RedisEnabled },
+			RedisCodec:   cachex.IntCodec{},
+			Memory: func() *hot.HotCache[string, int] {
+				return hot.NewHotCache[string, int](hot.LRU, 512).Build()
+			},
+		})
+	})
+	return channelRoutingCache
+}
 
 // AutoCheapestGroup is the magic token group name that activates routing
 // algorithm 0.1: on every attempt pick the cheapest enabled channel among those
@@ -150,6 +177,27 @@ func selectMostExpensiveChannelID(modelName string, bannedIDs []int) int {
 }
 
 func selectPricedChannelID(modelName string, bannedIDs []int, ascending bool) int {
+	// 只缓存无 bannedIDs 的首选（热路径）；重试时绕过缓存，直接查库
+	if len(bannedIDs) == 0 {
+		direction := "asc"
+		if !ascending {
+			direction = "desc"
+		}
+		cacheKey := modelName + ":" + direction
+		cache := getChannelRoutingCache()
+		if id, found, err := cache.Get(cacheKey); err == nil && found && id > 0 {
+			return id
+		}
+		id := selectPricedChannelIDFromDB(modelName, bannedIDs, ascending)
+		if id > 0 {
+			_ = cache.SetWithTTL(cacheKey, id, channelRoutingCacheTTL)
+		}
+		return id
+	}
+	return selectPricedChannelIDFromDB(modelName, bannedIDs, ascending)
+}
+
+func selectPricedChannelIDFromDB(modelName string, bannedIDs []int, ascending bool) int {
 	globalInputUSD, _, _, _, hasGlobal := GlobalModelPricingUSD(modelName)
 	if !hasGlobal || globalInputUSD <= 0 {
 		globalInputUSD = 0
