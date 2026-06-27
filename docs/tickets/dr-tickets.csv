@@ -1,0 +1,17 @@
+Issue Key,Summary,Issue Type,Priority,Status,Description
+DR-1001,"调用密钥 ""Allowed models"" 通配符不生效，claude-* 无法匹配 claude-opus-4-8",Bug,High,In Review,"现象：已配 Claude 权限的调用密钥调用 claude-opus-4-8 时网关返回 403 ""This token has no access to model claude-opus-4-8""。
+
+根因：per-key 模型白名单鉴权为精确字符串匹配，不展开通配符。middleware/distributor.go 用 tokenModelLimit[matchName] 精确查 map（map 由 model/token.go GetModelLimitsMap 把白名单逗号拆分原样当 key 构建），所以 claude-* 只匹配字面 ""claude-*""，命中不了 claude-opus-4-8。UI 却允许输入 claude-*/gpt-4o* 等带 * 条目，导致静默失效。
+
+方案（B）：新增 model.MatchModelLimit（exact-first + trailing-* 前缀匹配，对齐 setting/operation_setting/tools.go 约定），gate 改用它；保持子集过滤器语义不放宽权限（通过后仍由 ability/group 选 channel）；/v1/models 列表对 wildcard 条目按账号/分组 enabled models 展开。
+
+验收：claude-* 可命中 claude-opus-4-8/claude-sonnet-4-6/claude-haiku-4-5-20251001；账号无权模型即使被 * 命中仍被拒；空白名单=不限制；新增 MatchModelLimit 与列表展开回归测试。PRD: docs/tasks/dr1001-token-model-whitelist-wildcard-prd.md"
+DR-1002,"Skill runner 无法解析 routing 端点的 OpenAI 响应（Execution API response missing text）",Bug,High,In Review,"现象：skill 包运行时客户端执行报 {""code"":""EXECUTION_FAILED"",""message"":""Execution API response missing text""}（出现在 DR-1001 修好 403 之后）。
+
+根因：runner 与 routing 端点响应格式不一致。runner（deeprouter_skill_runner.py）读顶层 parsed.get(""text""); 端点 POST /v1/routing/chat/completions 走 controller.Relay(RelayFormatOpenAI)，返回标准 OpenAI 形状 {""choices"":[{""message"":{""content"":...}}]}，无顶层 text。DR-63 定义了请求契约但未规定响应格式。
+
+方案（A，Owner 拍板）：修 runner —— 优先读顶层 text（向后兼容），否则防御式取 choices[0].message.content；端点不变。DR-79 下次 publish 会自动重新打包新 runner。
+
+验收：端点返回 OpenAI 形状时 runner 输出 content 并退出 0（新增 MockSuccessOpenAIShape 用例）；旧 {""text""} 仍兼容；缺 text 且缺 choices 仍报原错误码。PRD: docs/tasks/dr1002-public-routing-runner-response-parse-prd.md
+
+迁移说明：已下载的 skill 包内嵌旧 runner，不会自动更新，需重新下载/发布。"

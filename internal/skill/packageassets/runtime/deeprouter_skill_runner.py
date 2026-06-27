@@ -138,7 +138,21 @@ def execute(api_url, api_key, manifest, user_input):
     except json.JSONDecodeError:
         fail("EXECUTION_FAILED", "Execution API returned invalid JSON")
 
+    # The routing endpoint (/v1/routing/chat/completions) returns the standard
+    # OpenAI chat-completion shape. Read the assistant text from
+    # choices[0].message.content, falling back to a legacy top-level {"text": ...}
+    # body for backward compatibility. (DR-1002)
     text = parsed.get("text")
+    if not isinstance(text, str):
+        choices = parsed.get("choices")
+        if isinstance(choices, list) and choices:
+            first = choices[0]
+            if isinstance(first, dict):
+                message = first.get("message")
+                if isinstance(message, dict):
+                    content = message.get("content")
+                    if isinstance(content, str):
+                        text = content
     if not isinstance(text, str):
         fail("EXECUTION_FAILED", "Execution API response missing text")
 
