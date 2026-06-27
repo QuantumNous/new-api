@@ -14,12 +14,35 @@ import (
 
 // Setup2FARequest 设置2FA请求结构
 type Setup2FARequest struct {
-	Code string `json:"code" binding:"required"`
+	Code     string `json:"code" binding:"required"`
+	Password string `json:"password"`
 }
 
 // Verify2FARequest 验证2FA请求结构
 type Verify2FARequest struct {
-	Code string `json:"code" binding:"required"`
+	Code     string `json:"code" binding:"required"`
+	Password string `json:"password"`
+}
+
+// verifyAccountPasswordForTwoFA 校验当前登录用户的账户密码，用于 2FA 管理类敏感操作的二次确认。
+// 防止仅持有被盗会话(cookie)、但不知道账户密码的攻击者自助开启/启用/禁用 2FA。
+// 说明：通过 OAuth 等方式注册、本身未设置密码(Password 为空)的账户跳过校验，避免被锁死。
+func verifyAccountPasswordForTwoFA(userId int, password string) error {
+	user, err := model.GetUserById(userId, true)
+	if err != nil {
+		return err
+	}
+	if user.Password == "" {
+		// 该账户未设置登录密码（如 OAuth 账户），无法用密码校验，放行。
+		return nil
+	}
+	if password == "" {
+		return errors.New("请输入账户密码")
+	}
+	if !common.ValidatePasswordAndHash(password, user.Password) {
+		return errors.New("账户密码错误")
+	}
+	return nil
 }
 
 // Setup2FAResponse 设置2FA响应结构
@@ -32,6 +55,19 @@ type Setup2FAResponse struct {
 // Setup2FA 初始化2FA设置
 func Setup2FA(c *gin.Context) {
 	userId := c.GetInt("id")
+
+	// 校验账户密码（防止被盗会话自助开启 2FA）
+	var pwReq struct {
+		Password string `json:"password"`
+	}
+	_ = c.ShouldBindJSON(&pwReq)
+	if err := verifyAccountPasswordForTwoFA(userId, pwReq.Password); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
 
 	// 检查用户是否已经启用2FA
 	existing, err := model.GetTwoFAByUserId(userId)
@@ -146,6 +182,15 @@ func Enable2FA(c *gin.Context) {
 
 	userId := c.GetInt("id")
 
+	// 校验账户密码（防止被盗会话自助启用 2FA）
+	if err := verifyAccountPasswordForTwoFA(userId, req.Password); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
 	// 获取2FA记录
 	twoFA, err := model.GetTwoFAByUserId(userId)
 	if err != nil {
@@ -212,6 +257,15 @@ func Disable2FA(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
+
+	// 校验账户密码（防止被盗会话自助禁用 2FA）
+	if err := verifyAccountPasswordForTwoFA(userId, req.Password); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
 
 	// 获取2FA记录
 	twoFA, err := model.GetTwoFAByUserId(userId)

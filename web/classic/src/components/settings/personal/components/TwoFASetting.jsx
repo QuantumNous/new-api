@@ -63,6 +63,9 @@ const TwoFASetting = ({ t }) => {
   const [backupCodes, setBackupCodes] = useState([]);
   const [confirmDisable, setConfirmDisable] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  // 账户密码（开启/启用/禁用 2FA 时二次校验）
+  const [password, setPassword] = useState('');
+  const [pwModalVisible, setPwModalVisible] = useState(false);
 
   // 获取2FA状态
   const fetchStatus = async () => {
@@ -80,13 +83,18 @@ const TwoFASetting = ({ t }) => {
     fetchStatus();
   }, []);
 
-  // 初始化2FA设置
+  // 初始化2FA设置（需先校验账户密码）
   const handleSetup2FA = async () => {
+    if (!password) {
+      showWarning(t('请输入账户密码'));
+      return;
+    }
     setLoading(true);
     try {
-      const res = await API.post('/api/user/2fa/setup');
+      const res = await API.post('/api/user/2fa/setup', { password });
       if (res.data.success) {
         setSetupData(res.data.data);
+        setPwModalVisible(false);
         setSetupModalVisible(true);
         setCurrentStep(0);
       } else {
@@ -110,12 +118,14 @@ const TwoFASetting = ({ t }) => {
     try {
       const res = await API.post('/api/user/2fa/enable', {
         code: verificationCode,
+        password,
       });
       if (res.data.success) {
         showSuccess(t('两步验证启用成功！'));
         setEnableModalVisible(false);
         setSetupModalVisible(false);
         setVerificationCode('');
+        setPassword('');
         setCurrentStep(0);
         fetchStatus();
       } else {
@@ -135,6 +145,11 @@ const TwoFASetting = ({ t }) => {
       return;
     }
 
+    if (!password) {
+      showWarning(t('请输入账户密码'));
+      return;
+    }
+
     if (!confirmDisable) {
       showWarning(t('请确认您已了解禁用两步验证的后果'));
       return;
@@ -144,11 +159,13 @@ const TwoFASetting = ({ t }) => {
     try {
       const res = await API.post('/api/user/2fa/disable', {
         code: verificationCode,
+        password,
       });
       if (res.data.success) {
         showSuccess(t('两步验证已禁用'));
         setDisableModalVisible(false);
         setVerificationCode('');
+        setPassword('');
         setConfirmDisable(false);
         fetchStatus();
       } else {
@@ -300,6 +317,7 @@ const TwoFASetting = ({ t }) => {
             setDisableModalVisible(false);
             setVerificationCode('');
             setConfirmDisable(false);
+            setPassword('');
           }}
           className='!rounded-lg'
         >
@@ -309,7 +327,7 @@ const TwoFASetting = ({ t }) => {
           type='danger'
           theme='solid'
           loading={loading}
-          disabled={!confirmDisable || !verificationCode}
+          disabled={!confirmDisable || !verificationCode || !password}
           onClick={handleDisable2FA}
           className='!rounded-lg !bg-slate-500 hover:!bg-slate-600'
         >
@@ -417,7 +435,10 @@ const TwoFASetting = ({ t }) => {
                 type='primary'
                 theme='solid'
                 size='default'
-                onClick={handleSetup2FA}
+                onClick={() => {
+                  setPassword('');
+                  setPwModalVisible(true);
+                }}
                 loading={loading}
                 className='!rounded-lg !bg-slate-600 hover:!bg-slate-700'
                 icon={<IconShield />}
@@ -452,6 +473,61 @@ const TwoFASetting = ({ t }) => {
         </div>
       </Card>
 
+      {/* 开启 2FA 前的账户密码校验 */}
+      <Modal
+        title={
+          <div className='flex items-center'>
+            <IconShield className='mr-2 text-slate-600' />
+            {t('验证账户密码')}
+          </div>
+        }
+        visible={pwModalVisible}
+        onCancel={() => {
+          setPwModalVisible(false);
+          setPassword('');
+        }}
+        footer={
+          <>
+            <Button
+              onClick={() => {
+                setPwModalVisible(false);
+                setPassword('');
+              }}
+              className='!rounded-lg'
+            >
+              {t('取消')}
+            </Button>
+            <Button
+              type='primary'
+              theme='solid'
+              loading={loading}
+              disabled={!password}
+              onClick={handleSetup2FA}
+              className='!rounded-lg !bg-slate-600 hover:!bg-slate-700'
+            >
+              {t('下一步')}
+            </Button>
+          </>
+        }
+        width={460}
+        style={{ maxWidth: '90vw' }}
+      >
+        <div className='space-y-3'>
+          <Text type='tertiary' className='text-sm'>
+            {t('为保护账户安全，开启两步验证前请先验证您的账户密码。')}
+          </Text>
+          <Input
+            mode='password'
+            placeholder={t('请输入账户密码')}
+            value={password}
+            onChange={setPassword}
+            size='large'
+            className='!rounded-lg'
+            onEnterPress={handleSetup2FA}
+          />
+        </div>
+      </Modal>
+
       {/* 2FA设置模态框 */}
       <Modal
         title={
@@ -466,6 +542,7 @@ const TwoFASetting = ({ t }) => {
           setSetupData(null);
           setCurrentStep(0);
           setVerificationCode('');
+          setPassword('');
         }}
         footer={renderSetupModalFooter()}
         width={650}
@@ -556,6 +633,7 @@ const TwoFASetting = ({ t }) => {
           setDisableModalVisible(false);
           setVerificationCode('');
           setConfirmDisable(false);
+          setPassword('');
         }}
         footer={renderDisableModalFooter()}
         width={550}
@@ -616,6 +694,23 @@ const TwoFASetting = ({ t }) => {
                   placeholder={t('请输入认证器验证码或备用码')}
                   value={verificationCode}
                   onChange={setVerificationCode}
+                  size='large'
+                  className='!rounded-lg'
+                />
+              </div>
+
+              <div>
+                <Text
+                  strong
+                  className='block mb-2 text-slate-700 dark:text-slate-200'
+                >
+                  {t('账户密码')}
+                </Text>
+                <Input
+                  mode='password'
+                  placeholder={t('请输入账户密码')}
+                  value={password}
+                  onChange={setPassword}
                   size='large'
                   className='!rounded-lg'
                 />
