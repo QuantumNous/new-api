@@ -2,6 +2,11 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-06-27
+
+- 修复 DR-1001 调用密钥"Allowed models"通配符鉴权（方案 B）：per-key 白名单鉴权由精确 map 查找改为 `model.MatchModelLimit`（exact-first + trailing-`*` 前缀匹配，对齐 `setting/operation_setting/tools.go` 约定），`claude-*` 等 chip 现可命中 `claude-opus-4-8`；保持子集过滤器语义不放宽权限（通过后仍由 ability/group 选 channel，DR-1001 §5）；`/v1/models` 列表对精确条目保留原契约直接列出、对 wildcard 条目按账号/分组 enabled models best-effort 展开；补 `MatchModelLimit` 15 例与 controller wildcard 列表展开回归测试（`model/token.go`, `middleware/distributor.go`, `controller/model.go`, `model/token_model_limit_test.go`, `controller/model_list_test.go`）
+- 新增 DR-1001 调用密钥"Allowed models"通配符鉴权修复任务 PRD（status spec，方案定为 B）：记录根因（per-key 白名单为精确字符串匹配、`claude-*` 不展开导致 `claude-opus-4-8` 被 403）、方案 A（前端禁通配符）/ 方案 B（后端支持前缀 glob）。读码核实"白名单是子集过滤器而非授权来源"——`GetRandomSatisfiedChannel(group, model, retry)` 不接收白名单、渠道仅由 `group2model2channels`/Ability 表 gate（`model/channel_cache.go:96,106`, `middleware/distributor.go:95-113`），无权限提升风险，据此正式定为方案 B（`docs/tasks/dr1001-token-model-whitelist-wildcard-prd.md`）
+
 ## 2026-06-25
 
 - 新增 DR-59 My Skills UI 任务 PRD（补齐 AGENTS.md Rule 11 要求的 task PRD，DR-59 PR review 驳回项）：记录 `tasks/02 §4.3` 管理界面范围、Use→Skill Detail（D-09）、published-only 的 Use/name gating（deprecated/archived 无 Use、名称纯文本，避免 published-only Detail 404）、**FR-U6 锁定态 CTA（Upgrade/Renew/Contact Sales）有意延后**（需 reviewer/product 显式 sign-off，否则 fallback 为 CTA-routing follow-up ticket）、deprecated-enabled detail/download 后续项、文档漂移与验收口径（`docs/tasks/dr59-my-skills-ui-prd.md`）

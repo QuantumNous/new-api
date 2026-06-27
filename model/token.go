@@ -362,6 +362,29 @@ func (token *Token) GetModelLimitsMap() map[string]bool {
 	return limitsMap
 }
 
+// MatchModelLimit reports whether modelName is permitted by a token model
+// whitelist (the map produced by GetModelLimitsMap). Entries are matched
+// exact-first; any entry ending in "*" is then treated as a prefix match
+// (e.g. "claude-*" matches "claude-opus-4-8"; a bare "*" matches everything).
+// This mirrors the trailing-"*" prefix convention used elsewhere
+// (setting/operation_setting/tools.go).
+//
+// NOTE (DR-1001 §5): this is a SUBSET FILTER only — a match here never grants
+// access beyond the account/group ability. Channel selection
+// (GetRandomSatisfiedChannel) independently gates on group+model, so a wildcard
+// can only widen access within what the account already can reach.
+func MatchModelLimit(limits map[string]bool, modelName string) bool {
+	if limits[modelName] {
+		return true
+	}
+	for entry := range limits {
+		if strings.HasSuffix(entry, "*") && strings.HasPrefix(modelName, strings.TrimSuffix(entry, "*")) {
+			return true
+		}
+	}
+	return false
+}
+
 func DisableModelLimits(tokenId int) error {
 	token, err := GetTokenById(tokenId)
 	if err != nil {
