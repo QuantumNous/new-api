@@ -5146,6 +5146,12 @@
     "Tip: pick eligible user groups here. To change a tier later, click edit on its row.": "Tip: pick eligible user groups here. To change a tier later, click edit on its row.",
     "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.",
     "A bonus tier with this recharge amount already exists.": "A bonus tier with this recharge amount already exists.",
-    "I confirm these recipients consented to receive Codex invite emails": "I confirm these recipients consented to receive Codex invite emails"
+    "I confirm these recipients consented to receive Codex invite emails": "I confirm these recipients consented to receive Codex invite emails",
+    "Disable selected users": "Disable selected users",
+    "Disable Selected Users?": "Disable Selected Users?",
+    "Failed to disable {{count}} user(s)": "Failed to disable {{count}} user(s)",
+    "No selected users can be disabled": "No selected users can be disabled",
+    "Successfully disabled {{count}} user(s)": "Successfully disabled {{count}} user(s)",
+    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped."
   }
 }

@@ -5146,6 +5146,12 @@
     "Tip: pick eligible user groups here. To change a tier later, click edit on its row.": "ヒント：ここで対象ユーザーグループを選択します。後で階層を変更するには、その行の編集をクリックしてください。",
     "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "各階層でボーナス対象となるユーザーグループのホワイトリスト（JSON オブジェクト）。空配列 = 誰にも付与しない、[\"all\"] = すべてのグループ。",
     "A bonus tier with this recharge amount already exists.": "このチャージ金額のボーナス段階はすでに存在します。",
-    "I confirm these recipients consented to receive Codex invite emails": "これらの受信者が Codex 招待メールの受信に同意したことを確認します"
+    "I confirm these recipients consented to receive Codex invite emails": "これらの受信者が Codex 招待メールの受信に同意したことを確認します",
+    "Disable selected users": "選択したユーザーを無効化",
+    "Disable Selected Users?": "選択したユーザーを無効化しますか？",
+    "Failed to disable {{count}} user(s)": "{{count}} 人のユーザーを無効化できませんでした",
+    "No selected users can be disabled": "選択したユーザーに無効化できるユーザーはいません",
+    "Successfully disabled {{count}} user(s)": "{{count}} 人のユーザーを無効化しました",
+    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "選択した {{count}} 人のユーザーを無効化します。Root、すでに無効なユーザー、削除済みユーザーはスキップされます。"
   }
 }

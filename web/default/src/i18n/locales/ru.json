@@ -5146,6 +5146,12 @@
     "Tip: pick eligible user groups here. To change a tier later, click edit on its row.": "Совет: выберите подходящие группы здесь. Чтобы изменить уровень позже, нажмите «изменить» в его строке.",
     "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "Белый список групп, которым доступен бонус на каждом уровне (объект JSON). Пустой массив = никому; [\"all\"] = всем группам.",
     "A bonus tier with this recharge amount already exists.": "Уровень бонуса с этой суммой пополнения уже существует.",
-    "I confirm these recipients consented to receive Codex invite emails": "Я подтверждаю, что эти получатели согласились получать письма с приглашением Codex"
+    "I confirm these recipients consented to receive Codex invite emails": "Я подтверждаю, что эти получатели согласились получать письма с приглашением Codex",
+    "Disable selected users": "Отключить выбранных пользователей",
+    "Disable Selected Users?": "Отключить выбранных пользователей?",
+    "Failed to disable {{count}} user(s)": "Не удалось отключить {{count}} пользователь(ей)",
+    "No selected users can be disabled": "Среди выбранных нет пользователей, которых можно отключить",
+    "Successfully disabled {{count}} user(s)": "Успешно отключено {{count}} пользователь(ей)",
+    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "Будет отключено {{count}} выбранных пользователь(ей). Root, уже отключенные и удаленные пользователи будут пропущены."
   }
 }

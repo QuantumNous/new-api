@@ -51,7 +51,7 @@ import {
   ERROR_MESSAGES,
   isUserDeleted,
 } from '../constants'
-import { getUserActionMessage } from '../lib'
+import { canDisableUser, getUserActionMessage } from '../lib'
 import { type User, type ManageUserAction } from '../types'
 import { UserBindingDialog } from './dialogs/user-binding-dialog'
 import { useUsers } from './users-provider'
@@ -128,6 +128,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   }
 
   const isDisabled = user.status === USER_STATUS.DISABLED
+  const canDisable = canDisableUser(user)
   const isAdmin = user.role >= USER_ROLE.ADMIN
   const isRoot = user.role === USER_ROLE.ROOT
 
@@ -169,7 +170,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           ) : (
             <DropdownMenuItem
               onClick={() => handleManage('disable')}
-              disabled={isRoot}
+              disabled={!canDisable}
             >
               {t('Disable')}
               <DropdownMenuShortcut>

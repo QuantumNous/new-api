@@ -5146,6 +5146,12 @@
     "Tip: pick eligible user groups here. To change a tier later, click edit on its row.": "提示：在此为档位选择生效用户组。之后要修改某档位，点击该行的编辑按钮。",
     "Whitelist of user groups eligible for each tier (JSON object). Empty array = nobody; [\"all\"] = every group.": "各档位可享赠送的用户组白名单（JSON 对象）。空数组 = 谁都不发；[\"all\"] = 所有用户组。",
     "A bonus tier with this recharge amount already exists.": "该充值金额的赠送档位已存在。",
-    "I confirm these recipients consented to receive Codex invite emails": "我确认这些收件人同意接收 Codex 邀请邮件"
+    "I confirm these recipients consented to receive Codex invite emails": "我确认这些收件人同意接收 Codex 邀请邮件",
+    "Disable selected users": "禁用选中的用户",
+    "Disable Selected Users?": "禁用选中的用户？",
+    "Failed to disable {{count}} user(s)": "{{count}} 个用户禁用失败",
+    "No selected users can be disabled": "选中的用户中没有可禁用的用户",
+    "Successfully disabled {{count}} user(s)": "成功禁用 {{count}} 个用户",
+    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "将禁用 {{count}} 个选中的用户。Root、已禁用和已删除用户会被跳过。"
   }
 }
