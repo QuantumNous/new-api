@@ -73,13 +73,17 @@ export function getSystemBrandMarkFaviconHref(systemName, logo) {
   const initial = escapeSvgText(getInitial(systemName));
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <text x="32" y="42" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="39" font-weight="700" fill="#0f172a">${initial}</text>
-  <path d="M13 42H34C39 42 40 35 45 35H53" fill="none" stroke="#22d3ee" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M16 49H32C37 49 39 45 43 45H48" fill="none" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.72"/>
-  <path d="M14 42H34C39 42 40 35 45 35H53" fill="none" stroke="#0f172a" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" opacity="0.18"/>
-  <circle cx="53" cy="35" r="5.4" fill="#0f172a" opacity="0.12"/>
-  <circle cx="53" cy="35" r="3.1" fill="#22d3ee"/>
-  <rect x="18" y="46.5" width="8" height="3.4" rx="1.2" fill="#fb6f3d" opacity="0.82" transform="rotate(-18 22 48.2)"/>
+  <style>
+    .bm-ink{fill:#0f172a;stroke:#0f172a}
+    @media (prefers-color-scheme:dark){.bm-ink{fill:#f8fafc;stroke:#f8fafc}}
+  </style>
+  <g transform="translate(32 32) scale(1.28) translate(-32 -32)">
+    <text class="bm-ink" x="32" y="42" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="39" font-weight="700">${initial}</text>
+    <path d="M13 42H34C39 42 40 35 45 35H53" fill="none" stroke="#69d7e8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M13 42H34C39 42 40 35 45 35H53" fill="none" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" opacity="0.18" class="bm-ink"/>
+    <circle cx="53" cy="35" r="5.4" opacity="0.12" class="bm-ink"/>
+    <circle cx="53" cy="35" r="3.1" fill="#ee9820"/>
+  </g>
 </svg>`.trim();
 
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
@@ -170,22 +174,13 @@ const SystemBrandMark = ({
           className='system-brand-mark__route origin-center opacity-90 transition duration-300'
           d='M13 42H34C39 42 40 35 45 35H53'
           fill='none'
-          stroke='#22d3ee'
-          strokeWidth='5.5'
-          strokeLinecap='round'
-          strokeLinejoin='round'
-        />
-        <path
-          d='M16 49H32C37 49 39 45 43 45H48'
-          fill='none'
-          stroke='#38bdf8'
+          stroke='#69d7e8'
           strokeWidth='3'
           strokeLinecap='round'
           strokeLinejoin='round'
-          opacity='0.72'
         />
         <path
-          d='M14 42H34C39 42 40 35 45 35H53'
+          d='M13 42H34C39 42 40 35 45 35H53'
           fill='none'
           stroke='currentColor'
           strokeWidth='1.3'
@@ -194,21 +189,11 @@ const SystemBrandMark = ({
           opacity='0.18'
         />
         <circle cx='53' cy='35' r='5.4' fill='currentColor' opacity='0.12' />
-        <circle cx='53' cy='35' r='3.1' fill='#22d3ee' />
-        <rect
-          x='18'
-          y='46.5'
-          width='8'
-          height='3.4'
-          rx='1.2'
-          fill='#fb6f3d'
-          opacity='0.82'
-          transform='rotate(-18 22 48.2)'
-        />
+        <circle cx='53' cy='35' r='3.1' fill='#ee9820' />
         <circle
           className='system-brand-mark__node'
           r='2.4'
-          fill='#f59e0b'
+          fill='#ee9820'
           style={{
             offsetPath: "path('M13 42H34C39 42 40 35 45 35H53')",
             offsetDistance: '100%',
