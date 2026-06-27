@@ -18,15 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
-import type { ComponentProps } from 'react'
 import { BookIcon, ChevronDownIcon } from 'lucide-react'
+import type { ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { cn } from '@/lib/utils'
 
 export type SourcesProps = ComponentProps<'div'>
 
@@ -73,7 +74,7 @@ export const SourcesContent = ({
 }: SourcesContentProps) => (
   <CollapsibleContent
     className={cn(
-      'mt-3 flex w-fit flex-col gap-2',
+      'border-border/70 mt-3 ml-2 flex w-fit flex-col gap-2 border-l pl-4',
       'data-closed:fade-out-0 data-closed:slide-out-to-top-2 data-open:slide-in-from-top-2 data-closed:animate-out data-open:animate-in outline-none',
       className
     )}

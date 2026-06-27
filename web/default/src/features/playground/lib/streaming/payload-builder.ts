@@ -21,8 +21,8 @@ import type {
   Message,
   PlaygroundConfig,
   ParameterEnabled,
-} from '../types'
-import { formatMessageForAPI, isValidMessage } from './message-utils'
+} from '../../types'
+import { formatMessageForAPI, isValidMessage } from '../message/message-utils'
 
 /**
  * Build API request payload from messages and config
@@ -44,24 +44,29 @@ export function buildChatCompletionPayload(
     stream: config.stream,
   }
 
-  // Add enabled parameters
-  const parameterKeys: Array<keyof ParameterEnabled> = [
-    'temperature',
-    'top_p',
-    'max_tokens',
-    'frequency_penalty',
-    'presence_penalty',
-    'seed',
-  ]
+  if (parameterEnabled.temperature) {
+    payload.temperature = config.temperature
+  }
 
-  parameterKeys.forEach((key) => {
-    if (parameterEnabled[key]) {
-      const value = config[key as keyof PlaygroundConfig]
-      if (value !== undefined && value !== null) {
-        ;(payload as unknown as Record<string, unknown>)[key] = value
-      }
-    }
-  })
+  if (parameterEnabled.top_p) {
+    payload.top_p = config.top_p
+  }
+
+  if (parameterEnabled.max_tokens) {
+    payload.max_tokens = config.max_tokens
+  }
+
+  if (parameterEnabled.frequency_penalty) {
+    payload.frequency_penalty = config.frequency_penalty
+  }
+
+  if (parameterEnabled.presence_penalty) {
+    payload.presence_penalty = config.presence_penalty
+  }
+
+  if (parameterEnabled.seed && config.seed !== null) {
+    payload.seed = config.seed
+  }
 
   return payload
 }

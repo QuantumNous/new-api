@@ -1,3 +1,4 @@
+import { AlertCircle, AlertTriangle, Settings } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -16,54 +17,67 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { AlertCircle, AlertTriangle, Settings } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
+
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { MESSAGE_STATUS } from '../constants'
-import type { Message } from '../types'
+import { useAuthStore } from '@/stores/auth-store'
+
+import {
+  FALLBACK_ERROR_CONTENT,
+  getMessageErrorState,
+  isAdminRole,
+  MODEL_PRICING_SETTINGS_PATH,
+} from '../../lib'
+import type { Message } from '../../types'
 
 interface MessageErrorProps {
   message: Message
   className?: string
+  actions?: ReactNode
 }
 
 /**
  * Display error messages using Alert component
  * Following ai-elements pattern for error handling
  */
-export function MessageError({ message, className = '' }: MessageErrorProps) {
+export function MessageError({
+  message,
+  className = '',
+  actions,
+}: MessageErrorProps) {
   const { t } = useTranslation()
   const user = useAuthStore((s) => s.auth.user)
-  const isAdmin = user?.role != null && user.role >= 10
+  const errorState = getMessageErrorState(message, isAdminRole(user?.role))
 
-  if (message.status !== MESSAGE_STATUS.ERROR) {
+  if (!errorState) {
     return null
   }
 
-  const errorContent =
-    message.versions[0]?.content || 'An unknown error occurred'
+  if (errorState.kind === 'model-price') {
+    const content =
+      errorState.content === FALLBACK_ERROR_CONTENT
+        ? t(FALLBACK_ERROR_CONTENT)
+        : errorState.content
 
-  if (message.errorCode === 'model_price_error') {
     return (
       <Alert variant='default' className={className}>
         <AlertTriangle className='text-orange-500' />
         <AlertTitle>{t('Model Price Not Configured')}</AlertTitle>
         <AlertDescription className='space-y-2'>
-          <p>{errorContent}</p>
-          {isAdmin && (
+          <p>{content}</p>
+          {errorState.showSettingsLink && (
             <Button
               variant='outline'
               size='sm'
-              onClick={() =>
-                window.open('/system-settings/billing/model-pricing', '_blank')
-              }
+              onClick={() => window.open(MODEL_PRICING_SETTINGS_PATH, '_blank')}
             >
               <Settings className='mr-1 h-3.5 w-3.5' />
               {t('Go to Settings')}
             </Button>
           )}
+          {actions}
         </AlertDescription>
       </Alert>
     )
@@ -73,7 +87,14 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
     <Alert variant='destructive' className={className}>
       <AlertCircle />
       <AlertTitle>{t('Error')}</AlertTitle>
-      <AlertDescription>{errorContent}</AlertDescription>
+      <AlertDescription className='space-y-2'>
+        <p>
+          {errorState.content === FALLBACK_ERROR_CONTENT
+            ? t(FALLBACK_ERROR_CONTENT)
+            : errorState.content}
+        </p>
+        {actions}
+      </AlertDescription>
     </Alert>
   )
 }

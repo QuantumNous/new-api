@@ -22,13 +22,39 @@ func applyExplicitLogTextFilter(tx *gorm.DB, column string, value string) (*gorm
 		return tx, nil
 	}
 	if strings.Contains(value, "%") {
-		pattern, err := sanitizeLikePattern(value)
+		condition, pattern, err := buildLogLikeCondition(column, value)
 		if err != nil {
 			return nil, err
 		}
-		return tx.Where(column+" LIKE ? ESCAPE '!'", pattern), nil
+		return tx.Where(condition, pattern), nil
 	}
 	return tx.Where(column+" = ?", value), nil
+}
+
+func buildLogLikeCondition(column string, value string) (string, string, error) {
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		pattern, err := sanitizeClickHouseLikePattern(value)
+		if err != nil {
+			return "", "", err
+		}
+		return column + " LIKE ?", pattern, nil
+	}
+
+	pattern, err := sanitizeLikePattern(value)
+	if err != nil {
+		return "", "", err
+	}
+	return column + " LIKE ? ESCAPE '!'", pattern, nil
+}
+
+func sanitizeClickHouseLikePattern(input string) (string, error) {
+	input = strings.ReplaceAll(input, `\`, `\\`)
+	input = strings.ReplaceAll(input, `_`, `\_`)
+
+	if err := validateLikePattern(input); err != nil {
+		return "", err
+	}
+	return input, nil
 }
 
 type Log struct {
@@ -196,8 +222,8 @@ func RecordLoginLog(userId int, username string, content string, ip string, acti
 }
 
 // RecordOperationAuditLog 记录管理/高危操作审计日志（type=LogTypeManage）。
-// logUserId 为日志归属者（面向用户的操作如额度调整归属目标用户，资源类操作如渠道/系统设置归属操作者），
-// username 内部按 logUserId 查询。content 为英文兜底文本（导出/经典前端用）。
+// logUserId 为日志归属者，管理审计日志应归属实际操作者；目标资源/用户放入
+// action params。username 内部按 logUserId 查询。content 为英文兜底文本（导出/经典前端用）。
 // action+params 写入 Other.op，供前端本地化渲染（普通用户可见，不含敏感信息）。
 // adminInfo 存放操作者身份（写入 Other.admin_info，普通用户查询时剥离）；
 // auditInfo 存放路由/方法/结果等中间件兜底信息（写入 Other.audit_info，普通用户查询时剥离）。
@@ -390,6 +416,7 @@ type RecordTaskBillingLogParams struct {
 	TokenId   int
 	Group     string
 	Other     map[string]interface{}
+	NodeName  string // 任务发起节点；为空时回退当前节点
 }
 
 func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
@@ -423,6 +450,10 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		common.SysLog("failed to record task billing log: " + err.Error())
 	}
 	if params.LogType == LogTypeConsume && common.DataExportEnabled {
+		nodeName := params.NodeName
+		if nodeName == "" {
+			nodeName = common.NodeName
+		}
 		gopool.Go(func() {
 			LogQuotaData(QuotaDataLogParams{
 				UserID:    params.UserId,
@@ -433,7 +464,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 				UseGroup:  params.Group,
 				TokenID:   params.TokenId,
 				ChannelID: params.ChannelId,
-				NodeName:  common.NodeName,
+				NodeName:  nodeName,
 			})
 		})
 	}

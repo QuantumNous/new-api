@@ -22,25 +22,39 @@ For commercial licensing, please contact support@quantumnous.com
  */
 export function getMessageContentStyles() {
   return [
-    // Assistant content fills the row; user bubble auto-width
+    // Assistant content reads like a document column; user bubble stays compact.
     'group-[.is-assistant]:w-full',
-    'group-[.is-assistant]:max-w-none',
+    'group-[.is-assistant]:max-w-[78ch]',
     'group-[.is-user]:w-fit',
-    // User bubble: rounded and themed background
+
+    // User bubble: compact surface that stays calm in both light and dark themes.
+    'group-[.is-user]:rounded-2xl',
+    'group-[.is-user]:rounded-br-md',
+    'group-[.is-user]:border',
+    'group-[.is-user]:border-border/70',
+    'group-[.is-user]:bg-muted/70',
+    'group-[.is-user]:px-4',
+    'group-[.is-user]:py-2.5',
     'group-[.is-user]:text-foreground',
-    'group-[.is-user]:bg-secondary',
-    'dark:group-[.is-user]:bg-muted',
-    'group-[.is-user]:rounded-3xl',
-    // Assistant bubble: flat serif style (one-sided style)
-    'group-[.is-assistant]:text-foreground',
+    'group-[.is-user]:shadow-sm',
+    'group-[.is-user]:shadow-black/5',
+
+    // Assistant response: flat reading surface using the active UI font axis.
     'group-[.is-assistant]:bg-transparent',
     'group-[.is-assistant]:p-0',
-    'group-[.is-assistant]:font-serif',
+    'group-[.is-assistant]:rounded-none',
+    'group-[.is-assistant]:overflow-visible',
+    'group-[.is-assistant]:[font-family:var(--font-body)]',
+    'group-[.is-assistant]:text-foreground/90',
+
     // Preferred readable widths and wrapping
-    'leading-relaxed',
+    'text-[0.95rem]',
+    'leading-6',
     'break-words',
     'whitespace-pre-wrap',
+    'sm:text-[0.975rem]',
     'sm:leading-7',
+
     // Cap user bubble width so it does not look like a banner
     'group-[.is-user]:max-w-[85%]',
     'sm:group-[.is-user]:max-w-[62ch]',

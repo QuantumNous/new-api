@@ -47,7 +47,13 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { ROLE } from '@/lib/roles'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -104,6 +110,7 @@ import {
   SecureVerificationDialog,
   useSecureVerification,
 } from '@/features/auth/secure-verification'
+import { useAuthStore } from '@/stores/auth-store'
 import {
   fetchModels,
   getAllModels,
@@ -198,6 +205,40 @@ const MODEL_MAPPING_PREVIEW_FALLBACK: Array<{
 
 const ADVANCED_SETTINGS_EXPANDED_KEY = 'channel-advanced-settings-expanded'
 const UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT = 8
+const SENSITIVE_FORM_FIELDS = [
+  'type',
+  'base_url',
+  'key',
+  'openai_organization',
+  'other',
+  'key_mode',
+  'param_override',
+  'header_override',
+  'settings',
+  'setting',
+  'advanced_custom',
+  'is_enterprise_account',
+  'vertex_key_type',
+  'aws_key_type',
+  'azure_responses_version',
+  'force_format',
+  'thinking_to_content',
+  'proxy',
+  'pass_through_body_enabled',
+  'system_prompt',
+  'system_prompt_override',
+  'allow_service_tier',
+  'disable_store',
+  'allow_safety_identifier',
+  'allow_include_obfuscation',
+  'allow_inference_geo',
+  'allow_speed',
+  'claude_beta_query',
+  'disable_task_polling_sleep',
+  'upstream_model_update_check_enabled',
+  'upstream_model_update_auto_sync_enabled',
+  'upstream_model_update_ignored_models',
+] satisfies (keyof ChannelFormValues)[]
 
 function readAdvancedSettingsPreference(): boolean {
   if (typeof window === 'undefined') return false
@@ -280,6 +321,13 @@ export function ChannelMutateDrawer({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { setOpen } = useChannels()
+  const currentUser = useAuthStore((s) => s.auth.user)
+  const canEditSensitive = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
+  )
+  const canRevealChannelKey = currentUser?.role === ROLE.SUPER_ADMIN
   const [fetchModelsDialogOpen, setFetchModelsDialogOpen] = useState(false)
   const [channelKey, setChannelKey] = useState<string | null>(null)
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
@@ -307,6 +355,7 @@ export function ChannelMutateDrawer({
 
   const isEditing = Boolean(currentRow)
   const channelId = currentRow?.id ?? null
+  const sensitiveLocked = isEditing && !canEditSensitive
 
   // Fetch channel details if editing
   const { data: channelData, isLoading: isChannelLoading } = useQuery({
@@ -388,7 +437,7 @@ export function ChannelMutateDrawer({
     reset: resetDoubaoApiUnlock,
   } = useHiddenClickUnlock({
     requiredClicks: 10,
-    disabled: currentType !== 45,
+    disabled: currentType !== 45 || sensitiveLocked,
     onUnlock: () => {
       toast.info(t('Doubao custom API address editing unlocked'))
     },
@@ -783,6 +832,11 @@ export function ChannelMutateDrawer({
       return
     }
 
+    if (!isEditing && !canEditSensitive) {
+      toast.error(t("You don't have necessary permission"))
+      return
+    }
+
     // For creation mode, validate key before opening dialog
     if (!isEditing) {
       const key = form.getValues('key')
@@ -793,9 +847,12 @@ export function ChannelMutateDrawer({
     }
 
     setFetchModelsDialogOpen(true)
-  }, [isEditing, form, t])
+  }, [isEditing, canEditSensitive, form, t])
 
   const createModeFetcher = useCallback(async (): Promise<string[]> => {
+    if (!canEditSensitive) {
+      throw new Error(t("You don't have necessary permission"))
+    }
     const response = await fetchModels({
       type: form.getValues('type'),
       key: form.getValues('key'),
@@ -805,7 +862,7 @@ export function ChannelMutateDrawer({
       return response.data
     }
     throw new Error(response.message || 'No models fetched from upstream')
-  }, [form])
+  }, [canEditSensitive, form, t])
 
   // Handle model operations
   const handleFillRelatedModels = useCallback(() => {
@@ -963,6 +1020,21 @@ export function ChannelMutateDrawer({
         return
       }
 
+      if (sensitiveLocked) {
+        const dirtyFields = form.formState.dirtyFields as Partial<
+          Record<keyof ChannelFormValues, unknown>
+        >
+        const hasSensitiveChanges = SENSITIVE_FORM_FIELDS.some((field) =>
+          Boolean(dirtyFields[field])
+        )
+        if (hasSensitiveChanges) {
+          toast.error(
+            t('You do not have permission to edit sensitive channel settings.')
+          )
+          return
+        }
+      }
+
       // Validate status_code_mapping entries
       if (data.status_code_mapping?.trim()) {
         const invalidEntries = collectInvalidStatusCodeEntries(
@@ -1038,6 +1110,7 @@ export function ChannelMutateDrawer({
     },
     [
       isEditing,
+      sensitiveLocked,
       form,
       confirmMissingModelMappings,
       confirmStatusCodeRisk,
@@ -1105,6 +1178,17 @@ export function ChannelMutateDrawer({
             </SheetDescription>
           </SheetHeader>
 
+          {sensitiveLocked && (
+            <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+              <AlertDescription>
+                {t('Sensitive channel settings are read-only for your account.')}{' '}
+                {t(
+                  'You can still edit non-sensitive operations fields such as models, groups, priority, and weight.'
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Form {...form}>
             <form
               id='channel-form'
@@ -1135,77 +1219,102 @@ export function ChannelMutateDrawer({
                         )}
                       />
 
-                      <FormField
-                        control={form.control}
-                        name='type'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t('Type *')}</FormLabel>
-                            <FormControl>
-                              <Combobox
-                                options={channelTypeOptions}
-                                value={String(field.value)}
-                                onValueChange={(value) => {
-                                  const nextType = Number(value)
-                                  if (
-                                    Number.isInteger(nextType) &&
-                                    nextType > 0
-                                  ) {
-                                    field.onChange(nextType)
-                                  }
-                                }}
-                                placeholder={t('Select channel type')}
-                                searchPlaceholder={t('Search channel type...')}
-                                emptyText={t('No channel type found.')}
-                                allowCustomValue
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <fieldset
+                        disabled={sensitiveLocked}
+                        className='min-w-0 disabled:opacity-60'
+                      >
+                        <FormField
+                          control={form.control}
+                          name='type'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Type *')}</FormLabel>
+                              <FormControl>
+                                <Combobox
+                                  options={channelTypeOptions}
+                                  value={String(field.value)}
+                                  onValueChange={(value) => {
+                                    const nextType = Number(value)
+                                    if (
+                                      Number.isInteger(nextType) &&
+                                      nextType > 0
+                                    ) {
+                                      field.onChange(nextType)
+                                    }
+                                  }}
+                                  placeholder={t('Select channel type')}
+                                  searchPlaceholder={t(
+                                    'Search channel type...'
+                                  )}
+                                  emptyText={t('No channel type found.')}
+                                  allowCustomValue
+                                />
+                              </FormControl>
+                              {sensitiveLocked && (
+                                <FormDescription>
+                                  {t(
+                                    'No permission to perform this action'
+                                  )}
+                                </FormDescription>
+                              )}
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </fieldset>
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name='status'
-                      render={({ field }) => (
-                        <FormItem className={sideDrawerSwitchItemClassName()}>
-                          <div className='flex flex-col gap-0.5'>
-                            <FormLabel>{t('Enabled')}</FormLabel>
-                            <FormDescription className='text-xs'>
-                              {t('Enable or disable this channel')}
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value === 1}
-                              onCheckedChange={(checked) =>
-                                field.onChange(checked ? 1 : 2)
-                              }
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-
-                    {currentType === 1 && (
+                    {!isEditing && (
                       <FormField
                         control={form.control}
-                        name='openai_organization'
+                        name='status'
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t('OpenAI Organization')}</FormLabel>
+                          <FormItem className={sideDrawerSwitchItemClassName()}>
+                            <div className='flex flex-col gap-0.5'>
+                              <FormLabel>{t('Enabled')}</FormLabel>
+                              <FormDescription className='text-xs'>
+                                {t('Enable or disable this channel')}
+                              </FormDescription>
+                            </div>
                             <FormControl>
-                              <Input placeholder={t('org-...')} {...field} />
+                              <Switch
+                                checked={field.value === 1}
+                                onCheckedChange={(checked) =>
+                                  field.onChange(checked ? 1 : 2)
+                                }
+                              />
                             </FormControl>
-                            <FormDescription>
-                              {t(FIELD_DESCRIPTIONS.OPENAI_ORG)}
-                            </FormDescription>
-                            <FormMessage />
                           </FormItem>
                         )}
                       />
+                    )}
+
+                    {currentType === 1 && (
+                      <fieldset
+                        disabled={sensitiveLocked}
+                        className='disabled:opacity-60'
+                      >
+                        <FormField
+                          control={form.control}
+                          name='openai_organization'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('OpenAI Organization')}</FormLabel>
+                              <FormControl>
+                                <Input placeholder={t('org-...')} {...field} />
+                              </FormControl>
+                              <FormDescription>
+                                {sensitiveLocked
+                                  ? t(
+                                      'No permission to perform this action'
+                                    )
+                                  : t(FIELD_DESCRIPTIONS.OPENAI_ORG)}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </fieldset>
                     )}
                   </ChannelBasicSection>
 
@@ -1219,6 +1328,20 @@ export function ChannelMutateDrawer({
                       </Alert>
                     )}
 
+                    {sensitiveLocked && (
+                      <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                        <AlertDescription>
+                          {t(
+                            'No permission to perform this action'
+                          )}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <fieldset
+                      disabled={sensitiveLocked}
+                      className='space-y-4 disabled:opacity-60'
+                    >
                     {/* Azure (type 3) */}
                     {currentType === 3 && (
                       <>
@@ -2004,7 +2127,7 @@ export function ChannelMutateDrawer({
                                   )}
                                 </div>
                               </FormDescription>
-                              {isEditing && (
+                              {isEditing && canRevealChannelKey && (
                                 <div className='border-border/60 mt-4 flex flex-col gap-3 border-y border-dashed py-4'>
                                   <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
                                     <div>
@@ -2081,7 +2204,10 @@ export function ChannelMutateDrawer({
                                   variant='outline'
                                   size='sm'
                                   onClick={handleRefreshCodexCredential}
-                                  disabled={isCodexCredentialRefreshing}
+                                  disabled={
+                                    sensitiveLocked ||
+                                    isCodexCredentialRefreshing
+                                  }
                                 >
                                   {isCodexCredentialRefreshing ? (
                                     <Loader2 className='mr-2 h-4 w-4 animate-spin' />
@@ -2207,6 +2333,7 @@ export function ChannelMutateDrawer({
                         />
                       )}
                     </ChannelAuthSection>
+                    </fieldset>
                   </ChannelApiAccessSection>
 
                   {/* ── Models & Groups ── */}
@@ -2324,18 +2451,28 @@ export function ChannelMutateDrawer({
                               {t('Fill All Models')}
                             </Button>
                             {MODEL_FETCHABLE_TYPES.has(currentType) && (
-                              <Button
-                                type='button'
-                                variant='outline'
-                                size='sm'
-                                onClick={handleFetchModels}
-                              >
-                                <Sparkles
-                                  className='mr-2 h-4 w-4'
-                                  aria-hidden='true'
-                                />
-                                {t('Fetch from Upstream')}
-                              </Button>
+                              <>
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={handleFetchModels}
+                                  disabled={!isEditing && !canEditSensitive}
+                                >
+                                  <Sparkles
+                                    className='mr-2 h-4 w-4'
+                                    aria-hidden='true'
+                                  />
+                                  {t('Fetch from Upstream')}
+                                </Button>
+                                {!isEditing && !canEditSensitive && (
+                                  <span className='text-muted-foreground basis-full text-xs'>
+                                    {t(
+                                      'No permission to perform this action'
+                                    )}
+                                  </span>
+                                )}
+                              </>
                             )}
                             <Button
                               type='button'
@@ -2752,6 +2889,15 @@ export function ChannelMutateDrawer({
                           )}
                         />
 
+                        {sensitiveLocked && (
+                          <p className='text-muted-foreground text-xs'>
+                            {t('No permission to perform this action')}
+                          </p>
+                        )}
+                        <fieldset
+                          disabled={sensitiveLocked}
+                          className='space-y-4 disabled:opacity-60'
+                        >
                         <FormField
                           control={form.control}
                           name='param_override'
@@ -2827,7 +2973,7 @@ export function ChannelMutateDrawer({
                                 <Textarea
                                   value={field.value || ''}
                                   onChange={field.onChange}
-                                  disabled={isSubmitting}
+                                  disabled={sensitiveLocked || isSubmitting}
                                   rows={8}
                                   placeholder={t(
                                     'Override request parameters. Cannot override stream parameter.'
@@ -2923,7 +3069,7 @@ export function ChannelMutateDrawer({
                                   rows={6}
                                   value={field.value || ''}
                                   onChange={field.onChange}
-                                  disabled={isSubmitting}
+                                  disabled={sensitiveLocked || isSubmitting}
                                   placeholder={t(
                                     'Enter JSON to override request headers'
                                   )}
@@ -2944,6 +3090,7 @@ export function ChannelMutateDrawer({
                             </FormItem>
                           )}
                         />
+                        </fieldset>
                       </div>
                     </div>
 
@@ -2953,6 +3100,19 @@ export function ChannelMutateDrawer({
                         title={t('Channel Extra Settings')}
                         icon={<Settings className='h-4 w-4' />}
                       />
+                      {sensitiveLocked && (
+                        <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                          <AlertDescription>
+                            {t(
+                              'No permission to perform this action'
+                            )}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                      <fieldset
+                        disabled={sensitiveLocked}
+                        className='space-y-4 disabled:opacity-60'
+                      >
                       {(currentType === 1 || currentType === 14) && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                           <SubHeading
@@ -3468,6 +3628,7 @@ export function ChannelMutateDrawer({
                           </div>
                         </div>
                       )}
+                      </fieldset>
                     </div>
                   </ChannelAdvancedSection>
                 </>
@@ -3491,7 +3652,7 @@ export function ChannelMutateDrawer({
         </SheetContent>
       </Sheet>
 
-      {paramOverrideEditorOpen && (
+      {paramOverrideEditorOpen && !sensitiveLocked && (
         <ParamOverrideEditorDialog
           open={paramOverrideEditorOpen}
           value={form.watch('param_override') || ''}
@@ -3505,7 +3666,7 @@ export function ChannelMutateDrawer({
         />
       )}
 
-      {advancedCustomEditorOpen && (
+      {advancedCustomEditorOpen && !sensitiveLocked && (
         <AdvancedCustomEditorDialog
           open={advancedCustomEditorOpen}
           value={form.watch('advanced_custom') || ''}
