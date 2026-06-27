@@ -62,7 +62,8 @@ const (
 	ChannelTypeBlockRun         = 100
 	ChannelTypeBlockRunVideo    = 101
 	ChannelTypeBlockRunSeedance = 102
-	ChannelTypeDummy            // this one is only for count, do not add any channel after this
+	ChannelTypeJimengProxy      = 103 // 即梦反代 (iptag/jimeng-api): OpenAI-compatible image/video proxy, sessionid auth
+	ChannelTypeDummy                  // this one is only for count, do not add any channel after this
 
 )
 
@@ -135,6 +136,7 @@ var ChannelBaseURLs = []string{
 	"https://blockrun.ai/api", // 100 BlockRun
 	"https://api2.flatkey.ai", // 101 BlockRunVideo
 	"https://blockrun.ai/api", // 102 BlockRunSeedance
+	"",                        // 103 JimengProxy (即梦反代, self-hosted iptag/jimeng-api; set base URL per channel)
 }
 
 var ChannelTypeNames = map[int]string{
@@ -196,6 +198,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeBlockRun:         "BlockRun",
 	ChannelTypeBlockRunVideo:    "BlockRunVideo",
 	ChannelTypeBlockRunSeedance: "BlockRunSeedance",
+	ChannelTypeJimengProxy:      "JimengProxy",
 }
 
 func GetChannelTypeName(channelType int) string {
