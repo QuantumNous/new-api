@@ -2,21 +2,21 @@ package service
 
 import (
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/service/openaicompat"
+	"github.com/QuantumNous/new-api/service/relayconvert"
 )
 
 func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
-	return openaicompat.ChatCompletionsRequestToResponsesRequest(req)
+	return relayconvert.ChatCompletionsRequestToResponsesRequest(req)
 }
 
 func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesResponse, id string) (*dto.OpenAITextResponse, *dto.Usage, error) {
-	return openaicompat.ResponsesResponseToChatCompletionsResponse(resp, id)
+	return relayconvert.ResponsesResponseToChatCompletionsResponse(resp, id)
 }
 
 func ResponsesFinishReasonFromStatus(resp *dto.OpenAIResponsesResponse) (string, bool) {
-	return openaicompat.ResponsesFinishReasonFromStatus(resp)
+	return relayconvert.ResponsesFinishReasonFromStatus(resp)
 }
 
 func ExtractOutputTextFromResponses(resp *dto.OpenAIResponsesResponse) string {
-	return openaicompat.ExtractOutputTextFromResponses(resp)
+	return relayconvert.ExtractOutputTextFromResponses(resp)
 }

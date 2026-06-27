@@ -1,4 +1,4 @@
-package openaicompat
+package relayconvert
 
 import "github.com/QuantumNous/new-api/setting/model_setting"
 
