@@ -134,9 +134,8 @@ func RequestClinkPay(c *gin.Context) {
 	}
 
 	session, err := service.CreateClinkCheckoutSession(c.Request.Context(), &service.ClinkCheckoutCreateRequest{
-		CustomerEmail:       user.Email,
-		ReferenceCustomerID: strconv.Itoa(user.Id),
-		OriginalAmount:      chargedMoney,
+		CustomerEmail:  user.Email,
+		OriginalAmount: chargedMoney,
 		OriginalCurrency:    currency,
 		MerchantReferenceID: tradeNo,
 		UIMode:              "hostedPage",
