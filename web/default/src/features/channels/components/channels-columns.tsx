@@ -562,10 +562,9 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
           if (isTagRow) {
             const tag = (row.original as TagRow).tag || name
             const childrenCount = (row.original as TagRow).children?.length || 0
-            const channelCountLabel = t(
-              childrenCount === 1 ? '{{count}} channel' : '{{count}} channels',
-              { count: childrenCount }
-            )
+            const channelCountLabel = t('{{count}} channel', {
+              count: childrenCount,
+            })
 
             return (
               <div className='flex max-w-[220px] min-w-0 items-start gap-2 overflow-hidden'>
