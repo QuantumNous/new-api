@@ -38,6 +38,14 @@ func getChannelRoutingCache() *cachex.HybridCache[int] {
 	return channelRoutingCache
 }
 
+// InvalidateChannelRoutingCache 清除所有选路缓存，在渠道状态变更时调用。
+func InvalidateChannelRoutingCache() {
+	if channelRoutingCache == nil {
+		return
+	}
+	_ = channelRoutingCache.Purge()
+}
+
 // AutoCheapestGroup is the magic token group name that activates routing
 // algorithm 0.1: on every attempt pick the cheapest enabled channel among those
 // not already tried this request (price ascending fallback).
