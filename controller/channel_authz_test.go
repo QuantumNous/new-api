@@ -150,6 +150,6 @@ func TestChannelFieldsAreClassified(t *testing.T) {
 
 	for _, name := range collect(reflect.TypeOf(PatchChannel{})) {
 		assert.Truef(t, classified(name),
-			"channel field %q is not classified; add it to channelSensitiveFields, channelNonSensitiveFields, or channelOperationalFields in channel.go", name)
+			"channel field %q is not classified; add it to channelSensitiveFields, channelNonSensitiveFields, or channelOperationalFields in channel_authz.go", name)
 	}
 }
