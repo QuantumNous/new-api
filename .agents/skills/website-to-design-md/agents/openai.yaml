@@ -1,0 +1,4 @@
+interface:
+  display_name: "Website to DESIGN.md"
+  short_description: "Deeply inspect a live website and write DESIGN.md"
+  default_prompt: "Use $website-to-design-md to inspect a live website with browser automation and generate a reusable DESIGN.md."

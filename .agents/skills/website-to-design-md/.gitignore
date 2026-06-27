@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+*.log
+design.md
+DESIGN.md
+design-preview.html
+DESIGN-preview.html
+website-design-evidence-*.json
