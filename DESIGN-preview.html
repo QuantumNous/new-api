@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ai4codex Pricing / Model Marketplace Preview</title>
+    <meta name="color-scheme" content="light" />
+    <style>
+      :root {
+        --page-bg: #16161A;
+        --page-bg-muted: rgb(22, 22, 26);
+        --surface-bg: #16161A;
+        --surface-bg-muted: rgb(22, 22, 26);
+        --surface-border: rgba(255, 255, 255, 0.08);
+        --surface-border-strong: rgb(55, 55, 58);
+        --surface-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 2px 2px rgba(0, 0, 0, 0.04), 0 8px 8px -8px rgba(0, 0, 0, 0.04);
+        --surface-shadow-soft: 0 0 0 1px rgba(255, 255, 255, 0.08);
+        --ink: #FFFFFF;
+        --muted: rgba(249,249,249,0.8);
+        --subtle: rgb(129, 129, 131);
+        --accent: #54A9FF;
+        --font-body: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+        --font-display: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+        --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, monospace;
+        --body-size: 14px;
+        --body-line: 20px;
+        --body-weight: 400;
+        --label-size: 14px;
+        --label-line: 22px;
+        --label-track: 0.04em;
+        --title-size: 24px;
+        --title-line: 28px;
+        --title-track: -0.03em;
+        --section-size: 20px;
+        --section-line: 28px;
+        --section-track: -0.02em;
+        --source-size: 13px;
+        --source-line: 20px;
+        --space-1: 4px;
+        --space-2: 6px;
+        --space-3: 8px;
+        --space-4: 12px;
+        --space-5: 16px;
+        --space-6: 20px;
+        --radius-panel: 10px;
+        --radius-card: 10px;
+        --radius-micro: 6px;
+        --radius-pill: 9999px;
+        --button-height: 40px;
+        --button-font-size: 14px;
+        --button-weight: 500;
+        --button-radius: 9999px;
+        --secondary-button-radius: 9999px;
+        --layout-gap: 12px;
+        --page-padding: 12px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        color: var(--ink);
+        font-family: var(--font-body);
+        font-size: var(--body-size);
+        font-weight: var(--body-weight);
+        line-height: var(--body-line);
+        background:
+          radial-gradient(circle at top, color-mix(in srgb, var(--accent) 8%, transparent), transparent 30%),
+          linear-gradient(180deg, var(--page-bg) 0%, var(--page-bg-muted) 100%);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background-image:
+          linear-gradient(color-mix(in srgb, var(--surface-border) 56%, transparent) 1px, transparent 1px),
+          linear-gradient(90deg, color-mix(in srgb, var(--surface-border) 56%, transparent) 1px, transparent 1px);
+        background-size: 100% calc(24px), calc(24px) 100%;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.3), transparent 88%);
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      button {
+        font: inherit;
+      }
+
+      .shell {
+        width: min(1440px, calc(100vw - (var(--page-padding) * 2)));
+        margin: 0 auto;
+        padding: var(--page-padding) 0 calc(var(--page-padding) * 1.2);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(340px, 0.92fr) minmax(420px, 1fr);
+        gap: var(--layout-gap);
+        align-items: start;
+      }
+
+      .stack {
+        display: grid;
+        gap: var(--space-4);
+      }
+
+      .panel {
+        overflow: hidden;
+        border: 1px solid var(--surface-border);
+        border-radius: var(--radius-panel);
+        background: linear-gradient(180deg, color-mix(in srgb, var(--surface-bg) 88%, white) 0%, var(--surface-bg) 100%);
+        box-shadow: var(--surface-shadow);
+      }
+
+      .panel-inner {
+        padding: var(--space-4);
+      }
+
+      .hero-card {
+        position: relative;
+      }
+
+      .hero-card::before {
+        content: "";
+        position: absolute;
+        left: var(--space-4);
+        right: var(--space-4);
+        top: 0;
+        height: 3px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #16161A 0%, rgba(24, 24, 27, 0.75) 33%, rgba(255, 255, 255, 0.08) 67%, #F9F9F9 100%);
+      }
+
+      .eyebrow {
+        margin-bottom: var(--space-2);
+        color: var(--muted);
+        font-size: var(--label-size);
+        line-height: var(--label-line);
+        letter-spacing: var(--label-track);
+        text-transform: uppercase;
+      }
+
+      .site-title,
+      .section-title {
+        margin: 0;
+        color: var(--ink);
+        font-family: var(--font-display);
+        font-weight: 600;
+      }
+
+      .site-title {
+        font-size: var(--title-size);
+        line-height: var(--title-line);
+        letter-spacing: var(--title-track);
+      }
+
+      .descriptor {
+        margin: var(--space-2) 0 0;
+        max-width: 42ch;
+        color: var(--muted);
+        font-size: var(--body-size);
+        line-height: var(--body-line);
+      }
+
+      .summary {
+        margin: var(--space-3) 0 0;
+        max-width: 56ch;
+        color: var(--muted);
+        font-size: var(--body-size);
+        line-height: var(--body-line);
+      }
+
+      .chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        margin: var(--space-3) 0 0;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: calc(4px * 3);
+        padding: 0 var(--space-2);
+        border: 1px solid var(--surface-border);
+        border-radius: var(--radius-pill);
+        background: var(--surface-bg);
+        color: var(--ink);
+        font-size: var(--label-size);
+        line-height: var(--label-line);
+        box-shadow: var(--surface-shadow-soft);
+      }
+
+      .observed-link {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
+        margin-top: var(--space-4);
+        padding-top: var(--space-3);
+        border-top: 1px solid var(--surface-border);
+        color: var(--muted);
+        font-size: var(--label-size);
+        overflow-wrap: anywhere;
+      }
+
+      .observed-link::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--accent);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+      }
+
+      .section-title {
+        font-size: var(--section-size);
+        line-height: var(--section-line);
+        letter-spacing: var(--section-track);
+      }
+
+      .section-subtitle {
+        margin: var(--space-2) 0 var(--space-4);
+        color: var(--muted);
+        font-size: var(--body-size);
+        line-height: var(--body-line);
+      }
+
+      .palette-grid,
+      .theme-mode-grid,
+      .type-list,
+      .component-card,
+      .prompt-list,
+      .mini-grid,
+      .token-table {
+        display: grid;
+        gap: var(--space-2);
+      }
+
+      .palette-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--space-2);
+      }
+
+      .palette-row.neutral-row {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .theme-mode-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-3);
+      }
+
+      .theme-mode-card {
+        display: grid;
+        gap: var(--space-2);
+        padding: var(--space-3);
+        border: 1px solid var(--surface-border);
+        border-radius: var(--radius-card);
+        background: color-mix(in srgb, var(--surface-bg) 92%, white);
+      }
+
+      .theme-mode-card.is-dark {
+        background: #111111;
+        color: #f4f4f4;
+        border-color: rgba(255, 255, 255, 0.12);
+      }
+
+      .theme-mode-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2);
+      }
+
+      .theme-mode-label {
+        color: var(--subtle);
+        font-size: var(--label-size);
+        line-height: var(--label-line);
+        letter-spacing: var(--label-track);
+        text-transform: uppercase;
+      }
+
+      .theme-mode-card.is-dark .theme-mode-label {
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .theme-mode-note {
+        margin: 0;
+        color: var(--muted);
+        font-size: calc(var(--body-size) - 1px);
+        line-height: calc(var(--body-line) - 4px);
+      }
+
+      .theme-mode-card.is-dark .theme-mode-note {
+        color: rgba(255, 255, 255, 0.82);
+      }
+
+      .theme-swatch-row {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: var(--space-2);
+      }
+
+      .theme-swatch {
+        display: grid;
+        gap: 6px;
+      }
+
+      .theme-swatch-box {
+        height: 72px;
+        border-radius: calc(var(--radius-card) - 4px);
+        border: 1px solid color-mix(in srgb, var(--surface-border-strong) 75%, transparent);
+      }
+
+      .theme-mode-card.is-dark .theme-swatch-box {
+        border-color: rgba(255, 255, 255, 0.14);
+      }
+
+      .theme-swatch-name {
+        color: inherit;
+        font-size: 12px;
+        line-height: 1.3;
+      }
+
+      .theme-swatch-value {
+        color: var(--subtle);
+        font-size: 11px;
+        line-height: 1.3;
+      }
+
+      .theme-mode-card.is-dark .theme-swatch-value {
+        color: rgba(255, 255, 255, 0.62);
+      }
+
+      .swatch {
+        display: grid;
+        gap: var(--space-2);
+      }
+
+      .swatch-box {
+        min-height: calc(4px * 12);
+        border-radius: var(--radius-card);
+        border: 1px solid color-mix(in srgb, var(--surface-border-strong) 75%, transparent);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 4%, transparent);
+      }
+
+      .swatch-label,
+      .token-heading,
+      .prompt-card strong,
+      .card-preview h4 {
+        color: var(--ink);
+        font-family: var(--font-display);
+        font-size: var(--body-size);
+        line-height: var(--body-line);
+        font-weight: 600;
+      }
+
+      .swatch-meta,
+      .type-metrics,
+      .mini-label,
+      .copy-state,
+      .file-tab,
+      .ghost-button,
+      .segmented button {
+        color: var(--muted);
+        font-size: var(--label-size);
+        line-height: var(--label-line);
+      }
+
+      .type-row {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr) auto;
+        gap: var(--space-2);
+        align-items: baseline;
+        padding: var(--space-2) 0;
+        border-top: 1px solid var(--surface-border);
+      }
+
+      .type-row:first-child,
+      .mini-row:first-child,
+      .token-row:first-child {
+        border-top: 0;
+        padding-top: 0;
+      }
+
+      .type-role {
+        color: var(--muted);
+        font-size: var(--label-size);
+        line-height: var(--label-line);
+        letter-spacing: var(--label-track);
+        text-transform: uppercase;
+      }
+
+      .type-sample {
+        color: var(--ink);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .split-card {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-4);
+      }
+
+      .token-row,
+      .mini-row {
+        display: grid;
+        gap: var(--space-2);
+        align-items: start;
+        padding-top: var(--space-2);
+        border-top: 1px solid var(--surface-border);
+      }
+
+      .token-row {
+        grid-template-columns: 1fr auto;
+      }
+
+      .mini-row {
+        grid-template-columns: 88px minmax(0, 1fr);
+      }
+
+      .mini-content,
+      .prompt-card p,
+      .card-preview p {
+        color: var(--muted);
+        font-size: var(--body-size);
+        line-height: var(--body-line);
+      }
+
+      .radius-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-2);
+      }
+
+      .radius-card,
+      .prompt-card {
+        padding: var(--space-3);
+        border: 1px solid var(--surface-border);
+        border-radius: var(--radius-card);
+        background: var(--surface-bg-muted);
+        box-shadow: var(--surface-shadow-soft);
+      }
+
+      .radius-demo {
+        aspect-ratio: 1;
+        width: 100%;
+        border: 1px solid var(--surface-border-strong);
+        background: var(--surface-bg);
+      }
+
+      .radius-name {
+        margin-top: var(--space-2);
+        color: var(--ink);
+        font-size: var(--body-size);
+        line-height: var(--body-line);
+        font-weight: 600;
+      }
+
+      .radius-value {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: var(--label-size);
+      }
+
+      .button-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+      }
+
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: var(--button-height);
+        padding: 0 var(--space-3);
+        border-radius: var(--button-radius);
+        font-family: var(--font-body);
+        font-size: var(--button-font-size);
+        font-weight: var(--button-weight);
+        line-height: 1;
+        letter-spacing: normal;
+      }
+
+      .cta-primary {
+        border: 1px solid transparent;
+        background: #171717;
+        color: #ffffff;
+        border-radius: 9999px;
+      }
+
+      .cta-secondary {
+        border: 1px solid #171717;
+        background: #ffffff;
+        color: #171717;
+        border-radius: 9999px;
+        box-shadow: var(--surface-shadow-soft);
+      }
+
+      .card-preview {
+        padding: 8px;
+        border-radius: 10px;
+        border: 1px solid color-mix(in srgb, var(--surface-border-strong) 72%, transparent);
+        background: var(--surface-bg);
+        color: var(--ink);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 2px 2px rgba(0, 0, 0, 0.04), 0 8px 8px -8px rgba(0, 0, 0, 0.04);
+      }
+
+      .card-preview h4 {
+        margin: 0 0 var(--space-1);
+      }
+
+      .source-shell {
+        position: sticky;
+        top: var(--page-padding);
+      }
+
+      .source-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2);
+        padding: var(--space-3) var(--space-4) var(--space-2);
+        border-bottom: 1px solid var(--surface-border);
+      }
+
+      .file-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px var(--space-3);
+      }
+
+      .file-tab {
+        padding: 0 0 var(--space-2);
+        border-bottom: 2px solid transparent;
+      }
+
+      .file-tab.active {
+        color: var(--ink);
+        border-bottom-color: var(--ink);
+        font-weight: 600;
+      }
+
+      .source-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-4);
+        border-bottom: 1px solid var(--surface-border);
+      }
+
+      .segmented {
+        display: inline-flex;
+        padding: 3px;
+        border: 1px solid var(--surface-border);
+        border-radius: var(--radius-pill);
+        background: var(--surface-bg-muted);
+      }
+
+      .segmented button {
+        border: 0;
+        border-radius: var(--radius-pill);
+        background: transparent;
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+
+      .segmented button.is-active {
+        background: var(--surface-bg);
+        color: var(--ink);
+        box-shadow: var(--surface-shadow-soft);
+      }
+
+      .toolbar-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        margin-left: auto;
+      }
+
+      .ghost-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border: 1px solid var(--surface-border);
+        border-radius: 6px;
+        background: var(--surface-bg);
+        box-shadow: var(--surface-shadow-soft);
+        cursor: pointer;
+      }
+
+      .source-body {
+        max-height: calc(100vh - (var(--page-padding) * 2) - 120px);
+        overflow: auto;
+      }
+
+      .source-view,
+      .rendered-view {
+        margin: 0;
+        padding: var(--space-4);
+      }
+
+      .source-view {
+        color: var(--ink);
+        font-family: var(--font-mono);
+        font-size: var(--source-size);
+        line-height: var(--source-line);
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: var(--surface-bg);
+      }
+
+      .rendered-view {
+        color: var(--ink);
+        font-family: var(--font-body);
+        font-size: var(--body-size);
+        line-height: var(--body-line);
+        background: var(--surface-bg);
+      }
+
+      .rendered-view[hidden],
+      .source-view[hidden] {
+        display: none;
+      }
+
+      .rendered-view h2,
+      .rendered-view h3 {
+        margin: var(--space-4) 0 var(--space-2);
+        color: var(--ink);
+        font-family: var(--font-display);
+        font-weight: 600;
+      }
+
+      .rendered-view h2 {
+        font-size: var(--section-size);
+        line-height: var(--section-line);
+        letter-spacing: var(--section-track);
+      }
+
+      .rendered-view h2:first-child {
+        margin-top: 0;
+      }
+
+      .rendered-view h3 {
+        color: var(--muted);
+        font-size: calc(24px - 4px);
+        line-height: calc(28px - 4px);
+      }
+
+      .rendered-view p,
+      .rendered-view li {
+        color: var(--muted);
+      }
+
+      .rendered-view ul,
+      .rendered-view ol {
+        margin: 0 0 var(--space-3) 20px;
+        padding: 0;
+      }
+
+      .rendered-view table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: var(--space-2) 0 var(--space-4);
+      }
+
+      .rendered-view th,
+      .rendered-view td {
+        padding: var(--space-2) var(--space-2);
+        border: 1px solid var(--surface-border);
+        text-align: left;
+        vertical-align: top;
+        font-size: var(--label-size);
+        line-height: var(--label-line);
+      }
+
+      .rendered-view th {
+        color: var(--ink);
+        background: var(--surface-bg-muted);
+      }
+
+      .rendered-view code {
+        padding: 0.14em 0.4em;
+        border-radius: 6px;
+        background: var(--surface-bg-muted);
+        color: var(--ink);
+        font-family: var(--font-mono);
+        font-size: 0.92em;
+      }
+
+      @media (max-width: 1120px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .source-shell {
+          position: relative;
+          top: 0;
+        }
+
+        .source-body {
+          max-height: none;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .shell {
+          width: min(100vw - (6px * 2), 100%);
+          padding-top: 6px;
+        }
+
+        .panel-inner,
+        .source-view,
+        .rendered-view {
+          padding-left: var(--space-3);
+          padding-right: var(--space-3);
+        }
+
+        .palette-row,
+        .palette-row.neutral-row,
+        .theme-mode-grid,
+        .theme-swatch-row,
+        .split-card,
+        .radius-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .type-row,
+        .mini-row {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <div class="layout">
+        <section class="stack">
+          <article class="panel hero-card">
+            <div class="panel-inner">
+              <div class="eyebrow">Design Preview</div>
+              <h1 class="site-title">ai4codex Pricing / Model Marketplace</h1>
+              <p class="descriptor">The observed pricing page is a compact AI model marketplace rather than a marketing pricing...</p>
+              <div class="chip-row"><span class="chip">Dark zinc workspace with blue pr...</span><span class="chip">Semi Design controls combined wi...</span><span class="chip">Pricing data is shown as small s...</span><span class="chip">Sidebar filters use color-coded...</span><span class="chip">Mobile removes the large sidebar...</span></div>
+              <p class="summary">The observed pricing page is a compact AI model marketplace rather than a marketing pricing table. Its personality is technical, utility-forward, and dashboard-like: a fixed translucent top bar, dense filter controls, and repeated model cards that put provider, model name, token prices, and billing type within immediate scanning distance. The default observed mode is dark, with a near-black zinc surface, soft white text, blue actions, and categorical accents in violet, teal, amber, rose, and emerald. The interface avoids dramatic imagery; identity comes from structured density, pill controls, icon-first actions, and a card grid that feels like a command surface for comparing models.</p>
+              <a class="observed-link" href="https://ai4codex.top/pricing" target="_blank" rel="noreferrer">https://ai4codex.top/pricing</a>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-inner">
+              <h2 class="section-title">Palette</h2>
+              <p class="section-subtitle">Roles and neutrals rendered using the extracted design system rather than a separate display theme.</p>
+              <div class="palette-grid"><div class="palette-row"><div class="swatch">
+    <div class="swatch-box" style="background:#16161A;"></div>
+    <div class="swatch-label">Zinc Night</div>
+    <div class="swatch-meta">
+      <span>#16161A</span>
+      <span>Page background</span>
+    </div>
+  </div><div class="swatch">
+    <div class="swatch-box" style="background:rgba(24, 24, 27, 0.75);"></div>
+    <div class="swatch-label">Translucent Zinc</div>
+    <div class="swatch-meta">
+      <span>rgba(24, 24, 27, 0.75) inferred from dark:bg-zinc-900/75</span>
+      <span>Header glass</span>
+    </div>
+  </div><div class="swatch">
+    <div class="swatch-box" style="background:#16161A;"></div>
+    <div class="swatch-label">Deep Panel</div>
+    <div class="swatch-meta">
+      <span>#16161A</span>
+      <span>Card surface</span>
+    </div>
+  </div></div><div class="palette-row neutral-row"><div class="swatch">
+    <div class="swatch-box" style="background:rgba(255, 255, 255, 0.08);"></div>
+    <div class="swatch-label">White Hairline</div>
+    <div class="swatch-meta">
+      <span>rgba(255, 255, 255, 0.08)</span>
+      <span>Hairline border</span>
+    </div>
+  </div><div class="swatch">
+    <div class="swatch-box" style="background:#F9F9F9;"></div>
+    <div class="swatch-label">Soft White</div>
+    <div class="swatch-meta">
+      <span>#F9F9F9</span>
+      <span>Primary text</span>
+    </div>
+  </div><div class="swatch">
+    <div class="swatch-box" style="background:rgba(249, 249, 249, 0.8);"></div>
+    <div class="swatch-label">Muted White</div>
+    <div class="swatch-meta">
+      <span>rgba(249, 249, 249, 0.8)</span>
+      <span>Secondary text</span>
+    </div>
+  </div><div class="swatch">
+    <div class="swatch-box" style="background:rgba(249, 249, 249, 0.6);"></div>
+    <div class="swatch-label">Subtle White</div>
+    <div class="swatch-meta">
+      <span>rgba(249, 249, 249, 0.6)</span>
+      <span>Tertiary text</span>
+    </div>
+  </div></div></div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-inner">
+              <h2 class="section-title">Theme Modes</h2>
+              <p class="section-subtitle">If the product supports light and dark themes, both modes should stay visible in the exported design system and preview.</p>
+              <div class="prompt-card"><strong>Single mode detected</strong><p>No explicit <code>Theme Modes</code> section was detected in the markdown. If the product supports both light and dark themes, document both so the preview can render them side by side.</p></div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-inner">
+              <h2 class="section-title">Typography</h2>
+              <p class="section-subtitle">The preview shell itself now uses the extracted typography stack, sizes, line heights, and tracking.</p>
+              <div class="type-list"><div class="type-row">
+        <div class="type-role">Brand in nav</div>
+        <div
+          class="type-sample"
+          style="font-size:18px; line-height:28px; font-weight:600; letter-spacing:normal; font-family:Inter, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Arial, sans-serif;"
+        >
+          The quick brown fox jumps
+        </div>
+        <div class="type-metrics">18px • 600 • 28px</div>
+      </div><div class="type-row">
+        <div class="type-role">Page heading</div>
+        <div
+          class="type-sample"
+          style="font-size:20px; line-height:28px; font-weight:700; letter-spacing:normal; font-family:Inter, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Arial, sans-serif;"
+        >
+          The quick brown fox jumps
+        </div>
+        <div class="type-metrics">20px desktop • 700 • 28px</div>
+      </div><div class="type-row">
+        <div class="type-role">Card title</div>
+        <div
+          class="type-sample"
+          style="font-size:18px; line-height:28px; font-weight:700; letter-spacing:normal; font-family:Inter, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Arial, sans-serif;"
+        >
+          The quick brown fox jumps
+        </div>
+        <div class="type-metrics">18px • 700 • 28px</div>
+      </div><div class="type-row">
+        <div class="type-role">Body / control text</div>
+        <div
+          class="type-sample"
+          style="font-size:14px; line-height:20px; font-weight:400; letter-spacing:normal; font-family:Inter, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Arial, sans-serif;"
+        >
+          The quick brown fox jumps
+        </div>
+        <div class="type-metrics">14px • 400-600 • 20px</div>
+      </div><div class="type-row">
+        <div class="type-role">Price rows</div>
+        <div
+          class="type-sample"
+          style="font-size:12px; line-height:16px; font-weight:400; letter-spacing:normal; font-family:Inter, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Arial, sans-serif;"
+        >
+          The quick brown fox jumps
+        </div>
+        <div class="type-metrics">12px • 400 • 16px</div>
+      </div><div class="type-row">
+        <div class="type-role">Nav links</div>
+        <div
+          class="type-sample"
+          style="font-size:16px; line-height:22px; font-weight:600; letter-spacing:normal; font-family:Inter, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Arial, sans-serif;"
+        >
+          The quick brown fox jumps
+        </div>
+        <div class="type-metrics">16px • 600 • normal</div>
+      </div><div class="type-row">
+        <div class="type-role">Pagination</div>
+        <div
+          class="type-sample"
+          style="font-size:14px; line-height:32px; font-weight:400; letter-spacing:normal; font-family:Inter, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Arial, sans-serif;"
+        >
+          The quick brown fox jumps
+        </div>
+        <div class="type-metrics">14px • 400-600 • 32px</div>
+      </div></div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-inner">
+              <h2 class="section-title">Spacing &amp; Shape</h2>
+              <p class="section-subtitle">Spacing, panel padding, and radius tokens are mapped directly from the layout rules in the markdown.</p>
+              <div class="split-card">
+    <div>
+      <h3 class="token-heading">Spacing</h3>
+      <div class="token-table"><div class="token-row">
+        <span>Base unit</span>
+        <span>4px</span>
+      </div><div class="token-row">
+        <span>Step 2</span>
+        <span>6px</span>
+      </div><div class="token-row">
+        <span>Step 3</span>
+        <span>8px</span>
+      </div><div class="token-row">
+        <span>Step 4</span>
+        <span>12px</span>
+      </div><div class="token-row">
+        <span>Step 5</span>
+        <span>16px</span>
+      </div></div>
+    </div>
+    <div>
+      <h3 class="token-heading">Border Radius</h3>
+      <div class="radius-grid"><div class="radius-card">
+        <div class="radius-demo" style="border-radius:6px;"></div>
+        <div class="radius-name">Micro utility</div>
+        <div class="radius-value">6px</div>
+      </div><div class="radius-card">
+        <div class="radius-demo" style="border-radius:10px;"></div>
+        <div class="radius-name">Standard module</div>
+        <div class="radius-value">10px</div>
+      </div><div class="radius-card">
+        <div class="radius-demo" style="border-radius:9999px;"></div>
+        <div class="radius-name">Category rail</div>
+        <div class="radius-value">9999px</div>
+      </div><div class="radius-card">
+        <div class="radius-demo" style="border-radius:9999px;"></div>
+        <div class="radius-name">CTA pill</div>
+        <div class="radius-value">9999px</div>
+      </div></div>
+    </div>
+  </div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-inner">
+              <h2 class="section-title">Components</h2>
+              <p class="section-subtitle">Buttons and cards use the documented height, weight, radius, colors, and surface treatment.</p>
+              <div class="component-card">
+    <div class="button-row">
+      <span class="cta cta-primary">Start Deploying</span>
+      <span class="cta cta-secondary">Get a Demo</span>
+    </div>
+    <div class="card-preview">
+      <h4>System Card Preview</h4>
+      <p>dark #16161A panels with no visible gradient.</p>
+    </div>
+  </div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-inner">
+              <h2 class="section-title">System Notes</h2>
+              <p class="section-subtitle">Responsive behavior and depth rules stay visible while keeping the overall proportions calm and readable.</p>
+              <div class="split-card">
+    <div>
+      <h3 class="token-heading">Breakpoints</h3>
+      <div class="mini-grid"><div class="mini-row">
+            <div class="mini-label">Mobile</div>
+            <div class="mini-content"><strong>390px observed</strong><br />Brand text hides; nav scrolls horizontally; sidebar disappears; search is about 202px; a filter button appears; cards become one column at about 374px wide.</div>
+          </div><div class="mini-row">
+            <div class="mini-label">Tablet</div>
+            <div class="mini-content"><strong>inferred around 768px</strong><br />Likely transitional: nav remains compact and grid may reduce before desktop sidebar/card grid fully expands.</div>
+          </div><div class="mini-row">
+            <div class="mini-label">Desktop</div>
+            <div class="mini-content"><strong>1381px observed</strong><br />Fixed header, left filter rail, two-column card grid, desktop view controls and pagination select.</div>
+          </div></div>
+    </div>
+    <div>
+      <h3 class="token-heading">Elevation</h3>
+      <div class="mini-grid"><div class="mini-row">
+            <div class="mini-label">Flat</div>
+            <div class="mini-content"><strong>Transparent background, no border</strong><br />Page containers and nav link default states.</div>
+          </div><div class="mini-row">
+            <div class="mini-label">Filled control</div>
+            <div class="mini-content"><strong>rgba(255,255,255,0.12) fill, no visible shadow</strong><br />Search input, active chips, icon buttons, switches.</div>
+          </div><div class="mini-row">
+            <div class="mini-label">Ring</div>
+            <div class="mini-content"><strong>1px solid rgba(255,255,255,0.08)</strong><br />Cards, outline buttons, disabled copy button.</div>
+          </div><div class="mini-row">
+            <div class="mini-label">Card</div>
+            <div class="mini-content"><strong>Dark surface, 16px radius, faint border</strong><br />Model pricing cards.</div>
+          </div></div>
+    </div>
+  </div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-inner">
+              <h2 class="section-title">Prompt Guide</h2>
+              <p class="section-subtitle">Prompt snippets are shown in the same typography and spacing language as the extracted design system.</p>
+              <div class="prompt-list"><div class="prompt-card"><strong>Quick Summary</strong><p>Build ai4codex pricing pages as dense dark-mode SaaS dashboards. Use a fixed translucent blurred header, a left filter rail on desktop, and compact model cards in a two-column grid. Cards use dark surfaces, 16px radius, faint borders, bold model titles, and 12px stacked price rows. Controls are small, rounded, Semi-like, and mostly 32px tall. On mobile, remove the sidebar, keep search and a filter button at the top, and render cards in one column.</p></div><div class="prompt-card">
+            <strong>Hero</strong>
+            <p>&quot;Create a compact model marketplace header area with a 全部供应商 title, a small count badge saying 共 8 个模型, supporting Chinese description text, a 32px search input, copy button, switches, and view mode controls.&quot;</p>
+          </div><div class="prompt-card">
+            <strong>Card</strong>
+            <p>&quot;Create a dark model pricing card with 16px radius, faint white border, provider label, bold 18px model name, three to four 12px price rows using / 1M Tokens, a small checkbox/action control on the right, and a rounded 按量计费 tag.&quot;</p>
+          </div><div class="prompt-card">
+            <strong>Navigation</strong>
+            <p>&quot;Create a fixed 64px top nav with a 32px round logo, semibold brand text on desktop, horizontally scrollable nav links, circular icon buttons, and login/register buttons on the right.&quot;</p>
+          </div><div class="prompt-card">
+            <strong>Button or badge</strong>
+            <p>&quot;Use a 32px-high Semi-style chip with 10px radius, 6px 12px padding, semibold 14px text, faint border for inactive state, and translucent fill plus violet or teal text for active state.&quot;</p>
+          </div><div class="prompt-card"><strong>Ready-to-Use Prompt</strong><p>Design a dark ai4codex-style model pricing marketplace: fixed blurred header, compact Chinese navigation, left filter rail with colored provider/group chips, dense two-column model cards, blue primary action accents, #16161A surfaces, faint white borders, 16px card radius, 10px control radius, Inter/system typography, and a mobile layout that collapses filters behind a button and stacks cards in one column.</p></div></div>
+              <div class="split-card" style="margin-top:var(--space-4);">
+    <div>
+      <h3 class="token-heading">Do</h3>
+      <div class="mini-grid"><div class="mini-row"><div class="mini-label">Do</div><div class="mini-content">Keep model/pricing information in compact, repeatable cards.</div></div><div class="mini-row"><div class="mini-label">Do</div><div class="mini-content">Use exact token units such as / 1M Tokens in small stacked rows.</div></div><div class="mini-row"><div class="mini-label">Do</div><div class="mini-content">Give filter dimensions their own accent colors while preserving one primary blue action color.</div></div><div class="mini-row"><div class="mini-label">Do</div><div class="mini-content">Use rounded 10px controls and 16px cards consistently.</div></div></div>
+    </div>
+    <div>
+      <h3 class="token-heading">Don't</h3>
+      <div class="mini-grid"><div class="mini-row"><div class="mini-label">Don't</div><div class="mini-content">Do not turn the pricing page into a marketing hero or oversized pricing-table landing page.</div></div><div class="mini-row"><div class="mini-label">Don't</div><div class="mini-content">Do not use heavy shadows or glossy gradients on every card.</div></div><div class="mini-row"><div class="mini-label">Don't</div><div class="mini-content">Do not mix many unrelated brand colors in a single control; keep accents tied to categories.</div></div><div class="mini-row"><div class="mini-label">Don't</div><div class="mini-content">Do not hide prices behind modals when they can fit in the card.</div></div></div>
+    </div>
+  </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="source-shell">
+          <article class="panel">
+            <div class="source-header">
+              <div class="file-tabs">
+                <span class="file-tab">design-system.md</span>
+                <span class="file-tab active">DESIGN.md</span>
+                <span class="file-tab">Design JSON</span>
+                <span class="file-tab">CSS Variables</span>
+                <span class="file-tab">Design Tokens</span>
+              </div>
+            </div>
+            <div class="source-toolbar">
+              <div class="segmented" role="tablist" aria-label="View Switcher">
+                <button class="is-active" data-view="source" type="button">Source</button>
+                <button data-view="preview" type="button">Preview</button>
+              </div>
+              <div class="toolbar-actions">
+                <button class="ghost-button" id="copyButton" type="button">Copy</button>
+                <a class="ghost-button" href="DESIGN.md" download>Open .md</a>
+                <span class="copy-state" id="copyState"></span>
+              </div>
+            </div>
+            <div class="source-body">
+              <pre class="source-view" id="sourceView"># Design System: ai4codex Pricing / Model Marketplace
+
+## 1. Visual Theme &amp; Atmosphere
+
+The observed pricing page is a compact AI model marketplace rather than a marketing pricing table. Its personality is technical, utility-forward, and dashboard-like: a fixed translucent top bar, dense filter controls, and repeated model cards that put provider, model name, token prices, and billing type within immediate scanning distance. The default observed mode is dark, with a near-black zinc surface, soft white text, blue actions, and categorical accents in violet, teal, amber, rose, and emerald. The interface avoids dramatic imagery; identity comes from structured density, pill controls, icon-first actions, and a card grid that feels like a command surface for comparing models.
+
+- Overall feeling: compact, operational, modern SaaS, model-catalog oriented.
+- Visual density: high; many controls and cards are visible in the first viewport.
+- Brand posture: technical and practical, with restrained polish from blur, rounded controls, and colored category accents.
+- Signature motifs: translucent fixed navigation, two-column desktop card grid, filter chips with counts, dark bordered cards, small token-price rows.
+
+### Key Characteristics
+
+- Dark zinc workspace with blue primary action color.
+- Semi Design controls combined with Tailwind utility styling.
+- Pricing data is shown as small stacked rows inside rounded cards.
+- Sidebar filters use color-coded active chips for provider, group, billing type, tag, and endpoint categories.
+- Mobile removes the large sidebar and surfaces a compact &quot;filter&quot; button above a single-column card list.
+
+## 2. Color Palette &amp; Roles
+
+| Role | Semantic Name | Value | Usage |
+| --- | --- | --- | --- |
+| Page background | Zinc Night | `#16161A` | Body and card background in the observed dark mode. |
+| Header glass | Translucent Zinc | `rgba(24, 24, 27, 0.75)` inferred from `dark:bg-zinc-900/75` | Fixed top navigation with backdrop blur. |
+| Card surface | Deep Panel | `#16161A` | Model cards and login/card-like surfaces. |
+| Hairline border | White Hairline | `rgba(255, 255, 255, 0.08)` | Card borders, outline buttons, disabled copy button, filter chips. |
+| Primary text | Soft White | `#F9F9F9` | Main text, brand, headings, nav items. |
+| Secondary text | Muted White | `rgba(249, 249, 249, 0.8)` | Card titles and body copy. |
+| Tertiary text | Subtle White | `rgba(249, 249, 249, 0.6)` | Pagination and lower-priority metadata. |
+| Disabled text | Faint White | `rgba(249, 249, 249, 0.35)` | Disabled pagination and disabled actions. |
+| Primary action | Electric Blue | `#54A9FF` | Login/register action styling, links, active pagination, primary CTA color. |
+| Active blue tint | Blue Wash | `rgba(84, 169, 255, 0.2)` | Selected pagination and focus-like selected states. |
+| Provider accent | Violet | `#A78BFA` | Active provider filter, violet category tone. |
+| Group accent | Teal | `#2DD4BF` | Active group filter and secondary category tone. |
+| Warning accent | Amber | `#FBBF24` | Category/status accent where warning emphasis is needed. |
+| Error accent | Rose | `#FB7185` / `#FC725A` | Alerts, errors, destructive or warning toast states. |
+| Success accent | Emerald | `#34D399` | Positive/status accent. |
+
+### Primary
+
+- Electric Blue `#54A9FF` is the most reusable action color. It appears on links, selected pagination, and primary controls.
+- Violet `#A78BFA` and teal `#2DD4BF` are category colors rather than global action colors. They help distinguish filter dimensions.
+
+### Interactive
+
+- Standard outline controls use transparent backgrounds, `rgba(255,255,255,0.08)` borders, `10px` radius, and muted white text.
+- Active filter chips switch to a translucent fill `rgba(255,255,255,0.12)` and a colored label such as violet or teal.
+- Primary action buttons use blue fill and white text; disabled buttons retain the outline form with faint text.
+- Nav links use transparent backgrounds, `6px` radius, `8px` padding, and color transitions around `0.2s`.
+
+### Neutral Scale
+
+- `#16161A`: base page and panel surface.
+- `#232429` / `#35363C`: darker internal UI tiers and control fills observed in the color sample.
+- `#F9F9F9`: primary foreground.
+- `rgba(249,249,249,0.8)`: default readable text.
+- `rgba(249,249,249,0.6)`: supporting text.
+- `rgba(249,249,249,0.35)`: disabled text.
+
+### Surface &amp; Overlay
+
+- Top navigation: fixed at the top, `64px` high, full width, translucent zinc with `backdrop-filter: blur(16px)`.
+- Model cards: same dark surface as the page but separated by a faint white border and radius rather than heavy elevation.
+- Inputs, selects, icon buttons, switches: filled with `rgba(255,255,255,0.12)` on dark mode.
+- The page intentionally uses border-as-depth more than shadow-as-depth.
+
+### Theme Modes
+
+The page exposes a theme switcher with light, dark, and auto options. The fully observed pricing page stayed in dark mode during extraction. Light mode is present as a control path, but its pricing-page token values were not fully captured in the live session.
+
+#### Light Mode
+
+- Background: inferred to invert to light gray/white surfaces from Tailwind classes such as `bg-white/75` and `bg-gray-100`.
+- Surface: likely white or near-white cards with gray borders.
+- Text: likely gray/black hierarchy.
+- Accent: blue, violet, teal, amber, rose, and emerald accents likely remain stable.
+- Notes: treat light mode as supported but verify before reproducing exact pricing-page values.
+
+#### Dark Mode
+
+- Background: `#16161A`.
+- Surface: `#16161A` cards with `rgba(255,255,255,0.08)` borders.
+- Text: `#F9F9F9`, `rgba(249,249,249,0.8)`, `rgba(249,249,249,0.6)`.
+- Accent: `#54A9FF` action blue, `#A78BFA` provider violet, `#2DD4BF` group teal.
+- Notes: this is the authoritative observed mode for the pricing page.
+
+### Shadows &amp; Depth
+
+- Cards normally show no shadow; separation comes from border, radius, and spacing.
+- Hover card class includes `hover:shadow-lg` and `hover:border-gray-300`, so elevation is a hover-only affordance.
+- Semi controls have subtle default shadow tokens like `rgba(0,0,0,0.05) 0 1px 2px`, but most visible controls read as flat.
+
+## 3. Typography Rules
+
+### Font Family
+
+- Primary: `Inter, -apple-system, system-ui, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif`.
+- Monospace: not meaningfully used on the observed pricing page.
+- OpenType Features: none observed; default tracking is normal.
+
+### Hierarchy
+
+| Role | Font | Size | Weight | Line Height | Letter Spacing | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| Brand in nav | Inter/system stack | `18px` | `600` | `28px` | normal | Hidden on mobile; logo remains. |
+| Page heading | Inter/system stack | `20px` desktop | `700` | `28px` | normal | Example: `全部供应商`; truncated if needed. |
+| Card title | Inter/system stack | `18px` | `700` | `28px` | normal | Model names such as `gpt-5.4`, truncated in a single line. |
+| Body / control text | Inter/system stack | `14px` | `400-600` | `20px` | normal | Used for buttons, chips, labels, and controls. |
+| Price rows | Inter/system stack | `12px` | `400` | `16px` | normal | Dense stacked rows for input/completion/cache pricing. |
+| Nav links | Inter/system stack | `16px` | `600` | normal | normal | Compact semibold labels with 8px padding. |
+| Pagination | Inter/system stack | `14px` | `400-600` | `32px` | normal | Active item uses blue text and blue tint background. |
+
+### Principles
+
+- Use semibold labels for navigation and controls so dense layouts remain scannable.
+- Keep pricing metadata small but not faint; `12px/16px` works because cards use large internal spacing and strong hierarchy.
+- Avoid oversized hero typography on operational pages. The page heading stays compact to preserve room for filters and cards.
+
+## 4. Component Stylings
+
+### Buttons and Links
+
+- Primary CTA: blue fill `#54A9FF`, white text, `9999px` pill radius or Semi primary solid styling where used.
+- Secondary CTA: transparent or translucent fill, `rgba(255,255,255,0.08)` border, `10px` radius, `14px/20px` semibold text.
+- Filter chips: fixed-looking `32px` height, `6px 12px` padding, `10px` radius. Active chips use translucent fill and colored text; inactive chips use outline borders and muted white.
+- Icon buttons: `32px` square circles, `9999px` radius, `6px` padding, translucent fill, Lucide-style line icons.
+- Text links: blue `#54A9FF` or primary foreground in nav; nav hover shifts toward Semi primary color.
+- Hover and active feel: subtle and fast, with `0.2s` transitions for cards/nav and ease-in Semi transitions for controls.
+
+### Cards and Containers
+
+- Surface style: dark `#16161A` panels with no visible gradient.
+- Radius: model cards use `16px`; controls use `10px`; icon buttons and primary pills use `9999px`.
+- Border: `1px solid rgba(255,255,255,0.08)`.
+- Shadow or elevation: none by default; hover may add large shadow and stronger border.
+- Internal spacing: first card content shows roughly `12px` card body padding, a `12px` horizontal gap between provider icon and text, and `4px` vertical gaps for price rows.
+
+### Inputs and Interactive Controls
+
+- Search input wrapper: `32px` height, `10px` radius, `rgba(255,255,255,0.12)` fill, transparent border.
+- Input text: `14px`, `30px` line height, transparent input body.
+- Switches: `40px x 24px`, `12px` radius, translucent fill in off state.
+- Pagination select: `32px` height, `10px` radius, translucent fill.
+- Focus behavior: Semi controls imply border/fill transition; exact focus ring was not captured.
+
+### Navigation
+
+- Structure: fixed full-width header, `64px` height, logo/brand at left, scrollable nav center, icon utilities and login/register at right.
+- Background treatment: translucent glass layer with `backdrop-filter: blur(16px)`.
+- Link style: semibold, rounded `6px`, `8px` padding, transparent default.
+- Sticky or scroll behavior: header remains fixed; content begins under it.
+- Mobile: brand text collapses away, leaving a `32px` logo; nav becomes horizontally scrollable in a narrow center strip.
+
+### Image Treatment
+
+- Logo uses `/logo.png`, displayed as a `32px` rounded-full image in the header.
+- No marketing screenshots or decorative product imagery were observed on the pricing page.
+- Visual interest comes from data cards, chips, and icons rather than media.
+
+### Distinctive Components
+
+- Filter sidebar: desktop uses a left rail of categorized filter chips. Categories include provider, token group, billing type, tags, and endpoint type.
+- Model price card: provider label/icon on the left, model name as bold heading, price rows below, checkbox/action control to the right, and billing tag at the bottom.
+- Mobile filter affordance: sidebar is replaced by a compact `filter 筛选` button beside search/copy controls.
+- View mode controls: a `表格视图` outline button and compact `M` button appear on desktop to switch presentation modes or display mode.
+
+## 5. Layout Principles
+
+### Spacing System
+
+- Base unit: `4px` and `8px` are the dominant rhythm.
+- Repeated spacing values: `4px` gaps in price rows, `8px` nav/control gaps, `12px` button padding and card inner gaps, `16px` mobile/card gutters, `24px+` section grouping.
+- Header height: `64px`.
+- Control height: usually `32px`.
+
+### Grid &amp; Container
+
+- Desktop grid: left filter rail about `330px` wide; model cards start around x `339px` and form two columns of about `509px` width with a `16px` gap.
+- Desktop cards: first row starts around y `234px`; card heights vary from about `158px` to `178px` depending on whether cache creation pricing is present.
+- Mobile grid: one column, `8px` side gutter, cards about `374px` wide on a `390px` viewport.
+- Content is dense and viewport-filling rather than centered in a narrow marketing container.
+
+### Whitespace Philosophy
+
+- Whitespace is functional and compact. The page prioritizes comparison and filtering over spacious storytelling.
+- Horizontal space is preserved for card content, while filters compress into equal-width chips.
+- Mobile keeps the data visible first: search and filter controls appear at the top, then cards immediately follow.
+
+### Border Radius Scale
+
+- Micro: `6px` nav links.
+- Standard: `10px` controls, selects, pagination buttons.
+- Large: `16px` model cards.
+- Pill: `9999px` primary/auth buttons and circular icon buttons.
+
+## 6. Depth &amp; Elevation
+
+| Level | Treatment | Use |
+| --- | --- | --- |
+| Flat | Transparent background, no border | Page containers and nav link default states. |
+| Filled control | `rgba(255,255,255,0.12)` fill, no visible shadow | Search input, active chips, icon buttons, switches. |
+| Ring | `1px solid rgba(255,255,255,0.08)` | Cards, outline buttons, disabled copy button. |
+| Card | Dark surface, `16px` radius, faint border | Model pricing cards. |
+| Hover | Stronger border plus `hover:shadow-lg` | Clickable model cards. |
+
+### Depth Principles
+
+- Surface hierarchy is made mostly with borders and translucency.
+- Shadows are restrained so the UI stays crisp and data-dense.
+- Blur belongs to the fixed header, not to cards.
+- Use elevation only to show hover/click affordance; do not make the base grid float heavily.
+
+## 7. Do&#39;s and Don&#39;ts
+
+### Do
+
+- Keep model/pricing information in compact, repeatable cards.
+- Use exact token units such as `/ 1M Tokens` in small stacked rows.
+- Give filter dimensions their own accent colors while preserving one primary blue action color.
+- Use rounded `10px` controls and `16px` cards consistently.
+- Preserve high information density on desktop and a single-column data-first flow on mobile.
+
+### Don&#39;t
+
+- Do not turn the pricing page into a marketing hero or oversized pricing-table landing page.
+- Do not use heavy shadows or glossy gradients on every card.
+- Do not mix many unrelated brand colors in a single control; keep accents tied to categories.
+- Do not hide prices behind modals when they can fit in the card.
+- Do not let mobile retain the full sidebar; collapse it behind the filter button.
+
+## 8. Responsive Behavior
+
+### Breakpoints
+
+| Name | Width | Key Changes |
+| --- | --- | --- |
+| Mobile | `390px` observed | Brand text hides; nav scrolls horizontally; sidebar disappears; search is about `202px`; a filter button appears; cards become one column at about `374px` wide. |
+| Tablet | inferred around `768px` | Likely transitional: nav remains compact and grid may reduce before desktop sidebar/card grid fully expands. |
+| Desktop | `1381px` observed | Fixed header, left filter rail, two-column card grid, desktop view controls and pagination select. |
+
+### Touch Targets
+
+- Primary mobile cards remain large tap targets.
+- Buttons and inputs are `32px` high; this is compact but consistent with dashboard density.
+- Mobile filter button is essential because the sidebar is removed from the main flow.
+
+### Collapsing Strategy
+
+- Desktop behavior: filter sidebar is visible; content has heading, description, search, copy, switches, view controls, two-column cards.
+- Tablet behavior: preserve controls but consider wrapping the action row before collapsing the sidebar.
+- Mobile behavior: show search/copy/filter row first, hide desktop heading/sidebar, render cards in one column, use small pagination.
+- Breakpoint-driven component changes: card width changes from about `509px` to `374px`; header brand text hides; nav strip narrows and scrolls.
+- Touch target and spacing adjustments: page gutters shrink to `8px`; control row becomes horizontally compressed.
+
+## 9. Agent Prompt Guide
+
+### Quick Color Reference
+
+- Primary CTA: `#54A9FF`
+- Background: `#16161A`
+- Heading text: `#FFFFFF` or `#F9F9F9`
+- Body text: `rgba(249,249,249,0.8)`
+- Border or ring: `rgba(255,255,255,0.08)`
+- Accent: violet `#A78BFA`, teal `#2DD4BF`, amber `#FBBF24`, rose `#FB7185`, emerald `#34D399`
+
+### Quick Summary
+
+Build ai4codex pricing pages as dense dark-mode SaaS dashboards. Use a fixed translucent blurred header, a left filter rail on desktop, and compact model cards in a two-column grid. Cards use dark surfaces, `16px` radius, faint borders, bold model titles, and `12px` stacked price rows. Controls are small, rounded, Semi-like, and mostly `32px` tall. On mobile, remove the sidebar, keep search and a filter button at the top, and render cards in one column.
+
+### Example Component Prompts
+
+- Hero: &quot;Create a compact model marketplace header area with a `全部供应商` title, a small count badge saying `共 8 个模型`, supporting Chinese description text, a 32px search input, copy button, switches, and view mode controls.&quot;
+- Card: &quot;Create a dark model pricing card with `16px` radius, faint white border, provider label, bold 18px model name, three to four 12px price rows using `/ 1M Tokens`, a small checkbox/action control on the right, and a rounded `按量计费` tag.&quot;
+- Navigation: &quot;Create a fixed 64px top nav with a 32px round logo, semibold brand text on desktop, horizontally scrollable nav links, circular icon buttons, and login/register buttons on the right.&quot;
+- Button or badge: &quot;Use a 32px-high Semi-style chip with 10px radius, 6px 12px padding, semibold 14px text, faint border for inactive state, and translucent fill plus violet or teal text for active state.&quot;
+
+### Ready-to-Use Prompt
+
+Design a dark ai4codex-style model pricing marketplace: fixed blurred header, compact Chinese navigation, left filter rail with colored provider/group chips, dense two-column model cards, blue primary action accents, `#16161A` surfaces, faint white borders, `16px` card radius, `10px` control radius, Inter/system typography, and a mobile layout that collapses filters behind a button and stacks cards in one column.
+
+### Iteration Guide
+
+1. Start with the data comparison task: users should see model names, provider, and token prices before decorative content.
+2. Keep density high but group controls with consistent chip sizes and category colors.
+3. Use border and translucency for hierarchy before adding shadows.
+4. Validate mobile early; the sidebar must collapse cleanly without hiding search or cards.
+
+## Optional Appendix: Interaction Patterns
+
+- Header remains fixed at the top with blur and color transitions.
+- Nav links and buttons use short transitions, typically `0.2s` or Semi ease-in transitions.
+- Model cards are clickable and advertise hover affordance through stronger border and shadow.
+- Copy button is disabled until model selections are made.
+- Switches toggle display modes such as recharge price display and ratio display.
+- Mobile exposes filtering through a `filter 筛选` button instead of the full sidebar.
+
+## Optional Appendix: Content &amp; Messaging Patterns
+
+- Language is direct and utilitarian: `筛选`, `重置`, `供应商`, `可用令牌分组`, `计费类型`, `端点类型`.
+- Pricing rows use explicit labels: `输入价格`, `补全价格`, `缓存读取价格`, `缓存创建价格`.
+- Units are written consistently as `$0.7500 / 1M Tokens`.
+- Model naming is technical and unsoftened, for example `claude-haiku-4-5-20251001`.
+
+## Optional Appendix: Observed Pages
+
+- Observed URL: `https://ai4codex.top/pricing`
+- Observed page title: `New API`
+- Observed access state: public pricing page available after Cloudflare verification.
+- Observed models: 8 total; providers shown include OpenAI and Anthropic/Claude.
+
+## Optional Appendix: Evidence Notes
+
+- Directly observed dark mode values include `#16161A`, `#F9F9F9`, `rgba(249,249,249,0.8)`, `rgba(255,255,255,0.08)`, `#54A9FF`, `#A78BFA`, and `#2DD4BF`.
+- Directly observed desktop viewport was about `1381px x 727px`; mobile viewport was `390px x 844px`.
+- Light mode exists in the theme menu, but exact pricing-page light-mode computed values were not captured; treat light-mode notes as inferred until verified.
+</pre>
+              <article class="rendered-view" id="previewView" hidden><section><h2>1. Visual Theme &amp; Atmosphere</h2><p>The observed pricing page is a compact AI model marketplace rather than a marketing pricing table. Its personality is technical, utility-forward, and dashboard-like: a fixed translucent top bar, dense filter controls, and repeated model cards that put provider, model name, token prices, and billing type within immediate scanning distance. The default observed mode is dark, with a near-black zinc surface, soft white text, blue actions, and categorical accents in violet, teal, amber, rose, and emerald. The interface avoids dramatic imagery; identity comes from structured density, pill controls, icon-first actions, and a card grid that feels like a command surface for comparing models.</p><ul><li>Overall feeling: compact, operational, modern SaaS, model-catalog oriented.</li><li>Visual density: high; many controls and cards are visible in the first viewport.</li><li>Brand posture: technical and practical, with restrained polish from blur, rounded controls, and colored category accents.</li><li>Signature motifs: translucent fixed navigation, two-column desktop card grid, filter chips with counts, dark bordered cards, small token-price rows.</li></ul><h3>Key Characteristics</h3><ul><li>Dark zinc workspace with blue primary action color.</li><li>Semi Design controls combined with Tailwind utility styling.</li><li>Pricing data is shown as small stacked rows inside rounded cards.</li><li>Sidebar filters use color-coded active chips for provider, group, billing type, tag, and endpoint categories.</li><li>Mobile removes the large sidebar and surfaces a compact &quot;filter&quot; button above a single-column card list.</li></ul></section><section><h2>2. Color Palette &amp; Roles</h2><table><thead><tr><th>Role</th><th>Semantic Name</th><th>Value</th><th>Usage</th></tr></thead><tbody><tr><td>Page background</td><td>Zinc Night</td><td><code>#16161A</code></td><td>Body and card background in the observed dark mode.</td></tr><tr><td>Header glass</td><td>Translucent Zinc</td><td><code>rgba(24, 24, 27, 0.75)</code> inferred from <code>dark:bg-zinc-900/75</code></td><td>Fixed top navigation with backdrop blur.</td></tr><tr><td>Card surface</td><td>Deep Panel</td><td><code>#16161A</code></td><td>Model cards and login/card-like surfaces.</td></tr><tr><td>Hairline border</td><td>White Hairline</td><td><code>rgba(255, 255, 255, 0.08)</code></td><td>Card borders, outline buttons, disabled copy button, filter chips.</td></tr><tr><td>Primary text</td><td>Soft White</td><td><code>#F9F9F9</code></td><td>Main text, brand, headings, nav items.</td></tr><tr><td>Secondary text</td><td>Muted White</td><td><code>rgba(249, 249, 249, 0.8)</code></td><td>Card titles and body copy.</td></tr><tr><td>Tertiary text</td><td>Subtle White</td><td><code>rgba(249, 249, 249, 0.6)</code></td><td>Pagination and lower-priority metadata.</td></tr><tr><td>Disabled text</td><td>Faint White</td><td><code>rgba(249, 249, 249, 0.35)</code></td><td>Disabled pagination and disabled actions.</td></tr><tr><td>Primary action</td><td>Electric Blue</td><td><code>#54A9FF</code></td><td>Login/register action styling, links, active pagination, primary CTA color.</td></tr><tr><td>Active blue tint</td><td>Blue Wash</td><td><code>rgba(84, 169, 255, 0.2)</code></td><td>Selected pagination and focus-like selected states.</td></tr><tr><td>Provider accent</td><td>Violet</td><td><code>#A78BFA</code></td><td>Active provider filter, violet category tone.</td></tr><tr><td>Group accent</td><td>Teal</td><td><code>#2DD4BF</code></td><td>Active group filter and secondary category tone.</td></tr><tr><td>Warning accent</td><td>Amber</td><td><code>#FBBF24</code></td><td>Category/status accent where warning emphasis is needed.</td></tr><tr><td>Error accent</td><td>Rose</td><td><code>#FB7185</code> / <code>#FC725A</code></td><td>Alerts, errors, destructive or warning toast states.</td></tr><tr><td>Success accent</td><td>Emerald</td><td><code>#34D399</code></td><td>Positive/status accent.</td></tr></tbody></table><h3>Primary</h3><ul><li>Electric Blue <code>#54A9FF</code> is the most reusable action color. It appears on links, selected pagination, and primary controls.</li><li>Violet <code>#A78BFA</code> and teal <code>#2DD4BF</code> are category colors rather than global action colors. They help distinguish filter dimensions.</li></ul><h3>Interactive</h3><ul><li>Standard outline controls use transparent backgrounds, <code>rgba(255,255,255,0.08)</code> borders, <code>10px</code> radius, and muted white text.</li><li>Active filter chips switch to a translucent fill <code>rgba(255,255,255,0.12)</code> and a colored label such as violet or teal.</li><li>Primary action buttons use blue fill and white text; disabled buttons retain the outline form with faint text.</li><li>Nav links use transparent backgrounds, <code>6px</code> radius, <code>8px</code> padding, and color transitions around <code>0.2s</code>.</li></ul><h3>Neutral Scale</h3><ul><li><code>#16161A</code>: base page and panel surface.</li><li><code>#232429</code> / <code>#35363C</code>: darker internal UI tiers and control fills observed in the color sample.</li><li><code>#F9F9F9</code>: primary foreground.</li><li><code>rgba(249,249,249,0.8)</code>: default readable text.</li><li><code>rgba(249,249,249,0.6)</code>: supporting text.</li><li><code>rgba(249,249,249,0.35)</code>: disabled text.</li></ul><h3>Surface &amp; Overlay</h3><ul><li>Top navigation: fixed at the top, <code>64px</code> high, full width, translucent zinc with <code>backdrop-filter: blur(16px)</code>.</li><li>Model cards: same dark surface as the page but separated by a faint white border and radius rather than heavy elevation.</li><li>Inputs, selects, icon buttons, switches: filled with <code>rgba(255,255,255,0.12)</code> on dark mode.</li><li>The page intentionally uses border-as-depth more than shadow-as-depth.</li></ul><h3>Theme Modes</h3><p>The page exposes a theme switcher with light, dark, and auto options. The fully observed pricing page stayed in dark mode during extraction. Light mode is present as a control path, but its pricing-page token values were not fully captured in the live session.</p><p>#### Light Mode</p><ul><li>Background: inferred to invert to light gray/white surfaces from Tailwind classes such as <code>bg-white/75</code> and <code>bg-gray-100</code>.</li><li>Surface: likely white or near-white cards with gray borders.</li><li>Text: likely gray/black hierarchy.</li><li>Accent: blue, violet, teal, amber, rose, and emerald accents likely remain stable.</li><li>Notes: treat light mode as supported but verify before reproducing exact pricing-page values.</li></ul><p>#### Dark Mode</p><ul><li>Background: <code>#16161A</code>.</li><li>Surface: <code>#16161A</code> cards with <code>rgba(255,255,255,0.08)</code> borders.</li><li>Text: <code>#F9F9F9</code>, <code>rgba(249,249,249,0.8)</code>, <code>rgba(249,249,249,0.6)</code>.</li><li>Accent: <code>#54A9FF</code> action blue, <code>#A78BFA</code> provider violet, <code>#2DD4BF</code> group teal.</li><li>Notes: this is the authoritative observed mode for the pricing page.</li></ul><h3>Shadows &amp; Depth</h3><ul><li>Cards normally show no shadow; separation comes from border, radius, and spacing.</li><li>Hover card class includes <code>hover:shadow-lg</code> and <code>hover:border-gray-300</code>, so elevation is a hover-only affordance.</li><li>Semi controls have subtle default shadow tokens like <code>rgba(0,0,0,0.05) 0 1px 2px</code>, but most visible controls read as flat.</li></ul></section><section><h2>3. Typography Rules</h2><h3>Font Family</h3><ul><li>Primary: <code>Inter, -apple-system, system-ui, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif</code>.</li><li>Monospace: not meaningfully used on the observed pricing page.</li><li>OpenType Features: none observed; default tracking is normal.</li></ul><h3>Hierarchy</h3><table><thead><tr><th>Role</th><th>Font</th><th>Size</th><th>Weight</th><th>Line Height</th><th>Letter Spacing</th><th>Notes</th></tr></thead><tbody><tr><td>Brand in nav</td><td>Inter/system stack</td><td><code>18px</code></td><td><code>600</code></td><td><code>28px</code></td><td>normal</td><td>Hidden on mobile; logo remains.</td></tr><tr><td>Page heading</td><td>Inter/system stack</td><td><code>20px</code> desktop</td><td><code>700</code></td><td><code>28px</code></td><td>normal</td><td>Example: <code>全部供应商</code>; truncated if needed.</td></tr><tr><td>Card title</td><td>Inter/system stack</td><td><code>18px</code></td><td><code>700</code></td><td><code>28px</code></td><td>normal</td><td>Model names such as <code>gpt-5.4</code>, truncated in a single line.</td></tr><tr><td>Body / control text</td><td>Inter/system stack</td><td><code>14px</code></td><td><code>400-600</code></td><td><code>20px</code></td><td>normal</td><td>Used for buttons, chips, labels, and controls.</td></tr><tr><td>Price rows</td><td>Inter/system stack</td><td><code>12px</code></td><td><code>400</code></td><td><code>16px</code></td><td>normal</td><td>Dense stacked rows for input/completion/cache pricing.</td></tr><tr><td>Nav links</td><td>Inter/system stack</td><td><code>16px</code></td><td><code>600</code></td><td>normal</td><td>normal</td><td>Compact semibold labels with 8px padding.</td></tr><tr><td>Pagination</td><td>Inter/system stack</td><td><code>14px</code></td><td><code>400-600</code></td><td><code>32px</code></td><td>normal</td><td>Active item uses blue text and blue tint background.</td></tr></tbody></table><h3>Principles</h3><ul><li>Use semibold labels for navigation and controls so dense layouts remain scannable.</li><li>Keep pricing metadata small but not faint; <code>12px/16px</code> works because cards use large internal spacing and strong hierarchy.</li><li>Avoid oversized hero typography on operational pages. The page heading stays compact to preserve room for filters and cards.</li></ul></section><section><h2>4. Component Stylings</h2><h3>Buttons and Links</h3><ul><li>Primary CTA: blue fill <code>#54A9FF</code>, white text, <code>9999px</code> pill radius or Semi primary solid styling where used.</li><li>Secondary CTA: transparent or translucent fill, <code>rgba(255,255,255,0.08)</code> border, <code>10px</code> radius, <code>14px/20px</code> semibold text.</li><li>Filter chips: fixed-looking <code>32px</code> height, <code>6px 12px</code> padding, <code>10px</code> radius. Active chips use translucent fill and colored text; inactive chips use outline borders and muted white.</li><li>Icon buttons: <code>32px</code> square circles, <code>9999px</code> radius, <code>6px</code> padding, translucent fill, Lucide-style line icons.</li><li>Text links: blue <code>#54A9FF</code> or primary foreground in nav; nav hover shifts toward Semi primary color.</li><li>Hover and active feel: subtle and fast, with <code>0.2s</code> transitions for cards/nav and ease-in Semi transitions for controls.</li></ul><h3>Cards and Containers</h3><ul><li>Surface style: dark <code>#16161A</code> panels with no visible gradient.</li><li>Radius: model cards use <code>16px</code>; controls use <code>10px</code>; icon buttons and primary pills use <code>9999px</code>.</li><li>Border: <code>1px solid rgba(255,255,255,0.08)</code>.</li><li>Shadow or elevation: none by default; hover may add large shadow and stronger border.</li><li>Internal spacing: first card content shows roughly <code>12px</code> card body padding, a <code>12px</code> horizontal gap between provider icon and text, and <code>4px</code> vertical gaps for price rows.</li></ul><h3>Inputs and Interactive Controls</h3><ul><li>Search input wrapper: <code>32px</code> height, <code>10px</code> radius, <code>rgba(255,255,255,0.12)</code> fill, transparent border.</li><li>Input text: <code>14px</code>, <code>30px</code> line height, transparent input body.</li><li>Switches: <code>40px x 24px</code>, <code>12px</code> radius, translucent fill in off state.</li><li>Pagination select: <code>32px</code> height, <code>10px</code> radius, translucent fill.</li><li>Focus behavior: Semi controls imply border/fill transition; exact focus ring was not captured.</li></ul><h3>Navigation</h3><ul><li>Structure: fixed full-width header, <code>64px</code> height, logo/brand at left, scrollable nav center, icon utilities and login/register at right.</li><li>Background treatment: translucent glass layer with <code>backdrop-filter: blur(16px)</code>.</li><li>Link style: semibold, rounded <code>6px</code>, <code>8px</code> padding, transparent default.</li><li>Sticky or scroll behavior: header remains fixed; content begins under it.</li><li>Mobile: brand text collapses away, leaving a <code>32px</code> logo; nav becomes horizontally scrollable in a narrow center strip.</li></ul><h3>Image Treatment</h3><ul><li>Logo uses <code>/logo.png</code>, displayed as a <code>32px</code> rounded-full image in the header.</li><li>No marketing screenshots or decorative product imagery were observed on the pricing page.</li><li>Visual interest comes from data cards, chips, and icons rather than media.</li></ul><h3>Distinctive Components</h3><ul><li>Filter sidebar: desktop uses a left rail of categorized filter chips. Categories include provider, token group, billing type, tags, and endpoint type.</li><li>Model price card: provider label/icon on the left, model name as bold heading, price rows below, checkbox/action control to the right, and billing tag at the bottom.</li><li>Mobile filter affordance: sidebar is replaced by a compact <code>filter 筛选</code> button beside search/copy controls.</li><li>View mode controls: a <code>表格视图</code> outline button and compact <code>M</code> button appear on desktop to switch presentation modes or display mode.</li></ul></section><section><h2>5. Layout Principles</h2><h3>Spacing System</h3><ul><li>Base unit: <code>4px</code> and <code>8px</code> are the dominant rhythm.</li><li>Repeated spacing values: <code>4px</code> gaps in price rows, <code>8px</code> nav/control gaps, <code>12px</code> button padding and card inner gaps, <code>16px</code> mobile/card gutters, <code>24px+</code> section grouping.</li><li>Header height: <code>64px</code>.</li><li>Control height: usually <code>32px</code>.</li></ul><h3>Grid &amp; Container</h3><ul><li>Desktop grid: left filter rail about <code>330px</code> wide; model cards start around x <code>339px</code> and form two columns of about <code>509px</code> width with a <code>16px</code> gap.</li><li>Desktop cards: first row starts around y <code>234px</code>; card heights vary from about <code>158px</code> to <code>178px</code> depending on whether cache creation pricing is present.</li><li>Mobile grid: one column, <code>8px</code> side gutter, cards about <code>374px</code> wide on a <code>390px</code> viewport.</li><li>Content is dense and viewport-filling rather than centered in a narrow marketing container.</li></ul><h3>Whitespace Philosophy</h3><ul><li>Whitespace is functional and compact. The page prioritizes comparison and filtering over spacious storytelling.</li><li>Horizontal space is preserved for card content, while filters compress into equal-width chips.</li><li>Mobile keeps the data visible first: search and filter controls appear at the top, then cards immediately follow.</li></ul><h3>Border Radius Scale</h3><ul><li>Micro: <code>6px</code> nav links.</li><li>Standard: <code>10px</code> controls, selects, pagination buttons.</li><li>Large: <code>16px</code> model cards.</li><li>Pill: <code>9999px</code> primary/auth buttons and circular icon buttons.</li></ul></section><section><h2>6. Depth &amp; Elevation</h2><table><thead><tr><th>Level</th><th>Treatment</th><th>Use</th></tr></thead><tbody><tr><td>Flat</td><td>Transparent background, no border</td><td>Page containers and nav link default states.</td></tr><tr><td>Filled control</td><td><code>rgba(255,255,255,0.12)</code> fill, no visible shadow</td><td>Search input, active chips, icon buttons, switches.</td></tr><tr><td>Ring</td><td><code>1px solid rgba(255,255,255,0.08)</code></td><td>Cards, outline buttons, disabled copy button.</td></tr><tr><td>Card</td><td>Dark surface, <code>16px</code> radius, faint border</td><td>Model pricing cards.</td></tr><tr><td>Hover</td><td>Stronger border plus <code>hover:shadow-lg</code></td><td>Clickable model cards.</td></tr></tbody></table><h3>Depth Principles</h3><ul><li>Surface hierarchy is made mostly with borders and translucency.</li><li>Shadows are restrained so the UI stays crisp and data-dense.</li><li>Blur belongs to the fixed header, not to cards.</li><li>Use elevation only to show hover/click affordance; do not make the base grid float heavily.</li></ul></section><section><h2>7. Do&#39;s and Don&#39;ts</h2><h3>Do</h3><ul><li>Keep model/pricing information in compact, repeatable cards.</li><li>Use exact token units such as <code>/ 1M Tokens</code> in small stacked rows.</li><li>Give filter dimensions their own accent colors while preserving one primary blue action color.</li><li>Use rounded <code>10px</code> controls and <code>16px</code> cards consistently.</li><li>Preserve high information density on desktop and a single-column data-first flow on mobile.</li></ul><h3>Don&#39;t</h3><ul><li>Do not turn the pricing page into a marketing hero or oversized pricing-table landing page.</li><li>Do not use heavy shadows or glossy gradients on every card.</li><li>Do not mix many unrelated brand colors in a single control; keep accents tied to categories.</li><li>Do not hide prices behind modals when they can fit in the card.</li><li>Do not let mobile retain the full sidebar; collapse it behind the filter button.</li></ul></section><section><h2>8. Responsive Behavior</h2><h3>Breakpoints</h3><table><thead><tr><th>Name</th><th>Width</th><th>Key Changes</th></tr></thead><tbody><tr><td>Mobile</td><td><code>390px</code> observed</td><td>Brand text hides; nav scrolls horizontally; sidebar disappears; search is about <code>202px</code>; a filter button appears; cards become one column at about <code>374px</code> wide.</td></tr><tr><td>Tablet</td><td>inferred around <code>768px</code></td><td>Likely transitional: nav remains compact and grid may reduce before desktop sidebar/card grid fully expands.</td></tr><tr><td>Desktop</td><td><code>1381px</code> observed</td><td>Fixed header, left filter rail, two-column card grid, desktop view controls and pagination select.</td></tr></tbody></table><h3>Touch Targets</h3><ul><li>Primary mobile cards remain large tap targets.</li><li>Buttons and inputs are <code>32px</code> high; this is compact but consistent with dashboard density.</li><li>Mobile filter button is essential because the sidebar is removed from the main flow.</li></ul><h3>Collapsing Strategy</h3><ul><li>Desktop behavior: filter sidebar is visible; content has heading, description, search, copy, switches, view controls, two-column cards.</li><li>Tablet behavior: preserve controls but consider wrapping the action row before collapsing the sidebar.</li><li>Mobile behavior: show search/copy/filter row first, hide desktop heading/sidebar, render cards in one column, use small pagination.</li><li>Breakpoint-driven component changes: card width changes from about <code>509px</code> to <code>374px</code>; header brand text hides; nav strip narrows and scrolls.</li><li>Touch target and spacing adjustments: page gutters shrink to <code>8px</code>; control row becomes horizontally compressed.</li></ul></section><section><h2>9. Agent Prompt Guide</h2><h3>Quick Color Reference</h3><ul><li>Primary CTA: <code>#54A9FF</code></li><li>Background: <code>#16161A</code></li><li>Heading text: <code>#FFFFFF</code> or <code>#F9F9F9</code></li><li>Body text: <code>rgba(249,249,249,0.8)</code></li><li>Border or ring: <code>rgba(255,255,255,0.08)</code></li><li>Accent: violet <code>#A78BFA</code>, teal <code>#2DD4BF</code>, amber <code>#FBBF24</code>, rose <code>#FB7185</code>, emerald <code>#34D399</code></li></ul><h3>Quick Summary</h3><p>Build ai4codex pricing pages as dense dark-mode SaaS dashboards. Use a fixed translucent blurred header, a left filter rail on desktop, and compact model cards in a two-column grid. Cards use dark surfaces, <code>16px</code> radius, faint borders, bold model titles, and <code>12px</code> stacked price rows. Controls are small, rounded, Semi-like, and mostly <code>32px</code> tall. On mobile, remove the sidebar, keep search and a filter button at the top, and render cards in one column.</p><h3>Example Component Prompts</h3><ul><li>Hero: &quot;Create a compact model marketplace header area with a <code>全部供应商</code> title, a small count badge saying <code>共 8 个模型</code>, supporting Chinese description text, a 32px search input, copy button, switches, and view mode controls.&quot;</li><li>Card: &quot;Create a dark model pricing card with <code>16px</code> radius, faint white border, provider label, bold 18px model name, three to four 12px price rows using <code>/ 1M Tokens</code>, a small checkbox/action control on the right, and a rounded <code>按量计费</code> tag.&quot;</li><li>Navigation: &quot;Create a fixed 64px top nav with a 32px round logo, semibold brand text on desktop, horizontally scrollable nav links, circular icon buttons, and login/register buttons on the right.&quot;</li><li>Button or badge: &quot;Use a 32px-high Semi-style chip with 10px radius, 6px 12px padding, semibold 14px text, faint border for inactive state, and translucent fill plus violet or teal text for active state.&quot;</li></ul><h3>Ready-to-Use Prompt</h3><p>Design a dark ai4codex-style model pricing marketplace: fixed blurred header, compact Chinese navigation, left filter rail with colored provider/group chips, dense two-column model cards, blue primary action accents, <code>#16161A</code> surfaces, faint white borders, <code>16px</code> card radius, <code>10px</code> control radius, Inter/system typography, and a mobile layout that collapses filters behind a button and stacks cards in one column.</p><h3>Iteration Guide</h3><ol><li>Start with the data comparison task: users should see model names, provider, and token prices before decorative content.</li><li>Keep density high but group controls with consistent chip sizes and category colors.</li><li>Use border and translucency for hierarchy before adding shadows.</li><li>Validate mobile early; the sidebar must collapse cleanly without hiding search or cards.</li></ol></section><section><h2>Optional Appendix: Interaction Patterns</h2><ul><li>Header remains fixed at the top with blur and color transitions.</li><li>Nav links and buttons use short transitions, typically <code>0.2s</code> or Semi ease-in transitions.</li><li>Model cards are clickable and advertise hover affordance through stronger border and shadow.</li><li>Copy button is disabled until model selections are made.</li><li>Switches toggle display modes such as recharge price display and ratio display.</li><li>Mobile exposes filtering through a <code>filter 筛选</code> button instead of the full sidebar.</li></ul></section><section><h2>Optional Appendix: Content &amp; Messaging Patterns</h2><ul><li>Language is direct and utilitarian: <code>筛选</code>, <code>重置</code>, <code>供应商</code>, <code>可用令牌分组</code>, <code>计费类型</code>, <code>端点类型</code>.</li><li>Pricing rows use explicit labels: <code>输入价格</code>, <code>补全价格</code>, <code>缓存读取价格</code>, <code>缓存创建价格</code>.</li><li>Units are written consistently as <code>$0.7500 / 1M Tokens</code>.</li><li>Model naming is technical and unsoftened, for example <code>claude-haiku-4-5-20251001</code>.</li></ul></section><section><h2>Optional Appendix: Observed Pages</h2><ul><li>Observed URL: <code>https://ai4codex.top/pricing</code></li><li>Observed page title: <code>New API</code></li><li>Observed access state: public pricing page available after Cloudflare verification.</li><li>Observed models: 8 total; providers shown include OpenAI and Anthropic/Claude.</li></ul></section><section><h2>Optional Appendix: Evidence Notes</h2><ul><li>Directly observed dark mode values include <code>#16161A</code>, <code>#F9F9F9</code>, <code>rgba(249,249,249,0.8)</code>, <code>rgba(255,255,255,0.08)</code>, <code>#54A9FF</code>, <code>#A78BFA</code>, and <code>#2DD4BF</code>.</li><li>Directly observed desktop viewport was about <code>1381px x 727px</code>; mobile viewport was <code>390px x 844px</code>.</li><li>Light mode exists in the theme menu, but exact pricing-page light-mode computed values were not captured; treat light-mode notes as inferred until verified.</li></ul></section></article>
+            </div>
+          </article>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const sourceView = document.getElementById("sourceView");
+      const previewView = document.getElementById("previewView");
+      const copyButton = document.getElementById("copyButton");
+      const copyState = document.getElementById("copyState");
+      const viewButtons = document.querySelectorAll("[data-view]");
+
+      function setActiveView(view) {
+        const showSource = view === "source";
+        sourceView.hidden = !showSource;
+        previewView.hidden = showSource;
+        viewButtons.forEach((button) => {
+          button.classList.toggle("is-active", button.dataset.view === view);
+        });
+      }
+
+      viewButtons.forEach((button) => {
+        button.addEventListener("click", () => setActiveView(button.dataset.view));
+      });
+
+      copyButton.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(sourceView.textContent || "");
+          copyState.textContent = "Copied";
+        } catch (error) {
+          copyState.textContent = "Clipboard unavailable";
+        }
+
+        setTimeout(() => {
+          copyState.textContent = "";
+        }, 1400);
+      });
+    </script>
+  </body>
+</html>
