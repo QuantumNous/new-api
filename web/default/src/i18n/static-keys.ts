@@ -515,6 +515,9 @@ export const STATIC_I18N_KEYS = [
   'Detection complete: {{add}} to add, {{remove}} to remove',
   'Batch detection failed',
   'Batch detection complete: {{channels}} channels, {{add}} to add, {{remove}} to remove, {{fails}} failed',
+  '{{count}} channel',
+  '{{count}} channels',
+  '{{status}} ({{count}})',
 
   // Dashboard flow stages (labels/descriptions passed to t at runtime)
   'User',
