@@ -108,8 +108,13 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	claudeReq, customToolNames, err := ConvertResponsesRequestToClaude(&request)
+	if err != nil {
+		return nil, err
+	}
+	// 无条件覆盖：retry 或 pass-through 路径下，前一次设置的 customToolNames 不应残留污染响应分支。
+	c.Set(customToolNamesContextKey, customToolNames)
+	return claudeReq, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {

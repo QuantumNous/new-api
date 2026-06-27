@@ -584,12 +584,25 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 }
 
 type ClaudeResponseInfo struct {
-	ResponseId   string
-	Created      int64
-	Model        string
-	ResponseText strings.Builder
-	Usage        *dto.Usage
-	Done         bool
+	ResponseId    string
+	Created       int64
+	Model         string
+	ResponseText  strings.Builder
+	Usage         *dto.Usage
+	Done          bool
+	ResponsesState *ClaudeResponsesStreamState
+}
+
+func getResponsesCustomToolNames(c *gin.Context) map[string]bool {
+	if c == nil {
+		return nil
+	}
+	v, ok := c.Get(customToolNamesContextKey)
+	if !ok {
+		return nil
+	}
+	names, _ := v.(map[string]bool)
+	return names
 }
 
 func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
@@ -828,6 +841,23 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		if err != nil {
 			logger.LogError(c, "send_stream_response_failed: "+err.Error())
 		}
+	} else if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		FormatClaudeResponseInfo(&claudeResponse, nil, claudeInfo)
+		if claudeInfo.ResponsesState == nil {
+			claudeInfo.ResponsesState = NewClaudeResponsesStreamState(info.UpstreamModelName)
+			claudeInfo.ResponsesState.CreatedAt = claudeInfo.Created
+			claudeInfo.ResponsesState.ResponseID = claudeInfo.ResponseId
+			claudeInfo.ResponsesState.CustomToolNames = getResponsesCustomToolNames(c)
+		}
+		for _, evt := range claudeInfo.ResponsesState.HandleClaudeChunk(&claudeResponse) {
+			payload, marshalErr := common.Marshal(evt)
+			if marshalErr != nil {
+				logger.LogError(c, "marshal_responses_stream_failed: "+marshalErr.Error())
+				continue
+			}
+			// 标准 OpenAI /v1/responses SSE 每个事件必须带 event: <type>，否则 Codex 等客户端按 untyped 处理会丢字段。
+			helper.ResponseChunkData(c, evt, string(payload))
+		}
 	}
 	return nil
 }
@@ -867,6 +897,21 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 			}
 		}
 		helper.Done(c)
+	} else if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		if claudeInfo.ResponsesState == nil {
+			claudeInfo.ResponsesState = NewClaudeResponsesStreamState(info.UpstreamModelName)
+			claudeInfo.ResponsesState.CreatedAt = claudeInfo.Created
+			claudeInfo.ResponsesState.ResponseID = claudeInfo.ResponseId
+			claudeInfo.ResponsesState.CustomToolNames = getResponsesCustomToolNames(c)
+		}
+		for _, evt := range claudeInfo.ResponsesState.FinalEvents() {
+			payload, marshalErr := common.Marshal(evt)
+			if marshalErr != nil {
+				common.SysLog("marshal final responses event failed: " + marshalErr.Error())
+				continue
+			}
+			helper.ResponseChunkData(c, evt, string(payload))
+		}
 	}
 }
 
@@ -927,6 +972,15 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		}
 	case types.RelayFormatClaude:
 		responseData = data
+	case types.RelayFormatOpenAIResponses:
+		responsesResp := ConvertClaudeResponseToResponses(&claudeResponse, getResponsesCustomToolNames(c))
+		if claudeInfo.Created > 0 {
+			responsesResp.CreatedAt = int(claudeInfo.Created)
+		}
+		responseData, err = json.Marshal(responsesResp)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
 	}
 
 	if claudeResponse.Usage != nil && claudeResponse.Usage.ServerToolUse != nil && claudeResponse.Usage.ServerToolUse.WebSearchRequests > 0 {

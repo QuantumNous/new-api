@@ -334,20 +334,23 @@ func (o *OpenAIResponsesResponse) GetSize() string {
 }
 
 type IncompleteDetails struct {
-	Reasoning string `json:"reasoning"`
+	Reason string `json:"reason,omitempty"`
 }
 
 type ResponsesOutput struct {
-	Type      string                   `json:"type"`
-	ID        string                   `json:"id"`
-	Status    string                   `json:"status"`
-	Role      string                   `json:"role"`
-	Content   []ResponsesOutputContent `json:"content"`
-	Quality   string                   `json:"quality"`
-	Size      string                   `json:"size"`
-	CallId    string                   `json:"call_id,omitempty"`
-	Name      string                   `json:"name,omitempty"`
-	Arguments json.RawMessage          `json:"arguments,omitempty"`
+	Type             string                          `json:"type"`
+	ID               string                          `json:"id"`
+	Status           string                          `json:"status,omitempty"`
+	Role             string                          `json:"role,omitempty"`
+	Content          []ResponsesOutputContent        `json:"content,omitempty"`
+	Quality          string                          `json:"quality,omitempty"`
+	Size             string                          `json:"size,omitempty"`
+	CallId           string                          `json:"call_id,omitempty"`
+	Name             string                          `json:"name,omitempty"`
+	Arguments        json.RawMessage                 `json:"arguments,omitempty"`
+	Input            string                          `json:"input,omitempty"`
+	Summary          []ResponsesReasoningSummaryPart `json:"summary,omitempty"`
+	EncryptedContent string                          `json:"encrypted_content,omitempty"`
 }
 
 // ArgumentsString returns function call arguments in the string form expected by Chat Completions.
@@ -388,19 +391,22 @@ const (
 	ResponsesOutputTypeItemDone  = "response.output_item.done"
 )
 
-// ResponsesStreamResponse 用于处理 /v1/responses 流式响应
 type ResponsesStreamResponse struct {
-	Type     string                   `json:"type"`
-	Response *OpenAIResponsesResponse `json:"response,omitempty"`
-	Delta    string                   `json:"delta,omitempty"`
-	Item     *ResponsesOutput         `json:"item,omitempty"`
-	// - response.function_call_arguments.delta
-	// - response.function_call_arguments.done
-	OutputIndex  *int                           `json:"output_index,omitempty"`
-	ContentIndex *int                           `json:"content_index,omitempty"`
-	SummaryIndex *int                           `json:"summary_index,omitempty"`
-	ItemID       string                         `json:"item_id,omitempty"`
-	Part         *ResponsesReasoningSummaryPart `json:"part,omitempty"`
+	Type            string                   `json:"type"`
+	Response        *OpenAIResponsesResponse `json:"response,omitempty"`
+	Delta           string                   `json:"delta,omitempty"`
+	Item            *ResponsesOutput         `json:"item,omitempty"`
+	OutputIndex     *int                     `json:"output_index,omitempty"`
+	ContentIndex    *int                     `json:"content_index,omitempty"`
+	SummaryIndex    *int                     `json:"summary_index,omitempty"`
+	AnnotationIndex *int                     `json:"annotation_index,omitempty"`
+	ItemID          string                   `json:"item_id,omitempty"`
+	Part            any                      `json:"part,omitempty"`
+	Text            string                   `json:"text,omitempty"`
+	Arguments       string                   `json:"arguments,omitempty"`
+	Input           string                   `json:"input,omitempty"`
+	Annotation      any                      `json:"annotation,omitempty"`
+	SequenceNumber  int                      `json:"sequence_number"`
 }
 
 // GetOpenAIError 从动态错误类型中提取OpenAIError结构
