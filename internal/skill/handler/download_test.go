@@ -1004,6 +1004,39 @@ func TestDownloadedPackageRunner_MockSuccessFromExtractedZip(t *testing.T) {
 	assert.NotContains(t, requestBody, "instruction_template")
 }
 
+// TestDownloadedPackageRunner_MockSuccessOpenAIShape verifies the DR-1002 fix:
+// the routing endpoint returns the standard OpenAI chat-completion shape, and
+// the runner extracts choices[0].message.content as the output text (no longer
+// requiring a top-level "text" field).
+func TestDownloadedPackageRunner_MockSuccessOpenAIShape(t *testing.T) {
+	python := requirePython(t)
+	db := testDownloadDB(t)
+	SetDB(db)
+	createPublishedSkillWithActiveVersion(t, db, "runner-openai-shape", "Runtime template")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"chatcmpl-1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"openai shape works"},"finish_reason":"stop"}]}`)
+	}))
+	defer server.Close()
+
+	c, w := testDownloadCtx("runner-openai-shape", 1, "default")
+	DownloadSkillPackage(c)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	pkgDir := unzipPackageToTempDir(t, w.Body.Bytes())
+	script := filepath.Join(pkgDir, "runtime", "deeprouter_skill_runner.py")
+	cmd := exec.Command(python, script, "--input", "hello")
+	cmd.Dir = filepath.Join(pkgDir, "runtime")
+	cmd.Env = append(os.Environ(),
+		"DEEPROUTER_API_KEY=test-runner-key",
+		"DEEPROUTER_EXECUTION_API_URL="+server.URL,
+	)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	assert.Equal(t, "openai shape works", strings.TrimSpace(string(out)))
+}
+
 func TestDownloadedPackageRunner_MockAuthRequiredErrorMapping(t *testing.T) {
 	python := requirePython(t)
 	db := testDownloadDB(t)
