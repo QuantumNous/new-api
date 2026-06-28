@@ -30,6 +30,18 @@ type submitPayload struct {
 	ImageURLs   []string `json:"image_urls,omitempty"`
 }
 
+type motionControlPayload struct {
+	Model                string                 `json:"model"`
+	Prompt               string                 `json:"prompt,omitempty"`
+	ImageURL             string                 `json:"image_url"`
+	VideoURL             string                 `json:"video_url"`
+	KeepOriginalSound    string                 `json:"keep_original_sound,omitempty"`
+	CharacterOrientation string                 `json:"character_orientation"`
+	Mode                 string                 `json:"mode"`
+	WatermarkInfo        map[string]interface{} `json:"watermark_info,omitempty"`
+	Duration             int                    `json:"duration,omitempty"`
+}
+
 type submitEnvelope struct {
 	Code int `json:"code"`
 	Data []struct {
@@ -84,8 +96,26 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 func (a *TaskAdaptor) validateApimartJSON(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_json", http.StatusBadRequest)
+	}
+	raw, err := storage.Bytes()
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_json", http.StatusBadRequest)
+	}
+
+	var modelProbe struct {
+		Model string `json:"model"`
+	}
+	_ = common.Unmarshal(raw, &modelProbe)
+	modelName := normalizeModel(modelProbe.Model)
+	if IsMotionControlModel(modelName) {
+		return a.validateMotionControlJSON(c, info, raw, modelName)
+	}
+
 	var body submitPayload
-	if err := common.UnmarshalBodyReusable(c, &body); err != nil {
+	if err := common.Unmarshal(raw, &body); err != nil {
 		return service.TaskErrorWrapperLocal(err, "invalid_json", http.StatusBadRequest)
 	}
 	if strings.TrimSpace(body.Model) == "" {
@@ -126,10 +156,76 @@ func (a *TaskAdaptor) validateApimartJSON(c *gin.Context, info *relaycommon.Rela
 	return nil
 }
 
+func (a *TaskAdaptor) validateMotionControlJSON(c *gin.Context, info *relaycommon.RelayInfo, raw []byte, modelName string) *dto.TaskError {
+	var body motionControlPayload
+	if err := common.Unmarshal(raw, &body); err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_json", http.StatusBadRequest)
+	}
+	body.Model = modelName
+	if strings.TrimSpace(body.ImageURL) == "" {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("image_url is required"), "invalid_request", http.StatusBadRequest)
+	}
+	if strings.TrimSpace(body.VideoURL) == "" {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("video_url is required"), "invalid_request", http.StatusBadRequest)
+	}
+	orientation := strings.TrimSpace(body.CharacterOrientation)
+	if orientation != "image" && orientation != "video" {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("character_orientation must be image or video"), "invalid_request", http.StatusBadRequest)
+	}
+	mode := strings.TrimSpace(body.Mode)
+	if mode != "std" && mode != "pro" {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("mode must be std or pro"), "invalid_request", http.StatusBadRequest)
+	}
+	if body.KeepOriginalSound == "" {
+		body.KeepOriginalSound = "yes"
+	}
+	seconds := body.Duration
+	if seconds <= 0 {
+		seconds = defaultBillableSeconds(orientation)
+	}
+	store := relaycommon.TaskSubmitReq{
+		Prompt:   strings.TrimSpace(body.Prompt),
+		Model:    body.Model,
+		Duration: seconds,
+		Metadata: map[string]interface{}{
+			"image_url":             strings.TrimSpace(body.ImageURL),
+			"video_url":             strings.TrimSpace(body.VideoURL),
+			"keep_original_sound":   body.KeepOriginalSound,
+			"character_orientation": orientation,
+			"mode":                  mode,
+		},
+	}
+	c.Set("task_request", store)
+	info.Action = constant.TaskActionReferenceGenerate
+	return nil
+}
+
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil
+	}
+	if IsMotionControlModel(req.Model) {
+		seconds := req.Duration
+		if seconds <= 0 {
+			orientation := ""
+			if req.Metadata != nil {
+				if v, ok := req.Metadata["character_orientation"].(string); ok {
+					orientation = v
+				}
+			}
+			seconds = defaultBillableSeconds(orientation)
+		}
+		mode := "std"
+		if req.Metadata != nil {
+			if v, ok := req.Metadata["mode"].(string); ok && strings.TrimSpace(v) != "" {
+				mode = v
+			}
+		}
+		return map[string]float64{
+			"seconds": float64(seconds),
+			"mode":    modeBillingRatio(mode),
+		}
 	}
 	seconds := req.Duration
 	if seconds <= 0 {
@@ -173,6 +269,29 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err != nil {
 			return nil, err
 		}
+		var modelProbe struct {
+			Model string `json:"model"`
+		}
+		if err := common.Unmarshal(raw, &modelProbe); err != nil {
+			return nil, err
+		}
+		modelName := normalizeModel(modelProbe.Model)
+		if IsMotionControlModel(modelName) {
+			var body motionControlPayload
+			if err := common.Unmarshal(raw, &body); err != nil {
+				return nil, err
+			}
+			body.Model = modelName
+			if body.KeepOriginalSound == "" {
+				body.KeepOriginalSound = "yes"
+			}
+			out, err := common.Marshal(body)
+			if err != nil {
+				return nil, err
+			}
+			return bytes.NewReader(out), nil
+		}
+
 		var body submitPayload
 		if err := common.Unmarshal(raw, &body); err != nil {
 			return nil, err

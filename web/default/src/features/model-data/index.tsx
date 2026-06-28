@@ -130,6 +130,7 @@ const MODEL_TABS: ModelTab[] = [
   { label: 'Image 2',         modelId: 'gpt-image-2',       accent: '#22d3ee' },
   { label: 'Sora 2',          modelId: 'sora-2',            accent: '#22d3ee' },
   { label: 'Sora 2 Pro',      modelId: 'sora-2-pro',        accent: '#22d3ee' },
+  { label: 'Kling Motion Control', modelId: 'kling-v3-motion-control', accent: '#f97316' },
 ]
 
 const UNIT_OPTIONS = [

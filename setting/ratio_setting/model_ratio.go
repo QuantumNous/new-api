@@ -307,6 +307,7 @@ var defaultModelPrice = map[string]float64{
 	"mj_upload":                      0.05,
 	"sora-2":                         0.08, // USD/s @ 720p (official $0.10/s × 80%)
 	"sora-2-pro":                     0.24, // USD/s @ 720p (official $0.30/s × 80%)
+	"kling-v3-motion-control":        0.10288, // USD/s std (APIMart purchase)
 	"gpt-4o-mini-tts":                0.3,
 	"veo-3.0-generate-001":           0.4,
 	"veo-3.0-fast-generate-001":      0.15,
