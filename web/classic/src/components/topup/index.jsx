@@ -39,6 +39,7 @@ import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
+import { formatPaymentAmount } from './paymentAmount';
 
 // Reject non-navigable schemes (e.g. javascript:, data:) and relative URLs.
 // Only http / https are allowed for backend-provided redirect targets.
@@ -800,8 +801,8 @@ const TopUp = () => {
     }
   }, [statusState?.status]);
 
-  const renderAmount = () => {
-    return amount + ' ' + t('元');
+  const renderAmount = (value = amount) => {
+    return formatPaymentAmount(value, { t });
   };
 
   const getAmount = async (value) => {
