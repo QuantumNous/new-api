@@ -1,17 +1,19 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { skillDownloadURL } from './api'
+import { recordMarketplaceSkillEvent, skillDownloadURL } from './api'
 import { Marketplace } from './index'
-import type { MarketplaceSkill } from './types'
+import type { DownloadLeaderboardSkill, MarketplaceSkill } from './types'
 
 const {
   navigateMock,
+  mockGetDownloadLeaderboardSkills,
   mockGetMarketplaceRailSkills,
   mockGetMarketplaceSkills,
   mockRecordMarketplaceSkillEvent,
 } = vi.hoisted(() => ({
   navigateMock: vi.fn(),
+  mockGetDownloadLeaderboardSkills: vi.fn(),
   mockGetMarketplaceRailSkills: vi.fn(),
   mockGetMarketplaceSkills: vi.fn(),
   mockRecordMarketplaceSkillEvent: vi.fn().mockResolvedValue(undefined),
@@ -35,6 +37,7 @@ vi.mock('@/stores/auth-store', () => ({
 }))
 
 vi.mock('./api', () => ({
+  getDownloadLeaderboardSkills: mockGetDownloadLeaderboardSkills,
   getMarketplaceSkills: mockGetMarketplaceSkills,
   getMarketplaceRailSkills: mockGetMarketplaceRailSkills,
   emitMarketplaceEvent: vi.fn().mockResolvedValue(undefined),
@@ -67,6 +70,13 @@ function setMarketplaceSkills(skills: MarketplaceSkill[]) {
   })
 }
 
+function setDownloadLeaderboards(skills: DownloadLeaderboardSkill[] = []) {
+  mockGetDownloadLeaderboardSkills.mockResolvedValue({
+    data: skills,
+    pagination: { page: 1, limit: 6, total: skills.length, has_next: false },
+  })
+}
+
 function renderMarketplace() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -80,6 +90,7 @@ function renderMarketplace() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  setDownloadLeaderboards()
   const store = new Map<string, string>()
   vi.stubGlobal('localStorage', {
     getItem: vi.fn((key: string) => store.get(key) ?? null),
@@ -263,6 +274,44 @@ describe('Marketplace DR-90 discovery rails', () => {
     expect(navigateMock).toHaveBeenCalledWith({
       to: '/skills/$slug',
       params: { slug: 'trending' },
+    })
+  })
+})
+
+describe('Marketplace download leaderboards', () => {
+  it('renders weekly and monthly rails and opens detail with leaderboard attribution', async () => {
+    setMarketplaceSkills([baseSkill])
+    mockGetDownloadLeaderboardSkills.mockImplementation(
+      (params: { window: '7d' | '30d' }) =>
+        Promise.resolve({
+          data: [
+            {
+              ...baseSkill,
+              id: `${params.window}-skill`,
+              slug: `${params.window}-skill`,
+              name: params.window === '7d' ? 'Weekly Skill' : 'Monthly Skill',
+              download_count: params.window === '7d' ? 9 : 30,
+              rank: 1,
+              window: params.window,
+            },
+          ],
+          pagination: { page: 1, limit: 6, total: 1, has_next: false },
+        })
+    )
+
+    renderMarketplace()
+
+    expect(await screen.findByText('This Week')).toBeInTheDocument()
+    expect(await screen.findByText('This Month')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /Weekly Skill/ }))
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/skills/$slug',
+      params: { slug: '7d-skill' },
+    })
+    expect(recordMarketplaceSkillEvent).toHaveBeenCalledWith('7d-skill', {
+      event_type: 'skill_detail_view',
+      entry_point: 'leaderboard_weekly',
     })
   })
 })

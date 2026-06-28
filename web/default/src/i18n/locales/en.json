@@ -5011,6 +5011,12 @@
     "Timeout must be between 1 and 120 seconds.": "Timeout must be between 1 and 120 seconds.",
     "Kids Exclusive requires Kids Safe.": "Kids Exclusive requires Kids Safe.",
     "Enter valid JSON.": "Enter valid JSON.",
-    "Enter a valid number.": "Enter a valid number."
+    "Enter a valid number.": "Enter a valid number.",
+    "This Week": "This Week",
+    "This Month": "This Month",
+    "{{count}} downloads": "{{count}} downloads",
+    "Downloads": "Downloads",
+    "7d": "7d",
+    "{{count}} in 30d": "{{count}} in 30d"
   }
 }

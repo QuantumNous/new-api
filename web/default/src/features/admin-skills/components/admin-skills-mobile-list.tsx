@@ -56,7 +56,7 @@ export function AdminSkillsMobileList({
   const rows = table.getRowModel().rows
   if (rows.length === 0) {
     return (
-      <div className='rounded-[7px] border bg-card p-6 text-center'>
+      <div className='bg-card rounded-[7px] border p-6 text-center'>
         <div className='font-medium'>{t('No Skills Found')}</div>
         <div className='text-muted-foreground mt-1 text-sm'>
           {t('No admin skills match the selected filters.')}
@@ -70,10 +70,7 @@ export function AdminSkillsMobileList({
       {rows.map((row) => {
         const skill = row.original
         return (
-          <article
-            key={skill.id}
-            className='rounded-[7px] border bg-card p-4'
-          >
+          <article key={skill.id} className='bg-card rounded-[7px] border p-4'>
             <div className='flex items-start justify-between gap-3'>
               <div className='min-w-0'>
                 <div className='truncate font-medium'>{skill.name}</div>
@@ -110,6 +107,10 @@ export function AdminSkillsMobileList({
             <div className='text-muted-foreground mt-3 grid grid-cols-2 gap-2 text-xs'>
               <div>
                 {t('Featured')}: {skill.featured_flag ? t('Yes') : t('No')}
+              </div>
+              <div>
+                {t('Downloads')}: {skill.downloads_7d ?? 0} /{' '}
+                {skill.downloads_30d ?? 0}
               </div>
               <div className='truncate'>
                 {t('Version')}: {skill.active_version_id ?? t('None')}

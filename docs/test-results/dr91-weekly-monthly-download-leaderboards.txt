@@ -1,0 +1,52 @@
+DR-91 Weekly & Monthly Download Leaderboards Test Results
+
+Date: 2026-06-29
+
+Focused backend
+- Command: mkdir -p .gocache .gomodcache && GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/handler -count=1 -cover
+- Dataset/fixtures: SQLite in-memory skill handler fixtures with published/deprecated/archived Skills, package-download skill_enabled events, one-time purchase skill_purchased events, leaderboard attribution entry points, admin list rows, and ops analytics rows.
+- Verified: 7d/30d download acquisition counts, weekly leaderboard ranking, per-category filtering, deprecated/archived exclusion, leaderboard impression/click event acceptance, download entry-point attribution, admin downloads_7d/downloads_30d, and ops per-Skill velocity fields.
+- Coverage: 74.2% of statements for github.com/QuantumNous/new-api/internal/skill/handler.
+- Result: PASS.
+
+Related backend regression
+- Command: GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/model ./internal/skill/enums ./router -count=1 -cover
+- Dataset/fixtures: Existing model/enums/router unit fixtures plus updated skill_usage_events entry-point enum/check-constraint coverage.
+- Verified: enum validity, skill_usage_events persistence constraints, migration compatibility, and router registration regressions.
+- Coverage: model 44.0%, enums 88.9%, router 10.0%.
+- Result: PASS.
+
+Broader Skill/router regression
+- Command: GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/... ./router -count=1 -cover
+- Dataset/fixtures: Full internal/skill package fixtures across API envelope, availability, handler, model, notify, relay, seed, tiers, and router tests.
+- Verified: DR-91 changes did not regress Skill Marketplace, analytics, relay entitlement, package, or router behavior.
+- Coverage: handler 74.2%, model 44.0%, notify 68.0%, relay 81.6%, seed 79.4%, tiers 100.0%, router 10.0%, package-level details in command output.
+- Result: PASS.
+
+Focused frontend
+- Command: bunx vitest run src/features/marketplace/__tests__/api.test.ts src/features/marketplace/marketplace.test.tsx src/features/admin-skills/__tests__/admin-skills.test.ts --coverage
+- Dataset/fixtures: Mocked Marketplace API responses for empty/default leaderboards and weekly/monthly leaderboard Skills; source-level admin table/mobile contract fixtures.
+- Verified: leaderboard API params, weekly/monthly rail rendering, leaderboard click navigation and attribution, existing Marketplace CTA regressions, and admin download velocity column/mobile fields.
+- Coverage: 22.96% statements / 15.00% branches / 10.30% functions / 24.05% lines for the focused frontend test run.
+- Result: PASS.
+
+Frontend typecheck
+- Command: bun run typecheck
+- Dataset/fixtures: TypeScript project references for web/default.
+- Verified: TS/TSX contract changes compile, including leaderboard types and admin velocity fields.
+- Coverage: not available; typecheck does not produce coverage.
+- Result: PASS.
+
+Frontend build
+- Command: make build-all-frontends
+- Dataset/fixtures: web/default Rsbuild production build and web/classic Vite production build.
+- Verified: frontend bundles build and root Go embed prerequisites are present for the full Go suite.
+- Coverage: not available; build does not produce coverage.
+- Result: PASS with existing bundle-size warnings from web/classic/default builds.
+
+Full Go regression
+- Command: GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./... -count=1
+- Dataset/fixtures: Full repository Go unit/regression fixtures after `make build-all-frontends` provided root package embed assets.
+- Verified: repository-wide Go tests, including root package embed setup after frontend dist build.
+- Coverage: not available for this full command; it was run without -cover for runtime breadth.
+- Result: PASS.

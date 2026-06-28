@@ -58,6 +58,10 @@ export type SkillGrowthEntryPoint =
   | 'new_week'
   | 'trending'
   | 'recommended'
+  | 'reco_personal'
+  | 'reco_codownload'
+  | 'leaderboard_weekly'
+  | 'leaderboard_monthly'
 
 export type SkillGrowthEventType = 'skill_impression' | 'skill_detail_view'
 
@@ -111,6 +115,14 @@ export interface MarketplaceSkill {
   is_kids_exclusive?: boolean
   ai_disclosure_required?: boolean
   published_at?: string | null
+}
+
+export type DownloadLeaderboardWindow = '7d' | '30d'
+
+export interface DownloadLeaderboardSkill extends MarketplaceSkill {
+  download_count: number
+  rank: number
+  window: DownloadLeaderboardWindow
 }
 
 export interface MarketplaceEventPayload {

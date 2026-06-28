@@ -24,6 +24,8 @@ import {
   isSafeDownloadUrl,
 } from './download-utils'
 import type {
+  DownloadLeaderboardSkill,
+  DownloadLeaderboardWindow,
   MarketplaceEventPayload,
   MarketplaceFilters,
   MarketplaceListResponse,
@@ -93,6 +95,22 @@ export async function getMarketplaceSkillsWithParams(
 ): Promise<MarketplaceListResponse<MarketplaceSkill>> {
   const res = await api.get('/api/v1/marketplace/skills', {
     params,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getDownloadLeaderboardSkills(params: {
+  window: DownloadLeaderboardWindow
+  category?: string
+  limit?: number
+}): Promise<MarketplaceListResponse<DownloadLeaderboardSkill>> {
+  const res = await api.get('/api/v1/marketplace/leaderboards/downloads', {
+    params: {
+      window: params.window,
+      category: params.category || undefined,
+      limit: params.limit ?? 6,
+    },
     skipErrorHandler: true,
   } as Record<string, unknown>)
   return res.data

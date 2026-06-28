@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type ColumnDef } from '@tanstack/react-table'
-import { Star } from 'lucide-react'
+import { Download, Star } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
 import { DataTableColumnHeader } from '@/components/data-table'
@@ -181,6 +181,30 @@ export function useAdminSkillsColumns({
       meta: { label: t('Active Version'), mobileHidden: true },
     },
     {
+      id: 'download_velocity',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Downloads')} />
+      ),
+      cell: ({ row }) => {
+        const skill = row.original
+        return (
+          <div className='min-w-[120px] text-sm tabular-nums'>
+            <div className='flex items-center gap-1.5'>
+              <Download className='text-muted-foreground size-3.5' />
+              <span>{skill.downloads_7d ?? 0}</span>
+              <span className='text-muted-foreground text-xs'>{t('7d')}</span>
+            </div>
+            <div className='text-muted-foreground mt-1 text-xs'>
+              {t('{{count}} in 30d', {
+                count: skill.downloads_30d ?? 0,
+              })}
+            </div>
+          </div>
+        )
+      },
+      meta: { label: t('Downloads') },
+    },
+    {
       accessorKey: 'updated_at',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Last Updated')} />
@@ -205,11 +229,7 @@ export function useAdminSkillsColumns({
       id: 'actions',
       header: () => <div className='text-right'>{t('Actions')}</div>,
       cell: ({ row }) => (
-        <AdminSkillRowActions
-          row={row}
-          onEdit={onEdit}
-          onPreview={onPreview}
-        />
+        <AdminSkillRowActions row={row} onEdit={onEdit} onPreview={onPreview} />
       ),
       enableSorting: false,
       enableHiding: false,

@@ -21,6 +21,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Bookmark,
+  Download,
   Search,
   ShieldCheck,
   SlidersHorizontal,
@@ -49,6 +50,7 @@ import { SectionPageLayout } from '@/components/layout'
 import {
   emitMarketplaceEvent,
   getMarketplaceRailSkills,
+  getDownloadLeaderboardSkills,
   getMarketplaceSkills,
   recordMarketplaceSkillEvent,
   saveSkill,
@@ -66,6 +68,7 @@ import {
   resolveMarketplaceSkill,
 } from './lib'
 import type {
+  DownloadLeaderboardSkill,
   MarketplaceFilters,
   MarketplaceSkill,
   MarketplaceStatusFilter,
@@ -143,6 +146,7 @@ export function Marketplace() {
   const observedCards = useRef(new Map<string, HTMLDivElement>())
   const observerRef = useRef<IntersectionObserver | null>(null)
   const emittedImpressions = useRef(new Set<string>())
+  const emittedLeaderboardImpressions = useRef(new Set<string>())
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -173,6 +177,26 @@ export function Marketplace() {
   const trendingQuery = useQuery({
     queryKey: ['marketplace-rail', 'trending', serverFilters],
     queryFn: () => getMarketplaceRailSkills('trending', serverFilters),
+  })
+  const weeklyLeaderboardQuery = useQuery({
+    queryKey: ['marketplace-download-leaderboard', '7d', filters.category],
+    queryFn: () =>
+      getDownloadLeaderboardSkills({
+        window: '7d',
+        category: filters.category,
+        limit: 6,
+      }),
+    retry: false,
+  })
+  const monthlyLeaderboardQuery = useQuery({
+    queryKey: ['marketplace-download-leaderboard', '30d', filters.category],
+    queryFn: () =>
+      getDownloadLeaderboardSkills({
+        window: '30d',
+        category: filters.category,
+        limit: 6,
+      }),
+    retry: false,
   })
 
   const { mutate: emitEvent } = useMutation({
@@ -270,7 +294,39 @@ export function Marketplace() {
 
   useEffect(() => {
     emittedImpressions.current.clear()
+    emittedLeaderboardImpressions.current.clear()
   }, [filterSignature])
+
+  useEffect(() => {
+    const groups: Array<{
+      entryPoint: SkillGrowthEntryPoint
+      skills: DownloadLeaderboardSkill[]
+    }> = [
+      {
+        entryPoint: 'leaderboard_weekly',
+        skills: weeklyLeaderboardQuery.data?.data ?? [],
+      },
+      {
+        entryPoint: 'leaderboard_monthly',
+        skills: monthlyLeaderboardQuery.data?.data ?? [],
+      },
+    ]
+    groups.forEach((group) => {
+      group.skills.forEach((skill) => {
+        const key = `${filterSignature}:${group.entryPoint}:${skill.id}`
+        if (emittedLeaderboardImpressions.current.has(key)) return
+        emittedLeaderboardImpressions.current.add(key)
+        void recordMarketplaceSkillEvent(skill.slug || skill.id, {
+          event_type: 'skill_impression',
+          entry_point: group.entryPoint,
+        }).catch(() => undefined)
+      })
+    })
+  }, [
+    filterSignature,
+    monthlyLeaderboardQuery.data?.data,
+    weeklyLeaderboardQuery.data?.data,
+  ])
 
   useEffect(() => {
     if (!newSkill || newSkillBannerDismissed) return
@@ -547,6 +603,22 @@ export function Marketplace() {
             entryPoint='trending'
             onOpen={goToSkillDetail}
           />
+          <div className='grid gap-3 lg:grid-cols-2'>
+            <DownloadLeaderboardRail
+              title={t('This Week')}
+              skills={weeklyLeaderboardQuery.data?.data ?? []}
+              isLoading={weeklyLeaderboardQuery.isLoading}
+              entryPoint='leaderboard_weekly'
+              onOpen={goToSkillDetail}
+            />
+            <DownloadLeaderboardRail
+              title={t('This Month')}
+              skills={monthlyLeaderboardQuery.data?.data ?? []}
+              isLoading={monthlyLeaderboardQuery.isLoading}
+              entryPoint='leaderboard_monthly'
+              onOpen={goToSkillDetail}
+            />
+          </div>
           {skillsQuery.isError && (
             <ErrorBanner
               message={errorMessage ?? t('Unable to load marketplace skills.')}
@@ -654,6 +726,62 @@ function MarketplaceRail(props: {
                 }
                 onCTA={(cardSkill) => props.onOpen(cardSkill, props.entryPoint)}
               />
+            ))}
+      </div>
+    </section>
+  )
+}
+
+interface DownloadLeaderboardRailProps {
+  title: string
+  skills: DownloadLeaderboardSkill[]
+  isLoading: boolean
+  entryPoint: SkillGrowthEntryPoint
+  onOpen: (skill: MarketplaceSkill, entryPoint: SkillGrowthEntryPoint) => void
+}
+
+function DownloadLeaderboardRail(props: DownloadLeaderboardRailProps) {
+  const { t } = useTranslation()
+
+  if (!props.isLoading && props.skills.length === 0) {
+    return null
+  }
+
+  return (
+    <section className='bg-card rounded-[7px] border p-3'>
+      <div className='mb-3 flex items-center justify-between gap-2'>
+        <h3 className='text-sm font-semibold'>{props.title}</h3>
+        <Download className='text-muted-foreground size-4' aria-hidden='true' />
+      </div>
+      <div className='grid gap-2'>
+        {props.isLoading
+          ? Array.from({ length: 3 }).map((_, index) => (
+              <div
+                key={index}
+                className='bg-background/60 h-12 animate-pulse rounded-[7px]'
+              />
+            ))
+          : props.skills.map((skill) => (
+              <button
+                key={skill.id}
+                type='button'
+                className='hover:bg-background/70 focus-visible:ring-ring bg-background/40 flex h-14 items-center gap-3 rounded-[7px] border px-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none'
+                onClick={() => props.onOpen(skill, props.entryPoint)}
+              >
+                <span className='bg-primary text-primary-foreground flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums'>
+                  {skill.rank}
+                </span>
+                <span className='min-w-0 flex-1'>
+                  <span className='block truncate text-sm font-medium'>
+                    {skill.name}
+                  </span>
+                  <span className='text-muted-foreground block truncate text-xs'>
+                    {t('{{count}} downloads', {
+                      count: skill.download_count,
+                    })}
+                  </span>
+                </span>
+              </button>
             ))}
       </div>
     </section>

@@ -202,6 +202,7 @@ func TestGetOpsSkillAnalyticsSkillsReturnsPerSkillRows(t *testing.T) {
 	db := newAnalyticsTestDB(t)
 	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+	withAnalyticsNow(t, end)
 	skillA := createAnalyticsSkill(t, db, "alpha", enums.RequiredPlanFree)
 	skillB := createAnalyticsSkill(t, db, "beta", enums.RequiredPlanPro)
 
@@ -209,9 +210,11 @@ func TestGetOpsSkillAnalyticsSkillsReturnsPerSkillRows(t *testing.T) {
 	require.NoError(t, skillmodel.EnableSkillForUser(db, 2, 2, skillA.ID, "marketplace"))
 	require.NoError(t, skillmodel.EnableSkillForUser(db, 3, 3, skillB.ID, "marketplace"))
 
+	success := true
 	emitAnalyticsEvent(t, db, start.Add(time.Hour), enums.SkillUsageEventTypeImpression, 1, skillA.ID, enums.EntryPointMarketplaceCard, nil, nil)
 	emitAnalyticsEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeDetailView, 1, skillA.ID, enums.EntryPointSkillDetail, nil, nil)
-	emitAnalyticsEvent(t, db, start.Add(3*time.Hour), enums.SkillUsageEventTypeEnabled, 1, skillA.ID, enums.EntryPointSkillPackage, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(3*time.Hour), enums.SkillUsageEventTypeEnabled, 1, skillA.ID, enums.EntryPointSkillPackage, &success, nil)
+	emitAnalyticsEvent(t, db, start.Add(3*time.Hour+time.Minute), enums.SkillUsageEventTypePurchased, 2, skillA.ID, enums.EntryPointSkillDetail, &success, nil)
 	emitAnalyticsEvent(t, db, start.Add(4*time.Hour), enums.SkillUsageEventTypeFirstUse, 1, skillA.ID, enums.EntryPointSkillPackage, nil, nil)
 	emitAnalyticsEvent(t, db, start.Add(5*time.Hour), enums.SkillUsageEventTypeUsed, 1, skillA.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
 	emitAnalyticsEvent(t, db, start.Add(6*time.Hour), enums.SkillUsageEventTypeUsed, 1, skillA.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
@@ -219,6 +222,7 @@ func TestGetOpsSkillAnalyticsSkillsReturnsPerSkillRows(t *testing.T) {
 
 	emitAnalyticsEvent(t, db, start.Add(8*time.Hour), enums.SkillUsageEventTypeUsed, 3, skillB.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
 	emitAnalyticsEvent(t, db, start.Add(9*time.Hour), enums.SkillUsageEventTypeUsed, 9, skillB.ID, enums.EntryPointAdminPreview, boolPtr(true), nil)
+	emitAnalyticsEvent(t, db, start.Add(-8*24*time.Hour), enums.SkillUsageEventTypeEnabled, 3, skillB.ID, enums.EntryPointSkillPackage, &success, nil)
 
 	w := performAnalyticsHandlerRequest(t, "/?start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339), GetOpsSkillAnalyticsSkills)
 
@@ -232,6 +236,8 @@ func TestGetOpsSkillAnalyticsSkillsReturnsPerSkillRows(t *testing.T) {
 	assert.Equal(t, enums.SkillStatusPublished, alpha.Status)
 	assert.Equal(t, enums.RequiredPlanFree, alpha.RequiredPlan)
 	assert.Equal(t, int64(2), alpha.EnabledUsers)
+	assert.Equal(t, int64(2), alpha.Downloads7D)
+	assert.Equal(t, int64(2), alpha.Downloads30D)
 	assert.Equal(t, int64(1), alpha.ActiveUsers)
 	assert.Equal(t, int64(2), alpha.SuccessfulRuns)
 	assert.InDelta(t, 1.0, *alpha.DetailCTR, 0.0001)
@@ -244,6 +250,8 @@ func TestGetOpsSkillAnalyticsSkillsReturnsPerSkillRows(t *testing.T) {
 	beta := got.Skills[1]
 	assert.Equal(t, skillB.ID, beta.SkillID)
 	assert.Equal(t, int64(1), beta.EnabledUsers)
+	assert.Equal(t, int64(0), beta.Downloads7D)
+	assert.Equal(t, int64(1), beta.Downloads30D)
 	assert.Equal(t, int64(1), beta.ActiveUsers)
 	assert.Equal(t, int64(1), beta.SuccessfulRuns)
 	assert.False(t, got.ChargingEnabled)

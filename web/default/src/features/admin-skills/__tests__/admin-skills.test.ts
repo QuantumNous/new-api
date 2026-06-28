@@ -378,4 +378,27 @@ describe('DR-49 Admin Skills API/filter contract', () => {
     expect(mobileSource).not.toContain("t('Archive')")
     expect(mobileSource).not.toContain("t('Audit')")
   })
+
+  it('shows DR-91 download velocity in desktop and mobile admin skill rows', () => {
+    const columnsSource = fs.readFileSync(
+      path.resolve(
+        process.cwd(),
+        'src/features/admin-skills/components/admin-skills-columns.tsx'
+      ),
+      'utf8'
+    )
+    const mobileSource = fs.readFileSync(
+      path.resolve(
+        process.cwd(),
+        'src/features/admin-skills/components/admin-skills-mobile-list.tsx'
+      ),
+      'utf8'
+    )
+
+    expect(columnsSource).toContain('download_velocity')
+    expect(columnsSource).toContain('skill.downloads_7d')
+    expect(columnsSource).toContain('skill.downloads_30d')
+    expect(mobileSource).toContain('skill.downloads_7d')
+    expect(mobileSource).toContain('skill.downloads_30d')
+  })
 })
