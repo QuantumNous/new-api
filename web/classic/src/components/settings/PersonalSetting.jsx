@@ -388,9 +388,19 @@ const PersonalSetting = () => {
 
     if (success) {
       showSuccess(t('账户已删除！'));
-      await API.get('/api/user/logout');
+      let logoutUrl;
+      try {
+        const logoutRes = await API.get('/api/user/logout');
+        logoutUrl = logoutRes.data?.data?.logout_url;
+      } catch {
+        // best-effort logout after account deletion
+      }
       userDispatch({ type: 'logout' });
       localStorage.removeItem('user');
+      if (logoutUrl) {
+        window.location.href = logoutUrl;
+        return;
+      }
       navigate('/login');
     } else {
       showError(message);

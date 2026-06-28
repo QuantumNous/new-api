@@ -63,6 +63,7 @@ const SystemSetting = () => {
     'oidc.authorization_endpoint': '',
     'oidc.token_endpoint': '',
     'oidc.user_info_endpoint': '',
+    'oidc.end_session_endpoint': '',
     Notice: '',
     SMTPServer: '',
     SMTPPort: '',
@@ -538,6 +539,7 @@ const SystemSetting = () => {
           res.data['authorization_endpoint'];
         inputs['oidc.token_endpoint'] = res.data['token_endpoint'];
         inputs['oidc.user_info_endpoint'] = res.data['userinfo_endpoint'];
+        inputs['oidc.end_session_endpoint'] = res.data['end_session_endpoint'];
         showSuccess(t('获取 OIDC 配置成功！'));
       } catch (err) {
         console.error(err);
@@ -590,6 +592,15 @@ const SystemSetting = () => {
       options.push({
         key: 'oidc.user_info_endpoint',
         value: inputs['oidc.user_info_endpoint'],
+      });
+    }
+    if (
+      originInputs['oidc.end_session_endpoint'] !==
+      inputs['oidc.end_session_endpoint']
+    ) {
+      options.push({
+        key: 'oidc.end_session_endpoint',
+        value: inputs['oidc.end_session_endpoint'],
       });
     }
 
@@ -1470,6 +1481,17 @@ const SystemSetting = () => {
                         field="['oidc.user_info_endpoint']"
                         label={t('User Info Endpoint')}
                         placeholder={t('输入 OIDC 的 Userinfo Endpoint')}
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24} xxl={24}>
+                      <Form.Input
+                        field="['oidc.end_session_endpoint']"
+                        label={t('End Session Endpoint')}
+                        placeholder={t('输入 OIDC 的 End Session Endpoint')}
                       />
                     </Col>
                   </Row>

@@ -1502,6 +1502,7 @@
     "Embeddings": "埋め込み",
     "Empty": "空",
     "Empty value will be saved as {}.": "空の値は {} として保存されます。",
+    "End Session Endpoint (Optional)": "セッション終了エンドポイント (オプション)",
     "Enable": "有効にする",
     "Enable 2FA": "2FA を有効にする",
     "Enable All": "すべて有効にする",

@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -124,6 +125,15 @@ func HandleOAuth(c *gin.Context) {
 	}
 
 	// 9. Setup login
+	session.Set("login_provider", providerName)
+	if providerName == "oidc" && token.IDToken != "" {
+		settings := system_setting.GetOIDCSettings()
+		session.Set("oidc_logout_client_id", settings.ClientId)
+		session.Set("oidc_logout_token_key", storeOIDCLogoutToken(token.IDToken))
+	} else {
+		session.Delete("oidc_logout_client_id")
+		session.Delete("oidc_logout_token_key")
+	}
 	setupLogin(user, c)
 }
 

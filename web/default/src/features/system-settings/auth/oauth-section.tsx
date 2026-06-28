@@ -69,6 +69,7 @@ const oauthSchema = z.object({
     authorization_endpoint: z.string(),
     token_endpoint: z.string(),
     user_info_endpoint: z.string(),
+    end_session_endpoint: z.string(),
   }),
   TelegramOAuthEnabled: z.boolean(),
   TelegramBotToken: z.string(),
@@ -99,6 +100,7 @@ type FlatOAuthDefaults = {
   'oidc.authorization_endpoint': string
   'oidc.token_endpoint': string
   'oidc.user_info_endpoint': string
+  'oidc.end_session_endpoint': string
   TelegramOAuthEnabled: boolean
   TelegramBotToken: string
   TelegramBotName: string
@@ -132,6 +134,7 @@ const buildFormDefaults = (defaults: FlatOAuthDefaults): OAuthFormValues => ({
     authorization_endpoint: defaults['oidc.authorization_endpoint'] ?? '',
     token_endpoint: defaults['oidc.token_endpoint'] ?? '',
     user_info_endpoint: defaults['oidc.user_info_endpoint'] ?? '',
+    end_session_endpoint: defaults['oidc.end_session_endpoint'] ?? '',
   },
   TelegramOAuthEnabled: defaults.TelegramOAuthEnabled,
   TelegramBotToken: defaults.TelegramBotToken ?? '',
@@ -160,6 +163,7 @@ const normalizeFormValues = (values: OAuthFormValues): FlatOAuthDefaults => ({
   'oidc.authorization_endpoint': values.oidc.authorization_endpoint,
   'oidc.token_endpoint': values.oidc.token_endpoint,
   'oidc.user_info_endpoint': values.oidc.user_info_endpoint,
+  'oidc.end_session_endpoint': values.oidc.end_session_endpoint,
   TelegramOAuthEnabled: values.TelegramOAuthEnabled,
   TelegramBotToken: values.TelegramBotToken,
   TelegramBotName: values.TelegramBotName,
@@ -223,6 +227,11 @@ export function OAuthSection(props: OAuthSectionProps) {
         const authEndpoint = res.data['authorization_endpoint'] || ''
         const tokenEndpoint = res.data['token_endpoint'] || ''
         const userInfoEndpoint = res.data['userinfo_endpoint'] || ''
+        const discoveredEndSessionEndpoint =
+          typeof res.data?.['end_session_endpoint'] === 'string' &&
+          res.data['end_session_endpoint'].trim() !== ''
+            ? res.data['end_session_endpoint']
+            : undefined
 
         finalValues = {
           ...values,
@@ -231,12 +240,37 @@ export function OAuthSection(props: OAuthSectionProps) {
             authorization_endpoint: authEndpoint,
             token_endpoint: tokenEndpoint,
             user_info_endpoint: userInfoEndpoint,
+            end_session_endpoint:
+              discoveredEndSessionEndpoint ?? values.oidc.end_session_endpoint,
           },
         }
 
-        form.setValue('oidc.authorization_endpoint', authEndpoint)
-        form.setValue('oidc.token_endpoint', tokenEndpoint)
-        form.setValue('oidc.user_info_endpoint', userInfoEndpoint)
+        const setDiscoveredValueOptions = {
+          shouldDirty: true,
+          shouldValidate: true,
+        }
+        form.setValue(
+          'oidc.authorization_endpoint',
+          authEndpoint,
+          setDiscoveredValueOptions
+        )
+        form.setValue(
+          'oidc.token_endpoint',
+          tokenEndpoint,
+          setDiscoveredValueOptions
+        )
+        form.setValue(
+          'oidc.user_info_endpoint',
+          userInfoEndpoint,
+          setDiscoveredValueOptions
+        )
+        if (discoveredEndSessionEndpoint !== undefined) {
+          form.setValue(
+            'oidc.end_session_endpoint',
+            discoveredEndSessionEndpoint,
+            setDiscoveredValueOptions
+          )
+        }
 
         toast.success(t('OIDC configuration fetched successfully'))
       } catch (err) {
@@ -604,6 +638,32 @@ export function OAuthSection(props: OAuthSectionProps) {
                     <FormItem>
                       <FormLabel>
                         {t('User Info Endpoint (Optional)')}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('Override auto-discovered endpoint')}
+                          autoComplete='off'
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='oidc.end_session_endpoint'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('End Session Endpoint (Optional)')}
                       </FormLabel>
                       <FormControl>
                         <Input
