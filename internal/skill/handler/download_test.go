@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	platformmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -279,6 +280,59 @@ func TestDownloadSkillPackage_PlanRequired(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"code":"SKILL_PLAN_REQUIRED"`)
 }
 
+func TestDownloadSkillPackage_DR99BasicWithoutPurchaseCannotDownloadOneTime(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("one-time-basic-lock", "published")
+	s.MonetizationType = enums.MonetizationTypeOneTime
+	s = createPublishedSkillWithActiveVersionFromSkill(t, db, s, "One-time template")
+
+	c, w := testDownloadCtx("one-time-basic-lock", 41, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"SKILL_PLAN_REQUIRED"`)
+	assert.Contains(t, w.Body.String(), "USD 2 one-time purchase")
+
+	var uesCount int64
+	require.NoError(t, db.Model(&skillmodel.UserEnabledSkill{}).Where("user_id = ? AND skill_id = ?", 41, s.ID).Count(&uesCount).Error)
+	assert.Equal(t, int64(0), uesCount)
+}
+
+func TestDownloadSkillPackage_DR99ActivePlusDownloadsPlusExclusive(t *testing.T) {
+	db := testDownloadDB(t)
+	require.NoError(t, db.AutoMigrate(&platformmodel.SubscriptionPlan{}, &platformmodel.UserSubscription{}))
+	SetDB(db)
+	s := testSkill("plus-exclusive-download", "published")
+	s.RequiredPlan = enums.RequiredPlanPro
+	s.MonetizationType = enums.MonetizationTypePlusExclusive
+	createPublishedSkillWithActiveVersionFromSkill(t, db, s, "PLUS template")
+	addDownloadSubscription(t, db, 43, "pro", true)
+
+	c, w := testDownloadCtx("plus-exclusive-download", 43, "pro")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/zip", w.Header().Get("Content-Type"))
+}
+
+func TestDownloadSkillPackage_DR99ExpiredPlusCannotDownloadPlusExclusive(t *testing.T) {
+	db := testDownloadDB(t)
+	require.NoError(t, db.AutoMigrate(&platformmodel.SubscriptionPlan{}, &platformmodel.UserSubscription{}))
+	SetDB(db)
+	s := testSkill("expired-plus-exclusive-download", "published")
+	s.RequiredPlan = enums.RequiredPlanPro
+	s.MonetizationType = enums.MonetizationTypePlusExclusive
+	createPublishedSkillWithActiveVersionFromSkill(t, db, s, "Expired PLUS template")
+	addDownloadSubscription(t, db, 44, "pro", false)
+
+	c, w := testDownloadCtx("expired-plus-exclusive-download", 44, "pro")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"SKILL_SUBSCRIPTION_INACTIVE"`)
+}
+
 // TestDownloadSkillPackage_ProUserCanDownloadProSkill verifies that a pro user
 // can download a pro skill.
 func TestDownloadSkillPackage_ProUserCanDownloadProSkill(t *testing.T) {
@@ -394,6 +448,10 @@ func TestDownloadSkillPackage_EmitsSkillEnabledEvent(t *testing.T) {
 	assert.Equal(t, int64(99), *evt.UserID)
 	require.NotNil(t, evt.Plan)
 	assert.Equal(t, enums.RequiredPlanFree, *evt.Plan)
+	var metadata map[string]any
+	require.NoError(t, common.Unmarshal(evt.Metadata, &metadata))
+	assert.Equal(t, string(enums.MonetizationTypeFree), metadata["skill_tier"])
+	assert.Equal(t, string(enums.RequiredPlanFree), metadata["user_plan"])
 }
 
 func TestDownloadSkillPackage_RecommendedEntryPoint(t *testing.T) {
@@ -1305,6 +1363,34 @@ func TestValidateSkillPackageRuntimeDependency_RejectsMissingSkillMD(t *testing.
 func createPublishedSkillWithActiveVersion(t *testing.T, db *gorm.DB, slug string, template string) skillmodel.Skill {
 	t.Helper()
 	return createPublishedSkillWithActiveVersionFromSkill(t, db, testSkill(slug, "published"), template)
+}
+
+func addDownloadSubscription(t *testing.T, db *gorm.DB, userID int, upgradeGroup string, active bool) {
+	t.Helper()
+	plan := platformmodel.SubscriptionPlan{
+		Title:         "Download " + upgradeGroup,
+		DurationUnit:  platformmodel.SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		UpgradeGroup:  upgradeGroup,
+	}
+	require.NoError(t, db.Create(&plan).Error)
+	now := common.GetTimestamp()
+	status := "active"
+	endTime := now + 3600
+	if !active {
+		status = "expired"
+		endTime = now - 3600
+	}
+	require.NoError(t, db.Create(&platformmodel.UserSubscription{
+		UserId:       userID,
+		PlanId:       plan.Id,
+		StartTime:    now - 7200,
+		EndTime:      endTime,
+		Status:       status,
+		Source:       "admin",
+		UpgradeGroup: upgradeGroup,
+	}).Error)
 }
 
 func createPublishedSkillWithActiveVersionFromSkill(t *testing.T, db *gorm.DB, s skillmodel.Skill, template string) skillmodel.Skill {

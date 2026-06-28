@@ -81,6 +81,7 @@ func resolveVersion(c *gin.Context, database *gorm.DB, skillID string, skillVers
 			"id",
 			"status",
 			"required_plan",
+			"monetization_type",
 			"active_version_id",
 			"slug",
 			"name",
@@ -161,18 +162,15 @@ func resolveVersion(c *gin.Context, database *gorm.DB, skillID string, skillVers
 		return nil, errcodes.ErrSkillInternalError
 	}
 
-	entitlement := runtimeEntitlement{Plan: versionEntitlement.RequiredPlanSnapshot, SubActive: true}
 	hasOneTimeEntitlement, err := skillmodel.HasOneTimeEntitlement(database, int64(userID), skill.ID)
 	if err != nil {
 		return nil, errcodes.ErrSkillInternalError
 	}
-	if !hasOneTimeEntitlement {
-		entitlement, err = resolveRuntimeEntitlement(database, userID, user.Group)
-		if err != nil {
-			return nil, errcodes.ErrSkillInternalError
-		}
+	entitlement, err := resolveRuntimeEntitlement(database, userID, user.Group)
+	if err != nil {
+		return nil, errcodes.ErrSkillInternalError
 	}
-	if code := useTimeEntitlementDecision(versionEntitlement.RequiredPlanSnapshot, entitlement.Plan, entitlement.SubActive); code != "" {
+	if code := useTimeTierDecision(versionEntitlement.RequiredPlanSnapshot, entitlement.Plan, entitlement.SubActive, skill.MonetizationType, hasOneTimeEntitlement); code != "" {
 		return nil, code
 	}
 

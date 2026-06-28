@@ -65,6 +65,26 @@ func TestPurchaseMarketplaceSkill_OneTimePaid_GrantsOnceAndEmitsPurchased(t *tes
 	assert.Equal(t, int64(1), orderCount)
 }
 
+func TestPlusUpgradeCreditUSD_ConfigurableFromOneTimeEntitlement(t *testing.T) {
+	db := purchaseTestDB(t)
+	s := testSkill("credit-skill", "published")
+	s.MonetizationType = enums.MonetizationTypeOneTime
+	s = createPublishedSkillWithActiveVersionFromSkill(t, db, s, "credit template")
+
+	disabledCredit, err := skillmodel.PlusUpgradeCreditUSD(db, 42, false)
+	require.NoError(t, err)
+	assert.Equal(t, float64(0), disabledCredit)
+
+	emptyCredit, err := skillmodel.PlusUpgradeCreditUSD(db, 42, true)
+	require.NoError(t, err)
+	assert.Equal(t, float64(0), emptyCredit)
+
+	require.NoError(t, skillmodel.GrantOneTimeEntitlement(db, 42, 42, s.ID, "credit-order"))
+	credit, err := skillmodel.PlusUpgradeCreditUSD(db, 42, true)
+	require.NoError(t, err)
+	assert.Equal(t, oneTimeSkillPurchaseAmountUSD, credit)
+}
+
 func TestPurchaseMarketplaceSkill_FailedPayment_GrantsNothing(t *testing.T) {
 	db := purchaseTestDB(t)
 	SetDB(db)

@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
 	"github.com/QuantumNous/new-api/internal/skill/packageassets"
+	"github.com/QuantumNous/new-api/internal/skill/pricing"
 	appmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -58,9 +59,8 @@ func DownloadSkillPackage(c *gin.Context) {
 		return
 	}
 
-	if !downloadEntitled(db, s, int64(c.GetInt("id")), c.GetString("group")) {
-		skillapi.Error(c, errcodes.ErrSkillPlanRequired,
-			fmt.Sprintf("This skill requires the %s plan.", s.RequiredPlan), nil)
+	if code := downloadEntitlementCode(db, s, int64(c.GetInt("id")), c.GetString("group")); code != "" {
+		skillapi.Error(c, code, downloadEntitlementMessage(s, code), nil)
 		return
 	}
 
@@ -95,9 +95,8 @@ func DownloadSkillVersionPackage(c *gin.Context) {
 		return
 	}
 
-	if !downloadEntitled(db, s, int64(c.GetInt("id")), c.GetString("group")) {
-		skillapi.Error(c, errcodes.ErrSkillPlanRequired,
-			fmt.Sprintf("This skill requires the %s plan.", s.RequiredPlan), nil)
+	if code := downloadEntitlementCode(db, s, int64(c.GetInt("id")), c.GetString("group")); code != "" {
+		skillapi.Error(c, code, downloadEntitlementMessage(s, code), nil)
 		return
 	}
 
@@ -136,17 +135,80 @@ func sendSkillPackageDownload(c *gin.Context, db *gorm.DB, s skillmodel.Skill, v
 	c.Data(http.StatusOK, "application/zip", zipBytes)
 }
 
-// downloadEntitled reports whether the user's group level meets or exceeds the
-// skill's required plan. Maps platform group strings to the three-tier hierarchy
-// used by the availability resolver (free < pro < enterprise).
-func downloadEntitled(db *gorm.DB, s skillmodel.Skill, userID int64, userGroup string) bool {
+func downloadEntitlementCode(db *gorm.DB, s skillmodel.Skill, userID int64, userGroup string) errcodes.ErrorCode {
+	hasOneTimeEntitlement := false
 	if userID > 0 {
 		ok, err := skillmodel.HasOneTimeEntitlement(db, userID, s.ID)
-		if err == nil && ok {
+		if err != nil {
+			return errcodes.ErrSkillInternalError
+		}
+		hasOneTimeEntitlement = ok
+	}
+	plan, subActive := downloadRuntimePlan(db, userID, userGroup)
+	decision := pricing.ResolveEntitlement(pricing.EntitlementInput{
+		RequiredPlan:          s.RequiredPlan,
+		MonetizationType:      s.MonetizationType,
+		UserPlan:              plan,
+		SubscriptionActive:    subActive,
+		HasOneTimeEntitlement: hasOneTimeEntitlement,
+	})
+	if decision.Allowed {
+		return ""
+	}
+	return decision.Code
+}
+
+func downloadEntitlementMessage(s skillmodel.Skill, code errcodes.ErrorCode) string {
+	if code == errcodes.ErrSkillSubscriptionInactive {
+		return "This skill requires an active PLUS subscription."
+	}
+	if s.MonetizationType == enums.MonetizationTypeOneTime {
+		return "This skill requires a USD 2 one-time purchase or active PLUS."
+	}
+	return fmt.Sprintf("This skill requires the %s plan.", s.RequiredPlan)
+}
+
+func downloadRuntimePlan(db *gorm.DB, userID int64, group string) (enums.RequiredPlan, bool) {
+	groupPlan := groupToPlan(group)
+	if userID <= 0 || db == nil || !db.Migrator().HasTable("user_subscriptions") || !db.Migrator().HasTable("subscription_plans") {
+		return groupPlan, true
+	}
+
+	var rows []struct {
+		UpgradeGroup string
+		Active       bool
+	}
+	if err := db.Table("user_subscriptions AS us").
+		Select("sp.upgrade_group, us.status = ? AND us.end_time > ? AS active", "active", common.GetTimestamp()).
+		Joins("JOIN subscription_plans AS sp ON sp.id = us.plan_id").
+		Where("us.user_id = ?", userID).
+		Scan(&rows).Error; err != nil || len(rows) == 0 {
+		return groupPlan, true
+	}
+
+	bestPlan := groupPlan
+	for _, row := range rows {
+		if !row.Active {
+			continue
+		}
+		plan := groupToPlan(row.UpgradeGroup)
+		if planLevel(plan) > planLevel(bestPlan) {
+			bestPlan = plan
+		}
+	}
+	return bestPlan, bestPlan == enums.RequiredPlanFree || hasActivePaidSubscription(rows)
+}
+
+func hasActivePaidSubscription(rows []struct {
+	UpgradeGroup string
+	Active       bool
+}) bool {
+	for _, row := range rows {
+		if row.Active && groupToPlan(row.UpgradeGroup) != enums.RequiredPlanFree {
 			return true
 		}
 	}
-	return downloadPlanLevel(groupToPlan(userGroup)) >= downloadPlanLevel(s.RequiredPlan)
+	return false
 }
 
 func downloadEntryPoint(c *gin.Context) enums.EntryPoint {
@@ -187,7 +249,7 @@ func groupToPlan(group string) enums.RequiredPlan {
 	}
 }
 
-func downloadPlanLevel(p enums.RequiredPlan) int {
+func planLevel(p enums.RequiredPlan) int {
 	switch p {
 	case enums.RequiredPlanFree:
 		return 0
@@ -207,7 +269,7 @@ func emitSkillEnabledForDownload(db *gorm.DB, userID int64, s skillmodel.Skill, 
 	}
 	if !isKidsSession {
 		return skillmodel.EmitSkillEnabled(db, userID, s.ID, s.ActiveVersionID,
-			string(entryPoint), string(userPlan))
+			string(entryPoint), string(userPlan), s.MonetizationType)
 	}
 
 	plan := userPlan
@@ -222,7 +284,7 @@ func emitSkillEnabledForDownload(db *gorm.DB, userID int64, s skillmodel.Skill, 
 		IsKidsSafeSkill:      &s.IsKidsSafe,
 		IsKidsExclusiveSkill: &s.IsKidsExclusive,
 		Success:              &successVal,
-		Metadata:             skillmodel.SkillJSONB(`{}`),
+		Metadata:             skillmodel.SkillTierEventMetadata(s.MonetizationType, userPlan, nil),
 	}
 	if err := event.ApplyKidsSessionAnalyticsIdentity(userID, userID, kidsAnalyticsSaltVersion(), kidsAnalyticsDailySalt()); err != nil {
 		return err

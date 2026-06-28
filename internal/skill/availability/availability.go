@@ -10,6 +10,7 @@ package availability
 import (
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
+	"github.com/QuantumNous/new-api/internal/skill/pricing"
 )
 
 // CTA is the UI call-to-action rendered for a skill's current availability state.
@@ -78,6 +79,9 @@ type SkillInfo struct {
 	// FreeQuotaPerMonth is the monthly execution quota for free-path users.
 	// nil means no quota limit applies.
 	FreeQuotaPerMonth *int
+
+	// MonetizationType is the Skill pricing tier.
+	MonetizationType enums.MonetizationType
 }
 
 // UserInfo contains the caller's entitlement context for a single skill resolution.
@@ -111,6 +115,9 @@ type UserInfo struct {
 	// only users who previously enabled a skill retain the right to continue execution
 	// after the skill is deprecated; new users and users who disabled it do not.
 	WasEnabled bool
+
+	// HasOneTimeEntitlement is true when a durable USD 2 one-time purchase grant exists.
+	HasOneTimeEntitlement bool
 }
 
 // Resolve returns the availability/lock state for a (user, skill) pair.
@@ -187,31 +194,29 @@ func Resolve(skill SkillInfo, user UserInfo) Result {
 	}
 	// Reaches here for: published, or deprecated+currently-enabled.
 
-	// 4. Plan hierarchy check.
-	//    Enterprise satisfies pro; pro does not satisfy enterprise.
-	if !planSatisfied(skill.RequiredPlan, user.Plan) {
+	monetization := skill.MonetizationType
+	if monetization == "" {
+		monetization = enums.MonetizationTypePlanIncluded
+	}
+	decision := pricing.ResolveEntitlement(pricing.EntitlementInput{
+		RequiredPlan:          skill.RequiredPlan,
+		MonetizationType:      monetization,
+		UserPlan:              user.Plan,
+		SubscriptionActive:    user.SubActive,
+		HasOneTimeEntitlement: user.HasOneTimeEntitlement,
+	})
+	if !decision.Allowed {
 		cta := CTAUpgrade
-		if skill.RequiredPlan == enums.RequiredPlanEnterprise {
+		if decision.Code == errcodes.ErrSkillSubscriptionInactive {
+			cta = CTARenew
+		} else if skill.RequiredPlan == enums.RequiredPlanEnterprise {
 			cta = CTAContactSales
 		}
 		return Result{
 			Enabled:  enabled,
 			Locked:   true,
-			LockCode: errcodes.ErrSkillPlanRequired,
+			LockCode: decision.Code,
 			CTA:      cta,
-		}
-	}
-
-	// 5. Subscription active check (non-free skills only).
-	//    Free-plan users always have an "active" free subscription; SubActive
-	//    being false is only meaningful when skill.RequiredPlan != free, which
-	//    signals that a paid subscription has lapsed.
-	if skill.RequiredPlan != enums.RequiredPlanFree && !user.SubActive {
-		return Result{
-			Enabled:  enabled,
-			Locked:   true,
-			LockCode: errcodes.ErrSkillSubscriptionInactive,
-			CTA:      CTARenew,
 		}
 	}
 
@@ -249,23 +254,14 @@ func Resolve(skill SkillInfo, user UserInfo) Result {
 	}
 }
 
-// planSatisfied reports whether the user's plan meets or exceeds the skill's
-// required plan. Enterprise satisfies pro and free; pro satisfies free only.
-func planSatisfied(required, user enums.RequiredPlan) bool {
-	return planLevel(user) >= planLevel(required)
-}
-
-func planLevel(p enums.RequiredPlan) int {
-	switch p {
-	case enums.RequiredPlanFree:
-		return 0
-	case enums.RequiredPlanPro:
-		return 1
-	case enums.RequiredPlanEnterprise:
-		return 2
-	default:
-		return -1
-	}
-}
-
 func boolPtr(b bool) *bool { return &b }
+
+// planSatisfied is kept package-private for existing availability regression tests.
+func planSatisfied(required, user enums.RequiredPlan) bool {
+	return pricing.ResolveEntitlement(pricing.EntitlementInput{
+		RequiredPlan:       required,
+		MonetizationType:   enums.MonetizationTypePlanIncluded,
+		UserPlan:           user,
+		SubscriptionActive: true,
+	}).Allowed
+}

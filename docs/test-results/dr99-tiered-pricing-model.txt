@@ -1,0 +1,158 @@
+# DR-99 Tiered Pricing Model Test Results
+
+Date: 2026-06-29
+
+## Focused Backend
+
+Command:
+
+```bash
+GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/pricing ./internal/skill/enums ./internal/skill/model ./internal/skill/availability ./internal/skill/handler ./internal/skill/relay -count=1 -coverprofile=/tmp/dr99-focused.cover
+```
+
+Dataset/fixtures:
+
+- In-memory SQLite Skill fixtures, purchase/entitlement rows, subscription rows, seeded demo Skill package fixtures, and relay resolver fixtures.
+
+Verified:
+
+- Basic/PLUS/one-time/PLUS-exclusive entitlement matrix.
+- Download lock/unlock behavior for Basic, one-time ownership, active PLUS, and expired PLUS.
+- Runtime one-time ownership, active PLUS unlock, and expired PLUS revocation.
+- Marketplace, save, enable, purchase, blocked, and relay success metadata include plan/tier attribution where Skill context is available.
+- USD 2 one-time credit helper returns credit only when enabled and the user owns a one-time Skill.
+
+Coverage:
+
+- Total selected-package coverage: 69.7%.
+- Package coverage: pricing 50.0%, enums 88.9%, model 44.8%, availability 100.0%, handler 74.7%, relay 80.2%.
+
+Result: PASS
+
+## Final Post-merge Regression
+
+Commands:
+
+```bash
+make build-all-frontends
+GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./... -count=1
+cd web/default && bun run typecheck
+cd web/default && bun run test:dr49-admin-skills
+```
+
+Dataset/fixtures:
+
+- Latest `origin/main` merged into DR-99 before final verification.
+- Generated default/classic frontend dist artifacts for root package embed.
+- Full repository Go unit/regression fixtures plus admin Skills frontend Vitest fixtures.
+
+Verified:
+
+- Full repository Go regression after the DR-99 branch was reconciled with current main.
+- Admin Skills TypeScript still accepts the expanded `monetization_type` values after main frontend changes.
+- Existing admin Skills table/editor behavior remains passing.
+
+Coverage:
+
+- Not collected for the final full-suite rerun.
+- Final focused coverage after main merge is recorded above.
+
+Result: PASS
+
+## Post-main-merge Verification
+
+Commands:
+
+```bash
+GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go vet ./internal/... ./middleware/...
+GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/pricing ./internal/skill/enums ./internal/skill/model ./internal/skill/availability ./internal/skill/handler ./internal/skill/relay -count=1 -coverprofile=/tmp/dr99-focused-after-main.cover
+GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/... -count=1 -coverprofile=/tmp/dr99-internal-skill-after-main.cover
+```
+
+Dataset/fixtures:
+
+- Latest `origin/main` merged into the DR-99 branch, including current Marketplace leaderboard/admin usage/notification fixtures.
+- Full `internal/skill` SQLite fixtures, package runner fixtures, relay resolver fixtures, and analytics fixtures.
+
+Verified:
+
+- CI vet target compiles the merged branch after resolving new `marketplaceSkillFromModel` call sites from main.
+- DR-99 tier matrix remains enforced for download/runtime/Marketplace availability after merging current main.
+- Related `internal/skill/...` regressions remain compatible with the one-time entitlement lookup and PLUS/Basic attribution changes.
+
+Coverage:
+
+- Total selected-package coverage: 69.5%.
+- Total `internal/skill/...` coverage: 70.2%.
+
+Result: PASS
+
+## Related Skill Regression
+
+Command:
+
+```bash
+GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/... -count=1 -coverprofile=/tmp/dr99-internal-skill.cover
+```
+
+Dataset/fixtures:
+
+- Full `internal/skill` SQLite fixtures, package runner fixtures, demo Skill seeding fixtures, relay resolver fixtures, and analytics fixtures.
+
+Verified:
+
+- Existing Skill marketplace, download, purchase, runtime, package builder, seed, analytics, and enum/model regression coverage remains compatible with the DR-99 tier matrix.
+
+Coverage:
+
+- Total `internal/skill/...` coverage: 70.6%.
+
+Result: PASS
+
+## Frontend Admin Skill Control
+
+Commands:
+
+```bash
+cd web/default && bun run typecheck
+cd web/default && bun run test:dr49-admin-skills
+```
+
+Dataset/fixtures:
+
+- TypeScript project references and existing admin Skills Vitest fixtures.
+
+Verified:
+
+- Admin Skill monetization type accepts `one_time` and `plus_exclusive`.
+- Existing admin Skill table/editor tests remain passing.
+
+Coverage:
+
+- Not collected for typecheck.
+- Targeted Vitest coverage not collected by this script.
+
+Result: PASS
+
+## Full Go Regression
+
+Commands:
+
+```bash
+make build-all-frontends
+GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./... -count=1
+```
+
+Dataset/fixtures:
+
+- Full repository Go test fixtures, generated default/classic frontend dist artifacts for embed precondition, local SQLite/unit fixtures, relay/channel fixtures, and router/controller/service fixtures.
+
+Verified:
+
+- Full Go regression across repository packages after DR-99 source changes.
+
+Coverage:
+
+- Not collected for full suite.
+
+Result: PASS

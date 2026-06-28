@@ -44,17 +44,19 @@ func (p RequiredPlan) Valid() bool { _, ok := validRequiredPlans[p]; return ok }
 type MonetizationType string
 
 const (
-	MonetizationTypeFree         MonetizationType = "free"
-	MonetizationTypePlanIncluded MonetizationType = "plan_included"
-	MonetizationTypeTokenMarkup  MonetizationType = "token_markup"
-	MonetizationTypeOneTime      MonetizationType = "one_time"
+	MonetizationTypeFree          MonetizationType = "free"
+	MonetizationTypePlanIncluded  MonetizationType = "plan_included"
+	MonetizationTypeTokenMarkup   MonetizationType = "token_markup"
+	MonetizationTypeOneTime       MonetizationType = "one_time"
+	MonetizationTypePlusExclusive MonetizationType = "plus_exclusive"
 )
 
 var validMonetizationTypes = map[MonetizationType]struct{}{
-	MonetizationTypeFree:         {},
-	MonetizationTypePlanIncluded: {},
-	MonetizationTypeTokenMarkup:  {},
-	MonetizationTypeOneTime:      {},
+	MonetizationTypeFree:          {},
+	MonetizationTypePlanIncluded:  {},
+	MonetizationTypeTokenMarkup:   {},
+	MonetizationTypeOneTime:       {},
+	MonetizationTypePlusExclusive: {},
 }
 
 func (m MonetizationType) Valid() bool { _, ok := validMonetizationTypes[m]; return ok }

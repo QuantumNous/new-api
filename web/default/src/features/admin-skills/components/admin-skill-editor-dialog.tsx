@@ -66,6 +66,8 @@ const MONETIZATION_TYPES: AdminSkillMonetizationType[] = [
   'free',
   'plan_included',
   'token_markup',
+  'one_time',
+  'plus_exclusive',
 ]
 
 interface AdminSkillEditorDialogProps {

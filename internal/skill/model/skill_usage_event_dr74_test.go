@@ -81,7 +81,7 @@ func TestSUE_DR74_SchemaVersionStamped_EmitSkillEnabled(t *testing.T) {
 	if err := MigrateSkillUsageEvents(db); err != nil {
 		t.Fatalf("MigrateSkillUsageEvents: %v", err)
 	}
-	if err := EmitSkillEnabled(db, 7, uuid.New().String(), nil, string(enums.EntryPointMarketplaceCard), "free"); err != nil {
+	if err := EmitSkillEnabled(db, 7, uuid.New().String(), nil, string(enums.EntryPointMarketplaceCard), "free", enums.MonetizationTypeFree); err != nil {
 		t.Fatalf("EmitSkillEnabled: %v", err)
 	}
 	var got SkillUsageEvent

@@ -178,6 +178,9 @@ func buildBlockedEvent(c *gin.Context, input AbortSkillRelayBlockedInput, reques
 			plan := skillCtx.Plan
 			event.Plan = &plan
 		}
+		if skillCtx.Skill != nil {
+			event.Metadata = skillmodel.SkillTierEventMetadata(skillCtx.Skill.MonetizationType, skillCtx.Plan, nil)
+		}
 		event.IsKidsSession = skillCtx.IsKidsSession
 		if skillCtx.IsKidsSession && skillCtx.UserID > 0 {
 			if err := skillanalytics.ApplyKidsSessionIdentity(&event, int64(skillCtx.UserID), int64(skillCtx.UserID)); err != nil {

@@ -27,6 +27,7 @@ func seededDownloadDB(t *testing.T) *gorm.DB {
 	require.NoError(t, skillmodel.MigrateSkills(db))
 	require.NoError(t, skillmodel.MigrateSkillVersions(db))
 	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
+	require.NoError(t, skillmodel.MigrateSkillPurchases(db))
 	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
 	t.Cleanup(func() {
 		if sq, err := db.DB(); err == nil {

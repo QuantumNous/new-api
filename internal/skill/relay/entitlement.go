@@ -4,6 +4,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
+	"github.com/QuantumNous/new-api/internal/skill/pricing"
 	"gorm.io/gorm"
 )
 
@@ -79,6 +80,20 @@ func useTimeEntitlementDecision(required, userPlan enums.RequiredPlan, subActive
 		return errcodes.ErrSkillSubscriptionInactive
 	}
 	return ""
+}
+
+func useTimeTierDecision(required, userPlan enums.RequiredPlan, subActive bool, monetization enums.MonetizationType, hasOneTimeEntitlement bool) errcodes.ErrorCode {
+	decision := pricing.ResolveEntitlement(pricing.EntitlementInput{
+		RequiredPlan:          required,
+		MonetizationType:      monetization,
+		UserPlan:              userPlan,
+		SubscriptionActive:    subActive,
+		HasOneTimeEntitlement: hasOneTimeEntitlement,
+	})
+	if decision.Allowed {
+		return ""
+	}
+	return decision.Code
 }
 
 func planLevel(p enums.RequiredPlan) int {

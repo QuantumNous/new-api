@@ -11,12 +11,13 @@ import (
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	"github.com/QuantumNous/new-api/internal/skill/pricing"
 	platformmodel "github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-const oneTimeSkillPurchaseAmountUSD = 2.00
+const oneTimeSkillPurchaseAmountUSD = pricing.OneTimeSkillPriceUSD
 
 type purchaseSkillRequest struct {
 	IdempotencyKey string `json:"idempotency_key"`

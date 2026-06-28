@@ -34,6 +34,8 @@ export type AdminSkillMonetizationType =
   | 'free'
   | 'plan_included'
   | 'token_markup'
+  | 'one_time'
+  | 'plus_exclusive'
 
 export interface AdminSkill {
   id: string

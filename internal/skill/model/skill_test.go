@@ -250,6 +250,8 @@ func TestEnumDBValues_MatchCheckConstraints(t *testing.T) {
 		{"MonetizationTypeFree", string(enums.MonetizationTypeFree), "free"},
 		{"MonetizationTypePlanIncluded", string(enums.MonetizationTypePlanIncluded), "plan_included"},
 		{"MonetizationTypeTokenMarkup", string(enums.MonetizationTypeTokenMarkup), "token_markup"},
+		{"MonetizationTypeOneTime", string(enums.MonetizationTypeOneTime), "one_time"},
+		{"MonetizationTypePlusExclusive", string(enums.MonetizationTypePlusExclusive), "plus_exclusive"},
 		{"KidsApprovalStatusNotRequired", string(enums.KidsApprovalStatusNotRequired), "not_required"},
 		{"KidsApprovalStatusPending", string(enums.KidsApprovalStatusPending), "pending"},
 		{"KidsApprovalStatusApproved", string(enums.KidsApprovalStatusApproved), "approved"},

@@ -332,10 +332,15 @@ func ListMarketplaceSkills(c *gin.Context) {
 		writeDBError(c, err)
 		return
 	}
+	entitlementBySkillID, err := marketplaceOneTimeEntitlementBySkillID(db, userInfo, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
 
 	out := make([]MarketplaceSkill, 0, len(skills))
 	for _, s := range skills {
-		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID]))
+		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID], entitlementBySkillID[s.ID]))
 	}
 	skillapi.List(c, out, skillapi.NewPagination(page.Page, page.Limit, total))
 }
@@ -500,10 +505,15 @@ func writeMarketplaceSkillList(c *gin.Context, db *gorm.DB, page skillapi.PagePa
 		writeDBError(c, err)
 		return
 	}
+	entitlementBySkillID, err := marketplaceOneTimeEntitlementBySkillID(db, userInfo, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
 
 	out := make([]MarketplaceSkill, 0, len(skills))
 	for _, s := range skills {
-		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID]))
+		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID], entitlementBySkillID[s.ID]))
 	}
 	skillapi.List(c, out, skillapi.NewPagination(page.Page, page.Limit, total))
 }
@@ -573,7 +583,7 @@ func saveMarketplaceSkillState(c *gin.Context, saved bool) {
 	}
 
 	var s skillmodel.Skill
-	err := db.Select([]string{"id", "status", "active_version_id"}).
+	err := db.Select([]string{"id", "status", "active_version_id", "monetization_type"}).
 		Where("status = ?", enums.SkillStatusPublished).
 		Where("id = ? OR slug = ?", c.Param("id"), c.Param("id")).
 		First(&s).Error
@@ -592,7 +602,7 @@ func saveMarketplaceSkillState(c *gin.Context, saved bool) {
 		return
 	}
 	plan := marketplaceGroupToPlan(c.GetString("group"))
-	if err := emitSkillSavedStateEvent(db, userID, s.ID, s.ActiveVersionID, entryPoint, plan, saved); err != nil {
+	if err := emitSkillSavedStateEvent(db, userID, s.ID, s.ActiveVersionID, entryPoint, plan, s.MonetizationType, saved); err != nil {
 		writeDBError(c, err)
 		return
 	}
@@ -600,7 +610,7 @@ func saveMarketplaceSkillState(c *gin.Context, saved bool) {
 	c.Writer.WriteHeaderNow()
 }
 
-func emitSkillSavedStateEvent(db *gorm.DB, userID int64, skillID string, skillVersionID *string, entryPoint enums.EntryPoint, plan enums.RequiredPlan, saved bool) error {
+func emitSkillSavedStateEvent(db *gorm.DB, userID int64, skillID string, skillVersionID *string, entryPoint enums.EntryPoint, plan enums.RequiredPlan, monetization enums.MonetizationType, saved bool) error {
 	successVal := true
 	eventType := enums.SkillUsageEventTypeSaved
 	if !saved {
@@ -613,7 +623,7 @@ func emitSkillSavedStateEvent(db *gorm.DB, userID int64, skillID string, skillVe
 		EntryPoint:     entryPoint,
 		Plan:           &plan,
 		Success:        &successVal,
-		Metadata:       skillmodel.SkillJSONB(`{}`),
+		Metadata:       skillmodel.SkillTierEventMetadata(monetization, plan, nil),
 	}
 	if isKidsSession, err := serverResolvedKidsSession(db, userID); err != nil {
 		return err
@@ -756,11 +766,16 @@ func ListDownloadLeaderboards(c *gin.Context) {
 		writeDBError(c, err)
 		return
 	}
+	entitlementBySkillID, err := marketplaceOneTimeEntitlementBySkillID(db, userInfo, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
 
 	out := make([]DownloadLeaderboardSkill, 0, len(rows))
 	for i, row := range rows {
 		out = append(out, DownloadLeaderboardSkill{
-			MarketplaceSkill: marketplaceSkillFromModel(row.Skill, userInfo, enabledBySkillID[row.Skill.ID], savedBySkillID[row.Skill.ID]),
+			MarketplaceSkill: marketplaceSkillFromModel(row.Skill, userInfo, enabledBySkillID[row.Skill.ID], savedBySkillID[row.Skill.ID], entitlementBySkillID[row.Skill.ID]),
 			DownloadCount:    row.DownloadCount,
 			Rank:             i + 1,
 			Window:           window,
@@ -795,7 +810,7 @@ func RecordMarketplaceSkillEvent(c *gin.Context) {
 
 	var s skillmodel.Skill
 	err := db.Select([]string{
-		"id", "status", "active_version_id", "is_kids_safe", "is_kids_exclusive",
+		"id", "status", "active_version_id", "monetization_type", "is_kids_safe", "is_kids_exclusive",
 	}).Where("status = ?", enums.SkillStatusPublished).
 		Where("id = ? OR slug = ?", c.Param("id"), c.Param("id")).
 		First(&s).Error
@@ -817,7 +832,7 @@ func RecordMarketplaceSkillEvent(c *gin.Context) {
 		IsKidsSafeSkill:      &s.IsKidsSafe,
 		IsKidsExclusiveSkill: &s.IsKidsExclusive,
 		Success:              &successVal,
-		Metadata:             skillmodel.SkillJSONB(`{}`),
+		Metadata:             skillmodel.SkillTierEventMetadata(s.MonetizationType, plan, nil),
 	}
 	if userID > 0 {
 		if isKidsSession, err := serverResolvedKidsSession(db, userID); err != nil {
@@ -862,6 +877,7 @@ func ListMySkills(c *gin.Context) {
 		Name              string
 		Status            enums.SkillStatus
 		RequiredPlan      enums.RequiredPlan
+		MonetizationType  enums.MonetizationType
 		IsKidsSafe        bool
 		IsKidsExclusive   bool
 		FreeQuotaPerMonth *int
@@ -873,7 +889,7 @@ func ListMySkills(c *gin.Context) {
 	var rows []mySkillRow
 	if err := db.Table("user_enabled_skills AS ues").
 		Select(`skills.id AS skill_id, skills.slug, skills.name, skills.status,
-			skills.required_plan, skills.is_kids_safe, skills.is_kids_exclusive,
+			skills.required_plan, skills.monetization_type, skills.is_kids_safe, skills.is_kids_exclusive,
 			skills.free_quota_per_month, ues.enabled, ues.enabled_at, ues.last_used_at`).
 		Joins("JOIN skills ON skills.id = ues.skill_id").
 		Where("ues.user_id = ? AND ues.tenant_id = ? AND ues.enabled = ? AND ues.removed_at IS NULL", userID, userID, true).
@@ -895,16 +911,33 @@ func ListMySkills(c *gin.Context) {
 		return
 	}
 	userInfo.IsKidsSession = kidsMode
+	mySkillModels := make([]skillmodel.Skill, 0, len(rows))
+	for _, row := range rows {
+		mySkillModels = append(mySkillModels, skillmodel.Skill{ID: row.SkillID})
+	}
+	entitlementBySkillID, err := marketplaceOneTimeEntitlementBySkillID(db, marketplaceUserContext{UserID: userID}, mySkillModels)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
 
 	out := make([]MySkill, 0, len(rows))
 	for _, row := range rows {
 		result := availability.Resolve(availability.SkillInfo{
 			Status:            row.Status,
 			RequiredPlan:      row.RequiredPlan,
+			MonetizationType:  row.MonetizationType,
 			IsKidsSafe:        row.IsKidsSafe,
 			IsKidsExclusive:   row.IsKidsExclusive,
 			FreeQuotaPerMonth: row.FreeQuotaPerMonth,
-		}, userInfo)
+		}, availability.UserInfo{
+			Plan:                  userInfo.Plan,
+			SubActive:             userInfo.SubActive,
+			IsEnabled:             userInfo.IsEnabled,
+			WasEnabled:            userInfo.WasEnabled,
+			IsKidsSession:         userInfo.IsKidsSession,
+			HasOneTimeEntitlement: entitlementBySkillID[row.SkillID],
+		})
 		out = append(out, MySkill{
 			SkillID:      row.SkillID,
 			Slug:         row.Slug,
@@ -1303,20 +1336,22 @@ type marketplaceUserContext struct {
 	SubActive   bool
 }
 
-func marketplaceSkillFromModel(s skillmodel.Skill, user marketplaceUserContext, enabled bool, saved bool) MarketplaceSkill {
+func marketplaceSkillFromModel(s skillmodel.Skill, user marketplaceUserContext, enabled bool, saved bool, hasOneTimeEntitlement bool) MarketplaceSkill {
 	result := availability.Resolve(availability.SkillInfo{
 		Status:            s.Status,
 		RequiredPlan:      s.RequiredPlan,
 		IsKidsSafe:        s.IsKidsSafe,
 		IsKidsExclusive:   s.IsKidsExclusive,
 		FreeQuotaPerMonth: s.FreeQuotaPerMonth,
+		MonetizationType:  s.MonetizationType,
 	}, availability.UserInfo{
-		IsAnonymous:   user.IsAnonymous,
-		IsKidsSession: user.IsKidsMode,
-		Plan:          user.Plan,
-		SubActive:     user.SubActive,
-		IsEnabled:     enabled,
-		WasEnabled:    enabled,
+		IsAnonymous:           user.IsAnonymous,
+		IsKidsSession:         user.IsKidsMode,
+		Plan:                  user.Plan,
+		SubActive:             user.SubActive,
+		IsEnabled:             enabled,
+		WasEnabled:            enabled,
+		HasOneTimeEntitlement: hasOneTimeEntitlement,
 	})
 	out := MarketplaceSkill{
 		ID:               s.ID,
@@ -1683,9 +1718,14 @@ func writeMarketplaceRecommendationList(c *gin.Context, db *gorm.DB, userInfo ma
 		writeDBError(c, err)
 		return
 	}
+	entitlementBySkillID, err := marketplaceOneTimeEntitlementBySkillID(db, userInfo, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
 	out := make([]MarketplaceSkill, 0, len(skills))
 	for _, s := range skills {
-		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID]))
+		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID], entitlementBySkillID[s.ID]))
 	}
 	skillapi.List(c, out, skillapi.NewPagination(page.Page, page.Limit, total))
 }
@@ -1797,6 +1837,30 @@ func marketplaceSavedBySkillID(db *gorm.DB, user marketplaceUserContext, skills 
 		saved[row.SkillID] = row.Saved
 	}
 	return saved, nil
+}
+
+func marketplaceOneTimeEntitlementBySkillID(db *gorm.DB, user marketplaceUserContext, skills []skillmodel.Skill) (map[string]bool, error) {
+	entitled := map[string]bool{}
+	if user.IsAnonymous || user.UserID == 0 || len(skills) == 0 {
+		return entitled, nil
+	}
+	if !db.Migrator().HasTable(&skillmodel.SkillEntitlement{}) {
+		return entitled, nil
+	}
+	ids := make([]string, 0, len(skills))
+	for _, s := range skills {
+		ids = append(ids, s.ID)
+	}
+	var rows []skillmodel.SkillEntitlement
+	if err := db.Select([]string{"skill_id"}).
+		Where("user_id = ? AND source = ? AND skill_id IN ?", user.UserID, skillmodel.SkillEntitlementSourceOneTimePurchase, ids).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		entitled[row.SkillID] = true
+	}
+	return entitled, nil
 }
 
 func marketplaceGroupToPlan(group string) enums.RequiredPlan {

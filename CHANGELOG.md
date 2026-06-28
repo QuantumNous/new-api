@@ -4,6 +4,11 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-29
 
+- 新增 DR-99 tiered Skill pricing model 任务 PRD，定义 Basic/PLUS、USD 2 one-time、PLUS-exclusive、PLUS 抵扣与 Skill entitlement matrix 范围（`docs/tasks/dr99-tiered-pricing-model-prd.md`）
+- 更新 DR-99 tiered Skill pricing model 任务 PRD 状态为 build，进入实现阶段（`docs/tasks/dr99-tiered-pricing-model-prd.md`）
+- 实现 DR-99 tiered Skill pricing model：新增共享 Basic/PLUS/one-time/PLUS-exclusive entitlement matrix、`plus_exclusive` Skill monetization tier、USD 2 PLUS upgrade credit helper、download/runtime/Marketplace/My Skills 共用 tier 判定，并在 Skill enable/purchase/use/block 事件写入 plan/tier attribution；管理端 Skill monetization 下拉支持 `one_time` 与 `plus_exclusive`（`internal/skill/{pricing,enums,model,availability,handler,relay}`, `web/default/src/features/admin-skills/`）
+- 记录 DR-99 聚焦、相关 Skill 回归、admin Skills 前端 typecheck/test 与 full Go suite 测试结果和覆盖率；full suite 前构建 classic/default frontend dist 以满足 root package embed 前置条件（`docs/test-results/dr99-tiered-pricing-model.txt`）
+- 更新 DR-99 tiered Skill pricing model 任务 PRD 状态为 eval，进入 PR review/checks 阶段（`docs/tasks/dr99-tiered-pricing-model-prd.md`）
 - 新增 DR-94 Admin per-user Skill usage drill-down 任务 PRD，明确 Super Admin-only、NEW-11/Tier 2 consent gate、audit logging、Kids pseudonymization 与 no raw prompt/provider payload 范围（`docs/tasks/dr94-admin-per-user-drill-down-downloads-token-consum-prd.md`）
 - 实现 DR-94 Admin per-user Skill usage drill-down 后端 API：新增 `GET /api/v1/admin/users/:user_id/skill-usage`，仅 Super Admin 可访问；按目标用户 `tier2_telemetry_consent` gate 返回下载 Skill、per-skill token totals、USD cost、last update time 与 usage timeline；非 consent 返回空 rows；每次解析到目标用户的访问写 `skill_admin_action` audit；响应不读取/返回 metadata/prompt/raw/provider payload，并避免将 Kids pseudonymous usage events 反查到真实用户（`internal/skill/handler/admin_user_usage.go`, `router/skill-router.go`）
 - 记录 DR-94 聚焦与相关 handler/router 回归测试结果和覆盖率（`docs/test-results/dr94-admin-per-user-drill-down-downloads-token-consum.txt`）

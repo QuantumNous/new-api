@@ -267,8 +267,25 @@ func EmitSkillUsageEvent(db *gorm.DB, event SkillUsageEvent) error {
 	return db.Create(&event).Error
 }
 
+func SkillTierEventMetadata(monetization enums.MonetizationType, userPlan enums.RequiredPlan, extra map[string]any) SkillJSONB {
+	metadata := map[string]any{
+		"schema_version":    SkillEventSchemaVersion,
+		"skill_tier":        string(monetization),
+		"monetization_type": string(monetization),
+		"user_plan":         string(userPlan),
+	}
+	for key, value := range extra {
+		metadata[key] = value
+	}
+	data, err := common.Marshal(metadata)
+	if err != nil {
+		return SkillJSONB(`{"schema_version":"1.0"}`)
+	}
+	return SkillJSONB(data)
+}
+
 // EmitSkillEnabled inserts a skill_enabled event.
-func EmitSkillEnabled(db *gorm.DB, userID int64, skillID string, skillVersionID *string, entryPoint, plan string) error {
+func EmitSkillEnabled(db *gorm.DB, userID int64, skillID string, skillVersionID *string, entryPoint, plan string, monetization enums.MonetizationType) error {
 	uid := userID
 	resolvedPlan := enums.RequiredPlan(plan)
 	successVal := true
@@ -282,6 +299,6 @@ func EmitSkillEnabled(db *gorm.DB, userID int64, skillID string, skillVersionID 
 		Plan:           &resolvedPlan,
 		IsKidsSession:  false,
 		Success:        &successVal,
-		Metadata:       SkillJSONB(`{}`),
+		Metadata:       SkillTierEventMetadata(monetization, resolvedPlan, nil),
 	})
 }

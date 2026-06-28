@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
+	"github.com/QuantumNous/new-api/internal/skill/pricing"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -92,6 +93,25 @@ func HasOneTimeEntitlement(db *gorm.DB, userID int64, skillID string) (bool, err
 	return count > 0, nil
 }
 
+type OneTimeEntitlementCounter struct{}
+
+func (OneTimeEntitlementCounter) CountOneTimeEntitlements(db *gorm.DB, userID int64) (int64, error) {
+	if db == nil {
+		return 0, errors.New("db is nil")
+	}
+	var count int64
+	if err := db.Model(&SkillEntitlement{}).
+		Where("user_id = ? AND source = ?", userID, SkillEntitlementSourceOneTimePurchase).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func PlusUpgradeCreditUSD(db *gorm.DB, userID int64, enabled bool) (float64, error) {
+	return pricing.PlusUpgradeCreditUSD(db, OneTimeEntitlementCounter{}, userID, enabled)
+}
+
 func GrantOneTimeEntitlement(db *gorm.DB, userID, tenantID int64, skillID, orderID string) error {
 	now := time.Now().UTC()
 	if db.Dialector.Name() == "mysql" {
@@ -118,6 +138,9 @@ func EmitSkillPurchased(db *gorm.DB, userID int64, skillID string, skillVersionI
 		"amount":            amountUSD,
 		"currency":          "USD",
 		"monetization_type": string(enums.MonetizationTypeOneTime),
+		"skill_tier":        string(enums.MonetizationTypeOneTime),
+		"user_plan":         string(plan),
+		"plus_monthly_usd":  pricing.PlusMonthlyPriceUSD,
 	})
 	if err != nil {
 		return err

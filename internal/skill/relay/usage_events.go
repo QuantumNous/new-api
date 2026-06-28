@@ -149,7 +149,7 @@ func buildSuccessfulExecutionEvent(input SuccessfulExecutionEventInput, eventTyp
 		TotalTokens:          totalTokens,
 		LatencyMS:            &latencyMS,
 		Success:              &success,
-		Metadata:             successMetadata(repeatIndex),
+		Metadata:             successMetadata(ctx, repeatIndex),
 	}
 }
 
@@ -183,10 +183,15 @@ func tokenCounts(usage *dto.Usage) (*int, *int, *int) {
 	return &inputTokens, &outputTokens, &totalTokens
 }
 
-func successMetadata(repeatIndex *int) skillmodel.SkillJSONB {
+func successMetadata(ctx *SkillRelayContext, repeatIndex *int) skillmodel.SkillJSONB {
 	metadata := map[string]any{
 		"schema_version": "1.0",
 		"producer":       "relay",
+	}
+	if ctx != nil && ctx.Skill != nil {
+		metadata["skill_tier"] = string(ctx.Skill.MonetizationType)
+		metadata["monetization_type"] = string(ctx.Skill.MonetizationType)
+		metadata["user_plan"] = string(ctx.Plan)
 	}
 	if repeatIndex != nil {
 		metadata["repeat_index"] = *repeatIndex

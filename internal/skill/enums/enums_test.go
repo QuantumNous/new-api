@@ -55,6 +55,7 @@ func TestRequiredPlan_StringValues(t *testing.T) {
 func TestMonetizationType_Valid(t *testing.T) {
 	valid := []MonetizationType{
 		MonetizationTypeFree, MonetizationTypePlanIncluded, MonetizationTypeTokenMarkup,
+		MonetizationTypeOneTime, MonetizationTypePlusExclusive,
 	}
 	for _, m := range valid {
 		assert.True(t, m.Valid(), "expected %q to be valid", m)
@@ -70,6 +71,8 @@ func TestMonetizationType_StringValues(t *testing.T) {
 	assert.Equal(t, "free", string(MonetizationTypeFree))
 	assert.Equal(t, "plan_included", string(MonetizationTypePlanIncluded))
 	assert.Equal(t, "token_markup", string(MonetizationTypeTokenMarkup))
+	assert.Equal(t, "one_time", string(MonetizationTypeOneTime))
+	assert.Equal(t, "plus_exclusive", string(MonetizationTypePlusExclusive))
 }
 
 // --- SkillVersionStatus ---

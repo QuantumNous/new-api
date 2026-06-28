@@ -87,7 +87,7 @@ type Skill struct {
 	ExampleOutputs SkillJSONB `gorm:"column:example_outputs;type:text;not null"`
 
 	RequiredPlan      enums.RequiredPlan     `gorm:"column:required_plan;type:varchar(32);not null;check:chk_skills_required_plan,required_plan IN ('free','pro','enterprise')"`
-	MonetizationType  enums.MonetizationType `gorm:"column:monetization_type;type:varchar(32);not null;check:chk_skills_monetization_type,monetization_type IN ('free','plan_included','token_markup','one_time')"`
+	MonetizationType  enums.MonetizationType `gorm:"column:monetization_type;type:varchar(32);not null;check:chk_skills_monetization_type,monetization_type IN ('free','plan_included','token_markup','one_time','plus_exclusive')"`
 	PriceMarkup       float64                `gorm:"column:price_markup;type:decimal(10,4);not null;default:0"`
 	FreeQuotaPerMonth *int                   `gorm:"column:free_quota_per_month;type:integer;check:chk_skills_free_quota,free_quota_per_month IS NULL OR free_quota_per_month >= 0"`
 	MaxInputTokens    *int                   `gorm:"column:max_input_tokens;type:integer;check:chk_skills_max_input_tokens,max_input_tokens IS NULL OR max_input_tokens > 0"`
