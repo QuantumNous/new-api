@@ -126,6 +126,7 @@ const MODEL_TABS: ModelTab[] = [
   { label: 'Gemini 3.1 Pro',  modelId: 'gemini-3.1-pro-preview', accent: '#4285f4' },
   { label: 'Gemini 3.5 Flash', modelId: 'gemini-3.5-flash', accent: '#4285f4' },
   { label: 'Gemini 3.1 Flash Lite', modelId: 'gemini-3.1-flash-lite', accent: '#4285f4' },
+  { label: 'Gemini 3.1 Flash Image', modelId: 'gemini-3.1-flash-image-preview', accent: '#4285f4' },
   { label: 'Image 2',         modelId: 'gpt-image-2',       accent: '#22d3ee' },
   { label: 'Sora 2',          modelId: 'sora-2',            accent: '#22d3ee' },
   { label: 'Sora 2 Pro',      modelId: 'sora-2-pro',        accent: '#22d3ee' },

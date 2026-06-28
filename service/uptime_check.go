@@ -54,6 +54,7 @@ var ModelIDCandidates = map[string][]string{
 	"doubao-seed-2-1-pro-260628":   {"doubao-seed-2-1-pro"},
 	"doubao-seed-2-1-turbo-260628": {"doubao-seed-2-1-turbo"},
 	"sora":              {"sora-2"},
+	"gemini-3.1-flash-image-preview": {"nano-banana2-preview", "gemini-2.5-flash-image"},
 }
 
 // ModelNameCandidates returns the canonical name plus all known aliases.
