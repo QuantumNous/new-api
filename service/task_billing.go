@@ -11,9 +11,31 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
+
+// TaskUsesDurationBasedBilling reports per-second video billing (seconds × unit price).
+func TaskUsesDurationBasedBilling(priceData types.PriceData) bool {
+	if priceData.OtherRatios == nil {
+		return false
+	}
+	s, ok := priceData.OtherRatios["seconds"]
+	return ok && s > 0
+}
+
+// IsTaskPerCallBilling decides whether polling should skip adaptor settle adjustments.
+// Channel per-unit prices with a seconds multiplier are still duration-based, not flat per-call.
+func IsTaskPerCallBilling(modelName string, priceData types.PriceData) bool {
+	if common.StringsContains(constant.TaskPricePatches, modelName) {
+		return true
+	}
+	if TaskUsesDurationBasedBilling(priceData) {
+		return false
+	}
+	return priceData.UsePrice
+}
 
 // LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
 // 实际扣费已由 BillingSession（PreConsumeBilling + SettleBilling）完成。

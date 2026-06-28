@@ -179,10 +179,7 @@ func (a *TaskAdaptor) validateMotionControlJSON(c *gin.Context, info *relaycommo
 	if body.KeepOriginalSound == "" {
 		body.KeepOriginalSound = "yes"
 	}
-	seconds := body.Duration
-	if seconds <= 0 {
-		seconds = defaultBillableSeconds(orientation)
-	}
+	seconds := motionBillableSeconds(c, body.VideoURL, orientation, body.Duration)
 	store := relaycommon.TaskSubmitReq{
 		Prompt:   strings.TrimSpace(body.Prompt),
 		Model:    body.Model,
@@ -480,6 +477,9 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "completed", "success", "succeeded":
 		info.Status = model.TaskStatusSuccess
 		info.Url = extractVideoURL(&env)
+		if secs := extractBillableSecondsFromApimart(respBody); secs > 0 {
+			info.BillableSeconds = secs
+		}
 	case "failed", "failure", "error", "cancelled":
 		info.Status = model.TaskStatusFailure
 		if env.Data.Error != nil && env.Data.Error.Message != "" {

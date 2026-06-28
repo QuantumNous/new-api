@@ -38,7 +38,12 @@ export function isLogMediaImageModel(modelName: string): boolean {
 
 export function isLogMediaVideoModel(modelName: string): boolean {
   const model = modelName.trim().toLowerCase()
-  return model === 'sora-2' || model === 'sora-2-pro' || model.startsWith('sora-2-')
+  return (
+    model === 'sora-2' ||
+    model === 'sora-2-pro' ||
+    model.startsWith('sora-2-') ||
+    model === 'kling-v3-motion-control'
+  )
 }
 
 export function buildVideoProxyUrl(taskId: string): string {

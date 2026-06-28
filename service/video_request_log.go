@@ -39,6 +39,10 @@ func BuildVideoRequestDataForLog(req *relaycommon.TaskSubmitReq) map[string]inte
 		data["duration"] = duration
 	}
 
+	if modelName := strings.TrimSpace(req.Model); modelName == "kling-v3-motion-control" {
+		appendKlingMotionRequestData(data, req)
+	}
+
 	size := normalizedVideoSize(req.Size)
 	if size == "" && strings.HasPrefix(strings.TrimSpace(req.Model), "sora-2") {
 		size = "720x1280"
@@ -90,6 +94,28 @@ func EnrichVideoRequestData(data map[string]interface{}) map[string]interface{} 
 	}
 
 	return data
+}
+
+func appendKlingMotionRequestData(data map[string]interface{}, req *relaycommon.TaskSubmitReq) {
+	if req == nil || req.Metadata == nil {
+		return
+	}
+	md := req.Metadata
+	if v, ok := md["character_orientation"].(string); ok && strings.TrimSpace(v) != "" {
+		data["character_orientation"] = strings.TrimSpace(v)
+	}
+	if v, ok := md["mode"].(string); ok && strings.TrimSpace(v) != "" {
+		data["mode"] = strings.TrimSpace(v)
+	}
+	if v, ok := md["keep_original_sound"].(string); ok && strings.TrimSpace(v) != "" {
+		data["keep_original_sound"] = strings.TrimSpace(v)
+	}
+	if v, ok := md["image_url"].(string); ok && strings.TrimSpace(v) != "" {
+		data["image_url"] = strings.TrimSpace(v)
+	}
+	if v, ok := md["video_url"].(string); ok && strings.TrimSpace(v) != "" {
+		data["video_url"] = strings.TrimSpace(v)
+	}
 }
 
 func appendVideoDerivedFields(data map[string]interface{}, size string) {
