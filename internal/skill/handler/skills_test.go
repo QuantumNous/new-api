@@ -675,6 +675,7 @@ func TestRecordMarketplaceSkillEvent_AcceptsDiscoveryRailEntryPoints(t *testing.
 		enums.EntryPointTrending,
 		enums.EntryPointLeaderboardWeekly,
 		enums.EntryPointLeaderboardMonthly,
+		enums.EntryPointUserHome,
 	} {
 		t.Run(string(entryPoint), func(t *testing.T) {
 			db := testSkillDB(t)
@@ -716,6 +717,145 @@ func TestRecordMarketplaceSkillEvent_AcceptsPaywallEntryPoint(t *testing.T) {
 	require.NoError(t, db.Where("skill_id = ?", s.ID).First(&evt).Error)
 	assert.Equal(t, enums.EntryPointPaywall, evt.EntryPoint)
 	assert.Equal(t, enums.SkillUsageEventTypeImpression, evt.EventType)
+}
+
+func TestGetUserHome_ComposesCallerScopedStatusAndPersonalizedRails(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	require.NoError(t, db.AutoMigrate(
+		&platformmodel.User{},
+		&platformmodel.TopUp{},
+		&platformmodel.SubscriptionPlan{},
+		&platformmodel.UserSubscription{},
+	))
+	now := time.Now().UTC()
+	caller := platformmodel.User{
+		Id:        42,
+		Username:  "home-user",
+		Password:  "password123",
+		Role:      1,
+		Status:    1,
+		Group:     "default",
+		AffCode:   "home-user-aff",
+		Quota:     int(12 * common.QuotaPerUnit),
+		UsedQuota: 3,
+	}
+	other := platformmodel.User{
+		Id:       43,
+		Username: "other-user",
+		Password: "password123",
+		Role:     1,
+		Status:   1,
+		Group:    "default",
+		AffCode:  "other-user-aff",
+		Quota:    int(99 * common.QuotaPerUnit),
+	}
+	require.NoError(t, db.Create(&caller).Error)
+	require.NoError(t, db.Create(&other).Error)
+	require.NoError(t, db.Create(&platformmodel.TopUp{
+		UserId:       42,
+		Amount:       10,
+		Money:        10,
+		TradeNo:      "caller-topup",
+		Status:       common.TopUpStatusSuccess,
+		CompleteTime: now.Unix(),
+	}).Error)
+	require.NoError(t, db.Create(&platformmodel.TopUp{
+		UserId:  43,
+		Amount:  90,
+		Money:   90,
+		TradeNo: "other-topup",
+		Status:  common.TopUpStatusSuccess,
+	}).Error)
+	plan := platformmodel.SubscriptionPlan{Title: "PLUS", PriceAmount: 19.9, Currency: "USD", Enabled: true}
+	require.NoError(t, db.Create(&plan).Error)
+	require.NoError(t, db.Create(&platformmodel.UserSubscription{
+		UserId:      42,
+		PlanId:      plan.Id,
+		AmountTotal: 100,
+		StartTime:   now.Add(-time.Hour).Unix(),
+		EndTime:     now.Add(time.Hour).Unix(),
+		Status:      "active",
+	}).Error)
+
+	history := testSkillWithCategory("history-writing", "writing")
+	history.PublishedAt = ptr(now.AddDate(0, 0, -30))
+	reco := testSkillWithCategory("recommended-writing", "writing")
+	reco.FeaturedRank = ptr(1)
+	reco.PublishedAt = ptr(now.AddDate(0, 0, -30))
+	freshMatched := testSkillWithCategory("fresh-writing", "writing")
+	freshMatched.PublishedAt = ptr(now.AddDate(0, 0, -1))
+	freshOther := testSkillWithCategory("fresh-coding", "coding")
+	freshOther.PublishedAt = ptr(now.AddDate(0, 0, -1))
+	paid := testSkillWithCategory("paid-writing", "writing")
+	paid.MonetizationType = enums.MonetizationTypeOneTime
+	paid.PublishedAt = ptr(now.AddDate(0, 0, -30))
+	otherPaid := testSkillWithCategory("other-paid", "writing")
+	otherPaid.MonetizationType = enums.MonetizationTypeOneTime
+	otherPaid.PublishedAt = ptr(now.AddDate(0, 0, -30))
+	require.NoError(t, db.Create(&history).Error)
+	require.NoError(t, db.Create(&reco).Error)
+	require.NoError(t, db.Create(&freshMatched).Error)
+	require.NoError(t, db.Create(&freshOther).Error)
+	require.NoError(t, db.Create(&paid).Error)
+	require.NoError(t, db.Create(&otherPaid).Error)
+	require.NoError(t, skillmodel.EnableSkillForUser(db, 42, 42, history.ID, "test"))
+	require.NoError(t, skillmodel.SaveSkillForUser(db, 42, 42, paid.ID, "test"))
+	require.NoError(t, skillmodel.SaveSkillForUser(db, 43, 43, otherPaid.ID, "test"))
+	order := skillmodel.SkillPurchaseOrder{
+		UserID:         42,
+		TenantID:       42,
+		SkillID:        paid.ID,
+		IdempotencyKey: "caller-order",
+		AmountUSD:      2,
+		Currency:       "USD",
+		QuotaCharged:   2,
+		Monetization:   enums.MonetizationTypeOneTime,
+		Status:         skillmodel.SkillPurchaseStatusSucceeded,
+		CompletedAt:    ptr(now),
+	}
+	require.NoError(t, db.Create(&order).Error)
+	require.NoError(t, skillmodel.GrantOneTimeEntitlement(db, 42, 42, paid.ID, order.ID))
+	require.NoError(t, db.Create(&skillmodel.SkillPurchaseOrder{
+		UserID:         43,
+		TenantID:       43,
+		SkillID:        otherPaid.ID,
+		IdempotencyKey: "other-order",
+		AmountUSD:      2,
+		Currency:       "USD",
+		QuotaCharged:   2,
+		Monetization:   enums.MonetizationTypeOneTime,
+		Status:         skillmodel.SkillPurchaseStatusSucceeded,
+	}).Error)
+
+	c, w := testContext("/api/v1/marketplace/user-home")
+	c.Set("id", 42)
+	c.Set("group", "default")
+
+	GetUserHome(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data UserHomeResponse `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	assert.Equal(t, enums.EntryPointUserHome, got.Data.EntryPoint)
+	assert.Equal(t, int(12*common.QuotaPerUnit), got.Data.Account.BalanceQuota)
+	assert.Equal(t, 10.0, got.Data.Account.RecentTopUpsTotal)
+	require.Len(t, got.Data.Subscriptions.Active, 1)
+	assert.Equal(t, "PLUS", got.Data.Subscriptions.Active[0].Plan.Title)
+	require.Len(t, got.Data.Purchases.RecentOrders, 1)
+	assert.Equal(t, paid.ID, got.Data.Purchases.RecentOrders[0].SkillID)
+	assert.True(t, got.Data.Purchases.RecentOrders[0].Entitled)
+	assert.Equal(t, []string{paid.ID}, got.Data.Purchases.EntitledSkillIDs)
+	require.Len(t, got.Data.SavedSkills, 1)
+	assert.Equal(t, paid.ID, got.Data.SavedSkills[0].SkillID)
+	require.NotEmpty(t, got.Data.RecommendedForYou)
+	assert.Equal(t, "writing", got.Data.RecommendedForYou[0].Category)
+	require.Len(t, got.Data.NewThisWeekForYou, 1)
+	assert.Equal(t, freshMatched.ID, got.Data.NewThisWeekForYou[0].ID)
+	assert.NotContains(t, w.Body.String(), "other-order")
+	assert.NotContains(t, w.Body.String(), "other-topup")
 }
 
 func TestRecordMarketplaceSkillEvent_RejectsPackageEntryPoint(t *testing.T) {

@@ -21,6 +21,7 @@ import {
   Activity,
   Key,
   FileText,
+  Home,
   Wallet,
   Box,
   Users,
@@ -97,6 +98,11 @@ export function useSidebarData(): SidebarData {
         id: 'personal',
         title: t('Personal'),
         items: [
+          {
+            title: t('Home'),
+            url: '/home',
+            icon: Home,
+          },
           {
             title: t('Wallet'),
             url: '/wallet',

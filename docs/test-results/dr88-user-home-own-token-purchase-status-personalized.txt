@@ -1,0 +1,50 @@
+DR-88 User home status + personalized Skills test results
+
+Date: 2026-06-29
+
+Focused backend
+- Command: go test ./internal/skill/handler -run 'TestGetUserHome|TestRecordMarketplaceSkillEvent_AcceptsDiscoveryRailEntryPoints' -coverprofile=/tmp/dr88-handler.cover && go tool cover -func=/tmp/dr88-handler.cover | tail -5
+- Dataset/fixtures: SQLite in-memory Skill DB with two users, user wallet quota/top-ups, active subscription plan, one-time Skill purchase order/entitlement, saved Skills, enabled category history, published/new-week Skills, and user_home event fixture.
+- Verified: user-home response is caller-scoped; wallet, recent top-up, subscription, purchase entitlement, saved list, recommended, and personalized new-week rails compose correctly; marketplace event ingest accepts entry_point=user_home.
+- Coverage: internal/skill/handler 9.4% statements for focused subset.
+- Result: PASS.
+
+Related backend regression
+- Command: go test ./internal/skill/enums ./internal/skill/model ./internal/skill/handler ./router -coverprofile=/tmp/dr88-related.cover && go tool cover -func=/tmp/dr88-related.cover | tail -5
+- Dataset/fixtures: existing Skill enum/model/handler/router unit and integration fixtures plus DR-88 user-home fixtures.
+- Verified: entry point enum/check constraints, Skill usage event migration constraints, user-home handler, download entry point parsing, Skill purchase/social-proof fixture migration, and Skill router registration remain compatible.
+- Coverage: 60.9% statements combined across tested packages; package highlights: enums 88.9%, model 43.7%, handler 74.7%, router 10.3%.
+- Result: PASS.
+
+Focused frontend
+- Command: bunx vitest run src/features/user-home/__tests__/user-home.test.tsx --coverage
+- Dataset/fixtures: mocked user-home API envelope with balance, active PLUS plan, one owned Skill, one locked recommendation, one new-week recommendation, one saved Skill; mocked marketplace event recorder.
+- Verified: dashboard renders own status, paywall-aware Skill CTA, personalized/new-week/saved rails, and records impressions with entry_point=user_home.
+- Coverage: src/features/user-home 64.0% statements / 39.47% branches / 56.0% functions / 63.26% lines.
+- Result: PASS. Vitest emitted an unrelated localstorage-file warning.
+
+Frontend typecheck/build
+- Command: bun run typecheck
+- Dataset/fixtures: TypeScript project references and generated TanStack route tree.
+- Verified: new user-home types, route, API client, and component compile.
+- Coverage: not applicable.
+- Result: PASS.
+
+- Command: bun run build
+- Dataset/fixtures: default frontend production build graph.
+- Verified: generated route tree and user-home bundle build in production mode.
+- Coverage: not applicable.
+- Result: PASS.
+
+Full regression
+- Command: make build-all-frontends
+- Dataset/fixtures: default and classic frontend dependency/install/build graphs.
+- Verified: embedded frontend dist prerequisites exist for root Go package tests.
+- Coverage: not applicable.
+- Result: PASS. Classic build emitted existing Browserslist/eval/chunk-size warnings.
+
+- Command: go test ./...
+- Dataset/fixtures: full repository Go unit/integration fixtures after default/classic frontend dist builds.
+- Verified: all Go packages compile and pass, including root package embed.
+- Coverage: not requested for full suite.
+- Result: PASS.

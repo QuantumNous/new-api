@@ -21,6 +21,7 @@ export default defineConfig({
       include: [
         'src/features/skill-analytics/**',
         'src/features/admin-skills/**',
+        'src/features/user-home/**',
         'src/routes/_authenticated/skills/admin/index.tsx',
       ],
       reporter: ['text', 'json-summary'],

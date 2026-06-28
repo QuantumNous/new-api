@@ -63,6 +63,7 @@ export type SkillGrowthEntryPoint =
   | 'reco_codownload'
   | 'leaderboard_weekly'
   | 'leaderboard_monthly'
+  | 'user_home'
 
 export type SkillGrowthEventType = 'skill_impression' | 'skill_detail_view'
 

@@ -41,6 +41,7 @@ func SetSkillRouter(router *gin.Engine) {
 		}
 		{
 			mySkillsRoute.GET("/my-skills", skillhandler.ListMySkills)
+			mySkillsRoute.GET("/user-home", skillhandler.GetUserHome)
 			mySkillsRoute.GET("/recommendations/personal", skillhandler.ListPersonalRecommendations)
 			mySkillsRoute.GET("/saved-skills", skillhandler.ListSavedSkills)
 			mySkillsRoute.POST("/skills/:id/save", skillhandler.SaveMarketplaceSkill)
