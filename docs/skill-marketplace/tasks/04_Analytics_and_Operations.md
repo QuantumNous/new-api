@@ -193,6 +193,7 @@ Use the same enum as Data/API Spec.
 | `my_skills` | My Skills page |
 | `saved_list` | Saved/Favorited Skills list |
 | `skill_package` | Execution from a downloaded Skill package via the public routing API (R2 primary execution entry) |
+| `api_token` | Download or execution authenticated directly by a DeepRouter API token |
 | `playground_picker` | Legacy: in-platform Playground Skill Picker (historical events only) |
 | `featured` | Featured rail |
 | `popular` | Popular rail |
@@ -201,7 +202,7 @@ Use the same enum as Data/API Spec.
 | `admin_preview` | Admin preview/test execution |
 | `search_results` | Marketplace search results |
 
-V1 execution events primarily use `entry_point=skill_package` (downloaded package via the public routing API). `playground_picker` is retained only for historical events and is not produced by new V1 execution.
+V1 execution events use `entry_point=skill_package` for browser/session package flows and `entry_point=api_token` when the DeepRouter API token itself is the auth+entitlement principal. `playground_picker` is retained only for historical events and is not produced by new V1 execution.
 
 ---
 

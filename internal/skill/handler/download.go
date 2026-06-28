@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	skillapi "github.com/QuantumNous/new-api/internal/skill/api"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
@@ -123,7 +124,7 @@ func sendSkillPackageDownload(c *gin.Context, db *gorm.DB, s skillmodel.Skill, v
 		return
 	}
 
-	entryPoint := downloadEntryPoint(c.Query("entry_point"))
+	entryPoint := downloadEntryPoint(c)
 	userPlan := groupToPlan(c.GetString("group"))
 	if err := emitSkillEnabledForDownload(db, userID, s, userPlan, entryPoint); err != nil {
 		common.SysLog("EmitSkillEnabled failed for skill " + s.ID + " version " + version.ID + ": " + err.Error())
@@ -148,7 +149,11 @@ func downloadEntitled(db *gorm.DB, s skillmodel.Skill, userID int64, userGroup s
 	return downloadPlanLevel(groupToPlan(userGroup)) >= downloadPlanLevel(s.RequiredPlan)
 }
 
-func downloadEntryPoint(raw string) enums.EntryPoint {
+func downloadEntryPoint(c *gin.Context) enums.EntryPoint {
+	if common.GetContextKeyString(c, constant.ContextKeySkillAuthEntryPoint) == string(enums.EntryPointAPIToken) {
+		return enums.EntryPointAPIToken
+	}
+	raw := c.Query("entry_point")
 	switch enums.EntryPoint(strings.TrimSpace(raw)) {
 	case enums.EntryPointNew:
 		return enums.EntryPointNew

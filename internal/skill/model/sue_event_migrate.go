@@ -8,7 +8,7 @@ import (
 )
 
 const sueEventTypeCheckExpr = "event_type IN ('skill_impression','skill_detail_view','skill_saved','skill_favorited','skill_enabled','skill_rated','skill_reported','skill_evaluation_completed','skill_admin_action','skill_kids_approved','skill_installed','skill_used_local','skill_used','skill_blocked','skill_first_use','skill_repeat_use','skill_purchased')"
-const sueEntryPointCheckExpr = "entry_point IN ('marketplace_card','skill_detail','my_skills','saved_list','playground_picker','featured','popular','new','recommended','reco_personal','reco_codownload','admin_preview','search_results','skill_package')"
+const sueEntryPointCheckExpr = "entry_point IN ('marketplace_card','skill_detail','my_skills','saved_list','playground_picker','featured','popular','new','recommended','reco_personal','reco_codownload','admin_preview','search_results','skill_package','api_token')"
 const suePlanCheckExpr = "plan IS NULL OR plan IN ('free','pro','enterprise')"
 const sueBlockReasonCheckExpr = "block_reason IS NULL OR block_reason IN ('auth_required','skill_not_found','skill_not_published','skill_not_enabled','plan_required','subscription_inactive','evaluation_not_passed','quota_exceeded','kids_mode_blocked','context_too_long','rate_limited','timeout','safety_violation','internal_error')"
 
@@ -179,7 +179,7 @@ func upgradeSUETableSQLite(db *gorm.DB) error {
 	).Scan(&ddl).Error; err != nil {
 		return fmt.Errorf("read skill_usage_events DDL for upgrade check: %w", err)
 	}
-	if strings.Contains(ddl, "chk_sue_kids_privacy") {
+	if strings.Contains(ddl, "chk_sue_kids_privacy") && strings.Contains(ddl, "'api_token'") {
 		if !db.Migrator().HasColumn(&SkillUsageEvent{}, "first_use_key") {
 			if err := db.Exec(`ALTER TABLE "skill_usage_events" ADD COLUMN "first_use_key" VARCHAR(128)`).Error; err != nil {
 				return fmt.Errorf("add skill_usage_events.first_use_key (SQLite): %w", err)

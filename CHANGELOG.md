@@ -12,6 +12,8 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 - 新增 DR-100 one-time Skill purchase 后端：`one_time` monetization、`POST /api/v1/marketplace/skills/:id/purchase`、idempotent purchase order、durable entitlement、download/use-time entitlement 放行与 `skill_purchased` 事件，并补成功/失败/重复/下载/runtime 回归测试（`internal/skill/{model,handler,relay,enums}`, `router/skill-router.go`）
 - 更新 DR-100 one-time Skill purchase 任务 PRD 状态为 eval，进入 PR review/checks 阶段（`docs/tasks/dr100-one-time-skill-purchase-prd.md`）
 - 更新 DR-100 one-time Skill purchase 任务 PRD 状态为 ship，记录 PR #119 已合并（`docs/tasks/dr100-one-time-skill-purchase-prd.md`）
+- 实现 DR-101 API token 作为 Skill 下载/运行 auth+entitlement principal：Skill download auth 支持 DeepRouter API token 直接解析用户/分组/令牌限制并复用同一 plan entitlement，public routing Skill 运行强制 `entry_point=api_token`，Skill 事件 schema/约束/docs 接受 `api_token`，并补下载、blocked/success run、middleware auth 回归测试（`middleware/skill-auth.go`, `router/relay-router.go`, `internal/skill/{enums,model,handler,relay}`, `docs/skill-marketplace/tasks/*`）
+- 新增 DR-101 API token 作为 Skill 下载/运行身份与 entitlement principal 的任务 PRD，锁定下载路由、public routing、`entry_point=api_token` 事件、fail-closed token 校验和 JWT/session 不回归范围（`docs/tasks/dr101-api-token-skill-auth-entitlement-prd.md`）
 
 ## 2026-06-27
 

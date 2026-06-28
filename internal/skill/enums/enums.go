@@ -235,6 +235,9 @@ const (
 	// Skill packages calling the public routing API. It is also used by the
 	// package-download skill_enabled event.
 	EntryPointSkillPackage EntryPoint = "skill_package"
+	// EntryPointAPIToken identifies Skill package download/execution initiated
+	// directly with a DeepRouter API token rather than a browser/JWT session.
+	EntryPointAPIToken EntryPoint = "api_token"
 	// EntryPointPlaygroundPicker is retained only so historical Playground
 	// execution events continue to parse. New V1/R2 execution flows must emit
 	// EntryPointSkillPackage instead.
@@ -256,6 +259,7 @@ var validEntryPoints = map[EntryPoint]struct{}{
 	EntryPointAdminPreview:     {},
 	EntryPointSearchResults:    {},
 	EntryPointSkillPackage:     {},
+	EntryPointAPIToken:         {},
 }
 
 func (e EntryPoint) Valid() bool { _, ok := validEntryPoints[e]; return ok }

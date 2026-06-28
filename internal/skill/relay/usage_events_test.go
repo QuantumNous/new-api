@@ -146,6 +146,33 @@ func TestEmitSuccessfulExecution_ForcesSuccessEntryPointToSkillPackage(t *testin
 	}
 }
 
+func TestEmitSuccessfulExecution_APITokenEntryPointPersistsAPIToken(t *testing.T) {
+	database := newUsageEventTestDB(t)
+	ctx := &SkillRelayContext{
+		RequestID:      "req-dr101-api-token",
+		SkillID:        "33333333-3333-4333-8333-333333333333",
+		SkillVersionID: "44444444-4444-4444-8444-444444444444",
+		UserID:         7,
+		Plan:           enums.RequiredPlanFree,
+		SubActive:      true,
+		EntryPoint:     string(enums.EntryPointAPIToken),
+	}
+
+	require.NoError(t, emitSuccessfulExecution(database, SuccessfulExecutionEventInput{
+		Context:   ctx,
+		Usage:     &dto.Usage{InputTokens: 3, OutputTokens: 4},
+		Model:     "deeprouter-auto",
+		LatencyMS: 10,
+	}))
+
+	var events []skillmodel.SkillUsageEvent
+	require.NoError(t, database.Find(&events).Error)
+	require.Len(t, events, 2)
+	for _, event := range events {
+		assert.Equal(t, enums.EntryPointAPIToken, event.EntryPoint)
+	}
+}
+
 func TestEmitSuccessfulExecution_ConcurrentFirstUseEmitsOneFirstUse(t *testing.T) {
 	database, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "usage-events.db")), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),

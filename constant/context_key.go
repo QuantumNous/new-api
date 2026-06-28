@@ -103,6 +103,9 @@ const (
 	// That surface requires deeprouter.skill_id and forces entry_point=skill_package.
 	ContextKeySkillPublicRoutingAPI ContextKey = "skill_public_routing_api"
 	ContextKeySkillRelayEntryPoint  ContextKey = "skill_relay_entry_point"
+	// ContextKeySkillAuthEntryPoint marks the authenticated principal class for
+	// Skill API handlers that emit analytics outside the relay path.
+	ContextKeySkillAuthEntryPoint ContextKey = "skill_auth_entry_point"
 	// ContextKeySkillBlockedHandled marks that DR-70 blocked-path handling has
 	// already run for the current request, regardless of whether it emitted an
 	// analytics row, skipped due to omission, or observed a writer failure.

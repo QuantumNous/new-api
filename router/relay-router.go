@@ -239,7 +239,7 @@ func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {
 func markSkillPublicRoutingAPI() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		common.SetContextKey(c, constant.ContextKeySkillPublicRoutingAPI, true)
-		common.SetContextKey(c, constant.ContextKeySkillRelayEntryPoint, string(enums.EntryPointSkillPackage))
+		common.SetContextKey(c, constant.ContextKeySkillRelayEntryPoint, string(enums.EntryPointAPIToken))
 		c.Next()
 	}
 }

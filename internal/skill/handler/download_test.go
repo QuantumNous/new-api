@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
 	"github.com/gin-gonic/gin"
@@ -426,6 +428,41 @@ func TestDownloadSkillPackage_DR97RecommendationEntryPoints(t *testing.T) {
 			assert.Equal(t, tc.want, evt.EntryPoint)
 		})
 	}
+}
+
+func TestDownloadSkillPackage_APITokenEntryPointOverridesQuery(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := createPublishedSkillWithActiveVersion(t, db, "api-token-download", "API token template")
+
+	c, w := testDownloadCtx("api-token-download", 101, "default")
+	c.Request.URL.RawQuery = "entry_point=recommended"
+	common.SetContextKey(c, constant.ContextKeySkillAuthEntryPoint, string(enums.EntryPointAPIToken))
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var evt skillmodel.SkillUsageEvent
+	err := db.Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).First(&evt).Error
+	require.NoError(t, err)
+	assert.Equal(t, enums.EntryPointAPIToken, evt.EntryPoint)
+	require.NotNil(t, evt.UserID)
+	assert.Equal(t, int64(101), *evt.UserID)
+}
+
+func TestDownloadSkillPackage_APITokenPlanRequiredUsesSameError(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("api-token-pro-skill", "published")
+	s.RequiredPlan = enums.RequiredPlanPro
+	s = createPublishedSkillWithActiveVersionFromSkill(t, db, s, "Pro template")
+
+	c, w := testDownloadCtx("api-token-pro-skill", 101, "default")
+	common.SetContextKey(c, constant.ContextKeySkillAuthEntryPoint, string(enums.EntryPointAPIToken))
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), "SKILL_PLAN_REQUIRED")
 }
 
 // TestDownloadSkillPackage_EmitRecordsUserPlanNotSkillPlan verifies that when a pro user

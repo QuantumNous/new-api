@@ -154,7 +154,11 @@ func buildSuccessfulExecutionEvent(input SuccessfulExecutionEventInput, eventTyp
 }
 
 func normalizedSuccessEntryPoint(entryPoint string) enums.EntryPoint {
-	// DR-73: successful server-side Skill executions are package executions.
+	if enums.EntryPoint(entryPoint) == enums.EntryPointAPIToken {
+		return enums.EntryPointAPIToken
+	}
+	// DR-73: successful server-side Skill executions are package executions unless
+	// the API token itself is the auth+entitlement principal (DR-101).
 	// Client-provided discovery entry points remain valid for marketplace events,
 	// but must not label execution lifecycle events.
 	return enums.EntryPointSkillPackage

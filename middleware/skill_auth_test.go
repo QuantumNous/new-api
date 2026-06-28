@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -152,7 +154,12 @@ func TestSkillRootAuth_InvalidToken_Returns401(t *testing.T) {
 	require.NoError(t, db.AutoMigrate(&model.User{}))
 	oldDB := model.DB
 	model.DB = db
-	t.Cleanup(func() { model.DB = oldDB })
+	oldRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() {
+		model.DB = oldDB
+		common.RedisEnabled = oldRedisEnabled
+	})
 
 	r := authTestRouter(SkillRootAuth())
 	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
@@ -162,4 +169,48 @@ func TestSkillRootAuth_InvalidToken_Returns401(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assert.Equal(t, "AUTH_REQUIRED", errorCode(t, w.Body.Bytes()))
+}
+
+func TestSkillUserAuth_APITokenAuthenticatesWithoutNewAPIUserHeader(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}))
+	require.NoError(t, db.Create(&model.User{
+		Id:       101,
+		Username: "api-token-user",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "pro",
+	}).Error)
+	require.NoError(t, db.Create(&model.Token{
+		UserId:         101,
+		Key:            "dr101token",
+		Status:         common.TokenStatusEnabled,
+		Name:           "DR-101 token",
+		ExpiredTime:    -1,
+		RemainQuota:    10,
+		UnlimitedQuota: false,
+	}).Error)
+
+	oldDB := model.DB
+	model.DB = db
+	t.Cleanup(func() { model.DB = oldDB })
+
+	r := gin.New()
+	store := cookie.NewStore([]byte("test-secret-key"))
+	r.Use(sessions.Sessions("mysession", store))
+	r.GET("/probe", SkillUserAuth(), func(c *gin.Context) {
+		assert.Equal(t, 101, c.GetInt("id"))
+		assert.Equal(t, "pro", c.GetString("group"))
+		assert.Equal(t, string(enums.EntryPointAPIToken), common.GetContextKeyString(c, constant.ContextKeySkillAuthEntryPoint))
+		assert.Equal(t, "dr101token", common.GetContextKeyString(c, constant.ContextKeyTokenKey))
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	req.Header.Set("Authorization", "Bearer sk-dr101token")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
 }

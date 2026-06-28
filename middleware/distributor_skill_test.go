@@ -305,6 +305,26 @@ func TestPrepareSkillRelay_UnknownSkillID_RequestBodyEntryPoint_EmitsBlocked(t *
 	assert.Equal(t, enums.BlockReasonSkillNotFound, *events[0].BlockReason)
 }
 
+func TestPrepareSkillRelay_APITokenForcedEntryPointOverridesRequestBody(t *testing.T) {
+	db := newSkillDistributionDB(t)
+	skillrelay.SetDB(db)
+	t.Cleanup(func() { skillrelay.SetDB(nil) })
+
+	c, _ := newSkillDistributionCtx(t, map[string]any{
+		"model":      "gpt-4o",
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+		"deeprouter": map[string]any{"skill_id": "does-not-exist", "entry_point": string(enums.EntryPointAdminPreview)},
+	})
+	common.SetContextKey(c, constant.ContextKeySkillRelayEntryPoint, string(enums.EntryPointAPIToken))
+
+	errCode := prepareSkillRelayForDistribution(c, &ModelRequest{Model: "gpt-4o"})
+	require.Equal(t, errcodes.ErrSkillNotFound, errCode)
+
+	events := countBlockedEvents(t, db)
+	require.Len(t, events, 1)
+	assert.Equal(t, enums.EntryPointAPIToken, events[0].EntryPoint)
+}
+
 func TestPrepareSkillRelay_NormalChatCompletions_RequestBodyEntryPoint_EmitsBlocked(t *testing.T) {
 	db := newSkillDistributionDB(t)
 	skillrelay.SetDB(db)
