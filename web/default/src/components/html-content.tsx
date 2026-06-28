@@ -27,7 +27,16 @@ interface HtmlContentProps {
 }
 
 export function HtmlContent(props: HtmlContentProps) {
-  const html = useMemo(() => DOMPurify.sanitize(props.content), [props.content])
+  // 放宽 DOMPurify 限制，允许管理员设置的内联样式、class 和 id，避免自定义 HTML 样式丢失
+  const html = useMemo(
+    () =>
+      DOMPurify.sanitize(props.content, {
+        ADD_ATTR: ['class', 'style', 'id', 'target', 'rel'],
+        ADD_TAGS: ['style', 'iframe', 'video', 'audio', 'source'],
+        FORCE_BODY: true,
+      }),
+    [props.content]
+  )
 
   return (
     <div

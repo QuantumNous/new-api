@@ -159,7 +159,7 @@ export function About() {
 
   return (
     <PublicLayout>
-      <div className='mx-auto max-w-6xl px-4 py-8'>
+      <div className={isLikelyHtml(rawContent) ? 'w-full' : 'mx-auto max-w-6xl px-4 py-8'}>
         <RichContent
           mode={isLikelyHtml(rawContent) ? 'html' : 'markdown'}
           content={rawContent}
