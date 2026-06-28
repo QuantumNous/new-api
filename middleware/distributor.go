@@ -101,6 +101,8 @@ func Distribute() func(c *gin.Context) {
 					}
 				}
 
+				usingGroup = routeAutoGroupForRequestPath(c, usingGroup)
+
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
@@ -108,7 +110,7 @@ func Distribute() func(c *gin.Context) {
 						channelSupportsRequestPath(preferred, c.Request.URL.Path) {
 						if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetUserAutoGroup(userGroup)
+							autoGroups := service.GetRequestAutoGroup(c, userGroup)
 							for _, g := range autoGroups {
 								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
 									selectGroup = g
@@ -167,6 +169,43 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func routeAutoGroupForRequestPath(c *gin.Context, usingGroup string) string {
+	if usingGroup != "auto" {
+		return usingGroup
+	}
+
+	requestPath := c.Request.URL.Path
+	if isChatCompletionsPath(requestPath) {
+		const routedGroup = "codex-completions"
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, routedGroup)
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, routedGroup)
+		return routedGroup
+	}
+
+	if isResponsesPath(requestPath) {
+		common.SetContextKey(c, constant.ContextKeyRouteAutoGroups, []string{"codex", "codex-pro"})
+	}
+	return usingGroup
+}
+
+func autoGroupForRequestPath(usingGroup string, requestPath string) (string, bool) {
+	if usingGroup != "auto" {
+		return usingGroup, false
+	}
+	if isChatCompletionsPath(requestPath) {
+		return "codex-completions", true
+	}
+	return usingGroup, false
+}
+
+func isChatCompletionsPath(requestPath string) bool {
+	return requestPath == "/v1/chat/completions" || strings.HasPrefix(requestPath, "/v1/chat/completions/")
+}
+
+func isResponsesPath(requestPath string) bool {
+	return requestPath == "/v1/responses" || strings.HasPrefix(requestPath, "/v1/responses/")
 }
 
 // channelSupportsRequestPath reports whether a channel can serve the request path.

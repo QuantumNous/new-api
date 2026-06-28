@@ -1,6 +1,7 @@
 package types
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -376,6 +377,19 @@ func IsSkipRetryError(err *NewAPIError) bool {
 	}
 
 	return err.skipRetry
+}
+
+func IsClientCanceledError(err *NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err.Err, context.Canceled) {
+		return true
+	}
+	lowerMessage := strings.ToLower(err.Error())
+	return strings.Contains(lowerMessage, "context canceled") ||
+		strings.Contains(lowerMessage, "request context done") ||
+		strings.Contains(lowerMessage, "client_gone")
 }
 
 func ErrOptionWithSkipRetry() NewAPIErrorOptions {

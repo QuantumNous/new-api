@@ -41,6 +41,7 @@ const (
 	ContextKeyAutoGroup           ContextKey = "auto_group"
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"
 	ContextKeyAutoGroupRetryIndex ContextKey = "auto_group_retry_index"
+	ContextKeyRouteAutoGroups     ContextKey = "route_auto_groups"
 
 	/* user related keys */
 	ContextKeyUserId      ContextKey = "id"
