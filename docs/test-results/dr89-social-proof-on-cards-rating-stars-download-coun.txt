@@ -1,0 +1,43 @@
+# DR-89 Social Proof on Cards: Rating Stars + Download Count + Badges
+
+Date: 2026-06-29
+
+## Focused backend
+
+- Command: `go test ./internal/skill/handler -run 'TestListMarketplaceSkills_DR89|TestListMarketplaceSkills_DR52PublicShapeAndAnonymousAvailability|TestGetMarketplaceSkill' -cover`
+- Dataset/fixtures: SQLite in-memory Skill handler fixtures with published Skills, manually created `skill_reviews` approved/published/open rows, unique `user_enabled_skills`, successful `skill_purchase_orders`, and recent successful `skill_used` usage events.
+- Verified: approved/published ratings only, pending/open review exclusion, no double-counting purchase rows already represented by enablement rows, additive list/detail response compatibility, and New/Trending/PLUS/Kids badge derivation.
+- Coverage: `internal/skill/handler` 7.3% statements for the focused regex subset.
+- Result: PASS
+
+## Related Go regression
+
+- Command: `go test ./internal/skill/... -cover`
+- Dataset/fixtures: Existing internal Skill package unit/integration fixtures, including availability, handler, model, relay, seed, tiers, analytics, notifications, purchase, save/bookmark, telemetry, package download, and marketplace lifecycle tests.
+- Verified: DR-89 social-proof aggregation does not regress existing Skill APIs, analytics events, migrations, relay entitlement checks, package download, or recommendation/leaderboard surfaces.
+- Coverage: package-level coverage included `internal/skill/handler` 74.3%, `internal/skill/relay` 80.2%, `internal/skill/availability` 100.0%, `internal/skill/pricing` 50.0%, `internal/skill/tiers` 100.0%, and `internal/skill/model` 43.7%.
+- Result: PASS
+
+## Frontend typecheck
+
+- Command: `bun run typecheck`
+- Dataset/fixtures: TypeScript project references for `web/default`.
+- Verified: additive `rating_summary` / `download_count` types, new marketplace components, detail imports, and locale JSON remain type-safe.
+- Coverage: not applicable to typecheck.
+- Result: PASS
+
+## Frontend marketplace regression
+
+- Command: `bunx vitest run src/features/marketplace --coverage --coverage.include='src/features/marketplace/**'`
+- Dataset/fixtures: Existing mocked Marketplace API responses, download leaderboard fixtures, saved/my-skills fixtures, and a new card fixture with `rating_summary`, `download_count`, and DR-89 badge strings.
+- Verified: Marketplace cards render `4.5 (8)`, formatted `1.2k downloads`, New/Trending/Popular/PLUS-exclusive badges, and existing card CTA, growth rails, saved skills, my-skills, row state, and download URL behavior remain stable.
+- Coverage: Marketplace files 70.87% statements, 65.82% branches, 69.06% functions, 72.43% lines.
+- Result: PASS
+
+## Frontend build
+
+- Command: `bun run build`
+- Dataset/fixtures: Production Rsbuild build for `web/default`.
+- Verified: TSX, route chunks, i18n JSON, and marketplace bundle compile for production.
+- Coverage: not applicable to production build.
+- Result: PASS

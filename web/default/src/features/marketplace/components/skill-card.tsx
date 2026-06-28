@@ -38,7 +38,12 @@ import {
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { MarketplaceSkill, SkillCTAAction } from '../types'
-import { KidsBadge, PlanBadge } from './badges'
+import {
+  KidsBadge,
+  MarketplaceTrustBadges,
+  PlanBadge,
+  SocialProofRow,
+} from './badges'
 import { LockState } from './lock-state'
 import { normalizeLockState } from './lock-state-utils'
 import { SkillCTA } from './skill-cta'
@@ -220,8 +225,13 @@ export function SkillCard({
             skill.description ||
             t('No description provided.')}
         </p>
+        <SocialProofRow
+          rating={skill.rating_summary}
+          downloadCount={skill.download_count}
+        />
         <div className='flex min-h-14 flex-wrap content-start items-start gap-1.5'>
           <PlanBadge plan={skill.required_plan} />
+          <MarketplaceTrustBadges badges={skill.badges} />
           {skill.featured_flag === true || skill.featured === true ? (
             <Badge variant='outline'>
               <Star data-icon='inline-start' />

@@ -105,6 +105,9 @@ type PublicSkill struct {
 	FeaturedFlag         bool               `json:"featured_flag"`
 	FeaturedRank         *int               `json:"featured_rank,omitempty"`
 	PublishedAt          *time.Time         `json:"published_at,omitempty"`
+	RatingSummary        RatingSummary      `json:"rating_summary"`
+	DownloadCount        int64              `json:"download_count"`
+	Badges               []string           `json:"badges,omitempty"`
 }
 
 type MarketplaceSkill struct {
@@ -120,6 +123,13 @@ type MarketplaceSkill struct {
 	Saved            *bool              `json:"saved,omitempty"`
 	IsKidsSafe       bool               `json:"is_kids_safe"`
 	IsKidsExclusive  bool               `json:"is_kids_exclusive"`
+	RatingSummary    RatingSummary      `json:"rating_summary"`
+	DownloadCount    int64              `json:"download_count"`
+}
+
+type RatingSummary struct {
+	Average float64 `json:"average"`
+	Count   int64   `json:"count"`
 }
 
 type DownloadLeaderboardSkill struct {
@@ -339,9 +349,15 @@ func ListMarketplaceSkills(c *gin.Context) {
 		return
 	}
 
+	socialProof, err := loadMarketplaceSocialProof(db, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+
 	out := make([]MarketplaceSkill, 0, len(skills))
 	for _, s := range skills {
-		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID], entitlementBySkillID[s.ID]))
+		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID], entitlementBySkillID[s.ID], socialProof[s.ID]))
 	}
 	skillapi.List(c, out, skillapi.NewPagination(page.Page, page.Limit, total))
 }
@@ -506,6 +522,11 @@ func writeMarketplaceSkillList(c *gin.Context, db *gorm.DB, page skillapi.PagePa
 		writeDBError(c, err)
 		return
 	}
+	socialProof, err := loadMarketplaceSocialProof(db, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
 	entitlementBySkillID, err := marketplaceOneTimeEntitlementBySkillID(db, userInfo, skills)
 	if err != nil {
 		writeDBError(c, err)
@@ -514,7 +535,7 @@ func writeMarketplaceSkillList(c *gin.Context, db *gorm.DB, page skillapi.PagePa
 
 	out := make([]MarketplaceSkill, 0, len(skills))
 	for _, s := range skills {
-		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID], entitlementBySkillID[s.ID]))
+		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID], entitlementBySkillID[s.ID], socialProof[s.ID]))
 	}
 	skillapi.List(c, out, skillapi.NewPagination(page.Page, page.Limit, total))
 }
@@ -556,7 +577,12 @@ func GetMarketplaceSkill(c *gin.Context) {
 		writeDBError(c, err)
 		return
 	}
-	skillapi.Success(c, publicSkillDetailFromModel(s, instructions, savedBySkillID[s.ID]))
+	socialProof, err := loadMarketplaceSocialProof(db, []skillmodel.Skill{s})
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	skillapi.Success(c, publicSkillDetailFromModel(s, instructions, savedBySkillID[s.ID], socialProof[s.ID]))
 }
 
 func SaveMarketplaceSkill(c *gin.Context) {
@@ -776,7 +802,7 @@ func ListDownloadLeaderboards(c *gin.Context) {
 	out := make([]DownloadLeaderboardSkill, 0, len(rows))
 	for i, row := range rows {
 		out = append(out, DownloadLeaderboardSkill{
-			MarketplaceSkill: marketplaceSkillFromModel(row.Skill, userInfo, enabledBySkillID[row.Skill.ID], savedBySkillID[row.Skill.ID], entitlementBySkillID[row.Skill.ID]),
+			MarketplaceSkill: marketplaceSkillFromModel(row.Skill, userInfo, enabledBySkillID[row.Skill.ID], savedBySkillID[row.Skill.ID], entitlementBySkillID[row.Skill.ID], marketplaceSocialProof{DownloadCount: row.DownloadCount}),
 			DownloadCount:    row.DownloadCount,
 			Rank:             i + 1,
 			Window:           window,
@@ -1230,6 +1256,8 @@ func listMarketplaceSkillsPublicQuery(db *gorm.DB) *gorm.DB {
 		"free_quota_per_month",
 		"featured_flag",
 		"featured_rank",
+		"published_at",
+		"created_at",
 		"is_kids_safe",
 		"is_kids_exclusive",
 	})
@@ -1337,7 +1365,15 @@ type marketplaceUserContext struct {
 	SubActive   bool
 }
 
-func marketplaceSkillFromModel(s skillmodel.Skill, user marketplaceUserContext, enabled bool, saved bool, hasOneTimeEntitlement bool) MarketplaceSkill {
+type marketplaceSocialProof struct {
+	RatingSummary RatingSummary
+	DownloadCount int64
+	Trending      bool
+}
+
+const marketplacePopularDownloadThreshold int64 = 100
+
+func marketplaceSkillFromModel(s skillmodel.Skill, user marketplaceUserContext, enabled bool, saved bool, hasOneTimeEntitlement bool, proof marketplaceSocialProof) MarketplaceSkill {
 	result := availability.Resolve(availability.SkillInfo{
 		Status:            s.Status,
 		RequiredPlan:      s.RequiredPlan,
@@ -1362,10 +1398,12 @@ func marketplaceSkillFromModel(s skillmodel.Skill, user marketplaceUserContext, 
 		ShortDescription: s.ShortDescription,
 		RequiredPlan:     s.RequiredPlan,
 		Availability:     skillAvailabilityFromResult(result),
-		Badges:           marketplaceBadges(s),
+		Badges:           marketplaceBadges(s, proof),
 		Featured:         s.FeaturedFlag,
 		IsKidsSafe:       s.IsKidsSafe,
 		IsKidsExclusive:  s.IsKidsExclusive,
+		RatingSummary:    proof.RatingSummary,
+		DownloadCount:    proof.DownloadCount,
 	}
 	if !user.IsAnonymous && user.UserID != 0 {
 		out.Saved = &saved
@@ -1443,6 +1481,177 @@ func loadDownloadCountsBySkill(db *gorm.DB, skillIDs []string, start, end time.T
 		out[row.SkillID] = row.DownloadCount
 	}
 	return out, nil
+}
+
+func loadTotalDownloadCountsBySkill(db *gorm.DB, skillIDs []string) (map[string]int64, error) {
+	out := make(map[string]int64, len(skillIDs))
+	if len(skillIDs) == 0 {
+		return out, nil
+	}
+	var enabledRows []struct {
+		SkillID       string
+		DownloadCount int64
+	}
+	if err := db.Table("user_enabled_skills").
+		Select("skill_id, COUNT(*) AS download_count").
+		Where("skill_id IN ?", skillIDs).
+		Group("skill_id").
+		Scan(&enabledRows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range enabledRows {
+		out[row.SkillID] += row.DownloadCount
+	}
+
+	var purchaseRows []struct {
+		SkillID       string
+		DownloadCount int64
+	}
+	if err := db.Table("skill_purchase_orders AS spo").
+		Select("spo.skill_id, COUNT(*) AS download_count").
+		Where("spo.skill_id IN ? AND spo.status = ?", skillIDs, skillmodel.SkillPurchaseStatusSucceeded).
+		Where(`NOT EXISTS (
+			SELECT 1 FROM user_enabled_skills AS ues
+			WHERE ues.skill_id = spo.skill_id
+			  AND ues.user_id = spo.user_id
+			  AND ues.tenant_id = spo.tenant_id
+		)`).
+		Group("spo.skill_id").
+		Scan(&purchaseRows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range purchaseRows {
+		out[row.SkillID] += row.DownloadCount
+	}
+	return out, nil
+}
+
+func loadMarketplaceSocialProof(db *gorm.DB, skills []skillmodel.Skill) (map[string]marketplaceSocialProof, error) {
+	out := make(map[string]marketplaceSocialProof, len(skills))
+	if len(skills) == 0 {
+		return out, nil
+	}
+	ids := make([]string, 0, len(skills))
+	for _, s := range skills {
+		ids = append(ids, s.ID)
+		out[s.ID] = marketplaceSocialProof{}
+	}
+	downloads, err := loadTotalDownloadCountsBySkill(db, ids)
+	if err != nil {
+		return nil, err
+	}
+	ratings, err := loadApprovedRatingSummariesBySkill(db, ids)
+	if err != nil {
+		return nil, err
+	}
+	trending, err := loadTrendingSkillIDs(db, ids, time.Now().UTC())
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		proof := out[id]
+		proof.DownloadCount = downloads[id]
+		proof.RatingSummary = ratings[id]
+		proof.Trending = trending[id]
+		out[id] = proof
+	}
+	return out, nil
+}
+
+func loadTrendingSkillIDs(db *gorm.DB, skillIDs []string, now time.Time) (map[string]bool, error) {
+	out := map[string]bool{}
+	if len(skillIDs) == 0 {
+		return out, nil
+	}
+	recentStart := now.AddDate(0, 0, -7)
+	var rows []struct {
+		SkillID string
+		Count   int64
+	}
+	if err := db.Model(&skillmodel.SkillUsageEvent{}).
+		Select("skill_id, COUNT(*) AS count").
+		Where("skill_id IN ?", skillIDs).
+		Where("skill_id IS NOT NULL").
+		Where("success = ?", true).
+		Where("occurred_at >= ? AND occurred_at < ?", recentStart, now).
+		Where("event_type IN ?", []enums.SkillUsageEventType{
+			enums.SkillUsageEventTypeEnabled,
+			enums.SkillUsageEventTypeUsed,
+		}).
+		Group("skill_id").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if row.Count > 0 {
+			out[row.SkillID] = true
+		}
+	}
+	return out, nil
+}
+
+func loadApprovedRatingSummariesBySkill(db *gorm.DB, skillIDs []string) (map[string]RatingSummary, error) {
+	out := make(map[string]RatingSummary, len(skillIDs))
+	if len(skillIDs) == 0 {
+		return out, nil
+	}
+	table, statusColumn, ok, err := publicRatingSource(db)
+	if err != nil || !ok {
+		return out, err
+	}
+	var rows []struct {
+		SkillID string
+		Average float64
+		Count   int64
+	}
+	if err := db.Table(table).
+		Select("skill_id, AVG(rating) AS average, COUNT(*) AS count").
+		Where("skill_id IN ?", skillIDs).
+		Where(statusColumn+" IN ?", []string{"approved", "published"}).
+		Group("skill_id").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.SkillID] = RatingSummary{
+			Average: float64(int(row.Average*10+0.5)) / 10,
+			Count:   row.Count,
+		}
+	}
+	return out, nil
+}
+
+func publicRatingSource(db *gorm.DB) (table string, statusColumn string, ok bool, err error) {
+	for _, candidate := range []string{"skill_ratings", "skill_reviews"} {
+		if !db.Migrator().HasTable(candidate) {
+			continue
+		}
+		cols, colsErr := db.Migrator().ColumnTypes(candidate)
+		if colsErr != nil {
+			return "", "", false, colsErr
+		}
+		hasSkillID := false
+		hasRating := false
+		status := ""
+		for _, col := range cols {
+			switch strings.ToLower(col.Name()) {
+			case "skill_id":
+				hasSkillID = true
+			case "rating":
+				hasRating = true
+			case "status":
+				status = col.Name()
+			case "moderation_status", "approval_status", "review_status":
+				if status == "" {
+					status = col.Name()
+				}
+			}
+		}
+		if hasSkillID && hasRating && status != "" {
+			return candidate, status, true, nil
+		}
+	}
+	return "", "", false, nil
 }
 
 func loadDownloadLeaderboardRows(db *gorm.DB, start, end time.Time, category string, limit int) ([]downloadLeaderboardRow, int64, error) {
@@ -1719,6 +1928,11 @@ func writeMarketplaceRecommendationList(c *gin.Context, db *gorm.DB, userInfo ma
 		writeDBError(c, err)
 		return
 	}
+	socialProof, err := loadMarketplaceSocialProof(db, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
 	entitlementBySkillID, err := marketplaceOneTimeEntitlementBySkillID(db, userInfo, skills)
 	if err != nil {
 		writeDBError(c, err)
@@ -1726,7 +1940,7 @@ func writeMarketplaceRecommendationList(c *gin.Context, db *gorm.DB, userInfo ma
 	}
 	out := make([]MarketplaceSkill, 0, len(skills))
 	for _, s := range skills {
-		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID], entitlementBySkillID[s.ID]))
+		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID], entitlementBySkillID[s.ID], socialProof[s.ID]))
 	}
 	skillapi.List(c, out, skillapi.NewPagination(page.Page, page.Limit, total))
 }
@@ -1745,10 +1959,20 @@ func skillAvailabilityFromResult(result availability.Result) SkillAvailability {
 	}
 }
 
-func marketplaceBadges(s skillmodel.Skill) []string {
-	badges := make([]string, 0, 4)
+func marketplaceBadges(s skillmodel.Skill, proof marketplaceSocialProof) []string {
+	badges := make([]string, 0, 7)
+	if s.PublishedAt != nil && time.Since(*s.PublishedAt) <= 7*24*time.Hour {
+		badges = append(badges, "new")
+	}
+	if proof.Trending {
+		badges = append(badges, "trending")
+	}
+	if proof.DownloadCount >= marketplacePopularDownloadThreshold {
+		badges = append(badges, "popular")
+	}
 	if s.RequiredPlan != enums.RequiredPlanFree {
 		badges = append(badges, string(s.RequiredPlan))
+		badges = append(badges, "plus_exclusive")
 	}
 	if s.FeaturedFlag {
 		badges = append(badges, "featured")
@@ -1889,8 +2113,11 @@ func skillVersionInstructionsFromModel(version skillmodel.SkillVersion) SkillVer
 	}
 }
 
-func publicSkillDetailFromModel(s skillmodel.Skill, instructions SkillVersionInstructions, saved bool) PublicSkillDetail {
+func publicSkillDetailFromModel(s skillmodel.Skill, instructions SkillVersionInstructions, saved bool, proof marketplaceSocialProof) PublicSkillDetail {
 	public := publicSkillFromModel(s, true)
+	public.RatingSummary = proof.RatingSummary
+	public.DownloadCount = proof.DownloadCount
+	public.Badges = marketplaceBadges(s, proof)
 	return PublicSkillDetail{
 		PublicSkill:           public,
 		RequiresDeepRouterKey: true,

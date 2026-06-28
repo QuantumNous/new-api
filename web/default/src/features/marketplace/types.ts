@@ -116,6 +116,13 @@ export interface MarketplaceSkill {
   is_kids_exclusive?: boolean
   ai_disclosure_required?: boolean
   published_at?: string | null
+  rating_summary?: RatingSummary
+  download_count?: number
+}
+
+export interface RatingSummary {
+  average: number
+  count: number
 }
 
 export type DownloadLeaderboardWindow = '7d' | '30d'

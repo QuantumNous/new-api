@@ -201,6 +201,27 @@ describe('Marketplace list card CTA matrix', () => {
     expect(await screen.findByRole('button', { name: 'Enable' })).toBeEnabled()
   })
 
+  it('renders DR-89 social proof and derived badges on skill cards', async () => {
+    setMarketplaceSkills([
+      {
+        ...baseSkill,
+        name: 'Trusted Skill',
+        rating_summary: { average: 4.5, count: 8 },
+        download_count: 1234,
+        badges: ['new', 'trending', 'popular', 'plus_exclusive'],
+      },
+    ])
+
+    renderMarketplace()
+
+    expect(await screen.findByText('4.5 (8)')).toBeInTheDocument()
+    expect(screen.getByText('1.2k downloads')).toBeInTheDocument()
+    expect(screen.getByText('New')).toBeInTheDocument()
+    expect(screen.getByText('Trending')).toBeInTheDocument()
+    expect(screen.getByText('Popular')).toBeInTheDocument()
+    expect(screen.getByText('PLUS-exclusive')).toBeInTheDocument()
+  })
+
   it('opens the paywall when a buyable locked card CTA is clicked', async () => {
     setMarketplaceSkills([
       {

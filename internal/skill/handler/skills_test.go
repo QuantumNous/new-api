@@ -99,12 +99,97 @@ func TestListMarketplaceSkills_DR52PublicShapeAndAnonymousAvailability(t *testin
 	require.Len(t, got.Data, 1)
 	assert.Equal(t, "pro-featured", got.Data[0].Slug)
 	assert.Equal(t, "pro", got.Data[0].RequiredPlan)
-	assert.Equal(t, []string{"pro", "featured"}, got.Data[0].Badges)
+	assert.Contains(t, got.Data[0].Badges, "pro")
+	assert.Contains(t, got.Data[0].Badges, "featured")
 	assert.True(t, got.Data[0].Featured)
 	assert.Nil(t, got.Data[0].Availability.Enabled)
 	assert.True(t, got.Data[0].Availability.Locked)
 	assert.Equal(t, "AUTH_REQUIRED", got.Data[0].Availability.LockCode)
 	assert.Equal(t, "login", got.Data[0].Availability.CTA)
+}
+
+func TestListMarketplaceSkills_DR89SocialProofFromApprovedReviewsDownloadsAndBadges(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	now := time.Now().UTC()
+	s := testSkill("trusted-skill", "published")
+	s.RequiredPlan = enums.RequiredPlanPro
+	s.IsKidsSafe = true
+	s.PublishedAt = ptr(now.AddDate(0, 0, -2))
+	require.NoError(t, db.Create(&s).Error)
+
+	require.NoError(t, db.Exec(`
+		CREATE TABLE skill_reviews (
+			id integer primary key autoincrement,
+			skill_id text not null,
+			rating integer not null,
+			status text not null
+		)`).Error)
+	require.NoError(t, db.Exec(
+		`INSERT INTO skill_reviews (skill_id, rating, status) VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?)`,
+		s.ID, 5, "approved",
+		s.ID, 4, "published",
+		s.ID, 1, "open",
+	).Error)
+	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
+		UserID:   10,
+		TenantID: 10,
+		SkillID:  s.ID,
+		Enabled:  true,
+		Source:   "marketplace",
+	}).Error)
+	require.NoError(t, db.Create(&skillmodel.SkillPurchaseOrder{
+		UserID:         10,
+		TenantID:       10,
+		SkillID:        s.ID,
+		IdempotencyKey: "same-enabled-user",
+		AmountUSD:      2,
+		Monetization:   enums.MonetizationTypeOneTime,
+		Status:         skillmodel.SkillPurchaseStatusSucceeded,
+	}).Error)
+	require.NoError(t, db.Create(&skillmodel.SkillPurchaseOrder{
+		UserID:         11,
+		TenantID:       11,
+		SkillID:        s.ID,
+		IdempotencyKey: "purchase-only-user",
+		AmountUSD:      2,
+		Monetization:   enums.MonetizationTypeOneTime,
+		Status:         skillmodel.SkillPurchaseStatusSucceeded,
+	}).Error)
+	success := true
+	require.NoError(t, skillmodel.EmitSkillUsageEvent(db, skillmodel.SkillUsageEvent{
+		EventType:  enums.SkillUsageEventTypeUsed,
+		SkillID:    &s.ID,
+		EntryPoint: enums.EntryPointSkillPackage,
+		Success:    &success,
+		Metadata:   skillmodel.SkillJSONB(`{}`),
+	}))
+
+	c, w := testContext("/api/v1/marketplace/skills")
+	ListMarketplaceSkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Slug          string   `json:"slug"`
+			Badges        []string `json:"badges"`
+			DownloadCount int64    `json:"download_count"`
+			RatingSummary struct {
+				Average float64 `json:"average"`
+				Count   int64   `json:"count"`
+			} `json:"rating_summary"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 1)
+	assert.Equal(t, "trusted-skill", got.Data[0].Slug)
+	assert.Equal(t, float64(4.5), got.Data[0].RatingSummary.Average)
+	assert.Equal(t, int64(2), got.Data[0].RatingSummary.Count)
+	assert.Equal(t, int64(2), got.Data[0].DownloadCount, "purchase by already-enabled user must not double-count")
+	assert.Contains(t, got.Data[0].Badges, "new")
+	assert.Contains(t, got.Data[0].Badges, "trending")
+	assert.Contains(t, got.Data[0].Badges, "plus_exclusive")
+	assert.Contains(t, got.Data[0].Badges, "kids_safe")
 }
 
 func TestListMarketplaceSkills_DR52FiltersAndPublicSearch(t *testing.T) {

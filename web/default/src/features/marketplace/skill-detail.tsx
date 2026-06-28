@@ -43,8 +43,10 @@ import {
 import {
   ErrorBanner,
   KidsBadge,
+  MarketplaceTrustBadges,
   PlanBadge,
   SkillPaywallDialog,
+  SocialProofRow,
 } from './components'
 
 interface SkillDetailProps {
@@ -164,6 +166,7 @@ export function SkillDetail({ slug }: SkillDetailProps) {
                 <CardHeader>
                   <div className='flex flex-wrap items-center gap-2'>
                     <PlanBadge plan={detail.required_plan} />
+                    <MarketplaceTrustBadges badges={detail.badges} />
                     {detail.is_kids_safe === true && (
                       <KidsBadge state='kids_safe' />
                     )}
@@ -191,6 +194,11 @@ export function SkillDetail({ slug }: SkillDetailProps) {
                       detail.short_description ||
                       t('No description provided.')}
                   </CardDescription>
+                  <SocialProofRow
+                    rating={detail.rating_summary}
+                    downloadCount={detail.download_count}
+                    className='text-sm'
+                  />
                 </CardHeader>
                 <CardContent className='flex flex-col gap-4'>
                   {/* A1: runtime-dependency copy (R2). Always state the key
