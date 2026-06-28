@@ -1,6 +1,6 @@
 # DR-96 Monetization-Linked Skill Funnels PRD
 
-Status: eval
+Status: ship
 
 ## Context
 
@@ -40,6 +40,6 @@ These metrics join billing top-up rows with `skill_first_use` and successful `sk
 
 ## Evaluation Notes
 
-- Implementation is complete and awaiting PR review/checks.
+- Implementation is complete on PR #123 with self-review and required checks passing before merge.
 - Metrics are aggregate-only and gated by charging enablement.
 - Current attribution uses successful `top_ups.complete_time` inside the selected period and server-side Skill usage events inside the same period.
