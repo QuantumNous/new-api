@@ -10,12 +10,12 @@ are derived verbatim from the CHECK constraints in
 |---|---|---|
 | `SkillStatus` | draft, published, deprecated, archived | skills.status |
 | `RequiredPlan` | free, pro, enterprise | skills.required_plan |
-| `MonetizationType` | free, plan_included, token_markup | skills.monetization_type |
+| `MonetizationType` | free, plan_included, token_markup, one_time | skills.monetization_type |
 | `SkillVersionStatus` | draft, active, inactive, archived | skill_versions.status |
 | `ReviewStatus` | open, assigned, escalated, resolved, reopened | skill_reviews.status |
 | `KidsApprovalStatus` | not_required, pending, approved, emergency_approved, rejected, revoked | skills.kids_approval_status |
 | `BlockReason` | see below | skill_usage_events.block_reason |
-| `EntryPoint` | marketplace_card, skill_detail, my_skills, saved_list, featured, popular, new, recommended, reco_personal, reco_codownload, admin_preview, search_results, skill_package, api_token, playground_picker (legacy only) | skill_usage_events.entry_point |
+| `EntryPoint` | marketplace_card, skill_detail, my_skills, saved_list, featured, popular, new, recommended, reco_personal, reco_codownload, digest, reengage, admin_preview, search_results, skill_package, api_token, downloaded_runner, playground_picker (legacy only) | skill_usage_events.entry_point |
 
 ## BlockReason naming
 

@@ -1,0 +1,135 @@
+# DR-103 Weekly Top-Skills digest + re-engagement notifications test results
+
+Date: 2026-06-29
+Branch: feature/DR-103-weekly-top-skills-digest-re-engagement-notificat
+
+## Focused tests
+
+Command:
+
+```bash
+GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/notify ./internal/skill/enums ./internal/skill/model -count=1
+```
+
+Dataset/fixtures:
+
+- In-memory SQLite Skill tables.
+- Platform users with `marketing_emails=true/false` notification consent.
+- Published free and `one_time` Skills across writing/coding categories.
+- `user_enabled_skills` rows for category affinity, saved/downloaded promo eligibility, lapsed `last_used_at`, and opt-out suppression.
+- `skill_usage_events` rows for weekly enable/download counts.
+
+Verified:
+
+- Weekly digest sends only to opted-in users.
+- Digest ranking combines top downloaded, new, trending, and category affinity; a returning user's preferred category can outrank generic popularity.
+- Opted-out users receive no send and no `skill_notification_sent` analytics.
+- Saved/downloaded `one_time` promo inputs send re-engagement only to opted-in users.
+- Lapsed enabled Skills send "continue using" re-engagement only to opted-in users.
+- Open/click tracking accepts only `digest`/`reengage` and persists `skill_notification_opened` / `skill_notification_clicked`.
+
+Coverage:
+
+- `internal/skill/notify`: 68.0%
+- `internal/skill/enums`: 88.9%
+- `internal/skill/model`: 44.0%
+
+Result: PASS
+
+## Rebase compatibility
+
+Command:
+
+```bash
+GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/handler ./router -run 'TestRecordRunnerSkillUsage|TestSkillRouterTelemetryUsageRequiresAPIToken' -count=1
+```
+
+Dataset/fixtures:
+
+- Existing DR-102 downloaded runner telemetry handler/router fixtures.
+- Combined `skill_usage_events` enum/check-constraint set with `downloaded_runner`, `digest`, and `reengage`.
+
+Verified:
+
+- DR-102 downloaded runner telemetry continues to accept `entry_point=downloaded_runner` after DR-103 adds notification entry points.
+- Telemetry route API-token auth remains registered.
+- Latest DR-90 rail entry points (`new_week`, `trending`) remain in the combined usage-event constraint set after rebase.
+
+Coverage: not collected for this command.
+
+Result: PASS
+
+## Rebase regression
+
+Command:
+
+```bash
+GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./relay/helper -count=1
+```
+
+Dataset/fixtures:
+
+- Existing relay helper stream scanner unit fixtures, including zero-value process-global timeout setup and ping/slow-stream cases.
+
+Verified:
+
+- Stream scanner no longer panics when `constant.StreamingTimeout` is still zero before process config init.
+- Existing stream timeout, done, EOF, handler stop, ping, soft-error, and slow-handler tests pass.
+
+Coverage: not collected for this command.
+
+Result: PASS
+
+## Related regression suite
+
+Command:
+
+```bash
+GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/... -count=1
+```
+
+Dataset/fixtures:
+
+- Existing Skill API, availability, handler, lifecycle, analytics, package download, relay, seed, enum, model, and tier fixtures.
+- DR-103 notification fixtures above.
+
+Verified:
+
+- Shared analytics enums and `skill_usage_events` constraints remain compatible with existing Skill handler/model/relay flows.
+- Existing Marketplace, package download, recommendation, purchase, lifecycle, and runtime entitlement tests continue to pass.
+
+Coverage: not collected for this command; focused coverage collected above.
+
+Result: PASS
+
+## Full backend suite
+
+Prerequisite command:
+
+```bash
+make build-all-frontends
+```
+
+Why:
+
+- Root Go package embeds `web/default/dist` and `web/classic/dist`; fresh worktrees do not contain these ignored build artifacts.
+
+Command:
+
+```bash
+GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./... -count=1
+```
+
+Dataset/fixtures:
+
+- Repository-wide Go unit and regression fixtures.
+- Generated frontend dist artifacts for root package embed only.
+
+Verified:
+
+- Full Go test suite compiles and passes after DR-103 changes.
+- No `node_modules` dependency directory remains required for the final suite run.
+
+Coverage: not collected for full suite; focused coverage collected above.
+
+Result: PASS
