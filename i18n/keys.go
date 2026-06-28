@@ -115,6 +115,8 @@ const (
 	MsgUserTelegramNotBound          = "user.telegram_not_bound"
 	MsgUserLinuxDOIdEmpty            = "user.linux_do_id_empty"
 	MsgUserQuotaChangeZero           = "user.quota_change_zero"
+	MsgUserCannotConvertFeishuBound  = "user.cannot_convert_feishu_bound"
+	MsgUserAlreadyOrganization       = "user.already_organization"
 )
 
 // Quota related messages

@@ -283,7 +283,18 @@ func Register(c *gin.Context) {
 
 func GetAllUsers(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.GetAllUsers(pageInfo)
+	var accountType *int
+	if atStr := c.Query("account_type"); atStr != "" {
+		if parsed, err := strconv.Atoi(atStr); err == nil {
+			accountType = &parsed
+		}
+	}
+	// 默认只返回个人用户，保持向后兼容
+	if accountType == nil {
+		defaultType := common.AccountTypePersonal
+		accountType = &defaultType
+	}
+	users, total, err := model.GetAllUsers(pageInfo, accountType)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -311,8 +322,19 @@ func SearchUsers(c *gin.Context) {
 			status = &parsed
 		}
 	}
+	var accountType *int
+	if atStr := c.Query("account_type"); atStr != "" {
+		if parsed, err := strconv.Atoi(atStr); err == nil {
+			accountType = &parsed
+		}
+	}
+	// 默认只返回个人用户，保持向后兼容
+	if accountType == nil {
+		defaultType := common.AccountTypePersonal
+		accountType = &defaultType
+	}
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, role, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	users, total, err := model.SearchUsers(keyword, group, role, status, accountType, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -877,6 +899,58 @@ func DeleteSelf(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+	return
+}
+
+// ConvertToOrganization 将个人用户转换为组织账号（单向不可逆）
+// 仅限没有飞书 ID 的账号可以转换
+func ConvertToOrganization(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	user, err := model.GetUserById(id, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	myRole := c.GetInt("role")
+	if !canManageTargetRole(myRole, user.Role) {
+		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
+		return
+	}
+
+	// 校验：有飞书 ID 的账号不可转换
+	if user.FeishuId != "" || user.FeishuUnionId != "" || user.FeishuUserId != "" {
+		common.ApiErrorI18n(c, i18n.MsgUserCannotConvertFeishuBound)
+		return
+	}
+
+	// 校验：已经是组织账号
+	if user.AccountType == common.AccountTypeOrganization {
+		common.ApiErrorI18n(c, i18n.MsgUserAlreadyOrganization)
+		return
+	}
+
+	// 执行转换
+	if err := model.DB.Model(&model.User{}).Where("id = ?", id).Update("account_type", common.AccountTypeOrganization).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	recordManageAuditFor(c, user.Id, "user.convert_to_organization", map[string]interface{}{
+		"username": user.Username,
+		"id":       user.Id,
+	})
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -906,10 +980,15 @@ func CreateUser(c *gin.Context) {
 	}
 	// Even for admin users, we cannot fully trust them!
 	cleanUser := model.User{
-		Username:    user.Username,
-		Password:    user.Password,
-		DisplayName: user.DisplayName,
-		Role:        user.Role, // 保持管理员设置的角色
+		Username:       user.Username,
+		Password:       user.Password,
+		DisplayName:    user.DisplayName,
+		Role:           user.Role, // 保持管理员设置的角色
+		AccountType:    user.AccountType,
+		OrgName:        user.OrgName,
+		OrgContactName: user.OrgContactName,
+		OrgContactInfo: user.OrgContactInfo,
+		OrgDescription: user.OrgDescription,
 	}
 	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)

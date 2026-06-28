@@ -62,6 +62,11 @@ export const userSchema = z.object({
   org_path: z.string().optional(),
   org_level1_name: z.string().optional(),
   org_level2_name: z.string().optional(),
+  account_type: z.number().default(0),
+  org_name: z.string().optional(),
+  org_contact_name: z.string().optional(),
+  org_contact_info: z.string().optional(),
+  org_description: z.string().optional(),
   status: userStatusSchema,
   role: userRoleSchema,
   created_at: z.number().optional(),
@@ -88,6 +93,7 @@ export interface ApiResponse<T = unknown> {
 export interface GetUsersParams {
   p?: number
   page_size?: number
+  account_type?: number
 }
 
 export interface GetUsersResponse {
@@ -108,6 +114,7 @@ export interface SearchUsersParams {
   status?: string
   p?: number
   page_size?: number
+  account_type?: number
 }
 
 export interface UserFormData {
@@ -118,6 +125,11 @@ export interface UserFormData {
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
+  account_type?: number
+  org_name?: string
+  org_contact_name?: string
+  org_contact_info?: string
+  org_description?: string
 }
 
 export type ManageUserAction =

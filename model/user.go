@@ -49,6 +49,10 @@ type User struct {
 	OrgLevel1Name              string         `json:"org_level1_name" gorm:"column:org_level1_name;type:varchar(255);default:'';index"`
 	OrgLevel2Name              string         `json:"org_level2_name" gorm:"column:org_level2_name;type:varchar(255);default:'';index"`
 	JobTitle                   string         `json:"job_title" gorm:"column:job_title;type:varchar(255);default:''"`
+	AccountType                int            `json:"account_type" gorm:"column:account_type;type:int;default:0;index"` // 0=个人用户, 1=组织账号
+	OrgContactName             string         `json:"org_contact_name" gorm:"column:org_contact_name;type:varchar(255);default:''"`
+	OrgContactInfo             string         `json:"org_contact_info" gorm:"column:org_contact_info;type:varchar(255);default:''"`
+	OrgDescription             string         `json:"org_description" gorm:"column:org_description;type:varchar(500);default:''"`
 	VerificationCode           string         `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
 	AccessToken                *string        `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota                      int            `json:"quota" gorm:"type:int;default:0"`
@@ -205,7 +209,7 @@ func GetMaxUserId() int {
 	return user.Id
 }
 
-func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err error) {
+func GetAllUsers(pageInfo *common.PageInfo, accountType *int) (users []*User, total int64, err error) {
 	// Start transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -218,14 +222,22 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	}()
 
 	// Get total count within transaction
-	err = tx.Unscoped().Model(&User{}).Count(&total).Error
+	countTx := tx.Unscoped().Model(&User{})
+	if accountType != nil {
+		countTx = countTx.Where("account_type = ?", *accountType)
+	}
+	err = countTx.Count(&total).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
 	// Get paginated users within same transaction
-	err = tx.Unscoped().Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Omit("password").Find(&users).Error
+	dataTx := tx.Unscoped()
+	if accountType != nil {
+		dataTx = dataTx.Where("account_type = ?", *accountType)
+	}
+	err = dataTx.Order("id desc").Limit(pageInfo.GetPageSize()).Offset(pageInfo.GetStartIdx()).Omit("password").Find(&users).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
@@ -239,7 +251,7 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	return users, total, nil
 }
 
-func SearchUsers(keyword string, group string, role *int, status *int, startIdx int, num int) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, role *int, status *int, accountType *int, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -283,6 +295,9 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 		} else {
 			query = query.Where("deleted_at IS NULL").Where("status = ?", *status)
 		}
+	}
+	if accountType != nil {
+		query = query.Where("account_type = ?", *accountType)
 	}
 
 	// 获取总数
@@ -542,10 +557,14 @@ func (user *User) Edit(updatePassword bool) error {
 
 	newUser := *user
 	updates := map[string]interface{}{
-		"username":     newUser.Username,
-		"display_name": newUser.DisplayName,
-		"group":        newUser.Group,
-		"remark":       newUser.Remark,
+		"username":         newUser.Username,
+		"display_name":     newUser.DisplayName,
+		"group":            newUser.Group,
+		"remark":           newUser.Remark,
+		"org_name":         newUser.OrgName,
+		"org_contact_name": newUser.OrgContactName,
+		"org_contact_info": newUser.OrgContactInfo,
+		"org_description":  newUser.OrgDescription,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password

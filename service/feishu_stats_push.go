@@ -187,7 +187,7 @@ func pushStatsToFeishu(period, dateLabel string, startTimestamp, endTimestamp in
 }
 
 func pushUserStats(token, baseToken, tableID, dateLabel string, startTimestamp, endTimestamp int64) {
-	items, _, err := model.GetUserModelStatsByUser(startTimestamp, endTimestamp, nil, nil, "", 1, 5000)
+	items, _, err := model.GetUserModelStatsByUser(startTimestamp, endTimestamp, nil, nil, "", nil, 1, 5000)
 	if err != nil {
 		common.SysLog(fmt.Sprintf("feishu stats push: query user stats failed: %s", err))
 		return
@@ -222,7 +222,7 @@ func pushUserStats(token, baseToken, tableID, dateLabel string, startTimestamp, 
 }
 
 func pushModelStats(token, baseToken, tableID, dateLabel string, startTimestamp, endTimestamp int64) {
-	items, _, err := model.GetUserModelStatsByModel(startTimestamp, endTimestamp, nil, nil, "", 1, 5000)
+	items, _, err := model.GetUserModelStatsByModel(startTimestamp, endTimestamp, nil, nil, "", nil, 1, 5000)
 	if err != nil {
 		common.SysLog(fmt.Sprintf("feishu stats push: query model stats failed: %s", err))
 		return
@@ -255,7 +255,7 @@ func pushModelStats(token, baseToken, tableID, dateLabel string, startTimestamp,
 }
 
 func pushOrgStats(token, baseToken, tableID, dateLabel string, startTimestamp, endTimestamp int64) {
-	items, _, err := model.GetUserModelStatsByDepartment(startTimestamp, endTimestamp, nil, nil, "", 1, 5000)
+	items, _, err := model.GetUserModelStatsByDepartment(startTimestamp, endTimestamp, nil, nil, "", nil, 1, 5000)
 	if err != nil {
 		common.SysLog(fmt.Sprintf("feishu stats push: query org stats failed: %s", err))
 		return

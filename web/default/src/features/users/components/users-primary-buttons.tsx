@@ -24,10 +24,15 @@ import { Button } from '@/components/ui/button'
 import { exportUsers, syncFeishuUsersInfo } from '../api'
 import { useUsers } from './users-provider'
 
-export function UsersPrimaryButtons() {
+export function UsersPrimaryButtons({
+  accountType = 0,
+}: {
+  accountType?: number
+} = {}) {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow, triggerRefresh } = useUsers()
   const [syncing, setSyncing] = useState(false)
+  const isOrganization = accountType === 1
 
   const handleCreate = () => {
     setCurrentRow(null)
@@ -63,6 +68,7 @@ export function UsersPrimaryButtons() {
         group: params.get('group') || '',
         status,
         role,
+        account_type: accountType,
       })
     } catch {
       toast.error('导出用户失败')
@@ -71,22 +77,26 @@ export function UsersPrimaryButtons() {
 
   return (
     <div className='flex flex-wrap gap-2'>
-      <Button size='sm' variant='outline' onClick={handleFeishuBatchInit}>
-        <Users className='h-4 w-4' />
-        {t('Feishu Batch Init')}
-      </Button>
-      <Button
-        size='sm'
-        variant='outline'
-        onClick={handleSyncFeishuUsers}
-        disabled={syncing}
-      >
-        <RefreshCw className='h-4 w-4' />
-        {syncing ? '同步中...' : '同步飞书用户信息'}
-      </Button>
+      {!isOrganization && (
+        <>
+          <Button size='sm' variant='outline' onClick={handleFeishuBatchInit}>
+            <Users className='h-4 w-4' />
+            {t('Feishu Batch Init')}
+          </Button>
+          <Button
+            size='sm'
+            variant='outline'
+            onClick={handleSyncFeishuUsers}
+            disabled={syncing}
+          >
+            <RefreshCw className='h-4 w-4' />
+            {syncing ? '同步中...' : '同步飞书用户信息'}
+          </Button>
+        </>
+      )}
       <Button size='sm' variant='outline' onClick={handleExport}>
         <Download className='h-4 w-4' />
-        导出用户
+        {t('Export Users')}
       </Button>
       <Button size='sm' onClick={handleCreate}>
         <Plus className='h-4 w-4' />

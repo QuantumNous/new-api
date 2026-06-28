@@ -31,6 +31,18 @@ func parseStringList(s string) []string {
 	return res
 }
 
+func parseAccountType(c *gin.Context) *int {
+	if atStr := c.Query("account_type"); atStr != "" {
+		if parsed, err := strconv.Atoi(atStr); err == nil {
+			return &parsed
+		}
+	}
+	// 默认只返回个人用户数据，保持向后兼容
+	// 组织账号数据需显式传 account_type=1
+	defaultType := common.AccountTypePersonal
+	return &defaultType
+}
+
 func validateTimeWindow(startTimestamp int64, endTimestamp int64) error {
 	if endTimestamp < startTimestamp {
 		return errors.New("结束时间不能早于开始时间")
@@ -346,7 +358,7 @@ func GetUserModelStatsByUser(c *gin.Context) {
 		pageSize = 100
 	}
 
-	items, total, err := model.GetUserModelStatsByUser(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), userGroup, page, pageSize)
+	items, total, err := model.GetUserModelStatsByUser(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), userGroup, parseAccountType(c), page, pageSize)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -388,7 +400,7 @@ func GetUserModelStatsByModel(c *gin.Context) {
 		pageSize = 100
 	}
 
-	items, total, err := model.GetUserModelStatsByModel(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), userGroup, page, pageSize)
+	items, total, err := model.GetUserModelStatsByModel(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), userGroup, parseAccountType(c), page, pageSize)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -430,7 +442,7 @@ func GetUserModelStatsByDepartment(c *gin.Context) {
 		pageSize = 100
 	}
 
-	items, total, err := model.GetUserModelStatsByDepartment(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), userGroup, page, pageSize)
+	items, total, err := model.GetUserModelStatsByDepartment(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), userGroup, parseAccountType(c), page, pageSize)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -472,7 +484,7 @@ func GetUserModelStatsByDetail(c *gin.Context) {
 		pageSize = 100
 	}
 
-	items, total, err := model.GetUserModelStatsByDetail(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), userGroup, page, pageSize)
+	items, total, err := model.GetUserModelStatsByDetail(startTimestamp, endTimestamp, parseStringList(username), parseStringList(modelName), userGroup, parseAccountType(c), page, pageSize)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -523,7 +535,7 @@ func ExportUserModelStats(c *gin.Context) {
 		page := 1
 		pageSize := 1000
 		for {
-			items, _, err := model.GetUserModelStatsByModel(startTimestamp, endTimestamp, usernames, modelNames, userGroup, page, pageSize)
+			items, _, err := model.GetUserModelStatsByModel(startTimestamp, endTimestamp, usernames, modelNames, userGroup, parseAccountType(c), page, pageSize)
 			if err != nil {
 				common.SysError("csv export error: " + err.Error())
 				writer.Write([]string{"error", err.Error()})
@@ -545,7 +557,7 @@ func ExportUserModelStats(c *gin.Context) {
 		page := 1
 		pageSize := 1000
 		for {
-			items, _, err := model.GetUserModelStatsByDepartment(startTimestamp, endTimestamp, usernames, modelNames, userGroup, page, pageSize)
+			items, _, err := model.GetUserModelStatsByDepartment(startTimestamp, endTimestamp, usernames, modelNames, userGroup, parseAccountType(c), page, pageSize)
 			if err != nil {
 				common.SysError("csv export error: " + err.Error())
 				writer.Write([]string{"error", err.Error()})
@@ -567,7 +579,7 @@ func ExportUserModelStats(c *gin.Context) {
 		page := 1
 		pageSize := 1000
 		for {
-			items, _, err := model.GetUserModelStatsByDetail(startTimestamp, endTimestamp, usernames, modelNames, userGroup, page, pageSize)
+			items, _, err := model.GetUserModelStatsByDetail(startTimestamp, endTimestamp, usernames, modelNames, userGroup, parseAccountType(c), page, pageSize)
 			if err != nil {
 				common.SysError("csv export error: " + err.Error())
 				writer.Write([]string{"error", err.Error()})
@@ -589,7 +601,7 @@ func ExportUserModelStats(c *gin.Context) {
 		page := 1
 		pageSize := 1000
 		for {
-			items, _, err := model.GetUserModelStatsByUser(startTimestamp, endTimestamp, usernames, modelNames, userGroup, page, pageSize)
+			items, _, err := model.GetUserModelStatsByUser(startTimestamp, endTimestamp, usernames, modelNames, userGroup, parseAccountType(c), page, pageSize)
 			if err != nil {
 				common.SysError("csv export error: " + err.Error())
 				writer.Write([]string{"error", err.Error()})

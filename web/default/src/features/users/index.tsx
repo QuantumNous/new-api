@@ -25,40 +25,46 @@ import { UsersPrimaryButtons } from './components/users-primary-buttons'
 import { UsersProvider, useUsers } from './components/users-provider'
 import { UsersTable } from './components/users-table'
 
-function UsersContent() {
+function UsersContent({ accountType = 0 }: { accountType?: number }) {
   const { t } = useTranslation()
+  const isOrganization = accountType === 1
   const { open, setOpen, currentRow } = useUsers()
 
   return (
     <>
       <SectionPageLayout fixedContent>
-        <SectionPageLayout.Title>{t('Users')}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>
+          {isOrganization ? t('Organization Users') : t('Users')}
+        </SectionPageLayout.Title>
         <SectionPageLayout.Actions>
-          <UsersPrimaryButtons />
+          <UsersPrimaryButtons accountType={accountType} />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <UsersTable />
+          <UsersTable accountType={accountType} />
         </SectionPageLayout.Content>
       </SectionPageLayout>
 
       <UsersMutateDrawer
+        accountType={accountType}
         open={open === 'create' || open === 'update'}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
         currentRow={open === 'update' ? currentRow || undefined : undefined}
       />
       <UsersDeleteDialog />
-      <FeishuBatchInitDialog
-        open={open === 'feishu_batch_init'}
-        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
-      />
+      {!isOrganization && (
+        <FeishuBatchInitDialog
+          open={open === 'feishu_batch_init'}
+          onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+        />
+      )}
     </>
   )
 }
 
-export function Users() {
+export function Users({ accountType = 0 }: { accountType?: number } = {}) {
   return (
     <UsersProvider>
-      <UsersContent />
+      <UsersContent accountType={accountType} />
     </UsersProvider>
   )
 }

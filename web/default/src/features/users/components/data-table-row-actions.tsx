@@ -29,6 +29,7 @@ import {
   ShieldAlert,
   Link2,
   CreditCard,
+  Building2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -46,7 +47,12 @@ import {
 } from '@/components/ui/tooltip'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { UserSubscriptionsDialog } from '@/features/subscriptions/components/dialogs/user-subscriptions-dialog'
-import { manageUser, resetUserPasskey, resetUserTwoFA } from '../api'
+import {
+  convertToOrganization,
+  manageUser,
+  resetUserPasskey,
+  resetUserTwoFA,
+} from '../api'
 import {
   USER_STATUS,
   USER_ROLE,
@@ -61,9 +67,13 @@ import { useUsers } from './users-provider'
 
 interface DataTableRowActionsProps {
   row: Row<User>
+  accountType?: number
 }
 
-export function DataTableRowActions({ row }: DataTableRowActionsProps) {
+export function DataTableRowActions({
+  row,
+  accountType = 0,
+}: DataTableRowActionsProps) {
   const { t } = useTranslation()
   const user = row.original
   const { setOpen, setCurrentRow, triggerRefresh } = useUsers()
@@ -72,6 +82,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const [bindingDialogOpen, setBindingDialogOpen] = useState(false)
   const [subscriptionsDialogOpen, setSubscriptionsDialogOpen] = useState(false)
   const [tokenManagerOpen, setTokenManagerOpen] = useState(false)
+  const [convertOrgOpen, setConvertOrgOpen] = useState(false)
 
   const handleEdit = () => {
     setCurrentRow(user)
@@ -128,6 +139,24 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setResetTwoFAOpen(false)
+    }
+  }
+
+  const handleConvertToOrganization = async () => {
+    try {
+      const result = await convertToOrganization(user.id)
+      if (result.success) {
+        toast.success(t('Converted to organization account'))
+        triggerRefresh()
+      } else {
+        toast.error(
+          result.message || t('Failed to convert to organization account')
+        )
+      }
+    } catch {
+      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+    } finally {
+      setConvertOrgOpen(false)
     }
   }
 
@@ -231,6 +260,20 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             </DropdownMenuShortcut>
           </DropdownMenuItem>
 
+          {accountType === 0 && !user.feishu_id && (
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault()
+                setConvertOrgOpen(true)
+              }}
+            >
+              {t('Convert to Organization')}
+              <DropdownMenuShortcut>
+                <Building2 size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
+
           <DropdownMenuSeparator />
 
           <DropdownMenuItem
@@ -315,6 +358,18 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         open={tokenManagerOpen}
         onOpenChange={setTokenManagerOpen}
         user={{ id: user.id, username: user.username }}
+      />
+
+      <ConfirmDialog
+        open={convertOrgOpen}
+        onOpenChange={setConvertOrgOpen}
+        title={t('Convert to Organization')}
+        desc={t(
+          'Convert {{username}} to an organization account? This will change the account type and enable organization-specific fields.',
+          { username: user.username }
+        )}
+        confirmText={t('Convert')}
+        handleConfirm={handleConvertToOrganization}
       />
     </div>
   )

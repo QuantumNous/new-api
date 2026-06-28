@@ -12,8 +12,13 @@ import { UserModelStatsTable } from './components/user-model-stats-table'
 import { DEFAULT_PAGE_SIZE, getDefaultDateRange } from './constants'
 import { type ViewType, type StatsItem } from './types'
 
-export function UserModelStatsPage() {
+export function UserModelStatsPage({
+  accountType = 0,
+}: {
+  accountType?: number
+} = {}) {
   const { t } = useTranslation()
+  const isOrganization = accountType === 1
   const { start: defaultStart, end: defaultEnd } = getDefaultDateRange()
 
   const [activeTab, setActiveTab] = useState<ViewType>('byUser')
@@ -49,6 +54,7 @@ export function UserModelStatsPage() {
         userGroup: filters.userGroup || undefined,
         page,
         pageSize,
+        accountType,
       })
       if (res.success) {
         setItems(res.data?.items || [])
@@ -61,7 +67,7 @@ export function UserModelStatsPage() {
     } finally {
       setLoading(false)
     }
-  }, [activeTab, filters, page, pageSize, t])
+  }, [activeTab, filters, page, pageSize, accountType, t])
 
   useEffect(() => {
     loadData()
@@ -79,12 +85,13 @@ export function UserModelStatsPage() {
         Math.floor(filters.endDate.getTime() / 1000),
         filters.username || undefined,
         filters.modelName || undefined,
-        filters.userGroup || undefined
+        filters.userGroup || undefined,
+        accountType
       )
     } catch {
       toast.error(t('Export failed'))
     }
-  }, [activeTab, filters, t])
+  }, [activeTab, filters, accountType, t])
 
   const handleTabChange = useCallback((value: string) => {
     setActiveTab(value as ViewType)
@@ -94,7 +101,9 @@ export function UserModelStatsPage() {
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>
-        {t('User Model Statistics')}
+        {isOrganization
+          ? t('Org Model Statistics')
+          : t('User Model Statistics')}
       </SectionPageLayout.Title>
       <SectionPageLayout.Content>
         <p className='text-muted-foreground mb-4 text-sm'>

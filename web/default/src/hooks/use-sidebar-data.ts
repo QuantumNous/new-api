@@ -20,6 +20,7 @@ import {
   Activity,
   BarChart3,
   Box,
+  Building2,
   CreditCard,
   FileText,
   FlaskConical,
@@ -135,6 +136,11 @@ export function useSidebarData(): SidebarData {
             icon: Users,
           },
           {
+            title: t('Organization Users'),
+            url: '/organization-users',
+            icon: Building2,
+          },
+          {
             title: t('Redemption Codes'),
             url: '/redemption-codes',
             icon: Ticket,
@@ -147,6 +153,11 @@ export function useSidebarData(): SidebarData {
           {
             title: t('User Model Statistics'),
             url: '/user-model-stats',
+            icon: BarChart3,
+          },
+          {
+            title: t('Org Model Statistics'),
+            url: '/org-model-stats',
             icon: BarChart3,
           },
           {

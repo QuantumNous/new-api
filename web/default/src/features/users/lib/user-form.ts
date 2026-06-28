@@ -33,6 +33,10 @@ export const userFormSchema = z.object({
   quota_dollars: z.number().min(0).optional(),
   group: z.string().optional(),
   remark: z.string().optional(),
+  org_name: z.string().optional(),
+  org_contact_name: z.string().optional(),
+  org_contact_info: z.string().optional(),
+  org_description: z.string().optional(),
 })
 
 export type UserFormValues = z.infer<typeof userFormSchema>
@@ -49,6 +53,10 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   quota_dollars: 0,
   group: DEFAULT_GROUP,
   remark: '',
+  org_name: '',
+  org_contact_name: '',
+  org_contact_info: '',
+  org_description: '',
 }
 
 // ============================================================================
@@ -60,7 +68,8 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
  */
 export function transformFormDataToPayload(
   data: UserFormValues,
-  userId?: number
+  userId?: number,
+  accountType?: number
 ): UserFormData & { id?: number } {
   const payload: UserFormData & { id?: number } = {
     username: data.username,
@@ -71,11 +80,28 @@ export function transformFormDataToPayload(
   // For create: only send required fields
   if (userId === undefined) {
     payload.role = data.role || 1 // Default to common user
+    if (accountType !== undefined) {
+      payload.account_type = accountType
+    }
+    // Organization fields for create
+    if (accountType === 1) {
+      payload.org_name = data.org_name || undefined
+      payload.org_contact_name = data.org_contact_name || undefined
+      payload.org_contact_info = data.org_contact_info || undefined
+      payload.org_description = data.org_description || undefined
+    }
   } else {
     // For update: quota is adjusted atomically via /api/user/manage, not sent here
     payload.group = data.group
     payload.remark = data.remark || undefined
     payload.id = userId
+    // Organization fields for update
+    if (accountType === 1) {
+      payload.org_name = data.org_name || undefined
+      payload.org_contact_name = data.org_contact_name || undefined
+      payload.org_contact_info = data.org_contact_info || undefined
+      payload.org_description = data.org_description || undefined
+    }
   }
 
   return payload
@@ -93,5 +119,9 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
+    org_name: user.org_name || '',
+    org_contact_name: user.org_contact_name || '',
+    org_contact_info: user.org_contact_info || '',
+    org_description: user.org_description || '',
   }
 }

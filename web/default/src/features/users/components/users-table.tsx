@@ -40,15 +40,33 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useUsersColumns } from './users-columns'
 import { useUsers } from './users-provider'
 
-const route = getRouteApi('/_authenticated/users/')
+const personalUsersRoute = getRouteApi('/_authenticated/users/')
+const orgUsersRoute = getRouteApi('/_authenticated/organization-users/')
 
 function isDisabledUserRow(user: User) {
   return isUserDeleted(user) || user.status === USER_STATUS.DISABLED
 }
 
-export function UsersTable() {
+type SearchRecord = Record<string, unknown>
+type NavigateFn = (opts: {
+  search:
+    | true
+    | SearchRecord
+    | ((prev: SearchRecord) => Partial<SearchRecord> | SearchRecord)
+  replace?: boolean
+}) => void
+
+function UsersTableImpl({
+  accountType,
+  search,
+  navigate,
+}: {
+  accountType: number
+  search: SearchRecord
+  navigate: NavigateFn
+}) {
   const { t } = useTranslation()
-  const columns = useUsersColumns()
+  const columns = useUsersColumns({ accountType })
   const { refreshTrigger } = useUsers()
   const isMobile = useMediaQuery('(max-width: 640px)')
 
@@ -61,8 +79,8 @@ export function UsersTable() {
     onPaginationChange,
     ensurePageInRange,
   } = useTableUrlState({
-    search: route.useSearch(),
-    navigate: route.useNavigate(),
+    search,
+    navigate,
     pagination: { defaultPage: 1, defaultPageSize: isMobile ? 10 : 20 },
     globalFilter: { enabled: true, key: 'filter' },
     columnFilters: [
@@ -87,6 +105,7 @@ export function UsersTable() {
   const { data, isLoading, isFetching } = useQuery({
     queryKey: [
       'users',
+      accountType,
       pagination.pageIndex + 1,
       pagination.pageSize,
       globalFilter,
@@ -102,6 +121,7 @@ export function UsersTable() {
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
+        account_type: accountType,
       }
 
       const result =
@@ -200,4 +220,35 @@ export function UsersTable() {
       bulkActions={<DataTableBulkActions table={table} />}
     />
   )
+}
+
+function PersonalUsersTable() {
+  const search = personalUsersRoute.useSearch()
+  const navigate = personalUsersRoute.useNavigate()
+  return (
+    <UsersTableImpl
+      accountType={0}
+      search={search as SearchRecord}
+      navigate={navigate as unknown as NavigateFn}
+    />
+  )
+}
+
+function OrganizationUsersTable() {
+  const search = orgUsersRoute.useSearch()
+  const navigate = orgUsersRoute.useNavigate()
+  return (
+    <UsersTableImpl
+      accountType={1}
+      search={search as SearchRecord}
+      navigate={navigate as unknown as NavigateFn}
+    />
+  )
+}
+
+export function UsersTable({ accountType = 0 }: { accountType?: number }) {
+  if (accountType === 1) {
+    return <OrganizationUsersTable />
+  }
+  return <PersonalUsersTable />
 }

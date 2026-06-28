@@ -179,7 +179,7 @@ type DepartmentStatItem struct {
 	Quota         int    `json:"quota"`
 }
 
-func GetUserModelStatsByUser(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, page int, pageSize int) (items []*UserStatItem, total int64, err error) {
+func GetUserModelStatsByUser(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, accountType *int, page int, pageSize int) (items []*UserStatItem, total int64, err error) {
 	groupCol := CommonGroupColumnName()
 	selectGroup := fmt.Sprintf("u.%s as user_group", groupCol)
 
@@ -204,6 +204,9 @@ func GetUserModelStatsByUser(startTime int64, endTime int64, usernames []string,
 	if userGroup != "" {
 		baseTx = baseTx.Where(fmt.Sprintf("u.%s = ?", groupCol), userGroup)
 	}
+	if accountType != nil {
+		baseTx = baseTx.Where("u.account_type = ?", *accountType)
+	}
 
 	if err = baseTx.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -217,7 +220,7 @@ func GetUserModelStatsByUser(startTime int64, endTime int64, usernames []string,
 	return items, total, err
 }
 
-func GetUserModelStatsByModel(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, page int, pageSize int) (items []*ModelStatItem, total int64, err error) {
+func GetUserModelStatsByModel(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, accountType *int, page int, pageSize int) (items []*ModelStatItem, total int64, err error) {
 	groupCol := CommonGroupColumnName()
 
 	tx := DB.Table("quota_data q").
@@ -235,6 +238,9 @@ func GetUserModelStatsByModel(startTime int64, endTime int64, usernames []string
 	if userGroup != "" {
 		tx = tx.Where(fmt.Sprintf("u.%s = ?", groupCol), userGroup)
 	}
+	if accountType != nil {
+		tx = tx.Where("u.account_type = ?", *accountType)
+	}
 
 	countTx := tx.Session(&gorm.Session{})
 	err = countTx.Group("q.model_name").Count(&total).Error
@@ -249,7 +255,7 @@ func GetUserModelStatsByModel(startTime int64, endTime int64, usernames []string
 	return items, total, err
 }
 
-func GetUserModelStatsByDepartment(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, page int, pageSize int) (items []*DepartmentStatItem, total int64, err error) {
+func GetUserModelStatsByDepartment(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, accountType *int, page int, pageSize int) (items []*DepartmentStatItem, total int64, err error) {
 	groupCol := CommonGroupColumnName()
 
 	tx := DB.Table("quota_data q").
@@ -267,6 +273,9 @@ func GetUserModelStatsByDepartment(startTime int64, endTime int64, usernames []s
 	if userGroup != "" {
 		tx = tx.Where(fmt.Sprintf("u.%s = ?", groupCol), userGroup)
 	}
+	if accountType != nil {
+		tx = tx.Where("u.account_type = ?", *accountType)
+	}
 
 	countTx := tx.Session(&gorm.Session{})
 	err = countTx.Group("u.org_level1_name, u.org_level2_name").Count(&total).Error
@@ -281,7 +290,7 @@ func GetUserModelStatsByDepartment(startTime int64, endTime int64, usernames []s
 	return items, total, err
 }
 
-func GetUserModelStatsByDetail(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, page int, pageSize int) (items []*UserModelStatItem, total int64, err error) {
+func GetUserModelStatsByDetail(startTime int64, endTime int64, usernames []string, modelNames []string, userGroup string, accountType *int, page int, pageSize int) (items []*UserModelStatItem, total int64, err error) {
 	groupCol := CommonGroupColumnName()
 	selectGroup := fmt.Sprintf("u.%s as user_group", groupCol)
 
@@ -299,6 +308,9 @@ func GetUserModelStatsByDetail(startTime int64, endTime int64, usernames []strin
 	}
 	if userGroup != "" {
 		tx = tx.Where(fmt.Sprintf("u.%s = ?", groupCol), userGroup)
+	}
+	if accountType != nil {
+		tx = tx.Where("u.account_type = ?", *accountType)
 	}
 
 	countTx := tx.Session(&gorm.Session{})

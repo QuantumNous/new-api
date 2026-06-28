@@ -147,7 +147,10 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
 
-				// Admin Feishu binding management
+			// Account type conversion
+			adminRoute.POST("/:id/convert-to-organization", controller.ConvertToOrganization)
+
+			// Admin Feishu binding management
 				adminRoute.GET("/feishu/bindings", controller.GetFeishuBindings)
 				adminRoute.POST("/feishu/bindings/import", controller.ImportFeishuBindings)
 				adminRoute.PUT("/:id/group", controller.AdminSetUserGroup)

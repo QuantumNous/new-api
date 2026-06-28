@@ -83,15 +83,18 @@ type UsersMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentRow?: User
+  accountType?: number
 }
 
 export function UsersMutateDrawer({
   open,
   onOpenChange,
   currentRow,
+  accountType = 0,
 }: UsersMutateDrawerProps) {
   const { t } = useTranslation()
   const isUpdate = !!currentRow
+  const isOrganization = accountType === 1
   const { triggerRefresh } = useUsers()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
@@ -149,7 +152,7 @@ export function UsersMutateDrawer({
 
     setIsSubmitting(true)
     try {
-      const payload = transformFormDataToPayload(data, currentRow?.id)
+      const payload = transformFormDataToPayload(data, currentRow?.id, accountType)
       const result = isUpdate
         ? await updateUser(payload as typeof payload & { id: number })
         : await createUser(payload)
@@ -323,6 +326,84 @@ export function UsersMutateDrawer({
                 />
               </SideDrawerSection>
 
+              {/* Organization Information */}
+              {isOrganization && (
+                <SideDrawerSection>
+                  <h3 className='text-sm font-medium'>
+                    {t('Organization Information')}
+                  </h3>
+
+                  <FormField
+                    control={form.control}
+                    name='org_name'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Organization Name')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder={t('Enter organization name')}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='org_contact_name'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Contact Person')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder={t('Enter contact person name')}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='org_contact_info'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Contact Information')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder={t('Enter contact information')}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='org_description'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Description')}</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            placeholder={t('Enter usage description')}
+                            rows={3}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </SideDrawerSection>
+              )}
+
               {/* Group & Quota Settings (Update only) */}
               {isUpdate && (
                 <SideDrawerSection>
@@ -456,7 +537,7 @@ export function UsersMutateDrawer({
                 </SideDrawerSection>
               )}
 
-              {isUpdate && (
+              {isUpdate && !isOrganization && (
                 <SideDrawerSection>
                   <h3 className='text-sm font-medium'>
                     {t('Feishu Organization Information')}

@@ -47,8 +47,11 @@ function getQuotaProgressColor(percentage: number): string {
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
-export function useUsersColumns(): ColumnDef<User>[] {
+export function useUsersColumns({
+  accountType = 0,
+}: { accountType?: number } = {}): ColumnDef<User>[] {
   const { t } = useTranslation()
+  const isOrganization = accountType === 1
   return [
     {
       id: 'select',
@@ -123,6 +126,30 @@ export function useUsersColumns(): ColumnDef<User>[] {
       size: 220,
       meta: { mobileTitle: true },
     },
+    ...(isOrganization
+      ? [
+          {
+            accessorKey: 'org_name',
+            header: t('Organization Name'),
+            cell: ({ row }: { row: { original: User; getValue: (key: string) => unknown } }) => (
+              <LongText className='max-w-[160px]'>
+                {(row.getValue('org_name') as string) || '-'}
+              </LongText>
+            ),
+            size: 180,
+          } as ColumnDef<User>,
+          {
+            accessorKey: 'org_contact_name',
+            header: t('Contact Person'),
+            cell: ({ row }: { row: { original: User; getValue: (key: string) => unknown } }) => (
+              <span className='text-sm'>
+                {(row.getValue('org_contact_name') as string) || '-'}
+              </span>
+            ),
+            size: 140,
+          } as ColumnDef<User>,
+        ]
+      : []),
     {
       accessorKey: 'status',
       header: t('Status'),
@@ -372,7 +399,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
     {
       id: 'actions',
       header: () => t('Actions'),
-      cell: ({ row }) => <DataTableRowActions row={row} />,
+      cell: ({ row }) => <DataTableRowActions row={row} accountType={accountType} />,
       meta: { pinned: 'right' as const },
     },
   ]

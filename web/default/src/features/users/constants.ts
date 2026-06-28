@@ -102,6 +102,15 @@ export const getUserRoleOptions = (t: (key: string) => string) => [
 export const DEFAULT_GROUP = 'default' as const
 
 // ============================================================================
+// Account Type Configuration
+// ============================================================================
+
+export const ACCOUNT_TYPE = {
+  PERSONAL: 0,
+  ORGANIZATION: 1,
+} as const
+
+// ============================================================================
 // Third-party Binding Fields
 // ============================================================================
 

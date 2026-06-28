@@ -204,6 +204,11 @@ const (
 	RoleRootUser   = 100
 )
 
+const (
+	AccountTypePersonal     = 0 // 个人用户（有飞书ID或普通注册用户）
+	AccountTypeOrganization = 1 // 组织账号（无飞书ID，用于组织类智能体场景）
+)
+
 func IsValidateRole(role int) bool {
 	return role == RoleGuestUser || role == RoleCommonUser || role == RoleAdminUser || role == RoleRootUser
 }

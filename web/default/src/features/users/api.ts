@@ -38,8 +38,14 @@ import type {
 export async function getUsers(
   params: GetUsersParams = {}
 ): Promise<GetUsersResponse> {
-  const { p = 1, page_size = 10 } = params
-  const res = await api.get(`/api/user/?p=${p}&page_size=${page_size}`)
+  const { p = 1, page_size = 10, account_type } = params
+  const queryParams = new URLSearchParams()
+  queryParams.set('p', String(p))
+  queryParams.set('page_size', String(page_size))
+  if (account_type !== undefined) {
+    queryParams.set('account_type', String(account_type))
+  }
+  const res = await api.get(`/api/user/?${queryParams.toString()}`)
   return res.data
 }
 
@@ -56,6 +62,7 @@ export async function searchUsers(
     status = '',
     p = 1,
     page_size = 10,
+    account_type,
   } = params
   const queryParams = new URLSearchParams()
   queryParams.set('keyword', keyword)
@@ -64,6 +71,9 @@ export async function searchUsers(
   if (status) queryParams.set('status', status)
   queryParams.set('p', String(p))
   queryParams.set('page_size', String(page_size))
+  if (account_type !== undefined) {
+    queryParams.set('account_type', String(account_type))
+  }
   const res = await api.get(`/api/user/search?${queryParams.toString()}`)
   return res.data
 }
@@ -138,6 +148,16 @@ export async function resetUserPasskey(id: number): Promise<ApiResponse> {
  */
 export async function resetUserTwoFA(id: number): Promise<ApiResponse> {
   const res = await api.delete(`/api/user/${id}/2fa`)
+  return res.data
+}
+
+/**
+ * Convert a personal user account to an organization account
+ */
+export async function convertToOrganization(
+  id: number
+): Promise<ApiResponse<Partial<User>>> {
+  const res = await api.post(`/api/user/${id}/convert-to-organization`)
   return res.data
 }
 

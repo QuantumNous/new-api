@@ -24,6 +24,7 @@ export interface FetchStatsParams {
   userGroup?: string
   page?: number
   pageSize?: number
+  accountType?: number
 }
 
 export async function fetchStats(
@@ -38,6 +39,7 @@ export async function fetchStats(
     userGroup,
     page = 1,
     pageSize = 20,
+    accountType,
   } = params
   const endpoint = ENDPOINT_MAP[viewType]
   const search = new URLSearchParams()
@@ -48,6 +50,9 @@ export async function fetchStats(
   if (userGroup) search.set('user_group', userGroup)
   search.set('page', String(page))
   search.set('page_size', String(pageSize))
+  if (accountType !== undefined) {
+    search.set('account_type', String(accountType))
+  }
   const res = await api.get(`${endpoint}?${search.toString()}`)
   return res.data
 }
@@ -58,7 +63,8 @@ export async function exportStats(
   endTimestamp: number,
   username?: string,
   modelName?: string,
-  userGroup?: string
+  userGroup?: string,
+  accountType?: number
 ): Promise<void> {
   const search = new URLSearchParams()
   search.set('start_timestamp', String(startTimestamp))
@@ -67,6 +73,9 @@ export async function exportStats(
   if (modelName) search.set('model_name', modelName)
   if (userGroup) search.set('user_group', userGroup)
   search.set('view_type', EXPORT_TYPE_MAP[viewType])
+  if (accountType !== undefined) {
+    search.set('account_type', String(accountType))
+  }
   const res = await api.get(`/api/data/export?${search.toString()}`, {
     responseType: 'blob',
   })
