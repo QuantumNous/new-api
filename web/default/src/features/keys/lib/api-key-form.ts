@@ -123,7 +123,6 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   quota_policy_period_mode: 'daily',
   quota_policy_custom_minutes: 30,
   quota_policy_quota_dollars: 1,
-  quota_policy_anchor_time: new Date(),
   quota_policy_exhausted_action: 'reject_only',
   quota_policy_boundary_mode: 'graceful_boundary',
   quota_policy_auto_resume: true,
@@ -134,6 +133,7 @@ export function getApiKeyFormDefaultValues(
 ): ApiKeyFormValues {
   return {
     ...API_KEY_FORM_DEFAULT_VALUES,
+    quota_policy_anchor_time: new Date(),
     group: defaultUseAutoGroup ? 'auto' : DEFAULT_GROUP,
     cross_group_retry: defaultUseAutoGroup,
   }

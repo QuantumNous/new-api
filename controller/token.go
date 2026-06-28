@@ -261,13 +261,14 @@ func AddToken(c *gin.Context) {
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
 	}
-	err = cleanToken.Insert()
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
 	if token.QuotaPolicy != nil {
-		if _, err := model.SaveTokenQuotaPolicyForToken(cleanToken.Id, cleanToken.UserId, token.QuotaPolicy, common.GetTimestamp()); err != nil {
+		if _, err := model.InsertTokenWithQuotaPolicy(&cleanToken, token.QuotaPolicy, common.GetTimestamp()); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	} else {
+		err = cleanToken.Insert()
+		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
@@ -351,21 +352,23 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
 	}
-	err = cleanToken.Update()
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
 	if token.QuotaPolicy != nil {
-		policy, err := model.SaveTokenQuotaPolicyForToken(cleanToken.Id, cleanToken.UserId, token.QuotaPolicy, common.GetTimestamp())
+		policy, err := model.UpdateTokenWithQuotaPolicy(cleanToken, token.QuotaPolicy, common.GetTimestamp())
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
 		cleanToken.QuotaPolicy = policy
-	} else if err := model.AttachTokenQuotaPolicy(cleanToken); err != nil {
-		common.ApiError(c, err)
-		return
+	} else {
+		err = cleanToken.Update()
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if err := model.AttachTokenQuotaPolicy(cleanToken); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

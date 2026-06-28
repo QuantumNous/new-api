@@ -423,7 +423,8 @@ const SYSTEM_TEMPLATES: Record<string, string> = {
 function formatSystemLogTimestamp(value: unknown): string {
   if (value == null || value === '') return '-'
   const timestamp = Number(value)
-  if (!Number.isFinite(timestamp) || timestamp <= 0) return String(value)
+  if (!Number.isFinite(timestamp)) return String(value)
+  if (timestamp <= 0) return '-'
   return formatTimestampToDate(timestamp)
 }
 

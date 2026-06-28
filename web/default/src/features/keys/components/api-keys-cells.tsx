@@ -42,14 +42,14 @@ import { getQuotaPolicyDisableState } from '../lib/quota-policy-status'
 import type { ApiKey } from '../types'
 import { useApiKeys } from './api-keys-provider'
 
-export function ApiKeyStatusBadge({
-  apiKey,
-  className,
-}: {
+interface ApiKeyStatusBadgeProps {
   apiKey: ApiKey
   className?: string
-}) {
+}
+
+export function ApiKeyStatusBadge(props: ApiKeyStatusBadgeProps) {
   const { t } = useTranslation()
+  const apiKey = props.apiKey
   const statusConfig = API_KEY_STATUSES[apiKey.status]
   const quotaPolicyDisableState = getQuotaPolicyDisableState(apiKey)
 
@@ -58,7 +58,7 @@ export function ApiKeyStatusBadge({
     const isRecovering = quotaPolicyDisableState === 'recovering'
     return (
       <Tooltip>
-        <TooltipTrigger render={<span className={className} />}>
+        <TooltipTrigger render={<span className={props.className} />}>
           <StatusBadge
             label={
               isRecovering ? t('Recovery pending') : t('Temporarily disabled')
@@ -98,7 +98,7 @@ export function ApiKeyStatusBadge({
       label={t(statusConfig.label)}
       variant={statusConfig.variant}
       copyable={false}
-      className={className}
+      className={props.className}
     />
   )
 }

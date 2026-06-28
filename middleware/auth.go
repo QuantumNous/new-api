@@ -372,7 +372,9 @@ func TokenAuth() func(c *gin.Context) {
 			} else if quotaPolicyErr := new(model.TokenQuotaPolicyTemporaryDisabledError); errors.As(err, &quotaPolicyErr) {
 				messageKey := i18n.MsgTokenQuotaPolicyExhaustedPending
 				resetTime := ""
-				if quotaPolicyErr.AutoResume && quotaPolicyErr.NextResetAt > common.GetTimestamp() {
+				if !quotaPolicyErr.AutoResume {
+					messageKey = i18n.MsgTokenQuotaPolicyManualReset
+				} else if quotaPolicyErr.NextResetAt > common.GetTimestamp() {
 					messageKey = i18n.MsgTokenQuotaPolicyExhausted
 					resetTime = time.Unix(quotaPolicyErr.NextResetAt, 0).Format("2006-01-02 15:04")
 				}

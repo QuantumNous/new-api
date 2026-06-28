@@ -203,6 +203,20 @@ func TestTokenQuotaPolicyConsumeRejectsOverspendWithoutChangingUsage(t *testing.
 	assert.Equal(t, 70, reloaded.UsedQuota)
 }
 
+func TestTokenQuotaPolicySettleTreatsExactQuotaAsExhausted(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.AutoMigrate(&TokenQuotaPolicy{}))
+	policy := seedTokenQuotaPolicy(t, 1, 1, 100)
+
+	exhausted, err := SettleTokenQuotaPolicyUsage(policy.TokenId, 100)
+
+	require.NoError(t, err)
+	assert.True(t, exhausted)
+	reloaded := getTokenQuotaPolicy(t, policy.TokenId)
+	assert.Equal(t, 100, reloaded.UsedQuota)
+	assert.NotZero(t, reloaded.ExhaustedAt)
+}
+
 func TestTokenQuotaPolicyRefundNeverDropsBelowZero(t *testing.T) {
 	truncateTables(t)
 	require.NoError(t, DB.AutoMigrate(&TokenQuotaPolicy{}))
@@ -316,6 +330,10 @@ func TestTokenQuotaPolicyDisableAndRestoreRecordsTokenLogs(t *testing.T) {
 	require.NoError(t, DB.Save(policy).Error)
 
 	require.NoError(t, MarkTokenQuotaPolicyExhausted(token.Id, common.TokenStatusDisabled))
+	require.NoError(t, MarkTokenQuotaPolicyExhausted(token.Id, common.TokenStatusDisabled))
+	policy = getTokenQuotaPolicy(t, token.Id)
+	assert.Equal(t, common.TokenStatusEnabled, policy.ExhaustedTokenStatus)
+
 	reset, err := ResetTokenQuotaPolicyAndRestoreTokenIfDue(token.Id, mustUnix(t, "2020-01-01 00:00:01"))
 
 	require.NoError(t, err)

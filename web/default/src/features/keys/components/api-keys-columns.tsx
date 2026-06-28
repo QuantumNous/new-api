@@ -34,6 +34,7 @@ import { getUserGroups } from '@/lib/api'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { getQuotaPolicyDisableState } from '../lib/quota-policy-status'
 import type { ApiKey } from '../types'
 import {
   ApiKeyStatusBadge,
@@ -111,7 +112,12 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       cell: ({ row }) => {
         return <ApiKeyStatusBadge apiKey={row.original} className='-ml-1.5' />
       },
-      filterFn: (row, id, value) => value.includes(String(row.getValue(id))),
+      filterFn: (row, id, value) => {
+        const displayStatus = getQuotaPolicyDisableState(row.original)
+          ? 'quota_policy_disabled'
+          : String(row.getValue(id))
+        return value.includes(displayStatus)
+      },
       size: 120,
       meta: { mobileBadge: true },
     },

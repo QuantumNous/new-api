@@ -224,7 +224,7 @@ func SettleTokenQuotaPolicyUsage(tokenId int, quota int) (bool, error) {
 		Where("token_id = ? AND enabled = ?", tokenId, true).
 		Updates(map[string]any{
 			"used_quota":   gorm.Expr("used_quota + ?", quota),
-			"exhausted_at": gorm.Expr("CASE WHEN used_quota + ? > quota AND exhausted_at = 0 THEN ? ELSE exhausted_at END", quota, now),
+			"exhausted_at": gorm.Expr("CASE WHEN used_quota + ? >= quota AND exhausted_at = 0 THEN ? ELSE exhausted_at END", quota, now),
 			"updated_at":   now,
 		})
 	if result.Error != nil {
@@ -237,7 +237,7 @@ func SettleTokenQuotaPolicyUsage(tokenId int, quota int) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return policy.ExhaustedAt != 0 || policy.UsedQuota > policy.Quota, nil
+	return policy.ExhaustedAt != 0 || policy.UsedQuota >= policy.Quota, nil
 }
 
 func RefundTokenQuotaPolicy(tokenId int, quota int) error {
@@ -438,8 +438,8 @@ func MarkTokenQuotaPolicyExhausted(tokenId int, exhaustedStatus int) error {
 		return tx.Model(&TokenQuotaPolicy{}).
 			Where("token_id = ?", tokenId).
 			Updates(map[string]any{
-				"exhausted_at":           now,
-				"exhausted_token_status": token.Status,
+				"exhausted_at":           gorm.Expr("CASE WHEN exhausted_at = 0 THEN ? ELSE exhausted_at END", now),
+				"exhausted_token_status": gorm.Expr("CASE WHEN exhausted_token_status = 0 THEN ? ELSE exhausted_token_status END", token.Status),
 				"updated_at":             now,
 			}).Error
 	})
@@ -473,6 +473,10 @@ func FindDueTokenQuotaPolicies(now int64, limit int) ([]*TokenQuotaPolicy, error
 }
 
 func SaveTokenQuotaPolicyForToken(tokenId int, userId int, policy *TokenQuotaPolicy, now int64) (*TokenQuotaPolicy, error) {
+	return saveTokenQuotaPolicyForToken(DB, tokenId, userId, policy, now)
+}
+
+func saveTokenQuotaPolicyForToken(db *gorm.DB, tokenId int, userId int, policy *TokenQuotaPolicy, now int64) (*TokenQuotaPolicy, error) {
 	if policy == nil {
 		return nil, nil
 	}
@@ -487,8 +491,12 @@ func SaveTokenQuotaPolicyForToken(tokenId int, userId int, policy *TokenQuotaPol
 	if err := policy.Validate(); err != nil {
 		return nil, err
 	}
-	existing, err := GetTokenQuotaPolicyByTokenId(tokenId)
-	if err != nil && !errors.Is(err, ErrTokenQuotaPolicyNotFound) {
+	var existing *TokenQuotaPolicy
+	var existingPolicy TokenQuotaPolicy
+	err := db.Where("token_id = ?", tokenId).First(&existingPolicy).Error
+	if err == nil {
+		existing = &existingPolicy
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
 	if !policy.Enabled && existing == nil {
@@ -518,7 +526,7 @@ func SaveTokenQuotaPolicyForToken(tokenId int, userId int, policy *TokenQuotaPol
 
 	restoreToken := false
 	disableToken := false
-	err = DB.Transaction(func(tx *gorm.DB) error {
+	err = db.Transaction(func(tx *gorm.DB) error {
 		var token Token
 		if err := tx.Where("id = ? AND user_id = ?", tokenId, userId).First(&token).Error; err != nil {
 			return err
@@ -611,6 +619,46 @@ func SaveTokenQuotaPolicyForToken(tokenId int, userId int, policy *TokenQuotaPol
 	}
 	refreshTokenCacheById(tokenId)
 	return policy, nil
+}
+
+func InsertTokenWithQuotaPolicy(token *Token, policy *TokenQuotaPolicy, now int64) (*TokenQuotaPolicy, error) {
+	var savedPolicy *TokenQuotaPolicy
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(token).Error; err != nil {
+			return err
+		}
+		if policy == nil {
+			return nil
+		}
+		var err error
+		savedPolicy, err = saveTokenQuotaPolicyForToken(tx, token.Id, token.UserId, policy, now)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return savedPolicy, nil
+}
+
+func UpdateTokenWithQuotaPolicy(token *Token, policy *TokenQuotaPolicy, now int64) (*TokenQuotaPolicy, error) {
+	var savedPolicy *TokenQuotaPolicy
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
+			"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry").Updates(token).Error; err != nil {
+			return err
+		}
+		if policy == nil {
+			return nil
+		}
+		var err error
+		savedPolicy, err = saveTokenQuotaPolicyForToken(tx, token.Id, token.UserId, policy, now)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	refreshTokenCacheById(token.Id)
+	return savedPolicy, nil
 }
 
 func AttachTokenQuotaPolicy(token *Token) error {

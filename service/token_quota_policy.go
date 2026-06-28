@@ -121,8 +121,9 @@ func preConsumeTokenQuotaPolicy(relayInfo *relaycommon.RelayInfo, quota int) err
 			return nil
 		}
 	}
+	now := common.GetTimestamp()
 	if policy.BoundaryMode != string(model.TokenQuotaBoundaryStrict) {
-		if tokenQuotaPolicySnapshotExhausted(policy, common.GetTimestamp()) {
+		if tokenQuotaPolicySnapshotExhausted(policy, now) {
 			if policy.ExhaustedAction == string(model.TokenQuotaExhaustDisableToken) {
 				if pauseErr := model.MarkTokenQuotaPolicyExhausted(relayInfo.TokenId, common.TokenStatusDisabled); pauseErr != nil {
 					return pauseErr
@@ -131,6 +132,14 @@ func preConsumeTokenQuotaPolicy(relayInfo *relaycommon.RelayInfo, quota int) err
 			return model.ErrTokenQuotaPolicyExhausted
 		}
 		return nil
+	}
+	if tokenQuotaPolicySnapshotExhausted(policy, now) {
+		if policy.ExhaustedAction == string(model.TokenQuotaExhaustDisableToken) {
+			if pauseErr := model.MarkTokenQuotaPolicyExhausted(relayInfo.TokenId, common.TokenStatusDisabled); pauseErr != nil {
+				return pauseErr
+			}
+		}
+		return model.ErrTokenQuotaPolicyExhausted
 	}
 	err = model.ConsumeTokenQuotaPolicy(relayInfo.TokenId, quota)
 	if err == nil {
@@ -222,7 +231,9 @@ func newTokenQuotaPolicyExhaustedError(c *gin.Context, relayInfo *relaycommon.Re
 	messageKey := i18n.MsgTokenQuotaPolicyExhaustedPending
 	resetTime := ""
 	if policy, policyErr := getRelayTokenQuotaPolicy(relayInfo); policyErr == nil {
-		if policy.AutoResume && policy.NextResetAt > common.GetTimestamp() {
+		if !policy.AutoResume {
+			messageKey = i18n.MsgTokenQuotaPolicyManualReset
+		} else if policy.NextResetAt > common.GetTimestamp() {
 			messageKey = i18n.MsgTokenQuotaPolicyExhausted
 			resetTime = time.Unix(policy.NextResetAt, 0).Format("2006-01-02 15:04")
 		}
@@ -237,6 +248,8 @@ func newTokenQuotaPolicyExhaustedError(c *gin.Context, relayInfo *relaycommon.Re
 	if c == nil || c.Request == nil || c.GetHeader("Accept-Language") == "" {
 		if messageKey == i18n.MsgTokenQuotaPolicyExhausted {
 			message = fmt.Sprintf("API key periodic quota is exhausted and is expected to automatically recover around %s", resetTime)
+		} else if messageKey == i18n.MsgTokenQuotaPolicyManualReset {
+			message = "API key periodic quota is exhausted. Manual reset is required before it can be used again"
 		} else {
 			message = "API key periodic quota is exhausted. The recovery time has arrived and it is waiting for recovery or manual reset"
 		}

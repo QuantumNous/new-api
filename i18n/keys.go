@@ -54,6 +54,7 @@ const (
 	MsgTokenExpired                     = "token.expired"
 	MsgTokenExhausted                   = "token.exhausted"
 	MsgTokenQuotaPolicyExhausted        = "token.quota_policy_exhausted"
+	MsgTokenQuotaPolicyManualReset      = "token.quota_policy_manual_reset"
 	MsgTokenQuotaPolicyExhaustedPending = "token.quota_policy_exhausted_pending"
 	MsgTokenStatusUnavailable           = "token.status_unavailable"
 	MsgTokenDbError                     = "token.db_error"

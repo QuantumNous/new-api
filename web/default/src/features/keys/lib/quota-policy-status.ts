@@ -27,6 +27,12 @@ export function getQuotaPolicyDisableState(
   if (!policy?.enabled || policy.quota <= 0 || policy.next_reset_at <= 0) {
     return null
   }
+  if (
+    policy.exhausted_action !== 'disable_token' ||
+    policy.exhausted_token_status <= 0
+  ) {
+    return null
+  }
   if (policy.exhausted_at <= 0 && policy.used_quota < policy.quota) {
     return null
   }
