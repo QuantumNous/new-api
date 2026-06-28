@@ -60,7 +60,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 
 func apiOrigin(raw string) string {
 	b := strings.TrimRight(strings.TrimSpace(raw), "/")
-	// Only trim video-specific suffixes to avoid accidentally stripping /v1 when the provider base includes version prefix (e.g. https://www.uu-comic.com/v1)
+	// Only trim video-specific suffixes to avoid accidentally stripping /v1 when the provider base includes version prefix (e.g. https://996k.cn/v1)
 	for _, suf := range []string{"/v1/videos", "/videos"} {
 		b = trimSuffixFold(b, suf)
 	}

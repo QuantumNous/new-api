@@ -125,7 +125,7 @@ var ChannelBaseURLs = []string{
 	"https://saast.fuwenhao.com",                //58 ApiWenhao
 	"https://api.apimart.ai",                    //59 ApiMart
 	"https://apihub.agnes-ai.com",               //60 Agnes
-	"https://www.uu-comic.com/v1",               //61 VyroSeedance (uu-comic vyro-seedance-2)
+	"https://996k.cn/v1",                        //61 VyroSeedance (996k vyro-seedance-2)
 }
 
 var ChannelTypeNames = map[int]string{
@@ -194,6 +194,15 @@ func GetChannelTypeName(channelType int) string {
 		return name
 	}
 	return "Unknown"
+}
+
+// GetChannelDefaultBaseURL returns the built-in default base URL for a channel type.
+// It is safe when channelType is out of range (returns "").
+func GetChannelDefaultBaseURL(channelType int) string {
+	if channelType < 0 || channelType >= len(ChannelBaseURLs) {
+		return ""
+	}
+	return ChannelBaseURLs[channelType]
 }
 
 type ChannelSpecialBase struct {

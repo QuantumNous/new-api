@@ -399,7 +399,7 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   58: 'Format: sk-... (Bearer token for ApiWenhao)',
   59: 'Format: sk-... (Bearer token for ApiMart)',
   60: 'Format: Bearer token (Agnes API Key from platform.agnes-ai.com)',
-  61: 'Format: Bearer token (Vyro Seedance / uu-comic API Key)',
+  61: 'Format: Bearer token (Vyro Seedance / 996k API Key)',
 }
 
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {

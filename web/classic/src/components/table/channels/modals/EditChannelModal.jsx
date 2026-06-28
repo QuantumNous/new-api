@@ -701,11 +701,11 @@ const EditChannelModal = (props) => {
             base_url: 'https://apihub.agnes-ai.com',
           }));
           break;
-        case 61: // VyroSeedance (uu-comic)
+        case 61: // VyroSeedance (996k)
           localModels = ['vyro-seedance-2-fast'];
           setInputs((prevInputs) => ({
             ...prevInputs,
-            base_url: 'https://www.uu-comic.com/v1',
+            base_url: 'https://996k.cn/v1',
           }));
           break;
         default:

@@ -31,7 +31,7 @@ func refreshTaskVideoURL(channel *model.Channel, task *model.Task) (string, []by
 
 	baseURL := channel.GetBaseURL()
 	if baseURL == "" {
-		baseURL = constant.ChannelBaseURLs[channel.Type]
+		baseURL = constant.GetChannelDefaultBaseURL(channel.Type)
 	}
 	if baseURL == "" {
 		return "", nil, fmt.Errorf("channel base URL is empty")

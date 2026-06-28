@@ -174,11 +174,11 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     id: 61,
     name: CHANNEL_TYPES[61],
     icon: 'openai',
-    defaultBaseUrl: 'https://www.uu-comic.com/v1',
+    defaultBaseUrl: 'https://996k.cn/v1',
     hints: {
       key: 'Bearer token',
       models: 'vyro-seedance-2-fast',
-      baseUrl: 'Default: https://www.uu-comic.com/v1',
+      baseUrl: 'Default: https://996k.cn/v1',
       other: 'Video only: POST /videos (multipart, reference_images as files) + GET /videos/{id}. Supports text_to_video and reference_to_video.',
     },
   },
