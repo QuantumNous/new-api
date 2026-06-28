@@ -2,6 +2,7 @@ package gemini
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,18 +53,33 @@ func TestGeminiResponsesHandlerReturnsOpenAIResponsesJSON(t *testing.T) {
 	})
 	require.Nil(t, newAPIError)
 	require.NotNil(t, usage)
-	require.Equal(t, 2, usage.PromptTokens)
-	require.Equal(t, 3, usage.CompletionTokens)
+	assert.Equal(t, 2, usage.PromptTokens)
+	assert.Equal(t, 3, usage.CompletionTokens)
 
 	got := recorder.Body.String()
-	require.Contains(t, got, `"object":"response"`)
-	require.Contains(t, got, `"status":"completed"`)
-	require.Contains(t, got, `"type":"output_text"`)
-	require.Contains(t, got, `"text":"hello"`)
-	require.Contains(t, got, `"input_tokens":2`)
-	require.Contains(t, got, `"output_tokens":3`)
-	require.NotContains(t, got, `"choices"`)
-	require.NotContains(t, got, `"candidates"`)
+	assert.Contains(t, got, `"object":"response"`)
+	assert.Contains(t, got, `"status":"completed"`)
+	assert.Contains(t, got, `"type":"output_text"`)
+	assert.Contains(t, got, `"text":"hello"`)
+	assert.Contains(t, got, `"input_tokens":2`)
+	assert.Contains(t, got, `"output_tokens":3`)
+	assert.NotContains(t, got, `"choices"`)
+	assert.NotContains(t, got, `"candidates"`)
+}
+
+func TestGeminiResponsesHandlerClosesBodyOnReadError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set(common.RequestIdKey, "gemini-responses-read-error-test")
+
+	body := &failingReadCloser{}
+	usage, newAPIError := GeminiResponsesHandler(c, newGeminiResponsesRelayInfo(false), &http.Response{Body: body})
+
+	require.Nil(t, usage)
+	require.NotNil(t, newAPIError)
+	assert.True(t, body.closed)
 }
 
 func TestGeminiResponsesStreamHandlerReturnsOpenAIResponsesSSE(t *testing.T) {
@@ -129,18 +146,18 @@ func TestGeminiResponsesStreamHandlerReturnsOpenAIResponsesSSE(t *testing.T) {
 	})
 	require.Nil(t, newAPIError)
 	require.NotNil(t, usage)
-	require.Equal(t, 5, usage.TotalTokens)
+	assert.Equal(t, 5, usage.TotalTokens)
 
 	got := recorder.Body.String()
-	require.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
-	require.Contains(t, got, `event: response.created`)
-	require.Contains(t, got, `event: response.output_text.delta`)
-	require.Contains(t, got, `"delta":"hello"`)
-	require.Contains(t, got, `event: response.completed`)
-	require.Contains(t, got, `"input_tokens":2`)
-	require.Contains(t, got, `"output_tokens":3`)
-	require.NotContains(t, got, `"choices"`)
-	require.NotContains(t, got, `"candidates"`)
+	assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+	assert.Contains(t, got, `event: response.created`)
+	assert.Contains(t, got, `event: response.output_text.delta`)
+	assert.Contains(t, got, `"delta":"hello"`)
+	assert.Contains(t, got, `event: response.completed`)
+	assert.Contains(t, got, `"input_tokens":2`)
+	assert.Contains(t, got, `"output_tokens":3`)
+	assert.NotContains(t, got, `"choices"`)
+	assert.NotContains(t, got, `"candidates"`)
 	requireOrderedGeminiResponsesSubstrings(t, got,
 		`event: response.created`,
 		`event: response.output_item.added`,
@@ -162,6 +179,19 @@ func newGeminiResponsesRelayInfo(isStream bool) *relaycommon.RelayInfo {
 			UpstreamModelName: "gemini-test",
 		},
 	}
+}
+
+type failingReadCloser struct {
+	closed bool
+}
+
+func (r *failingReadCloser) Read([]byte) (int, error) {
+	return 0, errors.New("read failed")
+}
+
+func (r *failingReadCloser) Close() error {
+	r.closed = true
+	return nil
 }
 
 func requireOrderedGeminiResponsesSubstrings(t *testing.T, s string, parts ...string) {

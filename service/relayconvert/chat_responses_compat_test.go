@@ -377,6 +377,42 @@ func TestResponsesBufferedAccumulatorSupplementsEmptyTerminalOutput(t *testing.T
 	assert.Equal(t, `{"q":"x"}`, toolCalls[0].Function.Arguments)
 }
 
+func TestResponsesBufferedAccumulatorDoesNotDuplicatePendingArgsWithOutputIndexAndItemID(t *testing.T) {
+	acc := NewResponsesBufferedAccumulator()
+	outputIndex := 1
+	acc.ProcessEvent(&dto.ResponsesStreamResponse{
+		Type:        responsesEventFunctionArgsDelta,
+		OutputIndex: &outputIndex,
+		ItemID:      "fc_1",
+		Delta:       `{"q":"x"}`,
+	})
+	acc.ProcessEvent(&dto.ResponsesStreamResponse{
+		Type:        responsesEventOutputItemAdded,
+		OutputIndex: &outputIndex,
+		ItemID:      "fc_1",
+		Item: &dto.ResponsesOutput{
+			Type:   responsesOutputTypeFunctionCall,
+			ID:     "fc_1",
+			CallId: "call_1",
+			Name:   "lookup",
+		},
+	})
+
+	resp := &dto.OpenAIResponsesResponse{
+		Status: []byte(`"completed"`),
+		Model:  "gpt-test",
+	}
+	acc.SupplementResponseOutput(resp)
+
+	chat, _, err := ResponsesResponseToChatCompletionsResponse(resp, "chatcmpl_1")
+	require.NoError(t, err)
+	toolCalls := chat.Choices[0].Message.ParseToolCalls()
+	require.Len(t, toolCalls, 1)
+	assert.Equal(t, `{"q":"x"}`, toolCalls[0].Function.Arguments)
+	assert.Empty(t, acc.pendingByOutputIndex)
+	assert.Empty(t, acc.pendingByItemID)
+}
+
 func TestChatCompletionsResponseToResponsesPreservesTextToolCallsAndUsage(t *testing.T) {
 	chat := &dto.OpenAITextResponse{
 		Id:      "chatcmpl_1",

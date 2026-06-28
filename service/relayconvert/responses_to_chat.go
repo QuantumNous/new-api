@@ -788,8 +788,7 @@ func (a *ResponsesBufferedAccumulator) ProcessEvent(event *dto.ResponsesStreamRe
 		}
 		if event.OutputIndex != nil {
 			a.pendingByOutputIndex[*event.OutputIndex] += event.Delta
-		}
-		if itemID := strings.TrimSpace(event.ItemID); itemID != "" {
+		} else if itemID := strings.TrimSpace(event.ItemID); itemID != "" {
 			a.pendingByItemID[itemID] += event.Delta
 		}
 	}
