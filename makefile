@@ -39,34 +39,14 @@ dev-api-rebuild:
 	@docker compose -f $(DEV_COMPOSE_FILE) up -d --build $(DEV_BACKEND_SERVICE)
 
 dev-web:
-	@echo "Starting both frontend dev servers..."
+	@echo "Starting default frontend dev server..."
 	@echo "Default frontend: http://localhost:$(DEV_FRONTEND_DEFAULT_PORT)"
-	@echo "Classic frontend: http://localhost:$(DEV_FRONTEND_CLASSIC_PORT)"
-	@cd ./web && bun install
-	@(cd $(FRONTEND_DIR) && bun run dev -- --host 0.0.0.0 --port $(DEV_FRONTEND_DEFAULT_PORT)) & \
-		default_pid=$$!; \
-		(cd $(FRONTEND_CLASSIC_DIR) && bun run dev -- --host 0.0.0.0 --port $(DEV_FRONTEND_CLASSIC_PORT)) & \
-		classic_pid=$$!; \
-		trap 'kill $$default_pid $$classic_pid 2>/dev/null; wait $$default_pid $$classic_pid 2>/dev/null; exit 130' INT TERM; \
-		while kill -0 $$default_pid 2>/dev/null && kill -0 $$classic_pid 2>/dev/null; do \
-			sleep 1; \
-		done; \
-		if ! kill -0 $$default_pid 2>/dev/null; then \
-			wait $$default_pid; \
-			status=$$?; \
-			kill $$classic_pid 2>/dev/null; \
-			wait $$classic_pid 2>/dev/null; \
-			exit $$status; \
-		fi; \
-		wait $$classic_pid; \
-		status=$$?; \
-		kill $$default_pid 2>/dev/null; \
-		wait $$default_pid 2>/dev/null; \
-		exit $$status
+	@cd ./web && bun install --filter ./default
+	@cd $(FRONTEND_DIR) && bun run dev -- --host 0.0.0.0 --port $(DEV_FRONTEND_DEFAULT_PORT)
 
 dev-web-classic:
 	@echo "Starting classic frontend dev server..."
-	@cd ./web && bun install
+	@cd ./web && bun install --filter ./classic
 	@cd $(FRONTEND_CLASSIC_DIR) && bun run dev -- --host 0.0.0.0 --port $(DEV_FRONTEND_CLASSIC_PORT)
 
 dev: dev-api dev-web
