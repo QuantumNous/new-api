@@ -59,6 +59,9 @@ func BuildImageRequestDataForLog(req *dto.ImageRequest) map[string]interface{} {
 	} else if eff := effectiveResolutionFromSize(req.Size); eff != "" {
 		data["effective_resolution"] = eff
 	}
+	if ratio := dto.GeminiFlashImageResolutionPriceRatio(req.Resolution); strings.Contains(strings.ToLower(strings.TrimSpace(req.Model)), "flash-image") && ratio != 1.0 {
+		data["resolution_price_ratio"] = ratio
+	}
 	if quality := strings.TrimSpace(req.Quality); quality != "" {
 		data["quality"] = quality
 	}
@@ -71,7 +74,7 @@ func BuildImageRequestDataForLog(req *dto.ImageRequest) map[string]interface{} {
 func normalizeEffectiveResolution(resolution string) string {
 	r := strings.ToUpper(strings.TrimSpace(resolution))
 	switch r {
-	case "1K", "2K", "4K":
+	case "0.5K", "1K", "2K", "4K":
 		return r
 	default:
 		return strings.ToUpper(resolution)

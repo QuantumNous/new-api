@@ -148,13 +148,17 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if request.Quality == "hd" {
 		quality = "hd"
 	}
+	isGeminiFlashImage := strings.Contains(strings.ToLower(info.OriginModelName), "flash-image")
 
 	var logContent []string
 
 	if len(request.Size) > 0 {
 		logContent = append(logContent, fmt.Sprintf("大小 %s", request.Size))
 	}
-	if len(quality) > 0 {
+	if res := strings.TrimSpace(request.Resolution); res != "" {
+		logContent = append(logContent, fmt.Sprintf("分辨率 %s", strings.ToUpper(res)))
+	}
+	if len(quality) > 0 && !isGeminiFlashImage {
 		logContent = append(logContent, fmt.Sprintf("品质 %s", quality))
 	}
 	if imageN > 0 {

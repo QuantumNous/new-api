@@ -17,6 +17,7 @@ var (
 		"prefix:imagen-",
 		"flux-",
 		"flux.1-",
+		"flash-image", // gemini-2.5-flash-image, gemini-3.1-flash-image-preview, …
 	}
 	OpenAITextModels = []string{
 		"gpt-",
@@ -52,9 +53,14 @@ func IsImageGenerationModel(modelName string) bool {
 	return false
 }
 
-// UsesAsyncImageTaskUpstream reports models whose upstream expects task submit + poll.
+// UsesAsyncImageTaskUpstream reports models whose upstream expects task submit + poll
+// (APIMart-style: POST /v1/images/generations returns task_id; client or relay polls).
 func UsesAsyncImageTaskUpstream(modelName string) bool {
-	return strings.HasPrefix(strings.ToLower(modelName), "gpt-image-2")
+	lower := strings.ToLower(strings.TrimSpace(modelName))
+	if strings.HasPrefix(lower, "gpt-image-2") {
+		return true
+	}
+	return strings.Contains(lower, "flash-image")
 }
 
 func IsOpenAITextModel(modelName string) bool {

@@ -151,6 +151,11 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 				qualityRatio = 1.5
 			}
 		}
+	} else if geminiFlashImagePriceRatio(i.Model) != 0 {
+		sizeRatio = geminiFlashImagePriceRatio(i.Model)
+		if resRatio := GeminiFlashImageResolutionPriceRatio(i.Resolution); resRatio > 0 {
+			sizeRatio = resRatio
+		}
 	}
 
 	// n is NOT included here; it is handled via OtherRatio("n") in
@@ -161,6 +166,29 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		CombineText:     i.Prompt,
 		MaxTokens:       1584,
 		ImagePriceRatio: sizeRatio * qualityRatio,
+	}
+}
+
+// geminiFlashImagePriceRatio returns a non-zero sentinel when model uses Gemini Flash
+// Image resolution tiers (base price = 1K / 0.5K @ $0.03 upstream list).
+func geminiFlashImagePriceRatio(modelName string) float64 {
+	if strings.Contains(strings.ToLower(strings.TrimSpace(modelName)), "flash-image") {
+		return 1.0
+	}
+	return 0
+}
+
+// GeminiFlashImageResolutionPriceRatio maps resolution to price multiplier vs 1K base.
+func GeminiFlashImageResolutionPriceRatio(resolution string) float64 {
+	switch strings.ToUpper(strings.TrimSpace(resolution)) {
+	case "", "0.5K", "1K":
+		return 1.0
+	case "2K":
+		return 4.0 / 3.0
+	case "4K":
+		return 2.0
+	default:
+		return 1.0
 	}
 }
 

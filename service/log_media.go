@@ -25,7 +25,9 @@ func EnrichLogMediaURL(log *model.Log) {
 		return
 	}
 	modelName := strings.ToLower(strings.TrimSpace(log.ModelName))
-	if !strings.HasPrefix(modelName, "gpt-image-2") && !isLogMediaVideoModel(modelName) {
+	if !strings.HasPrefix(modelName, "gpt-image-2") &&
+		!strings.Contains(modelName, "flash-image") &&
+		!isLogMediaVideoModel(modelName) {
 		return
 	}
 
