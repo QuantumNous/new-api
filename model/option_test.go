@@ -19,7 +19,7 @@ func setupOptionTestDB(t *testing.T) {
 	previousServerAddress := system_setting.ServerAddress
 
 	common.OptionMapRWMutex.RLock()
-	previousOptionMap := common.OptionMap
+	previousOptionMap := cloneOptionMap(common.OptionMap)
 	common.OptionMapRWMutex.RUnlock()
 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -37,9 +37,20 @@ func setupOptionTestDB(t *testing.T) {
 		LOG_DB = previousLogDB
 		system_setting.ServerAddress = previousServerAddress
 		common.OptionMapRWMutex.Lock()
-		common.OptionMap = previousOptionMap
+		common.OptionMap = cloneOptionMap(previousOptionMap)
 		common.OptionMapRWMutex.Unlock()
 	})
+}
+
+func cloneOptionMap(source map[string]string) map[string]string {
+	if source == nil {
+		return nil
+	}
+	cloned := make(map[string]string, len(source))
+	for key, value := range source {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 func TestInitOptionMapSeedsServerAddressFromEnvWhenMissing(t *testing.T) {
@@ -49,7 +60,7 @@ func TestInitOptionMapSeedsServerAddressFromEnvWhenMissing(t *testing.T) {
 	InitOptionMap()
 
 	var option Option
-	require.NoError(t, DB.First(&option, "`key` = ?", "ServerAddress").Error)
+	require.NoError(t, DB.Where(&Option{Key: "ServerAddress"}).First(&option).Error)
 	assert.Equal(t, "https://example.com", option.Value)
 	assert.Equal(t, "https://example.com", system_setting.ServerAddress)
 }
@@ -62,7 +73,7 @@ func TestInitOptionMapDoesNotOverrideExistingServerAddress(t *testing.T) {
 	InitOptionMap()
 
 	var option Option
-	require.NoError(t, DB.First(&option, "`key` = ?", "ServerAddress").Error)
+	require.NoError(t, DB.Where(&Option{Key: "ServerAddress"}).First(&option).Error)
 	assert.Equal(t, "https://db.example.com", option.Value)
 	assert.Equal(t, "https://db.example.com", system_setting.ServerAddress)
 }

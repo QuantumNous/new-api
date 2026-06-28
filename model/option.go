@@ -188,7 +188,11 @@ func InitOptionMap() {
 }
 
 func loadOptionsFromDatabase() {
-	options, _ := AllOption()
+	options, err := AllOption()
+	if err != nil {
+		common.SysLog("failed to load options from database: " + err.Error())
+		return
+	}
 	serverAddressExists := false
 	for _, option := range options {
 		if option.Key == "ServerAddress" {
