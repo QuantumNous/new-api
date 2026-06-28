@@ -148,6 +148,10 @@ func downloadEntryPoint(raw string) enums.EntryPoint {
 		return enums.EntryPointNew
 	case enums.EntryPointRecommended:
 		return enums.EntryPointRecommended
+	case enums.EntryPointRecoPersonal:
+		return enums.EntryPointRecoPersonal
+	case enums.EntryPointRecoCodownload:
+		return enums.EntryPointRecoCodownload
 	default:
 		return enums.EntryPointSkillPackage
 	}

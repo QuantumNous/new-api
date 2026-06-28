@@ -1,0 +1,33 @@
+DR-97 Personalized recommendations test results
+Date: 2026-06-29
+
+Focused tests
+- Command: `GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/enums ./internal/skill/model ./internal/skill/handler -count=1 -cover`
+- Dataset/fixtures: in-memory SQLite Skill tables; platform users; published/free/pro/kids-safe Skills; user_enabled_skills rows for category history, co-download peers, removed/disabled exclusions, and download conversion events.
+- Verified: entry_point enum accepts `reco_personal` and `reco_codownload`; personal recommendations derive category affinity and exclude already-enabled Skills; cold-start fallback uses featured/popular ordering; Kids mode filters non-kids-safe recommendations; co-download ranking uses shared enablement counts and excludes the target Skill; recommendation download conversion preserves `reco_personal`/`reco_codownload`; analytics event ingest accepts the new recommendation entry point.
+- Coverage: enums 88.9%; model 50.7%; handler 73.8%.
+- Result: PASS.
+
+Related regression tests
+- Command: `GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/... ./router -count=1 -cover`
+- Dataset/fixtures: existing Skill API, availability, relay, seed, router, analytics, lifecycle, and package-download fixtures plus DR-97 recommendation fixtures.
+- Verified: Skill package APIs, route registration, analytics/schema validation, availability resolution, Kids/session privacy, relay lifecycle, seed downloads, and recommendation endpoints remain compatible.
+- Coverage: api 77.8%; availability 96.7%; enums 88.9%; errcodes 100.0%; handler 73.8%; model 50.7%; relay 81.5%; seed 79.4%; tiers 100.0%; router 8.4%.
+- Result: PASS.
+
+Full Go suite
+- Command: `make build-all-frontends`
+- Dataset/fixtures: frontend dependency lockfiles and production builds for `web/default/dist` and `web/classic/dist`, required by root package `//go:embed`.
+- Verified: generated embedded frontend assets required for root package compilation.
+- Coverage: not available; build command does not report Go coverage.
+- Result: PASS.
+
+- Command: `GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./... -count=1`
+- Dataset/fixtures: repository-wide Go unit/regression fixtures after embedded frontend dist assets were generated.
+- Verified: all Go packages compile and pass tests, including root package embed setup, Skill marketplace, analytics, model migrations, router, relay, middleware, service, controller, settings, and provider adapters.
+- Coverage: not available; full-suite command intentionally ran without `-cover` to keep repository-wide runtime practical.
+- Result: PASS.
+
+Initial environment-only failure
+- Command: `GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./... -count=1`
+- Result: FAIL before frontend build because root package embeds `web/classic/dist`, which was missing in the fresh worktree. Running `make build-all-frontends` generated the ignored dist assets; rerun passed.

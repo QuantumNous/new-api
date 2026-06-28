@@ -425,7 +425,7 @@ Rules:
 
 - Deprecated and archived Skills are excluded.
 - Free users should see at least one Free Skill when available.
-- Recommendation interactions use existing Skill events with `entry_point=featured/popular/new/recommended`.
+- Recommendation interactions use existing Skill events with `entry_point=featured/popular/new/recommended/reco_personal/reco_codownload`.
 
 ---
 

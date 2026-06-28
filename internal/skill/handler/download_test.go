@@ -381,6 +381,33 @@ func TestDownloadSkillPackage_RecommendedEntryPoint(t *testing.T) {
 	assert.Equal(t, enums.EntryPointRecommended, evt.EntryPoint)
 }
 
+func TestDownloadSkillPackage_DR97RecommendationEntryPoints(t *testing.T) {
+	for _, tc := range []struct {
+		raw  string
+		want enums.EntryPoint
+	}{
+		{raw: "reco_personal", want: enums.EntryPointRecoPersonal},
+		{raw: "reco_codownload", want: enums.EntryPointRecoCodownload},
+	} {
+		t.Run(tc.raw, func(t *testing.T) {
+			db := testDownloadDB(t)
+			SetDB(db)
+			slug := "download-" + strings.ReplaceAll(tc.raw, "_", "-")
+			s := createPublishedSkillWithActiveVersion(t, db, slug, "Recommendation template")
+
+			c, w := testDownloadCtx(slug, 99, "default")
+			c.Request.URL.RawQuery = "entry_point=" + tc.raw
+			DownloadSkillPackage(c)
+
+			require.Equal(t, http.StatusOK, w.Code)
+			var evt skillmodel.SkillUsageEvent
+			err := db.Where("event_type = ? AND skill_id = ?", "skill_enabled", s.ID).First(&evt).Error
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, evt.EntryPoint)
+		})
+	}
+}
+
 // TestDownloadSkillPackage_EmitRecordsUserPlanNotSkillPlan verifies that when a pro user
 // downloads a free skill, the analytics event.plan reflects the user's plan ("pro"),
 // not the skill's required_plan ("free"). Prevents dashboard funnel distortion.
