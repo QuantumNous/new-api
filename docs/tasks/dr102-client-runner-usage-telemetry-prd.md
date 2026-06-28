@@ -1,6 +1,6 @@
 # DR-102 Client Runner Usage Telemetry PRD
 
-Status: eval
+Status: ship
 Ticket: DR-102
 References: NEW-11 gap review 2026-06-28, docs/skill-marketplace/tasks/03_Data_Model_and_API_Spec.md §9, docs/tasks/dr75-analytics-aggregation-api-prd.md
 
@@ -61,5 +61,5 @@ Behavior:
 
 ## Evaluation
 
-- Local implementation and tests are complete; awaiting PR review/checks.
+- PR #124 merged on 2026-06-28 after local verification, self-review comments, and required GitHub checks passed.
 - Client-supplied `occurred_at` is accepted as non-authoritative metadata only. The persisted analytics `occurred_at` remains server-authoritative UTC per DR-74.
