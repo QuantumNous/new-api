@@ -1,6 +1,6 @@
 # DR-94 Admin Per-User Skill Usage Drill-Down PRD
 
-Status: eval
+Status: ship
 Ticket: DR-94
 Owner sign-off required: Legal/privacy gate because this intentionally relaxes the aggregate-only analytics stance for consented users.
 
@@ -41,3 +41,4 @@ DR-75/DR-76/DR-77 kept Skill analytics aggregate-only. DR-94 adds a narrowly sco
 ## Evaluation Notes
 
 - 2026-06-29: Implemented backend API and moved to eval. Test evidence recorded in `docs/test-results/dr94-admin-per-user-drill-down-downloads-token-consum.txt`.
+- 2026-06-29: PR #128 merged to main after self-review and passing GitHub checks.
