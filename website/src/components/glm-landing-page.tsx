@@ -221,7 +221,13 @@ client.chat.completions.create(
 {
   "env": {
     "ANTHROPIC_BASE_URL": "https://router.flatkey.ai",
-    "ANTHROPIC_AUTH_TOKEN": "YOUR_FLATKEY_KEY"
+    "ANTHROPIC_AUTH_TOKEN": "YOUR_FLATKEY_KEY",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-5.2",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5.2",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5.2",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "1000000",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "API_TIMEOUT_MS": "3000000"
   }
 }`,
     },
@@ -241,7 +247,7 @@ client.chat.completions.create(
         {snippets.map((snippet) => (
           <div key={snippet.label} className="min-w-0 rounded-lg border border-white/10 bg-[#060912]">
             <div className="border-b border-white/10 px-4 py-3 text-xs font-bold tracking-wide text-violet-300">{snippet.label}</div>
-            <pre className="overflow-x-auto p-4 font-mono text-sm leading-7 text-slate-300">
+            <pre className="min-h-[26rem] overflow-x-auto p-4 font-mono text-sm leading-7 text-slate-300">
               <code>{snippet.code}</code>
             </pre>
           </div>
