@@ -1,0 +1,21 @@
+# DR-94 Test Results
+
+Date: 2026-06-29
+
+## Focused Handler Tests
+
+- Command: `GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/handler -run 'TestGetAdminUserSkillUsage' -count=1 -cover`
+- Dataset/fixtures: in-memory SQLite Skill tables; synthetic platform users with Tier 2 consent enabled/disabled; downloaded Skill rows; normal usage events with token counts; Kids pseudonymous usage event with `user_id=NULL`.
+- Verified: consented user gets downloaded Skills, token totals, USD cost estimate, last update time, and usage timeline; non-consented user returns empty per-user rows while audit is written; Kids pseudonymous events are not joined back to a real user; response omits metadata/prompt/raw/provider fields; non-root handler access is rejected.
+- Coverage: `internal/skill/handler` 4.8% for focused DR-94 subset.
+- Result: PASS
+
+## Related Handler + Router Regression
+
+- Command: `GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/handler ./router -count=1 -cover`
+- Dataset/fixtures: existing handler/router SQLite fixtures plus DR-94 root/admin session fixture and audit migration.
+- Verified: existing Skill marketplace/download/analytics/telemetry handler regressions; new `/api/v1/admin/users/:user_id/skill-usage` route is `SkillRootAuth` gated; root role reaches the handler; admin role receives 403.
+- Coverage: `internal/skill/handler` 74.6%; `router` 10.0%.
+- Result: PASS
+
+Note: the first non-escalated related run failed because sandboxed tests could not bind `httptest.NewServer`; the same command passed with approved local test-server permissions.
