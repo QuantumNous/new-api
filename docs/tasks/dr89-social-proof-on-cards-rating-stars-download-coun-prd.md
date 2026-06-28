@@ -1,6 +1,6 @@
 # DR-89 Social Proof on Skill Cards PRD
 
-Status: eval
+Status: ship
 
 Ticket: DR-89
 Reference: NEW-20 gap review 2026-06-28; docs/skill-marketplace/tasks/02_UX_Design.md; docs/skill-marketplace/tasks/03_Data_Model_and_API_Spec.md
@@ -46,3 +46,4 @@ Marketplace cards and Skill detail pages expose plan, kids safety, and lifecycle
 ## Verification
 
 - 2026-06-29: Local focused and related verification passed; see `docs/test-results/dr89-social-proof-on-cards-rating-stars-download-coun.txt`.
+- 2026-06-29: PR #132 merged after post-rebase local verification and required GitHub checks passed.
