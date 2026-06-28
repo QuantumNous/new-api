@@ -7,7 +7,7 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 ## Tech Stack
 
 - **Backend**: Go 1.22+, Gin web framework, GORM v2 ORM
-- **Frontend**: React 19, TypeScript, Rsbuild, Base UI, Tailwind CSS
+- **Frontend**: React 19, JavaScript/TypeScript, Rsbuild, Semi Design, Tailwind CSS
 - **Databases**: SQLite, MySQL, PostgreSQL (all three must be supported)
 - **Cache**: Redis (go-redis) + in-memory cache
 - **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, etc.)
@@ -33,10 +33,9 @@ types/         — Type definitions (relay formats, file sources, errors)
 i18n/          — Backend internationalization (go-i18n, en/zh)
 oauth/         — OAuth provider implementations
 pkg/           — Internal packages (cachex, ionet)
-web/             — Frontend themes container
- web/default/   — Default frontend (React 19, Rsbuild, Base UI, Tailwind)
-  web/classic/   — Classic frontend (React 18, Vite, Semi Design)
-  web/default/src/i18n/ — Frontend internationalization (i18next, zh/en/fr/ru/ja/vi)
+web/             — Frontend workspace
+  web/classic/   — Classic frontend (React 19, Rsbuild, Semi Design)
+  web/classic/src/i18n/ — Frontend internationalization (i18next, zh/en/fr/ru/ja/vi)
 ```
 
 ## Internationalization (i18n)
@@ -45,12 +44,12 @@ web/             — Frontend themes container
 - Library: `nicksnyder/go-i18n/v2`
 - Languages: en, zh
 
-### Frontend (`web/default/src/i18n/`)
+### Frontend (`web/classic/src/i18n/`)
 - Library: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
 - Languages: en (base), zh (fallback), fr, ru, ja, vi
-- Translation files: `web/default/src/i18n/locales/{lang}.json` — flat JSON, keys are English source strings
+- Translation files: `web/classic/src/i18n/locales/{lang}.json` — flat JSON under `translation`
 - Usage: `useTranslation()` hook, call `t('English key')` in components
-- CLI tools: `bun run i18n:sync` (from `web/default/`)
+- CLI tools: `bun run i18n:*` (from `web/classic/`)
 
 ## Rules
 
@@ -111,14 +110,13 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
 
 ### Frontend Rules
 
-- Use `bun` as the preferred package manager and script runner for the frontend (`web/default/`):
+- Use `bun` as the preferred package manager and script runner for the frontend (`web/classic/`):
   - `bun install` for dependency installation
   - `bun run dev` for development server
   - `bun run build` for production build
   - `bun run i18n:*` for i18n tooling
-- Frontend UI text must support i18n with `i18next`/`react-i18next`. Use flat JSON locale files in `web/default/src/i18n/locales/{lang}.json`, with English source strings as keys.
+- Frontend UI text must support i18n with `i18next`/`react-i18next`. Use locale files in `web/classic/src/i18n/locales/{lang}.json`.
 - In React components, use `useTranslation()` and call `t('English key')` for user-facing text.
-- Follow `web/default/AGENTS.md` for detailed frontend conventions, including TypeScript, component structure, styling, accessibility, testing, and build checks.
 
 ### Project Governance
 

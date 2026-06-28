@@ -23,8 +23,8 @@ import {
   Button,
   Col,
   Form,
-  Row,
   Modal,
+  Row,
   Space,
   Card,
 } from '@douyinfe/semi-ui';
@@ -86,7 +86,6 @@ const OtherSetting = () => {
     About: false,
     Footer: false,
     CheckUpdate: false,
-    FrontendTheme: false,
   });
   const handleInputChange = async (value, e) => {
     const name = e.target.id;
@@ -288,47 +287,6 @@ const OtherSetting = () => {
     }
   };
 
-  const switchToDefaultFrontend = () => {
-    Modal.confirm({
-      title: t('切换到新版前端'),
-      content: t('切换后页面会自动刷新，并进入新版前端。是否继续？'),
-      okText: t('确认切换'),
-      cancelText: t('取消'),
-      onOk: async () => {
-        try {
-          setLoadingInput((loadingInput) => ({
-            ...loadingInput,
-            FrontendTheme: true,
-          }));
-          const res = await API.put('/api/option/', {
-            key: 'theme.frontend',
-            value: 'default',
-          });
-          const { success, message } = res.data;
-          if (!success) {
-            showError(message);
-            return;
-          }
-          showSuccess(t('已切换到新版前端，正在跳转首页'));
-          setTimeout(() => {
-            // 新版前端的路由与经典前端不同，原地刷新当前路径会 404，
-            // 因此切换后重置到首页，由后端按新主题返回对应前端。
-            // 使用 replace 避免在历史中留下已失效的路由，防止返回时再次 404。
-            window.location.replace('/');
-          }, 600);
-        } catch (error) {
-          console.error('切换新版前端失败', error);
-          showError(t('切换失败，请稍后重试'));
-        } finally {
-          setLoadingInput((loadingInput) => ({
-            ...loadingInput,
-            FrontendTheme: false,
-          }));
-        }
-      },
-    });
-  };
-
   const getOptions = async () => {
     const res = await API.get('/api/option/');
     const { success, message, data } = res.data;
@@ -392,12 +350,6 @@ const OtherSetting = () => {
                       loading={loadingInput['CheckUpdate']}
                     >
                       {t('检查更新')}
-                    </Button>
-                    <Button
-                      onClick={switchToDefaultFrontend}
-                      loading={loadingInput['FrontendTheme']}
-                    >
-                      {t('切换到新版前端')}
                     </Button>
                   </Space>
                 </Col>

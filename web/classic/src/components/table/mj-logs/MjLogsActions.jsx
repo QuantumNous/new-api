@@ -44,7 +44,7 @@ const MjLogsActions = ({
 
   return (
     <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-      <Skeleton loading={showSkeleton} active placeholder={placeholder}>
+      <Skeleton loading={showSkeleton} placeholder={placeholder}>
         <div className='flex items-center mb-2 md:mb-0'>
           <IconEyeOpened className='mr-2' />
           <Text>

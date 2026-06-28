@@ -291,7 +291,6 @@ const RechargeCard = ({
                       extraText={
                         <Skeleton
                           loading={showAmountSkeleton}
-                          active
                           placeholder={
                             <Skeleton.Title
                               style={{

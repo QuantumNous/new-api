@@ -3,7 +3,7 @@
 This file summarizes direct third-party dependencies used by distributed builds of this project.
 It is an engineering compliance artifact and should be kept with Docker images, standalone binaries, frontend bundles, and Electron installers.
 
-Scope: direct dependencies from `go.mod`, `web/default/package.json`, `web/classic/package.json`, and `electron/package.json`.
+Scope: direct dependencies from `go.mod`, `web/classic/package.json`, and `electron/package.json`.
 Transitive dependencies should be audited before a final external release.
 
 ## Dependency Inventory
@@ -65,82 +65,6 @@ Transitive dependencies should be audited before a final external release.
 | backend     | production  | Go        | `gorm.io/driver/postgres`                             | `v1.5.2`                             | MIT                                                |
 | backend     | production  | Go        | `gorm.io/gorm`                                        | `v1.25.2`                            | MIT                                                |
 | backend     | production  | Go        | `github.com/expr-lang/expr`                           | `v1.17.8`                            | MIT                                                |
-| web/default | production  | npm       | `@base-ui/react`                                      | `1.4.1`                              | MIT                                                |
-| web/default | production  | npm       | `@fontsource-variable/public-sans`                    | `5.2.7`                              | OFL-1.1                                            |
-| web/default | production  | npm       | `@hookform/resolvers`                                 | `5.2.2`                              | MIT                                                |
-| web/default | production  | npm       | `@hugeicons/core-free-icons`                          | `4.1.1`                              | MIT                                                |
-| web/default | production  | npm       | `@hugeicons/react`                                    | `1.1.6`                              | MIT                                                |
-| web/default | production  | npm       | `@lobehub/icons`                                      | `4.12.0`                             | MIT                                                |
-| web/default | production  | npm       | `@tailwindcss/postcss`                                | `4.2.2`                              | MIT                                                |
-| web/default | production  | npm       | `@tanstack/react-query`                               | `5.97.0`                             | MIT                                                |
-| web/default | production  | npm       | `@tanstack/react-router`                              | `1.168.23`                           | MIT                                                |
-| web/default | production  | npm       | `@tanstack/react-table`                               | `8.21.3`                             | MIT                                                |
-| web/default | production  | npm       | `@tanstack/react-virtual`                             | `3.13.23`                            | MIT                                                |
-| web/default | production  | npm       | `@visactor/react-vchart`                              | `2.0.21`                             | MIT                                                |
-| web/default | production  | npm       | `@visactor/vchart`                                    | `2.0.21`                             | MIT                                                |
-| web/default | production  | npm       | `ai`                                                  | `6.0.158`                            | Apache-2.0                                         |
-| web/default | production  | npm       | `auto-skeleton-react`                                 | `1.0.5`                              | MIT                                                |
-| web/default | production  | npm       | `axios`                                               | `1.15.0`                             | MIT                                                |
-| web/default | production  | npm       | `class-variance-authority`                            | `0.7.1`                              | Apache-2.0                                         |
-| web/default | production  | npm       | `clsx`                                                | `2.1.1`                              | MIT                                                |
-| web/default | production  | npm       | `cmdk`                                                | `1.1.1`                              | MIT                                                |
-| web/default | production  | npm       | `date-fns`                                            | `4.1.0`                              | MIT                                                |
-| web/default | production  | npm       | `dayjs`                                               | `1.11.20`                            | MIT                                                |
-| web/default | production  | npm       | `i18next`                                             | `25.10.10`                           | MIT                                                |
-| web/default | production  | npm       | `i18next-browser-languagedetector`                    | `8.2.1`                              | MIT                                                |
-| web/default | production  | npm       | `input-otp`                                           | `1.4.2`                              | MIT                                                |
-| web/default | production  | npm       | `lucide-react`                                        | `1.8.0`                              | ISC                                                |
-| web/default | production  | npm       | `motion`                                              | `12.38.0`                            | MIT                                                |
-| web/default | production  | npm       | `nanoid`                                              | `5.1.7`                              | MIT                                                |
-| web/default | production  | npm       | `next-themes`                                         | `0.4.6`                              | MIT                                                |
-| web/default | production  | npm       | `qrcode.react`                                        | `4.2.0`                              | ISC                                                |
-| web/default | production  | npm       | `react`                                               | `19.2.5`                             | MIT                                                |
-| web/default | production  | npm       | `react-day-picker`                                    | `9.14.0`                             | MIT                                                |
-| web/default | production  | npm       | `react-dom`                                           | `19.2.5`                             | MIT                                                |
-| web/default | production  | npm       | `react-hook-form`                                     | `7.72.1`                             | MIT                                                |
-| web/default | production  | npm       | `react-i18next`                                       | `16.6.6`                             | MIT                                                |
-| web/default | production  | npm       | `react-icons`                                         | `5.6.0`                              | MIT                                                |
-| web/default | production  | npm       | `react-markdown`                                      | `10.1.0`                             | MIT                                                |
-| web/default | production  | npm       | `react-resizable-panels`                              | `4.11.0`                             | MIT                                                |
-| web/default | production  | npm       | `react-top-loading-bar`                               | `3.0.2`                              | MIT                                                |
-| web/default | production  | npm       | `recharts`                                            | `3.8.0`                              | MIT                                                |
-| web/default | production  | npm       | `rehype-raw`                                          | `7.0.0`                              | MIT                                                |
-| web/default | production  | npm       | `remark-gfm`                                          | `4.0.1`                              | MIT                                                |
-| web/default | production  | npm       | `shiki`                                               | `4.0.2`                              | MIT                                                |
-| web/default | production  | npm       | `sonner`                                              | `2.0.7`                              | MIT                                                |
-| web/default | production  | npm       | `sse.js`                                              | `2.8.0`                              | Apache-2.0                                         |
-| web/default | production  | npm       | `streamdown`                                          | `2.5.0`                              | Apache-2.0                                         |
-| web/default | production  | npm       | `tailwind-merge`                                      | `3.5.0`                              | MIT                                                |
-| web/default | production  | npm       | `tailwindcss`                                         | `4.2.2`                              | MIT                                                |
-| web/default | production  | npm       | `tokenlens`                                           | `1.3.1`                              | MIT                                                |
-| web/default | production  | npm       | `tw-animate-css`                                      | `1.4.0`                              | MIT                                                |
-| web/default | production  | npm       | `use-stick-to-bottom`                                 | `1.1.3`                              | MIT                                                |
-| web/default | production  | npm       | `vaul`                                                | `1.1.2`                              | MIT                                                |
-| web/default | production  | npm       | `zod`                                                 | `4.3.6`                              | MIT                                                |
-| web/default | production  | npm       | `zustand`                                             | `5.0.12`                             | MIT                                                |
-| web/default | development | npm       | `@eslint/js`                                          | `10.0.1`                             | MIT                                                |
-| web/default | development | npm       | `@rsbuild/core`                                       | `2.0.1`                              | MIT                                                |
-| web/default | development | npm       | `@rsbuild/plugin-react`                               | `2.0.0`                              | MIT                                                |
-| web/default | development | npm       | `@tanstack/eslint-plugin-query`                       | `5.97.0`                             | MIT                                                |
-| web/default | development | npm       | `@tanstack/react-query-devtools`                      | `5.97.0`                             | MIT                                                |
-| web/default | development | npm       | `@tanstack/react-router-devtools`                     | `1.166.13`                           | MIT                                                |
-| web/default | development | npm       | `@tanstack/router-plugin`                             | `1.167.23`                           | MIT                                                |
-| web/default | development | npm       | `@trivago/prettier-plugin-sort-imports`               | `6.0.2`                              | Apache-2.0                                         |
-| web/default | development | npm       | `@types/node`                                         | `25.6.0`                             | MIT                                                |
-| web/default | development | npm       | `@types/react`                                        | `19.2.14`                            | MIT                                                |
-| web/default | development | npm       | `@types/react-dom`                                    | `19.2.3`                             | MIT                                                |
-| web/default | development | npm       | `@xyflow/react`                                       | `12.10.2`                            | MIT                                                |
-| web/default | development | npm       | `embla-carousel-react`                                | `8.6.0`                              | MIT                                                |
-| web/default | development | npm       | `eslint`                                              | `10.2.0`                             | MIT                                                |
-| web/default | development | npm       | `eslint-plugin-react-hooks`                           | `7.0.1`                              | MIT                                                |
-| web/default | development | npm       | `eslint-plugin-react-refresh`                         | `0.5.2`                              | MIT                                                |
-| web/default | development | npm       | `globals`                                             | `17.4.0`                             | MIT                                                |
-| web/default | development | npm       | `knip`                                                | `6.3.1`                              | ISC                                                |
-| web/default | development | npm       | `prettier`                                            | `3.8.2`                              | MIT                                                |
-| web/default | development | npm       | `prettier-plugin-tailwindcss`                         | `0.7.2`                              | MIT                                                |
-| web/default | development | npm       | `shadcn`                                              | `3.8.5`                              | MIT                                                |
-| web/default | development | npm       | `typescript`                                          | `5.9.3`                              | Apache-2.0                                         |
-| web/default | development | npm       | `typescript-eslint`                                   | `8.58.1`                             | MIT                                                |
 | web/classic | production  | npm       | `@douyinfe/semi-icons`                                | `2.72.2`                             | MIT                                                |
 | web/classic | production  | npm       | `@douyinfe/semi-ui`                                   | `2.72.2`                             | MIT                                                |
 | web/classic | production  | npm       | `@lobehub/icons`                                      | `2.1.0`                              | MIT                                                |

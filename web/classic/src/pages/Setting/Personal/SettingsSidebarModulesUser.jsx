@@ -68,12 +68,11 @@ export default function SettingsSidebarModulesUser() {
   const generateDefaultConfig = () => {
     const defaultConfig = {};
 
-    // 聊天区域 - 所有用户都可以访问
+    // 聊天区域 - 所有用户都可以访问（playground 操练场；chats 聚合已移除）
     if (isSidebarSectionAllowed('chat')) {
       defaultConfig.chat = {
         enabled: true,
         playground: isSidebarModuleAllowed('chat', 'playground'),
-        chat: isSidebarModuleAllowed('chat', 'chat'),
       };
     }
 
@@ -293,14 +292,13 @@ export default function SettingsSidebarModulesUser() {
     {
       key: 'chat',
       title: t('聊天区域'),
-      description: t('操练场和聊天功能'),
+      description: t('操练场'),
       modules: [
         {
           key: 'playground',
           title: t('操练场'),
           description: t('AI模型测试环境'),
         },
-        { key: 'chat', title: t('聊天'), description: t('聊天会话管理') },
       ],
     },
     {
@@ -427,7 +425,6 @@ export default function SettingsSidebarModulesUser() {
                       : 'opacity-50'
                   }`}
                   bodyStyle={{ padding: '16px' }}
-                  hoverable
                 >
                   <div className='flex justify-between items-center h-full'>
                     <div className='flex-1 text-left'>

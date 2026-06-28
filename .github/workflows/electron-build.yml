@@ -48,8 +48,9 @@ jobs:
         run: |
           cd web
           bun install
-          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(git describe --tags) bun run build
-          cd ..
+          cd classic
+          VITE_REACT_APP_VERSION=$(git describe --tags) bun run build
+          cd ../..
 
       # - name: Build Go binary (macos/Linux)
       #   if: runner.os != 'Windows'

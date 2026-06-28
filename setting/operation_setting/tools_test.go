@@ -66,14 +66,22 @@ func TestGetGPTImage1PriceOnceCallConfigOverridesConst(t *testing.T) {
 	assert.Equal(t, 0.5, GetGPTImage1PriceOnceCall("low", "1024x1024"))
 }
 
-func TestGetGPTImage1PriceOnceCallUnknownSizeFallsBackToDefaultNotHigh(t *testing.T) {
+func TestGetGPTImage1PriceOnceCallUnknownSizeFallsBackToQualityDefault(t *testing.T) {
 	withGPTImage1PriceSetting(t)
 
 	// Sentinel default makes the fallback source unambiguous.
 	gptImage1PriceSetting.DefaultPrice = 0.1234
+	// Known quality + unknown/missing size falls back to that quality's
+	// 1024x1024 price — NOT DefaultPrice (0.1234) and NOT high 0.167. Upstreams
+	// (e.g. sub2api) frequently omit the size field, so a high-quality image
+	// must still be charged at the high tier rather than the medium default.
 	got := GetGPTImage1PriceOnceCall("medium", "9999x9999")
-	assert.Equal(t, 0.1234, got)
+	assert.Equal(t, GPTImage1Medium1024x1024, got)
+	assert.NotEqual(t, gptImage1PriceSetting.DefaultPrice, got)
 	assert.NotEqual(t, GPTImage1High1024x1024, got) // regression: must not fall back to high 0.167
+
+	// Empty size (the real-world "field omitted" case) behaves the same way.
+	assert.Equal(t, GPTImage1High1024x1024, GetGPTImage1PriceOnceCall("high", ""))
 }
 
 func TestGetGPTImage1PriceOnceCallUnknownQualityFallsBackToDefault(t *testing.T) {

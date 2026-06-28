@@ -25,7 +25,6 @@ import {
   copy,
   showError,
   showSuccess,
-  encodeToBase64,
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
@@ -209,65 +208,6 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     const serverUrl = getServerAddress();
     const connStr = encodeChannelConnectionString(`sk-${fullKey}`, serverUrl);
     await copyText(connStr);
-  };
-
-  // Open link function for chat integrations
-  const onOpenLink = async (type, url, record) => {
-    const fullKey = await fetchTokenKey(record);
-    if (url && url.startsWith('ccswitch')) {
-      openCCSwitchModal(fullKey);
-      return;
-    }
-    if (url && url.startsWith('fluent')) {
-      openFluentNotification(fullKey);
-      return;
-    }
-    let status = localStorage.getItem('status');
-    let serverAddress = '';
-    if (status) {
-      status = JSON.parse(status);
-      serverAddress = status.server_address;
-    }
-    if (serverAddress === '') {
-      serverAddress = window.location.origin;
-    }
-    if (url.includes('{cherryConfig}') === true) {
-      let cherryConfig = {
-        id: 'new-api',
-        baseUrl: serverAddress,
-        apiKey: `sk-${fullKey}`,
-      };
-      let encodedConfig = encodeURIComponent(
-        encodeToBase64(JSON.stringify(cherryConfig)),
-      );
-      url = url.replaceAll('{cherryConfig}', encodedConfig);
-    } else if (url.includes('{aionuiConfig}') === true) {
-      let aionuiConfig = {
-        platform: 'new-api',
-        baseUrl: serverAddress,
-        apiKey: `sk-${fullKey}`,
-      };
-      let encodedConfig = encodeURIComponent(
-        encodeToBase64(JSON.stringify(aionuiConfig)),
-      );
-      url = url.replaceAll('{aionuiConfig}', encodedConfig);
-    } else if (url.includes('{deepchatConfig}') === true) {
-      let deepchatConfig = {
-        id: 'new-api',
-        baseUrl: serverAddress,
-        apiKey: `sk-${fullKey}`,
-      };
-      let encodedConfig = encodeURIComponent(
-        encodeToBase64(JSON.stringify(deepchatConfig)),
-      );
-      url = url.replaceAll('{deepchatConfig}', encodedConfig);
-    } else {
-      let encodedServerAddress = encodeURIComponent(serverAddress);
-      url = url.replaceAll('{address}', encodedServerAddress);
-      url = url.replaceAll('{key}', `sk-${fullKey}`);
-    }
-
-    window.open(url, '_blank');
   };
 
   // Open the CC Switch config dialog directly for a token
@@ -510,7 +450,6 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     toggleTokenVisibility,
     copyTokenKey,
     copyTokenConnectionString,
-    onOpenLink,
     onOpenCCSwitch,
     manageToken,
     searchTokens,

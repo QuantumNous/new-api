@@ -259,11 +259,11 @@ const SubscriptionPlansCard = ({
           {/* 我的订阅骨架屏 */}
           <Card className='!rounded-xl w-full' bodyStyle={{ padding: '12px' }}>
             <div className='flex items-center justify-between mb-3'>
-              <Skeleton.Title active style={{ width: 100, height: 20 }} />
-              <Skeleton.Button active style={{ width: 24, height: 24 }} />
+              <Skeleton.Title style={{ width: 100, height: 20 }} />
+              <Skeleton.Button style={{ width: 24, height: 24 }} />
             </div>
             <div className='space-y-2'>
-              <Skeleton.Paragraph active rows={2} />
+              <Skeleton.Paragraph rows={2} />
             </div>
           </Card>
           {/* 套餐列表骨架屏 */}
@@ -275,23 +275,19 @@ const SubscriptionPlansCard = ({
                 bodyStyle={{ padding: 16 }}
               >
                 <Skeleton.Title
-                  active
                   style={{ width: '60%', height: 24, marginBottom: 8 }}
                 />
                 <Skeleton.Paragraph
-                  active
                   rows={1}
                   style={{ marginBottom: 12 }}
                 />
                 <div className='text-center py-4'>
                   <Skeleton.Title
-                    active
                     style={{ width: '40%', height: 32, margin: '0 auto' }}
                   />
                 </div>
-                <Skeleton.Paragraph active rows={3} style={{ marginTop: 12 }} />
+                <Skeleton.Paragraph rows={3} style={{ marginTop: 12 }} />
                 <Skeleton.Button
-                  active
                   block
                   style={{ marginTop: 16, height: 32 }}
                 />

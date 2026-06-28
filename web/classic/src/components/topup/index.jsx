@@ -42,8 +42,6 @@ import TopupHistoryModal from './modals/TopupHistoryModal';
 
 // Reject non-navigable schemes (e.g. javascript:, data:) and relative URLs.
 // Only http / https are allowed for backend-provided redirect targets.
-// Mirrors isSafeHttpCheckoutUrl in the default frontend's
-// features/wallet/hooks/use-waffo-pancake-payment.ts.
 function isSafeHttpCheckoutUrl(value) {
   const trimmed = (value || '').trim();
   if (!trimmed) {

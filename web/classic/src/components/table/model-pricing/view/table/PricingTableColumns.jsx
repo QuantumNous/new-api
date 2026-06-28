@@ -31,7 +31,6 @@ import {
   renderLimitedItems,
   renderDescription,
 } from '../../../../common/ui/RenderUtils';
-import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 function renderQuotaType(type, t) {
   switch (type) {
@@ -113,8 +112,8 @@ export const getPricingTableColumns = ({
   tokenUnit,
   displayPrice,
   showRatio,
+  isMobile,
 }) => {
-  const isMobile = useIsMobile();
   const priceDataCache = new WeakMap();
 
   const getPriceData = (record) => {

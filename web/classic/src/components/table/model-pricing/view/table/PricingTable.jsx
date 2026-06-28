@@ -24,6 +24,7 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { getPricingTableColumns } from './PricingTableColumns';
+import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 const PricingTable = ({
   filteredModels,
@@ -46,6 +47,7 @@ const PricingTable = ({
   openModelDetail,
   t,
 }) => {
+  const isMobile = useIsMobile();
   const columns = useMemo(() => {
     return getPricingTableColumns({
       t,
@@ -59,6 +61,7 @@ const PricingTable = ({
       tokenUnit,
       displayPrice,
       showRatio,
+      isMobile,
     });
   }, [
     t,
@@ -72,6 +75,7 @@ const PricingTable = ({
     tokenUnit,
     displayPrice,
     showRatio,
+    isMobile,
   ]);
 
   // 更新列定义中的 searchValue

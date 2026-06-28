@@ -538,6 +538,19 @@ func TestImageGenSurchargeFallbackUsesMediumNotHigh(t *testing.T) {
 	assert.Less(t, summary.ToolCallSurchargeQuota.Round(0).IntPart(), int64(83500))
 }
 
+func TestImageGenSurchargeSizeMissingUsesQualityDefault(t *testing.T) {
+	// Upstreams (e.g. sub2api) often omit the size field. With a known quality
+	// the price must fall back to that quality's 1024x1024 entry instead of the
+	// medium DefaultPrice — otherwise a high-quality image is undercharged ~4x.
+	ctx, relayInfo := newImageGenSurchargeCtx(t, 0.18, "high", "")
+	summary := calculateTextQuotaSummary(ctx, relayInfo, trivialTextUsage())
+
+	// high 1024x1024 = 0.167 → 0.167 × QuotaPerUnit(500000) = 83500.
+	assert.Equal(t, 0.167, summary.ImageGenerationCallPrice)
+	assert.Equal(t, int64(83500), summary.ToolCallSurchargeQuota.Round(0).IntPart())
+	assert.Greater(t, summary.ToolCallSurchargeQuota.Round(0).IntPart(), int64(testImageMediumSurcharge))
+}
+
 func TestImageGenSurchargeCoexistsWithGroupRatioScaledTools(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

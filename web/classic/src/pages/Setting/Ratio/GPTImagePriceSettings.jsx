@@ -121,6 +121,10 @@ export default function GPTImagePriceSettings({ options }) {
           next[q] = { ...sizes };
         }
       }
+      if (Object.keys(next).length === 0) {
+        setJsonError(t('价格表不能为空'));
+        return;
+      }
       setGrid(next);
       setJsonError('');
     } catch (e) {
@@ -129,9 +133,13 @@ export default function GPTImagePriceSettings({ options }) {
   };
 
   const updateCell = (quality, size, value) => {
+    // Ignore non-positive edits (clear / zero / negative) so a cell can never
+    // become a free image call. The InputNumber min clamps normal typing, but
+    // pasting 0 or programmatic clears would otherwise slip through.
+    if (!(value > 0)) return;
     const next = cloneGrid(grid);
     if (!next[quality]) next[quality] = {};
-    next[quality][size] = value ?? 0;
+    next[quality][size] = value;
     syncFromGrid(next);
   };
 
@@ -142,19 +150,34 @@ export default function GPTImagePriceSettings({ options }) {
   };
 
   const handleSave = async () => {
-    setSaving(true);
-    try {
-      const updates = [
-        { key: PRICES_KEY, value: JSON.stringify(grid) },
-        { key: DEFAULT_PRICE_KEY, value: String(defaultPrice) },
-        { key: USE_GROUP_RATIO_KEY, value: String(useGroupRatio) },
-      ];
-      for (const u of updates) {
-        const res = await API.put('/api/option/', u);
-        if (!res.data.success) {
-          showError(res.data.message || t('保存失败'));
+    // Validate before saving: every configured price and the default must be
+    // positive — a zero would let image generation bypass billing. The backend
+    // also guards a <=0 default, but rejecting here keeps the atomic save from
+    // ever persisting an invalid grid.
+    for (const q of Object.keys(grid)) {
+      for (const size of Object.keys(grid[q])) {
+        if (!(grid[q][size] > 0)) {
+          showError(`${t('价格必须大于 0')} (${q} / ${size})`);
           return;
         }
+      }
+    }
+    if (!(defaultPrice > 0)) {
+      showError(t('默认单价必须大于 0'));
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const body = {
+        [PRICES_KEY]: JSON.stringify(grid),
+        [DEFAULT_PRICE_KEY]: String(defaultPrice),
+        [USE_GROUP_RATIO_KEY]: String(useGroupRatio),
+      };
+      const res = await API.put('/api/option/bulk', body);
+      if (!res.data.success) {
+        showError(res.data.message || t('保存失败'));
+        return;
       }
       showSuccess(t('保存成功'));
     } catch (e) {
@@ -178,7 +201,7 @@ export default function GPTImagePriceSettings({ options }) {
       render: (_, record) => (
         <InputNumber
           value={grid[record.quality]?.[size] ?? 0}
-          min={0}
+          min={0.001}
           step={0.001}
           onChange={(v) => updateCell(record.quality, size, v)}
           style={{ width: '100%' }}
@@ -216,9 +239,11 @@ export default function GPTImagePriceSettings({ options }) {
           </div>
           <InputNumber
             value={defaultPrice}
-            min={0}
+            min={0.001}
             step={0.001}
-            onChange={(v) => setDefaultPrice(v ?? 0)}
+            onChange={(v) => {
+              if (v > 0) setDefaultPrice(v);
+            }}
             style={{ width: 180 }}
           />
         </div>

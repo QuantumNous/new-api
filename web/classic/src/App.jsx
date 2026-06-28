@@ -36,7 +36,6 @@ import Token from './pages/Token';
 import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
 import Log from './pages/Log';
-import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
 import MjProxy from './pages/Midjourney';
 import Pricing from './pages/Pricing';
@@ -355,14 +354,6 @@ function App() {
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <PrivacyPolicy />
-            </Suspense>
-          }
-        />
-        <Route
-          path='/console/chat/:id?'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <Chat />
             </Suspense>
           }
         />

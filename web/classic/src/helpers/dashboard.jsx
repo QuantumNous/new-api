@@ -99,41 +99,48 @@ export const updateChartSpec = (
   }));
 };
 
-export const getTrendSpec = (data, color) => ({
-  type: 'line',
-  data: [{ id: 'trend', values: data.map((val, idx) => ({ x: idx, y: val })) }],
-  xField: 'x',
-  yField: 'y',
-  height: 40,
-  width: 100,
-  axes: [
-    {
-      orient: 'bottom',
+export const getTrendSpec = (data, color) => {
+  // trendData can be undefined while the dashboard is still loading; guard
+  // against .map throwing and tripping the ErrorBoundary into a blank dashboard.
+  const safeData = Array.isArray(data) ? data : [];
+  return {
+    type: 'line',
+    data: [
+      { id: 'trend', values: safeData.map((val, idx) => ({ x: idx, y: val })) },
+    ],
+    xField: 'x',
+    yField: 'y',
+    height: 40,
+    width: 100,
+    axes: [
+      {
+        orient: 'bottom',
+        visible: false,
+      },
+      {
+        orient: 'left',
+        visible: false,
+      },
+    ],
+    padding: 0,
+    autoFit: false,
+    legends: { visible: false },
+    tooltip: { visible: false },
+    crosshair: { visible: false },
+    line: {
+      style: {
+        stroke: color,
+        lineWidth: 2,
+      },
+    },
+    point: {
       visible: false,
     },
-    {
-      orient: 'left',
-      visible: false,
+    background: {
+      fill: 'transparent',
     },
-  ],
-  padding: 0,
-  autoFit: false,
-  legends: { visible: false },
-  tooltip: { visible: false },
-  crosshair: { visible: false },
-  line: {
-    style: {
-      stroke: color,
-      lineWidth: 2,
-    },
-  },
-  point: {
-    visible: false,
-  },
-  background: {
-    fill: 'transparent',
-  },
-});
+  };
+};
 
 // ========== UI 工具函数 ==========
 export const createSectionTitle = (Icon, text) => (

@@ -19,6 +19,7 @@ func init() {
 }
 
 func syncThemeToCommon() {
+	themeSettings.Frontend = "classic"
 	common.SetTheme(themeSettings.Frontend)
 }
 

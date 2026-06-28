@@ -2,7 +2,6 @@
   "name": "new-api-web-workspace",
   "private": true,
   "workspaces": [
-    "default",
     "classic"
   ],
   "catalog": {

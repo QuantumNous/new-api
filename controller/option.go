@@ -81,6 +81,9 @@ func GetOptions(c *gin.Context) {
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
 		value := common.Interface2String(v)
+		if k == "theme.frontend" {
+			value = "classic"
+		}
 		isSensitiveKey := strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||
@@ -219,10 +222,11 @@ func UpdateOption(c *gin.Context) {
 		if option.Value != "default" && option.Value != "classic" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无效的主题值，可选值：default（新版前端）、classic（经典前端）",
+				"message": "无效的主题值，可选值：classic（经典前端）",
 			})
 			return
 		}
+		option.Value = "classic"
 	case "GroupRatio":
 		err = ratio_setting.CheckGroupRatio(option.Value.(string))
 		if err != nil {
@@ -340,6 +344,48 @@ func UpdateOption(c *gin.Context) {
 	// 出于安全考虑只记录被修改的配置项名称，不记录配置值（可能含密钥等敏感信息）。
 	recordManageAudit(c, "option.update", map[string]interface{}{
 		"key": option.Key,
+	})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}
+
+// UpdateOptionsBulkHandler atomically persists multiple options in a single
+// database transaction. The body is a {key: value} JSON object; each value is
+// coerced to a string the same way UpdateOption coerces a single value. Used by
+// settings UIs that must commit a set of related options together (e.g. the
+// GPT image price grid) so a partial failure cannot leave half-written config
+// behind — model.UpdateOptionsBulk rolls back the whole batch on any error.
+func UpdateOptionsBulkHandler(c *gin.Context) {
+	var body map[string]any
+	if err := common.DecodeJson(c.Request.Body, &body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的参数",
+		})
+		return
+	}
+	if len(body) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "参数不能为空",
+		})
+		return
+	}
+	values := make(map[string]string, len(body))
+	keys := make([]string, 0, len(body))
+	for key, raw := range body {
+		values[key] = common.Interface2String(raw)
+		keys = append(keys, key)
+	}
+	if err := model.UpdateOptionsBulk(values); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// 出于安全考虑只记录被修改的配置项名称，不记录配置值（可能含密钥等敏感信息）。
+	recordManageAudit(c, "option.update_bulk", map[string]interface{}{
+		"keys": keys,
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

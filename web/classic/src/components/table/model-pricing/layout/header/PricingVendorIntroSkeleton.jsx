@@ -202,7 +202,7 @@ const PricingVendorIntroSkeleton = memo(
     );
 
     return (
-      <Skeleton loading={true} active placeholder={placeholder}></Skeleton>
+      <Skeleton loading={true} placeholder={placeholder}></Skeleton>
     );
   },
 );

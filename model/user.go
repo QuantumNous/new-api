@@ -104,11 +104,10 @@ func (user *User) SetSetting(setting dto.UserSetting) {
 func generateDefaultSidebarConfigForRole(userRole int) string {
 	defaultConfig := map[string]interface{}{}
 
-	// 聊天区域 - 所有用户都可以访问
+	// 聊天区域 - 所有用户都可以访问（playground 操练场；chats 聚合已移除）
 	defaultConfig["chat"] = map[string]interface{}{
 		"enabled":    true,
 		"playground": true,
-		"chat":       true,
 	}
 
 	// 控制台区域 - 所有用户都可以访问

@@ -62,10 +62,8 @@ const StatsCards = ({
                       <div className='text-lg font-semibold'>
                         <Skeleton
                           loading={loading}
-                          active
                           placeholder={
                             <Skeleton.Paragraph
-                              active
                               rows={1}
                               style={{
                                 width: '65px',

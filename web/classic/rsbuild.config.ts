@@ -10,6 +10,13 @@ const semiUiDir = path.resolve(
   path.dirname(require.resolve('@douyinfe/semi-ui')),
   '../..',
 )
+const vchartDir = path.dirname(require.resolve('@visactor/vchart/package.json'))
+const resolvePackageRoot = (packageName: string) =>
+  path.resolve(path.dirname(require.resolve(packageName, { paths: [vchartDir] })), '..')
+const visactorRuntimeAliases = {
+  '@visactor/vrender-core': resolvePackageRoot('@visactor/vrender-core'),
+  '@visactor/vrender-kits': resolvePackageRoot('@visactor/vrender-kits'),
+}
 
 export default defineConfig(({ envMode }) => {
   const env = loadEnv({ mode: envMode, prefixes: ['VITE_'] })
@@ -43,6 +50,7 @@ export default defineConfig(({ envMode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        ...visactorRuntimeAliases,
         '@douyinfe/semi-ui/dist/css/semi.css': path.resolve(
           semiUiDir,
           'dist/css/semi.css',

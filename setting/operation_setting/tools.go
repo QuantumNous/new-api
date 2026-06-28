@@ -201,11 +201,21 @@ func init() {
 }
 
 // GetGPTImage1PriceOnceCall resolves the per-call image price ($/call) for a
-// quality/size pair. Unknown pairs fall back to DefaultPrice instead of the
-// highest tier, guarding against missing fields in upstream responses.
+// quality/size pair. Lookup order:
+//  1. Exact quality/size pair.
+//  2. Known quality but missing/unknown size → the quality's 1024x1024 price.
+//     Upstreams (e.g. sub2api) frequently omit the size field in image
+//     responses; falling back to the same-quality default size avoids charging
+//     a high-quality image at the medium DefaultPrice (a ~4x undercharge).
+//  3. Unknown quality (or quality without a 1024x1024 entry) → DefaultPrice.
 func GetGPTImage1PriceOnceCall(quality string, size string) float64 {
 	if qualityMap, ok := gptImage1PriceSetting.Prices[quality]; ok {
 		if price, ok := qualityMap[size]; ok {
+			return price
+		}
+		// size 缺失/未配置但 quality 已知：按该档默认尺寸(1024x1024)计价，
+		// 避免高质量图因上游未回显 size 而掉到 medium 默认价（少收 4 倍）。
+		if price, ok := qualityMap["1024x1024"]; ok {
 			return price
 		}
 	}

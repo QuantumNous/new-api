@@ -138,7 +138,7 @@ const PricingCardSkeleton = ({
     </div>
   );
 
-  return <Skeleton loading={true} active placeholder={placeholder}></Skeleton>;
+  return <Skeleton loading={true} placeholder={placeholder}></Skeleton>;
 };
 
 export default PricingCardSkeleton;
