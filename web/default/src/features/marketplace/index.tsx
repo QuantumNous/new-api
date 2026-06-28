@@ -48,6 +48,7 @@ import { Switch } from '@/components/ui/switch'
 import { SectionPageLayout } from '@/components/layout'
 import {
   emitMarketplaceEvent,
+  getMarketplaceRailSkills,
   getMarketplaceSkills,
   recordMarketplaceSkillEvent,
   saveSkill,
@@ -165,6 +166,14 @@ export function Marketplace() {
     queryFn: () => getMarketplaceSkills(serverFilters, page),
     placeholderData: (prev) => prev,
   })
+  const newWeekQuery = useQuery({
+    queryKey: ['marketplace-rail', 'new_week', serverFilters],
+    queryFn: () => getMarketplaceRailSkills('new_week', serverFilters),
+  })
+  const trendingQuery = useQuery({
+    queryKey: ['marketplace-rail', 'trending', serverFilters],
+    queryFn: () => getMarketplaceRailSkills('trending', serverFilters),
+  })
 
   const { mutate: emitEvent } = useMutation({
     mutationFn: emitMarketplaceEvent,
@@ -187,6 +196,20 @@ export function Marketplace() {
         resolveMarketplaceSkill(skill, user)
       ),
     [skillsQuery.data?.data, user]
+  )
+  const newWeekSkills = useMemo(
+    () =>
+      (newWeekQuery.data?.data ?? []).map((skill) =>
+        resolveMarketplaceSkill(skill, user)
+      ),
+    [newWeekQuery.data?.data, user]
+  )
+  const trendingSkills = useMemo(
+    () =>
+      (trendingQuery.data?.data ?? []).map((skill) =>
+        resolveMarketplaceSkill(skill, user)
+      ),
+    [trendingQuery.data?.data, user]
   )
   const newSkill = useMemo(
     () => skills.find((skill) => skill.featured === true) ?? skills[0],
@@ -256,6 +279,24 @@ export function Marketplace() {
       entry_point: 'new',
     }).catch(() => undefined)
   }, [newSkill, newSkillBannerDismissed])
+
+  useEffect(() => {
+    newWeekSkills.forEach((skill) => {
+      void recordMarketplaceSkillEvent(skill.slug || skill.id, {
+        event_type: 'skill_impression',
+        entry_point: 'new_week',
+      }).catch(() => undefined)
+    })
+  }, [filterSignature, newWeekSkills])
+
+  useEffect(() => {
+    trendingSkills.forEach((skill) => {
+      void recordMarketplaceSkillEvent(skill.slug || skill.id, {
+        event_type: 'skill_impression',
+        entry_point: 'trending',
+      }).catch(() => undefined)
+    })
+  }, [filterSignature, trendingSkills])
 
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') {
@@ -492,6 +533,20 @@ export function Marketplace() {
               }}
             />
           )}
+          <MarketplaceRail
+            title={t('New this week')}
+            skills={newWeekSkills}
+            loading={newWeekQuery.isLoading}
+            entryPoint='new_week'
+            onOpen={goToSkillDetail}
+          />
+          <MarketplaceRail
+            title={t('Trending')}
+            skills={trendingSkills}
+            loading={trendingQuery.isLoading}
+            entryPoint='trending'
+            onOpen={goToSkillDetail}
+          />
           {skillsQuery.isError && (
             <ErrorBanner
               message={errorMessage ?? t('Unable to load marketplace skills.')}
@@ -566,5 +621,41 @@ export function Marketplace() {
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>
+  )
+}
+
+function MarketplaceRail(props: {
+  title: string
+  skills: MarketplaceSkill[]
+  loading: boolean
+  entryPoint: Extract<SkillGrowthEntryPoint, 'new_week' | 'trending'>
+  onOpen: (skill: MarketplaceSkill, entryPoint: SkillGrowthEntryPoint) => void
+}) {
+  if (!props.loading && props.skills.length === 0) return null
+
+  return (
+    <section className='space-y-3' aria-label={props.title}>
+      <div className='flex items-center justify-between gap-3'>
+        <h2 className='text-foreground text-base font-semibold'>
+          {props.title}
+        </h2>
+      </div>
+      <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
+        {props.loading
+          ? Array.from({ length: 3 }).map((_, index) => (
+              <SkillCard key={index} variant='loading' />
+            ))
+          : props.skills.map((skill) => (
+              <SkillCard
+                key={skill.id}
+                skill={skill}
+                onOpen={(cardSkill) =>
+                  props.onOpen(cardSkill, props.entryPoint)
+                }
+                onCTA={(cardSkill) => props.onOpen(cardSkill, props.entryPoint)}
+              />
+            ))}
+      </div>
+    </section>
   )
 }

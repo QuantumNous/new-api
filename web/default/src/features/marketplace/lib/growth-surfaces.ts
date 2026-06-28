@@ -23,7 +23,12 @@ export function skillDownloadURL(
   entryPoint?: SkillGrowthEntryPoint
 ): string {
   const params = new URLSearchParams()
-  if (entryPoint === 'new' || entryPoint === 'recommended') {
+  if (
+    entryPoint === 'new' ||
+    entryPoint === 'new_week' ||
+    entryPoint === 'trending' ||
+    entryPoint === 'recommended'
+  ) {
     params.set('entry_point', entryPoint)
   }
   const query = params.toString()

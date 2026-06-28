@@ -74,6 +74,12 @@ var kidsApprovalFilterValues = map[string]struct{}{
 	string(enums.KidsApprovalStatusRevoked):           {},
 }
 
+var publicRailValues = map[string]struct{}{
+	"":         {},
+	"new_week": {},
+	"trending": {},
+}
+
 const (
 	createSkillSlugMaxLength             = 128
 	createSkillNameMaxLength             = 160
@@ -228,6 +234,8 @@ var marketplaceEventEntryPointValues = map[enums.EntryPoint]struct{}{
 	enums.EntryPointSkillDetail:     {},
 	enums.EntryPointSearchResults:   {},
 	enums.EntryPointNew:             {},
+	enums.EntryPointNewWeek:         {},
+	enums.EntryPointTrending:        {},
 	enums.EntryPointRecommended:     {},
 	enums.EntryPointRecoPersonal:    {},
 	enums.EntryPointRecoCodownload:  {},
@@ -247,6 +255,10 @@ func ListMarketplaceSkills(c *gin.Context) {
 		skillapi.AbortQueryError(c, validationErr)
 		return
 	}
+	if validationErr := skillapi.ValidateFilter("rail", c.Query("rail"), publicRailValues); validationErr != nil {
+		skillapi.AbortQueryError(c, validationErr)
+		return
+	}
 	featured, validationErr := optionalBoolFilter(c.Query("featured"), "featured")
 	if validationErr != nil {
 		skillapi.AbortQueryError(c, validationErr)
@@ -260,6 +272,14 @@ func ListMarketplaceSkills(c *gin.Context) {
 
 	db, ok := skillDB(c)
 	if !ok {
+		return
+	}
+	switch c.Query("rail") {
+	case "new_week":
+		listMarketplaceNewWeek(c, db, page, featured, kidsSafe)
+		return
+	case "trending":
+		listMarketplaceTrending(c, db, page, featured, kidsSafe)
 		return
 	}
 	query := listMarketplaceSkillsPublicQuery(db).Where("status = ?", enums.SkillStatusPublished)
@@ -286,6 +306,174 @@ func ListMarketplaceSkills(c *gin.Context) {
 		return
 	}
 
+	userInfo, err := marketplaceUserInfo(c, db)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	enabledBySkillID, err := marketplaceEnablementBySkillID(db, userInfo, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	savedBySkillID, err := marketplaceSavedBySkillID(db, userInfo, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+
+	out := make([]MarketplaceSkill, 0, len(skills))
+	for _, s := range skills {
+		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID]))
+	}
+	skillapi.List(c, out, skillapi.NewPagination(page.Page, page.Limit, total))
+}
+
+func listMarketplaceNewWeek(c *gin.Context, db *gorm.DB, page skillapi.PageParams, featured, kidsSafe *bool) {
+	weekStart := time.Now().UTC().AddDate(0, 0, -7)
+	query := listMarketplaceSkillsPublicQuery(db).
+		Where("status = ?", enums.SkillStatusPublished).
+		Where("published_at IS NOT NULL AND published_at >= ?", weekStart)
+	query = applyPublicSkillFilters(query, c)
+	if featured != nil {
+		query = query.Where("featured_flag = ?", *featured)
+	}
+	if kidsSafe != nil {
+		query = query.Where("is_kids_safe = ?", *kidsSafe)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		writeDBError(c, err)
+		return
+	}
+
+	var skills []skillmodel.Skill
+	if err := query.Order("published_at DESC, created_at DESC").
+		Offset(page.Offset).
+		Limit(page.Limit).
+		Find(&skills).Error; err != nil {
+		writeDBError(c, err)
+		return
+	}
+	writeMarketplaceSkillList(c, db, page, skills, total)
+}
+
+func listMarketplaceTrending(c *gin.Context, db *gorm.DB, page skillapi.PageParams, featured, kidsSafe *bool) {
+	type trendRow struct {
+		SkillID  string
+		Recent   int64
+		Previous int64
+	}
+	now := time.Now().UTC()
+	recentStart := now.AddDate(0, 0, -7)
+	previousStart := now.AddDate(0, 0, -14)
+	var rows []trendRow
+	if err := db.Model(&skillmodel.SkillUsageEvent{}).
+		Select(`skill_id,
+			SUM(CASE WHEN occurred_at >= ? THEN 1 ELSE 0 END) AS recent,
+			SUM(CASE WHEN occurred_at < ? THEN 1 ELSE 0 END) AS previous`, recentStart, recentStart).
+		Where("skill_id IS NOT NULL").
+		Where("event_type IN ?", []enums.SkillUsageEventType{
+			enums.SkillUsageEventTypeEnabled,
+			enums.SkillUsageEventTypeUsed,
+		}).
+		Where("success = ?", true).
+		Where("occurred_at >= ? AND occurred_at < ?", previousStart, now).
+		Group("skill_id").
+		Scan(&rows).Error; err != nil {
+		writeDBError(c, err)
+		return
+	}
+
+	type trendScore struct {
+		SkillID  string
+		Recent   int64
+		Previous int64
+		Score    float64
+	}
+	scores := make([]trendScore, 0, len(rows))
+	for _, row := range rows {
+		if row.SkillID == "" || row.Recent <= 0 {
+			continue
+		}
+		baseline := row.Previous
+		if baseline < 1 {
+			baseline = 1
+		}
+		recentForRate := row.Recent
+		if recentForRate > 20 {
+			recentForRate = 20
+		}
+		scores = append(scores, trendScore{
+			SkillID:  row.SkillID,
+			Recent:   row.Recent,
+			Previous: row.Previous,
+			Score:    float64(recentForRate-row.Previous) / float64(baseline),
+		})
+	}
+	sort.SliceStable(scores, func(i, j int) bool {
+		if scores[i].Score != scores[j].Score {
+			return scores[i].Score > scores[j].Score
+		}
+		if scores[i].Recent != scores[j].Recent {
+			return scores[i].Recent > scores[j].Recent
+		}
+		return scores[i].SkillID < scores[j].SkillID
+	})
+	ids := make([]string, 0, len(scores))
+	scoreByID := make(map[string]trendScore, len(scores))
+	for _, score := range scores {
+		ids = append(ids, score.SkillID)
+		scoreByID[score.SkillID] = score
+	}
+	if len(ids) == 0 {
+		writeMarketplaceSkillList(c, db, page, nil, 0)
+		return
+	}
+
+	query := listMarketplaceSkillsPublicQuery(db).
+		Where("status = ?", enums.SkillStatusPublished).
+		Where("id IN ?", ids)
+	query = applyPublicSkillFilters(query, c)
+	if featured != nil {
+		query = query.Where("featured_flag = ?", *featured)
+	}
+	if kidsSafe != nil {
+		query = query.Where("is_kids_safe = ?", *kidsSafe)
+	}
+
+	var skills []skillmodel.Skill
+	if err := query.Find(&skills).Error; err != nil {
+		writeDBError(c, err)
+		return
+	}
+	sort.SliceStable(skills, func(i, j int) bool {
+		left := scoreByID[skills[i].ID]
+		right := scoreByID[skills[j].ID]
+		if left.Score != right.Score {
+			return left.Score > right.Score
+		}
+		if left.Recent != right.Recent {
+			return left.Recent > right.Recent
+		}
+		return skills[i].Name < skills[j].Name
+	})
+
+	total := int64(len(skills))
+	start := page.Offset
+	if start >= len(skills) {
+		writeMarketplaceSkillList(c, db, page, nil, total)
+		return
+	}
+	end := start + page.Limit
+	if end > len(skills) {
+		end = len(skills)
+	}
+	writeMarketplaceSkillList(c, db, page, skills[start:end], total)
+}
+
+func writeMarketplaceSkillList(c *gin.Context, db *gorm.DB, page skillapi.PageParams, skills []skillmodel.Skill, total int64) {
 	userInfo, err := marketplaceUserInfo(c, db)
 	if err != nil {
 		writeDBError(c, err)

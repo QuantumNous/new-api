@@ -5,9 +5,16 @@ import { skillDownloadURL } from './api'
 import { Marketplace } from './index'
 import type { MarketplaceSkill } from './types'
 
-const { navigateMock, mockGetMarketplaceSkills } = vi.hoisted(() => ({
+const {
+  navigateMock,
+  mockGetMarketplaceRailSkills,
+  mockGetMarketplaceSkills,
+  mockRecordMarketplaceSkillEvent,
+} = vi.hoisted(() => ({
   navigateMock: vi.fn(),
+  mockGetMarketplaceRailSkills: vi.fn(),
   mockGetMarketplaceSkills: vi.fn(),
+  mockRecordMarketplaceSkillEvent: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -29,8 +36,9 @@ vi.mock('@/stores/auth-store', () => ({
 
 vi.mock('./api', () => ({
   getMarketplaceSkills: mockGetMarketplaceSkills,
+  getMarketplaceRailSkills: mockGetMarketplaceRailSkills,
   emitMarketplaceEvent: vi.fn().mockResolvedValue(undefined),
-  recordMarketplaceSkillEvent: vi.fn().mockResolvedValue(undefined),
+  recordMarketplaceSkillEvent: mockRecordMarketplaceSkillEvent,
   saveSkill: vi.fn().mockResolvedValue(undefined),
   unsaveSkill: vi.fn().mockResolvedValue(undefined),
   skillDownloadURL: vi.fn(
@@ -52,6 +60,10 @@ function setMarketplaceSkills(skills: MarketplaceSkill[]) {
   mockGetMarketplaceSkills.mockResolvedValue({
     data: skills,
     pagination: { page: 1, limit: 100, total: skills.length, has_next: false },
+  })
+  mockGetMarketplaceRailSkills.mockResolvedValue({
+    data: [],
+    pagination: { page: 1, limit: 6, total: 0, has_next: false },
   })
 }
 
@@ -205,5 +217,52 @@ describe('Marketplace new-skill banner CTA', () => {
       params: { slug: 'my-skill' },
     })
     expect(skillDownloadURL).not.toHaveBeenCalled()
+  })
+})
+
+describe('Marketplace DR-90 discovery rails', () => {
+  it('renders rails and attributes detail clicks to the rail entry point', async () => {
+    setMarketplaceSkills([baseSkill])
+    mockGetMarketplaceRailSkills.mockImplementation((rail: string) => {
+      if (rail === 'new_week') {
+        return Promise.resolve({
+          data: [
+            {
+              ...baseSkill,
+              id: 'new-week',
+              slug: 'new-week',
+              name: 'New Week Skill',
+            },
+          ],
+          pagination: { page: 1, limit: 6, total: 1, has_next: false },
+        })
+      }
+      return Promise.resolve({
+        data: [
+          {
+            ...baseSkill,
+            id: 'trending',
+            slug: 'trending',
+            name: 'Trending Skill',
+          },
+        ],
+        pagination: { page: 1, limit: 6, total: 1, has_next: false },
+      })
+    })
+
+    renderMarketplace()
+
+    expect(await screen.findByText('New this week')).toBeInTheDocument()
+    expect(await screen.findByText('Trending')).toBeInTheDocument()
+    fireEvent.click(await screen.findByText('Trending Skill'))
+
+    expect(mockRecordMarketplaceSkillEvent).toHaveBeenCalledWith('trending', {
+      event_type: 'skill_detail_view',
+      entry_point: 'trending',
+    })
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/skills/$slug',
+      params: { slug: 'trending' },
+    })
   })
 })

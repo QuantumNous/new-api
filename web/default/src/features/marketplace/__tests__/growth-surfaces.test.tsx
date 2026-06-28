@@ -62,6 +62,12 @@ describe('DR-78 Marketplace growth surfaces', () => {
     expect(skillDownloadURL('writing-helper', 'new')).toBe(
       '/api/v1/marketplace/skills/writing-helper/download?entry_point=new'
     )
+    expect(skillDownloadURL('writing-helper', 'new_week')).toBe(
+      '/api/v1/marketplace/skills/writing-helper/download?entry_point=new_week'
+    )
+    expect(skillDownloadURL('writing-helper', 'trending')).toBe(
+      '/api/v1/marketplace/skills/writing-helper/download?entry_point=trending'
+    )
     expect(skillDownloadURL('writing-helper', 'marketplace_card')).toBe(
       '/api/v1/marketplace/skills/writing-helper/download'
     )

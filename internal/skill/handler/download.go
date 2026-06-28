@@ -157,6 +157,10 @@ func downloadEntryPoint(c *gin.Context) enums.EntryPoint {
 	switch enums.EntryPoint(strings.TrimSpace(raw)) {
 	case enums.EntryPointNew:
 		return enums.EntryPointNew
+	case enums.EntryPointNewWeek:
+		return enums.EntryPointNewWeek
+	case enums.EntryPointTrending:
+		return enums.EntryPointTrending
 	case enums.EntryPointRecommended:
 		return enums.EntryPointRecommended
 	case enums.EntryPointRecoPersonal:

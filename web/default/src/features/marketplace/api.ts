@@ -44,11 +44,30 @@ export interface MarketplaceSkillsParams {
   page?: number
   limit?: number
   sort?: 'name' | 'created_at' | 'featured_rank' | string
+  rail?: 'new_week' | 'trending'
   query?: string
   category?: string
   plan?: MarketplaceFilters['plan']
   kids_safe?: boolean
   featured?: boolean
+}
+
+export async function getMarketplaceRailSkills(
+  rail: 'new_week' | 'trending',
+  filters?: Partial<MarketplaceFilters>
+): Promise<MarketplaceListResponse<MarketplaceSkill>> {
+  return getMarketplaceSkillsWithParams({
+    rail,
+    page: 1,
+    limit: 6,
+    query: filters?.query || undefined,
+    category: filters?.category || undefined,
+    plan:
+      filters?.plan != null && filters.plan !== 'all'
+        ? filters.plan
+        : undefined,
+    kids_safe: filters?.kidsSafeOnly || undefined,
+  })
 }
 
 export async function getMarketplaceSkills(

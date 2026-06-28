@@ -55,6 +55,8 @@ export type SkillGrowthEntryPoint =
   | 'saved_list'
   | 'search_results'
   | 'new'
+  | 'new_week'
+  | 'trending'
   | 'recommended'
 
 export type SkillGrowthEventType = 'skill_impression' | 'skill_detail_view'
@@ -114,7 +116,7 @@ export interface MarketplaceSkill {
 export interface MarketplaceEventPayload {
   event_type: 'skill_impression' | 'skill_detail_view'
   skill_id: string
-  entry_point: 'marketplace_card'
+  entry_point: SkillGrowthEntryPoint
 }
 
 export interface DownloadCTA {

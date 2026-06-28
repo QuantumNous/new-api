@@ -26,6 +26,8 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 - 新增 DR-93 Per-Skill download/usage instructions 任务 PRD，明确 `skill_versions` 结构化说明字段、详情页渲染、下载包 `README.md` 与发布校验范围（`docs/tasks/dr93-per-skill-instructions-readme-prd.md`）
 - 新增 DR-92 Skill 保存/bookmark 能力：增加 `user_saved_skills` 状态表、`POST/DELETE /api/v1/marketplace/skills/{id}/save`、`GET /api/v1/marketplace/saved-skills`、`skill_saved`/`skill_unsaved` 事件、per-skill `saved_users`/`saved_but_unused_users` 和 Most-Saved analytics 排序；前端 Marketplace/Detail 可保存/取消保存，新增 Saved Skills 页面与 Skill Analytics Most-Saved 面板，并补后端/前端回归测试（`internal/skill/{model,handler}`, `router/skill-router.go`, `web/default/src/features/{marketplace,skill-analytics}`, `docs/skill-marketplace/tasks/`, `docs/tasks/dr92-save-bookmark-skill-most-saved-prd.md`）
 - 新增 DR-92 Save/Bookmark Skill + Most-Saved Metric 任务 PRD，明确保存/取消保存 API、Saved list、`skill_saved`/`skill_unsaved` 事件、per-skill saved demand 指标与前端范围（`docs/tasks/dr92-save-bookmark-skill-most-saved-prd.md`）
+- 新增 DR-90 Marketplace New this week / Trending rails：列表 API 支持 `rail=new_week|trending`，新增 `new_week`/`trending` analytics entry point，前端显示 7 天新品与增长率趋势 rail，并补聚焦测试（`internal/skill/{handler,model,enums}`, `web/default/src/features/marketplace/`, `docs/tasks/dr90-new-this-week-trending-rising-rails-prd.md`）
+- 新增 DR-90 New this week + Trending rails 任务 PRD，明确 7 天新品、增长率 Trending、入口点归因与测试范围（`docs/tasks/dr90-new-this-week-trending-rising-rails-prd.md`）
 
 ## 2026-06-27
 

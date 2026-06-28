@@ -223,6 +223,74 @@ func TestListMarketplaceSkills_DR52HidesDraftArchivedDeprecated(t *testing.T) {
 	assert.Equal(t, int64(1), got.Pagination.Total)
 }
 
+func TestListMarketplaceSkills_DR90NewWeekFiltersPublishedWithinSevenDays(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	now := time.Now().UTC()
+	fresh := testSkill("fresh-skill", "published")
+	fresh.PublishedAt = ptr(now.AddDate(0, 0, -2))
+	require.NoError(t, db.Create(&fresh).Error)
+	newer := testSkill("newer-skill", "published")
+	newer.PublishedAt = ptr(now.AddDate(0, 0, -1))
+	require.NoError(t, db.Create(&newer).Error)
+	old := testSkill("old-skill", "published")
+	old.PublishedAt = ptr(now.AddDate(0, 0, -8))
+	require.NoError(t, db.Create(&old).Error)
+	archived := testSkill("archived-fresh", "archived")
+	archived.PublishedAt = ptr(now.AddDate(0, 0, -1))
+	require.NoError(t, db.Create(&archived).Error)
+
+	c, w := testContext("/api/v1/marketplace/skills?rail=new_week")
+	ListMarketplaceSkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Slug string `json:"slug"`
+		} `json:"data"`
+		Pagination struct {
+			Total int64 `json:"total"`
+		} `json:"pagination"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 2)
+	assert.Equal(t, []string{"newer-skill", "fresh-skill"}, []string{got.Data[0].Slug, got.Data[1].Slug})
+	assert.Equal(t, int64(2), got.Pagination.Total)
+}
+
+func TestListMarketplaceSkills_DR90TrendingRanksByGrowthRate(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	now := time.Now().UTC()
+	fast := testSkill("fast-riser", "published")
+	largeFlat := testSkill("large-flat", "published")
+	deprecated := testSkill("deprecated-riser", "deprecated")
+	for _, s := range []*skillmodel.Skill{&fast, &largeFlat, &deprecated} {
+		require.NoError(t, db.Create(s).Error)
+	}
+	insertSkillUsageEvents(t, db, fast.ID, 4, now.AddDate(0, 0, -1))
+	insertSkillUsageEvents(t, db, largeFlat.ID, 30, now.AddDate(0, 0, -1))
+	insertSkillUsageEvents(t, db, largeFlat.ID, 30, now.AddDate(0, 0, -9))
+	insertSkillUsageEvents(t, db, deprecated.ID, 10, now.AddDate(0, 0, -1))
+
+	c, w := testContext("/api/v1/marketplace/skills?rail=trending")
+	ListMarketplaceSkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Slug string `json:"slug"`
+		} `json:"data"`
+		Pagination struct {
+			Total int64 `json:"total"`
+		} `json:"pagination"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 2)
+	assert.Equal(t, []string{"fast-riser", "large-flat"}, []string{got.Data[0].Slug, got.Data[1].Slug})
+	assert.Equal(t, int64(2), got.Pagination.Total)
+}
+
 func TestListMarketplaceSkills_DR52AuthenticatedAvailability(t *testing.T) {
 	db := testSkillDB(t)
 	SetDB(db)
@@ -514,6 +582,29 @@ func TestRecordMarketplaceSkillEvent_AcceptsPersonalRecommendationImpression(t *
 	var evt skillmodel.SkillUsageEvent
 	require.NoError(t, db.Where("skill_id = ?", s.ID).First(&evt).Error)
 	assert.Equal(t, enums.EntryPointRecoPersonal, evt.EntryPoint)
+}
+
+func TestRecordMarketplaceSkillEvent_AcceptsDR90RailEntryPoints(t *testing.T) {
+	for _, entryPoint := range []enums.EntryPoint{enums.EntryPointNewWeek, enums.EntryPointTrending} {
+		t.Run(string(entryPoint), func(t *testing.T) {
+			db := testSkillDB(t)
+			SetDB(db)
+			s := testSkill("rail-skill", "published")
+			require.NoError(t, db.Create(&s).Error)
+
+			c, w := testContextWithMethod(http.MethodPost, "/api/v1/marketplace/skills/rail-skill/events",
+				fmt.Sprintf(`{"event_type":"skill_detail_view","entry_point":%q}`, entryPoint))
+			c.Params = gin.Params{{Key: "id", Value: "rail-skill"}}
+
+			RecordMarketplaceSkillEvent(c)
+
+			require.Equal(t, http.StatusNoContent, w.Code)
+			var evt skillmodel.SkillUsageEvent
+			require.NoError(t, db.Where("skill_id = ?", s.ID).First(&evt).Error)
+			assert.Equal(t, enums.SkillUsageEventTypeDetailView, evt.EventType)
+			assert.Equal(t, entryPoint, evt.EntryPoint)
+		})
+	}
 }
 
 func TestRecordMarketplaceSkillEvent_RejectsPackageEntryPoint(t *testing.T) {
@@ -2407,6 +2498,22 @@ func assertPublishPackageRejectedWithoutSideEffects(t *testing.T, db *gorm.DB, s
 	var eventCount int64
 	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).Where("skill_id = ? AND event_type = ?", skillID, enums.SkillUsageEventTypeAdminAction).Count(&eventCount).Error)
 	assert.Zero(t, eventCount)
+}
+
+func insertSkillUsageEvents(t *testing.T, db *gorm.DB, skillID string, count int, occurredAt time.Time) {
+	t.Helper()
+	for i := 0; i < count; i++ {
+		sid := skillID
+		success := true
+		require.NoError(t, skillmodel.EmitSkillUsageEvent(db, skillmodel.SkillUsageEvent{
+			EventType:  enums.SkillUsageEventTypeUsed,
+			OccurredAt: occurredAt.Add(time.Duration(i) * time.Second),
+			SkillID:    &sid,
+			EntryPoint: enums.EntryPointSkillPackage,
+			Success:    &success,
+			Metadata:   skillmodel.SkillJSONB(`{}`),
+		}))
+	}
 }
 
 func testSkillDB(t *testing.T) *gorm.DB {

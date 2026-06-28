@@ -228,6 +228,8 @@ const (
 	EntryPointFeatured        EntryPoint = "featured"
 	EntryPointPopular         EntryPoint = "popular"
 	EntryPointNew             EntryPoint = "new"
+	EntryPointNewWeek         EntryPoint = "new_week"
+	EntryPointTrending        EntryPoint = "trending"
 	EntryPointRecommended     EntryPoint = "recommended"
 	EntryPointRecoPersonal    EntryPoint = "reco_personal"
 	EntryPointRecoCodownload  EntryPoint = "reco_codownload"
@@ -258,6 +260,8 @@ var validEntryPoints = map[EntryPoint]struct{}{
 	EntryPointFeatured:         {},
 	EntryPointPopular:          {},
 	EntryPointNew:              {},
+	EntryPointNewWeek:          {},
+	EntryPointTrending:         {},
 	EntryPointRecommended:      {},
 	EntryPointRecoPersonal:     {},
 	EntryPointRecoCodownload:   {},
