@@ -61,6 +61,7 @@ import {
   ErrorBanner,
   NewSkillBanner,
   SkillCard,
+  SkillPaywallDialog,
 } from './components'
 import {
   filterMarketplaceSkills,
@@ -142,6 +143,9 @@ export function Marketplace() {
   const [page, setPage] = useState(1)
   const [newSkillBannerDismissed, setNewSkillBannerDismissed] = useState(() =>
     readDismissed(NEW_SKILL_BANNER_DISMISS_KEY)
+  )
+  const [paywallSkill, setPaywallSkill] = useState<MarketplaceSkill | null>(
+    null
   )
   const observedCards = useRef(new Map<string, HTMLDivElement>())
   const observerRef = useRef<IntersectionObserver | null>(null)
@@ -440,6 +444,25 @@ export function Marketplace() {
     })
   }
 
+  function isPaywallCandidate(skill: MarketplaceSkill): boolean {
+    return (
+      skill.availability?.locked === true &&
+      (skill.availability.cta === 'upgrade' ||
+        skill.availability.cta === 'renew')
+    )
+  }
+
+  function handleCardCTA(
+    skill: MarketplaceSkill,
+    entryPoint: SkillGrowthEntryPoint
+  ) {
+    if (isPaywallCandidate(skill)) {
+      setPaywallSkill(skill)
+      return
+    }
+    goToSkillDetail(skill, entryPoint)
+  }
+
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>
@@ -643,8 +666,9 @@ export function Marketplace() {
                     goToSkillDetail(cardSkill, 'marketplace_card')
                   }
                   onCTA={(cardSkill) =>
-                    goToSkillDetail(cardSkill, 'marketplace_card')
+                    handleCardCTA(cardSkill, 'marketplace_card')
                   }
+                  onPlusCTA={(cardSkill) => setPaywallSkill(cardSkill)}
                   onSaveToggle={(cardSkill) => saveMutation.mutate(cardSkill)}
                   cardRef={cardRef(skill.id)}
                 />
@@ -690,6 +714,14 @@ export function Marketplace() {
                 </Button>
               </div>
             )}
+          <SkillPaywallDialog
+            skill={paywallSkill}
+            open={paywallSkill != null}
+            onOpenChange={(open) => {
+              if (!open) setPaywallSkill(null)
+            }}
+            onContinue={(skill) => goToSkillDetail(skill, 'paywall')}
+          />
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>
@@ -703,6 +735,10 @@ function MarketplaceRail(props: {
   entryPoint: Extract<SkillGrowthEntryPoint, 'new_week' | 'trending'>
   onOpen: (skill: MarketplaceSkill, entryPoint: SkillGrowthEntryPoint) => void
 }) {
+  const [paywallSkill, setPaywallSkill] = useState<MarketplaceSkill | null>(
+    null
+  )
+
   if (!props.loading && props.skills.length === 0) return null
 
   return (
@@ -724,10 +760,29 @@ function MarketplaceRail(props: {
                 onOpen={(cardSkill) =>
                   props.onOpen(cardSkill, props.entryPoint)
                 }
-                onCTA={(cardSkill) => props.onOpen(cardSkill, props.entryPoint)}
+                onCTA={(cardSkill) => {
+                  if (
+                    cardSkill.availability?.locked === true &&
+                    (cardSkill.availability.cta === 'upgrade' ||
+                      cardSkill.availability.cta === 'renew')
+                  ) {
+                    setPaywallSkill(cardSkill)
+                    return
+                  }
+                  props.onOpen(cardSkill, props.entryPoint)
+                }}
+                onPlusCTA={(cardSkill) => setPaywallSkill(cardSkill)}
               />
             ))}
       </div>
+      <SkillPaywallDialog
+        skill={paywallSkill}
+        open={paywallSkill != null}
+        onOpenChange={(open) => {
+          if (!open) setPaywallSkill(null)
+        }}
+        onContinue={(skill) => props.onOpen(skill, 'paywall')}
+      />
     </section>
   )
 }

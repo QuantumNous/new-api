@@ -1,0 +1,51 @@
+# DR-87 Paywall Upsell UI Test Results
+
+Branch: chore/DR-87-paywall-upsell-ui-2-vs-plus-modal-roi-copy-prici
+
+## Focused backend attribution
+
+- Command: `GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/enums ./internal/skill/model ./internal/skill/handler -run 'TestEntryPoint|TestPurchaseMarketplaceSkill|TestRecordMarketplaceSkillEvent_AcceptsPaywallEntryPoint' -count=1 -cover`
+- Dataset/fixtures: SQLite test DBs from Skill handler/model tests; published one-time Skill fixtures with active versions; user wallet quota fixtures for paid/failed/idempotent purchase paths.
+- Verified: `paywall` is a valid entry point; Marketplace event endpoint accepts `skill_impression entry_point=paywall`; purchase endpoint accepts `entry_point=paywall`; successful one-time purchase emits exactly one `skill_purchased` event attributed to `paywall`; failed/idempotent purchase behavior remains intact.
+- Coverage: `internal/skill/enums` 11.1%, `internal/skill/model` 0.0% for the filtered run, `internal/skill/handler` 3.8%.
+- Result: PASS.
+
+## Related backend Skill regression
+
+- Command: `GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/... -count=1 -cover`
+- Dataset/fixtures: Existing internal Skill unit/integration fixtures, including availability matrices, purchase/order fixtures, marketplace event fixtures, relay entitlement fixtures, notification fixtures, and seed definitions.
+- Verified: Skill API envelope, availability, enum validity, error mapping, purchase/marketplace handlers, event migrations, notification flows, relay entitlement/use-time checks, seed definitions, and tier logic remain compatible with the new `paywall` entry point and purchase attribution.
+- Coverage: `api` 77.8%, `availability` 96.7%, `enums` 88.9%, `errcodes` 100.0%, `handler` 74.1%, `model` 43.9%, `notify` 68.0%, `relay` 81.6%, `seed` 79.4%, `tiers` 100.0%; analytics/packageassets 0.0% packages have no tests in this run.
+- Result: PASS.
+
+## Focused frontend paywall regression
+
+- Command: `bunx vitest run src/features/marketplace/marketplace.test.tsx src/features/marketplace/components/skill-paywall-dialog.test.tsx --coverage '--coverage.include=src/features/marketplace/**'`
+- Dataset/fixtures: Mocked Marketplace Skill lists, locked `upgrade`/`renew`/sales/login/unavailable availability states, mocked paywall purchase response, mocked Marketplace event API, and React Query test client.
+- Verified: buyable locked cards show `Unlock $2` + `Get PLUS`; non-buyable locked states keep existing CTA behavior; paywall modal emits `skill_impression` and `skill_detail_view` with `entry_point=paywall`; purchase posts `entry_point=paywall`; PLUS CTA routes to pricing; successful unlock shows continue state.
+- Coverage: Marketplace slice 37.93% statements / 34.16% branches; `skill-paywall-dialog.tsx` 73.17% statements / 75.86% branches; `skill-card.tsx` 62.16% statements / 68.23% branches; `skill-cta.tsx` 100% statements / 83.33% branches.
+- Result: PASS.
+
+## Frontend typecheck
+
+- Command: `bun run typecheck`
+- Dataset/fixtures: TypeScript project references and generated TanStack route typings.
+- Verified: Marketplace paywall types, purchase API contract, pricing page additions, and route usage typecheck cleanly.
+- Coverage: not available; static typecheck.
+- Result: PASS.
+
+## Full frontend regression
+
+- Command: `bun run test`
+- Dataset/fixtures: All `web/default` Vitest suites, including Marketplace analytics/event mocks, router/app shell fixtures, pricing, auth, chat, models, billing, and shared utility tests.
+- Verified: Existing frontend unit/regression behavior remains compatible with the paywall dialog export, Marketplace paywall purchase flow, and pricing page additions.
+- Coverage: not available; regression run without coverage instrumentation.
+- Result: PASS: 15 test files and 160 tests.
+
+## Frontend production build
+
+- Command: `bun run build`
+- Dataset/fixtures: Rsbuild production build using the local frontend source and generated assets.
+- Verified: Marketplace paywall component, Skill detail route, and pricing route compile into production bundles.
+- Coverage: not available; production build.
+- Result: PASS.

@@ -173,6 +173,7 @@ vi.mock('../components', () => ({
   NewSkillBanner: () => <div>new skill banner</div>,
   PlanBadge: ({ plan }: { plan: string }) => <span>{plan}</span>,
   SkillCTA: ({ action }: { action: string }) => <button>{action}</button>,
+  SkillPaywallDialog: () => null,
   SkillCard: ({
     skill,
     onOpen,

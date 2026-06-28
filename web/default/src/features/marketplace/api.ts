@@ -35,6 +35,7 @@ import type {
   SavedSkill,
   SkillGrowthEntryPoint,
   SkillGrowthEventType,
+  SkillPurchaseResponse,
 } from './types'
 
 // Re-export so existing importers (e.g. skill-detail.tsx) keep importing the
@@ -244,4 +245,21 @@ export async function recordMarketplaceSkillEvent(
       skipErrorHandler: true,
     } as Record<string, unknown>
   )
+}
+
+export async function purchaseSkill(
+  skillIdOrSlug: string,
+  payload: {
+    idempotency_key: string
+    entry_point?: SkillGrowthEntryPoint
+  }
+): Promise<SkillPurchaseResponse> {
+  const res = await api.post(
+    `/api/v1/marketplace/skills/${encodeURIComponent(skillIdOrSlug)}/purchase`,
+    payload,
+    {
+      skipErrorHandler: true,
+    } as Record<string, unknown>
+  )
+  return res.data?.data ?? res.data
 }

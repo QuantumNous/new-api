@@ -40,7 +40,12 @@ import {
   saveSkill,
   unsaveSkill,
 } from './api'
-import { ErrorBanner, KidsBadge, PlanBadge } from './components'
+import {
+  ErrorBanner,
+  KidsBadge,
+  PlanBadge,
+  SkillPaywallDialog,
+} from './components'
 
 interface SkillDetailProps {
   slug: string
@@ -53,6 +58,7 @@ export function SkillDetail({ slug }: SkillDetailProps) {
   const href = useRouterState({ select: (s) => s.location.href })
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [paywallOpen, setPaywallOpen] = useState(false)
 
   const detailQuery = useQuery({
     queryKey: ['marketplace-skill', slug],
@@ -83,6 +89,10 @@ export function SkillDetail({ slug }: SkillDetailProps) {
 
   async function handleDownload() {
     if (!detail) return
+    if (detail.availability?.locked === true) {
+      setPaywallOpen(true)
+      return
+    }
     setDownloading(true)
     setDownloadError(null)
     try {
@@ -103,9 +113,7 @@ export function SkillDetail({ slug }: SkillDetailProps) {
         return
       }
       if (code === 'SKILL_PLAN_REQUIRED') {
-        setDownloadError(
-          t('This Skill requires a higher plan. Upgrade to download it.')
-        )
+        setPaywallOpen(true)
         return
       }
       if (code === 'DOWNLOAD_UNAVAILABLE') {
@@ -225,8 +233,16 @@ export function SkillDetail({ slug }: SkillDetailProps) {
                       disabled={downloading}
                       onClick={() => void handleDownload()}
                     >
-                      <Download data-icon='inline-start' />
-                      {downloading ? t('Downloading…') : t('Download')}
+                      {detail.availability?.locked === true ? (
+                        <Sparkles data-icon='inline-start' />
+                      ) : (
+                        <Download data-icon='inline-start' />
+                      )}
+                      {detail.availability?.locked === true
+                        ? t('Unlock $2')
+                        : downloading
+                          ? t('Downloading…')
+                          : t('Download')}
                     </Button>
                     {downloadError != null && (
                       <p className='text-destructive text-sm'>
@@ -236,6 +252,13 @@ export function SkillDetail({ slug }: SkillDetailProps) {
                   </div>
                 </CardContent>
               </Card>
+
+              <SkillPaywallDialog
+                skill={detail}
+                open={paywallOpen}
+                onOpenChange={setPaywallOpen}
+                onContinue={() => void detailQuery.refetch()}
+              />
 
               <Card>
                 <CardHeader>

@@ -52,6 +52,7 @@ export type SkillCTAAction =
 export type SkillGrowthEntryPoint =
   | 'marketplace_card'
   | 'skill_detail'
+  | 'paywall'
   | 'saved_list'
   | 'search_results'
   | 'new'
@@ -129,6 +130,18 @@ export interface MarketplaceEventPayload {
   event_type: 'skill_impression' | 'skill_detail_view'
   skill_id: string
   entry_point: SkillGrowthEntryPoint
+}
+
+export interface SkillPurchaseResponse {
+  order_id: string
+  skill_id: string
+  skill_version_id?: string
+  status: string
+  entitled: boolean
+  amount_usd: number
+  currency: string
+  quota_charged: number
+  monetization_type: string
 }
 
 export interface DownloadCTA {

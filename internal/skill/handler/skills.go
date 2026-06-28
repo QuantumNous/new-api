@@ -250,6 +250,7 @@ var marketplaceEventEntryPointValues = map[enums.EntryPoint]struct{}{
 	enums.EntryPointRecoCodownload:     {},
 	enums.EntryPointLeaderboardWeekly:  {},
 	enums.EntryPointLeaderboardMonthly: {},
+	enums.EntryPointPaywall:            {},
 }
 
 func ListMarketplaceSkills(c *gin.Context) {

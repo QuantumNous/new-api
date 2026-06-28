@@ -612,6 +612,27 @@ func TestRecordMarketplaceSkillEvent_AcceptsDiscoveryRailEntryPoints(t *testing.
 	}
 }
 
+func TestRecordMarketplaceSkillEvent_AcceptsPaywallEntryPoint(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("paywall-skill", "published")
+	s = createPublishedSkillWithActiveVersionFromSkill(t, db, s, "template")
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/marketplace/skills/paywall-skill/events",
+		`{"event_type":"skill_impression","entry_point":"paywall"}`)
+	c.Params = gin.Params{{Key: "id", Value: "paywall-skill"}}
+	c.Set("id", 42)
+	c.Set("group", "pro")
+
+	RecordMarketplaceSkillEvent(c)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+	var evt skillmodel.SkillUsageEvent
+	require.NoError(t, db.Where("skill_id = ?", s.ID).First(&evt).Error)
+	assert.Equal(t, enums.EntryPointPaywall, evt.EntryPoint)
+	assert.Equal(t, enums.SkillUsageEventTypeImpression, evt.EventType)
+}
+
 func TestRecordMarketplaceSkillEvent_RejectsPackageEntryPoint(t *testing.T) {
 	db := testSkillDB(t)
 	SetDB(db)

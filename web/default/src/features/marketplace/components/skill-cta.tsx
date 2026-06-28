@@ -37,6 +37,8 @@ import type { SkillCTAAction } from '../types'
 interface SkillCTAProps {
   action: SkillCTAAction
   disabled?: boolean
+  label?: string
+  variant?: 'default' | 'outline' | 'secondary' | 'destructive'
   onClick?: MouseEventHandler<HTMLButtonElement>
 }
 
@@ -65,7 +67,13 @@ const ctaConfig = {
   },
 } as const
 
-export function SkillCTA({ action, disabled, onClick }: SkillCTAProps) {
+export function SkillCTA({
+  action,
+  disabled,
+  label,
+  variant,
+  onClick,
+}: SkillCTAProps) {
   const { t } = useTranslation()
   const normalizedAction = action in ctaConfig ? action : 'view'
   const config = ctaConfig[normalizedAction]
@@ -76,14 +84,14 @@ export function SkillCTA({ action, disabled, onClick }: SkillCTAProps) {
     <Button
       type='button'
       size='sm'
-      variant={config.variant}
+      variant={variant ?? config.variant}
       className='min-w-28'
       disabled={disabled || isUnavailable}
       aria-disabled={disabled || isUnavailable}
       onClick={onClick}
     >
       <Icon data-icon='inline-start' />
-      {t(config.label)}
+      {label ?? t(config.label)}
       {normalizedAction === 'view' && <ArrowRight data-icon='inline-end' />}
     </Button>
   )

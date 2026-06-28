@@ -132,7 +132,10 @@ func GrantOneTimeEntitlement(db *gorm.DB, userID, tenantID int64, skillID, order
 	).Error
 }
 
-func EmitSkillPurchased(db *gorm.DB, userID int64, skillID string, skillVersionID *string, plan enums.RequiredPlan, amountUSD float64) error {
+func EmitSkillPurchased(db *gorm.DB, userID int64, skillID string, skillVersionID *string, plan enums.RequiredPlan, amountUSD float64, entryPoint enums.EntryPoint) error {
+	if !entryPoint.Valid() {
+		entryPoint = enums.EntryPointSkillDetail
+	}
 	success := true
 	meta, err := common.Marshal(map[string]any{
 		"amount":            amountUSD,
@@ -151,7 +154,7 @@ func EmitSkillPurchased(db *gorm.DB, userID int64, skillID string, skillVersionI
 		TenantID:       &userID,
 		SkillID:        &skillID,
 		SkillVersionID: skillVersionID,
-		EntryPoint:     enums.EntryPointSkillDetail,
+		EntryPoint:     entryPoint,
 		Plan:           &plan,
 		Success:        &success,
 		Metadata:       SkillJSONB(meta),

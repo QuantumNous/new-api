@@ -32,7 +32,7 @@ func TestPurchaseMarketplaceSkill_OneTimePaid_GrantsOnceAndEmitsPurchased(t *tes
 	s = createPublishedSkillWithActiveVersionFromSkill(t, db, s, "paid template")
 	require.NoError(t, db.Create(&platformmodel.User{Id: 42, Username: "buyer", Quota: oneTimePurchaseQuotaCharge() * 2, Group: "default"}).Error)
 
-	body := `{"idempotency_key":"purchase-key-1"}`
+	body := `{"idempotency_key":"purchase-key-1","entry_point":"paywall"}`
 	c, w := testContext("/api/v1/marketplace/skills/buy-me/purchase")
 	c.Params = gin.Params{{Key: "id", Value: "buy-me"}}
 	c.Set("id", 42)
@@ -63,6 +63,10 @@ func TestPurchaseMarketplaceSkill_OneTimePaid_GrantsOnceAndEmitsPurchased(t *tes
 	assert.Equal(t, int64(1), entitlementCount)
 	assert.Equal(t, int64(1), eventCount)
 	assert.Equal(t, int64(1), orderCount)
+
+	var event skillmodel.SkillUsageEvent
+	require.NoError(t, db.Where("event_type = ? AND skill_id = ?", enums.SkillUsageEventTypePurchased, s.ID).First(&event).Error)
+	assert.Equal(t, enums.EntryPointPaywall, event.EntryPoint)
 }
 
 func TestPlusUpgradeCreditUSD_ConfigurableFromOneTimeEntitlement(t *testing.T) {

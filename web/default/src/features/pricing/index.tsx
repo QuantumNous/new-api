@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useMemo, useState } from 'react'
 import {
   BadgeDollarSign,
+  CheckCircle2,
   Code2,
   FileText,
   Gauge,
@@ -28,6 +29,7 @@ import {
   WalletCards,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 import {
@@ -141,6 +143,36 @@ export function Pricing() {
     },
   ]
 
+  const planCompare = [
+    {
+      name: t('Free'),
+      price: t('$0'),
+      description: t('Browse Skills, save favorites, and use free entries.'),
+      points: [
+        t('Marketplace discovery'),
+        t('Free Skills'),
+        t('Basic model pricing'),
+      ],
+    },
+    {
+      name: t('PLUS'),
+      price: t('$19.9/mo'),
+      description: t('Unlock all 6 premium Skills with one monthly plan.'),
+      points: [t('All 6 Skills'), t('Best for weekly use'), t('Upgrade PLUS')],
+      featured: true,
+    },
+    {
+      name: t('Per-Skill unlock'),
+      price: t('$2'),
+      description: t('永久解锁单个 Skill，几乎免费试，一辈子 ROI。'),
+      points: [
+        t('One Skill forever'),
+        t('No monthly commitment'),
+        t('Wallet checkout'),
+      ],
+    },
+  ]
+
   const renderPricingContent = () => {
     if (filteredModels.length === 0) {
       return (
@@ -190,7 +222,7 @@ export function Pricing() {
   return (
     <PublicLayout showMainContainer={false}>
       <div className='bg-background relative min-h-dvh'>
-        <div className='pointer-events-none absolute inset-x-0 top-0 h-px bg-border' />
+        <div className='bg-border pointer-events-none absolute inset-x-0 top-0 h-px' />
         <PageTransition className='relative mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
           <header className='mb-5 pt-5 sm:mb-8 sm:pt-8'>
             <div className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch'>
@@ -211,7 +243,7 @@ export function Pricing() {
                 </div>
 
                 <div className='mt-6 grid gap-2 sm:grid-cols-3'>
-                  <div className='rounded-lg border bg-background/70 px-3 py-3'>
+                  <div className='bg-background/70 rounded-lg border px-3 py-3'>
                     <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium'>
                       <Gauge className='size-3.5 text-blue-600' />
                       {t('Enabled models')}
@@ -220,7 +252,7 @@ export function Pricing() {
                       {(models?.length || 0).toLocaleString()}
                     </div>
                   </div>
-                  <div className='rounded-lg border bg-background/70 px-3 py-3'>
+                  <div className='bg-background/70 rounded-lg border px-3 py-3'>
                     <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium'>
                       <WalletCards className='size-3.5 text-blue-600' />
                       {t('Price view')}
@@ -229,7 +261,7 @@ export function Pricing() {
                       {showRechargePrice ? t('Recharge') : t('Standard')}
                     </div>
                   </div>
-                  <div className='rounded-lg border bg-background/70 px-3 py-3'>
+                  <div className='bg-background/70 rounded-lg border px-3 py-3'>
                     <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium'>
                       <ShieldCheck className='size-3.5 text-blue-600' />
                       {t('Compare by')}
@@ -258,7 +290,7 @@ export function Pricing() {
                     return (
                       <div
                         key={item.label}
-                        className='rounded-lg border bg-background/70 p-3'
+                        className='bg-background/70 rounded-lg border p-3'
                       >
                         <div className='flex items-start gap-3'>
                           <div className='mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-blue-600'>
@@ -290,6 +322,49 @@ export function Pricing() {
               className='mt-4 max-w-3xl sm:mt-5'
             />
           </header>
+
+          <section
+            className='mb-5 grid gap-3 md:grid-cols-3'
+            aria-label={t('Plan comparison')}
+          >
+            {planCompare.map((plan) => (
+              <div
+                key={plan.name}
+                className={cn(
+                  'border-border bg-card/80 flex min-h-[230px] flex-col rounded-xl border p-4',
+                  plan.featured && 'border-primary/50 bg-primary/5'
+                )}
+              >
+                <div className='flex items-start justify-between gap-3'>
+                  <div>
+                    <h2 className='text-base font-semibold'>{plan.name}</h2>
+                    <p className='text-muted-foreground mt-1 text-sm'>
+                      {plan.description}
+                    </p>
+                  </div>
+                  {plan.featured && (
+                    <span className='bg-primary/10 text-primary rounded-full px-3 py-1 text-xs font-semibold'>
+                      {t('Best value')}
+                    </span>
+                  )}
+                </div>
+                <div className='mt-4 text-3xl font-semibold tabular-nums'>
+                  {plan.price}
+                </div>
+                <ul className='text-muted-foreground mt-4 flex flex-1 flex-col gap-2 text-sm'>
+                  {plan.points.map((point) => (
+                    <li key={point} className='flex gap-2'>
+                      <CheckCircle2
+                        className='mt-0.5 size-4 shrink-0 text-green-600'
+                        aria-hidden='true'
+                      />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </section>
 
           <div className='grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]'>
             <PricingSidebar

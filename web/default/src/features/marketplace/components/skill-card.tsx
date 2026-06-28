@@ -56,6 +56,7 @@ interface SkillCardProps {
   variant?: SkillCardVariant
   cta?: SkillCTAAction
   onCTA?: (skill: MarketplaceSkill) => void
+  onPlusCTA?: (skill: MarketplaceSkill) => void
   onOpen?: (skill: MarketplaceSkill) => void
   onSaveToggle?: (skill: MarketplaceSkill) => void
   cardRef?: (node: HTMLDivElement | null) => void
@@ -97,6 +98,7 @@ export function SkillCard({
   variant,
   cta,
   onCTA,
+  onPlusCTA,
   onOpen,
   onSaveToggle,
   cardRef,
@@ -113,6 +115,8 @@ export function SkillCard({
 
   const lockState = normalizeLockState(skill.availability?.lock_code)
   const action = cta ?? getSkillCTA(skill)
+  const showPaywallCTA =
+    resolvedVariant === 'locked' && (action === 'upgrade' || action === 'renew')
   const statusLabel =
     resolvedVariant === 'enabled'
       ? t('Enabled')
@@ -235,16 +239,40 @@ export function SkillCard({
       </CardContent>
       <CardFooter className='justify-between gap-3'>
         <span className='text-muted-foreground min-w-0 truncate text-xs'>
-          {statusLabel}
+          {showPaywallCTA ? t('$2 unlock') : statusLabel}
         </span>
-        <SkillCTA
-          action={action}
-          disabled={ctaDisabled}
-          onClick={(event) => {
-            event.stopPropagation()
-            onCTA?.(skill)
-          }}
-        />
+        {showPaywallCTA ? (
+          <div className='flex shrink-0 items-center gap-2'>
+            <SkillCTA
+              action='upgrade'
+              label={t('Unlock $2')}
+              disabled={ctaDisabled}
+              onClick={(event) => {
+                event.stopPropagation()
+                onCTA?.(skill)
+              }}
+            />
+            <SkillCTA
+              action='upgrade'
+              label={t('Get PLUS')}
+              variant='outline'
+              disabled={ctaDisabled}
+              onClick={(event) => {
+                event.stopPropagation()
+                onPlusCTA?.(skill)
+              }}
+            />
+          </div>
+        ) : (
+          <SkillCTA
+            action={action}
+            disabled={ctaDisabled}
+            onClick={(event) => {
+              event.stopPropagation()
+              onCTA?.(skill)
+            }}
+          />
+        )}
       </CardFooter>
     </Card>
   )

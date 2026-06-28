@@ -203,8 +203,9 @@ func TestEntryPoint_Valid(t *testing.T) {
 		EntryPointNew, EntryPointNewWeek, EntryPointTrending,
 		EntryPointRecommended, EntryPointRecoPersonal,
 		EntryPointRecoCodownload, EntryPointAdminPreview,
-		EntryPointSearchResults, EntryPointSkillPackage,
-		EntryPointPlaygroundPicker,
+		EntryPointSearchResults, EntryPointPaywall,
+		EntryPointSkillPackage, EntryPointAPIToken,
+		EntryPointDownloadedRunner, EntryPointPlaygroundPicker,
 	}
 	for _, e := range valid {
 		assert.True(t, e.Valid(), "expected %q to be valid", e)
@@ -233,7 +234,10 @@ func TestEntryPoint_StringValues(t *testing.T) {
 	assert.Equal(t, "reengage", string(EntryPointReengage))
 	assert.Equal(t, "admin_preview", string(EntryPointAdminPreview))
 	assert.Equal(t, "search_results", string(EntryPointSearchResults))
+	assert.Equal(t, "paywall", string(EntryPointPaywall))
 	assert.Equal(t, "skill_package", string(EntryPointSkillPackage))
+	assert.Equal(t, "api_token", string(EntryPointAPIToken))
+	assert.Equal(t, "downloaded_runner", string(EntryPointDownloadedRunner))
 	assert.Equal(t, "playground_picker", string(EntryPointPlaygroundPicker))
 }
 

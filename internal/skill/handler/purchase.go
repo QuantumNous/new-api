@@ -22,6 +22,7 @@ const oneTimeSkillPurchaseAmountUSD = pricing.OneTimeSkillPriceUSD
 type purchaseSkillRequest struct {
 	IdempotencyKey string `json:"idempotency_key"`
 	PaymentStatus  string `json:"payment_status,omitempty"`
+	EntryPoint     string `json:"entry_point,omitempty"`
 }
 
 type purchaseSkillResponse struct {
@@ -64,6 +65,14 @@ func PurchaseMarketplaceSkill(c *gin.Context) {
 	}
 	if status != "paid" && status != skillmodel.SkillPurchaseStatusFailed && status != skillmodel.SkillPurchaseStatusAbandoned {
 		skillapi.Error(c, errcodes.ErrInvalidRequest, "Unsupported payment_status.", nil)
+		return
+	}
+	entryPoint := enums.EntryPoint(strings.TrimSpace(req.EntryPoint))
+	if entryPoint == "" {
+		entryPoint = enums.EntryPointSkillDetail
+	}
+	if !entryPoint.Valid() {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "Unsupported entry_point.", nil)
 		return
 	}
 
@@ -135,7 +144,7 @@ func PurchaseMarketplaceSkill(c *gin.Context) {
 			return err
 		}
 		plan := groupToPlan(c.GetString("group"))
-		if err := skillmodel.EmitSkillPurchased(tx, userID, s.ID, s.ActiveVersionID, plan, oneTimeSkillPurchaseAmountUSD); err != nil {
+		if err := skillmodel.EmitSkillPurchased(tx, userID, s.ID, s.ActiveVersionID, plan, oneTimeSkillPurchaseAmountUSD, entryPoint); err != nil {
 			return err
 		}
 		now := time.Now().UTC()

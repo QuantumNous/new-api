@@ -41,6 +41,16 @@ vi.mock('./api', () => ({
   getMarketplaceSkills: mockGetMarketplaceSkills,
   getMarketplaceRailSkills: mockGetMarketplaceRailSkills,
   emitMarketplaceEvent: vi.fn().mockResolvedValue(undefined),
+  purchaseSkill: vi.fn().mockResolvedValue({
+    order_id: 'order-1',
+    skill_id: 'skill-1',
+    status: 'succeeded',
+    entitled: true,
+    amount_usd: 2,
+    currency: 'USD',
+    quota_charged: 1000,
+    monetization_type: 'one_time',
+  }),
   recordMarketplaceSkillEvent: mockRecordMarketplaceSkillEvent,
   saveSkill: vi.fn().mockResolvedValue(undefined),
   unsaveSkill: vi.fn().mockResolvedValue(undefined),
@@ -117,21 +127,6 @@ describe('Marketplace list card CTA matrix', () => {
       },
     ],
     [
-      'Upgrade',
-      {
-        ...baseSkill,
-        required_plan: 'enterprise',
-        availability: { cta: 'upgrade', locked: true },
-      },
-    ],
-    [
-      'Renew',
-      {
-        ...baseSkill,
-        availability: { cta: 'renew', locked: true },
-      },
-    ],
-    [
       'Contact Sales',
       {
         ...baseSkill,
@@ -176,6 +171,28 @@ describe('Marketplace list card CTA matrix', () => {
     ).toBeDisabled()
   })
 
+  it.each([
+    ['upgrade', 'Upgrade Skill'],
+    ['renew', 'Renew Skill'],
+  ] as const)('shows the dual paywall CTA for %s locks', async (cta, name) => {
+    setMarketplaceSkills([
+      {
+        ...baseSkill,
+        id: cta,
+        slug: cta,
+        name,
+        availability: { cta, locked: true },
+      },
+    ])
+
+    renderMarketplace()
+
+    expect(
+      await screen.findByRole('button', { name: 'Unlock $2' })
+    ).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Get PLUS' })).toBeEnabled()
+  })
+
   it('uses the resolved fallback Enable CTA when the API omits availability.cta', async () => {
     setMarketplaceSkills([baseSkill])
 
@@ -184,7 +201,7 @@ describe('Marketplace list card CTA matrix', () => {
     expect(await screen.findByRole('button', { name: 'Enable' })).toBeEnabled()
   })
 
-  it('navigates to the detail route when an actionable card CTA is clicked', async () => {
+  it('opens the paywall when a buyable locked card CTA is clicked', async () => {
     setMarketplaceSkills([
       {
         ...baseSkill,
@@ -197,12 +214,9 @@ describe('Marketplace list card CTA matrix', () => {
     ])
 
     renderMarketplace()
-    fireEvent.click(await screen.findByRole('button', { name: 'Upgrade' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Unlock $2' }))
 
-    expect(navigateMock).toHaveBeenCalledWith({
-      to: '/skills/$slug',
-      params: { slug: 'upgrade-skill' },
-    })
+    expect(await screen.findByText('Paywall')).toBeInTheDocument()
   })
 })
 
