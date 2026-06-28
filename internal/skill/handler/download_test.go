@@ -120,6 +120,7 @@ func TestDownloadSkillPackage_ZipContainsManifestAndSkillMD(t *testing.T) {
 	}
 
 	require.Contains(t, files, "manifest.json", "zip must contain manifest.json")
+	require.Contains(t, files, "README.md", "zip must contain generated README.md")
 	require.Contains(t, files, "SKILL.md", "zip must contain SKILL.md")
 	require.Contains(t, files, "instruction_template.md", "zip must contain instruction_template.md")
 	require.Contains(t, files, "runtime/deeprouter_skill_runner.py", "zip must contain runtime client")
@@ -140,6 +141,14 @@ func TestDownloadSkillPackage_ZipContainsManifestAndSkillMD(t *testing.T) {
 	assert.Equal(t, "System template for zip skill.", string(files["instruction_template.md"]))
 	assert.Contains(t, skillMD, "### Work Step")
 	assert.Contains(t, skillMD, "https://api.deeprouter.co/v1/routing/chat/completions")
+
+	readme := string(files["README.md"])
+	assert.Contains(t, readme, "Download Instructions")
+	assert.Contains(t, readme, "Download the package and extract it into your skills directory.")
+	assert.Contains(t, readme, "Usage Instructions")
+	assert.Contains(t, readme, "Run the Skill through DeepRouter with the packaged runtime.")
+	assert.Contains(t, readme, "DeepRouter API key")
+	assert.Contains(t, readme, "Example I/O")
 }
 
 func TestDownloadSkillPackage_SKILLMDIsRuntimeWrapper(t *testing.T) {
@@ -334,6 +343,7 @@ func TestDownloadSkillPackage_NoProviderCredentialsInZip(t *testing.T) {
 
 	allowedFiles := map[string]bool{
 		"manifest.json":                      true,
+		"README.md":                          true,
 		"SKILL.md":                           true,
 		"instruction_template.md":            true,
 		"runtime/deeprouter_skill_runner.py": true,
@@ -540,6 +550,7 @@ func TestDownloadSkillPackage_GrantsNoExecutionRight(t *testing.T) {
 	require.NoError(t, err)
 	allowedFiles := map[string]bool{
 		"manifest.json":                      true,
+		"README.md":                          true,
 		"SKILL.md":                           true,
 		"instruction_template.md":            true,
 		"runtime/deeprouter_skill_runner.py": true,
@@ -1308,6 +1319,11 @@ func createPublishedSkillWithActiveVersionFromSkill(t *testing.T, db *gorm.DB, s
 		Status:                    enums.SkillVersionStatusActive,
 		InstructionTemplate:       template,
 		InstructionTemplateSHA256: strings.Repeat("a", 64),
+		DownloadInstructions:      "Download the package and extract it into your skills directory.",
+		UsageInstructions:         "Run the Skill through DeepRouter with the packaged runtime.",
+		Prerequisites:             skillmodel.SkillJSONB(`["DeepRouter API key"]`),
+		Quickstart:                skillmodel.SkillJSONB(`["Extract the zip","Run the runtime client"]`),
+		ExampleIO:                 skillmodel.SkillJSONB(`[{"input":"Summarize this","output":"A short summary"}]`),
 		ModelWhitelistSnapshot:    skillmodel.SkillJSONB(`["smart-tier"]`),
 		RequiredPlanSnapshot:      s.RequiredPlan,
 		MonetizationSnapshot:      skillmodel.SkillJSONB(`{}`),

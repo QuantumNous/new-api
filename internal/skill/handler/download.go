@@ -296,12 +296,121 @@ func buildSkillPackageForVersion(s skillmodel.Skill, version skillmodel.SkillVer
 
 	files := []skillPackageFile{
 		{Name: "manifest.json", Content: manifestJSON},
+		{Name: "README.md", Content: []byte(buildSkillPackageREADME(s, version))},
 		{Name: "SKILL.md", Content: []byte(buildSkillMD(s))},
 		{Name: "instruction_template.md", Content: []byte(version.InstructionTemplate)},
 		{Name: "runtime/deeprouter_skill_runner.py", Content: packageassets.RuntimeClient()},
 		{Name: "runtime/README.md", Content: packageassets.RuntimeREADME()},
 	}
 	return buildSkillPackageZip(skillPackageKindFor(s), files)
+}
+
+func buildSkillPackageREADME(s skillmodel.Skill, version skillmodel.SkillVersion) string {
+	var sb strings.Builder
+	sb.WriteString("# " + s.Name + "\n\n")
+	if strings.TrimSpace(s.ShortDescription) != "" {
+		sb.WriteString(s.ShortDescription + "\n\n")
+	}
+	sb.WriteString("Skill slug: `" + s.Slug + "`\n\n")
+	sb.WriteString("Skill version: `" + version.ID + "`\n\n")
+
+	writeMarkdownSection(&sb, "Download Instructions", version.DownloadInstructions)
+	writeMarkdownSection(&sb, "Usage Instructions", version.UsageInstructions)
+	writeMarkdownListSection(&sb, "Prerequisites", version.Prerequisites)
+	writeMarkdownListSection(&sb, "Quickstart", version.Quickstart)
+	writeMarkdownExampleIOSection(&sb, version.ExampleIO)
+
+	sb.WriteString("## Runtime Environment\n\n")
+	sb.WriteString("- `DEEPROUTER_API_KEY`\n")
+	sb.WriteString("- `DEEPROUTER_EXECUTION_API_URL`\n\n")
+	sb.WriteString("Run this package through `runtime/deeprouter_skill_runner.py`; do not call provider APIs directly from the package.\n")
+	return sb.String()
+}
+
+func writeMarkdownSection(sb *strings.Builder, title, body string) {
+	sb.WriteString("## " + title + "\n\n")
+	trimmed := strings.TrimSpace(body)
+	if trimmed == "" {
+		sb.WriteString("Not provided.\n\n")
+		return
+	}
+	sb.WriteString(trimmed + "\n\n")
+}
+
+func writeMarkdownListSection(sb *strings.Builder, title string, raw skillmodel.SkillJSONB) {
+	items := markdownStringList(raw)
+	if len(items) == 0 {
+		return
+	}
+	sb.WriteString("## " + title + "\n\n")
+	for _, item := range items {
+		sb.WriteString("- " + item + "\n")
+	}
+	sb.WriteString("\n")
+}
+
+func writeMarkdownExampleIOSection(sb *strings.Builder, raw skillmodel.SkillJSONB) {
+	examples := markdownExampleIO(raw)
+	if len(examples) == 0 {
+		return
+	}
+	sb.WriteString("## Example I/O\n\n")
+	for i, example := range examples {
+		sb.WriteString(fmt.Sprintf("### Example %d\n\n", i+1))
+		if strings.TrimSpace(example.Input) != "" {
+			sb.WriteString("Input:\n\n")
+			sb.WriteString("```text\n" + strings.TrimSpace(example.Input) + "\n```\n\n")
+		}
+		if strings.TrimSpace(example.Output) != "" {
+			sb.WriteString("Output:\n\n")
+			sb.WriteString("```text\n" + strings.TrimSpace(example.Output) + "\n```\n\n")
+		}
+	}
+}
+
+func markdownStringList(raw skillmodel.SkillJSONB) []string {
+	var values []string
+	if err := common.Unmarshal(raw, &values); err == nil {
+		out := make([]string, 0, len(values))
+		for _, value := range values {
+			if trimmed := strings.TrimSpace(value); trimmed != "" {
+				out = append(out, trimmed)
+			}
+		}
+		return out
+	}
+	var objects []struct {
+		Text string `json:"text"`
+	}
+	if err := common.Unmarshal(raw, &objects); err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(objects))
+	for _, object := range objects {
+		if trimmed := strings.TrimSpace(object.Text); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+type markdownIOExample struct {
+	Input  string `json:"input"`
+	Output string `json:"output"`
+}
+
+func markdownExampleIO(raw skillmodel.SkillJSONB) []markdownIOExample {
+	var examples []markdownIOExample
+	if err := common.Unmarshal(raw, &examples); err != nil {
+		return nil
+	}
+	out := make([]markdownIOExample, 0, len(examples))
+	for _, example := range examples {
+		if strings.TrimSpace(example.Input) != "" || strings.TrimSpace(example.Output) != "" {
+			out = append(out, example)
+		}
+	}
+	return out
 }
 
 func packageBytesForCurrentSkillVersion(db *gorm.DB, s skillmodel.Skill) (skillmodel.SkillVersion, []byte, error) {

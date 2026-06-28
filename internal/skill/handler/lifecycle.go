@@ -154,6 +154,7 @@ func buildPublishChecklist(skill skillmodel.Skill, version skillmodel.SkillVersi
 		checklistItem("plan_and_monetization", skill.RequiredPlan.Valid() && skill.MonetizationType.Valid(), "Required plan and monetization type are required."),
 		checklistItem("model_whitelist", jsonArrayHasNonEmptyString(skill.ModelWhitelist) && jsonArrayHasNonEmptyString(version.ModelWhitelistSnapshot), "Model whitelist is required."),
 		checklistItem("max_input_tokens", publishMaxInputTokensSnapshotValid(skill, version), "max_input_tokens and active version max_input_tokens_snapshot are required and must match for Free/free-quota Skills."),
+		checklistItem("download_usage_instructions", versionInstructionsPublishReady(version), "Download and usage instructions are required."),
 	}
 }
 
@@ -200,6 +201,11 @@ func publishMaxInputTokensSnapshotValid(skill skillmodel.Skill, version skillmod
 		return false
 	}
 	return *skill.MaxInputTokens == *version.MaxInputTokensSnapshot
+}
+
+func versionInstructionsPublishReady(version skillmodel.SkillVersion) bool {
+	return strings.TrimSpace(version.DownloadInstructions) != "" &&
+		strings.TrimSpace(version.UsageInstructions) != ""
 }
 
 func jsonArrayHasAny(raw skillmodel.SkillJSONB) bool {

@@ -14,6 +14,8 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 - 更新 DR-100 one-time Skill purchase 任务 PRD 状态为 ship，记录 PR #119 已合并（`docs/tasks/dr100-one-time-skill-purchase-prd.md`）
 - 实现 DR-101 API token 作为 Skill 下载/运行 auth+entitlement principal：Skill download auth 支持 DeepRouter API token 直接解析用户/分组/令牌限制并复用同一 plan entitlement，public routing Skill 运行强制 `entry_point=api_token`，Skill 事件 schema/约束/docs 接受 `api_token`，并补下载、blocked/success run、middleware auth 回归测试（`middleware/skill-auth.go`, `router/relay-router.go`, `internal/skill/{enums,model,handler,relay}`, `docs/skill-marketplace/tasks/*`）
 - 新增 DR-101 API token 作为 Skill 下载/运行身份与 entitlement principal 的任务 PRD，锁定下载路由、public routing、`entry_point=api_token` 事件、fail-closed token 校验和 JWT/session 不回归范围（`docs/tasks/dr101-api-token-skill-auth-entitlement-prd.md`）
+- 新增 DR-93 SkillVersion 结构化下载/使用说明：`skill_versions` 增加 download/usage/prerequisites/quickstart/example_io 字段，管理端版本编辑与详情页展示支持说明内容，发布/已发布版本激活缺说明时阻断，下载包生成顶层 `README.md`，并补后端/前端回归测试（`internal/skill/{model,handler}`, `web/default/src/features/{admin-skills,marketplace}`, `docs/tasks/dr93-per-skill-instructions-readme-prd.md`）
+- 新增 DR-93 Per-Skill download/usage instructions 任务 PRD，明确 `skill_versions` 结构化说明字段、详情页渲染、下载包 `README.md` 与发布校验范围（`docs/tasks/dr93-per-skill-instructions-readme-prd.md`）
 
 ## 2026-06-27
 

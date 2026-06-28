@@ -92,6 +92,11 @@ interface EditorFormState {
   free_quota_per_month: string
   instruction_template: string
   output_schema: string
+  download_instructions: string
+  usage_instructions: string
+  prerequisites: string
+  quickstart: string
+  example_io: string
   model_whitelist: string
   timeout_seconds: string
   max_input_tokens: string
@@ -121,6 +126,11 @@ function emptyForm(): EditorFormState {
     free_quota_per_month: '',
     instruction_template: '',
     output_schema: '',
+    download_instructions: '',
+    usage_instructions: '',
+    prerequisites: '[]',
+    quickstart: '[]',
+    example_io: '[]',
     model_whitelist: '',
     timeout_seconds: '45',
     max_input_tokens: '',
@@ -205,6 +215,7 @@ export function AdminSkillEditorDialog({
 
   useEffect(() => {
     if (!open) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm(formFromSkill(skill))
     setFieldError({})
     setFormError(null)
@@ -213,20 +224,47 @@ export function AdminSkillEditorDialog({
   useEffect(() => {
     if (!activeVersionQuery.data?.data || !open) return
     const version = activeVersionQuery.data.data
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm((current) => ({
       ...current,
       instruction_template: version.instruction_template,
       output_schema: version.output_schema
         ? prettyJSON(version.output_schema)
         : current.output_schema,
+      download_instructions: version.download_instructions,
+      usage_instructions: version.usage_instructions,
+      prerequisites: prettyJSON(version.prerequisites ?? []),
+      quickstart: prettyJSON(version.quickstart ?? []),
+      example_io: prettyJSON(version.example_io ?? []),
     }))
   }, [activeVersionQuery.data, open])
 
-  const originalTemplate =
-    activeVersionQuery.data?.data?.instruction_template ?? ''
-  const templateChanged =
+  const activeVersion = activeVersionQuery.data?.data
+  const originalVersionForm = activeVersion
+    ? {
+        instruction_template: activeVersion.instruction_template,
+        output_schema: activeVersion.output_schema
+          ? prettyJSON(activeVersion.output_schema)
+          : '',
+        download_instructions: activeVersion.download_instructions,
+        usage_instructions: activeVersion.usage_instructions,
+        prerequisites: prettyJSON(activeVersion.prerequisites ?? []),
+        quickstart: prettyJSON(activeVersion.quickstart ?? []),
+        example_io: prettyJSON(activeVersion.example_io ?? []),
+      }
+    : null
+  const versionChanged =
     form.instruction_template.trim() !== '' &&
-    form.instruction_template !== originalTemplate
+    (mode === 'create' ||
+      originalVersionForm == null ||
+      form.instruction_template !== originalVersionForm.instruction_template ||
+      form.output_schema !== originalVersionForm.output_schema ||
+      form.download_instructions !==
+        originalVersionForm.download_instructions ||
+      form.usage_instructions !== originalVersionForm.usage_instructions ||
+      form.prerequisites !== originalVersionForm.prerequisites ||
+      form.quickstart !== originalVersionForm.quickstart ||
+      form.example_io !== originalVersionForm.example_io)
   const requiresMaxInputTokens =
     form.required_plan === 'free' ||
     form.monetization_type === 'free' ||
@@ -253,7 +291,7 @@ export function AdminSkillEditorDialog({
         const patched = await patchAdminSkill(skill.id, parsed.patchPayload)
         savedSkill = patched.data
       }
-      const shouldCreateVersion = mode === 'create' || templateChanged
+      const shouldCreateVersion = versionChanged
       if (savedSkill && parsed.versionPayload && shouldCreateVersion) {
         await createAdminSkillVersion(savedSkill.id, parsed.versionPayload)
       }
@@ -302,7 +340,7 @@ export function AdminSkillEditorDialog({
                 </Alert>
               ) : null}
 
-              {templateChanged ? (
+              {versionChanged ? (
                 <Alert>
                   <GitBranch className='size-4' />
                   <AlertTitle>{t('Version change pending')}</AlertTitle>
@@ -454,6 +492,49 @@ export function AdminSkillEditorDialog({
                     error={validationError(fieldError.model_whitelist)}
                     rows={5}
                     onChange={(models) => update('model_whitelist', models)}
+                  />
+                </div>
+                <div className='grid gap-3 md:grid-cols-2'>
+                  <TextAreaInput
+                    label={t('Download Instructions')}
+                    value={form.download_instructions}
+                    error={validationError(fieldError.download_instructions)}
+                    rows={5}
+                    onChange={(instructions) =>
+                      update('download_instructions', instructions)
+                    }
+                  />
+                  <TextAreaInput
+                    label={t('Usage Instructions')}
+                    value={form.usage_instructions}
+                    error={validationError(fieldError.usage_instructions)}
+                    rows={5}
+                    onChange={(instructions) =>
+                      update('usage_instructions', instructions)
+                    }
+                  />
+                </div>
+                <div className='grid gap-3 md:grid-cols-3'>
+                  <TextAreaInput
+                    label={t('Prerequisites')}
+                    value={form.prerequisites}
+                    error={validationError(fieldError.prerequisites)}
+                    rows={5}
+                    onChange={(value) => update('prerequisites', value)}
+                  />
+                  <TextAreaInput
+                    label={t('Quickstart')}
+                    value={form.quickstart}
+                    error={validationError(fieldError.quickstart)}
+                    rows={5}
+                    onChange={(value) => update('quickstart', value)}
+                  />
+                  <TextAreaInput
+                    label={t('Example I/O')}
+                    value={form.example_io}
+                    error={validationError(fieldError.example_io)}
+                    rows={5}
+                    onChange={(value) => update('example_io', value)}
                   />
                 </div>
                 <div className='grid gap-3 sm:grid-cols-2'>
@@ -673,6 +754,13 @@ function parseForm(form: EditorFormState, mode: 'create' | 'edit') {
     errors,
     'output_schema'
   )
+  const prerequisites = parseJSONArrayField(
+    form.prerequisites,
+    errors,
+    'prerequisites'
+  )
+  const quickstart = parseJSONArrayField(form.quickstart, errors, 'quickstart')
+  const exampleIO = parseJSONArrayField(form.example_io, errors, 'example_io')
   const timeoutSeconds = parseOptionalInt(
     form.timeout_seconds,
     errors,
@@ -720,6 +808,14 @@ function parseForm(form: EditorFormState, mode: 'create' | 'edit') {
   if (form.is_kids_exclusive && !form.is_kids_safe) {
     errors.is_kids_exclusive = 'Kids Exclusive requires Kids Safe.'
   }
+  if (form.instruction_template.trim() !== '') {
+    if (form.download_instructions.trim() === '') {
+      errors.download_instructions = 'Download instructions are required.'
+    }
+    if (form.usage_instructions.trim() === '') {
+      errors.usage_instructions = 'Usage instructions are required.'
+    }
+  }
 
   const hasErrors = Object.values(errors).some(Boolean)
   const createPayload = {
@@ -764,6 +860,11 @@ function parseForm(form: EditorFormState, mode: 'create' | 'edit') {
       : {
           instruction_template: form.instruction_template,
           output_schema: outputSchema,
+          download_instructions: form.download_instructions.trim(),
+          usage_instructions: form.usage_instructions.trim(),
+          prerequisites,
+          quickstart,
+          example_io: exampleIO,
         }
 
   return {
@@ -813,6 +914,19 @@ function parseOptionalJSONField(
     errors[field] = 'Enter valid JSON.'
     return null
   }
+}
+
+function parseJSONArrayField(
+  value: string,
+  errors: Record<string, string>,
+  field: string
+) {
+  const parsed = parseJSONField(value, [], errors, field)
+  if (!Array.isArray(parsed)) {
+    errors[field] = 'Enter a valid JSON array.'
+    return []
+  }
+  return parsed
 }
 
 function parseOptionalInt(

@@ -2,6 +2,8 @@
 Copyright (C) 2026 DeepRouter
 SPDX-License-Identifier: AGPL-3.0-or-later
 */
+import fs from 'node:fs'
+import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
 import {
@@ -157,5 +159,19 @@ describe('Marketplace API review regressions', () => {
       },
       expect.anything()
     )
+  })
+
+  it('renders DR-93 detail instructions from the detail payload', () => {
+    const source = fs.readFileSync(
+      path.resolve(process.cwd(), 'src/features/marketplace/skill-detail.tsx'),
+      'utf8'
+    )
+
+    expect(source).toContain("t('Download and usage')")
+    expect(source).toContain('detail.instructions.download_instructions')
+    expect(source).toContain('detail.instructions.usage_instructions')
+    expect(source).toContain('detail.instructions.prerequisites')
+    expect(source).toContain('detail.instructions.quickstart')
+    expect(source).toContain('detail.instructions.example_io')
   })
 })

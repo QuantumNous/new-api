@@ -152,13 +152,22 @@ type DownloadCTA struct {
 	Method string `json:"method"`
 }
 
+type SkillVersionInstructions struct {
+	DownloadInstructions string          `json:"download_instructions"`
+	UsageInstructions    string          `json:"usage_instructions"`
+	Prerequisites        json.RawMessage `json:"prerequisites"`
+	Quickstart           json.RawMessage `json:"quickstart"`
+	ExampleIO            json.RawMessage `json:"example_io"`
+}
+
 // PublicSkillDetail extends PublicSkill with detail-page-only fields:
 // the DeepRouter runtime-dependency flag and the download entry point (DR-53).
 // Only returned by GetMarketplaceSkill, not by the list endpoint.
 type PublicSkillDetail struct {
 	PublicSkill
-	RequiresDeepRouterKey bool        `json:"requires_deeprouter_key"`
-	DownloadCTA           DownloadCTA `json:"download_cta"`
+	RequiresDeepRouterKey bool                     `json:"requires_deeprouter_key"`
+	DownloadCTA           DownloadCTA              `json:"download_cta"`
+	Instructions          SkillVersionInstructions `json:"instructions"`
 }
 
 type OpsSkillSummary struct {
@@ -293,7 +302,21 @@ func GetMarketplaceSkill(c *gin.Context) {
 		writeSkillLookupError(c, err)
 		return
 	}
-	skillapi.Success(c, publicSkillDetailFromModel(s))
+	instructions := SkillVersionInstructions{
+		Prerequisites: json.RawMessage("[]"),
+		Quickstart:    json.RawMessage("[]"),
+		ExampleIO:     json.RawMessage("[]"),
+	}
+	if s.ActiveVersionID != nil && strings.TrimSpace(*s.ActiveVersionID) != "" {
+		var version skillmodel.SkillVersion
+		if err := db.First(&version, "id = ? AND skill_id = ?", *s.ActiveVersionID, s.ID).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			writeDBError(c, err)
+			return
+		} else if err == nil {
+			instructions = skillVersionInstructionsFromModel(version)
+		}
+	}
+	skillapi.Success(c, publicSkillDetailFromModel(s, instructions))
 }
 
 func ListPersonalRecommendations(c *gin.Context) {
@@ -1172,7 +1195,17 @@ func marketplaceGroupToPlan(group string) enums.RequiredPlan {
 // download_cta.url uses slug (not ID) because slugs are human-readable and
 // stable. DR-81 must accept slug as the {id} path parameter — verify before
 // closing DR-81 or this CTA will produce broken URLs.
-func publicSkillDetailFromModel(s skillmodel.Skill) PublicSkillDetail {
+func skillVersionInstructionsFromModel(version skillmodel.SkillVersion) SkillVersionInstructions {
+	return SkillVersionInstructions{
+		DownloadInstructions: version.DownloadInstructions,
+		UsageInstructions:    version.UsageInstructions,
+		Prerequisites:        rawJSONWithDefault(version.Prerequisites, "[]"),
+		Quickstart:           rawJSONWithDefault(version.Quickstart, "[]"),
+		ExampleIO:            rawJSONWithDefault(version.ExampleIO, "[]"),
+	}
+}
+
+func publicSkillDetailFromModel(s skillmodel.Skill, instructions SkillVersionInstructions) PublicSkillDetail {
 	return PublicSkillDetail{
 		PublicSkill:           publicSkillFromModel(s, true),
 		RequiresDeepRouterKey: true,
@@ -1180,6 +1213,7 @@ func publicSkillDetailFromModel(s skillmodel.Skill) PublicSkillDetail {
 			URL:    "/api/v1/marketplace/skills/" + url.PathEscape(s.Slug) + "/download",
 			Method: "GET",
 		},
+		Instructions: instructions,
 	}
 }
 

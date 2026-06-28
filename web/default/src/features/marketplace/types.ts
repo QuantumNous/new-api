@@ -121,6 +121,14 @@ export interface DownloadCTA {
   method: string
 }
 
+export interface SkillVersionInstructions {
+  download_instructions: string
+  usage_instructions: string
+  prerequisites?: unknown[]
+  quickstart?: unknown[]
+  example_io?: unknown[]
+}
+
 // PublicSkillDetail mirrors the backend detail-only response (DR-53):
 // PublicSkill fields plus the runtime-dependency flag and download CTA.
 // Examples/input hints are intentionally absent — the detail API does not
@@ -128,6 +136,7 @@ export interface DownloadCTA {
 export interface PublicSkillDetail extends MarketplaceSkill {
   requires_deeprouter_key: boolean
   download_cta: DownloadCTA
+  instructions: SkillVersionInstructions
 }
 
 // MySkill mirrors the DR-54 `GET /api/v1/marketplace/my-skills` response item
