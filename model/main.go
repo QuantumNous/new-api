@@ -325,6 +325,9 @@ func migrateDB() error {
 	if err := skillmodel.MigrateSkillUsageEvents(DB); err != nil {
 		return err
 	}
+	if err := skillmodel.MigrateSkillTelemetryQuarantine(DB); err != nil {
+		return err
+	}
 	return nil
 }
 

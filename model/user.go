@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -72,6 +73,10 @@ type User struct {
 	// HMAC-SHA256 secret used to sign billing webhook payloads (header: X-DeepRouter-Signature).
 	// Per-tenant; never logged. Empty disables signing (and effectively the dispatch in V0).
 	WebhookSecret string `json:"webhook_secret,omitempty" gorm:"type:varchar(128);column:webhook_secret"`
+	// Tier 2 local runner telemetry consent. Off by default; runner telemetry ingest
+	// reads this server-side on every upload so revocation immediately blocks new events.
+	Tier2TelemetryConsent     bool       `json:"tier2_telemetry_consent" gorm:"type:boolean;default:false;column:tier2_telemetry_consent"`
+	Tier2TelemetryConsentedAt *time.Time `json:"tier2_telemetry_consented_at,omitempty" gorm:"column:tier2_telemetry_consented_at"`
 
 	// Auto top-up — OpenAI-style "credit running low, auto-charge saved card" UX.
 	// Requires StripeCustomer set (handled by the regular Stripe checkout flow,

@@ -240,6 +240,9 @@ const (
 	// EntryPointAPIToken identifies Skill package download/execution initiated
 	// directly with a DeepRouter API token rather than a browser/JWT session.
 	EntryPointAPIToken EntryPoint = "api_token"
+	// EntryPointDownloadedRunner records consented local runner telemetry for
+	// downloaded Skills that execute outside the DeepRouter relay path.
+	EntryPointDownloadedRunner EntryPoint = "downloaded_runner"
 	// EntryPointPlaygroundPicker is retained only so historical Playground
 	// execution events continue to parse. New V1/R2 execution flows must emit
 	// EntryPointSkillPackage instead.
@@ -262,6 +265,7 @@ var validEntryPoints = map[EntryPoint]struct{}{
 	EntryPointSearchResults:    {},
 	EntryPointSkillPackage:     {},
 	EntryPointAPIToken:         {},
+	EntryPointDownloadedRunner: {},
 }
 
 func (e EntryPoint) Valid() bool { _, ok := validEntryPoints[e]; return ok }

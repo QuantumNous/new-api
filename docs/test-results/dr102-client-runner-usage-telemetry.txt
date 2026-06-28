@@ -1,0 +1,90 @@
+# DR-102 Client Runner Usage Telemetry Test Results
+
+Date: 2026-06-29
+
+## Focused handler + router regression
+
+Command:
+`GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/handler ./router -run 'TestRecordRunnerSkillUsage|TestSkillRouterTelemetryUsageRequiresAPIToken' -count=1 -cover`
+
+Dataset/fixtures:
+- In-memory SQLite.
+- `skills`, `skill_versions`, `user_enabled_skills`, `skill_usage_events`, `skill_telemetry_quarantines`, and `users` migrated in test setup.
+- Synthetic user id 42 with `tier2_telemetry_consent` true/false and token id 7 in Gin context.
+- JSON payloads covering valid downloaded runner usage, opt-out, restricted prompt field, invalid schema, and consent revocation.
+
+Verified:
+- Opted-in runner usage writes one `skill_used` row with `entry_point=downloaded_runner`, authenticated user/tenant identity, model, token counts, latency, success, and allowlisted metadata.
+- Opt-out returns 403 and writes no event/quarantine rows.
+- Restricted prompt/raw-style fields return 400 and are not persisted.
+- Bad non-sensitive schema is quarantined with sanitized field diagnostics only and no production analytics row.
+- Revoked consent blocks later uploads after an earlier successful upload.
+- Router registers `POST /api/v1/telemetry/skill-usage` behind DeepRouter API token auth.
+
+Coverage:
+- `internal/skill/handler`: 4.6% for focused regex run.
+- `router`: 8.3% for focused regex run.
+
+Result: PASS
+
+## Related Skill packages
+
+Command:
+`GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/... -count=1 -cover`
+
+Dataset/fixtures:
+- Existing Skill package unit and integration fixtures, including in-memory SQLite migrations and package-specific synthetic Skill/user/event data.
+
+Verified:
+- Skill API envelopes, availability, enum validity, error mappings, handler flows, model migrations/constraints, relay analytics, seed fixtures, and tier helpers continue to pass after adding `downloaded_runner` and telemetry quarantine.
+
+Coverage:
+- `internal/skill/api`: 77.8%
+- `internal/skill/availability`: 96.7%
+- `internal/skill/enums`: 88.9%
+- `internal/skill/errcodes`: 100.0%
+- `internal/skill/handler`: 73.4%
+- `internal/skill/model`: 46.5%
+- `internal/skill/relay`: 81.5%
+- `internal/skill/seed`: 79.4%
+- `internal/skill/tiers`: 100.0%
+
+Result: PASS
+
+## Related model/router packages
+
+Command:
+`GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./model ./router -count=1 -cover`
+
+Dataset/fixtures:
+- Existing model and router package fixtures, including in-memory SQLite DBs and route auth test setup.
+
+Verified:
+- User model migration with new Tier 2 consent fields compiles and existing model behavior is unchanged.
+- Skill router groups and auth failure envelopes continue to pass with the telemetry route added.
+
+Coverage:
+- `model`: 1.7%
+- `router`: 9.4%
+
+Result: PASS
+
+## Full Go suite
+
+Prerequisite command:
+`make build-all-frontends`
+
+Command:
+`GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./... -count=1`
+
+Dataset/fixtures:
+- Full repository Go test fixtures.
+- Generated ignored `web/default/dist` and `web/classic/dist` directories for root package embed compilation.
+
+Verified:
+- Full backend and Go package suite passes after DR-102 changes.
+
+Coverage:
+- Not collected for full suite because command was run without `-cover`; package-level coverage is recorded above for touched/related packages.
+
+Result: PASS

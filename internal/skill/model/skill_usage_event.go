@@ -41,7 +41,7 @@ type SkillUsageEvent struct {
 	SkillID        *string          `gorm:"column:skill_id;type:char(36)"`
 	SkillVersionID *string          `gorm:"column:skill_version_id;type:char(36)"`
 	FirstUseKey    *string          `gorm:"column:first_use_key;type:varchar(128)"`
-	EntryPoint     enums.EntryPoint `gorm:"column:entry_point;type:varchar(64);not null;check:chk_sue_entry_point,entry_point IN ('marketplace_card','skill_detail','my_skills','saved_list','playground_picker','featured','popular','new','recommended','reco_personal','reco_codownload','admin_preview','search_results','skill_package','api_token')"`
+	EntryPoint     enums.EntryPoint `gorm:"column:entry_point;type:varchar(64);not null;check:chk_sue_entry_point,entry_point IN ('marketplace_card','skill_detail','my_skills','saved_list','playground_picker','featured','popular','new','recommended','reco_personal','reco_codownload','admin_preview','search_results','skill_package','api_token','downloaded_runner')"`
 
 	Plan               *enums.RequiredPlan `gorm:"column:plan;type:varchar(32)"`
 	SubscriptionStatus *string             `gorm:"column:subscription_status;type:varchar(32)"`

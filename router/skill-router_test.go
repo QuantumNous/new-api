@@ -144,6 +144,14 @@ func TestSkillRouterSkillAnalyticsAuthFailureUsesEnvelope(t *testing.T) {
 	assert.Contains(t, skills.Body.String(), `"request_id":`)
 }
 
+func TestSkillRouterTelemetryUsageRequiresAPIToken(t *testing.T) {
+	engine := newSkillTestRouter(t, false)
+
+	w := performSkillRequestWithBody(engine, http.MethodPost, "/api/v1/telemetry/skill-usage", `{"skill_id":"s","success":true}`)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
 func TestSkillRouterMySkillsRequiresAuth(t *testing.T) {
 	engine := newSkillTestRouter(t, false)
 
@@ -253,6 +261,7 @@ func newSkillRouterTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
 	require.NoError(t, skillmodel.MigrateUserSavedSkills(db))
 	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
+	require.NoError(t, skillmodel.MigrateSkillTelemetryQuarantine(db))
 	require.NoError(t, db.AutoMigrate(&platformmodel.User{}))
 	published := routerTestSkill("published-skill", enums.SkillStatusPublished)
 	draft := routerTestSkill("draft-skill", enums.SkillStatusDraft)

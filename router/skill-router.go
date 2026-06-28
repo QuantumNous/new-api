@@ -58,6 +58,15 @@ func SetSkillRouter(router *gin.Engine) {
 			downloadRoute.GET("/skill-versions/:skill_version_id/download", skillhandler.DownloadSkillVersionPackage)
 		}
 
+		telemetryRoute := v1.Group("/telemetry")
+		telemetryRoute.Use(middleware.TokenAuth())
+		if common.GlobalApiRateLimitEnable {
+			telemetryRoute.Use(middleware.SkillUserRateLimit(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "SKT"))
+		}
+		{
+			telemetryRoute.POST("/skill-usage", skillhandler.RecordRunnerSkillUsage)
+		}
+
 		adminRoute := v1.Group("/admin")
 		adminRoute.Use(middleware.SkillRootAuth())
 		if common.GlobalApiRateLimitEnable {
