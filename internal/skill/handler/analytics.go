@@ -73,6 +73,8 @@ type SkillAnalyticsSkillRow struct {
 	EnabledUsers                       int64              `json:"enabled_users"`
 	SavedUsers                         int64              `json:"saved_users"`
 	SavedButUnusedUsers                int64              `json:"saved_but_unused_users"`
+	Downloads7D                        int64              `json:"downloads_7d"`
+	Downloads30D                       int64              `json:"downloads_30d"`
 	ActiveUsers                        int64              `json:"active_users"`
 	SuccessfulRuns                     int64              `json:"successful_runs"`
 	DetailCTR                          *float64           `json:"detail_ctr"`
@@ -284,6 +286,17 @@ func GetOpsSkillAnalyticsSkills(c *gin.Context) {
 			return
 		}
 	}
+	now := analyticsNow()
+	downloads7D, err := loadDownloadCountsBySkill(db, skillIDs, now.Add(-7*24*time.Hour), now)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	downloads30D, err := loadDownloadCountsBySkill(db, skillIDs, now.Add(-30*24*time.Hour), now)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
 
 	rows := make([]SkillAnalyticsSkillRow, 0, len(pageRows))
 	for _, skill := range pageRows {
@@ -296,6 +309,8 @@ func GetOpsSkillAnalyticsSkills(c *gin.Context) {
 			EnabledUsers:                       enabledUsers[skill.ID],
 			SavedUsers:                         skill.SavedUsers,
 			SavedButUnusedUsers:                savedButUnusedUsers[skill.ID],
+			Downloads7D:                        downloads7D[skill.ID],
+			Downloads30D:                       downloads30D[skill.ID],
 			ActiveUsers:                        activePairs[skill.ID],
 			SuccessfulRuns:                     skill.SuccessfulRuns,
 			DetailCTR:                          ratio64(funnel[skill.ID].Details, funnel[skill.ID].Impressions),

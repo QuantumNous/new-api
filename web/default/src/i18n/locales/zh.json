@@ -5011,6 +5011,12 @@
     "Timeout must be between 1 and 120 seconds.": "超时时间必须在 1 到 120 秒之间。",
     "Kids Exclusive requires Kids Safe.": "仅儿童模式要求先启用儿童安全。",
     "Enter valid JSON.": "请输入有效 JSON。",
-    "Enter a valid number.": "请输入有效数字。"
+    "Enter a valid number.": "请输入有效数字。",
+    "This Week": "本周下载榜",
+    "This Month": "本月下载榜",
+    "{{count}} downloads": "{{count}} 次下载",
+    "Downloads": "下载",
+    "7d": "7 天",
+    "{{count}} in 30d": "30 天内 {{count}} 次"
   }
 }

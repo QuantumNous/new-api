@@ -21,6 +21,11 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 - 记录 DR-103 聚焦、相关 Skill 回归与 full Go suite 测试结果和覆盖率；full suite 前构建 ignored frontend dist 以满足 root package embed 前置条件（`docs/test-results/dr103-weekly-top-skills-digest-re-engagement.txt`）
 - 更新 DR-103 Weekly Top-Skills digest + re-engagement notifications 任务 PRD 状态为 eval，进入 PR review/checks 阶段（`docs/tasks/dr103-weekly-top-skills-digest-re-engagement-prd.md`）
 - 修复 stream scanner 在 `StreamingTimeout` 仍为 0 时创建 `time.Ticker` panic 的防御缺口，使用既有 300 秒默认值兜底，恢复 full Go suite 中 `relay/helper` 流式扫描测试稳定性（`relay/helper/stream_scanner.go`）
+- 新增 DR-91 Weekly & Monthly download leaderboards 任务 PRD，明确 7d/30d 下载排行、分类 Top、leaderboard 埋点与 admin download velocity 范围（`docs/tasks/dr91-weekly-monthly-download-leaderboards-prd.md`）
+- 更新 DR-91 Weekly & Monthly download leaderboards 任务 PRD 状态为 build，进入实现阶段（`docs/tasks/dr91-weekly-monthly-download-leaderboards-prd.md`）
+- 新增 DR-91 7d/30d Skill 下载排行榜：基于 `skill_enabled` package 下载与 `skill_purchased` 事件计算窗口下载数，公开 `/api/v1/marketplace/leaderboards/downloads`，Marketplace 渲染本周/本月 rails 并记录 `leaderboard_weekly`/`leaderboard_monthly` 曝光点击，admin/ops per-Skill 行展示 `downloads_7d`/`downloads_30d`（`internal/skill/{handler,model,enums}`, `router/skill-router.go`, `web/default/src/features/{marketplace,admin-skills}`）
+- 记录 DR-91 聚焦、相关、前端与 full Go regression 测试结果和覆盖率；full Go suite 前构建 frontend dist 以满足 root package embed 前置条件（`docs/test-results/dr91-weekly-monthly-download-leaderboards.txt`）
+- 更新 DR-91 Weekly & Monthly download leaderboards 任务 PRD 状态为 eval，进入 PR review/checks 阶段（`docs/tasks/dr91-weekly-monthly-download-leaderboards-prd.md`）
 - 新增 DR-97 Personalized recommendations 任务 PRD，定义基于下载/使用类别、co-download、cold-start fallback、Kids 可见性与 `reco_personal`/`reco_codownload` 归因的实现范围（`docs/tasks/dr97-personalized-recommendations-prd.md`）
 - 实现 DR-97 Personalized recommendations 后端接口：新增个人类别亲和推荐与 co-download 推荐 API，复用 Marketplace availability 形状展示 locked-but-buyable Skill，Kids 模式过滤非 kids-safe 推荐，并扩展 `reco_personal`/`reco_codownload` 归因枚举与下载转换入口（`internal/skill/handler`, `router/skill-router.go`, `internal/skill/{enums,model}`, `docs/skill-marketplace/tasks/`）
 - 记录 DR-97 聚焦、相关回归与 full Go suite 测试结果和覆盖率；full suite 前先构建 ignored frontend dist 以满足 root package embed 前置条件（`docs/test-results/dr97-personalized-recommendations.txt`）

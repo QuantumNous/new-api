@@ -122,6 +122,13 @@ type MarketplaceSkill struct {
 	IsKidsExclusive  bool               `json:"is_kids_exclusive"`
 }
 
+type DownloadLeaderboardSkill struct {
+	MarketplaceSkill
+	DownloadCount int64  `json:"download_count"`
+	Rank          int    `json:"rank"`
+	Window        string `json:"window"`
+}
+
 type SkillAvailability struct {
 	Enabled  *bool               `json:"enabled"`
 	Locked   bool                `json:"locked"`
@@ -150,6 +157,8 @@ type AdminSkill struct {
 	ExampleInputs      json.RawMessage          `json:"example_inputs,omitempty"`
 	ExampleOutputs     json.RawMessage          `json:"example_outputs,omitempty"`
 	ModelWhitelist     json.RawMessage          `json:"model_whitelist,omitempty"`
+	Downloads7D        int64                    `json:"downloads_7d"`
+	Downloads30D       int64                    `json:"downloads_30d"`
 }
 
 // DownloadCTA is the download entry-point advertised on the Skill detail
@@ -230,15 +239,17 @@ var marketplaceEventTypeValues = map[enums.SkillUsageEventType]struct{}{
 }
 
 var marketplaceEventEntryPointValues = map[enums.EntryPoint]struct{}{
-	enums.EntryPointMarketplaceCard: {},
-	enums.EntryPointSkillDetail:     {},
-	enums.EntryPointSearchResults:   {},
-	enums.EntryPointNew:             {},
-	enums.EntryPointNewWeek:         {},
-	enums.EntryPointTrending:        {},
-	enums.EntryPointRecommended:     {},
-	enums.EntryPointRecoPersonal:    {},
-	enums.EntryPointRecoCodownload:  {},
+	enums.EntryPointMarketplaceCard:    {},
+	enums.EntryPointSkillDetail:        {},
+	enums.EntryPointSearchResults:      {},
+	enums.EntryPointNew:                {},
+	enums.EntryPointNewWeek:            {},
+	enums.EntryPointTrending:           {},
+	enums.EntryPointRecommended:        {},
+	enums.EntryPointRecoPersonal:       {},
+	enums.EntryPointRecoCodownload:     {},
+	enums.EntryPointLeaderboardWeekly:  {},
+	enums.EntryPointLeaderboardMonthly: {},
 }
 
 func ListMarketplaceSkills(c *gin.Context) {
@@ -696,6 +707,68 @@ func ListCoDownloadRecommendations(c *gin.Context) {
 	writeMarketplaceRecommendationList(c, db, userInfo, skills, page, total)
 }
 
+func ListDownloadLeaderboards(c *gin.Context) {
+	page, validationErr := skillapi.ParsePageParams(c)
+	if validationErr != nil {
+		skillapi.AbortQueryError(c, validationErr)
+		return
+	}
+	window, duration, valid := parseDownloadLeaderboardWindow(c)
+	if !valid {
+		return
+	}
+	if page.Page != skillapi.DefaultPage {
+		skillapi.AbortQueryError(c, &skillapi.QueryValidationError{
+			Code:    errcodes.ErrInvalidRequest,
+			Message: "download leaderboards support page=1 only",
+			Detail:  gin.H{"reason": "INVALID_PAGINATION"},
+		})
+		return
+	}
+
+	db, ok := skillDB(c)
+	if !ok {
+		return
+	}
+	userInfo, err := marketplaceUserInfo(c, db)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	now := analyticsNow()
+	rows, total, err := loadDownloadLeaderboardRows(db, now.Add(-duration), now, strings.TrimSpace(c.Query("category")), page.Limit)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+
+	skills := make([]skillmodel.Skill, 0, len(rows))
+	for _, row := range rows {
+		skills = append(skills, row.Skill)
+	}
+	enabledBySkillID, err := marketplaceEnablementBySkillID(db, userInfo, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	savedBySkillID, err := marketplaceSavedBySkillID(db, userInfo, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+
+	out := make([]DownloadLeaderboardSkill, 0, len(rows))
+	for i, row := range rows {
+		out = append(out, DownloadLeaderboardSkill{
+			MarketplaceSkill: marketplaceSkillFromModel(row.Skill, userInfo, enabledBySkillID[row.Skill.ID], savedBySkillID[row.Skill.ID]),
+			DownloadCount:    row.DownloadCount,
+			Rank:             i + 1,
+			Window:           window,
+		})
+	}
+	skillapi.List(c, out, skillapi.NewPagination(skillapi.DefaultPage, page.Limit, total))
+}
+
 // RecordMarketplaceSkillEvent ingests privacy-safe client-side discovery events
 // for growth surfaces. It intentionally accepts only a tiny event/entry-point
 // whitelist and stores empty metadata so prompts, templates, and raw messages
@@ -1018,10 +1091,25 @@ func ListAdminSkills(c *gin.Context) {
 		writeDBError(c, err)
 		return
 	}
+	skillIDs := make([]string, 0, len(skills))
+	for _, s := range skills {
+		skillIDs = append(skillIDs, s.ID)
+	}
+	now := analyticsNow()
+	downloads7D, err := loadDownloadCountsBySkill(db, skillIDs, now.Add(-7*24*time.Hour), now)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	downloads30D, err := loadDownloadCountsBySkill(db, skillIDs, now.Add(-30*24*time.Hour), now)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
 
 	out := make([]AdminSkill, 0, len(skills))
 	for _, s := range skills {
-		out = append(out, adminSkillFromModel(s))
+		out = append(out, adminSkillFromModelWithDownloads(s, downloads7D[s.ID], downloads30D[s.ID]))
 	}
 	skillapi.List(c, out, skillapi.NewPagination(page.Page, page.Limit, total))
 }
@@ -1257,6 +1345,136 @@ type categoryAffinityRow struct {
 type coDownloadRow struct {
 	SkillID string
 	Count   int64
+}
+
+type downloadLeaderboardRow struct {
+	Skill         skillmodel.Skill
+	DownloadCount int64
+}
+
+var downloadAcquisitionEntryPoints = []enums.EntryPoint{
+	enums.EntryPointSkillPackage,
+	enums.EntryPointNew,
+	enums.EntryPointRecommended,
+	enums.EntryPointRecoPersonal,
+	enums.EntryPointRecoCodownload,
+	enums.EntryPointLeaderboardWeekly,
+	enums.EntryPointLeaderboardMonthly,
+}
+
+func parseDownloadLeaderboardWindow(c *gin.Context) (string, time.Duration, bool) {
+	switch strings.TrimSpace(c.DefaultQuery("window", "7d")) {
+	case "7d":
+		return "7d", 7 * 24 * time.Hour, true
+	case "30d":
+		return "30d", 30 * 24 * time.Hour, true
+	default:
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "window must be 7d or 30d", gin.H{"reason": "INVALID_WINDOW"})
+		return "", 0, false
+	}
+}
+
+func downloadCountsQuery(db *gorm.DB, start, end time.Time, skillIDs []string) *gorm.DB {
+	query := db.Model(&skillmodel.SkillUsageEvent{}).
+		Select("skill_id, count(*) AS download_count").
+		Where("occurred_at >= ? AND occurred_at < ?", start.UTC(), end.UTC()).
+		Where("skill_id IS NOT NULL").
+		Where("success = ?", true).
+		Where(
+			db.Where("event_type = ? AND entry_point IN ?", enums.SkillUsageEventTypeEnabled, downloadAcquisitionEntryPoints).
+				Or("event_type = ?", enums.SkillUsageEventTypePurchased),
+		).
+		Group("skill_id")
+	if len(skillIDs) > 0 {
+		query = query.Where("skill_id IN ?", skillIDs)
+	}
+	return query
+}
+
+func loadDownloadCountsBySkill(db *gorm.DB, skillIDs []string, start, end time.Time) (map[string]int64, error) {
+	out := make(map[string]int64, len(skillIDs))
+	if len(skillIDs) == 0 {
+		return out, nil
+	}
+	var rows []struct {
+		SkillID       string
+		DownloadCount int64
+	}
+	if err := downloadCountsQuery(db, start, end, skillIDs).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.SkillID] = row.DownloadCount
+	}
+	return out, nil
+}
+
+func loadDownloadLeaderboardRows(db *gorm.DB, start, end time.Time, category string, limit int) ([]downloadLeaderboardRow, int64, error) {
+	totalQuery := db.Table("skills").
+		Joins("JOIN (?) AS downloads ON downloads.skill_id = skills.id", downloadCountsQuery(db, start, end, nil)).
+		Where("skills.status = ?", enums.SkillStatusPublished)
+	if category != "" {
+		totalQuery = totalQuery.Where("skills.category = ?", category)
+	}
+	var total int64
+	if err := totalQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var rows []struct {
+		ID                string
+		Slug              string
+		Name              string
+		Category          string
+		ShortDescription  string
+		Status            enums.SkillStatus
+		RequiredPlan      enums.RequiredPlan
+		FreeQuotaPerMonth *int
+		FeaturedFlag      bool
+		FeaturedRank      *int
+		IsKidsSafe        bool
+		IsKidsExclusive   bool
+		DownloadCount     int64
+	}
+	query := db.Table("skills").
+		Select(`skills.id, skills.slug, skills.name, skills.category, skills.short_description,
+			skills.status, skills.required_plan, skills.free_quota_per_month,
+			skills.featured_flag, skills.featured_rank, skills.is_kids_safe,
+			skills.is_kids_exclusive, downloads.download_count`).
+		Joins("JOIN (?) AS downloads ON downloads.skill_id = skills.id", downloadCountsQuery(db, start, end, nil)).
+		Where("skills.status = ?", enums.SkillStatusPublished)
+	if category != "" {
+		query = query.Where("skills.category = ?", category)
+	}
+	if err := query.Order("downloads.download_count DESC").
+		Order("LOWER(skills.name) ASC").
+		Order("skills.id ASC").
+		Limit(limit).
+		Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+
+	out := make([]downloadLeaderboardRow, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, downloadLeaderboardRow{
+			Skill: skillmodel.Skill{
+				ID:                row.ID,
+				Slug:              row.Slug,
+				Name:              row.Name,
+				Category:          row.Category,
+				ShortDescription:  row.ShortDescription,
+				Status:            row.Status,
+				RequiredPlan:      row.RequiredPlan,
+				FreeQuotaPerMonth: row.FreeQuotaPerMonth,
+				FeaturedFlag:      row.FeaturedFlag,
+				FeaturedRank:      row.FeaturedRank,
+				IsKidsSafe:        row.IsKidsSafe,
+				IsKidsExclusive:   row.IsKidsExclusive,
+			},
+			DownloadCount: row.DownloadCount,
+		})
+	}
+	return out, total, nil
 }
 
 func personalRecommendationSkills(db *gorm.DB, user marketplaceUserContext, limit int) ([]skillmodel.Skill, int64, error) {
@@ -1669,6 +1887,13 @@ func adminSkillFromModel(s skillmodel.Skill) AdminSkill {
 		ExampleOutputs:     rawJSON(s.ExampleOutputs),
 		ModelWhitelist:     rawJSON(s.ModelWhitelist),
 	}
+}
+
+func adminSkillFromModelWithDownloads(s skillmodel.Skill, downloads7D, downloads30D int64) AdminSkill {
+	out := adminSkillFromModel(s)
+	out.Downloads7D = downloads7D
+	out.Downloads30D = downloads30D
+	return out
 }
 
 func rawJSON(value skillmodel.SkillJSONB) json.RawMessage {

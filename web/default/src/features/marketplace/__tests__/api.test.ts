@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
 import {
   emitMarketplaceEvent,
+  getDownloadLeaderboardSkills,
   getSavedSkills,
   getMarketplaceRailSkills,
   getMarketplaceSkills,
@@ -149,6 +150,32 @@ describe('Marketplace API review regressions', () => {
           category: 'writing',
           plan: 'free',
           kids_safe: true,
+        }),
+      })
+    )
+  })
+
+  it('requests download leaderboards with window and category filters', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({
+      data: {
+        data: [],
+        pagination: { page: 1, limit: 6, total: 0, has_next: false },
+      },
+    })
+
+    await getDownloadLeaderboardSkills({
+      window: '7d',
+      category: 'writing',
+      limit: 6,
+    })
+
+    expect(api.get).toHaveBeenCalledWith(
+      '/api/v1/marketplace/leaderboards/downloads',
+      expect.objectContaining({
+        params: expect.objectContaining({
+          window: '7d',
+          category: 'writing',
+          limit: 6,
         }),
       })
     )

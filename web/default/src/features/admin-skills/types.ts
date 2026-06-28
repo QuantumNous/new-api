@@ -70,6 +70,8 @@ export interface AdminSkill {
   example_inputs?: unknown[]
   example_outputs?: unknown[]
   model_whitelist?: unknown[]
+  downloads_7d?: number
+  downloads_30d?: number
 }
 
 export type AdminSkillListResponse = MarketplaceListResponse<AdminSkill>
