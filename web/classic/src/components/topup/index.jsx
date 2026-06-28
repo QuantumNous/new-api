@@ -26,6 +26,7 @@ import {
   showSuccess,
   renderQuota,
   renderQuotaWithAmount,
+  getCurrencyConfig,
   copy,
   getQuotaPerUnit,
 } from '../../helpers';
@@ -800,8 +801,17 @@ const TopUp = () => {
     }
   }, [statusState?.status]);
 
+  const renderPaymentAmount = (value) => {
+    const { symbol } = getCurrencyConfig();
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return symbol + value;
+    }
+    return symbol + numericValue.toFixed(2);
+  };
+
   const renderAmount = () => {
-    return amount + ' ' + t('元');
+    return renderPaymentAmount(amount);
   };
 
   const getAmount = async (value) => {
@@ -928,6 +938,7 @@ const TopUp = () => {
         renderQuotaWithAmount={renderQuotaWithAmount}
         amountLoading={amountLoading}
         renderAmount={renderAmount}
+        renderPaymentAmount={renderPaymentAmount}
         payWay={payWay}
         payMethods={confirmPayMethods}
         amountNumber={amount}
