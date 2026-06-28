@@ -507,11 +507,14 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	if !snap.Equal(task.Snapshot()) {
 		won, err := task.UpdateWithStatus(oldStatus)
 		if err == nil && won {
+			if task.Status == model.TaskStatusSuccess && oldStatus != model.TaskStatusSuccess {
+				service.SettleTaskBillingOnComplete(context.Background(), adaptor, task, ti)
+			}
 			if shouldRefund {
 				service.RefundTaskQuota(context.Background(), task, task.FailReason)
 			}
 			if task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure {
-				service.BackfillTaskLogDuration(context.Background(), task)
+				service.BackfillTaskLogOnComplete(context.Background(), task, ti)
 			}
 		}
 	}

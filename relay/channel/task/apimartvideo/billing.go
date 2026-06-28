@@ -20,7 +20,7 @@ func motionBillableSeconds(c *gin.Context, videoURL, orientation string, clientE
 
 	seconds := 0
 	if ctx := c.Request.Context(); strings.TrimSpace(videoURL) != "" {
-		if probed, err := service.ProbeRemoteVideoDurationSeconds(ctx, videoURL); err == nil && probed > 0 {
+		if probed, err := service.ProbeRemoteVideoDurationSecondsRound(ctx, videoURL); err == nil && probed > 0 {
 			seconds = probed
 		}
 	}
@@ -40,6 +40,10 @@ func motionBillableSeconds(c *gin.Context, videoURL, orientation string, clientE
 }
 
 func extractBillableSecondsFromApimart(body []byte) int {
+	return extractBillableSecondsFromApimartWithMode(body, "std")
+}
+
+func extractBillableSecondsFromApimartWithMode(body []byte, mode string) int {
 	if len(body) == 0 {
 		return 0
 	}
@@ -55,6 +59,13 @@ func extractBillableSecondsFromApimart(body []byte) int {
 		if v := gjson.GetBytes(body, path).Float(); v > 0 {
 			return int(math.Ceil(v))
 		}
+	}
+	if cost := gjson.GetBytes(body, "data.cost").Float(); cost > 0 {
+		rate := StdUSDPerSecond
+		if strings.EqualFold(strings.TrimSpace(mode), "pro") {
+			rate = ProUSDPerSecond
+		}
+		return int(math.Round(cost / rate))
 	}
 	return 0
 }
@@ -117,11 +128,13 @@ func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *rela
 
 	actualSeconds := taskResult.BillableSeconds
 	if actualSeconds <= 0 {
-		actualSeconds = extractBillableSecondsFromApimart(task.Data)
+		actualSeconds = extractBillableSecondsFromApimartWithMode(task.Data, motionModeFromTask(task))
 	}
 	if actualSeconds <= 0 && strings.TrimSpace(taskResult.Url) != "" {
-		if secs, err := service.ProbeRemoteVideoDurationSeconds(context.Background(), taskResult.Url); err == nil && secs > 0 {
-			actualSeconds = secs
+		if probeURL := motionOutputVideoURL(task, taskResult.Url); probeURL != "" {
+			if secs, err := service.ProbeRemoteVideoDurationSeconds(context.Background(), probeURL); err == nil && secs > 0 {
+				actualSeconds = secs
+			}
 		}
 	}
 	if actualSeconds <= 0 {
@@ -147,4 +160,31 @@ func motionVideoURLFromTask(task *model.Task) string {
 		}
 	}
 	return strings.TrimSpace(gjson.GetBytes(task.Data, "video_url").String())
+}
+
+func motionModeFromTask(task *model.Task) string {
+	if task == nil {
+		return "std"
+	}
+	if strings.TrimSpace(task.PrivateData.RequestData) != "" {
+		if m := gjson.Get(task.PrivateData.RequestData, "mode").String(); strings.TrimSpace(m) != "" {
+			return strings.TrimSpace(m)
+		}
+	}
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.OtherRatios != nil {
+		if r, ok := bc.OtherRatios["mode"]; ok && r > 1.01 {
+			return "pro"
+		}
+	}
+	return "std"
+}
+
+func motionOutputVideoURL(task *model.Task, parsedURL string) string {
+	if u := strings.TrimSpace(parsedURL); u != "" && !strings.Contains(u, "/v1/videos/") {
+		return u
+	}
+	if task != nil && strings.TrimSpace(task.PrivateData.UpstreamVideoURL) != "" {
+		return strings.TrimSpace(task.PrivateData.UpstreamVideoURL)
+	}
+	return strings.TrimSpace(parsedURL)
 }

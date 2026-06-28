@@ -18,7 +18,18 @@ import (
 const probeVideoMaxBytes = 100 << 20
 
 // ProbeRemoteVideoDurationSeconds downloads (up to 100MB) and probes MP4/MOV duration.
+// Duration is rounded up (ceil) to whole seconds.
 func ProbeRemoteVideoDurationSeconds(ctx context.Context, rawURL string) (int, error) {
+	return probeRemoteVideoDurationSeconds(ctx, rawURL, math.Ceil)
+}
+
+// ProbeRemoteVideoDurationSecondsRound is like ProbeRemoteVideoDurationSeconds but rounds
+// to the nearest whole second (四舍五入). Used for motion-control pre-charge at submit.
+func ProbeRemoteVideoDurationSecondsRound(ctx context.Context, rawURL string) (int, error) {
+	return probeRemoteVideoDurationSeconds(ctx, rawURL, math.Round)
+}
+
+func probeRemoteVideoDurationSeconds(ctx context.Context, rawURL string, roundFn func(float64) float64) (int, error) {
 	u := strings.TrimSpace(rawURL)
 	if u == "" {
 		return 0, fmt.Errorf("empty video url")
@@ -71,7 +82,11 @@ func ProbeRemoteVideoDurationSeconds(ctx context.Context, rawURL string) (int, e
 	if seconds <= 0 {
 		return 0, fmt.Errorf("zero duration")
 	}
-	return int(math.Ceil(seconds)), nil
+	rounded := int(roundFn(seconds))
+	if rounded <= 0 && seconds > 0 {
+		rounded = 1
+	}
+	return rounded, nil
 }
 
 func videoProbeExt(rawURL, contentType string) string {

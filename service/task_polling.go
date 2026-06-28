@@ -21,14 +21,17 @@ import (
 	"github.com/samber/lo"
 )
 
+// TaskBillingAdaptor is the minimal interface for async task completion billing.
+type TaskBillingAdaptor interface {
+	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
+}
+
 // TaskPollingAdaptor 定义轮询所需的最小适配器接口，避免 service -> relay 的循环依赖
 type TaskPollingAdaptor interface {
+	TaskBillingAdaptor
 	Init(info *relaycommon.RelayInfo)
 	FetchTask(baseURL string, key string, body map[string]any, proxy string) (*http.Response, error)
 	ParseTaskResult(body []byte) (*relaycommon.TaskInfo, error)
-	// AdjustBillingOnComplete 在任务到达终态（成功/失败）时由轮询循环调用。
-	// 返回正数触发差额结算（补扣/退还），返回 0 保持预扣费金额不变。
-	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
 }
 
 // GetTaskAdaptorFunc 由 main 包注入，用于获取指定平台的任务适配器。
@@ -495,13 +498,13 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	if shouldSettle {
-		settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+		SettleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
 	}
 	if shouldRefund {
 		RefundTaskQuota(ctx, task, task.FailReason)
 	}
 	if terminalLogged {
-		BackfillTaskLogDuration(ctx, task)
+		BackfillTaskLogOnComplete(ctx, task, taskResult)
 	}
 
 	return nil
@@ -541,12 +544,12 @@ func truncateBase64(s string) string {
 	return s[:maxKeep] + "..."
 }
 
-// settleTaskBillingOnComplete 任务完成时的统一计费调整。
+// SettleTaskBillingOnComplete 任务完成时的统一计费调整。
 // 优先级：1. adaptor.AdjustBillingOnComplete 返回正数 → 使用 adaptor 计算的额度
 //
 //  2. taskResult.TotalTokens > 0 → 按 token 重算
 //  3. 都不满足 → 保持预扣额度不变
-func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
+func SettleTaskBillingOnComplete(ctx context.Context, adaptor TaskBillingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
 	// 0. 按次计费的任务不做差额结算
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
 		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，跳过差额结算", task.TaskID))

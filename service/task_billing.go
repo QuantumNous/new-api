@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -114,20 +115,91 @@ func TaskLogElapsedSeconds(task *model.Task) int {
 
 // BackfillTaskLogDuration rewrites the submit-time consume log row with real generation latency.
 func BackfillTaskLogDuration(ctx context.Context, task *model.Task) {
+	BackfillTaskLogOnComplete(ctx, task, nil)
+}
+
+// BackfillTaskLogOnComplete updates use_time, result_url, and actual billable duration on the consume log.
+func BackfillTaskLogOnComplete(ctx context.Context, task *model.Task, taskResult *relaycommon.TaskInfo) {
 	if task == nil || task.UserId <= 0 || strings.TrimSpace(task.TaskID) == "" {
 		return
 	}
 	elapsed := TaskLogElapsedSeconds(task)
-	if elapsed <= 0 {
-		return
-	}
 	extra := map[string]interface{}{}
 	if resultURL := strings.TrimSpace(task.PrivateData.ResultURL); IsValidMediaResultURL(resultURL) {
 		extra["result_url"] = resultURL
 	}
+	if secs := taskActualBillableSeconds(task, taskResult); secs > 0 {
+		mergeRequestDataDuration(extra, task, secs)
+	}
+	if elapsed <= 0 && len(extra) == 0 {
+		return
+	}
 	if err := model.UpdateLogResultByTaskID(task.UserId, task.TaskID, elapsed, extra); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("failed to backfill use_time for task %s: %v", task.TaskID, err))
 	}
+}
+
+func taskActualBillableSeconds(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	if taskResult != nil && taskResult.BillableSeconds > 0 {
+		return taskResult.BillableSeconds
+	}
+	if task == nil || len(task.Data) == 0 {
+		return 0
+	}
+	for _, path := range []string{
+		"data.duration",
+		"data.billable_seconds",
+		"data.billable_duration",
+		"data.actual_duration",
+		"data.output_duration",
+	} {
+		if v := gjson.GetBytes(task.Data, path).Float(); v > 0 {
+			return int(math.Ceil(v))
+		}
+	}
+	cost := gjson.GetBytes(task.Data, "data.cost").Float()
+	if cost <= 0 {
+		return 0
+	}
+	rate := taskMotionUSDPerSecond(task)
+	if rate <= 0 {
+		return 0
+	}
+	return int(math.Round(cost / rate))
+}
+
+func taskMotionUSDPerSecond(task *model.Task) float64 {
+	if task == nil || task.PrivateData.BillingContext == nil {
+		return 0
+	}
+	rate := task.PrivateData.BillingContext.ModelPrice
+	if rate <= 0 {
+		return 0
+	}
+	if bc := task.PrivateData.BillingContext; bc.OtherRatios != nil {
+		if modeR, ok := bc.OtherRatios["mode"]; ok && modeR > 0 && modeR != 1 {
+			rate *= modeR
+		}
+	}
+	return rate
+}
+
+func mergeRequestDataDuration(extra map[string]interface{}, task *model.Task, seconds int) {
+	if extra == nil || task == nil || seconds <= 0 {
+		return
+	}
+	rd := map[string]interface{}{}
+	if raw := strings.TrimSpace(task.PrivateData.RequestData); raw != "" {
+		_ = common.Unmarshal([]byte(raw), &rd)
+	}
+	if existing, ok := extra["request_data"].(map[string]interface{}); ok && len(existing) > 0 {
+		for k, v := range existing {
+			rd[k] = v
+		}
+	}
+	rd["duration"] = seconds
+	rd["billed_seconds"] = seconds
+	extra["request_data"] = EnrichVideoRequestData(rd)
 }
 
 // ---------------------------------------------------------------------------

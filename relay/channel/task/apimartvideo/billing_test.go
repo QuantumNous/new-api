@@ -41,4 +41,7 @@ func TestRecalcMotionControlQuotaNoChange(t *testing.T) {
 func TestExtractBillableSecondsFromApimart(t *testing.T) {
 	body := []byte(`{"data":{"duration":4.2,"status":"completed"}}`)
 	require.Equal(t, 5, extractBillableSecondsFromApimart(body))
+
+	costBody := []byte(`{"data":{"cost":0.41152,"status":"completed"}}`)
+	require.Equal(t, 4, extractBillableSecondsFromApimart(costBody))
 }
