@@ -1,6 +1,6 @@
 # DR-100 One-Time Skill Purchase PRD
 
-**Status:** eval
+**Status:** ship
 **Ticket:** DR-100
 **Branch:** feature/DR-100-one-time-single-skill-purchase-2-buy-out-checkou
 **Date:** 2026-06-29

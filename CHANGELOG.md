@@ -11,6 +11,7 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 - 更新 DR-100 one-time Skill purchase 任务 PRD 状态为 build，进入实现阶段（`docs/tasks/dr100-one-time-skill-purchase-prd.md`）
 - 新增 DR-100 one-time Skill purchase 后端：`one_time` monetization、`POST /api/v1/marketplace/skills/:id/purchase`、idempotent purchase order、durable entitlement、download/use-time entitlement 放行与 `skill_purchased` 事件，并补成功/失败/重复/下载/runtime 回归测试（`internal/skill/{model,handler,relay,enums}`, `router/skill-router.go`）
 - 更新 DR-100 one-time Skill purchase 任务 PRD 状态为 eval，进入 PR review/checks 阶段（`docs/tasks/dr100-one-time-skill-purchase-prd.md`）
+- 更新 DR-100 one-time Skill purchase 任务 PRD 状态为 ship，记录 PR #119 已合并（`docs/tasks/dr100-one-time-skill-purchase-prd.md`）
 
 ## 2026-06-27
 
