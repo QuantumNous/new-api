@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	referralmodel "github.com/QuantumNous/new-api/internal/referral/model"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
 
 	"github.com/glebarez/sqlite"
@@ -328,6 +329,9 @@ func migrateDB() error {
 	if err := skillmodel.MigrateSkillTelemetryQuarantine(DB); err != nil {
 		return err
 	}
+	if err := referralmodel.MigrateReferrals(DB); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -363,6 +367,7 @@ func migrateDBFast() error {
 		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
+		{&referralmodel.ReferralRecord{}, "ReferralRecord"},
 		{&PerfMetric{}, "PerfMetric"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大

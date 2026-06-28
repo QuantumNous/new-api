@@ -703,6 +703,7 @@ func handleAirwallexSucceeded(c *gin.Context, event *AirwallexWebhookEvent, inte
 		return
 	}
 
+	grantReferralForTopUp(ctx, tradeNo)
 	logger.LogInfo(ctx, fmt.Sprintf("Airwallex 充值成功 trade_no=%s intent_id=%s amount=%.2f currency=%s event_id=%s", tradeNo, intent.ID, intent.Amount, intent.Currency, event.ID))
 	c.Status(http.StatusOK)
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	referralmodel "github.com/QuantumNous/new-api/internal/referral/model"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
@@ -19,7 +20,7 @@ import (
 func purchaseTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := testDownloadDB(t)
-	require.NoError(t, db.AutoMigrate(&platformmodel.User{}))
+	require.NoError(t, db.AutoMigrate(&platformmodel.User{}, &referralmodel.ReferralRecord{}))
 	return db
 }
 

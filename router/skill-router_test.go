@@ -284,6 +284,7 @@ func newSkillRouterTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
 	require.NoError(t, skillmodel.MigrateUserSavedSkills(db))
 	require.NoError(t, skillmodel.MigrateSkillAuditLog(db))
+	require.NoError(t, skillmodel.MigrateSkillPurchases(db))
 	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
 	require.NoError(t, skillmodel.MigrateSkillTelemetryQuarantine(db))
 	require.NoError(t, db.AutoMigrate(&platformmodel.User{}))

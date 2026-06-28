@@ -1,0 +1,49 @@
+DR-98 Referral program verification
+
+- Command: `go test ./internal/referral/...`
+  Dataset/fixtures: Isolated SQLite in-memory users plus referral_records for inviter/invitee signup, conversion, self-referral, and fraud-cap cases.
+  Verified: Signup attribution creates referral funnel rows; first qualifying conversion grants inviter and invitee quota rewards; duplicate conversion is idempotent; self-referral and fraud-cap overflow block without balance mutation.
+  Coverage: `go test ./internal/referral/... -cover` reports `internal/referral/service` at 47.8% statement coverage; `internal/referral/model` has no standalone tests.
+  Result: PASS
+
+- Command: `GOCACHE=/private/tmp/dr98-gocache go test ./internal/skill/handler -run 'TestPurchaseMarketplaceSkill'`
+  Dataset/fixtures: Existing Skill one-time purchase handler fixtures with SQLite users, published one-time Skill, idempotency keys, failed payment, and idempotency conflict cases; fixture now migrates `referral_records`.
+  Verified: One-time Skill purchase remains idempotent and now has the referral ledger available for successful purchase conversion attribution.
+  Coverage: Not collected for this focused regression command.
+  Result: PASS
+
+- Command: `GOCACHE=/private/tmp/dr98-gocache go test ./internal/skill/handler ./model ./controller`
+  Dataset/fixtures: Existing handler/model/controller payment, subscription, Skill, and router fixtures.
+  Verified: Related payment/subscription completion and Skill purchase paths compile and pass after referral hooks; first run of the broad handler package needed local listener permission for unrelated `httptest.NewServer` cases.
+  Coverage: Not collected for this related regression command.
+  Result: PASS for `model` and `controller`; `internal/skill/handler` rerun under listener-capable environment passed.
+
+- Command: `GOCACHE=/private/tmp/dr98-gocache go test ./router`
+  Dataset/fixtures: Existing Skill router marketplace fixtures plus migrated `skill_purchase_orders` table required by DR-89 purchase-count social proof queries.
+  Verified: Marketplace list envelope, access-token auth, and rate-limit envelope router regressions pass after fixture migration.
+  Coverage: Not collected for this focused router regression.
+  Result: PASS
+
+- Command: `bun run typecheck` (from `web/default`)
+  Dataset/fixtures: TypeScript project references for the default frontend.
+  Verified: Dashboard referral API/card types compile.
+  Coverage: Not available; typecheck only.
+  Result: PASS
+
+- Command: `bun run build` (from `web/default`)
+  Dataset/fixtures: Default frontend production build.
+  Verified: Dashboard bundle builds with Invite & earn card and referral API helper.
+  Coverage: Not available; production build only.
+  Result: PASS
+
+- Command: `bun run build` (from `web/classic`)
+  Dataset/fixtures: Classic frontend production build used to satisfy Go embed prerequisites for the root package.
+  Verified: `web/classic/dist` exists for full Go suite embed checks.
+  Coverage: Not available; production build only.
+  Result: PASS
+
+- Command: `GOCACHE=/private/tmp/dr98-gocache go test ./...`
+  Dataset/fixtures: Full repository Go test suite with default/classic frontend dist present; run outside sandbox for existing tests that bind local `httptest` servers.
+  Verified: Full backend regression suite, including referral service, payment/controller/model, Skill handler, middleware, relay, service, settings, and router packages.
+  Coverage: Not collected for full-suite command.
+  Result: PASS

@@ -68,3 +68,22 @@ export async function getUptimeStatus() {
   )
   return res.data
 }
+
+export interface ReferralSummary {
+  invite_code: string
+  invite_link: string
+  signed_up_count: number
+  converted_count: number
+  rewarded_count: number
+  blocked_count: number
+  reward_kind: string
+  inviter_reward_amount: number
+  invitee_reward_amount: number
+}
+
+export async function getReferralSummary() {
+  const res = await api.get<{ success: boolean; data: ReferralSummary }>(
+    '/api/user/referral'
+  )
+  return res.data
+}

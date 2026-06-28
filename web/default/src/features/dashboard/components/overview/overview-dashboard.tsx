@@ -28,6 +28,7 @@ import {
   Circle,
   CreditCard,
   FileText,
+  Gift,
   KeyRound,
   ListChecks,
   RadioTower,
@@ -44,6 +45,7 @@ import { MOTION_TRANSITION } from '@/lib/motion'
 import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { CopyButton } from '@/components/copy-button'
 import {
   CardStaggerContainer,
@@ -51,6 +53,7 @@ import {
 } from '@/components/page-transition'
 import { fetchTokenKey, getApiKeys } from '@/features/keys/api'
 import type { ApiKey } from '@/features/keys/types'
+import { getReferralSummary } from '../../api'
 import { useApiInfo } from '../../hooks/use-status-data'
 import { AnnouncementsPanel } from './announcements-panel'
 import { ApiInfoPanel } from './api-info-panel'
@@ -205,6 +208,108 @@ function SetupGuideBackdrop(props: { compact?: boolean }) {
         aria-hidden='true'
       />
     </>
+  )
+}
+
+function formatRewardAmount(amount: number): string {
+  if (amount <= 0) return '0'
+  if (amount >= 500_000) return `$${(amount / 500_000).toFixed(0)}`
+  return amount.toLocaleString()
+}
+
+function InviteEarnCard() {
+  const { t } = useTranslation()
+  const referralQuery = useQuery({
+    queryKey: ['dashboard', 'referral-summary'],
+    queryFn: async () => {
+      const res = await getReferralSummary()
+      return res.data
+    },
+    staleTime: 60_000,
+  })
+  const summary = referralQuery.data
+  const inviteLink = summary?.invite_link ?? ''
+
+  return (
+    <div className='bg-card h-full rounded-2xl border p-4 shadow-xs sm:p-5'>
+      <div className='flex h-full flex-col gap-4'>
+        <div className='flex items-start justify-between gap-3'>
+          <div className='flex min-w-0 flex-col gap-1'>
+            <div className='text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wider uppercase'>
+              <Gift className='size-3.5' aria-hidden='true' />
+              {t('Invite & earn')}
+            </div>
+            <h3 className='text-lg font-semibold tracking-tight'>
+              {t('Give a friend credit after their first purchase')}
+            </h3>
+          </div>
+          <CopyButton
+            value={inviteLink}
+            variant='outline'
+            size='sm'
+            tooltip={t('Copy invite link')}
+            successTooltip={t('Invite link copied')}
+          >
+            {t('Copy')}
+          </CopyButton>
+        </div>
+
+        {referralQuery.isLoading ? (
+          <div className='grid grid-cols-3 gap-2'>
+            {Array.from({ length: 3 }).map((_, index) => (
+              <Skeleton key={index} className='h-16 rounded-xl' />
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className='bg-muted/35 rounded-xl border px-3 py-2'>
+              <div className='text-muted-foreground text-xs'>
+                {t('Invite code')}
+              </div>
+              <div className='truncate font-mono text-sm'>
+                {summary?.invite_code || t('Not available')}
+              </div>
+            </div>
+            <div className='grid grid-cols-3 gap-2'>
+              <div className='rounded-xl border px-3 py-2'>
+                <div className='text-muted-foreground text-xs'>
+                  {t('Signups')}
+                </div>
+                <div className='font-mono text-xl tabular-nums'>
+                  {summary?.signed_up_count ?? 0}
+                </div>
+              </div>
+              <div className='rounded-xl border px-3 py-2'>
+                <div className='text-muted-foreground text-xs'>
+                  {t('Converted')}
+                </div>
+                <div className='font-mono text-xl tabular-nums'>
+                  {summary?.converted_count ?? 0}
+                </div>
+              </div>
+              <div className='rounded-xl border px-3 py-2'>
+                <div className='text-muted-foreground text-xs'>
+                  {t('Rewarded')}
+                </div>
+                <div className='font-mono text-xl tabular-nums'>
+                  {summary?.rewarded_count ?? 0}
+                </div>
+              </div>
+            </div>
+            <p className='text-muted-foreground text-xs leading-relaxed'>
+              {t(
+                'You both receive {{amount}} credit once their first purchase succeeds.',
+                {
+                  amount: formatRewardAmount(
+                    summary?.inviter_reward_amount ?? 0
+                  ),
+                }
+              )}
+            </p>
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -719,6 +824,9 @@ export function OverviewDashboard() {
           </CardStaggerItem>
           <CardStaggerItem>
             <FAQPanel />
+          </CardStaggerItem>
+          <CardStaggerItem>
+            <InviteEarnCard />
           </CardStaggerItem>
         </div>
         <CardStaggerItem>

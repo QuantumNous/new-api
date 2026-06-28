@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	referralmodel "github.com/QuantumNous/new-api/internal/referral/model"
+	referralservice "github.com/QuantumNous/new-api/internal/referral/service"
 	skillapi "github.com/QuantumNous/new-api/internal/skill/api"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/QuantumNous/new-api/internal/skill/errcodes"
@@ -145,6 +147,9 @@ func PurchaseMarketplaceSkill(c *gin.Context) {
 		}
 		plan := groupToPlan(c.GetString("group"))
 		if err := skillmodel.EmitSkillPurchased(tx, userID, s.ID, s.ActiveVersionID, plan, oneTimeSkillPurchaseAmountUSD, entryPoint); err != nil {
+			return err
+		}
+		if _, _, err := referralservice.GrantForConversion(tx, userID, referralmodel.ReferralConversionSkill, order.ID); err != nil {
 			return err
 		}
 		now := time.Now().UTC()
