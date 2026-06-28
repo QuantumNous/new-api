@@ -7,6 +7,10 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 - 新增 DR-97 Personalized recommendations 任务 PRD，定义基于下载/使用类别、co-download、cold-start fallback、Kids 可见性与 `reco_personal`/`reco_codownload` 归因的实现范围（`docs/tasks/dr97-personalized-recommendations-prd.md`）
 - 实现 DR-97 Personalized recommendations 后端接口：新增个人类别亲和推荐与 co-download 推荐 API，复用 Marketplace availability 形状展示 locked-but-buyable Skill，Kids 模式过滤非 kids-safe 推荐，并扩展 `reco_personal`/`reco_codownload` 归因枚举与下载转换入口（`internal/skill/handler`, `router/skill-router.go`, `internal/skill/{enums,model}`, `docs/skill-marketplace/tasks/`）
 - 记录 DR-97 聚焦、相关回归与 full Go suite 测试结果和覆盖率；full suite 前先构建 ignored frontend dist 以满足 root package embed 前置条件（`docs/test-results/dr97-personalized-recommendations.txt`）
+- 新增 DR-100 one-time Skill purchase 任务 PRD，明确 $2 buy-out checkout、durable entitlement、download/runtime 授权与 skill_purchased 事件范围（`docs/tasks/dr100-one-time-skill-purchase-prd.md`）
+- 更新 DR-100 one-time Skill purchase 任务 PRD 状态为 build，进入实现阶段（`docs/tasks/dr100-one-time-skill-purchase-prd.md`）
+- 新增 DR-100 one-time Skill purchase 后端：`one_time` monetization、`POST /api/v1/marketplace/skills/:id/purchase`、idempotent purchase order、durable entitlement、download/use-time entitlement 放行与 `skill_purchased` 事件，并补成功/失败/重复/下载/runtime 回归测试（`internal/skill/{model,handler,relay,enums}`, `router/skill-router.go`）
+- 更新 DR-100 one-time Skill purchase 任务 PRD 状态为 eval，进入 PR review/checks 阶段（`docs/tasks/dr100-one-time-skill-purchase-prd.md`）
 
 ## 2026-06-27
 

@@ -52,6 +52,8 @@ func newSkillTestDB(t *testing.T) *gorm.DB {
 		&skillmodel.Skill{},
 		&skillmodel.SkillVersion{},
 		&skillmodel.UserEnabledSkill{},
+		&skillmodel.SkillPurchaseOrder{},
+		&skillmodel.SkillEntitlement{},
 		&platformmodel.SubscriptionPlan{},
 		&platformmodel.UserSubscription{},
 	))

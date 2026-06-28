@@ -161,9 +161,16 @@ func resolveVersion(c *gin.Context, database *gorm.DB, skillID string, skillVers
 		return nil, errcodes.ErrSkillInternalError
 	}
 
-	entitlement, err := resolveRuntimeEntitlement(database, userID, user.Group)
+	entitlement := runtimeEntitlement{Plan: versionEntitlement.RequiredPlanSnapshot, SubActive: true}
+	hasOneTimeEntitlement, err := skillmodel.HasOneTimeEntitlement(database, int64(userID), skill.ID)
 	if err != nil {
 		return nil, errcodes.ErrSkillInternalError
+	}
+	if !hasOneTimeEntitlement {
+		entitlement, err = resolveRuntimeEntitlement(database, userID, user.Group)
+		if err != nil {
+			return nil, errcodes.ErrSkillInternalError
+		}
 	}
 	if code := useTimeEntitlementDecision(versionEntitlement.RequiredPlanSnapshot, entitlement.Plan, entitlement.SubActive); code != "" {
 		return nil, code

@@ -57,7 +57,7 @@ func DownloadSkillPackage(c *gin.Context) {
 		return
 	}
 
-	if !downloadEntitled(s.RequiredPlan, c.GetString("group")) {
+	if !downloadEntitled(db, s, int64(c.GetInt("id")), c.GetString("group")) {
 		skillapi.Error(c, errcodes.ErrSkillPlanRequired,
 			fmt.Sprintf("This skill requires the %s plan.", s.RequiredPlan), nil)
 		return
@@ -94,7 +94,7 @@ func DownloadSkillVersionPackage(c *gin.Context) {
 		return
 	}
 
-	if !downloadEntitled(s.RequiredPlan, c.GetString("group")) {
+	if !downloadEntitled(db, s, int64(c.GetInt("id")), c.GetString("group")) {
 		skillapi.Error(c, errcodes.ErrSkillPlanRequired,
 			fmt.Sprintf("This skill requires the %s plan.", s.RequiredPlan), nil)
 		return
@@ -138,8 +138,14 @@ func sendSkillPackageDownload(c *gin.Context, db *gorm.DB, s skillmodel.Skill, v
 // downloadEntitled reports whether the user's group level meets or exceeds the
 // skill's required plan. Maps platform group strings to the three-tier hierarchy
 // used by the availability resolver (free < pro < enterprise).
-func downloadEntitled(required enums.RequiredPlan, userGroup string) bool {
-	return downloadPlanLevel(groupToPlan(userGroup)) >= downloadPlanLevel(required)
+func downloadEntitled(db *gorm.DB, s skillmodel.Skill, userID int64, userGroup string) bool {
+	if userID > 0 {
+		ok, err := skillmodel.HasOneTimeEntitlement(db, userID, s.ID)
+		if err == nil && ok {
+			return true
+		}
+	}
+	return downloadPlanLevel(groupToPlan(userGroup)) >= downloadPlanLevel(s.RequiredPlan)
 }
 
 func downloadEntryPoint(raw string) enums.EntryPoint {

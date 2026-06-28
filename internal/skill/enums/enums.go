@@ -47,12 +47,14 @@ const (
 	MonetizationTypeFree         MonetizationType = "free"
 	MonetizationTypePlanIncluded MonetizationType = "plan_included"
 	MonetizationTypeTokenMarkup  MonetizationType = "token_markup"
+	MonetizationTypeOneTime      MonetizationType = "one_time"
 )
 
 var validMonetizationTypes = map[MonetizationType]struct{}{
 	MonetizationTypeFree:         {},
 	MonetizationTypePlanIncluded: {},
 	MonetizationTypeTokenMarkup:  {},
+	MonetizationTypeOneTime:      {},
 }
 
 func (m MonetizationType) Valid() bool { _, ok := validMonetizationTypes[m]; return ok }
@@ -187,6 +189,7 @@ const (
 	SkillUsageEventTypeBlocked             SkillUsageEventType = "skill_blocked"
 	SkillUsageEventTypeFirstUse            SkillUsageEventType = "skill_first_use"
 	SkillUsageEventTypeRepeatUse           SkillUsageEventType = "skill_repeat_use"
+	SkillUsageEventTypePurchased           SkillUsageEventType = "skill_purchased"
 )
 
 var validSkillUsageEventTypes = map[SkillUsageEventType]struct{}{
@@ -206,6 +209,7 @@ var validSkillUsageEventTypes = map[SkillUsageEventType]struct{}{
 	SkillUsageEventTypeBlocked:             {},
 	SkillUsageEventTypeFirstUse:            {},
 	SkillUsageEventTypeRepeatUse:           {},
+	SkillUsageEventTypePurchased:           {},
 }
 
 func (e SkillUsageEventType) Valid() bool { _, ok := validSkillUsageEventTypes[e]; return ok }
