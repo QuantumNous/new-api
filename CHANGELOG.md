@@ -4,6 +4,9 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-29
 
+- 新增 DR-94 Admin per-user Skill usage drill-down 任务 PRD，明确 Super Admin-only、NEW-11/Tier 2 consent gate、audit logging、Kids pseudonymization 与 no raw prompt/provider payload 范围（`docs/tasks/dr94-admin-per-user-drill-down-downloads-token-consum-prd.md`）
+- 实现 DR-94 Admin per-user Skill usage drill-down 后端 API：新增 `GET /api/v1/admin/users/:user_id/skill-usage`，仅 Super Admin 可访问；按目标用户 `tier2_telemetry_consent` gate 返回下载 Skill、per-skill token totals、USD cost、last update time 与 usage timeline；非 consent 返回空 rows；每次解析到目标用户的访问写 `skill_admin_action` audit；响应不读取/返回 metadata/prompt/raw/provider payload，并避免将 Kids pseudonymous usage events 反查到真实用户（`internal/skill/handler/admin_user_usage.go`, `router/skill-router.go`）
+- 记录 DR-94 聚焦与相关 handler/router 回归测试结果和覆盖率（`docs/test-results/dr94-admin-per-user-drill-down-downloads-token-consum.txt`）
 - 新增 DR-96 monetization-linked Skill funnels 任务 PRD，定义充值后首次使用 Skill 转化、Skill 使用后复购充值留存、aggregate-only 与 attribution 标注范围（`docs/tasks/dr96-monetization-linked-skill-funnels-prd.md`）
 - 实现 DR-96 monetization-linked Skill funnels：Skill Analytics overview/per-skill API 连接成功充值 `top_ups` 与 `skill_first_use`/成功 `skill_used`，新增 recharge→first-use conversion、median time-to-first-use、skill-use→repeat-recharge retention 与 attribution revenue；所有商业化指标仅在充值配置启用时返回/展示，前端新增归因卡片与按 Skill/plan 分组表格，保持 aggregate-only（`internal/skill/handler/analytics.go`, `web/default/src/features/skill-analytics/`, `web/default/src/i18n/locales/`）
 - 记录 DR-96 聚焦、相关回归、前端 typecheck/build 与 full Go suite 测试结果和覆盖率；full suite 前构建 classic/default frontend dist 以满足 root package embed 前置条件（`docs/test-results/dr96-monetization-linked-skill-funnels.txt`）
