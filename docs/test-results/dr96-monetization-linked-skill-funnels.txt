@@ -1,0 +1,46 @@
+DR-96 Monetization-linked Skill funnels test results
+
+Backend focused analytics
+- Command: GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/handler -run 'TestGetOpsSkillAnalytics|TestDataFreshness' -count=1 -cover
+- Dataset/fixtures: in-memory SQLite Skill, SkillUsageEvent, UserEnabledSkill, and TopUp fixtures seeded by analytics_test.go.
+- Verified: charging-disabled gating; recharge -> first Skill use conversion; median time-to-first-use; Skill use -> subsequent recharge retention; attribution revenue; per-Skill monetization slices; existing freshness and ordered funnel behavior.
+- Coverage: internal/skill/handler 19.2% statements for this focused subset.
+- Result: PASS.
+
+Backend related Skill regression
+- Command: GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./internal/skill/... -count=1 -cover
+- Dataset/fixtures: package-local unit fixtures across Skill API, availability, enums, errcodes, handler, model, relay, seed, and tiers.
+- Verified: DR-96 analytics changes do not regress Skill marketplace, relay, model migrations, seed, or tier logic.
+- Coverage: handler 74.7%, relay 81.5%, api 77.8%, availability 96.7%, enums 88.9%, errcodes 100.0%, model 47.7%, seed 79.4%, tiers 100.0%.
+- Result: PASS.
+
+Frontend focused Skill Analytics
+- Command: bunx vitest run src/features/skill-analytics/__tests__/types.test.ts src/features/skill-analytics/__tests__/dashboard.integration.test.tsx --coverage
+- Dataset/fixtures: mocked React Query API responses for overview and per-Skill analytics, including charging enabled/disabled, null metrics, tracking failed/delayed, and per-Skill monetization rows.
+- Verified: 34 assertions covering date ranges, P0 cards, DR-96 monetization cards, per-Skill attribution table, charging gating, no-data, error, and rolling refresh behavior.
+- Coverage: skill-analytics/index.tsx 95.23% statements / 88.05% branches; skill-analytics/types.ts 100% statements / 83.33% branches.
+- Result: PASS.
+
+Frontend typecheck/build
+- Command: bun run typecheck
+- Dataset/fixtures: TypeScript project references.
+- Verified: frontend type contract compiles after Skill Analytics API/type additions.
+- Coverage: not applicable.
+- Result: PASS.
+- Command: bun run build
+- Dataset/fixtures: Rsbuild production build for web/default.
+- Verified: production frontend bundle compiles with DR-96 dashboard changes.
+- Coverage: not applicable.
+- Result: PASS.
+
+Full Go suite
+- Command: make build-frontend-classic
+- Dataset/fixtures: web/classic production build artifact needed by root package embed tests.
+- Verified: classic frontend embed prerequisite exists for full Go test.
+- Coverage: not applicable.
+- Result: PASS.
+- Command: GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache go test ./... -count=1
+- Dataset/fixtures: repository-wide Go tests, with web/default and web/classic dist artifacts present for embed setup.
+- Verified: all Go packages compile and pass after DR-96 backend changes.
+- Coverage: not collected for this full-suite command.
+- Result: PASS.
