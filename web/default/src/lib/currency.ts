@@ -99,6 +99,8 @@ export interface CurrencyFormatOptions {
    * "$280K" in en). The currency symbol is preserved.
    */
   compact?: boolean
+  /** Whether to include the currency/custom symbol. Token displays are unchanged. */
+  showSymbol?: boolean
   /** Locale used for number formatting (defaults to the runtime locale) */
   locale?: Intl.LocalesArgument | undefined
 }
@@ -134,6 +136,7 @@ const DEFAULT_FORMAT_OPTIONS: ResolvedCurrencyFormatOptions = {
   abbreviate: true,
   minimumNonZero: 0,
   compact: false,
+  showSymbol: true,
   locale: undefined,
 }
 
@@ -236,6 +239,7 @@ function mergeOptions(
     minimumNonZero:
       options.minimumNonZero ?? DEFAULT_FORMAT_OPTIONS.minimumNonZero,
     compact: options.compact ?? DEFAULT_FORMAT_OPTIONS.compact,
+    showSymbol: options.showSymbol ?? DEFAULT_FORMAT_OPTIONS.showSymbol,
     locale: options.locale ?? DEFAULT_FORMAT_OPTIONS.locale,
   }
 }
@@ -254,7 +258,7 @@ function formatNumberWithSuffix(
   const abs = Math.abs(value)
   if (abbreviate && abs >= 1000) {
     const result = value / 1000
-    return removeTrailingZeros(result.toFixed(1)) + 'k'
+    return `${removeTrailingZeros(result.toFixed(1))}k`
   }
 
   const digits = abs >= 1 ? digitsLarge : digitsSmall
@@ -301,6 +305,14 @@ function formatCurrencyValue(
   const adjustedValue = adjustForMinimum(value, digits, options.minimumNonZero)
 
   if (meta.kind === 'currency') {
+    if (!options.showSymbol) {
+      return new Intl.NumberFormat(options.locale, {
+        notation: options.compact ? 'compact' : 'standard',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: options.compact ? 1 : digits,
+      }).format(adjustedValue)
+    }
+
     const formatted = new Intl.NumberFormat(options.locale, {
       style: 'currency',
       currency: meta.currencyCode,
@@ -318,7 +330,7 @@ function formatCurrencyValue(
     maximumFractionDigits: options.compact ? 1 : digits,
   }).format(adjustedValue)
 
-  return `${meta.symbol} ${decimal}`
+  return options.showSymbol ? `${meta.symbol} ${decimal}` : decimal
 }
 
 /**

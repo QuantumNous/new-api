@@ -44,6 +44,10 @@ export const ADVANCED_CUSTOM_CONVERTER_OPTIONS: Array<{
     label: 'OpenAI Chat to OpenAI Responses',
   },
   {
+    value: 'openai_responses_to_openai_chat_completions',
+    label: 'OpenAI Responses to OpenAI Chat',
+  },
+  {
     value: 'gemini_generate_content_to_openai_chat_completions',
     label: 'Gemini Generate Content to OpenAI Chat',
   },
@@ -326,6 +330,9 @@ export function getAdvancedCustomUpstreamPathPlaceholder(
   if (converter === 'openai_chat_completions_to_anthropic_messages') {
     return '/v1/messages'
   }
+  if (converter === 'openai_responses_to_openai_chat_completions') {
+    return '/v1/chat/completions'
+  }
   return '/v1/chat/completions'
 }
 
@@ -572,6 +579,9 @@ function isConverterPathAllowed(
     converter === 'openai_chat_completions_to_gemini_generate_content'
   ) {
     return incomingPath === '/v1/chat/completions'
+  }
+  if (converter === 'openai_responses_to_openai_chat_completions') {
+    return incomingPath === '/v1/responses'
   }
   return (
     incomingPath.includes(':generateContent') ||

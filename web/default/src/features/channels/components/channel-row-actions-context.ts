@@ -19,9 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { createContext } from 'react'
 
 /**
- * Where the channel row actions are being rendered. In the card view we
- * surface the "Test Connection" action as an inline button next to the quick
- * test; in the table it stays inside the overflow menu.
+ * Where channel row-derived controls are being rendered. Card view can tune
+ * compact display details while table view keeps the full desktop treatment.
  */
 export type ChannelRowActionsLayout = 'table' | 'card'
 
