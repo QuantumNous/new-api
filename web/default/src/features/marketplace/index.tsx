@@ -19,7 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Search, ShieldCheck, SlidersHorizontal, X } from 'lucide-react'
+import {
+  Bookmark,
+  Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
@@ -44,6 +50,8 @@ import {
   emitMarketplaceEvent,
   getMarketplaceSkills,
   recordMarketplaceSkillEvent,
+  saveSkill,
+  unsaveSkill,
 } from './api'
 import {
   EmptyState,
@@ -161,6 +169,16 @@ export function Marketplace() {
   const { mutate: emitEvent } = useMutation({
     mutationFn: emitMarketplaceEvent,
     retry: false,
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: (skill: MarketplaceSkill) =>
+      skill.saved === true
+        ? unsaveSkill(skill.slug || skill.id, 'marketplace_card')
+        : saveSkill(skill.slug || skill.id, 'marketplace_card'),
+    onSuccess: async () => {
+      await skillsQuery.refetch()
+    },
   })
 
   const skills = useMemo(
@@ -447,6 +465,15 @@ export function Marketplace() {
                 type='button'
                 variant='outline'
                 className='h-10'
+                onClick={() => void navigate({ to: '/skills/saved' })}
+              >
+                <Bookmark data-icon='inline-start' />
+                {t('Saved Skills')}
+              </Button>
+              <Button
+                type='button'
+                variant='outline'
+                className='h-10'
                 onClick={clearFilters}
               >
                 <SlidersHorizontal data-icon='inline-start' />
@@ -491,6 +518,7 @@ export function Marketplace() {
                   onCTA={(cardSkill) =>
                     goToSkillDetail(cardSkill, 'marketplace_card')
                   }
+                  onSaveToggle={(cardSkill) => saveMutation.mutate(cardSkill)}
                   cardRef={cardRef(skill.id)}
                 />
               ))}

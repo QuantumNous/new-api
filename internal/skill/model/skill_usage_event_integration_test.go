@@ -260,6 +260,44 @@ func TestMigrateSkillUsageEvents_SQLite_AddsFirstUseKeyToExistingDR43Table(t *te
 	}
 }
 
+func TestMigrateSkillUsageEvents_SQLite_RebuildsExistingTableForSkillUnsaved(t *testing.T) {
+	db := openSQLiteDB(t)
+	ddlWithoutUnsaved := strings.Replace(
+		sueCreateTableDDL("skill_usage_events"),
+		",'skill_unsaved'",
+		"",
+		1,
+	)
+	if err := db.Exec(ddlWithoutUnsaved).Error; err != nil {
+		t.Fatalf("create DR-43 table without skill_unsaved: %v", err)
+	}
+	if err := db.Exec(
+		`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, entry_point, metadata)
+		 VALUES (?, ?, ?, ?, ?)`,
+		"existing-before-unsaved", "skill_saved", testTS, "skill_detail", `{}`,
+	).Error; err != nil {
+		t.Fatalf("seed existing row before skill_unsaved upgrade: %v", err)
+	}
+
+	if err := MigrateSkillUsageEvents(db); err != nil {
+		t.Fatalf("MigrateSkillUsageEvents: %v", err)
+	}
+	if err := db.Exec(
+		`INSERT INTO skill_usage_events (event_id, event_type, occurred_at, entry_point, metadata)
+		 VALUES (?, ?, ?, ?, ?)`,
+		"new-unsaved-row", "skill_unsaved", testTS, "saved_list", `{}`,
+	).Error; err != nil {
+		t.Fatalf("upgraded table must accept skill_unsaved: %v", err)
+	}
+	var count int64
+	if err := db.Raw(`SELECT COUNT(*) FROM skill_usage_events WHERE event_id = ?`, "existing-before-unsaved").Scan(&count).Error; err != nil {
+		t.Fatalf("count existing row after skill_unsaved upgrade: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("existing row must survive skill_unsaved rebuild, got %d", count)
+	}
+}
+
 func TestSkillUsageEvent_BeforeCreateRejectsRestrictedMetadataKey(t *testing.T) {
 	db := openSQLiteDB(t)
 	if err := MigrateSkillUsageEvents(db); err != nil {

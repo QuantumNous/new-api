@@ -4,6 +4,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 */
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import type { UseQueryResult } from '@tanstack/react-query'
 import {
   Users,
   Play,
@@ -17,16 +18,22 @@ import {
   TriangleAlert,
   CreditCard,
   Clock,
+  Bookmark,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatNumber } from '@/lib/format'
 import { SectionPageLayout } from '@/components/layout'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
-import { getSkillAnalyticsOverview, getSkillAnalyticsSkills } from './api'
+import {
+  getMostSavedSkillAnalytics,
+  getSkillAnalyticsOverview,
+  getSkillAnalyticsSkills,
+} from './api'
 import { DateRangeControl } from './components/date-range-control'
 import { MetricCard } from './components/metric-card'
 import {
   type DateRangePreset,
+  type SkillAnalyticsSkillsResponse,
   type SkillAnalyticsSkillRow,
   getDateRange,
   getBlockReasonLabelKey,
@@ -83,6 +90,12 @@ export function SkillAnalyticsDashboard() {
   const { data: skillsData, isLoading: skillsLoading } = useQuery({
     queryKey: ['skill-analytics', 'skills', preset, refreshTick],
     queryFn: () => getSkillAnalyticsSkills(range),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  })
+  const mostSavedQuery = useQuery({
+    queryKey: ['skill-analytics', 'most-saved', preset, refreshTick],
+    queryFn: () => getMostSavedSkillAnalytics(range),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   })
@@ -257,9 +270,57 @@ export function SkillAnalyticsDashboard() {
               loading={skillsLoading}
             />
           )}
+          <MostSavedSkillPanel query={mostSavedQuery} />
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>
+  )
+}
+
+interface MostSavedSkillPanelProps {
+  query: UseQueryResult<SkillAnalyticsSkillsResponse, Error>
+}
+
+function MostSavedSkillPanel({ query }: MostSavedSkillPanelProps) {
+  const { t } = useTranslation()
+
+  return (
+    <section className='bg-background/60 rounded-xl border p-4'>
+      <div className='mb-3 flex items-center gap-2'>
+        <Bookmark className='text-muted-foreground size-4' aria-hidden='true' />
+        <h2 className='text-base font-semibold'>{t('Most-Saved Skills')}</h2>
+      </div>
+      {query.isLoading ? (
+        <div className='text-muted-foreground text-sm'>{t('Loading…')}</div>
+      ) : query.isError ? (
+        <div className='text-muted-foreground text-sm'>
+          {t('Most-saved data is unavailable.')}
+        </div>
+      ) : (query.data?.skills.length ?? 0) === 0 ? (
+        <div className='text-muted-foreground text-sm'>
+          {t('No saved Skill data in this period.')}
+        </div>
+      ) : (
+        <div className='divide-y'>
+          {query.data?.skills.map((skill) => (
+            <div
+              key={skill.skill_id}
+              className='grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 py-2 text-sm'
+            >
+              <span className='min-w-0 truncate font-medium'>
+                {skill.skill_name}
+              </span>
+              <span className='text-muted-foreground tabular-nums'>
+                {skill.saved_users} {t('saved')}
+              </span>
+              <span className='text-muted-foreground tabular-nums'>
+                {skill.saved_but_unused_users} {t('saved but unused')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 

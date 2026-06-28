@@ -77,6 +77,8 @@ Each row returns:
 - `status`
 - `required_plan`
 - `enabled_users`
+- `saved_users`
+- `saved_but_unused_users`
 - `active_users`
 - `successful_runs`
 - `detail_ctr`

@@ -8,15 +8,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/lib/api'
 import {
   emitMarketplaceEvent,
+  getSavedSkills,
   getMarketplaceSkills,
   recordMarketplaceSkillEvent,
+  saveSkill,
   skillDownloadURL,
+  unsaveSkill,
 } from '../api'
 
 vi.mock('@/lib/api', () => ({
   api: {
     get: vi.fn(),
     post: vi.fn(),
+    delete: vi.fn(),
   },
 }))
 
@@ -173,5 +177,40 @@ describe('Marketplace API review regressions', () => {
     expect(source).toContain('detail.instructions.prerequisites')
     expect(source).toContain('detail.instructions.quickstart')
     expect(source).toContain('detail.instructions.example_io')
+  })
+
+  it('loads saved skills from the Saved list endpoint', async () => {
+    vi.mocked(api.get).mockResolvedValueOnce({ data: { data: [] } })
+
+    await getSavedSkills()
+
+    expect(api.get).toHaveBeenCalledWith(
+      '/api/v1/marketplace/saved-skills',
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+  })
+
+  it('saves and unsaves skills with entry-point attribution', async () => {
+    vi.mocked(api.post).mockResolvedValueOnce({})
+    vi.mocked(api.delete).mockResolvedValueOnce({})
+
+    await saveSkill('writing helper', 'marketplace_card')
+    await unsaveSkill('writing helper', 'saved_list')
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/api/v1/marketplace/skills/writing%20helper/save',
+      undefined,
+      expect.objectContaining({
+        params: { entry_point: 'marketplace_card' },
+        skipErrorHandler: true,
+      })
+    )
+    expect(api.delete).toHaveBeenCalledWith(
+      '/api/v1/marketplace/skills/writing%20helper/save',
+      expect.objectContaining({
+        params: { entry_point: 'saved_list' },
+        skipErrorHandler: true,
+      })
+    )
   })
 })

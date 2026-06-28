@@ -356,6 +356,37 @@ func TestGetOpsSkillAnalyticsSkillsPaginatesDBOrderedRows(t *testing.T) {
 	assert.True(t, got.Pagination.HasNext)
 }
 
+func TestGetOpsSkillAnalyticsSkillsReturnsSavedDemandAndMostSavedSort(t *testing.T) {
+	db := newAnalyticsTestDB(t)
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+	alpha := createAnalyticsSkill(t, db, "alpha", enums.RequiredPlanFree)
+	beta := createAnalyticsSkill(t, db, "beta", enums.RequiredPlanFree)
+
+	require.NoError(t, skillmodel.SaveSkillForUser(db, 1, 1, alpha.ID, "skill_detail"))
+	require.NoError(t, skillmodel.SaveSkillForUser(db, 2, 2, beta.ID, "skill_detail"))
+	require.NoError(t, skillmodel.SaveSkillForUser(db, 3, 3, beta.ID, "skill_detail"))
+	require.NoError(t, skillmodel.EnableSkillForUser(db, 2, 2, beta.ID, "marketplace"))
+	require.NoError(t, skillmodel.UpdateLastUsedAt(db, 2, 2, beta.ID))
+
+	emitAnalyticsEvent(t, db, start.Add(time.Hour), enums.SkillUsageEventTypeUsed, 1, alpha.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
+	emitAnalyticsEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeUsed, 1, alpha.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
+	emitAnalyticsEvent(t, db, start.Add(3*time.Hour), enums.SkillUsageEventTypeUsed, 2, beta.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
+
+	w := performAnalyticsHandlerRequest(t, "/?sort=most_saved&start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339), GetOpsSkillAnalyticsSkills)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got SkillAnalyticsSkillsResponse
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Skills, 2)
+	assert.Equal(t, beta.ID, got.Skills[0].SkillID)
+	assert.Equal(t, int64(2), got.Skills[0].SavedUsers)
+	assert.Equal(t, int64(1), got.Skills[0].SavedButUnusedUsers)
+	assert.Equal(t, int64(1), got.Skills[1].SavedUsers)
+	assert.Equal(t, int64(1), got.Skills[1].SavedButUnusedUsers)
+	assert.NotContains(t, w.Body.String(), "metadata")
+}
+
 func TestDataFreshnessFromLatestP0Event(t *testing.T) {
 	now := time.Date(2026, 6, 8, 12, 0, 0, 0, time.UTC)
 
@@ -425,6 +456,7 @@ func newAnalyticsTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	require.NoError(t, skillmodel.MigrateSkills(db))
 	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
+	require.NoError(t, skillmodel.MigrateUserSavedSkills(db))
 	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
 	require.NoError(t, db.AutoMigrate(&platformmodel.TopUp{}))
 	SetDB(db)

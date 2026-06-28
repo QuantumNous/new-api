@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   LockKeyhole,
   PackageOpen,
+  Bookmark,
   Star,
   TriangleAlert,
 } from 'lucide-react'
@@ -56,6 +57,7 @@ interface SkillCardProps {
   cta?: SkillCTAAction
   onCTA?: (skill: MarketplaceSkill) => void
   onOpen?: (skill: MarketplaceSkill) => void
+  onSaveToggle?: (skill: MarketplaceSkill) => void
   cardRef?: (node: HTMLDivElement | null) => void
   className?: string
   ctaDisabled?: boolean
@@ -96,6 +98,7 @@ export function SkillCard({
   cta,
   onCTA,
   onOpen,
+  onSaveToggle,
   cardRef,
   className,
   ctaDisabled,
@@ -167,6 +170,26 @@ export function SkillCard({
           </div>
         </div>
         <CardAction>
+          {skill.saved != null && (
+            <button
+              type='button'
+              className='text-muted-foreground hover:text-foreground focus-visible:ring-ring bg-background inline-flex size-8 items-center justify-center rounded-full border transition-colors focus-visible:ring-2 focus-visible:outline-none'
+              aria-label={skill.saved ? t('Unsave Skill') : t('Save Skill')}
+              aria-pressed={skill.saved === true}
+              onClick={(event) => {
+                event.stopPropagation()
+                onSaveToggle?.(skill)
+              }}
+            >
+              <Bookmark
+                className={cn(
+                  'size-4',
+                  skill.saved === true && 'text-primary fill-current'
+                )}
+                aria-hidden='true'
+              />
+            </button>
+          )}
           {resolvedVariant === 'enabled' && (
             <Badge variant='secondary'>
               <CheckCircle2 data-icon='inline-start' />

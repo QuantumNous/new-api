@@ -17,9 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { ArrowLeft, Download, KeyRound, Sparkles } from 'lucide-react'
+import { ArrowLeft, Bookmark, Download, KeyRound, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
@@ -37,6 +37,8 @@ import {
   DownloadSkillError,
   downloadSkillPackage,
   getMarketplaceSkill,
+  saveSkill,
+  unsaveSkill,
 } from './api'
 import { ErrorBanner, KidsBadge, PlanBadge } from './components'
 
@@ -47,6 +49,7 @@ interface SkillDetailProps {
 export function SkillDetail({ slug }: SkillDetailProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const href = useRouterState({ select: (s) => s.location.href })
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
@@ -56,6 +59,27 @@ export function SkillDetail({ slug }: SkillDetailProps) {
     queryFn: () => getMarketplaceSkill(slug),
   })
   const detail = detailQuery.data
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!detail) return
+      if (detail.saved === true) {
+        await unsaveSkill(detail.slug || detail.id, 'skill_detail')
+      } else {
+        await saveSkill(detail.slug || detail.id, 'skill_detail')
+      }
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ['marketplace-skill', slug],
+        }),
+        queryClient.invalidateQueries({ queryKey: ['marketplace-skills'] }),
+        queryClient.invalidateQueries({
+          queryKey: ['marketplace-saved-skills'],
+        }),
+      ])
+    },
+  })
 
   async function handleDownload() {
     if (!detail) return
@@ -139,6 +163,20 @@ export function SkillDetail({ slug }: SkillDetailProps) {
                       <KidsBadge state='kids_exclusive' />
                     )}
                   </div>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    className='self-start'
+                    disabled={saveMutation.isPending}
+                    onClick={() => saveMutation.mutate()}
+                  >
+                    <Bookmark
+                      data-icon='inline-start'
+                      className={detail.saved === true ? 'fill-current' : ''}
+                    />
+                    {detail.saved === true ? t('Saved') : t('Save')}
+                  </Button>
                   <CardTitle>{detail.name}</CardTitle>
                   <CardDescription>
                     {detail.description ||

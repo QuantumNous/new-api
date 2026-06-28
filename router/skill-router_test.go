@@ -251,6 +251,7 @@ func newSkillRouterTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	require.NoError(t, skillmodel.MigrateSkills(db))
 	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
+	require.NoError(t, skillmodel.MigrateUserSavedSkills(db))
 	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
 	require.NoError(t, db.AutoMigrate(&platformmodel.User{}))
 	published := routerTestSkill("published-skill", enums.SkillStatusPublished)

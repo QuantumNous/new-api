@@ -55,7 +55,7 @@ V1 assumes existing platform tables exist for users, tenants, sessions, subscrip
 | `kids_approval_status` | `not_required`, `pending`, `approved`, `emergency_approved`, `rejected`, `revoked` |
 | `evaluation_status` | `pending`, `running`, `passed`, `failed`, `warning` |
 | `evaluation_issue_type` | `format`, `completeness`, `task_completion`, `violation` |
-| `save_type` | `saved`, `favorited` |
+| `save_type` | `saved` |
 | `block_reason` | `auth_required`, `skill_not_found`, `skill_not_published`, `skill_not_enabled`, `plan_required`, `subscription_inactive`, `quota_exceeded`, `kids_mode_blocked`, `context_too_long`, `rate_limited`, `timeout` |
 | `entry_point` | `marketplace_card`, `skill_detail`, `my_skills`, `saved_list`, `featured`, `popular`, `new`, `recommended`, `reco_personal`, `reco_codownload`, `admin_preview`, `search_results`, `skill_package`, `api_token`, `playground_picker` (legacy parse only) |
 | `tier2_event_type` | `skill_installed`, `skill_used_local` |
@@ -348,20 +348,23 @@ Rules:
 - `comment` is optional, max 280 chars; no raw user input or PII.
 - Rating aggregate (avg_stars, rating_count) is computed and cached on `skills` table or a materialized view for dashboard performance.
 
-### 4.5c `skill_saves`
+### 4.5c `user_saved_skills`
 
-用户收藏（save/favorite）行为记录。
+用户保存/bookmark 状态。该表独立于 `user_enabled_skills`，不是执行授权。
 
 ```sql
-CREATE TABLE skill_saves (
+CREATE TABLE user_saved_skills (
   user_id UUID NOT NULL,
   tenant_id UUID NOT NULL,
   skill_id UUID NOT NULL REFERENCES skills(id),
-  save_type VARCHAR(32) NOT NULL DEFAULT 'saved'
-    CHECK (save_type IN ('saved', 'favorited')),
+  saved BOOLEAN NOT NULL DEFAULT true,
+  saved_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  unsaved_at TIMESTAMPTZ,
+  source VARCHAR(64) NOT NULL DEFAULT 'marketplace',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-  PRIMARY KEY (user_id, tenant_id, skill_id, save_type)
+  PRIMARY KEY (user_id, tenant_id, skill_id)
 );
 ```
 

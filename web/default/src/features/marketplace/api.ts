@@ -30,6 +30,7 @@ import type {
   MarketplaceSkill,
   MySkill,
   PublicSkillDetail,
+  SavedSkill,
   SkillGrowthEntryPoint,
   SkillGrowthEventType,
 } from './types'
@@ -80,6 +81,15 @@ export async function getMarketplaceSkillsWithParams(
 
 export async function getMySkills(): Promise<MarketplaceListResponse<MySkill>> {
   const res = await api.get('/api/v1/marketplace/my-skills', {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function getSavedSkills(): Promise<
+  MarketplaceListResponse<SavedSkill>
+> {
+  const res = await api.get('/api/v1/marketplace/saved-skills', {
     skipErrorHandler: true,
   } as Record<string, unknown>)
   return res.data
@@ -151,6 +161,33 @@ export async function removeMySkill(skillId: string): Promise<void> {
   await api.delete(
     `/api/v1/marketplace/my-skills/${encodeURIComponent(skillId)}`,
     {
+      skipErrorHandler: true,
+    } as Record<string, unknown>
+  )
+}
+
+export async function saveSkill(
+  skillId: string,
+  entryPoint: SkillGrowthEntryPoint = 'skill_detail'
+): Promise<void> {
+  await api.post(
+    `/api/v1/marketplace/skills/${encodeURIComponent(skillId)}/save`,
+    undefined,
+    {
+      params: { entry_point: entryPoint },
+      skipErrorHandler: true,
+    } as Record<string, unknown>
+  )
+}
+
+export async function unsaveSkill(
+  skillId: string,
+  entryPoint: SkillGrowthEntryPoint = 'skill_detail'
+): Promise<void> {
+  await api.delete(
+    `/api/v1/marketplace/skills/${encodeURIComponent(skillId)}/save`,
+    {
+      params: { entry_point: entryPoint },
       skipErrorHandler: true,
     } as Record<string, unknown>
   )

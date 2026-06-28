@@ -176,6 +176,7 @@ const (
 	SkillUsageEventTypeImpression          SkillUsageEventType = "skill_impression"
 	SkillUsageEventTypeDetailView          SkillUsageEventType = "skill_detail_view"
 	SkillUsageEventTypeSaved               SkillUsageEventType = "skill_saved"
+	SkillUsageEventTypeUnsaved             SkillUsageEventType = "skill_unsaved"
 	SkillUsageEventTypeFavorited           SkillUsageEventType = "skill_favorited"
 	SkillUsageEventTypeEnabled             SkillUsageEventType = "skill_enabled"
 	SkillUsageEventTypeRated               SkillUsageEventType = "skill_rated"
@@ -196,6 +197,7 @@ var validSkillUsageEventTypes = map[SkillUsageEventType]struct{}{
 	SkillUsageEventTypeImpression:          {},
 	SkillUsageEventTypeDetailView:          {},
 	SkillUsageEventTypeSaved:               {},
+	SkillUsageEventTypeUnsaved:             {},
 	SkillUsageEventTypeFavorited:           {},
 	SkillUsageEventTypeEnabled:             {},
 	SkillUsageEventTypeRated:               {},

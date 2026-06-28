@@ -41,6 +41,9 @@ func SetSkillRouter(router *gin.Engine) {
 		{
 			mySkillsRoute.GET("/my-skills", skillhandler.ListMySkills)
 			mySkillsRoute.GET("/recommendations/personal", skillhandler.ListPersonalRecommendations)
+			mySkillsRoute.GET("/saved-skills", skillhandler.ListSavedSkills)
+			mySkillsRoute.POST("/skills/:id/save", skillhandler.SaveMarketplaceSkill)
+			mySkillsRoute.DELETE("/skills/:id/save", skillhandler.UnsaveMarketplaceSkill)
 			mySkillsRoute.DELETE("/my-skills/:id", skillhandler.RemoveMySkill)
 			mySkillsRoute.POST("/skills/:id/purchase", skillhandler.PurchaseMarketplaceSkill)
 		}

@@ -31,6 +31,8 @@ vi.mock('./api', () => ({
   getMarketplaceSkills: mockGetMarketplaceSkills,
   emitMarketplaceEvent: vi.fn().mockResolvedValue(undefined),
   recordMarketplaceSkillEvent: vi.fn().mockResolvedValue(undefined),
+  saveSkill: vi.fn().mockResolvedValue(undefined),
+  unsaveSkill: vi.fn().mockResolvedValue(undefined),
   skillDownloadURL: vi.fn(
     (idOrSlug: string) => `/api/v1/marketplace/skills/${idOrSlug}/download`
   ),

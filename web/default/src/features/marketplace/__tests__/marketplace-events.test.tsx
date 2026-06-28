@@ -58,6 +58,8 @@ vi.mock('../api', () => ({
   getMarketplaceSkills: mockGetMarketplaceSkills,
   emitMarketplaceEvent: mockEmitMarketplaceEvent,
   recordMarketplaceSkillEvent: mockRecordMarketplaceSkillEvent,
+  saveSkill: vi.fn().mockResolvedValue(undefined),
+  unsaveSkill: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@tanstack/react-router', () => ({

@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const sueEventTypeCheckExpr = "event_type IN ('skill_impression','skill_detail_view','skill_saved','skill_favorited','skill_enabled','skill_rated','skill_reported','skill_evaluation_completed','skill_admin_action','skill_kids_approved','skill_installed','skill_used_local','skill_used','skill_blocked','skill_first_use','skill_repeat_use','skill_purchased')"
+const sueEventTypeCheckExpr = "event_type IN ('skill_impression','skill_detail_view','skill_saved','skill_unsaved','skill_favorited','skill_enabled','skill_rated','skill_reported','skill_evaluation_completed','skill_admin_action','skill_kids_approved','skill_installed','skill_used_local','skill_used','skill_blocked','skill_first_use','skill_repeat_use','skill_purchased')"
 const sueEntryPointCheckExpr = "entry_point IN ('marketplace_card','skill_detail','my_skills','saved_list','playground_picker','featured','popular','new','recommended','reco_personal','reco_codownload','admin_preview','search_results','skill_package','api_token')"
 const suePlanCheckExpr = "plan IS NULL OR plan IN ('free','pro','enterprise')"
 const sueBlockReasonCheckExpr = "block_reason IS NULL OR block_reason IN ('auth_required','skill_not_found','skill_not_published','skill_not_enabled','plan_required','subscription_inactive','evaluation_not_passed','quota_exceeded','kids_mode_blocked','context_too_long','rate_limited','timeout','safety_violation','internal_error')"
@@ -180,6 +180,9 @@ func upgradeSUETableSQLite(db *gorm.DB) error {
 		return fmt.Errorf("read skill_usage_events DDL for upgrade check: %w", err)
 	}
 	if strings.Contains(ddl, "chk_sue_kids_privacy") && strings.Contains(ddl, "'api_token'") {
+		if !strings.Contains(ddl, "skill_unsaved") {
+			return rebuildSUETableSQLite(db)
+		}
 		if !db.Migrator().HasColumn(&SkillUsageEvent{}, "first_use_key") {
 			if err := db.Exec(`ALTER TABLE "skill_usage_events" ADD COLUMN "first_use_key" VARCHAR(128)`).Error; err != nil {
 				return fmt.Errorf("add skill_usage_events.first_use_key (SQLite): %w", err)
@@ -281,6 +284,11 @@ func migrateSUEConstraints(db *gorm.DB) error {
 		{"chk_sue_latency_ms", "latency_ms IS NULL OR latency_ms >= 0"},
 	}
 	for _, c := range constraints {
+		if c.name == "chk_sue_event_type" {
+			if err := refreshSUEEventTypeConstraint(db, c.name); err != nil {
+				return err
+			}
+		}
 		if db.Migrator().HasConstraint(&SkillUsageEvent{}, c.name) {
 			continue
 		}
@@ -322,6 +330,23 @@ func migrateSUEConstraints(db *gorm.DB) error {
 		sql := fmt.Sprintf("ALTER TABLE skill_usage_events ADD CONSTRAINT %s CHECK (%s)", c.name, c.expr)
 		if err := db.Exec(sql).Error; err != nil {
 			return fmt.Errorf("add skill_usage_events constraint %s: %w", c.name, err)
+		}
+	}
+	return nil
+}
+
+func refreshSUEEventTypeConstraint(db *gorm.DB, name string) error {
+	if !db.Migrator().HasConstraint(&SkillUsageEvent{}, name) {
+		return nil
+	}
+	switch db.Dialector.Name() {
+	case "postgres":
+		if err := db.Exec("ALTER TABLE skill_usage_events DROP CONSTRAINT IF EXISTS " + name).Error; err != nil {
+			return fmt.Errorf("drop stale skill_usage_events constraint %s: %w", name, err)
+		}
+	case "mysql":
+		if err := db.Exec("ALTER TABLE skill_usage_events DROP CHECK " + name).Error; err != nil {
+			return fmt.Errorf("drop stale skill_usage_events constraint %s: %w", name, err)
 		}
 	}
 	return nil

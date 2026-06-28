@@ -33,6 +33,8 @@ var analyticsNow = func() time.Time { return time.Now().UTC() }
 var p0AnalyticsEventTypes = []enums.SkillUsageEventType{
 	enums.SkillUsageEventTypeImpression,
 	enums.SkillUsageEventTypeDetailView,
+	enums.SkillUsageEventTypeSaved,
+	enums.SkillUsageEventTypeUnsaved,
 	enums.SkillUsageEventTypeEnabled,
 	enums.SkillUsageEventTypeFirstUse,
 	enums.SkillUsageEventTypeRepeatUse,
@@ -69,6 +71,8 @@ type SkillAnalyticsSkillRow struct {
 	Status                             enums.SkillStatus  `json:"status"`
 	RequiredPlan                       enums.RequiredPlan `json:"required_plan"`
 	EnabledUsers                       int64              `json:"enabled_users"`
+	SavedUsers                         int64              `json:"saved_users"`
+	SavedButUnusedUsers                int64              `json:"saved_but_unused_users"`
 	ActiveUsers                        int64              `json:"active_users"`
 	SuccessfulRuns                     int64              `json:"successful_runs"`
 	DetailCTR                          *float64           `json:"detail_ctr"`
@@ -100,11 +104,13 @@ type skillAnalyticsPageRow struct {
 	Status         enums.SkillStatus
 	RequiredPlan   enums.RequiredPlan
 	SuccessfulRuns int64
+	SavedUsers     int64
 }
 
 type analyticsRequest struct {
 	Period      analyticsPeriod
 	IncludeKids bool
+	Sort        string
 }
 
 type orderedFunnelCounts struct {
@@ -234,7 +240,7 @@ func GetOpsSkillAnalyticsSkills(c *gin.Context) {
 		return
 	}
 
-	pageRows, total, err := loadSkillAnalyticsPage(db, period.Start, period.End, req.IncludeKids, page)
+	pageRows, total, err := loadSkillAnalyticsPage(db, period.Start, period.End, req.IncludeKids, req.Sort, page)
 	if err != nil {
 		writeDBError(c, err)
 		return
@@ -245,6 +251,11 @@ func GetOpsSkillAnalyticsSkills(c *gin.Context) {
 	}
 
 	enabledUsers, err := loadEnabledUsersBySkill(db, skillIDs)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	savedButUnusedUsers, err := loadSavedButUnusedUsersBySkill(db, skillIDs)
 	if err != nil {
 		writeDBError(c, err)
 		return
@@ -283,6 +294,8 @@ func GetOpsSkillAnalyticsSkills(c *gin.Context) {
 			Status:                             skill.Status,
 			RequiredPlan:                       skill.RequiredPlan,
 			EnabledUsers:                       enabledUsers[skill.ID],
+			SavedUsers:                         skill.SavedUsers,
+			SavedButUnusedUsers:                savedButUnusedUsers[skill.ID],
 			ActiveUsers:                        activePairs[skill.ID],
 			SuccessfulRuns:                     skill.SuccessfulRuns,
 			DetailCTR:                          ratio64(funnel[skill.ID].Details, funnel[skill.ID].Impressions),
@@ -324,7 +337,12 @@ func parseAnalyticsRequest(c *gin.Context) (analyticsRequest, bool) {
 	if !valid {
 		return analyticsRequest{}, false
 	}
-	return analyticsRequest{Period: period, IncludeKids: includeKids}, true
+	sort := strings.TrimSpace(c.DefaultQuery("sort", "runs"))
+	if sort != "runs" && sort != "most_saved" {
+		writeAnalyticsQueryError(c, "INVALID_SORT", "sort must be runs or most_saved")
+		return analyticsRequest{}, false
+	}
+	return analyticsRequest{Period: period, IncludeKids: includeKids, Sort: sort}, true
 }
 
 func parseAnalyticsPeriod(c *gin.Context) (analyticsPeriod, bool) {
@@ -562,7 +580,7 @@ func topBlockReason(db *gorm.DB, start, end time.Time, includeKids bool) (*strin
 	return &top, nil
 }
 
-func loadSkillAnalyticsPage(db *gorm.DB, start, end time.Time, includeKids bool, page skillapi.PageParams) ([]skillAnalyticsPageRow, int64, error) {
+func loadSkillAnalyticsPage(db *gorm.DB, start, end time.Time, includeKids bool, sort string, page skillapi.PageParams) ([]skillAnalyticsPageRow, int64, error) {
 	var total int64
 	if err := db.Model(&skillmodel.Skill{}).Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -571,16 +589,53 @@ func loadSkillAnalyticsPage(db *gorm.DB, start, end time.Time, includeKids bool,
 		Select("skill_id, count(*) AS successful_runs").
 		Where("event_type = ? AND success = ? AND skill_id IS NOT NULL", enums.SkillUsageEventTypeUsed, true).
 		Group("skill_id")
+	saves := db.Model(&skillmodel.UserSavedSkill{}).
+		Select("skill_id, count(*) AS saved_users").
+		Where("saved = ?", true).
+		Group("skill_id")
+	orderColumn := "COALESCE(successes.successful_runs, 0)"
+	if sort == "most_saved" {
+		orderColumn = "COALESCE(saves.saved_users, 0)"
+	}
 	var rows []skillAnalyticsPageRow
 	err := db.Model(&skillmodel.Skill{}).
-		Select("skills.id, skills.name, skills.status, skills.required_plan, COALESCE(successes.successful_runs, 0) AS successful_runs").
+		Select("skills.id, skills.name, skills.status, skills.required_plan, COALESCE(successes.successful_runs, 0) AS successful_runs, COALESCE(saves.saved_users, 0) AS saved_users").
 		Joins("LEFT JOIN (?) AS successes ON successes.skill_id = skills.id", successes).
-		Order("COALESCE(successes.successful_runs, 0) DESC").
+		Joins("LEFT JOIN (?) AS saves ON saves.skill_id = skills.id", saves).
+		Order(orderColumn + " DESC").
 		Order("LOWER(skills.name) ASC").
 		Offset(page.Offset).
 		Limit(page.Limit).
 		Scan(&rows).Error
 	return rows, total, err
+}
+
+func loadSavedButUnusedUsersBySkill(db *gorm.DB, skillIDs []string) (map[string]int64, error) {
+	out := make(map[string]int64, len(skillIDs))
+	if len(skillIDs) == 0 {
+		return out, nil
+	}
+	var rows []struct {
+		SkillID string
+		Count   int64
+	}
+	err := db.Model(&skillmodel.UserSavedSkill{}).
+		Select("user_saved_skills.skill_id, count(*) as count").
+		Joins(`LEFT JOIN user_enabled_skills AS ues
+			ON ues.user_id = user_saved_skills.user_id
+			AND ues.tenant_id = user_saved_skills.tenant_id
+			AND ues.skill_id = user_saved_skills.skill_id`).
+		Where("user_saved_skills.saved = ? AND user_saved_skills.skill_id IN ?", true, skillIDs).
+		Where("ues.last_used_at IS NULL").
+		Group("user_saved_skills.skill_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		out[row.SkillID] = row.Count
+	}
+	return out, nil
 }
 
 func loadEnabledUsersBySkill(db *gorm.DB, skillIDs []string) (map[string]int64, error) {

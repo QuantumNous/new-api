@@ -111,6 +111,7 @@ type MarketplaceSkill struct {
 	Availability     SkillAvailability  `json:"availability"`
 	Badges           []string           `json:"badges"`
 	Featured         bool               `json:"featured"`
+	Saved            *bool              `json:"saved,omitempty"`
 	IsKidsSafe       bool               `json:"is_kids_safe"`
 	IsKidsExclusive  bool               `json:"is_kids_exclusive"`
 }
@@ -168,6 +169,7 @@ type PublicSkillDetail struct {
 	RequiresDeepRouterKey bool                     `json:"requires_deeprouter_key"`
 	DownloadCTA           DownloadCTA              `json:"download_cta"`
 	Instructions          SkillVersionInstructions `json:"instructions"`
+	Saved                 bool                     `json:"saved"`
 }
 
 type OpsSkillSummary struct {
@@ -189,6 +191,19 @@ type MySkill struct {
 	EnabledAt    time.Time           `json:"enabled_at"`
 	LastUsedAt   *time.Time          `json:"last_used_at"`
 	Availability MySkillAvailability `json:"availability"`
+}
+
+type SavedSkill struct {
+	SkillID          string             `json:"skill_id"`
+	Slug             string             `json:"slug"`
+	Name             string             `json:"name"`
+	Category         string             `json:"category"`
+	ShortDescription string             `json:"short_description"`
+	SkillStatus      enums.SkillStatus  `json:"skill_status"`
+	RequiredPlan     enums.RequiredPlan `json:"required_plan"`
+	SavedAt          time.Time          `json:"saved_at"`
+	LastUsedAt       *time.Time         `json:"last_used_at"`
+	Enabled          bool               `json:"enabled"`
 }
 
 type MySkillAvailability struct {
@@ -281,10 +296,15 @@ func ListMarketplaceSkills(c *gin.Context) {
 		writeDBError(c, err)
 		return
 	}
+	savedBySkillID, err := marketplaceSavedBySkillID(db, userInfo, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
 
 	out := make([]MarketplaceSkill, 0, len(skills))
 	for _, s := range skills {
-		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID]))
+		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID]))
 	}
 	skillapi.List(c, out, skillapi.NewPagination(page.Page, page.Limit, total))
 }
@@ -316,7 +336,116 @@ func GetMarketplaceSkill(c *gin.Context) {
 			instructions = skillVersionInstructionsFromModel(version)
 		}
 	}
-	skillapi.Success(c, publicSkillDetailFromModel(s, instructions))
+	userInfo, err := marketplaceUserInfo(c, db)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	savedBySkillID, err := marketplaceSavedBySkillID(db, userInfo, []skillmodel.Skill{s})
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	skillapi.Success(c, publicSkillDetailFromModel(s, instructions, savedBySkillID[s.ID]))
+}
+
+func SaveMarketplaceSkill(c *gin.Context) {
+	saveMarketplaceSkillState(c, true)
+}
+
+func UnsaveMarketplaceSkill(c *gin.Context) {
+	saveMarketplaceSkillState(c, false)
+}
+
+func saveMarketplaceSkillState(c *gin.Context, saved bool) {
+	db, ok := skillDB(c)
+	if !ok {
+		return
+	}
+	userID := int64(c.GetInt("id"))
+	if userID <= 0 {
+		skillapi.Error(c, errcodes.ErrAuthRequired, "Authentication required.", nil)
+		return
+	}
+	entryPoint, valid := parseSaveEntryPoint(c.DefaultQuery("entry_point", string(enums.EntryPointSkillDetail)))
+	if !valid {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "Unsupported entry point.", gin.H{"reason": "INVALID_ENTRY_POINT"})
+		return
+	}
+
+	var s skillmodel.Skill
+	err := db.Select([]string{"id", "status", "active_version_id"}).
+		Where("status = ?", enums.SkillStatusPublished).
+		Where("id = ? OR slug = ?", c.Param("id"), c.Param("id")).
+		First(&s).Error
+	if err != nil {
+		writeSkillLookupError(c, err)
+		return
+	}
+
+	if saved {
+		err = skillmodel.SaveSkillForUser(db, userID, userID, s.ID, string(entryPoint))
+	} else {
+		err = skillmodel.UnsaveSkillForUser(db, userID, userID, s.ID)
+	}
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
+	plan := marketplaceGroupToPlan(c.GetString("group"))
+	if err := emitSkillSavedStateEvent(db, userID, s.ID, s.ActiveVersionID, entryPoint, plan, saved); err != nil {
+		writeDBError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+	c.Writer.WriteHeaderNow()
+}
+
+func emitSkillSavedStateEvent(db *gorm.DB, userID int64, skillID string, skillVersionID *string, entryPoint enums.EntryPoint, plan enums.RequiredPlan, saved bool) error {
+	successVal := true
+	eventType := enums.SkillUsageEventTypeSaved
+	if !saved {
+		eventType = enums.SkillUsageEventTypeUnsaved
+	}
+	event := skillmodel.SkillUsageEvent{
+		EventType:      eventType,
+		SkillID:        &skillID,
+		SkillVersionID: skillVersionID,
+		EntryPoint:     entryPoint,
+		Plan:           &plan,
+		Success:        &successVal,
+		Metadata:       skillmodel.SkillJSONB(`{}`),
+	}
+	if isKidsSession, err := serverResolvedKidsSession(db, userID); err != nil {
+		return err
+	} else if isKidsSession {
+		if err := event.ApplyKidsSessionAnalyticsIdentity(userID, userID, kidsAnalyticsSaltVersion(), kidsAnalyticsDailySalt()); err != nil {
+			return err
+		}
+	} else {
+		uid := userID
+		event.UserID = &uid
+		event.TenantID = &uid
+	}
+	return skillmodel.EmitSkillUsageEvent(db, event)
+}
+
+func parseSaveEntryPoint(raw string) (enums.EntryPoint, bool) {
+	entry := enums.EntryPoint(strings.TrimSpace(raw))
+	switch entry {
+	case enums.EntryPointMarketplaceCard,
+		enums.EntryPointSkillDetail,
+		enums.EntryPointMySkills,
+		enums.EntryPointSavedList,
+		enums.EntryPointFeatured,
+		enums.EntryPointPopular,
+		enums.EntryPointNew,
+		enums.EntryPointRecommended,
+		enums.EntryPointSearchResults:
+		return entry, true
+	default:
+		return "", false
+	}
 }
 
 func ListPersonalRecommendations(c *gin.Context) {
@@ -528,6 +657,60 @@ func ListMySkills(c *gin.Context) {
 		})
 	}
 
+	skillapi.Success(c, out)
+}
+
+func ListSavedSkills(c *gin.Context) {
+	db, ok := skillDB(c)
+	if !ok {
+		return
+	}
+	userID := int64(c.GetInt("id"))
+	if userID <= 0 {
+		skillapi.Error(c, errcodes.ErrAuthRequired, "Authentication required.", nil)
+		return
+	}
+
+	type savedSkillRow struct {
+		SkillID          string
+		Slug             string
+		Name             string
+		Category         string
+		ShortDescription string
+		Status           enums.SkillStatus
+		RequiredPlan     enums.RequiredPlan
+		SavedAt          time.Time
+		LastUsedAt       *time.Time
+		Enabled          bool
+	}
+	var rows []savedSkillRow
+	if err := db.Table("user_saved_skills AS uss").
+		Select(`skills.id AS skill_id, skills.slug, skills.name, skills.category,
+			skills.short_description, skills.status, skills.required_plan,
+			uss.saved_at, ues.last_used_at, COALESCE(ues.enabled, ?) AS enabled`, false).
+		Joins("JOIN skills ON skills.id = uss.skill_id").
+		Joins("LEFT JOIN user_enabled_skills AS ues ON ues.user_id = uss.user_id AND ues.tenant_id = uss.tenant_id AND ues.skill_id = uss.skill_id").
+		Where("uss.user_id = ? AND uss.tenant_id = ? AND uss.saved = ?", userID, userID, true).
+		Order("uss.saved_at DESC, skills.name ASC").
+		Scan(&rows).Error; err != nil {
+		writeDBError(c, err)
+		return
+	}
+	out := make([]SavedSkill, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, SavedSkill{
+			SkillID:          row.SkillID,
+			Slug:             row.Slug,
+			Name:             row.Name,
+			Category:         row.Category,
+			ShortDescription: row.ShortDescription,
+			SkillStatus:      row.Status,
+			RequiredPlan:     row.RequiredPlan,
+			SavedAt:          row.SavedAt,
+			LastUsedAt:       row.LastUsedAt,
+			Enabled:          row.Enabled,
+		})
+	}
 	skillapi.Success(c, out)
 }
 
@@ -844,7 +1027,7 @@ type marketplaceUserContext struct {
 	SubActive   bool
 }
 
-func marketplaceSkillFromModel(s skillmodel.Skill, user marketplaceUserContext, enabled bool) MarketplaceSkill {
+func marketplaceSkillFromModel(s skillmodel.Skill, user marketplaceUserContext, enabled bool, saved bool) MarketplaceSkill {
 	result := availability.Resolve(availability.SkillInfo{
 		Status:            s.Status,
 		RequiredPlan:      s.RequiredPlan,
@@ -859,7 +1042,7 @@ func marketplaceSkillFromModel(s skillmodel.Skill, user marketplaceUserContext, 
 		IsEnabled:     enabled,
 		WasEnabled:    enabled,
 	})
-	return MarketplaceSkill{
+	out := MarketplaceSkill{
 		ID:               s.ID,
 		Slug:             s.Slug,
 		Name:             s.Name,
@@ -872,6 +1055,10 @@ func marketplaceSkillFromModel(s skillmodel.Skill, user marketplaceUserContext, 
 		IsKidsSafe:       s.IsKidsSafe,
 		IsKidsExclusive:  s.IsKidsExclusive,
 	}
+	if !user.IsAnonymous && user.UserID != 0 {
+		out.Saved = &saved
+	}
+	return out
 }
 
 type categoryAffinityRow struct {
@@ -1085,9 +1272,14 @@ func writeMarketplaceRecommendationList(c *gin.Context, db *gorm.DB, userInfo ma
 		writeDBError(c, err)
 		return
 	}
+	savedBySkillID, err := marketplaceSavedBySkillID(db, userInfo, skills)
+	if err != nil {
+		writeDBError(c, err)
+		return
+	}
 	out := make([]MarketplaceSkill, 0, len(skills))
 	for _, s := range skills {
-		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID]))
+		out = append(out, marketplaceSkillFromModel(s, userInfo, enabledBySkillID[s.ID], savedBySkillID[s.ID]))
 	}
 	skillapi.List(c, out, skillapi.NewPagination(page.Page, page.Limit, total))
 }
@@ -1180,6 +1372,27 @@ func marketplaceEnablementBySkillID(db *gorm.DB, user marketplaceUserContext, sk
 	return enabled, nil
 }
 
+func marketplaceSavedBySkillID(db *gorm.DB, user marketplaceUserContext, skills []skillmodel.Skill) (map[string]bool, error) {
+	saved := map[string]bool{}
+	if user.IsAnonymous || user.UserID == 0 || len(skills) == 0 {
+		return saved, nil
+	}
+	ids := make([]string, 0, len(skills))
+	for _, s := range skills {
+		ids = append(ids, s.ID)
+	}
+	var rows []skillmodel.UserSavedSkill
+	if err := db.Select([]string{"skill_id", "saved"}).
+		Where("user_id = ? AND tenant_id = ? AND skill_id IN ?", user.UserID, user.UserID, ids).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		saved[row.SkillID] = row.Saved
+	}
+	return saved, nil
+}
+
 func marketplaceGroupToPlan(group string) enums.RequiredPlan {
 	switch group {
 	case string(enums.RequiredPlanPro):
@@ -1205,15 +1418,17 @@ func skillVersionInstructionsFromModel(version skillmodel.SkillVersion) SkillVer
 	}
 }
 
-func publicSkillDetailFromModel(s skillmodel.Skill, instructions SkillVersionInstructions) PublicSkillDetail {
+func publicSkillDetailFromModel(s skillmodel.Skill, instructions SkillVersionInstructions, saved bool) PublicSkillDetail {
+	public := publicSkillFromModel(s, true)
 	return PublicSkillDetail{
-		PublicSkill:           publicSkillFromModel(s, true),
+		PublicSkill:           public,
 		RequiresDeepRouterKey: true,
 		DownloadCTA: DownloadCTA{
 			URL:    "/api/v1/marketplace/skills/" + url.PathEscape(s.Slug) + "/download",
 			Method: "GET",
 		},
 		Instructions: instructions,
+		Saved:        saved,
 	}
 }
 

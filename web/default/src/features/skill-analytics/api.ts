@@ -30,3 +30,18 @@ export async function getSkillAnalyticsSkills(
   } as Record<string, unknown>)
   return res.data
 }
+
+export async function getMostSavedSkillAnalytics(
+  range: DateRange
+): Promise<SkillAnalyticsSkillsResponse> {
+  const res = await api.get('/api/v1/ops/skill-analytics/skills', {
+    params: {
+      start: range.start,
+      end: range.end,
+      sort: 'most_saved',
+      limit: 5,
+    },
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}

@@ -52,6 +52,7 @@ export type SkillCTAAction =
 export type SkillGrowthEntryPoint =
   | 'marketplace_card'
   | 'skill_detail'
+  | 'saved_list'
   | 'search_results'
   | 'new'
   | 'recommended'
@@ -103,6 +104,7 @@ export interface MarketplaceSkill {
   badges?: string[]
   featured?: boolean
   featured_flag?: boolean
+  saved?: boolean | null
   is_kids_safe?: boolean
   is_kids_exclusive?: boolean
   ai_disclosure_required?: boolean
@@ -137,6 +139,20 @@ export interface PublicSkillDetail extends MarketplaceSkill {
   requires_deeprouter_key: boolean
   download_cta: DownloadCTA
   instructions: SkillVersionInstructions
+  saved?: boolean
+}
+
+export interface SavedSkill {
+  skill_id: string
+  slug: string
+  name: string
+  category: string
+  short_description: string
+  skill_status: SkillStatus
+  required_plan: SkillPlan
+  saved_at: string
+  last_used_at?: string | null
+  enabled: boolean
 }
 
 // MySkill mirrors the DR-54 `GET /api/v1/marketplace/my-skills` response item

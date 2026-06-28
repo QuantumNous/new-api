@@ -20,6 +20,8 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 - 新增 DR-101 API token 作为 Skill 下载/运行身份与 entitlement principal 的任务 PRD，锁定下载路由、public routing、`entry_point=api_token` 事件、fail-closed token 校验和 JWT/session 不回归范围（`docs/tasks/dr101-api-token-skill-auth-entitlement-prd.md`）
 - 新增 DR-93 SkillVersion 结构化下载/使用说明：`skill_versions` 增加 download/usage/prerequisites/quickstart/example_io 字段，管理端版本编辑与详情页展示支持说明内容，发布/已发布版本激活缺说明时阻断，下载包生成顶层 `README.md`，并补后端/前端回归测试（`internal/skill/{model,handler}`, `web/default/src/features/{admin-skills,marketplace}`, `docs/tasks/dr93-per-skill-instructions-readme-prd.md`）
 - 新增 DR-93 Per-Skill download/usage instructions 任务 PRD，明确 `skill_versions` 结构化说明字段、详情页渲染、下载包 `README.md` 与发布校验范围（`docs/tasks/dr93-per-skill-instructions-readme-prd.md`）
+- 新增 DR-92 Skill 保存/bookmark 能力：增加 `user_saved_skills` 状态表、`POST/DELETE /api/v1/marketplace/skills/{id}/save`、`GET /api/v1/marketplace/saved-skills`、`skill_saved`/`skill_unsaved` 事件、per-skill `saved_users`/`saved_but_unused_users` 和 Most-Saved analytics 排序；前端 Marketplace/Detail 可保存/取消保存，新增 Saved Skills 页面与 Skill Analytics Most-Saved 面板，并补后端/前端回归测试（`internal/skill/{model,handler}`, `router/skill-router.go`, `web/default/src/features/{marketplace,skill-analytics}`, `docs/skill-marketplace/tasks/`, `docs/tasks/dr92-save-bookmark-skill-most-saved-prd.md`）
+- 新增 DR-92 Save/Bookmark Skill + Most-Saved Metric 任务 PRD，明确保存/取消保存 API、Saved list、`skill_saved`/`skill_unsaved` 事件、per-skill saved demand 指标与前端范围（`docs/tasks/dr92-save-bookmark-skill-most-saved-prd.md`）
 
 ## 2026-06-27
 

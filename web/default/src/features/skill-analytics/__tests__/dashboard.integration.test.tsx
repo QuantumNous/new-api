@@ -38,12 +38,21 @@ const mockGetSkills = vi.hoisted(() =>
     }) => Promise<SkillAnalyticsSkillsResponse>
   >()
 )
+const mockGetMostSaved = vi.hoisted(() =>
+  vi.fn<
+    (range: {
+      start: string
+      end: string
+    }) => Promise<SkillAnalyticsSkillsResponse>
+  >()
+)
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
 vi.mock('../api', () => ({
   getSkillAnalyticsOverview: mockGetOverview,
   getSkillAnalyticsSkills: mockGetSkills,
+  getMostSavedSkillAnalytics: mockGetMostSaved,
 }))
 
 const translations: Record<string, string> = {
@@ -149,6 +158,8 @@ const SKILLS_DATA: SkillAnalyticsSkillsResponse = {
       status: 'published',
       required_plan: 'pro',
       enabled_users: 10,
+      saved_users: 3,
+      saved_but_unused_users: 1,
       active_users: 5,
       successful_runs: 20,
       detail_ctr: 0.5,
@@ -166,6 +177,39 @@ const SKILLS_DATA: SkillAnalyticsSkillsResponse = {
       skill_use_to_repeat_recharge_user_cohort: 4,
     },
   ],
+}
+
+const MOST_SAVED: SkillAnalyticsSkillsResponse = {
+  skills: [
+    {
+      skill_id: 'skill-1',
+      skill_name: 'Contract Drafting',
+      status: 'published',
+      required_plan: 'pro',
+      enabled_users: 5,
+      saved_users: 12,
+      saved_but_unused_users: 7,
+      active_users: 4,
+      successful_runs: 31,
+      detail_ctr: 0.3,
+      enable_rate: 0.2,
+      first_use_rate: 0.1,
+      repeat_use_rate: 0.4,
+      block_rate: 0.05,
+      revenue_attribution_usd: 0,
+      recharge_to_first_use_rate: null,
+      recharge_to_first_use_conversions: 0,
+      recharge_count: 0,
+      median_time_to_first_use_seconds: null,
+      skill_use_to_repeat_recharge_rate: null,
+      skill_use_to_repeat_recharge_users: 0,
+      skill_use_to_repeat_recharge_user_cohort: 0,
+    },
+  ],
+  pagination: { page: 1, limit: 5, total: 1, has_next: false },
+  charging_enabled: false,
+  period_start: '2026-06-14T00:00:00.000Z',
+  period_end: '2026-06-21T00:00:00.000Z',
 }
 
 function makeClient() {
@@ -205,6 +249,7 @@ describe('SkillAnalyticsDashboard — integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSkills.mockResolvedValue(SKILLS_DATA)
+    mockGetMostSaved.mockResolvedValue(MOST_SAVED)
   })
 
   afterEach(() => {
@@ -307,6 +352,16 @@ describe('SkillAnalyticsDashboard — integration', () => {
     expect(screen.getByText('Alpha Writer')).toBeInTheDocument()
     expect(screen.getByText('pro')).toBeInTheDocument()
     expect(screen.getByText('$88.00')).toBeInTheDocument()
+  })
+
+  it('renders most-saved demand rows', async () => {
+    mockGetOverview.mockResolvedValue(FULL_DATA)
+    renderDashboard()
+    await waitForDataReady()
+    expect(screen.getByText('Most-Saved Skills')).toBeInTheDocument()
+    expect(screen.getByText('Contract Drafting')).toBeInTheDocument()
+    expect(screen.getByText('12 saved')).toBeInTheDocument()
+    expect(screen.getByText('7 saved but unused')).toBeInTheDocument()
   })
 
   // ── Null metric values → no-data state ────────────────────────────────────

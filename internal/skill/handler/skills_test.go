@@ -902,6 +902,116 @@ func TestRemoveMySkillIsIdempotentForAlreadyRemovedRows(t *testing.T) {
 	assert.NotNil(t, row.RemovedAt)
 }
 
+func TestSaveUnsaveMarketplaceSkillIdempotentAndEmitsEvents(t *testing.T) {
+	db := testMySkillDB(t)
+	SetDB(db)
+	skill := testSkill("save-me", "published")
+	activeVersionID := "active-save-version"
+	skill.ActiveVersionID = &activeVersionID
+	require.NoError(t, db.Create(&skill).Error)
+
+	saveC, saveW := testContextWithMethod(http.MethodPost, "/api/v1/marketplace/skills/save-me/save?entry_point=marketplace_card", "")
+	saveC.Params = gin.Params{{Key: "id", Value: "save-me"}}
+	saveC.Set("id", 42)
+	saveC.Set("group", "pro")
+	SaveMarketplaceSkill(saveC)
+	require.Equal(t, http.StatusNoContent, saveW.Code)
+
+	saveAgainC, saveAgainW := testContextWithMethod(http.MethodPost, "/api/v1/marketplace/skills/save-me/save?entry_point=marketplace_card", "")
+	saveAgainC.Params = gin.Params{{Key: "id", Value: "save-me"}}
+	saveAgainC.Set("id", 42)
+	saveAgainC.Set("group", "pro")
+	SaveMarketplaceSkill(saveAgainC)
+	require.Equal(t, http.StatusNoContent, saveAgainW.Code)
+
+	var savedRow skillmodel.UserSavedSkill
+	require.NoError(t, db.First(&savedRow, "user_id = ? AND tenant_id = ? AND skill_id = ?", 42, 42, skill.ID).Error)
+	assert.True(t, savedRow.Saved)
+	assert.Nil(t, savedRow.UnsavedAt)
+
+	unsaveC, unsaveW := testContextWithMethod(http.MethodDelete, "/api/v1/marketplace/skills/save-me/save?entry_point=saved_list", "")
+	unsaveC.Params = gin.Params{{Key: "id", Value: "save-me"}}
+	unsaveC.Set("id", 42)
+	unsaveC.Set("group", "pro")
+	UnsaveMarketplaceSkill(unsaveC)
+	require.Equal(t, http.StatusNoContent, unsaveW.Code)
+
+	require.NoError(t, db.First(&savedRow, "user_id = ? AND tenant_id = ? AND skill_id = ?", 42, 42, skill.ID).Error)
+	assert.False(t, savedRow.Saved)
+	assert.NotNil(t, savedRow.UnsavedAt)
+
+	var events []skillmodel.SkillUsageEvent
+	require.NoError(t, db.Order("occurred_at ASC").Find(&events, "skill_id = ?", skill.ID).Error)
+	require.Len(t, events, 3)
+	assert.Equal(t, enums.SkillUsageEventTypeSaved, events[0].EventType)
+	assert.Equal(t, enums.EntryPointMarketplaceCard, events[0].EntryPoint)
+	assert.Equal(t, enums.RequiredPlanPro, *events[0].Plan)
+	assert.Equal(t, enums.SkillUsageEventTypeSaved, events[1].EventType)
+	assert.Equal(t, enums.SkillUsageEventTypeUnsaved, events[2].EventType)
+	assert.Equal(t, enums.EntryPointSavedList, events[2].EntryPoint)
+	assert.NotContains(t, string(events[0].Metadata), "prompt")
+}
+
+func TestSaveMarketplaceSkillKidsSessionUsesPseudonymousAnalyticsIdentity(t *testing.T) {
+	db := testMySkillDB(t)
+	SetDB(db)
+	t.Setenv(kidsAnalyticsSaltVersionEnv, "v1")
+	t.Setenv(kidsAnalyticsDailySaltEnv, "daily-salt")
+	require.NoError(t, db.Model(&platformmodel.User{}).Where("id = ?", 42).Update("kids_mode", true).Error)
+	skill := testSkill("kids-save", "published")
+	require.NoError(t, db.Create(&skill).Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/marketplace/skills/kids-save/save", "")
+	c.Params = gin.Params{{Key: "id", Value: "kids-save"}}
+	c.Set("id", 42)
+	c.Set("group", "default")
+	SaveMarketplaceSkill(c)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+	var event skillmodel.SkillUsageEvent
+	require.NoError(t, db.First(&event, "skill_id = ? AND event_type = ?", skill.ID, enums.SkillUsageEventTypeSaved).Error)
+	assert.True(t, event.IsKidsSession)
+	assert.Nil(t, event.UserID)
+	assert.Nil(t, event.TenantID)
+	assert.NotNil(t, event.SessionID)
+	assert.NotEmpty(t, *event.SessionID)
+}
+
+func TestListSavedSkillsReturnsSavedButNotEnabledLibrary(t *testing.T) {
+	db := testMySkillDB(t)
+	SetDB(db)
+	savedOnly := testSkill("saved-only", "published")
+	enabledAndSaved := testSkill("enabled-and-saved", "published")
+	unsaved := testSkill("unsaved", "published")
+	require.NoError(t, db.Create(&savedOnly).Error)
+	require.NoError(t, db.Create(&enabledAndSaved).Error)
+	require.NoError(t, db.Create(&unsaved).Error)
+	require.NoError(t, skillmodel.SaveSkillForUser(db, 42, 42, savedOnly.ID, "skill_detail"))
+	require.NoError(t, skillmodel.SaveSkillForUser(db, 42, 42, enabledAndSaved.ID, "skill_detail"))
+	require.NoError(t, skillmodel.SaveSkillForUser(db, 42, 42, unsaved.ID, "skill_detail"))
+	require.NoError(t, skillmodel.UnsaveSkillForUser(db, 42, 42, unsaved.ID))
+	require.NoError(t, skillmodel.EnableSkillForUser(db, 42, 42, enabledAndSaved.ID, "marketplace"))
+
+	c, w := testContext("/api/v1/marketplace/saved-skills")
+	c.Set("id", 42)
+	ListSavedSkills(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []SavedSkill `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 2)
+	assert.Equal(t, "enabled-and-saved", got.Data[0].Slug)
+	assert.True(t, got.Data[0].Enabled)
+	assert.Equal(t, "saved-only", got.Data[1].Slug)
+	assert.False(t, got.Data[1].Enabled)
+	for _, row := range got.Data {
+		assert.NotEqual(t, "unsaved", row.Slug)
+		assert.NotZero(t, row.SavedAt)
+	}
+}
+
 func TestListMySkillsPlanLockUsesAvailabilityResolver(t *testing.T) {
 	db := testMySkillDB(t)
 	SetDB(db)
@@ -2305,6 +2415,7 @@ func testSkillDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	require.NoError(t, skillmodel.MigrateSkills(db))
 	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
+	require.NoError(t, skillmodel.MigrateUserSavedSkills(db))
 	require.NoError(t, skillmodel.MigrateSkillVersions(db))
 	require.NoError(t, skillmodel.MigrateSkillAuditLog(db))
 	require.NoError(t, skillmodel.MigrateSkillPurchases(db))
@@ -2316,6 +2427,7 @@ func testMySkillDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := testSkillDB(t)
 	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
+	require.NoError(t, skillmodel.MigrateUserSavedSkills(db))
 	require.NoError(t, db.AutoMigrate(&platformmodel.User{}))
 	require.NoError(t, db.Create(&platformmodel.User{
 		Id:       42,

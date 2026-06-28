@@ -70,6 +70,7 @@ import { Route as AuthenticatedSystemSettingsModelsIndexRouteImport } from './ro
 import { Route as AuthenticatedSystemSettingsContentIndexRouteImport } from './routes/_authenticated/system-settings/content/index'
 import { Route as AuthenticatedSystemSettingsBillingIndexRouteImport } from './routes/_authenticated/system-settings/billing/index'
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
+import { Route as AuthenticatedSkillsSavedIndexRouteImport } from './routes/_authenticated/skills/saved/index'
 import { Route as AuthenticatedSkillsMyIndexRouteImport } from './routes/_authenticated/skills/my/index'
 import { Route as AuthenticatedSkillsAdminIndexRouteImport } from './routes/_authenticated/skills/admin/index'
 import { Route as AuthenticatedSystemSettingsSiteSectionRouteImport } from './routes/_authenticated/system-settings/site/$section'
@@ -408,6 +409,12 @@ const AuthenticatedSystemSettingsAuthIndexRoute =
     path: '/auth/',
     getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
   } as any)
+const AuthenticatedSkillsSavedIndexRoute =
+  AuthenticatedSkillsSavedIndexRouteImport.update({
+    id: '/skills/saved/',
+    path: '/skills/saved/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSkillsMyIndexRoute =
   AuthenticatedSkillsMyIndexRouteImport.update({
     id: '/skills/my/',
@@ -525,6 +532,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
   '/skills/admin/': typeof AuthenticatedSkillsAdminIndexRoute
   '/skills/my/': typeof AuthenticatedSkillsMyIndexRoute
+  '/skills/saved/': typeof AuthenticatedSkillsSavedIndexRoute
   '/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -594,6 +602,7 @@ export interface FileRoutesByTo {
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
   '/skills/admin': typeof AuthenticatedSkillsAdminIndexRoute
   '/skills/my': typeof AuthenticatedSkillsMyIndexRoute
+  '/skills/saved': typeof AuthenticatedSkillsSavedIndexRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -667,6 +676,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
   '/_authenticated/skills/admin/': typeof AuthenticatedSkillsAdminIndexRoute
   '/_authenticated/skills/my/': typeof AuthenticatedSkillsMyIndexRoute
+  '/_authenticated/skills/saved/': typeof AuthenticatedSkillsSavedIndexRoute
   '/_authenticated/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/_authenticated/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/_authenticated/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -739,6 +749,7 @@ export interface FileRouteTypes {
     | '/system-settings/site/$section'
     | '/skills/admin/'
     | '/skills/my/'
+    | '/skills/saved/'
     | '/system-settings/auth/'
     | '/system-settings/billing/'
     | '/system-settings/content/'
@@ -808,6 +819,7 @@ export interface FileRouteTypes {
     | '/system-settings/site/$section'
     | '/skills/admin'
     | '/skills/my'
+    | '/skills/saved'
     | '/system-settings/auth'
     | '/system-settings/billing'
     | '/system-settings/content'
@@ -880,6 +892,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/site/$section'
     | '/_authenticated/skills/admin/'
     | '/_authenticated/skills/my/'
+    | '/_authenticated/skills/saved/'
     | '/_authenticated/system-settings/auth/'
     | '/_authenticated/system-settings/billing/'
     | '/_authenticated/system-settings/content/'
@@ -1343,6 +1356,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemSettingsAuthIndexRouteImport
       parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
     }
+    '/_authenticated/skills/saved/': {
+      id: '/_authenticated/skills/saved/'
+      path: '/skills/saved'
+      fullPath: '/skills/saved/'
+      preLoaderRoute: typeof AuthenticatedSkillsSavedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/skills/my/': {
       id: '/_authenticated/skills/my/'
       path: '/skills/my'
@@ -1517,6 +1537,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
   AuthenticatedSkillsAdminIndexRoute: typeof AuthenticatedSkillsAdminIndexRoute
   AuthenticatedSkillsMyIndexRoute: typeof AuthenticatedSkillsMyIndexRoute
+  AuthenticatedSkillsSavedIndexRoute: typeof AuthenticatedSkillsSavedIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1548,6 +1569,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
   AuthenticatedSkillsAdminIndexRoute: AuthenticatedSkillsAdminIndexRoute,
   AuthenticatedSkillsMyIndexRoute: AuthenticatedSkillsMyIndexRoute,
+  AuthenticatedSkillsSavedIndexRoute: AuthenticatedSkillsSavedIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

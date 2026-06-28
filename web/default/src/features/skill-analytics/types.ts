@@ -45,6 +45,8 @@ export interface SkillAnalyticsSkillRow {
   status: string
   required_plan: string
   enabled_users: number
+  saved_users: number
+  saved_but_unused_users: number
   active_users: number
   successful_runs: number
   detail_ctr: number | null

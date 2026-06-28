@@ -64,7 +64,8 @@ Retention implementation note: `skill_usage_events` is an append-only hot event 
 |---|---|---|---|---|
 | `skill_impression` | Frontend | Skill card or rail item becomes visible | `skill_usage_events` | `event_id`, `timestamp`, `schema_version`, `user_id` nullable, `session_id`, `skill_id`, `entry_point` |
 | `skill_detail_view` | Frontend | Skill Detail opened | `skill_usage_events` | Core + `metadata.source_entry_point` |
-| `skill_saved` | Frontend/Backend | User saves or unsaves Skill | `skill_usage_events` + `skill_saves` | Core + `save_type` ('saved'/'unsaved') |
+| `skill_saved` | Backend | User saves/bookmarks Skill | `skill_usage_events` + `user_saved_skills` | Core + `entry_point` |
+| `skill_unsaved` | Backend | User removes saved/bookmarked Skill | `skill_usage_events` + `user_saved_skills` | Core + `entry_point` |
 | `skill_favorited` | Frontend/Backend | User favorites or unfavorites Skill | `skill_usage_events` + `skill_saves` | Core + `favorite_flag` (true/false) |
 | `skill_enabled` | Backend | Download zip succeeds (download == enable, DR-55) | `skill_usage_events` + `user_enabled_skills` | Core + `skill_version_id`, `plan` |
 | `skill_rated` | Frontend/Backend | User submits or updates rating | `skill_usage_events` + `skill_ratings` | Core + `stars` (1-5), `has_comment` |
