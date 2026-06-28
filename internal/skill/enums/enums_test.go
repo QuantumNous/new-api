@@ -226,6 +226,8 @@ func TestEntryPoint_StringValues(t *testing.T) {
 	assert.Equal(t, "recommended", string(EntryPointRecommended))
 	assert.Equal(t, "reco_personal", string(EntryPointRecoPersonal))
 	assert.Equal(t, "reco_codownload", string(EntryPointRecoCodownload))
+	assert.Equal(t, "digest", string(EntryPointDigest))
+	assert.Equal(t, "reengage", string(EntryPointReengage))
 	assert.Equal(t, "admin_preview", string(EntryPointAdminPreview))
 	assert.Equal(t, "search_results", string(EntryPointSearchResults))
 	assert.Equal(t, "skill_package", string(EntryPointSkillPackage))

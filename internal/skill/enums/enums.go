@@ -191,6 +191,9 @@ const (
 	SkillUsageEventTypeFirstUse            SkillUsageEventType = "skill_first_use"
 	SkillUsageEventTypeRepeatUse           SkillUsageEventType = "skill_repeat_use"
 	SkillUsageEventTypePurchased           SkillUsageEventType = "skill_purchased"
+	SkillUsageEventTypeNotificationSent    SkillUsageEventType = "skill_notification_sent"
+	SkillUsageEventTypeNotificationOpened  SkillUsageEventType = "skill_notification_opened"
+	SkillUsageEventTypeNotificationClicked SkillUsageEventType = "skill_notification_clicked"
 )
 
 var validSkillUsageEventTypes = map[SkillUsageEventType]struct{}{
@@ -212,6 +215,9 @@ var validSkillUsageEventTypes = map[SkillUsageEventType]struct{}{
 	SkillUsageEventTypeFirstUse:            {},
 	SkillUsageEventTypeRepeatUse:           {},
 	SkillUsageEventTypePurchased:           {},
+	SkillUsageEventTypeNotificationSent:    {},
+	SkillUsageEventTypeNotificationOpened:  {},
+	SkillUsageEventTypeNotificationClicked: {},
 }
 
 func (e SkillUsageEventType) Valid() bool { _, ok := validSkillUsageEventTypes[e]; return ok }
@@ -233,6 +239,8 @@ const (
 	EntryPointRecommended     EntryPoint = "recommended"
 	EntryPointRecoPersonal    EntryPoint = "reco_personal"
 	EntryPointRecoCodownload  EntryPoint = "reco_codownload"
+	EntryPointDigest          EntryPoint = "digest"
+	EntryPointReengage        EntryPoint = "reengage"
 	EntryPointAdminPreview    EntryPoint = "admin_preview"
 	EntryPointSearchResults   EntryPoint = "search_results"
 	// EntryPointSkillPackage is the primary R2 execution entry for downloaded
@@ -265,6 +273,8 @@ var validEntryPoints = map[EntryPoint]struct{}{
 	EntryPointRecommended:      {},
 	EntryPointRecoPersonal:     {},
 	EntryPointRecoCodownload:   {},
+	EntryPointDigest:           {},
+	EntryPointReengage:         {},
 	EntryPointAdminPreview:     {},
 	EntryPointSearchResults:    {},
 	EntryPointSkillPackage:     {},
