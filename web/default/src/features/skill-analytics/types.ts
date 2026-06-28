@@ -26,8 +26,51 @@ export interface SkillAnalyticsOverview {
   block_rate: number | null
   top_block_reason: BlockReason | null
   revenue_attribution_usd: number | null
+  recharge_to_first_use_rate: number | null
+  recharge_to_first_use_conversions: number
+  recharge_count: number
+  median_time_to_first_use_seconds: number | null
+  skill_use_to_repeat_recharge_rate: number | null
+  skill_use_to_repeat_recharge_users: number
+  skill_use_to_repeat_recharge_user_cohort: number
   charging_enabled: boolean
   data_freshness: DataFreshness
+  period_start: string
+  period_end: string
+}
+
+export interface SkillAnalyticsSkillRow {
+  skill_id: string
+  skill_name: string
+  status: string
+  required_plan: string
+  enabled_users: number
+  active_users: number
+  successful_runs: number
+  detail_ctr: number | null
+  enable_rate: number | null
+  first_use_rate: number | null
+  repeat_use_rate: number | null
+  block_rate: number | null
+  revenue_attribution_usd: number | null
+  recharge_to_first_use_rate: number | null
+  recharge_to_first_use_conversions: number
+  recharge_count: number
+  median_time_to_first_use_seconds: number | null
+  skill_use_to_repeat_recharge_rate: number | null
+  skill_use_to_repeat_recharge_users: number
+  skill_use_to_repeat_recharge_user_cohort: number
+}
+
+export interface SkillAnalyticsSkillsResponse {
+  skills: SkillAnalyticsSkillRow[]
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    has_next: boolean
+  }
+  charging_enabled: boolean
   period_start: string
   period_end: string
 }

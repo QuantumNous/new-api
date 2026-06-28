@@ -2,7 +2,6 @@
 Copyright (C) 2026 DeepRouter
 SPDX-License-Identifier: AGPL-3.0-or-later
 */
-
 /**
  * Integration tests for SkillAnalyticsDashboard.
  *
@@ -14,24 +13,37 @@ SPDX-License-Identifier: AGPL-3.0-or-later
  *  - Real QueryClientProvider per test (no cache leakage).
  *  - retryDelay:0 so the error-state test doesn't wait for exponential backoff.
  */
-
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import type { ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { SkillAnalyticsDashboard } from '../index'
-import type { SkillAnalyticsOverview } from '../types'
+import type {
+  SkillAnalyticsOverview,
+  SkillAnalyticsSkillsResponse,
+} from '../types'
 
 // ── vi.hoisted: initialise mock BEFORE vi.mock factory ────────────────────────
 const mockGetOverview = vi.hoisted(() =>
-  vi.fn<(range: { start: string; end: string }) => Promise<SkillAnalyticsOverview>>()
+  vi.fn<
+    (range: { start: string; end: string }) => Promise<SkillAnalyticsOverview>
+  >()
+)
+const mockGetSkills = vi.hoisted(() =>
+  vi.fn<
+    (range: {
+      start: string
+      end: string
+    }) => Promise<SkillAnalyticsSkillsResponse>
+  >()
 )
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
 vi.mock('../api', () => ({
   getSkillAnalyticsOverview: mockGetOverview,
+  getSkillAnalyticsSkills: mockGetSkills,
 }))
 
 const translations: Record<string, string> = {
@@ -44,10 +56,14 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@/components/layout', () => {
   const Title = ({ children }: { children?: ReactNode }) => <h1>{children}</h1>
-  const Description = ({ children }: { children?: ReactNode }) => <p>{children}</p>
+  const Description = ({ children }: { children?: ReactNode }) => (
+    <p>{children}</p>
+  )
   const Content = ({ children }: { children?: ReactNode }) => <>{children}</>
   const Actions = ({ children }: { children?: ReactNode }) => <>{children}</>
-  const Layout = ({ children }: { children: ReactNode }) => <div>{children}</div>
+  const Layout = ({ children }: { children: ReactNode }) => (
+    <div>{children}</div>
+  )
   Layout.Title = Title
   Layout.Description = Description
   Layout.Content = Content
@@ -74,7 +90,12 @@ vi.mock('@/components/ui/button', () => ({
     variant,
     ...rest
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) => (
-    <button onClick={onClick} disabled={disabled} data-variant={variant} {...rest}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      data-variant={variant}
+      {...rest}
+    >
       {children}
     </button>
   ),
@@ -88,8 +109,7 @@ vi.mock('@/components/ui/skeleton', () => ({
 
 vi.mock('@/lib/format', () => ({
   // Deterministic output regardless of locale ICU data in test environment
-  formatNumber: (v: number | null | undefined) =>
-    v == null ? '-' : String(v),
+  formatNumber: (v: number | null | undefined) => (v == null ? '-' : String(v)),
 }))
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -104,17 +124,55 @@ const FULL_DATA: SkillAnalyticsOverview = {
   block_rate: 0.03,
   top_block_reason: 'plan_required',
   revenue_attribution_usd: 1234.56,
+  recharge_to_first_use_rate: 0.4,
+  recharge_to_first_use_conversions: 20,
+  recharge_count: 50,
+  median_time_to_first_use_seconds: 5400,
+  skill_use_to_repeat_recharge_rate: 0.25,
+  skill_use_to_repeat_recharge_users: 25,
+  skill_use_to_repeat_recharge_user_cohort: 100,
   charging_enabled: true,
   data_freshness: 'ok',
   period_start: '2026-06-14T00:00:00.000Z',
   period_end: '2026-06-21T00:00:00.000Z',
 }
 
+const SKILLS_DATA: SkillAnalyticsSkillsResponse = {
+  charging_enabled: true,
+  period_start: FULL_DATA.period_start,
+  period_end: FULL_DATA.period_end,
+  pagination: { page: 1, limit: 8, total: 1, has_next: false },
+  skills: [
+    {
+      skill_id: 'skill-alpha',
+      skill_name: 'Alpha Writer',
+      status: 'published',
+      required_plan: 'pro',
+      enabled_users: 10,
+      active_users: 5,
+      successful_runs: 20,
+      detail_ctr: 0.5,
+      enable_rate: 0.4,
+      first_use_rate: 0.3,
+      repeat_use_rate: 0.2,
+      block_rate: 0.1,
+      revenue_attribution_usd: 88,
+      recharge_to_first_use_rate: 0.2,
+      recharge_to_first_use_conversions: 2,
+      recharge_count: 10,
+      median_time_to_first_use_seconds: 7200,
+      skill_use_to_repeat_recharge_rate: 0.5,
+      skill_use_to_repeat_recharge_users: 2,
+      skill_use_to_repeat_recharge_user_cohort: 4,
+    },
+  ],
+}
+
 function makeClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        retry: false,   // override component-level retry:1 for test speed
+        retry: false, // override component-level retry:1 for test speed
         retryDelay: 0,
       },
     },
@@ -146,6 +204,7 @@ async function waitForDataReady() {
 describe('SkillAnalyticsDashboard — integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetSkills.mockResolvedValue(SKILLS_DATA)
   })
 
   afterEach(() => {
@@ -157,8 +216,12 @@ describe('SkillAnalyticsDashboard — integration', () => {
   it('renders page title and description', () => {
     mockGetOverview.mockResolvedValue(FULL_DATA)
     renderDashboard()
-    expect(screen.getByRole('heading', { name: 'Skill Analytics' })).toBeInTheDocument()
-    expect(screen.getByText('Skill analytics overview for the operator')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Skill Analytics' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Skill analytics overview for the operator')
+    ).toBeInTheDocument()
   })
 
   // ── Loading state ──────────────────────────────────────────────────────────
@@ -171,9 +234,9 @@ describe('SkillAnalyticsDashboard — integration', () => {
     expect(skeletons.length).toBeGreaterThanOrEqual(8)
   })
 
-  // ── Success state: all 9 cards present ────────────────────────────────────
+  // ── Success state: all 12 cards present ────────────────────────────────────
 
-  it('renders all 9 P0 card titles when charging_enabled=true', async () => {
+  it('renders all P0 and monetization card titles when charging_enabled=true', async () => {
     mockGetOverview.mockResolvedValue(FULL_DATA)
     renderDashboard()
     await waitForDataReady()
@@ -187,6 +250,9 @@ describe('SkillAnalyticsDashboard — integration', () => {
       'Repeat Use Rate',
       'Block Rate',
       'Top Block Reason',
+      'Recharge to First Skill Use',
+      'Skill Use to Repeat Recharge',
+      'Median Time to First Use',
       'Revenue Attribution',
     ]) {
       expect(screen.getByText(title)).toBeInTheDocument()
@@ -229,6 +295,20 @@ describe('SkillAnalyticsDashboard — integration', () => {
     expect(screen.getByText('$1,234.56')).toBeInTheDocument()
   })
 
+  it('renders monetization rates and per-skill attribution table', async () => {
+    mockGetOverview.mockResolvedValue(FULL_DATA)
+    renderDashboard()
+    await waitForDataReady()
+
+    expect(screen.getByText('40.0%')).toBeInTheDocument()
+    expect(screen.getByText('25.0%')).toBeInTheDocument()
+    expect(screen.getByText('1.5h')).toBeInTheDocument()
+    expect(screen.getByText('Monetization by Skill')).toBeInTheDocument()
+    expect(screen.getByText('Alpha Writer')).toBeInTheDocument()
+    expect(screen.getByText('pro')).toBeInTheDocument()
+    expect(screen.getByText('$88.00')).toBeInTheDocument()
+  })
+
   // ── Null metric values → no-data state ────────────────────────────────────
 
   it('shows "—" and "No data in this period" when all metrics are null', async () => {
@@ -243,6 +323,9 @@ describe('SkillAnalyticsDashboard — integration', () => {
       block_rate: null,
       top_block_reason: null,
       revenue_attribution_usd: null,
+      recharge_to_first_use_rate: null,
+      median_time_to_first_use_seconds: null,
+      skill_use_to_repeat_recharge_rate: null,
     }
     mockGetOverview.mockResolvedValue(nullData)
     renderDashboard()
@@ -261,6 +344,7 @@ describe('SkillAnalyticsDashboard — integration', () => {
     renderDashboard()
     await waitForDataReady()
     expect(screen.queryByText('Revenue Attribution')).not.toBeInTheDocument()
+    expect(screen.queryByText('Monetization by Skill')).not.toBeInTheDocument()
   })
 
   it('shows Revenue Attribution card when charging_enabled=true', async () => {
@@ -273,7 +357,10 @@ describe('SkillAnalyticsDashboard — integration', () => {
   // ── Tracking failure banner ────────────────────────────────────────────────
 
   it('shows orange tracking-failed banner when data_freshness=failed', async () => {
-    mockGetOverview.mockResolvedValue({ ...FULL_DATA, data_freshness: 'failed' })
+    mockGetOverview.mockResolvedValue({
+      ...FULL_DATA,
+      data_freshness: 'failed',
+    })
     renderDashboard()
     await waitForDataReady()
     expect(
@@ -284,7 +371,10 @@ describe('SkillAnalyticsDashboard — integration', () => {
   })
 
   it('shows yellow delayed banner when data_freshness=delayed', async () => {
-    mockGetOverview.mockResolvedValue({ ...FULL_DATA, data_freshness: 'delayed' })
+    mockGetOverview.mockResolvedValue({
+      ...FULL_DATA,
+      data_freshness: 'delayed',
+    })
     renderDashboard()
     await waitForDataReady()
     expect(
@@ -295,28 +385,38 @@ describe('SkillAnalyticsDashboard — integration', () => {
   })
 
   it('all metric cards show "—" when tracking is failed', async () => {
-    mockGetOverview.mockResolvedValue({ ...FULL_DATA, data_freshness: 'failed' })
+    mockGetOverview.mockResolvedValue({
+      ...FULL_DATA,
+      data_freshness: 'failed',
+    })
     renderDashboard()
     await waitForDataReady()
-    // 9 cards (charging enabled) each show "—" due to trackingFailed prop
+    // 12 cards (charging enabled) each show "—" due to trackingFailed prop
     const dashes = screen.getAllByText('—')
-    expect(dashes.length).toBeGreaterThanOrEqual(9)
+    expect(dashes.length).toBeGreaterThanOrEqual(12)
   })
 
   it('shows "Tracking unavailable" on all cards when tracking failed', async () => {
-    mockGetOverview.mockResolvedValue({ ...FULL_DATA, data_freshness: 'failed' })
+    mockGetOverview.mockResolvedValue({
+      ...FULL_DATA,
+      data_freshness: 'failed',
+    })
     renderDashboard()
     await waitForDataReady()
     const msgs = screen.getAllByText('Tracking unavailable')
-    expect(msgs.length).toBeGreaterThanOrEqual(9)
+    expect(msgs.length).toBeGreaterThanOrEqual(12)
   })
 
   it('no tracking banner when data_freshness=ok', async () => {
     mockGetOverview.mockResolvedValue(FULL_DATA)
     renderDashboard()
     await waitForDataReady()
-    expect(screen.queryByText(/Data tracking is unavailable/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Data tracking is delayed/)).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/Data tracking is unavailable/)
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/Data tracking is delayed/)
+    ).not.toBeInTheDocument()
   })
 
   // ── API error state ────────────────────────────────────────────────────────

@@ -3,12 +3,15 @@ package handler
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	skillmodel "github.com/QuantumNous/new-api/internal/skill/model"
+	platformmodel "github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -58,6 +61,68 @@ func TestGetOpsSkillAnalyticsOverviewAggregatesUsageEvents(t *testing.T) {
 	assert.Equal(t, start.Format(time.RFC3339), got.PeriodStart)
 	assert.Equal(t, end.Format(time.RFC3339), got.PeriodEnd)
 	assert.NotContains(t, w.Body.String(), "metadata")
+}
+
+func TestGetOpsSkillAnalyticsOverviewMonetizationGatedByCharging(t *testing.T) {
+	db := newAnalyticsTestDB(t)
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+	withChargingDisabled(t)
+	skill := createAnalyticsSkill(t, db, "paid-skill", enums.RequiredPlanPro)
+	emitSuccessfulTopUp(t, db, 1, start.Add(time.Hour), 10)
+	emitAnalyticsEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeFirstUse, 1, skill.ID, enums.EntryPointSkillPackage, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(3*time.Hour), enums.SkillUsageEventTypeUsed, 1, skill.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
+	emitSuccessfulTopUp(t, db, 1, start.Add(4*time.Hour), 20)
+
+	w := performAnalyticsHandlerRequest(t, "/?start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339), GetOpsSkillAnalyticsOverview)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got SkillAnalyticsOverview
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	assert.False(t, got.ChargingEnabled)
+	assert.Nil(t, got.RechargeToFirstUseRate)
+	assert.Nil(t, got.SkillUseToRepeatRechargeRate)
+	assert.Nil(t, got.MedianTimeToFirstUseSeconds)
+	assert.Nil(t, got.RevenueAttributionUS)
+}
+
+func TestGetOpsSkillAnalyticsOverviewJoinsTopUpsToSkillFunnels(t *testing.T) {
+	db := newAnalyticsTestDB(t)
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+	withStripeChargingEnabled(t)
+	skillA := createAnalyticsSkill(t, db, "paid-alpha", enums.RequiredPlanPro)
+	skillB := createAnalyticsSkill(t, db, "paid-beta", enums.RequiredPlanFree)
+
+	emitSuccessfulTopUp(t, db, 1, start.Add(time.Hour), 10)
+	emitSuccessfulTopUp(t, db, 2, start.Add(time.Hour), 12)
+	emitSuccessfulTopUp(t, db, 3, start.Add(time.Hour), 9)
+	emitAnalyticsEvent(t, db, start.Add(3*time.Hour), enums.SkillUsageEventTypeFirstUse, 1, skillA.ID, enums.EntryPointSkillPackage, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(4*time.Hour), enums.SkillUsageEventTypeFirstUse, 2, skillB.ID, enums.EntryPointSkillPackage, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeUsed, 1, skillA.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
+	emitAnalyticsEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeUsed, 2, skillB.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
+	emitAnalyticsEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeUsed, 3, skillB.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
+	emitSuccessfulTopUp(t, db, 1, start.Add(5*time.Hour), 30)
+	emitSuccessfulTopUp(t, db, 2, start.Add(6*time.Hour), 40)
+
+	w := performAnalyticsHandlerRequest(t, "/?start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339), GetOpsSkillAnalyticsOverview)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got SkillAnalyticsOverview
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	assert.True(t, got.ChargingEnabled)
+	assert.Equal(t, int64(5), got.RechargeCount)
+	assert.Equal(t, int64(2), got.RechargeToFirstUseConversions)
+	require.NotNil(t, got.RechargeToFirstUseRate)
+	assert.InDelta(t, 0.4, *got.RechargeToFirstUseRate, 0.0001)
+	require.NotNil(t, got.MedianTimeToFirstUseSeconds)
+	assert.Equal(t, int64(9000), *got.MedianTimeToFirstUseSeconds)
+	assert.Equal(t, int64(3), got.SkillUseToRepeatRechargeUserCohort)
+	assert.Equal(t, int64(2), got.SkillUseToRepeatRechargeUsers)
+	require.NotNil(t, got.SkillUseToRepeatRechargeRate)
+	assert.InDelta(t, float64(2)/float64(3), *got.SkillUseToRepeatRechargeRate, 0.0001)
+	require.NotNil(t, got.RevenueAttributionUS)
+	assert.InDelta(t, 70, *got.RevenueAttributionUS, 0.0001)
 }
 
 func TestGetOpsSkillAnalyticsOverviewEnforcesOrderedFunnelAndSessionIdentity(t *testing.T) {
@@ -185,6 +250,42 @@ func TestGetOpsSkillAnalyticsSkillsReturnsPerSkillRows(t *testing.T) {
 	assert.Equal(t, int64(2), got.Pagination.Total)
 	assert.NotContains(t, w.Body.String(), "instruction_template")
 	assert.NotContains(t, w.Body.String(), "metadata")
+}
+
+func TestGetOpsSkillAnalyticsSkillsReturnsPerSkillMonetizationSlices(t *testing.T) {
+	db := newAnalyticsTestDB(t)
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+	withStripeChargingEnabled(t)
+	skillA := createAnalyticsSkill(t, db, "paid-alpha", enums.RequiredPlanPro)
+	skillB := createAnalyticsSkill(t, db, "paid-beta", enums.RequiredPlanFree)
+	emitSuccessfulTopUp(t, db, 1, start.Add(time.Hour), 10)
+	emitSuccessfulTopUp(t, db, 2, start.Add(time.Hour), 12)
+	emitAnalyticsEvent(t, db, start.Add(3*time.Hour), enums.SkillUsageEventTypeFirstUse, 1, skillA.ID, enums.EntryPointSkillPackage, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(4*time.Hour), enums.SkillUsageEventTypeFirstUse, 2, skillB.ID, enums.EntryPointSkillPackage, nil, nil)
+	emitAnalyticsEvent(t, db, start.Add(2*time.Hour), enums.SkillUsageEventTypeUsed, 1, skillA.ID, enums.EntryPointSkillPackage, boolPtr(true), nil)
+	emitSuccessfulTopUp(t, db, 1, start.Add(5*time.Hour), 30)
+
+	w := performAnalyticsHandlerRequest(t, "/?start="+start.Format(time.RFC3339)+"&end="+end.Format(time.RFC3339), GetOpsSkillAnalyticsSkills)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got SkillAnalyticsSkillsResponse
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	assert.True(t, got.ChargingEnabled)
+	require.Len(t, got.Skills, 2)
+	alpha := got.Skills[0]
+	assert.Equal(t, skillA.ID, alpha.SkillID)
+	assert.Equal(t, enums.RequiredPlanPro, alpha.RequiredPlan)
+	assert.Equal(t, int64(3), alpha.RechargeCount)
+	assert.Equal(t, int64(1), alpha.RechargeToFirstUseConversions)
+	require.NotNil(t, alpha.RechargeToFirstUseRate)
+	assert.InDelta(t, float64(1)/float64(3), *alpha.RechargeToFirstUseRate, 0.0001)
+	require.NotNil(t, alpha.MedianTimeToFirstUseSeconds)
+	assert.Equal(t, int64(7200), *alpha.MedianTimeToFirstUseSeconds)
+	assert.Equal(t, int64(1), alpha.SkillUseToRepeatRechargeUserCohort)
+	assert.Equal(t, int64(1), alpha.SkillUseToRepeatRechargeUsers)
+	require.NotNil(t, alpha.RevenueAttributionUS)
+	assert.InDelta(t, 30, *alpha.RevenueAttributionUS, 0.0001)
 }
 
 func TestGetOpsSkillAnalyticsSkillsEnforcesOrderedFunnelWithSessionIdentity(t *testing.T) {
@@ -325,6 +426,7 @@ func newAnalyticsTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, skillmodel.MigrateSkills(db))
 	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
 	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
+	require.NoError(t, db.AutoMigrate(&platformmodel.TopUp{}))
 	SetDB(db)
 	return db
 }
@@ -425,6 +527,49 @@ func emitAnalyticsSessionEvent(
 		event.TenantID = userID
 	}
 	require.NoError(t, skillmodel.EmitSkillUsageEvent(db, event))
+}
+
+func emitSuccessfulTopUp(t *testing.T, db *gorm.DB, userID int, occurredAt time.Time, money float64) {
+	t.Helper()
+	require.NoError(t, db.Create(&platformmodel.TopUp{
+		UserId:       userID,
+		Amount:       int64(money * 500000),
+		Money:        money,
+		TradeNo:      "trade-" + strconv.FormatInt(int64(userID), 10) + "-" + strconv.FormatInt(occurredAt.Unix(), 10),
+		CreateTime:   occurredAt.Add(-time.Minute).Unix(),
+		CompleteTime: occurredAt.Unix(),
+		Status:       common.TopUpStatusSuccess,
+	}).Error)
+}
+
+func withStripeChargingEnabled(t *testing.T) {
+	t.Helper()
+	previousSecret := setting.StripeApiSecret
+	previousWebhook := setting.StripeWebhookSecret
+	previousPrice := setting.StripePriceId
+	setting.StripeApiSecret = "sk_test_dr96"
+	setting.StripeWebhookSecret = "whsec_dr96"
+	setting.StripePriceId = "price_dr96"
+	t.Cleanup(func() {
+		setting.StripeApiSecret = previousSecret
+		setting.StripeWebhookSecret = previousWebhook
+		setting.StripePriceId = previousPrice
+	})
+}
+
+func withChargingDisabled(t *testing.T) {
+	t.Helper()
+	previousSecret := setting.StripeApiSecret
+	previousWebhook := setting.StripeWebhookSecret
+	previousPrice := setting.StripePriceId
+	setting.StripeApiSecret = ""
+	setting.StripeWebhookSecret = ""
+	setting.StripePriceId = ""
+	t.Cleanup(func() {
+		setting.StripeApiSecret = previousSecret
+		setting.StripeWebhookSecret = previousWebhook
+		setting.StripePriceId = previousPrice
+	})
 }
 
 func performAnalyticsHandlerRequest(t *testing.T, target string, handler gin.HandlerFunc) *httptest.ResponseRecorder {
