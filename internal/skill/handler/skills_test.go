@@ -2235,6 +2235,7 @@ func testSkillDB(t *testing.T) *gorm.DB {
 	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
 	require.NoError(t, skillmodel.MigrateSkillVersions(db))
 	require.NoError(t, skillmodel.MigrateSkillAuditLog(db))
+	require.NoError(t, skillmodel.MigrateSkillPurchases(db))
 	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
 	return db
 }

@@ -182,7 +182,7 @@ func migrateSkillsConstraints(db *gorm.DB) error {
 	}{
 		{"chk_skills_status", "status IN ('draft','published','deprecated','archived')"},
 		{"chk_skills_required_plan", "required_plan IN ('free','pro','enterprise')"},
-		{"chk_skills_monetization_type", "monetization_type IN ('free','plan_included','token_markup')"},
+		{"chk_skills_monetization_type", "monetization_type IN ('free','plan_included','token_markup','one_time')"},
 		{"chk_skills_kids_approval_status", "kids_approval_status IN ('not_required','pending','approved','emergency_approved','rejected','revoked')"},
 		{"chk_skills_timeout_seconds", "timeout_seconds BETWEEN 1 AND 120"},
 		{"chk_skills_free_quota", "free_quota_per_month IS NULL OR free_quota_per_month >= 0"},
@@ -192,6 +192,11 @@ func migrateSkillsConstraints(db *gorm.DB) error {
 	}
 
 	for _, c := range constraints {
+		if c.name == "chk_skills_monetization_type" && db.Migrator().HasConstraint(&Skill{}, c.name) {
+			if err := db.Migrator().DropConstraint(&Skill{}, c.name); err != nil {
+				return fmt.Errorf("drop constraint %s: %w", c.name, err)
+			}
+		}
 		if db.Migrator().HasConstraint(&Skill{}, c.name) {
 			continue
 		}

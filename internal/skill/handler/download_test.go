@@ -30,6 +30,7 @@ func testDownloadDB(t *testing.T) *gorm.DB {
 	db := testSkillDB(t)
 	require.NoError(t, skillmodel.MigrateSkillVersions(db))
 	require.NoError(t, skillmodel.MigrateUserEnabledSkills(db))
+	require.NoError(t, skillmodel.MigrateSkillPurchases(db))
 	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
 	return db
 }
@@ -66,6 +67,25 @@ func TestDownloadSkillPackage_HappyPath(t *testing.T) {
 	require.NoError(t, err, "user_enabled_skills row must be created on download")
 	assert.True(t, ues.Enabled)
 	assert.Equal(t, "skill_package", ues.Source, "UES source must be skill_package, not marketplace")
+}
+
+func TestDownloadSkillPackage_OneTimeEntitlement_BypassesPlanRequirement(t *testing.T) {
+	db := testDownloadDB(t)
+	SetDB(db)
+	s := testSkill("paid-download", "published")
+	s.RequiredPlan = enums.RequiredPlanPro
+	s.MonetizationType = enums.MonetizationTypeOneTime
+	s = createPublishedSkillWithActiveVersionFromSkill(t, db, s, "Purchased template.")
+	require.NoError(t, skillmodel.GrantOneTimeEntitlement(db, 42, 42, s.ID, "order-1"))
+
+	c, w := testDownloadCtx("paid-download", 42, "default")
+	DownloadSkillPackage(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/zip", w.Header().Get("Content-Type"))
+	var ues skillmodel.UserEnabledSkill
+	require.NoError(t, db.Where("user_id = ? AND skill_id = ?", 42, s.ID).First(&ues).Error)
+	assert.True(t, ues.Enabled)
 }
 
 // TestDownloadSkillPackage_ZipContainsManifestAndSkillMD verifies that the zip
