@@ -16,6 +16,8 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -32,10 +34,11 @@ type tokenPageResponse struct {
 }
 
 type tokenResponseItem struct {
-	ID     int    `json:"id"`
-	Name   string `json:"name"`
-	Key    string `json:"key"`
-	Status int    `json:"status"`
+	ID          int                     `json:"id"`
+	Name        string                  `json:"name"`
+	Key         string                  `json:"key"`
+	Status      int                     `json:"status"`
+	QuotaPolicy *model.TokenQuotaPolicy `json:"quota_policy"`
 }
 
 type tokenKeyResponse struct {
@@ -99,7 +102,7 @@ func openTokenControllerTestDB(t *testing.T) *gorm.DB {
 func migrateTokenControllerTestDB(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
-	if err := db.AutoMigrate(&model.Token{}); err != nil {
+	if err := db.AutoMigrate(&model.Token{}, &model.TokenQuotaPolicy{}); err != nil {
 		t.Fatalf("failed to migrate token table: %v", err)
 	}
 }
@@ -356,6 +359,52 @@ func runTokenMigrationCompatibilityTest(t *testing.T, db *gorm.DB, dialect strin
 	}
 }
 
+func runTokenQuotaPolicyAutoMigrateCompatibilityTest(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	if db.Migrator().HasTable(&model.TokenQuotaPolicy{}) {
+		t.Skip("refusing to run token quota policy compatibility test against external database because token_quota_policies table already exists")
+	}
+	if err := db.AutoMigrate(&model.Token{}, &model.TokenQuotaPolicy{}); err != nil {
+		t.Fatalf("failed to migrate token quota policy schema: %v", err)
+	}
+	t.Cleanup(func() {
+		if db.Migrator().HasTable(&model.TokenQuotaPolicy{}) {
+			_ = db.Migrator().DropTable(&model.TokenQuotaPolicy{})
+		}
+	})
+
+	token := seedToken(t, db, 11, "policy-token", "policy-test-key")
+	now := common.GetTimestamp()
+	policy := &model.TokenQuotaPolicy{
+		TokenId:         token.Id,
+		UserId:          token.UserId,
+		Enabled:         true,
+		PeriodMode:      model.TokenQuotaPeriodCustom,
+		CustomMinutes:   model.TokenQuotaCustomMinMinutes,
+		Quota:           10,
+		AnchorTime:      now,
+		PeriodStart:     now,
+		PeriodEnd:       now + int64(model.TokenQuotaCustomMinMinutes*60),
+		NextResetAt:     now + int64(model.TokenQuotaCustomMinMinutes*60),
+		ExhaustedAction: model.TokenQuotaExhaustRejectOnly,
+		AutoResume:      true,
+	}
+	require.NoError(t, db.Create(policy).Error)
+
+	require.NoError(t, model.ConsumeTokenQuotaPolicy(token.Id, 7))
+	err := model.ConsumeTokenQuotaPolicy(token.Id, 4)
+	require.ErrorIs(t, err, model.ErrTokenQuotaPolicyExhausted)
+
+	var saved model.TokenQuotaPolicy
+	require.NoError(t, db.First(&saved, "token_id = ?", token.Id).Error)
+	assert.Equal(t, 7, saved.UsedQuota)
+
+	require.NoError(t, model.RefundTokenQuotaPolicy(token.Id, 3))
+	require.NoError(t, db.First(&saved, "token_id = ?", token.Id).Error)
+	assert.Equal(t, 4, saved.UsedQuota)
+}
+
 func TestTokenAutoMigrateUsesVarchar128KeyColumn(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 
@@ -387,6 +436,28 @@ func TestTokenMigrationFromChar48ToVarchar128Postgres(t *testing.T) {
 
 	db, managedTokensTable := openTokenControllerExternalDB(t, "postgres", dsn)
 	runTokenMigrationCompatibilityTest(t, db, "postgres", managedTokensTable)
+}
+
+func TestTokenQuotaPolicyAutoMigrateMySQL(t *testing.T) {
+	dsn := os.Getenv("TEST_MYSQL_DSN")
+	if dsn == "" {
+		t.Skip("set TEST_MYSQL_DSN to run mysql token quota policy compatibility test")
+	}
+
+	db, managedTokensTable := openTokenControllerExternalDB(t, "mysql", dsn)
+	*managedTokensTable = true
+	runTokenQuotaPolicyAutoMigrateCompatibilityTest(t, db)
+}
+
+func TestTokenQuotaPolicyAutoMigratePostgres(t *testing.T) {
+	dsn := os.Getenv("TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("set TEST_POSTGRES_DSN to run postgres token quota policy compatibility test")
+	}
+
+	db, managedTokensTable := openTokenControllerExternalDB(t, "postgres", dsn)
+	*managedTokensTable = true
+	runTokenQuotaPolicyAutoMigrateCompatibilityTest(t, db)
 }
 
 func TestGetAllTokensMasksKeyInResponse(t *testing.T) {
@@ -442,6 +513,78 @@ func TestSearchTokensMasksKeyInResponse(t *testing.T) {
 	if strings.Contains(recorder.Body.String(), token.Key) {
 		t.Fatalf("search response leaked raw token key: %s", recorder.Body.String())
 	}
+}
+
+func TestGetAllTokensReturnsQuotaPolicy(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 1, "policy-list-token", "policylist123456")
+	anchor := int64(1782532500)
+	window, err := model.CalculateTokenQuotaPolicyWindow(model.TokenQuotaPeriodPreset5h, 0, anchor, anchor)
+	require.NoError(t, err)
+	require.NoError(t, db.Create(&model.TokenQuotaPolicy{
+		TokenId:         token.Id,
+		UserId:          token.UserId,
+		Enabled:         true,
+		PeriodMode:      model.TokenQuotaPeriodPreset5h,
+		Quota:           100,
+		UsedQuota:       100,
+		AnchorTime:      anchor,
+		PeriodStart:     window.Start,
+		PeriodEnd:       window.End,
+		NextResetAt:     window.NextResetAt,
+		ExhaustedAt:     anchor,
+		ExhaustedAction: model.TokenQuotaExhaustRejectOnly,
+		AutoResume:      true,
+	}).Error)
+	require.NoError(t, db.Model(&model.Token{}).Where("id = ?", token.Id).Update("quota_policy_enabled", true).Error)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/?p=1&size=10", nil, 1)
+	GetAllTokens(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var page tokenPageResponse
+	require.NoError(t, common.Unmarshal(response.Data, &page))
+	require.Len(t, page.Items, 1)
+	require.NotNil(t, page.Items[0].QuotaPolicy)
+	assert.Equal(t, 100, page.Items[0].QuotaPolicy.Quota)
+	assert.Equal(t, anchor, page.Items[0].QuotaPolicy.ExhaustedAt)
+}
+
+func TestSearchTokensReturnsQuotaPolicy(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 1, "policy-search-token", "policysearch123456")
+	anchor := int64(1782532500)
+	window, err := model.CalculateTokenQuotaPolicyWindow(model.TokenQuotaPeriodPreset5h, 0, anchor, anchor)
+	require.NoError(t, err)
+	require.NoError(t, db.Create(&model.TokenQuotaPolicy{
+		TokenId:         token.Id,
+		UserId:          token.UserId,
+		Enabled:         true,
+		PeriodMode:      model.TokenQuotaPeriodPreset5h,
+		Quota:           100,
+		UsedQuota:       100,
+		AnchorTime:      anchor,
+		PeriodStart:     window.Start,
+		PeriodEnd:       window.End,
+		NextResetAt:     window.NextResetAt,
+		ExhaustedAt:     anchor,
+		ExhaustedAction: model.TokenQuotaExhaustRejectOnly,
+		AutoResume:      true,
+	}).Error)
+	require.NoError(t, db.Model(&model.Token{}).Where("id = ?", token.Id).Update("quota_policy_enabled", true).Error)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/search?keyword=policy-search-token&p=1&size=10", nil, 1)
+	SearchTokens(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var page tokenPageResponse
+	require.NoError(t, common.Unmarshal(response.Data, &page))
+	require.Len(t, page.Items, 1)
+	require.NotNil(t, page.Items[0].QuotaPolicy)
+	assert.Equal(t, 100, page.Items[0].QuotaPolicy.Quota)
+	assert.Equal(t, anchor, page.Items[0].QuotaPolicy.ExhaustedAt)
 }
 
 func TestGetTokenMasksKeyInResponse(t *testing.T) {
@@ -503,6 +646,165 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 	if strings.Contains(recorder.Body.String(), token.Key) {
 		t.Fatalf("update response leaked raw token key: %s", recorder.Body.String())
 	}
+}
+
+func TestAddTokenCreatesQuotaPolicy(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	body := map[string]any{
+		"name":                 "policy-token",
+		"expired_time":         -1,
+		"remain_quota":         1000,
+		"unlimited_quota":      false,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+		"quota_policy": map[string]any{
+			"enabled":          true,
+			"period_mode":      "custom",
+			"custom_minutes":   30,
+			"quota":            100,
+			"anchor_time":      int64(1782532500),
+			"exhausted_action": "reject_only",
+			"auto_resume":      true,
+		},
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 1)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var token model.Token
+	require.NoError(t, db.Where("name = ?", "policy-token").First(&token).Error)
+	var policy model.TokenQuotaPolicy
+	require.NoError(t, db.Where("token_id = ?", token.Id).First(&policy).Error)
+	assert.True(t, policy.Enabled)
+	assert.Equal(t, model.TokenQuotaPeriodCustom, policy.PeriodMode)
+	assert.Equal(t, 30, policy.CustomMinutes)
+	assert.Equal(t, 100, policy.Quota)
+	assert.Equal(t, policy.PeriodEnd, policy.NextResetAt)
+}
+
+func TestGetTokenReturnsQuotaPolicy(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 1, "policy-detail", "policy-detail-key")
+	anchor := int64(1782532500)
+	window, err := model.CalculateTokenQuotaPolicyWindow(model.TokenQuotaPeriodPreset5h, 0, anchor, anchor)
+	require.NoError(t, err)
+	require.NoError(t, db.Create(&model.TokenQuotaPolicy{
+		TokenId:         token.Id,
+		UserId:          token.UserId,
+		Enabled:         true,
+		PeriodMode:      model.TokenQuotaPeriodPreset5h,
+		Quota:           100,
+		AnchorTime:      anchor,
+		PeriodStart:     window.Start,
+		PeriodEnd:       window.End,
+		NextResetAt:     window.NextResetAt,
+		ExhaustedAction: model.TokenQuotaExhaustRejectOnly,
+		AutoResume:      true,
+	}).Error)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/"+strconv.Itoa(token.Id), nil, 1)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	GetToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var detail model.Token
+	require.NoError(t, common.Unmarshal(response.Data, &detail))
+	require.NotNil(t, detail.QuotaPolicy)
+	assert.Equal(t, model.TokenQuotaPeriodPreset5h, detail.QuotaPolicy.PeriodMode)
+	assert.Equal(t, 100, detail.QuotaPolicy.Quota)
+}
+
+func TestUpdateTokenUpdatesQuotaPolicy(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 1, "policy-update", "policy-update-key")
+	body := map[string]any{
+		"id":                   token.Id,
+		"name":                 "policy-updated",
+		"expired_time":         -1,
+		"remain_quota":         1000,
+		"unlimited_quota":      false,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+		"quota_policy": map[string]any{
+			"enabled":          true,
+			"period_mode":      "preset_5h",
+			"quota":            200,
+			"anchor_time":      int64(1782532500),
+			"exhausted_action": "disable_token",
+			"auto_resume":      true,
+		},
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, 1)
+	UpdateToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var policy model.TokenQuotaPolicy
+	require.NoError(t, db.Where("token_id = ?", token.Id).First(&policy).Error)
+	assert.Equal(t, model.TokenQuotaPeriodPreset5h, policy.PeriodMode)
+	assert.Equal(t, 200, policy.Quota)
+	assert.Equal(t, model.TokenQuotaExhaustDisableToken, policy.ExhaustedAction)
+}
+
+func TestResetTokenQuotaPolicyRestoresToken(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.Log{}, &model.User{}))
+	token := seedToken(t, db, 1, "policy-reset", "policy-reset-key")
+	require.NoError(t, db.Model(&model.Token{}).Where("id = ?", token.Id).Updates(map[string]any{
+		"status":               common.TokenStatusDisabled,
+		"quota_policy_enabled": true,
+	}).Error)
+	anchor := int64(1782532500)
+	window, err := model.CalculateTokenQuotaPolicyWindow(model.TokenQuotaPeriodPreset5h, 0, anchor, anchor)
+	require.NoError(t, err)
+	require.NoError(t, db.Create(&model.TokenQuotaPolicy{
+		TokenId:              token.Id,
+		UserId:               token.UserId,
+		Enabled:              true,
+		PeriodMode:           model.TokenQuotaPeriodPreset5h,
+		Quota:                100,
+		UsedQuota:            120,
+		AnchorTime:           anchor,
+		PeriodStart:          window.Start,
+		PeriodEnd:            window.End,
+		NextResetAt:          window.NextResetAt,
+		ExhaustedAt:          anchor,
+		ExhaustedTokenStatus: common.TokenStatusEnabled,
+		ExhaustedAction:      model.TokenQuotaExhaustDisableToken,
+		AutoResume:           true,
+		BoundaryMode:         model.TokenQuotaBoundaryGraceful,
+	}).Error)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+strconv.Itoa(token.Id)+"/quota_policy/reset", nil, 1)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	ResetTokenQuotaPolicy(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var detail model.Token
+	require.NoError(t, common.Unmarshal(response.Data, &detail))
+	assert.Equal(t, common.TokenStatusEnabled, detail.Status)
+	require.NotNil(t, detail.QuotaPolicy)
+	assert.Equal(t, 0, detail.QuotaPolicy.UsedQuota)
+	assert.Zero(t, detail.QuotaPolicy.ExhaustedAt)
+	var logCount int64
+	require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("token_id = ? AND type = ?", token.Id, model.LogTypeSystem).Count(&logCount).Error)
+	assert.Equal(t, int64(1), logCount)
+	var resetLog model.Log
+	require.NoError(t, model.LOG_DB.Where("token_id = ? AND type = ?", token.Id, model.LogTypeSystem).First(&resetLog).Error)
+	var other map[string]interface{}
+	require.NoError(t, common.UnmarshalJsonStr(resetLog.Other, &other))
+	op, ok := other["op"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "token.quota_policy.manual_reset", op["action"])
 }
 
 func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {

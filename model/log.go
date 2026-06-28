@@ -160,6 +160,65 @@ func RecordLog(userId int, logType int, content string) {
 	}
 }
 
+func RecordTokenLog(userId int, tokenId int, logType int, content string) {
+	if logType == LogTypeConsume && !common.LogConsumeEnabled {
+		return
+	}
+	username, _ := GetUsernameById(userId, false)
+	tokenName := ""
+	if tokenId != 0 {
+		token, err := GetTokenById(tokenId)
+		if err == nil && token != nil {
+			tokenName = token.Name
+		}
+	}
+	log := &Log{
+		UserId:    userId,
+		Username:  username,
+		CreatedAt: common.GetTimestamp(),
+		Type:      logType,
+		Content:   content,
+		TokenId:   tokenId,
+		TokenName: tokenName,
+	}
+	if err := createLog(log); err != nil {
+		common.SysLog("failed to record token log: " + err.Error())
+	}
+}
+
+// RecordTokenOperationLog records a token-scoped log with a language-independent
+// operation descriptor in Other.op. The natural-language content is only a
+// fallback for exports or legacy clients.
+func RecordTokenOperationLog(userId int, tokenId int, logType int, content string, action string, params map[string]interface{}) {
+	if logType == LogTypeConsume && !common.LogConsumeEnabled {
+		return
+	}
+	username, _ := GetUsernameById(userId, false)
+	tokenName := ""
+	if tokenId != 0 {
+		token, err := GetTokenById(tokenId)
+		if err == nil && token != nil {
+			tokenName = token.Name
+		}
+	}
+	other := map[string]interface{}{
+		"op": buildOpField(action, params),
+	}
+	log := &Log{
+		UserId:    userId,
+		Username:  username,
+		CreatedAt: common.GetTimestamp(),
+		Type:      logType,
+		Content:   content,
+		TokenId:   tokenId,
+		TokenName: tokenName,
+		Other:     common.MapToJsonStr(other),
+	}
+	if err := createLog(log); err != nil {
+		common.SysLog("failed to record token operation log: " + err.Error())
+	}
+}
+
 // RecordLogWithAdminInfo 记录操作日志，并将管理员相关信息存入 Other.admin_info，
 func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo map[string]interface{}) {
 	if logType == LogTypeConsume && !common.LogConsumeEnabled {

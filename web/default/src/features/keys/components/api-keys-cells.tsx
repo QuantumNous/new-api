@@ -16,11 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback } from 'react'
 import { Check, Copy, Loader2 } from 'lucide-react'
+import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { copyToClipboard } from '@/lib/copy-to-clipboard'
+
+import { BadgeCell } from '@/components/data-table'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -32,10 +34,74 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { BadgeCell } from '@/components/data-table'
-import { StatusBadge } from '@/components/status-badge'
-import { type ApiKey } from '../types'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { formatQuota, formatTimestampToMinute } from '@/lib/format'
+
+import { API_KEY_STATUSES } from '../constants'
+import { getQuotaPolicyDisableState } from '../lib/quota-policy-status'
+import type { ApiKey } from '../types'
 import { useApiKeys } from './api-keys-provider'
+
+export function ApiKeyStatusBadge({
+  apiKey,
+  className,
+}: {
+  apiKey: ApiKey
+  className?: string
+}) {
+  const { t } = useTranslation()
+  const statusConfig = API_KEY_STATUSES[apiKey.status]
+  const quotaPolicyDisableState = getQuotaPolicyDisableState(apiKey)
+
+  if (quotaPolicyDisableState) {
+    const policy = apiKey.quota_policy
+    const isRecovering = quotaPolicyDisableState === 'recovering'
+    return (
+      <Tooltip>
+        <TooltipTrigger render={<span className={className} />}>
+          <StatusBadge
+            label={
+              isRecovering ? t('Recovery pending') : t('Temporarily disabled')
+            }
+            variant='warning'
+            copyable={false}
+          />
+        </TooltipTrigger>
+        <TooltipContent side='top' className='max-w-xs'>
+          <div className='space-y-1 text-xs'>
+            <div>{t('Reason: Periodic quota exhausted')}</div>
+            {isRecovering && (
+              <div>{t('Waiting for automatic recovery task.')}</div>
+            )}
+            {policy && (
+              <div>
+                {t('Used:')} {formatQuota(policy.used_quota)} /{' '}
+                {formatQuota(policy.quota)}
+              </div>
+            )}
+            <div>
+              {t('Estimated recovery:')}{' '}
+              {t('About {{time}}', {
+                time: formatTimestampToMinute(policy?.next_reset_at),
+              })}
+            </div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  if (!statusConfig) return null
+
+  return (
+    <StatusBadge
+      label={t(statusConfig.label)}
+      variant={statusConfig.variant}
+      copyable={false}
+      className={className}
+    />
+  )
+}
 
 export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
   const { t } = useTranslation()
@@ -52,6 +118,15 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
   const resolvedFullKey = resolvedKeys[apiKey.id]
   const isCopied = copiedKeyId === apiKey.id
   const maskedKey = `sk-${apiKey.key}`
+  let copyIcon = <Copy className='size-3.5' />
+  let copyTooltip = t('Copy API key')
+  if (isLoading) {
+    copyIcon = <Loader2 className='size-3.5 animate-spin' />
+    copyTooltip = t('Loading...')
+  } else if (isCopied) {
+    copyIcon = <Check className='size-3.5 text-green-600' />
+    copyTooltip = t('Copied!')
+  }
 
   const handlePopoverOpen = useCallback(
     (open: boolean) => {
@@ -133,21 +208,9 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
             />
           }
         >
-          {isLoading ? (
-            <Loader2 className='size-3.5 animate-spin' />
-          ) : isCopied ? (
-            <Check className='size-3.5 text-green-600' />
-          ) : (
-            <Copy className='size-3.5' />
-          )}
+          {copyIcon}
         </TooltipTrigger>
-        <TooltipContent>
-          {isLoading
-            ? t('Loading...')
-            : isCopied
-              ? t('Copied!')
-              : t('Copy API key')}
-        </TooltipContent>
+        <TooltipContent>{copyTooltip}</TooltipContent>
       </Tooltip>
     </div>
   )

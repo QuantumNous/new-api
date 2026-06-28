@@ -396,8 +396,15 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 	if !relayInfo.TokenUnlimited && token.RemainQuota < quota {
 		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
 	}
+	err = preConsumeTokenQuotaPolicy(relayInfo, quota)
+	if err != nil {
+		return err
+	}
 	err = model.DecreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota)
 	if err != nil {
+		if rollbackErr := postConsumeTokenQuotaPolicy(relayInfo, -quota); rollbackErr != nil {
+			common.SysLog("error rollback token quota policy after token quota decrease failed: " + rollbackErr.Error())
+		}
 		return err
 	}
 	return nil
@@ -430,6 +437,15 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 	}
 
 	if !relayInfo.IsPlayground {
+		if preConsumedQuota > 0 {
+			if err = settleTokenQuotaPolicy(relayInfo, quota+preConsumedQuota); err != nil {
+				return err
+			}
+		} else {
+			if err = postConsumeTokenQuotaPolicy(relayInfo, quota); err != nil {
+				return err
+			}
+		}
 		if quota > 0 {
 			err = model.DecreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota)
 		} else {

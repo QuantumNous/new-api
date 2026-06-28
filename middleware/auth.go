@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -368,6 +369,23 @@ func TokenAuth() func(c *gin.Context) {
 				common.SysLog("TokenAuth ValidateUserToken database error: " + err.Error())
 				abortWithOpenAiMessage(c, http.StatusInternalServerError,
 					common.TranslateMessage(c, i18n.MsgDatabaseError))
+			} else if quotaPolicyErr := new(model.TokenQuotaPolicyTemporaryDisabledError); errors.As(err, &quotaPolicyErr) {
+				messageKey := i18n.MsgTokenQuotaPolicyExhaustedPending
+				resetTime := ""
+				if quotaPolicyErr.AutoResume && quotaPolicyErr.NextResetAt > common.GetTimestamp() {
+					messageKey = i18n.MsgTokenQuotaPolicyExhausted
+					resetTime = time.Unix(quotaPolicyErr.NextResetAt, 0).Format("2006-01-02 15:04")
+				}
+				messageArgs := map[string]any{
+					"ResetTime": resetTime,
+				}
+				message := common.TranslateMessage(c, messageKey, messageArgs)
+				if c.GetHeader("Accept-Language") == "" {
+					message = i18n.Translate(i18n.LangEn, messageKey, messageArgs)
+				}
+				abortWithOpenAiMessage(c, http.StatusTooManyRequests,
+					message,
+					types.ErrorCodeTokenQuotaPolicyExhausted)
 			} else {
 				abortWithOpenAiMessage(c, http.StatusUnauthorized,
 					common.TranslateMessage(c, i18n.MsgTokenInvalid))
@@ -442,6 +460,7 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	c.Set("token_key", token.Key)
 	c.Set("token_name", token.Name)
 	c.Set("token_unlimited_quota", token.UnlimitedQuota)
+	common.SetContextKey(c, constant.ContextKeyTokenQuotaPolicyEnabled, token.QuotaPolicyEnabled)
 	if !token.UnlimitedQuota {
 		c.Set("token_quota", token.RemainQuota)
 	}

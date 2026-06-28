@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -43,9 +44,24 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 	}
 
 	trustQuota := common.GetTrustQuota()
+	tokenQuotaPolicyBlocksTrust := false
+	if relayInfo.TokenQuotaPolicyEnabled {
+		policy, err := getRelayTokenQuotaPolicy(relayInfo)
+		if err != nil {
+			if errors.Is(err, model.ErrTokenQuotaPolicyNotFound) {
+				tokenQuotaPolicyBlocksTrust = false
+			} else {
+				return types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+			}
+		} else {
+			tokenQuotaPolicyBlocksTrust = policy.Enabled && (policy.BoundaryMode == string(model.TokenQuotaBoundaryStrict) ||
+				(policy.NextResetAt > 0 && common.GetTimestamp() < policy.NextResetAt &&
+					(policy.ExhaustedAt != 0 || policy.UsedQuota >= policy.Quota)))
+		}
+	}
 
 	relayInfo.UserQuota = userQuota
-	if userQuota > trustQuota {
+	if userQuota > trustQuota && !tokenQuotaPolicyBlocksTrust {
 		// 用户额度充足，判断令牌额度是否充足
 		if !relayInfo.TokenUnlimited {
 			// 非无限令牌，判断令牌额度是否充足
@@ -66,6 +82,9 @@ func PreConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommo
 	if preConsumedQuota > 0 {
 		err := PreConsumeTokenQuota(relayInfo, preConsumedQuota)
 		if err != nil {
+			if errors.Is(err, model.ErrTokenQuotaPolicyExhausted) {
+				return newTokenQuotaPolicyExhaustedError(c, relayInfo, err)
+			}
 			return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		err = model.DecreaseUserQuota(relayInfo.UserId, preConsumedQuota, false)

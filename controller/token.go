@@ -39,6 +39,10 @@ func GetAllTokens(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if err := model.AttachTokenQuotaPolicies(tokens); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	total, _ := model.CountUserTokens(userId)
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
@@ -57,6 +61,10 @@ func SearchTokens(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if err := model.AttachTokenQuotaPolicies(tokens); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
 	common.ApiSuccess(c, pageInfo)
@@ -71,6 +79,10 @@ func GetToken(c *gin.Context) {
 	}
 	token, err := model.GetTokenByIds(id, userId)
 	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.AttachTokenQuotaPolicy(token); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -92,6 +104,27 @@ func GetTokenKey(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{
 		"key": token.GetFullKey(),
 	})
+}
+
+func ResetTokenQuotaPolicy(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	userId := c.GetInt("id")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	policy, err := model.ResetTokenQuotaPolicyManually(id, userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	token, err := model.GetTokenByIds(id, userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	token.QuotaPolicy = policy
+	common.ApiSuccess(c, buildMaskedTokenResponse(token))
 }
 
 func GetTokenStatus(c *gin.Context) {
@@ -175,6 +208,12 @@ func AddToken(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
 		return
 	}
+	if token.QuotaPolicy != nil {
+		if err := token.QuotaPolicy.Validate(); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	// 非无限额度时，检查额度值是否超出有效范围
 	if !token.UnlimitedQuota {
 		if token.RemainQuota < 0 {
@@ -227,6 +266,12 @@ func AddToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if token.QuotaPolicy != nil {
+		if _, err := model.SaveTokenQuotaPolicyForToken(cleanToken.Id, cleanToken.UserId, token.QuotaPolicy, common.GetTimestamp()); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -259,6 +304,12 @@ func UpdateToken(c *gin.Context) {
 	if len(token.Name) > 50 {
 		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
 		return
+	}
+	if token.QuotaPolicy != nil {
+		if err := token.QuotaPolicy.Validate(); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	if !token.UnlimitedQuota {
 		if token.RemainQuota < 0 {
@@ -302,6 +353,17 @@ func UpdateToken(c *gin.Context) {
 	}
 	err = cleanToken.Update()
 	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if token.QuotaPolicy != nil {
+		policy, err := model.SaveTokenQuotaPolicyForToken(cleanToken.Id, cleanToken.UserId, token.QuotaPolicy, common.GetTimestamp())
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		cleanToken.QuotaPolicy = policy
+	} else if err := model.AttachTokenQuotaPolicy(cleanToken); err != nil {
 		common.ApiError(c, err)
 		return
 	}

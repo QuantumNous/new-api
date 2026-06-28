@@ -1,3 +1,6 @@
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useQuery } from '@tanstack/react-query'
+import { ChevronDown, KeyRound, Settings2, WalletCards } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,16 +20,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
-import { useForm, type SubmitErrorHandler } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery } from '@tanstack/react-query'
-import { ChevronDown, KeyRound, Settings2, WalletCards } from 'lucide-react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getUserModels, getUserGroups } from '@/lib/api'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
-import { cn } from '@/lib/utils'
-import { useStatus } from '@/hooks/use-status'
+
+import { DateTimePicker } from '@/components/datetime-picker'
+import {
+  SideDrawerSection,
+  SideDrawerSectionHeader,
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+  sideDrawerSwitchItemClassName,
+} from '@/components/drawer-layout'
+import { MultiSelect } from '@/components/multi-select'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -54,27 +62,21 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { DateTimePicker } from '@/components/datetime-picker'
-import {
-  SideDrawerSection,
-  SideDrawerSectionHeader,
-  sideDrawerContentClassName,
-  sideDrawerFooterClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-  sideDrawerSwitchItemClassName,
-} from '@/components/drawer-layout'
-import { MultiSelect } from '@/components/multi-select'
+import { useStatus } from '@/hooks/use-status'
+import { getUserModels, getUserGroups } from '@/lib/api'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { cn } from '@/lib/utils'
+
 import { createApiKey, updateApiKey, getApiKey } from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
-  getApiKeyFormSchema,
   type ApiKeyFormValues,
+  getApiKeyFormSchema,
   getApiKeyFormDefaultValues,
   transformFormDataToPayload,
   transformApiKeyToFormDefaults,
 } from '../lib'
-import { type ApiKey } from '../types'
+import type { ApiKey } from '../types'
 import {
   ApiKeyGroupCombobox,
   type ApiKeyGroupOption,
@@ -137,17 +139,21 @@ export function ApiKeysMutateDrawer({
   // Load existing data when updating
   useEffect(() => {
     if (open && isUpdate && currentRow) {
-      getApiKey(currentRow.id).then((result) => {
-        if (result.success && result.data) {
-          form.reset(transformApiKeyToFormDefaults(result.data))
-        }
-      })
+      getApiKey(currentRow.id)
+        .then((result) => {
+          if (result.success && result.data) {
+            form.reset(transformApiKeyToFormDefaults(result.data))
+          }
+        })
+        .catch(() => {
+          toast.error(t(ERROR_MESSAGES.LOAD_FAILED))
+        })
     } else if (open && !isUpdate) {
       form.reset(
         getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto)
       )
     }
-  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, backendHasAuto])
+  }, [open, isUpdate, currentRow, form, defaultUseAutoGroup, backendHasAuto, t])
 
   // Correct group after groups load: if the form value is not in available groups, fall back
   useEffect(() => {
@@ -213,14 +219,14 @@ export function ApiKeysMutateDrawer({
           triggerRefresh()
         }
       }
-    } catch (_error) {
+    } catch {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const onInvalid: SubmitErrorHandler<ApiKeyFormValues> = () => {
+  const onInvalid = () => {
     toast.error(t('Please fix the highlighted fields before saving'))
   }
 
@@ -247,6 +253,8 @@ export function ApiKeysMutateDrawer({
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const selectedGroup = form.watch('group')
   const unlimitedQuota = form.watch('unlimited_quota')
+  const periodicQuotaEnabled = form.watch('quota_policy_enabled')
+  const periodicQuotaPeriodMode = form.watch('quota_policy_period_mode')
 
   return (
     <Sheet
@@ -416,7 +424,9 @@ export function ApiKeysMutateDrawer({
                           min='1'
                           placeholder={t('Number of keys to create')}
                           onChange={(e) =>
-                            field.onChange(parseInt(e.target.value, 10) || 1)
+                            field.onChange(
+                              Number.parseInt(e.target.value, 10) || 1
+                            )
                           }
                         />
                       </FormControl>
@@ -452,7 +462,9 @@ export function ApiKeysMutateDrawer({
                           step={tokensOnly ? 1 : 0.01}
                           placeholder={quotaPlaceholder}
                           onChange={(e) =>
-                            field.onChange(parseFloat(e.target.value) || 0)
+                            field.onChange(
+                              Number.parseFloat(e.target.value) || 0
+                            )
                           }
                         />
                       </FormControl>
@@ -491,6 +503,223 @@ export function ApiKeysMutateDrawer({
                   </FormItem>
                 )}
               />
+            </SideDrawerSection>
+
+            <SideDrawerSection>
+              <SideDrawerSectionHeader
+                title={t('Periodic Quota')}
+                description={t('Limit this API key within a recurring window')}
+                icon={<WalletCards className='size-4' />}
+              />
+              <FormField
+                control={form.control}
+                name='quota_policy_enabled'
+                render={({ field }) => (
+                  <FormItem className={sideDrawerSwitchItemClassName()}>
+                    <div className='flex flex-col gap-0.5'>
+                      <FormLabel className='text-sm'>
+                        {t('Enable periodic quota')}
+                      </FormLabel>
+                      <FormDescription className='text-xs'>
+                        {t(
+                          'Applies an extra recurring budget without changing the total API key quota'
+                        )}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              {periodicQuotaEnabled && (
+                <div className='grid gap-4 sm:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='quota_policy_period_mode'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Period')}</FormLabel>
+                        <FormControl>
+                          <select
+                            value={field.value}
+                            onChange={field.onChange}
+                            className='border-input bg-background ring-offset-background focus-visible:ring-ring h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none'
+                          >
+                            <option value='preset_5h'>
+                              {t('Every 5 hours')}
+                            </option>
+                            <option value='daily'>{t('Daily')}</option>
+                            <option value='weekly'>{t('Weekly')}</option>
+                            <option value='monthly'>{t('Monthly')}</option>
+                            <option value='custom'>{t('Custom')}</option>
+                          </select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {periodicQuotaPeriodMode === 'custom' && (
+                    <FormField
+                      control={form.control}
+                      name='quota_policy_custom_minutes'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Custom minutes')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type='number'
+                              min={10}
+                              max={525600}
+                              onChange={(e) =>
+                                field.onChange(
+                                  Number.parseInt(e.target.value, 10) || 10
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t('Minimum 10 minutes, maximum 365 days')}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  <FormField
+                    control={form.control}
+                    name='quota_policy_quota_dollars'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Periodic quota ({{currency}})', {
+                            currency: currencyLabel,
+                          })}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type='number'
+                            step={tokensOnly ? 1 : 0.01}
+                            onChange={(e) =>
+                              field.onChange(
+                                Number.parseFloat(e.target.value) || 0
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='quota_policy_anchor_time'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Period start time')}</FormLabel>
+                        <FormControl>
+                          <DateTimePicker
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder={t('Select start time')}
+                            className='min-w-0 [&_input[type=time]]:w-24 sm:[&_input[type=time]]:w-32'
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='quota_policy_exhausted_action'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('When quota is exhausted')}</FormLabel>
+                        <FormControl>
+                          <select
+                            value={field.value}
+                            onChange={field.onChange}
+                            className='border-input bg-background ring-offset-background focus-visible:ring-ring h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none'
+                          >
+                            <option value='reject_only'>
+                              {t('Reject requests only')}
+                            </option>
+                            <option value='disable_token'>
+                              {t('Pause API key')}
+                            </option>
+                          </select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='quota_policy_boundary_mode'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Boundary handling')}</FormLabel>
+                        <FormControl>
+                          <select
+                            value={field.value}
+                            onChange={field.onChange}
+                            className='border-input bg-background ring-offset-background focus-visible:ring-ring h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none'
+                          >
+                            <option value='graceful_boundary'>
+                              {t('Allow boundary request to finish')}
+                            </option>
+                            <option value='strict_pre_check'>
+                              {t('Strict pre-check')}
+                            </option>
+                          </select>
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Default allows an in-flight streaming request to finish, then blocks later requests'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='quota_policy_auto_resume'
+                    render={({ field }) => (
+                      <FormItem className={sideDrawerSwitchItemClassName()}>
+                        <div className='flex flex-col gap-0.5'>
+                          <FormLabel className='text-sm'>
+                            {t('Auto resume next period')}
+                          </FormLabel>
+                          <FormDescription className='text-xs'>
+                            {t(
+                              'Only resumes keys paused by this periodic quota'
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
             </SideDrawerSection>
 
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
