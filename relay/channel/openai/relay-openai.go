@@ -117,10 +117,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var toolCount int
 	var usage = &dto.Usage{}
 	var lastStreamData string
-	var secondLastStreamData string // 存储倒数第二个stream data，用于音频模型
-
-	// 检查是否为音频模型
-	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
+	var secondLastStreamData string // 存储倒数第二个stream data，用于最后一帧畸形时兜底
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if lastStreamData != "" {
@@ -130,8 +127,8 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			}
 		}
 		if len(data) > 0 {
-			// 对音频模型，保存倒数第二个stream data
-			if isAudioModel && lastStreamData != "" {
+			// 始终保存倒数第二个 stream data，用于最后一帧畸形时兜底
+			if lastStreamData != "" {
 				secondLastStreamData = lastStreamData
 			}
 
@@ -143,8 +140,18 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		}
 	})
 
-	// 对音频模型，从倒数第二个stream data中提取usage信息
-	if isAudioModel && secondLastStreamData != "" {
+	// 处理最后的响应
+	shouldSendLastResp := true
+	if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
+		&containStreamUsage, info, &shouldSendLastResp); err != nil {
+		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
+	}
+
+	// 兼容兜底：仅当最后一帧没有有效 usage 时（畸形 SSE，例如末尾为 {"choices":[],"cost":"0"} + TCP EOF），
+	// 才尝试从倒数第二帧提取 usage，避免 fallback 到 ResponseText2Usage 本地计费导致 cache_tokens 丢失。
+	// 同时要求客户端显式请求 usage（与 handleLastResponse 对齐），避免在没有 stream_options.include_usage
+	// 的请求上"解锁"额外的 usage 元数据。
+	if !containStreamUsage && info.ShouldIncludeUsage && secondLastStreamData != "" {
 		var streamResp struct {
 			Usage *dto.Usage `json:"usage"`
 		}
@@ -154,18 +161,11 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			containStreamUsage = true
 
 			if common.DebugEnabled {
-				logger.LogDebug(c, "Audio model usage extracted from second last SSE: PromptTokens=%d, CompletionTokens=%d, TotalTokens=%d, InputTokens=%d, OutputTokens=%d",
+				logger.LogDebug(c, "Usage extracted from second last SSE (last frame had no valid usage): PromptTokens=%d, CompletionTokens=%d, TotalTokens=%d, InputTokens=%d, OutputTokens=%d",
 					usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens,
 					usage.InputTokens, usage.OutputTokens)
 			}
 		}
-	}
-
-	// 处理最后的响应
-	shouldSendLastResp := true
-	if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
-		&containStreamUsage, info, &shouldSendLastResp); err != nil {
-		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
 	}
 
 	if info.RelayFormat == types.RelayFormatOpenAI {
