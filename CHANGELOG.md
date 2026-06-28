@@ -2,6 +2,12 @@
 
 DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
+## 2026-06-29
+
+- 新增 DR-97 Personalized recommendations 任务 PRD，定义基于下载/使用类别、co-download、cold-start fallback、Kids 可见性与 `reco_personal`/`reco_codownload` 归因的实现范围（`docs/tasks/dr97-personalized-recommendations-prd.md`）
+- 实现 DR-97 Personalized recommendations 后端接口：新增个人类别亲和推荐与 co-download 推荐 API，复用 Marketplace availability 形状展示 locked-but-buyable Skill，Kids 模式过滤非 kids-safe 推荐，并扩展 `reco_personal`/`reco_codownload` 归因枚举与下载转换入口（`internal/skill/handler`, `router/skill-router.go`, `internal/skill/{enums,model}`, `docs/skill-marketplace/tasks/`）
+- 记录 DR-97 聚焦、相关回归与 full Go suite 测试结果和覆盖率；full suite 前先构建 ignored frontend dist 以满足 root package embed 前置条件（`docs/test-results/dr97-personalized-recommendations.txt`）
+
 ## 2026-06-27
 
 - 修复 DR-1002 skill runner 解析 routing 响应：`/v1/routing/chat/completions` 返回标准 OpenAI 形状（`{"choices":[{"message":{"content":...}}]}`，无顶层 `text`），但打包 runner 期望 `{"text":...}`，导致 `EXECUTION_FAILED: Execution API response missing text`。runner 改为优先读顶层 `text`（向后兼容），否则防御式取 `choices[0].message.content`；端点不变。补 OpenAI-shape 成功用例，原 `{"text"}` 用例仍通过（`internal/skill/packageassets/runtime/deeprouter_skill_runner.py`, `internal/skill/handler/download_test.go`, `docs/tasks/dr1002-public-routing-runner-response-parse-prd.md`）

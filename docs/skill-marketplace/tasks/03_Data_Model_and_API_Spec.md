@@ -57,7 +57,7 @@ V1 assumes existing platform tables exist for users, tenants, sessions, subscrip
 | `evaluation_issue_type` | `format`, `completeness`, `task_completion`, `violation` |
 | `save_type` | `saved`, `favorited` |
 | `block_reason` | `auth_required`, `skill_not_found`, `skill_not_published`, `skill_not_enabled`, `plan_required`, `subscription_inactive`, `quota_exceeded`, `kids_mode_blocked`, `context_too_long`, `rate_limited`, `timeout` |
-| `entry_point` | `marketplace_card`, `skill_detail`, `my_skills`, `saved_list`, `featured`, `popular`, `new`, `recommended`, `admin_preview`, `search_results`, `skill_package`, `playground_picker` (legacy parse only) |
+| `entry_point` | `marketplace_card`, `skill_detail`, `my_skills`, `saved_list`, `featured`, `popular`, `new`, `recommended`, `reco_personal`, `reco_codownload`, `admin_preview`, `search_results`, `skill_package`, `playground_picker` (legacy parse only) |
 | `tier2_event_type` | `skill_installed`, `skill_used_local` |
 
 ---

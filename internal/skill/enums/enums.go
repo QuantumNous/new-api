@@ -223,6 +223,8 @@ const (
 	EntryPointPopular         EntryPoint = "popular"
 	EntryPointNew             EntryPoint = "new"
 	EntryPointRecommended     EntryPoint = "recommended"
+	EntryPointRecoPersonal    EntryPoint = "reco_personal"
+	EntryPointRecoCodownload  EntryPoint = "reco_codownload"
 	EntryPointAdminPreview    EntryPoint = "admin_preview"
 	EntryPointSearchResults   EntryPoint = "search_results"
 	// EntryPointSkillPackage is the primary R2 execution entry for downloaded
@@ -245,6 +247,8 @@ var validEntryPoints = map[EntryPoint]struct{}{
 	EntryPointPopular:          {},
 	EntryPointNew:              {},
 	EntryPointRecommended:      {},
+	EntryPointRecoPersonal:     {},
+	EntryPointRecoCodownload:   {},
 	EntryPointAdminPreview:     {},
 	EntryPointSearchResults:    {},
 	EntryPointSkillPackage:     {},

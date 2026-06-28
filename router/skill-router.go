@@ -29,6 +29,7 @@ func SetSkillRouter(router *gin.Engine) {
 		{
 			marketplaceRoute.GET("/skills", skillhandler.ListMarketplaceSkills)
 			marketplaceRoute.GET("/skills/:id", skillhandler.GetMarketplaceSkill)
+			marketplaceRoute.GET("/skills/:id/recommendations", skillhandler.ListCoDownloadRecommendations)
 			marketplaceRoute.POST("/skills/:id/events", skillhandler.RecordMarketplaceSkillEvent)
 		}
 
@@ -39,6 +40,7 @@ func SetSkillRouter(router *gin.Engine) {
 		}
 		{
 			mySkillsRoute.GET("/my-skills", skillhandler.ListMySkills)
+			mySkillsRoute.GET("/recommendations/personal", skillhandler.ListPersonalRecommendations)
 			mySkillsRoute.DELETE("/my-skills/:id", skillhandler.RemoveMySkill)
 		}
 

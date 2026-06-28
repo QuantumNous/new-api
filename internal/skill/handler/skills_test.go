@@ -479,6 +479,35 @@ func TestRecordMarketplaceSkillEvent_AcceptsRecommendedImpression(t *testing.T) 
 	assert.Equal(t, enums.RequiredPlanPro, *evt.Plan)
 }
 
+func TestRecordMarketplaceSkillEvent_AcceptsPersonalRecommendationImpression(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	require.NoError(t, db.AutoMigrate(&platformmodel.User{}))
+	s := testSkill("personal-reco-skill", "published")
+	require.NoError(t, db.Create(&s).Error)
+	require.NoError(t, db.Create(&platformmodel.User{
+		Id:       42,
+		Username: "personal-reco-user",
+		Password: "password123",
+		Role:     1,
+		Status:   1,
+		Group:    "default",
+	}).Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/marketplace/skills/personal-reco-skill/events",
+		`{"event_type":"skill_impression","entry_point":"reco_personal"}`)
+	c.Params = gin.Params{{Key: "id", Value: "personal-reco-skill"}}
+	c.Set("id", 42)
+	c.Set("group", "default")
+
+	RecordMarketplaceSkillEvent(c)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+	var evt skillmodel.SkillUsageEvent
+	require.NoError(t, db.Where("skill_id = ?", s.ID).First(&evt).Error)
+	assert.Equal(t, enums.EntryPointRecoPersonal, evt.EntryPoint)
+}
+
 func TestRecordMarketplaceSkillEvent_RejectsPackageEntryPoint(t *testing.T) {
 	db := testSkillDB(t)
 	SetDB(db)
@@ -495,6 +524,151 @@ func TestRecordMarketplaceSkillEvent_RejectsPackageEntryPoint(t *testing.T) {
 	var count int64
 	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).Count(&count).Error)
 	assert.Equal(t, int64(0), count)
+}
+
+func TestListPersonalRecommendations_UsesDownloadCategoryAndShowsLockedBuyable(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	require.NoError(t, db.AutoMigrate(&platformmodel.User{}))
+	require.NoError(t, db.Create(&platformmodel.User{
+		Id:       42,
+		Username: "free-user",
+		Password: "password123",
+		Role:     1,
+		Status:   1,
+		Group:    "default",
+	}).Error)
+	downloaded := testSkillWithCategory("downloaded-writing", "writing")
+	candidate := testSkillWithCategory("candidate-writing", "writing")
+	candidate.RequiredPlan = enums.RequiredPlanPro
+	otherCategory := testSkillWithCategory("candidate-coding", "coding")
+	for _, s := range []*skillmodel.Skill{&downloaded, &candidate, &otherCategory} {
+		require.NoError(t, db.Create(s).Error)
+	}
+	require.NoError(t, skillmodel.EnableSkillForUser(db, 42, 42, downloaded.ID, "marketplace"))
+
+	c, w := testContext("/api/v1/marketplace/recommendations/personal?limit=10")
+	c.Set("id", 42)
+
+	ListPersonalRecommendations(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Slug         string `json:"slug"`
+			Category     string `json:"category"`
+			Availability struct {
+				Locked   bool    `json:"locked"`
+				LockCode *string `json:"lock_code"`
+				CTA      string  `json:"cta"`
+			} `json:"availability"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 1)
+	assert.Equal(t, "candidate-writing", got.Data[0].Slug)
+	assert.Equal(t, "writing", got.Data[0].Category)
+	assert.True(t, got.Data[0].Availability.Locked)
+	require.NotNil(t, got.Data[0].Availability.LockCode)
+	assert.Equal(t, "SKILL_PLAN_REQUIRED", *got.Data[0].Availability.LockCode)
+	assert.Equal(t, "upgrade", got.Data[0].Availability.CTA)
+}
+
+func TestListPersonalRecommendations_ColdStartFallsBackToFeaturedAndKidsSafe(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	require.NoError(t, db.AutoMigrate(&platformmodel.User{}))
+	require.NoError(t, db.Create(&platformmodel.User{
+		Id:       42,
+		Username: "kids-user",
+		Password: "password123",
+		Role:     1,
+		Status:   1,
+		Group:    "default",
+		KidsMode: true,
+	}).Error)
+	unsafe := testSkillWithCategory("unsafe-featured", "writing")
+	unsafe.FeaturedRank = ptr(1)
+	safe := testSkillWithCategory("safe-featured", "writing")
+	safe.FeaturedRank = ptr(2)
+	safe.IsKidsSafe = true
+	for _, s := range []*skillmodel.Skill{&unsafe, &safe} {
+		require.NoError(t, db.Create(s).Error)
+	}
+
+	c, w := testContext("/api/v1/marketplace/recommendations/personal?limit=10")
+	c.Set("id", 42)
+
+	ListPersonalRecommendations(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Slug       string `json:"slug"`
+			IsKidsSafe bool   `json:"is_kids_safe"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 1)
+	assert.Equal(t, "safe-featured", got.Data[0].Slug)
+	assert.True(t, got.Data[0].IsKidsSafe)
+}
+
+func TestListCoDownloadRecommendations_RanksCoOccurrenceAndExcludesTarget(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	target := testSkillWithCategory("target-skill", "writing")
+	sharedTop := testSkillWithCategory("shared-top", "writing")
+	sharedSecond := testSkillWithCategory("shared-second", "coding")
+	unrelated := testSkillWithCategory("unrelated", "writing")
+	for _, s := range []*skillmodel.Skill{&target, &sharedTop, &sharedSecond, &unrelated} {
+		require.NoError(t, db.Create(s).Error)
+	}
+	enableMany(t, db, 10, target.ID, sharedTop.ID, sharedSecond.ID)
+	enableMany(t, db, 11, target.ID, sharedTop.ID)
+	enableMany(t, db, 12, unrelated.ID)
+
+	c, w := testContext("/api/v1/marketplace/skills/target-skill/recommendations?limit=10")
+	c.Params = gin.Params{{Key: "id", Value: "target-skill"}}
+
+	ListCoDownloadRecommendations(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Slug string `json:"slug"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 2)
+	assert.Equal(t, "shared-top", got.Data[0].Slug)
+	assert.Equal(t, "shared-second", got.Data[1].Slug)
+}
+
+func TestListCoDownloadRecommendations_FallsBackToFeatured(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	target := testSkillWithCategory("target-no-peers", "writing")
+	fallback := testSkillWithCategory("fallback-featured", "coding")
+	fallback.FeaturedRank = ptr(1)
+	for _, s := range []*skillmodel.Skill{&target, &fallback} {
+		require.NoError(t, db.Create(s).Error)
+	}
+
+	c, w := testContext("/api/v1/marketplace/skills/target-no-peers/recommendations?limit=10")
+	c.Params = gin.Params{{Key: "id", Value: "target-no-peers"}}
+
+	ListCoDownloadRecommendations(c)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Data []struct {
+			Slug string `json:"slug"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+	require.Len(t, got.Data, 1)
+	assert.Equal(t, "fallback-featured", got.Data[0].Slug)
 }
 
 // TestGetMarketplaceSkill_NonPublishedReturns404 verifies that draft, deprecated,
@@ -2118,6 +2292,20 @@ func testSkill(slug string, status string) skillmodel.Skill {
 		AIDisclosureRequired: true,
 		CreatedBy:            1,
 		PublishedAt:          &now,
+	}
+}
+
+func testSkillWithCategory(slug, category string) skillmodel.Skill {
+	s := testSkill(slug, "published")
+	s.Category = category
+	s.Tags = skillmodel.SkillJSONB(`["` + category + `"]`)
+	return s
+}
+
+func enableMany(t *testing.T, db *gorm.DB, userID int64, skillIDs ...string) {
+	t.Helper()
+	for _, skillID := range skillIDs {
+		require.NoError(t, skillmodel.EnableSkillForUser(db, userID, userID, skillID, "marketplace"))
 	}
 }
 

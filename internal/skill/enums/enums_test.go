@@ -197,8 +197,8 @@ func TestEntryPoint_Valid(t *testing.T) {
 	valid := []EntryPoint{
 		EntryPointMarketplaceCard, EntryPointSkillDetail, EntryPointMySkills,
 		EntryPointSavedList, EntryPointFeatured, EntryPointPopular,
-		EntryPointNew, EntryPointRecommended, EntryPointAdminPreview,
-		EntryPointSearchResults, EntryPointSkillPackage,
+		EntryPointNew, EntryPointRecommended, EntryPointRecoPersonal,
+		EntryPointRecoCodownload, EntryPointAdminPreview, EntryPointSearchResults, EntryPointSkillPackage,
 		EntryPointPlaygroundPicker,
 	}
 	for _, e := range valid {
@@ -220,6 +220,8 @@ func TestEntryPoint_StringValues(t *testing.T) {
 	assert.Equal(t, "popular", string(EntryPointPopular))
 	assert.Equal(t, "new", string(EntryPointNew))
 	assert.Equal(t, "recommended", string(EntryPointRecommended))
+	assert.Equal(t, "reco_personal", string(EntryPointRecoPersonal))
+	assert.Equal(t, "reco_codownload", string(EntryPointRecoCodownload))
 	assert.Equal(t, "admin_preview", string(EntryPointAdminPreview))
 	assert.Equal(t, "search_results", string(EntryPointSearchResults))
 	assert.Equal(t, "skill_package", string(EntryPointSkillPackage))
