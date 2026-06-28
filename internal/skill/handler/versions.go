@@ -23,9 +23,14 @@ import (
 )
 
 type CreateSkillVersionRequest struct {
-	InstructionTemplate string           `json:"instruction_template"`
-	PromptGuardTemplate *string          `json:"prompt_guard_template,omitempty"`
-	OutputSchema        *json.RawMessage `json:"output_schema,omitempty"`
+	InstructionTemplate  string           `json:"instruction_template"`
+	PromptGuardTemplate  *string          `json:"prompt_guard_template,omitempty"`
+	OutputSchema         *json.RawMessage `json:"output_schema,omitempty"`
+	DownloadInstructions string           `json:"download_instructions,omitempty"`
+	UsageInstructions    string           `json:"usage_instructions,omitempty"`
+	Prerequisites        *json.RawMessage `json:"prerequisites,omitempty"`
+	Quickstart           *json.RawMessage `json:"quickstart,omitempty"`
+	ExampleIO            *json.RawMessage `json:"example_io,omitempty"`
 }
 
 type ActivateSkillVersionRequest struct {
@@ -40,6 +45,8 @@ type SkillVersionMetadata struct {
 	InstructionTemplateSHA256 string                   `json:"instruction_template_sha256"`
 	HasPromptGuardTemplate    bool                     `json:"has_prompt_guard_template"`
 	HasOutputSchema           bool                     `json:"has_output_schema"`
+	HasDownloadInstructions   bool                     `json:"has_download_instructions"`
+	HasUsageInstructions      bool                     `json:"has_usage_instructions"`
 	ModelWhitelistSnapshot    json.RawMessage          `json:"model_whitelist_snapshot"`
 	RequiredPlanSnapshot      enums.RequiredPlan       `json:"required_plan_snapshot"`
 	MonetizationSnapshot      json.RawMessage          `json:"monetization_snapshot"`
@@ -54,9 +61,14 @@ type SkillVersionMetadata struct {
 
 type SkillVersionDetail struct {
 	SkillVersionMetadata
-	InstructionTemplate string           `json:"instruction_template"`
-	PromptGuardTemplate *string          `json:"prompt_guard_template,omitempty"`
-	OutputSchema        *json.RawMessage `json:"output_schema,omitempty"`
+	InstructionTemplate  string           `json:"instruction_template"`
+	PromptGuardTemplate  *string          `json:"prompt_guard_template,omitempty"`
+	OutputSchema         *json.RawMessage `json:"output_schema,omitempty"`
+	DownloadInstructions string           `json:"download_instructions"`
+	UsageInstructions    string           `json:"usage_instructions"`
+	Prerequisites        json.RawMessage  `json:"prerequisites"`
+	Quickstart           json.RawMessage  `json:"quickstart"`
+	ExampleIO            json.RawMessage  `json:"example_io"`
 }
 
 type monetizationSnapshot struct {
@@ -119,6 +131,11 @@ func GetAdminSkillVersion(c *gin.Context) {
 		InstructionTemplate:  version.InstructionTemplate,
 		PromptGuardTemplate:  version.PromptGuardTemplate,
 		OutputSchema:         rawJSONPtr(version.OutputSchema),
+		DownloadInstructions: version.DownloadInstructions,
+		UsageInstructions:    version.UsageInstructions,
+		Prerequisites:        rawJSONWithDefault(version.Prerequisites, "[]"),
+		Quickstart:           rawJSONWithDefault(version.Quickstart, "[]"),
+		ExampleIO:            rawJSONWithDefault(version.ExampleIO, "[]"),
 	}
 	skillapi.Success(c, detail)
 }
@@ -140,12 +157,24 @@ func CreateAdminSkillVersion(c *gin.Context) {
 	if !valid {
 		return
 	}
+	prerequisites, valid := normalizeOptionalJSONArray(req.Prerequisites, "prerequisites", c)
+	if !valid {
+		return
+	}
+	quickstart, valid := normalizeOptionalJSONArray(req.Quickstart, "quickstart", c)
+	if !valid {
+		return
+	}
+	exampleIO, valid := normalizeOptionalJSONArray(req.ExampleIO, "example_io", c)
+	if !valid {
+		return
+	}
 
 	actorID := int64(c.GetInt("id"))
 	role := strconv.Itoa(c.GetInt("role"))
 	skillID := c.Param("skill_id")
 	var created skillmodel.SkillVersion
-	err := createSkillVersionWithRetry(database, c, skillID, req, outputSchema, actorID, role, &created)
+	err := createSkillVersionWithRetry(database, c, skillID, req, outputSchema, prerequisites, quickstart, exampleIO, actorID, role, &created)
 	if err != nil {
 		writeSkillVersionMutationError(c, err)
 		return
@@ -187,6 +216,9 @@ func ActivateAdminSkillVersion(c *gin.Context) {
 		}
 		if !publishMaxInputTokensSnapshotValid(skill, version) {
 			return errVersionMaxInputSnapshotInvalid
+		}
+		if !versionInstructionsPublishReady(version) {
+			return errVersionInstructionsMissing
 		}
 		before := versionAuditBefore(&version)
 
@@ -243,7 +275,7 @@ func ActivateAdminSkillVersion(c *gin.Context) {
 	skillapi.Success(c, skillVersionMetadataFromModel(activated))
 }
 
-func createSkillVersionWithRetry(db *gorm.DB, c *gin.Context, skillID string, req CreateSkillVersionRequest, outputSchema *skillmodel.SkillJSONB, actorID int64, role string, created *skillmodel.SkillVersion) error {
+func createSkillVersionWithRetry(db *gorm.DB, c *gin.Context, skillID string, req CreateSkillVersionRequest, outputSchema *skillmodel.SkillJSONB, prerequisites, quickstart, exampleIO skillmodel.SkillJSONB, actorID int64, role string, created *skillmodel.SkillVersion) error {
 	const maxAttempts = 3
 	var lastErr error
 	for attempt := 0; attempt < maxAttempts; attempt++ {
@@ -252,7 +284,7 @@ func createSkillVersionWithRetry(db *gorm.DB, c *gin.Context, skillID string, re
 			if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&skill, "id = ?", skillID).Error; err != nil {
 				return err
 			}
-			version, err := buildVersionFromSkill(tx, skill, req, outputSchema, actorID)
+			version, err := buildVersionFromSkill(tx, skill, req, outputSchema, prerequisites, quickstart, exampleIO, actorID)
 			if err != nil {
 				return err
 			}
@@ -276,7 +308,7 @@ func createSkillVersionWithRetry(db *gorm.DB, c *gin.Context, skillID string, re
 	return fmt.Errorf("%w: %v", errVersionNumberConflict, lastErr)
 }
 
-func buildVersionFromSkill(tx *gorm.DB, skill skillmodel.Skill, req CreateSkillVersionRequest, outputSchema *skillmodel.SkillJSONB, actorID int64) (skillmodel.SkillVersion, error) {
+func buildVersionFromSkill(tx *gorm.DB, skill skillmodel.Skill, req CreateSkillVersionRequest, outputSchema *skillmodel.SkillJSONB, prerequisites, quickstart, exampleIO skillmodel.SkillJSONB, actorID int64) (skillmodel.SkillVersion, error) {
 	var maxVersion int
 	if err := tx.Model(&skillmodel.SkillVersion{}).
 		Where("skill_id = ?", skill.ID).
@@ -302,6 +334,11 @@ func buildVersionFromSkill(tx *gorm.DB, skill skillmodel.Skill, req CreateSkillV
 		InstructionTemplateSHA256: hex.EncodeToString(sum[:]),
 		PromptGuardTemplate:       req.PromptGuardTemplate,
 		OutputSchema:              outputSchema,
+		DownloadInstructions:      strings.TrimSpace(req.DownloadInstructions),
+		UsageInstructions:         strings.TrimSpace(req.UsageInstructions),
+		Prerequisites:             prerequisites,
+		Quickstart:                quickstart,
+		ExampleIO:                 exampleIO,
 		ModelWhitelistSnapshot:    append(skillmodel.SkillJSONB(nil), skill.ModelWhitelist...),
 		RequiredPlanSnapshot:      skill.RequiredPlan,
 		MonetizationSnapshot:      skillmodel.SkillJSONB(monetization),
@@ -315,9 +352,9 @@ func writeVersionAuditLog(tx *gorm.DB, c *gin.Context, action, skillID, versionI
 	requestID := skillapi.RequestID(c)
 	ipAddress := c.ClientIP()
 	userAgent := c.Request.UserAgent()
-	changedFields := skillmodel.SkillJSONB(`["status","instruction_template_sha256","model_whitelist_snapshot","required_plan_snapshot","monetization_snapshot","max_input_tokens_snapshot"]`)
+	changedFields := skillmodel.SkillJSONB(`["status","instruction_template_sha256","download_instructions","usage_instructions","prerequisites","quickstart","example_io","model_whitelist_snapshot","required_plan_snapshot","monetization_snapshot","max_input_tokens_snapshot"]`)
 	if action == "version_created" {
-		changedFields = skillmodel.SkillJSONB(`["instruction_template_sha256","model_whitelist_snapshot","required_plan_snapshot","monetization_snapshot","max_input_tokens_snapshot"]`)
+		changedFields = skillmodel.SkillJSONB(`["instruction_template_sha256","download_instructions","usage_instructions","prerequisites","quickstart","example_io","model_whitelist_snapshot","required_plan_snapshot","monetization_snapshot","max_input_tokens_snapshot"]`)
 	}
 	return tx.Create(&skillmodel.SkillAuditLog{
 		SkillID:        &skillID,
@@ -343,6 +380,11 @@ func versionAuditBefore(version *skillmodel.SkillVersion) *skillmodel.SkillJSONB
 		"skill_version_id":                version.ID,
 		"status":                          version.Status,
 		"instruction_template_sha256":     version.InstructionTemplateSHA256,
+		"download_instructions_present":   strings.TrimSpace(version.DownloadInstructions) != "",
+		"usage_instructions_present":      strings.TrimSpace(version.UsageInstructions) != "",
+		"prerequisites_sha256":            sha256Hex(version.Prerequisites),
+		"quickstart_sha256":               sha256Hex(version.Quickstart),
+		"example_io_sha256":               sha256Hex(version.ExampleIO),
 		"model_whitelist_snapshot_sha256": sha256Hex(version.ModelWhitelistSnapshot),
 		"required_plan_snapshot":          version.RequiredPlanSnapshot,
 		"monetization_snapshot_sha256":    sha256Hex(version.MonetizationSnapshot),
@@ -356,6 +398,11 @@ func versionAuditAfter(version skillmodel.SkillVersion) *skillmodel.SkillJSONB {
 		"version_number":                  version.VersionNumber,
 		"status":                          version.Status,
 		"instruction_template_sha256":     version.InstructionTemplateSHA256,
+		"download_instructions_present":   strings.TrimSpace(version.DownloadInstructions) != "",
+		"usage_instructions_present":      strings.TrimSpace(version.UsageInstructions) != "",
+		"prerequisites_sha256":            sha256Hex(version.Prerequisites),
+		"quickstart_sha256":               sha256Hex(version.Quickstart),
+		"example_io_sha256":               sha256Hex(version.ExampleIO),
 		"model_whitelist_snapshot_sha256": sha256Hex(version.ModelWhitelistSnapshot),
 		"required_plan_snapshot":          version.RequiredPlanSnapshot,
 		"monetization_snapshot_sha256":    sha256Hex(version.MonetizationSnapshot),
@@ -369,6 +416,11 @@ func versionActivationAuditAfter(version skillmodel.SkillVersion, prior *skillmo
 		"version_number":                  version.VersionNumber,
 		"status":                          version.Status,
 		"instruction_template_sha256":     version.InstructionTemplateSHA256,
+		"download_instructions_present":   strings.TrimSpace(version.DownloadInstructions) != "",
+		"usage_instructions_present":      strings.TrimSpace(version.UsageInstructions) != "",
+		"prerequisites_sha256":            sha256Hex(version.Prerequisites),
+		"quickstart_sha256":               sha256Hex(version.Quickstart),
+		"example_io_sha256":               sha256Hex(version.ExampleIO),
 		"model_whitelist_snapshot_sha256": sha256Hex(version.ModelWhitelistSnapshot),
 		"required_plan_snapshot":          version.RequiredPlanSnapshot,
 		"monetization_snapshot_sha256":    sha256Hex(version.MonetizationSnapshot),
@@ -404,6 +456,8 @@ func skillVersionMetadataFromModel(v skillmodel.SkillVersion) SkillVersionMetada
 		InstructionTemplateSHA256: v.InstructionTemplateSHA256,
 		HasPromptGuardTemplate:    v.PromptGuardTemplate != nil && strings.TrimSpace(*v.PromptGuardTemplate) != "",
 		HasOutputSchema:           v.OutputSchema != nil,
+		HasDownloadInstructions:   strings.TrimSpace(v.DownloadInstructions) != "",
+		HasUsageInstructions:      strings.TrimSpace(v.UsageInstructions) != "",
 		ModelWhitelistSnapshot:    rawJSONWithDefault(v.ModelWhitelistSnapshot, "[]"),
 		RequiredPlanSnapshot:      v.RequiredPlanSnapshot,
 		MonetizationSnapshot:      rawJSONWithDefault(v.MonetizationSnapshot, "{}"),
@@ -453,6 +507,23 @@ func normalizeOptionalJSON(raw *json.RawMessage, field string, c *gin.Context) (
 	return &value, true
 }
 
+func normalizeOptionalJSONArray(raw *json.RawMessage, field string, c *gin.Context) (skillmodel.SkillJSONB, bool) {
+	if raw == nil {
+		return skillmodel.SkillJSONB(`[]`), true
+	}
+	trimmed := bytes.TrimSpace(*raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return skillmodel.SkillJSONB(`[]`), true
+	}
+	var decoded []any
+	if err := common.Unmarshal(trimmed, &decoded); err != nil {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, fmt.Sprintf("%s must be a JSON array.", field), gin.H{"field": field})
+		return nil, false
+	}
+	value := skillmodel.SkillJSONB(append([]byte(nil), trimmed...))
+	return value, true
+}
+
 func decodeJSONBody(c *gin.Context, dest any) bool {
 	if err := common.DecodeJson(c.Request.Body, dest); err != nil {
 		skillapi.Error(c, errcodes.ErrInvalidRequest, "Request body must be valid JSON.", nil)
@@ -476,6 +547,7 @@ var (
 	errArchivedVersion                = errors.New("archived skill version cannot be activated")
 	errVersionNumberConflict          = errors.New("skill version number allocation conflicted")
 	errVersionMaxInputSnapshotInvalid = errors.New("skill version max_input_tokens_snapshot invalid")
+	errVersionInstructionsMissing     = errors.New("skill version download and usage instructions are required")
 )
 
 func isSkillVersionNumberConflict(err error) bool {
@@ -513,6 +585,10 @@ func writeSkillVersionMutationError(c *gin.Context, err error) {
 	}
 	if errors.Is(err, errVersionMaxInputSnapshotInvalid) {
 		skillapi.Error(c, errcodes.ErrInvalidRequest, "max_input_tokens_snapshot is required and must match max_input_tokens for Free/free-quota Skills.", gin.H{"reason": "VERSION_MAX_INPUT_TOKENS_SNAPSHOT_INVALID"})
+		return
+	}
+	if errors.Is(err, errVersionInstructionsMissing) {
+		skillapi.Error(c, errcodes.ErrInvalidRequest, "download_instructions and usage_instructions are required before publishing or activating a published Skill.", gin.H{"reason": "VERSION_INSTRUCTIONS_REQUIRED"})
 		return
 	}
 	if errors.Is(err, errSkillPackageGuardFailed) {

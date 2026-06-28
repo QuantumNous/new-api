@@ -438,11 +438,13 @@ func TestLoadSnapshot_MalformedWhitelist_ReturnsInternalError(t *testing.T) {
 	require.NoError(t, db.Exec(
 		`INSERT INTO skill_versions
 		    (id, skill_id, version_number, status, instruction_template,
-		     instruction_template_sha256, model_whitelist_snapshot,
+		     instruction_template_sha256, download_instructions, usage_instructions,
+		     prerequisites, quickstart, example_io, model_whitelist_snapshot,
 		     required_plan_snapshot, monetization_snapshot, created_by, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
 		vID, skill.ID, 1, string(enums.SkillVersionStatusActive),
 		"template", "aabbccdd",
+		"Download this Skill.", "Use this Skill through DeepRouter.", "[]", "[]", "[]",
 		`not-valid-json`,
 		string(enums.RequiredPlanFree), "{}", 1,
 	).Error)

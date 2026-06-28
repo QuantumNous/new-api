@@ -49,6 +49,11 @@ func TestSkillVersions_AcceptanceColumnsPresent_SQLite(t *testing.T) {
 
 	for _, col := range []string{
 		"instruction_template_sha256",
+		"download_instructions",
+		"usage_instructions",
+		"prerequisites",
+		"quickstart",
+		"example_io",
 		"model_whitelist_snapshot",
 		"required_plan_snapshot",
 		"monetization_snapshot",
@@ -68,6 +73,9 @@ func TestSkillVersions_InsertRequiredFieldsAndNormalizeJSON_SQLite(t *testing.T)
 	skill := createSkillForVersionTest(t, db, "version-json")
 	version := validSkillVersion(skill.ID, 1)
 	version.OutputSchema = nil           // nil → NULL in DB (PRD §4.2: no schema = NULL)
+	version.Prerequisites = nil          // nil → normalized to []
+	version.Quickstart = nil             // nil → normalized to []
+	version.ExampleIO = nil              // nil → normalized to []
 	version.ModelWhitelistSnapshot = nil // nil → normalized to []
 	version.MonetizationSnapshot = nil   // nil → normalized to {}
 
@@ -90,6 +98,15 @@ func TestSkillVersions_InsertRequiredFieldsAndNormalizeJSON_SQLite(t *testing.T)
 	// model_whitelist_snapshot: array shape, normalized to [].
 	if string(got.ModelWhitelistSnapshot) != "[]" {
 		t.Errorf("ModelWhitelistSnapshot: expected '[]', got %q", string(got.ModelWhitelistSnapshot))
+	}
+	if string(got.Prerequisites) != "[]" {
+		t.Errorf("Prerequisites: expected '[]', got %q", string(got.Prerequisites))
+	}
+	if string(got.Quickstart) != "[]" {
+		t.Errorf("Quickstart: expected '[]', got %q", string(got.Quickstart))
+	}
+	if string(got.ExampleIO) != "[]" {
+		t.Errorf("ExampleIO: expected '[]', got %q", string(got.ExampleIO))
 	}
 	// monetization_snapshot: object shape, normalized to {} (NOT []).
 	if string(got.MonetizationSnapshot) != "{}" {

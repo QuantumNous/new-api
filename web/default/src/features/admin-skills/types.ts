@@ -128,6 +128,8 @@ export interface AdminSkillVersion {
   instruction_template_sha256: string
   has_prompt_guard_template: boolean
   has_output_schema: boolean
+  has_download_instructions: boolean
+  has_usage_instructions: boolean
   model_whitelist_snapshot: unknown[]
   required_plan_snapshot: SkillPlan
   monetization_snapshot: Record<string, unknown>
@@ -144,11 +146,21 @@ export interface AdminSkillVersionDetail extends AdminSkillVersion {
   instruction_template: string
   prompt_guard_template?: string | null
   output_schema?: unknown | null
+  download_instructions: string
+  usage_instructions: string
+  prerequisites: unknown[]
+  quickstart: unknown[]
+  example_io: unknown[]
 }
 
 export interface AdminSkillVersionPayload {
   instruction_template: string
   output_schema?: unknown | null
+  download_instructions?: string
+  usage_instructions?: string
+  prerequisites?: unknown[]
+  quickstart?: unknown[]
+  example_io?: unknown[]
 }
 
 export interface AdminSkillAuditEntry {

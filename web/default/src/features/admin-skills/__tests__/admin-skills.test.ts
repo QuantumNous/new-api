@@ -153,6 +153,11 @@ describe('DR-49 Admin Skills API/filter contract', () => {
     await createAdminSkillVersion('skill-1', {
       instruction_template: 'Use the provided input.',
       output_schema: { type: 'object' },
+      download_instructions: 'Download and extract the package.',
+      usage_instructions: 'Run through DeepRouter.',
+      prerequisites: ['DeepRouter API key'],
+      quickstart: ['Extract the zip'],
+      example_io: [{ input: 'brief', output: 'summary' }],
     })
     await listAdminSkillVersions('skill-1')
     await listAdminSkillAuditLog('skill-1')
@@ -171,6 +176,8 @@ describe('DR-49 Admin Skills API/filter contract', () => {
       '/api/v1/admin/skills/skill-1/versions',
       expect.objectContaining({
         instruction_template: 'Use the provided input.',
+        download_instructions: 'Download and extract the package.',
+        usage_instructions: 'Run through DeepRouter.',
       }),
       expect.objectContaining({ skipErrorHandler: true })
     )
@@ -227,6 +234,11 @@ describe('DR-49 Admin Skills API/filter contract', () => {
     expect(editorSource).toContain("title={t('User Guidance')}")
     expect(editorSource).toContain("title={t('Entitlement')}")
     expect(editorSource).toContain("title={t('Execution')}")
+    expect(editorSource).toContain("label={t('Download Instructions')}")
+    expect(editorSource).toContain("label={t('Usage Instructions')}")
+    expect(editorSource).toContain("label={t('Prerequisites')}")
+    expect(editorSource).toContain("label={t('Quickstart')}")
+    expect(editorSource).toContain("label={t('Example I/O')}")
     expect(editorSource).toContain("title={t('Safety')}")
     expect(editorSource).toContain("title={t('Promotion')}")
     expect(editorSource).toContain("title={t('Version History')}")
@@ -251,6 +263,11 @@ describe('DR-49 Admin Skills API/filter contract', () => {
       required_plan: 'free' as const,
       monetization_type: 'free' as const,
       instruction_template: 'Use the latest brief.',
+      download_instructions: 'Download and extract the package.',
+      usage_instructions: 'Run through DeepRouter.',
+      prerequisites: '["DeepRouter API key"]',
+      quickstart: '["Extract the zip"]',
+      example_io: '[{"input":"brief","output":"summary"}]',
       model_whitelist: 'smart-tier\nfast-tier',
     }
 
@@ -281,8 +298,40 @@ describe('DR-49 Admin Skills API/filter contract', () => {
     expect(valid.versionPayload).toEqual(
       expect.objectContaining({
         instruction_template: 'Use the latest brief.',
+        download_instructions: 'Download and extract the package.',
+        usage_instructions: 'Run through DeepRouter.',
+        prerequisites: ['DeepRouter API key'],
+        quickstart: ['Extract the zip'],
+        example_io: [{ input: 'brief', output: 'summary' }],
       })
     )
+  })
+
+  it('validates DR-93 version instructions and array fields before save', () => {
+    const base = {
+      ...adminSkillEditorTestUtils.emptyForm(),
+      slug: 'docs-skill',
+      name: 'Docs Skill',
+      short_description: 'Short',
+      description: 'Long',
+      category: 'writing',
+      required_plan: 'pro' as const,
+      monetization_type: 'plan_included' as const,
+      instruction_template: 'Use the input.',
+      prerequisites: '{"text":"not array"}',
+      quickstart: '[]',
+      example_io: '[]',
+    }
+
+    const invalid = adminSkillEditorTestUtils.parseForm(base, 'create')
+    expect(invalid.ok).toBe(false)
+    expect(invalid.errors.download_instructions).toContain(
+      'Download instructions are required'
+    )
+    expect(invalid.errors.usage_instructions).toContain(
+      'Usage instructions are required'
+    )
+    expect(invalid.errors.prerequisites).toBe('Enter a valid JSON array.')
   })
 
   it('validates DR-50 token markup and JSON fields before save', () => {

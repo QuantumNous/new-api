@@ -47,6 +47,9 @@ func MigrateSkillVersions(db *gorm.DB) error {
 	if err := migrateSkillVersionsConstraints(db); err != nil {
 		return err
 	}
+	if err := migrateSkillVersionInstructionColumns(db); err != nil {
+		return err
+	}
 	if err := createSkillVersionsJSONBColumns(db); err != nil {
 		return err
 	}
@@ -87,6 +90,11 @@ func createSkillVersionsSQLiteTable(db *gorm.DB) error {
 			instruction_template_sha256 char(64) NOT NULL,
 			prompt_guard_template text,
 			output_schema text,
+			download_instructions text NOT NULL DEFAULT '',
+			usage_instructions text NOT NULL DEFAULT '',
+			prerequisites text NOT NULL DEFAULT '[]',
+			quickstart text NOT NULL DEFAULT '[]',
+			example_io text NOT NULL DEFAULT '[]',
 			model_whitelist_snapshot text NOT NULL,
 			required_plan_snapshot varchar(32) NOT NULL,
 			monetization_snapshot text NOT NULL,
@@ -121,6 +129,11 @@ func createSkillVersionsMySQLTable(db *gorm.DB) error {
 			instruction_template_sha256 char(64) NOT NULL,
 			prompt_guard_template text,
 			output_schema text,
+			download_instructions text NOT NULL,
+			usage_instructions text NOT NULL,
+			prerequisites text NOT NULL,
+			quickstart text NOT NULL,
+			example_io text NOT NULL,
 			model_whitelist_snapshot text NOT NULL,
 			required_plan_snapshot varchar(32) NOT NULL,
 			monetization_snapshot text NOT NULL,
@@ -150,6 +163,48 @@ func migrateSkillVersionPackageColumns(db *gorm.DB) error {
 		}
 		if err := db.Migrator().AddColumn(&SkillVersion{}, col); err != nil {
 			return fmt.Errorf("add skill_versions %s: %w", col, err)
+		}
+	}
+	return nil
+}
+
+func migrateSkillVersionInstructionColumns(db *gorm.DB) error {
+	cols := []struct {
+		name        string
+		sqliteMySQL string
+		postgres    string
+	}{
+		{"download_instructions", "text", "text"},
+		{"usage_instructions", "text", "text"},
+		{"prerequisites", "text", "jsonb"},
+		{"quickstart", "text", "jsonb"},
+		{"example_io", "text", "jsonb"},
+	}
+	for _, col := range cols {
+		if db.Migrator().HasColumn(&SkillVersion{}, col.name) {
+			continue
+		}
+		var sql string
+		switch db.Dialector.Name() {
+		case "postgres":
+			sql = fmt.Sprintf("ALTER TABLE skill_versions ADD COLUMN %s %s", col.name, col.postgres)
+		default:
+			sql = fmt.Sprintf("ALTER TABLE skill_versions ADD COLUMN %s %s", col.name, col.sqliteMySQL)
+		}
+		if err := db.Exec(sql).Error; err != nil {
+			return fmt.Errorf("add skill_versions %s: %w", col.name, err)
+		}
+	}
+	updates := map[string]string{
+		"download_instructions": "''",
+		"usage_instructions":    "''",
+		"prerequisites":         "'[]'",
+		"quickstart":            "'[]'",
+		"example_io":            "'[]'",
+	}
+	for col, value := range updates {
+		if err := db.Exec(fmt.Sprintf("UPDATE skill_versions SET %s = %s WHERE %s IS NULL", col, value, col)).Error; err != nil {
+			return fmt.Errorf("backfill skill_versions %s: %w", col, err)
 		}
 	}
 	return nil
@@ -263,6 +318,9 @@ func createSkillVersionsJSONBColumns(db *gorm.DB) error {
 		defaultVal string
 	}{
 		{"output_schema", ""}, // NULL = no output schema (PRD §4.2)
+		{"prerequisites", "'[]'::jsonb"},
+		{"quickstart", "'[]'::jsonb"},
+		{"example_io", "'[]'::jsonb"},
 		{"model_whitelist_snapshot", "'[]'::jsonb"},
 		{"monetization_snapshot", "'{}'::jsonb"}, // object shape, not array
 	}

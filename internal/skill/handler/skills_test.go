@@ -330,7 +330,7 @@ func TestGetMarketplaceSkillNotFoundEnvelope(t *testing.T) {
 func TestGetMarketplaceSkill_ReturnsDetailFields(t *testing.T) {
 	db := testSkillDB(t)
 	SetDB(db)
-	require.NoError(t, db.Create(ptr(testSkill("my-skill", "published"))).Error)
+	createPublishedSkillWithActiveVersion(t, db, "my-skill", "Detail template")
 
 	c, w := testContext("/api/v1/marketplace/skills/my-skill")
 	c.Params = gin.Params{{Key: "id", Value: "my-skill"}}
@@ -345,6 +345,11 @@ func TestGetMarketplaceSkill_ReturnsDetailFields(t *testing.T) {
 				URL    string `json:"url"`
 				Method string `json:"method"`
 			} `json:"download_cta"`
+			Instructions struct {
+				DownloadInstructions string   `json:"download_instructions"`
+				UsageInstructions    string   `json:"usage_instructions"`
+				Prerequisites        []string `json:"prerequisites"`
+			} `json:"instructions"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
@@ -352,6 +357,9 @@ func TestGetMarketplaceSkill_ReturnsDetailFields(t *testing.T) {
 	assert.True(t, got.Data.RequiresDeepRouterKey, "requires_deeprouter_key must be true for all published skills")
 	assert.Equal(t, "/api/v1/marketplace/skills/my-skill/download", got.Data.DownloadCTA.URL)
 	assert.Equal(t, "GET", got.Data.DownloadCTA.Method)
+	assert.Equal(t, "Download the package and extract it into your skills directory.", got.Data.Instructions.DownloadInstructions)
+	assert.Equal(t, "Run the Skill through DeepRouter with the packaged runtime.", got.Data.Instructions.UsageInstructions)
+	assert.Equal(t, []string{"DeepRouter API key"}, got.Data.Instructions.Prerequisites)
 }
 
 // TestGetMarketplaceSkill_NoProviderCredentialsExposed guards the DR-53 security
@@ -1705,7 +1713,7 @@ func TestCreateAdminSkillVersion_CreatesDraftSnapshotAndAudit(t *testing.T) {
 	s.ModelWhitelist = skillmodel.SkillJSONB(`["smart-tier","fast-tier"]`)
 	require.NoError(t, db.Create(&s).Error)
 
-	body := `{"instruction_template":"Use private rubric v1","prompt_guard_template":"guard v1","output_schema":{"type":"object"}}`
+	body := `{"instruction_template":"Use private rubric v1","prompt_guard_template":"guard v1","output_schema":{"type":"object"},"download_instructions":"Download and extract this Skill.","usage_instructions":"Run it through DeepRouter.","prerequisites":["DeepRouter API key"],"quickstart":["Extract zip"],"example_io":[{"input":"brief","output":"summary"}]}`
 	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/versions", body)
 	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
 	c.Set("id", 99)
@@ -1725,6 +1733,8 @@ func TestCreateAdminSkillVersion_CreatesDraftSnapshotAndAudit(t *testing.T) {
 	assert.Equal(t, json.RawMessage(`["smart-tier","fast-tier"]`), got.Data.ModelWhitelistSnapshot)
 	assert.Equal(t, enums.RequiredPlanPro, got.Data.RequiredPlanSnapshot)
 	assert.Equal(t, &maxInput, got.Data.MaxInputTokensSnapshot)
+	assert.True(t, got.Data.HasDownloadInstructions)
+	assert.True(t, got.Data.HasUsageInstructions)
 	assert.NotContains(t, w.Body.String(), `"instruction_template":"`)
 	assert.NotContains(t, w.Body.String(), "Use private rubric v1")
 
@@ -1732,6 +1742,11 @@ func TestCreateAdminSkillVersion_CreatesDraftSnapshotAndAudit(t *testing.T) {
 	require.NoError(t, db.First(&version, "id = ?", got.Data.ID).Error)
 	assert.Equal(t, "Use private rubric v1", version.InstructionTemplate)
 	assert.Equal(t, "guard v1", *version.PromptGuardTemplate)
+	assert.Equal(t, "Download and extract this Skill.", version.DownloadInstructions)
+	assert.Equal(t, "Run it through DeepRouter.", version.UsageInstructions)
+	assert.JSONEq(t, `["DeepRouter API key"]`, string(version.Prerequisites))
+	assert.JSONEq(t, `["Extract zip"]`, string(version.Quickstart))
+	assert.JSONEq(t, `[{"input":"brief","output":"summary"}]`, string(version.ExampleIO))
 	require.NotNil(t, version.OutputSchema)
 	assert.JSONEq(t, `{"type":"object"}`, string(*version.OutputSchema))
 	assert.JSONEq(t, `{"type":"token_markup","price_markup":0.25,"free_quota_per_month":12}`, string(version.MonetizationSnapshot))
@@ -1741,6 +1756,7 @@ func TestCreateAdminSkillVersion_CreatesDraftSnapshotAndAudit(t *testing.T) {
 	require.NotNil(t, audit.AfterValue)
 	assert.NotContains(t, string(*audit.AfterValue), "Use private rubric v1")
 	assert.NotContains(t, string(*audit.AfterValue), "guard v1")
+	assert.NotContains(t, string(*audit.AfterValue), "Download and extract this Skill.")
 	assert.Contains(t, string(*audit.AfterValue), version.InstructionTemplateSHA256)
 }
 
@@ -1780,6 +1796,8 @@ func TestGetAdminSkillVersion_ReturnsTemplateForSuperAdminDetail(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"instruction_template":"detail-only template"`)
+	assert.Contains(t, w.Body.String(), `"download_instructions":"Download the package and extract it into your skills directory."`)
+	assert.Contains(t, w.Body.String(), `"prerequisites":["DeepRouter API key"]`)
 }
 
 func TestActivateAdminSkillVersion_DemotesPriorActiveAndAudits(t *testing.T) {
@@ -1839,6 +1857,37 @@ func TestActivateAdminSkillVersion_DemotesPriorActiveAndAudits(t *testing.T) {
 	assert.Equal(t, v2.ID, after["skill_version_id"])
 	assert.Equal(t, v1.ID, after["previous_active_version_id"])
 	assert.Equal(t, string(enums.SkillVersionStatusActive), after["status"])
+}
+
+func TestActivateAdminSkillVersion_BlocksPublishedSkillWhenInstructionsMissing(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s := testSkill("version-activate-missing-instructions", "published")
+	maxInput := 2048
+	s.MaxInputTokens = &maxInput
+	require.NoError(t, db.Create(&s).Error)
+	v1 := validHandlerSkillVersion(s.ID, 1)
+	v1.Status = enums.SkillVersionStatusActive
+	require.NoError(t, db.Create(&v1).Error)
+	v2 := validHandlerSkillVersion(s.ID, 2)
+	v2.DownloadInstructions = ""
+	require.NoError(t, db.Create(&v2).Error)
+	require.NoError(t, db.Model(&skillmodel.Skill{}).Where("id = ?", s.ID).Update("active_version_id", v1.ID).Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/versions/"+v2.ID+"/activate", `{"reason":"activate incomplete docs"}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}, {Key: "version_id", Value: v2.ID}}
+	c.Set("id", 101)
+	c.Set("role", 100)
+
+	ActivateAdminSkillVersion(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "VERSION_INSTRUCTIONS_REQUIRED")
+
+	var gotV2 skillmodel.SkillVersion
+	require.NoError(t, db.First(&gotV2, "id = ?", v2.ID).Error)
+	assert.Equal(t, enums.SkillVersionStatusDraft, gotV2.Status)
+	assert.Empty(t, gotV2.PackageZip)
 }
 
 func TestActivateAdminSkillVersion_PersistsVersionPackageArtifact(t *testing.T) {
@@ -2091,6 +2140,29 @@ func TestPublishAdminSkill_BlocksWhenVersionTokenSnapshotMissing(t *testing.T) {
 	var eventCount int64
 	require.NoError(t, db.Model(&skillmodel.SkillUsageEvent{}).Where("skill_id = ? AND event_type = ?", s.ID, enums.SkillUsageEventTypeAdminAction).Count(&eventCount).Error)
 	assert.Zero(t, eventCount)
+}
+
+func TestPublishAdminSkill_BlocksWhenVersionInstructionsMissing(t *testing.T) {
+	db := testSkillDB(t)
+	SetDB(db)
+	s, version := createPublishReadySkill(t, db, "publish-missing-instructions")
+	require.NoError(t, db.Model(&skillmodel.SkillVersion{}).Where("id = ?", version.ID).Updates(map[string]any{
+		"download_instructions": "",
+		"usage_instructions":    "",
+	}).Error)
+
+	c, w := testContextWithMethod(http.MethodPost, "/api/v1/admin/skills/"+s.ID+"/publish", `{"reason":"try publish"}`)
+	c.Params = gin.Params{{Key: "skill_id", Value: s.ID}}
+
+	PublishAdminSkill(c)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "PUBLISH_CHECKLIST_FAILED")
+	assert.Contains(t, w.Body.String(), "download_usage_instructions")
+
+	var persisted skillmodel.Skill
+	require.NoError(t, db.First(&persisted, "id = ?", s.ID).Error)
+	assert.Equal(t, enums.SkillStatusDraft, persisted.Status)
 }
 
 func TestPublishDraftSkill_BlocksWhenActiveVersionSnapshotChanges(t *testing.T) {
@@ -2348,6 +2420,11 @@ func validHandlerSkillVersion(skillID string, versionNumber int) skillmodel.Skil
 		InstructionTemplate:       "handler version template",
 		InstructionTemplateSHA256: hex.EncodeToString(sum[:]),
 		OutputSchema:              &schema,
+		DownloadInstructions:      "Download the package and extract it into your skills directory.",
+		UsageInstructions:         "Run the Skill through DeepRouter with the packaged runtime.",
+		Prerequisites:             skillmodel.SkillJSONB(`["DeepRouter API key"]`),
+		Quickstart:                skillmodel.SkillJSONB(`["Extract the zip","Run the runtime client"]`),
+		ExampleIO:                 skillmodel.SkillJSONB(`[{"input":"Summarize this","output":"A short summary"}]`),
 		ModelWhitelistSnapshot:    skillmodel.SkillJSONB(`["smart-tier"]`),
 		RequiredPlanSnapshot:      enums.RequiredPlanFree,
 		MonetizationSnapshot:      skillmodel.SkillJSONB(`{"type":"free","price_markup":0}`),
