@@ -26,6 +26,12 @@ import (
 // Request / Response structures
 // ============================
 
+// AliMediaItem Happy Horse media 数组元素
+type AliMediaItem struct {
+	Type string `json:"type"` // first_frame, reference_image, video
+	URL  string `json:"url"`
+}
+
 // AliVideoRequest 阿里通义万相视频生成请求
 type AliVideoRequest struct {
 	Model      string              `json:"model"`
@@ -35,24 +41,27 @@ type AliVideoRequest struct {
 
 // AliVideoInput 视频输入参数
 type AliVideoInput struct {
-	Prompt         string `json:"prompt,omitempty"`          // 文本提示词
-	ImgURL         string `json:"img_url,omitempty"`         // 首帧图像URL或Base64（图生视频）
-	FirstFrameURL  string `json:"first_frame_url,omitempty"` // 首帧图片URL（首尾帧生视频）
-	LastFrameURL   string `json:"last_frame_url,omitempty"`  // 尾帧图片URL（首尾帧生视频）
-	AudioURL       string `json:"audio_url,omitempty"`       // 音频URL（wan2.5支持）
-	NegativePrompt string `json:"negative_prompt,omitempty"` // 反向提示词
-	Template       string `json:"template,omitempty"`        // 视频特效模板
+	Prompt         string         `json:"prompt,omitempty"`          // 文本提示词
+	ImgURL         string         `json:"img_url,omitempty"`         // 首帧图像URL或Base64（图生视频）
+	FirstFrameURL  string         `json:"first_frame_url,omitempty"` // 首帧图片URL（首尾帧生视频）
+	LastFrameURL   string         `json:"last_frame_url,omitempty"`  // 尾帧图片URL（首尾帧生视频）
+	AudioURL       string         `json:"audio_url,omitempty"`       // 音频URL（wan2.5支持）
+	NegativePrompt string         `json:"negative_prompt,omitempty"` // 反向提示词
+	Template       string         `json:"template,omitempty"`        // 视频特效模板
+	Media          []AliMediaItem `json:"media,omitempty"`           // Happy Horse media 数组
 }
 
 // AliVideoParameters 视频参数
 type AliVideoParameters struct {
-	Resolution   string `json:"resolution,omitempty"`    // 分辨率: 480P/720P/1080P（图生视频、首尾帧生视频）
-	Size         string `json:"size,omitempty"`          // 尺寸: 如 "832*480"（文生视频）
-	Duration     int    `json:"duration,omitempty"`      // 时长: 3-10秒
-	PromptExtend bool   `json:"prompt_extend,omitempty"` // 是否开启prompt智能改写
-	Watermark    bool   `json:"watermark,omitempty"`     // 是否添加水印
-	Audio        *bool  `json:"audio,omitempty"`         // 是否添加音频（wan2.5）
-	Seed         int    `json:"seed,omitempty"`          // 随机数种子
+	Resolution   string `json:"resolution,omitempty"`      // 分辨率: 480P/720P/1080P（图生视频、首尾帧生视频）
+	Size         string `json:"size,omitempty"`            // 尺寸: 如 "832*480"（文生视频）
+	Duration     int    `json:"duration,omitempty"`        // 时长: 3-10秒
+	Ratio        *string `json:"ratio,omitempty"`           // 宽高比: Happy Horse t2v/r2v
+	AudioSetting *string `json:"audio_setting,omitempty"`  // 声音控制: Happy Horse video-edit (auto/origin)
+	PromptExtend bool   `json:"prompt_extend,omitempty"`   // 是否开启prompt智能改写
+	Watermark    *bool  `json:"watermark,omitempty"`       // 是否添加水印
+	Audio        *bool  `json:"audio,omitempty"`           // 是否添加音频（wan2.5）
+	Seed         int    `json:"seed,omitempty"`            // 随机数种子
 }
 
 // AliVideoResponse 阿里通义万相响应
@@ -257,6 +266,12 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 	if info.IsModelMapped {
 		upstreamModel = info.UpstreamModelName
 	}
+
+	// Happy Horse 模型使用不同的请求格式（media 数组）
+	if strings.HasPrefix(upstreamModel, "happyhorse-1.0") {
+		return a.convertToHappyHorseRequest(info, upstreamModel, req)
+	}
+
 	aliReq := &AliVideoRequest{
 		Model: upstreamModel,
 		Input: AliVideoInput{
@@ -265,7 +280,7 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 		},
 		Parameters: &AliVideoParameters{
 			PromptExtend: true, // 默认开启智能改写
-			Watermark:    false,
+			Watermark:    lo.ToPtr(false),
 		},
 	}
 
@@ -338,6 +353,85 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 
 	if aliReq.Model != upstreamModel {
 		return nil, errors.New("can't change model with metadata")
+	}
+
+	return aliReq, nil
+}
+
+func (a *TaskAdaptor) convertToHappyHorseRequest(info *relaycommon.RelayInfo, upstreamModel string, req relaycommon.TaskSubmitReq) (*AliVideoRequest, error) {
+	aliReq := &AliVideoRequest{
+		Model: upstreamModel,
+		Input: AliVideoInput{
+			Prompt: req.Prompt,
+		},
+		Parameters: &AliVideoParameters{
+			Watermark: lo.ToPtr(false),
+		},
+	}
+
+	isT2V := strings.Contains(upstreamModel, "-t2v")
+	isI2V := strings.Contains(upstreamModel, "-i2v")
+	isR2V := strings.Contains(upstreamModel, "-r2v")
+	isEdit := strings.Contains(upstreamModel, "-video-edit")
+
+	if isI2V {
+		if len(req.Images) != 1 {
+			return nil, fmt.Errorf("happyhorse i2v requires exactly 1 first-frame image, got %d", len(req.Images))
+		}
+		aliReq.Input.Media = []AliMediaItem{{Type: "first_frame", URL: req.Images[0]}}
+	} else if isR2V {
+		if len(req.Images) < 1 || len(req.Images) > 9 {
+			return nil, fmt.Errorf("happyhorse r2v requires 1-9 reference images, got %d", len(req.Images))
+		}
+		for _, url := range req.Images {
+			aliReq.Input.Media = append(aliReq.Input.Media, AliMediaItem{Type: "reference_image", URL: url})
+		}
+	} else if isEdit {
+		if len(req.Videos) != 1 {
+			return nil, fmt.Errorf("happyhorse video-edit requires exactly 1 video, got %d", len(req.Videos))
+		}
+		if len(req.Images) > 5 {
+			return nil, fmt.Errorf("happyhorse video-edit supports at most 5 reference images, got %d", len(req.Images))
+		}
+		aliReq.Input.Media = append(aliReq.Input.Media, AliMediaItem{Type: "video", URL: req.Videos[0]})
+		for _, url := range req.Images {
+			aliReq.Input.Media = append(aliReq.Input.Media, AliMediaItem{Type: "reference_image", URL: url})
+		}
+	}
+
+	resolution := "1080P"
+	if req.Size != "" {
+		resolution = strings.ToUpper(req.Size)
+		if !strings.HasSuffix(resolution, "P") {
+			resolution += "P"
+		}
+	}
+	aliReq.Parameters.Resolution = resolution
+
+	if !isEdit {
+		if req.Duration > 0 {
+			aliReq.Parameters.Duration = req.Duration
+		} else if req.Seconds != "" {
+			seconds, err := strconv.Atoi(req.Seconds)
+			if err != nil {
+				return nil, errors.Wrap(err, "convert seconds to int failed")
+			}
+			aliReq.Parameters.Duration = seconds
+		} else {
+			aliReq.Parameters.Duration = 5
+		}
+	}
+
+	if req.Metadata != nil {
+		if ratio, ok := req.Metadata["ratio"].(string); ok && (isT2V || isR2V) {
+			aliReq.Parameters.Ratio = lo.ToPtr(ratio)
+		}
+		if audioSetting, ok := req.Metadata["audio_setting"].(string); ok && isEdit {
+			aliReq.Parameters.AudioSetting = lo.ToPtr(audioSetting)
+		}
+		if watermark, ok := req.Metadata["watermark"].(bool); ok {
+			aliReq.Parameters.Watermark = lo.ToPtr(watermark)
+		}
 	}
 
 	return aliReq, nil
