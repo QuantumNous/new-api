@@ -11,4 +11,22 @@ export const MIXPANEL_BROWSER_SCRIPT = `(function(){
     autocapture: true,
     record_sessions_percent: 100,
   })
+
+  fetch("/api/mixpanel/current-user", { credentials: "include", cache: "no-store" })
+    .then(function(response){return response.ok?response.json():null})
+    .then(function(payload){
+      var user=payload&&payload.success&&payload.data?payload.data:null;
+      if(!user||!user.id||!window.mixpanel)return;
+      mixpanel.identify(String(user.id));
+      if(mixpanel.people&&mixpanel.people.set){
+        mixpanel.people.set({
+          user_id:user.id,
+          role:user.role,
+          status:user.status,
+          group:user.group,
+          has_username:Boolean(user.username)
+        });
+      }
+    })
+    .catch(function(){});
 })();`;

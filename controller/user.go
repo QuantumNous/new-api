@@ -539,6 +539,41 @@ func GetSelf(c *gin.Context) {
 	return
 }
 
+func GetAnalyticsSelf(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	session := sessions.Default(c)
+	id, idOk := session.Get("id").(int)
+	username, usernameOk := session.Get("username").(string)
+	role, roleOk := session.Get("role").(int)
+	status, statusOk := session.Get("status").(int)
+	if !idOk || id <= 0 || !usernameOk || strings.TrimSpace(username) == "" || !roleOk || !statusOk || !common.IsValidateRole(role) {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn),
+		})
+		return
+	}
+	if status == common.UserStatusDisabled {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": common.TranslateMessage(c, i18n.MsgAuthUserBanned),
+		})
+		return
+	}
+	group, _ := session.Get("group").(string)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"id":       id,
+			"username": username,
+			"role":     role,
+			"status":   status,
+			"group":    group,
+		},
+	})
+}
+
 // 计算用户权限的辅助函数
 func calculateUserPermissions(userRole int) map[string]interface{} {
 	permissions := map[string]interface{}{}

@@ -21,4 +21,10 @@ describe("Mixpanel browser script", () => {
     expect(MIXPANEL_BROWSER_SCRIPT).toContain("start_session_recording");
     expect(MIXPANEL_BROWSER_SCRIPT).toContain("stop_session_recording");
   });
+
+  test("identifies the logged-in user when the website identity endpoint returns one", () => {
+    expect(MIXPANEL_BROWSER_SCRIPT).toContain("/api/mixpanel/current-user");
+    expect(MIXPANEL_BROWSER_SCRIPT).toContain("mixpanel.identify(String(user.id))");
+    expect(MIXPANEL_BROWSER_SCRIPT).toContain("mixpanel.people.set");
+  });
 });
