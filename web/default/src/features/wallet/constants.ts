@@ -56,11 +56,6 @@ export const PAYMENT_ICON_COLORS = {
 } as const
 
 /**
- * Quota conversion rate: 500,000 units = $1
- */
-export const QUOTA_PER_DOLLAR = 500000
-
-/**
  * Default discount rate (no discount)
  */
 export const DEFAULT_DISCOUNT_RATE = 1.0

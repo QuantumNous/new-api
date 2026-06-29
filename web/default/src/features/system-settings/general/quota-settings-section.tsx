@@ -21,6 +21,7 @@ import * as z from 'zod'
 import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
+import { formatQuota } from '@/lib/format'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Form,
@@ -139,7 +140,8 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Initial quota given to new users')}
+                    {t('Initial quota given to new users')} (
+                    {formatQuota(field.value ?? 0)})
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -187,7 +189,8 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Quota given to users who invite others')}
+                    {t('Quota given to users who invite others')} (
+                    {formatQuota(field.value ?? 0)})
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -211,7 +214,8 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Quota given to invited users')}
+                    {t('Quota given to invited users')} (
+                    {formatQuota(field.value ?? 0)})
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
