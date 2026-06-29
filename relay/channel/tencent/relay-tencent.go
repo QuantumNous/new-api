@@ -145,10 +145,10 @@ func tencentHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Resp
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if tencentSb.Response.Error.Code != 0 {
-		return nil, types.WithOpenAIError(types.OpenAIError{
+		return nil, types.MarkAsUpstreamError(types.WithOpenAIError(types.OpenAIError{
 			Message: tencentSb.Response.Error.Message,
 			Code:    tencentSb.Response.Error.Code,
-		}, resp.StatusCode)
+		}, resp.StatusCode))
 	}
 	fullTextResponse := responseTencent2OpenAI(&tencentSb.Response)
 	jsonResponse, err := common.Marshal(fullTextResponse)

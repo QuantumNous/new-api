@@ -234,10 +234,10 @@ func zhipuHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if !zhipuResponse.Success {
-		return nil, types.WithOpenAIError(types.OpenAIError{
+		return nil, types.MarkAsUpstreamError(types.WithOpenAIError(types.OpenAIError{
 			Message: zhipuResponse.Msg,
 			Code:    zhipuResponse.Code,
-		}, resp.StatusCode)
+		}, resp.StatusCode))
 	}
 	fullTextResponse := responseZhipu2OpenAI(&zhipuResponse)
 	jsonResponse, err := json.Marshal(fullTextResponse)

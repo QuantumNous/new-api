@@ -1534,16 +1534,17 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		}
 
 		service.ResetStatusCode(newAPIError, c.GetString("status_code_mapping"))
+		responseError := types.ApplyDownstreamNewAPIErrorPolicy(newAPIError, c.GetString(common.RequestIdKey))
 
 		switch info.RelayFormat {
 		case types.RelayFormatClaude:
-			c.JSON(newAPIError.StatusCode, gin.H{
+			c.JSON(responseError.StatusCode, gin.H{
 				"type":  "error",
-				"error": newAPIError.ToClaudeError(),
+				"error": responseError.ToClaudeError(),
 			})
 		default:
-			c.JSON(newAPIError.StatusCode, gin.H{
-				"error": newAPIError.ToOpenAIError(),
+			c.JSON(responseError.StatusCode, gin.H{
+				"error": responseError.ToOpenAIError(),
 			})
 		}
 		return &usage, nil
