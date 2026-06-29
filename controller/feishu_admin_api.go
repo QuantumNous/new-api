@@ -1330,7 +1330,16 @@ func FeishuInitWebhook(c *gin.Context) {
 					continue
 				}
 			}
-			result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, UserId: existingUser.Id, Username: existingUser.Username, Action: "skipped_exists"})
+			// 用户已存在但无可用 Token，创建新 Token 并返回
+			createdToken, tokenKey, tokenErr := createTokenForUser(&existingUser, &createTokenOptions{Name: "feishu-init"})
+			if tokenErr != nil {
+				result.Failed++
+				result.Errors = append(result.Errors, fmt.Sprintf("open_id=%s: token create failed for existing user %d: %s", openId, existingUser.Id, tokenErr.Error()))
+				result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, UserId: existingUser.Id, Username: existingUser.Username, Action: "failed", Error: "token create failed: " + tokenErr.Error()})
+				continue
+			}
+			result.Skipped++
+			result.Results = append(result.Results, FeishuUserInitResultItem{FeishuOpenId: openId, FeishuUnionId: unionId, FeishuUserId: userId, UserId: existingUser.Id, Username: existingUser.Username, TokenId: createdToken.Id, TokenName: createdToken.Name, TokenKey: formatTokenKeyForResponse(tokenKey), Action: "skipped_user_token_created"})
 			continue
 		}
 
