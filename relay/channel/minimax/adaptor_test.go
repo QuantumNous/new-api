@@ -84,6 +84,89 @@ func TestConvertImageRequest(t *testing.T) {
 	}
 }
 
+func TestConvertImageRequestWithSubjectReference(t *testing.T) {
+	t.Parallel()
+
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeImagesGenerations,
+		OriginModelName: "image-01",
+	}
+	subjectRefJSON := json.RawMessage(`[{"type":"character","image_file":"https://cdn.example.com/subject.jpg"}]`)
+	request := dto.ImageRequest{
+		Model:  "image-01",
+		Prompt: "女孩在图书馆的窗户前，看向远方",
+		Extra: map[string]json.RawMessage{
+			"aspect_ratio":      json.RawMessage(`"16:9"`),
+			"subject_reference": subjectRefJSON,
+		},
+	}
+
+	got, err := adaptor.ConvertImageRequest(gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()), info, request)
+	if err != nil {
+		t.Fatalf("ConvertImageRequest returned error: %v", err)
+	}
+
+	body, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("json.Marshal returned error: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("json.Unmarshal returned error: %v", err)
+	}
+
+	if payload["aspect_ratio"] != "16:9" {
+		t.Fatalf("aspect_ratio = %#v, want %q", payload["aspect_ratio"], "16:9")
+	}
+
+	refs, ok := payload["subject_reference"].([]any)
+	if !ok || len(refs) != 1 {
+		t.Fatalf("subject_reference = %#v, want a slice with 1 element", payload["subject_reference"])
+	}
+	first := refs[0].(map[string]any)
+	if first["type"] != "character" {
+		t.Fatalf("subject_reference[0].type = %#v, want %q", first["type"], "character")
+	}
+	if first["image_file"] != "https://cdn.example.com/subject.jpg" {
+		t.Fatalf("subject_reference[0].image_file = %#v, want subject image url", first["image_file"])
+	}
+}
+
+func TestConvertImageRequestWithoutSubjectReference(t *testing.T) {
+	t.Parallel()
+
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeImagesGenerations,
+		OriginModelName: "image-01",
+	}
+	request := dto.ImageRequest{
+		Model:  "image-01",
+		Prompt: "a red fox in snowfall",
+	}
+
+	got, err := adaptor.ConvertImageRequest(gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()), info, request)
+	if err != nil {
+		t.Fatalf("ConvertImageRequest returned error: %v", err)
+	}
+
+	body, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("json.Marshal returned error: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("json.Unmarshal returned error: %v", err)
+	}
+
+	if _, exists := payload["subject_reference"]; exists {
+		t.Fatalf("subject_reference should be omitted for pure text-to-image, payload = %s", body)
+	}
+}
+
 func TestDoResponseForImageGeneration(t *testing.T) {
 	t.Parallel()
 

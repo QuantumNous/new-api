@@ -24,6 +24,15 @@ type MiniMaxImageRequest struct {
 	N               int    `json:"n,omitempty"`
 	PromptOptimizer *bool  `json:"prompt_optimizer,omitempty"`
 	AigcWatermark   *bool  `json:"aigc_watermark,omitempty"`
+	// SubjectReference 图生图：传入参考图，保留主体特征
+	// https://platform.minimaxi.com/docs/guides/image-generation
+	SubjectReference []MiniMaxSubjectReference `json:"subject_reference,omitempty"`
+}
+
+// MiniMaxSubjectReference 官方图生图参考主体结构
+type MiniMaxSubjectReference struct {
+	Type      string `json:"type"` // 目前仅支持 "character"
+	ImageFile string `json:"image_file"`
 }
 
 type MiniMaxImageResponse struct {
@@ -62,6 +71,13 @@ func oaiImage2MiniMaxImageRequest(request dto.ImageRequest) MiniMaxImageRequest 
 		var promptOptimizer bool
 		if err := common.Unmarshal(raw, &promptOptimizer); err == nil {
 			minimaxRequest.PromptOptimizer = &promptOptimizer
+		}
+	}
+
+	if raw, ok := request.Extra["subject_reference"]; ok {
+		var subjectReference []MiniMaxSubjectReference
+		if err := common.Unmarshal(raw, &subjectReference); err == nil && len(subjectReference) > 0 {
+			minimaxRequest.SubjectReference = subjectReference
 		}
 	}
 
