@@ -124,3 +124,38 @@ func TestEditChannelsByIdsEmptyIdsIsNoop(t *testing.T) {
 	require.NoError(t, EditChannelsByIds(nil, nil, nil, nil, nil, nil))
 	require.NoError(t, EditChannelsByIds([]int{}, nil, nil, nil, nil, nil))
 }
+
+// TestEditChannelsByIdsWeightOnlyUsesTargetedUpdate verifies that a weight-only
+// change updates the abilities weight column via the targeted path (no full
+// rebuild) — and that weight=0 is written (map-based Updates, not skipped).
+func TestEditChannelsByIdsWeightOnlyUsesTargetedUpdate(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+
+	priority := int64(0)
+	weight := uint(5)
+	ch := &Channel{
+		Id:       104,
+		Type:     1,
+		Key:      "test-key",
+		Name:     "test-channel",
+		Status:   common.ChannelStatusEnabled,
+		Models:   "a-model",
+		Group:    "default",
+		Priority: &priority,
+		Weight:   &weight,
+	}
+	require.NoError(t, DB.Create(ch).Error)
+	require.NoError(t, ch.UpdateAbilities(nil))
+
+	var before Ability
+	require.NoError(t, DB.First(&before, "channel_id = ? AND model = ?", 104, "a-model").Error)
+	require.Equal(t, uint(5), before.Weight)
+
+	zeroWeight := uint(0)
+	require.NoError(t, EditChannelsByIds([]int{104}, nil, nil, nil, nil, &zeroWeight))
+
+	var after Ability
+	require.NoError(t, DB.First(&after, "channel_id = ? AND model = ?", 104, "a-model").Error)
+	// weight=0 must be written (map-based Updates, not skipped as a struct zero-value)
+	require.Equal(t, uint(0), after.Weight)
+}
