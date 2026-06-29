@@ -59,13 +59,13 @@ func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
 }
 
 const (
-	AdvancedCustomConverterNone                                         = "none"
-	AdvancedCustomConverterAnthropicMessagesToOpenAIChatCompletions     = "anthropic_messages_to_openai_chat_completions"
-	AdvancedCustomConverterOpenAIChatCompletionsToAnthropicMessages     = "openai_chat_completions_to_anthropic_messages"
-	AdvancedCustomConverterOpenAIChatCompletionsToOpenAIResponses       = "openai_chat_completions_to_openai_responses"
-	AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions       = "openai_responses_to_openai_chat_completions"
-	AdvancedCustomConverterGeminiGenerateContentToOpenAIChatCompletions = "gemini_generate_content_to_openai_chat_completions"
-	AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent = "openai_chat_completions_to_gemini_generate_content"
+	advancedCustomConverterNone                        = "none"
+	advancedCustomConverterClaudeMessagesToOpenAIChat  = "anthropic_messages_to_openai_chat_completions"
+	advancedCustomConverterOpenAIChatToClaudeMessages  = "openai_chat_completions_to_anthropic_messages"
+	advancedCustomConverterOpenAIChatToOpenAIResponses = "openai_chat_completions_to_openai_responses"
+	advancedCustomConverterOpenAIResponsesToOpenAIChat = "openai_responses_to_openai_chat_completions"
+	advancedCustomConverterGeminiContentToOpenAIChat   = "gemini_generate_content_to_openai_chat_completions"
+	advancedCustomConverterOpenAIChatToGeminiContent   = "openai_chat_completions_to_gemini_generate_content"
 )
 
 const (
@@ -144,13 +144,13 @@ func matchAdvancedCustomIncomingPathTemplate(configuredPath string, requestPath 
 
 func IsAdvancedCustomConverterAllowed(converter string) bool {
 	switch converter {
-	case AdvancedCustomConverterNone,
-		AdvancedCustomConverterAnthropicMessagesToOpenAIChatCompletions,
-		AdvancedCustomConverterOpenAIChatCompletionsToAnthropicMessages,
-		AdvancedCustomConverterOpenAIChatCompletionsToOpenAIResponses,
-		AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions,
-		AdvancedCustomConverterGeminiGenerateContentToOpenAIChatCompletions,
-		AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent:
+	case advancedCustomConverterNone,
+		advancedCustomConverterClaudeMessagesToOpenAIChat,
+		advancedCustomConverterOpenAIChatToClaudeMessages,
+		advancedCustomConverterOpenAIChatToOpenAIResponses,
+		advancedCustomConverterOpenAIResponsesToOpenAIChat,
+		advancedCustomConverterGeminiContentToOpenAIChat,
+		advancedCustomConverterOpenAIChatToGeminiContent:
 		return true
 	default:
 		return false
@@ -172,7 +172,7 @@ func (c *AdvancedCustomConfig) Validate() error {
 		upstreamPath := strings.TrimSpace(route.UpstreamPath)
 		route.Converter = strings.TrimSpace(route.Converter)
 		if route.Converter == "" {
-			route.Converter = AdvancedCustomConverterNone
+			route.Converter = advancedCustomConverterNone
 		}
 
 		if route.IncomingPath == "" {
@@ -230,23 +230,23 @@ func validateAdvancedCustomUpstreamTarget(index int, upstreamPath string) error 
 
 func validateAdvancedCustomConverterPath(index int, incomingPath string, converter string) error {
 	switch converter {
-	case AdvancedCustomConverterNone:
+	case advancedCustomConverterNone:
 		return nil
-	case AdvancedCustomConverterAnthropicMessagesToOpenAIChatCompletions:
+	case advancedCustomConverterClaudeMessagesToOpenAIChat:
 		if incomingPath == "/v1/messages" {
 			return nil
 		}
-	case AdvancedCustomConverterOpenAIChatCompletionsToAnthropicMessages,
-		AdvancedCustomConverterOpenAIChatCompletionsToOpenAIResponses,
-		AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent:
+	case advancedCustomConverterOpenAIChatToClaudeMessages,
+		advancedCustomConverterOpenAIChatToOpenAIResponses,
+		advancedCustomConverterOpenAIChatToGeminiContent:
 		if incomingPath == "/v1/chat/completions" {
 			return nil
 		}
-	case AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions:
+	case advancedCustomConverterOpenAIResponsesToOpenAIChat:
 		if incomingPath == "/v1/responses" {
 			return nil
 		}
-	case AdvancedCustomConverterGeminiGenerateContentToOpenAIChatCompletions:
+	case advancedCustomConverterGeminiContentToOpenAIChat:
 		if strings.Contains(incomingPath, ":generateContent") || strings.Contains(incomingPath, ":streamGenerateContent") {
 			return nil
 		}

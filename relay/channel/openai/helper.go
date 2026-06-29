@@ -10,6 +10,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/samber/lo"
@@ -41,7 +42,7 @@ func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 	if streamResponse.Usage != nil {
 		info.ClaudeConvertInfo.Usage = streamResponse.Usage
 	}
-	claudeResponses := service.StreamResponseOpenAI2Claude(&streamResponse, info)
+	claudeResponses := relayconvert.StreamResponseOpenAI2Claude(&streamResponse, info)
 	for _, resp := range claudeResponses {
 		helper.ClaudeData(c, *resp)
 	}
@@ -55,7 +56,7 @@ func handleGeminiFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 		return err
 	}
 
-	geminiResponse := service.StreamResponseOpenAI2Gemini(&streamResponse, info)
+	geminiResponse := relayconvert.StreamResponseOpenAI2Gemini(&streamResponse, info)
 
 	// 如果返回 nil，表示没有实际内容，跳过发送
 	if geminiResponse == nil {
@@ -165,7 +166,7 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 
 		info.ClaudeConvertInfo.Usage = usage
 
-		claudeResponses := service.StreamResponseOpenAI2Claude(&streamResponse, info)
+		claudeResponses := relayconvert.StreamResponseOpenAI2Claude(&streamResponse, info)
 		for _, resp := range claudeResponses {
 			_ = helper.ClaudeData(c, *resp)
 		}
@@ -183,7 +184,7 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		// 而包含最后一段文本输出的响应（倒数第二个）的 finishReason 为 null
 		// 暂不知是否有程序会不兼容。
 
-		geminiResponse := service.StreamResponseOpenAI2Gemini(&streamResponse, info)
+		geminiResponse := relayconvert.StreamResponseOpenAI2Gemini(&streamResponse, info)
 
 		// openai 流响应开头的空数据
 		if geminiResponse == nil {

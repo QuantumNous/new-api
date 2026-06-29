@@ -1,0 +1,184 @@
+package relayconvert
+
+import (
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+)
+
+// ResponseOpenAI2Gemini 将 OpenAI 响应转换为 Gemini 格式
+func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info *relaycommon.RelayInfo) *dto.GeminiChatResponse {
+	geminiResponse := &dto.GeminiChatResponse{
+		Candidates: make([]dto.GeminiChatCandidate, 0, len(openAIResponse.Choices)),
+		UsageMetadata: dto.GeminiUsageMetadata{
+			PromptTokenCount:     openAIResponse.PromptTokens,
+			CandidatesTokenCount: openAIResponse.CompletionTokens,
+			TotalTokenCount:      openAIResponse.PromptTokens + openAIResponse.CompletionTokens,
+		},
+	}
+
+	for _, choice := range openAIResponse.Choices {
+		candidate := dto.GeminiChatCandidate{
+			Index:         int64(choice.Index),
+			SafetyRatings: []dto.GeminiChatSafetyRating{},
+		}
+
+		// 设置结束原因
+		var finishReason string
+		switch choice.FinishReason {
+		case "stop":
+			finishReason = "STOP"
+		case "length":
+			finishReason = "MAX_TOKENS"
+		case "content_filter":
+			finishReason = "SAFETY"
+		case "tool_calls":
+			finishReason = "STOP"
+		default:
+			finishReason = "STOP"
+		}
+		candidate.FinishReason = &finishReason
+
+		// 转换消息内容
+		content := dto.GeminiChatContent{
+			Role:  "model",
+			Parts: make([]dto.GeminiPart, 0),
+		}
+
+		textContent := choice.Message.StringContent()
+		if textContent != "" {
+			part := dto.GeminiPart{
+				Text: textContent,
+			}
+			content.Parts = append(content.Parts, part)
+		}
+
+		toolCalls := choice.Message.ParseToolCalls()
+		for _, toolCall := range toolCalls {
+			var args map[string]interface{}
+			if toolCall.Function.Arguments != "" {
+				if err := common.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+					args = map[string]interface{}{"arguments": toolCall.Function.Arguments}
+				}
+			} else {
+				args = make(map[string]interface{})
+			}
+
+			part := dto.GeminiPart{
+				FunctionCall: &dto.FunctionCall{
+					FunctionName: toolCall.Function.Name,
+					Arguments:    args,
+				},
+			}
+			content.Parts = append(content.Parts, part)
+		}
+
+		candidate.Content = content
+		geminiResponse.Candidates = append(geminiResponse.Candidates, candidate)
+	}
+
+	return geminiResponse
+}
+
+// StreamResponseOpenAI2Gemini 将 OpenAI 流式响应转换为 Gemini 格式
+func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamResponse, info *relaycommon.RelayInfo) *dto.GeminiChatResponse {
+	// 检查是否有实际内容或结束标志
+	hasContent := false
+	hasFinishReason := false
+	for _, choice := range openAIResponse.Choices {
+		if len(choice.Delta.GetContentString()) > 0 || (choice.Delta.ToolCalls != nil && len(choice.Delta.ToolCalls) > 0) {
+			hasContent = true
+		}
+		if choice.FinishReason != nil {
+			hasFinishReason = true
+		}
+	}
+
+	// 如果没有实际内容且没有结束标志，跳过。主要针对 openai 流响应开头的空数据
+	if !hasContent && !hasFinishReason {
+		return nil
+	}
+
+	geminiResponse := &dto.GeminiChatResponse{
+		Candidates: make([]dto.GeminiChatCandidate, 0, len(openAIResponse.Choices)),
+		UsageMetadata: dto.GeminiUsageMetadata{
+			PromptTokenCount:     info.GetEstimatePromptTokens(),
+			CandidatesTokenCount: 0, // 流式响应中可能没有完整的 usage 信息
+			TotalTokenCount:      info.GetEstimatePromptTokens(),
+		},
+	}
+
+	if openAIResponse.Usage != nil {
+		geminiResponse.UsageMetadata.PromptTokenCount = openAIResponse.Usage.PromptTokens
+		geminiResponse.UsageMetadata.CandidatesTokenCount = openAIResponse.Usage.CompletionTokens
+		geminiResponse.UsageMetadata.TotalTokenCount = openAIResponse.Usage.TotalTokens
+	}
+
+	for _, choice := range openAIResponse.Choices {
+		candidate := dto.GeminiChatCandidate{
+			Index:         int64(choice.Index),
+			SafetyRatings: []dto.GeminiChatSafetyRating{},
+		}
+
+		// 设置结束原因
+		if choice.FinishReason != nil {
+			var finishReason string
+			switch *choice.FinishReason {
+			case "stop":
+				finishReason = "STOP"
+			case "length":
+				finishReason = "MAX_TOKENS"
+			case "content_filter":
+				finishReason = "SAFETY"
+			case "tool_calls":
+				finishReason = "STOP"
+			default:
+				finishReason = "STOP"
+			}
+			candidate.FinishReason = &finishReason
+		}
+
+		// 转换消息内容
+		content := dto.GeminiChatContent{
+			Role:  "model",
+			Parts: make([]dto.GeminiPart, 0),
+		}
+
+		// 处理工具调用
+		if choice.Delta.ToolCalls != nil {
+			for _, toolCall := range choice.Delta.ToolCalls {
+				// 解析参数
+				var args map[string]interface{}
+				if toolCall.Function.Arguments != "" {
+					if err := common.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+						args = map[string]interface{}{"arguments": toolCall.Function.Arguments}
+					}
+				} else {
+					args = make(map[string]interface{})
+				}
+
+				part := dto.GeminiPart{
+					FunctionCall: &dto.FunctionCall{
+						FunctionName: toolCall.Function.Name,
+						Arguments:    args,
+					},
+				}
+				content.Parts = append(content.Parts, part)
+			}
+		} else {
+			// 处理文本内容
+			textContent := choice.Delta.GetContentString()
+			if textContent != "" {
+				part := dto.GeminiPart{
+					Text: textContent,
+				}
+				content.Parts = append(content.Parts, part)
+			}
+		}
+
+		candidate.Content = content
+		geminiResponse.Candidates = append(geminiResponse.Candidates, candidate)
+	}
+
+	return geminiResponse
+}

@@ -13,7 +13,7 @@ func TestAdvancedCustomValidateResponsesToChatConverterPath(t *testing.T) {
 			{
 				IncomingPath: "/v1/responses",
 				UpstreamPath: "/v1/chat/completions",
-				Converter:    AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions,
+				Converter:    advancedCustomConverterOpenAIResponsesToOpenAIChat,
 			},
 		},
 	}
@@ -34,7 +34,7 @@ func TestAdvancedCustomValidateResponsesToChatConverterPath(t *testing.T) {
 					{
 						IncomingPath: tt.incomingPath,
 						UpstreamPath: "/v1/chat/completions",
-						Converter:    AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions,
+						Converter:    advancedCustomConverterOpenAIResponsesToOpenAIChat,
 					},
 				},
 			}

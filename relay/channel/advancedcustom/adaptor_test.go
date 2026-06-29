@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ func TestAdaptorUsesExactRouteAndQueryAuth(t *testing.T) {
 			{
 				IncomingPath: "/v1/messages",
 				UpstreamPath: "https://upstream.example/v1/chat/completions?existing=1",
-				Converter:    dto.AdvancedCustomConverterAnthropicMessagesToOpenAIChatCompletions,
+				Converter:    relayconvert.ConverterClaudeMessagesToOpenAIChat,
 				Auth: &dto.AdvancedCustomRouteAuth{
 					Type:  dto.AdvancedCustomAuthTypeQuery,
 					Name:  "api_key",
@@ -54,7 +55,7 @@ func TestAdaptorJoinsUpstreamPathWithChannelBaseURL(t *testing.T) {
 			{
 				IncomingPath: "/v1/chat/completions",
 				UpstreamPath: "/proxy/v1/chat/completions?existing=1",
-				Converter:    dto.AdvancedCustomConverterNone,
+				Converter:    relayconvert.ConverterNone,
 				Auth: &dto.AdvancedCustomRouteAuth{
 					Type:  dto.AdvancedCustomAuthTypeQuery,
 					Name:  "api_key",
@@ -84,7 +85,7 @@ func TestAdaptorReturnsErrorWhenUpstreamPathNeedsMissingBaseURL(t *testing.T) {
 			{
 				IncomingPath: "/v1/chat/completions",
 				UpstreamPath: "/v1/chat/completions",
-				Converter:    dto.AdvancedCustomConverterNone,
+				Converter:    relayconvert.ConverterNone,
 			},
 		},
 	})
@@ -102,7 +103,7 @@ func TestAdaptorSetupRequestHeaderUsesDefaultBearerAuth(t *testing.T) {
 			{
 				IncomingPath: "/v1/chat/completions",
 				UpstreamPath: "https://upstream.example/v1/chat/completions",
-				Converter:    dto.AdvancedCustomConverterNone,
+				Converter:    relayconvert.ConverterNone,
 			},
 		},
 	})
@@ -120,7 +121,7 @@ func TestAdaptorSetupRequestHeaderUsesConfiguredHeaderAuth(t *testing.T) {
 			{
 				IncomingPath: "/v1/chat/completions",
 				UpstreamPath: "https://upstream.example/v1/chat/completions",
-				Converter:    dto.AdvancedCustomConverterNone,
+				Converter:    relayconvert.ConverterNone,
 				Auth: &dto.AdvancedCustomRouteAuth{
 					Type:  dto.AdvancedCustomAuthTypeHeader,
 					Name:  "x-api-key",
@@ -144,7 +145,7 @@ func TestAdaptorSetupRequestHeaderAddsClaudeDefaultHeaders(t *testing.T) {
 			{
 				IncomingPath: "/v1/messages",
 				UpstreamPath: "https://api.anthropic.com/v1/messages",
-				Converter:    dto.AdvancedCustomConverterNone,
+				Converter:    relayconvert.ConverterNone,
 				Auth: &dto.AdvancedCustomRouteAuth{
 					Type:  dto.AdvancedCustomAuthTypeHeader,
 					Name:  "x-api-key",
@@ -169,7 +170,7 @@ func TestAdaptorReturnsErrorWhenNoRouteMatchesPath(t *testing.T) {
 			{
 				IncomingPath: "/v1/messages",
 				UpstreamPath: "https://upstream.example/v1/chat/completions",
-				Converter:    dto.AdvancedCustomConverterAnthropicMessagesToOpenAIChatCompletions,
+				Converter:    relayconvert.ConverterClaudeMessagesToOpenAIChat,
 			},
 		},
 	})
@@ -187,7 +188,7 @@ func TestAdaptorReplacesModelPlaceholderInRouteURL(t *testing.T) {
 			{
 				IncomingPath: "/v1/chat/completions",
 				UpstreamPath: "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-				Converter:    dto.AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent,
+				Converter:    relayconvert.ConverterOpenAIChatToGeminiContent,
 				Auth: &dto.AdvancedCustomRouteAuth{
 					Type:  dto.AdvancedCustomAuthTypeQuery,
 					Name:  "key",
@@ -215,7 +216,7 @@ func TestAdaptorSwitchesGeminiGenerateContentURLForStream(t *testing.T) {
 			{
 				IncomingPath: "/v1/chat/completions",
 				UpstreamPath: "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?existing=1",
-				Converter:    dto.AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent,
+				Converter:    relayconvert.ConverterOpenAIChatToGeminiContent,
 				Auth: &dto.AdvancedCustomRouteAuth{
 					Type:  dto.AdvancedCustomAuthTypeQuery,
 					Name:  "key",
@@ -264,7 +265,7 @@ func TestAdaptorMatchesGeminiIncomingPathTemplate(t *testing.T) {
 					{
 						IncomingPath: "/v1beta/models/{model}:generateContent",
 						UpstreamPath: "https://upstream.example/v1/chat/completions",
-						Converter:    dto.AdvancedCustomConverterGeminiGenerateContentToOpenAIChatCompletions,
+						Converter:    relayconvert.ConverterGeminiContentToOpenAIChat,
 					},
 				},
 			})
@@ -287,7 +288,7 @@ func TestAdaptorConvertsResponsesRequestToOpenAIChatUpstream(t *testing.T) {
 			{
 				IncomingPath: "/v1/responses",
 				UpstreamPath: "/v1/chat/completions",
-				Converter:    dto.AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions,
+				Converter:    relayconvert.ConverterOpenAIResponsesToOpenAIChat,
 			},
 		},
 	})
@@ -316,6 +317,154 @@ func TestAdaptorConvertsResponsesRequestToOpenAIChatUpstream(t *testing.T) {
 	parsedURL, err := url.Parse(requestURL)
 	require.NoError(t, err)
 	assert.Equal(t, "/v1/chat/completions", parsedURL.Path)
+}
+
+func TestAdaptorConvertsOpenAIChatRequestToResponsesUpstream(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/chat/completions",
+				UpstreamPath: "/v1/responses",
+				Converter:    relayconvert.ConverterOpenAIChatToOpenAIResponses,
+			},
+		},
+	})
+	c := advancedCustomGinContext("/v1/chat/completions")
+
+	converted, err := adaptor.ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{
+		Model: "gpt-test",
+		Messages: []dto.Message{
+			{Role: "user", Content: "hello"},
+		},
+	})
+	require.NoError(t, err)
+
+	responsesReq, ok := converted.(*dto.OpenAIResponsesRequest)
+	require.True(t, ok)
+	assert.Equal(t, "gpt-test", responsesReq.Model)
+	assert.NotEmpty(t, responsesReq.Input)
+}
+
+func TestAdaptorConvertsOpenAIChatRequestToClaudeUpstream(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/chat/completions",
+				UpstreamPath: "/v1/messages",
+				Converter:    relayconvert.ConverterOpenAIChatToClaudeMessages,
+			},
+		},
+	})
+	c := advancedCustomGinContext("/v1/chat/completions")
+
+	converted, err := adaptor.ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{
+		Model: "claude-test",
+		Messages: []dto.Message{
+			{Role: "user", Content: "hello"},
+		},
+	})
+	require.NoError(t, err)
+
+	claudeReq, ok := converted.(*dto.ClaudeRequest)
+	require.True(t, ok)
+	assert.Equal(t, "claude-test", claudeReq.Model)
+	require.Len(t, claudeReq.Messages, 1)
+	assert.Equal(t, "user", claudeReq.Messages[0].Role)
+}
+
+func TestAdaptorConvertsOpenAIChatRequestToGeminiUpstream(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/chat/completions",
+				UpstreamPath: "/v1beta/models/{model}:generateContent",
+				Converter:    relayconvert.ConverterOpenAIChatToGeminiContent,
+			},
+		},
+	})
+	info.UpstreamModelName = "gemini-2.5-flash"
+	c := advancedCustomGinContext("/v1/chat/completions")
+
+	converted, err := adaptor.ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{
+		Model: "gemini-2.5-flash",
+		Messages: []dto.Message{
+			{Role: "user", Content: "hello"},
+		},
+	})
+	require.NoError(t, err)
+
+	geminiReq, ok := converted.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	require.Len(t, geminiReq.Contents, 1)
+	assert.Equal(t, "user", geminiReq.Contents[0].Role)
+}
+
+func TestAdaptorConvertsClaudeRequestToOpenAIChatUpstream(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/messages",
+				UpstreamPath: "/v1/chat/completions",
+				Converter:    relayconvert.ConverterClaudeMessagesToOpenAIChat,
+			},
+		},
+	})
+	info.RelayFormat = types.RelayFormatClaude
+	info.RequestURLPath = "/v1/messages"
+	c := advancedCustomGinContext("/v1/messages")
+
+	converted, err := adaptor.ConvertClaudeRequest(c, info, &dto.ClaudeRequest{
+		Model: "gpt-test",
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: "hello"},
+		},
+	})
+	require.NoError(t, err)
+
+	chatReq, ok := converted.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	assert.Equal(t, "gpt-test", chatReq.Model)
+	require.Len(t, chatReq.Messages, 1)
+	assert.Equal(t, "user", chatReq.Messages[0].Role)
+}
+
+func TestAdaptorConvertsGeminiRequestToOpenAIChatUpstream(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1beta/models/{model}:generateContent",
+				UpstreamPath: "/v1/chat/completions",
+				Converter:    relayconvert.ConverterGeminiContentToOpenAIChat,
+			},
+		},
+	})
+	info.RelayFormat = types.RelayFormatGemini
+	info.RequestURLPath = "/v1beta/models/gemini-2.5-flash:generateContent"
+	info.UpstreamModelName = "gpt-test"
+	c := advancedCustomGinContext("/v1beta/models/gemini-2.5-flash:generateContent")
+
+	converted, err := adaptor.ConvertGeminiRequest(c, info, &dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{
+			{
+				Role: "user",
+				Parts: []dto.GeminiPart{
+					{Text: "hello"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	chatReq, ok := converted.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	assert.Equal(t, "gpt-test", chatReq.Model)
+	require.Len(t, chatReq.Messages, 1)
+	assert.Equal(t, "user", chatReq.Messages[0].Role)
 }
 
 func advancedCustomRelayInfo(config *dto.AdvancedCustomConfig) *relaycommon.RelayInfo {

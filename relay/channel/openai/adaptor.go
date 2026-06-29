@@ -42,10 +42,13 @@ type Adaptor struct {
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	// 使用 service.GeminiToOpenAIRequest 转换请求格式
-	openaiRequest, err := service.GeminiToOpenAIRequest(request, info)
+	result, err := service.ConvertRequest(c, info, types.RelayFormatOpenAI, request)
 	if err != nil {
 		return nil, err
+	}
+	openaiRequest, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value)
 	}
 	return a.ConvertOpenAIRequest(c, info, openaiRequest)
 }
@@ -61,9 +64,13 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	//		println(fmt.Sprintf("failed to save request body to file: %v", err))
 	//	}
 	//}
-	aiRequest, err := service.ClaudeToOpenAIRequest(*request, info)
+	result, err := service.ConvertRequest(c, info, types.RelayFormatOpenAI, request)
 	if err != nil {
 		return nil, err
+	}
+	aiRequest, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value)
 	}
 	//if common.DebugEnabled {
 	//	println(fmt.Sprintf("convert claude to openai request result: %s", common.GetJsonString(aiRequest)))

@@ -56,10 +56,10 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	var responseBody []byte
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		claudeResp := service.ResponseOpenAI2Claude(chatResp, info)
+		claudeResp := relayconvert.ResponseOpenAI2Claude(chatResp, info)
 		responseBody, err = common.Marshal(claudeResp)
 	case types.RelayFormatGemini:
-		geminiResp := service.ResponseOpenAI2Gemini(chatResp, info)
+		geminiResp := relayconvert.ResponseOpenAI2Gemini(chatResp, info)
 		responseBody, err = common.Marshal(geminiResp)
 	default:
 		responseBody, err = common.Marshal(chatResp)
@@ -159,10 +159,10 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 	var responseBody []byte
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		claudeResp := service.ResponseOpenAI2Claude(chatResp, info)
+		claudeResp := relayconvert.ResponseOpenAI2Claude(chatResp, info)
 		responseBody, err = common.Marshal(claudeResp)
 	case types.RelayFormatGemini:
-		geminiResp := service.ResponseOpenAI2Gemini(chatResp, info)
+		geminiResp := relayconvert.ResponseOpenAI2Gemini(chatResp, info)
 		responseBody, err = common.Marshal(geminiResp)
 	default:
 		responseBody, err = common.Marshal(chatResp)
