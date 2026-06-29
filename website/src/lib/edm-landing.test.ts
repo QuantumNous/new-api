@@ -44,6 +44,45 @@ describe("EDM landing campaigns", () => {
     expect(input.noIndex).toBe(true);
     expect(input.title).toContain("40%");
   });
+
+  test("uses polished Japanese SaaS copy for the personal AI landing page", () => {
+    const campaign = getEdmCampaign("personal-ai", "ja");
+    const copy = [
+      campaign.eyebrow,
+      campaign.badge,
+      campaign.hero.title,
+      campaign.hero.accent,
+      campaign.hero.description,
+      campaign.hero.highlight ?? "",
+      campaign.offer.title,
+      campaign.offer.body,
+      campaign.primaryCta,
+      campaign.proof.title,
+      campaign.proof.body,
+      campaign.finalTitle,
+      campaign.finalBody,
+      campaign.heroPanel?.kicker ?? "",
+      campaign.heroPanel?.title ?? "",
+      campaign.heroPanel?.footnote ?? "",
+      ...(campaign.heroPanel?.rows.flatMap((item) => [item.label, item.value, item.body]) ?? []),
+      ...campaign.evidence.flatMap((item) => [item.title, item.body]),
+      ...campaign.steps.flatMap((item) => [item.title, item.body]),
+      ...campaign.faqs.flatMap((item) => [item.question, item.answer]),
+    ].join("\n");
+
+    expect(campaign.eyebrow).toBe("個人向けAI利用コスト削減");
+    expect(campaign.badge).toBe("20ドルチャージで5ドルボーナス付与");
+    expect(campaign.heroPanel?.rows[1]?.value).toBe("20ドルチャージで5ドルボーナス");
+    expect(campaign.heroPanel?.rows[2]?.value).toBe("1つのAPIキーで一括利用");
+    expect(campaign.proof.body).toContain("100億トークンの利用実績");
+    expect(campaign.faqs[1]?.answer).toContain("各社公式の上流トークン");
+
+    expect(copy).not.toMatch(/\b(?:token|tokens|upstream|routing|provider|workflow|prompt|key)\b/i);
+    expect(copy).not.toContain("3x");
+    expect(copy).not.toContain("$20");
+    expect(copy).not.toContain("$5");
+    expect(copy).not.toContain("10 billion");
+  });
 });
 
 describe("robots", () => {
