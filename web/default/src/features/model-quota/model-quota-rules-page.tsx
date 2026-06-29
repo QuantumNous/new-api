@@ -58,10 +58,21 @@ import type {
   ModelQuotaPlanRule,
   MatchMode,
 } from './types'
-import { formatQuota } from '@/lib/format'
+import {
+  formatQuota,
+  parseQuotaFromDollars,
+  quotaUnitsToDollars,
+} from '@/lib/format'
+import {
+  getCurrencyDisplay,
+  getCurrencyLabel,
+} from '@/lib/currency'
 import { getUserModels } from '@/lib/api'
 import { getGroups } from '@/features/users/api'
 import { getAdminPlans } from '@/features/subscriptions/api'
+import { cn } from '@/lib/utils'
+
+type QuotaMode = 'add' | 'subtract' | 'override'
 
 // ---------------------------------------------------------------------------
 // Shared hooks for dropdown data sources
@@ -513,26 +524,72 @@ function GroupRuleDialog({
   const { t } = useTranslation()
   const groupOptions = useGroupOptions()
   const modelOptions = useModelOptions()
+  const isEdit = !!rule
   const [groupName, setGroupName] = useState(rule?.group_name ?? 'default')
   const [modelPattern, setModelPattern] = useState(rule?.model_pattern ?? '')
   const [matchMode, setMatchMode] = useState<MatchMode>(
     rule?.match_mode ?? 'exact'
   )
-  const [quotaLimit, setQuotaLimit] = useState(
-    String(rule?.quota_limit ?? '')
+  const [quotaMode, setQuotaMode] = useState<QuotaMode>('override')
+  const [quotaAmount, setQuotaAmount] = useState(
+    isEdit ? String(quotaUnitsToDollars(rule!.quota_limit)) : ''
   )
   const [enabled, setEnabled] = useState(rule?.enabled ?? true)
 
+  const { meta: currencyMeta } = getCurrencyDisplay()
+  const currencyLabel = getCurrencyLabel()
+  const tokensOnly = currencyMeta.kind === 'tokens'
+
+  const currentQuota = rule?.quota_limit ?? 0
+  const amountValue = parseFloat(quotaAmount) || 0
+  const inputQuota = parseQuotaFromDollars(Math.abs(amountValue))
+
+  const getPreviewText = () => {
+    if (!isEdit) {
+      return `${t('额度上限')}: ${formatQuota(inputQuota)}`
+    }
+    switch (quotaMode) {
+      case 'add':
+        return `${t('当前额度')}: ${formatQuota(currentQuota)}  +${formatQuota(inputQuota)} = ${formatQuota(currentQuota + inputQuota)}`
+      case 'subtract':
+        return `${t('当前额度')}: ${formatQuota(currentQuota)}  -${formatQuota(inputQuota)} = ${formatQuota(currentQuota - inputQuota)}`
+      case 'override': {
+        const overrideQuota = parseQuotaFromDollars(amountValue)
+        return `${t('当前额度')}: ${formatQuota(currentQuota)} → ${formatQuota(overrideQuota)}`
+      }
+    }
+  }
+
   const handleSubmit = () => {
+    let finalQuota: number
+    if (!isEdit) {
+      finalQuota = inputQuota
+    } else {
+      switch (quotaMode) {
+        case 'add':
+          finalQuota = currentQuota + inputQuota
+          break
+        case 'subtract':
+          finalQuota = Math.max(0, currentQuota - inputQuota)
+          break
+        case 'override':
+          finalQuota = parseQuotaFromDollars(amountValue)
+          break
+      }
+    }
     onSubmit({
       group_name: groupName,
       model_pattern: modelPattern,
       match_mode: matchMode,
-      quota_limit: parseInt(quotaLimit, 10),
+      quota_limit: finalQuota,
       enabled,
       sort_order: rule?.sort_order ?? 0,
     })
   }
+
+  const placeholder = tokensOnly
+    ? t('Enter amount in tokens')
+    : t('Enter amount in {{currency}}', { currency: currencyLabel })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -582,16 +639,44 @@ function GroupRuleDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>{t('额度上限')}</Label>
+            <div className="flex items-center justify-between">
+              <Label>{t('额度上限')}</Label>
+              {isEdit && (
+                <div className="flex gap-1">
+                  {(['add', 'subtract', 'override'] as const).map((m) => (
+                    <Button
+                      key={m}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        quotaMode === m &&
+                          'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                      )}
+                      onClick={() => {
+                        setQuotaMode(m)
+                        setQuotaAmount('')
+                      }}
+                    >
+                      {m === 'add'
+                        ? t('Add')
+                        : m === 'subtract'
+                          ? t('Subtract')
+                          : t('Override')}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="text-muted-foreground text-sm">{getPreviewText()}</div>
             <Input
               type="number"
-              value={quotaLimit}
-              onChange={(e) => setQuotaLimit(e.target.value)}
-              placeholder="500000"
+              step={tokensOnly ? 1 : 0.01}
+              min={quotaMode === 'override' ? undefined : 0}
+              placeholder={placeholder}
+              value={quotaAmount}
+              onChange={(e) => setQuotaAmount(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
-              {t('单位与系统额度一致，500000 = $1')}
-            </p>
           </div>
         </div>
         <DialogFooter>
@@ -628,26 +713,72 @@ function PlanRuleDialog({
   const { t } = useTranslation()
   const modelOptions = useModelOptions()
   const planOptions = usePlanOptions()
+  const isEdit = !!rule
   const [planId, setPlanId] = useState(String(rule?.plan_id ?? ''))
   const [modelPattern, setModelPattern] = useState(rule?.model_pattern ?? '')
   const [matchMode, setMatchMode] = useState<MatchMode>(
     rule?.match_mode ?? 'exact'
   )
-  const [quotaLimit, setQuotaLimit] = useState(
-    String(rule?.quota_limit ?? '')
+  const [quotaMode, setQuotaMode] = useState<QuotaMode>('override')
+  const [quotaAmount, setQuotaAmount] = useState(
+    isEdit ? String(quotaUnitsToDollars(rule!.quota_limit)) : ''
   )
   const [enabled] = useState(rule?.enabled ?? true)
 
+  const { meta: currencyMeta } = getCurrencyDisplay()
+  const currencyLabel = getCurrencyLabel()
+  const tokensOnly = currencyMeta.kind === 'tokens'
+
+  const currentQuota = rule?.quota_limit ?? 0
+  const amountValue = parseFloat(quotaAmount) || 0
+  const inputQuota = parseQuotaFromDollars(Math.abs(amountValue))
+
+  const getPreviewText = () => {
+    if (!isEdit) {
+      return `${t('额度上限')}: ${formatQuota(inputQuota)}`
+    }
+    switch (quotaMode) {
+      case 'add':
+        return `${t('当前额度')}: ${formatQuota(currentQuota)}  +${formatQuota(inputQuota)} = ${formatQuota(currentQuota + inputQuota)}`
+      case 'subtract':
+        return `${t('当前额度')}: ${formatQuota(currentQuota)}  -${formatQuota(inputQuota)} = ${formatQuota(currentQuota - inputQuota)}`
+      case 'override': {
+        const overrideQuota = parseQuotaFromDollars(amountValue)
+        return `${t('当前额度')}: ${formatQuota(currentQuota)} → ${formatQuota(overrideQuota)}`
+      }
+    }
+  }
+
   const handleSubmit = () => {
+    let finalQuota: number
+    if (!isEdit) {
+      finalQuota = inputQuota
+    } else {
+      switch (quotaMode) {
+        case 'add':
+          finalQuota = currentQuota + inputQuota
+          break
+        case 'subtract':
+          finalQuota = Math.max(0, currentQuota - inputQuota)
+          break
+        case 'override':
+          finalQuota = parseQuotaFromDollars(amountValue)
+          break
+      }
+    }
     onSubmit({
       plan_id: parseInt(planId, 10),
       model_pattern: modelPattern,
       match_mode: matchMode,
-      quota_limit: parseInt(quotaLimit, 10),
+      quota_limit: finalQuota,
       enabled,
       sort_order: rule?.sort_order ?? 0,
     })
   }
+
+  const placeholder = tokensOnly
+    ? t('Enter amount in tokens')
+    : t('Enter amount in {{currency}}', { currency: currencyLabel })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -661,7 +792,7 @@ function PlanRuleDialog({
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>{t('订阅计划')}</Label>
-            <Select value={planId} onValueChange={setPlanId}>
+            <Select value={planId} onValueChange={(v) => setPlanId(v ?? '')}>
               <SelectTrigger>
                 <SelectValue placeholder={t('请选择订阅计划...')} />
               </SelectTrigger>
@@ -701,16 +832,44 @@ function PlanRuleDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>{t('额度上限')}</Label>
+            <div className="flex items-center justify-between">
+              <Label>{t('额度上限')}</Label>
+              {isEdit && (
+                <div className="flex gap-1">
+                  {(['add', 'subtract', 'override'] as const).map((m) => (
+                    <Button
+                      key={m}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        quotaMode === m &&
+                          'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                      )}
+                      onClick={() => {
+                        setQuotaMode(m)
+                        setQuotaAmount('')
+                      }}
+                    >
+                      {m === 'add'
+                        ? t('Add')
+                        : m === 'subtract'
+                          ? t('Subtract')
+                          : t('Override')}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="text-muted-foreground text-sm">{getPreviewText()}</div>
             <Input
               type="number"
-              value={quotaLimit}
-              onChange={(e) => setQuotaLimit(e.target.value)}
-              placeholder="500000"
+              step={tokensOnly ? 1 : 0.01}
+              min={quotaMode === 'override' ? undefined : 0}
+              placeholder={placeholder}
+              value={quotaAmount}
+              onChange={(e) => setQuotaAmount(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
-              {t('单位与系统额度一致，500000 = $1')}
-            </p>
           </div>
         </div>
         <DialogFooter>
