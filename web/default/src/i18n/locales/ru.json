@@ -5344,6 +5344,12 @@
     "Failed to disable {{count}} user(s)": "Не удалось отключить {{count}} пользователь(ей)",
     "No selected users can be disabled": "Среди выбранных нет пользователей, которых можно отключить",
     "Successfully disabled {{count}} user(s)": "Успешно отключено {{count}} пользователь(ей)",
-    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "Будет отключено {{count}} выбранных пользователь(ей). Root, уже отключенные и удаленные пользователи будут пропущены."
+    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "Будет отключено {{count}} выбранных пользователь(ей). Root, уже отключенные и удаленные пользователи будут пропущены.",
+    "Batch edit selected channels": "Массовое редактирование выбранных каналов",
+    "Batch edit {{count}} selected channel(s)": "Массово изменить выбранные каналы: {{count}}",
+    "{{count}} channel(s) updated": "Обновлено каналов: {{count}}",
+    "Leave empty to keep current": "Оставьте пустым, чтобы сохранить текущее значение",
+    "Priority must be an integer": "Приоритет должен быть целым числом",
+    "Weight must be a non-negative integer": "Вес должен быть неотрицательным целым числом"
   }
 }

@@ -5344,6 +5344,12 @@
     "Failed to disable {{count}} user(s)": "Không thể tắt {{count}} người dùng",
     "No selected users can be disabled": "Không có người dùng đã chọn nào có thể tắt",
     "Successfully disabled {{count}} user(s)": "Đã tắt thành công {{count}} người dùng",
-    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "Thao tác này sẽ tắt {{count}} người dùng đã chọn. Người dùng Root, người dùng đã bị tắt và người dùng đã xóa sẽ được bỏ qua."
+    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "Thao tác này sẽ tắt {{count}} người dùng đã chọn. Người dùng Root, người dùng đã bị tắt và người dùng đã xóa sẽ được bỏ qua.",
+    "Batch edit selected channels": "Chỉnh sửa hàng loạt kênh đã chọn",
+    "Batch edit {{count}} selected channel(s)": "Chỉnh sửa hàng loạt {{count}} kênh đã chọn",
+    "{{count}} channel(s) updated": "Đã cập nhật {{count}} kênh",
+    "Leave empty to keep current": "Để trống để giữ giá trị hiện tại",
+    "Priority must be an integer": "Độ ưu tiên phải là số nguyên",
+    "Weight must be a non-negative integer": "Trọng số phải là số nguyên không âm"
   }
 }

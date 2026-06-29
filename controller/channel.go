@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
@@ -830,6 +831,15 @@ type ChannelBatch struct {
 	Tag *string `json:"tag"`
 }
 
+type ChannelBatchEdit struct {
+	Ids          []int   `json:"ids"`
+	Models       *string `json:"models"`
+	ModelMapping *string `json:"model_mapping"`
+	Groups       *string `json:"groups"`
+	Priority     *int64  `json:"priority"`
+	Weight       *uint   `json:"weight"`
+}
+
 func DeleteChannelBatch(c *gin.Context) {
 	channelBatch := ChannelBatch{}
 	err := c.ShouldBindJSON(&channelBatch)
@@ -1131,6 +1141,42 @@ func BatchSetChannelTag(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data":    len(channelBatch.Ids),
+	})
+	return
+}
+
+// EditChannelBatch 对勾选的渠道做覆盖式批量编辑（models / model_mapping / groups / priority / weight）。
+func EditChannelBatch(c *gin.Context) {
+	batchEdit := ChannelBatchEdit{}
+	err := c.ShouldBindJSON(&batchEdit)
+	if err != nil || len(batchEdit.Ids) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": i18n.T(c, "common.invalid_params"),
+		})
+		return
+	}
+	if batchEdit.ModelMapping != nil {
+		trimmed := strings.TrimSpace(*batchEdit.ModelMapping)
+		if trimmed != "" && !json.Valid([]byte(trimmed)) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": i18n.T(c, "common.invalid_params"),
+			})
+			return
+		}
+		batchEdit.ModelMapping = common.GetPointer[string](trimmed)
+	}
+	err = model.EditChannelsByIds(batchEdit.Ids, batchEdit.ModelMapping, batchEdit.Models, batchEdit.Groups, batchEdit.Priority, batchEdit.Weight)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	model.InitChannelCache()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    len(batchEdit.Ids),
 	})
 	return
 }

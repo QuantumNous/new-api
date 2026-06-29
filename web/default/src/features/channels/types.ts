@@ -283,6 +283,15 @@ export interface BatchSetTagParams {
   tag: string | null
 }
 
+export interface BatchEditChannelsParams {
+  ids: number[]
+  models?: string
+  model_mapping?: string
+  groups?: string // 逗号分隔
+  priority?: number
+  weight?: number
+}
+
 export interface TagOperationParams {
   tag: string
   new_tag?: string

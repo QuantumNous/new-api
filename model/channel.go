@@ -893,17 +893,67 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 	if shouldReCreateAbilities {
 		channels, err := GetChannelsByTag(updatedTag, false, false)
 		if err == nil {
-			for _, channel := range channels {
-				err = channel.UpdateAbilities(nil)
-				if err != nil {
-					common.SysLog(fmt.Sprintf("failed to update abilities: channel_id=%d, tag=%s, error=%v", channel.Id, channel.GetTag(), err))
-				}
-			}
+			rebuildAbilitiesForChannels(channels)
 		}
 	} else {
 		err := UpdateAbilityByTag(tag, newTag, priority, weight)
 		if err != nil {
 			return err
+		}
+	}
+	publishChannelsChanged()
+	return nil
+}
+
+// EditChannelsByIds 对一批选中的渠道做覆盖式更新，语义与 EditChannelByTag 一致，
+// 仅把 WHERE tag = ? 换成 WHERE id IN ?。空 ids 直接返回。
+// 采用与 EditChannelByTag 相同的非事务模式：DB.Updates 先提交，再用 GetChannelsByIds
+// 读已提交的新值重建 abilities。不包外层事务——GetChannelsByIds 走全局 DB 独立连接，
+// 事务内读不到未提交写入，生产 MySQL/PG 会用旧 models/group/priority/weight 重建 abilities。
+// - models / group 变更 → 全量重建 abilities（delete+insert，因模型集合变了）；
+// - 仅 priority / weight 变更 → 走 UpdateAbilityByIds 定向 UPDATE（无需重建，效率与
+//   EditChannelByTag 的 UpdateAbilityByTag 路径对齐）；
+// - model_mapping 单独变更不影响 abilities。
+// 重建失败仅记日志、不回滚（与 EditChannelByTag 一致）。
+func EditChannelsByIds(ids []int, modelMapping, models, group *string, priority *int64, weight *uint) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	updateData := Channel{}
+	shouldReCreateAbilities := false
+	hasPriorityWeight := false
+	if modelMapping != nil {
+		updateData.ModelMapping = modelMapping
+	}
+	if models != nil && *models != "" {
+		shouldReCreateAbilities = true
+		updateData.Models = *models
+	}
+	if group != nil && *group != "" {
+		shouldReCreateAbilities = true
+		updateData.Group = *group
+	}
+	if priority != nil {
+		hasPriorityWeight = true
+		updateData.Priority = priority
+	}
+	if weight != nil {
+		hasPriorityWeight = true
+		updateData.Weight = weight
+	}
+
+	err := DB.Model(&Channel{}).Where("id IN ?", ids).Updates(updateData).Error
+	if err != nil {
+		return err
+	}
+	if shouldReCreateAbilities {
+		channels, err := GetChannelsByIds(ids)
+		if err == nil {
+			rebuildAbilitiesForChannels(channels)
+		}
+	} else if hasPriorityWeight {
+		if e := UpdateAbilityByIds(ids, priority, weight); e != nil {
+			common.SysLog(fmt.Sprintf("failed to update abilities by ids: ids=%v, error=%v", ids, e))
 		}
 	}
 	publishChannelsChanged()

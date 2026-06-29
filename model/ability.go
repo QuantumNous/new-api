@@ -362,6 +362,36 @@ func UpdateAbilityByTag(tag string, newTag *string, priority *int64, weight *uin
 	return DB.Model(&Ability{}).Where("tag = ?", tag).Updates(ability).Error
 }
 
+// UpdateAbilityByIds 对一批渠道的 abilities 做定向 priority/weight 更新（map 写入，
+// 避免 GORM 对结构体 Updates 跳过 weight=0 等零值）。用于仅改 priority/weight、
+// 无需重建 abilities 的批量编辑场景（镜像 UpdateAbilityByTag，但 WHERE 为 id IN）。
+func UpdateAbilityByIds(ids []int, priority *int64, weight *uint) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	updates := map[string]interface{}{}
+	if priority != nil {
+		updates["priority"] = *priority
+	}
+	if weight != nil {
+		updates["weight"] = *weight
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	return DB.Model(&Ability{}).Where("channel_id IN ?", ids).Updates(updates).Error
+}
+
+// rebuildAbilitiesForChannels 对一组渠道逐个重建 abilities，失败仅记日志、不中断。
+// 供 EditChannelByTag 与 EditChannelsByIds 的 models/group 变更路径复用。
+func rebuildAbilitiesForChannels(channels []*Channel) {
+	for _, channel := range channels {
+		if err := channel.UpdateAbilities(nil); err != nil {
+			common.SysLog(fmt.Sprintf("failed to update abilities: channel_id=%d, tag=%s, error=%v", channel.Id, channel.GetTag(), err))
+		}
+	}
+}
+
 var fixLock = sync.Mutex{}
 
 func FixAbility() (int, int, error) {

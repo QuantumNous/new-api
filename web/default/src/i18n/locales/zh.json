@@ -5344,6 +5344,12 @@
     "Failed to disable {{count}} user(s)": "{{count}} 个用户禁用失败",
     "No selected users can be disabled": "选中的用户中没有可禁用的用户",
     "Successfully disabled {{count}} user(s)": "成功禁用 {{count}} 个用户",
-    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "将禁用 {{count}} 个选中的用户。Root、已禁用和已删除用户会被跳过。"
+    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "将禁用 {{count}} 个选中的用户。Root、已禁用和已删除用户会被跳过。",
+    "Batch edit selected channels": "批量编辑选中渠道",
+    "Batch edit {{count}} selected channel(s)": "批量编辑 {{count}} 个选中渠道",
+    "{{count}} channel(s) updated": "已更新 {{count}} 个渠道",
+    "Leave empty to keep current": "留空保持原值",
+    "Priority must be an integer": "优先级必须是整数",
+    "Weight must be a non-negative integer": "权重必须是非负整数"
   }
 }
