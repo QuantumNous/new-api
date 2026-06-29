@@ -205,6 +205,26 @@ func TestRechargeStripePersistsPaymentSnapshotWithoutChangingCreditedAmount(t *t
 	assert.Equal(t, "JPY", topUp.PaymentCurrency)
 }
 
+func TestRechargeStripePersistsZeroPaymentSnapshot(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 124, 0)
+	insertTopUpForPaymentGuardTest(t, "stripe-zero-snapshot", 124, PaymentProviderStripe)
+
+	recharged, err := RechargeWithPaymentSnapshot("stripe-zero-snapshot", "cus_zero", "127.0.0.1", PaymentSnapshot{
+		Money:    0,
+		Currency: "usd",
+	})
+	require.NoError(t, err)
+	assert.True(t, recharged)
+
+	topUp := GetTopUpByTradeNo("stripe-zero-snapshot")
+	require.NotNil(t, topUp)
+	assert.Equal(t, 0.0, topUp.Money)
+	assert.Equal(t, "USD", topUp.PaymentCurrency)
+	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 124))
+}
+
 func TestRechargeStripeCreditsStoredTotalAmountWithoutRuntimeBonus(t *testing.T) {
 	truncateTables(t)
 

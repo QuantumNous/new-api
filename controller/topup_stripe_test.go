@@ -89,7 +89,7 @@ func TestBuildStripeCheckoutSessionParamsRespectsPromotionCodeSetting(t *testing
 		true,
 	)
 	require.NotNil(t, params.AllowPromotionCodes)
-	require.True(t, *params.AllowPromotionCodes)
+	require.False(t, *params.AllowPromotionCodes)
 
 	setting.StripePromotionCodesEnabled = true
 	params = buildStripeCheckoutSessionParams(
@@ -293,6 +293,17 @@ func TestStripePaymentSnapshotFromEventUsesCurrencyMinorUnits(t *testing.T) {
 	require.Equal(t, "JPY", snapshot.Currency)
 }
 
+func TestStripePaymentSnapshotFromEventKeepsZeroAmount(t *testing.T) {
+	event := stripe.Event{Data: &stripe.EventData{Object: map[string]interface{}{
+		"amount_total": float64(0),
+		"currency":     "usd",
+	}}}
+
+	snapshot := stripePaymentSnapshotFromEvent(event)
+	require.Equal(t, 0.0, snapshot.Money)
+	require.Equal(t, "USD", snapshot.Currency)
+}
+
 func TestStripePaymentSnapshotFromEventRequiresAmountAndCurrency(t *testing.T) {
 	for _, event := range []stripe.Event{
 		{Data: &stripe.EventData{Object: map[string]interface{}{
@@ -304,10 +315,6 @@ func TestStripePaymentSnapshotFromEventRequiresAmountAndCurrency(t *testing.T) {
 		}}},
 		{Data: &stripe.EventData{Object: map[string]interface{}{
 			"amount_total": float64(1234),
-		}}},
-		{Data: &stripe.EventData{Object: map[string]interface{}{
-			"amount_total": float64(0),
-			"currency":     "usd",
 		}}},
 	} {
 		require.Equal(t, model.PaymentSnapshot{}, stripePaymentSnapshotFromEvent(event))

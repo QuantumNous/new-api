@@ -140,17 +140,24 @@ export function RechargeFormCard({
     enableWaffoPancakeTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
   const hasPresetTopupPackage = presetAmounts.length > 0
+  const isStripePaymentMethod = (method: PaymentMethod) =>
+    method.type === 'stripe'
   // Frontend-only hide-list for payment methods (e.g. Paddle is not offered right now).
   // Backend still returns them; we just don't render their buttons.
   const HIDDEN_PAY_METHOD_TYPES = ['paddle']
   const visiblePayMethods = Array.isArray(topupInfo?.pay_methods)
     ? topupInfo.pay_methods.filter(
-        (method) => !HIDDEN_PAY_METHOD_TYPES.includes(method.type)
+        (method) =>
+          !HIDDEN_PAY_METHOD_TYPES.includes(method.type) &&
+          (hasPresetTopupPackage || !isStripePaymentMethod(method))
       )
     : []
   const hasStandardPaymentMethods = visiblePayMethods.length > 0
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
+  const showStandardPaymentSection =
+    hasStandardPaymentMethods ||
+    (hasPresetTopupPackage && !hasWaffoPaymentMethods)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
   const hasStripePaymentMethod =
     topupInfo?.enable_stripe_topup ||
@@ -397,7 +404,7 @@ export function RechargeFormCard({
                 </div>
               )}
 
-              {hasPresetTopupPackage && (
+              {showStandardPaymentSection && (
                 <div className='space-y-2.5 sm:space-y-3'>
                   <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
                     {t('Payment Method')}
@@ -458,8 +465,7 @@ export function RechargeFormCard({
                 </div>
               )}
 
-              {hasPresetTopupPackage &&
-                enableWaffoTopup &&
+              {enableWaffoTopup &&
                 hasWaffoPaymentMethods &&
                 onWaffoMethodSelect && (
                   <div className='space-y-2.5 sm:space-y-3'>

@@ -24,6 +24,7 @@ import {
   getLockedTopupAmountOptions,
   isPresetTopupAmount,
   mergePresetAmounts,
+  shouldRequireConfiguredTopupPackages,
 } from './payment'
 
 describe('top-up bonus preset metadata', () => {
@@ -102,9 +103,41 @@ describe('top-up bonus preset metadata', () => {
   })
 
   test('drops invalid locked top-up amount options', () => {
-    expect(getLockedTopupAmountOptions([10, 0, -1, Number.NaN, 20], true)).toEqual([
-      10, 20,
-    ])
+    expect(
+      getLockedTopupAmountOptions([10, 0, -1, Number.NaN, 20], true)
+    ).toEqual([10, 20])
     expect(getLockedTopupAmountOptions([], true)).toEqual([])
+  })
+
+  test('requires configured packages only when Stripe is the sole top-up channel', () => {
+    expect(
+      shouldRequireConfiguredTopupPackages({
+        enable_stripe_topup: true,
+        enable_online_topup: false,
+        enable_paddle_topup: false,
+        enable_waffo_topup: false,
+        enable_waffo_pancake_topup: false,
+      })
+    ).toBe(true)
+
+    expect(
+      shouldRequireConfiguredTopupPackages({
+        enable_stripe_topup: true,
+        enable_online_topup: true,
+        enable_paddle_topup: false,
+        enable_waffo_topup: false,
+        enable_waffo_pancake_topup: false,
+      })
+    ).toBe(false)
+
+    expect(
+      shouldRequireConfiguredTopupPackages({
+        enable_stripe_topup: true,
+        enable_online_topup: false,
+        enable_paddle_topup: false,
+        enable_waffo_topup: true,
+        enable_waffo_pancake_topup: false,
+      })
+    ).toBe(false)
   })
 })

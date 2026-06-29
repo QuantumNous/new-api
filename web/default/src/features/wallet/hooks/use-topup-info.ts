@@ -24,6 +24,7 @@ import {
   getLockedTopupAmountOptions,
   mergePresetAmounts,
   getMinTopupAmount,
+  shouldRequireConfiguredTopupPackages,
 } from '../lib'
 import type {
   TopupInfo,
@@ -248,7 +249,7 @@ export function useTopupInfo() {
           processedData.bonus_remaining || {}
         )
         setPresetAmounts(customPresets)
-      } else if (processedData.enable_stripe_topup) {
+      } else if (shouldRequireConfiguredTopupPackages(processedData)) {
         setPresetAmounts([])
       } else {
         const minTopup = getMinTopupAmount(processedData)

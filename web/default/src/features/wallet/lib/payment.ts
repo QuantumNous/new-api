@@ -339,6 +339,27 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
   return DEFAULT_MIN_TOPUP
 }
 
+type TopupPackageGateInfo = Pick<
+  TopupInfo,
+  | 'enable_stripe_topup'
+  | 'enable_online_topup'
+  | 'enable_paddle_topup'
+  | 'enable_waffo_topup'
+  | 'enable_waffo_pancake_topup'
+>
+
+export function shouldRequireConfiguredTopupPackages(
+  topupInfo: TopupPackageGateInfo
+): boolean {
+  return (
+    topupInfo.enable_stripe_topup &&
+    !topupInfo.enable_online_topup &&
+    !topupInfo.enable_paddle_topup &&
+    !topupInfo.enable_waffo_topup &&
+    !topupInfo.enable_waffo_pancake_topup
+  )
+}
+
 /**
  * Generate preset amounts based on minimum topup
  */

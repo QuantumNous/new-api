@@ -723,7 +723,7 @@ func stripePaymentSnapshotFromEvent(event stripe.Event) model.PaymentSnapshot {
 	currency := strings.ToUpper(strings.TrimSpace(event.GetObjectValue("currency")))
 	rawTotal := event.GetObjectValue("amount_total")
 	total, err := strconv.ParseFloat(rawTotal, 64)
-	if err != nil || total <= 0 || currency == "" {
+	if err != nil || total < 0 || currency == "" {
 		logger.LogWarn(nil, fmt.Sprintf("Stripe 支付快照字段缺失 event_type=%s amount_total=%q currency=%q", string(event.Type), rawTotal, currency))
 		return model.PaymentSnapshot{}
 	}
@@ -1195,7 +1195,7 @@ func buildStripeCheckoutSessionParams(referenceId string, customerId string, ema
 			buildStripeTopUpLineItem(priceId, quantity),
 		},
 		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
-		AllowPromotionCodes: stripe.Bool(saveCard || setting.StripePromotionCodesEnabled),
+		AllowPromotionCodes: stripe.Bool(setting.StripePromotionCodesEnabled),
 	}
 
 	if "" == customerId {

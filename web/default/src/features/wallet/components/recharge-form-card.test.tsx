@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { RechargeFormCard } from './recharge-form-card'
 import type { TopupInfo } from '../types'
+import { RechargeFormCard } from './recharge-form-card'
 
 const topupInfoWithStripe: TopupInfo = {
   enable_online_topup: false,
@@ -16,10 +16,17 @@ const topupInfoWithStripe: TopupInfo = {
 }
 
 describe('RechargeFormCard', () => {
-  test('does not render package-backed payment entries without preset packages', () => {
+  test('keeps non-Stripe payment entries visible without Stripe preset packages', () => {
     const html = renderToStaticMarkup(
       <RechargeFormCard
-        topupInfo={topupInfoWithStripe}
+        topupInfo={{
+          ...topupInfoWithStripe,
+          enable_online_topup: true,
+          pay_methods: [
+            { name: 'Stripe Card', type: 'stripe', min_topup: 1 },
+            { name: 'Bank Transfer', type: 'bank', min_topup: 1 },
+          ],
+        }}
         presetAmounts={[]}
         selectedPreset={null}
         onSelectPreset={() => undefined}
@@ -37,8 +44,9 @@ describe('RechargeFormCard', () => {
     )
 
     expect(html).toContain('No top-up packages available')
+    expect(html).toContain('Bank Transfer')
+    expect(html).toContain('Waffo Pix')
     expect(html).not.toContain('Stripe Card')
-    expect(html).not.toContain('Waffo Pix')
     expect(html).not.toContain('Need company invoice')
   })
 })

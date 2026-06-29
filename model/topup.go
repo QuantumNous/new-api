@@ -235,7 +235,7 @@ func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp
 
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
-		if snapshot.Money > 0 {
+		if snapshot.Money > 0 || strings.TrimSpace(snapshot.Currency) != "" {
 			topUp.Money = snapshot.Money
 		}
 		if strings.TrimSpace(snapshot.Currency) != "" {
