@@ -45,10 +45,7 @@ func ExtractMultipartImage(c *gin.Context, info *relaycommon.RelayInfo) *VeoImag
 	}
 
 	info.Action = constant.TaskActionGenerate
-	return &VeoImageInput{
-		BytesBase64Encoded: base64.StdEncoding.EncodeToString(fileBytes),
-		MimeType:           mimeType,
-	}
+	return NewVeoImageInput(base64.StdEncoding.EncodeToString(fileBytes), mimeType)
 }
 
 // ParseImageInput parses an image string (data URI or raw base64) into a
@@ -68,10 +65,7 @@ func ParseImageInput(imageStr string) *VeoImageInput {
 	if err != nil {
 		return nil
 	}
-	return &VeoImageInput{
-		BytesBase64Encoded: imageStr,
-		MimeType:           http.DetectContentType(raw),
-	}
+	return NewVeoImageInput(imageStr, http.DetectContentType(raw))
 }
 
 func parseDataURI(uri string) *VeoImageInput {
@@ -93,8 +87,14 @@ func parseDataURI(uri string) *VeoImageInput {
 		mimeType = parts[0]
 	}
 
+	return NewVeoImageInput(b64, mimeType)
+}
+
+func NewVeoImageInput(data, mimeType string) *VeoImageInput {
 	return &VeoImageInput{
-		BytesBase64Encoded: b64,
-		MimeType:           mimeType,
+		InlineData: &VeoInlineData{
+			Data:     data,
+			MimeType: mimeType,
+		},
 	}
 }
