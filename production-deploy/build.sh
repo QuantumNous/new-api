@@ -146,7 +146,12 @@ if [ "$SKIP_PUSH" = false ]; then
     echo ""
 
     info "Logging in to ACR..."
-    docker login --username=beacherlin "$ACR_REGISTRY" || error "ACR login failed"
+    if [ -z "$ACR_PASSWORD" ]; then
+        warn "ACR_PASSWORD not set in .build.env, falling back to interactive login"
+        docker login --username="${ACR_USERNAME:-beacherlin}" "$ACR_REGISTRY" || error "ACR login failed"
+    else
+        echo "$ACR_PASSWORD" | docker login --username="${ACR_USERNAME:-beacherlin}" --password-stdin "$ACR_REGISTRY" || error "ACR login failed"
+    fi
 
     info "Pushing image: $IMAGE_TAG"
     docker push "$IMAGE_TAG" || error "ACR push failed"

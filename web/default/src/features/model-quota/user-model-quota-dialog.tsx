@@ -37,9 +37,9 @@ export function UserModelQuotaDialog({
     mutationFn: resetUserModelQuotaUsage,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-model-quota-usage', userId] })
-      toast.success(t('Quota reset successfully'))
+      toast.success(t('额度重置成功'))
     },
-    onError: () => toast.error(t('Failed to reset quota')),
+    onError: () => toast.error(t('额度重置失败')),
   })
 
   const usages: UserModelQuotaUsage[] = data?.data?.items ?? []
@@ -50,13 +50,18 @@ export function UserModelQuotaDialog({
     return 'bg-green-500'
   }
 
+  const ruleSourceText: Record<string, string> = {
+    plan: t('订阅计划'),
+    group: t('分组'),
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{t('Model Quota Usage')}</DialogTitle>
+          <DialogTitle>{t('模型额度使用情况')}</DialogTitle>
           <DialogDescription>
-            {t('Per-model quota consumption for this user.')}
+            {t('该用户各模型的额度消耗情况。')}
           </DialogDescription>
         </DialogHeader>
 
@@ -66,7 +71,7 @@ export function UserModelQuotaDialog({
           </div>
         ) : usages.length === 0 ? (
           <div className="text-center text-muted-foreground py-8">
-            {t('No model quota limits applied to this user.')}
+            {t('该用户暂无模型额度限制。')}
           </div>
         ) : (
           <div className="space-y-3 max-h-[60vh] overflow-y-auto">
@@ -78,9 +83,11 @@ export function UserModelQuotaDialog({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-medium">{usage.model_pattern}</span>
-                      <Badge variant="secondary">{usage.rule_source}</Badge>
+                      <Badge variant="secondary">
+                        {ruleSourceText[usage.rule_source] ?? usage.rule_source}
+                      </Badge>
                       {usage.status === 'expired' && (
-                        <Badge variant="outline">{t('Expired')}</Badge>
+                        <Badge variant="outline">{t('已过期')}</Badge>
                       )}
                     </div>
                     <Button
@@ -90,7 +97,7 @@ export function UserModelQuotaDialog({
                       disabled={resetMutation.isPending}
                     >
                       <RotateCcw className="size-3 mr-1" />
-                      {t('Reset')}
+                      {t('重置')}
                     </Button>
                   </div>
 
@@ -105,14 +112,14 @@ export function UserModelQuotaDialog({
                   {/* Stats */}
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
                     <span>
-                      {t('Used')}: {formatQuota(usage.quota_used)} / {formatQuota(usage.quota_limit)}
+                      {t('已用')}: {formatQuota(usage.quota_used)} / {formatQuota(usage.quota_limit)}
                     </span>
                     <span>
-                      {t('Remaining')}: {formatQuota(remain)}
+                      {t('剩余')}: {formatQuota(remain)}
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {percent.toFixed(1)}% {t('used')}
+                    {percent.toFixed(1)}% {t('已消耗')}
                   </div>
                 </div>
               )

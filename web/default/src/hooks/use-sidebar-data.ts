@@ -174,7 +174,7 @@ export function useSidebarData(): SidebarData {
             icon: Settings,
           },
           {
-            title: t('Model Quota Rules'),
+            title: t('模型额度规则'),
             url: '/model-quota-rules',
             icon: Shield,
           },

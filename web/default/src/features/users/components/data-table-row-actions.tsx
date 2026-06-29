@@ -283,7 +283,7 @@ export function DataTableRowActions({
               setModelQuotaOpen(true)
             }}
           >
-            {t('Model Quota Details')}
+            {t('模型额度详情')}
             <DropdownMenuShortcut>
               <Gauge size={16} />
             </DropdownMenuShortcut>
