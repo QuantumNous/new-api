@@ -388,6 +388,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		taskResult.Progress = t.Progress
 		taskResult.Reason = t.FailReason
 		task.Data = t.Data
+		normalizeNestedSuccessfulVideoTask(taskResult, t.Data)
 	} else if taskResult, err = adaptor.ParseTaskResult(responseBody); err != nil {
 		return fmt.Errorf("parseTaskResult failed for task %s: %w", taskId, err)
 	}
@@ -397,6 +398,13 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	logger.LogDebug(ctx, fmt.Sprintf("updateVideoSingleTask taskResult: %+v", taskResult))
 
 	now := time.Now().Unix()
+	if taskResult.Status == "" {
+		if url, ok := successfulNestedVideoURL(responseBody); ok {
+			taskResult.Status = model.TaskStatusSuccess
+			taskResult.Url = url
+			taskResult.Progress = taskcommon.ProgressComplete
+		}
+	}
 	if taskResult.Status == "" {
 		//taskResult = relaycommon.FailTaskInfo("upstream returned empty status")
 		errorResult := &dto.GeneralErrorResponse{}
@@ -499,6 +507,74 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	return nil
+}
+
+func normalizeNestedSuccessfulVideoTask(taskResult *relaycommon.TaskInfo, data []byte) {
+	if taskResult == nil || taskResult.Status != model.TaskStatusFailure {
+		return
+	}
+	if !strings.Contains(taskResult.Reason, "upstream returned unrecognized message") {
+		return
+	}
+
+	url, ok := successfulNestedVideoURL(data)
+	if !ok {
+		return
+	}
+
+	taskResult.Status = model.TaskStatusSuccess
+	taskResult.Reason = ""
+	taskResult.Url = url
+	taskResult.Progress = taskcommon.ProgressComplete
+}
+
+func successfulNestedVideoURL(data []byte) (string, bool) {
+	var nested map[string]any
+	if err := common.Unmarshal(data, &nested); err != nil {
+		return "", false
+	}
+	if !isSuccessfulUpstreamTaskStatus(stringValue(nested["status"])) {
+		return "", false
+	}
+	return extractNestedVideoURL(nested)
+}
+
+func isSuccessfulUpstreamTaskStatus(status string) bool {
+	switch strings.ToLower(status) {
+	case "success", "succeeded", "completed", "complete", "done":
+		return true
+	default:
+		return false
+	}
+}
+
+func extractNestedVideoURL(nested map[string]any) (string, bool) {
+	for _, key := range []string{"video_url", "result_url", "url"} {
+		if value := stringValue(nested[key]); value != "" {
+			return value, true
+		}
+	}
+
+	if output, ok := nested["output"].([]any); ok {
+		for _, item := range output {
+			if value := stringValue(item); value != "" {
+				return value, true
+			}
+		}
+	}
+
+	if video, ok := nested["video"].(map[string]any); ok {
+		if value := stringValue(video["url"]); value != "" {
+			return value, true
+		}
+	}
+
+	return "", false
+}
+
+func stringValue(v any) string {
+	s, _ := v.(string)
+	return s
 }
 
 func redactVideoResponseBody(body []byte) []byte {
