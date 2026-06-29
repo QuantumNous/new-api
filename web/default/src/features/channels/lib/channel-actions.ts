@@ -27,6 +27,7 @@ import {
   updateChannel,
   batchDeleteChannels,
   batchSetChannelTag,
+  batchEditChannels,
   enableTagChannels,
   disableTagChannels,
   deleteDisabledChannels,
@@ -465,6 +466,60 @@ export async function handleBatchSetTag(
     }
   } catch (_error) {
     toast.error(i18next.t('Failed to set tag'))
+  }
+}
+
+/**
+ * Batch edit selected channels (models / model_mapping / groups / priority / weight).
+ * Overwrite semantics: only provided fields are sent; empty payload is rejected.
+ */
+export async function handleBatchEdit(
+  ids: number[],
+  payload: {
+    models?: string
+    model_mapping?: string
+    groups?: string
+    priority?: number
+    weight?: number
+  },
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  if (ids.length === 0) {
+    toast.error(i18next.t('No channels selected'))
+    return
+  }
+
+  const data: Record<string, unknown> = { ids }
+  if (payload.models && payload.models.trim()) data.models = payload.models.trim()
+  if (payload.model_mapping && payload.model_mapping.trim())
+    data.model_mapping = payload.model_mapping.trim()
+  if (payload.groups) data.groups = payload.groups
+  if (payload.priority !== undefined) data.priority = payload.priority
+  if (payload.weight !== undefined) data.weight = payload.weight
+
+  if (Object.keys(data).length === 1) {
+    toast.warning(i18next.t('No changes made'))
+    return
+  }
+
+  try {
+    const response = await batchEditChannels(
+      data as Parameters<typeof batchEditChannels>[0]
+    )
+    if (response.success) {
+      toast.success(
+        i18next.t('{{count}} channel(s) updated', {
+          count: response.data || ids.length,
+        })
+      )
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    } else {
+      toast.error(response.message || i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
+    }
+  } catch (_error) {
+    toast.error(i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
   }
 }
 
