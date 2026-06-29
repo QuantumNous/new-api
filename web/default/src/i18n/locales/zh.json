@@ -5161,7 +5161,7 @@
     "Batch edit {{count}} selected channel(s)": "批量编辑 {{count}} 个选中渠道",
     "{{count}} channel(s) updated": "已更新 {{count}} 个渠道",
     "Leave empty to keep current": "留空保持原值",
-    "Priority must be a number": "优先级必须是数字",
-    "Weight must be a non-negative number": "权重必须是非负数字"
+    "Priority must be an integer": "优先级必须是整数",
+    "Weight must be a non-negative integer": "权重必须是非负整数"
   }
 }

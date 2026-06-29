@@ -5161,7 +5161,7 @@
     "Batch edit {{count}} selected channel(s)": "Массово изменить выбранные каналы: {{count}}",
     "{{count}} channel(s) updated": "Обновлено каналов: {{count}}",
     "Leave empty to keep current": "Оставьте пустым, чтобы сохранить текущее значение",
-    "Priority must be a number": "Приоритет должен быть числом",
-    "Weight must be a non-negative number": "Вес должен быть неотрицательным числом"
+    "Priority must be an integer": "Приоритет должен быть целым числом",
+    "Weight must be a non-negative integer": "Вес должен быть неотрицательным целым числом"
   }
 }

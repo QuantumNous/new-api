@@ -5161,7 +5161,7 @@
     "Batch edit {{count}} selected channel(s)": "Modifier en lot {{count}} canal(aux) sélectionné(s)",
     "{{count}} channel(s) updated": "{{count}} canal(aux) mis à jour",
     "Leave empty to keep current": "Laisser vide pour conserver la valeur actuelle",
-    "Priority must be a number": "La priorité doit être un nombre",
-    "Weight must be a non-negative number": "Le poids doit être un nombre non négatif"
+    "Priority must be an integer": "La priorité doit être un nombre entier",
+    "Weight must be a non-negative integer": "Le poids doit être un nombre entier non négatif"
   }
 }

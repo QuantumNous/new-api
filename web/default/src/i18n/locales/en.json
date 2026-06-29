@@ -5161,7 +5161,7 @@
     "Batch edit {{count}} selected channel(s)": "Batch edit {{count}} selected channel(s)",
     "{{count}} channel(s) updated": "{{count}} channel(s) updated",
     "Leave empty to keep current": "Leave empty to keep current",
-    "Priority must be a number": "Priority must be a number",
-    "Weight must be a non-negative number": "Weight must be a non-negative number"
+    "Priority must be an integer": "Priority must be an integer",
+    "Weight must be a non-negative integer": "Weight must be a non-negative integer"
   }
 }

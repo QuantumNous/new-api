@@ -30,7 +30,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog } from '@/components/dialog'
 import { MultiSelect } from '@/components/multi-select'
 import { getGroups } from '../../api'
-import { channelsQueryKeys, handleBatchEdit } from '../../lib'
+import { handleBatchEdit } from '../../lib'
 import { ModelMappingEditor } from '../model-mapping-editor'
 
 interface BatchEditChannelsDialogProps {
@@ -88,16 +88,16 @@ export function BatchEditChannelsDialog({
     if (groups.length > 0) payload.groups = groups.join(',')
     if (priority.trim() !== '') {
       const n = Number(priority)
-      if (Number.isNaN(n)) {
-        toast.error(t('Priority must be a number'))
+      if (Number.isNaN(n) || !Number.isInteger(n)) {
+        toast.error(t('Priority must be an integer'))
         return
       }
       payload.priority = n
     }
     if (weight.trim() !== '') {
       const n = Number(weight)
-      if (Number.isNaN(n) || n < 0) {
-        toast.error(t('Weight must be a non-negative number'))
+      if (Number.isNaN(n) || !Number.isInteger(n) || n < 0) {
+        toast.error(t('Weight must be a non-negative integer'))
         return
       }
       payload.weight = n
@@ -106,7 +106,6 @@ export function BatchEditChannelsDialog({
     setIsSaving(true)
     try {
       await handleBatchEdit(ids, payload, queryClient, () => {
-        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
         handleClose()
       })
     } finally {

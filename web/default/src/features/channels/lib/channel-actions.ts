@@ -38,7 +38,7 @@ import {
   updateChannelBalance,
 } from '../api'
 import { CHANNEL_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
-import type { CopyChannelParams } from '../types'
+import type { CopyChannelParams, BatchEditChannelsParams } from '../types'
 
 // ============================================================================
 // Query Keys
@@ -490,7 +490,7 @@ export async function handleBatchEdit(
     return
   }
 
-  const data: Record<string, unknown> = { ids }
+  const data: BatchEditChannelsParams = { ids }
   if (payload.models && payload.models.trim()) data.models = payload.models.trim()
   if (payload.model_mapping && payload.model_mapping.trim())
     data.model_mapping = payload.model_mapping.trim()
@@ -504,9 +504,7 @@ export async function handleBatchEdit(
   }
 
   try {
-    const response = await batchEditChannels(
-      data as Parameters<typeof batchEditChannels>[0]
-    )
+    const response = await batchEditChannels(data)
     if (response.success) {
       toast.success(
         i18next.t('{{count}} channel(s) updated', {

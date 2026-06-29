@@ -5161,7 +5161,7 @@
     "Batch edit {{count}} selected channel(s)": "Chỉnh sửa hàng loạt {{count}} kênh đã chọn",
     "{{count}} channel(s) updated": "Đã cập nhật {{count}} kênh",
     "Leave empty to keep current": "Để trống để giữ giá trị hiện tại",
-    "Priority must be a number": "Độ ưu tiên phải là số",
-    "Weight must be a non-negative number": "Trọng số phải là số không âm"
+    "Priority must be an integer": "Độ ưu tiên phải là số nguyên",
+    "Weight must be a non-negative integer": "Trọng số phải là số nguyên không âm"
   }
 }
