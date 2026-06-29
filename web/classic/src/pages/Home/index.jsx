@@ -80,6 +80,7 @@ const Home = () => {
   const endpointItems = API_ENDPOINTS.map((e) => ({ value: e }));
   const [endpointIndex, setEndpointIndex] = useState(0);
   const isChinese = i18n.language.startsWith('zh');
+  const showDefaultHomePage = homePageContentLoaded && homePageContent === '';
 
   const displayHomePageContent = async () => {
     setHomePageContent(localStorage.getItem('home_page_content') || '');
@@ -142,11 +143,14 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
+    if (!showDefaultHomePage) {
+      return undefined;
+    }
     const timer = setInterval(() => {
       setEndpointIndex((prev) => (prev + 1) % endpointItems.length);
     }, 3000);
     return () => clearInterval(timer);
-  }, [endpointItems.length]);
+  }, [endpointItems.length, showDefaultHomePage]);
 
   return (
     <div className='classic-page-fill classic-home-page w-full overflow-x-hidden'>
@@ -155,7 +159,7 @@ const Home = () => {
         onClose={() => setNoticeVisible(false)}
         isMobile={isMobile}
       />
-      {homePageContentLoaded && homePageContent === '' ? (
+      {showDefaultHomePage ? (
         <div className='classic-home-default w-full overflow-x-hidden'>
           {/* Banner 部分 */}
           <div className='classic-home-hero w-full border-b border-semi-color-border relative overflow-x-hidden'>
