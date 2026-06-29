@@ -301,6 +301,9 @@ func migrateDB() error {
 		&SystemInstance{},
 		&SystemTask{},
 		&SystemTaskLock{},
+		&ModelQuotaGroupRule{},
+		&ModelQuotaPlanRule{},
+		&UserModelQuotaUsage{},
 	)
 	if err != nil {
 		return err

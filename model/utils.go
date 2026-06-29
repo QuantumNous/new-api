@@ -17,6 +17,7 @@ const (
 	BatchUpdateTypeUsedQuota
 	BatchUpdateTypeChannelUsedQuota
 	BatchUpdateTypeRequestCount
+	BatchUpdateTypeModelQuotaUsage
 	BatchUpdateTypeCount // if you add a new type, you need to add a new map and a new lock
 )
 
@@ -88,6 +89,11 @@ func batchUpdate() {
 				}
 			case BatchUpdateTypeChannelUsedQuota:
 				updateChannelUsedQuota(key, value)
+			case BatchUpdateTypeModelQuotaUsage:
+				err := increaseModelQuotaUsageDB(key, int64(value))
+				if err != nil {
+					common.SysLog("failed to batch update model quota usage: " + err.Error())
+				}
 			}
 		}
 	}

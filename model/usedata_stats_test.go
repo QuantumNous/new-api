@@ -9,9 +9,7 @@ import (
 
 func TestGetUserModelStatsByModel_AggregatesAcrossGroups(t *testing.T) {
 	require.NoError(t, DB.AutoMigrate(&User{}, &QuotaData{}))
-	common.UsingSQLite = true
-	common.UsingPostgreSQL = false
-	common.UsingMySQL = false
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	initCol()
 
 	t.Cleanup(func() {
@@ -27,7 +25,7 @@ func TestGetUserModelStatsByModel_AggregatesAcrossGroups(t *testing.T) {
 	require.NoError(t, DB.Create(&QuotaData{UserID: u1.Id, Username: u1.Username, ModelName: "gpt-4o", CreatedAt: 1000, Count: 2, TokenUsed: 200, Quota: 20}).Error)
 	require.NoError(t, DB.Create(&QuotaData{UserID: u2.Id, Username: u2.Username, ModelName: "gpt-4o", CreatedAt: 1000, Count: 3, TokenUsed: 300, Quota: 30}).Error)
 
-	items, total, err := GetUserModelStatsByModel(0, 2000, nil, nil, "", 1, 20)
+	items, total, err := GetUserModelStatsByModel(0, 2000, nil, nil, "", nil, 1, 20)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
 	require.Len(t, items, 1)
@@ -39,9 +37,7 @@ func TestGetUserModelStatsByModel_AggregatesAcrossGroups(t *testing.T) {
 
 func TestGetUserModelStatsByModel_FilterByGroup(t *testing.T) {
 	require.NoError(t, DB.AutoMigrate(&User{}, &QuotaData{}))
-	common.UsingSQLite = true
-	common.UsingPostgreSQL = false
-	common.UsingMySQL = false
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	initCol()
 
 	t.Cleanup(func() {
@@ -57,7 +53,7 @@ func TestGetUserModelStatsByModel_FilterByGroup(t *testing.T) {
 	require.NoError(t, DB.Create(&QuotaData{UserID: u1.Id, Username: u1.Username, ModelName: "claude-3-5-sonnet", CreatedAt: 1000, Count: 1, TokenUsed: 100, Quota: 10}).Error)
 	require.NoError(t, DB.Create(&QuotaData{UserID: u2.Id, Username: u2.Username, ModelName: "claude-3-5-sonnet", CreatedAt: 1000, Count: 4, TokenUsed: 400, Quota: 40}).Error)
 
-	items, total, err := GetUserModelStatsByModel(0, 2000, nil, nil, "vip", 1, 20)
+	items, total, err := GetUserModelStatsByModel(0, 2000, nil, nil, "vip", nil, 1, 20)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, total)
 	require.Len(t, items, 1)
@@ -69,9 +65,7 @@ func TestGetUserModelStatsByModel_FilterByGroup(t *testing.T) {
 
 func TestGetUserModelStats_ExcludesDeletedUsers(t *testing.T) {
 	require.NoError(t, DB.AutoMigrate(&User{}, &QuotaData{}))
-	common.UsingSQLite = true
-	common.UsingPostgreSQL = false
-	common.UsingMySQL = false
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	initCol()
 
 	t.Cleanup(func() {
@@ -88,14 +82,14 @@ func TestGetUserModelStats_ExcludesDeletedUsers(t *testing.T) {
 	require.NoError(t, DB.Create(&QuotaData{UserID: activeUser.Id, Username: activeUser.Username, ModelName: "gpt-4o", CreatedAt: 1000, Count: 2, TokenUsed: 200, Quota: 20}).Error)
 	require.NoError(t, DB.Create(&QuotaData{UserID: deletedUser.Id, Username: deletedUser.Username, ModelName: "gpt-4o", CreatedAt: 1000, Count: 3, TokenUsed: 300, Quota: 30}).Error)
 
-	userItems, userTotal, err := GetUserModelStatsByUser(0, 2000, nil, nil, "", 1, 20)
+	userItems, userTotal, err := GetUserModelStatsByUser(0, 2000, nil, nil, "", nil, 1, 20)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, userTotal)
 	require.Len(t, userItems, 1)
 	require.Equal(t, activeUser.Username, userItems[0].Username)
 	require.Equal(t, 2, userItems[0].Count)
 
-	modelItems, modelTotal, err := GetUserModelStatsByModel(0, 2000, nil, nil, "", 1, 20)
+	modelItems, modelTotal, err := GetUserModelStatsByModel(0, 2000, nil, nil, "", nil, 1, 20)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, modelTotal)
 	require.Len(t, modelItems, 1)
@@ -103,7 +97,7 @@ func TestGetUserModelStats_ExcludesDeletedUsers(t *testing.T) {
 	require.Equal(t, 200, modelItems[0].TokenUsed)
 	require.Equal(t, 20, modelItems[0].Quota)
 
-	detailItems, detailTotal, err := GetUserModelStatsByDetail(0, 2000, nil, nil, "", 1, 20)
+	detailItems, detailTotal, err := GetUserModelStatsByDetail(0, 2000, nil, nil, "", nil, 1, 20)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, detailTotal)
 	require.Len(t, detailItems, 1)

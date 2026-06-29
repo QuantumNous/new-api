@@ -49,6 +49,7 @@ import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedOrganizationUsersIndexRouteImport } from './routes/_authenticated/organization-users/index'
 import { Route as AuthenticatedOrgModelStatsIndexRouteImport } from './routes/_authenticated/org-model-stats/index'
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
+import { Route as AuthenticatedModelQuotaRulesIndexRouteImport } from './routes/_authenticated/model-quota-rules/index'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
@@ -284,6 +285,12 @@ const AuthenticatedModelsIndexRoute =
     path: '/models/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedModelQuotaRulesIndexRoute =
+  AuthenticatedModelQuotaRulesIndexRouteImport.update({
+    id: '/model-quota-rules/',
+    path: '/model-quota-rules/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedKeysIndexRoute = AuthenticatedKeysIndexRouteImport.update({
   id: '/keys/',
   path: '/keys/',
@@ -454,6 +461,7 @@ export interface FileRoutesByFullPath {
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
+  '/model-quota-rules/': typeof AuthenticatedModelQuotaRulesIndexRoute
   '/models/': typeof AuthenticatedModelsIndexRoute
   '/org-model-stats/': typeof AuthenticatedOrgModelStatsIndexRoute
   '/organization-users/': typeof AuthenticatedOrganizationUsersIndexRoute
@@ -516,6 +524,7 @@ export interface FileRoutesByTo {
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
+  '/model-quota-rules': typeof AuthenticatedModelQuotaRulesIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
   '/org-model-stats': typeof AuthenticatedOrgModelStatsIndexRoute
   '/organization-users': typeof AuthenticatedOrganizationUsersIndexRoute
@@ -582,6 +591,7 @@ export interface FileRoutesById {
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
+  '/_authenticated/model-quota-rules/': typeof AuthenticatedModelQuotaRulesIndexRoute
   '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
   '/_authenticated/org-model-stats/': typeof AuthenticatedOrgModelStatsIndexRoute
   '/_authenticated/organization-users/': typeof AuthenticatedOrganizationUsersIndexRoute
@@ -647,6 +657,7 @@ export interface FileRouteTypes {
     | '/channels/'
     | '/dashboard/'
     | '/keys/'
+    | '/model-quota-rules/'
     | '/models/'
     | '/org-model-stats/'
     | '/organization-users/'
@@ -709,6 +720,7 @@ export interface FileRouteTypes {
     | '/channels'
     | '/dashboard'
     | '/keys'
+    | '/model-quota-rules'
     | '/models'
     | '/org-model-stats'
     | '/organization-users'
@@ -774,6 +786,7 @@ export interface FileRouteTypes {
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/keys/'
+    | '/_authenticated/model-quota-rules/'
     | '/_authenticated/models/'
     | '/_authenticated/org-model-stats/'
     | '/_authenticated/organization-users/'
@@ -1107,6 +1120,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedModelsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/model-quota-rules/': {
+      id: '/_authenticated/model-quota-rules/'
+      path: '/model-quota-rules'
+      fullPath: '/model-quota-rules/'
+      preLoaderRoute: typeof AuthenticatedModelQuotaRulesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/keys/': {
       id: '/_authenticated/keys/'
       path: '/keys'
@@ -1365,6 +1385,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
+  AuthenticatedModelQuotaRulesIndexRoute: typeof AuthenticatedModelQuotaRulesIndexRoute
   AuthenticatedModelsIndexRoute: typeof AuthenticatedModelsIndexRoute
   AuthenticatedOrgModelStatsIndexRoute: typeof AuthenticatedOrgModelStatsIndexRoute
   AuthenticatedOrganizationUsersIndexRoute: typeof AuthenticatedOrganizationUsersIndexRoute
@@ -1391,6 +1412,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
+  AuthenticatedModelQuotaRulesIndexRoute:
+    AuthenticatedModelQuotaRulesIndexRoute,
   AuthenticatedModelsIndexRoute: AuthenticatedModelsIndexRoute,
   AuthenticatedOrgModelStatsIndexRoute: AuthenticatedOrgModelStatsIndexRoute,
   AuthenticatedOrganizationUsersIndexRoute:

@@ -25,6 +25,8 @@ func ReturnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
 				common.SysLog("error return pre-consumed quota: " + err.Error())
 			}
 		})
+		// Refund model quota usage (non-blocking observation)
+		recordModelQuotaFromContext(c, -relayInfo.FinalPreConsumedQuota)
 	}
 }
 

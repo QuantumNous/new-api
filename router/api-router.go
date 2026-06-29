@@ -147,10 +147,10 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
 
-			// Account type conversion
-			adminRoute.POST("/:id/convert-to-organization", controller.ConvertToOrganization)
+				// Account type conversion
+				adminRoute.POST("/:id/convert-to-organization", controller.ConvertToOrganization)
 
-			// Admin Feishu binding management
+				// Admin Feishu binding management
 				adminRoute.GET("/feishu/bindings", controller.GetFeishuBindings)
 				adminRoute.POST("/feishu/bindings/import", controller.ImportFeishuBindings)
 				adminRoute.PUT("/:id/group", controller.AdminSetUserGroup)
@@ -222,6 +222,27 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/waffo-pancake/save", controller.SaveWaffoPancake)
 			optionRoute.POST("/waffo-pancake/subscription-product", controller.CreateWaffoPancakeSubscriptionProduct)
 			optionRoute.GET("/waffo-pancake/subscription-product-options", controller.ListWaffoPancakeSubscriptionProductOptions)
+		}
+
+		// Model quota rules management (admin only)
+		modelQuotaRoute := apiRouter.Group("/model-quota")
+		modelQuotaRoute.Use(middleware.AdminAuth())
+		{
+			// Group rules
+			modelQuotaRoute.GET("/group-rules", controller.GetModelQuotaGroupRules)
+			modelQuotaRoute.POST("/group-rules", controller.CreateModelQuotaGroupRule)
+			modelQuotaRoute.PUT("/group-rules/:id", controller.UpdateModelQuotaGroupRule)
+			modelQuotaRoute.DELETE("/group-rules/:id", controller.DeleteModelQuotaGroupRule)
+
+			// Plan rules
+			modelQuotaRoute.GET("/plan-rules", controller.GetModelQuotaPlanRules)
+			modelQuotaRoute.POST("/plan-rules", controller.CreateModelQuotaPlanRule)
+			modelQuotaRoute.PUT("/plan-rules/:id", controller.UpdateModelQuotaPlanRule)
+			modelQuotaRoute.DELETE("/plan-rules/:id", controller.DeleteModelQuotaPlanRule)
+
+			// User usage
+			modelQuotaRoute.GET("/user-usage", controller.GetUserModelQuotaUsage)
+			modelQuotaRoute.POST("/user-usage/:id/reset", controller.ResetUserModelQuotaUsage)
 		}
 
 		// Custom OAuth provider management (root only)

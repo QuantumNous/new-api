@@ -30,6 +30,7 @@ import {
   Link2,
   CreditCard,
   Building2,
+  Gauge,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -63,6 +64,7 @@ import { getUserActionMessage } from '../lib'
 import type { User, ManageUserAction } from '../types'
 import { UserBindingDialog } from './dialogs/user-binding-dialog'
 import { FeishuTokenManagerDialog } from './feishu-token-manager-dialog'
+import { UserModelQuotaDialog } from '@/features/model-quota/user-model-quota-dialog'
 import { useUsers } from './users-provider'
 
 interface DataTableRowActionsProps {
@@ -83,6 +85,7 @@ export function DataTableRowActions({
   const [subscriptionsDialogOpen, setSubscriptionsDialogOpen] = useState(false)
   const [tokenManagerOpen, setTokenManagerOpen] = useState(false)
   const [convertOrgOpen, setConvertOrgOpen] = useState(false)
+  const [modelQuotaOpen, setModelQuotaOpen] = useState(false)
 
   const handleEdit = () => {
     setCurrentRow(user)
@@ -274,6 +277,18 @@ export function DataTableRowActions({
             </DropdownMenuItem>
           )}
 
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault()
+              setModelQuotaOpen(true)
+            }}
+          >
+            {t('Model Quota Details')}
+            <DropdownMenuShortcut>
+              <Gauge size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+
           <DropdownMenuSeparator />
 
           <DropdownMenuItem
@@ -370,6 +385,12 @@ export function DataTableRowActions({
         )}
         confirmText={t('Convert')}
         handleConfirm={handleConvertToOrganization}
+      />
+
+      <UserModelQuotaDialog
+        userId={user.id}
+        open={modelQuotaOpen}
+        onOpenChange={setModelQuotaOpen}
       />
     </div>
   )
