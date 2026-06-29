@@ -37,14 +37,21 @@
 4. 提交后对所有选中渠道执行覆盖更新；成功 toast 提示更新数量，失败 toast 提示错误。
 5. 成功后失效渠道列表查询（`channelsQueryKeys.lists()`）并清空勾选、关闭弹窗。
 6. **不**包含 标签名 / param_override / header_override（设标签已有专门入口；后两者 YAGNI）。
+7. **清空限制（与按标签批量编辑一致）**：`models` / `groups` 为非空字符串才覆盖，传空 = 不
+   修改，因此**不能**通过批量编辑清空这两列；`model_mapping` / `priority` / `weight` 可清零
+   （传空串 / 0）。此为 `EditChannelByTag` 既有行为，本功能对齐。
 
 ### 2.2 非功能需求 / 约束
 
 - **覆盖语义**：与 `TagBatchEditDialog` 完全一致；弹窗顶部 Alert 明确提示。
 - **跨 DB 兼容**（CLAUDE.md Rule 2）：仅用 GORM 抽象（`Updates` + `Where("id IN ?")`），
   不写方言 SQL。
-- **多节点**（CLAUDE.md Rule 11）：abilities 重建用事务包裹；完成后调用
-  `publishChannelsChanged()` 触发跨节点缓存同步，与 `EditChannelByTag` 保持一致。
+- **多节点**（CLAUDE.md Rule 11）：采用与 `EditChannelByTag` 一致的非事务模式——`DB.Updates`
+  先提交，再 `GetChannelsByIds` 读已提交的新值重建 abilities。**刻意不**用外层事务包裹
+  abilities 重建，原因是 `GetChannelsByIds` 走全局 `DB`（独立连接），在 MySQL/PG 生产环境
+  下读不到外层事务内未提交的写入，会用旧 models/group/priority/weight 重建 abilities（路由
+  出错）。abilities 重建失败仅记日志、不回滚（与 `EditChannelByTag` 行为一致）。完成后调用
+  `publishChannelsChanged()` 触发跨节点缓存同步。
 - **i18n**（CLAUDE.md 强约束）：所有新增用户可见文案走 `t()`，新 key 必须写入
   `web/default/src/i18n/locales/` 下全部 8 个语言文件，改完跑 `bun run i18n:sync` 并核对
   `_reports/{lang}.untranslated.json`。
@@ -99,20 +106,23 @@ type ChannelBatchEdit struct {
 func EditChannelsByIds(ids []int, modelMapping, models, group *string, priority *int64, weight *uint) error
 ```
 
-逻辑**完全镜像 `EditChannelByTag`**，仅把 `WHERE tag = ?` 换成 `WHERE id IN (?)`：
+逻辑**完全镜像 `EditChannelByTag`**（含其非事务模式），仅把 `WHERE tag = ?` 换成
+`WHERE id IN (?)`：
 
 1. 构造 `updateData := Channel{}`。
 2. 按指针非 nil 填充字段（`modelMapping` / `models` / `group` / `priority` / `weight`）。
-3. 开启事务 `tx := DB.Begin()`。
-4. `tx.Model(&Channel{}).Where("id IN ?", ids).Updates(updateData)`。
-5. abilities 处理（简化但正确）：当 `models`、`group`、`priority`、`weight` 任一变更时，
-   `GetChannelsByIds(ids)` 后逐个 `channel.UpdateAbilities(tx)`。`modelMapping` 单独变更不
-   触发重建（无影响）。出错 `tx.Rollback()`。
-   - 理由：选中渠道数量通常很小，逐个重建成本可忽略；且 `UpdateAbilities` 会读取渠道最新
-     的 priority/weight/models/group，比手写按 ids 的能力更新更稳（当前不存在
+3. `DB.Model(&Channel{}).Where("id IN ?", ids).Updates(updateData)`（自动提交，与
+   `EditChannelByTag` 一致）。
+4. abilities 处理：当 `models`、`group`、`priority`、`weight` 任一变更时，
+   `GetChannelsByIds(ids)` 读**已提交**的新值，逐个 `channel.UpdateAbilities(nil)`（各自独立
+   事务）。`modelMapping` 单独变更不触发重建（无影响）。重建失败仅 `common.SysLog` 记录、不
+   中断、不回滚（与 `EditChannelByTag` 完全一致）。
+   - **不**用外层事务包裹：`GetChannelsByIds` 走全局 `DB` 独立连接，事务内读不到未提交写入，
+     生产 MySQL/PG 会用旧值重建 abilities（详见 §2.2 多节点说明）。
+   - 理由：选中渠道数量通常很小，逐个重建成本可忽略；`UpdateAbilities` 读取渠道最新的
+     priority/weight/models/group，比手写按 ids 的能力更新更稳（当前不存在
      `UpdateAbilityByIds`）。
-6. `tx.Commit()`。
-7. `publishChannelsChanged()`。
+5. `publishChannelsChanged()`。
 
 > 说明：`EditChannelByTag` 在仅改 priority/weight 时走轻量的 `UpdateAbilityByTag`；按 ids
 > 没有等价函数，故统一走 `UpdateAbilities`，正确性优先。
@@ -193,7 +203,7 @@ export async function batchEditChannels(
 
 - 前端：空选 / model_mapping 非法 JSON → 阻止提交 + toast；接口失败 → toast 错误信息。
 - 后端：空 ids / 非法 JSON → `{success:false, message}`；DB 失败 → `common.ApiError`；
-  abilities 重建失败 → 事务回滚整体失败。
+  abilities 重建失败 → 仅 `common.SysLog` 记录、不回滚（与 `EditChannelByTag` 一致）。
 
 ## 4. 测试与验证
 
@@ -210,7 +220,8 @@ export async function batchEditChannels(
 
 - **Router deploy：required**。新增 `PUT /api/channel/batch` 路由 + relay/渠道管理相关 model
   与 controller，影响渠道与 abilities 数据（router 节点按 group/model 选路依赖这些）。
-- **Other targets**：`newapi-console` 同步部署（同一 Go 二进制）；`newapi-web` 不涉及。
+- **Other targets**：`newapi-console`、`newapi-router`、legacy `newapi` 三类 Go 节点均需部署
+  （同一 Go 二进制，都受路由注册与 abilities 重建逻辑影响）；`newapi-web` 不涉及。
 - **Risk / validation**：批量覆盖 models/groups 会重建 abilities，需验证选中渠道路由正确；
   生产发布前在 staging 跑一次批量编辑并确认调用结果与 abilities 一致。
 
