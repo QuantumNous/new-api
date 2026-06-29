@@ -73,6 +73,10 @@ import { AmountOptionsVisualEditor } from './amount-options-visual-editor'
 import { CreemProductsVisualEditor } from './creem-products-visual-editor'
 import { PaymentMethodsVisualEditor } from './payment-methods-visual-editor'
 import {
+  buildStripeTopUpPriceRows,
+  serializeStripeTopUpPriceIds,
+} from './stripe-price-id-config'
+import {
   formatJsonForEditor,
   getJsonError,
   normalizeJsonForComparison,
@@ -344,6 +348,21 @@ const paymentSchema = z
     StripeApiSecret: z.string(),
     StripeWebhookSecret: z.string(),
     StripePriceId: z.string(),
+    StripePriceId20: z.string(),
+    StripePriceId200: z.string(),
+    StripeTopUpPriceIds: z.string().superRefine((value, ctx) => {
+      const error = getJsonError(
+        value,
+        (parsed) =>
+          !!parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      )
+      if (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: error,
+        })
+      }
+    }),
     StripeUnitPrice: z.coerce.number().min(0),
     StripeMinTopUp: z.coerce.number().min(0),
     StripePromotionCodesEnabled: z.boolean(),
@@ -635,12 +654,14 @@ export function PaymentSettingsSection({
         initialFormValues.AmountBonusGroups
       ),
       AmountDiscount: formatJsonForEditor(initialFormValues.AmountDiscount),
+      StripeTopUpPriceIds: formatJsonForEditor(
+        initialFormValues.StripeTopUpPriceIds
+      ),
       CreemProducts: formatJsonForEditor(initialFormValues.CreemProducts),
     },
   })
 
   const { isSubmitting } = form.formState
-
   const setPaymentValue = React.useCallback(
     (
       key: keyof PaymentFormValues,
@@ -698,6 +719,9 @@ export function PaymentSettingsSection({
       AmountBonusLimit: formatJsonForEditor(parsedDefaults.AmountBonusLimit),
       AmountBonusGroups: formatJsonForEditor(parsedDefaults.AmountBonusGroups),
       AmountDiscount: formatJsonForEditor(parsedDefaults.AmountDiscount),
+      StripeTopUpPriceIds: formatJsonForEditor(
+        parsedDefaults.StripeTopUpPriceIds
+      ),
       CreemProducts: formatJsonForEditor(parsedDefaults.CreemProducts),
     })
   }, [defaultsSignature, form])
@@ -719,6 +743,19 @@ export function PaymentSettingsSection({
       StripeApiSecret: values.StripeApiSecret.trim(),
       StripeWebhookSecret: values.StripeWebhookSecret.trim(),
       StripePriceId: values.StripePriceId.trim(),
+      StripePriceId20: values.StripePriceId20.trim(),
+      StripePriceId200: values.StripePriceId200.trim(),
+      StripeTopUpPriceIds: serializeStripeTopUpPriceIds(
+        buildStripeTopUpPriceRows(
+          values.AmountOptions,
+          values.StripeTopUpPriceIds,
+          {
+            10: values.StripePriceId,
+            20: values.StripePriceId20,
+            200: values.StripePriceId200,
+          }
+        )
+      ),
       StripeUnitPrice: values.StripeUnitPrice,
       StripeMinTopUp: values.StripeMinTopUp,
       StripePromotionCodesEnabled: values.StripePromotionCodesEnabled,
@@ -774,6 +811,19 @@ export function PaymentSettingsSection({
       StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
       StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
       StripePriceId: initialRef.current.StripePriceId.trim(),
+      StripePriceId20: initialRef.current.StripePriceId20.trim(),
+      StripePriceId200: initialRef.current.StripePriceId200.trim(),
+      StripeTopUpPriceIds: serializeStripeTopUpPriceIds(
+        buildStripeTopUpPriceRows(
+          initialRef.current.AmountOptions,
+          initialRef.current.StripeTopUpPriceIds,
+          {
+            10: initialRef.current.StripePriceId,
+            20: initialRef.current.StripePriceId20,
+            200: initialRef.current.StripePriceId200,
+          }
+        )
+      ),
       StripeUnitPrice: initialRef.current.StripeUnitPrice,
       StripeMinTopUp: initialRef.current.StripeMinTopUp,
       StripePromotionCodesEnabled:
@@ -917,8 +967,29 @@ export function PaymentSettingsSection({
       })
     }
 
+    if (
+      normalizeJsonForComparison(sanitized.StripeTopUpPriceIds) !==
+      normalizeJsonForComparison(initial.StripeTopUpPriceIds)
+    ) {
+      updates.push({
+        key: 'StripeTopUpPriceIds',
+        value: sanitized.StripeTopUpPriceIds,
+      })
+    }
+
     if (sanitized.StripePriceId !== initial.StripePriceId) {
       updates.push({ key: 'StripePriceId', value: sanitized.StripePriceId })
+    }
+
+    if (sanitized.StripePriceId20 !== initial.StripePriceId20) {
+      updates.push({ key: 'StripePriceId20', value: sanitized.StripePriceId20 })
+    }
+
+    if (sanitized.StripePriceId200 !== initial.StripePriceId200) {
+      updates.push({
+        key: 'StripePriceId200',
+        value: sanitized.StripePriceId200,
+      })
     }
 
     if (sanitized.StripeUnitPrice !== initial.StripeUnitPrice) {
@@ -1166,6 +1237,49 @@ export function PaymentSettingsSection({
   }, [t])
 
   const currentFormValues = form.watch()
+  const stripeTopUpPriceRows = React.useMemo(
+    () =>
+      buildStripeTopUpPriceRows(
+        currentFormValues.AmountOptions,
+        currentFormValues.StripeTopUpPriceIds,
+        {
+          10: currentFormValues.StripePriceId,
+          20: currentFormValues.StripePriceId20,
+          200: currentFormValues.StripePriceId200,
+        }
+      ),
+    [
+      currentFormValues.AmountOptions,
+      currentFormValues.StripeTopUpPriceIds,
+      currentFormValues.StripePriceId,
+      currentFormValues.StripePriceId20,
+      currentFormValues.StripePriceId200,
+    ]
+  )
+  const handleStripeTopUpPriceIdChange = React.useCallback(
+    (amount: number, priceId: string) => {
+      setPaymentValue(
+        'StripeTopUpPriceIds',
+        serializeStripeTopUpPriceIds(
+          stripeTopUpPriceRows.map((row) =>
+            row.amount === amount ? { ...row, priceId } : row
+          )
+        )
+      )
+      const legacyPriceIdFieldByAmount: Partial<
+        Record<number, keyof PaymentFormValues>
+      > = {
+        10: 'StripePriceId',
+        20: 'StripePriceId20',
+        200: 'StripePriceId200',
+      }
+      const legacyPriceIdField = legacyPriceIdFieldByAmount[amount]
+      if (legacyPriceIdField) {
+        setPaymentValue(legacyPriceIdField, priceId)
+      }
+    },
+    [setPaymentValue, stripeTopUpPriceRows]
+  )
   const waffoValues: WaffoSettingsValues = {
     WaffoEnabled: currentFormValues.WaffoEnabled,
     WaffoApiKey: currentFormValues.WaffoApiKey,
@@ -1862,22 +1976,38 @@ export function PaymentSettingsSection({
 
               <FormField
                 control={form.control}
-                name='StripePriceId'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Price ID')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t('price_xxx')}
-                        {...field}
-                        onChange={(event) => field.onChange(event.target.value)}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t('Stripe product price ID')}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
+                name='StripeTopUpPriceIds'
+                render={() => (
+                  <>
+                    {stripeTopUpPriceRows.length === 0 ? (
+                      <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm md:col-span-2'>
+                        {t(
+                          'Add preset recharge amounts to configure Stripe Price IDs.'
+                        )}
+                      </div>
+                    ) : (
+                      stripeTopUpPriceRows.map((row) => (
+                        <FormItem key={row.amount}>
+                          <FormLabel>
+                            {t('Price ID')} ({row.amount} USD)
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t('price_xxx')}
+                              value={row.priceId}
+                              onChange={(event) =>
+                                handleStripeTopUpPriceIdChange(
+                                  row.amount,
+                                  event.target.value
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      ))
+                    )}
+                  </>
                 )}
               />
             </div>
@@ -1935,9 +2065,13 @@ export function PaymentSettingsSection({
                 render={({ field }) => (
                   <SettingsSwitchItem>
                     <SettingsSwitchContent>
-                      <FormLabel>{t('Promotion codes')}</FormLabel>
+                      <FormLabel>
+                        {t('Promotion codes always enabled')}
+                      </FormLabel>
                       <FormDescription>
-                        {t('Allow users to enter promo codes')}
+                        {t(
+                          'Stripe Checkout always shows the coupon code field. This legacy switch is kept for compatibility.'
+                        )}
                       </FormDescription>
                     </SettingsSwitchContent>
                     <FormControl>

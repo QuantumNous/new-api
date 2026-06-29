@@ -45,7 +45,8 @@ export function SiteHeader(props: Props) {
     { href: "/", label: copy.nav.home, publicPath: true },
     { href: CONSOLE_URL, label: copy.nav.console, publicPath: false },
     { href: "/blog", label: copy.nav.blog, publicPath: true },
-    { href: "/pricing", label: copy.nav.modelPricing, publicPath: true },
+    { href: "/pricing", label: copy.nav.pricing, publicPath: true },
+    { href: "/models", label: copy.nav.modelPricing, publicPath: true },
   ];
   const currentPath = stripLocale(props.pathname);
 
@@ -69,7 +70,7 @@ export function SiteHeader(props: Props) {
         <div
           className={cn(
             "pointer-events-auto mx-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]",
-            scrolled ? "max-w-[52rem] px-3 pt-3" : "max-w-7xl px-4 pt-0 md:px-6"
+            scrolled ? "max-w-[52rem] px-3 pt-3 lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl" : "max-w-7xl px-4 pt-0 md:px-6"
           )}
         >
           <nav

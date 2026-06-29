@@ -4,22 +4,32 @@ import { useEffect, useState, type MouseEvent } from "react";
 import { BadgeCheck, Sparkles } from "lucide-react";
 import { SiteShell } from "@/components/site-shell";
 import type { Locale } from "@/lib/locales";
-import { modelLandingCopy, type ModelConfig, type ModelLandingKey } from "@/lib/model-landing";
+import { modelLandingCopy, normalizeModelId, type ModelConfig, type ModelLandingKey } from "@/lib/model-landing";
 import { consoleUrl } from "@/lib/origins";
+import {
+  formatModelPrice,
+  isTokenBasedModel,
+  type PricingModel,
+} from "@/lib/pricing";
 
 type Props = {
   config: ModelConfig;
   locale: Locale;
+  liveModels?: PricingModel[];
 };
 
 type GtagWindow = Window & {
   gtag?: (...args: unknown[]) => void;
 };
 
-export function ModelLandingPage({ config, locale }: Props) {
+export function ModelLandingPage({ config, locale, liveModels = [] }: Props) {
   const [prompt, setPrompt] = useState(config.examplePrompt);
   const signInHref = consoleUrl("/sign-up");
   const t = (key: ModelLandingKey, vars?: Record<string, string>) => modelLandingCopy(locale, key, vars);
+  const primaryLiveModel =
+    liveModels.find((model) => normalizeModelId(model.model_name) === normalizeModelId(config.modelId)) ??
+    liveModels[0] ??
+    null;
 
   useEffect(() => {
     (window as GtagWindow).gtag?.("event", "flatkey_model_page_view", {
@@ -60,6 +70,9 @@ export function ModelLandingPage({ config, locale }: Props) {
             {t("Same {{official}} upstream, same quality — flatkey costs half. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.", {
               official: config.officialName,
             })}
+          </p>
+          <p className="text-muted-foreground mt-3 max-w-2xl text-sm leading-6">
+            {t(config.positioning)}
           </p>
 
           <div className="mt-7 grid grid-cols-1 overflow-hidden rounded-2xl border border-violet-500/16 bg-white/74 shadow-[0_24px_80px_-56px_rgba(91,33,182,0.86)] backdrop-blur-sm sm:grid-cols-[1fr_auto_1fr] dark:border-violet-300/14 dark:bg-white/[0.04]">
@@ -168,6 +181,65 @@ export function ModelLandingPage({ config, locale }: Props) {
             </div>
           </div>
 
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+            <section className="rounded-2xl border border-violet-500/16 bg-white/74 p-5 shadow-[0_24px_80px_-56px_rgba(91,33,182,0.86)] backdrop-blur-sm dark:border-violet-300/14 dark:bg-white/[0.04]">
+              <div className="text-muted-foreground mb-3 text-xs font-semibold tracking-wide uppercase">
+                {t("Live model data from pricing API")}
+              </div>
+              <div className="text-2xl font-extrabold tracking-tight">
+                {primaryLiveModel ? primaryLiveModel.model_name : config.modelId}
+              </div>
+              <div className="text-muted-foreground mt-1 text-sm">
+                {primaryLiveModel?.vendor_name ?? config.officialName}
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {primaryLiveModel ? (
+                  isTokenBasedModel(primaryLiveModel) ? (
+                    <>
+                      <LiveMetric label="Input / 1M" value={formatModelPrice(primaryLiveModel, "input")} />
+                      <LiveMetric label="Output / 1M" value={formatModelPrice(primaryLiveModel, "output")} />
+                    </>
+                  ) : (
+                    <LiveMetric label="Request" value={formatModelPrice(primaryLiveModel)} />
+                  )
+                ) : (
+                  <>
+                    <LiveMetric label="Flatkey" value={config.flatkeyPrice} />
+                    <LiveMetric label="Official" value={config.officialPrice} />
+                  </>
+                )}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {(primaryLiveModel?.supported_endpoint_types ?? config.modelIds).slice(0, 4).map((item) => (
+                  <span key={item} className="rounded-lg border border-violet-500/16 bg-violet-500/[0.05] px-2.5 py-1 text-xs text-muted-foreground">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-violet-500/16 bg-white/74 p-5 shadow-[0_24px_80px_-56px_rgba(91,33,182,0.86)] backdrop-blur-sm dark:border-violet-300/14 dark:bg-white/[0.04]">
+              <div className="text-muted-foreground mb-3 text-xs font-semibold tracking-wide uppercase">
+                {t("Matched live models")}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(liveModels.length > 0 ? liveModels : [{ model_name: config.modelId, vendor_name: config.officialName } as PricingModel]).slice(0, 4).map((model) => (
+                  <div key={model.model_name} className="rounded-xl border border-violet-500/12 bg-white/70 p-3 dark:bg-white/[0.03]">
+                    <div className="break-all font-mono text-sm font-bold">{model.model_name}</div>
+                    <div className="text-muted-foreground mt-1 text-xs">{model.vendor_name ?? config.officialName}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                {config.useCases.map((useCase) => (
+                  <div key={useCase} className="rounded-xl border border-violet-500/12 bg-violet-500/[0.05] px-3 py-2 text-sm font-semibold">
+                    {t(useCase)}
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
           <div className="mt-4 overflow-hidden rounded-2xl border border-violet-500/16 bg-[#faf8ff] dark:bg-white/[0.03]">
             <div className="flex items-center gap-1.5 border-b border-violet-500/12 px-4 py-2.5">
               <span className="size-2.5 rounded-full bg-[#ff5f57]" />
@@ -189,6 +261,15 @@ export function ModelLandingPage({ config, locale }: Props) {
               {"\n"}client.chat.completions.create(model=
               <span className="text-emerald-600">&quot;{config.modelId}&quot;</span>, ...)
             </pre>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {config.faq.map((item) => (
+              <section key={item.question} className="rounded-2xl border border-violet-500/16 bg-white/74 p-5 shadow-[0_24px_80px_-56px_rgba(91,33,182,0.86)] backdrop-blur-sm dark:border-violet-300/14 dark:bg-white/[0.04]">
+                <h2 className="text-base font-extrabold">{t(item.question)}</h2>
+                <p className="text-muted-foreground mt-2 text-sm leading-6">{t(item.answer)}</p>
+              </section>
+            ))}
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-5 rounded-2xl border border-violet-500/25 bg-gradient-to-br from-violet-500/[0.08] to-fuchsia-500/[0.06] p-5 px-6">
@@ -230,5 +311,16 @@ export function ModelLandingPage({ config, locale }: Props) {
         </div>
       </div>
     </SiteShell>
+  );
+}
+
+function LiveMetric(props: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-violet-500/12 bg-violet-500/[0.05] p-3">
+      <div className="text-muted-foreground text-xs">{props.label}</div>
+      <div className="mt-1 font-mono text-lg font-extrabold tabular-nums text-violet-700 dark:text-violet-200">
+        {props.value}
+      </div>
+    </div>
   );
 }

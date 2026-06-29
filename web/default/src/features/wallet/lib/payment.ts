@@ -339,6 +339,93 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
   return DEFAULT_MIN_TOPUP
 }
 
+type TopupPackageGateInfo = Pick<
+  TopupInfo,
+  | 'enable_stripe_topup'
+  | 'enable_online_topup'
+  | 'enable_paddle_topup'
+  | 'enable_waffo_topup'
+  | 'enable_waffo_pancake_topup'
+>
+
+export function shouldRequireConfiguredTopupPackages(
+  topupInfo: TopupPackageGateInfo
+): boolean {
+  return (
+    topupInfo.enable_stripe_topup &&
+    !topupInfo.enable_online_topup &&
+    !topupInfo.enable_paddle_topup &&
+    !topupInfo.enable_waffo_topup &&
+    !topupInfo.enable_waffo_pancake_topup
+  )
+}
+
+export type WalletCheckoutSearch = {
+  amount?: string
+  currency?: string
+  amountMinor?: string
+  stripeLookupKey?: string
+}
+
+const SUPPORTED_WALLET_CHECKOUT_CURRENCIES = new Set(['USD', 'JPY', 'BRL'])
+const WALLET_CHECKOUT_AMOUNT_MINOR_BY_CURRENCY: Record<
+  string,
+  Record<number, number>
+> = {
+  USD: {
+    10: 1000,
+    20: 2000,
+    200: 20000,
+  },
+  JPY: {
+    10: 1500,
+    20: 3000,
+    200: 30000,
+  },
+  BRL: {
+    10: 4990,
+    20: 9990,
+    200: 99000,
+  },
+}
+
+function normalizedCheckoutSearchField(
+  raw: Record<string, unknown> | undefined,
+  key: string
+): string | undefined {
+  const value = raw?.[key]
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value)
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim()
+  }
+  return undefined
+}
+
+export function normalizeWalletCheckoutSearch(
+  raw: Record<string, unknown> | undefined
+): WalletCheckoutSearch | undefined {
+  const amount = normalizedCheckoutSearchField(raw, 'amount')
+  const currency = normalizedCheckoutSearchField(raw, 'currency')?.toUpperCase()
+  const amountMinor = normalizedCheckoutSearchField(raw, 'amount_minor')
+  const stripeLookupKey = normalizedCheckoutSearchField(
+    raw,
+    'stripe_lookup_key'
+  )?.toLowerCase()
+
+  if (!amount && !currency && !amountMinor && !stripeLookupKey) {
+    return undefined
+  }
+
+  return {
+    amount,
+    currency,
+    amountMinor,
+    stripeLookupKey,
+  }
+}
+
 /**
  * Generate preset amounts based on minimum topup
  */
@@ -406,4 +493,87 @@ export function mergePresetAmounts(
       ...(showBonus ? { bonus } : {}),
     }
   })
+}
+
+export function getLockedTopupAmountOptions(
+  amountOptions: number[],
+  _stripeTopupEnabled: boolean
+): number[] {
+  return amountOptions.filter((amount) => Number.isFinite(amount) && amount > 0)
+}
+
+export function getInitialPresetTopupAmount(
+  presetAmounts: PresetAmount[]
+): number {
+  const firstPreset = presetAmounts.find(
+    (preset) => Number.isFinite(preset.value) && preset.value > 0
+  )
+  return firstPreset?.value ?? 0
+}
+
+export function getWalletCheckoutInitialTopupAmount(
+  checkoutSearch: WalletCheckoutSearch | undefined,
+  presetAmounts: PresetAmount[]
+): number {
+  if (!checkoutSearch) {
+    return 0
+  }
+
+  const amount = Number(checkoutSearch.amount)
+  const currency = checkoutSearch.currency?.toUpperCase()
+  const amountMinor = Number(checkoutSearch.amountMinor)
+  const stripeLookupKey = checkoutSearch.stripeLookupKey?.toLowerCase()
+
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return 0
+  }
+  if (!currency || !SUPPORTED_WALLET_CHECKOUT_CURRENCIES.has(currency)) {
+    return 0
+  }
+  if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
+    return 0
+  }
+  if (!stripeLookupKey) {
+    return 0
+  }
+  if (stripeLookupKey !== `topup-${currency.toLowerCase()}-${amountMinor}`) {
+    return 0
+  }
+  if (amountMinor !== getWalletCheckoutAmountMinor(currency, amount)) {
+    return 0
+  }
+  if (!isPresetTopupAmount(amount, presetAmounts)) {
+    return 0
+  }
+
+  return amount
+}
+
+export function getWalletCheckoutAmountMinor(
+  currency: string,
+  amount: number
+): number {
+  return (
+    WALLET_CHECKOUT_AMOUNT_MINOR_BY_CURRENCY[currency.toUpperCase().trim()]?.[
+      amount
+    ] ?? 0
+  )
+}
+
+export function shouldConsumeWalletCheckoutSearchParams(
+  checkoutSearch: WalletCheckoutSearch | undefined,
+  checkoutInitialAmount: number
+): boolean {
+  return Boolean(checkoutSearch && checkoutInitialAmount > 0)
+}
+
+export function isPresetTopupAmount(
+  amount: number,
+  presetAmounts: PresetAmount[]
+): boolean {
+  return (
+    Number.isFinite(amount) &&
+    amount > 0 &&
+    presetAmounts.some((preset) => preset.value === amount)
+  )
 }

@@ -40,6 +40,8 @@ import {
   parseTags,
   type PricingModel,
 } from "@/lib/pricing";
+import { localizePath, type Locale } from "@/lib/locales";
+import { getModelLandingConfigForModel } from "@/lib/model-landing";
 import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 import {
@@ -53,6 +55,7 @@ import {
 } from "recharts";
 
 type PricingModelBrowserProps = {
+  locale: Locale;
   models: PricingModel[];
   groupRatio: Record<string, number>;
   usableGroup: Record<string, { desc: string; ratio: number }>;
@@ -239,6 +242,7 @@ export function PricingModelBrowser(props: PricingModelBrowserProps) {
           <ModelPriceCard
             key={`${model.vendor_id ?? "vendor"}-${model.model_name}`}
             model={model}
+            locale={props.locale}
             performance={performanceSummary[model.model_name]}
             onSelect={() => handleSelect(model.model_name)}
           />
@@ -260,13 +264,15 @@ export function PricingModelBrowser(props: PricingModelBrowserProps) {
   );
 }
 
-function ModelPriceCard(props: { model: PricingModel; performance?: PerformanceSummary; onSelect: () => void }) {
+function ModelPriceCard(props: { model: PricingModel; locale: Locale; performance?: PerformanceSummary; onSelect: () => void }) {
   const model = props.model;
   const tokenBased = isTokenBasedModel(model);
   const endpoints = model.supported_endpoint_types ?? [];
   const tags = parseTags(model.tags);
   const initial = model.model_name.charAt(0).toUpperCase();
   const iconKey = model.icon || model.vendor_icon;
+  const landingConfig = getModelLandingConfigForModel(model.model_name);
+  const landingHref = landingConfig ? localizePath(`/models/${landingConfig.slug}`, props.locale) : null;
 
   const handleCopy = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -284,32 +290,32 @@ function ModelPriceCard(props: { model: PricingModel; performance?: PerformanceS
           props.onSelect();
         }
       }}
-      className="group relative flex min-h-[188px] flex-col overflow-hidden rounded-3xl border border-violet-300/30 bg-white/58 p-4 text-left shadow-[0_22px_70px_rgba(91,33,182,0.09)] backdrop-blur-xl transition-all before:pointer-events-none before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-violet-300/60 before:to-transparent hover:-translate-y-0.5 hover:border-violet-400/45 hover:bg-white/75 hover:shadow-[0_26px_80px_rgba(91,33,182,0.14)] focus-visible:ring-3 focus-visible:ring-violet-500/20 focus-visible:outline-none sm:p-5"
+      className="group relative flex min-h-[188px] flex-col overflow-hidden rounded-3xl border border-violet-300/30 bg-white/58 p-4 text-left shadow-[0_22px_70px_rgba(91,33,182,0.09)] backdrop-blur-xl transition-all before:pointer-events-none before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-violet-300/60 before:to-transparent hover:-translate-y-0.5 hover:border-violet-400/45 hover:bg-white/75 hover:shadow-[0_26px_80px_rgba(91,33,182,0.14)] focus-visible:ring-3 focus-visible:ring-violet-500/20 focus-visible:outline-none dark:border-white/10 dark:bg-white/[0.055] dark:shadow-[0_22px_70px_-50px_rgba(124,58,237,0.95)] dark:before:via-violet-200/25 dark:hover:border-violet-300/30 dark:hover:bg-white/[0.08] sm:p-5"
       aria-label={`View pricing details for ${model.model_name}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-violet-300/25 bg-violet-500/10 shadow-[0_0_26px_rgba(168,85,247,0.12)]">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-violet-300/25 bg-violet-500/10 shadow-[0_0_26px_rgba(168,85,247,0.12)] dark:border-violet-300/20 dark:bg-violet-300/10">
             <ModelLogo iconKey={iconKey} fallback={initial} size={28} />
           </div>
           <div className="min-w-0">
-            <h3 className="truncate text-[15px] leading-tight font-black text-slate-950">{model.model_name}</h3>
+            <h3 className="truncate text-[15px] leading-tight font-black text-slate-950 dark:text-white">{model.model_name}</h3>
             <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs">
               {tokenBased ? (
                 <>
-                  <span className="whitespace-nowrap text-slate-500">
-                    Input <span className="font-mono font-semibold text-slate-950">{formatModelPrice(model, "input")}</span>/1M
+                  <span className="whitespace-nowrap text-slate-500 dark:text-slate-400">
+                    Input <span className="font-mono font-semibold text-slate-950 dark:text-slate-100">{formatModelPrice(model, "input")}</span>/1M
                   </span>
-                  <span className="whitespace-nowrap text-slate-500">
-                    Output <span className="font-mono font-semibold text-slate-950">{formatModelPrice(model, "output")}</span>/1M
+                  <span className="whitespace-nowrap text-slate-500 dark:text-slate-400">
+                    Output <span className="font-mono font-semibold text-slate-950 dark:text-slate-100">{formatModelPrice(model, "output")}</span>/1M
                   </span>
                   {model.cache_ratio != null ? (
-                    <span className="whitespace-nowrap text-slate-400">Cached {formatModelPrice(model, "cache")}</span>
+                    <span className="whitespace-nowrap text-slate-400 dark:text-slate-500">Cached {formatModelPrice(model, "cache")}</span>
                   ) : null}
                 </>
               ) : (
-                <span className="whitespace-nowrap text-slate-500">
-                  <span className="font-mono font-semibold text-slate-950">{formatModelPrice(model)}</span> / request
+                <span className="whitespace-nowrap text-slate-500 dark:text-slate-400">
+                  <span className="font-mono font-semibold text-slate-950 dark:text-slate-100">{formatModelPrice(model)}</span> / request
                 </span>
               )}
             </div>
@@ -317,14 +323,24 @@ function ModelPriceCard(props: { model: PricingModel; performance?: PerformanceS
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {props.performance ? <HealthBadge summary={props.performance} /> : null}
-          <span className="inline-flex items-center gap-1 rounded-full border border-violet-300/30 bg-white/55 px-2.5 py-1.5 text-xs font-bold text-slate-600 transition-colors group-hover:bg-violet-500/10 group-hover:text-slate-950">
+          <span className="inline-flex items-center gap-1 rounded-full border border-violet-300/30 bg-white/55 px-2.5 py-1.5 text-xs font-bold text-slate-600 transition-colors group-hover:bg-violet-500/10 group-hover:text-slate-950 dark:border-violet-300/20 dark:bg-white/[0.055] dark:text-slate-300 dark:group-hover:bg-violet-300/10 dark:group-hover:text-white">
             Details
             <ChevronRight className="size-3.5" aria-hidden="true" />
           </span>
+          {landingHref ? (
+            <a
+              href={landingHref}
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+              className="inline-flex h-7 items-center rounded-full border border-emerald-300/40 bg-emerald-500/10 px-2.5 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-500/15 dark:border-emerald-300/25 dark:text-emerald-200 dark:hover:bg-emerald-300/15"
+            >
+              Landing
+            </a>
+          ) : null}
           <button
             type="button"
             onClick={handleCopy}
-            className="inline-flex size-7 items-center justify-center rounded-full border border-violet-300/30 bg-white/55 text-slate-500 transition-colors hover:bg-violet-500/10 hover:text-slate-950"
+            className="inline-flex size-7 items-center justify-center rounded-full border border-violet-300/30 bg-white/55 text-slate-500 transition-colors hover:bg-violet-500/10 hover:text-slate-950 dark:border-violet-300/20 dark:bg-white/[0.055] dark:text-slate-400 dark:hover:bg-violet-300/10 dark:hover:text-white"
             aria-label={`Copy ${model.model_name}`}
             title="Copy"
           >
@@ -332,31 +348,31 @@ function ModelPriceCard(props: { model: PricingModel; performance?: PerformanceS
           </button>
         </div>
       </div>
-      <p className="mt-4 line-clamp-2 min-h-[2.5rem] flex-1 text-[13px] leading-relaxed text-slate-500">
+      <p className="mt-4 line-clamp-2 min-h-[2.5rem] flex-1 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
         {model.description || "No description available."}
       </p>
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           {(model.enable_groups ?? [])[0] ? (
-            <span className="text-xs font-semibold text-violet-700/80">{(model.enable_groups ?? [])[0]} Groups</span>
+            <span className="text-xs font-semibold text-violet-700/80 dark:text-violet-200">{(model.enable_groups ?? [])[0]} Groups</span>
           ) : null}
-          <span className="text-xs font-semibold text-slate-500">{tokenBased ? "Token-based" : "Per Request"}</span>
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{tokenBased ? "Token-based" : "Per Request"}</span>
           {model.billing_mode === "tiered_expr" ? (
-            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700">Dynamic Pricing</span>
+            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-200">Dynamic Pricing</span>
           ) : null}
         </div>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1">
           {endpoints.slice(0, 2).map((endpoint) => (
-            <span key={endpoint} className="text-xs text-slate-500/80">
+            <span key={endpoint} className="text-xs text-slate-500/80 dark:text-slate-400">
               {endpoint}
             </span>
           ))}
           {tags.slice(0, 2).map((tag) => (
-            <span key={tag} className="text-xs text-slate-500/80">
+            <span key={tag} className="text-xs text-slate-500/80 dark:text-slate-400">
               {tag}
             </span>
           ))}
-          <span className="text-xs text-slate-400">1M</span>
+          <span className="text-xs text-slate-400 dark:text-slate-500">1M</span>
         </div>
       </div>
     </article>

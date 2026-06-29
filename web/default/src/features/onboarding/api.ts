@@ -16,8 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import i18next from 'i18next'
 import { api } from '@/lib/api'
 import { requestStripePayment } from '@/features/wallet/api'
+import { getStripeCheckoutCurrencyForLanguage } from '@/features/wallet/lib'
 import type { StripePaymentResponse } from '@/features/wallet/types'
 import type { ApiResponse, CardStatusResponse } from './types'
 
@@ -51,6 +53,9 @@ export async function requestPromoTopup(
   return requestStripePayment({
     amount,
     payment_method: 'stripe',
+    stripe_currency: getStripeCheckoutCurrencyForLanguage(
+      i18next.resolvedLanguage || i18next.language
+    ),
     save_card: true,
     success_url: new URL(
       '/wallet?show_history=true&card_bound=1',

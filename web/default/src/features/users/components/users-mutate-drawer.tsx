@@ -90,7 +90,6 @@ type UsersMutateDrawerProps = {
 
 const EMPTY_INVOICE_PROFILE: UserInvoiceProfile = {
   company_name: '',
-  billing_email: '',
   tax_id_type: '',
   tax_id: '',
   country: '',
@@ -107,7 +106,6 @@ function normalizeInvoiceProfile(
 ): UserInvoiceProfile {
   return {
     company_name: profile.company_name.trim(),
-    billing_email: profile.billing_email.trim(),
     tax_id_type: profile.tax_id_type?.trim(),
     tax_id: profile.tax_id?.trim(),
     country: profile.country.trim().toUpperCase(),
@@ -125,9 +123,6 @@ function getInvoiceProfileValidationError(
 ): string | null {
   const normalized = normalizeInvoiceProfile(profile)
   if (!normalized.company_name) return 'Company name is required'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized.billing_email)) {
-    return 'Billing email is invalid'
-  }
   if (!normalized.country) return 'Country is required'
   if (!normalized.address_line1) return 'Address is required'
   return null
@@ -565,22 +560,6 @@ export function UsersMutateDrawer({
                         value={invoiceProfile.company_name}
                         onChange={(event) =>
                           updateInvoiceField('company_name', event.target.value)
-                        }
-                      />
-                    </div>
-                    <div className='space-y-1.5'>
-                      <Label htmlFor='admin-invoice-email'>
-                        {t('Billing email')}
-                      </Label>
-                      <Input
-                        id='admin-invoice-email'
-                        type='email'
-                        value={invoiceProfile.billing_email}
-                        onChange={(event) =>
-                          updateInvoiceField(
-                            'billing_email',
-                            event.target.value
-                          )
                         }
                       />
                     </div>

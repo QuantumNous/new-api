@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getAllBlogPosts, getBlogCategories } from "@/lib/blog";
 import { LOCALES, type Locale, localizePath } from "@/lib/locales";
+import { getModelLandingPathnames } from "@/lib/model-landing";
 import { getPricingData, getTopVendors, getVendorName } from "@/lib/pricing";
 
 const base = "https://flatkey.ai";
@@ -48,12 +49,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticEntries = [
     ...entry("/", 1, "daily"),
     ...entry("/pricing", 0.8, "daily"),
+    ...entry("/models", 0.82, "daily"),
     ...entry("/use-case/codex", 0.84, "weekly"),
     ...entry("/use-case/claude-code", 0.84, "weekly"),
     ...entry("/use-case/image-buddy", 0.84, "weekly"),
     ...entry("/glm-5-2", 0.86, "daily"),
-    ...entry("/models/claude-api", 0.82, "daily"),
-    ...entry("/models/gpt-api", 0.82, "daily"),
     ...entry("/rankings", 0.7, "daily"),
     ...entry("/about", 0.5, "monthly"),
     ...entry("/blog", 0.9, "daily"),
@@ -62,6 +62,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...entry("/sla", 0.3, "yearly"),
     ...entry("/refund-policy", 0.3, "yearly"),
   ];
+  const modelLandingEntries = getModelLandingPathnames().flatMap((pathname) => entry(pathname, 0.82, "daily"));
   const categoryEntries = categories.flatMap((category) => entry(`/blog/category/${category.slug}`, 0.7, "weekly"));
   const postsBySlug = new Map<string, Partial<Record<Locale, { date?: string }>>>();
 
@@ -98,8 +99,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     vendor_name: getVendorName(model, pricing.vendors),
   }));
   const vendorEntries = getTopVendors(pricingModels, 18).flatMap((vendor) =>
-    queryEntry("/pricing", `vendor=${encodeURIComponent(vendor)}`, 0.72, "daily")
+    queryEntry("/models", `vendor=${encodeURIComponent(vendor)}`, 0.72, "daily")
   );
 
-  return [...staticEntries, ...vendorEntries, ...categoryEntries, ...postEntries];
+  return [...staticEntries, ...modelLandingEntries, ...vendorEntries, ...categoryEntries, ...postEntries];
 }

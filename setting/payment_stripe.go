@@ -1,11 +1,58 @@
 package setting
 
+import (
+	"strconv"
+	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+)
+
 var StripeApiSecret = ""
 var StripeWebhookSecret = ""
 var StripePriceId = ""
+var StripePriceId20 = ""
+var StripePriceId200 = ""
+var StripeTopUpPriceIds = ""
 var StripeUnitPrice = 8.0
 var StripeMinTopUp = 1
 var StripePromotionCodesEnabled = false
+
+// StripeTopUpPriceIDForAmount resolves the multi-currency Stripe Price ID for
+// a wallet top-up preset amount. The JSON map is the current source of truth;
+// the three legacy fields remain as a migration fallback for existing installs.
+func StripeTopUpPriceIDForAmount(amount int64) string {
+	if strings.TrimSpace(StripeTopUpPriceIds) != "" {
+		priceIds := parseStripeTopUpPriceIds(StripeTopUpPriceIds)
+		return strings.TrimSpace(priceIds[amount])
+	}
+
+	switch amount {
+	case 10:
+		return strings.TrimSpace(StripePriceId)
+	case 20:
+		return strings.TrimSpace(StripePriceId20)
+	case 200:
+		return strings.TrimSpace(StripePriceId200)
+	default:
+		return ""
+	}
+}
+
+func parseStripeTopUpPriceIds(raw string) map[int64]string {
+	result := map[int64]string{}
+	var parsed map[string]string
+	if err := common.UnmarshalJsonStr(strings.TrimSpace(raw), &parsed); err != nil {
+		return result
+	}
+	for key, value := range parsed {
+		amount, err := strconv.ParseInt(strings.TrimSpace(key), 10, 64)
+		if err != nil || amount <= 0 {
+			continue
+		}
+		result[amount] = strings.TrimSpace(value)
+	}
+	return result
+}
 
 // --- Card binding (SetupIntent postpaid) ---
 
