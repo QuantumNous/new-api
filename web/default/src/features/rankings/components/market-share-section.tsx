@@ -31,7 +31,6 @@ const PERIOD_DESCRIPTIONS: Record<RankingPeriod, string> = {
   week: 'Token share by model author across the past few weeks',
   month: 'Token share by model author across the past month',
   year: 'Token share by model author across the past year',
-  all: 'Token share by model author since launch',
 }
 
 /** Stable colour palette for vendors, used in both the share chart and the

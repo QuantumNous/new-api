@@ -91,7 +91,7 @@ export async function getUserInfo(
 }
 
 // ============================================================================
-// Midjourney (Drawing) Logs API
+// MjProxy (Drawing) Logs API
 // ============================================================================
 
 export const getAllMidjourneyLogs = (params: GetMidjourneyLogsParams) =>

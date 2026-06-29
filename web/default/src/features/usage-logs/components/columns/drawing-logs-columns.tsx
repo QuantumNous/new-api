@@ -94,7 +94,7 @@ export function useDrawingLogsColumns(
         return (
           <div className='flex min-w-0 flex-col gap-0.5'>
             <span className='truncate font-mono text-xs tabular-nums'>
-              {formatTimestampToDate(submitTime)}
+              {formatTimestampToDate(submitTime, 'milliseconds')}
             </span>
             <StatusBadge
               label={t(mjStatusMapper.getLabel(log.status))}
@@ -147,9 +147,10 @@ export function useDrawingLogsColumns(
         <div className='flex max-w-[160px] flex-col gap-0.5'>
           <StatusBadge
             label={mjId}
-            autoColor={mjId}
+            copyText={mjId}
+            variant='neutral'
             size='sm'
-            className='border-border/60 bg-muted/30 max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
+            className='border-border/60 bg-muted/30 !text-foreground max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
           />
         </div>
       )

@@ -8,16 +8,10 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
-
-// UpdateTaskBulk 薄入口，实际轮询逻辑在 service 层
-func UpdateTaskBulk() {
-	service.TaskPollingLoop()
-}
 
 func GetAllTask(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)

@@ -190,6 +190,10 @@ const endpointTypeOptions: Array<{ value: string; label: string }> = [
   { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
 ]
 
+const endpointSelectContentClass = 'w-[460px] max-w-[calc(100vw-2rem)]'
+const endpointSelectItemClass =
+  'items-start py-2 [&_[data-slot=select-item-text]]:min-w-0 [&_[data-slot=select-item-text]]:shrink [&_[data-slot=select-item-text]]:whitespace-normal'
+
 const STREAM_INCOMPATIBLE_ENDPOINTS = new Set([
   'embeddings',
   'image-generation',
@@ -507,6 +511,7 @@ function ChannelTestDialogContent({
         await handleTestChannel(
           currentRow.id,
           {
+            channelName: currentRow.name,
             testModel: model,
             endpointType: endpointType === 'auto' ? undefined : endpointType,
             stream: effectiveStreamTest || undefined,
@@ -867,7 +872,6 @@ function ChannelTestDialogContent({
           )
         },
         enableSorting: false,
-        size: 120,
       },
     ],
     [
@@ -926,14 +930,26 @@ function ChannelTestDialogContent({
                 value={endpointType}
                 onValueChange={handleEndpointTypeChange}
               >
-                <SelectTrigger id='endpoint-type'>
-                  <SelectValue placeholder={t('Auto detect (default)')} />
+                <SelectTrigger id='endpoint-type' className='w-full min-w-0'>
+                  <SelectValue
+                    className='min-w-0 truncate'
+                    placeholder={t('Auto detect (default)')}
+                  />
                 </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
+                <SelectContent
+                  alignItemWithTrigger={false}
+                  className={endpointSelectContentClass}
+                >
                   <SelectGroup>
                     {endpointSelectItems.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        className={endpointSelectItemClass}
+                      >
+                        <span className='min-w-0 whitespace-normal break-words leading-snug'>
+                          {option.label}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -1051,7 +1067,6 @@ function ChannelTestDialogContent({
                   {
                     columnId: 'actions',
                     side: 'right',
-                    className: 'w-24 min-w-24 sm:w-28 sm:min-w-28',
                     cellClassName: 'bg-popover',
                   },
                 ]}
@@ -1060,7 +1075,7 @@ function ChannelTestDialogContent({
                     <col className='w-10 min-w-10' />
                     <col className='w-auto' />
                     <col className='w-70' />
-                    <col className='w-24 sm:w-28' />
+                    <col className='w-auto' />
                   </colgroup>
                 }
                 getColumnClassName={(columnId) =>

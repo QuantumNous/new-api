@@ -138,7 +138,7 @@ func NormalizeChannelGroupFilter(group string) string {
 }
 
 func channelGroupFilterCondition() string {
-	if common.UsingMySQL {
+	if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
 		return `CONCAT(',', ` + commonGroupCol + `, ',') LIKE ? ESCAPE '!'`
 	}
 	return `(',' || ` + commonGroupCol + ` || ',') LIKE ? ESCAPE '!'`
@@ -381,13 +381,13 @@ func SearchChannels(keyword string, group string, model string, idSort bool, sor
 	modelsCol := "`models`"
 
 	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		modelsCol = `"models"`
 	}
 
 	baseURLCol := "`base_url`"
 	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		baseURLCol = `"base_url"`
 	}
 
@@ -898,13 +898,13 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 	modelsCol := "`models`"
 
 	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		modelsCol = `"models"`
 	}
 
 	baseURLCol := "`base_url`"
 	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		baseURLCol = `"base_url"`
 	}
 
@@ -942,6 +942,23 @@ func (channel *Channel) ValidateSettings() error {
 	if channel.Setting != nil && *channel.Setting != "" {
 		err := common.Unmarshal([]byte(*channel.Setting), channelParams)
 		if err != nil {
+			return err
+		}
+	}
+	channelOtherSettings := &dto.ChannelOtherSettings{}
+	if channel.OtherSettings != "" {
+		err := common.UnmarshalJsonStr(channel.OtherSettings, channelOtherSettings)
+		if err != nil {
+			return err
+		}
+	}
+	if channel.Type == constant.ChannelTypeAdvancedCustom {
+		if channelOtherSettings.AdvancedCustom == nil {
+			return fmt.Errorf("advanced_custom is required")
+		}
+	}
+	if channelOtherSettings.AdvancedCustom != nil {
+		if err := channelOtherSettings.AdvancedCustom.Validate(); err != nil {
 			return err
 		}
 	}

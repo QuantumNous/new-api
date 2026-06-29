@@ -17,11 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useMemo } from 'react'
-import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { StaticDataTable } from '@/components/data-table'
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isObjectRecord } from '../utils/json-validators'
 import { RateLimitDialog, type RateLimitEntryData } from './rate-limit-dialog'
@@ -182,22 +183,13 @@ export function RateLimitVisualEditor({
             className: 'text-right',
             cellClassName: 'text-right',
             cell: (limit) => (
-              <div className='flex justify-end gap-2'>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={() => handleEdit(limit)}
-                >
-                  <Pencil className='h-4 w-4' />
-                </Button>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  onClick={() => handleDelete(limit.groupName)}
-                >
-                  <Trash2 className='h-4 w-4' />
-                </Button>
-              </div>
+              <StaticRowActions
+                editLabel={t('Edit')}
+                deleteLabel={t('Delete')}
+                menuLabel={t('Open menu')}
+                onEdit={() => handleEdit(limit)}
+                onDelete={() => handleDelete(limit.groupName)}
+              />
             ),
           },
         ]}

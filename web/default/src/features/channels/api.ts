@@ -24,6 +24,7 @@ import type {
   BatchSetTagParams,
   Channel,
   ChannelBalanceResponse,
+  ChannelOpsResponse,
   ChannelTestResponse,
   CopyChannelParams,
   CopyChannelResponse,
@@ -52,6 +53,10 @@ export type CodexUsageResponse = {
   upstream_status?: number
   data?: Record<string, unknown>
 }
+
+export type CodexResetCreditsResponse = CodexUsageResponse
+
+export type CodexUsageResetResponse = CodexUsageResponse
 
 export type CodexCredentialRefreshResponse = {
   success: boolean
@@ -100,6 +105,14 @@ export async function getChannel(id: number): Promise<GetChannelResponse> {
 }
 
 /**
+ * Get channel operations summary for administrators
+ */
+export async function getChannelOps(): Promise<ChannelOpsResponse> {
+  const res = await api.get('/api/channel/ops', channelActionConfig())
+  return res.data
+}
+
+/**
  * Create new channel(s)
  * Supports single, batch, and multi-key modes
  */
@@ -120,6 +133,36 @@ export async function updateChannel(
   const res = await api.put(
     '/api/channel/',
     { id, ...data },
+    channelActionConfig()
+  )
+  return res.data
+}
+
+/**
+ * Update channel enabled/disabled status.
+ */
+export async function updateChannelStatus(
+  id: number,
+  status: number
+): Promise<{ success: boolean; message?: string; data?: boolean }> {
+  const res = await api.post(
+    `/api/channel/${id}/status`,
+    { status },
+    channelActionConfig()
+  )
+  return res.data
+}
+
+/**
+ * Batch update channel enabled/disabled status.
+ */
+export async function batchUpdateChannelStatus(
+  ids: number[],
+  status: number
+): Promise<{ success: boolean; message?: string; data?: number }> {
+  const res = await api.post(
+    '/api/channel/status/batch',
+    { ids, status },
     channelActionConfig()
   )
   return res.data
@@ -282,6 +325,27 @@ export async function getCodexUsage(
 ): Promise<CodexUsageResponse> {
   const res = await api.get(
     `/api/channel/${channelId}/codex/usage`,
+    channelActionConfig({ disableDuplicate: true })
+  )
+  return res.data
+}
+
+export async function getCodexResetCredits(
+  channelId: number
+): Promise<CodexResetCreditsResponse> {
+  const res = await api.get(
+    `/api/channel/${channelId}/codex/usage/reset-credits`,
+    channelActionConfig({ disableDuplicate: true })
+  )
+  return res.data
+}
+
+export async function resetCodexUsage(
+  channelId: number
+): Promise<CodexUsageResetResponse> {
+  const res = await api.post(
+    `/api/channel/${channelId}/codex/usage/reset`,
+    {},
     channelActionConfig({ disableDuplicate: true })
   )
   return res.data

@@ -221,9 +221,9 @@ export function SetupWizard() {
     if (!password || password.length < 8) {
       form.setError('password', {
         type: 'manual',
-        message: t('Password must be at least 8 characters long'),
+        message: t('Password must be at least 8 characters'),
       })
-      toast.error(t('Password must be at least 8 characters long'))
+      toast.error(t('Password must be at least 8 characters'))
       return false
     }
 
