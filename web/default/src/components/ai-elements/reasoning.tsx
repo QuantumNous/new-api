@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
+import { BrainIcon, ChevronDownIcon } from 'lucide-react'
 import {
   type ComponentProps,
   createContext,
@@ -26,14 +27,16 @@ import {
   useEffect,
   useState,
 } from 'react'
-import { BrainIcon, ChevronDownIcon } from 'lucide-react'
-import { useControllableState } from '@/lib/use-controllable-state'
-import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
+
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { useControllableState } from '@/lib/use-controllable-state'
+import { cn } from '@/lib/utils'
+
 import { Response } from './response'
 import { Shimmer } from './shimmer'
 
@@ -138,39 +141,42 @@ export const Reasoning = memo(
 
 export type ReasoningTriggerProps = ComponentProps<typeof CollapsibleTrigger>
 
-const getThinkingMessage = (isStreaming: boolean, duration?: number) => {
-  if (isStreaming) {
-    return <Shimmer duration={1}>Thinking...</Shimmer>
-  }
-  // When duration is unknown or 0 (e.g., non-streaming responses), show a generic message
-  if (duration === undefined || duration === 0) {
-    return <p>Thought for a few seconds</p>
-  }
-  return <p>Thought for {duration} seconds</p>
-}
-
 export const ReasoningTrigger = memo(
   ({ className, children, ...props }: ReasoningTriggerProps) => {
     const { isStreaming, isOpen, duration } = useReasoning()
+    const { t } = useTranslation()
+    const thinkingText = t('Thought for {{duration}} seconds', {
+      duration: duration ?? 0,
+    })
 
     return (
       <CollapsibleTrigger
         className={cn(
-          'text-muted-foreground hover:text-foreground flex w-full items-center gap-2 text-sm transition-colors',
+          'text-muted-foreground hover:text-foreground inline-grid w-fit max-w-full grid-cols-[0.875rem_minmax(0,auto)_0.875rem] items-center gap-1.5 text-sm leading-none transition-colors [&_p]:m-0',
           className
         )}
         {...props}
       >
         {children ?? (
           <>
-            <BrainIcon className='size-4' />
-            {getThinkingMessage(isStreaming, duration)}
-            <ChevronDownIcon
-              className={cn(
-                'size-4 transition-transform',
-                isOpen ? 'rotate-180' : 'rotate-0'
+            <span className='grid size-3.5 place-items-center'>
+              <BrainIcon className='size-3.5' />
+            </span>
+            <span className='min-w-0 truncate leading-none'>
+              {isStreaming ? (
+                <Shimmer duration={1}>{t('Thinking...')}</Shimmer>
+              ) : (
+                thinkingText
               )}
-            />
+            </span>
+            <span className='grid size-3.5 place-items-center'>
+              <ChevronDownIcon
+                className={cn(
+                  'size-3.5 transition-transform duration-200 ease-out',
+                  isOpen ? 'rotate-180' : 'rotate-0'
+                )}
+              />
+            </span>
           </>
         )}
       </CollapsibleTrigger>
@@ -188,13 +194,17 @@ export const ReasoningContent = memo(
   ({ className, children, ...props }: ReasoningContentProps) => (
     <CollapsibleContent
       className={cn(
-        'mt-4 text-sm',
-        'data-closed:fade-out-0 data-closed:slide-out-to-top-2 data-open:slide-in-from-top-2 text-muted-foreground data-closed:animate-out data-open:animate-in outline-none',
+        'CollapsibleContent group/reasoning-content border-border/70 mt-2 ml-1.5 border-l pl-3 text-sm leading-5',
+        'text-muted-foreground outline-none',
         className
       )}
       {...props}
     >
-      <Response className='grid gap-2'>{children}</Response>
+      <div className='transition-[opacity,transform] duration-200 ease-out group-data-[closed]/reasoning-content:-translate-y-1 group-data-[closed]/reasoning-content:opacity-0 group-data-[open]/reasoning-content:translate-y-0 group-data-[open]/reasoning-content:opacity-100 motion-reduce:transition-none'>
+        <Response className='grid gap-1.5 [&_li]:my-0.5 [&_ol]:my-1.5 [&_p]:my-1.5 [&_p]:leading-5 [&_ul]:my-1.5'>
+          {children}
+        </Response>
+      </div>
     </CollapsibleContent>
   )
 )

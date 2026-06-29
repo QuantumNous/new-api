@@ -304,6 +304,8 @@ func migrateDB() error {
 		&ModelQuotaGroupRule{},
 		&ModelQuotaPlanRule{},
 		&UserModelQuotaUsage{},
+		&CasbinRule{},
+		&AuthzRole{},
 	)
 	if err != nil {
 		return err

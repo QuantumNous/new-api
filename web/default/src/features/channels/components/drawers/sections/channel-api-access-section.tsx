@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
-import { Link2 } from 'lucide-react'
+import { KeyRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
 import {
   SideDrawerSection,
   SideDrawerSectionHeader,
@@ -34,11 +35,9 @@ export function ChannelApiAccessSection(props: ChannelApiAccessSectionProps) {
   return (
     <SideDrawerSection>
       <SideDrawerSectionHeader
-        title={t('API Access')}
-        description={t(
-          'Endpoint, provider-specific settings, and credentials.'
-        )}
-        icon={<Link2 className='h-4 w-4' aria-hidden='true' />}
+        title={t('Credentials')}
+        description={t('Authentication')}
+        icon={<KeyRound className='h-4 w-4' aria-hidden='true' />}
       />
       {props.children}
     </SideDrawerSection>

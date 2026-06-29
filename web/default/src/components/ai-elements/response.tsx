@@ -18,43 +18,49 @@ For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
-import { type ComponentProps, memo } from 'react'
-import { Streamdown } from 'streamdown'
+import { memo, useMemo } from 'react'
+import { getMarkdown, parseMarkdownToStructure } from 'stream-markdown-parser'
+
 import { cn } from '@/lib/utils'
 
-type ResponseProps = ComponentProps<typeof Streamdown>
+import { getMarkdownContent, parseResponseContent } from './response-content'
+import { renderChildren, renderFootnotes } from './response-renderer'
+import type { ResponseProps } from './response-types'
 
-export const Response = memo(
-  ({ className, children, ...props }: ResponseProps) => {
-    const stripCustomTags = (input: unknown): unknown => {
-      if (typeof input !== 'string') return input
-      return (
-        input
-          // Remove known AI custom wrapper tags but keep inner content
-          .replace(
-            /<\/?(conversation|conversationcontent|reasoning|reasoningcontent|reasoningtrigger|sources|sourcescontent|sourcestrigger|branch|branchmessages|branchnext|branchpage|branchprevious|branchselector|message|messagecontent)\b[^>]*>/gi,
-            ''
-          )
-          // Remove any stray <think> tags if they still appear
-          .replace(/<\/?think\b[^>]*>/gi, '')
-      )
+const markdown = getMarkdown('new-api-response')
+const MAX_PARSED_MARKDOWN_CHARS = 20_000
+
+export const Response = memo((props: ResponseProps) => {
+  const content = getMarkdownContent(props.children)
+  const shouldParseMarkdown = content.length <= MAX_PARSED_MARKDOWN_CHARS
+  const nodes = useMemo(() => {
+    if (!shouldParseMarkdown) {
+      return []
     }
 
-    const safeChildren = stripCustomTags(children) as string
+    return parseMarkdownToStructure(content, markdown, {
+      final: props.final ?? true,
+      validateLink: markdown.options.validateLink,
+    })
+  }, [content, props.final, shouldParseMarkdown])
+  const parsedContent = useMemo(() => parseResponseContent(nodes), [nodes])
+  const renderedContent =
+    parsedContent.bodyNodes.length > 0
+      ? renderChildren(parsedContent.bodyNodes)
+      : content
+  const footnotes = renderFootnotes(parsedContent.footnotes)
 
-    return (
-      <Streamdown
-        className={cn(
-          'size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
-          className
-        )}
-        {...props}
-      >
-        {safeChildren}
-      </Streamdown>
-    )
-  },
-  (prevProps, nextProps) => prevProps.children === nextProps.children
-)
+  return (
+    <div
+      className={cn(
+        'size-full min-w-0 text-pretty [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
+        props.className
+      )}
+    >
+      {renderedContent}
+      {footnotes}
+    </div>
+  )
+})
 
 Response.displayName = 'Response'

@@ -480,7 +480,7 @@ function PlanRuleDialog({
   const [modelPattern, setModelPattern] = useState(rule?.model_pattern ?? '')
   const [matchMode, setMatchMode] = useState<MatchMode>(rule?.match_mode ?? 'exact')
   const [quotaLimit, setQuotaLimit] = useState(String(rule?.quota_limit ?? ''))
-  const [enabled, setEnabled] = useState(rule?.enabled ?? true)
+  const [enabled] = useState(rule?.enabled ?? true)
 
   const handleSubmit = () => {
     onSubmit({

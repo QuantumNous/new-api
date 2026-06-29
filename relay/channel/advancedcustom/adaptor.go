@@ -104,10 +104,18 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	if err != nil {
 		return nil, err
 	}
-	if converter != dto.AdvancedCustomConverterNone {
+	switch converter {
+	case dto.AdvancedCustomConverterNone:
+		return a.convertOpenAICompatibleResponsesRequest(c, info, request)
+	case dto.AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions:
+		chatReq, err := service.ResponsesRequestToChatCompletionsRequest(&request)
+		if err != nil {
+			return nil, err
+		}
+		return a.convertOpenAICompatibleRequest(c, info, chatReq)
+	default:
 		return nil, fmt.Errorf("converter %q does not support OpenAI Responses requests", converter)
 	}
-	return a.convertOpenAICompatibleResponsesRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
@@ -221,6 +229,11 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			return openai.OaiResponsesToChatStreamHandler(c, info, resp)
 		}
 		return openai.OaiResponsesToChatHandler(c, info, resp)
+	case dto.AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions:
+		if info.IsStream {
+			return openai.OaiChatToResponsesStreamHandler(c, info, resp)
+		}
+		return openai.OaiChatToResponsesHandler(c, info, resp)
 	default:
 		return nil, types.NewOpenAIError(fmt.Errorf("unsupported advanced custom converter: %s", a.converter), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}

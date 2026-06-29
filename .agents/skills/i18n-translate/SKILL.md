@@ -9,10 +9,28 @@ description: >-
   toast/dialog/placeholder/validation copy, or adding/fixing even a single
   i18n key. Use when review findings mention missing i18n, when new UI text
   needs translation, or when the user asks to add translations, fix i18n, or
-  complete missing translations.
+  complete missing translations. Always load and follow this skill before
+  translating, adding locale keys, or editing frontend i18n files.
 ---
 
 # Frontend i18n Translation Workflow
+
+## Mandatory Preflight
+
+- Read this entire `SKILL.md` before any frontend i18n work, including one-key fixes.
+- Before editing locale files, confirm the source text comes from a `t(...)` key, `en.json`, existing UI copy, or an explicitly requested new UI string.
+- Use the user conversation only to understand the task target. Do not copy conversation text, review wording, or task descriptions directly into locale values.
+- Before translating each key, re-think the intended UI copy from the code and locale context instead of treating the surrounding chat as the translation source.
+
+### Hard Constraint: Locale Writes Go Through the Script
+
+- You MUST NOT edit `web/default/src/i18n/locales/*.json` directly with text-editing tools (StrReplace, Write, search-and-replace, manual JSON edits, etc.). This applies even to a single key.
+- ALL locale writes MUST go through the `add-missing-keys.mjs` script, followed by `bun run i18n:sync`. The script is the only sanctioned way to add or change locale values.
+- Why this is mandatory, not optional:
+  - Hand-editing reliably drops one or more of the six locales (`en`, `zh`, `fr`, `ja`, `ru`, `vi`), leaving keys missing in some languages.
+  - Hand-editing breaks the required alphabetical key order and introduces JSON syntax errors (trailing commas, mismatched quotes).
+  - The script writes all six files atomically with consistent sorting, so the locale set stays in sync by construction.
+- The script does not do the translation for you. You still must reason out each locale's copy and populate the script's `newKeys` object; the script only handles insertion, sorting, and writing. Do not skip the script just because the thinking happens regardless.
 
 ## Scope Checklist
 
@@ -35,13 +53,13 @@ Do not skip this workflow because the fix is "just one key".
 
 ## Small Fix Path
 
-For a single known missing key:
+For a single known missing key (still script-only, no direct JSON edits):
 
 1. Confirm the exact key at the call site and verify it is absent from all locale files.
-2. Add the key to every supported locale: `en`, `zh`, `fr`, `ja`, `ru`, `vi`.
-3. Preserve the flat `"translation"` object and keep keys alphabetically sorted.
+2. Add the key via `add-missing-keys.mjs`, populating its `newKeys` object for every supported locale: `en`, `zh`, `fr`, `ja`, `ru`, `vi`. Even one key goes through the script; do not hand-edit the JSON.
+3. The script preserves the flat `"translation"` object and keeps keys alphabetically sorted automatically.
 4. Run a targeted search for the key in code and locale files.
-5. Run `bun run i18n:sync` when practical; if skipped, state that clearly.
+5. Run `bun run i18n:sync` to normalize file order. This step is mandatory, not optional.
 
 ## Workflow
 
@@ -178,7 +196,7 @@ for (const locale of locales) {
 
 ### Step 4: Add translations
 
-Create `web/default/scripts/add-missing-keys.mjs` with this structure:
+This script is the ONLY sanctioned way to write locale values. You MUST NOT bypass it by hand-filling the JSON files. Create `web/default/scripts/add-missing-keys.mjs` with this exact structure:
 
 ```javascript
 import fs from 'node:fs/promises'
@@ -249,6 +267,20 @@ Delete temporary scripts after completion.
 
 ## Translation Guidelines
 
+### Source Text Rules
+
+- Reconsider every key's UI meaning before translating: component location, user action, placeholder variables, button/label/toast/dialog/validation context, and whether the copy is a noun, command, status, or full sentence.
+- Prefer the English key or `en` value as the source text. Use the call site only to clarify meaning, tone, and constraints.
+- Do not copy chat messages, review comments, issue descriptions, or task wording as translation text.
+- If the source text is unclear, inspect the code and locale files first. Ask the user for exact source copy only when the intended UI text remains ambiguous.
+
+### Length and Layout Awareness
+
+- Consider whether translated text may overflow the UI before choosing final wording, especially for buttons, table headers, menu items, labels, toasts, dialog titles, tabs, badges, and empty states.
+- For languages that often expand relative to English, especially French, Russian, and Vietnamese, prefer natural but compact wording.
+- Do not sacrifice meaning just to shorten text. When the call site has limited space, choose the shortest clear translation that preserves the UI intent.
+- For interpolated variables, counts, model names, provider names, quotas, and dates, consider the longest realistic rendered text, not only the translation string itself.
+
 | Language | Code | Notes |
 |----------|------|-------|
 | English | en | Base locale, key = value |
@@ -277,3 +309,4 @@ Delete temporary scripts after completion.
 4. Always run `bun run i18n:sync` as the final step
 5. Delete temporary scripts after completion
 6. The `{{variable}}` placeholders in keys must be preserved in all translations
+7. NEVER edit `locales/*.json` directly. Any non-script write to a locale file (StrReplace, Write, manual JSON edit) is non-compliant, including single-key fixes.

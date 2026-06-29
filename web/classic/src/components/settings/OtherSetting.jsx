@@ -301,9 +301,12 @@ const OtherSetting = () => {
             showError(message);
             return;
           }
-          showSuccess(t('已切换到新版前端，正在刷新页面'));
+          showSuccess(t('已切换到新版前端，正在跳转首页'));
           setTimeout(() => {
-            window.location.reload();
+            // 新版前端的路由与经典前端不同，原地刷新当前路径会 404，
+            // 因此切换后重置到首页，由后端按新主题返回对应前端。
+            // 使用 replace 避免在历史中留下已失效的路由，防止返回时再次 404。
+            window.location.replace('/');
           }, 600);
         } catch (error) {
           console.error('切换新版前端失败', error);

@@ -18,6 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 import { quotaUnitsToDollars } from '@/lib/format'
+import {
+  type PermissionCatalog,
+  type AdminPermissionMatrix,
+  normalizeAdminPermissions,
+} from '@/lib/admin-permissions'
+import { ROLE } from '@/lib/roles'
 import { DEFAULT_GROUP } from '../constants'
 import { type UserFormData, type User } from '../types'
 
@@ -37,6 +43,7 @@ export const userFormSchema = z.object({
   org_contact_name: z.string().optional(),
   org_contact_info: z.string().optional(),
   org_description: z.string().optional(),
+  admin_permissions: z.record(z.string(), z.record(z.string(), z.boolean())).optional(),
 })
 
 export type UserFormValues = z.infer<typeof userFormSchema>
@@ -57,6 +64,8 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   org_contact_name: '',
   org_contact_info: '',
   org_description: '',
+  // Filled against the backend catalog at render time; see UsersMutateDrawer.
+  admin_permissions: {},
 }
 
 // ============================================================================
@@ -69,7 +78,8 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
 export function transformFormDataToPayload(
   data: UserFormValues,
   userId?: number,
-  accountType?: number
+  accountType?: number,
+  catalog?: PermissionCatalog
 ): UserFormData & { id?: number } {
   const payload: UserFormData & { id?: number } = {
     username: data.username,
@@ -77,9 +87,21 @@ export function transformFormDataToPayload(
     password: data.password || undefined,
   }
 
+  const role = userId === undefined ? data.role || 1 : (data.role ?? 0)
+
+  // Only send the permission matrix when the target is an admin and the catalog
+  // is available; without the catalog we cannot build a full matrix, so we omit
+  // the field (the backend then leaves existing permissions untouched).
+  if (role >= ROLE.ADMIN && catalog) {
+    payload.admin_permissions = normalizeAdminPermissions(
+      data.admin_permissions as AdminPermissionMatrix | undefined,
+      catalog
+    )
+  }
+
   // For create: only send required fields
   if (userId === undefined) {
-    payload.role = data.role || 1 // Default to common user
+    payload.role = role
     if (accountType !== undefined) {
       payload.account_type = accountType
     }
@@ -108,7 +130,9 @@ export function transformFormDataToPayload(
 }
 
 /**
- * Transform user data to form defaults
+ * Transform user data to form defaults. The admin permission matrix is passed
+ * through as-is (the backend already returns a full matrix); it is filled against
+ * the catalog at render time in UsersMutateDrawer.
  */
 export function transformUserToFormDefaults(user: User): UserFormValues {
   return {
@@ -123,5 +147,6 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     org_contact_name: user.org_contact_name || '',
     org_contact_info: user.org_contact_info || '',
     org_description: user.org_description || '',
+    admin_permissions: user.admin_permissions ?? {},
   }
 }

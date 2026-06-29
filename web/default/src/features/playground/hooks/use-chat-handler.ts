@@ -16,16 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
 import { sendChatCompletion } from '../api'
-import { MESSAGE_STATUS, ERROR_MESSAGES } from '../constants'
+import { ERROR_MESSAGES } from '../constants'
 import {
+  applyStreamingChunk,
   buildChatCompletionPayload,
   updateAssistantMessageWithError,
   updateLastAssistantMessage,
-  processStreamingContent,
-  finalizeMessage,
+  parseRequestErrorDetails,
+  applyChatCompletionResponse,
+  completeAssistantMessage,
+  hasChatCompletionChoice,
+  isAssistantMessageFinal,
+  isAssistantMessagePending,
 } from '../lib'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
 import { useStreamRequest } from './use-stream-request'
@@ -36,6 +43,25 @@ interface UseChatHandlerOptions {
   onMessageUpdate: (updater: (prev: Message[]) => Message[]) => void
 }
 
+const KNOWN_ERROR_MESSAGES = new Set<string>(Object.values(ERROR_MESSAGES))
+const STREAM_UPDATE_FLUSH_MS = 50
+
+type PendingStreamChunks = {
+  content: string
+  reasoning: string
+}
+
+function mergePendingStreamChunk(
+  currentChunk: string,
+  nextChunk: string
+): string {
+  if (!currentChunk || !nextChunk.startsWith(currentChunk)) {
+    return currentChunk + nextChunk
+  }
+
+  return nextChunk
+}
+
 /**
  * Hook for handling chat message sending and receiving
  */
@@ -44,65 +70,141 @@ export function useChatHandler({
   parameterEnabled,
   onMessageUpdate,
 }: UseChatHandlerOptions) {
+  const { t } = useTranslation()
   const { sendStreamRequest, stopStream, isStreaming } = useStreamRequest()
+  const [isRequesting, setIsRequesting] = useState(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const requestIdRef = useRef(0)
+  const pendingStreamChunksRef = useRef<PendingStreamChunks>({
+    content: '',
+    reasoning: '',
+  })
+  const streamFlushTimerRef = useRef<number | null>(null)
+
+  const flushStreamUpdates = useCallback(() => {
+    if (streamFlushTimerRef.current !== null) {
+      window.clearTimeout(streamFlushTimerRef.current)
+      streamFlushTimerRef.current = null
+    }
+
+    const pendingChunks = pendingStreamChunksRef.current
+    if (!pendingChunks.reasoning && !pendingChunks.content) {
+      return
+    }
+
+    pendingStreamChunksRef.current = { content: '', reasoning: '' }
+    onMessageUpdate((prev) =>
+      updateLastAssistantMessage(prev, (message) => {
+        let updatedMessage = message
+
+        if (pendingChunks.reasoning) {
+          updatedMessage = applyStreamingChunk(
+            updatedMessage,
+            'reasoning',
+            pendingChunks.reasoning
+          )
+        }
+
+        if (pendingChunks.content) {
+          updatedMessage = applyStreamingChunk(
+            updatedMessage,
+            'content',
+            pendingChunks.content
+          )
+        }
+
+        return updatedMessage
+      })
+    )
+  }, [onMessageUpdate])
+
+  const scheduleStreamFlush = useCallback(() => {
+    if (streamFlushTimerRef.current !== null) {
+      return
+    }
+
+    streamFlushTimerRef.current = window.setTimeout(
+      flushStreamUpdates,
+      STREAM_UPDATE_FLUSH_MS
+    )
+  }, [flushStreamUpdates])
+
+  useEffect(
+    () => () => {
+      if (streamFlushTimerRef.current !== null) {
+        window.clearTimeout(streamFlushTimerRef.current)
+      }
+    },
+    []
+  )
+
+  const getDisplayError = useCallback(
+    (error: string) => {
+      if (KNOWN_ERROR_MESSAGES.has(error)) {
+        return t(error)
+      }
+
+      const connectionClosedSuffix = `: ${ERROR_MESSAGES.CONNECTION_CLOSED}`
+      if (error.endsWith(connectionClosedSuffix)) {
+        return `${error.slice(0, -ERROR_MESSAGES.CONNECTION_CLOSED.length)}${t(
+          ERROR_MESSAGES.CONNECTION_CLOSED
+        )}`
+      }
+
+      return error
+    },
+    [t]
+  )
 
   // Handle stream update
   const handleStreamUpdate = useCallback(
     (type: 'reasoning' | 'content', chunk: string) => {
-      onMessageUpdate((prev) =>
-        updateLastAssistantMessage(prev, (message) => {
-          if (message.status === MESSAGE_STATUS.ERROR) return message
-
-          if (type === 'reasoning') {
-            // Direct API reasoning_content
-            return {
-              ...message,
-              reasoning: {
-                content: (message.reasoning?.content || '') + chunk,
-                duration: 0,
-              },
-              isReasoningStreaming: true,
-              status: MESSAGE_STATUS.STREAMING,
-            }
-          }
-
-          // Content streaming: handle <think> tags
-          return {
-            ...processStreamingContent(message, chunk),
-            status: MESSAGE_STATUS.STREAMING,
-          }
-        })
+      pendingStreamChunksRef.current[type] = mergePendingStreamChunk(
+        pendingStreamChunksRef.current[type],
+        chunk
       )
+      scheduleStreamFlush()
     },
-    [onMessageUpdate]
+    [scheduleStreamFlush]
   )
 
   // Handle stream complete
   const handleStreamComplete = useCallback(() => {
+    flushStreamUpdates()
+    setIsRequesting(false)
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) =>
-        message.status === MESSAGE_STATUS.COMPLETE ||
-        message.status === MESSAGE_STATUS.ERROR
+        isAssistantMessageFinal(message)
           ? message
-          : { ...finalizeMessage(message), status: MESSAGE_STATUS.COMPLETE }
+          : completeAssistantMessage(message)
       )
     )
-  }, [onMessageUpdate])
+  }, [flushStreamUpdates, onMessageUpdate])
 
   // Handle stream error
   const handleStreamError = useCallback(
     (error: string, errorCode?: string) => {
-      toast.error(error)
+      flushStreamUpdates()
+      setIsRequesting(false)
+      const displayError = getDisplayError(error)
+      toast.error(displayError)
+      const errorTitle = t(ERROR_MESSAGES.API_REQUEST_ERROR)
       onMessageUpdate((prev) =>
-        updateAssistantMessageWithError(prev, error, errorCode)
+        updateAssistantMessageWithError(
+          prev,
+          displayError,
+          errorCode,
+          errorTitle
+        )
       )
     },
-    [onMessageUpdate]
+    [flushStreamUpdates, getDisplayError, onMessageUpdate, t]
   )
 
   // Send streaming chat request
   const sendStreamingChat = useCallback(
     (messages: Message[]) => {
+      setIsRequesting(true)
       const payload = buildChatCompletionPayload(
         messages,
         config,
@@ -133,42 +235,45 @@ export function useChatHandler({
         config,
         parameterEnabled
       )
+      const requestId = requestIdRef.current + 1
+      const abortController = new AbortController()
+
+      requestIdRef.current = requestId
+      abortControllerRef.current = abortController
 
       try {
-        const response = await sendChatCompletion(payload)
-        const choice = response.choices?.[0]
-        if (!choice) return
+        setIsRequesting(true)
+        const response = await sendChatCompletion(
+          payload,
+          abortController.signal
+        )
+        if (abortController.signal.aborted) return
+
+        if (!hasChatCompletionChoice(response)) {
+          handleStreamError(ERROR_MESSAGES.API_REQUEST_ERROR)
+          return
+        }
 
         onMessageUpdate((prev) =>
-          updateLastAssistantMessage(prev, (message) => ({
-            ...finalizeMessage(
-              {
-                ...message,
-                versions: [
-                  {
-                    ...message.versions[0],
-                    content: choice.message?.content || '',
-                  },
-                ],
-              },
-              choice.message?.reasoning_content
-            ),
-            status: MESSAGE_STATUS.COMPLETE,
-          }))
+          updateLastAssistantMessage(prev, (message) => {
+            const updatedMessage = applyChatCompletionResponse(
+              message,
+              response
+            )
+
+            return updatedMessage ?? message
+          })
         )
       } catch (error: unknown) {
-        const err = error as {
-          response?: {
-            data?: { message?: string; error?: { code?: string } }
-          }
-          message?: string
+        if (abortController.signal.aborted) return
+
+        const { errorCode, errorMessage } = parseRequestErrorDetails(error)
+        handleStreamError(errorMessage, errorCode)
+      } finally {
+        if (requestIdRef.current === requestId) {
+          abortControllerRef.current = null
+          setIsRequesting(false)
         }
-        handleStreamError(
-          err?.response?.data?.message ||
-            err?.message ||
-            ERROR_MESSAGES.API_REQUEST_ERROR,
-          err?.response?.data?.error?.code || undefined
-        )
       }
     },
     [config, parameterEnabled, onMessageUpdate, handleStreamError]
@@ -189,19 +294,22 @@ export function useChatHandler({
   // Stop generation
   const stopGeneration = useCallback(() => {
     stopStream()
+    flushStreamUpdates()
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    setIsRequesting(false)
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) =>
-        message.status === MESSAGE_STATUS.LOADING ||
-        message.status === MESSAGE_STATUS.STREAMING
-          ? { ...finalizeMessage(message), status: MESSAGE_STATUS.COMPLETE }
+        isAssistantMessagePending(message)
+          ? completeAssistantMessage(message)
           : message
       )
     )
-  }, [stopStream, onMessageUpdate])
+  }, [stopStream, flushStreamUpdates, onMessageUpdate])
 
   return {
     sendChat,
     stopGeneration,
-    isGenerating: isStreaming,
+    isGenerating: isStreaming || isRequesting,
   }
 }
