@@ -5156,6 +5156,12 @@
     "Failed to disable {{count}} user(s)": "Falha ao desativar {{count}} usuário(s)",
     "No selected users can be disabled": "Nenhum usuário selecionado pode ser desativado",
     "Successfully disabled {{count}} user(s)": "{{count}} usuário(s) desativado(s) com sucesso",
-    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "Isso desativará {{count}} usuário(s) selecionado(s). Usuários Root, já desativados e excluídos serão ignorados."
+    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "Isso desativará {{count}} usuário(s) selecionado(s). Usuários Root, já desativados e excluídos serão ignorados.",
+    "Batch edit selected channels": "Editar em lote os canais selecionados",
+    "Batch edit {{count}} selected channel(s)": "Editar em lote {{count}} canal(is) selecionado(s)",
+    "{{count}} channel(s) updated": "{{count}} canal(is) atualizado(s)",
+    "Leave empty to keep current": "Deixe vazio para manter o valor atual",
+    "Priority must be a number": "A prioridade deve ser um número",
+    "Weight must be a non-negative number": "O peso deve ser um número não negativo"
   }
 }

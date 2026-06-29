@@ -5156,6 +5156,12 @@
     "Failed to disable {{count}} user(s)": "Failed to disable {{count}} user(s)",
     "No selected users can be disabled": "No selected users can be disabled",
     "Successfully disabled {{count}} user(s)": "Successfully disabled {{count}} user(s)",
-    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped."
+    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.",
+    "Batch edit selected channels": "Batch edit selected channels",
+    "Batch edit {{count}} selected channel(s)": "Batch edit {{count}} selected channel(s)",
+    "{{count}} channel(s) updated": "{{count}} channel(s) updated",
+    "Leave empty to keep current": "Leave empty to keep current",
+    "Priority must be a number": "Priority must be a number",
+    "Weight must be a non-negative number": "Weight must be a non-negative number"
   }
 }

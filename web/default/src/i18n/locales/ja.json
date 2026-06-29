@@ -5156,6 +5156,12 @@
     "Failed to disable {{count}} user(s)": "{{count}} 人のユーザーを無効化できませんでした",
     "No selected users can be disabled": "選択したユーザーに無効化できるユーザーはいません",
     "Successfully disabled {{count}} user(s)": "{{count}} 人のユーザーを無効化しました",
-    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "選択した {{count}} 人のユーザーを無効化します。Root、すでに無効なユーザー、削除済みユーザーはスキップされます。"
+    "This will disable {{count}} selected user(s). Root, already disabled, and deleted users will be skipped.": "選択した {{count}} 人のユーザーを無効化します。Root、すでに無効なユーザー、削除済みユーザーはスキップされます。",
+    "Batch edit selected channels": "選択したチャネルを一括編集",
+    "Batch edit {{count}} selected channel(s)": "選択した {{count}} 件のチャネルを一括編集",
+    "{{count}} channel(s) updated": "{{count}} 件のチャネルを更新しました",
+    "Leave empty to keep current": "現在の値を維持する場合は空欄のまま",
+    "Priority must be a number": "優先度は数値で入力してください",
+    "Weight must be a non-negative number": "重みは 0 以上の数値で入力してください"
   }
 }
