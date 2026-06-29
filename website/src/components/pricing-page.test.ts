@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { LOCALIZED_TOP_UP_PRICES, getPricingPageCopy, getPricingPlans, getPricingPageFaqs } from "./pricing-page";
+import { LOCALIZED_TOP_UP_PRICES, TOP_UP_PACKAGE_AMOUNTS, getPricingPageCopy, getPricingPlans, getPricingPageFaqs } from "./pricing-page";
 
 describe("pricing page conversion copy", () => {
   test("uses API gateway conversion messaging in the hero and plan section", () => {
@@ -45,13 +45,14 @@ describe("pricing page conversion copy", () => {
     const plans = getPricingPlans("pt").slice(0, 3);
 
     expect(plans.map((plan) => plan.currency)).toEqual(["BRL", "BRL", "BRL"]);
+    expect(plans.map((plan) => plan.amount)).toEqual([10, 20, 200]);
     expect(plans.map((plan) => plan.amountMinor)).toEqual([4990, 9990, 99000]);
     expect(plans.map((plan) => plan.stripeLookupKey)).toEqual([
       "topup-brl-4990",
       "topup-brl-9990",
       "topup-brl-99000",
     ]);
-    expect(plans[0]?.checkoutUrl).toContain("redirect=%2Fwallet%3Famount%3D49.9%26currency%3DBRL");
+    expect(plans[0]?.checkoutUrl).toContain("redirect=%2Fwallet%3Famount%3D10%26currency%3DBRL");
     expect(plans[0]?.checkoutUrl).toContain("stripe_lookup_key%3Dtopup-brl-4990");
   });
 
@@ -66,6 +67,7 @@ describe("pricing page conversion copy", () => {
   });
 
   test("documents all configured localized top-up amounts", () => {
+    expect(TOP_UP_PACKAGE_AMOUNTS).toEqual([10, 20, 200]);
     expect(LOCALIZED_TOP_UP_PRICES.USD).toEqual([10, 20, 200]);
     expect(LOCALIZED_TOP_UP_PRICES.BRL).toEqual([49.9, 99.9, 990]);
     expect(LOCALIZED_TOP_UP_PRICES.JPY).toEqual([1500, 3000, 30000]);

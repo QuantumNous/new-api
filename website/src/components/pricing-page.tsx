@@ -598,6 +598,8 @@ export const LOCALIZED_TOP_UP_PRICES = {
   JPY: [1500, 3000, 30000],
 } as const;
 
+export const TOP_UP_PACKAGE_AMOUNTS = [10, 20, 200] as const;
+
 export type PricingCurrency = keyof typeof LOCALIZED_TOP_UP_PRICES;
 
 function pricingCurrency(locale: Locale): PricingCurrency {
@@ -617,8 +619,12 @@ function topUpPlanName(currency: PricingCurrency, index: number): string {
   return `Top up ${formatTopUpPrice(currency, index)}`;
 }
 
-function topUpAmount(currency: PricingCurrency, index: number): number {
+function localizedTopUpAmount(currency: PricingCurrency, index: number): number {
   return LOCALIZED_TOP_UP_PRICES[currency][index];
+}
+
+function topUpPackageAmount(index: number): number {
+  return TOP_UP_PACKAGE_AMOUNTS[index];
 }
 
 function topUpAmountMinor(currency: PricingCurrency, amount: number): number {
@@ -630,8 +636,9 @@ function stripeLookupKey(currency: PricingCurrency, amountMinor: number): string
 }
 
 function checkoutPlanFields(currency: PricingCurrency, index: number) {
-  const amount = topUpAmount(currency, index);
-  const amountMinor = topUpAmountMinor(currency, amount);
+  const displayAmount = localizedTopUpAmount(currency, index);
+  const amount = topUpPackageAmount(index);
+  const amountMinor = topUpAmountMinor(currency, displayAmount);
   const lookupKey = stripeLookupKey(currency, amountMinor);
 
   return {
