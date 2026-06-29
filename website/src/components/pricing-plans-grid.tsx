@@ -7,9 +7,17 @@ import type { Locale } from "@/lib/locales";
 import { SIGN_UP_URL } from "@/lib/pricing-links";
 import type { PricingPlan } from "@/components/pricing-page";
 
+type PricingPlansGridContactCopy = {
+  closeLabel: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+};
+
 type PricingPlansGridProps = {
   plans: PricingPlan[];
   locale: Locale;
+  contactCopy: PricingPlansGridContactCopy;
 };
 
 export function PricingPlansGrid(props: PricingPlansGridProps) {
@@ -46,7 +54,7 @@ export function PricingPlansGrid(props: PricingPlansGridProps) {
             <h2 className="text-xl font-black text-slate-950 dark:text-white">{plan.name}</h2>
             <p className="mt-2 h-[4.5rem] text-sm leading-6 text-slate-600 dark:text-slate-300">{plan.description}</p>
             <div className="relative mt-6 w-fit pr-20">
-              <span className={plan.price === "Custom" ? "text-4xl font-black tracking-tight text-slate-950 dark:text-white" : "text-5xl font-black tracking-tight text-slate-950 dark:text-white"}>{plan.price}</span>
+              <span className={plan.action === "contact" ? "text-4xl font-black tracking-tight text-slate-950 dark:text-white" : "text-5xl font-black tracking-tight text-slate-950 dark:text-white"}>{plan.price}</span>
               {plan.discount ? (
                 <span className="absolute top-1/2 right-0 -translate-y-1/2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-black whitespace-nowrap text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-300/10 dark:text-emerald-200">{plan.discount}</span>
               ) : null}
@@ -103,18 +111,18 @@ export function PricingPlansGrid(props: PricingPlansGridProps) {
             type="button"
             onClick={() => setContactOpen(false)}
             className="absolute top-4 right-4 inline-flex size-9 items-center justify-center rounded-full border border-violet-500/14 bg-violet-500/8 text-slate-500 transition-colors hover:bg-violet-500/12 hover:text-slate-950 dark:border-violet-300/20 dark:bg-violet-300/10 dark:text-slate-300 dark:hover:bg-violet-300/15 dark:hover:text-white"
-            aria-label="Close enterprise contact form"
+            aria-label={props.contactCopy.closeLabel}
             tabIndex={contactOpen ? 0 : -1}
           >
             <X className="size-4" />
           </button>
           <div className="pr-10">
-            <p className="text-xs font-bold tracking-[0.18em] text-violet-700 uppercase dark:text-violet-200">Enterprise teams</p>
+            <p className="text-xs font-bold tracking-[0.18em] text-violet-700 uppercase dark:text-violet-200">{props.contactCopy.eyebrow}</p>
             <h2 id="enterprise-contact-title" className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-              Contact sales
+              {props.contactCopy.title}
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-              Need higher monthly usage, invoicing, team procurement, or custom routing discounts? Send the form and we will follow up.
+              {props.contactCopy.description}
             </p>
           </div>
           {contactOpen ? (

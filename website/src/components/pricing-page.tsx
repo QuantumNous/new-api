@@ -20,7 +20,7 @@ type PricingPageProps = {
   search?: PricingSearch;
 };
 
-type PricingPageCopy = {
+type PricingPageBaseCopy = {
   modelsDirectory: string;
   modelPricing: string;
   description: string;
@@ -62,7 +62,38 @@ type PricingPageCopy = {
   seoParagraph3Suffix: string;
 };
 
-const PRICING_COPY: Record<Locale, PricingPageCopy> = {
+type PricingPageLocalizedUiCopy = {
+  pricingHeroTitle: string;
+  pricingHeroDescription: string;
+  modelsEyebrow: string;
+  modelsDescription: string;
+  topUpPlanName: string;
+  lowestEntryCaption: string;
+  threeXCaption: string;
+  fortyXCaption: string;
+  customPlanCaption: string;
+  bestFirstTopUpDescription: string;
+  bestValueDescription: string;
+  popularBadge: string;
+  discount40: string;
+  discount50: string;
+  enterprisePlanName: string;
+  customPriceLabel: string;
+  enterprisePlanDescription: string;
+  contactPlanCta: string;
+  highestPrepaidValue: string;
+  customMonthlyUsage: string;
+  teamProcurementSupport: string;
+  customRoutingDiscounts: string;
+  enterpriseContactCloseLabel: string;
+  enterpriseContactEyebrow: string;
+  enterpriseContactTitle: string;
+  enterpriseContactDescription: string;
+};
+
+type PricingPageCopy = PricingPageBaseCopy & PricingPageLocalizedUiCopy;
+
+const PRICING_COPY: Record<Locale, PricingPageBaseCopy> = {
   en: {
     modelsDirectory: "Models Directory",
     modelPricing: "One API key for every top AI model",
@@ -479,8 +510,265 @@ const PRICING_COPY: Record<Locale, PricingPageCopy> = {
   },
 };
 
+const PRICING_UI_COPY: Record<Locale, PricingPageLocalizedUiCopy> = {
+  en: {
+    pricingHeroTitle: "Simple pricing for one AI API gateway",
+    pricingHeroDescription: "Start with prepaid balance, route across top models, and scale usage without buying fixed monthly bundles.",
+    modelsEyebrow: "Models",
+    modelsDescription: "Discover live model availability, pricing, endpoint support, and model detail pages.",
+    topUpPlanName: "Top up {{price}}",
+    lowestEntryCaption: "Lowest entry to get started",
+    threeXCaption: "3X more usage than the official plan",
+    fortyXCaption: "40X more usage than the official plan",
+    customPlanCaption: "Custom usage, routing, and invoicing",
+    bestFirstTopUpDescription: "Best first top-up for trying real API workloads with a clear discount.",
+    bestValueDescription: "Best value for production testing, team workflows, and sustained model traffic.",
+    popularBadge: "Most Popular",
+    discount40: "40% OFF",
+    discount50: "50% OFF",
+    enterprisePlanName: "Enterprise",
+    customPriceLabel: "Custom",
+    enterprisePlanDescription: "For higher monthly usage, invoicing, team procurement, or custom routing discounts.",
+    contactPlanCta: "Contact Us",
+    highestPrepaidValue: "Highest prepaid value",
+    customMonthlyUsage: "Custom monthly usage",
+    teamProcurementSupport: "Team procurement support",
+    customRoutingDiscounts: "Custom routing discounts",
+    enterpriseContactCloseLabel: "Close enterprise contact form",
+    enterpriseContactEyebrow: "Enterprise teams",
+    enterpriseContactTitle: "Contact sales",
+    enterpriseContactDescription: "Need higher monthly usage, invoicing, team procurement, or custom routing discounts? Send the form and we will follow up.",
+  },
+  zh: {
+    pricingHeroTitle: "一个 AI API 网关的清晰定价",
+    pricingHeroDescription: "从预付余额开始，路由到主流模型，按需扩展用量，不必购买固定月度套餐。",
+    modelsEyebrow: "模型",
+    modelsDescription: "查看实时模型可用性、价格、端点支持和模型详情页。",
+    topUpPlanName: "充值 {{price}}",
+    lowestEntryCaption: "最低门槛，快速开始",
+    threeXCaption: "比官方套餐多 3X 用量",
+    fortyXCaption: "比官方套餐多 40X 用量",
+    customPlanCaption: "定制用量、路由和发票",
+    bestFirstTopUpDescription: "适合首次尝试真实 API 工作负载，并享受明确折扣。",
+    bestValueDescription: "适合生产测试、团队流程和持续模型流量的高性价比选择。",
+    popularBadge: "最受欢迎",
+    discount40: "立减 40%",
+    discount50: "立减 50%",
+    enterprisePlanName: "企业版",
+    customPriceLabel: "定制",
+    enterprisePlanDescription: "适合更高月用量、发票、团队采购或定制路由折扣。",
+    contactPlanCta: "联系销售",
+    highestPrepaidValue: "最高预付价值",
+    customMonthlyUsage: "定制月度用量",
+    teamProcurementSupport: "团队采购支持",
+    customRoutingDiscounts: "定制路由折扣",
+    enterpriseContactCloseLabel: "关闭企业联系表单",
+    enterpriseContactEyebrow: "企业团队",
+    enterpriseContactTitle: "联系销售",
+    enterpriseContactDescription: "需要更高月用量、发票、团队采购或定制路由折扣？提交表单后我们会跟进。",
+  },
+  es: {
+    pricingHeroTitle: "Precios simples para una gateway API de IA",
+    pricingHeroDescription: "Empieza con saldo prepago, enruta entre modelos líderes y escala sin comprar paquetes mensuales fijos.",
+    modelsEyebrow: "Modelos",
+    modelsDescription: "Consulta disponibilidad en vivo, precios, soporte de endpoints y páginas de detalle de modelos.",
+    topUpPlanName: "Recargar {{price}}",
+    lowestEntryCaption: "Entrada mínima para empezar",
+    threeXCaption: "3X más uso que el plan oficial",
+    fortyXCaption: "40X más uso que el plan oficial",
+    customPlanCaption: "Uso, routing y facturación a medida",
+    bestFirstTopUpDescription: "La mejor primera recarga para probar workloads API reales con un descuento claro.",
+    bestValueDescription: "Mejor valor para pruebas de producción, flujos de equipo y tráfico sostenido de modelos.",
+    popularBadge: "Más popular",
+    discount40: "40% de descuento",
+    discount50: "50% de descuento",
+    enterprisePlanName: "Empresa",
+    customPriceLabel: "A medida",
+    enterprisePlanDescription: "Para mayor uso mensual, facturación, compras de equipo o descuentos de routing personalizados.",
+    contactPlanCta: "Contactar ventas",
+    highestPrepaidValue: "Mayor valor prepago",
+    customMonthlyUsage: "Uso mensual personalizado",
+    teamProcurementSupport: "Soporte para compras de equipo",
+    customRoutingDiscounts: "Descuentos de routing personalizados",
+    enterpriseContactCloseLabel: "Cerrar formulario de contacto empresarial",
+    enterpriseContactEyebrow: "Equipos empresariales",
+    enterpriseContactTitle: "Contactar ventas",
+    enterpriseContactDescription: "¿Necesitas más uso mensual, facturación, compras de equipo o descuentos de routing personalizados? Envía el formulario y te responderemos.",
+  },
+  fr: {
+    pricingHeroTitle: "Des tarifs simples pour une gateway API IA",
+    pricingHeroDescription: "Démarrez avec un solde prépayé, routez vers les meilleurs modèles et montez en charge sans bundle mensuel fixe.",
+    modelsEyebrow: "Modèles",
+    modelsDescription: "Découvrez la disponibilité live, les tarifs, le support des endpoints et les pages détaillées des modèles.",
+    topUpPlanName: "Recharger {{price}}",
+    lowestEntryCaption: "Point d'entrée le plus bas",
+    threeXCaption: "3X plus d'usage que le plan officiel",
+    fortyXCaption: "40X plus d'usage que le plan officiel",
+    customPlanCaption: "Usage, routage et facturation sur mesure",
+    bestFirstTopUpDescription: "Meilleure première recharge pour tester de vraies charges API avec une remise claire.",
+    bestValueDescription: "Meilleur rapport valeur pour tests de production, workflows d'équipe et trafic modèle continu.",
+    popularBadge: "Le plus populaire",
+    discount40: "40 % de remise",
+    discount50: "50 % de remise",
+    enterprisePlanName: "Entreprise",
+    customPriceLabel: "Sur mesure",
+    enterprisePlanDescription: "Pour un usage mensuel plus élevé, la facturation, les achats d'équipe ou des remises de routage personnalisées.",
+    contactPlanCta: "Contacter les ventes",
+    highestPrepaidValue: "Valeur prépayée maximale",
+    customMonthlyUsage: "Usage mensuel personnalisé",
+    teamProcurementSupport: "Support achats d'équipe",
+    customRoutingDiscounts: "Remises de routage personnalisées",
+    enterpriseContactCloseLabel: "Fermer le formulaire de contact entreprise",
+    enterpriseContactEyebrow: "Équipes entreprise",
+    enterpriseContactTitle: "Contacter les ventes",
+    enterpriseContactDescription: "Besoin de plus d'usage mensuel, de facturation, d'achats d'équipe ou de remises de routage personnalisées ? Envoyez le formulaire et nous vous répondrons.",
+  },
+  pt: {
+    pricingHeroTitle: "Preços simples para um gateway API de IA",
+    pricingHeroDescription: "Comece com saldo pré-pago, roteie entre modelos líderes e escale o uso sem comprar pacotes mensais fixos.",
+    modelsEyebrow: "Modelos",
+    modelsDescription: "Veja disponibilidade ao vivo, preços, suporte a endpoints e páginas de detalhes dos modelos.",
+    topUpPlanName: "Recarregar {{price}}",
+    lowestEntryCaption: "Menor entrada para começar",
+    threeXCaption: "3X mais uso que o plano oficial",
+    fortyXCaption: "40X mais uso que o plano oficial",
+    customPlanCaption: "Uso, roteamento e faturamento sob medida",
+    bestFirstTopUpDescription: "Melhor primeira recarga para testar workloads reais de API com desconto claro.",
+    bestValueDescription: "Melhor valor para testes em produção, fluxos de equipe e tráfego contínuo de modelos.",
+    popularBadge: "Mais popular",
+    discount40: "40% de desconto",
+    discount50: "50% de desconto",
+    enterprisePlanName: "Empresarial",
+    customPriceLabel: "Sob medida",
+    enterprisePlanDescription: "Para maior uso mensal, faturamento, compras de equipe ou descontos personalizados de roteamento.",
+    contactPlanCta: "Falar com vendas",
+    highestPrepaidValue: "Maior valor pré-pago",
+    customMonthlyUsage: "Uso mensal personalizado",
+    teamProcurementSupport: "Suporte a compras de equipe",
+    customRoutingDiscounts: "Descontos personalizados de roteamento",
+    enterpriseContactCloseLabel: "Fechar formulário de contato empresarial",
+    enterpriseContactEyebrow: "Equipes empresariais",
+    enterpriseContactTitle: "Falar com vendas",
+    enterpriseContactDescription: "Precisa de maior uso mensal, faturamento, compras de equipe ou descontos personalizados de roteamento? Envie o formulário e entraremos em contato.",
+  },
+  ru: {
+    pricingHeroTitle: "Простые цены для одного AI API gateway",
+    pricingHeroDescription: "Начните с предоплаченного баланса, маршрутизируйте запросы к топ-моделям и масштабируйте использование без фиксированных месячных пакетов.",
+    modelsEyebrow: "Модели",
+    modelsDescription: "Смотрите live-доступность моделей, цены, поддержку endpoints и страницы деталей моделей.",
+    topUpPlanName: "Пополнить на {{price}}",
+    lowestEntryCaption: "Минимальный вход для старта",
+    threeXCaption: "В 3X больше использования, чем официальный план",
+    fortyXCaption: "В 40X больше использования, чем официальный план",
+    customPlanCaption: "Индивидуальное использование, маршрутизация и счета",
+    bestFirstTopUpDescription: "Лучшее первое пополнение для проверки реальных API-нагрузок с понятной скидкой.",
+    bestValueDescription: "Лучшее соотношение цены для production-тестов, командных процессов и стабильного model traffic.",
+    popularBadge: "Самый популярный",
+    discount40: "Скидка 40%",
+    discount50: "Скидка 50%",
+    enterprisePlanName: "Enterprise",
+    customPriceLabel: "Индивидуально",
+    enterprisePlanDescription: "Для большего месячного объема, счетов, закупок командой или индивидуальных routing-скидок.",
+    contactPlanCta: "Связаться с продажами",
+    highestPrepaidValue: "Максимальная ценность предоплаты",
+    customMonthlyUsage: "Индивидуальный месячный объем",
+    teamProcurementSupport: "Поддержка закупок команды",
+    customRoutingDiscounts: "Индивидуальные routing-скидки",
+    enterpriseContactCloseLabel: "Закрыть форму контакта Enterprise",
+    enterpriseContactEyebrow: "Enterprise-команды",
+    enterpriseContactTitle: "Связаться с продажами",
+    enterpriseContactDescription: "Нужен больший месячный объем, счета, командные закупки или индивидуальные routing-скидки? Отправьте форму, и мы свяжемся с вами.",
+  },
+  ja: {
+    pricingHeroTitle: "1つの AI API ゲートウェイのシンプルな料金",
+    pricingHeroDescription: "プリペイド残高から始め、主要モデルへルーティングし、固定月額バンドルなしで利用量を拡張できます。",
+    modelsEyebrow: "モデル",
+    modelsDescription: "ライブのモデル可用性、料金、エンドポイント対応、モデル詳細ページを確認できます。",
+    topUpPlanName: "{{price}} をチャージ",
+    lowestEntryCaption: "最小の開始パッケージ",
+    threeXCaption: "公式プラン比 3X の利用量",
+    fortyXCaption: "公式プラン比 40X の利用量",
+    customPlanCaption: "利用量、ルーティング、請求をカスタム",
+    bestFirstTopUpDescription: "実際の API ワークロードを明確な割引で試す最初のチャージに最適です。",
+    bestValueDescription: "本番テスト、チームワークフロー、継続的なモデル利用に最適な価値です。",
+    popularBadge: "人気",
+    discount40: "40% 割引",
+    discount50: "50% 割引",
+    enterprisePlanName: "エンタープライズ",
+    customPriceLabel: "カスタム",
+    enterprisePlanDescription: "より高い月間利用量、請求書、チーム調達、カスタムルーティング割引向け。",
+    contactPlanCta: "営業に相談",
+    highestPrepaidValue: "最大のプリペイド価値",
+    customMonthlyUsage: "カスタム月間利用量",
+    teamProcurementSupport: "チーム調達サポート",
+    customRoutingDiscounts: "カスタムルーティング割引",
+    enterpriseContactCloseLabel: "エンタープライズ問い合わせフォームを閉じる",
+    enterpriseContactEyebrow: "エンタープライズチーム",
+    enterpriseContactTitle: "営業に相談",
+    enterpriseContactDescription: "より高い月間利用量、請求書、チーム調達、カスタムルーティング割引が必要ですか？フォームを送信いただければご連絡します。",
+  },
+  vi: {
+    pricingHeroTitle: "Bảng giá đơn giản cho một gateway API AI",
+    pricingHeroDescription: "Bắt đầu bằng số dư trả trước, route qua các mô hình hàng đầu và mở rộng usage mà không cần gói tháng cố định.",
+    modelsEyebrow: "Mô hình",
+    modelsDescription: "Xem availability trực tiếp, giá, hỗ trợ endpoint và trang chi tiết mô hình.",
+    topUpPlanName: "Nạp {{price}}",
+    lowestEntryCaption: "Mức thấp nhất để bắt đầu",
+    threeXCaption: "Usage nhiều hơn 3X so với gói chính thức",
+    fortyXCaption: "Usage nhiều hơn 40X so với gói chính thức",
+    customPlanCaption: "Usage, routing và invoice tùy chỉnh",
+    bestFirstTopUpDescription: "Khoản nạp đầu tiên tốt nhất để thử workload API thật với mức giảm giá rõ ràng.",
+    bestValueDescription: "Giá trị tốt nhất cho thử nghiệm production, workflow nhóm và traffic mô hình ổn định.",
+    popularBadge: "Phổ biến nhất",
+    discount40: "Giảm 40%",
+    discount50: "Giảm 50%",
+    enterprisePlanName: "Doanh nghiệp",
+    customPriceLabel: "Tùy chỉnh",
+    enterprisePlanDescription: "Cho usage tháng cao hơn, invoice, procurement nhóm hoặc giảm giá routing tùy chỉnh.",
+    contactPlanCta: "Liên hệ sales",
+    highestPrepaidValue: "Giá trị trả trước cao nhất",
+    customMonthlyUsage: "Usage tháng tùy chỉnh",
+    teamProcurementSupport: "Hỗ trợ procurement nhóm",
+    customRoutingDiscounts: "Giảm giá routing tùy chỉnh",
+    enterpriseContactCloseLabel: "Đóng form liên hệ doanh nghiệp",
+    enterpriseContactEyebrow: "Đội ngũ doanh nghiệp",
+    enterpriseContactTitle: "Liên hệ sales",
+    enterpriseContactDescription: "Cần usage tháng cao hơn, invoice, procurement nhóm hoặc giảm giá routing tùy chỉnh? Gửi form và chúng tôi sẽ phản hồi.",
+  },
+  de: {
+    pricingHeroTitle: "Einfache Preise für ein AI-API-Gateway",
+    pricingHeroDescription: "Starte mit Prepaid-Guthaben, route über Top-Modelle und skaliere Nutzung ohne feste Monatsbundles.",
+    modelsEyebrow: "Modelle",
+    modelsDescription: "Entdecke Live-Verfügbarkeit, Preise, Endpoint-Support und Modell-Detailseiten.",
+    topUpPlanName: "{{price}} aufladen",
+    lowestEntryCaption: "Niedrigster Einstieg zum Start",
+    threeXCaption: "3X mehr Nutzung als der offizielle Plan",
+    fortyXCaption: "40X mehr Nutzung als der offizielle Plan",
+    customPlanCaption: "Individuelle Nutzung, Routing und Rechnungen",
+    bestFirstTopUpDescription: "Beste erste Aufladung zum Testen echter API-Workloads mit klarem Rabatt.",
+    bestValueDescription: "Bester Wert für Produktionstests, Team-Workflows und dauerhaften Modell-Traffic.",
+    popularBadge: "Am beliebtesten",
+    discount40: "40% Rabatt",
+    discount50: "50% Rabatt",
+    enterprisePlanName: "Enterprise",
+    customPriceLabel: "Individuell",
+    enterprisePlanDescription: "Für höhere Monatsnutzung, Rechnungen, Team-Procurement oder individuelle Routing-Rabatte.",
+    contactPlanCta: "Vertrieb kontaktieren",
+    highestPrepaidValue: "Höchster Prepaid-Wert",
+    customMonthlyUsage: "Individuelle Monatsnutzung",
+    teamProcurementSupport: "Support für Team-Procurement",
+    customRoutingDiscounts: "Individuelle Routing-Rabatte",
+    enterpriseContactCloseLabel: "Enterprise-Kontaktformular schließen",
+    enterpriseContactEyebrow: "Enterprise-Teams",
+    enterpriseContactTitle: "Vertrieb kontaktieren",
+    enterpriseContactDescription: "Benötigst du höhere Monatsnutzung, Rechnungen, Team-Procurement oder individuelle Routing-Rabatte? Sende das Formular und wir melden uns.",
+  },
+};
+
 export function getPricingPageCopy(locale: Locale): PricingPageCopy {
-  return PRICING_COPY[locale] ?? PRICING_COPY.en;
+  const baseCopy = PRICING_COPY[locale] ?? PRICING_COPY.en;
+  const uiCopy = PRICING_UI_COPY[locale] ?? PRICING_UI_COPY.en;
+  return { ...baseCopy, ...uiCopy };
 }
 
 function pricingCopy(locale: Locale): PricingPageCopy {
@@ -615,8 +903,8 @@ function formatTopUpPrice(currency: PricingCurrency, index: number): string {
   return `$${amount.toLocaleString("en-US")}`;
 }
 
-function topUpPlanName(currency: PricingCurrency, index: number): string {
-  return `Top up ${formatTopUpPrice(currency, index)}`;
+function topUpPlanName(currency: PricingCurrency, index: number, copy: PricingPageCopy): string {
+  return copy.topUpPlanName.replace("{{price}}", formatTopUpPrice(currency, index));
 }
 
 function localizedTopUpAmount(currency: PricingCurrency, index: number): number {
@@ -661,9 +949,9 @@ export function getPricingPlans(locale: Locale): PricingPlan[] {
   const currency = pricingCurrency(locale);
   return [
     {
-      name: topUpPlanName(currency, 0),
+      name: topUpPlanName(currency, 0, copy),
       price: formatTopUpPrice(currency, 0),
-      caption: "Lowest entry to get started",
+      caption: copy.lowestEntryCaption,
       description: copy.selfServeDescription,
       cta: copy.getFreeApiKey,
       featured: false,
@@ -671,37 +959,37 @@ export function getPricingPlans(locale: Locale): PricingPlan[] {
       features: [copy.trustSignals[0], copy.packageBullets[3], copy.packageBullets[4], copy.packageBullets[5]],
     },
     {
-      name: topUpPlanName(currency, 1),
+      name: topUpPlanName(currency, 1, copy),
       price: formatTopUpPrice(currency, 1),
-      caption: "3X more usage than the official plan",
-      description: "Best first top-up for trying real API workloads with a clear discount.",
+      caption: copy.threeXCaption,
+      description: copy.bestFirstTopUpDescription,
       cta: copy.getFreeApiKey,
-      badge: "Most Popular",
-      discount: "40% OFF",
+      badge: copy.popularBadge,
+      discount: copy.discount40,
       featured: true,
       ...checkoutPlanFields(currency, 1),
       features: [copy.packageBullets[2], copy.trustSignals[1], copy.trustSignals[2], copy.trustSignals[3]],
     },
     {
-      name: topUpPlanName(currency, 2),
+      name: topUpPlanName(currency, 2, copy),
       price: formatTopUpPrice(currency, 2),
-      caption: "40X more usage than the official plan",
-      description: "Best value for production testing, team workflows, and sustained model traffic.",
+      caption: copy.fortyXCaption,
+      description: copy.bestValueDescription,
       cta: copy.getFreeApiKey,
-      discount: "50% OFF",
+      discount: copy.discount50,
       featured: false,
       ...checkoutPlanFields(currency, 2),
-      features: ["Highest prepaid value", copy.trustSignals[1], copy.trustSignals[2], copy.trustSignals[3]],
+      features: [copy.highestPrepaidValue, copy.trustSignals[1], copy.trustSignals[2], copy.trustSignals[3]],
     },
     {
-      name: "Enterprise",
-      price: "Custom",
-      caption: "Custom usage, routing, and invoicing",
-      description: "For higher monthly usage, invoicing, team procurement, or custom routing discounts.",
-      cta: "Contact Us",
+      name: copy.enterprisePlanName,
+      price: copy.customPriceLabel,
+      caption: copy.customPlanCaption,
+      description: copy.enterprisePlanDescription,
+      cta: copy.contactPlanCta,
       featured: false,
       action: "contact",
-      features: ["Custom monthly usage", "Team procurement support", "Custom routing discounts", copy.trustSignals[3]],
+      features: [copy.customMonthlyUsage, copy.teamProcurementSupport, copy.customRoutingDiscounts, copy.trustSignals[3]],
     },
   ];
 }
@@ -730,14 +1018,23 @@ export async function PricingPage(props: PricingPageProps) {
               {copy.plansEyebrow}
             </p>
             <h1 className="text-[clamp(2.5rem,6vw,4.75rem)] leading-[0.98] font-black tracking-tight text-slate-950 dark:text-white">
-              Simple pricing for one AI API gateway
+              {copy.pricingHeroTitle}
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">
-              Start with prepaid balance, route across top models, and scale usage without buying fixed monthly bundles.
+              {copy.pricingHeroDescription}
             </p>
           </header>
 
-          <PricingPlansGrid plans={plans} locale={props.locale} />
+          <PricingPlansGrid
+            plans={plans}
+            locale={props.locale}
+            contactCopy={{
+              closeLabel: copy.enterpriseContactCloseLabel,
+              eyebrow: copy.enterpriseContactEyebrow,
+              title: copy.enterpriseContactTitle,
+              description: copy.enterpriseContactDescription,
+            }}
+          />
 
           <section className="mt-8 overflow-hidden rounded-2xl border border-violet-500/14 bg-white/72 p-5 shadow-[0_24px_80px_-58px_rgba(91,33,182,0.68)] dark:border-white/10 dark:bg-white/[0.055] dark:shadow-[0_24px_80px_-58px_rgba(124,58,237,0.95)] sm:p-6">
             <div className="grid gap-5 lg:grid-cols-[0.92fr_1.08fr] lg:items-stretch">
@@ -848,13 +1145,13 @@ export async function ModelsPage(props: PricingPageProps) {
           <header className="mx-auto mb-6 max-w-3xl pt-5 text-center sm:mb-10 sm:pt-10">
             <p className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full border border-violet-400/35 bg-violet-500/10 px-4 py-1.5 text-xs font-semibold tracking-[0.18em] text-violet-700 uppercase shadow-[0_0_28px_rgba(168,85,247,0.14)] dark:border-violet-300/25 dark:bg-violet-300/10 dark:text-violet-200">
               <span className="size-1.5 rounded-full bg-violet-500 shadow-[0_0_12px_rgba(168,85,247,0.9)] dark:bg-violet-300" />
-              Models
+              {copy.modelsEyebrow}
             </p>
             <h1 className="bg-[linear-gradient(90deg,#171321_0%,#7c3aed_46%,#2563eb_100%)] bg-clip-text text-[clamp(2.6rem,7vw,5rem)] leading-[0.98] font-black tracking-tight text-transparent dark:bg-[linear-gradient(90deg,#ffffff_0%,#c4b5fd_48%,#93c5fd_100%)] dark:bg-clip-text">
               {copy.modelsDirectory}
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-300 sm:text-base">
-              Discover live model availability, pricing, endpoint support, and model detail pages.
+              {copy.modelsDescription}
             </p>
           </header>
 

@@ -13,22 +13,24 @@ import (
 )
 
 type TopUp struct {
-	Id              int     `json:"id"`
-	UserId          int     `json:"user_id" gorm:"index"`
-	Amount          int64   `json:"amount"`
-	BonusAmount     int64   `json:"bonus_amount" gorm:"default:0"`
-	BonusTier       int     `json:"bonus_tier" gorm:"default:0"` // 原始充值档位金额，回调侧反查 AmountBonusLimit
-	Money           float64 `json:"money"`
-	PaymentCurrency string  `json:"payment_currency" gorm:"type:varchar(10);default:''"`
-	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	GatewayTradeNo  string  `json:"gateway_trade_no" gorm:"type:varchar(255);index"`
-	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
-	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
-	GAClientID      string  `json:"ga_client_id,omitempty" gorm:"type:varchar(128);default:''"`
-	GASessionID     string  `json:"ga_session_id,omitempty" gorm:"type:varchar(128);default:''"`
-	CreateTime      int64   `json:"create_time"`
-	CompleteTime    int64   `json:"complete_time"`
-	Status          string  `json:"status"`
+	Id                 int     `json:"id"`
+	UserId             int     `json:"user_id" gorm:"index"`
+	Amount             int64   `json:"amount"`
+	BonusAmount        int64   `json:"bonus_amount" gorm:"default:0"`
+	BonusTier          int     `json:"bonus_tier" gorm:"default:0"` // 原始充值档位金额，回调侧反查 AmountBonusLimit
+	Money              float64 `json:"money"`
+	PaymentCurrency    string  `json:"payment_currency" gorm:"type:varchar(10);default:''"`
+	PaymentPriceId     string  `json:"payment_price_id" gorm:"type:varchar(255);default:''"`
+	PaymentAmountMinor int64   `json:"payment_amount_minor" gorm:"default:0"`
+	TradeNo            string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	GatewayTradeNo     string  `json:"gateway_trade_no" gorm:"type:varchar(255);index"`
+	PaymentMethod      string  `json:"payment_method" gorm:"type:varchar(50)"`
+	PaymentProvider    string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	GAClientID         string  `json:"ga_client_id,omitempty" gorm:"type:varchar(128);default:''"`
+	GASessionID        string  `json:"ga_session_id,omitempty" gorm:"type:varchar(128);default:''"`
+	CreateTime         int64   `json:"create_time"`
+	CompleteTime       int64   `json:"complete_time"`
+	Status             string  `json:"status"`
 	// SaveCard records that this top-up's Checkout was created with setup_future_usage
 	// (onboarding promo flow), so the webhook should mark the user card-bound on fulfillment.
 	// This is persisted because Stripe payment-mode sessions don't expose setup_intent on the

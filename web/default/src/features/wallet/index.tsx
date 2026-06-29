@@ -66,8 +66,10 @@ import {
   getInitialPresetTopupAmount,
   getMinTopupAmount,
   getPaddleCheckoutUrlFallback,
+  getWalletCheckoutInitialTopupAmount,
   isPresetTopupAmount,
   isWaffoPancakePayment,
+  type WalletCheckoutSearch,
 } from './lib'
 import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
 import type {
@@ -82,6 +84,7 @@ interface WalletProps {
   initialShowHistory?: boolean
   initialPaddleOrderId?: string
   initialPaddleTransactionId?: string
+  initialCheckoutSearch?: WalletCheckoutSearch
   cardJustBound?: boolean
 }
 
@@ -98,6 +101,43 @@ type PaddleStatusPollParams = {
 
 const PADDLE_STATUS_POLL_INTERVAL_MS = 2000
 const PADDLE_STATUS_POLL_ATTEMPTS = 15
+const WALLET_CHECKOUT_SEARCH_PARAMS = [
+  'amount',
+  'currency',
+  'amount_minor',
+  'stripe_lookup_key',
+] as const
+
+function hasWalletCheckoutSearch(
+  checkoutSearch: WalletCheckoutSearch | undefined
+): boolean {
+  return Boolean(
+    checkoutSearch?.amount ||
+      checkoutSearch?.currency ||
+      checkoutSearch?.amountMinor ||
+      checkoutSearch?.stripeLookupKey
+  )
+}
+
+function consumeWalletCheckoutSearchParams(): void {
+  const url = new URL(window.location.href)
+  let changed = false
+
+  WALLET_CHECKOUT_SEARCH_PARAMS.forEach((param) => {
+    if (url.searchParams.has(param)) {
+      url.searchParams.delete(param)
+      changed = true
+    }
+  })
+
+  if (changed) {
+    window.history.replaceState(
+      {},
+      '',
+      `${url.pathname}${url.search}${url.hash}`
+    )
+  }
+}
 
 function waitForPaddleStatusPollInterval(): Promise<void> {
   return new Promise((resolve) => {
@@ -129,6 +169,7 @@ export function Wallet(props: WalletProps) {
   const handledPaddleTransactionRef = useRef<string | null>(null)
   const paddleCheckoutCompletedRef = useRef(false)
   const cardBoundHandledRef = useRef(false)
+  const appliedCheckoutSearchRef = useRef(false)
   const [cardBoundDialogOpen, setCardBoundDialogOpen] = useState(false)
 
   const { currency } = useSystemConfig()
@@ -554,13 +595,38 @@ export function Wallet(props: WalletProps) {
 
   // Initialize topup amount when topup info is loaded
   useEffect(() => {
-    if (!topupInfo) return
+    if (!topupInfo || topupLoading) return
+
+    const paymentType =
+      selectedPaymentMethod?.type || getDefaultPaymentType(topupInfo)
+
+    if (!appliedCheckoutSearchRef.current) {
+      const hasCheckoutSearch = hasWalletCheckoutSearch(
+        props.initialCheckoutSearch
+      )
+      const checkoutInitialAmount = getWalletCheckoutInitialTopupAmount(
+        props.initialCheckoutSearch,
+        presetAmounts
+      )
+      appliedCheckoutSearchRef.current = true
+
+      if (hasCheckoutSearch) {
+        consumeWalletCheckoutSearchParams()
+      }
+
+      if (checkoutInitialAmount > 0) {
+        const timeoutId = window.setTimeout(() => {
+          setTopupAmount(checkoutInitialAmount)
+          setSelectedPreset(checkoutInitialAmount)
+          calculatePaymentAmount(checkoutInitialAmount, paymentType)
+        }, 0)
+        return () => window.clearTimeout(timeoutId)
+      }
+    }
 
     if (!isPresetTopupAmount(topupAmount, presetAmounts)) {
       const initialAmount = getInitialPresetTopupAmount(presetAmounts)
       if (initialAmount <= 0) return
-      const paymentType =
-        selectedPaymentMethod?.type || getDefaultPaymentType(topupInfo)
 
       const timeoutId = window.setTimeout(() => {
         setTopupAmount(initialAmount)
@@ -571,10 +637,12 @@ export function Wallet(props: WalletProps) {
     }
   }, [
     topupInfo,
+    topupLoading,
     topupAmount,
     presetAmounts,
     selectedPaymentMethod?.type,
     calculatePaymentAmount,
+    props.initialCheckoutSearch,
   ])
 
   // Get current payment type (selected or default)

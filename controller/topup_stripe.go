@@ -72,10 +72,20 @@ type stripeTopUpCheckout struct {
 	Quantity        int64
 	Money           float64
 	PaymentCurrency string
+	AmountMinor     int64
 }
 
 type stripeTopUpCurrencyPackage struct {
 	PriceId string
+}
+
+type stripeCheckoutPaymentContract struct {
+	SessionId           string
+	PriceId             string
+	Quantity            int64
+	AmountSubtotalMinor int64
+	AmountTotalMinor    int64
+	Currency            string
 }
 
 func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, group string) (*stripeTopUpCheckout, error) {
@@ -104,9 +114,11 @@ func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, g
 	}
 
 	return &stripeTopUpCheckout{
-		PriceId:  strings.TrimSpace(pkg.PriceId),
-		Quantity: stripeTopUpLineQuantity,
-		Money:    float64(normalizedAmount),
+		PriceId:         strings.TrimSpace(pkg.PriceId),
+		Quantity:        stripeTopUpLineQuantity,
+		Money:           float64(normalizedAmount),
+		PaymentCurrency: requestedCurrency,
+		AmountMinor:     stripeTopUpAmountMinor(requestedCurrency, normalizedAmount),
 	}, nil
 }
 
@@ -145,19 +157,44 @@ func ensureStripePriceSupportsCurrency(priceId string, requestedCurrency string)
 }
 
 func stripePriceSupportsCurrency(price *stripe.Price, requestedCurrency string) bool {
+	_, ok := stripePriceAmountMinorForCurrency(price, requestedCurrency)
+	return ok
+}
+
+func stripePriceAmountMinorForCurrency(price *stripe.Price, requestedCurrency string) (int64, bool) {
 	normalizedCurrency := strings.ToLower(strings.TrimSpace(requestedCurrency))
 	if price == nil || normalizedCurrency == "" {
-		return false
+		return 0, false
 	}
 	if strings.ToLower(string(price.Currency)) == normalizedCurrency {
-		return true
+		return price.UnitAmount, true
 	}
 	for currency := range price.CurrencyOptions {
 		if strings.ToLower(strings.TrimSpace(currency)) == normalizedCurrency {
-			return true
+			return price.CurrencyOptions[currency].UnitAmount, true
 		}
 	}
-	return false
+	return 0, false
+}
+
+func stripeTopUpAmountMinor(currency string, packageAmount int64) int64 {
+	switch strings.ToUpper(strings.TrimSpace(currency)) {
+	case "JPY":
+		return packageAmount * 150
+	case "BRL":
+		switch packageAmount {
+		case 10:
+			return 4990
+		case 20:
+			return 9990
+		case 200:
+			return 99000
+		default:
+			return 0
+		}
+	default:
+		return packageAmount * 100
+	}
 }
 
 func stripeTopUpPackageFor(amount int64) (stripeTopUpCurrencyPackage, bool) {
@@ -293,20 +330,22 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	referenceId := "ref_" + common.Sha1([]byte(reference))
 
 	topUp := &model.TopUp{
-		UserId:          id,
-		Amount:          normalizedAmount,
-		BonusAmount:     bonusAmount,
-		BonusTier:       int(req.Amount),
-		Money:           checkout.Money,
-		TradeNo:         referenceId,
-		PaymentMethod:   model.PaymentMethodStripe,
-		PaymentProvider: model.PaymentProviderStripe,
-		PaymentCurrency: checkout.PaymentCurrency,
-		GAClientID:      service.NormalizeGAIdentifier(req.GAClientID),
-		GASessionID:     service.NormalizeGAIdentifier(req.GASessionID),
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
-		SaveCard:        req.SaveCard,
+		UserId:             id,
+		Amount:             normalizedAmount,
+		BonusAmount:        bonusAmount,
+		BonusTier:          int(req.Amount),
+		Money:              checkout.Money,
+		TradeNo:            referenceId,
+		PaymentMethod:      model.PaymentMethodStripe,
+		PaymentProvider:    model.PaymentProviderStripe,
+		PaymentCurrency:    checkout.PaymentCurrency,
+		PaymentPriceId:     checkout.PriceId,
+		PaymentAmountMinor: checkout.AmountMinor,
+		GAClientID:         service.NormalizeGAIdentifier(req.GAClientID),
+		GASessionID:        service.NormalizeGAIdentifier(req.GASessionID),
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+		SaveCard:           req.SaveCard,
 	}
 	err = topUp.Insert()
 	if err != nil {
@@ -699,6 +738,11 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		return
 	}
 
+	if err := validateStripeTopUpPaymentContract(event, referenceId); err != nil {
+		logger.LogError(ctx, fmt.Sprintf("Stripe 鍏呭€煎叆璐︽牎楠屽け璐?trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))
+		return
+	}
+
 	recharged, err := model.RechargeWithPaymentSnapshot(referenceId, customerId, callerIp, stripePaymentSnapshotFromEvent(event))
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Stripe 充值处理失败 trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))
@@ -717,6 +761,98 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 	syncStripePaymentInvoice(ctx, event, referenceId, customerId)
 	snapshot := stripePaymentSnapshotFromEvent(event)
 	logger.LogInfo(ctx, fmt.Sprintf("Stripe 充值成功 trade_no=%s amount_total=%.2f currency=%s event_type=%s client_ip=%s", referenceId, snapshot.Money, snapshot.Currency, string(event.Type), callerIp))
+}
+
+var stripeCheckoutPaymentContractFromEvent = getStripeCheckoutPaymentContractFromEvent
+
+func validateStripeTopUpPaymentContract(event stripe.Event, referenceId string) error {
+	topUp := model.GetTopUpByTradeNo(referenceId)
+	if topUp == nil {
+		return model.ErrTopUpNotFound
+	}
+	if topUp.PaymentProvider != model.PaymentProviderStripe {
+		return model.ErrPaymentMethodMismatch
+	}
+	if topUp.Status == common.TopUpStatusSuccess {
+		return nil
+	}
+	if topUp.Status != common.TopUpStatusPending {
+		return model.ErrTopUpStatusInvalid
+	}
+
+	expectedPriceId := strings.TrimSpace(topUp.PaymentPriceId)
+	expectedCurrency := strings.ToUpper(strings.TrimSpace(topUp.PaymentCurrency))
+	if expectedPriceId == "" || expectedCurrency == "" || topUp.PaymentAmountMinor <= 0 {
+		return errors.New("Stripe top-up expected payment contract is missing")
+	}
+
+	actual, err := stripeCheckoutPaymentContractFromEvent(event)
+	if err != nil {
+		return err
+	}
+
+	expectedSessionId := strings.TrimSpace(topUp.GatewayTradeNo)
+	if actual.SessionId != "" && expectedSessionId != "" && actual.SessionId != expectedSessionId {
+		return fmt.Errorf("Stripe checkout session mismatch: expected %s got %s", expectedSessionId, actual.SessionId)
+	}
+	if actual.PriceId != expectedPriceId {
+		return fmt.Errorf("Stripe checkout price mismatch: expected %s got %s", expectedPriceId, actual.PriceId)
+	}
+	if actual.Quantity != stripeTopUpLineQuantity {
+		return fmt.Errorf("Stripe checkout quantity mismatch: expected %d got %d", stripeTopUpLineQuantity, actual.Quantity)
+	}
+	if actual.AmountSubtotalMinor != topUp.PaymentAmountMinor {
+		return fmt.Errorf("Stripe checkout amount mismatch: expected %d got %d", topUp.PaymentAmountMinor, actual.AmountSubtotalMinor)
+	}
+	if strings.ToUpper(strings.TrimSpace(actual.Currency)) != expectedCurrency {
+		return fmt.Errorf("Stripe checkout currency mismatch: expected %s got %s", expectedCurrency, actual.Currency)
+	}
+	return nil
+}
+
+func getStripeCheckoutPaymentContractFromEvent(event stripe.Event) (stripeCheckoutPaymentContract, error) {
+	sessionId := strings.TrimSpace(event.GetObjectValue("id"))
+	if sessionId == "" {
+		return stripeCheckoutPaymentContract{}, errors.New("Stripe checkout session id is missing")
+	}
+	if err := ensureStripeKey(); err != nil {
+		return stripeCheckoutPaymentContract{}, err
+	}
+
+	params := &stripe.CheckoutSessionListLineItemsParams{
+		Session: stripe.String(sessionId),
+	}
+	params.AddExpand("data.price")
+	iter := session.ListLineItems(params)
+
+	var contract stripeCheckoutPaymentContract
+	for iter.Next() {
+		item := iter.LineItem()
+		if item == nil {
+			continue
+		}
+		if contract.PriceId != "" {
+			return stripeCheckoutPaymentContract{}, errors.New("Stripe checkout contains multiple line items")
+		}
+		if item.Price == nil || strings.TrimSpace(item.Price.ID) == "" {
+			return stripeCheckoutPaymentContract{}, errors.New("Stripe checkout line item price is missing")
+		}
+		contract = stripeCheckoutPaymentContract{
+			SessionId:           sessionId,
+			PriceId:             strings.TrimSpace(item.Price.ID),
+			Quantity:            item.Quantity,
+			AmountSubtotalMinor: item.AmountSubtotal,
+			AmountTotalMinor:    item.AmountTotal,
+			Currency:            strings.ToUpper(string(item.Currency)),
+		}
+	}
+	if err := iter.Err(); err != nil {
+		return stripeCheckoutPaymentContract{}, err
+	}
+	if contract.PriceId == "" {
+		return stripeCheckoutPaymentContract{}, errors.New("Stripe checkout line item is missing")
+	}
+	return contract, nil
 }
 
 func stripePaymentSnapshotFromEvent(event stripe.Event) model.PaymentSnapshot {

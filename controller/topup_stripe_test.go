@@ -1,10 +1,12 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -12,8 +14,11 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v81"
+	"gorm.io/gorm"
 )
 
 func TestNormalizeStripeTopUpAmountUsesDisplayTokens(t *testing.T) {
@@ -123,8 +128,8 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 		paymentSetting.AmountOptions = originalAmountOptions
 		ensureStripePriceSupportsCheckoutCurrency = originalEnsure
 	})
-	setting.StripeTopUpPriceIds = `{"10":"price_multi_currency_10","20":"price_multi_currency_20","50":"price_multi_currency_50"}`
-	paymentSetting.AmountOptions = []int{10, 20, 50}
+	setting.StripeTopUpPriceIds = `{"10":"price_multi_currency_10","20":"price_multi_currency_20","200":"price_multi_currency_200"}`
+	paymentSetting.AmountOptions = []int{10, 20, 200}
 	checkedCurrencies := map[string]string{}
 	ensureStripePriceSupportsCheckoutCurrency = func(priceId string, requestedCurrency string) error {
 		checkedCurrencies[priceId] = requestedCurrency
@@ -139,7 +144,8 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 	require.Equal(t, "price_multi_currency_10", checkout.PriceId)
 	require.Equal(t, "JPY", checkedCurrencies["price_multi_currency_10"])
 	require.Equal(t, int64(1), checkout.Quantity)
-	require.Empty(t, checkout.PaymentCurrency)
+	require.Equal(t, "JPY", checkout.PaymentCurrency)
+	require.Equal(t, int64(1500), checkout.AmountMinor)
 	require.Equal(t, 10.0, checkout.Money)
 
 	checkout, err = resolveStripeTopUpCheckout(&StripePayRequest{
@@ -150,30 +156,33 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 	require.Equal(t, "price_multi_currency_20", checkout.PriceId)
 	require.Equal(t, "JPY", checkedCurrencies["price_multi_currency_20"])
 	require.Equal(t, int64(1), checkout.Quantity)
-	require.Empty(t, checkout.PaymentCurrency)
+	require.Equal(t, "JPY", checkout.PaymentCurrency)
+	require.Equal(t, int64(3000), checkout.AmountMinor)
 	require.Equal(t, 20.0, checkout.Money)
 
 	checkout, err = resolveStripeTopUpCheckout(&StripePayRequest{
-		Amount:         50,
+		Amount:         200,
 		StripeCurrency: "USD",
-	}, 50, "default")
+	}, 200, "default")
 	require.NoError(t, err)
-	require.Equal(t, "price_multi_currency_50", checkout.PriceId)
-	require.Equal(t, "USD", checkedCurrencies["price_multi_currency_50"])
+	require.Equal(t, "price_multi_currency_200", checkout.PriceId)
+	require.Equal(t, "USD", checkedCurrencies["price_multi_currency_200"])
 	require.Equal(t, int64(1), checkout.Quantity)
-	require.Empty(t, checkout.PaymentCurrency)
-	require.Equal(t, 50.0, checkout.Money)
+	require.Equal(t, "USD", checkout.PaymentCurrency)
+	require.Equal(t, int64(20000), checkout.AmountMinor)
+	require.Equal(t, 200.0, checkout.Money)
 
 	checkout, err = resolveStripeTopUpCheckout(&StripePayRequest{
-		Amount:         50,
+		Amount:         200,
 		StripeCurrency: "BRL",
-	}, 50, "default")
+	}, 200, "default")
 	require.NoError(t, err)
-	require.Equal(t, "price_multi_currency_50", checkout.PriceId)
-	require.Equal(t, "BRL", checkedCurrencies["price_multi_currency_50"])
+	require.Equal(t, "price_multi_currency_200", checkout.PriceId)
+	require.Equal(t, "BRL", checkedCurrencies["price_multi_currency_200"])
 	require.Equal(t, int64(1), checkout.Quantity)
-	require.Empty(t, checkout.PaymentCurrency)
-	require.Equal(t, 50.0, checkout.Money)
+	require.Equal(t, "BRL", checkout.PaymentCurrency)
+	require.Equal(t, int64(99000), checkout.AmountMinor)
+	require.Equal(t, 200.0, checkout.Money)
 }
 
 func TestResolveStripeTopUpCheckoutRejectsMissingCurrency(t *testing.T) {
@@ -224,6 +233,32 @@ func TestStripePriceSupportsCurrency(t *testing.T) {
 	require.True(t, stripePriceSupportsCurrency(price, "BRL"))
 	require.False(t, stripePriceSupportsCurrency(price, "EUR"))
 	require.False(t, stripePriceSupportsCurrency(nil, "USD"))
+}
+
+func TestStripePriceAmountMinorForCurrency(t *testing.T) {
+	price := &stripe.Price{
+		Currency:   stripe.CurrencyUSD,
+		UnitAmount: 1000,
+		CurrencyOptions: map[string]*stripe.PriceCurrencyOptions{
+			"jpy": {UnitAmount: 1500},
+			"brl": {UnitAmount: 4990},
+		},
+	}
+
+	amount, ok := stripePriceAmountMinorForCurrency(price, "USD")
+	require.True(t, ok)
+	require.Equal(t, int64(1000), amount)
+
+	amount, ok = stripePriceAmountMinorForCurrency(price, "jpy")
+	require.True(t, ok)
+	require.Equal(t, int64(1500), amount)
+
+	amount, ok = stripePriceAmountMinorForCurrency(price, "BRL")
+	require.True(t, ok)
+	require.Equal(t, int64(4990), amount)
+
+	_, ok = stripePriceAmountMinorForCurrency(price, "EUR")
+	require.False(t, ok)
 }
 
 func TestResolveStripeTopUpCheckoutRejectsUnsupportedCurrencyPackage(t *testing.T) {
@@ -319,6 +354,93 @@ func TestStripePaymentSnapshotFromEventRequiresAmountAndCurrency(t *testing.T) {
 	} {
 		require.Equal(t, model.PaymentSnapshot{}, stripePaymentSnapshotFromEvent(event))
 	}
+}
+
+func TestFulfillOrderRejectsMismatchedStripePaymentContract(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent
+	t.Cleanup(func() {
+		stripeCheckoutPaymentContractFromEvent = originalContractFromEvent
+	})
+
+	insertStripeFulfillmentUser(t, 901)
+	topUp := &model.TopUp{
+		UserId:             901,
+		Amount:             200,
+		Money:              200,
+		PaymentCurrency:    "USD",
+		PaymentPriceId:     "price_200",
+		PaymentAmountMinor: 20000,
+		TradeNo:            "ref_stripe_contract_mismatch",
+		GatewayTradeNo:     "cs_contract_mismatch",
+		PaymentMethod:      model.PaymentMethodStripe,
+		PaymentProvider:    model.PaymentProviderStripe,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+	}
+	require.NoError(t, topUp.Insert())
+	stripeCheckoutPaymentContractFromEvent = func(event stripe.Event) (stripeCheckoutPaymentContract, error) {
+		return stripeCheckoutPaymentContract{
+			SessionId:           "cs_contract_mismatch",
+			PriceId:             "price_10",
+			Quantity:            1,
+			AmountSubtotalMinor: 1000,
+			AmountTotalMinor:    1000,
+			Currency:            "USD",
+		}, nil
+	}
+
+	event := stripe.Event{Data: &stripe.EventData{Object: map[string]interface{}{
+		"id":                  "cs_contract_mismatch",
+		"amount_total":        float64(1000),
+		"currency":            "usd",
+		"client_reference_id": "ref_stripe_contract_mismatch",
+	}}}
+	fulfillOrder(context.Background(), event, "ref_stripe_contract_mismatch", "cus_contract", "127.0.0.1")
+
+	reloaded := model.GetTopUpByTradeNo("ref_stripe_contract_mismatch")
+	require.NotNil(t, reloaded)
+	assert.Equal(t, common.TopUpStatusPending, reloaded.Status)
+	assert.Equal(t, 0, stripeFulfillmentUserQuota(t, 901))
+}
+
+func setupStripeFulfillmentTestDB(t *testing.T) {
+	t.Helper()
+	originalDB := model.DB
+	originalLogDB := model.LOG_DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	model.DB = db
+	model.LOG_DB = db
+	t.Cleanup(func() {
+		model.DB = originalDB
+		model.LOG_DB = originalLogDB
+	})
+	require.NoError(t, db.AutoMigrate(
+		&model.User{},
+		&model.TopUp{},
+		&model.TopUpBonusClaim{},
+		&model.SubscriptionPlan{},
+		&model.SubscriptionOrder{},
+		&model.UserSubscription{},
+	))
+}
+
+func insertStripeFulfillmentUser(t *testing.T, id int) {
+	t.Helper()
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       id,
+		Username: "stripe_contract_guard",
+		Status:   common.UserStatusEnabled,
+		Quota:    0,
+	}).Error)
+}
+
+func stripeFulfillmentUserQuota(t *testing.T, id int) int {
+	t.Helper()
+	var user model.User
+	require.NoError(t, model.DB.Select("quota").Where("id = ?", id).First(&user).Error)
+	return user.Quota
 }
 
 func TestValidateStripeRedirectURLAllowsSameRequestHost(t *testing.T) {

@@ -1,9 +1,10 @@
 package setting
 
 import (
-	"encoding/json"
 	"strconv"
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 var StripeApiSecret = ""
@@ -40,7 +41,7 @@ func StripeTopUpPriceIDForAmount(amount int64) string {
 func parseStripeTopUpPriceIds(raw string) map[int64]string {
 	result := map[int64]string{}
 	var parsed map[string]string
-	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &parsed); err != nil {
+	if err := common.UnmarshalJsonStr(strings.TrimSpace(raw), &parsed); err != nil {
 		return result
 	}
 	for key, value := range parsed {

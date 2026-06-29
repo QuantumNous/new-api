@@ -360,6 +360,52 @@ export function shouldRequireConfiguredTopupPackages(
   )
 }
 
+export type WalletCheckoutSearch = {
+  amount?: string
+  currency?: string
+  amountMinor?: string
+  stripeLookupKey?: string
+}
+
+const SUPPORTED_WALLET_CHECKOUT_CURRENCIES = new Set(['USD', 'JPY', 'BRL'])
+
+function normalizedCheckoutSearchField(
+  raw: Record<string, unknown> | undefined,
+  key: string
+): string | undefined {
+  const value = raw?.[key]
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value)
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim()
+  }
+  return undefined
+}
+
+export function normalizeWalletCheckoutSearch(
+  raw: Record<string, unknown> | undefined
+): WalletCheckoutSearch | undefined {
+  const amount = normalizedCheckoutSearchField(raw, 'amount')
+  const currency = normalizedCheckoutSearchField(raw, 'currency')?.toUpperCase()
+  const amountMinor = normalizedCheckoutSearchField(raw, 'amount_minor')
+  const stripeLookupKey = normalizedCheckoutSearchField(
+    raw,
+    'stripe_lookup_key'
+  )?.toLowerCase()
+
+  if (!amount && !currency && !amountMinor && !stripeLookupKey) {
+    return undefined
+  }
+
+  return {
+    amount,
+    currency,
+    amountMinor,
+    stripeLookupKey,
+  }
+}
+
 /**
  * Generate preset amounts based on minimum topup
  */
@@ -443,6 +489,41 @@ export function getInitialPresetTopupAmount(
     (preset) => Number.isFinite(preset.value) && preset.value > 0
   )
   return firstPreset?.value ?? 0
+}
+
+export function getWalletCheckoutInitialTopupAmount(
+  checkoutSearch: WalletCheckoutSearch | undefined,
+  presetAmounts: PresetAmount[]
+): number {
+  if (!checkoutSearch) {
+    return 0
+  }
+
+  const amount = Number(checkoutSearch.amount)
+  const currency = checkoutSearch.currency?.toUpperCase()
+  const amountMinor = Number(checkoutSearch.amountMinor)
+  const stripeLookupKey = checkoutSearch.stripeLookupKey?.toLowerCase()
+
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return 0
+  }
+  if (!currency || !SUPPORTED_WALLET_CHECKOUT_CURRENCIES.has(currency)) {
+    return 0
+  }
+  if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
+    return 0
+  }
+  if (!stripeLookupKey) {
+    return 0
+  }
+  if (stripeLookupKey !== `topup-${currency.toLowerCase()}-${amountMinor}`) {
+    return 0
+  }
+  if (!isPresetTopupAmount(amount, presetAmounts)) {
+    return 0
+  }
+
+  return amount
 }
 
 export function isPresetTopupAmount(

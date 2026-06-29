@@ -41,6 +41,23 @@ describe("pricing page conversion copy", () => {
     expect(plans[3]?.cta).toBe("Contact Us");
   });
 
+  test("localizes newly added pricing plan and model page copy", () => {
+    const copy = getPricingPageCopy("pt");
+    const plans = getPricingPlans("pt");
+
+    expect(copy.pricingHeroTitle).not.toBe("Simple pricing for one AI API gateway");
+    expect(copy.pricingHeroDescription).not.toBe(
+      "Start with prepaid balance, route across top models, and scale usage without buying fixed monthly bundles."
+    );
+    expect(copy.modelsEyebrow).not.toBe("Models");
+    expect(copy.modelsDescription).not.toBe(
+      "Discover live model availability, pricing, endpoint support, and model detail pages."
+    );
+    expect(plans[1]?.badge).not.toBe("Most Popular");
+    expect(plans[3]?.cta).not.toBe("Contact Us");
+    expect(plans[3]?.name).toBe(copy.enterprisePlanName);
+  });
+
   test("adds stable checkout metadata to self-serve plans", () => {
     const plans = getPricingPlans("pt").slice(0, 3);
 
@@ -60,9 +77,9 @@ describe("pricing page conversion copy", () => {
     const ptPlans = getPricingPlans("pt").slice(0, 3);
     const jaPlans = getPricingPlans("ja").slice(0, 3);
 
-    expect(ptPlans.map((plan) => plan.name)).toEqual(["Top up R$49.90", "Top up R$99.90", "Top up R$990"]);
+    expect(ptPlans.map((plan) => plan.name)).toEqual(["Recarregar R$49.90", "Recarregar R$99.90", "Recarregar R$990"]);
     expect(ptPlans.map((plan) => plan.price)).toEqual(["R$49.90", "R$99.90", "R$990"]);
-    expect(jaPlans.map((plan) => plan.name)).toEqual(["Top up ¥1,500", "Top up ¥3,000", "Top up ¥30,000"]);
+    expect(jaPlans.map((plan) => plan.name)).toEqual(["¥1,500 をチャージ", "¥3,000 をチャージ", "¥30,000 をチャージ"]);
     expect(jaPlans.map((plan) => plan.price)).toEqual(["¥1,500", "¥3,000", "¥30,000"]);
   });
 
