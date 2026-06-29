@@ -78,7 +78,7 @@ No module may be marked Sprint Ready unless:
 | Rate limit vs quota | Business quota may be compensated; rate-limit buckets, concurrency tokens, and abuse counters are never refunded | Aligned | SRE + Security + Backend | Security, WBS, Compliance |
 | Error codes | Stable `SKILL_*` codes plus `AUTH_REQUIRED` | Aligned | Backend + Frontend | FRD, Data/API, UX |
 | Block reasons | Lowercase enum in data model; API exposes stable error code | Aligned with implementation note | Backend + Data | FRD, Data/API |
-| Entry points | `marketplace_card`, `skill_detail`, `my_skills`, `saved_list`, `featured`, `popular`, `new`, `recommended`, `admin_preview`, `search_results`, `skill_package`, `playground_picker` legacy-only | Aligned | Data + Frontend | Data/API, Analytics, UX |
+| Entry points | `marketplace_card`, `skill_detail`, `my_skills`, `saved_list`, `featured`, `popular`, `new`, `new_week`, `trending`, `recommended`, `reco_personal`, `reco_codownload`, `leaderboard_weekly`, `leaderboard_monthly`, `user_home`, `digest`, `reengage`, `admin_preview`, `search_results`, `paywall`, `skill_package`, `api_token`, `downloaded_runner`, `playground_picker` legacy-only | Aligned | Data + Frontend | Data/API, Analytics, UX |
 | Analytics timestamp | Event `timestamp` maps to DB `occurred_at` | Aligned | Data | Data/API, Analytics, WBS |
 | Metadata privacy | `metadata` allowlist; reject restricted keys | Aligned | Data + Security | Analytics, Security |
 | RBAC | `/admin/*` Super Admin; `/ops/*` aggregate Ops/Product views | Aligned | Security + Backend | FRD, Data/API, Security |

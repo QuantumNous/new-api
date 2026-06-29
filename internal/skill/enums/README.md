@@ -15,7 +15,7 @@ are derived verbatim from the CHECK constraints in
 | `ReviewStatus` | open, assigned, escalated, resolved, reopened | skill_reviews.status |
 | `KidsApprovalStatus` | not_required, pending, approved, emergency_approved, rejected, revoked | skills.kids_approval_status |
 | `BlockReason` | see below | skill_usage_events.block_reason |
-| `EntryPoint` | marketplace_card, skill_detail, my_skills, saved_list, featured, popular, new, recommended, reco_personal, reco_codownload, digest, reengage, admin_preview, search_results, skill_package, api_token, downloaded_runner, playground_picker (legacy only) | skill_usage_events.entry_point |
+| `EntryPoint` | marketplace_card, skill_detail, my_skills, saved_list, featured, popular, new, new_week, trending, recommended, reco_personal, reco_codownload, leaderboard_weekly, leaderboard_monthly, user_home, digest, reengage, admin_preview, search_results, paywall, skill_package, api_token, downloaded_runner, playground_picker (legacy only) | skill_usage_events.entry_point |
 
 ## BlockReason naming
 

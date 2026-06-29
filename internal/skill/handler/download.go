@@ -233,6 +233,8 @@ func downloadEntryPoint(c *gin.Context) enums.EntryPoint {
 		return enums.EntryPointLeaderboardWeekly
 	case enums.EntryPointLeaderboardMonthly:
 		return enums.EntryPointLeaderboardMonthly
+	case enums.EntryPointUserHome:
+		return enums.EntryPointUserHome
 	default:
 		return enums.EntryPointSkillPackage
 	}
