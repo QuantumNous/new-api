@@ -85,9 +85,8 @@ export function QuotaSettingsSection({
   const handleNumberChange =
     (onChange: (value: QuotaInputValue) => void) =>
     (event: ChangeEvent<HTMLInputElement>) => {
-      onChange(
-        event.target.value === '' ? '' : event.currentTarget.valueAsNumber
-      )
+      const value = event.currentTarget.valueAsNumber
+      onChange(Number.isNaN(value) ? '' : value)
     }
 
   const { form, handleSubmit, isDirty, isSubmitting } =
