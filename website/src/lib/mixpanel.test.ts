@@ -16,4 +16,9 @@ describe("Mixpanel browser script", () => {
     expect(MIXPANEL_BROWSER_SCRIPT).toContain("granted");
     expect(MIXPANEL_BROWSER_SCRIPT).toContain("mixpanel.init");
   });
+
+  test("enables autocapture and session recording after consent", () => {
+    expect(MIXPANEL_BROWSER_SCRIPT).toContain("autocapture:true");
+    expect(MIXPANEL_BROWSER_SCRIPT).toContain("record_sessions_percent:100");
+  });
 });

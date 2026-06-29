@@ -113,6 +113,8 @@ function initializeMixpanel(): boolean {
   window.mixpanel.init(MIXPANEL_TOKEN, {
     persistence: 'localStorage',
     ignore_dnt: false,
+    autocapture: true,
+    record_sessions_percent: 100,
   })
   initialized = true
   return true

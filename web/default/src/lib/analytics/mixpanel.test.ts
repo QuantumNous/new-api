@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { afterEach, describe, test } from 'node:test'
 import {
+  ensureMixpanelLoaded,
   getMixpanelConsentStatus,
   grantMixpanelConsent,
   shouldEnableMixpanel,
@@ -88,5 +89,40 @@ describe('mixpanel consent gate', () => {
 
     assert.equal(getMixpanelConsentStatus(), 'granted')
     assert.equal(shouldEnableMixpanel(), true)
+  })
+
+  test('initializes Mixpanel with autocapture and session recording after consent', async () => {
+    let saved = 'granted'
+    let initConfig: Record<string, string | number | boolean | undefined> = {}
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: () => saved,
+          setItem: (_key: string, value: string) => {
+            saved = value
+          },
+        },
+        location: { protocol: 'https:' },
+        mixpanel: {
+          init: (
+            _token: string,
+            config?: Record<string, string | number | boolean | undefined>
+          ) => {
+            initConfig = config ?? {}
+          },
+        },
+      },
+    })
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: {
+        cookie: '',
+      },
+    })
+
+    assert.equal(await ensureMixpanelLoaded(), true)
+    assert.equal(initConfig.autocapture, true)
+    assert.equal(initConfig.record_sessions_percent, 100)
   })
 })
