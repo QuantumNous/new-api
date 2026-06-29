@@ -17,9 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import autoprefixer from 'autoprefixer';
-import tailwindcss from 'tailwindcss';
+import { registerBrowserEnv } from '@visactor/vchart';
 
-export default {
-  plugins: [tailwindcss(), autoprefixer()],
-};
+if (typeof window !== 'undefined') {
+  registerBrowserEnv();
+}
