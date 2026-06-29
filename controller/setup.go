@@ -144,6 +144,26 @@ func PostSetup(c *gin.Context) {
 		return
 	}
 
+	if req.SelfUseModeEnabled {
+		err = model.UpdateOption("RegisterEnabled", "false")
+		if err != nil {
+			c.JSON(200, gin.H{
+				"success": false,
+				"message": "保存注册设置失败: " + err.Error(),
+			})
+			return
+		}
+
+		err = model.UpdateOption("PasswordRegisterEnabled", "false")
+		if err != nil {
+			c.JSON(200, gin.H{
+				"success": false,
+				"message": "保存密码注册设置失败: " + err.Error(),
+			})
+			return
+		}
+	}
+
 	// Update setup status
 	constant.Setup = true
 
