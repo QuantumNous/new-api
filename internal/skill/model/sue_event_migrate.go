@@ -185,7 +185,8 @@ func upgradeSUETableSQLite(db *gorm.DB) error {
 			!strings.Contains(ddl, "'trending'") ||
 			!strings.Contains(ddl, "'digest'") ||
 			!strings.Contains(ddl, "'reengage'") ||
-			!strings.Contains(ddl, "'downloaded_runner'") {
+			!strings.Contains(ddl, "'downloaded_runner'") ||
+			!strings.Contains(ddl, "'user_home'") {
 			return rebuildSUETableSQLite(db)
 		}
 		if !db.Migrator().HasColumn(&SkillUsageEvent{}, "first_use_key") {

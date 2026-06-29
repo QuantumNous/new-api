@@ -4,6 +4,8 @@ DeepRouter gateway 变更记录。规则见 `AGENTS.md` Rule 10。
 
 ## 2026-06-29
 
+- 修复 DR-88 SQLite 升级路径遗漏：`upgradeSUETableSQLite` sentinel 未检查 `'user_home'`，导致从旧 schema 升级的 SQLite 实例跳过 `chk_sue_entry_point` 重建，写入 `entry_point=user_home` 的 `skill_usage_events` 行会触发 CHECK constraint violation；同时移除 `router/skill-router_test.go` 中重复的 `MigrateSkillPurchases` 调用（`internal/skill/model/sue_event_migrate.go`, `router/skill-router_test.go`）
+
 - 新增 DR-99 tiered Skill pricing model 任务 PRD，定义 Basic/PLUS、USD 2 one-time、PLUS-exclusive、PLUS 抵扣与 Skill entitlement matrix 范围（`docs/tasks/dr99-tiered-pricing-model-prd.md`）
 - 更新 DR-99 tiered Skill pricing model 任务 PRD 状态为 build，进入实现阶段（`docs/tasks/dr99-tiered-pricing-model-prd.md`）
 - 实现 DR-99 tiered Skill pricing model：新增共享 Basic/PLUS/one-time/PLUS-exclusive entitlement matrix、`plus_exclusive` Skill monetization tier、USD 2 PLUS upgrade credit helper、download/runtime/Marketplace/My Skills 共用 tier 判定，并在 Skill enable/purchase/use/block 事件写入 plan/tier attribution；管理端 Skill monetization 下拉支持 `one_time` 与 `plus_exclusive`（`internal/skill/{pricing,enums,model,availability,handler,relay}`, `web/default/src/features/admin-skills/`）
