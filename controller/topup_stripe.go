@@ -109,13 +109,17 @@ func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, g
 	if strings.TrimSpace(pkg.PriceId) == "" {
 		return nil, fmt.Errorf("Stripe %d Price ID is not configured", normalizedAmount)
 	}
-	amountMinor, err := stripePriceAmountMinorForCheckoutCurrency(pkg.PriceId, requestedCurrency)
+	priceId := strings.TrimSpace(pkg.PriceId)
+	amountMinor, err := stripePriceAmountMinorForCheckoutCurrency(priceId, requestedCurrency)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateStripeTopUpPriceContract(priceId, requestedCurrency, normalizedAmount, amountMinor); err != nil {
 		return nil, err
 	}
 
 	return &stripeTopUpCheckout{
-		PriceId:         strings.TrimSpace(pkg.PriceId),
+		PriceId:         priceId,
 		Quantity:        stripeTopUpLineQuantity,
 		Money:           float64(normalizedAmount),
 		PaymentCurrency: requestedCurrency,
@@ -133,6 +137,7 @@ func stripeTopUpCurrencySupported(currency string) bool {
 }
 
 var stripePriceAmountMinorForCheckoutCurrency = getStripePriceAmountMinorForCurrency
+var stripePriceGetter = stripeprice.Get
 
 func getStripePriceAmountMinorForCurrency(priceId string, requestedCurrency string) (int64, error) {
 	priceId = strings.TrimSpace(priceId)
@@ -147,7 +152,9 @@ func getStripePriceAmountMinorForCurrency(priceId string, requestedCurrency stri
 		return 0, err
 	}
 
-	price, err := stripeprice.Get(priceId, nil)
+	params := &stripe.PriceParams{}
+	params.AddExpand("currency_options")
+	price, err := stripePriceGetter(priceId, params)
 	if err != nil {
 		return 0, err
 	}
@@ -159,6 +166,51 @@ func getStripePriceAmountMinorForCurrency(priceId string, requestedCurrency stri
 		return 0, fmt.Errorf("Stripe Price %s has invalid %s amount", priceId, normalizedCurrency)
 	}
 	return amountMinor, nil
+}
+
+func validateStripeTopUpPriceContract(priceId string, requestedCurrency string, packageAmount int64, amountMinor int64) error {
+	normalizedCurrency := strings.ToUpper(strings.TrimSpace(requestedCurrency))
+	expectedAmountMinor, ok := expectedStripeTopUpAmountMinor(normalizedCurrency, packageAmount)
+	if !ok {
+		return fmt.Errorf("Stripe top-up price contract is not configured for %d %s package", packageAmount, normalizedCurrency)
+	}
+	if amountMinor != expectedAmountMinor {
+		return fmt.Errorf("Stripe Price %s has invalid %s amount for %d package: expected %d got %d", strings.TrimSpace(priceId), normalizedCurrency, packageAmount, expectedAmountMinor, amountMinor)
+	}
+	return nil
+}
+
+func expectedStripeTopUpAmountMinor(currency string, packageAmount int64) (int64, bool) {
+	switch strings.ToUpper(strings.TrimSpace(currency)) {
+	case "USD":
+		switch packageAmount {
+		case 10:
+			return 1000, true
+		case 20:
+			return 2000, true
+		case 200:
+			return 20000, true
+		}
+	case "JPY":
+		switch packageAmount {
+		case 10:
+			return 1500, true
+		case 20:
+			return 3000, true
+		case 200:
+			return 30000, true
+		}
+	case "BRL":
+		switch packageAmount {
+		case 10:
+			return 4990, true
+		case 20:
+			return 9990, true
+		case 200:
+			return 99000, true
+		}
+	}
+	return 0, false
 }
 
 func stripePriceSupportsCurrency(price *stripe.Price, requestedCurrency string) bool {
