@@ -1638,6 +1638,7 @@
     "按次：{{symbol}}{{price}}": "Per request: {{symbol}}{{price}}",
     "按次：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}": "Per request: {{symbol}}{{price}} * {{ratioType}}: {{ratio}} = {{symbol}}{{total}}",
     "按次计费": "Pay per request",
+    "按秒计费": "Pay per second",
     "按照如下格式输入：AccessKey|SecretAccessKey|Region": "Enter in the format: AccessKey|SecretAccessKey|Region",
     "按量计费": "Pay as you go",
     "按量计费下需要先填写输入价格，才能保存其它价格项。": "For per-token billing, fill in the input price before saving other price fields.",

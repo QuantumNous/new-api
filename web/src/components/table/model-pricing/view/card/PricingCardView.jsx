@@ -165,6 +165,12 @@ const PricingCardView = ({
           {t('按次计费')}
         </Tag>
       );
+    } else if (record.quota_type === 2) {
+      billingTag = (
+        <Tag key='billing' shape='circle' color='cyan' size='small'>
+          {t('按秒计费')}
+        </Tag>
+      );
     } else if (record.quota_type === 0) {
       billingTag = (
         <Tag key='billing' shape='circle' color='violet' size='small'>
