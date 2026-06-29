@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -717,4 +718,59 @@ func TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+func TestNormalizeNestedSuccessfulVideoTask(t *testing.T) {
+	taskResult := &relaycommon.TaskInfo{
+		Status: model.TaskStatusFailure,
+		Reason: "upstream returned unrecognized message",
+		Url:    "upstream returned unrecognized message",
+	}
+	data := []byte(`{
+		"status": "done",
+		"progress": 100,
+		"video_url": "https://vidgen.x.ai/example.mp4"
+	}`)
+
+	normalizeNestedSuccessfulVideoTask(taskResult, data)
+
+	assert.Equal(t, model.TaskStatusSuccess, taskResult.Status)
+	assert.Equal(t, "", taskResult.Reason)
+	assert.Equal(t, "https://vidgen.x.ai/example.mp4", taskResult.Url)
+	assert.Equal(t, taskcommon.ProgressComplete, taskResult.Progress)
+}
+
+func TestNormalizeNestedSuccessfulVideoTaskIgnoresRealFailure(t *testing.T) {
+	taskResult := &relaycommon.TaskInfo{
+		Status: model.TaskStatusFailure,
+		Reason: "upstream returned unrecognized message",
+	}
+	data := []byte(`{
+		"status": "failed",
+		"video_url": "https://vidgen.x.ai/example.mp4"
+	}`)
+
+	normalizeNestedSuccessfulVideoTask(taskResult, data)
+
+	assert.Equal(t, model.TaskStatusFailure, taskResult.Status)
+	assert.Equal(t, "upstream returned unrecognized message", taskResult.Reason)
+	assert.Equal(t, "", taskResult.Url)
+}
+
+func TestSuccessfulNestedVideoURLFromRawUpstreamResponse(t *testing.T) {
+	data := []byte(`{
+		"model": "grok-image-video",
+		"progress": 100,
+		"status": "done",
+		"video": {
+			"url": "https://vidgen.x.ai/video-from-nested-video.mp4"
+		},
+		"output": ["https://vidgen.x.ai/video-from-output.mp4"],
+		"video_url": "https://vidgen.x.ai/video-from-video-url.mp4"
+	}`)
+
+	url, ok := successfulNestedVideoURL(data)
+
+	require.True(t, ok)
+	assert.Equal(t, "https://vidgen.x.ai/video-from-video-url.mp4", url)
 }
