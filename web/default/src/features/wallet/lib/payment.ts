@@ -368,6 +368,26 @@ export type WalletCheckoutSearch = {
 }
 
 const SUPPORTED_WALLET_CHECKOUT_CURRENCIES = new Set(['USD', 'JPY', 'BRL'])
+const WALLET_CHECKOUT_AMOUNT_MINOR_BY_CURRENCY: Record<
+  string,
+  Record<number, number>
+> = {
+  USD: {
+    10: 1000,
+    20: 2000,
+    200: 20000,
+  },
+  JPY: {
+    10: 1500,
+    20: 3000,
+    200: 30000,
+  },
+  BRL: {
+    10: 4990,
+    20: 9990,
+    200: 99000,
+  },
+}
 
 function normalizedCheckoutSearchField(
   raw: Record<string, unknown> | undefined,
@@ -519,11 +539,32 @@ export function getWalletCheckoutInitialTopupAmount(
   if (stripeLookupKey !== `topup-${currency.toLowerCase()}-${amountMinor}`) {
     return 0
   }
+  if (amountMinor !== getWalletCheckoutAmountMinor(currency, amount)) {
+    return 0
+  }
   if (!isPresetTopupAmount(amount, presetAmounts)) {
     return 0
   }
 
   return amount
+}
+
+export function getWalletCheckoutAmountMinor(
+  currency: string,
+  amount: number
+): number {
+  return (
+    WALLET_CHECKOUT_AMOUNT_MINOR_BY_CURRENCY[currency.toUpperCase().trim()]?.[
+      amount
+    ] ?? 0
+  )
+}
+
+export function shouldConsumeWalletCheckoutSearchParams(
+  checkoutSearch: WalletCheckoutSearch | undefined,
+  checkoutInitialAmount: number
+): boolean {
+  return Boolean(checkoutSearch && checkoutInitialAmount > 0)
 }
 
 export function isPresetTopupAmount(

@@ -69,6 +69,7 @@ import {
   getWalletCheckoutInitialTopupAmount,
   isPresetTopupAmount,
   isWaffoPancakePayment,
+  shouldConsumeWalletCheckoutSearchParams,
   type WalletCheckoutSearch,
 } from './lib'
 import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
@@ -111,12 +112,12 @@ const WALLET_CHECKOUT_SEARCH_PARAMS = [
 function hasWalletCheckoutSearch(
   checkoutSearch: WalletCheckoutSearch | undefined
 ): boolean {
-  return Boolean(
-    checkoutSearch?.amount ||
-      checkoutSearch?.currency ||
-      checkoutSearch?.amountMinor ||
-      checkoutSearch?.stripeLookupKey
-  )
+  return [
+    checkoutSearch?.amount,
+    checkoutSearch?.currency,
+    checkoutSearch?.amountMinor,
+    checkoutSearch?.stripeLookupKey,
+  ].some(Boolean)
 }
 
 function consumeWalletCheckoutSearchParams(): void {
@@ -610,8 +611,15 @@ export function Wallet(props: WalletProps) {
       )
       appliedCheckoutSearchRef.current = true
 
-      if (hasCheckoutSearch) {
+      if (
+        shouldConsumeWalletCheckoutSearchParams(
+          props.initialCheckoutSearch,
+          checkoutInitialAmount
+        )
+      ) {
         consumeWalletCheckoutSearchParams()
+      } else if (hasCheckoutSearch) {
+        toast.error(t('Please select a top-up package'))
       }
 
       if (checkoutInitialAmount > 0) {
@@ -643,6 +651,7 @@ export function Wallet(props: WalletProps) {
     selectedPaymentMethod?.type,
     calculatePaymentAmount,
     props.initialCheckoutSearch,
+    t,
   ])
 
   // Get current payment type (selected or default)

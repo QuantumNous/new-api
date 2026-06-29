@@ -109,7 +109,8 @@ func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, g
 	if strings.TrimSpace(pkg.PriceId) == "" {
 		return nil, fmt.Errorf("Stripe %d Price ID is not configured", normalizedAmount)
 	}
-	if err := ensureStripePriceSupportsCheckoutCurrency(pkg.PriceId, requestedCurrency); err != nil {
+	amountMinor, err := stripePriceAmountMinorForCheckoutCurrency(pkg.PriceId, requestedCurrency)
+	if err != nil {
 		return nil, err
 	}
 
@@ -118,7 +119,7 @@ func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, g
 		Quantity:        stripeTopUpLineQuantity,
 		Money:           float64(normalizedAmount),
 		PaymentCurrency: requestedCurrency,
-		AmountMinor:     stripeTopUpAmountMinor(requestedCurrency, normalizedAmount),
+		AmountMinor:     amountMinor,
 	}, nil
 }
 
@@ -131,29 +132,33 @@ func stripeTopUpCurrencySupported(currency string) bool {
 	}
 }
 
-var ensureStripePriceSupportsCheckoutCurrency = ensureStripePriceSupportsCurrency
+var stripePriceAmountMinorForCheckoutCurrency = getStripePriceAmountMinorForCurrency
 
-func ensureStripePriceSupportsCurrency(priceId string, requestedCurrency string) error {
+func getStripePriceAmountMinorForCurrency(priceId string, requestedCurrency string) (int64, error) {
 	priceId = strings.TrimSpace(priceId)
 	normalizedCurrency := strings.ToUpper(strings.TrimSpace(requestedCurrency))
 	if priceId == "" {
-		return errors.New("Stripe Price ID is not configured")
+		return 0, errors.New("Stripe Price ID is not configured")
 	}
 	if normalizedCurrency == "" {
-		return errors.New("Stripe checkout currency is required")
+		return 0, errors.New("Stripe checkout currency is required")
 	}
 	if err := ensureStripeKey(); err != nil {
-		return err
+		return 0, err
 	}
 
 	price, err := stripeprice.Get(priceId, nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if !stripePriceSupportsCurrency(price, normalizedCurrency) {
-		return fmt.Errorf("Stripe Price %s does not support %s", priceId, normalizedCurrency)
+	amountMinor, ok := stripePriceAmountMinorForCurrency(price, normalizedCurrency)
+	if !ok {
+		return 0, fmt.Errorf("Stripe Price %s does not support %s", priceId, normalizedCurrency)
 	}
-	return nil
+	if amountMinor <= 0 {
+		return 0, fmt.Errorf("Stripe Price %s has invalid %s amount", priceId, normalizedCurrency)
+	}
+	return amountMinor, nil
 }
 
 func stripePriceSupportsCurrency(price *stripe.Price, requestedCurrency string) bool {
@@ -171,30 +176,14 @@ func stripePriceAmountMinorForCurrency(price *stripe.Price, requestedCurrency st
 	}
 	for currency := range price.CurrencyOptions {
 		if strings.ToLower(strings.TrimSpace(currency)) == normalizedCurrency {
-			return price.CurrencyOptions[currency].UnitAmount, true
+			option := price.CurrencyOptions[currency]
+			if option == nil {
+				return 0, false
+			}
+			return option.UnitAmount, true
 		}
 	}
 	return 0, false
-}
-
-func stripeTopUpAmountMinor(currency string, packageAmount int64) int64 {
-	switch strings.ToUpper(strings.TrimSpace(currency)) {
-	case "JPY":
-		return packageAmount * 150
-	case "BRL":
-		switch packageAmount {
-		case 10:
-			return 4990
-		case 20:
-			return 9990
-		case 200:
-			return 99000
-		default:
-			return 0
-		}
-	default:
-		return packageAmount * 100
-	}
 }
 
 func stripeTopUpPackageFor(amount int64) (stripeTopUpCurrencyPackage, bool) {
@@ -803,6 +792,9 @@ func validateStripeTopUpPaymentContract(event stripe.Event, referenceId string) 
 	}
 	if actual.AmountSubtotalMinor != topUp.PaymentAmountMinor {
 		return fmt.Errorf("Stripe checkout amount mismatch: expected %d got %d", topUp.PaymentAmountMinor, actual.AmountSubtotalMinor)
+	}
+	if actual.AmountTotalMinor < topUp.PaymentAmountMinor {
+		return fmt.Errorf("Stripe checkout total mismatch: expected at least %d got %d", topUp.PaymentAmountMinor, actual.AmountTotalMinor)
 	}
 	if strings.ToUpper(strings.TrimSpace(actual.Currency)) != expectedCurrency {
 		return fmt.Errorf("Stripe checkout currency mismatch: expected %s got %s", expectedCurrency, actual.Currency)
