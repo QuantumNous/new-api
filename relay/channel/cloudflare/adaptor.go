@@ -81,6 +81,8 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	return request, nil
 }
 
+const maxAudioFileSize = 25 * 1024 * 1024 // 25 MB
+
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
 	// 添加文件字段
 	file, _, err := c.Request.FormFile("file")
@@ -91,9 +93,14 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	// 打开临时文件用于保存上传的文件内容
 	requestBody := &bytes.Buffer{}
 
-	// 将上传的文件内容复制到临时文件
-	if _, err := io.Copy(requestBody, file); err != nil {
+	// 将上传的文件内容复制到临时文件，限制大小防止内存耗尽
+	// Read one extra byte to detect files that exceed the limit without silent truncation
+	n, err := io.Copy(requestBody, io.LimitReader(file, maxAudioFileSize+1))
+	if err != nil {
 		return nil, err
+	}
+	if n > maxAudioFileSize {
+		return nil, fmt.Errorf("audio file exceeds the maximum allowed size of %d MB", maxAudioFileSize/(1024*1024))
 	}
 	return requestBody, nil
 }
