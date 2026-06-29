@@ -19,7 +19,7 @@ const ModelQuotaLimitKey = "model_quota_usage_ids"
 // observation hooks in SettleBilling / ReturnPreConsumedQuota.
 func ModelQuotaLimit() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Skip if not enabled or no model specified
+		// Skip if no model specified
 		modelName := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 		if modelName == "" {
 			c.Next()
@@ -34,18 +34,11 @@ func ModelQuotaLimit() gin.HandlerFunc {
 
 		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 
-		// Get subscription context (may be 0 if no active subscription)
-		subscriptionId := c.GetInt("subscription_id")
-
-		// Calculate period bounds (default: current month)
-		// For subscription users, the period follows the subscription cycle
-		periodStart, periodEnd := getModelQuotaPeriod(subscriptionId)
-
 		// Estimate pre-consume quota (conservative: use model price if available)
 		preQuota := estimateModelQuota(modelName)
 
-		// Check model quota
-		result, err := service.CheckModelQuota(userId, modelName, userGroup, preQuota, 0, periodStart, periodEnd)
+		// Check model quota (service layer queries subscription info and calculates periods)
+		result, err := service.CheckModelQuota(userId, modelName, userGroup, preQuota)
 		if err != nil {
 			// On error, fail-open for availability
 			common.SysError("model quota check error: " + err.Error())

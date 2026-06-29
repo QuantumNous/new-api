@@ -121,11 +121,11 @@ func TestGetActiveUserModelQuotaUsage(t *testing.T) {
 	})
 
 	// Active usage for user 101
-	require.NoError(t, DB.Create(&UserModelQuotaUsage{UserId: 101, RuleId: 1, RuleSource: ModelQuotaRuleSourceGroup, ModelPattern: "gpt-5.5", QuotaLimit: 500, QuotaUsed: 100, PeriodStart: 1000, PeriodEnd: 99999, Status: ModelQuotaUsageStatusActive}).Error)
+	require.NoError(t, DB.Create(&UserModelQuotaUsage{UserId: 101, RuleId: 1, RuleSource: ModelQuotaRuleSourceGroup, ModelPattern: "gpt-5.5", QuotaLimit: 500, QuotaUsed: 100, PeriodStart: common.GetTimestamp() - 1000, PeriodEnd: common.GetTimestamp() + 3600, Status: ModelQuotaUsageStatusActive}).Error)
 	// Expired usage for user 101
 	require.NoError(t, DB.Create(&UserModelQuotaUsage{UserId: 101, RuleId: 2, RuleSource: ModelQuotaRuleSourceGroup, ModelPattern: "claude-opus", QuotaLimit: 300, QuotaUsed: 50, PeriodStart: 500, PeriodEnd: 600, Status: ModelQuotaUsageStatusExpired}).Error)
 	// Active usage for user 102
-	require.NoError(t, DB.Create(&UserModelQuotaUsage{UserId: 102, RuleId: 1, RuleSource: ModelQuotaRuleSourceGroup, ModelPattern: "gpt-5.5", QuotaLimit: 500, QuotaUsed: 0, PeriodStart: 1000, PeriodEnd: 99999, Status: ModelQuotaUsageStatusActive}).Error)
+	require.NoError(t, DB.Create(&UserModelQuotaUsage{UserId: 102, RuleId: 1, RuleSource: ModelQuotaRuleSourceGroup, ModelPattern: "gpt-5.5", QuotaLimit: 500, QuotaUsed: 0, PeriodStart: common.GetTimestamp() - 1000, PeriodEnd: common.GetTimestamp() + 3600, Status: ModelQuotaUsageStatusActive}).Error)
 
 	usages, err := GetActiveUserModelQuotaUsage(101)
 	require.NoError(t, err)

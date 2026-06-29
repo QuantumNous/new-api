@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -33,10 +34,74 @@ type matchedRule struct {
 	ModelPattern string
 	MatchMode    string
 	QuotaLimit   int64
+	Period       string // for group rules: daily/weekly/monthly/total; for plan rules: "subscription"
 }
 
-// FindMatchingModelQuotaRules finds all rules that match the given model for the user
-func FindMatchingModelQuotaRules(userId int, modelName string, userGroup string, planId int) []*matchedRule {
+// calculatePeriodBounds calculates the period start/end timestamps based on period type.
+// For subscription period, it uses the subscription's start/end time.
+func calculatePeriodBounds(period string, subStartTime, subEndTime int64) (int64, int64) {
+	now := time.Now()
+
+	switch period {
+	case model.ModelQuotaPeriodDaily:
+		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		return start.Unix(), start.AddDate(0, 0, 1).Unix()
+
+	case model.ModelQuotaPeriodWeekly:
+		// Week starts on Monday
+		weekday := int(now.Weekday())
+		if weekday == 0 {
+			weekday = 7 // Sunday = 7
+		}
+		start := time.Date(now.Year(), now.Month(), now.Day()-weekday+1, 0, 0, 0, 0, now.Location())
+		return start.Unix(), start.AddDate(0, 0, 7).Unix()
+
+	case model.ModelQuotaPeriodMonthly:
+		start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+		return start.Unix(), start.AddDate(0, 1, 0).Unix()
+
+	case model.ModelQuotaPeriodTotal:
+		// Total limit: very long period (effectively never resets)
+		return 0, time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+
+	default:
+		// Default: monthly
+		start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+		return start.Unix(), start.AddDate(0, 1, 0).Unix()
+	}
+}
+
+// userActivePlanInfo holds the user's active subscription info for plan rule matching
+type userActivePlanInfo struct {
+	PlanId         int
+	SubscriptionId int
+	StartTime      int64
+	EndTime        int64
+}
+
+// getUserActivePlanInfo queries the user's first active subscription to get plan info.
+func getUserActivePlanInfo(userId int) *userActivePlanInfo {
+	subs, err := model.GetAllActiveUserSubscriptions(userId)
+	if err != nil || len(subs) == 0 {
+		return nil
+	}
+	for _, s := range subs {
+		if s.Subscription == nil {
+			continue
+		}
+		return &userActivePlanInfo{
+			PlanId:         s.Subscription.PlanId,
+			SubscriptionId: int(s.Subscription.Id),
+			StartTime:      s.Subscription.StartTime,
+			EndTime:        s.Subscription.EndTime,
+		}
+	}
+	return nil
+}
+
+// FindMatchingModelQuotaRules finds all rules that match the given model for the user.
+// It queries both plan rules (if user has active subscription) and group rules.
+func FindMatchingModelQuotaRules(userId int, modelName string, userGroup string, planInfo *userActivePlanInfo) []*matchedRule {
 	var matched []*matchedRule
 
 	// 1. Check existing active usages first (they are snapshots of rules already matched)
@@ -49,20 +114,20 @@ func FindMatchingModelQuotaRules(userId int, modelName string, userGroup string,
 					RuleId:       u.RuleId,
 					RuleSource:   u.RuleSource,
 					ModelPattern: u.ModelPattern,
-					MatchMode:    model.ModelQuotaMatchModeExact, // usage is already matched, use exact to compare
+					MatchMode:    model.ModelQuotaMatchModeExact, // usage is already matched
 					QuotaLimit:   u.QuotaLimit,
+					Period:       getPeriodForUsage(u),
 				})
 			}
 		}
 	}
 
 	// 2. Check plan rules (if user has an active subscription)
-	if planId > 0 {
-		planRules, err := model.GetModelQuotaPlanRulesByPlanId(planId)
+	if planInfo != nil && planInfo.PlanId > 0 {
+		planRules, err := model.GetModelQuotaPlanRulesByPlanId(planInfo.PlanId)
 		if err == nil {
 			for _, r := range planRules {
 				if matchModel(modelName, r.ModelPattern, r.MatchMode) {
-					// Check if this rule is already in matched (from existing usage)
 					alreadyMatched := false
 					for _, m := range matched {
 						if m.RuleId == r.Id && m.RuleSource == model.ModelQuotaRuleSourcePlan {
@@ -75,6 +140,7 @@ func FindMatchingModelQuotaRules(userId int, modelName string, userGroup string,
 							RuleId: r.Id, RuleSource: model.ModelQuotaRuleSourcePlan,
 							ModelPattern: r.ModelPattern, MatchMode: r.MatchMode,
 							QuotaLimit: r.QuotaLimit,
+							Period:     "subscription",
 						})
 					}
 				}
@@ -87,7 +153,6 @@ func FindMatchingModelQuotaRules(userId int, modelName string, userGroup string,
 	if err == nil {
 		for _, r := range groupRules {
 			if matchModel(modelName, r.ModelPattern, r.MatchMode) {
-				// Check if this rule is already in matched
 				alreadyMatched := false
 				for _, m := range matched {
 					if m.RuleId == r.Id && m.RuleSource == model.ModelQuotaRuleSourceGroup {
@@ -100,6 +165,7 @@ func FindMatchingModelQuotaRules(userId int, modelName string, userGroup string,
 						RuleId: r.Id, RuleSource: model.ModelQuotaRuleSourceGroup,
 						ModelPattern: r.ModelPattern, MatchMode: r.MatchMode,
 						QuotaLimit: r.QuotaLimit,
+						Period:     r.Period,
 					})
 				}
 			}
@@ -107,6 +173,16 @@ func FindMatchingModelQuotaRules(userId int, modelName string, userGroup string,
 	}
 
 	return matched
+}
+
+// getPeriodForUsage infers the period type from a usage record's rule_source.
+// For plan rules, period is "subscription". For group rules, we don't store it in usage,
+// but the usage's period_end tells us when to reset.
+func getPeriodForUsage(u *model.UserModelQuotaUsage) string {
+	if u.RuleSource == model.ModelQuotaRuleSourcePlan {
+		return "subscription"
+	}
+	return "group" // actual period type doesn't matter for existing usage, just need to check period_end
 }
 
 // CheckModelQuota checks if the user has enough model quota for the pre-consumption.
@@ -117,19 +193,16 @@ func FindMatchingModelQuotaRules(userId int, modelName string, userGroup string,
 //   - modelName: the model being requested
 //   - userGroup: the user's group name
 //   - preQuota: estimated quota consumption for this request
-//   - subscriptionId: active subscription ID (0 if none)
-//   - periodStart: period start timestamp
-//   - periodEnd: period end timestamp
 func CheckModelQuota(
 	userId int,
 	modelName string,
 	userGroup string,
 	preQuota int,
-	planId int,
-	periodStart int64,
-	periodEnd int64,
 ) (*ModelQuotaCheckResult, error) {
-	rules := FindMatchingModelQuotaRules(userId, modelName, userGroup, planId)
+	// Query user's active subscription for plan rules
+	planInfo := getUserActivePlanInfo(userId)
+
+	rules := FindMatchingModelQuotaRules(userId, modelName, userGroup, planInfo)
 
 	if len(rules) == 0 {
 		return &ModelQuotaCheckResult{Passed: true}, nil
@@ -138,7 +211,24 @@ func CheckModelQuota(
 	result := &ModelQuotaCheckResult{Passed: true}
 
 	for _, rule := range rules {
-		usage, err := getOrCreateModelQuotaUsage(userId, rule, planId, periodStart, periodEnd)
+		// Calculate period bounds based on rule's period type
+		var periodStart, periodEnd int64
+		var subscriptionId int
+		if rule.RuleSource == model.ModelQuotaRuleSourcePlan && planInfo != nil {
+			// Plan rule: follow subscription cycle
+			periodStart = planInfo.StartTime
+			periodEnd = planInfo.EndTime
+			if periodEnd == 0 {
+				// No end time (permanent subscription): use far future
+				periodEnd = time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+			}
+			subscriptionId = planInfo.SubscriptionId
+		} else {
+			// Group rule: calculate based on period type
+			periodStart, periodEnd = calculatePeriodBounds(rule.Period, 0, 0)
+		}
+
+		usage, err := getOrCreateModelQuotaUsage(userId, rule, subscriptionId, periodStart, periodEnd)
 		if err != nil {
 			common.SysError(fmt.Sprintf("failed to get/create model quota usage for user %d, rule %d: %v", userId, rule.RuleId, err))
 			// On error, allow the request to proceed (fail-open for availability)
@@ -167,15 +257,20 @@ func CheckModelQuota(
 	return result, nil
 }
 
-// getOrCreateModelQuotaUsage finds an existing active usage record, or creates a new one
+// getOrCreateModelQuotaUsage finds an existing active, non-expired usage record,
+// or creates a new one. If the old usage's period has ended, it marks it as expired
+// and creates a fresh one with quota_used=0.
 func getOrCreateModelQuotaUsage(userId int, rule *matchedRule, subscriptionId int, periodStart int64, periodEnd int64) (*model.UserModelQuotaUsage, error) {
-	// Try to find existing active usage
+	// Try to find existing active, non-expired usage
 	usage, err := model.GetUserModelQuotaUsageByUserAndRule(userId, rule.RuleId, rule.RuleSource)
 	if err == nil {
 		return usage, nil
 	}
 
-	// Create new usage record
+	// Expire any outdated usage records for this user+rule (period ended)
+	_ = model.ExpireOutdatedUserModelQuotaUsage(userId, rule.RuleId, rule.RuleSource)
+
+	// Create new usage record with fresh quota
 	newUsage := &model.UserModelQuotaUsage{
 		UserId:         userId,
 		RuleId:         rule.RuleId,

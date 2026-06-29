@@ -49,6 +49,9 @@ func CreateModelQuotaGroupRule(c *gin.Context) {
 	if rule.MatchMode == "" {
 		rule.MatchMode = model.ModelQuotaMatchModeExact
 	}
+	if rule.Period == "" {
+		rule.Period = model.ModelQuotaPeriodTotal
+	}
 	if rule.QuotaLimit <= 0 {
 		common.ApiErrorMsg(c, "quota_limit must be positive")
 		return
@@ -81,6 +84,7 @@ func UpdateModelQuotaGroupRule(c *gin.Context) {
 			"group_name":    updates.GroupName,
 			"model_pattern": updates.ModelPattern,
 			"match_mode":    updates.MatchMode,
+			"period":        updates.Period,
 			"quota_limit":   updates.QuotaLimit,
 			"enabled":       updates.Enabled,
 			"sort_order":    updates.SortOrder,

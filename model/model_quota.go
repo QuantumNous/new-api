@@ -18,6 +18,14 @@ const (
 	ModelQuotaRuleSourcePlan  = "plan"
 )
 
+// Period types for group rules (plan rules always follow subscription cycle)
+const (
+	ModelQuotaPeriodTotal   = "total"   // 总额限制（不重置）
+	ModelQuotaPeriodDaily   = "daily"   // 每天重置
+	ModelQuotaPeriodWeekly  = "weekly"  // 每周重置（周一）
+	ModelQuotaPeriodMonthly = "monthly" // 每月重置（1号）
+)
+
 // Usage status
 const (
 	ModelQuotaUsageStatusActive  = "active"
@@ -33,6 +41,7 @@ type ModelQuotaGroupRule struct {
 	GroupName    string `json:"group_name" gorm:"column:group_name;type:varchar(64);not null;index:idx_group_rules"`
 	ModelPattern string `json:"model_pattern" gorm:"column:model_pattern;type:varchar(128);not null"`
 	MatchMode    string `json:"match_mode" gorm:"column:match_mode;type:varchar(16);not null;default:'exact'"`
+	Period       string `json:"period" gorm:"column:period;type:varchar(16);not null;default:'total'"`
 	QuotaLimit   int64  `json:"quota_limit" gorm:"column:quota_limit;type:bigint;not null;default:0"`
 	Enabled      bool   `json:"enabled" gorm:"column:enabled;index:idx_group_rules"`
 	SortOrder    int    `json:"sort_order" gorm:"column:sort_order;type:int;default:0"`
@@ -142,24 +151,36 @@ func (u *UserModelQuotaUsage) TableName() string {
 	return "user_model_quota_usage"
 }
 
-// GetActiveUserModelQuotaUsage returns all active usage records for a user
+// GetActiveUserModelQuotaUsage returns all active, non-expired usage records for a user
 func GetActiveUserModelQuotaUsage(userId int) ([]*UserModelQuotaUsage, error) {
 	var usages []*UserModelQuotaUsage
-	err := DB.Where("user_id = ? AND status = ?", userId, ModelQuotaUsageStatusActive).
+	now := common.GetTimestamp()
+	err := DB.Where("user_id = ? AND status = ? AND period_end > ?", userId, ModelQuotaUsageStatusActive, now).
 		Find(&usages).Error
 	return usages, err
 }
 
-// GetUserModelQuotaUsageByUserAndRule returns the active usage for a specific user+rule combination
+// GetUserModelQuotaUsageByUserAndRule returns the active, non-expired usage for a specific user+rule combination.
+// If the existing usage's period has ended, it returns nil to signal the caller to create a new one.
 func GetUserModelQuotaUsageByUserAndRule(userId int, ruleId int, ruleSource string) (*UserModelQuotaUsage, error) {
 	var usage UserModelQuotaUsage
-	err := DB.Where("user_id = ? AND rule_id = ? AND rule_source = ? AND status = ?",
-		userId, ruleId, ruleSource, ModelQuotaUsageStatusActive).
+	now := common.GetTimestamp()
+	err := DB.Where("user_id = ? AND rule_id = ? AND rule_source = ? AND status = ? AND period_end > ?",
+		userId, ruleId, ruleSource, ModelQuotaUsageStatusActive, now).
 		First(&usage).Error
 	if err != nil {
 		return nil, err
 	}
 	return &usage, nil
+}
+
+// ExpireOutdatedUserModelQuotaUsage marks an existing usage as expired (period ended).
+func ExpireOutdatedUserModelQuotaUsage(userId int, ruleId int, ruleSource string) error {
+	now := common.GetTimestamp()
+	return DB.Model(&UserModelQuotaUsage{}).
+		Where("user_id = ? AND rule_id = ? AND rule_source = ? AND status = ? AND period_end <= ?",
+			userId, ruleId, ruleSource, ModelQuotaUsageStatusActive, now).
+		UpdateColumn("status", ModelQuotaUsageStatusExpired).Error
 }
 
 // GetUserModelQuotaUsageByUserId returns all usage records (including expired) for a user

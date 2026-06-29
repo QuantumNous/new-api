@@ -1,8 +1,6 @@
 package middleware
 
 import (
-	"time"
-
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
@@ -30,20 +28,4 @@ func estimateModelQuota(modelName string) int {
 		estimatedQuota = 1
 	}
 	return estimatedQuota
-}
-
-// getModelQuotaPeriod returns the period start/end timestamps.
-// If the user has an active subscription, the period follows the subscription cycle.
-// Otherwise, defaults to a 30-day rolling window.
-func getModelQuotaPeriod(subscriptionId int) (int64, int64) {
-	now := time.Now()
-
-	// Default: 30-day rolling window
-	periodStart := now.AddDate(0, 0, -30).Unix()
-	periodEnd := now.AddDate(0, 0, 1).Unix()
-
-	// TODO: If subscriptionId > 0, look up the subscription's next_reset_time
-	// For now, use the default period
-
-	return periodStart, periodEnd
 }

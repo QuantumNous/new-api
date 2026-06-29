@@ -3,11 +3,15 @@ import { z } from 'zod'
 export const matchModeSchema = z.enum(['exact', 'prefix'])
 export type MatchMode = z.infer<typeof matchModeSchema>
 
+export const modelQuotaPeriodSchema = z.enum(['total', 'daily', 'weekly', 'monthly'])
+export type ModelQuotaPeriod = z.infer<typeof modelQuotaPeriodSchema>
+
 export const modelQuotaGroupRuleSchema = z.object({
   id: z.number(),
   group_name: z.string(),
   model_pattern: z.string(),
   match_mode: matchModeSchema,
+  period: modelQuotaPeriodSchema.default('total'),
   quota_limit: z.number(),
   enabled: z.boolean(),
   sort_order: z.number(),
@@ -74,6 +78,7 @@ export interface CreateGroupRuleParams {
   group_name: string
   model_pattern: string
   match_mode: MatchMode
+  period: ModelQuotaPeriod
   quota_limit: number
   enabled?: boolean
   sort_order?: number

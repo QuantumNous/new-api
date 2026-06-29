@@ -63,7 +63,7 @@ func TestCheckModelQuota_NoRules(t *testing.T) {
 		model.DB.Exec("DELETE FROM user_model_quota_usage")
 	})
 	// No rules → no restriction, pass
-	result, err := CheckModelQuota(999, "gpt-5.5", "default", 100, 0, 0, 0)
+	result, err := CheckModelQuota(999, "gpt-5.5", "default", 100)
 	require.NoError(t, err)
 	require.True(t, result.Passed)
 	require.Len(t, result.UsageIds, 0)
@@ -87,7 +87,7 @@ func TestCheckModelQuota_GroupRulePass(t *testing.T) {
 	require.NoError(t, model.DB.Create(rule).Error)
 
 	// Pre-consume 100, should pass
-	result, err := CheckModelQuota(101, "gpt-5.5", "default", 100, 0, 1000, 2000)
+	result, err := CheckModelQuota(101, "gpt-5.5", "default", 100)
 	require.NoError(t, err)
 	require.True(t, result.Passed)
 }
@@ -113,12 +113,12 @@ func TestCheckModelQuota_GroupRuleExhausted(t *testing.T) {
 	usage := &model.UserModelQuotaUsage{
 		UserId: 201, RuleId: rule.Id, RuleSource: model.ModelQuotaRuleSourceGroup,
 		ModelPattern: "gpt-5.5", QuotaLimit: 500, QuotaUsed: 450,
-		PeriodStart: 1000, PeriodEnd: 99999, Status: model.ModelQuotaUsageStatusActive,
+		PeriodStart: common.GetTimestamp() - 1000, PeriodEnd: common.GetTimestamp() + 3600, Status: model.ModelQuotaUsageStatusActive,
 	}
 	require.NoError(t, model.DB.Create(usage).Error)
 
 	// Pre-consume 100, 450+100=550 > 500, should fail
-	result, err := CheckModelQuota(201, "gpt-5.5", "default", 100, 0, 1000, 2000)
+	result, err := CheckModelQuota(201, "gpt-5.5", "default", 100)
 	require.NoError(t, err)
 	require.False(t, result.Passed)
 	require.NotEmpty(t, result.ErrorMessage)
@@ -141,7 +141,7 @@ func TestCheckModelQuota_PrefixMatch(t *testing.T) {
 	require.NoError(t, model.DB.Create(rule).Error)
 
 	// gpt-5.5-mini should match the prefix rule
-	result, err := CheckModelQuota(301, "gpt-5.5-mini", "default", 100, 0, 1000, 2000)
+	result, err := CheckModelQuota(301, "gpt-5.5-mini", "default", 100)
 	require.NoError(t, err)
 	require.True(t, result.Passed)
 }
@@ -168,7 +168,7 @@ func TestCheckModelQuota_MultipleRules(t *testing.T) {
 	require.NoError(t, model.DB.Create(rule2).Error)
 
 	// Both rules match, both should pass with 100 pre-consume
-	result, err := CheckModelQuota(401, "gpt-5.5", "default", 100, 0, 1000, 2000)
+	result, err := CheckModelQuota(401, "gpt-5.5", "default", 100)
 	require.NoError(t, err)
 	require.True(t, result.Passed)
 	require.Len(t, result.UsageIds, 2)
@@ -191,9 +191,42 @@ func TestCheckModelQuota_DisabledRuleSkipped(t *testing.T) {
 	require.NoError(t, model.DB.Create(rule).Error)
 
 	// Disabled rule should be skipped → pass
-	result, err := CheckModelQuota(501, "gpt-5.5", "default", 100, 0, 1000, 2000)
+	result, err := CheckModelQuota(501, "gpt-5.5", "default", 100)
 	require.NoError(t, err)
 	require.True(t, result.Passed)
+}
+
+func TestCheckModelQuota_PeriodExpiredCreatesFreshUsage(t *testing.T) {
+	setupModelQuotaTestDB(t)
+	t.Cleanup(func() {
+		model.DB.Exec("DELETE FROM model_quota_group_rules")
+		model.DB.Exec("DELETE FROM user_model_quota_usage")
+	})
+
+	rule := &model.ModelQuotaGroupRule{
+		GroupName: "default", ModelPattern: "gpt-5.5", MatchMode: model.ModelQuotaMatchModeExact,
+		Period: model.ModelQuotaPeriodDaily, QuotaLimit: 500, Enabled: true,
+	}
+	require.NoError(t, model.DB.Create(rule).Error)
+
+	oldUsage := &model.UserModelQuotaUsage{
+		UserId: 701, RuleId: rule.Id, RuleSource: model.ModelQuotaRuleSourceGroup,
+		ModelPattern: "gpt-5.5", QuotaLimit: 500, QuotaUsed: 499,
+		PeriodStart: common.GetTimestamp() - 86400*2, PeriodEnd: common.GetTimestamp() - 3600,
+		Status: model.ModelQuotaUsageStatusActive,
+	}
+	require.NoError(t, model.DB.Create(oldUsage).Error)
+
+	result, err := CheckModelQuota(701, "gpt-5.5", "default", 100)
+	require.NoError(t, err)
+	require.True(t, result.Passed)
+	require.Len(t, result.UsageIds, 1)
+	require.NotEqual(t, oldUsage.Id, result.UsageIds[0])
+
+	var refreshed model.UserModelQuotaUsage
+	require.NoError(t, model.DB.First(&refreshed, result.UsageIds[0]).Error)
+	require.Equal(t, int64(0), refreshed.QuotaUsed)
+	require.Greater(t, refreshed.PeriodEnd, common.GetTimestamp())
 }
 
 func TestCheckModelQuota_ExpiredUsageIgnored(t *testing.T) {
@@ -218,7 +251,7 @@ func TestCheckModelQuota_ExpiredUsageIgnored(t *testing.T) {
 	require.NoError(t, model.DB.Create(expiredUsage).Error)
 
 	// New check with fresh period → should pass (expired usage ignored)
-	result, err := CheckModelQuota(601, "gpt-5.5", "default", 100, 0, 1000, 2000)
+	result, err := CheckModelQuota(601, "gpt-5.5", "default", 100)
 	require.NoError(t, err)
 	require.True(t, result.Passed)
 }

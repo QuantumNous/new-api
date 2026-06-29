@@ -57,6 +57,7 @@ import type {
   ModelQuotaGroupRule,
   ModelQuotaPlanRule,
   MatchMode,
+  ModelQuotaPeriod,
 } from './types'
 import {
   formatQuota,
@@ -73,6 +74,20 @@ import { getAdminPlans } from '@/features/subscriptions/api'
 import { cn } from '@/lib/utils'
 
 type QuotaMode = 'add' | 'subtract' | 'override'
+
+function getPeriodLabel(period?: ModelQuotaPeriod) {
+  switch (period) {
+    case 'daily':
+      return '每日'
+    case 'weekly':
+      return '每周'
+    case 'monthly':
+      return '每月'
+    case 'total':
+    default:
+      return '总额'
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Shared hooks for dropdown data sources
@@ -189,6 +204,7 @@ function GroupRulesTab() {
               <TableHead>{t('分组名称')}</TableHead>
               <TableHead>{t('模型匹配')}</TableHead>
               <TableHead>{t('匹配模式')}</TableHead>
+              <TableHead>{t('限制周期')}</TableHead>
               <TableHead>{t('额度上限')}</TableHead>
               <TableHead>{t('状态')}</TableHead>
               <TableHead className="text-right">{t('操作')}</TableHead>
@@ -197,14 +213,14 @@ function GroupRulesTab() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
+                <TableCell colSpan={7} className="text-center">
                   <Loader2 className="size-4 animate-spin mx-auto" />
                 </TableCell>
               </TableRow>
             ) : rules.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="text-center text-muted-foreground"
                 >
                   {t('暂无规则配置')}
@@ -229,6 +245,9 @@ function GroupRulesTab() {
                         ? t('精确匹配')
                         : t('前缀匹配')}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{getPeriodLabel(rule.period)}</Badge>
                   </TableCell>
                   <TableCell>{formatQuota(rule.quota_limit)}</TableCell>
                   <TableCell>
@@ -530,6 +549,9 @@ function GroupRuleDialog({
   const [matchMode, setMatchMode] = useState<MatchMode>(
     rule?.match_mode ?? 'exact'
   )
+  const [period, setPeriod] = useState<ModelQuotaPeriod>(
+    rule?.period ?? 'total'
+  )
   const [quotaMode, setQuotaMode] = useState<QuotaMode>('override')
   const [quotaAmount, setQuotaAmount] = useState(
     isEdit ? String(quotaUnitsToDollars(rule!.quota_limit)) : ''
@@ -581,6 +603,7 @@ function GroupRuleDialog({
       group_name: groupName,
       model_pattern: modelPattern,
       match_mode: matchMode,
+      period,
       quota_limit: finalQuota,
       enabled,
       sort_order: rule?.sort_order ?? 0,
@@ -637,6 +660,26 @@ function GroupRuleDialog({
                 <SelectItem value="prefix">{t('前缀匹配')}</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>{t('限制周期')}</Label>
+            <Select
+              value={period}
+              onValueChange={(v) => setPeriod(v as ModelQuotaPeriod)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="total">{t('总额限制')}</SelectItem>
+                <SelectItem value="daily">{t('每日限制')}</SelectItem>
+                <SelectItem value="weekly">{t('每周限制')}</SelectItem>
+                <SelectItem value="monthly">{t('每月限制')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {t('周期到期后会自动为用户重置该模型额度。')}
+            </p>
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
