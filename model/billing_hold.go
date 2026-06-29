@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
@@ -89,12 +90,51 @@ func MarkBillingHoldResolved(id int, status, verifyDetail string) error {
 	if status == "" {
 		return errors.New("status is empty")
 	}
-	return DB.Model(&BillingHold{}).Where("id = ? AND status = ?", id, BillingHoldStatusPending).
+	return DB.Model(&BillingHold{}).
+		Where("id = ? AND status IN ?", id, []string{BillingHoldStatusPending, "processing"}).
 		Updates(map[string]interface{}{
 			"status":        status,
 			"verify_detail": verifyDetail,
 			"resolved_at":   common.GetTimestamp(),
 		}).Error
+}
+
+// BillingHoldContextPatch carries fields learned after the hold was first created.
+type BillingHoldContextPatch struct {
+	ChannelId      int
+	UpstreamTaskId string
+	ErrorStatus    int
+	ErrorCode      string
+	ErrorMessage   string
+}
+
+// UpdateBillingHoldContext merges later relay context (final channel, task_id, error).
+func UpdateBillingHoldContext(id int, patch BillingHoldContextPatch) error {
+	if id <= 0 {
+		return errors.New("invalid billing hold id")
+	}
+	updates := map[string]interface{}{}
+	if patch.ChannelId > 0 {
+		updates["channel_id"] = patch.ChannelId
+	}
+	if strings.TrimSpace(patch.UpstreamTaskId) != "" {
+		updates["upstream_task_id"] = strings.TrimSpace(patch.UpstreamTaskId)
+	}
+	if patch.ErrorStatus > 0 {
+		updates["error_status"] = patch.ErrorStatus
+	}
+	if strings.TrimSpace(patch.ErrorCode) != "" {
+		updates["error_code"] = strings.TrimSpace(patch.ErrorCode)
+	}
+	if strings.TrimSpace(patch.ErrorMessage) != "" {
+		updates["error_message"] = patch.ErrorMessage
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	return DB.Model(&BillingHold{}).
+		Where("id = ? AND status IN ?", id, []string{BillingHoldStatusPending, "processing"}).
+		Updates(updates).Error
 }
 
 func ClaimBillingHold(id int) (bool, error) {

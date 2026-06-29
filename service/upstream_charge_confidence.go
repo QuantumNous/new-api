@@ -32,7 +32,8 @@ func ClassifyUpstreamChargeConfidence(err *types.NewAPIError) UpstreamChargeConf
 	lower := strings.ToLower(err.Error())
 
 	switch code {
-	case types.ErrorCodeInvalidRequest,
+	case types.ErrorCodeGetChannelFailed,
+		types.ErrorCodeInvalidRequest,
 		types.ErrorCodeSensitiveWordsDetected,
 		types.ErrorCodeModelPriceError,
 		types.ErrorCodeInvalidApiType,
@@ -48,6 +49,10 @@ func ClassifyUpstreamChargeConfidence(err *types.NewAPIError) UpstreamChargeConf
 		types.ErrorCodePromptBlocked,
 		types.ErrorCodeContextTooLarge,
 		types.ErrorCodeContextLengthExceeded:
+		return UpstreamChargeConfirmedNot
+	}
+
+	if code == "moderation_blocked" || code == types.ErrorCodePromptBlocked {
 		return UpstreamChargeConfirmedNot
 	}
 
@@ -110,6 +115,10 @@ var upstreamNotChargedMarkers = []string{
 	"context too large",
 	"prompt is too long",
 	"request exceeded",
+	"moderation_blocked",
+	"safety system",
+	"image_generation_user_error",
+	"safety_violations",
 }
 
 var upstreamAmbiguousMarkers = []string{

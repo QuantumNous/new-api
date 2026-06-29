@@ -36,6 +36,13 @@ type BillingSession struct {
 	mu               sync.Mutex
 }
 
+// HoldRefundActive reports whether refund is blocked pending async reconcile.
+func (s *BillingSession) HoldRefundActive() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.holdRefund
+}
+
 // HoldRefund 在后台补结算完成前阻止 Refund（用于图像同步超时后上游仍可能成功）。
 func (s *BillingSession) HoldRefund() {
 	s.mu.Lock()

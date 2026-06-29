@@ -51,6 +51,18 @@ func TestVerifyBillingHoldUpstreamCharge_ambiguousDefaultConfirm(t *testing.T) {
 	}
 }
 
+func TestVerifyBillingHoldUpstreamCharge_moderationErrorRefunds(t *testing.T) {
+	hold := &model.BillingHold{
+		ErrorStatus:  502,
+		ErrorCode:    "moderation_blocked",
+		ErrorMessage: "Your request was rejected by the safety system",
+	}
+	refund, detail := VerifyBillingHoldUpstreamCharge(hold)
+	if !refund {
+		t.Fatalf("expected refund for moderation_blocked, got confirm: %s", detail)
+	}
+}
+
 func TestBillingHoldAPIError(t *testing.T) {
 	hold := &model.BillingHold{
 		ErrorStatus:  http.StatusBadGateway,

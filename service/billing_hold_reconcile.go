@@ -134,6 +134,7 @@ func runBillingHoldReconcile(holdId int) {
 	if err != nil {
 		return
 	}
+	hold = enrichBillingHoldForVerify(hold)
 
 	shouldRefund, detail := VerifyBillingHoldUpstreamCharge(hold)
 	var resolveErr error
@@ -165,7 +166,7 @@ func VerifyBillingHoldUpstreamCharge(hold *model.BillingHold) (shouldRefund bool
 				return false, fmt.Sprintf("upstream image task charged cost=%.4f credits=%.4f", poll.UpstreamCost, poll.CreditsCost)
 			}
 			if imageTaskTerminalFailure(poll.Status) {
-				return false, fmt.Sprintf("upstream image task terminal status=%s (confirm preconsume)", poll.Status)
+				return true, fmt.Sprintf("upstream image task terminal with zero cost (status=%s)", poll.Status)
 			}
 			return false, fmt.Sprintf("upstream image task still non-terminal status=%s", poll.Status)
 		}
@@ -189,6 +190,38 @@ func VerifyBillingHoldUpstreamCharge(hold *model.BillingHold) (shouldRefund bool
 	}
 
 	return false, "upstream charge unverified; confirm preconsume per policy"
+}
+
+func enrichBillingHoldForVerify(hold *model.BillingHold) *model.BillingHold {
+	if hold == nil {
+		return hold
+	}
+	if hold.UpstreamTaskId != "" && hold.ChannelId > 0 {
+		return hold
+	}
+	ctx, ok := model.FindErrorLogContextForRequestId(hold.UserId, hold.RequestId)
+	if !ok {
+		return hold
+	}
+	patch := model.BillingHoldContextPatch{}
+	if hold.ChannelId <= 0 && ctx.ChannelId > 0 {
+		patch.ChannelId = ctx.ChannelId
+	}
+	if hold.UpstreamTaskId == "" && ctx.TaskID != "" {
+		patch.UpstreamTaskId = ctx.TaskID
+	}
+	if hold.ErrorCode == "" && ctx.ErrorCode != "" {
+		patch.ErrorCode = ctx.ErrorCode
+	}
+	if patch.ChannelId == 0 && patch.UpstreamTaskId == "" && patch.ErrorCode == "" {
+		return hold
+	}
+	_ = model.UpdateBillingHoldContext(hold.Id, patch)
+	updated, err := model.GetBillingHoldById(hold.Id)
+	if err != nil {
+		return hold
+	}
+	return updated
 }
 
 func billingHoldAPIError(hold *model.BillingHold) *types.NewAPIError {
@@ -294,6 +327,16 @@ func fetchURLWithBearer(url, key string, channel *model.Channel) ([]byte, error)
 func RefundBillingHold(hold *model.BillingHold, detail string) error {
 	if hold == nil || hold.PreConsumedQuota <= 0 {
 		return fmt.Errorf("invalid billing hold")
+	}
+	hasConsume, err := model.HasConsumeLogForRequestId(hold.UserId, hold.RequestId)
+	if err != nil {
+		return err
+	}
+	if hasConsume {
+		model.DecreaseUserUsedQuota(hold.UserId, hold.PreConsumedQuota)
+		if hold.ChannelId > 0 {
+			model.UpdateChannelUsedQuota(hold.ChannelId, -hold.PreConsumedQuota)
+		}
 	}
 	if err := model.IncreaseUserQuota(hold.UserId, hold.PreConsumedQuota, false); err != nil {
 		return err

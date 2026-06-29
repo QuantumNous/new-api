@@ -135,6 +135,43 @@ func FindConsumeLogRowForTask(userID int, taskID string) (*Log, error) {
 	return findConsumeLogRowForTask(userID, taskID)
 }
 
+// ErrorLogContext captures upstream task metadata from the latest error log for a request.
+type ErrorLogContext struct {
+	TaskID    string
+	ChannelId int
+	ErrorCode string
+}
+
+// FindErrorLogContextForRequestId reads task_id / channel from the latest error log for request_id.
+func FindErrorLogContextForRequestId(userID int, requestId string) (ErrorLogContext, bool) {
+	requestId = strings.TrimSpace(requestId)
+	if userID <= 0 || requestId == "" {
+		return ErrorLogContext{}, false
+	}
+	var row Log
+	err := LOG_DB.Model(&Log{}).
+		Where("user_id = ? AND type = ? AND request_id = ?", userID, LogTypeError, requestId).
+		Order("id DESC").
+		First(&row).Error
+	if err != nil {
+		return ErrorLogContext{}, false
+	}
+	otherMap, _ := common.StrToMap(row.Other)
+	ctx := ErrorLogContext{ChannelId: row.ChannelId}
+	if otherMap != nil {
+		if taskID, ok := otherMap["task_id"].(string); ok {
+			ctx.TaskID = strings.TrimSpace(taskID)
+		}
+		if code, ok := otherMap["error_code"].(string); ok {
+			ctx.ErrorCode = strings.TrimSpace(code)
+		}
+	}
+	if ctx.TaskID == "" && ctx.ChannelId <= 0 {
+		return ErrorLogContext{}, false
+	}
+	return ctx, true
+}
+
 // HasConsumeLogForRequestId reports whether a consume log already exists for the request.
 func HasConsumeLogForRequestId(userID int, requestId string) (bool, error) {
 	requestId = strings.TrimSpace(requestId)

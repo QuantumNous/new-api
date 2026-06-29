@@ -51,3 +51,27 @@ func TestClassifyUpstreamChargeConfidence_convertRequestFailed(t *testing.T) {
 		t.Fatalf("expected ConfirmedNot, got %v", got)
 	}
 }
+
+func TestClassifyUpstreamChargeConfidence_getChannelFailed(t *testing.T) {
+	err := types.NewErrorWithStatusCode(
+		fmt.Errorf("no enabled channel for cheapest routing"),
+		types.ErrorCodeGetChannelFailed,
+		http.StatusInternalServerError,
+	)
+	got := ClassifyUpstreamChargeConfidence(err)
+	if got != UpstreamChargeConfirmedNot {
+		t.Fatalf("expected ConfirmedNot, got %v", got)
+	}
+}
+
+func TestClassifyUpstreamChargeConfidence_moderationBlocked502(t *testing.T) {
+	err := types.NewErrorWithStatusCode(
+		fmt.Errorf("Your request was rejected by the safety system"),
+		types.ErrorCode("moderation_blocked"),
+		http.StatusBadGateway,
+	)
+	got := ClassifyUpstreamChargeConfidence(err)
+	if got != UpstreamChargeConfirmedNot {
+		t.Fatalf("expected ConfirmedNot, got %v", got)
+	}
+}
