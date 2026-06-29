@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -47,12 +48,15 @@ func TestBuildStripeTopUpLineItemUsesConfiguredMultiCurrencyPrice(t *testing.T) 
 	require.Nil(t, lineItem.PriceData)
 }
 
-func TestBuildStripeCheckoutSessionParamsAlwaysAllowsPromotionCodes(t *testing.T) {
+func TestBuildStripeCheckoutSessionParamsRespectsPromotionCodeSetting(t *testing.T) {
 	originalPriceId := setting.StripePriceId
+	originalPromotionCodesEnabled := setting.StripePromotionCodesEnabled
 	t.Cleanup(func() {
 		setting.StripePriceId = originalPriceId
+		setting.StripePromotionCodesEnabled = originalPromotionCodesEnabled
 	})
 	setting.StripePriceId = "price_multi_currency"
+	setting.StripePromotionCodesEnabled = false
 
 	params := buildStripeCheckoutSessionParams(
 		"ref_123",
@@ -67,11 +71,40 @@ func TestBuildStripeCheckoutSessionParamsAlwaysAllowsPromotionCodes(t *testing.T
 	)
 
 	require.NotNil(t, params.AllowPromotionCodes)
-	require.True(t, *params.AllowPromotionCodes)
+	require.False(t, *params.AllowPromotionCodes)
 	require.Len(t, params.LineItems, 1)
 	require.NotNil(t, params.LineItems[0].Price)
 	require.Equal(t, setting.StripePriceId, *params.LineItems[0].Price)
 	require.Nil(t, params.LineItems[0].PriceData)
+
+	params = buildStripeCheckoutSessionParams(
+		"ref_123",
+		"",
+		"user@example.com",
+		setting.StripePriceId,
+		20,
+		"https://flatkey.ai/wallet?show_history=true",
+		"https://flatkey.ai/wallet",
+		false,
+		true,
+	)
+	require.NotNil(t, params.AllowPromotionCodes)
+	require.True(t, *params.AllowPromotionCodes)
+
+	setting.StripePromotionCodesEnabled = true
+	params = buildStripeCheckoutSessionParams(
+		"ref_123",
+		"",
+		"user@example.com",
+		setting.StripePriceId,
+		20,
+		"https://flatkey.ai/wallet?show_history=true",
+		"https://flatkey.ai/wallet",
+		false,
+		false,
+	)
+	require.NotNil(t, params.AllowPromotionCodes)
+	require.True(t, *params.AllowPromotionCodes)
 }
 
 func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
@@ -81,15 +114,22 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 	originalTopUpPriceIds := setting.StripeTopUpPriceIds
 	paymentSetting := operation_setting.GetPaymentSetting()
 	originalAmountOptions := append([]int(nil), paymentSetting.AmountOptions...)
+	originalEnsure := ensureStripePriceSupportsCheckoutCurrency
 	t.Cleanup(func() {
 		setting.StripePriceId = originalPriceId
 		setting.StripePriceId20 = originalPriceId20
 		setting.StripePriceId200 = originalPriceId200
 		setting.StripeTopUpPriceIds = originalTopUpPriceIds
 		paymentSetting.AmountOptions = originalAmountOptions
+		ensureStripePriceSupportsCheckoutCurrency = originalEnsure
 	})
 	setting.StripeTopUpPriceIds = `{"10":"price_multi_currency_10","20":"price_multi_currency_20","50":"price_multi_currency_50"}`
 	paymentSetting.AmountOptions = []int{10, 20, 50}
+	checkedCurrencies := map[string]string{}
+	ensureStripePriceSupportsCheckoutCurrency = func(priceId string, requestedCurrency string) error {
+		checkedCurrencies[priceId] = requestedCurrency
+		return nil
+	}
 
 	checkout, err := resolveStripeTopUpCheckout(&StripePayRequest{
 		Amount:         10,
@@ -97,6 +137,7 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 	}, 10, "default")
 	require.NoError(t, err)
 	require.Equal(t, "price_multi_currency_10", checkout.PriceId)
+	require.Equal(t, "JPY", checkedCurrencies["price_multi_currency_10"])
 	require.Equal(t, int64(1), checkout.Quantity)
 	require.Empty(t, checkout.PaymentCurrency)
 	require.Equal(t, 10.0, checkout.Money)
@@ -107,6 +148,7 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 	}, 20, "default")
 	require.NoError(t, err)
 	require.Equal(t, "price_multi_currency_20", checkout.PriceId)
+	require.Equal(t, "JPY", checkedCurrencies["price_multi_currency_20"])
 	require.Equal(t, int64(1), checkout.Quantity)
 	require.Empty(t, checkout.PaymentCurrency)
 	require.Equal(t, 20.0, checkout.Money)
@@ -117,6 +159,7 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 	}, 50, "default")
 	require.NoError(t, err)
 	require.Equal(t, "price_multi_currency_50", checkout.PriceId)
+	require.Equal(t, "USD", checkedCurrencies["price_multi_currency_50"])
 	require.Equal(t, int64(1), checkout.Quantity)
 	require.Empty(t, checkout.PaymentCurrency)
 	require.Equal(t, 50.0, checkout.Money)
@@ -127,9 +170,60 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 	}, 50, "default")
 	require.NoError(t, err)
 	require.Equal(t, "price_multi_currency_50", checkout.PriceId)
+	require.Equal(t, "BRL", checkedCurrencies["price_multi_currency_50"])
 	require.Equal(t, int64(1), checkout.Quantity)
 	require.Empty(t, checkout.PaymentCurrency)
 	require.Equal(t, 50.0, checkout.Money)
+}
+
+func TestResolveStripeTopUpCheckoutRejectsMissingCurrency(t *testing.T) {
+	_, err := resolveStripeTopUpCheckout(&StripePayRequest{
+		Amount: 10,
+	}, 10, "default")
+
+	require.EqualError(t, err, "Stripe checkout currency is required")
+}
+
+func TestResolveStripeTopUpCheckoutReturnsPriceCurrencyValidationError(t *testing.T) {
+	originalTopUpPriceIds := setting.StripeTopUpPriceIds
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalAmountOptions := append([]int(nil), paymentSetting.AmountOptions...)
+	originalEnsure := ensureStripePriceSupportsCheckoutCurrency
+	t.Cleanup(func() {
+		setting.StripeTopUpPriceIds = originalTopUpPriceIds
+		paymentSetting.AmountOptions = originalAmountOptions
+		ensureStripePriceSupportsCheckoutCurrency = originalEnsure
+	})
+	setting.StripeTopUpPriceIds = `{"10":"price_multi_currency_10"}`
+	paymentSetting.AmountOptions = []int{10}
+	ensureStripePriceSupportsCheckoutCurrency = func(priceId string, requestedCurrency string) error {
+		require.Equal(t, "price_multi_currency_10", priceId)
+		require.Equal(t, "BRL", requestedCurrency)
+		return errors.New("Stripe Price price_multi_currency_10 does not support BRL")
+	}
+
+	_, err := resolveStripeTopUpCheckout(&StripePayRequest{
+		Amount:         10,
+		StripeCurrency: "brl",
+	}, 10, "default")
+
+	require.EqualError(t, err, "Stripe Price price_multi_currency_10 does not support BRL")
+}
+
+func TestStripePriceSupportsCurrency(t *testing.T) {
+	price := &stripe.Price{
+		Currency: stripe.CurrencyUSD,
+		CurrencyOptions: map[string]*stripe.PriceCurrencyOptions{
+			"jpy": {},
+			"brl": {},
+		},
+	}
+
+	require.True(t, stripePriceSupportsCurrency(price, "USD"))
+	require.True(t, stripePriceSupportsCurrency(price, "jpy"))
+	require.True(t, stripePriceSupportsCurrency(price, "BRL"))
+	require.False(t, stripePriceSupportsCurrency(price, "EUR"))
+	require.False(t, stripePriceSupportsCurrency(nil, "USD"))
 }
 
 func TestResolveStripeTopUpCheckoutRejectsUnsupportedCurrencyPackage(t *testing.T) {
@@ -197,6 +291,27 @@ func TestStripePaymentSnapshotFromEventUsesCurrencyMinorUnits(t *testing.T) {
 	snapshot = stripePaymentSnapshotFromEvent(event)
 	require.Equal(t, 5000.0, snapshot.Money)
 	require.Equal(t, "JPY", snapshot.Currency)
+}
+
+func TestStripePaymentSnapshotFromEventRequiresAmountAndCurrency(t *testing.T) {
+	for _, event := range []stripe.Event{
+		{Data: &stripe.EventData{Object: map[string]interface{}{
+			"currency": "usd",
+		}}},
+		{Data: &stripe.EventData{Object: map[string]interface{}{
+			"amount_total": "not-a-number",
+			"currency":     "usd",
+		}}},
+		{Data: &stripe.EventData{Object: map[string]interface{}{
+			"amount_total": float64(1234),
+		}}},
+		{Data: &stripe.EventData{Object: map[string]interface{}{
+			"amount_total": float64(0),
+			"currency":     "usd",
+		}}},
+	} {
+		require.Equal(t, model.PaymentSnapshot{}, stripePaymentSnapshotFromEvent(event))
+	}
 }
 
 func TestValidateStripeRedirectURLAllowsSameRequestHost(t *testing.T) {

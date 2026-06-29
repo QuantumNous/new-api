@@ -412,7 +412,7 @@ export function getLockedTopupAmountOptions(
   amountOptions: number[],
   _stripeTopupEnabled: boolean
 ): number[] {
-  return amountOptions
+  return amountOptions.filter((amount) => Number.isFinite(amount) && amount > 0)
 }
 
 export function getInitialPresetTopupAmount(

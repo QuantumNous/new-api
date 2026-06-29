@@ -217,7 +217,7 @@ export function getModelLandingConfig(slug: string): ModelConfig | null {
 export function getModelLandingConfigForModel(modelId: string): ModelConfig | null {
   const normalized = normalizeModelId(modelId);
   return getModelLandingConfigs().find((config) =>
-    config.modelIds.some((configuredId) => normalizeModelId(configuredId) === normalized)
+    config.modelIds.some((configuredId) => matchesModelId(normalized, configuredId))
   ) ?? null;
 }
 
@@ -230,12 +230,22 @@ export function getModelLandingPathnames(): string[] {
 }
 
 export function resolveModelLandingModels(config: ModelConfig, models: PricingModel[]): PricingModel[] {
-  const configuredIds = new Set(config.modelIds.map(normalizeModelId));
-  return models.filter((model) => configuredIds.has(normalizeModelId(model.model_name)));
+  return models.filter((model) => {
+    const normalized = normalizeModelId(model.model_name);
+    return config.modelIds.some((configuredId) => matchesModelId(normalized, configuredId));
+  });
 }
 
-function normalizeModelId(modelId: string): string {
-  return modelId.trim().toLowerCase().replace(/[_\s]+/g, "-");
+export function normalizeModelId(modelId: string): string {
+  return modelId.trim().toLowerCase().replace(/[_.\s]+/g, "-");
+}
+
+function matchesModelId(normalizedModelId: string, configuredId: string): boolean {
+  const normalizedConfiguredId = normalizeModelId(configuredId);
+  return (
+    normalizedModelId === normalizedConfiguredId ||
+    normalizedModelId.startsWith(`${normalizedConfiguredId}-`)
+  );
 }
 
 const en: Record<ModelLandingKey, string> = {

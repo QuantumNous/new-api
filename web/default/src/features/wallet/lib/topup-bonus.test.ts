@@ -100,4 +100,11 @@ describe('top-up bonus preset metadata', () => {
       10, 20, 50,
     ])
   })
+
+  test('drops invalid locked top-up amount options', () => {
+    expect(getLockedTopupAmountOptions([10, 0, -1, Number.NaN, 20], true)).toEqual([
+      10, 20,
+    ])
+    expect(getLockedTopupAmountOptions([], true)).toEqual([])
+  })
 })

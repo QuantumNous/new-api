@@ -62,7 +62,7 @@ export function PricingPlansGrid(props: PricingPlansGridProps) {
               </button>
             ) : (
               <a
-                href={SIGN_UP_URL}
+                href={plan.checkoutUrl ?? SIGN_UP_URL}
                 className={[
                   "mt-6 inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-bold transition-colors",
                   plan.featured ? "bg-violet-600 !text-white hover:bg-violet-500 dark:bg-violet-500 dark:hover:bg-violet-400" : "border border-violet-500/18 bg-violet-500/8 text-violet-700 hover:bg-violet-500/12 dark:border-violet-300/20 dark:bg-violet-300/10 dark:text-violet-100 dark:hover:bg-violet-300/15",
@@ -117,12 +117,14 @@ export function PricingPlansGrid(props: PricingPlansGridProps) {
               Need higher monthly usage, invoicing, team procurement, or custom routing discounts? Send the form and we will follow up.
             </p>
           </div>
-          <FlatkeyTallyEmbed
-            locale={props.locale}
-            loading="eager"
-            iframeClassName="block h-[72dvh] min-h-[620px] w-full border-0 bg-transparent"
-            className="mt-4 rounded-xl border border-violet-500/12 bg-white/62 p-2 shadow-[0_18px_46px_-36px_rgba(91,33,182,0.5)] dark:border-white/10 dark:bg-white/[0.06]"
-          />
+          {contactOpen ? (
+            <FlatkeyTallyEmbed
+              locale={props.locale}
+              loading="lazy"
+              iframeClassName="block h-[72dvh] min-h-[620px] w-full border-0 bg-transparent"
+              className="mt-4 rounded-xl border border-violet-500/12 bg-white/62 p-2 shadow-[0_18px_46px_-36px_rgba(91,33,182,0.5)] dark:border-white/10 dark:bg-white/[0.06]"
+            />
+          ) : null}
         </div>
       </div>
     </>

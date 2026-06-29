@@ -4,7 +4,7 @@ import { useEffect, useState, type MouseEvent } from "react";
 import { BadgeCheck, Sparkles } from "lucide-react";
 import { SiteShell } from "@/components/site-shell";
 import type { Locale } from "@/lib/locales";
-import { modelLandingCopy, type ModelConfig, type ModelLandingKey } from "@/lib/model-landing";
+import { modelLandingCopy, normalizeModelId, type ModelConfig, type ModelLandingKey } from "@/lib/model-landing";
 import { consoleUrl } from "@/lib/origins";
 import {
   formatModelPrice,
@@ -26,7 +26,10 @@ export function ModelLandingPage({ config, locale, liveModels = [] }: Props) {
   const [prompt, setPrompt] = useState(config.examplePrompt);
   const signInHref = consoleUrl("/sign-up");
   const t = (key: ModelLandingKey, vars?: Record<string, string>) => modelLandingCopy(locale, key, vars);
-  const primaryLiveModel = liveModels[0] ?? null;
+  const primaryLiveModel =
+    liveModels.find((model) => normalizeModelId(model.model_name) === normalizeModelId(config.modelId)) ??
+    liveModels[0] ??
+    null;
 
   useEffect(() => {
     (window as GtagWindow).gtag?.("event", "flatkey_model_page_view", {

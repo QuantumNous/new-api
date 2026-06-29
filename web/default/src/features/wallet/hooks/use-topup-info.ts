@@ -248,6 +248,8 @@ export function useTopupInfo() {
           processedData.bonus_remaining || {}
         )
         setPresetAmounts(customPresets)
+      } else if (processedData.enable_stripe_topup) {
+        setPresetAmounts([])
       } else {
         const minTopup = getMinTopupAmount(processedData)
         const defaultPresets = generatePresetAmounts(

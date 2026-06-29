@@ -27,6 +27,7 @@ describe("pricing page conversion copy", () => {
     const plans = getPricingPlans("en");
 
     expect(plans.map((plan) => plan.price)).toEqual(["$10", "$20", "$200", "Custom"]);
+    expect(plans.slice(0, 3).map((plan) => plan.action)).toEqual(["checkout", "checkout", "checkout"]);
     expect(plans.map((plan) => plan.caption)).toEqual([
       "Lowest entry to get started",
       "3X more usage than the official plan",
@@ -38,6 +39,20 @@ describe("pricing page conversion copy", () => {
     expect(plans[2]?.discount).toBe("50% OFF");
     expect(plans[3]?.name).toBe("Enterprise");
     expect(plans[3]?.cta).toBe("Contact Us");
+  });
+
+  test("adds stable checkout metadata to self-serve plans", () => {
+    const plans = getPricingPlans("pt").slice(0, 3);
+
+    expect(plans.map((plan) => plan.currency)).toEqual(["BRL", "BRL", "BRL"]);
+    expect(plans.map((plan) => plan.amountMinor)).toEqual([4990, 9990, 99000]);
+    expect(plans.map((plan) => plan.stripeLookupKey)).toEqual([
+      "topup-brl-4990",
+      "topup-brl-9990",
+      "topup-brl-99000",
+    ]);
+    expect(plans[0]?.checkoutUrl).toContain("redirect=%2Fwallet%3Famount%3D49.9%26currency%3DBRL");
+    expect(plans[0]?.checkoutUrl).toContain("stripe_lookup_key%3Dtopup-brl-4990");
   });
 
   test("localizes top-up plan prices for supported currency locales", () => {

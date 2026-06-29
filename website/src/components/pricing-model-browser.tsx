@@ -331,6 +331,7 @@ function ModelPriceCard(props: { model: PricingModel; locale: Locale; performanc
             <a
               href={landingHref}
               onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
               className="inline-flex h-7 items-center rounded-full border border-emerald-300/40 bg-emerald-500/10 px-2.5 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-500/15 dark:border-emerald-300/25 dark:text-emerald-200 dark:hover:bg-emerald-300/15"
             >
               Landing

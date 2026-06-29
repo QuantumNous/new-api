@@ -85,11 +85,7 @@ func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, g
 
 	requestedCurrency := strings.ToUpper(strings.TrimSpace(req.StripeCurrency))
 	if requestedCurrency == "" {
-		return &stripeTopUpCheckout{
-			PriceId:  strings.TrimSpace(setting.StripePriceId),
-			Quantity: normalizedAmount,
-			Money:    getStripePayMoney(float64(req.Amount), group),
-		}, nil
+		return nil, errors.New("Stripe checkout currency is required")
 	}
 
 	if !stripeTopUpCurrencySupported(requestedCurrency) {
@@ -102,6 +98,9 @@ func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, g
 	}
 	if strings.TrimSpace(pkg.PriceId) == "" {
 		return nil, fmt.Errorf("Stripe %d Price ID is not configured", normalizedAmount)
+	}
+	if err := ensureStripePriceSupportsCheckoutCurrency(pkg.PriceId, requestedCurrency); err != nil {
+		return nil, err
 	}
 
 	return &stripeTopUpCheckout{
@@ -118,6 +117,47 @@ func stripeTopUpCurrencySupported(currency string) bool {
 	default:
 		return false
 	}
+}
+
+var ensureStripePriceSupportsCheckoutCurrency = ensureStripePriceSupportsCurrency
+
+func ensureStripePriceSupportsCurrency(priceId string, requestedCurrency string) error {
+	priceId = strings.TrimSpace(priceId)
+	normalizedCurrency := strings.ToUpper(strings.TrimSpace(requestedCurrency))
+	if priceId == "" {
+		return errors.New("Stripe Price ID is not configured")
+	}
+	if normalizedCurrency == "" {
+		return errors.New("Stripe checkout currency is required")
+	}
+	if err := ensureStripeKey(); err != nil {
+		return err
+	}
+
+	price, err := stripeprice.Get(priceId, nil)
+	if err != nil {
+		return err
+	}
+	if !stripePriceSupportsCurrency(price, normalizedCurrency) {
+		return fmt.Errorf("Stripe Price %s does not support %s", priceId, normalizedCurrency)
+	}
+	return nil
+}
+
+func stripePriceSupportsCurrency(price *stripe.Price, requestedCurrency string) bool {
+	normalizedCurrency := strings.ToLower(strings.TrimSpace(requestedCurrency))
+	if price == nil || normalizedCurrency == "" {
+		return false
+	}
+	if strings.ToLower(string(price.Currency)) == normalizedCurrency {
+		return true
+	}
+	for currency := range price.CurrencyOptions {
+		if strings.ToLower(strings.TrimSpace(currency)) == normalizedCurrency {
+			return true
+		}
+	}
+	return false
 }
 
 func stripeTopUpPackageFor(amount int64) (stripeTopUpCurrencyPackage, bool) {
@@ -681,9 +721,11 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 
 func stripePaymentSnapshotFromEvent(event stripe.Event) model.PaymentSnapshot {
 	currency := strings.ToUpper(strings.TrimSpace(event.GetObjectValue("currency")))
-	total, _ := strconv.ParseFloat(event.GetObjectValue("amount_total"), 64)
-	if total <= 0 {
-		return model.PaymentSnapshot{Currency: currency}
+	rawTotal := event.GetObjectValue("amount_total")
+	total, err := strconv.ParseFloat(rawTotal, 64)
+	if err != nil || total <= 0 || currency == "" {
+		logger.LogWarn(nil, fmt.Sprintf("Stripe 支付快照字段缺失 event_type=%s amount_total=%q currency=%q", string(event.Type), rawTotal, currency))
+		return model.PaymentSnapshot{}
 	}
 	scale := 2.0
 	switch currency {
@@ -1144,7 +1186,7 @@ func canonicalRedirectHostname(host string) string {
 	return strings.TrimSuffix(strings.ToLower(parsedHost.Hostname()), ".")
 }
 
-func buildStripeCheckoutSessionParams(referenceId string, customerId string, email string, priceId string, quantity int64, successURL string, cancelURL string, invoiceRequested bool, _ bool) *stripe.CheckoutSessionParams {
+func buildStripeCheckoutSessionParams(referenceId string, customerId string, email string, priceId string, quantity int64, successURL string, cancelURL string, invoiceRequested bool, saveCard bool) *stripe.CheckoutSessionParams {
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(referenceId),
 		SuccessURL:        stripe.String(successURL),
@@ -1152,10 +1194,8 @@ func buildStripeCheckoutSessionParams(referenceId string, customerId string, ema
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			buildStripeTopUpLineItem(priceId, quantity),
 		},
-		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
-		// Always show Stripe's native promotion code field. Checkout chooses the
-		// presentment currency from the multi-currency Price and customer location.
-		AllowPromotionCodes: stripe.Bool(true),
+		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
+		AllowPromotionCodes: stripe.Bool(saveCard || setting.StripePromotionCodesEnabled),
 	}
 
 	if "" == customerId {

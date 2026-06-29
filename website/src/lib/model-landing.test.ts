@@ -24,7 +24,14 @@ describe("model landing configuration", () => {
   test("matches live pricing models from configured model ids", () => {
     const liveModels: PricingModel[] = [
       {
-        model_name: "gpt-5",
+        model_name: "gpt-5-2026-06-01",
+        vendor_name: "OpenAI",
+        quota_type: 0,
+        model_ratio: 0.35,
+        completion_ratio: 8,
+      },
+      {
+        model_name: "seedance-2.0-pro",
         vendor_name: "OpenAI",
         quota_type: 0,
         model_ratio: 0.35,
@@ -42,11 +49,13 @@ describe("model landing configuration", () => {
     const config = getModelLandingConfig("gpt-api");
 
     expect(config?.modelIds).toContain("gpt-5");
-    expect(resolveModelLandingModels(config!, liveModels).map((model) => model.model_name)).toEqual(["gpt-5"]);
+    expect(resolveModelLandingModels(config!, liveModels).map((model) => model.model_name)).toEqual(["gpt-5-2026-06-01"]);
   });
 
   test("finds landing page config from a live pricing model name", () => {
     expect(getModelLandingConfigForModel("gpt-5-mini")?.slug).toBe("gpt-api");
+    expect(getModelLandingConfigForModel("gpt-5-2026-06-01")?.slug).toBe("gpt-api");
+    expect(getModelLandingConfigForModel("seedance-2.0-pro")?.slug).toBe("seedance-api");
     expect(getModelLandingConfigForModel("unknown-model")).toBeNull();
   });
 });

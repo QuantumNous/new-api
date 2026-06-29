@@ -977,6 +977,21 @@ export function PaymentSettingsSection({
       })
     }
 
+    if (sanitized.StripePriceId !== initial.StripePriceId) {
+      updates.push({ key: 'StripePriceId', value: sanitized.StripePriceId })
+    }
+
+    if (sanitized.StripePriceId20 !== initial.StripePriceId20) {
+      updates.push({ key: 'StripePriceId20', value: sanitized.StripePriceId20 })
+    }
+
+    if (sanitized.StripePriceId200 !== initial.StripePriceId200) {
+      updates.push({
+        key: 'StripePriceId200',
+        value: sanitized.StripePriceId200,
+      })
+    }
+
     if (sanitized.StripeUnitPrice !== initial.StripeUnitPrice) {
       updates.push({ key: 'StripeUnitPrice', value: sanitized.StripeUnitPrice })
     }
@@ -1251,6 +1266,17 @@ export function PaymentSettingsSection({
           )
         )
       )
+      const legacyPriceIdFieldByAmount: Partial<
+        Record<number, keyof PaymentFormValues>
+      > = {
+        10: 'StripePriceId',
+        20: 'StripePriceId20',
+        200: 'StripePriceId200',
+      }
+      const legacyPriceIdField = legacyPriceIdFieldByAmount[amount]
+      if (legacyPriceIdField) {
+        setPaymentValue(legacyPriceIdField, priceId)
+      }
     },
     [setPaymentValue, stripeTopUpPriceRows]
   )
