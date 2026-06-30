@@ -13,25 +13,28 @@ var ModelList = []string{
 
 var ChannelName = "doubao-video"
 
-// videoPriceKey 价格表的二维键：输出分辨率是否为 1080p、输入是否含视频。
+// videoPriceKey 价格表的键：输出分辨率档（is1080p/is4k 均为 false 即 480p/720p 基准档）、输入是否含视频。
 type videoPriceKey struct {
 	is1080p  bool
+	is4k     bool
 	hasVideo bool
 }
 
 // videoPriceTable 各模型在不同 (输出分辨率档, 是否含视频输入) 下的单价（元/百万 token）。
-// 其中 {480p/720p, 不含视频}（零值键）为基准价，等于管理员应配置的 ModelRatio；
-// 计费时取 实际单价/基准价 作为 OtherRatio，缺省分辨率按 480p/720p 档处理。
+// 其中零值键 {480p/720p, 不含视频} 为基准价，等于管理员应配置的 ModelRatio；
+// 计费时取 实际单价/基准价 作为 OtherRatio。
 var videoPriceTable = map[string]map[videoPriceKey]float64{
 	"doubao-seedance-2-0-260128": {
-		{is1080p: false, hasVideo: false}: 46.0,
-		{is1080p: false, hasVideo: true}:  28.0,
-		{is1080p: true, hasVideo: false}:  51.0,
-		{is1080p: true, hasVideo: true}:   31.0,
+		{hasVideo: false}:                46.0,
+		{hasVideo: true}:                 28.0,
+		{is1080p: true, hasVideo: false}: 51.0,
+		{is1080p: true, hasVideo: true}:  31.0,
+		{is4k: true, hasVideo: false}:    26.0,
+		{is4k: true, hasVideo: true}:     16.0,
 	},
 	"doubao-seedance-2-0-fast-260128": {
-		{is1080p: false, hasVideo: false}: 37.0,
-		{is1080p: false, hasVideo: true}:  22.0,
+		{hasVideo: false}: 37.0,
+		{hasVideo: true}:  22.0,
 	},
 }
 
@@ -43,9 +46,10 @@ func GetVideoInputRatio(modelName, resolution string, hasVideo bool) (float64, b
 	if !ok || base <= 0 {
 		return 0, false
 	}
-	price, ok := prices[videoPriceKey{is1080p: strings.EqualFold(resolution, "1080p"), hasVideo: hasVideo}]
+	res := strings.ToLower(strings.TrimSpace(resolution))
+	price, ok := prices[videoPriceKey{is1080p: res == "1080p", is4k: res == "4k", hasVideo: hasVideo}]
 	if !ok {
-		// 未配置的组合（如 fast 无 1080p，上游会自行报错）按基准价计费即可。
+		// 未配置的组合（如 fast 无 1080p/4k，上游会自行报错）按基准价计费即可。
 		return 1.0, true
 	}
 	return price / base, true
