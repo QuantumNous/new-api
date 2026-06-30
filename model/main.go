@@ -303,6 +303,7 @@ func migrateDB() error {
 		&SystemTaskLock{},
 		&ModelQuotaGroupRule{},
 		&ModelQuotaPlanRule{},
+		&ModelQuotaUserRule{},
 		&UserModelQuotaUsage{},
 		&CasbinRule{},
 		&AuthzRole{},

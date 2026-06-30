@@ -103,22 +103,25 @@ func getUserActivePlanInfo(userId int) *userActivePlanInfo {
 // Matching is always driven by the CURRENT enabled rule definitions, never by
 // historical usage snapshots. This ensures that deleting/disabling a rule or
 // changing its limit takes effect immediately.
+//
+// Priority order (highest first): user rules > group rules > plan rules.
+// However, all matched rules are returned (intersection semantics: every
+// matched rule must pass). Use sort_order within each source to allow
+// administrators to control ordering for diagnostics.
 func FindMatchingModelQuotaRules(userId int, modelName string, userGroup string, planInfo *userActivePlanInfo) []*matchedRule {
 	var matched []*matchedRule
 
-	// 1. Check plan rules (if user has an active subscription)
-	if planInfo != nil && planInfo.PlanId > 0 {
-		planRules, err := model.GetModelQuotaPlanRulesByPlanId(planInfo.PlanId)
-		if err == nil {
-			for _, r := range planRules {
-				if matchModel(modelName, r.ModelPattern, r.MatchMode) {
-					matched = append(matched, &matchedRule{
-						RuleId: r.Id, RuleSource: model.ModelQuotaRuleSourcePlan,
-						ModelPattern: r.ModelPattern, MatchMode: r.MatchMode,
-						QuotaLimit: r.QuotaLimit,
-						Period:     "subscription",
-					})
-				}
+	// 1. Check user rules (highest priority — personal overrides)
+	userRules, err := model.GetModelQuotaUserRulesByUserId(userId)
+	if err == nil {
+		for _, r := range userRules {
+			if matchModel(modelName, r.ModelPattern, r.MatchMode) {
+				matched = append(matched, &matchedRule{
+					RuleId: r.Id, RuleSource: model.ModelQuotaRuleSourceUser,
+					ModelPattern: r.ModelPattern, MatchMode: r.MatchMode,
+					QuotaLimit: r.QuotaLimit,
+					Period:     r.Period,
+				})
 			}
 		}
 	}
@@ -134,6 +137,23 @@ func FindMatchingModelQuotaRules(userId int, modelName string, userGroup string,
 					QuotaLimit: r.QuotaLimit,
 					Period:     r.Period,
 				})
+			}
+		}
+	}
+
+	// 3. Check plan rules (if user has an active subscription)
+	if planInfo != nil && planInfo.PlanId > 0 {
+		planRules, err := model.GetModelQuotaPlanRulesByPlanId(planInfo.PlanId)
+		if err == nil {
+			for _, r := range planRules {
+				if matchModel(modelName, r.ModelPattern, r.MatchMode) {
+					matched = append(matched, &matchedRule{
+						RuleId: r.Id, RuleSource: model.ModelQuotaRuleSourcePlan,
+						ModelPattern: r.ModelPattern, MatchMode: r.MatchMode,
+						QuotaLimit: r.QuotaLimit,
+						Period:     "subscription",
+					})
+				}
 			}
 		}
 	}

@@ -240,6 +240,12 @@ func SetApiRouter(router *gin.Engine) {
 			modelQuotaRoute.PUT("/plan-rules/:id", controller.UpdateModelQuotaPlanRule)
 			modelQuotaRoute.DELETE("/plan-rules/:id", controller.DeleteModelQuotaPlanRule)
 
+			// User rules (personal overrides)
+			modelQuotaRoute.GET("/user-rules", controller.GetModelQuotaUserRules)
+			modelQuotaRoute.POST("/user-rules", controller.CreateModelQuotaUserRule)
+			modelQuotaRoute.PUT("/user-rules/:id", controller.UpdateModelQuotaUserRule)
+			modelQuotaRoute.DELETE("/user-rules/:id", controller.DeleteModelQuotaUserRule)
+
 			// User usage
 			modelQuotaRoute.GET("/user-usage", controller.GetUserModelQuotaUsage)
 			modelQuotaRoute.POST("/user-usage/:id/reset", controller.ResetUserModelQuotaUsage)

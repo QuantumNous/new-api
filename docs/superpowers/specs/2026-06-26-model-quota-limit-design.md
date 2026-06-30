@@ -1,7 +1,7 @@
 # 模型额度限制（Model Quota Limit）功能设计
 
-> 日期：2026-06-26
-> 状态：已实现并迭代至周期重置版本
+> 日期：2026-06-26（2026-06-30 更新：新增用户级规则、规则变更同步、级联清理）
+> 状态：已实现并迭代至用户规则版本
 > 方法论：TDD 先行
 
 ## 1. 需求背景
@@ -10,18 +10,19 @@
 
 ### 核心需求
 
-1. 支持**按分组**和**按订阅套餐**配置模型的额度限制规则
+1. 支持**按分组**、**按订阅套餐**、**按个人用户**配置模型的额度限制规则
 2. 规则最终**作用到用户级**进行实时限制
 3. 模型额度耗尽时**直接拒绝请求**（403）
 4. 订阅套餐规则的限额周期**跟随用户订阅周期**自动重置
-5. 分组规则支持**总额、每日、每周、每月**粒度限制，周期到期自动为用户重置
+5. 分组规则和用户规则支持**总额、每日、每周、每月**粒度限制，周期到期自动为用户重置
 6. 模型匹配支持**精确匹配**和**前缀通配**（管理员自选）
 7. 模型限额是总额度的**子池**（限额是总额度的一部分，不是额外叠加）
 8. **完全不改现有计费逻辑**，模型限额作为独立中间件拦截层
+9. **规则变更实时生效**：删除/禁用/调整额度立即同步到用户，不留陈旧快照阻塞用户
 
 ## 2. 数据模型
 
-### 2.1 新增 3 张表
+### 2.1 新增 4 张表
 
 **表 1：`model_quota_group_rules`（分组级规则定义）**
 
@@ -52,17 +53,33 @@
 | `created_at` | bigint | |
 | `updated_at` | bigint | |
 
-**表 3：`user_model_quota_usage`（用户级实时消耗计数器）**
+**表 3：`model_quota_user_rules`（个人用户级规则定义，2026-06-30 新增）**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | int PK | |
+| `user_id` | int | 目标用户 ID（联合索引 `idx_user_rules`） |
+| `username` | varchar(64) | 冗余字段，方便列表展示，由后端自动回填 |
+| `model_pattern` | varchar(128) | |
+| `match_mode` | varchar(16) | `exact` / `prefix` |
+| `period` | varchar(16) | `total` / `daily` / `weekly` / `monthly` |
+| `quota_limit` | bigint | |
+| `enabled` | bool | （联合索引 `idx_user_rules`） |
+| `sort_order` | int | |
+| `created_at` | bigint | |
+| `updated_at` | bigint | |
+
+**表 4：`user_model_quota_usage`（用户级实时消耗计数器）**
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `id` | int PK | |
 | `user_id` | int | 用户 ID（联合索引 `idx_user_period`） |
 | `rule_id` | int | 来源规则 ID |
-| `rule_source` | varchar(16) | `group` / `plan` |
+| `rule_source` | varchar(16) | `group` / `plan` / `user` |
 | `model_pattern` | varchar(128) | 冗余存储，用于查询展示 |
-| `subscription_id` | int | 关联 `user_subscriptions.id`（0=分组规则，无订阅） |
-| `quota_limit` | bigint | 快照：该规则的限额（创建时拷贝） |
+| `subscription_id` | int | 关联 `user_subscriptions.id`（0=分组/用户规则，无订阅） |
+| `quota_limit` | bigint | 快照：该规则的限额（创建时拷贝，规则变更时同步刷新） |
 | `quota_used` | bigint | 实时消耗累计 |
 | `period_start` | bigint | 周期开始时间戳 |
 | `period_end` | bigint | 周期结束时间戳（联合索引 `idx_user_period`） |
@@ -79,6 +96,9 @@ CREATE INDEX idx_group_rules ON model_quota_group_rules(group_name, enabled);
 -- 套餐规则查询
 CREATE INDEX idx_plan_rules ON model_quota_plan_rules(plan_id, enabled);
 
+-- 个人用户规则查询（2026-06-30 新增）
+CREATE INDEX idx_user_rules ON model_quota_user_rules(user_id, enabled);
+
 -- 用户活跃计数器查询（核心高频路径）
 CREATE INDEX idx_user_period ON user_model_quota_usage(user_id, period_end, status);
 ```
@@ -87,9 +107,20 @@ CREATE INDEX idx_user_period ON user_model_quota_usage(user_id, period_end, stat
 
 - 首次命中规则时才创建 `user_model_quota_usage` 记录
 - 避免为所有用户预创建空数据
-- `quota_limit` 在创建时从规则快照拷贝，规则修改不影响已生成的计数器
+- `quota_limit` 在创建时从规则快照拷贝
+- **规则变更同步**（2026-06-30 新增）：管理员调整规则 `quota_limit` 时，所有 active usage 的 `quota_limit` 也会同步刷新，保证"调高/调低额度立即生效"
 - 使用记录必须是 `status='active' AND period_end > now`，周期过期后旧记录不再参与拦截
 - 下一次命中同一规则时会懒创建新的用户级 usage，`quota_used` 从 0 开始
+
+### 2.4 规则变更级联（2026-06-30 新增）
+
+| 操作 | 级联动作 |
+|------|---------|
+| **删除规则** | 删除所有该规则的 active usage 记录，并清除 Redis 缓存，避免陈旧快照阻塞用户 |
+| **禁用规则** | 规则匹配只查 `enabled=true`，禁用后自然不再被命中 |
+| **调整 `quota_limit`** | 调用 `SyncUserModelQuotaLimitByRule` 同步到所有 active usage 的 `quota_limit` + 刷新 Redis 缓存 |
+
+这三条保证了"删除规则后用户依然被 403 拦截"等陈旧快照问题不再出现。
 
 ## 3. Redis 双写设计
 
@@ -238,19 +269,21 @@ gopool.Go(func() {
 ```
 用户请求模型 M
   ↓
-1. 查 user_model_quota_usage 中该用户的活跃计数器
-   WHERE user_id=? AND model M 匹配 model_pattern AND period_end > now AND status='active'
-   ↓ 命中 → 检查 quota_used + 预扣量 <= quota_limit
-   ↓ 无命中
-2. 查套餐规则（如果用户有活跃订阅）
-   plan_id → model_quota_plan_rules → 匹配模型 M
-   ↓ 命中 → 创建 usage 计数器，period 跟随订阅周期
-   ↓ 无命中
-3. 查分组规则
-   user.Group → model_quota_group_rules → 匹配模型 M
-   ↓ 命中 → 创建 usage 计数器，period 按规则配置的 total/daily/weekly/monthly 计算
+1. 查个人用户规则（最高优先级，可覆盖分组/套餐）
+   user_id → model_quota_user_rules（enabled=true）→ 匹配模型 M
+   ↓ 命中 → 创建/复用 usage 计数器，period 按规则配置的 total/daily/weekly/monthly 计算
+2. 查分组规则
+   user.Group → model_quota_group_rules（enabled=true）→ 匹配模型 M
+   ↓ 命中 → 创建/复用 usage 计数器，period 按规则配置的 total/daily/weekly/monthly 计算
+3. 查套餐规则（如果用户有活跃订阅）
+   plan_id → model_quota_plan_rules（enabled=true）→ 匹配模型 M
+   ↓ 命中 → 创建/复用 usage 计数器，period 跟随订阅周期
    ↓ 无命中 → 无限制，正常放行
 ```
+
+> **重要**：所有命中的规则都要检查（交集语义），任一规则的 `quota_used + 预扣量 > quota_limit` 都会拒绝请求。
+> 优先级仅影响 diagnostics 顺序，不影响拦截结果。
+> 规则匹配始终读**当前启用的规则定义**，不读历史 usage 快照，确保删除/禁用/调额立即生效。
 
 ### 4.7 模型匹配函数
 
@@ -272,6 +305,7 @@ func matchModel(modelName, pattern, mode string) bool {
 
 | 规则来源 | 配置对象 | 实际限制对象 | 周期来源 |
 |----------|----------|--------------|----------|
+| **用户规则**（2026-06-30 新增）| 单个用户 | 该用户自己一份模型额度 | 规则中的 `period`：`total` / `daily` / `weekly` / `monthly` |
 | 分组规则 | 用户分组 | 组内每个用户各自一份模型额度 | 规则中的 `period`：`total` / `daily` / `weekly` / `monthly` |
 | 套餐规则 | 订阅套餐 | 每个订阅用户各自一份模型额度 | 用户当前活跃订阅的 `start_time` / `end_time` |
 
@@ -304,10 +338,19 @@ func matchModel(modelName, pattern, mode string) bool {
 |------|------|------|
 | GET | `/api/model-quota/plan-rules?plan_id=1` | 列表 |
 | POST | `/api/model-quota/plan-rules` | 创建规则 |
-| PUT | `/api/model-quota/plan-rules/:id` | 编辑规则 |
-| DELETE | `/api/model-quota/plan-rules/:id` | 删除规则 |
+| PUT | `/api/model-quota/plan-rules/:id` | 编辑规则（同步额度到现有 usage） |
+| DELETE | `/api/model-quota/plan-rules/:id` | 删除规则（级联清理 usage + 缓存） |
 
-### 5.3 用户使用情况
+### 5.3 用户规则管理（2026-06-30 新增）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/model-quota/user-rules?user_id=101&username=alice` | 列表（支持按用户 ID 或用户名筛选） |
+| POST | `/api/model-quota/user-rules` | 创建规则（自动回填 username） |
+| PUT | `/api/model-quota/user-rules/:id` | 编辑规则（同步额度到现有 usage） |
+| DELETE | `/api/model-quota/user-rules/:id` | 删除规则（级联清理 usage + 缓存） |
+
+### 5.4 用户使用情况
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -320,7 +363,7 @@ func matchModel(modelName, pattern, mode string) bool {
 
 路由：`/settings/model-quota-rules`（管理员可见，Settings 分组下）
 
-两个 Tab：
+三个 Tab：
 - **Tab 1 "分组规则"**：分组规则列表
   - 列：分组名、模型匹配、匹配模式、限制周期、额度限制（显示为系统货币/CNY）、已启用、操作
   - 分组名和模型名使用可搜索下拉框，减少手输错误
@@ -329,8 +372,14 @@ func matchModel(modelName, pattern, mode string) bool {
   - 列：套餐名、模型匹配、匹配模式、额度限制、已启用、操作
   - 套餐使用下拉框选择，模型名使用可搜索下拉框
   - 套餐规则周期固定跟随用户订阅周期，不单独配置周期
+- **Tab 3 "用户规则"**（2026-06-30 新增）：个人用户规则列表
+  - 列：用户（显示名 + ID）、模型匹配、匹配模式、限制周期、额度限制、已启用、操作
+  - 用户使用 ComboboxInput 下拉搜索（一次加载前 200 个用户，本地过滤）
+  - 模型名使用可搜索下拉框
+  - 创建/编辑时可选择限制周期：每日、每周、每月、总额
+  - **优先级最高**：用户规则独立于分组/套餐规则生效，即使分组规则宽松，用户规则依然拦截
 
-创建/编辑对话框：分组/套餐选择、模型名、匹配模式（精确/前缀）、额度输入；额度输入按系统货币展示，编辑时支持增加、减少、覆盖三种模式。
+创建/编辑对话框：分组/套餐/用户选择、模型名、匹配模式（精确/前缀）、额度输入；额度输入按系统货币展示，编辑时支持增加、减少、覆盖三种模式。
 
 ### 6.2 用户额度详情
 
@@ -350,30 +399,30 @@ func matchModel(modelName, pattern, mode string) bool {
 
 | 文件 | 用途 |
 |------|------|
-| `model/model_quota.go` | 3 张表 struct + CRUD + 查询 |
+| `model/model_quota.go` | 4 张表 struct + CRUD + 查询 + 级联清理/额度同步 |
 | `model/model_quota_cache.go` | Redis 双写函数 |
-| `service/model_quota.go` | 核心业务逻辑 |
+| `service/model_quota.go` | 核心业务逻辑（含 user/group/plan 三类规则匹配） |
 | `middleware/model_quota_limit.go` | 独立拦截中间件 |
-| `controller/model_quota.go` | 9 个接口 |
+| `controller/model_quota.go` | 13 个接口（group/plan/user 各 4 + usage 2 + reset 1） |
 | `i18n/locales/*.yaml` | 错误消息翻译 |
 
 ### 7.2 后端修改（5 文件）
 
 | 文件 | 改动 |
 |------|------|
-| `model/main.go` | 注册 3 张新表 AutoMigrate |
+| `model/main.go` | 注册 4 张新表 AutoMigrate |
 | `model/utils.go` | BatchUpdate 新增 ModelQuotaUsage 类型 |
-| `router/api-router.go` | 注册中间件 + 9 条 API 路由 |
-| `controller/relay.go` | 请求完成后 1 行异步回写 |
+| `router/api-router.go` | 注册中间件 + 13 条 API 路由（含 user-rules） |
+| `router/relay-router.go` | 在所有 relay 路由组的 `Distribute()` 后挂载 `ModelQuotaLimit()` |
 | `i18n/keys.go` | 新增消息常量 |
 
 ### 7.3 前端新建（4 文件）
 
 | 文件 | 用途 |
 |------|------|
-| `features/model-quota/api.ts` | API 调用 |
-| `features/model-quota/types.ts` | 类型定义 |
-| `features/model-quota/model-quota-rules-page.tsx` | 规则配置页面（双 Tab） |
+| `features/model-quota/api.ts` | API 调用（含 user-rules 4 个函数） |
+| `features/model-quota/types.ts` | 类型定义（含 ModelQuotaUserRule） |
+| `features/model-quota/model-quota-rules-page.tsx` | 规则配置页面（三 Tab：group/plan/user） |
 | `features/model-quota/user-model-quota-dialog.tsx` | 用户额度详情 Dialog |
 
 ### 7.4 前端修改（4 文件）
@@ -475,5 +524,15 @@ TDD:
 4. **Redis 故障回退**：Redis 不可用时，回退 DB 查询仍能正确拦截
 5. **精确匹配 vs 前缀匹配**：`gpt-5.5` 精确模式不匹配 `gpt-5.5-mini`，前缀模式匹配
 6. **多规则叠加**：用户同时命中分组规则和套餐规则，两条都要检查
-7. **规则修改不影响已有计数器**：修改 quota_limit 后，已创建的 usage 快照不变
-8. **并发安全**：多个请求同时到达，Redis HIncrBy 保证原子性
+7. **规则修改实时生效**（2026-06-30 修订）：修改 quota_limit 后，所有 active usage 的 quota_limit 同步刷新；删除规则级联清理 usage，避免陈旧快照阻塞用户
+8. **用户规则独立拦截**（2026-06-30 新增）：即使分组规则宽松，用户规则依然能独立拦截超额请求
+9. **并发安全**：多个请求同时到达，Redis HIncrBy 保证原子性
+
+## 10. 变更历史
+
+| 日期 | 版本 | 变更 |
+|------|------|------|
+| 2026-06-26 | v1.0 | 初版：分组规则 + 套餐规则 + 用户 usage 计数器 |
+| 2026-06-28 | v1.1 | 周期重置：分组规则支持 daily/weekly/monthly；套餐规则跟随订阅周期；中间件挂载到所有 relay 路由；分组匹配使用 ContextKeyUsingGroup |
+| 2026-06-30 | v1.2 | 规则变更实时生效：删除规则级联清理 usage；调整额度同步刷新；规则匹配只读当前 enabled 规则，不读历史快照 |
+| 2026-06-30 | v1.3 | 新增个人用户规则（model_quota_user_rules）：支持按用户单独配置 daily/weekly/monthly/total 限制，优先级高于分组和套餐 |

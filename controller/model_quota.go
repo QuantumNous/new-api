@@ -216,6 +216,130 @@ func DeleteModelQuotaPlanRule(c *gin.Context) {
 }
 
 // ---------------------------------------------------------------------------
+// User Rules CRUD
+// ---------------------------------------------------------------------------
+
+func GetModelQuotaUserRules(c *gin.Context) {
+	userIdStr := c.Query("user_id")
+	userId, _ := strconv.Atoi(userIdStr)
+	username := c.Query("username")
+
+	query := model.DB.Model(&model.ModelQuotaUserRule{})
+	if userId > 0 {
+		query = query.Where("user_id = ?", userId)
+	}
+	if username != "" {
+		query = query.Where("username LIKE ?", "%"+username+"%")
+	}
+	query = query.Order("sort_order ASC, id ASC")
+
+	var total int64
+	query.Count(&total)
+
+	pageInfo := common.GetPageQuery(c)
+	var items []*model.ModelQuotaUserRule
+	query.Offset(pageInfo.GetStartIdx()).Limit(pageInfo.GetPageSize()).Find(&items)
+
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(items)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func CreateModelQuotaUserRule(c *gin.Context) {
+	var rule model.ModelQuotaUserRule
+	if err := c.ShouldBindJSON(&rule); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// Validate
+	if rule.UserId == 0 || rule.ModelPattern == "" {
+		common.ApiErrorMsg(c, "user_id and model_pattern are required")
+		return
+	}
+	// Look up username if not provided
+	if rule.Username == "" {
+		var u model.User
+		if err := model.DB.Select("username").Where("id = ?", rule.UserId).First(&u).Error; err == nil {
+			rule.Username = u.Username
+		}
+	}
+	if rule.MatchMode == "" {
+		rule.MatchMode = model.ModelQuotaMatchModeExact
+	}
+	if rule.Period == "" {
+		rule.Period = model.ModelQuotaPeriodMonthly
+	}
+	if rule.QuotaLimit <= 0 {
+		common.ApiErrorMsg(c, "quota_limit must be positive")
+		return
+	}
+	rule.Enabled = true
+
+	if err := model.DB.Create(&rule).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, rule)
+}
+
+func UpdateModelQuotaUserRule(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	if id == 0 {
+		common.ApiErrorMsg(c, "invalid id")
+		return
+	}
+
+	var updates model.ModelQuotaUserRule
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// If user_id changed and username not provided, look up new username
+	if updates.UserId > 0 && updates.Username == "" {
+		var u model.User
+		if err := model.DB.Select("username").Where("id = ?", updates.UserId).First(&u).Error; err == nil {
+			updates.Username = u.Username
+		}
+	}
+
+	result := model.DB.Model(&model.ModelQuotaUserRule{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"user_id":       updates.UserId,
+			"username":      updates.Username,
+			"model_pattern": updates.ModelPattern,
+			"match_mode":    updates.MatchMode,
+			"period":        updates.Period,
+			"quota_limit":   updates.QuotaLimit,
+			"enabled":       updates.Enabled,
+			"sort_order":    updates.SortOrder,
+		})
+	if result.Error != nil {
+		common.ApiError(c, result.Error)
+		return
+	}
+	if updates.QuotaLimit > 0 {
+		_ = model.SyncUserModelQuotaLimitByRule(id, model.ModelQuotaRuleSourceUser, updates.QuotaLimit)
+	}
+	common.ApiSuccess(c, gin.H{"id": id})
+}
+
+func DeleteModelQuotaUserRule(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	if id == 0 {
+		common.ApiErrorMsg(c, "invalid id")
+		return
+	}
+	if err := model.DB.Delete(&model.ModelQuotaUserRule{}, id).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	_ = model.DeleteUserModelQuotaUsageByRule(id, model.ModelQuotaRuleSourceUser)
+	common.ApiSuccess(c, gin.H{"id": id})
+}
+
+// ---------------------------------------------------------------------------
 // User Usage Query & Reset
 // ---------------------------------------------------------------------------
 

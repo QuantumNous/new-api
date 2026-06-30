@@ -2,12 +2,15 @@ import { api } from '@/lib/api'
 import type {
   ModelQuotaGroupRule,
   ModelQuotaPlanRule,
+  ModelQuotaUserRule,
   UserModelQuotaUsage,
   GetGroupRulesParams,
   GetPlanRulesParams,
+  GetUserRulesParams,
   PaginatedResponse,
   CreateGroupRuleParams,
   CreatePlanRuleParams,
+  CreateUserRuleParams,
 } from './types'
 
 // Group Rules
@@ -72,6 +75,39 @@ export async function updatePlanRule(
 
 export async function deletePlanRule(id: number) {
   const res = await api.delete(`/api/model-quota/plan-rules/${id}`)
+  return res.data
+}
+
+// User Rules
+export async function getUserRules(
+  params: GetUserRulesParams = {}
+): Promise<PaginatedResponse<ModelQuotaUserRule>> {
+  const queryParams = new URLSearchParams()
+  if (params.user_id) queryParams.set('user_id', String(params.user_id))
+  if (params.username) queryParams.set('username', params.username)
+  queryParams.set('p', String(params.p ?? 1))
+  queryParams.set('page_size', String(params.page_size ?? 10))
+  const res = await api.get(
+    `/api/model-quota/user-rules?${queryParams.toString()}`
+  )
+  return res.data
+}
+
+export async function createUserRule(data: CreateUserRuleParams) {
+  const res = await api.post('/api/model-quota/user-rules', data)
+  return res.data
+}
+
+export async function updateUserRule(
+  id: number,
+  data: Partial<CreateUserRuleParams>
+) {
+  const res = await api.put(`/api/model-quota/user-rules/${id}`, data)
+  return res.data
+}
+
+export async function deleteUserRule(id: number) {
+  const res = await api.delete(`/api/model-quota/user-rules/${id}`)
   return res.data
 }
 

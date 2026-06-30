@@ -33,6 +33,21 @@ export const modelQuotaPlanRuleSchema = z.object({
 })
 export type ModelQuotaPlanRule = z.infer<typeof modelQuotaPlanRuleSchema>
 
+export const modelQuotaUserRuleSchema = z.object({
+  id: z.number(),
+  user_id: z.number(),
+  username: z.string(),
+  model_pattern: z.string(),
+  match_mode: matchModeSchema,
+  period: modelQuotaPeriodSchema.default('monthly'),
+  quota_limit: z.number(),
+  enabled: z.boolean(),
+  sort_order: z.number(),
+  created_at: z.number(),
+  updated_at: z.number(),
+})
+export type ModelQuotaUserRule = z.infer<typeof modelQuotaUserRuleSchema>
+
 export const userModelQuotaUsageSchema = z.object({
   id: z.number(),
   user_id: z.number(),
@@ -60,6 +75,13 @@ export interface GetGroupRulesParams {
 
 export interface GetPlanRulesParams {
   plan_id?: number
+  p?: number
+  page_size?: number
+}
+
+export interface GetUserRulesParams {
+  user_id?: number
+  username?: string
   p?: number
   page_size?: number
 }
@@ -93,4 +115,15 @@ export interface CreatePlanRuleParams {
   sort_order?: number
 }
 
-export type ModelQuotaDialogType = 'create-group' | 'update-group' | 'delete-group' | 'create-plan' | 'update-plan' | 'delete-plan' | 'user-usage' | 'reset-usage'
+export interface CreateUserRuleParams {
+  user_id: number
+  username?: string
+  model_pattern: string
+  match_mode: MatchMode
+  period: ModelQuotaPeriod
+  quota_limit: number
+  enabled?: boolean
+  sort_order?: number
+}
+
+export type ModelQuotaDialogType = 'create-group' | 'update-group' | 'delete-group' | 'create-plan' | 'update-plan' | 'delete-plan' | 'create-user' | 'update-user' | 'delete-user' | 'user-usage' | 'reset-usage'

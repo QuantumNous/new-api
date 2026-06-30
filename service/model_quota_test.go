@@ -18,6 +18,7 @@ func setupModelQuotaTestDB(t *testing.T) {
 			require.NoError(t, model.DB.AutoMigrate(
 				&model.ModelQuotaGroupRule{},
 				&model.ModelQuotaPlanRule{},
+				&model.ModelQuotaUserRule{},
 				&model.UserModelQuotaUsage{},
 			))
 		}
@@ -37,6 +38,7 @@ func setupModelQuotaTestDB(t *testing.T) {
 	require.NoError(t, db.AutoMigrate(
 		&model.ModelQuotaGroupRule{},
 		&model.ModelQuotaPlanRule{},
+		&model.ModelQuotaUserRule{},
 		&model.UserModelQuotaUsage{},
 	))
 }
@@ -254,4 +256,69 @@ func TestCheckModelQuota_ExpiredUsageIgnored(t *testing.T) {
 	result, err := CheckModelQuota(601, "gpt-5.5", "default", 100)
 	require.NoError(t, err)
 	require.True(t, result.Passed)
+}
+
+// TestCheckModelQuota_UserRuleBlocksIndependently verifies that a personal
+// user rule is enforced even when the group rule would allow the request.
+func TestCheckModelQuota_UserRuleBlocksIndependently(t *testing.T) {
+	setupModelQuotaTestDB(t)
+	t.Cleanup(func() {
+		model.DB.Exec("DELETE FROM model_quota_group_rules")
+		model.DB.Exec("DELETE FROM model_quota_user_rules")
+		model.DB.Exec("DELETE FROM user_model_quota_usage")
+	})
+
+	// Group rule: generous limit
+	groupRule := &model.ModelQuotaGroupRule{
+		GroupName: "default", ModelPattern: "gpt-5.5", MatchMode: model.ModelQuotaMatchModeExact,
+		Period: model.ModelQuotaPeriodTotal, QuotaLimit: 100000, Enabled: true,
+	}
+	require.NoError(t, model.DB.Create(groupRule).Error)
+
+	// User rule: tight per-day limit for user 701
+	userRule := &model.ModelQuotaUserRule{
+		UserId: 701, Username: "alice",
+		ModelPattern: "gpt-5.5", MatchMode: model.ModelQuotaMatchModeExact,
+		Period: model.ModelQuotaPeriodDaily, QuotaLimit: 500, Enabled: true,
+	}
+	require.NoError(t, model.DB.Create(userRule).Error)
+
+	// Pre-consume 600 → exceeds user limit (500) even though group allows 100000
+	result, err := CheckModelQuota(701, "gpt-5.5", "default", 600)
+	require.NoError(t, err)
+	require.False(t, result.Passed)
+	require.Contains(t, result.ErrorMessage, "quota exhausted")
+}
+
+// TestCheckModelQuota_UserRuleDeletedStopsBlocking verifies the cascade-delete
+// fix: after a user rule is deleted, the user is no longer blocked by stale
+// usage snapshots.
+func TestCheckModelQuota_UserRuleDeletedStopsBlocking(t *testing.T) {
+	setupModelQuotaTestDB(t)
+	t.Cleanup(func() {
+		model.DB.Exec("DELETE FROM model_quota_user_rules")
+		model.DB.Exec("DELETE FROM user_model_quota_usage")
+	})
+
+	userRule := &model.ModelQuotaUserRule{
+		UserId: 801, Username: "bob",
+		ModelPattern: "gpt-5.5", MatchMode: model.ModelQuotaMatchModeExact,
+		Period: model.ModelQuotaPeriodDaily, QuotaLimit: 100, Enabled: true,
+	}
+	require.NoError(t, model.DB.Create(userRule).Error)
+
+	// First request creates usage and consumes some quota
+	result1, err := CheckModelQuota(801, "gpt-5.5", "default", 50)
+	require.NoError(t, err)
+	require.True(t, result1.Passed)
+	require.Len(t, result1.UsageIds, 1)
+
+	// Delete the rule (controller path cascades to usage)
+	require.NoError(t, model.DB.Delete(&model.ModelQuotaUserRule{}, userRule.Id).Error)
+	require.NoError(t, model.DeleteUserModelQuotaUsageByRule(userRule.Id, model.ModelQuotaRuleSourceUser))
+
+	// After deletion, the user should not be blocked anymore
+	result2, err := CheckModelQuota(801, "gpt-5.5", "default", 100000)
+	require.NoError(t, err)
+	require.True(t, result2.Passed)
 }

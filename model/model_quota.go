@@ -16,6 +16,7 @@ const (
 const (
 	ModelQuotaRuleSourceGroup = "group"
 	ModelQuotaRuleSourcePlan  = "plan"
+	ModelQuotaRuleSourceUser  = "user"
 )
 
 // Period types for group rules (plan rules always follow subscription cycle)
@@ -110,6 +111,49 @@ func (r *ModelQuotaPlanRule) TableName() string {
 func GetModelQuotaPlanRulesByPlanId(planId int) ([]*ModelQuotaPlanRule, error) {
 	var rules []*ModelQuotaPlanRule
 	err := DB.Where("plan_id = ? AND enabled = ?", planId, true).
+		Order("sort_order ASC, id ASC").
+		Find(&rules).Error
+	return rules, err
+}
+
+// ---------------------------------------------------------------------------
+// ModelQuotaUserRule — 个人用户级规则定义
+// ---------------------------------------------------------------------------
+
+type ModelQuotaUserRule struct {
+	Id           int    `json:"id" gorm:"primaryKey"`
+	UserId       int    `json:"user_id" gorm:"column:user_id;type:int;not null;index:idx_user_rules"`
+	Username     string `json:"username" gorm:"column:username;type:varchar(64);not null;default:''"` // 冗余字段，方便 admin 列表展示
+	ModelPattern string `json:"model_pattern" gorm:"column:model_pattern;type:varchar(128);not null"`
+	MatchMode    string `json:"match_mode" gorm:"column:match_mode;type:varchar(16);not null;default:'exact'"`
+	Period       string `json:"period" gorm:"column:period;type:varchar(16);not null;default:'total'"`
+	QuotaLimit   int64  `json:"quota_limit" gorm:"column:quota_limit;type:bigint;not null;default:0"`
+	Enabled      bool   `json:"enabled" gorm:"column:enabled;index:idx_user_rules"`
+	SortOrder    int    `json:"sort_order" gorm:"column:sort_order;type:int;default:0"`
+	CreatedAt    int64  `json:"created_at" gorm:"column:created_at;type:bigint"`
+	UpdatedAt    int64  `json:"updated_at" gorm:"column:updated_at;type:bigint"`
+}
+
+func (r *ModelQuotaUserRule) BeforeCreate(tx *gorm.DB) error {
+	now := common.GetTimestamp()
+	r.CreatedAt = now
+	r.UpdatedAt = now
+	return nil
+}
+
+func (r *ModelQuotaUserRule) BeforeUpdate(tx *gorm.DB) error {
+	r.UpdatedAt = common.GetTimestamp()
+	return nil
+}
+
+func (r *ModelQuotaUserRule) TableName() string {
+	return "model_quota_user_rules"
+}
+
+// GetModelQuotaUserRulesByUserId returns all enabled rules for a given user, ordered by sort_order
+func GetModelQuotaUserRulesByUserId(userId int) ([]*ModelQuotaUserRule, error) {
+	var rules []*ModelQuotaUserRule
+	err := DB.Where("user_id = ? AND enabled = ?", userId, true).
 		Order("sort_order ASC, id ASC").
 		Find(&rules).Error
 	return rules, err
