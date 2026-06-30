@@ -52,6 +52,7 @@ export function LegalDocument({
   const rawContent = data?.data?.trim() ?? ''
   const hasContent = rawContent.length > 0
   const isUrl = hasContent && isHttpUrl(rawContent)
+  const contentIsHtml = hasContent && isLikelyHtml(rawContent)
   const success = data?.success ?? false
 
   if (isLoading) {
@@ -122,10 +123,11 @@ export function LegalDocument({
   }
 
   return (
-    <PublicLayout showMainContainer={!isLikelyHtml(rawContent)}>
-      {isLikelyHtml(rawContent) ? (
+    <PublicLayout showMainContainer={!contentIsHtml}>
+      {contentIsHtml ? (
         <RichContent
           mode='html'
+          htmlVariant='isolated'
           content={rawContent}
         />
       ) : (
