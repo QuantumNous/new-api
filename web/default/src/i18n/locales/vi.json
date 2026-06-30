@@ -642,6 +642,7 @@
     "Cache mode": "Chế độ bộ đệm",
     "Cache pricing": "Giá bộ nhớ đệm",
     "Cache ratio": "Tỷ lệ bộ nhớ đệm",
+    "Cache Hit Rate": "Tỷ lệ trúng bộ nhớ đệm",
     "Cache Read": "Đọc bộ nhớ đệm",
     "Cache read price": "Giá đọc cache",
     "Cache repeated prompt prefixes for cheaper, faster reuse": "Lưu cache phần đầu lời nhắc lặp lại để tái sử dụng nhanh và rẻ hơn",

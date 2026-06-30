@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
+import { Fragment, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -46,6 +47,14 @@ function formatStatNumber(value: number): string {
   return new Intl.NumberFormat().format(value)
 }
 
+function formatStatPercent(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    style: 'percent',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value)
+}
+
 function StatBadge(props: {
   label: string
   value: string | number
@@ -64,35 +73,48 @@ function StatBadge(props: {
 
 function TpmBreakdownHoverCard(props: { stats: LogStatistics | undefined }) {
   const { t } = useTranslation()
-  const tpmStats = {
-    cacheRead: statNumber(props.stats?.cache_read_tokens),
-    cacheWrite: statNumber(props.stats?.cache_write_tokens),
-    input: statNumber(props.stats?.input_tokens),
-    output: statNumber(props.stats?.output_tokens),
-  }
+  const tpmStats = useMemo(
+    () => ({
+      cacheRead: statNumber(props.stats?.cache_read_tokens),
+      cacheWrite: statNumber(props.stats?.cache_write_tokens),
+      input: statNumber(props.stats?.input_tokens),
+      output: statNumber(props.stats?.output_tokens),
+    }),
+    [
+      props.stats?.cache_read_tokens,
+      props.stats?.cache_write_tokens,
+      props.stats?.input_tokens,
+      props.stats?.output_tokens,
+    ]
+  )
   const tpmTotal = statNumber(props.stats?.tpm)
-  const tpmItems = [
-    {
-      label: t('Cache Read'),
-      value: tpmStats.cacheRead,
-      accent: 'bg-emerald-500/70',
-    },
-    {
-      label: t('Cache Write'),
-      value: tpmStats.cacheWrite,
-      accent: 'bg-amber-500/75',
-    },
-    {
-      label: t('Input'),
-      value: tpmStats.input,
-      accent: 'bg-sky-500/70',
-    },
-    {
-      label: t('Output'),
-      value: tpmStats.output,
-      accent: 'bg-violet-500/70',
-    },
-  ]
+  const cacheHitBase = tpmStats.cacheRead + tpmStats.cacheWrite + tpmStats.input
+  const cacheHitRate = cacheHitBase > 0 ? tpmStats.cacheRead / cacheHitBase : 0
+  const tpmItems = useMemo(
+    () => [
+      {
+        label: t('Cache Read'),
+        value: tpmStats.cacheRead,
+        accent: 'bg-emerald-500/70',
+      },
+      {
+        label: t('Cache Write'),
+        value: tpmStats.cacheWrite,
+        accent: 'bg-amber-500/75',
+      },
+      {
+        label: t('Input'),
+        value: tpmStats.input,
+        accent: 'bg-sky-500/70',
+      },
+      {
+        label: t('Output'),
+        value: tpmStats.output,
+        accent: 'bg-violet-500/70',
+      },
+    ],
+    [t, tpmStats]
+  )
 
   return (
     <HoverCard>
@@ -111,34 +133,42 @@ function TpmBreakdownHoverCard(props: { stats: LogStatistics | undefined }) {
       />
       <HoverCardContent
         align='end'
-        className='w-auto max-w-[calc(100vw-2rem)] min-w-[280px] p-3'
+        className='w-[min(280px,calc(100vw-2rem))] p-2.5'
       >
-        <div className='flex items-center justify-between gap-6 border-b pb-2'>
-          <span className='text-muted-foreground text-xs font-medium'>
+        <div className='flex items-center justify-between gap-4 border-b pb-2'>
+          <span className='text-muted-foreground text-xs'>
             {t('TPM')}
           </span>
           <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
             {formatStatNumber(tpmTotal)}
           </span>
         </div>
-        <div className='mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4'>
-          {tpmItems.map((item) => (
-            <div
-              key={item.label}
-              className='border-border/60 bg-muted/25 rounded-md border px-2.5 py-2'
-            >
-              <div className='mb-1 flex items-center gap-1.5'>
-                <span className={cn('h-2 w-2 rounded-full', item.accent)} />
-                <span className='text-muted-foreground text-xs'>
-                  {item.label}
-                </span>
+        <dl className='mt-2 grid gap-1'>
+          {tpmItems.map((item, index) => (
+            <Fragment key={item.label}>
+              <div className='grid min-h-7 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-sm px-1.5 py-1'>
+                <dt className='text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs'>
+                  <span className={cn('h-2 w-2 rounded-full', item.accent)} />
+                  <span className='truncate'>{item.label}</span>
+                </dt>
+                <dd className='text-foreground font-mono text-xs font-semibold tabular-nums'>
+                  {formatStatNumber(item.value)}
+                </dd>
               </div>
-              <div className='text-foreground font-mono text-sm font-semibold tabular-nums'>
-                {formatStatNumber(item.value)}
-              </div>
-            </div>
+              {index === 1 ? (
+                <div className='grid min-h-7 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-sm px-1.5 py-1'>
+                  <dt className='text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs'>
+                    <span className='h-2 w-2 rounded-full bg-teal-500/70' />
+                    {t('Cache Hit Rate')}
+                  </dt>
+                  <dd className='text-foreground font-mono text-xs font-semibold tabular-nums'>
+                    {formatStatPercent(cacheHitRate)}
+                  </dd>
+                </div>
+              ) : null}
+            </Fragment>
           ))}
-        </div>
+        </dl>
       </HoverCardContent>
     </HoverCard>
   )

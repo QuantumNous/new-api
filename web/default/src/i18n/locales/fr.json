@@ -642,6 +642,7 @@
     "Cache mode": "Mode de cache",
     "Cache pricing": "Tarification du cache",
     "Cache ratio": "Ratio de cache",
+    "Cache Hit Rate": "Taux de succès du cache",
     "Cache Read": "Lecture du cache",
     "Cache read price": "Prix de lecture du cache",
     "Cache repeated prompt prefixes for cheaper, faster reuse": "Mettre en cache les préfixes répétés pour une réutilisation plus rapide et moins coûteuse",

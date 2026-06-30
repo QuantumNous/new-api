@@ -642,6 +642,7 @@
     "Cache mode": "キャッシュモード",
     "Cache pricing": "キャッシュ料金",
     "Cache ratio": "キャッシュ倍率",
+    "Cache Hit Rate": "キャッシュヒット率",
     "Cache Read": "キャッシュ読み取り",
     "Cache read price": "キャッシュ読み取り価格",
     "Cache repeated prompt prefixes for cheaper, faster reuse": "繰り返しのプロンプト先頭部分をキャッシュし、低コスト・高速に再利用",
