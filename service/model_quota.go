@@ -100,89 +100,45 @@ func getUserActivePlanInfo(userId int) *userActivePlanInfo {
 }
 
 // FindMatchingModelQuotaRules finds all rules that match the given model for the user.
-// It queries both plan rules (if user has active subscription) and group rules.
+// Matching is always driven by the CURRENT enabled rule definitions, never by
+// historical usage snapshots. This ensures that deleting/disabling a rule or
+// changing its limit takes effect immediately.
 func FindMatchingModelQuotaRules(userId int, modelName string, userGroup string, planInfo *userActivePlanInfo) []*matchedRule {
 	var matched []*matchedRule
 
-	// 1. Check existing active usages first (they are snapshots of rules already matched)
-	usages, err := model.GetActiveUserModelQuotaUsage(userId)
-	if err == nil {
-		for _, u := range usages {
-			if matchModel(modelName, u.ModelPattern, model.ModelQuotaMatchModeExact) ||
-				matchModel(modelName, u.ModelPattern, model.ModelQuotaMatchModePrefix) {
-				matched = append(matched, &matchedRule{
-					RuleId:       u.RuleId,
-					RuleSource:   u.RuleSource,
-					ModelPattern: u.ModelPattern,
-					MatchMode:    model.ModelQuotaMatchModeExact, // usage is already matched
-					QuotaLimit:   u.QuotaLimit,
-					Period:       getPeriodForUsage(u),
-				})
-			}
-		}
-	}
-
-	// 2. Check plan rules (if user has an active subscription)
+	// 1. Check plan rules (if user has an active subscription)
 	if planInfo != nil && planInfo.PlanId > 0 {
 		planRules, err := model.GetModelQuotaPlanRulesByPlanId(planInfo.PlanId)
 		if err == nil {
 			for _, r := range planRules {
 				if matchModel(modelName, r.ModelPattern, r.MatchMode) {
-					alreadyMatched := false
-					for _, m := range matched {
-						if m.RuleId == r.Id && m.RuleSource == model.ModelQuotaRuleSourcePlan {
-							alreadyMatched = true
-							break
-						}
-					}
-					if !alreadyMatched {
-						matched = append(matched, &matchedRule{
-							RuleId: r.Id, RuleSource: model.ModelQuotaRuleSourcePlan,
-							ModelPattern: r.ModelPattern, MatchMode: r.MatchMode,
-							QuotaLimit: r.QuotaLimit,
-							Period:     "subscription",
-						})
-					}
-				}
-			}
-		}
-	}
-
-	// 3. Check group rules
-	groupRules, err := model.GetModelQuotaGroupRulesByGroup(userGroup)
-	if err == nil {
-		for _, r := range groupRules {
-			if matchModel(modelName, r.ModelPattern, r.MatchMode) {
-				alreadyMatched := false
-				for _, m := range matched {
-					if m.RuleId == r.Id && m.RuleSource == model.ModelQuotaRuleSourceGroup {
-						alreadyMatched = true
-						break
-					}
-				}
-				if !alreadyMatched {
 					matched = append(matched, &matchedRule{
-						RuleId: r.Id, RuleSource: model.ModelQuotaRuleSourceGroup,
+						RuleId: r.Id, RuleSource: model.ModelQuotaRuleSourcePlan,
 						ModelPattern: r.ModelPattern, MatchMode: r.MatchMode,
 						QuotaLimit: r.QuotaLimit,
-						Period:     r.Period,
+						Period:     "subscription",
 					})
 				}
 			}
 		}
 	}
 
-	return matched
-}
-
-// getPeriodForUsage infers the period type from a usage record's rule_source.
-// For plan rules, period is "subscription". For group rules, we don't store it in usage,
-// but the usage's period_end tells us when to reset.
-func getPeriodForUsage(u *model.UserModelQuotaUsage) string {
-	if u.RuleSource == model.ModelQuotaRuleSourcePlan {
-		return "subscription"
+	// 2. Check group rules
+	groupRules, err := model.GetModelQuotaGroupRulesByGroup(userGroup)
+	if err == nil {
+		for _, r := range groupRules {
+			if matchModel(modelName, r.ModelPattern, r.MatchMode) {
+				matched = append(matched, &matchedRule{
+					RuleId: r.Id, RuleSource: model.ModelQuotaRuleSourceGroup,
+					ModelPattern: r.ModelPattern, MatchMode: r.MatchMode,
+					QuotaLimit: r.QuotaLimit,
+					Period:     r.Period,
+				})
+			}
+		}
 	}
-	return "group" // actual period type doesn't matter for existing usage, just need to check period_end
+
+	return matched
 }
 
 // CheckModelQuota checks if the user has enough model quota for the pre-consumption.

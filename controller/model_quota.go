@@ -93,6 +93,10 @@ func UpdateModelQuotaGroupRule(c *gin.Context) {
 		common.ApiError(c, result.Error)
 		return
 	}
+	// Sync the new quota_limit to all existing active user usage records
+	if updates.QuotaLimit > 0 {
+		_ = model.SyncUserModelQuotaLimitByRule(id, model.ModelQuotaRuleSourceGroup, updates.QuotaLimit)
+	}
 	common.ApiSuccess(c, gin.H{"id": id})
 }
 
@@ -106,6 +110,9 @@ func DeleteModelQuotaGroupRule(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// Cascade: delete all user usage snapshots for this rule so deleted rules
+	// stop blocking users immediately
+	_ = model.DeleteUserModelQuotaUsageByRule(id, model.ModelQuotaRuleSourceGroup)
 	common.ApiSuccess(c, gin.H{"id": id})
 }
 
@@ -188,6 +195,9 @@ func UpdateModelQuotaPlanRule(c *gin.Context) {
 		common.ApiError(c, result.Error)
 		return
 	}
+	if updates.QuotaLimit > 0 {
+		_ = model.SyncUserModelQuotaLimitByRule(id, model.ModelQuotaRuleSourcePlan, updates.QuotaLimit)
+	}
 	common.ApiSuccess(c, gin.H{"id": id})
 }
 
@@ -201,6 +211,7 @@ func DeleteModelQuotaPlanRule(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	_ = model.DeleteUserModelQuotaUsageByRule(id, model.ModelQuotaRuleSourcePlan)
 	common.ApiSuccess(c, gin.H{"id": id})
 }
 

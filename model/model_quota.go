@@ -232,6 +232,43 @@ func ExpireUserModelQuotaUsage(usageId int) error {
 		UpdateColumn("status", ModelQuotaUsageStatusExpired).Error
 }
 
+// DeleteUserModelQuotaUsageByRule deletes all usage records associated with a
+// given rule (by rule_id + rule_source) and clears their Redis caches.
+// Called when a group/plan rule is deleted to prevent stale snapshots from
+// blocking users.
+func DeleteUserModelQuotaUsageByRule(ruleId int, ruleSource string) error {
+	// Collect usage IDs first so we can clear Redis caches
+	var usages []*UserModelQuotaUsage
+	if err := DB.Where("rule_id = ? AND rule_source = ?", ruleId, ruleSource).
+		Find(&usages).Error; err != nil {
+		return err
+	}
+	for _, u := range usages {
+		CacheDeleteModelQuotaUsage(u.Id)
+	}
+	return DB.Where("rule_id = ? AND rule_source = ?", ruleId, ruleSource).
+		Delete(&UserModelQuotaUsage{}).Error
+}
+
+// SyncUserModelQuotaLimitByRule updates the quota_limit on all active usage
+// records for a given rule, and refreshes their Redis caches. Called when an
+// admin adjusts a rule's quota_limit so that existing users immediately get
+// the new limit.
+func SyncUserModelQuotaLimitByRule(ruleId int, ruleSource string, newLimit int64) error {
+	var usages []*UserModelQuotaUsage
+	if err := DB.Where("rule_id = ? AND rule_source = ? AND status = ?", ruleId, ruleSource, ModelQuotaUsageStatusActive).
+		Find(&usages).Error; err != nil {
+		return err
+	}
+	for _, u := range usages {
+		// Refresh Redis cache with new limit
+		CacheSetModelQuotaUsage(u.Id, u.QuotaUsed, newLimit, u.PeriodEnd)
+	}
+	return DB.Model(&UserModelQuotaUsage{}).
+		Where("rule_id = ? AND rule_source = ? AND status = ?", ruleId, ruleSource, ModelQuotaUsageStatusActive).
+		UpdateColumn("quota_limit", newLimit).Error
+}
+
 // BatchUpdateModelQuotaUsage is called by the batch updater to flush accumulated deltas
 func BatchUpdateModelQuotaUsage(store map[int]int) {
 	for usageId, delta := range store {
