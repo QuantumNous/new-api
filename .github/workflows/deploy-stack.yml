@@ -1,7 +1,7 @@
 name: Deploy Stack
 
 # Reusable workflow: SSH into the target server, pull the image from
-# GHCR, update the docker compose stack, and bring it up.
+# the private registry, update the docker compose stack, and bring it up.
 #
 # Both the automated release pipeline and the manual rollback entry
 # point (deploy.yml) call this via `uses:` + `with: image_tag`.
@@ -11,9 +11,13 @@ name: Deploy Stack
 #   DEPLOY_USER        — SSH username (e.g. root)
 #   DEPLOY_SSH_KEY     — SSH private key (PEM format, the whole file content)
 #   DEPLOY_PATH        — Remote path where docker-compose.yml lives (e.g. /opt/new-api)
-#   GHCR_TOKEN         — GitHub PAT with packages:read scope (for docker login on server)
+#   REGISTRY_USERNAME  — Private registry username (optional if registry is open)
+#   REGISTRY_PASSWORD  — Private registry password (optional if registry is open)
 #
-# Optional GitHub Variables (set in repo Settings -> Variables):
+# Required GitHub Variables (set in repo Settings -> Variables):
+#   IMAGE_REGISTRY     — Private registry address (e.g. registry.example.com/myorg)
+#
+# Optional GitHub Variables:
 #   DEPLOY_PORT        — SSH port (default: 22)
 
 on:
@@ -32,30 +36,32 @@ jobs:
         uses: appleboy/ssh-action@v1
         env:
           IMAGE_TAG: ${{ inputs.image_tag }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ vars.DEPLOY_PORT || '22' }}
-          envs: IMAGE_TAG,GHCR_TOKEN,DEPLOY_PATH
+          envs: IMAGE_TAG,IMAGE_REGISTRY,REGISTRY_USERNAME,REGISTRY_PASSWORD,DEPLOY_PATH
           script: |
             set -euo pipefail
 
-            # Normalize GHCR image name (lowercase)
-            GHCR_IMAGE="ghcr.io/${{ github.repository_owner }}/new-api"
-
-            # Login to GHCR on the remote server
-            echo "${GHCR_TOKEN}" | docker login ghcr.io \
-              --username "${{ github.repository_owner }}" --password-stdin
+            # Login to private registry on the remote server
+            if [ -n "$REGISTRY_USERNAME" ]; then
+              registry_host="$(echo "${IMAGE_REGISTRY}" | cut -d/ -f1)"
+              echo "${REGISTRY_PASSWORD}" | docker login "$registry_host" \
+                --username "$REGISTRY_USERNAME" --password-stdin
+            fi
 
             # Pull the new image
-            docker pull "${GHCR_IMAGE}:${IMAGE_TAG}"
+            docker pull "${IMAGE_REGISTRY}/new-api:${IMAGE_TAG}"
 
             # Update the image reference in docker-compose.yml
             cd "${DEPLOY_PATH}"
-            sed -i "s|image:.*new-api.*|image: ${GHCR_IMAGE}:${IMAGE_TAG}|" docker-compose.yml
+            sed -i "s|image:.*new-api.*|image: ${IMAGE_REGISTRY}/new-api:${IMAGE_TAG}|" docker-compose.yml
 
             # Restart the stack
             docker compose up -d --remove-orphans
@@ -65,4 +71,7 @@ jobs:
             docker image prune -f
 
             # Logout (never leave credentials cached)
-            docker logout ghcr.io || true
+            if [ -n "$REGISTRY_USERNAME" ]; then
+              registry_host="$(echo "${IMAGE_REGISTRY}" | cut -d/ -f1)"
+              docker logout "$registry_host" || true
+            fi

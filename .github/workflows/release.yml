@@ -3,7 +3,7 @@ name: Release
 # Push-to-main pipeline. Runs on every push to main:
 #
 #     compute-tag ──┐
-#                   ├──> build-image ──> (optional deploy)
+#                   ├──> build-image ──> private registry
 #     test ─────────┘
 #
 # - compute-tag derives v<YYYY.MM.DD>-<seq> and pushes the tag back.
@@ -106,32 +106,46 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Normalize image name
-        run: echo "GHCR_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
-
-      - name: Build & push
-        id: build
+      - name: Build image
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
-          tags: |
-            ${{ env.GHCR_IMAGE }}:${{ env.IMAGE_TAG }}
-            ${{ env.GHCR_IMAGE }}:latest
+          load: true
+          tags: "${{ vars.IMAGE_REGISTRY }}/new-api:${{ env.IMAGE_TAG }}"
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Log in to private registry
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          if [ -z "$REGISTRY_USERNAME" ]; then
+            echo "REGISTRY_USERNAME unset -> assuming open registry, skipping login."
+            exit 0
+          fi
+          registry_host="$(echo "${{ vars.IMAGE_REGISTRY }}" | cut -d/ -f1)"
+          echo "$REGISTRY_PASSWORD" | docker login "$registry_host" \
+            --username "$REGISTRY_USERNAME" --password-stdin
+
+      - name: Push to private registry
+        run: |
+          docker push "${{ vars.IMAGE_REGISTRY }}/new-api:${IMAGE_TAG}"
+
+      - name: Log out of private registry
+        if: always()
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+        run: |
+          if [ -z "$REGISTRY_USERNAME" ]; then
+            exit 0
+          fi
+          registry_host="$(echo "${{ vars.IMAGE_REGISTRY }}" | cut -d/ -f1)"
+          docker logout "$registry_host" || true
 
       - name: Image summary
         run: |
           echo "### Docker Image" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "${GHCR_IMAGE}:${IMAGE_TAG}" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+          echo "${{ vars.IMAGE_REGISTRY }}/new-api:${IMAGE_TAG}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
