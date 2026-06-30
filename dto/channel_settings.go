@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/QuantumNous/new-api/constant"
 )
 
 type ChannelSettings struct {
@@ -99,6 +101,16 @@ const (
 	advancedCustomModelRegexPrefix = "re:"
 )
 
+const (
+	advancedCustomEndpointPathOpenAIChat             = "/v1/chat/completions"
+	advancedCustomEndpointPathOpenAIResponses        = "/v1/responses"
+	advancedCustomEndpointPathOpenAIResponsesCompact = "/v1/responses/compact"
+	advancedCustomEndpointPathClaudeMessages         = "/v1/messages"
+	advancedCustomEndpointPathJinaRerank             = "/v1/rerank"
+	advancedCustomEndpointPathImageGeneration        = "/v1/images/generations"
+	advancedCustomEndpointPathEmbeddings             = "/v1/embeddings"
+)
+
 // MatchPath returns the first route whose IncomingPath matches requestPath.
 // Matching mirrors the relay adaptor: exact match, {model} placeholder, and
 // :generateContent <-> :streamGenerateContent equivalence.
@@ -140,6 +152,61 @@ func (c *AdvancedCustomConfig) SupportsPath(requestPath string) bool {
 func (c *AdvancedCustomConfig) SupportsPathForModel(requestPath string, model string) bool {
 	_, ok := c.MatchPathForModel(requestPath, model)
 	return ok
+}
+
+func (c *AdvancedCustomConfig) SupportedEndpointTypesForModel(model string) []constant.EndpointType {
+	if c == nil {
+		return nil
+	}
+	model = strings.TrimSpace(model)
+	endpoints := make([]constant.EndpointType, 0, len(c.Routes))
+	seen := make(map[constant.EndpointType]struct{}, len(c.Routes))
+	for _, route := range c.Routes {
+		if !matchAdvancedCustomRouteModel(route.Models, model) {
+			continue
+		}
+		endpointType, ok := advancedCustomEndpointTypeFromIncomingPath(strings.TrimSpace(route.IncomingPath))
+		if !ok {
+			continue
+		}
+		if _, exists := seen[endpointType]; exists {
+			continue
+		}
+		seen[endpointType] = struct{}{}
+		endpoints = append(endpoints, endpointType)
+	}
+	return endpoints
+}
+
+func advancedCustomEndpointTypeFromIncomingPath(incomingPath string) (constant.EndpointType, bool) {
+	switch incomingPath {
+	case advancedCustomEndpointPathOpenAIChat:
+		return constant.EndpointTypeOpenAI, true
+	case advancedCustomEndpointPathOpenAIResponses:
+		return constant.EndpointTypeOpenAIResponse, true
+	case advancedCustomEndpointPathOpenAIResponsesCompact:
+		return constant.EndpointTypeOpenAIResponseCompact, true
+	case advancedCustomEndpointPathClaudeMessages:
+		return constant.EndpointTypeAnthropic, true
+	case advancedCustomEndpointPathJinaRerank:
+		return constant.EndpointTypeJinaRerank, true
+	case advancedCustomEndpointPathImageGeneration:
+		return constant.EndpointTypeImageGeneration, true
+	case advancedCustomEndpointPathEmbeddings:
+		return constant.EndpointTypeEmbeddings, true
+	default:
+		if isAdvancedCustomGeminiIncomingPath(incomingPath) {
+			return constant.EndpointTypeGemini, true
+		}
+		return "", false
+	}
+}
+
+func isAdvancedCustomGeminiIncomingPath(incomingPath string) bool {
+	if !strings.HasPrefix(incomingPath, "/v1beta/models/") {
+		return false
+	}
+	return strings.Contains(incomingPath, ":generateContent") || strings.Contains(incomingPath, ":streamGenerateContent")
 }
 
 func matchAdvancedCustomRouteModel(models []string, model string) bool {

@@ -25,6 +25,7 @@ var channelSyncLock sync.RWMutex
 
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
+		InvalidatePricingCache()
 		return
 	}
 	newChannelId2channel := make(map[int]*Channel)
@@ -94,6 +95,7 @@ func InitChannelCache() {
 	channelsIDM = newChannelId2channel
 	channel2advancedCustomConfig = newChannel2advancedCustomConfig
 	channelSyncLock.Unlock()
+	InvalidatePricingCache()
 	common.SysLog("channels synced from database")
 }
 
@@ -292,8 +294,8 @@ func CacheUpdateChannel(channel *Channel) {
 		return
 	}
 	channelSyncLock.Lock()
-	defer channelSyncLock.Unlock()
 	if channel == nil {
+		channelSyncLock.Unlock()
 		return
 	}
 
@@ -304,5 +306,16 @@ func CacheUpdateChannel(channel *Channel) {
 		logger.LogDebug(nil, "CacheUpdateChannel before: id=%d, name=%s, status=%d, polling_index=%d", channel.Id, channel.Name, channel.Status, oldChannel.ChannelInfo.MultiKeyPollingIndex)
 	}
 	channelsIDM[channel.Id] = channel
+	if channel2advancedCustomConfig == nil {
+		channel2advancedCustomConfig = make(map[int]*dto.AdvancedCustomConfig)
+	}
+	delete(channel2advancedCustomConfig, channel.Id)
+	if channel.Type == constant.ChannelTypeAdvancedCustom {
+		if config := channel.GetOtherSettings().AdvancedCustom; config != nil {
+			channel2advancedCustomConfig[channel.Id] = config
+		}
+	}
 	logger.LogDebug(nil, "CacheUpdateChannel after: id=%d, name=%s, status=%d, polling_index=%d", channel.Id, channel.Name, channel.Status, channel.ChannelInfo.MultiKeyPollingIndex)
+	channelSyncLock.Unlock()
+	InvalidatePricingCache()
 }

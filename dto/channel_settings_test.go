@@ -3,6 +3,7 @@ package dto
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -315,4 +316,54 @@ func TestAdvancedCustomMatchPathForModelUsesFirstMatchingRegexRoute(t *testing.T
 	route, ok := config.MatchPathForModel("/v1/responses", "gemini-2.5-flash")
 	require.True(t, ok)
 	assert.Equal(t, advancedCustomConverterOpenAIResponsesToGemini, route.Converter)
+}
+
+func TestAdvancedCustomSupportedEndpointTypesForModel(t *testing.T) {
+	config := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/responses",
+				UpstreamPath: "/v1beta/models/{model}:generateContent",
+				Converter:    advancedCustomConverterOpenAIResponsesToGemini,
+				Models:       []string{"re:^gemini-"},
+			},
+			{
+				IncomingPath: "/v1beta/models/{model}:generateContent",
+				UpstreamPath: "/v1beta/models/{model}:generateContent",
+				Models:       []string{"re:^gemini-"},
+			},
+			{
+				IncomingPath: "/v1beta/models/{model}:streamGenerateContent",
+				UpstreamPath: "/v1beta/models/{model}:streamGenerateContent",
+				Models:       []string{"re:^gemini-"},
+			},
+			{
+				IncomingPath: "/v1/chat/completions",
+				UpstreamPath: "/v1/chat/completions",
+				Models:       []string{"gpt-4o"},
+			},
+			{
+				IncomingPath: "/v1/messages",
+				UpstreamPath: "/v1/messages",
+			},
+			{
+				IncomingPath: "/custom/endpoint",
+				UpstreamPath: "/custom/endpoint",
+			},
+		},
+	}
+	require.NoError(t, config.Validate())
+
+	assert.Equal(t, []constant.EndpointType{
+		constant.EndpointTypeOpenAIResponse,
+		constant.EndpointTypeGemini,
+		constant.EndpointTypeAnthropic,
+	}, config.SupportedEndpointTypesForModel("gemini-2.5-flash"))
+	assert.Equal(t, []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeAnthropic,
+	}, config.SupportedEndpointTypesForModel("gpt-4o"))
+	assert.Equal(t, []constant.EndpointType{
+		constant.EndpointTypeAnthropic,
+	}, config.SupportedEndpointTypesForModel("other-model"))
 }
