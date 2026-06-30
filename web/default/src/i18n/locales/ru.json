@@ -664,6 +664,7 @@
     "Cache mode": "Режим кэша",
     "Cache pricing": "Цены кэша",
     "Cache ratio": "Коэффициент кэша",
+    "Cache Hit Rate": "Частота попаданий в кэш",
     "Cache Read": "Чтение кэша",
     "Cache read price": "Цена чтения кэша",
     "Cache repeated prompt prefixes for cheaper, faster reuse": "Кэшировать повторяющиеся префиксы промптов для дешёвого и быстрого повторного использования",
