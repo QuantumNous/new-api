@@ -1,0 +1,68 @@
+name: Deploy Stack
+
+# Reusable workflow: SSH into the target server, pull the image from
+# GHCR, update the docker compose stack, and bring it up.
+#
+# Both the automated release pipeline and the manual rollback entry
+# point (deploy.yml) call this via `uses:` + `with: image_tag`.
+#
+# Required GitHub Secrets (set in repo Settings -> Secrets):
+#   DEPLOY_HOST        — SSH hostname or IP (e.g. 1.2.3.4)
+#   DEPLOY_USER        — SSH username (e.g. root)
+#   DEPLOY_SSH_KEY     — SSH private key (PEM format, the whole file content)
+#   DEPLOY_PATH        — Remote path where docker-compose.yml lives (e.g. /opt/new-api)
+#   GHCR_TOKEN         — GitHub PAT with packages:read scope (for docker login on server)
+#
+# Optional GitHub Variables (set in repo Settings -> Variables):
+#   DEPLOY_PORT        — SSH port (default: 22)
+
+on:
+  workflow_call:
+    inputs:
+      image_tag:
+        description: '要部署的镜像 tag (例: v2026.06.30-1)'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ vars.DEPLOY_PORT || '22' }}
+          envs: IMAGE_TAG,GHCR_TOKEN,DEPLOY_PATH
+          script: |
+            set -euo pipefail
+
+            # Normalize GHCR image name (lowercase)
+            GHCR_IMAGE="ghcr.io/${{ github.repository_owner }}/new-api"
+
+            # Login to GHCR on the remote server
+            echo "${GHCR_TOKEN}" | docker login ghcr.io \
+              --username "${{ github.repository_owner }}" --password-stdin
+
+            # Pull the new image
+            docker pull "${GHCR_IMAGE}:${IMAGE_TAG}"
+
+            # Update the image reference in docker-compose.yml
+            cd "${DEPLOY_PATH}"
+            sed -i "s|image:.*new-api.*|image: ${GHCR_IMAGE}:${IMAGE_TAG}|" docker-compose.yml
+
+            # Restart the stack
+            docker compose up -d --remove-orphans
+            docker compose ps
+
+            # Prune dangling images to reclaim space
+            docker image prune -f
+
+            # Logout (never leave credentials cached)
+            docker logout ghcr.io || true

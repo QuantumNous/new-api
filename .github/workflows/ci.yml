@@ -1,0 +1,57 @@
+name: CI
+
+# Gate every PR and non-main branch push on the Go backend test suite
+# and the default frontend build. release.yml composes this same suite
+# via workflow_call so the main pipeline never runs untested code.
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Run tests
+        run: go test ./... -count=1 -timeout 300s
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
+
+      - name: Build default frontend
+        working-directory: web/default
+        env:
+          DISABLE_ESLINT_PLUGIN: 'true'
+        run: bun run build
+
+      - name: Typecheck
+        working-directory: web/default
+        run: bun run typecheck

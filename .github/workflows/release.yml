@@ -1,186 +1,137 @@
-name: Release (Linux, macOS, Windows)
-permissions:
-  contents: write
+name: Release
+
+# Push-to-main pipeline. Runs on every push to main:
+#
+#     compute-tag ──┐
+#                   ├──> build-image ──> (optional deploy)
+#     test ─────────┘
+#
+# - compute-tag derives v<YYYY.MM.DD>-<seq> and pushes the tag back.
+# - test delegates to ci.yml so the same suite gates both PRs and releases.
+# - build-image needs both a green test and the computed tag.
+#
+# Trigger: every push to main. workflow_dispatch allows rebuilding a
+# specific historical commit or supplying a custom tag.
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
-      name:
-        description: 'reason'
+      tag:
+        description: '可选：指定 IMAGE_TAG（留空则按 v<YYYY.MM.DD>-<seq> 自动生成）'
         required: false
-  push:
-    tags:
-      - '*'
-      - '!*-alpha*'
+        default: ''
+
+permissions:
+  contents: write
+  packages: write
 
 jobs:
-  linux:
-    name: Linux Release
+  compute-tag:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.derive.outputs.image_tag }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Checkout (with full tag history)
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Determine Version
-        run: |
-          VERSION=$(git describe --tags)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: latest
-      - name: Build Frontend (default)
-        env:
-          CI: ""
-        run: |
-          cd web
-          bun install --frozen-lockfile
-          cd default
-          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ../..
-      - name: Build Frontend (classic)
-        env:
-          CI: ""
-        run: |
-          cd web
-          bun install --filter ./classic --frozen-lockfile
-          cd classic
-          VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ../..
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version: '>=1.25.1'
-      - name: Build Backend (amd64)
-        run: |
-          go mod download
-          go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o new-api-$VERSION
-      - name: Build Backend (arm64)
-        run: |
-          sudo apt-get update
-          DEBIAN_FRONTEND=noninteractive sudo apt-get install -y gcc-aarch64-linux-gnu
-          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o new-api-arm64-$VERSION
-      - name: Generate checksums
-        run: sha256sum new-api-* > checksums-linux.txt
 
-      - name: Release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            new-api-*
-            checksums-linux.txt
+      - name: Derive image tag (or honour dispatch input)
+        id: derive
         env:
+          DISPATCH_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${DISPATCH_TAG}" ]; then
+            echo "Using operator-supplied tag: ${DISPATCH_TAG}"
+            echo "image_tag=${DISPATCH_TAG}" >> "$GITHUB_OUTPUT"
+            echo "skip_push=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          today=$(date -u +%Y.%m.%d)
+          prefix="v${today}"
+
+          existing=$(git tag --list "${prefix}-*" | wc -l | tr -d ' ')
+          idx=$((existing + 1))
+
+          attempt=0
+          while [ "${attempt}" -lt 50 ]; do
+            candidate="${prefix}-${idx}"
+            if git rev-parse --verify --quiet "refs/tags/${candidate}" >/dev/null; then
+              idx=$((idx + 1))
+              attempt=$((attempt + 1))
+              continue
+            fi
+            break
+          done
+
+          image_tag="${prefix}-${idx}"
+          echo "Derived tag: ${image_tag}"
+          echo "image_tag=${image_tag}" >> "$GITHUB_OUTPUT"
+          echo "skip_push=false" >> "$GITHUB_OUTPUT"
+
+      - name: Push tag back to origin
+        if: steps.derive.outputs.skip_push == 'false'
+        env:
+          IMAGE_TAG: ${{ steps.derive.outputs.image_tag }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-  macos:
-    name: macOS Release
-    runs-on: macos-latest
+          short_sha="${GITHUB_SHA:0:7}"
+          git tag -a "${IMAGE_TAG}" -m "Release ${IMAGE_TAG} (auto-generated from main@${short_sha})"
+          git push origin "refs/tags/${IMAGE_TAG}"
+
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  build-image:
+    needs: [compute-tag, test]
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          fetch-depth: 0
-      - name: Determine Version
-        run: |
-          VERSION=$(git describe --tags)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: latest
-      - name: Build Frontend (default)
-        env:
-          CI: ""
-          NODE_OPTIONS: "--max-old-space-size=4096"
-        run: |
-          cd web
-          bun install --frozen-lockfile
-          cd default
-          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ../..
-      - name: Build Frontend (classic)
-        env:
-          CI: ""
-        run: |
-          cd web
-          bun install --filter ./classic --frozen-lockfile
-          cd classic
-          VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ../..
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version: '>=1.25.1'
-      - name: Build Backend
-        run: |
-          go mod download
-          go build -ldflags "-X 'new-api/common.Version=$VERSION'" -o new-api-macos-$VERSION
-      - name: Generate checksums
-        run: shasum -a 256 new-api-macos-* > checksums-macos.txt
+      - uses: actions/checkout@v4
 
-      - name: Release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            new-api-macos-*
-            checksums-macos.txt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Write VERSION file
+        run: echo "${IMAGE_TAG}" > VERSION
 
-  windows:
-    name: Windows Release
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          fetch-depth: 0
-      - name: Determine Version
-        run: |
-          VERSION=$(git describe --tags)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: latest
-      - name: Build Frontend (default)
-        env:
-          CI: ""
-        run: |
-          cd web
-          bun install --frozen-lockfile
-          cd default
-          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ../..
-      - name: Build Frontend (classic)
-        env:
-          CI: ""
-        run: |
-          cd web
-          bun install --filter ./classic --frozen-lockfile
-          cd classic
-          VITE_REACT_APP_VERSION=$VERSION bun run build
-          cd ../..
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version: '>=1.25.1'
-      - name: Build Backend
-        run: |
-          go mod download
-          go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION'" -o new-api-$VERSION.exe
-      - name: Generate checksums
-        run: sha256sum new-api-*.exe > checksums-windows.txt
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          files: |
-            new-api-*.exe
-            checksums-windows.txt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Normalize image name
+        run: echo "GHCR_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Build & push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.GHCR_IMAGE }}:${{ env.IMAGE_TAG }}
+            ${{ env.GHCR_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image summary
+        run: |
+          echo "### Docker Image" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${GHCR_IMAGE}:${IMAGE_TAG}" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

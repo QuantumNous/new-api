@@ -1,0 +1,26 @@
+name: Deploy
+
+# Manual deploy / rollback entry point. The forward path (every push
+# to main -> build -> push) lives in release.yml. This file is the
+# operator-driven case of deploying a specific image tag onto the
+# target server without rebuilding it.
+#
+# Usage:
+#   GitHub -> Actions -> Deploy -> Run workflow -> tag = v2026.06.30-1 -> Run
+#
+# The tag must already exist in GHCR (i.e. it must have been built by
+# a prior Release run). No rebuild happens here.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要部署的镜像 tag (例: v2026.06.30-1)'
+        required: true
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-stack.yml
+    with:
+      image_tag: ${{ github.event.inputs.tag }}
+    secrets: inherit
