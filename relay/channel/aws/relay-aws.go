@@ -88,6 +88,12 @@ func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.
 	return client, nil
 }
 
+// doAwsClientRequest dispatches the relay request to AWS Bedrock through the
+// SigV4-aware AWS SDK client. Channel-level header_override entries are
+// applied after SetupRequestHeader so they win over any adaptor defaults; an
+// override value of the empty string suppresses the header upstream, including
+// any value previously written by SetupRequestHeader (this is how operators
+// strip Anthropic beta flags that Bedrock rejects).
 func doAwsClientRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor, requestBody io.Reader) (any, error) {
 	awsCli, err := newAwsClient(c, info)
 	if err != nil {
@@ -112,6 +118,13 @@ func doAwsClientRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor,
 		return nil, err
 	}
 	for key, value := range headerOverride {
+		// An empty value explicitly suppresses the header upstream, including
+		// any value previously written by SetupRequestHeader (e.g. anthropic-beta
+		// copied from the client request, which Bedrock often rejects).
+		if value == "" {
+			requestHeader.Del(key)
+			continue
+		}
 		requestHeader.Set(key, value)
 	}
 
