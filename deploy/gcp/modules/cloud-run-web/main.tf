@@ -66,9 +66,9 @@ resource "google_cloud_run_v2_service" "web" {
       // Plain environment variables.
       // PORT is reserved by Cloud Run — it injects PORT=<container_port> automatically.
       // NOTE: NEXT_PUBLIC_* values are baked into the bundle at BUILD time (build-args
-      // in CI), so they are NOT set here. APP_CONSOLE_ORIGIN/SITE_ORIGIN are also set
-      // at runtime so the server-side route handlers (e.g. /api/perf-metrics proxy)
-      // resolve the correct origin instead of falling back to the image default.
+      // in CI), so they are NOT set here. APP_CONSOLE_ORIGIN/ROUTER_ORIGIN/SITE_ORIGIN
+      // are also set at runtime so server-side route handlers and rendered examples
+      // resolve the correct origins instead of falling back to image defaults.
       env {
         name  = "TZ"
         value = "UTC"
@@ -80,6 +80,10 @@ resource "google_cloud_run_v2_service" "web" {
       env {
         name  = "APP_CONSOLE_ORIGIN"
         value = var.app_console_origin
+      }
+      env {
+        name  = "ROUTER_ORIGIN"
+        value = var.router_origin
       }
       env {
         name  = "SITE_ORIGIN"

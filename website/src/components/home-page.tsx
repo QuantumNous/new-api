@@ -6,13 +6,13 @@ import { SiteShell } from "@/components/site-shell";
 import { getCopy } from "@/lib/copy";
 import type { Locale } from "@/lib/locales";
 import { localizePath } from "@/lib/locales";
-import { APP_CONSOLE_ORIGIN, consoleUrl } from "@/lib/origins";
+import { APP_CONSOLE_ORIGIN, ROUTER_ORIGIN, consoleUrl } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 
 // "Get API Key" lands the user straight on the console API Keys tab (OpenRouter-style):
 // already-authenticated users skip the form, new users land on /keys after signing up.
 const SIGN_UP_URL = consoleUrl("/sign-up", "?redirect=/keys");
-const API_BASE_URL = `${APP_CONSOLE_ORIGIN}/v1`;
+const API_BASE_URL = `${ROUTER_ORIGIN}/v1`;
 
 type Props = {
   locale: Locale;

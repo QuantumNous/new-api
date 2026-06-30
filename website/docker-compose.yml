@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
       args:
         APP_CONSOLE_ORIGIN: ${APP_CONSOLE_ORIGIN:-https://console.flatkey.ai}
+        ROUTER_ORIGIN: ${ROUTER_ORIGIN:-https://router.flatkey.ai}
         SITE_ORIGIN: ${SITE_ORIGIN:-https://flatkey.ai}
     image: flatkey-website:local
     container_name: flatkey-website
@@ -16,8 +17,10 @@ services:
       HOSTNAME: 0.0.0.0
       PORT: 4000
       APP_CONSOLE_ORIGIN: ${APP_CONSOLE_ORIGIN:-https://console.flatkey.ai}
+      ROUTER_ORIGIN: ${ROUTER_ORIGIN:-https://router.flatkey.ai}
       SITE_ORIGIN: ${SITE_ORIGIN:-https://flatkey.ai}
       NEXT_PUBLIC_APP_CONSOLE_ORIGIN: ${APP_CONSOLE_ORIGIN:-https://console.flatkey.ai}
+      NEXT_PUBLIC_ROUTER_ORIGIN: ${ROUTER_ORIGIN:-https://router.flatkey.ai}
       NEXT_PUBLIC_SITE_ORIGIN: ${SITE_ORIGIN:-https://flatkey.ai}
     cpus: 1
     mem_limit: 512m

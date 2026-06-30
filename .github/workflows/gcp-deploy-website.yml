@@ -29,6 +29,7 @@ env:
   # Public origins baked into the bundle at build time (NEXT_PUBLIC_*) and also
   # set at runtime for the server-side route handlers.
   APP_CONSOLE_ORIGIN: ${{ vars.WEBSITE_APP_CONSOLE_ORIGIN }}   # https://console.flatkey.ai
+  ROUTER_ORIGIN:      ${{ vars.WEBSITE_ROUTER_ORIGIN }}        # https://router.flatkey.ai
   SITE_ORIGIN:        ${{ vars.WEBSITE_SITE_ORIGIN }}          # https://flatkey.ai
   BLOGGER_ACCESS_KEY: ${{ secrets.BLOGGER_ACCESS_KEY }}
 
@@ -80,6 +81,7 @@ jobs:
           push: true
           build-args: |
             APP_CONSOLE_ORIGIN=${{ env.APP_CONSOLE_ORIGIN }}
+            ROUTER_ORIGIN=${{ env.ROUTER_ORIGIN }}
             SITE_ORIGIN=${{ env.SITE_ORIGIN }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
@@ -111,6 +113,9 @@ jobs:
           env_kvs=()
           if [[ -n "${APP_CONSOLE_ORIGIN}" ]]; then
             env_kvs+=("APP_CONSOLE_ORIGIN=${APP_CONSOLE_ORIGIN}")
+          fi
+          if [[ -n "${ROUTER_ORIGIN}" ]]; then
+            env_kvs+=("ROUTER_ORIGIN=${ROUTER_ORIGIN}")
           fi
           if [[ -n "${SITE_ORIGIN}" ]]; then
             env_kvs+=("SITE_ORIGIN=${SITE_ORIGIN}")

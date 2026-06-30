@@ -16,7 +16,7 @@ flatkey.ai 的**对外公开官网**：首页/营销、定价（pricing）、排
 | `docker-compose.yml` | 本地起容器用（`flatkey-website:local`）|
 | `src/app/` | App Router 路由：根路径（en）+ `[locale]/`（zh/es/fr/pt/ru/ja/vi）；`sitemap.ts`/`robots.ts`/`llms.txt/route.ts`/`api/perf-metrics/*` |
 | `src/components/` | 页面与区块组件（home/pricing/blog/site-header/footer/…）|
-| `src/lib/origins.ts` | **origin 解析**：`APP_CONSOLE_ORIGIN`（→ Go 控制台/API）、`SITE_ORIGIN`/`NEXT_PUBLIC_SITE_ORIGIN`（本站 canonical）|
+| `src/lib/origins.ts` | **origin 解析**：`APP_CONSOLE_ORIGIN`（→ Go 控制台/API）、`ROUTER_ORIGIN`（→ 模型调用示例）、`SITE_ORIGIN`/`NEXT_PUBLIC_SITE_ORIGIN`（本站 canonical）|
 | `src/lib/seo.ts` | `buildMetadata`（title/description/canonical/hreflang/OG）|
 | `src/lib/locales.ts` | 8 语言定义、`localizePath`/`localeAlternates` |
 | `src/lib/blog.ts` / `src/lib/pricing.ts` | 从 Go 后端拉博客/定价数据（服务端 fetch + ISR）|
@@ -32,7 +32,8 @@ flatkey.ai 的**对外公开官网**：首页/营销、定价（pricing）、排
 ## Cross-app wiring（env）
 | 变量 | 含义 |
 |------|------|
-| `APP_CONSOLE_ORIGIN` / `NEXT_PUBLIC_APP_CONSOLE_ORIGIN` | Go 控制台/API origin（如 `https://console.flatkey.ai`）；「控制台/登录」按钮、`/api/perf-metrics` 代理目标 |
+| `APP_CONSOLE_ORIGIN` / `NEXT_PUBLIC_APP_CONSOLE_ORIGIN` | Go 控制台/API origin（如 `https://console.flatkey.ai`）；「控制台/登录」按钮、公开数据拉取（pricing/blog）、`/api/perf-metrics` 代理目标 |
+| `ROUTER_ORIGIN` / `NEXT_PUBLIC_ROUTER_ORIGIN` | Go router/API origin（如 `https://router.flatkey.ai`）；只用于模型调用示例 endpoint，不用于公开数据拉取、登录、注册或 dashboard 跳转 |
 | `SITE_ORIGIN` / `NEXT_PUBLIC_SITE_ORIGIN` | 本站对外 canonical origin（`https://flatkey.ai`）|
 
 构建时 `NEXT_PUBLIC_*` 会烤进 bundle（CI 用 build-arg 注入），服务端用的同名 env 在 Cloud Run 运行时注入。

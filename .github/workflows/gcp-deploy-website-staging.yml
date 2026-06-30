@@ -28,6 +28,7 @@ env:
   RUN_SERVICE: newapi-web-staging
   # staging 官网指向 staging 后端（不串生产）。GitHub vars 可覆盖，默认用已确认域名。
   APP_CONSOLE_ORIGIN: ${{ vars.STAGING_WEBSITE_APP_CONSOLE_ORIGIN || 'https://staging-console.flatkey.ai' }}
+  ROUTER_ORIGIN: ${{ vars.STAGING_WEBSITE_ROUTER_ORIGIN || 'https://staging-router.flatkey.ai' }}
   SITE_ORIGIN: ${{ vars.STAGING_WEBSITE_SITE_ORIGIN || 'https://staging-website.flatkey.ai' }}
 
 jobs:
@@ -78,6 +79,7 @@ jobs:
           push: true
           build-args: |
             APP_CONSOLE_ORIGIN=${{ env.APP_CONSOLE_ORIGIN }}
+            ROUTER_ORIGIN=${{ env.ROUTER_ORIGIN }}
             SITE_ORIGIN=${{ env.SITE_ORIGIN }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
@@ -104,9 +106,19 @@ jobs:
         run: |
           set -euo pipefail
           revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
+          env_kvs=()
+          if [[ -n "${APP_CONSOLE_ORIGIN}" ]]; then
+            env_kvs+=("APP_CONSOLE_ORIGIN=${APP_CONSOLE_ORIGIN}")
+          fi
+          if [[ -n "${ROUTER_ORIGIN}" ]]; then
+            env_kvs+=("ROUTER_ORIGIN=${ROUTER_ORIGIN}")
+          fi
+          if [[ -n "${SITE_ORIGIN}" ]]; then
+            env_kvs+=("SITE_ORIGIN=${SITE_ORIGIN}")
+          fi
           env_args=()
-          if [[ -n "${APP_CONSOLE_ORIGIN}" && -n "${SITE_ORIGIN}" ]]; then
-            env_args=(--update-env-vars="APP_CONSOLE_ORIGIN=${APP_CONSOLE_ORIGIN},SITE_ORIGIN=${SITE_ORIGIN}")
+          if [[ ${#env_kvs[@]} -gt 0 ]]; then
+            env_args=(--update-env-vars="$(IFS=,; echo "${env_kvs[*]}")")
           fi
           gcloud run services update "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" \

@@ -185,6 +185,12 @@ variable "website_app_console_origin" {
   default     = "https://console.flatkey.ai"
 }
 
+variable "website_router_origin" {
+  type        = string
+  description = "Origin of the router/API service used in public model invocation examples. e.g. https://router.flatkey.ai"
+  default     = "https://router.flatkey.ai"
+}
+
 variable "website_site_origin" {
   type        = string
   description = "Public origin of the marketing site itself."
