@@ -45,6 +45,13 @@ export const STATIC_I18N_KEYS = [
   'Routing Reliability',
   'Maintenance',
 
+  // System info
+  'online',
+  'stale',
+  'Master instances run scheduled background tasks.',
+  'Worker instances do not run master-only background tasks.',
+  'Drawing task polling',
+
   // Pricing constants
   'Name',
   'Price: Low to High',
@@ -345,6 +352,7 @@ export const STATIC_I18N_KEYS = [
 
   // Subscription management
   'Subscription Management',
+  'Subscriptions',
   'Stripe/Creem requires creating products on the third-party platform and entering the ID',
   'Create Plan',
   'Active',
@@ -431,6 +439,20 @@ export const STATIC_I18N_KEYS = [
   'Playground',
   'AI model testing environment',
   'Chat session management',
+  'No content to copy',
+  'Please wait for the current generation to complete',
+  'An unknown error occurred',
+  'Request error occurred',
+  'Network connection failed or server not responding',
+  'Error parsing response data',
+  'Error establishing connection',
+  'Connection closed',
+  'Generation was interrupted',
+  'Note',
+  'Tip',
+  'Important',
+  'Image not available',
+  'Back to footnote {{id}} reference',
   'Console Area',
   'Data management and log viewing',
   'Dashboard',

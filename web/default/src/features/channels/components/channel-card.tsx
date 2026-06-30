@@ -16,11 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { memo } from 'react'
 import { flexRender, type Row } from '@tanstack/react-table'
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import { GroupBadge } from '@/components/group-badge'
+import { cn } from '@/lib/utils'
+
 import { CHANNEL_STATUS } from '../constants'
 import { isTagAggregateRow, parseGroupsList } from '../lib'
 import type { Channel } from '../types'
@@ -37,7 +39,13 @@ const SENSITIVE_MASK = '••••'
  * priority/weight spinners, balance refresh, response/test times, tag
  * expand-collapse, and the per-row (or per-tag) actions menu.
  */
-function ChannelCardComponent({ row }: { row: Row<Channel> }) {
+function ChannelCardComponent({
+  row,
+  isSelected,
+}: {
+  row: Row<Channel>
+  isSelected: boolean
+}) {
   const { t } = useTranslation()
   const { sensitiveVisible } = useChannels()
   const isTagRow = isTagAggregateRow(row.original)
@@ -81,83 +89,92 @@ function ChannelCardComponent({ row }: { row: Row<Channel> }) {
       row.original.status !== CHANNEL_STATUS.MANUAL_DISABLED)
 
   return (
-    <div className='flex flex-col gap-3'>
-      {/* Row 1: selection + type, with status badge + actions menu */}
-      <div className='flex items-center justify-between gap-2'>
-        <div className='flex min-w-0 flex-1 items-center gap-2'>
-          {!isTagRow && selectCell && (
-            <span className='flex-shrink-0'>{selectCell}</span>
-          )}
-          <div className='min-w-0 overflow-hidden'>{typeCell}</div>
-        </div>
-        <div className='flex flex-shrink-0 items-center gap-1.5'>
-          {showStatusBadge && statusCell}
-          <ChannelRowActionsLayoutContext.Provider value='card'>
-            {actionsCell}
-          </ChannelRowActionsLayoutContext.Provider>
-        </div>
-      </div>
-
-      {/* Body: left column (id/name + balance) paired with a right-aligned
-          column (priority/weight + response/test time). */}
-      <div className='flex items-start justify-between gap-3'>
-        {/* Left column */}
-        <div className='flex min-w-0 flex-1 flex-col gap-3 overflow-hidden'>
-          <div className='min-w-0 text-sm'>
-            {!isTagRow && (
-              <div className={labelClass}>
-                #{sensitiveVisible ? row.original.id : SENSITIVE_MASK}
-              </div>
+    <ChannelRowActionsLayoutContext.Provider value='card'>
+      <div
+        data-state={isSelected ? 'selected' : undefined}
+        className='flex flex-col gap-3'
+      >
+        {/* Row 1: selection + type, with status badge + actions menu */}
+        <div className='flex items-center justify-between gap-2'>
+          <div className='flex min-w-0 flex-1 items-center gap-2'>
+            {!isTagRow && selectCell && (
+              <span className='shrink-0'>{selectCell}</span>
             )}
-            {nameCell}
+            <div className='min-w-0 overflow-hidden'>{typeCell}</div>
           </div>
-          <div className='min-w-0'>
-            <div className={cn('mb-1', labelClass)}>{fieldLabels.balance}</div>
-            <div className='min-w-0 overflow-hidden text-sm'>
-              {balanceCell ?? <span className='text-muted-foreground'>-</span>}
+          <div className='flex shrink-0 items-center gap-1.5'>
+            {showStatusBadge && statusCell}
+            {actionsCell}
+          </div>
+        </div>
+
+        {/* Body: left column (id/name + balance) paired with a right-aligned
+          column (priority/weight + response/test time). */}
+        <div className='flex items-start justify-between gap-3'>
+          {/* Left column */}
+          <div className='flex min-w-0 flex-1 flex-col gap-3 overflow-hidden'>
+            <div className='min-w-0 text-sm'>
+              {!isTagRow && (
+                <div className={labelClass}>
+                  #{sensitiveVisible ? row.original.id : SENSITIVE_MASK}
+                </div>
+              )}
+              {nameCell}
+            </div>
+            <div className='min-w-0'>
+              <div className={cn('mb-1', labelClass)}>
+                {fieldLabels.balance}
+              </div>
+              <div className='min-w-0 overflow-hidden text-sm'>
+                {balanceCell ?? (
+                  <span className='text-muted-foreground'>-</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right column (sits on the right, content left-aligned). A single
+            grid with content-sized columns keeps Priority/Weight and
+            Response/Last Tested aligned without wasting horizontal space. */}
+          <div className='grid shrink-0 grid-cols-[auto_auto] items-center gap-x-3 gap-y-1'>
+            <span className={labelClass}>{t('Priority')}</span>
+            <span className={labelClass}>{t('Weight')}</span>
+            <div className='flex justify-start'>{priorityCell}</div>
+            <div className='flex justify-start'>{weightCell}</div>
+            <span className={cn('mt-2', labelClass)}>
+              {fieldLabels.response_time}
+            </span>
+            <span className={cn('mt-2', labelClass)}>
+              {fieldLabels.test_time}
+            </span>
+            <div className='overflow-hidden text-sm'>
+              {responseCell ?? <span className='text-muted-foreground'>-</span>}
+            </div>
+            <div className='overflow-hidden text-sm'>
+              {testCell ?? <span className='text-muted-foreground'>-</span>}
             </div>
           </div>
         </div>
 
-        {/* Right column (sits on the right, content left-aligned). A single
-            grid with content-sized columns keeps Priority/Weight and
-            Response/Last Tested aligned without wasting horizontal space. */}
-        <div className='grid flex-shrink-0 grid-cols-[auto_auto] items-center gap-x-3 gap-y-1'>
-          <span className={labelClass}>{t('Priority')}</span>
-          <span className={labelClass}>{t('Weight')}</span>
-          <div className='flex justify-start'>{priorityCell}</div>
-          <div className='flex justify-start'>{weightCell}</div>
-          <span className={cn('mt-2', labelClass)}>
-            {fieldLabels.response_time}
-          </span>
-          <span className={cn('mt-2', labelClass)}>{fieldLabels.test_time}</span>
-          <div className='overflow-hidden text-sm'>
-            {responseCell ?? <span className='text-muted-foreground'>-</span>}
-          </div>
-          <div className='overflow-hidden text-sm'>
-            {testCell ?? <span className='text-muted-foreground'>-</span>}
-          </div>
+        {/* Last row: groups span the full width, showing every group (no label) */}
+        <div className='min-w-0'>
+          {groups.length > 0 ? (
+            <div className='-ml-1.5 flex flex-wrap gap-1'>
+              {groups.map((g) => (
+                <GroupBadge
+                  key={g}
+                  group={g}
+                  label={sensitiveVisible ? undefined : SENSITIVE_MASK}
+                  size='sm'
+                />
+              ))}
+            </div>
+          ) : (
+            <span className='text-muted-foreground text-sm'>-</span>
+          )}
         </div>
       </div>
-
-      {/* Last row: groups span the full width, showing every group (no label) */}
-      <div className='min-w-0'>
-        {groups.length > 0 ? (
-          <div className='-ml-1.5 flex flex-wrap gap-1'>
-            {groups.map((g) => (
-              <GroupBadge
-                key={g}
-                group={g}
-                label={sensitiveVisible ? undefined : SENSITIVE_MASK}
-                size='sm'
-              />
-            ))}
-          </div>
-        ) : (
-          <span className='text-muted-foreground text-sm'>-</span>
-        )}
-      </div>
-    </div>
+    </ChannelRowActionsLayoutContext.Provider>
   )
 }
 

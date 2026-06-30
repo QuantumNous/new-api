@@ -251,7 +251,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
         {},
         upstreamUpdateRequestConfig
       )
-      const { success, message, data } = res.data || {}
+      const { success, message } = res.data || {}
       if (!success) {
         toast.error(message || t('Batch detection failed'))
         return
@@ -259,13 +259,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
 
       toast.success(
         t(
-          'Batch detection complete: {{channels}} channels, {{add}} to add, {{remove}} to remove, {{fails}} failed',
-          {
-            channels: data?.processed_channels || 0,
-            add: data?.detected_add_models || 0,
-            remove: data?.detected_remove_models || 0,
-            fails: (data?.failed_channel_ids || []).length,
-          }
+          'Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.'
         )
       )
       await refresh()
