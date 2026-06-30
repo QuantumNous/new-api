@@ -155,7 +155,9 @@ func TestCompleteSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T
 	assert.Zero(t, countUserSubscriptionsForPaymentGuardTest(t, 202))
 
 	topUp := GetTopUpByTradeNo("sub-guard-order")
-	assert.Nil(t, topUp)
+	require.NotNil(t, topUp)
+	assert.Equal(t, common.TopUpStatusPending, topUp.Status)
+	assert.Equal(t, PaymentProviderStripe, topUp.PaymentProvider)
 }
 
 func TestExpireSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T) {
@@ -171,4 +173,9 @@ func TestExpireSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T) 
 	order := GetSubscriptionOrderByTradeNo("sub-expire-guard")
 	require.NotNil(t, order)
 	assert.Equal(t, common.TopUpStatusPending, order.Status)
+
+	topUp := GetTopUpByTradeNo("sub-expire-guard")
+	require.NotNil(t, topUp)
+	assert.Equal(t, common.TopUpStatusPending, topUp.Status)
+	assert.Equal(t, PaymentProviderStripe, topUp.PaymentProvider)
 }

@@ -9,6 +9,7 @@ import (
 type AlipayPendingTask struct {
 	Id          int    `json:"id"`
 	TradeNo     string `json:"trade_no" gorm:"uniqueIndex;type:varchar(255);index"`
+	TradeType   string `json:"trade_type" gorm:"type:varchar(32);default:'topup';index"`
 	NextQueryAt int64  `json:"next_query_at" gorm:"index"`
 	RetryCount  int    `json:"retry_count"`
 	LastQueryAt int64  `json:"last_query_at"`
@@ -17,27 +18,60 @@ type AlipayPendingTask struct {
 	UpdateTime  int64  `json:"update_time"`
 }
 
+const (
+	AlipayPendingTaskTypeTopUp       = "topup"
+	AlipayPendingTaskTypeSubscription = "subscription"
+)
+
 func CreateAlipayTopUpWithPendingTask(topUp *TopUp, nextQueryAt int64) error {
 	if topUp == nil {
 		return gorm.ErrInvalidData
 	}
-	now := time.Now().Unix()
-	if topUp.CreateTime == 0 {
-		topUp.CreateTime = now
+	return CreateAlipayPendingTask(AlipayPendingTaskTypeTopUp, topUp.TradeNo, nextQueryAt, func(tx *gorm.DB) error {
+		now := time.Now().Unix()
+		if topUp.CreateTime == 0 {
+			topUp.CreateTime = now
+		}
+		return tx.Create(topUp).Error
+	})
+}
+
+func CreateAlipaySubscriptionWithPendingTask(order *SubscriptionOrder, nextQueryAt int64) error {
+	if order == nil {
+		return gorm.ErrInvalidData
 	}
+	return CreateAlipayPendingTask(AlipayPendingTaskTypeSubscription, order.TradeNo, nextQueryAt, func(tx *gorm.DB) error {
+		if order.CreateTime == 0 {
+			order.CreateTime = time.Now().Unix()
+		}
+		if err := tx.Create(order).Error; err != nil {
+			return err
+		}
+		return ensurePendingSubscriptionTopUpTx(tx, order)
+	})
+}
+
+func CreateAlipayPendingTask(tradeType string, tradeNo string, nextQueryAt int64, createRecord func(tx *gorm.DB) error) error {
+	if tradeNo == "" {
+		return gorm.ErrInvalidData
+	}
+	now := time.Now().Unix()
 	if nextQueryAt <= 0 {
 		nextQueryAt = now
 	}
 
 	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(topUp).Error; err != nil {
-			return err
-		}
 		task := &AlipayPendingTask{
-			TradeNo:     topUp.TradeNo,
+			TradeNo:     tradeNo,
+			TradeType:   tradeType,
 			NextQueryAt: nextQueryAt,
 			CreateTime:  now,
 			UpdateTime:  now,
+		}
+		if createRecord != nil {
+			if err := createRecord(tx); err != nil {
+				return err
+			}
 		}
 		return tx.Create(task).Error
 	})

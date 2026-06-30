@@ -75,6 +75,7 @@ const SubscriptionPlansCard = ({
   loading = false,
   plans = [],
   payMethods = [],
+  enableAlipayTopUp = false,
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
@@ -154,6 +155,31 @@ const SubscriptionPlansCard = ({
       });
       if (res.data?.message === 'success') {
         redirectToPaymentUrl(res.data.data?.checkout_url);
+        showSuccess(t('已打开支付页面'));
+        closeBuy();
+      } else {
+        const errorMsg =
+          typeof res.data?.data === 'string'
+            ? res.data.data
+            : res.data?.message || t('支付失败');
+        showError(errorMsg);
+      }
+    } catch (e) {
+      showError(t('支付请求失败'));
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const payAlipay = async () => {
+    setPaying(true);
+    try {
+      const res = await API.post('/api/subscription/alipay/pay', {
+        plan_id: selectedPlan.plan.id,
+        payment_method: 'alipay',
+      });
+      if (res.data?.message === 'success') {
+        redirectToPaymentUrl(res.data.data?.pay_url);
         showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {
@@ -671,6 +697,7 @@ const SubscriptionPlansCard = ({
         selectedEpayMethod={selectedEpayMethod}
         setSelectedEpayMethod={setSelectedEpayMethod}
         epayMethods={epayMethods}
+        enableAlipayTopUp={enableAlipayTopUp}
         enableOnlineTopUp={enableOnlineTopUp}
         enableStripeTopUp={enableStripeTopUp}
         enableCreemTopUp={enableCreemTopUp}
@@ -682,6 +709,7 @@ const SubscriptionPlansCard = ({
               }
             : null
         }
+        onPayAlipay={payAlipay}
         onPayStripe={payStripe}
         onPayCreem={payCreem}
         onPayEpay={payEpay}
