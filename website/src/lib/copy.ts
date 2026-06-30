@@ -108,7 +108,7 @@ const copies: Record<Locale, BaseCopy> = {
   en: {
     nav: {
       pricing: "Pricing",
-      modelPricing: "Model Pricing",
+      modelPricing: "Models",
       home: "Home",
       console: "Console",
       rankings: "Rankings",
@@ -265,7 +265,7 @@ const copies: Record<Locale, BaseCopy> = {
   zh: {
     nav: {
       pricing: "价格",
-      modelPricing: "模型定价",
+      modelPricing: "模型",
       home: "主页",
       console: "控制台",
       rankings: "排行",
@@ -419,7 +419,7 @@ const copies: Record<Locale, BaseCopy> = {
   es: {
     nav: {
       pricing: "Precios",
-      modelPricing: "Precios de modelos",
+      modelPricing: "Modelos",
       home: "Inicio",
       console: "Consola",
       rankings: "Rankings",
@@ -545,7 +545,7 @@ const copies: Record<Locale, BaseCopy> = {
   fr: {
     nav: {
       pricing: "Tarifs",
-      modelPricing: "Tarifs des modèles",
+      modelPricing: "Modèles",
       home: "Accueil",
       console: "Console",
       rankings: "Classements",
@@ -671,7 +671,7 @@ const copies: Record<Locale, BaseCopy> = {
   pt: {
     nav: {
       pricing: "Preços",
-      modelPricing: "Preços dos modelos",
+      modelPricing: "Modelos",
       home: "Início",
       console: "Console",
       rankings: "Rankings",
@@ -797,7 +797,7 @@ const copies: Record<Locale, BaseCopy> = {
   ru: {
     nav: {
       pricing: "Цены",
-      modelPricing: "Цены моделей",
+      modelPricing: "Модели",
       home: "Главная",
       console: "Консоль",
       rankings: "Рейтинги",
@@ -923,7 +923,7 @@ const copies: Record<Locale, BaseCopy> = {
   ja: {
     nav: {
       pricing: "料金",
-      modelPricing: "モデル料金",
+      modelPricing: "モデル",
       home: "ホーム",
       console: "コンソール",
       rankings: "ランキング",
@@ -1049,7 +1049,7 @@ const copies: Record<Locale, BaseCopy> = {
   vi: {
     nav: {
       pricing: "Giá",
-      modelPricing: "Giá mô hình",
+      modelPricing: "Mô hình",
       home: "Trang chủ",
       console: "Bảng điều khiển",
       rankings: "Xếp hạng",
@@ -1175,7 +1175,7 @@ const copies: Record<Locale, BaseCopy> = {
   de: {
     nav: {
       pricing: "Preise",
-      modelPricing: "Modellpreise",
+      modelPricing: "Modelle",
       home: "Startseite",
       console: "Konsole",
       rankings: "Rankings",
