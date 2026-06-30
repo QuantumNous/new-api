@@ -31,6 +31,7 @@ import {
   Info,
   LogIn,
 } from 'lucide-react'
+import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
@@ -59,7 +60,7 @@ import {
   isPerCallBilling,
   isTimingLogType,
 } from '../../lib/utils'
-import type { LogOtherData } from '../../types'
+import { USAGE_BILLING_PATH, type LogOtherData } from '../../types'
 
 // Maps a channel-update changed-field token (as recorded by the backend audit)
 // to its i18n label key for display in the audit details.
@@ -139,6 +140,49 @@ function DetailSection(props: {
 function formatRatio(ratio: number | undefined): string {
   if (ratio == null) return '-'
   return ratio.toFixed(4)
+}
+
+function getUsageBillingPathLabel(
+  t: TFunction,
+  adminInfo: LogOtherData['admin_info']
+): string {
+  switch (adminInfo?.usage_billing_path) {
+    case USAGE_BILLING_PATH.LOCAL:
+      return t('Local Billing')
+    case USAGE_BILLING_PATH.OPENAI:
+      return t('Upstream Response (billing-usage-openai)')
+    case USAGE_BILLING_PATH.OPENAI_ESTIMATED:
+      return t('Upstream Response (billing-usage-openai-estimated)')
+    case USAGE_BILLING_PATH.ANTHROPIC:
+      return t('Upstream Response (billing-usage-anthropic)')
+    case USAGE_BILLING_PATH.ANTHROPIC_ESTIMATED:
+      return t('Upstream Response (billing-usage-anthropic-estimated)')
+    case USAGE_BILLING_PATH.GEMINI:
+      return t('Upstream Response (billing-usage-gemini)')
+    case USAGE_BILLING_PATH.GEMINI_ESTIMATED:
+      return t('Upstream Response (billing-usage-gemini-estimated)')
+    case USAGE_BILLING_PATH.UPSTREAM:
+      return t('Upstream Response')
+    default:
+      return adminInfo?.local_count_tokens
+        ? t('Local Billing')
+        : t('Upstream Response')
+  }
+}
+
+function isUsageBillingPathLocal(adminInfo: LogOtherData['admin_info']): boolean {
+  if (adminInfo?.usage_billing_path) {
+    return adminInfo.usage_billing_path === USAGE_BILLING_PATH.LOCAL
+  }
+  return adminInfo?.local_count_tokens === true
+}
+
+function getReasoningEffortVariant(
+  reasoningEffort: string
+): StatusBadgeProps['variant'] {
+  if (reasoningEffort === 'high') return 'orange'
+  if (reasoningEffort === 'medium') return 'yellow'
+  return 'green'
 }
 
 function BillingBreakdown(props: {
@@ -308,10 +352,8 @@ function BillingBreakdown(props: {
 
   if (isAdmin && other.admin_info) {
     rows.push({
-      label: t('Billing Source'),
-      value: other.admin_info.local_count_tokens
-        ? t('Local Billing')
-        : t('Upstream Response'),
+      label: t('Billing Path'),
+      value: getUsageBillingPathLabel(t, other.admin_info),
     })
   }
 
@@ -324,8 +366,13 @@ function BillingBreakdown(props: {
 
   return (
     <DetailSection label={t('Billing Details')}>
-      {rows.map((row, idx) => (
-        <DetailRow key={idx} label={row.label} value={row.value} mono />
+      {rows.map((row) => (
+        <DetailRow
+          key={`${row.label}:${row.value}`}
+          label={row.label}
+          value={row.value}
+          mono
+        />
       ))}
     </DetailSection>
   )
@@ -390,8 +437,13 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
 
   return (
     <DetailSection label={t('Token Breakdown')}>
-      {rows.map((row, idx) => (
-        <DetailRow key={idx} label={row.label} value={row.value} mono />
+      {rows.map((row) => (
+        <DetailRow
+          key={`${row.label}:${row.value}`}
+          label={row.label}
+          value={row.value}
+          mono
+        />
       ))}
     </DetailSection>
   )
@@ -759,9 +811,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
             icon={<ShieldCheck className='size-3.5' aria-hidden='true' />}
             label={t('Top-up Audit Info')}
           >
-            {topupAuditFields.map((field, idx) => (
+            {topupAuditFields.map((field) => (
               <DetailRow
-                key={idx}
+                key={field.label}
                 label={field.label}
                 value={field.value}
                 mono
@@ -848,9 +900,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {operationText != null && (
               <DetailRow label={t('Operation')} value={operationText} />
             )}
-            {loginAuditFields.map((field, idx) => (
+            {loginAuditFields.map((field) => (
               <DetailRow
-                key={idx}
+                key={field.label}
                 label={field.label}
                 value={field.value}
                 mono
@@ -903,13 +955,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             value={
               <StatusBadge
                 label={other.reasoning_effort}
-                variant={
-                  other.reasoning_effort === 'high'
-                    ? 'orange'
-                    : other.reasoning_effort === 'medium'
-                      ? 'yellow'
-                      : 'green'
-                }
+                variant={getReasoningEffortVariant(other.reasoning_effort)}
                 size='sm'
                 copyable={false}
               />
@@ -979,18 +1025,16 @@ export function DetailsDialog(props: DetailsDialogProps) {
           props.log.type !== 6 &&
           other?.admin_info && (
             <DetailRow
-              label={t('Billing Source')}
+              label={t('Billing Path')}
               value={
                 <span className='flex items-center gap-1'>
-                  {other.admin_info.local_count_tokens ? (
+                  {isUsageBillingPathLocal(other.admin_info) ? (
                     <Monitor className='size-3 text-blue-500' />
                   ) : (
                     <Cloud className='size-3 text-emerald-500' />
                   )}
                   <span className='text-xs'>
-                    {other.admin_info.local_count_tokens
-                      ? t('Local Billing')
-                      : t('Upstream Response')}
+                    {getUsageBillingPathLabel(t, other.admin_info)}
                   </span>
                 </span>
               }
@@ -1094,12 +1138,12 @@ export function DetailsDialog(props: DetailsDialogProps) {
             icon={<Settings2 className='size-3.5' aria-hidden='true' />}
             label={`${t('Param Override')} (${other.po.length})`}
           >
-            {other.po.filter(Boolean).map((line, idx) => {
+            {other.po.filter(Boolean).map((line) => {
               const parsed = parseAuditLine(line)
               if (!parsed) return null
               return (
                 <div
-                  key={idx}
+                  key={`${parsed.action}:${parsed.content}`}
                   className='bg-background/60 flex min-w-0 flex-col gap-1.5 rounded border p-2 sm:flex-row sm:items-start sm:gap-2'
                 >
                   <StatusBadge

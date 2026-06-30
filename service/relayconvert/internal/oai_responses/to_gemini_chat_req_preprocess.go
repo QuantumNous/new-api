@@ -1,4 +1,4 @@
-package gemini
+package oairesponses
 
 import (
 	"strings"
@@ -13,7 +13,11 @@ const (
 	geminiResponsesInputTypeFunctionCallOutput   = "function_call_output"
 )
 
-func preprocessGeminiOpenAIResponsesRequest(request dto.OpenAIResponsesRequest) (dto.OpenAIResponsesRequest, error) {
+const (
+	ResponsesInputTypeCustomToolCallOutput = geminiResponsesInputTypeCustomToolCallOutput
+)
+
+func PrepareOpenAIResponsesRequest(request dto.OpenAIResponsesRequest) (dto.OpenAIResponsesRequest, error) {
 	tools, err := filterGeminiResponsesTools(request.Tools)
 	if err != nil {
 		return request, err
@@ -42,7 +46,6 @@ func filterGeminiResponsesTools(raw []byte) ([]byte, error) {
 	filtered := make([]map[string]any, 0, len(tools))
 	for _, tool := range tools {
 		if strings.TrimSpace(common.Interface2String(tool["type"])) != "function" {
-			// TODO: Support Responses custom/freeform tools when Gemini has a safe equivalent representation.
 			continue
 		}
 		filtered = append(filtered, tool)
@@ -78,7 +81,6 @@ func filterGeminiResponsesInput(raw []byte) ([]byte, error) {
 		itemType := strings.TrimSpace(common.Interface2String(item["type"]))
 		switch itemType {
 		case geminiResponsesInputTypeCustomToolCall, geminiResponsesInputTypeCustomToolCallOutput:
-			// TODO: Support Responses custom/freeform tool calls once Gemini can preserve their semantics.
 			continue
 		case geminiResponsesInputTypeFunctionCallOutput:
 			if _, ok := skippedCustomCallIDs[strings.TrimSpace(common.Interface2String(item["call_id"]))]; ok {

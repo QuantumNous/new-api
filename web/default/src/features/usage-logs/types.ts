@@ -92,12 +92,27 @@ export interface ChannelAffinityInfo {
   using_group?: string
 }
 
+export const USAGE_BILLING_PATH = {
+  LOCAL: 'local',
+  UPSTREAM: 'upstream',
+  OPENAI: 'billing-usage-openai',
+  OPENAI_ESTIMATED: 'billing-usage-openai-estimated',
+  ANTHROPIC: 'billing-usage-anthropic',
+  ANTHROPIC_ESTIMATED: 'billing-usage-anthropic-estimated',
+  GEMINI: 'billing-usage-gemini',
+  GEMINI_ESTIMATED: 'billing-usage-gemini-estimated',
+} as const
+
+export type UsageBillingPath =
+  (typeof USAGE_BILLING_PATH)[keyof typeof USAGE_BILLING_PATH]
+
 export interface LogOtherData {
   admin_info?: {
     is_multi_key?: boolean
     multi_key_index?: number
     use_channel?: number[]
     local_count_tokens?: boolean
+    usage_billing_path?: UsageBillingPath | string
     channel_affinity?: ChannelAffinityInfo
     // Top-up audit fields (type=1, admin only)
     payment_method?: string

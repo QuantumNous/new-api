@@ -1,4 +1,4 @@
-package relayconvert
+package matcher
 
 import (
 	"regexp"
@@ -7,7 +7,7 @@ import (
 
 var compiledRegexCache sync.Map // map[string]*regexp.Regexp
 
-func matchAnyRegex(patterns []string, s string) bool {
+func MatchAnyRegex(patterns []string, s string) bool {
 	if len(patterns) == 0 || s == "" {
 		return false
 	}

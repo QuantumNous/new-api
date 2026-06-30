@@ -1,4 +1,4 @@
-package relayconvert
+package oairesponses
 
 import (
 	"encoding/json"
@@ -14,6 +14,14 @@ const (
 	responsesInputTypeFunctionCall       = "function_call"
 	responsesInputTypeFunctionCallOutput = "function_call_output"
 	responsesInputTypeCustomToolCall     = "custom_tool_call"
+	responsesInputTypeCustomToolOutput   = "custom_tool_call_output"
+)
+
+const (
+	ResponsesInputTypeFunctionCall       = responsesInputTypeFunctionCall
+	ResponsesInputTypeFunctionCallOutput = responsesInputTypeFunctionCallOutput
+	ResponsesInputTypeCustomToolCall     = responsesInputTypeCustomToolCall
+	ResponsesInputTypeCustomToolOutput   = responsesInputTypeCustomToolOutput
 )
 
 func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (*dto.GeneralOpenAIRequest, error) {
@@ -107,6 +115,10 @@ func validateResponsesRequestChatUnsupportedFields(req *dto.OpenAIResponsesReque
 		return fmt.Errorf("responses to chat conversion does not support stateful fields: %s", strings.Join(unsupported, ", "))
 	}
 	return nil
+}
+
+func ValidateRequestChatUnsupportedFields(req *dto.OpenAIResponsesRequest) error {
+	return validateResponsesRequestChatUnsupportedFields(req)
 }
 
 func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Message, error) {
@@ -373,6 +385,10 @@ func responsesRequestToolChoiceToChat(raw json.RawMessage) (any, error) {
 	return choice, nil
 }
 
+func RequestToolChoiceToChat(raw json.RawMessage) (any, error) {
+	return responsesRequestToolChoiceToChat(raw)
+}
+
 func responsesRequestTextToChatResponseFormat(raw json.RawMessage) (*dto.ResponseFormat, error) {
 	if !rawJSONPresent(raw) {
 		return nil, nil
@@ -401,6 +417,10 @@ func responsesRequestTextToChatResponseFormat(raw json.RawMessage) (*dto.Respons
 		out.JsonSchema = schemaRaw
 	}
 	return out, nil
+}
+
+func RequestTextToChatResponseFormat(raw json.RawMessage) (*dto.ResponseFormat, error) {
+	return responsesRequestTextToChatResponseFormat(raw)
 }
 
 func responsesImagePartToChatImageURL(part map[string]any) any {
@@ -472,6 +492,10 @@ func responsesCallID(item map[string]any) string {
 	return strings.TrimSpace(common.Interface2String(item["id"]))
 }
 
+func CallID(item map[string]any) string {
+	return responsesCallID(item)
+}
+
 func responsesArgumentsString(value any) string {
 	switch v := value.(type) {
 	case nil:
@@ -518,4 +542,12 @@ func rawJSONPresent(raw json.RawMessage) bool {
 		return false
 	}
 	return common.GetJsonType(raw) != "null"
+}
+
+func JSONString(raw json.RawMessage) (string, error) {
+	return responsesJSONString(raw)
+}
+
+func RawJSONPresent(raw json.RawMessage) bool {
+	return rawJSONPresent(raw)
 }
