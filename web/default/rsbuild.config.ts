@@ -15,11 +15,11 @@ export default defineConfig(({ envMode }) => {
     'http://localhost:3000'
 
   const isProd = envMode === 'production'
+  // 后端路由前缀：除管理 API 外，还需代理中转/视频/资产等接口，便于开发态直连后端联调。
   const devProxy = Object.fromEntries(
-    (['/api', '/mj', '/pg'] as const).map((key) => [
-      key,
-      { target: serverUrl, changeOrigin: true },
-    ])
+    (
+      ['/api', '/mj', '/pg', '/v1', '/doubao', '/kling', '/jimeng'] as const
+    ).map((key) => [key, { target: serverUrl, changeOrigin: true }])
   ) as Record<string, { target: string; changeOrigin: boolean }>
 
   return {

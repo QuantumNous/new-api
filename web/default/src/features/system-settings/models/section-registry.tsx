@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { ChannelAffinitySection } from '../general/channel-affinity'
 import { IoNetDeploymentSettingsSection } from '../integrations/ionet-deployment-settings-section'
+import { VolcAssetSettingsSection } from '../integrations/volc-asset-settings-section'
 import type { ModelSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { ClaudeSettingsCard } from './claude-settings-card'
@@ -141,6 +142,17 @@ const MODELS_SECTIONS = [
             settings['grok.violation_deduction_enabled'] ?? true,
           'grok.violation_deduction_amount':
             settings['grok.violation_deduction_amount'] ?? 0.05,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'volcengine-assets',
+    titleKey: 'Volcengine Assets',
+    build: (settings: ModelSettings) => (
+      <VolcAssetSettingsSection
+        defaultValues={{
+          VolcAssetConfig: settings.VolcAssetConfig,
         }}
       />
     ),

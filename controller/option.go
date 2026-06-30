@@ -89,6 +89,13 @@ func GetOptions(c *gin.Context) {
 		if isSensitiveKey {
 			continue
 		}
+		// VolcAssetConfig 是 JSON 块，整体 key 不命中上面的敏感后缀，
+		// 但其中含 secret_key / access_token，下发给前端前需脱敏（置空）。
+		if k == "VolcAssetConfig" {
+			if b, mErr := common.Marshal(system_setting.VolcAssetConfig.Redacted()); mErr == nil {
+				value = string(b)
+			}
+		}
 		options = append(options, &model.Option{
 			Key:   k,
 			Value: value,
@@ -331,6 +338,26 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "VolcAssetConfig":
+		// 前端为安全起见不回显 secret_key / access_token，提交时这两个字段可能为空，
+		// 表示“保持原值不变”。此处与内存中现有配置合并，避免被空值覆盖丢失密钥。
+		var incoming system_setting.VolcAssetSettings
+		if err = common.UnmarshalJsonStr(option.Value.(string), &incoming); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "资产管理配置解析失败: " + err.Error(),
+			})
+			return
+		}
+		merged, mErr := common.Marshal(incoming.MergeSecretsFromExisting(system_setting.VolcAssetConfig))
+		if mErr != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "资产管理配置序列化失败: " + mErr.Error(),
+			})
+			return
+		}
+		option.Value = string(merged)
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {

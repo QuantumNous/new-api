@@ -40,3 +40,7 @@ func RelayGetAssetGroup(c *gin.Context) {
 func RelayUpdateAssetGroup(c *gin.Context) {
 	doubao.HandleUpdateAssetGroup(c)
 }
+
+func RelayDeleteAssetGroup(c *gin.Context) {
+	doubao.HandleDeleteAssetGroup(c)
+}

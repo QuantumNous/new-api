@@ -1,11 +1,10 @@
 package doubao
 
 import (
-	"bytes"
+	"context"
 	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"sort"
@@ -13,9 +12,13 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/system_setting"
+
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 const (
@@ -69,37 +72,10 @@ type ListAssetsResponse struct {
 }
 
 // ============================
-// Credential helpers
-// ============================
-
-// getVolcAKSK reads Volcengine AK/SK from system settings (options table).
-func getVolcAKSK() (accessKey, secretKey string, err error) {
-	cfg := &system_setting.VolcAssetConfig
-	if cfg.AccessKey == "" || cfg.SecretKey == "" {
-		return "", "", fmt.Errorf("VolcAssetConfig access_key or secret_key is not configured in system settings")
-	}
-	return cfg.AccessKey, cfg.SecretKey, nil
-}
-
-// applyDefaults fills empty ProjectName / GroupId / GroupType with system defaults.
-func applyDefaults(projectName, groupId, groupType *string) {
-	cfg := &system_setting.VolcAssetConfig
-	if projectName != nil && *projectName == "" {
-		*projectName = cfg.ProjectName
-	}
-	if groupId != nil && *groupId == "" {
-		*groupId = cfg.GroupId
-	}
-	if groupType != nil && *groupType == "" {
-		*groupType = cfg.GetGroupType()
-	}
-}
-
-// ============================
 // Volcengine HMAC-SHA256 signing
 // ============================
 
-func signVolcengineRequest(req *http.Request, bodyBytes []byte, accessKey, secretKey string) {
+func signVolcengineRequest(req *http.Request, bodyBytes []byte, accessKey, secretKey, region string) {
 	hexPayloadHash := hex.EncodeToString(common.Sha256Raw(bodyBytes))
 
 	t := time.Now().UTC()
@@ -163,7 +139,6 @@ func signVolcengineRequest(req *http.Request, bodyBytes []byte, accessKey, secre
 
 	hexHashedCanonicalRequest := hex.EncodeToString(common.Sha256Raw([]byte(canonicalRequest)))
 
-	region := system_setting.VolcAssetConfig.GetRegion()
 	credentialScope := fmt.Sprintf("%s/%s/%s/request", shortDate, region, assetServiceName)
 	stringToSign := fmt.Sprintf("HMAC-SHA256\n%s\n%s\n%s",
 		xDate,
@@ -197,83 +172,319 @@ func filterEmptyStrings(s []string) []string {
 }
 
 // ============================
-// Proxy handlers
+// Upstream transport
 // ============================
 
-// doAssetAPICall is the common upstream call logic for all Asset API actions.
-func doAssetAPICall(c *gin.Context, action string, body []byte) {
-	accessKey, secretKey, err := getVolcAKSK()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	upstreamURL := fmt.Sprintf("%s/?Action=%s&Version=%s", system_setting.VolcAssetConfig.GetBaseURL(), action, assetAPIVersion)
-
-	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, upstreamURL, bytes.NewBuffer(body))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to create upstream request: %v", err)})
-		return
-	}
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Accept", "application/json")
-
-	signVolcengineRequest(req, body, accessKey, secretKey)
-
-	client, err := service.GetHttpClientWithProxy("")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to create http client: %v", err)})
-		return
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("upstream request failed: %v", err)})
-		return
-	}
-	defer resp.Body.Close()
-
-	const maxRespSize = 10 << 20 // 10MB
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxRespSize))
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "failed to read upstream response"})
-		return
-	}
-
-	var envelope struct {
-		ResponseMetadata struct {
-			Error struct {
-				Code    string `json:"Code"`
-				Message string `json:"Message"`
-			} `json:"Error"`
-		} `json:"ResponseMetadata"`
-		Result json.RawMessage `json:"Result"`
-	}
-	if err := common.Unmarshal(respBody, &envelope); err != nil {
-		c.Data(resp.StatusCode, "application/json", respBody)
-		return
-	}
-
-	if envelope.ResponseMetadata.Error.Code != "" {
-		c.JSON(resp.StatusCode, gin.H{
-			"error": gin.H{
-				"code":    envelope.ResponseMetadata.Error.Code,
-				"message": envelope.ResponseMetadata.Error.Message,
-			},
-		})
-		return
-	}
-
-	if len(envelope.Result) > 0 {
-		c.Data(http.StatusOK, "application/json", envelope.Result)
-		return
-	}
-
-	c.Data(resp.StatusCode, "application/json", respBody)
+type assetAPIError struct {
+	Code    string
+	Message string
 }
 
-// HandleListAssets proxies a ListAssets request to the Doubao Asset API.
+// ============================
+// Billing + logging
+// ============================
+
+// proxyAssetCall 执行一次面向用户的资产调用：先做额度门槛校验，成功后扣费并记日志。
+func proxyAssetCall(c *gin.Context, ob system_setting.AssetOutbound, action string, body []byte) {
+	userId := c.GetInt("id")
+	cost := system_setting.VolcAssetConfig.ActionPrice(action)
+	if cost > 0 && !ensureAssetQuota(c, userId, cost) {
+		return
+	}
+
+	result, apiErr, status, err := callAssetAPI(c.Request.Context(), ob, action, body)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	if apiErr != nil {
+		c.JSON(status, gin.H{"error": gin.H{"code": apiErr.Code, "message": apiErr.Message}})
+		return
+	}
+
+	settleAssetBilling(c, action, cost, result)
+	c.Data(status, "application/json", result)
+}
+
+// ensureAssetQuota 校验用户与令牌额度是否足够支付一次操作，不足时直接写 402 响应。
+func ensureAssetQuota(c *gin.Context, userId, cost int) bool {
+	userQuota := common.GetContextKeyInt(c, constant.ContextKeyUserQuota)
+	if userQuota < cost {
+		if fresh, err := model.GetUserQuota(userId, false); err == nil {
+			userQuota = fresh
+		}
+	}
+	if userQuota < cost {
+		c.JSON(http.StatusPaymentRequired, gin.H{"error": "insufficient user quota for asset operation"})
+		return false
+	}
+	if !c.GetBool("token_unlimited_quota") && c.GetInt("token_quota") < cost {
+		c.JSON(http.StatusPaymentRequired, gin.H{"error": "insufficient token quota for asset operation"})
+		return false
+	}
+	return true
+}
+
+// settleAssetBilling 在调用成功后扣减用户与令牌额度（cost>0 时），并写入消费日志用于审计。
+func settleAssetBilling(c *gin.Context, action string, cost int, result []byte) {
+	userId := c.GetInt("id")
+	if cost > 0 {
+		tokenId := c.GetInt("token_id")
+		_ = model.DecreaseUserQuota(userId, cost, false)
+		if !c.GetBool("token_unlimited_quota") && tokenId > 0 {
+			_ = model.DecreaseTokenQuota(tokenId, c.GetString("token_key"), cost)
+		}
+		model.UpdateUserUsedQuotaAndRequestCount(userId, cost)
+	}
+
+	other := map[string]interface{}{
+		"action":       action,
+		"request_path": c.Request.URL.Path,
+	}
+	if assetId := extractAssetId(result); assetId != "" {
+		other["asset_id"] = assetId
+	}
+	model.RecordConsumeLog(c, userId, model.RecordConsumeLogParams{
+		ModelName: "volc-asset/" + action,
+		TokenName: c.GetString("token_name"),
+		TokenId:   c.GetInt("token_id"),
+		Quota:     cost,
+		Content:   fmt.Sprintf("Volcengine asset operation: %s", action),
+		Group:     common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
+		Other:     other,
+	})
+}
+
+func extractAssetId(result []byte) string {
+	if len(result) == 0 {
+		return ""
+	}
+	var item struct {
+		Id string `json:"Id"`
+	}
+	if err := common.Unmarshal(result, &item); err != nil {
+		return ""
+	}
+	return item.Id
+}
+
+// ============================
+// Per-user isolation
+// ============================
+
+// assetScope 是某个用户在某个出口上的资产隔离边界：其全部资产读写都被限定在 groupId 内。
+type assetScope struct {
+	userId      int
+	outbound    system_setting.AssetOutbound
+	projectName string
+	groupId     string
+	groupType   string
+}
+
+// resolveAssetOutbound 依据客户端选择头(默认 X-Asset-Outbound)、默认出口与 failover 解析出一个可用出口。
+// 解析失败时直接写响应。
+func resolveAssetOutbound(c *gin.Context) (system_setting.AssetOutbound, bool) {
+	cfg := &system_setting.VolcAssetConfig
+	selector := strings.TrimSpace(c.GetHeader(cfg.GetOutboundSelectorHeader()))
+	if selector == "" {
+		selector = strings.TrimSpace(c.Query("outbound"))
+	}
+	candidates := cfg.ResolveOutboundCandidates(selector)
+	if len(candidates) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no configured asset outbound available"})
+		return system_setting.AssetOutbound{}, false
+	}
+	return candidates[0], true
+}
+
+// resolveAssetScope 校验配置、解析出口并确保调用者在该出口拥有已开通的专属分组，返回其隔离边界。
+func resolveAssetScope(c *gin.Context) (*assetScope, bool) {
+	userId := c.GetInt("id")
+	if userId == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return nil, false
+	}
+	ob, ok := resolveAssetOutbound(c)
+	if !ok {
+		return nil, false
+	}
+	groupId, groupType, err := ensureUserAssetGroup(c, ob, userId)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("failed to provision user asset group: %v", err)})
+		return nil, false
+	}
+	return &assetScope{userId: userId, outbound: ob, projectName: ob.ProjectName, groupId: groupId, groupType: groupType}, true
+}
+
+// ensureUserAssetGroup 返回用户在该出口专属分组的 Id 与 GroupType，必要时在上游开通并持久化映射。
+// 映射以 (用户, 出口Id) 为键：不同出口对应不同上游，各自拥有独立分组。
+// 当出口/project 与映射记录不一致时会重新开通，避免使用失效分组。
+// GroupType 取自映射记录（即分组创建时的类型），以免后续配置变更导致 List 过滤与实际分组错位。
+func ensureUserAssetGroup(c *gin.Context, ob system_setting.AssetOutbound, userId int) (string, string, error) {
+	outboundId := ob.EffectiveId()
+	if binding, err := model.GetVolcAssetUserGroupBinding(userId, outboundId); err == nil {
+		if binding.GroupId != "" && binding.ProjectName == ob.ProjectName {
+			return binding.GroupId, binding.GroupType, nil
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", "", err
+	}
+
+	groupType := ob.GetGroupType()
+	groupId, err := provisionUserAssetGroup(c, ob, userId)
+	if err != nil {
+		return "", "", err
+	}
+	if err := model.SaveVolcAssetUserGroupBinding(userId, model.AssetGroupBinding{
+		OutboundId:  outboundId,
+		Format:      ob.EffectiveFormat(),
+		ProjectName: ob.ProjectName,
+		GroupId:     groupId,
+		GroupType:   groupType,
+	}); err != nil {
+		logger.LogWarn(c, "failed to persist volc asset user group mapping: "+err.Error())
+	}
+	return groupId, groupType, nil
+}
+
+// provisionUserAssetGroup 幂等地为用户在该出口开通专属分组并返回其 Id。
+func provisionUserAssetGroup(c *gin.Context, ob system_setting.AssetOutbound, userId int) (string, error) {
+	groupName := fmt.Sprintf("newapi-user-%d", userId)
+
+	// 已存在则直接复用（映射丢失或重复开通时幂等）。
+	if id, err := findAssetGroupIdByName(c.Request.Context(), ob, groupName); err == nil && id != "" {
+		return id, nil
+	}
+
+	createBody, err := common.Marshal(CreateAssetGroupRequest{
+		Name:        groupName,
+		Description: fmt.Sprintf("Auto-managed personal asset group for new-api user %d", userId),
+		GroupType:   ob.GetGroupType(),
+		ProjectName: ob.ProjectName,
+	})
+	if err != nil {
+		return "", err
+	}
+	result, apiErr, _, callErr := callAssetAPI(c.Request.Context(), ob, "CreateAssetGroup", createBody)
+	if callErr != nil {
+		return "", callErr
+	}
+	if apiErr != nil {
+		// 可能因重名冲突失败，回退按名查找。
+		if id, ferr := findAssetGroupIdByName(c.Request.Context(), ob, groupName); ferr == nil && id != "" {
+			return id, nil
+		}
+		return "", fmt.Errorf("create asset group failed: %s %s", apiErr.Code, apiErr.Message)
+	}
+
+	if id := parseAssetGroupId(result); id != "" {
+		return id, nil
+	}
+	if id, ferr := findAssetGroupIdByName(c.Request.Context(), ob, groupName); ferr == nil && id != "" {
+		return id, nil
+	}
+	return "", errors.New("could not resolve created asset group id")
+}
+
+func findAssetGroupIdByName(ctx context.Context, ob system_setting.AssetOutbound, name string) (string, error) {
+	body, err := common.Marshal(ListAssetGroupsRequest{
+		Filter:      &AssetGroupFilter{Name: name, GroupType: ob.GetGroupType()},
+		PageNumber:  1,
+		PageSize:    50,
+		ProjectName: ob.ProjectName,
+	})
+	if err != nil {
+		return "", err
+	}
+	result, apiErr, _, callErr := callAssetAPI(ctx, ob, "ListAssetGroups", body)
+	if callErr != nil {
+		return "", callErr
+	}
+	if apiErr != nil {
+		return "", fmt.Errorf("list asset groups failed: %s %s", apiErr.Code, apiErr.Message)
+	}
+	var resp ListAssetGroupsResponse
+	if err := common.Unmarshal(result, &resp); err != nil {
+		return "", err
+	}
+	for _, item := range resp.Items {
+		if item.Name == name {
+			return item.Id, nil
+		}
+	}
+	return "", nil
+}
+
+func parseAssetGroupId(result []byte) string {
+	if len(result) == 0 {
+		return ""
+	}
+	var g struct {
+		Id      string `json:"Id"`
+		GroupId string `json:"GroupId"`
+	}
+	if err := common.Unmarshal(result, &g); err != nil {
+		return ""
+	}
+	if g.Id != "" {
+		return g.Id
+	}
+	return g.GroupId
+}
+
+// assetBelongsToScope 判断 GetAsset 结果中的资产是否归属调用者分组。
+func assetBelongsToScope(result []byte, scope *assetScope) bool {
+	var item AssetItem
+	if err := common.Unmarshal(result, &item); err != nil {
+		return false
+	}
+	return item.GroupId != "" && item.GroupId == scope.groupId
+}
+
+// verifyAssetOwnership 通过一次内部 GetAsset 校验资产归属当前用户，校验失败时直接写响应。
+func verifyAssetOwnership(c *gin.Context, scope *assetScope, assetId string) bool {
+	body, err := common.Marshal(GetAssetRequest{Id: assetId, ProjectName: scope.projectName})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal ownership check"})
+		return false
+	}
+	result, apiErr, status, callErr := callAssetAPI(c.Request.Context(), scope.outbound, "GetAsset", body)
+	if callErr != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": callErr.Error()})
+		return false
+	}
+	if apiErr != nil {
+		c.JSON(status, gin.H{"error": gin.H{"code": apiErr.Code, "message": apiErr.Message}})
+		return false
+	}
+	if !assetBelongsToScope(result, scope) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "asset not found"})
+		return false
+	}
+	return true
+}
+
+// applyGroupDefaults 为分组管理接口（管理员）填充空的 ProjectName / GroupType（取自所选出口）。
+func applyGroupDefaults(ob system_setting.AssetOutbound, projectName, groupType *string) {
+	if projectName != nil && *projectName == "" {
+		*projectName = ob.ProjectName
+	}
+	if groupType != nil && *groupType == "" {
+		*groupType = ob.GetGroupType()
+	}
+}
+
+// ============================
+// Asset handlers (per-user isolated)
+// ============================
+
+// HandleListAssets 列出当前用户专属分组内的资产。
 func HandleListAssets(c *gin.Context) {
+	scope, ok := resolveAssetScope(c)
+	if !ok {
+		return
+	}
+
 	var listReq ListAssetsRequest
 	if err := common.UnmarshalBodyReusable(c, &listReq); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
@@ -283,17 +494,18 @@ func HandleListAssets(c *gin.Context) {
 	if listReq.Filter == nil {
 		listReq.Filter = &AssetFilter{}
 	}
-	listReq.Filter.GroupIds = filterEmptyStrings(listReq.Filter.GroupIds)
+	// 强制隔离：仅限定到调用者自己的分组与项目。
+	listReq.Filter.GroupIds = []string{scope.groupId}
+	listReq.Filter.GroupType = scope.groupType
 	listReq.Filter.Statuses = filterEmptyStrings(listReq.Filter.Statuses)
-	applyDefaults(&listReq.ProjectName, nil, &listReq.Filter.GroupType)
+	listReq.ProjectName = scope.projectName
 
 	body, err := common.Marshal(listReq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal request"})
 		return
 	}
-
-	doAssetAPICall(c, "ListAssets", body)
+	proxyAssetCall(c, scope.outbound, "ListAssets", body)
 }
 
 // GetAssetRequest is the request for GetAsset API.
@@ -302,8 +514,12 @@ type GetAssetRequest struct {
 	ProjectName string `json:"ProjectName,omitempty"` // 可选，留空使用默认值
 }
 
-// HandleGetAsset proxies a GetAsset request to the Doubao Asset API.
+// HandleGetAsset 读取一个资产，并校验其归属当前用户。
 func HandleGetAsset(c *gin.Context) {
+	scope, ok := resolveAssetScope(c)
+	if !ok {
+		return
+	}
 	var req GetAssetRequest
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
@@ -313,14 +529,33 @@ func HandleGetAsset(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Id is required"})
 		return
 	}
-	applyDefaults(&req.ProjectName, nil, nil)
+	req.ProjectName = scope.projectName
+
+	cost := system_setting.VolcAssetConfig.ActionPrice("GetAsset")
+	if cost > 0 && !ensureAssetQuota(c, scope.userId, cost) {
+		return
+	}
 
 	body, err := common.Marshal(req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal request"})
 		return
 	}
-	doAssetAPICall(c, "GetAsset", body)
+	result, apiErr, status, callErr := callAssetAPI(c.Request.Context(), scope.outbound, "GetAsset", body)
+	if callErr != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": callErr.Error()})
+		return
+	}
+	if apiErr != nil {
+		c.JSON(status, gin.H{"error": gin.H{"code": apiErr.Code, "message": apiErr.Message}})
+		return
+	}
+	if !assetBelongsToScope(result, scope) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "asset not found"})
+		return
+	}
+	settleAssetBilling(c, "GetAsset", cost, result)
+	c.Data(status, "application/json", result)
 }
 
 // ============================
@@ -328,27 +563,34 @@ func HandleGetAsset(c *gin.Context) {
 // ============================
 
 type CreateAssetRequest struct {
-	GroupId     string `json:"GroupId"` // 可选，留空使用默认值
+	GroupId     string `json:"GroupId"` // 被服务端强制为用户专属分组
 	URL         string `json:"URL"`
 	Name        string `json:"Name,omitempty"`
 	AssetType   string `json:"AssetType" example:"Image" enums:"Image,Video,Audio"` // 素材类型：Image=图像, Video=视频, Audio=音频
 	ProjectName string `json:"ProjectName,omitempty"`                               // 可选，留空使用默认值
 }
 
+// HandleCreateAsset 在当前用户专属分组内创建资产。
 func HandleCreateAsset(c *gin.Context) {
+	scope, ok := resolveAssetScope(c)
+	if !ok {
+		return
+	}
 	var req CreateAssetRequest
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
 		return
 	}
+	// 强制隔离：落到调用者自己的分组与项目。
+	req.GroupId = scope.groupId
+	req.ProjectName = scope.projectName
 
-	applyDefaults(&req.ProjectName, &req.GroupId, nil)
 	body, err := common.Marshal(req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal request"})
 		return
 	}
-	doAssetAPICall(c, "CreateAsset", body)
+	proxyAssetCall(c, scope.outbound, "CreateAsset", body)
 }
 
 // ============================
@@ -361,24 +603,32 @@ type UpdateAssetRequest struct {
 	ProjectName string `json:"ProjectName,omitempty"` // 可选，留空使用默认值
 }
 
+// HandleUpdateAsset 更新一个资产，仅当其归属当前用户时允许。
 func HandleUpdateAsset(c *gin.Context) {
+	scope, ok := resolveAssetScope(c)
+	if !ok {
+		return
+	}
 	var req UpdateAssetRequest
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
 		return
 	}
-
-	applyDefaults(&req.ProjectName, nil, nil)
 	if req.Id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Id is required"})
 		return
 	}
+	req.ProjectName = scope.projectName
+	if !verifyAssetOwnership(c, scope, req.Id) {
+		return
+	}
+
 	body, err := common.Marshal(req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal request"})
 		return
 	}
-	doAssetAPICall(c, "UpdateAsset", body)
+	proxyAssetCall(c, scope.outbound, "UpdateAsset", body)
 }
 
 // ============================
@@ -390,28 +640,36 @@ type DeleteAssetRequest struct {
 	ProjectName string `json:"ProjectName,omitempty"` // 可选，留空使用默认值
 }
 
+// HandleDeleteAsset 删除一个资产，仅当其归属当前用户时允许。
 func HandleDeleteAsset(c *gin.Context) {
+	scope, ok := resolveAssetScope(c)
+	if !ok {
+		return
+	}
 	var req DeleteAssetRequest
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
 		return
 	}
-
-	applyDefaults(&req.ProjectName, nil, nil)
 	if req.Id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Id is required"})
 		return
 	}
+	req.ProjectName = scope.projectName
+	if !verifyAssetOwnership(c, scope, req.Id) {
+		return
+	}
+
 	body, err := common.Marshal(req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal request"})
 		return
 	}
-	doAssetAPICall(c, "DeleteAsset", body)
+	proxyAssetCall(c, scope.outbound, "DeleteAsset", body)
 }
 
 // ============================
-// CreateAssetGroup
+// CreateAssetGroup (admin)
 // ============================
 
 type CreateAssetGroupRequest struct {
@@ -422,23 +680,26 @@ type CreateAssetGroupRequest struct {
 }
 
 func HandleCreateAssetGroup(c *gin.Context) {
+	ob, ok := resolveAssetOutbound(c)
+	if !ok {
+		return
+	}
 	var req CreateAssetGroupRequest
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
 		return
 	}
-
-	applyDefaults(&req.ProjectName, nil, &req.GroupType)
+	applyGroupDefaults(ob, &req.ProjectName, &req.GroupType)
 	body, err := common.Marshal(req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal request"})
 		return
 	}
-	doAssetAPICall(c, "CreateAssetGroup", body)
+	proxyAssetCall(c, ob, "CreateAssetGroup", body)
 }
 
 // ============================
-// ListAssetGroups
+// ListAssetGroups (admin)
 // ============================
 
 type AssetGroupFilter struct {
@@ -474,6 +735,10 @@ type ListAssetGroupsResponse struct {
 }
 
 func HandleListAssetGroups(c *gin.Context) {
+	ob, ok := resolveAssetOutbound(c)
+	if !ok {
+		return
+	}
 	var req ListAssetGroupsRequest
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
@@ -484,17 +749,17 @@ func HandleListAssetGroups(c *gin.Context) {
 		req.Filter = &AssetGroupFilter{}
 	}
 	req.Filter.GroupIds = filterEmptyStrings(req.Filter.GroupIds)
-	applyDefaults(&req.ProjectName, nil, &req.Filter.GroupType)
+	applyGroupDefaults(ob, &req.ProjectName, &req.Filter.GroupType)
 	body, err := common.Marshal(req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal request"})
 		return
 	}
-	doAssetAPICall(c, "ListAssetGroups", body)
+	proxyAssetCall(c, ob, "ListAssetGroups", body)
 }
 
 // ============================
-// GetAssetGroup
+// GetAssetGroup (admin)
 // ============================
 
 type GetAssetGroupRequest struct {
@@ -503,13 +768,16 @@ type GetAssetGroupRequest struct {
 }
 
 func HandleGetAssetGroup(c *gin.Context) {
+	ob, ok := resolveAssetOutbound(c)
+	if !ok {
+		return
+	}
 	var req GetAssetGroupRequest
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
 		return
 	}
-
-	applyDefaults(&req.ProjectName, nil, nil)
+	applyGroupDefaults(ob, &req.ProjectName, nil)
 	if req.Id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Id is required"})
 		return
@@ -519,11 +787,11 @@ func HandleGetAssetGroup(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal request"})
 		return
 	}
-	doAssetAPICall(c, "GetAssetGroup", body)
+	proxyAssetCall(c, ob, "GetAssetGroup", body)
 }
 
 // ============================
-// UpdateAssetGroup
+// UpdateAssetGroup (admin)
 // ============================
 
 type UpdateAssetGroupRequest struct {
@@ -534,13 +802,16 @@ type UpdateAssetGroupRequest struct {
 }
 
 func HandleUpdateAssetGroup(c *gin.Context) {
+	ob, ok := resolveAssetOutbound(c)
+	if !ok {
+		return
+	}
 	var req UpdateAssetGroupRequest
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
 		return
 	}
-
-	applyDefaults(&req.ProjectName, nil, nil)
+	applyGroupDefaults(ob, &req.ProjectName, nil)
 	if req.Id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Id is required"})
 		return
@@ -550,5 +821,37 @@ func HandleUpdateAssetGroup(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal request"})
 		return
 	}
-	doAssetAPICall(c, "UpdateAssetGroup", body)
+	proxyAssetCall(c, ob, "UpdateAssetGroup", body)
+}
+
+// ============================
+// DeleteAssetGroup (admin)
+// ============================
+
+type DeleteAssetGroupRequest struct {
+	Id          string `json:"Id"`
+	ProjectName string `json:"ProjectName,omitempty"` // 可选，留空使用默认值
+}
+
+func HandleDeleteAssetGroup(c *gin.Context) {
+	ob, ok := resolveAssetOutbound(c)
+	if !ok {
+		return
+	}
+	var req DeleteAssetGroupRequest
+	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
+		return
+	}
+	applyGroupDefaults(ob, &req.ProjectName, nil)
+	if req.Id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Id is required"})
+		return
+	}
+	body, err := common.Marshal(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal request"})
+		return
+	}
+	proxyAssetCall(c, ob, "DeleteAssetGroup", body)
 }

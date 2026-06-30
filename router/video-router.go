@@ -50,19 +50,29 @@ func SetVideoRouter(router *gin.Engine) {
 		jimengOfficialGroup.POST("/", controller.RelayTask)
 	}
 
-	// Doubao Asset API routes - proxy to volcengine Asset API with AK/SK auth
-	doubaoGroup := router.Group("/doubao")
-	doubaoGroup.Use(middleware.RouteTag("relay"))
-	doubaoGroup.Use(middleware.TokenAuth())
+	// Doubao Asset API - per-user isolated asset operations.
+	// Token auth + per-user rate limit; each user only sees/manages assets in their own auto-managed group.
+	doubaoAssetGroup := router.Group("/doubao/open")
+	doubaoAssetGroup.Use(middleware.RouteTag("relay"))
+	doubaoAssetGroup.Use(middleware.TokenAuth(), middleware.AssetRateLimit())
 	{
-		doubaoGroup.POST("/open/ListAssets", controller.RelayListAssets)
-		doubaoGroup.POST("/open/GetAsset", controller.RelayGetAsset)
-		doubaoGroup.POST("/open/CreateAsset", controller.RelayCreateAsset)
-		doubaoGroup.POST("/open/UpdateAsset", controller.RelayUpdateAsset)
-		doubaoGroup.POST("/open/DeleteAsset", controller.RelayDeleteAsset)
-		doubaoGroup.POST("/open/CreateAssetGroup", controller.RelayCreateAssetGroup)
-		doubaoGroup.POST("/open/ListAssetGroups", controller.RelayListAssetGroups)
-		doubaoGroup.POST("/open/GetAssetGroup", controller.RelayGetAssetGroup)
-		doubaoGroup.POST("/open/UpdateAssetGroup", controller.RelayUpdateAssetGroup)
+		doubaoAssetGroup.POST("/ListAssets", controller.RelayListAssets)
+		doubaoAssetGroup.POST("/GetAsset", controller.RelayGetAsset)
+		doubaoAssetGroup.POST("/CreateAsset", controller.RelayCreateAsset)
+		doubaoAssetGroup.POST("/UpdateAsset", controller.RelayUpdateAsset)
+		doubaoAssetGroup.POST("/DeleteAsset", controller.RelayDeleteAsset)
+	}
+
+	// Doubao Asset Group management - admin only.
+	// Regular users' groups are auto-managed; group CRUD is not exposed to them to preserve isolation.
+	doubaoAssetGroupAdmin := router.Group("/doubao/open")
+	doubaoAssetGroupAdmin.Use(middleware.RouteTag("relay"))
+	doubaoAssetGroupAdmin.Use(middleware.TokenAuth(), middleware.AssetRateLimit(), middleware.AssetGroupAdminOnly())
+	{
+		doubaoAssetGroupAdmin.POST("/CreateAssetGroup", controller.RelayCreateAssetGroup)
+		doubaoAssetGroupAdmin.POST("/ListAssetGroups", controller.RelayListAssetGroups)
+		doubaoAssetGroupAdmin.POST("/GetAssetGroup", controller.RelayGetAssetGroup)
+		doubaoAssetGroupAdmin.POST("/UpdateAssetGroup", controller.RelayUpdateAssetGroup)
+		doubaoAssetGroupAdmin.POST("/DeleteAssetGroup", controller.RelayDeleteAssetGroup)
 	}
 }
