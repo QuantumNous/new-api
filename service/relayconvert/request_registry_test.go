@@ -73,10 +73,11 @@ func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 			quality:   RequestConverterQualityFair,
 		},
 		{
-			converter: requestConverterResponsesToGemini,
-			from:      types.RelayFormatOpenAIResponses,
-			to:        types.RelayFormatGemini,
-			quality:   RequestConverterQualityFair,
+			converter:      ConverterOpenAIResponsesToGemini,
+			from:           types.RelayFormatOpenAIResponses,
+			to:             types.RelayFormatGemini,
+			quality:        RequestConverterQualityFair,
+			advancedCustom: true,
 		},
 	}
 
@@ -240,11 +241,11 @@ func TestConvertRequestResponsesToGeminiAppliesResponsesPreprocess(t *testing.T)
 	assert.Equal(t, "user", geminiReq.Contents[0].Role)
 	require.Len(t, geminiReq.Contents[0].Parts, 1)
 	assert.Equal(t, "next turn", geminiReq.Contents[0].Parts[0].Text)
-	assert.Equal(t, requestConverterResponsesToGemini, result.Converter)
+	assert.Equal(t, ConverterOpenAIResponsesToGemini, result.Converter)
 	assert.Equal(t, RequestConverterQualityFair, result.Quality)
 	assert.Equal(t, []RequestStep{
 		{
-			Converter: requestConverterResponsesToGemini,
+			Converter: ConverterOpenAIResponsesToGemini,
 			From:      types.RelayFormatOpenAIResponses,
 			To:        types.RelayFormatGemini,
 		},
@@ -311,10 +312,10 @@ func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {
 	require.NoError(t, err)
 	geminiReq, ok := result.Value.(*dto.GeminiChatRequest)
 	require.True(t, ok)
-	assert.Equal(t, requestConverterResponsesToGemini, result.Converter)
+	assert.Equal(t, ConverterOpenAIResponsesToGemini, result.Converter)
 	assert.Equal(t, []RequestStep{
 		{
-			Converter: requestConverterResponsesToGemini,
+			Converter: ConverterOpenAIResponsesToGemini,
 			From:      types.RelayFormatOpenAIResponses,
 			To:        types.RelayFormatGemini,
 		},

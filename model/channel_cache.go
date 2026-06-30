@@ -115,12 +115,12 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	defer channelSyncLock.RUnlock()
 
 	// First, try to find channels with the exact model name.
-	channels := filterChannelsByRequestPath(group2model2channels[group][model], requestPath)
+	channels := filterChannelsByRequestPathAndModel(group2model2channels[group][model], requestPath, model)
 
 	// If no channels found, try to find channels with the normalized model name.
 	if len(channels) == 0 {
 		normalizedModel := ratio_setting.FormatMatchingModelName(model)
-		channels = filterChannelsByRequestPath(group2model2channels[group][normalizedModel], requestPath)
+		channels = filterChannelsByRequestPathAndModel(group2model2channels[group][normalizedModel], requestPath, model)
 	}
 
 	if len(channels) == 0 {
@@ -202,12 +202,12 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 	return nil, errors.New("channel not found")
 }
 
-// filterChannelsByRequestPath restricts candidates by request path. Only Advanced
-// Custom (type 58) channels are path-checked: they are kept only when one of their
-// configured routes matches requestPath. All other channel types always pass.
-// When requestPath is empty (non-relay callers) filtering is skipped.
+// filterChannelsByRequestPathAndModel restricts candidates by request path and
+// model. Only Advanced Custom (type 58) channels are path-checked: they are kept
+// only when one of their configured routes matches requestPath and model. All
+// other channel types always pass. When requestPath is empty, filtering is skipped.
 // Caller must hold channelSyncLock (read lock). The cached slice is never mutated.
-func filterChannelsByRequestPath(channels []int, requestPath string) []int {
+func filterChannelsByRequestPathAndModel(channels []int, requestPath string, model string) []int {
 	if requestPath == "" || len(channels) == 0 {
 		return channels
 	}
@@ -223,7 +223,7 @@ func filterChannelsByRequestPath(channels []int, requestPath string) []int {
 			filtered = append(filtered, channelId)
 			continue
 		}
-		if config := channel2advancedCustomConfig[channelId]; config != nil && config.SupportsPath(requestPath) {
+		if config := channel2advancedCustomConfig[channelId]; config != nil && config.SupportsPathForModel(requestPath, model) {
 			filtered = append(filtered, channelId)
 		}
 	}

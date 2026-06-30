@@ -133,6 +133,16 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 			return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value)
 		}
 		return a.convertOpenAICompatibleRequest(c, info, chatRequest)
+	case relayconvert.ConverterOpenAIResponsesToGemini:
+		result, err := service.ConvertRequestByID(c, info, converter, request)
+		if err != nil {
+			return nil, err
+		}
+		geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
+		if !ok {
+			return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
+		}
+		return geminiRequest, nil
 	default:
 		return nil, fmt.Errorf("converter %q does not support OpenAI Responses requests", converter)
 	}
@@ -244,6 +254,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return a.claudeAdaptor.DoResponse(c, resp, info)
 	case relayconvert.ConverterOpenAIChatToGeminiContent:
 		return a.geminiAdaptor.DoResponse(c, resp, info)
+	case relayconvert.ConverterOpenAIResponsesToGemini:
+		return a.geminiAdaptor.DoResponse(c, resp, info)
 	case relayconvert.ConverterOpenAIChatToOpenAIResponses:
 		if info.IsStream {
 			return openai.OaiResponsesToChatStreamHandler(c, info, resp)
@@ -306,7 +318,7 @@ func (a *Adaptor) resolve(c *gin.Context, info *relaycommon.RelayInfo) error {
 	}
 
 	incomingPath := incomingRequestPath(c, info)
-	route, ok := config.MatchPath(incomingPath)
+	route, ok := config.MatchPathForModel(incomingPath, info.OriginModelName)
 	if ok {
 		route.Converter = strings.TrimSpace(route.Converter)
 		if route.Converter == "" {
@@ -317,7 +329,7 @@ func (a *Adaptor) resolve(c *gin.Context, info *relaycommon.RelayInfo) error {
 		a.resolved = true
 		return nil
 	}
-	return fmt.Errorf("advanced custom channel does not support request path: %s", incomingPath)
+	return fmt.Errorf("advanced custom channel does not support request path %s for model %s", incomingPath, info.OriginModelName)
 }
 
 func incomingRequestPath(c *gin.Context, info *relaycommon.RelayInfo) string {
@@ -411,7 +423,8 @@ func applyUpstreamPathTemplate(upstreamPath string, info *relaycommon.RelayInfo)
 func shouldUseGeminiStreamURL(converter string, info *relaycommon.RelayInfo) bool {
 	return info != nil &&
 		info.IsStream &&
-		converter == relayconvert.ConverterOpenAIChatToGeminiContent
+		(converter == relayconvert.ConverterOpenAIChatToGeminiContent ||
+			converter == relayconvert.ConverterOpenAIResponsesToGemini)
 }
 
 func useGeminiStreamGenerateContentURL(parsedURL *url.URL) {

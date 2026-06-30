@@ -1,6 +1,8 @@
 package advancedcustom
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -294,7 +296,11 @@ func TestAdaptorConvertsResponsesRequestToOpenAIChatUpstream(t *testing.T) {
 	})
 	info.RelayMode = relayconstant.RelayModeResponses
 	info.RequestURLPath = "/v1/responses"
-	c := advancedCustomGinContext("/v1/responses")
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Request.Header.Set("Content-Type", "application/json")
 
 	converted, err := adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
 		Model:        "gpt-test",
@@ -317,6 +323,119 @@ func TestAdaptorConvertsResponsesRequestToOpenAIChatUpstream(t *testing.T) {
 	parsedURL, err := url.Parse(requestURL)
 	require.NoError(t, err)
 	assert.Equal(t, "/v1/chat/completions", parsedURL.Path)
+}
+
+func TestAdaptorSelectsDuplicateResponsesRoutesByModel(t *testing.T) {
+	config := &dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/responses",
+				UpstreamPath: "/v1/chat/completions",
+				Converter:    relayconvert.ConverterOpenAIResponsesToOpenAIChat,
+				Models:       []string{"gpt-test"},
+			},
+			{
+				IncomingPath: "/v1/responses",
+				UpstreamPath: "/v1beta/models/{model}:generateContent",
+				Converter:    relayconvert.ConverterOpenAIResponsesToGemini,
+				Models:       []string{"gemini-test"},
+			},
+		},
+	}
+
+	chatAdaptor := &Adaptor{}
+	chatInfo := advancedCustomRelayInfo(config)
+	chatInfo.RelayFormat = types.RelayFormatOpenAIResponses
+	chatInfo.RelayMode = relayconstant.RelayModeResponses
+	chatInfo.RequestURLPath = "/v1/responses"
+	chatInfo.OriginModelName = "gpt-test"
+	chatInfo.UpstreamModelName = "gpt-test"
+	chatConverted, err := chatAdaptor.ConvertOpenAIResponsesRequest(advancedCustomGinContext("/v1/responses"), chatInfo, dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustAdvancedCustomRawMessage(t, "hello"),
+	})
+	require.NoError(t, err)
+	_, ok := chatConverted.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+
+	geminiAdaptor := &Adaptor{}
+	geminiInfo := advancedCustomRelayInfo(config)
+	geminiInfo.RelayFormat = types.RelayFormatOpenAIResponses
+	geminiInfo.RelayMode = relayconstant.RelayModeResponses
+	geminiInfo.RequestURLPath = "/v1/responses"
+	geminiInfo.OriginModelName = "gemini-test"
+	geminiInfo.UpstreamModelName = "gemini-test"
+	geminiInfo.IsStream = true
+	geminiConverted, err := geminiAdaptor.ConvertOpenAIResponsesRequest(advancedCustomGinContext("/v1/responses"), geminiInfo, dto.OpenAIResponsesRequest{
+		Model: "gemini-test",
+		Input: mustAdvancedCustomRawMessage(t, "hello"),
+	})
+	require.NoError(t, err)
+	_, ok = geminiConverted.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+
+	requestURL, err := geminiAdaptor.GetRequestURL(geminiInfo)
+	require.NoError(t, err)
+	parsedURL, err := url.Parse(requestURL)
+	require.NoError(t, err)
+	assert.Equal(t, "/v1beta/models/gemini-test:streamGenerateContent", parsedURL.Path)
+	assert.Equal(t, "sse", parsedURL.Query().Get("alt"))
+}
+
+func TestAdaptorResponsesToGeminiUsesResponsesBridge(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/responses",
+				UpstreamPath: "/v1beta/models/{model}:generateContent",
+				Converter:    relayconvert.ConverterOpenAIResponsesToGemini,
+				Models:       []string{"gemini-test"},
+			},
+		},
+	})
+	info.RelayFormat = types.RelayFormatOpenAIResponses
+	info.RelayMode = relayconstant.RelayModeResponses
+	info.RequestURLPath = "/v1/responses"
+	info.OriginModelName = "gemini-test"
+	info.UpstreamModelName = "gemini-test"
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	payload := dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{
+			{
+				Content: dto.GeminiChatContent{
+					Role: "model",
+					Parts: []dto.GeminiPart{
+						{Text: "hello"},
+					},
+				},
+			},
+		},
+		UsageMetadata: dto.GeminiUsageMetadata{
+			PromptTokenCount:     2,
+			CandidatesTokenCount: 3,
+			TotalTokenCount:      5,
+		},
+	}
+	body, err := common.Marshal(payload)
+	require.NoError(t, err)
+
+	usage, newAPIError := adaptor.DoResponse(c, &http.Response{
+		Body: io.NopCloser(bytes.NewReader(body)),
+	}, info)
+	require.Nil(t, newAPIError)
+	require.NotNil(t, usage)
+
+	got := recorder.Body.String()
+	assert.Contains(t, got, `"object":"response"`)
+	assert.Contains(t, got, `"type":"output_text"`)
+	assert.Contains(t, got, `"text":"hello"`)
+	assert.NotContains(t, got, `"candidates"`)
 }
 
 func TestAdaptorConvertsOpenAIChatRequestToResponsesUpstream(t *testing.T) {
@@ -469,13 +588,15 @@ func TestAdaptorConvertsGeminiRequestToOpenAIChatUpstream(t *testing.T) {
 
 func advancedCustomRelayInfo(config *dto.AdvancedCustomConfig) *relaycommon.RelayInfo {
 	return &relaycommon.RelayInfo{
-		RelayFormat:    types.RelayFormatOpenAI,
-		RelayMode:      relayconstant.RelayModeChatCompletions,
-		RequestURLPath: "/v1/chat/completions",
+		RelayFormat:     types.RelayFormatOpenAI,
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RequestURLPath:  "/v1/chat/completions",
+		OriginModelName: "gpt-test",
 		ChannelMeta: &relaycommon.ChannelMeta{
-			ApiKey:         "sk-test",
-			ChannelBaseUrl: "https://fallback.example",
-			ChannelType:    constant.ChannelTypeAdvancedCustom,
+			ApiKey:            "sk-test",
+			ChannelBaseUrl:    "https://fallback.example",
+			ChannelType:       constant.ChannelTypeAdvancedCustom,
+			UpstreamModelName: "gpt-test",
 			ChannelOtherSettings: dto.ChannelOtherSettings{
 				AdvancedCustom: config,
 			},

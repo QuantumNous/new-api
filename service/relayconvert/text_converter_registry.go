@@ -228,7 +228,7 @@ var builtinTextConverters = []TextConverterSpec{
 		},
 	},
 	{
-		ID:      requestConverterResponsesToGemini,
+		ID:      ConverterOpenAIResponsesToGemini,
 		From:    types.RelayFormatOpenAIResponses,
 		To:      types.RelayFormatGemini,
 		Quality: TextConverterQualityFair,

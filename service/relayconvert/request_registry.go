@@ -69,7 +69,6 @@ const (
 	requestConverterGeminiToClaude    = "gemini_generate_content_to_claude_messages"
 	requestConverterGeminiToResponses = "gemini_generate_content_to_openai_responses"
 	requestConverterResponsesToClaude = "openai_responses_to_claude_messages"
-	requestConverterResponsesToGemini = "openai_responses_to_gemini_generate_content"
 )
 
 const (
@@ -78,6 +77,7 @@ const (
 	ConverterOpenAIChatToClaudeMessages  = "openai_chat_completions_to_anthropic_messages"
 	ConverterOpenAIChatToOpenAIResponses = "openai_chat_completions_to_openai_responses"
 	ConverterOpenAIResponsesToOpenAIChat = "openai_responses_to_openai_chat_completions"
+	ConverterOpenAIResponsesToGemini     = "openai_responses_to_gemini_generate_content"
 	ConverterGeminiContentToOpenAIChat   = "gemini_generate_content_to_openai_chat_completions"
 	ConverterOpenAIChatToGeminiContent   = "openai_chat_completions_to_gemini_generate_content"
 )

@@ -82,7 +82,7 @@ func TestLookupBuiltinResponseConverters(t *testing.T) {
 		},
 		{
 			lookupID: responseConverterResponsesToGemini,
-			id:       requestConverterResponsesToGemini,
+			id:       ConverterOpenAIResponsesToGemini,
 			from:     types.RelayFormatOpenAIResponses,
 			to:       types.RelayFormatGemini,
 			quality:  ResponseConverterQualityFair,
@@ -196,7 +196,7 @@ func TestConvertResponseMultiHopConverters(t *testing.T) {
 
 	toGemini, err := ConvertResponse(nil, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gemini-test"}}, types.RelayFormatGemini, responses)
 	require.NoError(t, err)
-	assert.Equal(t, requestConverterResponsesToGemini, toGemini.Converter)
+	assert.Equal(t, ConverterOpenAIResponsesToGemini, toGemini.Converter)
 	assert.Equal(t, ResponseConverterQualityFair, toGemini.Quality)
 	assert.Equal(t, []ResponseStep{
 		{Converter: ConverterOpenAIResponsesToOpenAIChat, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatOpenAI},
@@ -218,7 +218,7 @@ func TestConvertResponseByIDExecutesMultiHopAndChecksSource(t *testing.T) {
 
 	result, err := ConvertResponseByID(nil, nil, responseConverterResponsesToGemini, responses)
 	require.NoError(t, err)
-	assert.Equal(t, requestConverterResponsesToGemini, result.Converter)
+	assert.Equal(t, ConverterOpenAIResponsesToGemini, result.Converter)
 	assert.Equal(t, []ResponseStep{
 		{Converter: ConverterOpenAIResponsesToOpenAIChat, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatOpenAI},
 		{Converter: ConverterOpenAIChatToGeminiContent, From: types.RelayFormatOpenAI, To: types.RelayFormatGemini},

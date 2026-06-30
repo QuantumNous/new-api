@@ -100,7 +100,7 @@ func TestLookupBuiltinTextConverters(t *testing.T) {
 			respAlias: responseConverterResponsesToClaude,
 		},
 		{
-			id:        requestConverterResponsesToGemini,
+			id:        ConverterOpenAIResponsesToGemini,
 			from:      types.RelayFormatOpenAIResponses,
 			to:        types.RelayFormatGemini,
 			quality:   TextConverterQualityFair,
