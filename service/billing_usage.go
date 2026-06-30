@@ -6,6 +6,17 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 )
 
+const (
+	usageBillingPathLocal              = "local"
+	usageBillingPathUpstream           = "upstream"
+	usageBillingPathOpenAI             = "billing-usage-openai"
+	usageBillingPathOpenAIEstimated    = "billing-usage-openai-estimated"
+	usageBillingPathAnthropic          = "billing-usage-anthropic"
+	usageBillingPathAnthropicEstimated = "billing-usage-anthropic-estimated"
+	usageBillingPathGemini             = "billing-usage-gemini"
+	usageBillingPathGeminiEstimated    = "billing-usage-gemini-estimated"
+)
+
 func effectiveBillingUsage(usage *dto.Usage) *dto.Usage {
 	if billingUsage, ok := usageFromBillingUsage(usage); ok {
 		return billingUsage
@@ -15,28 +26,36 @@ func effectiveBillingUsage(usage *dto.Usage) *dto.Usage {
 
 func usageBillingPathForLog(isLocalCountTokens bool, usage *dto.Usage) string {
 	if isLocalCountTokens {
-		return "local"
+		return usageBillingPathLocal
 	}
 	if usage == nil || usage.BillingUsage == nil {
-		return "upstream"
+		return usageBillingPathUpstream
 	}
 	source := strings.TrimSpace(usage.BillingUsage.Source)
 	semantic := strings.TrimSpace(usage.BillingUsage.Semantic)
+	if strings.EqualFold(source, dto.BillingUsageSourceOAIChat) ||
+		strings.EqualFold(source, dto.BillingUsageSourceOAIResponses) ||
+		strings.EqualFold(semantic, dto.BillingUsageSemanticOpenAI) {
+		if usage.BillingUsage.Estimated {
+			return usageBillingPathOpenAIEstimated
+		}
+		return usageBillingPathOpenAI
+	}
 	if strings.EqualFold(source, dto.BillingUsageSourceClaudeMessages) ||
 		strings.EqualFold(semantic, dto.BillingUsageSemanticAnthropic) {
 		if usage.BillingUsage.Estimated {
-			return "billing-usage-anthropic-estimated"
+			return usageBillingPathAnthropicEstimated
 		}
-		return "billing-usage-anthropic"
+		return usageBillingPathAnthropic
 	}
 	if strings.EqualFold(source, dto.BillingUsageSourceGeminiChat) ||
 		strings.EqualFold(semantic, dto.BillingUsageSemanticGemini) {
 		if usage.BillingUsage.Estimated {
-			return "billing-usage-gemini-estimated"
+			return usageBillingPathGeminiEstimated
 		}
-		return "billing-usage-gemini"
+		return usageBillingPathGemini
 	}
-	return "upstream"
+	return usageBillingPathUpstream
 }
 
 func appendUsageBillingPathForLog(other map[string]interface{}, isLocalCountTokens bool, usage *dto.Usage) {
@@ -59,13 +78,20 @@ func usageFromBillingUsage(usage *dto.Usage) (*dto.Usage, bool) {
 	source := strings.TrimSpace(billingUsage.Source)
 	semantic := strings.TrimSpace(billingUsage.Semantic)
 
-	if billingUsage.Usage != nil &&
+	if billingUsage.OpenAIUsage != nil &&
+		(strings.EqualFold(source, dto.BillingUsageSourceOAIChat) ||
+			strings.EqualFold(source, dto.BillingUsageSourceOAIResponses) ||
+			strings.EqualFold(semantic, dto.BillingUsageSemanticOpenAI)) {
+		return usageFromOpenAIBillingUsage(billingUsage), true
+	}
+
+	if billingUsage.ClaudeUsage != nil &&
 		(strings.EqualFold(source, dto.BillingUsageSourceClaudeMessages) ||
 			strings.EqualFold(semantic, dto.BillingUsageSemanticAnthropic)) {
 		return usageFromClaudeBillingUsage(billingUsage), true
 	}
 
-	if billingUsage.UsageMetadata != nil &&
+	if billingUsage.GeminiUsageMetadata != nil &&
 		(strings.EqualFold(source, dto.BillingUsageSourceGeminiChat) ||
 			strings.EqualFold(semantic, dto.BillingUsageSemanticGemini)) {
 		return usageFromGeminiBillingUsage(billingUsage), true
@@ -74,8 +100,31 @@ func usageFromBillingUsage(usage *dto.Usage) (*dto.Usage, bool) {
 	return nil, false
 }
 
+func usageFromOpenAIBillingUsage(billingUsage *dto.BillingUsage) *dto.Usage {
+	usage := *billingUsage.OpenAIUsage
+	if usage.PromptTokens == 0 && usage.InputTokens > 0 {
+		usage.PromptTokens = usage.InputTokens
+	}
+	if usage.CompletionTokens == 0 && usage.OutputTokens > 0 {
+		usage.CompletionTokens = usage.OutputTokens
+	}
+	if usage.InputTokens == 0 && usage.PromptTokens > 0 {
+		usage.InputTokens = usage.PromptTokens
+	}
+	if usage.OutputTokens == 0 && usage.CompletionTokens > 0 {
+		usage.OutputTokens = usage.CompletionTokens
+	}
+	if usage.TotalTokens == 0 {
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	}
+	usage.UsageSemantic = dto.BillingUsageSemanticOpenAI
+	usage.UsageSource = billingUsage.Source
+	usage.BillingUsage = dto.CloneBillingUsage(billingUsage)
+	return &usage
+}
+
 func usageFromClaudeBillingUsage(billingUsage *dto.BillingUsage) *dto.Usage {
-	claudeUsage := billingUsage.Usage
+	claudeUsage := billingUsage.ClaudeUsage
 	cacheCreation5m := claudeUsage.GetCacheCreation5mTokens()
 	if cacheCreation5m == 0 {
 		cacheCreation5m = claudeUsage.ClaudeCacheCreation5mTokens
@@ -103,7 +152,7 @@ func usageFromClaudeBillingUsage(billingUsage *dto.BillingUsage) *dto.Usage {
 }
 
 func usageFromGeminiBillingUsage(billingUsage *dto.BillingUsage) *dto.Usage {
-	metadata := *billingUsage.UsageMetadata
+	metadata := *billingUsage.GeminiUsageMetadata
 	promptTokens := metadata.PromptTokenCount + metadata.ToolUsePromptTokenCount
 	usage := &dto.Usage{
 		PromptTokens:     promptTokens,

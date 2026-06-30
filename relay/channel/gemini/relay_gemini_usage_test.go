@@ -361,9 +361,9 @@ func TestGeminiChatHandlerMissingUsageMetadataBuildsEstimatedBillingUsage(t *tes
 	require.True(t, usage.BillingUsage.Estimated)
 	require.Equal(t, dto.BillingUsageSourceGeminiChat, usage.BillingUsage.Source)
 	require.Equal(t, dto.BillingUsageSemanticGemini, usage.BillingUsage.Semantic)
-	require.NotNil(t, usage.BillingUsage.UsageMetadata)
-	require.Equal(t, usage.PromptTokens, usage.BillingUsage.UsageMetadata.PromptTokenCount)
-	require.Equal(t, usage.CompletionTokens, usage.BillingUsage.UsageMetadata.CandidatesTokenCount)
+	require.NotNil(t, usage.BillingUsage.GeminiUsageMetadata)
+	require.Equal(t, usage.PromptTokens, usage.BillingUsage.GeminiUsageMetadata.PromptTokenCount)
+	require.Equal(t, usage.CompletionTokens, usage.BillingUsage.GeminiUsageMetadata.CandidatesTokenCount)
 	require.True(t, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
 }
 
@@ -400,8 +400,8 @@ func TestGeminiStreamHandlerEmptyUsageMetadataBuildsEstimatedBillingUsage(t *tes
 	require.NotNil(t, usage.BillingUsage)
 	require.True(t, usage.BillingUsage.Estimated)
 	require.Equal(t, dto.BillingUsageSourceGeminiChat, usage.BillingUsage.Source)
-	require.NotNil(t, usage.BillingUsage.UsageMetadata)
-	require.Equal(t, usage.PromptTokens, usage.BillingUsage.UsageMetadata.PromptTokenCount)
-	require.Equal(t, usage.CompletionTokens, usage.BillingUsage.UsageMetadata.CandidatesTokenCount)
+	require.NotNil(t, usage.BillingUsage.GeminiUsageMetadata)
+	require.Equal(t, usage.PromptTokens, usage.BillingUsage.GeminiUsageMetadata.PromptTokenCount)
+	require.Equal(t, usage.CompletionTokens, usage.BillingUsage.GeminiUsageMetadata.CandidatesTokenCount)
 	require.True(t, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
 }

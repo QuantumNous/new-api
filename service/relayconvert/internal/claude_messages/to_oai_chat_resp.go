@@ -173,7 +173,10 @@ func UsageFromClaudeAPIUsage(usage *dto.ClaudeUsage) *dto.Usage {
 		CompletionTokens: usage.OutputTokens,
 		UsageSemantic:    "anthropic",
 		UsageSource:      "anthropic",
-		BillingUsage:     dto.NewClaudeMessagesBillingUsage(usage),
+		BillingUsage:     dto.CloneBillingUsage(usage.BillingUsage),
+	}
+	if semanticUsage.BillingUsage == nil {
+		semanticUsage.BillingUsage = dto.NewClaudeMessagesBillingUsage(usage)
 	}
 	semanticUsage.PromptTokensDetails.CachedTokens = usage.CacheReadInputTokens
 	semanticUsage.PromptTokensDetails.CachedCreationTokens = usage.CacheCreationInputTokens

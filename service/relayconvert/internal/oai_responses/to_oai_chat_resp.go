@@ -136,6 +136,9 @@ func UsageFromResponsesUsage(src *dto.Usage) *dto.Usage {
 	usage.UsageSemantic = src.UsageSemantic
 	usage.UsageSource = src.UsageSource
 	usage.BillingUsage = dto.CloneBillingUsage(src.BillingUsage)
+	if usage.BillingUsage == nil {
+		usage.BillingUsage = dto.NewOpenAIResponsesBillingUsage(src)
+	}
 	usage.Cost = src.Cost
 	if src.InputTokens != 0 {
 		usage.PromptTokens = src.InputTokens

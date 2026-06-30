@@ -135,6 +135,10 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 	assert.Equal(t, []ResponseStep{{Converter: ConverterOpenAIChatToOpenAIResponses, From: types.RelayFormatOpenAI, To: types.RelayFormatOpenAIResponses}}, toResponses.Steps)
 	require.IsType(t, &dto.OpenAIResponsesResponse{}, toResponses.Value)
 	assert.Equal(t, 9, toResponses.Usage.TotalTokens)
+	require.NotNil(t, toResponses.Usage.BillingUsage)
+	require.NotNil(t, toResponses.Usage.BillingUsage.OpenAIUsage)
+	assert.Equal(t, dto.BillingUsageSourceOAIChat, toResponses.Usage.BillingUsage.Source)
+	assert.Equal(t, 4, toResponses.Usage.BillingUsage.OpenAIUsage.PromptTokens)
 
 	responses := &dto.OpenAIResponsesResponse{
 		ID:        "resp_1",
@@ -158,6 +162,10 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 	assert.Equal(t, ResponseConverterQualityGood, toChat.Quality)
 	require.IsType(t, &dto.OpenAITextResponse{}, toChat.Value)
 	assert.Equal(t, 10, toChat.Usage.TotalTokens)
+	require.NotNil(t, toChat.Usage.BillingUsage)
+	require.NotNil(t, toChat.Usage.BillingUsage.OpenAIUsage)
+	assert.Equal(t, dto.BillingUsageSourceOAIResponses, toChat.Usage.BillingUsage.Source)
+	assert.Equal(t, 4, toChat.Usage.BillingUsage.OpenAIUsage.InputTokens)
 
 	toClaude, err := ConvertResponse(nil, info, types.RelayFormatClaude, chat)
 	require.NoError(t, err)
@@ -165,6 +173,12 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 	assert.Equal(t, ResponseConverterQualityFair, toClaude.Quality)
 	require.IsType(t, &dto.ClaudeResponse{}, toClaude.Value)
 	assert.Equal(t, 9, toClaude.Usage.TotalTokens)
+	require.NotNil(t, toClaude.Usage.BillingUsage)
+	require.NotNil(t, toClaude.Usage.BillingUsage.OpenAIUsage)
+	claudeValue := toClaude.Value.(*dto.ClaudeResponse)
+	require.NotNil(t, claudeValue.Usage)
+	require.NotNil(t, claudeValue.Usage.BillingUsage)
+	require.NotNil(t, claudeValue.Usage.BillingUsage.OpenAIUsage)
 
 	toGemini, err := ConvertResponse(nil, info, types.RelayFormatGemini, chat)
 	require.NoError(t, err)
@@ -172,6 +186,11 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 	assert.Equal(t, ResponseConverterQualityFair, toGemini.Quality)
 	require.IsType(t, &dto.GeminiChatResponse{}, toGemini.Value)
 	assert.Equal(t, 9, toGemini.Usage.TotalTokens)
+	require.NotNil(t, toGemini.Usage.BillingUsage)
+	require.NotNil(t, toGemini.Usage.BillingUsage.OpenAIUsage)
+	geminiValue := toGemini.Value.(*dto.GeminiChatResponse)
+	require.NotNil(t, geminiValue.UsageMetadata.BillingUsage)
+	require.NotNil(t, geminiValue.UsageMetadata.BillingUsage.OpenAIUsage)
 }
 
 func TestConvertResponseMultiHopConverters(t *testing.T) {
@@ -259,13 +278,13 @@ func TestConvertResponseProviderToOAIChatUsage(t *testing.T) {
 	assert.Equal(t, 3, toChat.Usage.PromptTokensDetails.CachedTokens)
 	assert.Equal(t, 4, toChat.Usage.PromptTokensDetails.CachedCreationTokens)
 	require.NotNil(t, toChat.Usage.BillingUsage)
-	require.NotNil(t, toChat.Usage.BillingUsage.Usage)
+	require.NotNil(t, toChat.Usage.BillingUsage.ClaudeUsage)
 	assert.Equal(t, dto.BillingUsageSourceClaudeMessages, toChat.Usage.BillingUsage.Source)
 	assert.Equal(t, dto.BillingUsageSemanticAnthropic, toChat.Usage.BillingUsage.Semantic)
-	assert.Equal(t, 10, toChat.Usage.BillingUsage.Usage.InputTokens)
-	assert.Equal(t, 3, toChat.Usage.BillingUsage.Usage.CacheReadInputTokens)
-	assert.Equal(t, 4, toChat.Usage.BillingUsage.Usage.CacheCreationInputTokens)
-	assert.Equal(t, 5, toChat.Usage.BillingUsage.Usage.OutputTokens)
+	assert.Equal(t, 10, toChat.Usage.BillingUsage.ClaudeUsage.InputTokens)
+	assert.Equal(t, 3, toChat.Usage.BillingUsage.ClaudeUsage.CacheReadInputTokens)
+	assert.Equal(t, 4, toChat.Usage.BillingUsage.ClaudeUsage.CacheCreationInputTokens)
+	assert.Equal(t, 5, toChat.Usage.BillingUsage.ClaudeUsage.OutputTokens)
 	chatValue := toChat.Value.(*dto.OpenAITextResponse)
 	require.Len(t, chatValue.Choices, 1)
 	require.Len(t, chatValue.Choices[0].Message.ParseToolCalls(), 1)
@@ -317,12 +336,12 @@ func TestConvertResponseProviderToOAIChatUsage(t *testing.T) {
 	assert.Equal(t, 4, toChat.Usage.CompletionTokenDetails.TextTokens)
 	assert.Equal(t, 1, toChat.Usage.CompletionTokenDetails.ImageTokens)
 	require.NotNil(t, toChat.Usage.BillingUsage)
-	require.NotNil(t, toChat.Usage.BillingUsage.UsageMetadata)
+	require.NotNil(t, toChat.Usage.BillingUsage.GeminiUsageMetadata)
 	assert.Equal(t, dto.BillingUsageSourceGeminiChat, toChat.Usage.BillingUsage.Source)
 	assert.Equal(t, dto.BillingUsageSemanticGemini, toChat.Usage.BillingUsage.Semantic)
-	assert.Equal(t, 7, toChat.Usage.BillingUsage.UsageMetadata.PromptTokenCount)
-	assert.Equal(t, 2, toChat.Usage.BillingUsage.UsageMetadata.ToolUsePromptTokenCount)
-	assert.Equal(t, 17, toChat.Usage.BillingUsage.UsageMetadata.TotalTokenCount)
+	assert.Equal(t, 7, toChat.Usage.BillingUsage.GeminiUsageMetadata.PromptTokenCount)
+	assert.Equal(t, 2, toChat.Usage.BillingUsage.GeminiUsageMetadata.ToolUsePromptTokenCount)
+	assert.Equal(t, 17, toChat.Usage.BillingUsage.GeminiUsageMetadata.TotalTokenCount)
 }
 
 func TestConvertResponsePreservesBillingUsageAcrossChatResponsesBridge(t *testing.T) {
@@ -337,15 +356,15 @@ func TestConvertResponsePreservesBillingUsageAcrossChatResponsesBridge(t *testin
 	toResponses, err := ConvertResponse(nil, nil, types.RelayFormatOpenAIResponses, chat)
 	require.NoError(t, err)
 	require.NotNil(t, toResponses.Usage.BillingUsage)
-	require.NotNil(t, toResponses.Usage.BillingUsage.Usage)
-	assert.Equal(t, 10, toResponses.Usage.BillingUsage.Usage.InputTokens)
+	require.NotNil(t, toResponses.Usage.BillingUsage.ClaudeUsage)
+	assert.Equal(t, 10, toResponses.Usage.BillingUsage.ClaudeUsage.InputTokens)
 
 	responsesValue := toResponses.Value.(*dto.OpenAIResponsesResponse)
 	toChat, err := ConvertResponse(nil, nil, types.RelayFormatOpenAI, responsesValue)
 	require.NoError(t, err)
 	require.NotNil(t, toChat.Usage.BillingUsage)
-	require.NotNil(t, toChat.Usage.BillingUsage.Usage)
-	assert.Equal(t, 4, toChat.Usage.BillingUsage.Usage.CacheCreationInputTokens)
+	require.NotNil(t, toChat.Usage.BillingUsage.ClaudeUsage)
+	assert.Equal(t, 4, toChat.Usage.BillingUsage.ClaudeUsage.CacheCreationInputTokens)
 }
 
 func TestConvertResponseUsesBillingUsageWhenRestoringNativeTargets(t *testing.T) {

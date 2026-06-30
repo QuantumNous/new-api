@@ -21,9 +21,17 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 	if oaiUsage == nil {
 		return nil
 	}
-	if billingUsage := dto.CloneBillingUsage(oaiUsage.BillingUsage); billingUsage != nil && billingUsage.Usage != nil {
+	if billingUsage := dto.CloneBillingUsage(oaiUsage.BillingUsage); billingUsage != nil && billingUsage.ClaudeUsage != nil {
 		if billingUsage.Source == dto.BillingUsageSourceClaudeMessages || billingUsage.Semantic == dto.BillingUsageSemanticAnthropic {
-			return billingUsage.Usage
+			return billingUsage.ClaudeUsage
+		}
+	}
+	billingUsage := dto.NewOpenAIChatBillingUsage(oaiUsage)
+	if existingBillingUsage := dto.CloneBillingUsage(oaiUsage.BillingUsage); existingBillingUsage != nil && existingBillingUsage.OpenAIUsage != nil {
+		if existingBillingUsage.Source == dto.BillingUsageSourceOAIChat ||
+			existingBillingUsage.Source == dto.BillingUsageSourceOAIResponses ||
+			existingBillingUsage.Semantic == dto.BillingUsageSemanticOpenAI {
+			billingUsage = existingBillingUsage
 		}
 	}
 	cacheCreation5m, cacheCreation1h := NormalizeCacheCreationSplit(
@@ -36,6 +44,7 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 		OutputTokens:             oaiUsage.CompletionTokens,
 		CacheCreationInputTokens: oaiUsage.PromptTokensDetails.CachedCreationTokens,
 		CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
+		BillingUsage:             billingUsage,
 	}
 	if cacheCreation5m > 0 || cacheCreation1h > 0 {
 		usage.CacheCreation = &dto.ClaudeCacheCreationUsage{

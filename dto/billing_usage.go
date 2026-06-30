@@ -3,17 +3,21 @@ package dto
 const (
 	BillingUsageSourceClaudeMessages = "claude_messages"
 	BillingUsageSourceGeminiChat     = "gemini_chat"
+	BillingUsageSourceOAIChat        = "oai_chat"
+	BillingUsageSourceOAIResponses   = "oai_responses"
 
 	BillingUsageSemanticAnthropic = "anthropic"
 	BillingUsageSemanticGemini    = "gemini"
+	BillingUsageSemanticOpenAI    = "openai"
 )
 
 type BillingUsage struct {
-	Source        string               `json:"source,omitempty"`
-	Semantic      string               `json:"semantic,omitempty"`
-	Estimated     bool                 `json:"estimated,omitempty"`
-	Usage         *ClaudeUsage         `json:"usage,omitempty"`
-	UsageMetadata *GeminiUsageMetadata `json:"usage_metadata,omitempty"`
+	Source              string               `json:"source,omitempty"`
+	Semantic            string               `json:"semantic,omitempty"`
+	Estimated           bool                 `json:"estimated,omitempty"`
+	OpenAIUsage         *Usage               `json:"openai_usage,omitempty"`
+	ClaudeUsage         *ClaudeUsage         `json:"claude_usage,omitempty"`
+	GeminiUsageMetadata *GeminiUsageMetadata `json:"gemini_usage_metadata,omitempty"`
 }
 
 func NewClaudeMessagesBillingUsage(usage *ClaudeUsage) *BillingUsage {
@@ -21,10 +25,59 @@ func NewClaudeMessagesBillingUsage(usage *ClaudeUsage) *BillingUsage {
 		return nil
 	}
 	return &BillingUsage{
-		Source:   BillingUsageSourceClaudeMessages,
-		Semantic: BillingUsageSemanticAnthropic,
-		Usage:    cloneClaudeUsage(usage),
+		Source:      BillingUsageSourceClaudeMessages,
+		Semantic:    BillingUsageSemanticAnthropic,
+		ClaudeUsage: cloneClaudeUsage(usage),
 	}
+}
+
+func NewOpenAIChatBillingUsage(usage *Usage) *BillingUsage {
+	return newOpenAIBillingUsage(BillingUsageSourceOAIChat, usage)
+}
+
+func NewOpenAIResponsesBillingUsage(usage *Usage) *BillingUsage {
+	return newOpenAIBillingUsage(BillingUsageSourceOAIResponses, usage)
+}
+
+func newOpenAIBillingUsage(source string, usage *Usage) *BillingUsage {
+	if !HasOpenAIUsageTokens(usage) {
+		return nil
+	}
+	return &BillingUsage{
+		Source:      source,
+		Semantic:    BillingUsageSemanticOpenAI,
+		OpenAIUsage: cloneOpenAIUsage(usage),
+	}
+}
+
+func HasOpenAIUsageTokens(usage *Usage) bool {
+	if usage == nil {
+		return false
+	}
+	if usage.PromptTokens != 0 ||
+		usage.CompletionTokens != 0 ||
+		usage.TotalTokens != 0 ||
+		usage.InputTokens != 0 ||
+		usage.OutputTokens != 0 ||
+		usage.PromptCacheHitTokens != 0 ||
+		usage.ClaudeCacheCreation5mTokens != 0 ||
+		usage.ClaudeCacheCreation1hTokens != 0 {
+		return true
+	}
+	if usage.PromptTokensDetails.CachedTokens != 0 ||
+		usage.PromptTokensDetails.CachedCreationTokens != 0 ||
+		usage.PromptTokensDetails.TextTokens != 0 ||
+		usage.PromptTokensDetails.ImageTokens != 0 ||
+		usage.PromptTokensDetails.AudioTokens != 0 {
+		return true
+	}
+	if usage.CompletionTokenDetails.ReasoningTokens != 0 ||
+		usage.CompletionTokenDetails.TextTokens != 0 ||
+		usage.CompletionTokenDetails.ImageTokens != 0 ||
+		usage.CompletionTokenDetails.AudioTokens != 0 {
+		return true
+	}
+	return usage.InputTokensDetails != nil
 }
 
 func NewGeminiChatBillingUsage(metadata *GeminiUsageMetadata) *BillingUsage {
@@ -52,10 +105,10 @@ func newGeminiChatBillingUsage(metadata *GeminiUsageMetadata, estimated bool) *B
 	}
 	usageMetadata := cloneGeminiUsageMetadata(*metadata)
 	return &BillingUsage{
-		Source:        BillingUsageSourceGeminiChat,
-		Semantic:      BillingUsageSemanticGemini,
-		Estimated:     estimated,
-		UsageMetadata: &usageMetadata,
+		Source:              BillingUsageSourceGeminiChat,
+		Semantic:            BillingUsageSemanticGemini,
+		Estimated:           estimated,
+		GeminiUsageMetadata: &usageMetadata,
 	}
 }
 
@@ -64,10 +117,24 @@ func CloneBillingUsage(usage *BillingUsage) *BillingUsage {
 		return nil
 	}
 	clone := *usage
-	clone.Usage = cloneClaudeUsage(usage.Usage)
-	if usage.UsageMetadata != nil {
-		metadata := cloneGeminiUsageMetadata(*usage.UsageMetadata)
-		clone.UsageMetadata = &metadata
+	clone.OpenAIUsage = cloneOpenAIUsage(usage.OpenAIUsage)
+	clone.ClaudeUsage = cloneClaudeUsage(usage.ClaudeUsage)
+	if usage.GeminiUsageMetadata != nil {
+		metadata := cloneGeminiUsageMetadata(*usage.GeminiUsageMetadata)
+		clone.GeminiUsageMetadata = &metadata
+	}
+	return &clone
+}
+
+func cloneOpenAIUsage(usage *Usage) *Usage {
+	if usage == nil {
+		return nil
+	}
+	clone := *usage
+	clone.BillingUsage = nil
+	if usage.InputTokensDetails != nil {
+		inputTokensDetails := *usage.InputTokensDetails
+		clone.InputTokensDetails = &inputTokensDetails
 	}
 	return &clone
 }
@@ -77,6 +144,7 @@ func cloneClaudeUsage(usage *ClaudeUsage) *ClaudeUsage {
 		return nil
 	}
 	clone := *usage
+	clone.BillingUsage = nil
 	if usage.CacheCreation != nil {
 		cacheCreation := *usage.CacheCreation
 		clone.CacheCreation = &cacheCreation
@@ -92,6 +160,7 @@ func cloneGeminiUsageMetadata(metadata GeminiUsageMetadata) GeminiUsageMetadata 
 	metadata.PromptTokensDetails = append([]GeminiPromptTokensDetails{}, metadata.PromptTokensDetails...)
 	metadata.ToolUsePromptTokensDetails = append([]GeminiPromptTokensDetails{}, metadata.ToolUsePromptTokensDetails...)
 	metadata.CandidatesTokensDetails = append([]GeminiPromptTokensDetails{}, metadata.CandidatesTokensDetails...)
+	metadata.BillingUsage = nil
 	return metadata
 }
 

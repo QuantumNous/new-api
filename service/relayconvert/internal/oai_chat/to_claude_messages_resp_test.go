@@ -52,6 +52,33 @@ func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {
 	}
 }
 
+func TestResponseOpenAI2ClaudeUsageCarriesOpenAIBillingUsage(t *testing.T) {
+	resp := ResponseOpenAI2Claude(&dto.OpenAITextResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.OpenAITextResponseChoice{
+			{Message: dto.Message{Role: "assistant", Content: "hello"}, FinishReason: "stop"},
+		},
+		Usage: dto.Usage{
+			PromptTokens:     11,
+			CompletionTokens: 5,
+			TotalTokens:      16,
+		},
+	}, nil)
+
+	require.NotNil(t, resp.Usage)
+	assert.Equal(t, 11, resp.Usage.InputTokens)
+	assert.Equal(t, 5, resp.Usage.OutputTokens)
+	require.NotNil(t, resp.Usage.BillingUsage)
+	require.NotNil(t, resp.Usage.BillingUsage.OpenAIUsage)
+	assert.Equal(t, dto.BillingUsageSourceOAIChat, resp.Usage.BillingUsage.Source)
+	assert.Equal(t, dto.BillingUsageSemanticOpenAI, resp.Usage.BillingUsage.Semantic)
+	assert.Equal(t, 11, resp.Usage.BillingUsage.OpenAIUsage.PromptTokens)
+	assert.Equal(t, 5, resp.Usage.BillingUsage.OpenAIUsage.CompletionTokens)
+	assert.Equal(t, 16, resp.Usage.BillingUsage.OpenAIUsage.TotalTokens)
+	assert.Nil(t, resp.Usage.BillingUsage.OpenAIUsage.BillingUsage)
+}
+
 func TestStreamResponseOpenAI2ClaudeClosesTextThinkingAndToolBlocks(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		ClaudeConvertInfo: &relaycommon.ClaudeConvertInfo{
@@ -145,6 +172,11 @@ func TestStreamResponseOpenAI2ClaudeClosesTextThinkingAndToolBlocks(t *testing.T
 	assert.Equal(t, 2, finishResponses[0].GetIndex())
 	assert.Equal(t, "message_delta", finishResponses[1].Type)
 	assert.Equal(t, "tool_use", *finishResponses[1].Delta.StopReason)
+	require.NotNil(t, finishResponses[1].Usage)
+	require.NotNil(t, finishResponses[1].Usage.BillingUsage)
+	require.NotNil(t, finishResponses[1].Usage.BillingUsage.OpenAIUsage)
+	assert.Equal(t, 7, finishResponses[1].Usage.BillingUsage.OpenAIUsage.PromptTokens)
+	assert.Equal(t, 3, finishResponses[1].Usage.BillingUsage.OpenAIUsage.CompletionTokens)
 	assert.Equal(t, "message_stop", finishResponses[2].Type)
 }
 

@@ -60,7 +60,7 @@ import {
   isPerCallBilling,
   isTimingLogType,
 } from '../../lib/utils'
-import type { LogOtherData } from '../../types'
+import { USAGE_BILLING_PATH, type LogOtherData } from '../../types'
 
 // Maps a channel-update changed-field token (as recorded by the backend audit)
 // to its i18n label key for display in the audit details.
@@ -147,17 +147,21 @@ function getUsageBillingPathLabel(
   adminInfo: LogOtherData['admin_info']
 ): string {
   switch (adminInfo?.usage_billing_path) {
-    case 'local':
+    case USAGE_BILLING_PATH.LOCAL:
       return t('Local Billing')
-    case 'billing-usage-anthropic':
+    case USAGE_BILLING_PATH.OPENAI:
+      return t('Upstream Response (billing-usage-openai)')
+    case USAGE_BILLING_PATH.OPENAI_ESTIMATED:
+      return t('Upstream Response (billing-usage-openai-estimated)')
+    case USAGE_BILLING_PATH.ANTHROPIC:
       return t('Upstream Response (billing-usage-anthropic)')
-    case 'billing-usage-anthropic-estimated':
-      return t('Local Estimate (billing-usage-anthropic)')
-    case 'billing-usage-gemini':
+    case USAGE_BILLING_PATH.ANTHROPIC_ESTIMATED:
+      return t('Upstream Response (billing-usage-anthropic-estimated)')
+    case USAGE_BILLING_PATH.GEMINI:
       return t('Upstream Response (billing-usage-gemini)')
-    case 'billing-usage-gemini-estimated':
-      return t('Local Estimate (billing-usage-gemini)')
-    case 'upstream':
+    case USAGE_BILLING_PATH.GEMINI_ESTIMATED:
+      return t('Upstream Response (billing-usage-gemini-estimated)')
+    case USAGE_BILLING_PATH.UPSTREAM:
       return t('Upstream Response')
     default:
       return adminInfo?.local_count_tokens
@@ -168,10 +172,7 @@ function getUsageBillingPathLabel(
 
 function isUsageBillingPathLocal(adminInfo: LogOtherData['admin_info']): boolean {
   if (adminInfo?.usage_billing_path) {
-    return (
-      adminInfo.usage_billing_path === 'local' ||
-      adminInfo.usage_billing_path.endsWith('-estimated')
-    )
+    return adminInfo.usage_billing_path === USAGE_BILLING_PATH.LOCAL
   }
   return adminInfo?.local_count_tokens === true
 }

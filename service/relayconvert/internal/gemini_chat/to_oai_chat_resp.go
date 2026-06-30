@@ -28,7 +28,10 @@ func UsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTo
 		PromptTokens:     promptTokens,
 		CompletionTokens: metadata.CandidatesTokenCount + metadata.ThoughtsTokenCount,
 		TotalTokens:      metadata.TotalTokenCount,
-		BillingUsage:     dto.NewGeminiChatBillingUsage(metadata),
+		BillingUsage:     dto.CloneBillingUsage(metadata.BillingUsage),
+	}
+	if usage.BillingUsage == nil {
+		usage.BillingUsage = dto.NewGeminiChatBillingUsage(metadata)
 	}
 	usage.CompletionTokenDetails.ReasoningTokens = metadata.ThoughtsTokenCount
 	usage.PromptTokensDetails.CachedTokens = metadata.CachedContentTokenCount
