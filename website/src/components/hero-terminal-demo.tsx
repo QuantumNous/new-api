@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { HomeTerminalCopy } from "@/lib/copy";
 import { ROUTER_ORIGIN } from "@/lib/origins";
 import { cn } from "@/lib/utils";
@@ -92,12 +94,44 @@ export const API_DEMOS: ApiDemoConfig[] = [
   },
 ];
 
-export const STATIC_HERO_DEMO_INDEX = 0;
+const CYCLE_INTERVAL = 4500;
+const TRANSITION_MS = 220;
 const STRING_RE = /"[^"]*"/g;
 const PLACEHOLDER_RE = /<[a-z]+>/gi;
 
 export function HeroTerminalDemo(props: { className?: string; copy: HomeTerminalCopy }) {
-  const activeIndex = STATIC_HERO_DEMO_INDEX;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [transitioning, setTransitioning] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (mq.matches) return;
+    intervalRef.current = setInterval(() => {
+      setTransitioning(true);
+      timeoutRef.current = setTimeout(() => {
+        setActiveIndex((prev) => (prev + 1) % API_DEMOS.length);
+        setTransitioning(false);
+      }, TRANSITION_MS);
+    }, CYCLE_INTERVAL);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const handleSelect = (index: number) => {
+    if (index === activeIndex) return;
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setTransitioning(true);
+    timeoutRef.current = setTimeout(() => {
+      setActiveIndex(index);
+      setTransitioning(false);
+    }, TRANSITION_MS);
+  };
+
   const demo = API_DEMOS[activeIndex];
   const accent = ACCENT_CLASSES[demo.accent];
 
@@ -109,16 +143,16 @@ export function HeroTerminalDemo(props: { className?: string; copy: HomeTerminal
             const tone = ACCENT_CLASSES[item.accent];
             const isActive = index === activeIndex;
             return (
-              <div
+              <button
                 key={item.id}
+                onClick={() => handleSelect(index)}
                 className={cn(
                   "relative -mb-px flex items-center gap-1.5 border-b-2 px-2.5 py-2.5 text-[11px] font-medium tracking-wide transition-colors sm:px-3 sm:text-xs",
-                  isActive ? `${tone.activeBorder} ${tone.activeText}` : "border-transparent text-foreground/40"
+                  isActive ? `${tone.activeBorder} ${tone.activeText}` : "border-transparent text-foreground/40 hover:text-foreground/70"
                 )}
-                aria-current={isActive ? "true" : undefined}
               >
                 {item.label}
-              </div>
+              </button>
             );
           })}
           <div className="ml-auto flex items-center gap-2 pr-2 sm:pr-3">
@@ -131,14 +165,14 @@ export function HeroTerminalDemo(props: { className?: string; copy: HomeTerminal
           <span className={cn("rounded-md px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider", accent.badge)}>
             {demo.method}
           </span>
-          <code className="text-foreground/75 truncate font-mono text-[12.5px]">
+          <code className={cn("text-foreground/75 truncate font-mono text-[12.5px] transition-opacity duration-200", transitioning ? "opacity-0" : "opacity-100")}>
             {demo.endpoint}
           </code>
         </div>
 
         <div className="grid h-[400px] grid-rows-[235px_minmax(0,1fr)] font-mono text-[12.5px] leading-[1.55]">
-          <RequestBlock demo={demo} label={props.copy.request} />
-          <ResponseBlock demo={demo} copy={props.copy} />
+          <RequestBlock demo={demo} transitioning={transitioning} label={props.copy.request} />
+          <ResponseBlock demo={demo} transitioning={transitioning} copy={props.copy} />
         </div>
 
         <div className="flex items-center justify-between border-t border-violet-500/10 bg-violet-500/[0.035] px-5 py-2.5">
@@ -156,11 +190,11 @@ export function HeroTerminalDemo(props: { className?: string; copy: HomeTerminal
   );
 }
 
-function RequestBlock(props: { demo: ApiDemoConfig; label: string }) {
+function RequestBlock(props: { demo: ApiDemoConfig; transitioning: boolean; label: string }) {
   return (
     <div className="relative px-5 py-4">
       <SectionLabel>{props.label}</SectionLabel>
-      <div className="mt-2">
+      <div className={cn("mt-2 transition-opacity duration-200", props.transitioning ? "opacity-0" : "opacity-100")}>
         <CodeLine><Command>curl</Command> <Flag>-X</Flag> <Flag>POST</Flag> <StringText>&quot;{props.demo.endpoint}&quot;</StringText> <Muted>{"\\"}</Muted></CodeLine>
         {props.demo.headers.map((header) => (
           <CodeLine key={header} indent={2}><Flag>-H</Flag> <StringText>{header}</StringText> <Muted>{"\\"}</Muted></CodeLine>
@@ -173,11 +207,11 @@ function RequestBlock(props: { demo: ApiDemoConfig; label: string }) {
   );
 }
 
-function ResponseBlock(props: { demo: ApiDemoConfig; copy: HomeTerminalCopy }) {
+function ResponseBlock(props: { demo: ApiDemoConfig; transitioning: boolean; copy: HomeTerminalCopy }) {
   return (
     <div className="relative border-t border-violet-500/10 bg-violet-500/[0.025] px-5 py-4">
       <SectionLabel>{props.copy.response}</SectionLabel>
-      <div className="mt-2">
+      <div className={cn("mt-2 transition-opacity duration-200", props.transitioning ? "opacity-0" : "opacity-100")}>
         {props.demo.response.map((line, i) => <CodeLine key={i}>{renderResponseLine(line, props.demo, props.copy)}</CodeLine>)}
       </div>
     </div>
