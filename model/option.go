@@ -76,6 +76,7 @@ func InitOptionMap() {
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
 	common.OptionMap["WorkerValidKey"] = system_setting.WorkerValidKey
 	common.OptionMap["WorkerAllowHttpImageRequestEnabled"] = strconv.FormatBool(system_setting.WorkerAllowHttpImageRequestEnabled)
+	common.OptionMap["VolcAssetConfig"] = volcAssetConfig2JSONString()
 	common.OptionMap["PayAddress"] = ""
 	common.OptionMap["CustomCallbackAddress"] = ""
 	common.OptionMap["EpayId"] = ""
@@ -492,6 +493,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.WeChatServerToken = value
 	case "WeChatAccountQRCodeImageURL":
 		common.WeChatAccountQRCodeImageURL = value
+	case "VolcAssetConfig":
+		err = updateVolcAssetConfigByJSONString(value)
 	case "TelegramBotToken":
 		common.TelegramBotToken = value
 	case "TelegramBotName":
@@ -611,4 +614,18 @@ func handleConfigUpdate(key, value string) bool {
 	}
 
 	return true // 已处理
+}
+
+func volcAssetConfig2JSONString() string {
+	data, _ := common.Marshal(system_setting.VolcAssetConfig)
+	return string(data)
+}
+
+func updateVolcAssetConfigByJSONString(value string) error {
+	var cfg system_setting.VolcAssetSettings
+	if err := common.UnmarshalJsonStr(value, &cfg); err != nil {
+		return err
+	}
+	system_setting.VolcAssetConfig = cfg
+	return nil
 }
