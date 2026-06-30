@@ -96,7 +96,7 @@ function CompactContent<TData>({ row }: { row: Row<TData> }) {
                     {label}
                   </div>
                 )}
-                <div className='min-w-0 overflow-hidden text-xs [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'>
+                <div className='min-w-0 overflow-hidden text-xs [&_:is([data-slot=badge-cell],[data-slot=provider-badge],[data-slot=status-badge])]:ml-0'>
                   <StatusBadgeTypeContext.Provider value='text'>
                     {renderCellContent(cell) ?? '-'}
                   </StatusBadgeTypeContext.Provider>
@@ -146,7 +146,7 @@ function FallbackContent<TData>({ row }: { row: Row<TData> }) {
           return (
             <div
               key={cell.id}
-              className='flex justify-end overflow-hidden [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'
+              className='flex justify-end overflow-hidden [&_:is([data-slot=badge-cell],[data-slot=provider-badge],[data-slot=status-badge])]:ml-0'
             >
               <StatusBadgeTypeContext.Provider value='text'>
                 {renderCellContent(cell)}
@@ -163,7 +163,7 @@ function FallbackContent<TData>({ row }: { row: Row<TData> }) {
             <span className='text-muted-foreground shrink-0 text-[10px] font-medium select-none'>
               {label}
             </span>
-            <div className='flex min-w-0 flex-1 items-center justify-end overflow-hidden text-xs [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'>
+            <div className='flex min-w-0 flex-1 items-center justify-end overflow-hidden text-xs [&_:is([data-slot=badge-cell],[data-slot=provider-badge],[data-slot=status-badge])]:ml-0'>
               <StatusBadgeTypeContext.Provider value='text'>
                 {renderCellContent(cell) ?? '-'}
               </StatusBadgeTypeContext.Provider>

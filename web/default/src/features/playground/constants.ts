@@ -94,6 +94,8 @@ export const MESSAGE_ACTION_LABELS = {
   COPY: 'Copy',
   COPIED: 'Copied!',
   REGENERATE: 'Regenerate',
+  SHOW_PREVIEW: 'Show preview',
+  SHOW_SOURCE: 'Show source',
   EDIT: 'Edit',
   DELETE: 'Delete',
   NO_CONTENT: 'No content to copy',

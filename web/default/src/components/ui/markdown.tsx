@@ -24,6 +24,7 @@ import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 
 interface MarkdownProps {
+  breaks?: boolean
   children: string
   className?: string
 }
@@ -186,13 +187,13 @@ function renderMath(source: string, displayMode: boolean): string {
 }
 
 function replaceEmojiShortcodes(value: string): string {
-  return value.replace(/:(?:smiley|star|fa-star|fa-gear):/g, (shortcode) => {
+  return value.replaceAll(/:(?:smiley|star|fa-star|fa-gear):/g, (shortcode) => {
     return emojiShortcodes[shortcode] ?? shortcode
   })
 }
 
 function getTextUnits(value: string): number {
-  return Array.from(value).reduce((total, character) => {
+  return [...value].reduce((total, character) => {
     if (/\s/.test(character)) {
       return total + 0.5
     }
@@ -372,7 +373,7 @@ function renderFlowDiagram(source: string): string {
   const nodePositions = new Map(
     nodes.map((node, index) => [node.id, getFlowNodeLayout(node, index, centerX)])
   )
-  const lastNode = nodes.length > 0 ? nodePositions.get(nodes[nodes.length - 1].id) : undefined
+  const lastNode = nodes.length > 0 ? nodePositions.get(nodes.at(-1)?.id ?? '') : undefined
   const height = Math.max(180, (lastNode?.y ?? 64) + (lastNode?.height ?? 40) / 2 + 54)
   const renderedEdges = edges
     .map((edge) => {
@@ -694,31 +695,39 @@ function addExternalLinkAttributes(html: string): string {
   return template.innerHTML
 }
 
-function renderMarkdown(markdown: string): string {
-  const parsedHtml = markdownParser.parse(markdown, markdownOptions)
+function renderMarkdown(markdown: string, breaks = false): string {
+  const parsedHtml = markdownParser.parse(markdown, {
+    ...markdownOptions,
+    breaks,
+  })
   const html = DOMPurify.sanitize(parsedHtml, sanitizeOptions)
 
   return addExternalLinkAttributes(html)
 }
 
 export function Markdown(props: MarkdownProps) {
-  const html = useMemo(() => renderMarkdown(props.children), [props.children])
+  const html = useMemo(
+    () => renderMarkdown(props.children, props.breaks),
+    [props.breaks, props.children]
+  )
 
   return (
     <div
       className={cn(
         'prose prose-sm dark:prose-invert max-w-none',
-        'prose-headings:font-semibold prose-headings:tracking-tight',
-        'prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg',
-        'prose-p:leading-relaxed prose-p:my-2',
-        'prose-a:text-primary prose-a:no-underline hover:prose-a:underline',
-        'prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none',
-        'prose-pre:bg-muted prose-pre:border',
-        'prose-blockquote:border-l-primary prose-blockquote:bg-muted/50 prose-blockquote:py-1',
-        'prose-ul:my-2 prose-ol:my-2 prose-li:my-1',
-        'prose-table:border prose-thead:bg-muted',
-        'prose-td:border prose-th:border prose-td:px-3 prose-th:px-3',
-        'prose-img:rounded-lg prose-img:shadow-sm',
+        '[&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-semibold',
+        '[&_h2]:mt-5 [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold',
+        '[&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold',
+        '[&_h4]:mt-4 [&_h4]:mb-2 [&_h4]:font-semibold',
+        '[&_p]:my-2 [&_p]:leading-relaxed [&_strong]:font-semibold [&_em]:italic',
+        '[&_a]:text-primary [&_a]:underline hover:[&_a]:text-primary/80',
+        '[&_ol]:my-2 [&_ul]:my-2 [&_ol]:list-decimal [&_ul]:list-disc [&_ol]:pl-5 [&_ul]:pl-5 [&_li]:my-1 [&_li]:pl-1',
+        '[&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:bg-muted/50 [&_blockquote]:py-1 [&_blockquote]:pl-4',
+        '[&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono',
+        '[&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:border [&_pre]:bg-muted [&_pre]:p-3 [&_table]:my-4 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto',
+        '[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-sm',
+        '[&_thead]:bg-muted [&_th]:border [&_td]:border [&_th]:px-3 [&_td]:px-3 [&_th]:py-2 [&_td]:py-2 [&_th]:text-left',
+        '[&_hr]:my-6 [&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-lg',
         '[&_.katex-display]:my-4 [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden',
         '[&_.markdown-page-break]:my-6 [&_.markdown-page-break]:border-dashed',
         '[&_.markdown-diagram]:my-4 [&_.markdown-diagram]:overflow-x-auto [&_.markdown-diagram]:rounded-md [&_.markdown-diagram]:border [&_.markdown-diagram]:bg-background [&_.markdown-diagram]:p-4',
@@ -732,7 +741,7 @@ export function Markdown(props: MarkdownProps) {
         '[&_.markdown-sequence-note]:fill-warning/20 [&_.markdown-sequence-note]:stroke-warning',
         '[&_.markdown-sequence-note-text]:fill-foreground [&_.markdown-sequence-note-text]:text-xs',
         '[&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
-        '[overflow-wrap:anywhere] break-words',
+        '[overflow-wrap:anywhere]',
         props.className
       )}
       dangerouslySetInnerHTML={{ __html: html }}

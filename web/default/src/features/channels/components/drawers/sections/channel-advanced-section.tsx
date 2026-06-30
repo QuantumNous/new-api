@@ -1,3 +1,4 @@
+import { ChevronDown, Settings } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,19 +18,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
-import { ChevronDown, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { cn } from '@/lib/utils'
 
 type ChannelAdvancedSectionProps = {
   children: ReactNode
   open: boolean
   onOpenChange: (open: boolean) => void
+  summary?: ReactNode
 }
 
 export function ChannelAdvancedSection(props: ChannelAdvancedSectionProps) {
@@ -55,9 +57,10 @@ export function ChannelAdvancedSection(props: ChannelAdvancedSectionProps) {
               {t('Advanced Settings')}
             </div>
             <div className='text-muted-foreground text-xs'>
-              {t(
-                'Request overrides, routing behavior, and upstream model automation'
-              )}
+              {props.summary ??
+                t(
+                  'Request overrides, routing behavior, and upstream model automation'
+                )}
             </div>
           </div>
         </div>
