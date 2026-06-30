@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildConsoleUrl } from "./origins";
+import { ROUTER_ORIGIN, buildConsoleUrl } from "./origins";
 
 describe("buildConsoleUrl", () => {
   test("builds a console URL from an origin with trailing slash", () => {
@@ -14,5 +14,11 @@ describe("buildConsoleUrl", () => {
     expect(buildConsoleUrl("/sign-up", "https://console.flatkey.ai", "?next=%2Fdashboard&utm_source=home")).toBe(
       "https://console.flatkey.ai/sign-up?next=%2Fdashboard&utm_source=home"
     );
+  });
+});
+
+describe("ROUTER_ORIGIN", () => {
+  test("defaults model invocation examples to the router host", () => {
+    expect(ROUTER_ORIGIN).toBe("https://router.flatkey.ai");
   });
 });

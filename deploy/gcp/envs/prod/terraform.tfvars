@@ -81,6 +81,7 @@ console_concurrency   = 80
 enable_website             = true
 website_service_name       = "newapi-web"
 website_app_console_origin = "https://console.flatkey.ai"
+website_router_origin      = "https://router.flatkey.ai"
 website_site_origin        = "https://flatkey.ai"
 // Apex + www are routed to the Next.js website backend via the LB host_rule.
 // Reverting to [] and re-applying rolls website hosts back to the default backend.

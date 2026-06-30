@@ -80,7 +80,13 @@ variable "allow_unauthenticated" {
 
 variable "app_console_origin" {
   type        = string
-  description = "Origin of the Go console/app (used by server-side route handlers and baked NEXT_PUBLIC at build). e.g. https://console.flatkey.ai"
+  description = "Origin of the Go console/app (used by sign-in/dashboard links and public website data fetches). e.g. https://console.flatkey.ai"
+}
+
+variable "router_origin" {
+  type        = string
+  description = "Origin of the router/API service used by public model invocation examples. e.g. https://router.flatkey.ai"
+  default     = "https://router.flatkey.ai"
 }
 
 variable "site_origin" {

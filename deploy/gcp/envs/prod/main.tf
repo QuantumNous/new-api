@@ -326,6 +326,7 @@ module "cloud_run_web" {
   service_name       = var.website_service_name
   runtime_sa_email   = google_service_account.web_runtime[0].email
   app_console_origin = var.website_app_console_origin
+  router_origin      = var.website_router_origin
   site_origin        = var.website_site_origin
 
   depends_on = [module.apis]

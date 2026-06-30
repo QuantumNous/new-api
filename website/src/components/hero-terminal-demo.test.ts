@@ -12,4 +12,10 @@ describe("homepage API demos", () => {
     expect(STATIC_HERO_DEMO_INDEX).toBe(0);
     expect(API_DEMOS[STATIC_HERO_DEMO_INDEX]?.id).toBe("gpt-chat");
   });
+
+  test("show router endpoints for model invocation examples", () => {
+    for (const demo of API_DEMOS) {
+      expect(demo.endpoint).toStartWith("https://router.flatkey.ai/");
+    }
+  });
 });

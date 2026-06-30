@@ -42,7 +42,7 @@ import {
 } from "@/lib/pricing";
 import { localizePath, type Locale } from "@/lib/locales";
 import { getModelLandingConfigForModel } from "@/lib/model-landing";
-import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
+import { ROUTER_ORIGIN } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 import {
   CartesianGrid,
@@ -917,7 +917,7 @@ function ApiPanel(props: { model: PricingModel; endpointMap: Record<string, unkn
   const [lang, setLang] = useState<ApiLang>("curl");
   const activeEndpoint = endpointOptions.includes(endpointType) ? endpointType : endpointOptions[0];
   const endpointPath = formatEndpointPath(activeEndpoint, props.endpointMap[activeEndpoint], props.model.model_name);
-  const code = buildCodeSample(lang, props.model, activeEndpoint, endpointPath);
+  const code = buildCodeSampleForTest(lang, props.model, activeEndpoint, endpointPath);
   const params = buildSupportedParameters(props.model);
   const limits = buildRateLimits(props.model);
 
@@ -1535,8 +1535,8 @@ function formatUptimePct(pct: number): string {
   return `${pct.toFixed(2)}%`;
 }
 
-function buildCodeSample(lang: ApiLang, model: PricingModel, endpointType: string, endpointPath: string): string {
-  const baseUrl = APP_CONSOLE_ORIGIN;
+export function buildCodeSampleForTest(lang: ApiLang, model: PricingModel, endpointType: string, endpointPath: string): string {
+  const baseUrl = ROUTER_ORIGIN;
   const url = `${baseUrl}${endpointPath}`;
   const userMessage = "Explain quantum entanglement in one paragraph.";
   const body = endpointType === "openai-response"
