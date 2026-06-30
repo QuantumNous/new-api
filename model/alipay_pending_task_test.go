@@ -9,7 +9,6 @@ import (
 
 func TestCreateAlipayTopUpWithPendingTask(t *testing.T) {
 	truncateTables(t)
-	require.NoError(t, DB.AutoMigrate(&User{}, &TopUp{}, &AlipayPendingTask{}))
 	require.NoError(t, DB.Create(&User{
 		Id:       1,
 		Username: "alipay-task-user",
@@ -40,7 +39,6 @@ func TestCreateAlipayTopUpWithPendingTask(t *testing.T) {
 
 func TestCreateAlipaySubscriptionWithPendingTask(t *testing.T) {
 	truncateTables(t)
-	require.NoError(t, DB.AutoMigrate(&User{}, &SubscriptionPlan{}, &SubscriptionOrder{}, &TopUp{}, &AlipayPendingTask{}))
 	require.NoError(t, DB.Create(&User{
 		Id:       2,
 		Username: "alipay-sub-task-user",
@@ -89,7 +87,6 @@ func TestCreateAlipaySubscriptionWithPendingTask(t *testing.T) {
 
 func TestGetDueAlipayPendingTasks(t *testing.T) {
 	truncateTables(t)
-	require.NoError(t, DB.AutoMigrate(&AlipayPendingTask{}))
 	require.NoError(t, DB.Create(&AlipayPendingTask{
 		TradeNo:     "ali_ref_due",
 		NextQueryAt: 100,
