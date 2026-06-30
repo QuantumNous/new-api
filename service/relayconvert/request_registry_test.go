@@ -4,8 +4,11 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	sharedgemini "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/gemini"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -254,6 +257,13 @@ func TestConvertRequestResponsesToGeminiAppliesResponsesPreprocess(t *testing.T)
 }
 
 func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {
+	geminiSettings := model_setting.GetGeminiSettings()
+	originalThoughtSignatureEnabled := geminiSettings.FunctionCallThoughtSignatureEnabled
+	geminiSettings.FunctionCallThoughtSignatureEnabled = true
+	t.Cleanup(func() {
+		geminiSettings.FunctionCallThoughtSignatureEnabled = originalThoughtSignatureEnabled
+	})
+
 	info := &relaycommon.RelayInfo{
 		RelayFormat:            types.RelayFormatOpenAIResponses,
 		RequestConversionChain: []types.RelayFormat{types.RelayFormatOpenAIResponses},
@@ -291,9 +301,24 @@ func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {
 				"name":        "lookup",
 				"description": "Lookup data",
 				"parameters": map[string]any{
-					"type": "object",
+					"type":                 "object",
+					"additionalProperties": false,
+					"propertyNames":        map[string]any{"pattern": "^[a-z]+$"},
 					"properties": map[string]any{
-						"q": map[string]any{"type": "string"},
+						"q": map[string]any{
+							"type":             "string",
+							"exclusiveMinimum": 0,
+						},
+						"filters": map[string]any{
+							"type": "array",
+							"items": map[string]any{
+								"type":                 "object",
+								"additionalProperties": true,
+								"properties": map[string]any{
+									"name": map[string]any{"type": "string"},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -334,6 +359,22 @@ func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, functions, 1)
 	assert.Equal(t, "lookup", functions[0].Name)
+	params, ok := functions[0].Parameters.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "OBJECT", params["type"])
+	assert.NotContains(t, params, "additionalProperties")
+	assert.NotContains(t, params, "propertyNames")
+	properties, ok := params["properties"].(map[string]any)
+	require.True(t, ok)
+	queryParam, ok := properties["q"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "STRING", queryParam["type"])
+	assert.NotContains(t, queryParam, "exclusiveMinimum")
+	filterParam, ok := properties["filters"].(map[string]any)
+	require.True(t, ok)
+	filterItems, ok := filterParam["items"].(map[string]any)
+	require.True(t, ok)
+	assert.NotContains(t, filterItems, "additionalProperties")
 
 	require.Len(t, geminiReq.Contents, 2)
 	assert.Equal(t, "model", geminiReq.Contents[0].Role)
@@ -342,6 +383,9 @@ func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {
 	require.NotNil(t, functionCall)
 	assert.Equal(t, "lookup", functionCall.FunctionName)
 	assert.Equal(t, map[string]any{"q": "x"}, functionCall.Arguments)
+	var thoughtSignature string
+	require.NoError(t, common.Unmarshal(geminiReq.Contents[0].Parts[0].ThoughtSignature, &thoughtSignature))
+	assert.Equal(t, sharedgemini.ThoughtSignatureBypassValue, thoughtSignature)
 	assert.Equal(t, "I will call.", geminiReq.Contents[0].Parts[1].Text)
 
 	assert.Equal(t, "user", geminiReq.Contents[1].Role)
@@ -350,6 +394,107 @@ func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {
 	require.NotNil(t, functionResponse)
 	assert.Equal(t, "lookup", functionResponse.Name)
 	assert.Equal(t, true, functionResponse.Response["ok"])
+	assert.Empty(t, geminiReq.Contents[1].Parts[0].ThoughtSignature)
+}
+
+func TestConvertRequestResponsesToGeminiSkipsThoughtSignatureWhenDisabled(t *testing.T) {
+	geminiSettings := model_setting.GetGeminiSettings()
+	originalThoughtSignatureEnabled := geminiSettings.FunctionCallThoughtSignatureEnabled
+	geminiSettings.FunctionCallThoughtSignatureEnabled = false
+	t.Cleanup(func() {
+		geminiSettings.FunctionCallThoughtSignatureEnabled = originalThoughtSignatureEnabled
+	})
+
+	info := &relaycommon.RelayInfo{
+		RelayFormat:            types.RelayFormatOpenAIResponses,
+		RequestConversionChain: []types.RelayFormat{types.RelayFormatOpenAIResponses},
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gemini-test",
+		},
+	}
+	req := &dto.OpenAIResponsesRequest{
+		Model: "gemini-test",
+		Input: mustRawMessage(t, []map[string]any{
+			{
+				"type":      "function_call",
+				"call_id":   "call_1",
+				"name":      "lookup",
+				"arguments": map[string]any{"q": "x"},
+			},
+		}),
+		Tools: mustRawMessage(t, []map[string]any{
+			{"type": "function", "name": "lookup", "parameters": map[string]any{"type": "object"}},
+		}),
+	}
+
+	result, err := ConvertRequest(nil, info, types.RelayFormatGemini, req)
+
+	require.NoError(t, err)
+	geminiReq, ok := result.Value.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	require.Len(t, geminiReq.Contents, 1)
+	require.Len(t, geminiReq.Contents[0].Parts, 1)
+	require.NotNil(t, geminiReq.Contents[0].Parts[0].FunctionCall)
+	assert.Empty(t, geminiReq.Contents[0].Parts[0].ThoughtSignature)
+}
+
+func TestConvertRequestOpenAIChatToGeminiAddsThoughtSignatureForAdvancedCustom(t *testing.T) {
+	geminiSettings := model_setting.GetGeminiSettings()
+	originalThoughtSignatureEnabled := geminiSettings.FunctionCallThoughtSignatureEnabled
+	geminiSettings.FunctionCallThoughtSignatureEnabled = true
+	t.Cleanup(func() {
+		geminiSettings.FunctionCallThoughtSignatureEnabled = originalThoughtSignatureEnabled
+	})
+
+	assistantMessage := dto.Message{Role: "assistant", Content: ""}
+	assistantMessage.SetToolCalls([]dto.ToolCallRequest{
+		{
+			ID:   "call_1",
+			Type: "function",
+			Function: dto.FunctionRequest{
+				Name:      "lookup",
+				Arguments: `{"q":"x"}`,
+			},
+		},
+	})
+	info := &relaycommon.RelayInfo{
+		RelayFormat:            types.RelayFormatOpenAI,
+		RequestConversionChain: []types.RelayFormat{types.RelayFormatOpenAI},
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeAdvancedCustom,
+			UpstreamModelName: "gemini-test",
+		},
+	}
+	req := &dto.GeneralOpenAIRequest{
+		Model: "gemini-test",
+		Messages: []dto.Message{
+			{Role: "user", Content: "hi"},
+			assistantMessage,
+			{Role: "tool", ToolCallId: "call_1", Content: `{"ok":true}`},
+		},
+		Tools: []dto.ToolCallRequest{
+			{
+				Type: "function",
+				Function: dto.FunctionRequest{
+					Name:       "lookup",
+					Parameters: map[string]any{"type": "object"},
+				},
+			},
+		},
+	}
+
+	result, err := ConvertRequest(nil, info, types.RelayFormatGemini, req)
+
+	require.NoError(t, err)
+	geminiReq, ok := result.Value.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	require.Len(t, geminiReq.Contents, 3)
+	assert.Equal(t, "model", geminiReq.Contents[1].Role)
+	require.Len(t, geminiReq.Contents[1].Parts, 1)
+	require.NotNil(t, geminiReq.Contents[1].Parts[0].FunctionCall)
+	var thoughtSignature string
+	require.NoError(t, common.Unmarshal(geminiReq.Contents[1].Parts[0].ThoughtSignature, &thoughtSignature))
+	assert.Equal(t, sharedgemini.ThoughtSignatureBypassValue, thoughtSignature)
 }
 
 func TestConvertRequestResponsesToClaudeUsesDirectConverter(t *testing.T) {

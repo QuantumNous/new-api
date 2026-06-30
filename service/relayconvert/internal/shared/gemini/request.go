@@ -51,6 +51,38 @@ const (
 	flash25LiteMaxBudget = 24576
 )
 
+func ShouldAttachThoughtSignature() bool {
+	return model_setting.GetGeminiSettings().FunctionCallThoughtSignatureEnabled
+}
+
+func AttachThoughtSignatureBypass(part *dto.GeminiPart) bool {
+	if part == nil || len(part.ThoughtSignature) > 0 || !ShouldAttachThoughtSignature() {
+		return false
+	}
+	part.ThoughtSignature = []byte(strconv.Quote(ThoughtSignatureBypassValue))
+	return true
+}
+
+func AttachFunctionCallThoughtSignature(part *dto.GeminiPart) bool {
+	if part == nil || !HasFunctionCallContent(part.FunctionCall) {
+		return false
+	}
+	return AttachThoughtSignatureBypass(part)
+}
+
+func AttachFirstTextThoughtSignature(parts []dto.GeminiPart) bool {
+	if !ShouldAttachThoughtSignature() {
+		return false
+	}
+	for i := range parts {
+		if parts[i].Text != "" && len(parts[i].ThoughtSignature) == 0 {
+			parts[i].ThoughtSignature = []byte(strconv.Quote(ThoughtSignatureBypassValue))
+			return true
+		}
+	}
+	return false
+}
+
 func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info *relaycommon.RelayInfo, oaiRequest ...dto.GeneralOpenAIRequest) {
 	if geminiRequest == nil || info == nil || !model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
 		return

@@ -79,6 +79,15 @@ func OpenAIResponsesRequestToGeminiChat(c *gin.Context, req *dto.OpenAIResponses
 	if err != nil {
 		return nil, err
 	}
+	for i := range functions {
+		if params, ok := functions[i].Parameters.(map[string]interface{}); ok {
+			if props, hasProps := params["properties"].(map[string]interface{}); hasProps && len(props) == 0 {
+				functions[i].Parameters = nil
+				continue
+			}
+		}
+		functions[i].Parameters = sharedgemini.CleanFunctionParameters(functions[i].Parameters)
+	}
 	if len(functions) > 0 {
 		geminiRequest.SetTools([]dto.GeminiChatTool{
 			{FunctionDeclarations: functions},
@@ -117,6 +126,7 @@ func OpenAIResponsesRequestToGeminiChat(c *gin.Context, req *dto.OpenAIResponses
 			if err != nil {
 				return nil, err
 			}
+			sharedgemini.AttachFunctionCallThoughtSignature(&part)
 			if callID != "" {
 				callNames[callID] = part.FunctionCall.FunctionName
 			}

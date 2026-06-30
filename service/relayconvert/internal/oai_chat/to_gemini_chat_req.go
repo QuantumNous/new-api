@@ -1,14 +1,11 @@
 package oaichat
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
@@ -36,14 +33,10 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 		geminiRequest.GenerationConfig.Seed = common.GetPointer(int64(*textRequest.Seed))
 	}
 
-	channelType := relaymeta.RelayInfoChannelType(info)
 	upstreamModelName := textRequest.Model
 	if modelName := relaymeta.RelayInfoUpstreamModelName(info); modelName != "" {
 		upstreamModelName = modelName
 	}
-	attachThoughtSignature := (channelType == constant.ChannelTypeGemini ||
-		channelType == constant.ChannelTypeVertexAi) &&
-		model_setting.GetGeminiSettings().FunctionCallThoughtSignatureEnabled
 
 	if model_setting.IsGeminiModelSupportImagine(upstreamModelName) {
 		geminiRequest.GenerationConfig.ResponseModalities = []string{
@@ -283,7 +276,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 		content := dto.GeminiChatContent{
 			Role: message.Role,
 		}
-		shouldAttachThoughtSignature := attachThoughtSignature && (message.Role == "assistant" || message.Role == "model")
+		shouldAttachThoughtSignature := (message.Role == "assistant" || message.Role == "model") && sharedgemini.ShouldAttachThoughtSignature()
 		signatureAttached := false
 		if message.ToolCalls != nil {
 			for _, call := range message.ParseToolCalls() {
@@ -299,8 +292,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 						Arguments:    args,
 					},
 				}
-				if shouldAttachThoughtSignature && !signatureAttached && sharedgemini.HasFunctionCallContent(toolCall.FunctionCall) && len(toolCall.ThoughtSignature) == 0 {
-					toolCall.ThoughtSignature = json.RawMessage(strconv.Quote(sharedgemini.ThoughtSignatureBypassValue))
+				if shouldAttachThoughtSignature && !signatureAttached && sharedgemini.AttachFunctionCallThoughtSignature(&toolCall) {
 					signatureAttached = true
 				}
 				parts = append(parts, toolCall)
@@ -354,7 +346,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 						},
 					}
 					if shouldAttachThoughtSignature {
-						imgPart.ThoughtSignature = json.RawMessage(strconv.Quote(sharedgemini.ThoughtSignatureBypassValue))
+						sharedgemini.AttachThoughtSignatureBypass(&imgPart)
 					}
 					parts = append(parts, imgPart)
 					text = text[closeIdx+1:]
@@ -388,12 +380,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 		}
 
 		if shouldAttachThoughtSignature && !signatureAttached && len(parts) > 0 {
-			for i := range parts {
-				if parts[i].Text != "" {
-					parts[i].ThoughtSignature = json.RawMessage(strconv.Quote(sharedgemini.ThoughtSignatureBypassValue))
-					break
-				}
-			}
+			sharedgemini.AttachFirstTextThoughtSignature(parts)
 		}
 
 		content.Parts = parts

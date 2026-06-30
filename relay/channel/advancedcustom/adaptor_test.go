@@ -14,6 +14,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service/relayconvert"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -436,6 +437,67 @@ func TestAdaptorResponsesToGeminiUsesResponsesBridge(t *testing.T) {
 	assert.Contains(t, got, `"type":"output_text"`)
 	assert.Contains(t, got, `"text":"hello"`)
 	assert.NotContains(t, got, `"candidates"`)
+}
+
+func TestAdaptorResponsesToGeminiAddsThoughtSignatureForFunctionCallHistory(t *testing.T) {
+	geminiSettings := model_setting.GetGeminiSettings()
+	originalThoughtSignatureEnabled := geminiSettings.FunctionCallThoughtSignatureEnabled
+	geminiSettings.FunctionCallThoughtSignatureEnabled = true
+	t.Cleanup(func() {
+		geminiSettings.FunctionCallThoughtSignatureEnabled = originalThoughtSignatureEnabled
+	})
+
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/responses",
+				UpstreamPath: "/v1beta/models/{model}:generateContent",
+				Converter:    relayconvert.ConverterOpenAIResponsesToGemini,
+				Models:       []string{"gemini-test"},
+			},
+		},
+	})
+	info.RelayFormat = types.RelayFormatOpenAIResponses
+	info.RelayMode = relayconstant.RelayModeResponses
+	info.RequestURLPath = "/v1/responses"
+	info.OriginModelName = "gemini-test"
+	info.UpstreamModelName = "gemini-test"
+
+	converted, err := adaptor.ConvertOpenAIResponsesRequest(advancedCustomGinContext("/v1/responses"), info, dto.OpenAIResponsesRequest{
+		Model: "gemini-test",
+		Input: mustAdvancedCustomRawMessage(t, []map[string]any{
+			{
+				"role":    "user",
+				"content": "hi",
+			},
+			{
+				"type":      "function_call",
+				"call_id":   "call_1",
+				"name":      "glob",
+				"arguments": map[string]any{"query": "*"},
+			},
+			{
+				"type":    "function_call_output",
+				"call_id": "call_1",
+				"output":  []map[string]any{{"path": "report.md"}},
+			},
+		}),
+		Tools: mustAdvancedCustomRawMessage(t, []map[string]any{
+			{"type": "function", "name": "glob", "parameters": map[string]any{"type": "object"}},
+		}),
+	})
+	require.NoError(t, err)
+
+	geminiReq, ok := converted.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	require.Len(t, geminiReq.Contents, 3)
+	require.Len(t, geminiReq.Contents[1].Parts, 1)
+	require.NotNil(t, geminiReq.Contents[1].Parts[0].FunctionCall)
+	assert.NotEmpty(t, geminiReq.Contents[1].Parts[0].ThoughtSignature)
+	require.Len(t, geminiReq.Contents[2].Parts, 1)
+	require.NotNil(t, geminiReq.Contents[2].Parts[0].FunctionResponse)
+	assert.Empty(t, geminiReq.Contents[2].Parts[0].ThoughtSignature)
 }
 
 func TestAdaptorConvertsOpenAIChatRequestToResponsesUpstream(t *testing.T) {
