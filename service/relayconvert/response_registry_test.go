@@ -258,6 +258,14 @@ func TestConvertResponseProviderToOAIChatUsage(t *testing.T) {
 	assert.Equal(t, 22, toChat.Usage.TotalTokens)
 	assert.Equal(t, 3, toChat.Usage.PromptTokensDetails.CachedTokens)
 	assert.Equal(t, 4, toChat.Usage.PromptTokensDetails.CachedCreationTokens)
+	require.NotNil(t, toChat.Usage.BillingUsage)
+	require.NotNil(t, toChat.Usage.BillingUsage.Usage)
+	assert.Equal(t, dto.BillingUsageSourceClaudeMessages, toChat.Usage.BillingUsage.Source)
+	assert.Equal(t, dto.BillingUsageSemanticAnthropic, toChat.Usage.BillingUsage.Semantic)
+	assert.Equal(t, 10, toChat.Usage.BillingUsage.Usage.InputTokens)
+	assert.Equal(t, 3, toChat.Usage.BillingUsage.Usage.CacheReadInputTokens)
+	assert.Equal(t, 4, toChat.Usage.BillingUsage.Usage.CacheCreationInputTokens)
+	assert.Equal(t, 5, toChat.Usage.BillingUsage.Usage.OutputTokens)
 	chatValue := toChat.Value.(*dto.OpenAITextResponse)
 	require.Len(t, chatValue.Choices, 1)
 	require.Len(t, chatValue.Choices[0].Message.ParseToolCalls(), 1)
@@ -308,6 +316,72 @@ func TestConvertResponseProviderToOAIChatUsage(t *testing.T) {
 	assert.Equal(t, 1, toChat.Usage.PromptTokensDetails.ImageTokens)
 	assert.Equal(t, 4, toChat.Usage.CompletionTokenDetails.TextTokens)
 	assert.Equal(t, 1, toChat.Usage.CompletionTokenDetails.ImageTokens)
+	require.NotNil(t, toChat.Usage.BillingUsage)
+	require.NotNil(t, toChat.Usage.BillingUsage.UsageMetadata)
+	assert.Equal(t, dto.BillingUsageSourceGeminiChat, toChat.Usage.BillingUsage.Source)
+	assert.Equal(t, dto.BillingUsageSemanticGemini, toChat.Usage.BillingUsage.Semantic)
+	assert.Equal(t, 7, toChat.Usage.BillingUsage.UsageMetadata.PromptTokenCount)
+	assert.Equal(t, 2, toChat.Usage.BillingUsage.UsageMetadata.ToolUsePromptTokenCount)
+	assert.Equal(t, 17, toChat.Usage.BillingUsage.UsageMetadata.TotalTokenCount)
+}
+
+func TestConvertResponsePreservesBillingUsageAcrossChatResponsesBridge(t *testing.T) {
+	chat := textRegistryChatResponse()
+	chat.Usage.BillingUsage = dto.NewClaudeMessagesBillingUsage(&dto.ClaudeUsage{
+		InputTokens:              10,
+		CacheReadInputTokens:     3,
+		CacheCreationInputTokens: 4,
+		OutputTokens:             5,
+	})
+
+	toResponses, err := ConvertResponse(nil, nil, types.RelayFormatOpenAIResponses, chat)
+	require.NoError(t, err)
+	require.NotNil(t, toResponses.Usage.BillingUsage)
+	require.NotNil(t, toResponses.Usage.BillingUsage.Usage)
+	assert.Equal(t, 10, toResponses.Usage.BillingUsage.Usage.InputTokens)
+
+	responsesValue := toResponses.Value.(*dto.OpenAIResponsesResponse)
+	toChat, err := ConvertResponse(nil, nil, types.RelayFormatOpenAI, responsesValue)
+	require.NoError(t, err)
+	require.NotNil(t, toChat.Usage.BillingUsage)
+	require.NotNil(t, toChat.Usage.BillingUsage.Usage)
+	assert.Equal(t, 4, toChat.Usage.BillingUsage.Usage.CacheCreationInputTokens)
+}
+
+func TestConvertResponseUsesBillingUsageWhenRestoringNativeTargets(t *testing.T) {
+	chat := textRegistryChatResponse()
+	chat.Usage.BillingUsage = dto.NewClaudeMessagesBillingUsage(&dto.ClaudeUsage{
+		InputTokens:              10,
+		CacheReadInputTokens:     3,
+		CacheCreationInputTokens: 4,
+		OutputTokens:             5,
+	})
+
+	toClaude, err := ConvertResponse(nil, nil, types.RelayFormatClaude, chat)
+	require.NoError(t, err)
+	claudeValue := toClaude.Value.(*dto.ClaudeResponse)
+	require.NotNil(t, claudeValue.Usage)
+	assert.Equal(t, 10, claudeValue.Usage.InputTokens)
+	assert.Equal(t, 3, claudeValue.Usage.CacheReadInputTokens)
+	assert.Equal(t, 4, claudeValue.Usage.CacheCreationInputTokens)
+	assert.Equal(t, 5, claudeValue.Usage.OutputTokens)
+
+	chat.Usage.BillingUsage = dto.NewGeminiChatBillingUsage(&dto.GeminiUsageMetadata{
+		PromptTokenCount:        7,
+		ToolUsePromptTokenCount: 2,
+		CandidatesTokenCount:    5,
+		ThoughtsTokenCount:      3,
+		TotalTokenCount:         17,
+	})
+
+	toGemini, err := ConvertResponse(nil, nil, types.RelayFormatGemini, chat)
+	require.NoError(t, err)
+	geminiValue := toGemini.Value.(*dto.GeminiChatResponse)
+	assert.Equal(t, 7, geminiValue.UsageMetadata.PromptTokenCount)
+	assert.Equal(t, 2, geminiValue.UsageMetadata.ToolUsePromptTokenCount)
+	assert.Equal(t, 5, geminiValue.UsageMetadata.CandidatesTokenCount)
+	assert.Equal(t, 3, geminiValue.UsageMetadata.ThoughtsTokenCount)
+	assert.Equal(t, 17, geminiValue.UsageMetadata.TotalTokenCount)
 }
 
 func TestConvertStreamResponseDirectConverters(t *testing.T) {

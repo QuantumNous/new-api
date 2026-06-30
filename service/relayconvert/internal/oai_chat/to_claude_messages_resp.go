@@ -21,6 +21,11 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 	if oaiUsage == nil {
 		return nil
 	}
+	if billingUsage := dto.CloneBillingUsage(oaiUsage.BillingUsage); billingUsage != nil && billingUsage.Usage != nil {
+		if billingUsage.Source == dto.BillingUsageSourceClaudeMessages || billingUsage.Semantic == dto.BillingUsageSemanticAnthropic {
+			return billingUsage.Usage
+		}
+	}
 	cacheCreation5m, cacheCreation1h := NormalizeCacheCreationSplit(
 		oaiUsage.PromptTokensDetails.CachedCreationTokens,
 		oaiUsage.ClaudeCacheCreation5mTokens,

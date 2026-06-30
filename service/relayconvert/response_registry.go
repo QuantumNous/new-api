@@ -765,9 +765,9 @@ func canonicalUsageFromResponse(response any) *dto.Usage {
 	case dto.ClaudeResponse:
 		return usageFromClaudeResponse(&resp)
 	case *dto.GeminiChatResponse:
-		return UsageFromGeminiMetadata(resp.UsageMetadata, 0)
+		return UsageFromGeminiMetadata(resp.GetUsageMetadata(), 0)
 	case dto.GeminiChatResponse:
-		return UsageFromGeminiMetadata(resp.UsageMetadata, 0)
+		return UsageFromGeminiMetadata(resp.GetUsageMetadata(), 0)
 	default:
 		return nil
 	}
@@ -944,12 +944,14 @@ func convertGeminiChatResponseToOAIChat(_ *gin.Context, info *relaycommon.RelayI
 	if err != nil {
 		return nil, nil, err
 	}
-	usage := UsageFromGeminiMetadata(geminiResponse.UsageMetadata, fallbackPromptTokens(info))
+	usage := UsageFromGeminiMetadata(geminiResponse.GetUsageMetadata(), fallbackPromptTokens(info))
 	openAIResponse := ResponseGeminiChat2OpenAI(fmt.Sprintf("chatcmpl-%s", common.GetUUID()), common.GetTimestamp(), geminiResponse)
 	if info != nil && info.ChannelMeta != nil {
 		openAIResponse.Model = info.UpstreamModelName
 	}
-	openAIResponse.Usage = *usage
+	if usage != nil {
+		openAIResponse.Usage = *usage
+	}
 	return openAIResponse, usage, nil
 }
 
@@ -959,7 +961,7 @@ func convertGeminiChatStreamResponseToOAIChat(_ *gin.Context, info *relaycommon.
 		return nil, nil, err
 	}
 	openAIResponse, _ := StreamResponseGeminiChat2OpenAI(geminiResponse)
-	usage := UsageFromGeminiMetadata(geminiResponse.UsageMetadata, fallbackPromptTokens(info))
+	usage := UsageFromGeminiMetadata(geminiResponse.GetUsageMetadata(), fallbackPromptTokens(info))
 	if openAIResponse != nil {
 		openAIResponse.Id = fmt.Sprintf("chatcmpl-%s", common.GetUUID())
 		openAIResponse.Created = common.GetTimestamp()

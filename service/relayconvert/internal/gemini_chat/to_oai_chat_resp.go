@@ -9,7 +9,16 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 )
 
-func UsageFromGeminiMetadata(metadata dto.GeminiUsageMetadata, fallbackPromptTokens int) *dto.Usage {
+func UsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTokens int) *dto.Usage {
+	if metadata == nil {
+		if fallbackPromptTokens <= 0 {
+			return nil
+		}
+		usage := &dto.Usage{PromptTokens: fallbackPromptTokens}
+		usage.PromptTokensDetails.TextTokens = fallbackPromptTokens
+		return usage
+	}
+
 	promptTokens := metadata.PromptTokenCount + metadata.ToolUsePromptTokenCount
 	if promptTokens <= 0 && fallbackPromptTokens > 0 {
 		promptTokens = fallbackPromptTokens
@@ -19,6 +28,7 @@ func UsageFromGeminiMetadata(metadata dto.GeminiUsageMetadata, fallbackPromptTok
 		PromptTokens:     promptTokens,
 		CompletionTokens: metadata.CandidatesTokenCount + metadata.ThoughtsTokenCount,
 		TotalTokens:      metadata.TotalTokenCount,
+		BillingUsage:     dto.NewGeminiChatBillingUsage(metadata),
 	}
 	usage.CompletionTokenDetails.ReasoningTokens = metadata.ThoughtsTokenCount
 	usage.PromptTokensDetails.CachedTokens = metadata.CachedContentTokenCount

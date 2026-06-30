@@ -331,3 +331,77 @@ func TestGeminiTextGenerationHandlerUsesEstimatedPromptTokensWhenUsagePromptMiss
 	require.Equal(t, 100, usage.CompletionTokens)
 	require.Equal(t, 110, usage.TotalTokens)
 }
+
+func TestGeminiChatHandlerMissingUsageMetadataBuildsEstimatedBillingUsage(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatGemini,
+		OriginModelName: "gemini-3-flash-preview",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gemini-3-flash-preview",
+		},
+	}
+	info.SetEstimatePromptTokens(20)
+
+	body := []byte(`{"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]}}]}`)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewReader(body)),
+	}
+
+	usage, newAPIError := GeminiChatHandler(c, info, resp)
+	require.Nil(t, newAPIError)
+	require.NotNil(t, usage)
+	require.Equal(t, 20, usage.PromptTokens)
+	require.NotNil(t, usage.BillingUsage)
+	require.True(t, usage.BillingUsage.Estimated)
+	require.Equal(t, dto.BillingUsageSourceGeminiChat, usage.BillingUsage.Source)
+	require.Equal(t, dto.BillingUsageSemanticGemini, usage.BillingUsage.Semantic)
+	require.NotNil(t, usage.BillingUsage.UsageMetadata)
+	require.Equal(t, usage.PromptTokens, usage.BillingUsage.UsageMetadata.PromptTokenCount)
+	require.Equal(t, usage.CompletionTokens, usage.BillingUsage.UsageMetadata.CandidatesTokenCount)
+	require.True(t, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+}
+
+func TestGeminiStreamHandlerEmptyUsageMetadataBuildsEstimatedBillingUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldStreamingTimeout
+	})
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gemini-3-flash-preview",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gemini-3-flash-preview",
+		},
+	}
+	info.SetEstimatePromptTokens(20)
+
+	streamBody := []byte("data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"partial\"}]}}],\"usageMetadata\":{}}\n" + "data: [DONE]\n")
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewReader(streamBody)),
+	}
+
+	usage, newAPIError := geminiStreamHandler(c, info, resp, func(_ string, _ *dto.GeminiChatResponse) bool {
+		return true
+	})
+	require.Nil(t, newAPIError)
+	require.NotNil(t, usage)
+	require.Equal(t, 20, usage.PromptTokens)
+	require.NotNil(t, usage.BillingUsage)
+	require.True(t, usage.BillingUsage.Estimated)
+	require.Equal(t, dto.BillingUsageSourceGeminiChat, usage.BillingUsage.Source)
+	require.NotNil(t, usage.BillingUsage.UsageMetadata)
+	require.Equal(t, usage.PromptTokens, usage.BillingUsage.UsageMetadata.PromptTokenCount)
+	require.Equal(t, usage.CompletionTokens, usage.BillingUsage.UsageMetadata.CandidatesTokenCount)
+	require.True(t, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+}

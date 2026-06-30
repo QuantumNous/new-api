@@ -133,6 +133,10 @@ func UsageFromResponsesUsage(src *dto.Usage) *dto.Usage {
 	if src == nil {
 		return usage
 	}
+	usage.UsageSemantic = src.UsageSemantic
+	usage.UsageSource = src.UsageSource
+	usage.BillingUsage = dto.CloneBillingUsage(src.BillingUsage)
+	usage.Cost = src.Cost
 	if src.InputTokens != 0 {
 		usage.PromptTokens = src.InputTokens
 		usage.InputTokens = src.InputTokens
@@ -162,6 +166,8 @@ func UsageFromResponsesUsage(src *dto.Usage) *dto.Usage {
 		usage.CompletionTokenDetails.AudioTokens = src.CompletionTokenDetails.AudioTokens
 		usage.CompletionTokenDetails.ImageTokens = src.CompletionTokenDetails.ImageTokens
 	}
+	usage.ClaudeCacheCreation5mTokens = src.ClaudeCacheCreation5mTokens
+	usage.ClaudeCacheCreation1hTokens = src.ClaudeCacheCreation1hTokens
 	return usage
 }
 

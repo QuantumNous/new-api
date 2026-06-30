@@ -98,6 +98,14 @@ export interface LogOtherData {
     multi_key_index?: number
     use_channel?: number[]
     local_count_tokens?: boolean
+    usage_billing_path?:
+      | 'local'
+      | 'upstream'
+      | 'billing-usage-anthropic'
+      | 'billing-usage-anthropic-estimated'
+      | 'billing-usage-gemini'
+      | 'billing-usage-gemini-estimated'
+      | string
     channel_affinity?: ChannelAffinityInfo
     // Top-up audit fields (type=1, admin only)
     payment_method?: string

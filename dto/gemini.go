@@ -44,9 +44,9 @@ func (r *GeminiChatRequest) UnmarshalJSON(data []byte) error {
 }
 
 type ToolConfig struct {
-	FunctionCallingConfig *FunctionCallingConfig `json:"functionCallingConfig,omitempty"`
-	RetrievalConfig       *RetrievalConfig       `json:"retrievalConfig,omitempty"`
-	IncludeServerSideToolInvocations *bool       `json:"includeServerSideToolInvocations,omitempty"`
+	FunctionCallingConfig            *FunctionCallingConfig `json:"functionCallingConfig,omitempty"`
+	RetrievalConfig                  *RetrievalConfig       `json:"retrievalConfig,omitempty"`
+	IncludeServerSideToolInvocations *bool                  `json:"includeServerSideToolInvocations,omitempty"`
 }
 
 type FunctionCallingConfig struct {
@@ -455,9 +455,42 @@ type GeminiChatPromptFeedback struct {
 }
 
 type GeminiChatResponse struct {
-	Candidates     []GeminiChatCandidate     `json:"candidates"`
-	PromptFeedback *GeminiChatPromptFeedback `json:"promptFeedback,omitempty"`
-	UsageMetadata  GeminiUsageMetadata       `json:"usageMetadata"`
+	Candidates       []GeminiChatCandidate     `json:"candidates"`
+	PromptFeedback   *GeminiChatPromptFeedback `json:"promptFeedback,omitempty"`
+	UsageMetadata    GeminiUsageMetadata       `json:"usageMetadata"`
+	HasUsageMetadata bool                      `json:"-"`
+}
+
+// UnmarshalJSON records whether Gemini returned usageMetadata while preserving
+// the historical wire shape that always marshals the usageMetadata field.
+func (r *GeminiChatResponse) UnmarshalJSON(data []byte) error {
+	var aux struct {
+		Candidates     []GeminiChatCandidate     `json:"candidates"`
+		PromptFeedback *GeminiChatPromptFeedback `json:"promptFeedback,omitempty"`
+		UsageMetadata  *GeminiUsageMetadata      `json:"usageMetadata"`
+	}
+	if err := common.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	r.Candidates = aux.Candidates
+	r.PromptFeedback = aux.PromptFeedback
+	r.HasUsageMetadata = aux.UsageMetadata != nil
+	if aux.UsageMetadata != nil {
+		r.UsageMetadata = *aux.UsageMetadata
+	} else {
+		r.UsageMetadata = GeminiUsageMetadata{}
+	}
+	return nil
+}
+
+func (r *GeminiChatResponse) GetUsageMetadata() *GeminiUsageMetadata {
+	if r == nil {
+		return nil
+	}
+	if r.HasUsageMetadata || HasGeminiUsageMetadataTokens(&r.UsageMetadata) {
+		return &r.UsageMetadata
+	}
+	return nil
 }
 
 type GeminiUsageMetadata struct {

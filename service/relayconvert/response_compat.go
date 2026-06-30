@@ -68,7 +68,7 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 	return oaichat.StreamResponseOpenAI2Gemini(openAIResponse, info)
 }
 
-func UsageFromGeminiMetadata(metadata dto.GeminiUsageMetadata, fallbackPromptTokens int) *dto.Usage {
+func UsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTokens int) *dto.Usage {
 	return geminichat.UsageFromGeminiMetadata(metadata, fallbackPromptTokens)
 }
 
