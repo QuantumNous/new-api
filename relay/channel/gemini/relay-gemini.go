@@ -2,14 +2,12 @@ package gemini
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -24,402 +22,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func unescapeString(s string) (string, error) {
-	var result []rune
-	escaped := false
-	i := 0
-
-	for i < len(s) {
-		r, size := utf8.DecodeRuneInString(s[i:]) // 正确解码UTF-8字符
-		if r == utf8.RuneError {
-			return "", fmt.Errorf("invalid UTF-8 encoding")
-		}
-
-		if escaped {
-			// 如果是转义符后的字符，检查其类型
-			switch r {
-			case '"':
-				result = append(result, '"')
-			case '\\':
-				result = append(result, '\\')
-			case '/':
-				result = append(result, '/')
-			case 'b':
-				result = append(result, '\b')
-			case 'f':
-				result = append(result, '\f')
-			case 'n':
-				result = append(result, '\n')
-			case 'r':
-				result = append(result, '\r')
-			case 't':
-				result = append(result, '\t')
-			case '\'':
-				result = append(result, '\'')
-			default:
-				// 如果遇到一个非法的转义字符，直接按原样输出
-				result = append(result, '\\', r)
-			}
-			escaped = false
-		} else {
-			if r == '\\' {
-				escaped = true // 记录反斜杠作为转义符
-			} else {
-				result = append(result, r)
-			}
-		}
-		i += size // 移动到下一个字符
-	}
-
-	return string(result), nil
-}
-func unescapeMapOrSlice(data interface{}) interface{} {
-	switch v := data.(type) {
-	case map[string]interface{}:
-		for k, val := range v {
-			v[k] = unescapeMapOrSlice(val)
-		}
-	case []interface{}:
-		for i, val := range v {
-			v[i] = unescapeMapOrSlice(val)
-		}
-	case string:
-		if unescaped, err := unescapeString(v); err != nil {
-			return v
-		} else {
-			return unescaped
-		}
-	}
-	return data
-}
-
-func getResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
-	var argsBytes []byte
-	var err error
-	// 移除 unescapeMapOrSlice 调用，直接使用 json.Marshal
-	// JSON 序列化/反序列化已经正确处理了转义字符
-	argsBytes, err = json.Marshal(item.FunctionCall.Arguments)
-
-	if err != nil {
-		return nil
-	}
-	return &dto.ToolCallResponse{
-		ID:   fmt.Sprintf("call_%s", common.GetUUID()),
-		Type: "function",
-		Function: dto.FunctionResponse{
-			Arguments: string(argsBytes),
-			Name:      item.FunctionCall.FunctionName,
-		},
-	}
-}
-
 func buildUsageFromGeminiMetadata(metadata dto.GeminiUsageMetadata, fallbackPromptTokens int) dto.Usage {
-	promptTokens := metadata.PromptTokenCount + metadata.ToolUsePromptTokenCount
-	if promptTokens <= 0 && fallbackPromptTokens > 0 {
-		promptTokens = fallbackPromptTokens
+	usage := relayconvert.UsageFromGeminiMetadata(metadata, fallbackPromptTokens)
+	if usage == nil {
+		return dto.Usage{}
 	}
-
-	usage := dto.Usage{
-		PromptTokens:     promptTokens,
-		CompletionTokens: metadata.CandidatesTokenCount + metadata.ThoughtsTokenCount,
-		TotalTokens:      metadata.TotalTokenCount,
-	}
-	usage.CompletionTokenDetails.ReasoningTokens = metadata.ThoughtsTokenCount
-	usage.PromptTokensDetails.CachedTokens = metadata.CachedContentTokenCount
-
-	for _, detail := range metadata.PromptTokensDetails {
-		if detail.Modality == "AUDIO" {
-			usage.PromptTokensDetails.AudioTokens += detail.TokenCount
-		} else if detail.Modality == "TEXT" {
-			usage.PromptTokensDetails.TextTokens += detail.TokenCount
-		}
-	}
-	for _, detail := range metadata.ToolUsePromptTokensDetails {
-		if detail.Modality == "AUDIO" {
-			usage.PromptTokensDetails.AudioTokens += detail.TokenCount
-		} else if detail.Modality == "TEXT" {
-			usage.PromptTokensDetails.TextTokens += detail.TokenCount
-		}
-	}
-	for _, detail := range metadata.CandidatesTokensDetails {
-		switch detail.Modality {
-		case "IMAGE":
-			usage.CompletionTokenDetails.ImageTokens += detail.TokenCount
-		case "AUDIO":
-			usage.CompletionTokenDetails.AudioTokens += detail.TokenCount
-		case "TEXT":
-			usage.CompletionTokenDetails.TextTokens += detail.TokenCount
-		}
-	}
-
-	if usage.TotalTokens > 0 && usage.CompletionTokens <= 0 {
-		usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
-	}
-
-	if usage.PromptTokens > 0 && usage.PromptTokensDetails.TextTokens == 0 && usage.PromptTokensDetails.AudioTokens == 0 {
-		usage.PromptTokensDetails.TextTokens = usage.PromptTokens
-	}
-
-	return usage
+	return *usage
 }
 
 func responseGeminiChat2OpenAI(c *gin.Context, response *dto.GeminiChatResponse) *dto.OpenAITextResponse {
-	fullTextResponse := dto.OpenAITextResponse{
-		Id:      helper.GetResponseID(c),
-		Object:  "chat.completion",
-		Created: common.GetTimestamp(),
-		Choices: make([]dto.OpenAITextResponseChoice, 0, len(response.Candidates)),
-	}
-	isToolCall := false
-	for _, candidate := range response.Candidates {
-		choice := dto.OpenAITextResponseChoice{
-			Index: int(candidate.Index),
-			Message: dto.Message{
-				Role:    "assistant",
-				Content: "",
-			},
-			FinishReason: constant.FinishReasonStop,
-		}
-		if len(candidate.Content.Parts) > 0 {
-			// 使用 strings.Builder 直接累积最终 content，避免:
-			//   1) 每张 inline image 生成一次中间 "![image](...)" 字符串
-			//   2) 末尾 strings.Join 再分配一份等大缓冲
-			// Gemini 图片返回时 InlineData.Data 可能是数 MB 的 base64，
-			// 上述两份临时分配在高并发下会显著放大堆驻留。
-			var content strings.Builder
-			var inlineGrow int
-			for _, part := range candidate.Content.Parts {
-				if part.InlineData != nil {
-					inlineGrow += len(part.InlineData.MimeType) + len(part.InlineData.Data) + 32
-				}
-			}
-			if inlineGrow > 0 {
-				content.Grow(inlineGrow)
-			}
-			appended := 0
-			writeSep := func() {
-				if appended > 0 {
-					content.WriteByte('\n')
-				}
-				appended++
-			}
-			var toolCalls []dto.ToolCallResponse
-			for _, part := range candidate.Content.Parts {
-				if part.InlineData != nil {
-					// 媒体内容
-					if strings.HasPrefix(part.InlineData.MimeType, "image") {
-						writeSep()
-						content.WriteString("![image](data:")
-						content.WriteString(part.InlineData.MimeType)
-						content.WriteString(";base64,")
-						content.WriteString(part.InlineData.Data)
-						content.WriteByte(')')
-					} else {
-						// 其他媒体类型，直接显示链接
-						writeSep()
-						content.WriteString("[media](data:")
-						content.WriteString(part.InlineData.MimeType)
-						content.WriteString(";base64,")
-						content.WriteString(part.InlineData.Data)
-						content.WriteByte(')')
-					}
-				} else if part.FunctionCall != nil {
-					choice.FinishReason = constant.FinishReasonToolCalls
-					if call := getResponseToolCall(&part); call != nil {
-						toolCalls = append(toolCalls, *call)
-					}
-				} else if part.Thought {
-					choice.Message.ReasoningContent = &part.Text
-				} else {
-					if part.ExecutableCode != nil {
-						writeSep()
-						content.WriteString("```")
-						content.WriteString(part.ExecutableCode.Language)
-						content.WriteByte('\n')
-						content.WriteString(part.ExecutableCode.Code)
-						content.WriteString("\n```")
-					} else if part.CodeExecutionResult != nil {
-						writeSep()
-						content.WriteString("```output\n")
-						content.WriteString(part.CodeExecutionResult.Output)
-						content.WriteString("\n```")
-					} else {
-						// 过滤掉空行
-						if part.Text != "\n" {
-							writeSep()
-							content.WriteString(part.Text)
-						}
-					}
-				}
-			}
-			if len(toolCalls) > 0 {
-				choice.Message.SetToolCalls(toolCalls)
-				isToolCall = true
-			}
-			choice.Message.SetStringContent(content.String())
-
-		}
-		if candidate.FinishReason != nil {
-			switch *candidate.FinishReason {
-			case "STOP":
-				choice.FinishReason = constant.FinishReasonStop
-			case "MAX_TOKENS":
-				choice.FinishReason = constant.FinishReasonLength
-			case "SAFETY":
-				// Safety filter triggered
-				choice.FinishReason = constant.FinishReasonContentFilter
-			case "RECITATION":
-				// Recitation (citation) detected
-				choice.FinishReason = constant.FinishReasonContentFilter
-			case "BLOCKLIST":
-				// Blocklist triggered
-				choice.FinishReason = constant.FinishReasonContentFilter
-			case "PROHIBITED_CONTENT":
-				// Prohibited content detected
-				choice.FinishReason = constant.FinishReasonContentFilter
-			case "SPII":
-				// Sensitive personally identifiable information
-				choice.FinishReason = constant.FinishReasonContentFilter
-			case "OTHER":
-				// Other reasons
-				choice.FinishReason = constant.FinishReasonContentFilter
-			default:
-				choice.FinishReason = constant.FinishReasonContentFilter
-			}
-		}
-		if isToolCall {
-			choice.FinishReason = constant.FinishReasonToolCalls
-		}
-
-		fullTextResponse.Choices = append(fullTextResponse.Choices, choice)
-	}
-	return &fullTextResponse
+	return relayconvert.ResponseGeminiChat2OpenAI(helper.GetResponseID(c), common.GetTimestamp(), response)
 }
 
 func streamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*dto.ChatCompletionsStreamResponse, bool) {
-	choices := make([]dto.ChatCompletionsStreamResponseChoice, 0, len(geminiResponse.Candidates))
-	isStop := false
-	for _, candidate := range geminiResponse.Candidates {
-		if candidate.FinishReason != nil && *candidate.FinishReason == "STOP" {
-			isStop = true
-			candidate.FinishReason = nil
-		}
-		choice := dto.ChatCompletionsStreamResponseChoice{
-			Index: int(candidate.Index),
-			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
-				//Role: "assistant",
-			},
-		}
-		// 使用 strings.Builder 直接累积 delta content，避免每张 image / 每个
-		// 文本片段都先 `+` 拼出一份临时 string，再 strings.Join 再拷贝一遍。
-		var content strings.Builder
-		var inlineGrow int
-		for _, part := range candidate.Content.Parts {
-			if part.InlineData != nil {
-				inlineGrow += len(part.InlineData.MimeType) + len(part.InlineData.Data) + 32
-			}
-		}
-		if inlineGrow > 0 {
-			content.Grow(inlineGrow)
-		}
-		appended := 0
-		writeSep := func() {
-			if appended > 0 {
-				content.WriteByte('\n')
-			}
-			appended++
-		}
-		isTools := false
-		isThought := false
-		if candidate.FinishReason != nil {
-			// Map Gemini FinishReason to OpenAI finish_reason
-			switch *candidate.FinishReason {
-			case "STOP":
-				// Normal completion
-				choice.FinishReason = &constant.FinishReasonStop
-			case "MAX_TOKENS":
-				// Reached maximum token limit
-				choice.FinishReason = &constant.FinishReasonLength
-			case "SAFETY":
-				// Safety filter triggered
-				choice.FinishReason = &constant.FinishReasonContentFilter
-			case "RECITATION":
-				// Recitation (citation) detected
-				choice.FinishReason = &constant.FinishReasonContentFilter
-			case "BLOCKLIST":
-				// Blocklist triggered
-				choice.FinishReason = &constant.FinishReasonContentFilter
-			case "PROHIBITED_CONTENT":
-				// Prohibited content detected
-				choice.FinishReason = &constant.FinishReasonContentFilter
-			case "SPII":
-				// Sensitive personally identifiable information
-				choice.FinishReason = &constant.FinishReasonContentFilter
-			case "OTHER":
-				// Other reasons
-				choice.FinishReason = &constant.FinishReasonContentFilter
-			default:
-				// Unknown reason, treat as content filter
-				choice.FinishReason = &constant.FinishReasonContentFilter
-			}
-		}
-		for _, part := range candidate.Content.Parts {
-			if part.InlineData != nil {
-				if strings.HasPrefix(part.InlineData.MimeType, "image") {
-					writeSep()
-					content.WriteString("![image](data:")
-					content.WriteString(part.InlineData.MimeType)
-					content.WriteString(";base64,")
-					content.WriteString(part.InlineData.Data)
-					content.WriteByte(')')
-				}
-			} else if part.FunctionCall != nil {
-				isTools = true
-				if call := getResponseToolCall(&part); call != nil {
-					call.SetIndex(len(choice.Delta.ToolCalls))
-					choice.Delta.ToolCalls = append(choice.Delta.ToolCalls, *call)
-				}
-
-			} else if part.Thought {
-				isThought = true
-				writeSep()
-				content.WriteString(part.Text)
-			} else {
-				if part.ExecutableCode != nil {
-					writeSep()
-					content.WriteString("```")
-					content.WriteString(part.ExecutableCode.Language)
-					content.WriteByte('\n')
-					content.WriteString(part.ExecutableCode.Code)
-					content.WriteString("\n```\n")
-				} else if part.CodeExecutionResult != nil {
-					writeSep()
-					content.WriteString("```output\n")
-					content.WriteString(part.CodeExecutionResult.Output)
-					content.WriteString("\n```\n")
-				} else {
-					if part.Text != "\n" {
-						writeSep()
-						content.WriteString(part.Text)
-					}
-				}
-			}
-		}
-		if isThought {
-			choice.Delta.SetReasoningContent(content.String())
-		} else {
-			choice.Delta.SetContentString(content.String())
-		}
-		if isTools {
-			choice.FinishReason = &constant.FinishReasonToolCalls
-		}
-		choices = append(choices, choice)
-	}
-
-	var response dto.ChatCompletionsStreamResponse
-	response.Object = "chat.completion.chunk"
-	response.Choices = choices
-	return &response, isStop
+	return relayconvert.StreamResponseGeminiChat2OpenAI(geminiResponse)
 }
 
 func handleStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.ChatCompletionsStreamResponse) error {
@@ -663,8 +279,11 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 	case types.RelayFormatClaude:
-		claudeResp := relayconvert.ResponseOpenAI2Claude(fullTextResponse, info)
-		claudeRespStr, err := common.Marshal(claudeResp)
+		convertResult, err := relayconvert.ConvertResponse(c, info, types.RelayFormatClaude, fullTextResponse)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
+		claudeRespStr, err := common.Marshal(convertResult.Value)
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
@@ -754,7 +373,7 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		})
 	}
 
-	jsonResponse, jsonErr := json.Marshal(openAIResponse)
+	jsonResponse, jsonErr := common.Marshal(openAIResponse)
 	if jsonErr != nil {
 		return nil, types.NewError(jsonErr, types.ErrorCodeBadResponseBody)
 	}
