@@ -59,12 +59,16 @@ export const API_KEY_STATUSES: Record<
   },
 } as const
 
-export const API_KEY_STATUS_OPTIONS = Object.values(API_KEY_STATUSES).map(
-  (config) => ({
+export const API_KEY_STATUS_OPTIONS = [
+  ...Object.values(API_KEY_STATUSES).map((config) => ({
     label: config.label,
     value: String(config.value),
-  })
-)
+  })),
+  {
+    label: 'Temporarily disabled',
+    value: 'quota_policy_disabled',
+  },
+]
 
 // ============================================================================
 // Default Values

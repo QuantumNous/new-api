@@ -42,19 +42,22 @@ const (
 
 // Token related messages
 const (
-	MsgTokenNameTooLong          = "token.name_too_long"
-	MsgTokenQuotaNegative        = "token.quota_negative"
-	MsgTokenQuotaExceedMax       = "token.quota_exceed_max"
-	MsgTokenGenerateFailed       = "token.generate_failed"
-	MsgTokenGetInfoFailed        = "token.get_info_failed"
-	MsgTokenExpiredCannotEnable  = "token.expired_cannot_enable"
-	MsgTokenExhaustedCannotEable = "token.exhausted_cannot_enable"
-	MsgTokenInvalid              = "token.invalid"
-	MsgTokenNotProvided          = "token.not_provided"
-	MsgTokenExpired              = "token.expired"
-	MsgTokenExhausted            = "token.exhausted"
-	MsgTokenStatusUnavailable    = "token.status_unavailable"
-	MsgTokenDbError              = "token.db_error"
+	MsgTokenNameTooLong                 = "token.name_too_long"
+	MsgTokenQuotaNegative               = "token.quota_negative"
+	MsgTokenQuotaExceedMax              = "token.quota_exceed_max"
+	MsgTokenGenerateFailed              = "token.generate_failed"
+	MsgTokenGetInfoFailed               = "token.get_info_failed"
+	MsgTokenExpiredCannotEnable         = "token.expired_cannot_enable"
+	MsgTokenExhaustedCannotEable        = "token.exhausted_cannot_enable"
+	MsgTokenInvalid                     = "token.invalid"
+	MsgTokenNotProvided                 = "token.not_provided"
+	MsgTokenExpired                     = "token.expired"
+	MsgTokenExhausted                   = "token.exhausted"
+	MsgTokenQuotaPolicyExhausted        = "token.quota_policy_exhausted"
+	MsgTokenQuotaPolicyManualReset      = "token.quota_policy_manual_reset"
+	MsgTokenQuotaPolicyExhaustedPending = "token.quota_policy_exhausted_pending"
+	MsgTokenStatusUnavailable           = "token.status_unavailable"
+	MsgTokenDbError                     = "token.db_error"
 )
 
 // Redemption related messages

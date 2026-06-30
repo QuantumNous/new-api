@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import dayjs from '@/lib/dayjs'
+
 import {
   formatCurrencyFromUSD,
   formatQuotaWithCurrency,
@@ -143,6 +144,17 @@ export function formatTimestampToDate(
   }
   const ms = unit === 'seconds' ? timestamp * 1000 : timestamp
   return dayjs(ms).format('YYYY-MM-DD HH:mm:ss')
+}
+
+export function formatTimestampToMinute(
+  timestamp?: number,
+  unit: 'seconds' | 'milliseconds' = 'seconds'
+): string {
+  if (!timestamp || timestamp === -1 || timestamp === 0) {
+    return '-'
+  }
+  const ms = unit === 'seconds' ? timestamp * 1000 : timestamp
+  return dayjs(ms).format('YYYY-MM-DD HH:mm')
 }
 
 /**

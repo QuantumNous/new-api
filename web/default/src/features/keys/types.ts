@@ -18,6 +18,34 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
+export const tokenQuotaPolicySchema = z.object({
+  id: z.number().optional(),
+  token_id: z.number().optional(),
+  user_id: z.number().optional(),
+  enabled: z.boolean(),
+  period_mode: z
+    .enum(['preset_5h', 'daily', 'weekly', 'monthly', 'custom'])
+    .default('daily'),
+  custom_minutes: z.number().default(30),
+  quota: z.number().default(0),
+  used_quota: z.number().default(0),
+  anchor_time: z.number().default(0),
+  period_start: z.number().default(0),
+  period_end: z.number().default(0),
+  next_reset_at: z.number().default(0),
+  exhausted_action: z
+    .enum(['reject_only', 'disable_token'])
+    .default('reject_only'),
+  boundary_mode: z
+    .enum(['graceful_boundary', 'strict_pre_check'])
+    .default('graceful_boundary'),
+  auto_resume: z.boolean().default(true),
+  exhausted_at: z.number().default(0),
+  exhausted_token_status: z.number().default(0),
+})
+
+export type TokenQuotaPolicy = z.infer<typeof tokenQuotaPolicySchema>
+
 // ============================================================================
 // API Key Schema & Types
 // ============================================================================
@@ -45,6 +73,7 @@ export const apiKeySchema = z.object({
   model_limits_enabled: z.boolean(),
   model_limits: z.string().nullish().default(''),
   allow_ips: z.string().nullish().default(''),
+  quota_policy: tokenQuotaPolicySchema.nullish(),
 })
 
 export type ApiKey = z.infer<typeof apiKeySchema>
@@ -92,6 +121,7 @@ export interface ApiKeyFormData {
   allow_ips: string
   group: string
   cross_group_retry: boolean
+  quota_policy?: TokenQuotaPolicy
 }
 
 // ============================================================================

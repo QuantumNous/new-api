@@ -23,6 +23,8 @@ import {
   parseTiersFromExpr,
   type ParsedTier,
 } from '@/features/pricing/lib/billing-expr'
+import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
+
 import type { UsageLog } from '../data/schema'
 import type { LogOtherData } from '../types'
 
@@ -403,4 +405,54 @@ export function renderAuditContent(
   const template = AUDIT_TEMPLATES[op.action]
   if (!template) return null
   return t(template, (op.params ?? {}) as Record<string, unknown>)
+}
+
+const SYSTEM_TEMPLATES: Record<string, string> = {
+  'token.quota_policy.auto_restore_reset':
+    'API key automatically restored after periodic quota reset. New period started at {{newPeriodStart}}, next reset at {{nextResetAt}}.',
+  'token.quota_policy.exhausted_disable':
+    'API key temporarily disabled because periodic quota exhausted. Used {{usedQuota}} of {{quota}}. It will reset at {{nextResetAt}}.',
+  'token.quota_policy.manual_reset':
+    'API key periodic quota manually reset. Current usage was cleared. Next reset at {{nextResetAt}}.',
+  'token.quota_policy.update_disable':
+    'API key temporarily disabled because the updated periodic quota is already exhausted. Used {{usedQuota}} of {{quota}}. It will reset at {{nextResetAt}}.',
+  'token.quota_policy.update_restore':
+    'API key automatically restored after periodic quota update. Used {{usedQuota}} of {{quota}}. Next reset at {{nextResetAt}}.',
+}
+
+function formatSystemLogTimestamp(value: unknown): string {
+  if (value == null || value === '') return '-'
+  const timestamp = Number(value)
+  if (!Number.isFinite(timestamp)) return String(value)
+  if (timestamp <= 0) return '-'
+  return formatTimestampToDate(timestamp)
+}
+
+function formatSystemLogQuota(value: unknown): string {
+  if (value == null || value === '') return '-'
+  const quota = Number(value)
+  if (!Number.isFinite(quota)) return String(value)
+  return formatLogQuota(quota)
+}
+
+/**
+ * Render localized system log content from the language-independent op
+ * descriptor. Unknown system logs intentionally fall back to raw content.
+ */
+export function renderSystemContent(
+  other: LogOtherData | null | undefined,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string | null {
+  const op = other?.op
+  if (!op?.action) return null
+  const template = SYSTEM_TEMPLATES[op.action]
+  if (!template) return null
+  const params = op.params ?? {}
+  return t(template, {
+    quota: formatSystemLogQuota(params.quota),
+    usedQuota: formatSystemLogQuota(params.used_quota),
+    nextResetAt: formatSystemLogTimestamp(params.next_reset_at),
+    newPeriodStart: formatSystemLogTimestamp(params.new_period_start),
+    previousStatus: params.previous_status ?? '-',
+  })
 }

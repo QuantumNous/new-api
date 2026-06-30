@@ -17,11 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { type ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { getUserGroups } from '@/lib/api'
-import { formatQuota, formatTimestampToDate } from '@/lib/format'
-import { cn } from '@/lib/utils'
+
+import { BadgeCell, TruncatedCell } from '@/components/data-table'
+import { GroupBadge } from '@/components/group-badge'
+import { StatusBadge } from '@/components/status-badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -29,12 +30,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { BadgeCell, TruncatedCell } from '@/components/data-table'
-import { GroupBadge } from '@/components/group-badge'
-import { StatusBadge } from '@/components/status-badge'
-import { API_KEY_STATUSES } from '../constants'
-import { type ApiKey } from '../types'
+import { getUserGroups } from '@/lib/api'
+import { formatQuota, formatTimestampToDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
+import { getQuotaPolicyDisableState } from '../lib/quota-policy-status'
+import type { ApiKey } from '../types'
 import {
+  ApiKeyStatusBadge,
   ApiKeyCell,
   ModelLimitsCell,
   IpRestrictionsCell,
@@ -107,18 +110,14 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       accessorKey: 'status',
       header: t('Status'),
       cell: ({ row }) => {
-        const statusConfig = API_KEY_STATUSES[row.getValue('status') as number]
-        if (!statusConfig) return null
-        return (
-          <StatusBadge
-            label={t(statusConfig.label)}
-            variant={statusConfig.variant}
-            copyable={false}
-            className='-ml-1.5'
-          />
-        )
+        return <ApiKeyStatusBadge apiKey={row.original} className='-ml-1.5' />
       },
-      filterFn: (row, id, value) => value.includes(String(row.getValue(id))),
+      filterFn: (row, id, value) => {
+        const displayStatus = getQuotaPolicyDisableState(row.original)
+          ? 'quota_policy_disabled'
+          : String(row.getValue(id))
+        return value.includes(displayStatus)
+      },
       size: 120,
       meta: { mobileBadge: true },
     },

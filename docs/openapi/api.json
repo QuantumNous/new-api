@@ -4942,6 +4942,42 @@
           }
         ]
       }
+    },
+    "/api/token/{id}/quota_policy/reset": {
+      "post": {
+        "summary": "手动重置令牌周期额度",
+        "deprecated": false,
+        "description": "🔐 需要登录（User权限）。清零当前周期用量；如果令牌因周期额度临时禁用，则同步恢复令牌状态。",
+        "tags": [
+          "令牌管理"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "令牌 ID",
+            "required": true,
+            "example": 0,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -5092,6 +5128,17 @@
           },
           "unlimited_quota": {
             "type": "boolean"
+          },
+          "quota_policy_enabled": {
+            "type": "boolean"
+          },
+          "quota_policy": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TokenQuotaPolicy"
+              }
+            ],
+            "nullable": true
           }
         }
       },
@@ -5118,6 +5165,95 @@
           },
           "redeemed_time": {
             "type": "integer"
+          }
+        }
+      },
+      "TokenQuotaPolicy": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "token_id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "integer"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "period_mode": {
+            "type": "string",
+            "enum": [
+              "preset_5h",
+              "daily",
+              "weekly",
+              "monthly",
+              "custom"
+            ]
+          },
+          "custom_minutes": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 525600,
+            "description": "period_mode 为 custom 时生效，单位：分钟"
+          },
+          "quota": {
+            "type": "integer",
+            "description": "周期额度，使用系统内部 quota 单位"
+          },
+          "used_quota": {
+            "type": "integer",
+            "description": "当前周期已使用额度，使用系统内部 quota 单位"
+          },
+          "anchor_time": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "period_start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "period_end": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "next_reset_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "exhausted_action": {
+            "type": "string",
+            "enum": [
+              "reject_only",
+              "disable_token"
+            ]
+          },
+          "boundary_mode": {
+            "type": "string",
+            "enum": [
+              "graceful_boundary",
+              "strict_pre_check"
+            ]
+          },
+          "auto_resume": {
+            "type": "boolean"
+          },
+          "exhausted_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "exhausted_token_status": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       }

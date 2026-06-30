@@ -396,8 +396,15 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 	if !relayInfo.TokenUnlimited && token.RemainQuota < quota {
 		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
 	}
+	err = preConsumeTokenQuotaPolicy(relayInfo, quota)
+	if err != nil {
+		return err
+	}
 	err = model.DecreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota)
 	if err != nil {
+		if rollbackErr := postConsumeTokenQuotaPolicy(relayInfo, -quota); rollbackErr != nil {
+			common.SysLog("error rollback token quota policy after token quota decrease failed: " + rollbackErr.Error())
+		}
 		return err
 	}
 	return nil
@@ -430,6 +437,21 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 	}
 
 	if !relayInfo.IsPlayground {
+		if preConsumedQuota > 0 {
+			if err = settleTokenQuotaPolicy(relayInfo, quota+preConsumedQuota); err != nil {
+				if rollbackErr := rollbackPostConsumeFunding(relayInfo, quota); rollbackErr != nil {
+					common.SysLog("error rolling back funding after token quota policy settlement failed: " + rollbackErr.Error())
+				}
+				return err
+			}
+		} else {
+			if err = postConsumeTokenQuotaPolicy(relayInfo, quota); err != nil {
+				if rollbackErr := rollbackPostConsumeFunding(relayInfo, quota); rollbackErr != nil {
+					common.SysLog("error rolling back funding after token quota policy post consume failed: " + rollbackErr.Error())
+				}
+				return err
+			}
+		}
 		if quota > 0 {
 			err = model.DecreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota)
 		} else {
@@ -447,6 +469,26 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 	}
 
 	return nil
+}
+
+func rollbackPostConsumeFunding(relayInfo *relaycommon.RelayInfo, quota int) error {
+	if relayInfo == nil || quota == 0 {
+		return nil
+	}
+	if relayInfo.BillingSource == BillingSourceSubscription {
+		if relayInfo.SubscriptionId == 0 {
+			return errors.New("subscription id is missing")
+		}
+		if err := model.PostConsumeUserSubscriptionDelta(relayInfo.SubscriptionId, -int64(quota)); err != nil {
+			return err
+		}
+		relayInfo.SubscriptionPostDelta -= int64(quota)
+		return nil
+	}
+	if quota > 0 {
+		return model.IncreaseUserQuota(relayInfo.UserId, quota, false)
+	}
+	return model.DecreaseUserQuota(relayInfo.UserId, -quota, false)
 }
 
 func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int) {
