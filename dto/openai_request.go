@@ -571,10 +571,16 @@ func (m *Message) ParseContent() []MediaContent {
 		switch contentType {
 		case ContentTypeText:
 			if text, ok := contentItem["text"].(string); ok {
-				contentList = append(contentList, MediaContent{
+				mc := MediaContent{
 					Type: ContentTypeText,
 					Text: text,
-				})
+				}
+				if cc, ok := contentItem["cache_control"]; ok && cc != nil {
+					if raw, err := common.Marshal(cc); err == nil {
+						mc.CacheControl = raw
+					}
+				}
+				contentList = append(contentList, mc)
 			}
 
 		case ContentTypeImageURL:
