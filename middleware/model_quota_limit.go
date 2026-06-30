@@ -32,7 +32,10 @@ func ModelQuotaLimit() gin.HandlerFunc {
 			return
 		}
 
-		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+		userGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+		if userGroup == "" {
+			userGroup = common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+		}
 
 		// Estimate pre-consume quota (conservative: use model price if available)
 		preQuota := estimateModelQuota(modelName)
