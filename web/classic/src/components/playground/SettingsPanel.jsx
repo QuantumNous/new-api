@@ -18,8 +18,24 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Select, Typography, Button, Switch, Tooltip } from '@douyinfe/semi-ui';
-import { Sparkles, Users, ToggleLeft, X, Settings, HelpCircle } from 'lucide-react';
+import {
+  Card,
+  Select,
+  Typography,
+  Button,
+  Switch,
+  Tooltip,
+  Collapse,
+} from '@douyinfe/semi-ui';
+import {
+  Sparkles,
+  Users,
+  ToggleLeft,
+  X,
+  Settings,
+  HelpCircle,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
 import ParameterControl from './ParameterControl';
@@ -126,10 +142,7 @@ const SettingsPanel = ({
               )}
               position='top'
             >
-              <HelpCircle
-                size={14}
-                className='text-gray-400 cursor-help'
-              />
+              <HelpCircle size={14} className='text-gray-400 cursor-help' />
             </Tooltip>
             {customRequestMode && (
               <Typography.Text className='text-xs text-orange-600'>
@@ -200,17 +213,6 @@ const SettingsPanel = ({
           />
         </div>
 
-        {/* 参数控制组件 */}
-        <div className={customRequestMode ? 'opacity-50' : ''}>
-          <ParameterControl
-            inputs={inputs}
-            parameterEnabled={parameterEnabled}
-            onInputChange={onInputChange}
-            onParameterToggle={onParameterToggle}
-            disabled={customRequestMode}
-          />
-        </div>
-
         {/* 流式输出开关 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <div className='flex items-center justify-between'>
@@ -234,6 +236,31 @@ const SettingsPanel = ({
               disabled={customRequestMode}
             />
           </div>
+        </div>
+
+        {/* 参数控制组件 —— 默认折叠，需要时展开 */}
+        <div className={customRequestMode ? 'opacity-50' : ''}>
+          <Collapse keepDOM>
+            <Collapse.Panel
+              itemKey='advanced-parameters'
+              header={
+                <div className='flex items-center gap-2'>
+                  <SlidersHorizontal size={16} className='text-gray-500' />
+                  <Typography.Text strong className='text-sm'>
+                    {t('高级参数')}
+                  </Typography.Text>
+                </div>
+              }
+            >
+              <ParameterControl
+                inputs={inputs}
+                parameterEnabled={parameterEnabled}
+                onInputChange={onInputChange}
+                onParameterToggle={onParameterToggle}
+                disabled={customRequestMode}
+              />
+            </Collapse.Panel>
+          </Collapse>
         </div>
       </div>
 

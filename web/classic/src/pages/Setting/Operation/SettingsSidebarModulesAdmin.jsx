@@ -136,13 +136,23 @@ export default function SettingsSidebarModulesAdmin(props) {
   const sectionConfigs = [
     {
       key: 'chat',
-      title: t('聊天区域'),
-      description: t('操练场和聊天功能'),
+      title: t('体验区域'),
+      description: t('爱芯AI智能助手体验区域'),
       modules: [
         {
           key: 'playground',
-          title: t('操练场'),
+          title: t('文本模型'),
           description: t('AI模型测试环境'),
+        },
+        {
+          key: 'image',
+          title: t('图片模型'),
+          description: t('图片模型生成'),
+        },
+        {
+          key: 'video',
+          title: t('视频模型'),
+          description: t('视频模型生成'),
         },
         { key: 'chat', title: t('聊天'), description: t('聊天会话管理') },
       ],

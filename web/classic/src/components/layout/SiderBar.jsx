@@ -52,6 +52,8 @@ const routerMap = {
   models: '/console/models',
   deployment: '/console/deployment',
   playground: '/console/playground',
+  video: '/console/video',
+  image: '/console/image',
   personal: '/console/personal',
   kyc: '/console/kyc',
   enterprise: '/console/enterprise',
@@ -194,7 +196,10 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       const configVisible = isModuleVisible('personal', item.itemKey);
       // 子账户强制隐藏：钱包管理（不能充值）、个人设置（配置项过多，凭证由企业管理、
       // 密码走企业重置）。只读子账户的个人中心仅保留剩余必要入口。
-      if (isSubAccount && (item.itemKey === 'topup' || item.itemKey === 'personal')) {
+      if (
+        isSubAccount &&
+        (item.itemKey === 'topup' || item.itemKey === 'personal')
+      ) {
         return false;
       }
       return configVisible;
@@ -300,9 +305,19 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const chatMenuItems = useMemo(() => {
     const items = [
       {
-        text: t('操练场'),
+        text: t('文本模型'),
         itemKey: 'playground',
         to: '/playground',
+      },
+      {
+        text: t('图片模型'),
+        itemKey: 'image',
+        to: '/image',
+      },
+      {
+        text: t('视频模型'),
+        itemKey: 'video',
+        to: '/video',
       },
       {
         text: t('聊天'),
@@ -549,7 +564,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           {!isSubAccount && hasSectionVisibleModules('chat') && (
             <div className='sidebar-section'>
               {!collapsed && (
-                <div className='sidebar-group-label'>{t('聊天')}</div>
+                <div className='sidebar-group-label'>{t('爱芯AI智能助手')}</div>
               )}
               {chatMenuItems.map((item) => renderSubItem(item))}
             </div>
