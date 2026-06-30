@@ -76,6 +76,7 @@ export function PlaygroundInputControls({
       groups={groups}
       onGroupChange={onGroupChange}
       disabled={isSelectorDisabled}
+      isModelLoading={isModelLoading}
     />
   )
 

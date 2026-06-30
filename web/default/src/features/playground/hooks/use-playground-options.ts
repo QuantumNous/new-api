@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -54,10 +54,12 @@ export function usePlaygroundOptions({
     data: modelsData,
     error: modelsError,
     isError: isModelsError,
-    isLoading: isLoadingModels,
+    isFetching: isModelsFetching,
+    isPlaceholderData: isModelsPlaceholder,
   } = useQuery({
     queryKey: ['playground-models', currentGroup],
     queryFn: () => getUserModels(currentGroup),
+    placeholderData: keepPreviousData,
     enabled: currentGroup !== '',
   })
 
@@ -118,6 +120,8 @@ export function usePlaygroundOptions({
       updateConfig('group', fallback)
     }
   }, [groupsData, currentGroup, setGroups, updateConfig])
+
+  const isLoadingModels = !modelsData || (isModelsFetching && isModelsPlaceholder)
 
   return {
     isLoadingModels,

@@ -545,6 +545,7 @@ export interface ModelGroupSelectorProps {
   // Common props
   className?: string
   disabled?: boolean
+  isModelLoading?: boolean
 }
 
 /**
@@ -560,6 +561,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   onGroupChange,
   className,
   disabled = false,
+  isModelLoading = false,
 }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -673,6 +675,67 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
     </div>
   )
 
+  const renderLoadingContent = () => (
+    <div className='text-muted-foreground flex items-center justify-center px-3 py-8 text-[12px] leading-5'>
+      <svg
+        aria-hidden='true'
+        className='mr-2 size-4 animate-spin'
+        fill='none'
+        viewBox='0 0 24 24'
+      >
+        <circle
+          className='opacity-25'
+          cx='12'
+          cy='12'
+          r='10'
+          stroke='currentColor'
+          strokeWidth='4'
+        />
+        <path
+          className='opacity-75'
+          d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z'
+          fill='currentColor'
+        />
+      </svg>
+      {t('Loading models...')}
+    </div>
+  )
+
+  const renderEmptyContent = () => (
+    <div className='text-muted-foreground px-3 py-8 text-center text-[12px] leading-5'>
+      {t('No model found.')}
+    </div>
+  )
+
+  const renderModelItemsContent = () => (
+    <CommandGroup className='p-1'>
+      {filteredModels.map((model) => (
+        <CommandItem
+          className='mb-0.5 flex items-center justify-between rounded-md px-2 py-1.5 text-[12px] leading-4 transition-colors'
+          key={model.value}
+          onSelect={handleModelChange}
+          value={model.value}
+        >
+          <span className='min-w-0 truncate font-medium'>
+            {model.label}
+          </span>
+          <Check
+            className={cn(
+              'size-3.5 shrink-0',
+              selectedModel === model.value ? 'opacity-100' : 'opacity-0'
+            )}
+          />
+        </CommandItem>
+      ))}
+    </CommandGroup>
+  )
+
+  const renderModelListContent = () => {
+    if (isModelLoading) return renderLoadingContent()
+    if (filteredModels.length === 0) return renderEmptyContent()
+    return renderModelItemsContent()
+  }
+
   const renderModelList = () => (
     <Command
       className='min-w-0 rounded-lg border-0 bg-transparent p-1'
@@ -681,37 +744,13 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
     >
       <CommandInput
         className='h-8 text-[13px]'
+        disabled={isModelLoading}
         onValueChange={setSearchQuery}
         placeholder={t('Search models...')}
         value={searchQuery}
       />
       <CommandList className={isMobile ? 'max-h-[45vh]' : 'max-h-[20rem]'}>
-        {filteredModels.length === 0 ? (
-          <div className='text-muted-foreground px-3 py-8 text-center text-[12px] leading-5'>
-            {t('No model found.')}
-          </div>
-        ) : (
-          <CommandGroup className='p-1'>
-            {filteredModels.map((model) => (
-              <CommandItem
-                className='mb-0.5 flex items-center justify-between rounded-md px-2 py-1.5 text-[12px] leading-4 transition-colors'
-                key={model.value}
-                onSelect={handleModelChange}
-                value={model.value}
-              >
-                <span className='min-w-0 truncate font-medium'>
-                  {model.label}
-                </span>
-                <Check
-                  className={cn(
-                    'size-3.5 shrink-0',
-                    selectedModel === model.value ? 'opacity-100' : 'opacity-0'
-                  )}
-                />
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        )}
+        {renderModelListContent()}
       </CommandList>
     </Command>
   )
