@@ -13,7 +13,7 @@ import (
 // @Tags Video
 // @Accept json
 // @Produce json
-// @Param Authorization header string true "用户认证令牌 (Aeess-Token: sk-xxxx)"
+// @Param Authorization header string true "用户认证令牌 (Access-Token: sk-xxxx)"
 // @Param request body dto.VideoRequest true "视频生成请求参数"
 // @Failure 400 {object} dto.OpenAIError "请求参数错误"
 // @Failure 401 {object} dto.OpenAIError "未授权"
@@ -46,7 +46,7 @@ func VideoGenerationsTaskId(c *gin.Context) {
 // @Tags Video
 // @Accept json
 // @Produce json
-// @Param Authorization header string true "用户认证令牌 (Aeess-Token: sk-xxxx)"
+// @Param Authorization header string true "用户认证令牌 (Access-Token: sk-xxxx)"
 // @Param request body KlingText2VideoRequest true "视频生成请求参数"
 // @Success 200 {object} dto.VideoTaskResponse "任务状态和结果"
 // @Failure 400 {object} dto.OpenAIError "请求参数错误"
@@ -90,7 +90,7 @@ type KlingCameraConfig struct {
 // @Tags Video
 // @Accept json
 // @Produce json
-// @Param Authorization header string true "用户认证令牌 (Aeess-Token: sk-xxxx)"
+// @Param Authorization header string true "用户认证令牌 (Access-Token: sk-xxxx)"
 // @Param request body KlingImage2VideoRequest true "图生视频请求参数"
 // @Success 200 {object} dto.VideoTaskResponse "任务状态和结果"
 // @Failure 400 {object} dto.OpenAIError "请求参数错误"
