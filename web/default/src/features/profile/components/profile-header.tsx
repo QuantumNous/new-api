@@ -18,12 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Activity, BarChart3, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatCompactNumber, formatQuota } from '@/lib/format'
 import { getRoleLabel } from '@/lib/roles'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/status-badge'
-import { getUserInitials, getDisplayName } from '../lib'
+import { getDisplayName } from '../lib'
 import type { UserProfile } from '../types'
 
 // ============================================================================
@@ -40,8 +42,8 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
 
   if (loading) {
     return (
-      <div className='bg-card overflow-hidden rounded-lg border'>
-        <div className='p-4 sm:p-5'>
+      <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
+        <CardContent className='p-4 sm:p-5'>
           <div className='flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left'>
             <Skeleton className='h-16 w-16 rounded-2xl' />
             <div className='space-y-3'>
@@ -56,7 +58,7 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
               </div>
             </div>
           </div>
-        </div>
+        </CardContent>
         <div className='border-t'>
           <div className='divide-border/60 grid grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0'>
             {Array.from({ length: 3 }).map((_, i) => (
@@ -68,14 +70,16 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
             ))}
           </div>
         </div>
-      </div>
+      </Card>
     )
   }
 
   if (!profile) return null
 
   const displayName = getDisplayName(profile)
-  const initials = getUserInitials(profile)
+  const avatarName = profile.username || displayName
+  const avatarFallback = getUserAvatarFallback(avatarName)
+  const avatarFallbackStyle = getUserAvatarStyle(avatarName)
   const roleLabel = getRoleLabel(profile.role)
   const stats = [
     {
@@ -99,12 +103,15 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
   ]
 
   return (
-    <div className='bg-card overflow-hidden rounded-lg border'>
-      <div className='p-3 sm:p-5'>
+    <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
+      <CardContent className='p-3 sm:p-5'>
         <div className='flex items-center gap-3 text-left sm:gap-4'>
           <Avatar className='ring-background h-12 w-12 rounded-xl text-sm ring-2 sm:h-16 sm:w-16 sm:rounded-2xl sm:text-lg sm:ring-4'>
-            <AvatarFallback className='bg-primary/10 text-primary rounded-xl sm:rounded-2xl'>
-              {initials}
+            <AvatarFallback
+              className='rounded-xl font-semibold text-white sm:rounded-2xl'
+              style={avatarFallbackStyle}
+            >
+              {avatarFallback}
             </AvatarFallback>
           </Avatar>
 
@@ -117,6 +124,11 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
                 label={roleLabel}
                 variant='neutral'
                 copyable={false}
+              />
+              <StatusBadge
+                label={`${t('User ID')} ${profile.id}`}
+                variant='info'
+                copyText={String(profile.id)}
               />
             </div>
 
@@ -137,7 +149,7 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
             </div>
           </div>
         </div>
-      </div>
+      </CardContent>
       <div className='border-t'>
         <div className='divide-border/60 grid grid-cols-3 divide-x'>
           {stats.map((item) => (
@@ -159,6 +171,6 @@ export function ProfileHeader({ profile, loading }: ProfileHeaderProps) {
           ))}
         </div>
       </div>
-    </div>
+    </Card>
   )
 }

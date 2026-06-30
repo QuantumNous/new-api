@@ -44,7 +44,7 @@ type SettingsSwitchFieldProps = SettingsSwitchRowProps & {
 }
 
 const settingsSwitchRowClassName =
-  'flex min-w-0 flex-row items-center justify-between gap-4 border-b py-2.5 last:border-b-0'
+  'flex min-w-0 flex-row items-center justify-between gap-4 py-2.5'
 
 export function SettingsFormGrid(props: SettingsFormGridProps) {
   return (
@@ -52,6 +52,10 @@ export function SettingsFormGrid(props: SettingsFormGridProps) {
       data-settings-form-span='full'
       className={cn(
         'grid min-w-0 gap-x-5 gap-y-6 lg:grid-cols-2',
+        'lg:[&>[data-settings-form-span=full]]:col-span-2',
+        '[&>[data-slot=form-item]]:min-w-0',
+        'lg:[&>[data-slot=form-item]:has(textarea)]:col-span-2',
+        'lg:[&>[data-slot=form-item]:has([data-slot=switch])]:col-span-2',
         props.className
       )}
     >

@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/samber/lo"
@@ -105,114 +106,24 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-// getChannelQueryWithAPIType returns a query that filters channels by priority,
-// and when multiple channels share the same priority, prefers those whose
-// channel type matches the expected API type (for smart routing).
-//
-// Both abilities and channels expose a `group` column, so any reference to
-// `group` inside JOINed queries must be qualified with `abilities.` to avoid
-// "ambiguous column name" errors (notably on SQLite).
-func getChannelQueryWithAPIType(group string, model string, retry int, expectedAPIType int) (*gorm.DB, error) {
+func GetChannel(group string, model string, retry int, requestPath string) (*Channel, error) {
+	var abilities []Ability
+
+	var err error = nil
 	channelQuery, err := getChannelQuery(group, model, retry)
 	if err != nil {
 		return nil, err
 	}
-
-	abilitiesGroupCol := "abilities." + commonGroupCol
-
-	// Resolve the priority value once, shared by the probing query and the
-	// final filtered query. Reusing the existing channelQuery here would be
-	// unsafe because its WHERE clause references the bare `group` column.
-	var priorityValue interface{}
-	if retry == 0 {
-		priorityValue = DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
+	if common.UsingMainDatabase(common.DatabaseTypeSQLite) || common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		err = channelQuery.Order("weight DESC").Find(&abilities).Error
 	} else {
-		p, err := getPriority(group, model, retry)
-		if err != nil {
-			return channelQuery, nil
-		}
-		priorityValue = p
-	}
-
-	var abilities []AbilityWithChannel
-	err = DB.Table("abilities").
-		Select("abilities.*, channels.type as channel_type").
-		Joins("left join channels on abilities.channel_id = channels.id").
-		Where(abilitiesGroupCol+" = ? and abilities.model = ? and abilities.enabled = ? and abilities.priority = (?)", group, model, true, priorityValue).
-		Scan(&abilities).Error
-	if err != nil {
-		return channelQuery, nil // fall back to original query
-	}
-
-	if len(abilities) <= 1 {
-		return channelQuery, nil
-	}
-
-	// Check if any channel matches the expected API type
-	var hasMatch bool
-	for _, ab := range abilities {
-		channelAPIType, ok := common.ChannelType2APIType(ab.ChannelType)
-		if ok && channelAPIType == expectedAPIType {
-			hasMatch = true
-			break
-		}
-	}
-
-	if hasMatch {
-		filteredQuery := DB.Table("abilities").
-			Select("abilities.*").
-			Joins("left join channels on abilities.channel_id = channels.id").
-			Where(abilitiesGroupCol+" = ? and abilities.model = ? and abilities.enabled = ? and abilities.priority = (?)", group, model, true, priorityValue).
-			Where("channels.type IN (?)", getMatchingChannelTypes(expectedAPIType))
-		return filteredQuery, nil
-	}
-
-	return channelQuery, nil
-}
-
-// getMatchingChannelTypes returns channel types that map to the given API type.
-func getMatchingChannelTypes(expectedAPIType int) []int {
-	var types []int
-	for i := 1; i < constant.ChannelTypeDummy; i++ {
-		apiType, ok := common.ChannelType2APIType(i)
-		if ok && apiType == expectedAPIType {
-			types = append(types, i)
-		}
-	}
-	return types
-}
-
-func GetChannel(group string, model string, retry int, relayFormat types.RelayFormat) (*Channel, error) {
-	var abilities []Ability
-
-	var err error = nil
-	var channelQuery *gorm.DB
-
-	// Use smart routing when relayFormat is provided and memory cache is disabled
-	if relayFormat != "" {
-		if expectedAPIType, ok := types.RelayFormatToAPIType(relayFormat); ok {
-			channelQuery, err = getChannelQueryWithAPIType(group, model, retry, expectedAPIType)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	if channelQuery == nil {
-		channelQuery, err = getChannelQuery(group, model, retry)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if common.UsingSQLite || common.UsingPostgreSQL {
-		err = channelQuery.Order("abilities.weight DESC").Find(&abilities).Error
-	} else {
-		err = channelQuery.Order("abilities.weight DESC").Find(&abilities).Error
+		err = channelQuery.Order("weight DESC").Find(&abilities).Error
 	}
 	if err != nil {
 		return nil, err
 	}
+	abilities = filterAbilitiesByRequestPath(abilities, requestPath)
+	abilities = filterAbilitiesByAPIType(abilities, requestPath)
 	channel := Channel{}
 	if len(abilities) > 0 {
 		// Randomly choose one
@@ -235,6 +146,102 @@ func GetChannel(group string, model string, retry int, relayFormat types.RelayFo
 	}
 	err = DB.First(&channel, "id = ?", channel.Id).Error
 	return &channel, err
+}
+
+// filterAbilitiesByAPIType prefers abilities whose channel's native API type
+// matches the client request format inferred from requestPath. When no
+// matching ability exists, returns the input slice unchanged so the original
+// priority/weight selection still applies.
+func filterAbilitiesByAPIType(abilities []Ability, requestPath string) []Ability {
+	if requestPath == "" || len(abilities) <= 1 {
+		return abilities
+	}
+	relayFormat := types.InferRelayFormatFromPath(requestPath)
+	if relayFormat == "" {
+		return abilities
+	}
+	expectedAPIType, ok := types.RelayFormatToAPIType(relayFormat)
+	if !ok {
+		return abilities
+	}
+
+	seen := make(map[int]struct{}, len(abilities))
+	channelIds := make([]int, 0, len(abilities))
+	for _, ab := range abilities {
+		if _, ok := seen[ab.ChannelId]; ok {
+			continue
+		}
+		seen[ab.ChannelId] = struct{}{}
+		channelIds = append(channelIds, ab.ChannelId)
+	}
+
+	var channels []*Channel
+	if err := DB.Where("id IN ?", channelIds).Find(&channels).Error; err != nil {
+		return abilities
+	}
+	apiTypeById := make(map[int]int, len(channels))
+	for _, ch := range channels {
+		if t, ok := common.ChannelType2APIType(ch.Type); ok {
+			apiTypeById[ch.Id] = t
+		}
+	}
+
+	matched := make([]Ability, 0, len(abilities))
+	for _, ab := range abilities {
+		if apiTypeById[ab.ChannelId] == expectedAPIType {
+			matched = append(matched, ab)
+		}
+	}
+	if len(matched) == 0 {
+		return abilities
+	}
+	return matched
+}
+
+// filterAbilitiesByRequestPath restricts candidates by request path for the DB
+// (non-memory-cache) selection path. Only Advanced Custom (type 58) channels are
+// path-checked: kept only when one of their routes matches requestPath; all other
+// channel types always pass. When requestPath is empty, filtering is skipped.
+func filterAbilitiesByRequestPath(abilities []Ability, requestPath string) []Ability {
+	if requestPath == "" || len(abilities) == 0 {
+		return abilities
+	}
+
+	channelIds := make([]int, 0, len(abilities))
+	seen := make(map[int]struct{}, len(abilities))
+	for _, ability := range abilities {
+		if _, ok := seen[ability.ChannelId]; ok {
+			continue
+		}
+		seen[ability.ChannelId] = struct{}{}
+		channelIds = append(channelIds, ability.ChannelId)
+	}
+
+	var channels []*Channel
+	if err := DB.Where("id IN ?", channelIds).Find(&channels).Error; err != nil {
+		// On error, fall back to unfiltered candidates to avoid blocking selection
+		return abilities
+	}
+
+	advancedConfigs := make(map[int]*dto.AdvancedCustomConfig)
+	for _, channel := range channels {
+		if channel.Type == constant.ChannelTypeAdvancedCustom {
+			advancedConfigs[channel.Id] = channel.GetOtherSettings().AdvancedCustom
+		}
+	}
+
+	filtered := make([]Ability, 0, len(abilities))
+	for _, ability := range abilities {
+		config, isAdvancedCustom := advancedConfigs[ability.ChannelId]
+		if !isAdvancedCustom {
+			filtered = append(filtered, ability)
+			continue
+		}
+		if config != nil && config.SupportsPath(requestPath) {
+			filtered = append(filtered, ability)
+		}
+	}
+	return filtered
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
@@ -386,7 +393,7 @@ func FixAbility() (int, int, error) {
 	defer fixLock.Unlock()
 
 	// truncate abilities table
-	if common.UsingSQLite {
+	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
 		err := DB.Exec("DELETE FROM abilities").Error
 		if err != nil {
 			common.SysLog(fmt.Sprintf("Delete abilities failed: %s", err.Error()))

@@ -72,8 +72,8 @@ Vendored: [`vendor/shadcn/mcp.md`](./vendor/shadcn/mcp.md). Live docs: [MCP Serv
 
 1. **Project detection** — Applies when `components.json` exists (here: `web/default/components.json`).
 2. **Context injection** — Use `shadcn info --json` as ground truth for imports and APIs.
-3. **Pattern enforcement** — Follow rules in [`vendor/shadcn/SKILL.md`](./vendor/shadcn/SKILL.md) and [`vendor/shadcn/rules/`](./vendor/shadcn/rules/).
-4. **Component discovery** — `shadcn docs`, `shadcn search`, MCP, or registries — see vendored SKILL + MCP doc.
+3. **Pattern enforcement** — Use [`vendor/shadcn/rules/`](./vendor/shadcn/rules/) for concrete markup checks; the complete official workflow reference is listed below for deeper CLI, registry, and preset questions.
+4. **Component discovery** — `shadcn docs`, `shadcn search`, MCP, or registries — see the official workflow reference and MCP doc when deeper context is needed.
 
 ---
 
@@ -88,11 +88,11 @@ Vendored: [`vendor/shadcn/mcp.md`](./vendor/shadcn/mcp.md). Live docs: [MCP Serv
 
 ## Vendored upstream bundle (deep rules)
 
-Snapshot from [shadcn-ui/ui `skills/shadcn`](https://github.com/shadcn-ui/ui/tree/main/skills/shadcn); revision note in [`vendor/shadcn/UPSTREAM.txt`](./vendor/shadcn/UPSTREAM.txt).
+Snapshot from [shadcn-ui/ui `skills/shadcn`](https://github.com/shadcn-ui/ui/tree/main/skills/shadcn); revision note in [`vendor/shadcn/UPSTREAM.txt`](./vendor/shadcn/UPSTREAM.txt). The upstream workflow is stored as a reference file, with its original skill frontmatter removed, so the vendored copy is not discovered as a second local skill.
 
 | Doc | Path |
 | --- | --- |
-| Full official skill body | [`vendor/shadcn/SKILL.md`](./vendor/shadcn/SKILL.md) |
+| Official shadcn/ui workflow reference | [`vendor/shadcn/official-shadcn-ui-workflow.md`](./vendor/shadcn/official-shadcn-ui-workflow.md) |
 | CLI reference | [`vendor/shadcn/cli.md`](./vendor/shadcn/cli.md) |
 | Theming / customization | [`vendor/shadcn/customization.md`](./vendor/shadcn/customization.md) |
 | MCP | [`vendor/shadcn/mcp.md`](./vendor/shadcn/mcp.md) |
@@ -102,4 +102,4 @@ Snapshot from [shadcn-ui/ui `skills/shadcn`](https://github.com/shadcn-ui/ui/tre
 | Styling | [`vendor/shadcn/rules/styling.md`](./vendor/shadcn/rules/styling.md) |
 | Base vs Radix | [`vendor/shadcn/rules/base-vs-radix.md`](./vendor/shadcn/rules/base-vs-radix.md) |
 
-**Workflow:** Prefer this **root** `SKILL.md` for repo paths (`web/default`, Bun). Read **`vendor/shadcn/SKILL.md`** for the complete upstream workflow, patterns, and CLI quick reference. Use **`vendor/shadcn/rules/*.md`** when validating concrete markup.
+**Workflow:** Prefer this **root** `SKILL.md` for repo paths (`web/default`, Bun). Read **`vendor/shadcn/official-shadcn-ui-workflow.md`** only when you need the complete official component, registry, or preset workflow. Use **`vendor/shadcn/rules/*.md`** when validating concrete markup.

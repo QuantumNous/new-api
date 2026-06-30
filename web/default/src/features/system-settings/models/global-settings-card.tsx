@@ -227,7 +227,9 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
             name='global.thinking_model_blacklist'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Disable thinking processing models')}</FormLabel>
+                <FormLabel>
+                  {t('Models that skip thinking suffix processing')}
+                </FormLabel>
                 <FormControl>
                   <Textarea
                     rows={4}

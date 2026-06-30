@@ -16,33 +16,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, useCallback, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   type ColumnDef,
   type RowSelectionState,
   type Table as TanStackTable,
-  flexRender,
-  getCoreRowModel,
-  getPaginationRowModel,
-  useReactTable,
 } from '@tanstack/react-table'
-import { Check, Copy, Info, Loader2, Settings } from 'lucide-react'
+import {
+  Check,
+  CheckCircle2,
+  Copy,
+  Info,
+  Loader2,
+  Settings,
+  Trash2,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
 import {
   Select,
   SelectContent,
@@ -61,20 +59,18 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
-import { DataTablePagination } from '@/components/data-table/pagination'
+import {
+  DataTableBulkActions as BulkActionsToolbar,
+  DataTablePagination,
+  DataTableView,
+  useDataTable,
+} from '@/components/data-table'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Dialog } from '@/components/dialog'
 import {
   sideDrawerContentClassName,
   sideDrawerFooterClassName,
@@ -82,12 +78,26 @@ import {
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
 import { StatusBadge } from '@/components/status-badge'
-import { formatResponseTime, handleTestChannel } from '../../lib'
+import { updateChannel } from '../../api'
+import {
+  channelsQueryKeys,
+  formatResponseTime,
+  handleTestChannel,
+} from '../../lib'
+import type {
+  Channel,
+  GetChannelsResponse,
+  SearchChannelsResponse,
+} from '../../types'
 import { useChannels } from '../channels-provider'
 
 type ChannelTestDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
+}
+
+type ChannelTestDialogContentProps = ChannelTestDialogProps & {
+  currentRow: Channel
 }
 
 type ModelRow = {
@@ -99,8 +109,64 @@ type TestStatus = 'idle' | 'testing' | 'success' | 'error'
 type TestResult = {
   status: TestStatus
   responseTime?: number
+  completedAt?: number
   error?: string
   errorCode?: string
+}
+
+type BatchProgress = {
+  total: number
+  completed: number
+  success: number
+  failed: number
+}
+
+type ChannelTestCachePatch = {
+  responseTime: number
+  testTime: number
+}
+
+type LatestChannelTestCachePatch = {
+  patch: ChannelTestCachePatch
+  completedAt: number
+}
+
+type ChannelListCache = GetChannelsResponse | SearchChannelsResponse
+
+function createChannelTestCachePatch(
+  responseTime?: number,
+  completedAt = Date.now()
+): ChannelTestCachePatch | undefined {
+  if (typeof responseTime !== 'number' || !Number.isFinite(responseTime)) {
+    return undefined
+  }
+
+  return {
+    responseTime,
+    testTime: Math.floor(completedAt / 1000),
+  }
+}
+
+function getLatestChannelTestCachePatch(
+  results: TestResult[]
+): ChannelTestCachePatch | undefined {
+  const latest = results.reduce<LatestChannelTestCachePatch | undefined>(
+    (latestPatch, result) => {
+      const completedAt = result.completedAt ?? 0
+      const patch = createChannelTestCachePatch(
+        result.responseTime,
+        completedAt
+      )
+      if (!patch) return latestPatch
+      if (!latestPatch || completedAt >= latestPatch.completedAt) {
+        return { patch, completedAt }
+      }
+      return latestPatch
+    },
+    undefined
+  )
+
+  return latest?.patch
 }
 
 const endpointTypeOptions: Array<{ value: string; label: string }> = [
@@ -124,6 +190,10 @@ const endpointTypeOptions: Array<{ value: string; label: string }> = [
   { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
 ]
 
+const endpointSelectContentClass = 'w-[460px] max-w-[calc(100vw-2rem)]'
+const endpointSelectItemClass =
+  'items-start py-2 [&_[data-slot=select-item-text]]:min-w-0 [&_[data-slot=select-item-text]]:shrink [&_[data-slot=select-item-text]]:whitespace-normal'
+
 const STREAM_INCOMPATIBLE_ENDPOINTS = new Set([
   'embeddings',
   'image-generation',
@@ -133,6 +203,8 @@ const STREAM_INCOMPATIBLE_ENDPOINTS = new Set([
 
 const MODEL_PRICE_ERROR_CODE = 'model_price_error'
 const FAILURE_SUMMARY_MAX_LENGTH = 96
+const BATCH_TEST_CONCURRENCY = 5
+const BATCH_TEST_DELAY_MS = 100
 
 type FailureStatusDisplay = {
   summary: string
@@ -143,6 +215,10 @@ type FailureDetailsState = {
   model: string
   summary: string
   details: string
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms))
 }
 
 function normalizeInlineError(errorText: string) {
@@ -207,7 +283,7 @@ function getTestTableColumnClass(columnId: string) {
     case 'status':
       return 'w-70 min-w-70 max-w-70 whitespace-normal'
     case 'actions':
-      return 'bg-popover sticky right-0 z-20 w-24 min-w-24 border-l shadow-[-8px_0_8px_-8px_rgb(0_0_0_/_0.2)] whitespace-nowrap sm:w-28 sm:min-w-28'
+      return 'bg-popover w-24 min-w-24 whitespace-nowrap sm:w-28 sm:min-w-28'
     default:
       return undefined
   }
@@ -217,8 +293,31 @@ export function ChannelTestDialog({
   open,
   onOpenChange,
 }: ChannelTestDialogProps) {
-  const { t } = useTranslation()
   const { currentRow } = useChannels()
+
+  if (!currentRow) {
+    return null
+  }
+
+  return (
+    <ChannelTestDialogContent
+      key={currentRow.id}
+      open={open}
+      onOpenChange={onOpenChange}
+      currentRow={currentRow}
+    />
+  )
+}
+
+function ChannelTestDialogContent({
+  open,
+  onOpenChange,
+  currentRow,
+}: ChannelTestDialogContentProps) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const currentChannelId = currentRow.id
+  const batchStopRequestedRef = useRef(false)
   const [endpointType, setEndpointType] = useState('auto')
   const [isStreamTest, setIsStreamTest] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -228,14 +327,31 @@ export function ChannelTestDialog({
     () => new Set()
   )
   const [isBatchTesting, setIsBatchTesting] = useState(false)
+  const [isBatchStopRequested, setIsBatchStopRequested] = useState(false)
+  const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null)
+  const [removedModels, setRemovedModels] = useState<Set<string>>(
+    () => new Set()
+  )
+  const [isDeleteFailedDialogOpen, setIsDeleteFailedDialogOpen] =
+    useState(false)
+  const [isDeletingFailed, setIsDeletingFailed] = useState(false)
   const [failureDetails, setFailureDetails] =
     useState<FailureDetailsState | null>(null)
   const [pagination, setPagination] = useState({
     pageIndex: 0,
-    pageSize: 10,
+    pageSize: 30,
   })
+  const endpointSelectItems = useMemo(
+    () =>
+      endpointTypeOptions.map((option) => ({
+        value: option.value,
+        label: t(option.label),
+      })),
+    [t]
+  )
 
   const resetState = useCallback(() => {
+    batchStopRequestedRef.current = true
     setEndpointType('auto')
     setIsStreamTest(false)
     setSearchTerm('')
@@ -243,29 +359,41 @@ export function ChannelTestDialog({
     setRowSelection({})
     setTestingModels(() => new Set())
     setIsBatchTesting(false)
+    setIsBatchStopRequested(false)
+    setBatchProgress(null)
+    setRemovedModels(() => new Set())
+    setIsDeleteFailedDialogOpen(false)
+    setIsDeletingFailed(false)
     setFailureDetails(null)
-    setPagination({ pageIndex: 0, pageSize: 10 })
+    setPagination({ pageIndex: 0, pageSize: 30 })
   }, [])
 
-  useEffect(() => {
-    if (open && currentRow) {
-      resetState()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, currentRow?.id, resetState])
-
   const streamDisabled = STREAM_INCOMPATIBLE_ENDPOINTS.has(endpointType)
+  const effectiveStreamTest = !streamDisabled && isStreamTest
 
-  useEffect(() => {
-    if (streamDisabled) {
+  const handleEndpointTypeChange = useCallback((value: string | null) => {
+    if (value === null) return
+
+    setEndpointType(value)
+    if (STREAM_INCOMPATIBLE_ENDPOINTS.has(value)) {
       setIsStreamTest(false)
     }
-  }, [streamDisabled])
+  }, [])
 
-  const modelsValue = currentRow?.models ?? ''
-  const defaultTestModel = currentRow?.test_model?.trim()
+  const handleSearchTermChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setSearchTerm(event.target.value)
+      setPagination((prev) =>
+        prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }
+      )
+    },
+    []
+  )
 
-  const models = useMemo(() => {
+  const modelsValue = currentRow.models
+  const defaultTestModel = currentRow.test_model?.trim()
+
+  const baseModels = useMemo(() => {
     if (!modelsValue) return []
     return modelsValue
       .split(',')
@@ -273,15 +401,26 @@ export function ChannelTestDialog({
       .filter(Boolean)
   }, [modelsValue])
 
+  const models = useMemo(
+    () => baseModels.filter((model) => !removedModels.has(model)),
+    [baseModels, removedModels]
+  )
+
+  const successModels = useMemo(
+    () => models.filter((model) => testResults[model]?.status === 'success'),
+    [models, testResults]
+  )
+
+  const failedModels = useMemo(
+    () => models.filter((model) => testResults[model]?.status === 'error'),
+    [models, testResults]
+  )
+
   const filteredModels = useMemo(() => {
     if (!searchTerm) return models
     const keyword = searchTerm.toLowerCase()
     return models.filter((model) => model.toLowerCase().includes(keyword))
   }, [models, searchTerm])
-
-  useEffect(() => {
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-  }, [searchTerm, modelsValue])
 
   const tableData = useMemo<ModelRow[]>(
     () => filteredModels.map((model) => ({ model })),
@@ -308,8 +447,60 @@ export function ChannelTestDialog({
     }))
   }, [])
 
+  const updateChannelTestCache = useCallback(
+    (patch?: ChannelTestCachePatch) => {
+      if (!patch) return
+
+      queryClient.setQueriesData<ChannelListCache>(
+        { queryKey: channelsQueryKeys.lists() },
+        (oldData) => {
+          const data = oldData?.data
+          if (!oldData || !data?.items.length) return oldData
+
+          let changed = false
+          const nextItems = data.items.map((channel) => {
+            if (channel.id !== currentChannelId) return channel
+
+            changed = true
+            return {
+              ...channel,
+              response_time: patch.responseTime,
+              test_time: patch.testTime,
+            }
+          })
+
+          if (!changed) return oldData
+
+          return {
+            ...oldData,
+            data: {
+              ...data,
+              items: nextItems,
+            },
+          }
+        }
+      )
+    },
+    [currentChannelId, queryClient]
+  )
+
+  const refreshChannelLists = useCallback(
+    (patch?: ChannelTestCachePatch) => {
+      updateChannelTestCache(patch)
+      void queryClient
+        .invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+        .then(() => updateChannelTestCache(patch))
+        .catch(() => undefined)
+    },
+    [queryClient, updateChannelTestCache]
+  )
+
   const testSingleModel = useCallback(
-    async (model: string, silent = false): Promise<TestResult | undefined> => {
+    async (
+      model: string,
+      silent = false,
+      refreshList = true
+    ): Promise<TestResult | undefined> => {
       if (!currentRow) return
 
       markModelTesting(model, true)
@@ -320,15 +511,18 @@ export function ChannelTestDialog({
         await handleTestChannel(
           currentRow.id,
           {
+            channelName: currentRow.name,
             testModel: model,
             endpointType: endpointType === 'auto' ? undefined : endpointType,
-            stream: isStreamTest || undefined,
+            stream: effectiveStreamTest || undefined,
             silent,
           },
           (success, responseTime, error, errorCode) => {
+            const completedAt = Date.now()
             finalResult = {
               status: success ? 'success' : 'error',
               responseTime,
+              completedAt,
               error,
               errorCode,
             }
@@ -338,43 +532,146 @@ export function ChannelTestDialog({
       } catch (error: unknown) {
         finalResult = {
           status: 'error',
+          completedAt: Date.now(),
           error: error instanceof Error ? error.message : t('Test failed'),
         }
         updateTestResult(model, finalResult)
       } finally {
         markModelTesting(model, false)
+        if (refreshList) {
+          refreshChannelLists(
+            createChannelTestCachePatch(
+              finalResult?.responseTime,
+              finalResult?.completedAt
+            )
+          )
+        }
       }
       return finalResult
     },
     [
       currentRow,
       endpointType,
-      isStreamTest,
+      effectiveStreamTest,
       markModelTesting,
+      refreshChannelLists,
       t,
       updateTestResult,
     ]
   )
 
+  const handleStopBatchTest = useCallback(() => {
+    if (!isBatchTesting || isBatchStopRequested) return
+
+    batchStopRequestedRef.current = true
+    setIsBatchStopRequested(true)
+  }, [isBatchStopRequested, isBatchTesting])
+
   const handleBatchTest = useCallback(
     async (modelsToTest: string[]) => {
-      if (!modelsToTest.length) return
+      const uniqueModels = Array.from(
+        new Set(modelsToTest.map((model) => model.trim()).filter(Boolean))
+      )
+      if (!uniqueModels.length) return
 
+      batchStopRequestedRef.current = false
       setIsBatchTesting(true)
+      setIsBatchStopRequested(false)
+      setBatchProgress({
+        total: uniqueModels.length,
+        completed: 0,
+        success: 0,
+        failed: 0,
+      })
+
+      let resultPatch: ChannelTestCachePatch | undefined
+      const results: TestResult[] = []
+      let completedCount = 0
+      let successCount = 0
+      let failedCount = 0
+
       try {
-        const settled = await Promise.allSettled(
-          modelsToTest.map((modelName) => testSingleModel(modelName, true))
-        )
-        const results = settled
-          .map((result) =>
-            result.status === 'fulfilled' ? result.value : undefined
+        const createFallbackResult = (error?: unknown): TestResult => ({
+          status: 'error',
+          completedAt: Date.now(),
+          error: error instanceof Error ? error.message : t('Test failed'),
+        })
+
+        const recordBatchResult = (result: TestResult) => {
+          results.push(result)
+          completedCount += 1
+          if (result.status === 'success') {
+            successCount += 1
+          }
+          failedCount = completedCount - successCount
+
+          setBatchProgress({
+            total: uniqueModels.length,
+            completed: completedCount,
+            success: successCount,
+            failed: failedCount,
+          })
+        }
+
+        for (
+          let startIndex = 0;
+          startIndex < uniqueModels.length;
+          startIndex += BATCH_TEST_CONCURRENCY
+        ) {
+          if (batchStopRequestedRef.current) {
+            break
+          }
+
+          const batch = uniqueModels.slice(
+            startIndex,
+            startIndex + BATCH_TEST_CONCURRENCY
           )
-          .filter((result): result is TestResult => Boolean(result))
-        const successCount = results.filter(
-          (result) => result.status === 'success'
-        ).length
-        const failedCount = modelsToTest.length - successCount
-        if (failedCount > 0) {
+          const batchPromises = batch.map(async (modelName) => {
+            try {
+              const result = await testSingleModel(modelName, true, false)
+              const finalResult = result ?? createFallbackResult()
+              if (!result) {
+                updateTestResult(modelName, finalResult)
+              }
+              recordBatchResult(finalResult)
+              return finalResult
+            } catch (error: unknown) {
+              const fallbackResult = createFallbackResult(error)
+              updateTestResult(modelName, fallbackResult)
+              recordBatchResult(fallbackResult)
+              return fallbackResult
+            }
+          })
+
+          await Promise.allSettled(batchPromises)
+
+          if (
+            batchStopRequestedRef.current ||
+            startIndex + BATCH_TEST_CONCURRENCY >= uniqueModels.length
+          ) {
+            break
+          }
+
+          await sleep(BATCH_TEST_DELAY_MS)
+        }
+
+        resultPatch = getLatestChannelTestCachePatch(results)
+        const stopped =
+          batchStopRequestedRef.current && completedCount < uniqueModels.length
+
+        if (stopped) {
+          toast.info(
+            t(
+              'Batch test stopped: {{completed}}/{{total}} completed, {{success}} succeeded, {{failed}} failed',
+              {
+                completed: completedCount,
+                total: uniqueModels.length,
+                success: successCount,
+                failed: failedCount,
+              }
+            )
+          )
+        } else if (failedCount > 0) {
           toast.error(
             t(
               'Batch test completed: {{success}} succeeded, {{failed}} failed',
@@ -392,19 +689,98 @@ export function ChannelTestDialog({
           )
         }
       } finally {
+        batchStopRequestedRef.current = false
         setIsBatchTesting(false)
+        setIsBatchStopRequested(false)
+        setBatchProgress(null)
         setRowSelection({})
+        refreshChannelLists(resultPatch)
       }
     },
-    [t, testSingleModel]
+    [refreshChannelLists, t, testSingleModel, updateTestResult]
   )
 
-  const handleClose = () => {
+  const handleSelectSuccessfulModels = useCallback(() => {
+    setRowSelection(() => {
+      const next: RowSelectionState = {}
+      for (const model of successModels) {
+        next[model] = true
+      }
+      return next
+    })
+  }, [successModels])
+
+  const handleDeleteFailedModels = useCallback(async () => {
+    const failed = models.filter(
+      (model) => testResults[model]?.status === 'error'
+    )
+    if (!failed.length) {
+      setIsDeleteFailedDialogOpen(false)
+      return
+    }
+
+    const failedSet = new Set(failed)
+    const remaining = models.filter((model) => !failedSet.has(model))
+
+    setIsDeletingFailed(true)
+    try {
+      const response = await updateChannel(currentRow.id, {
+        models: remaining.join(','),
+      })
+      if (response.success) {
+        setRemovedModels((prev) => {
+          const next = new Set(prev)
+          for (const model of failed) next.add(model)
+          return next
+        })
+        setTestResults((prev) => {
+          const next = { ...prev }
+          for (const model of failed) delete next[model]
+          return next
+        })
+        setRowSelection((prev) => {
+          const next = { ...prev }
+          for (const model of failed) delete next[model]
+          return next
+        })
+        toast.success(
+          t('Deleted {{count}} failed models', { count: failed.length })
+        )
+        refreshChannelLists()
+        setIsDeleteFailedDialogOpen(false)
+      } else {
+        toast.error(response.message || t('Failed to delete failed models'))
+      }
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t('Failed to delete failed models')
+      )
+    } finally {
+      setIsDeletingFailed(false)
+    }
+  }, [currentRow.id, models, refreshChannelLists, t, testResults])
+
+  const handleClose = useCallback(() => {
     resetState()
     onOpenChange(false)
-  }
+  }, [onOpenChange, resetState])
+
+  const handleDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) {
+        handleClose()
+      }
+    },
+    [handleClose]
+  )
 
   const isAnyTesting = testingModels.size > 0 || isBatchTesting
+  const isFilteringModels = searchTerm.trim().length > 0
+  const testAllButtonLabel = isFilteringModels
+    ? t('Test {{count}} matching models', { count: filteredModels.length })
+    : t('Test all {{count}} models', { count: filteredModels.length })
 
   const columns = useMemo<ColumnDef<ModelRow>[]>(
     () => [
@@ -412,11 +788,11 @@ export function ChannelTestDialog({
         id: 'select',
         header: ({ table }) => (
           <Checkbox
-            checked={table.getIsAllPageRowsSelected()}
-            indeterminate={table.getIsSomePageRowsSelected()}
-            onCheckedChange={(value) =>
-              table.toggleAllPageRowsSelected(!!value)
+            checked={table.getIsAllRowsSelected()}
+            indeterminate={
+              table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()
             }
+            onCheckedChange={(value) => table.toggleAllRowsSelected(!!value)}
             aria-label={t('Select all models')}
           />
         ),
@@ -489,14 +865,13 @@ export function ChannelTestDialog({
               disabled={isTestingModel || isBatchTesting}
             >
               {isTestingModel && (
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                <Loader2 className='animate-spin' data-icon='inline-start' />
               )}
               {t('Test')}
             </Button>
           )
         },
         enableSorting: false,
-        size: 120,
       },
     ],
     [
@@ -509,200 +884,231 @@ export function ChannelTestDialog({
     ]
   )
 
-  const table = useReactTable({
+  const { table } = useDataTable({
     data: tableData,
     columns,
-    state: {
-      rowSelection,
-      pagination,
-    },
+    rowSelection,
+    pagination,
     enableRowSelection: true,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    getRowId: (row) => row.model,
     onRowSelectionChange: setRowSelection,
     onPaginationChange: setPagination,
+    withFilteredRowModel: false,
+    withSortedRowModel: false,
+    withFacetedRowModel: false,
   })
-
-  if (!currentRow) {
-    return null
-  }
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className='max-h-[90vh] overflow-hidden sm:max-w-3xl'>
-          <DialogHeader>
-            <DialogTitle>{t('Test Channel Connection')}</DialogTitle>
-            <DialogDescription>
-              {t('Test connectivity for:')} <strong>{currentRow.name}</strong>
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className='max-h-[78vh] space-y-4 overflow-y-auto py-4 pr-1'>
-            <div className='grid gap-4 md:grid-cols-2'>
-              <div className='grid gap-2'>
-                <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
-                <Select
-                  items={[
-                    ...endpointTypeOptions.map((option) => {
-                      const itemValue = option.value
-                      return { value: itemValue, label: t(option.label) }
-                    }),
-                  ]}
-                  value={endpointType}
-                  onValueChange={(v) => v !== null && setEndpointType(v)}
-                >
-                  <SelectTrigger id='endpoint-type'>
-                    <SelectValue placeholder={t('Auto detect (default)')} />
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    <SelectGroup>
-                      {endpointTypeOptions.map((option) => {
-                        const itemValue = option.value
-                        return (
-                          <SelectItem key={itemValue} value={itemValue}>
-                            {t(option.label)}
-                          </SelectItem>
-                        )
-                      })}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <p className='text-muted-foreground text-xs'>
-                  {t(
-                    'Override the endpoint used for testing. Leave empty to auto detect.'
-                  )}
-                </p>
-              </div>
-              <div className='grid gap-2'>
-                <Label htmlFor='stream-toggle'>{t('Stream Mode')}</Label>
-                <div className='flex items-center gap-2'>
-                  <Switch
-                    id='stream-toggle'
-                    checked={isStreamTest}
-                    onCheckedChange={setIsStreamTest}
-                    disabled={streamDisabled}
-                  />
-                  <span className='text-sm'>
-                    {isStreamTest ? t('Enabled') : t('Disabled')}
-                  </span>
-                </div>
-                <p className='text-muted-foreground text-xs'>
-                  {t('Enable streaming mode for the test request.')}
-                </p>
-              </div>
-            </div>
-
-            <div className='space-y-3 max-sm:has-[div[role="toolbar"]]:pb-16'>
-              <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                <div>
-                  <p className='text-sm font-medium'>{t('Channel models')}</p>
-                  <p className='text-muted-foreground text-xs'>
-                    {t('Select models to run batch tests.')}
-                  </p>
-                </div>
-                <Input
-                  placeholder={t('Filter models...')}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className='sm:w-64'
-                />
-              </div>
-
-              <div className='space-y-3'>
-                <div
-                  className='overflow-hidden rounded-md border'
-                  role='region'
-                  aria-label={t('Channel models')}
-                >
-                  <div className='max-h-90 overflow-auto **:data-[slot=table-container]:overflow-visible'>
-                    <Table className='w-max min-w-full table-auto'>
-                      <colgroup>
-                        <col className='w-10 min-w-10' />
-                        <col className='w-auto' />
-                        <col className='w-70' />
-                        <col className='w-24 sm:w-28' />
-                      </colgroup>
-                      <TableHeader>
-                        {table.getHeaderGroups().map((headerGroup) => (
-                          <TableRow key={headerGroup.id}>
-                            {headerGroup.headers.map((header) => (
-                              <TableHead
-                                key={header.id}
-                                className={getTestTableColumnClass(
-                                  header.column.id
-                                )}
-                              >
-                                {header.isPlaceholder
-                                  ? null
-                                  : flexRender(
-                                      header.column.columnDef.header,
-                                      header.getContext()
-                                    )}
-                              </TableHead>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableHeader>
-                      <TableBody>
-                        {table.getRowModel().rows.length ? (
-                          table.getRowModel().rows.map((row) => (
-                            <TableRow
-                              key={row.id}
-                              data-state={
-                                row.getIsSelected() ? 'selected' : undefined
-                              }
-                            >
-                              {row.getVisibleCells().map((cell) => (
-                                <TableCell
-                                  key={cell.id}
-                                  className={getTestTableColumnClass(
-                                    cell.column.id
-                                  )}
-                                >
-                                  {flexRender(
-                                    cell.column.columnDef.cell,
-                                    cell.getContext()
-                                  )}
-                                </TableCell>
-                              ))}
-                            </TableRow>
-                          ))
-                        ) : (
-                          <TableRow>
-                            <TableCell
-                              colSpan={table.getVisibleLeafColumns().length}
-                              className='text-muted-foreground h-16 text-center text-sm'
-                            >
-                              {models.length
-                                ? 'No models matched your search.'
-                                : 'This channel has no configured models.'}
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-
-                <DataTablePagination table={table} />
-              </div>
-
-              <TestModelsBulkActions
-                table={table}
-                disabled={isAnyTesting}
-                onTestSelected={handleBatchTest}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
+      <Dialog
+        open={open}
+        onOpenChange={handleDialogOpenChange}
+        title={t('Test Channel Connection')}
+        description={
+          <>
+            {t('Test connectivity for:')}
+            <strong>{currentRow.name}</strong>
+          </>
+        }
+        contentClassName='max-h-[90vh] overflow-hidden sm:max-w-3xl'
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
             <Button variant='outline' onClick={handleClose}>
               {t('Close')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <div className='max-h-[78vh] space-y-4 overflow-y-auto py-4 pr-1'>
+          <div className='grid gap-4 md:grid-cols-2'>
+            <div className='grid gap-2'>
+              <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
+              <Select
+                items={endpointSelectItems}
+                value={endpointType}
+                onValueChange={handleEndpointTypeChange}
+              >
+                <SelectTrigger id='endpoint-type' className='w-full min-w-0'>
+                  <SelectValue
+                    className='min-w-0 truncate'
+                    placeholder={t('Auto detect (default)')}
+                  />
+                </SelectTrigger>
+                <SelectContent
+                  alignItemWithTrigger={false}
+                  className={endpointSelectContentClass}
+                >
+                  <SelectGroup>
+                    {endpointSelectItems.map((option) => (
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        className={endpointSelectItemClass}
+                      >
+                        <span className='min-w-0 whitespace-normal break-words leading-snug'>
+                          {option.label}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'Override the endpoint used for testing. Leave empty to auto detect.'
+                )}
+              </p>
+            </div>
+            <div className='grid gap-2'>
+              <Label htmlFor='stream-toggle'>{t('Stream Mode')}</Label>
+              <div className='flex items-center gap-2'>
+                <Switch
+                  id='stream-toggle'
+                  checked={effectiveStreamTest}
+                  onCheckedChange={setIsStreamTest}
+                  disabled={streamDisabled}
+                />
+                <span className='text-sm'>
+                  {effectiveStreamTest ? t('Enabled') : t('Disabled')}
+                </span>
+              </div>
+              <p className='text-muted-foreground text-xs'>
+                {t('Enable streaming mode for the test request.')}
+              </p>
+            </div>
+          </div>
+
+          <div className='space-y-3 max-sm:has-[div[role="toolbar"]]:pb-16'>
+            <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+              <div>
+                <p className='text-sm font-medium'>{t('Channel models')}</p>
+                <p className='text-muted-foreground text-xs'>
+                  {t('Select models to run batch tests.')}
+                </p>
+              </div>
+              <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+                <Input
+                  placeholder={t('Filter models...')}
+                  value={searchTerm}
+                  onChange={handleSearchTermChange}
+                  className='sm:w-64'
+                />
+                {isBatchTesting ? (
+                  <Button
+                    variant='outline'
+                    onClick={handleStopBatchTest}
+                    disabled={isBatchStopRequested}
+                  >
+                    {isBatchStopRequested
+                      ? t('Stopping...')
+                      : t('Stop testing')}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => handleBatchTest(filteredModels)}
+                    disabled={isAnyTesting || filteredModels.length === 0}
+                  >
+                    {testAllButtonLabel}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {batchProgress && (
+              <BatchProgressSummary
+                progress={batchProgress}
+                isStopping={isBatchStopRequested}
+              />
+            )}
+
+            {!isAnyTesting &&
+              (successModels.length > 0 || failedModels.length > 0) && (
+                <div className='flex flex-wrap items-center gap-2'>
+                  {successModels.length > 0 && (
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={handleSelectSuccessfulModels}
+                    >
+                      <CheckCircle2 data-icon='inline-start' />
+                      {t('Select successful models ({{count}})', {
+                        count: successModels.length,
+                      })}
+                    </Button>
+                  )}
+                  {failedModels.length > 0 && (
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() => setIsDeleteFailedDialogOpen(true)}
+                    >
+                      <Trash2 data-icon='inline-start' />
+                      {t('Delete failed models ({{count}})', {
+                        count: failedModels.length,
+                      })}
+                    </Button>
+                  )}
+                </div>
+              )}
+
+            <div className='space-y-3'>
+              <DataTableView
+                table={table}
+                containerClassName='rounded-md'
+                containerProps={{
+                  role: 'region',
+                  'aria-label': t('Channel models'),
+                }}
+                tableContainerClassName='max-h-90 overflow-auto **:data-[slot=table-container]:overflow-visible'
+                tableClassName='w-max min-w-full table-auto'
+                pinnedColumns={[
+                  {
+                    columnId: 'actions',
+                    side: 'right',
+                    cellClassName: 'bg-popover',
+                  },
+                ]}
+                colgroup={
+                  <colgroup>
+                    <col className='w-10 min-w-10' />
+                    <col className='w-auto' />
+                    <col className='w-70' />
+                    <col className='w-auto' />
+                  </colgroup>
+                }
+                getColumnClassName={(columnId) =>
+                  getTestTableColumnClass(columnId)
+                }
+                emptyContent={
+                  models.length
+                    ? t('No models matched your search.')
+                    : t('This channel has no configured models.')
+                }
+                emptyCellClassName='text-muted-foreground h-16 text-center text-sm'
+              />
+
+              <DataTablePagination table={table} />
+            </div>
+
+            <TestModelsBulkActions table={table} />
+          </div>
+        </div>
       </Dialog>
+      <ConfirmDialog
+        open={isDeleteFailedDialogOpen}
+        onOpenChange={setIsDeleteFailedDialogOpen}
+        title={t('Delete failed models')}
+        desc={t(
+          'This removes {{count}} failed models from this channel. This action cannot be undone.',
+          { count: failedModels.length }
+        )}
+        destructive
+        isLoading={isDeletingFailed}
+        confirmText={t('Delete')}
+        handleConfirm={handleDeleteFailedModels}
+      />
       <FailureDetailsSheet
         details={failureDetails}
         onOpenChange={(sheetOpen) => {
@@ -712,6 +1118,45 @@ export function ChannelTestDialog({
         }}
       />
     </>
+  )
+}
+
+function BatchProgressSummary({
+  progress,
+  isStopping,
+}: {
+  progress: BatchProgress
+  isStopping: boolean
+}) {
+  const { t } = useTranslation()
+  const progressValue =
+    progress.total > 0
+      ? Math.min(100, Math.round((progress.completed / progress.total) * 100))
+      : 0
+
+  return (
+    <div className='bg-muted/30 flex flex-col gap-2 rounded-md border p-3'>
+      <div className='flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between'>
+        <p className='text-sm font-medium'>
+          {isStopping
+            ? t('Stopping batch test...')
+            : t('Batch testing models...')}
+        </p>
+        <p className='text-muted-foreground text-xs tabular-nums'>
+          {t('{{completed}}/{{total}} completed', {
+            completed: progress.completed,
+            total: progress.total,
+          })}
+        </p>
+      </div>
+      <Progress value={progressValue} />
+      <p className='text-muted-foreground text-xs'>
+        {t('{{success}} succeeded, {{failed}} failed', {
+          success: progress.success,
+          failed: progress.failed,
+        })}
+      </p>
+    </div>
   )
 }
 
@@ -735,7 +1180,7 @@ function TestStatusCell({
   if (result.status === 'testing') {
     return (
       <div className='text-muted-foreground flex min-w-0 items-center gap-2 text-sm'>
-        <Loader2 className='h-4 w-4 shrink-0 animate-spin' />
+        <Loader2 className='size-4 shrink-0 animate-spin' />
         <span className='truncate'>{t('Testing...')}</span>
       </div>
     )
@@ -898,21 +1343,18 @@ function FailureDetailsSheet({
 
 function TestModelsBulkActions({
   table,
-  disabled,
-  onTestSelected,
 }: {
   table: TanStackTable<ModelRow>
-  disabled?: boolean
-  onTestSelected: (models: string[]) => void
 }) {
   const { t } = useTranslation()
+  const { copyToClipboard } = useCopyToClipboard()
   const selectedRows = table.getFilteredSelectedRowModel().rows
   const selectedModels = selectedRows.map((row) => row.original.model)
 
-  const buttonLabel =
-    selectedModels.length > 0
-      ? t('Test {{count}} selected', { count: selectedModels.length })
-      : t('Test selected models')
+  const handleCopySelected = useCallback(() => {
+    if (selectedModels.length === 0) return
+    void copyToClipboard(selectedModels.join(','))
+  }, [copyToClipboard, selectedModels])
 
   return (
     <BulkActionsToolbar table={table} entityName='model'>
@@ -921,22 +1363,16 @@ function TestModelsBulkActions({
           render={
             <Button
               size='sm'
-              onClick={() => onTestSelected(selectedModels)}
-              disabled={disabled || selectedModels.length === 0}
+              onClick={handleCopySelected}
+              disabled={selectedModels.length === 0}
             />
           }
         >
-          {disabled ? (
-            <>
-              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-              {t('Testing...')}
-            </>
-          ) : (
-            buttonLabel
-          )}
+          <Copy data-icon='inline-start' />
+          {t('Copy selected models')}
         </TooltipTrigger>
         <TooltipContent>
-          <p>{t('Run tests for the selected models')}</p>
+          <p>{t('Copy selected models separated by commas (e.g. a,b)')}</p>
         </TooltipContent>
       </Tooltip>
     </BulkActionsToolbar>

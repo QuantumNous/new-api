@@ -121,7 +121,7 @@ npx shadcn@latest add button --diff globals.css
 
 #### Smart Merge from Upstream
 
-See [Updating Components in SKILL.md](./SKILL.md#updating-components) for the full workflow.
+See [Updating Components in official-shadcn-ui-workflow.md](./official-shadcn-ui-workflow.md#updating-components) for the full workflow.
 
 ### `search` — Search registries
 
@@ -270,7 +270,7 @@ Three ways to specify a preset via `--preset`:
 Ask the user first: **overwrite**, **merge**, or **skip** existing components?
 
 - **Overwrite / Re-install** → `npx shadcn@latest apply --preset <code>`. Overwrites all detected component files with the new preset styles. Use when the user hasn't customized components.
-- **Merge** → `npx shadcn@latest init --preset <code> --force --no-reinstall`, then run `npx shadcn@latest info` to get the list of installed components and use the [smart merge workflow](./SKILL.md#updating-components) to update them one by one, preserving local changes. Use when the user has customized components.
+- **Merge** → `npx shadcn@latest init --preset <code> --force --no-reinstall`, then run `npx shadcn@latest info` to get the list of installed components and use the [smart merge workflow](./official-shadcn-ui-workflow.md#updating-components) to update them one by one, preserving local changes. Use when the user has customized components.
 - **Skip** → `npx shadcn@latest init --preset <code> --force --no-reinstall`. Only updates config and CSS variables, leaves existing components as-is.
 
 Always run preset commands inside the user's project directory. `apply` only works in an existing project with a `components.json` file. The CLI automatically preserves the current base (`base` vs `radix`) from `components.json`. If you must use a scratch/temp directory (e.g. for `--dry-run` comparisons), pass `--base <current-base>` explicitly — preset codes do not encode the base.
