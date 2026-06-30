@@ -19,26 +19,27 @@ For commercial licensing, please contact support@quantumnous.com
 'use client'
 
 import {
+  BrainIcon,
+  ChevronDownIcon,
+  DotIcon,
+  type LucideIcon,
+} from 'lucide-react'
+import {
   type ComponentProps,
   createContext,
   memo,
   useContext,
   useMemo,
 } from 'react'
-import {
-  BrainIcon,
-  ChevronDownIcon,
-  DotIcon,
-  type LucideIcon,
-} from 'lucide-react'
-import { useControllableState } from '@/lib/use-controllable-state'
-import { cn } from '@/lib/utils'
+
 import { Badge } from '@/components/ui/badge'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { useControllableState } from '@/lib/use-controllable-state'
+import { cn } from '@/lib/utils'
 
 type ChainOfThoughtContextValue = {
   isOpen: boolean

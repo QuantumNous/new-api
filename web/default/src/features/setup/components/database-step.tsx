@@ -18,8 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Database, HardDrive, Server } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+
 import { StatusBadge } from '@/components/status-badge'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+
 import type { SetupStatus } from '../types'
 
 interface DatabaseStepProps {

@@ -16,15 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { VChart } from '@visactor/react-vchart'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useThemeCustomization } from '@/context/theme-customization-provider'
+import { getSuccessRateColor } from '@/features/performance-metrics/lib/format'
 import { useThemeRadiusPx } from '@/lib/theme-radius'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { cn } from '@/lib/utils'
 import { VCHART_OPTION } from '@/lib/vchart'
-import { useThemeCustomization } from '@/context/theme-customization-provider'
-import { getSuccessRateColor } from '@/features/performance-metrics/lib/format'
+
 import type { LatencyTimePoint, UptimeDayPoint } from '../lib/mock-stats'
 
 function formatHourLabel(iso: string): string {
@@ -230,7 +232,8 @@ export function UptimeTrendChart(props: {
           size: 5,
           stroke: '#ffffff',
           lineWidth: 1.5,
-          fill: (datum: { uptime: number }) => getSuccessRateColor(datum.uptime),
+          fill: (datum: { uptime: number }) =>
+            getSuccessRateColor(datum.uptime),
         },
       },
       tooltip: {

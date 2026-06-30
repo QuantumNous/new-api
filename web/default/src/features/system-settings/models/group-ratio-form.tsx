@@ -16,10 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Code2, Eye, HelpCircle } from 'lucide-react'
 import { memo, useCallback, useState } from 'react'
 import { type UseFormReturn } from 'react-hook-form'
-import { Code2, Eye, HelpCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import {
+  sideDrawerContentClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import {
   Accordion,
   AccordionContent,
@@ -45,11 +51,7 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  sideDrawerContentClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-} from '@/components/drawer-layout'
+
 import {
   SettingsForm,
   SettingsSwitchContent,

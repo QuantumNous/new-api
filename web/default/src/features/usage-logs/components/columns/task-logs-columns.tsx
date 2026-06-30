@@ -16,24 +16,32 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-/* eslint-disable react-refresh/only-export-components */
-import { useState, useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Music } from 'lucide-react'
+/* eslint-disable react-refresh/only-export-components */
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
-import { formatTimestampToDate } from '@/lib/format'
-import { cn } from '@/lib/utils'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+
 import { StatusBadge } from '@/components/status-badge'
-import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
+import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
+import { TASK_STATUS } from '../../constants'
 import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
+import {
+  getTaskModelName,
+  parseTaskDataArray,
+  resolveTaskPlatformLabel,
+} from '../../lib/task-log-utils'
 import type { TaskLog } from '../../types'
 import {
   AudioPreviewDialog,
   type AudioClip,
 } from '../dialogs/audio-preview-dialog'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
+import { TaskDetailsDialog } from '../dialogs/task-details-dialog'
 import { useUsageLogsContext } from '../usage-logs-provider'
 import {
   createDurationColumn,
@@ -41,24 +49,11 @@ import {
   createProgressColumn,
 } from './column-helpers'
 
-function parseTaskData(data: unknown): unknown[] {
-  if (Array.isArray(data)) return data
-  if (typeof data === 'string') {
-    try {
-      const parsed = JSON.parse(data)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
-  return []
-}
-
 function AudioPreviewCell({ log }: { log: TaskLog }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const clips = useMemo(() => {
-    const data = parseTaskData(log.data)
+    const data = parseTaskDataArray(log.data)
     return data.filter(
       (c) =>
         c && typeof c === 'object' && (c as Record<string, unknown>).audio_url
@@ -85,6 +80,59 @@ function AudioPreviewCell({ log }: { log: TaskLog }) {
         clips={clips as AudioClip[]}
       />
     </>
+  )
+}
+
+function TaskDetailsCell({ log, isAdmin }: { log: TaskLog; isAdmin: boolean }) {
+  const { t } = useTranslation()
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [failDialogOpen, setFailDialogOpen] = useState(false)
+  const failReason = log.fail_reason || ''
+  const status = log.status
+
+  const showFailReason =
+    !!failReason &&
+    !failReason.startsWith('http') &&
+    status === TASK_STATUS.FAILURE
+
+  return (
+    <div className='flex min-w-0 flex-col items-start gap-1'>
+      {log.platform === 'suno' && status === TASK_STATUS.SUCCESS ? (
+        <AudioPreviewCell log={log} />
+      ) : null}
+      {showFailReason ? (
+        <button
+          type='button'
+          className='group max-w-[200px] text-left text-xs'
+          onClick={() => setFailDialogOpen(true)}
+          title={t('Click to view full error message')}
+        >
+          <span className='truncate leading-snug text-red-600 group-hover:underline dark:text-red-400'>
+            {failReason}
+          </span>
+        </button>
+      ) : null}
+      <button
+        type='button'
+        className='text-foreground text-xs hover:underline'
+        onClick={() => setDetailsOpen(true)}
+      >
+        {t('View details')}
+      </button>
+      <TaskDetailsDialog
+        log={log}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        isAdmin={isAdmin}
+      />
+      {showFailReason ? (
+        <FailReasonDialog
+          failReason={failReason}
+          open={failDialogOpen}
+          onOpenChange={setFailDialogOpen}
+        />
+      ) : null}
+    </div>
   )
 }
 
@@ -170,22 +218,48 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         if (!taskId) {
           return <span className='text-muted-foreground/60 text-xs'>-</span>
         }
+        const model = getTaskModelName(log)
+        const actionLabel = t(taskActionMapper.getLabel(log.action))
+        const platformLabel = resolveTaskPlatformLabel(log.platform, t)
+        const subtitle = [platformLabel, actionLabel, model]
+          .filter(Boolean)
+          .join(' · ')
+
         return (
-          <div className='flex max-w-[170px] flex-col gap-0.5'>
+          <div className='flex min-w-0 flex-col gap-0.5'>
             <StatusBadge
               label={taskId}
               copyText={taskId}
               variant='neutral'
               size='sm'
-              className='border-border/60 bg-muted/30 !text-foreground max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
-            />
-            <span className='text-muted-foreground/60 truncate text-[11px]'>
-              {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
+              className='border-border/60 bg-muted/30 !text-foreground w-full max-w-none shrink-0 items-start rounded-md border px-1.5 py-0.5 font-mono !whitespace-normal'
+            >
+              <span className='break-all whitespace-normal'>{taskId}</span>
+            </StatusBadge>
+            <span className='text-muted-foreground/60 text-[11px] leading-snug break-all'>
+              {subtitle}
             </span>
           </div>
         )
       },
+      size: 360,
+      minSize: 280,
       meta: { mobileTitle: true },
+    },
+    {
+      accessorKey: 'quota',
+      header: t('Cost'),
+      cell: ({ row }) => {
+        const quota = row.getValue('quota') as number | undefined
+        if (!quota) {
+          return <span className='text-muted-foreground/60 text-xs'>-</span>
+        }
+        return (
+          <span className='border-border/80 bg-muted/60 inline-flex h-6 w-fit items-center rounded-md border px-2 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums'>
+            {formatLogQuota(quota)}
+          </span>
+        )
+      },
     },
     createDurationColumn<TaskLog>({
       submitTimeKey: 'submit_time',
@@ -212,78 +286,12 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
     },
     createProgressColumn<TaskLog>({ headerLabel: t('Progress') }),
     {
-      accessorKey: 'fail_reason',
+      id: 'details',
       header: t('Details'),
       cell: function DetailsCell({ row }) {
-        const log = row.original
-        const failReason = row.getValue('fail_reason') as string
-        const status = log.status
-        const [dialogOpen, setDialogOpen] = useState(false)
-
-        const isSunoSuccess =
-          log.platform === 'suno' && status === TASK_STATUS.SUCCESS
-        if (isSunoSuccess) {
-          const data = parseTaskData(log.data)
-          if (
-            data.some(
-              (c) =>
-                c &&
-                typeof c === 'object' &&
-                (c as Record<string, unknown>).audio_url
-            )
-          ) {
-            return <AudioPreviewCell log={log} />
-          }
-        }
-
-        const isVideoTask =
-          log.action === TASK_ACTIONS.GENERATE ||
-          log.action === TASK_ACTIONS.TEXT_GENERATE ||
-          log.action === TASK_ACTIONS.FIRST_TAIL_GENERATE ||
-          log.action === TASK_ACTIONS.REFERENCE_GENERATE ||
-          log.action === TASK_ACTIONS.REMIX_GENERATE
-        const isSuccess = status === TASK_STATUS.SUCCESS
-        const isUrl = failReason?.startsWith('http')
-
-        if (isSuccess && isVideoTask && isUrl) {
-          const videoUrl = `/v1/videos/${log.task_id}/content`
-          return (
-            <a
-              href={videoUrl}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-foreground text-xs hover:underline'
-            >
-              {t('Click to preview video')}
-            </a>
-          )
-        }
-
-        if (!failReason) {
-          return <span className='text-muted-foreground/60 text-xs'>-</span>
-        }
-
-        return (
-          <>
-            <button
-              type='button'
-              className='group flex max-w-[200px] items-center gap-1 text-left text-xs'
-              onClick={() => setDialogOpen(true)}
-              title={t('Click to view full error message')}
-            >
-              <span className='truncate leading-snug text-red-600 group-hover:underline dark:text-red-400'>
-                {failReason}
-              </span>
-            </button>
-            <FailReasonDialog
-              failReason={failReason}
-              open={dialogOpen}
-              onOpenChange={setDialogOpen}
-            />
-          </>
-        )
+        return <TaskDetailsCell log={row.original} isAdmin={isAdmin} />
       },
-      size: 200,
+      size: 180,
       maxSize: 220,
     }
   )

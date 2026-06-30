@@ -16,16 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import * as z from 'zod'
-import {
-  useForm,
-  useFieldArray,
-  type FieldPath,
-  type UseFormReturn,
-} from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useTranslation } from 'react-i18next'
 import {
   Braces,
   ChevronRight,
@@ -35,9 +26,19 @@ import {
   Trash2,
   Wand2,
 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  useForm,
+  useFieldArray,
+  type FieldPath,
+  type UseFormReturn,
+} from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
+
+import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Dialog } from '@/components/dialog'
 import {
   Form,
   FormControl,
@@ -60,6 +61,7 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+
 import {
   SettingsControlChildren,
   SettingsControlGroup,
@@ -198,7 +200,10 @@ const HELP_SECTIONS = [
 // 模板占位符参考。token 为代码标识（不翻译），desc 为可翻译说明。
 // 与后端 assetTemplateContext / applyAssetTemplate 保持一致。
 const PLACEHOLDERS = [
-  { token: '{base_url}', desc: "The outbound's Base URL (trailing slash removed)" },
+  {
+    token: '{base_url}',
+    desc: "The outbound's Base URL (trailing slash removed)",
+  },
   {
     token: '{action}',
     desc: 'The operation name: ListAssets, GetAsset, CreateAsset, UpdateAsset or DeleteAsset',
@@ -639,7 +644,9 @@ function OutboundTextField({
               value={(field.value as string) ?? ''}
             />
           </FormControl>
-          {description ? <FormDescription>{description}</FormDescription> : null}
+          {description ? (
+            <FormDescription>{description}</FormDescription>
+          ) : null}
           <FormMessage />
         </FormItem>
       )}
@@ -744,7 +751,9 @@ function OutboundGroup({
                   </SelectContent>
                 </Select>
                 <FormDescription>
-                  {t('Built-in formats, plus any custom format you define below')}
+                  {t(
+                    'Built-in formats, plus any custom format you define below'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -927,7 +936,9 @@ function CustomFormatTextField({
               value={(field.value as string) ?? ''}
             />
           </FormControl>
-          {description ? <FormDescription>{description}</FormDescription> : null}
+          {description ? (
+            <FormDescription>{description}</FormDescription>
+          ) : null}
           <FormMessage />
         </FormItem>
       )}
@@ -1201,7 +1212,10 @@ export function VolcAssetSettingsSection({
 
   useResetForm(form, parsed)
 
-  const outboundArray = useFieldArray({ control: form.control, name: 'outbounds' })
+  const outboundArray = useFieldArray({
+    control: form.control,
+    name: 'outbounds',
+  })
   const formatArray = useFieldArray({
     control: form.control,
     name: 'custom_formats',
@@ -1545,7 +1559,9 @@ export function VolcAssetSettingsSection({
                 <p className='text-destructive text-sm'>{formatJsonError}</p>
               ) : (
                 <p className='text-muted-foreground text-xs'>
-                  {t('Edits sync with the visual editor when the JSON is valid')}
+                  {t(
+                    'Edits sync with the visual editor when the JSON is valid'
+                  )}
                 </p>
               )}
             </div>

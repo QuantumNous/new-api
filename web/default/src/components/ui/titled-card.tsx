@@ -17,7 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
+
 import { cn } from '@/lib/utils'
+
 import {
   Card,
   CardContent,

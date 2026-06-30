@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
+
 import type { FlowUserFilterOption } from '../types'
 import {
   compactFlowSelectionLabel,

@@ -40,8 +40,11 @@ https://<你的 new-api 域名>
 | 用途 | 方法与路径 |
 | --- | --- |
 | 提交生成任务 | `POST /v1/video/generations`（等价别名：`POST /v1/videos`） |
-| 查询任务状态 | `GET /v1/video/generations/{task_id}`（等价别名：`GET /v1/videos/{task_id}`） |
+| 查询任务状态（通用任务格式） | `GET /v1/video/generations/{task_id}` |
+| 查询任务状态（OpenAI 视频格式） | `GET /v1/videos/{task_id}` |
 | 直接下载视频字节流 | `GET /v1/videos/{task_id}/content` |
+
+> ⚠️ 两个查询端点**返回结构不同**：`/v1/video/generations/{task_id}` 返回包了一层的通用任务对象（`{ code, message, data:{ status: SUCCESS/IN_PROGRESS/..., result_url, ... } }`）；`/v1/videos/{task_id}` 返回扁平的 OpenAI 视频对象（`{ status: completed/in_progress/..., metadata:{ url } }`）。详见 [第 4 节](#4-查询任务状态)。
 
 **四种生成场景**（Seedance 2.0，互斥，同一任务不可混用）：
 
@@ -130,25 +133,66 @@ curl -X POST 'https://{host}/v1/video/generations' \
 
 ## 4. 查询任务状态
 
-```
-GET https://{host}/v1/video/generations/{task_id}
-```
+提供**两个**查询端点，返回结构不同，按需选用。两者都用提交时返回的 `id`（new-api 任务 ID）。
 
-**请求示例**
+### 4.1 通用任务格式 —— `GET /v1/video/generations/{task_id}`
 
 ```bash
-curl 'https://{host}/v1/video/generations/video-xxxxxxxxxxxx' \
+curl 'https://{host}/v1/video/generations/task-xxxxxxxxxxxx' \
   -H 'Authorization: Bearer sk-YOUR_TOKEN'
 ```
 
-**进行中 / 成功 / 失败响应**
+响应是包了一层 `{ code, message, data }` 的通用任务对象：
 
 ```json
 {
-  "id": "video-xxxxxxxxxxxx",
-  "task_id": "video-xxxxxxxxxxxx",
+  "code": "success",
+  "message": "",
+  "data": {
+    "task_id": "task-xxxxxxxxxxxx",
+    "action": "generate",
+    "status": "SUCCESS",
+    "progress": "100%",
+    "result_url": "https://...tos-cn-beijing.volces.com/....mp4?X-Tos-Signature=...",
+    "fail_reason": "",
+    "submit_time": 1769835600,
+    "finish_time": 1769835660,
+    "properties": { "upstream_model_name": "doubao-seedance-2.0", "origin_model_name": "doubao-seedance-2.0" },
+    "data": {
+      "id": "cgt-...",
+      "model": "doubao-seedance-2.0",
+      "status": "succeeded",
+      "content": { "video_url": "https://...mp4?..." },
+      "usage": { "completion_tokens": 50638, "total_tokens": 50638 },
+      "resolution": "480p", "ratio": "16:9", "duration": 5, "framespersecond": 24, "seed": 69992
+    }
+  }
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `data.status` | `QUEUED` / `SUBMITTED` / `IN_PROGRESS`（生成中）/ `SUCCESS`（成功）/ `FAILURE`（失败）/ `NOT_START` |
+| `data.progress` | 进度，字符串百分比，如 `"50%"` / `"100%"` |
+| `data.result_url` | **成功时**的视频地址（火山 TOS 链接，约 24 小时有效，请及时下载/转存）；等同 `data.data.content.video_url` |
+| `data.fail_reason` | **失败时**的失败原因 |
+| `data.data` | 上游火山原始任务数据（含 `usage` 用量、`seed`、`resolution` 等，计费依据 `usage`） |
+
+### 4.2 OpenAI 视频格式 —— `GET /v1/videos/{task_id}`
+
+```bash
+curl 'https://{host}/v1/videos/task-xxxxxxxxxxxx' \
+  -H 'Authorization: Bearer sk-YOUR_TOKEN'
+```
+
+响应是扁平的 OpenAI 视频对象：
+
+```json
+{
+  "id": "task-xxxxxxxxxxxx",
+  "task_id": "task-xxxxxxxxxxxx",
   "object": "video",
-  "model": "doubao-seedance-2-0-260128",
+  "model": "doubao-seedance-2.0",
   "status": "completed",
   "progress": 100,
   "created_at": 1769835600,
@@ -160,11 +204,11 @@ curl 'https://{host}/v1/video/generations/video-xxxxxxxxxxxx' \
 | 字段 | 说明 |
 | --- | --- |
 | `status` | `queued`（排队）/ `in_progress`（生成中）/ `completed`（成功）/ `failed`（失败） |
-| `progress` | 进度百分比（0–100） |
-| `metadata.url` | **成功时**的视频地址（火山 TOS 链接，约 24 小时有效，请及时下载/转存） |
+| `progress` | 进度百分比（0–100，整数） |
+| `metadata.url` | **成功时**的视频地址 |
 | `error` | **失败时**的错误对象 `{ "code": "...", "message": "..." }` |
 
-**轮询建议**：每 8–15 秒查询一次，直到 `status` 为 `completed` 或 `failed`。
+**轮询建议**：每 8–15 秒查询一次，直到任务进入成功（`SUCCESS` / `completed`）或失败（`FAILURE` / `failed`）。标准版 `doubao-seedance-2.0` 通常比 `-fast` / `-mini` 耗时更久，属正常现象。
 
 ---
 
@@ -365,11 +409,11 @@ submit.raise_for_status()
 task_id = submit.json()["id"]
 print(f"视频任务：{task_id}")
 
-# ---------- 3. 轮询视频任务 ----------
+# ---------- 3. 轮询视频任务（用 OpenAI 视频格式端点，返回扁平结构） ----------
 video_url = None
 for _ in range(120):
     time.sleep(8)
-    q = requests.get(f"{HOST}/v1/video/generations/{task_id}", headers=HEADERS)
+    q = requests.get(f"{HOST}/v1/videos/{task_id}", headers=HEADERS)
     q.raise_for_status()
     data = q.json()
     print("状态：", data["status"], data.get("progress"))
@@ -380,6 +424,10 @@ for _ in range(120):
         raise RuntimeError(f"生成失败：{data.get('error')}")
 assert video_url, "任务未在预期时间内完成"
 print("视频 URL：", video_url)
+
+# 备选：通用任务格式端点 GET /v1/video/generations/{task_id}
+#   返回 {"code":"success","data":{"status":"SUCCESS","result_url":"...mp4", ...}}
+#   完成判定改为 data["data"]["status"] == "SUCCESS"，URL 取 data["data"]["result_url"]。
 
 # ---------- 4. 下载视频（也可直接用 video_url） ----------
 content = requests.get(
@@ -419,7 +467,7 @@ token ≈ (输入视频时长 + 输出视频时长) × 输出宽 × 输出高 ×
 | 缺少 `model` / `prompt` 等必填项、请求体非法 | `400`，OpenAI 风格错误对象 |
 | 令牌无效 / 无该模型权限 | `401` / `403` |
 | 任务未完成就下载 `/content` | `400` `Task is not completed yet` |
-| 任务本身失败 | 查询响应 `status: "failed"`，详情在 `error.code` / `error.message` |
+| 任务本身失败 | `/v1/videos/{id}`：`status: "failed"` + `error`；`/v1/video/generations/{id}`：`data.status: "FAILURE"` + `data.fail_reason` |
 | 上游生成失败 / 网关错误 | `5xx`，错误信息透传 |
 
 ---
@@ -441,8 +489,9 @@ token ≈ (输入视频时长 + 输出视频时长) × 输出宽 × 输出高 ×
 
 **端点**：
 
-| 操作 | 方法 路径 |
-| --- | --- |
-| 提交 | `POST /v1/video/generations`（或 `/v1/videos`） |
-| 查询 | `GET /v1/video/generations/{task_id}`（或 `/v1/videos/{task_id}`） |
-| 下载 | `GET /v1/videos/{task_id}/content` |
+| 操作 | 方法 路径 | 备注 |
+| --- | --- | --- |
+| 提交 | `POST /v1/video/generations`（或 `/v1/videos`） | 返回 `id` 任务 ID |
+| 查询（通用格式） | `GET /v1/video/generations/{task_id}` | `{ code, data:{ status: SUCCESS/IN_PROGRESS/FAILURE, result_url } }` |
+| 查询（OpenAI 格式） | `GET /v1/videos/{task_id}` | `{ status: completed/in_progress/failed, metadata:{ url } }` |
+| 下载 | `GET /v1/videos/{task_id}/content` | 任务未成功返回 400 |

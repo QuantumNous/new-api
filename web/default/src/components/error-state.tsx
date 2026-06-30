@@ -16,10 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ReactNode } from 'react'
 import { AlertTriangle, type LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
+import { FadeIn } from '@/components/page-transition'
 import { Button } from '@/components/ui/button'
 import {
   Empty,
@@ -29,7 +30,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
-import { FadeIn } from '@/components/page-transition'
+import { cn } from '@/lib/utils'
 
 interface ErrorStateProps {
   icon?: LucideIcon

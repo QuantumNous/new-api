@@ -252,22 +252,31 @@ export interface MidjourneyLog {
 // Task Logs Types
 // ============================================================================
 
+export interface TaskLogProperties {
+  input?: string
+  upstream_model_name?: string
+  origin_model_name?: string
+}
+
 export interface TaskLog {
   id: number
   user_id: number
   username?: string
-  platform: string // suno, kling, runway, etc.
+  platform: string // suno, kling, runway, channel type id, etc.
   task_id: string
   action: string // MUSIC, LYRICS, GENERATE, TEXT_GENERATE, etc.
   channel_id: number
+  group?: string
+  quota?: number
   submit_time: number // seconds
+  start_time?: number // seconds
   finish_time?: number // seconds
   progress?: string
-  progress_message_en?: string
-  data?: string // JSON string
+  data?: unknown
+  properties?: TaskLogProperties | string
   fail_reason?: string
+  result_url?: string
   status: string // NOT_START, SUBMITTED, IN_PROGRESS, SUCCESS, FAILURE, QUEUED, UNKNOWN
-  other?: string
   created_at?: number
   updated_at?: number
 }

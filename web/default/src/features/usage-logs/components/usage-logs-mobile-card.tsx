@@ -19,8 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { flexRender, type Cell, type Table } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatTimestampToDate } from '@/lib/format'
-import { cn } from '@/lib/utils'
+
+import {
+  dotColorMap,
+  textColorMap,
+  type StatusVariant,
+} from '@/components/status-badge'
 import {
   Empty,
   EmptyDescription,
@@ -29,11 +33,9 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  dotColorMap,
-  textColorMap,
-  type StatusVariant,
-} from '@/components/status-badge'
+import { formatTimestampToDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
 import { LOG_TYPE_ENUM } from '../constants'
 import { getLogTypeConfig } from '../lib/utils'
 import type { LogCategory } from '../types'
@@ -258,9 +260,20 @@ function TaskLogsCard<TData>({
       <div className='grid grid-cols-2 gap-1.5'>
         <SummaryField label={t('Submit Time')} cell={submitTimeCell} />
         <SummaryField label={t('User')} cell={cells.get('user')} primaryOnly />
+        <SummaryField label={t('Cost')} cell={cells.get('quota')} primaryOnly />
         <SummaryField
-          label={t('Result')}
-          cell={cells.get('fail_reason')}
+          label={t('Duration')}
+          cell={cells.get('duration')}
+          primaryOnly
+        />
+        <SummaryField
+          label={t('Progress')}
+          cell={cells.get('progress')}
+          primaryOnly
+        />
+        <SummaryField
+          label={t('Details')}
+          cell={cells.get('details')}
           className='col-span-2 bg-transparent px-0 py-0'
         />
       </div>

@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback } from 'react'
 import i18next from 'i18next'
+import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
+
 import { requestWaffoPayment, isApiSuccess } from '../api'
 
 function getPaymentUrl(data: unknown): string | null {
