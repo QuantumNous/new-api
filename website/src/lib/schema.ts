@@ -29,8 +29,43 @@ type BlogArticleSchemaInput = {
   post: BlogPost;
 };
 
+type HomepageSchemaInput = {
+  locale: Locale;
+  title: string;
+  description: string;
+};
+
 export function stringifyJsonLd(value: JsonLdObject | JsonLdGraph): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
+export function buildHomepageSchema(input: HomepageSchemaInput): JsonLdGraph {
+  return graph([
+    websiteSchema(),
+    {
+      "@type": "SoftwareApplication",
+      name: SITE_NAME,
+      description: input.description,
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Web",
+      url: SITE_ORIGIN,
+      publisher: organizationSchema(),
+      offers: {
+        "@type": "Offer",
+        url: absoluteUrl(localizePath("/pricing", input.locale)),
+      },
+    },
+    {
+      "@type": "ItemList",
+      name: `${input.title} main links`,
+      itemListElement: [
+        navigationItem(1, "Sign up", localizePath("/sign-up", input.locale)),
+        navigationItem(2, "Pricing", localizePath("/pricing", input.locale)),
+        navigationItem(3, "Use cases", localizePath("/use-case/codex", input.locale)),
+        navigationItem(4, "Blog", localizePath("/blog", input.locale)),
+      ],
+    },
+  ]);
 }
 
 export function buildBlogIndexSchema(input: BlogIndexSchemaInput): JsonLdGraph {
@@ -134,6 +169,15 @@ function breadcrumbSchema(items: Array<{ name: string; item: string }>): JsonLdO
       name: item.name,
       item: item.item,
     })),
+  };
+}
+
+function navigationItem(position: number, name: string, path: string): JsonLdObject {
+  return {
+    "@type": "SiteNavigationElement",
+    position,
+    name,
+    url: absoluteUrl(path),
   };
 }
 

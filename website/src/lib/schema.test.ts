@@ -3,8 +3,68 @@ import {
   buildBlogArticleSchema,
   buildBlogCategorySchema,
   buildBlogIndexSchema,
+  buildHomepageSchema,
   stringifyJsonLd,
 } from "./schema";
+
+describe("homepage structured data", () => {
+  test("builds product and navigation schema for rich homepage search results", () => {
+    const graph = buildHomepageSchema({
+      locale: "en",
+      title: "flatkey.ai - AI API Gateway",
+      description: "One API for leading AI models.",
+    });
+
+    expect(graph["@context"]).toBe("https://schema.org");
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "WebSite",
+        name: "flatkey.ai",
+        url: "https://flatkey.ai",
+      })
+    );
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "SoftwareApplication",
+        name: "flatkey.ai",
+        applicationCategory: "DeveloperApplication",
+        operatingSystem: "Web",
+        url: "https://flatkey.ai",
+      })
+    );
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "ItemList",
+        itemListElement: [
+          { "@type": "SiteNavigationElement", position: 1, name: "Sign up", url: "https://flatkey.ai/sign-up" },
+          { "@type": "SiteNavigationElement", position: 2, name: "Pricing", url: "https://flatkey.ai/pricing" },
+          { "@type": "SiteNavigationElement", position: 3, name: "Use cases", url: "https://flatkey.ai/use-case/codex" },
+          { "@type": "SiteNavigationElement", position: 4, name: "Blog", url: "https://flatkey.ai/blog" },
+        ],
+      })
+    );
+  });
+
+  test("localizes homepage navigation schema URLs", () => {
+    const graph = buildHomepageSchema({
+      locale: "ja",
+      title: "flatkey.ai",
+      description: "AI API gateway.",
+    });
+
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "ItemList",
+        itemListElement: expect.arrayContaining([
+          expect.objectContaining({ name: "Sign up", url: "https://flatkey.ai/ja/sign-up" }),
+          expect.objectContaining({ name: "Pricing", url: "https://flatkey.ai/ja/pricing" }),
+          expect.objectContaining({ name: "Use cases", url: "https://flatkey.ai/ja/use-case/codex" }),
+          expect.objectContaining({ name: "Blog", url: "https://flatkey.ai/ja/blog" }),
+        ]),
+      })
+    );
+  });
+});
 
 describe("blog structured data", () => {
   test("builds BlogPosting schema with canonical URL, image, author, and breadcrumb", () => {
