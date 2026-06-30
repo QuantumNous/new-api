@@ -90,6 +90,64 @@ func NormalizeGAIdentifier(value string) string {
 	return value
 }
 
+func ResolveGAIdentifiers(req *http.Request, clientID string, sessionID string) (string, string) {
+	clientID = NormalizeGAIdentifier(clientID)
+	sessionID = NormalizeGAIdentifier(sessionID)
+	if req == nil {
+		return clientID, sessionID
+	}
+	if clientID == "" {
+		clientID = parseGAClientIDFromCookie(cookieValue(req, "_ga"))
+	}
+	if sessionID == "" {
+		cfg := DefaultGAConfig()
+		cookieSuffix := strings.TrimPrefix(cfg.MeasurementID, "G-")
+		cookieSuffix = strings.ReplaceAll(cookieSuffix, "-", "_")
+		sessionID = parseGASessionIDFromCookie(cookieValue(req, "_ga_"+cookieSuffix))
+	}
+	return NormalizeGAIdentifier(clientID), NormalizeGAIdentifier(sessionID)
+}
+
+func cookieValue(req *http.Request, name string) string {
+	cookie, err := req.Cookie(name)
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+func parseGAClientIDFromCookie(value string) string {
+	parts := strings.Split(value, ".")
+	if len(parts) < 4 {
+		return ""
+	}
+	clientID := strings.Join(parts[len(parts)-2:], ".")
+	if strings.Count(clientID, ".") != 1 {
+		return ""
+	}
+	for _, part := range strings.Split(clientID, ".") {
+		if part == "" || strings.Trim(part, "0123456789") != "" {
+			return ""
+		}
+	}
+	return clientID
+}
+
+func parseGASessionIDFromCookie(value string) string {
+	for _, segment := range strings.FieldsFunc(value, func(r rune) bool {
+		return r == '.' || r == '$'
+	}) {
+		if len(segment) > 1 && segment[0] == 's' && strings.Trim(segment[1:], "0123456789") == "" {
+			return segment[1:]
+		}
+	}
+	parts := strings.Split(value, ".")
+	if len(parts) >= 3 && strings.HasPrefix(parts[0], "GS") && strings.Trim(parts[2], "0123456789") == "" {
+		return parts[2]
+	}
+	return ""
+}
+
 func SendGAEventWithConfig(cfg GAConfig, event GAEvent) error {
 	cfg.MeasurementID = strings.TrimSpace(cfg.MeasurementID)
 	cfg.APISecret = strings.TrimSpace(cfg.APISecret)

@@ -279,7 +279,8 @@ func Register(c *gin.Context) {
 		}
 	}
 
-	sendSignUpSuccessGA(c.Request.Context(), insertedUser.Id, inviterId, "password", user.GAClientID, user.GASessionID)
+	gaClientID, gaSessionID := service.ResolveGAIdentifiers(c.Request, user.GAClientID, user.GASessionID)
+	sendSignUpSuccessGA(c.Request.Context(), insertedUser.Id, inviterId, "password", gaClientID, gaSessionID)
 
 	// Auto-login the freshly registered user so they land directly in the console
 	// (e.g. the Playground onboarding) without having to sign in again. setupLogin

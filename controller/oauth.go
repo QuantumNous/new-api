@@ -374,6 +374,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 
 	gaClientID, _ := session.Get("ga_client_id").(string)
 	gaSessionID, _ := session.Get("ga_session_id").(string)
+	gaClientID, gaSessionID = service.ResolveGAIdentifiers(c.Request, gaClientID, gaSessionID)
 	sendSignUpSuccessGA(c.Request.Context(), user.Id, inviterId, provider.GetProviderPrefix(), gaClientID, gaSessionID)
 
 	return user, true, nil

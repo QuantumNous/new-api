@@ -159,6 +159,37 @@ func TestSendGAEventSkipsWhenSecretMissing(t *testing.T) {
 	}
 }
 
+func TestResolveGAIdentifiersUsesExplicitValuesFirst(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/api/user/register", nil)
+	request.AddCookie(&http.Cookie{Name: "_ga", Value: "GA1.1.111.222"})
+	request.AddCookie(&http.Cookie{Name: "_ga_30RCEP2CVH", Value: "GS2.1.s333$o1$g1$t444"})
+
+	clientID, sessionID := ResolveGAIdentifiers(request, "555.666", "777")
+
+	if clientID != "555.666" {
+		t.Fatalf("expected explicit client id, got %q", clientID)
+	}
+	if sessionID != "777" {
+		t.Fatalf("expected explicit session id, got %q", sessionID)
+	}
+}
+
+func TestResolveGAIdentifiersFallsBackToCookies(t *testing.T) {
+	t.Setenv("GA_MESSUREMENT_ID", "G-30RCEP2CVH")
+	request := httptest.NewRequest(http.MethodPost, "/api/user/register", nil)
+	request.AddCookie(&http.Cookie{Name: "_ga", Value: "GA1.1.111.222"})
+	request.AddCookie(&http.Cookie{Name: "_ga_30RCEP2CVH", Value: "GS2.1.s333$o1$g1$t444"})
+
+	clientID, sessionID := ResolveGAIdentifiers(request, "", "")
+
+	if clientID != "111.222" {
+		t.Fatalf("expected client id from _ga cookie, got %q", clientID)
+	}
+	if sessionID != "333" {
+		t.Fatalf("expected session id from GA4 cookie, got %q", sessionID)
+	}
+}
+
 func TestDefaultGAConfigUsesEnvironmentAndFallbackMeasurementID(t *testing.T) {
 	t.Setenv("GA_MEASURE_PROTOCOL_API_SECRET", "secret-env")
 	t.Setenv("GA_MESSUREMENT_ID", "G-ENV123")
