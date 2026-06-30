@@ -188,7 +188,7 @@ func filterAbilitiesByAPIType(abilities []Ability, requestPath string) []Ability
 
 	matched := make([]Ability, 0, len(abilities))
 	for _, ab := range abilities {
-		if apiTypeById[ab.ChannelId] == expectedAPIType {
+		if apiType, ok := apiTypeById[ab.ChannelId]; ok && apiType == expectedAPIType {
 			matched = append(matched, ab)
 		}
 	}
