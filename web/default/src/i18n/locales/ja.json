@@ -4979,4 +4979,12 @@
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム"
   }
+  ,
+  "Test timeout (seconds)": "Test timeout (seconds)",
+  "Fail the test automatically if no response within this time.": "Fail the test automatically if no response within this time.",
+  "Response time filter": "Response time filter",
+  "Filter models by response time after testing.": "Filter models by response time after testing.",
+  "Select fitting models ({{count}})": "Select fitting models ({{count}})",
+  "Test timed out ({{timeout}}s)": "Test timed out ({{timeout}}s)",
+  "Max seconds": "Max seconds"
 }

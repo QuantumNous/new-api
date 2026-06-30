@@ -84,6 +84,7 @@ import {
   formatResponseTime,
   handleTestChannel,
 } from '../../lib'
+import { RESPONSE_TIME_THRESHOLDS } from '../../constants'
 import type {
   Channel,
   GetChannelsResponse,
@@ -205,6 +206,23 @@ const MODEL_PRICE_ERROR_CODE = 'model_price_error'
 const FAILURE_SUMMARY_MAX_LENGTH = 96
 const BATCH_TEST_CONCURRENCY = 5
 const BATCH_TEST_DELAY_MS = 100
+const DEFAULT_TEST_TIMEOUT_MS = 10000
+const TEST_TIMEOUT_ERROR_CODE = 'test_timeout'
+
+type ResponseTimeFilterOption = {
+  value: string
+  label: string
+}
+
+const RESPONSE_TIME_FILTER_OPTIONS: ResponseTimeFilterOption[] = [
+  { value: 'all', label: 'All' },
+  { value: String(RESPONSE_TIME_THRESHOLDS.EXCELLENT), label: '<=0.5s (Excellent)' },
+  { value: String(RESPONSE_TIME_THRESHOLDS.GOOD), label: '<=1s (Good)' },
+  { value: String(RESPONSE_TIME_THRESHOLDS.FAIR), label: '<=2s (Fair)' },
+  { value: String(RESPONSE_TIME_THRESHOLDS.POOR), label: '<=5s (Poor)' },
+  { value: '10000', label: '<=10s' },
+  { value: 'custom', label: 'Custom' },
+]
 
 type FailureStatusDisplay = {
   summary: string
@@ -341,6 +359,10 @@ function ChannelTestDialogContent({
     pageIndex: 0,
     pageSize: 30,
   })
+  const [testTimeoutMs, setTestTimeoutMs] = useState(DEFAULT_TEST_TIMEOUT_MS)
+  const [responseTimeFilter, setResponseTimeFilter] = useState('all')
+  const [customResponseTimeSec, setCustomResponseTimeSec] = useState('')
+  const abortControllerRef = useRef<AbortController | null>(null)
   const endpointSelectItems = useMemo(
     () =>
       endpointTypeOptions.map((option) => ({
@@ -352,6 +374,7 @@ function ChannelTestDialogContent({
 
   const resetState = useCallback(() => {
     batchStopRequestedRef.current = true
+    abortControllerRef.current?.abort()
     setEndpointType('auto')
     setIsStreamTest(false)
     setSearchTerm('')
@@ -366,6 +389,9 @@ function ChannelTestDialogContent({
     setIsDeletingFailed(false)
     setFailureDetails(null)
     setPagination({ pageIndex: 0, pageSize: 30 })
+    setTestTimeoutMs(DEFAULT_TEST_TIMEOUT_MS)
+    setResponseTimeFilter('all')
+    setCustomResponseTimeSec('')
   }, [])
 
   const streamDisabled = STREAM_INCOMPATIBLE_ENDPOINTS.has(endpointType)
@@ -417,10 +443,27 @@ function ChannelTestDialogContent({
   )
 
   const filteredModels = useMemo(() => {
-    if (!searchTerm) return models
-    const keyword = searchTerm.toLowerCase()
-    return models.filter((model) => model.toLowerCase().includes(keyword))
-  }, [models, searchTerm])
+    let result = models
+    if (searchTerm) {
+      const keyword = searchTerm.toLowerCase()
+      result = result.filter((model) => model.toLowerCase().includes(keyword))
+    }
+    if (responseTimeFilter !== 'all') {
+      const maxMs =
+        responseTimeFilter === 'custom'
+          ? Number(customResponseTimeSec) * 1000
+          : Number(responseTimeFilter)
+      if (maxMs > 0) {
+        result = result.filter((model) => {
+          const r = testResults[model]
+          if (!r || r.status === 'idle' || r.status === 'testing') return true
+          if (r.status === 'error') return false
+          return (r.responseTime ?? Infinity) <= maxMs
+        })
+      }
+    }
+    return result
+  }, [models, searchTerm, testResults, responseTimeFilter, customResponseTimeSec])
 
   const tableData = useMemo<ModelRow[]>(
     () => filteredModels.map((model) => ({ model })),
@@ -503,9 +546,16 @@ function ChannelTestDialogContent({
     ): Promise<TestResult | undefined> => {
       if (!currentRow) return
 
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
+
       markModelTesting(model, true)
       updateTestResult(model, { status: 'testing' })
       let finalResult: TestResult | undefined
+
+      const timeoutId = testTimeoutMs > 0
+        ? window.setTimeout(() => abortController.abort(), testTimeoutMs)
+        : undefined
 
       try {
         await handleTestChannel(
@@ -527,16 +577,31 @@ function ChannelTestDialogContent({
               errorCode,
             }
             updateTestResult(model, finalResult)
-          }
+          },
+          abortController.signal
         )
       } catch (error: unknown) {
+        const isTimeout =
+          error instanceof DOMException && error.name === 'AbortError' &&
+          abortController.signal.aborted
         finalResult = {
           status: 'error',
           completedAt: Date.now(),
-          error: error instanceof Error ? error.message : t('Test failed'),
+          error: isTimeout
+            ? t('Test timed out ({{timeout}}s)', {
+                timeout: (testTimeoutMs / 1000).toFixed(0),
+              })
+            : error instanceof Error
+              ? error.message
+              : t('Test failed'),
+          errorCode: isTimeout ? TEST_TIMEOUT_ERROR_CODE : undefined,
         }
         updateTestResult(model, finalResult)
       } finally {
+        if (timeoutId !== undefined) window.clearTimeout(timeoutId)
+        if (abortControllerRef.current === abortController) {
+          abortControllerRef.current = null
+        }
         markModelTesting(model, false)
         if (refreshList) {
           refreshChannelLists(
@@ -556,6 +621,7 @@ function ChannelTestDialogContent({
       markModelTesting,
       refreshChannelLists,
       t,
+      testTimeoutMs,
       updateTestResult,
     ]
   )
@@ -564,6 +630,7 @@ function ChannelTestDialogContent({
     if (!isBatchTesting || isBatchStopRequested) return
 
     batchStopRequestedRef.current = true
+    abortControllerRef.current?.abort()
     setIsBatchStopRequested(true)
   }, [isBatchStopRequested, isBatchTesting])
 
@@ -700,15 +767,30 @@ function ChannelTestDialogContent({
     [refreshChannelLists, t, testSingleModel, updateTestResult]
   )
 
-  const handleSelectSuccessfulModels = useCallback(() => {
+  const fittingModels = useMemo(() => {
+    const success = filteredModels.filter(
+      (model) => testResults[model]?.status === 'success'
+    )
+    if (responseTimeFilter === 'all') return success
+    const maxMs =
+      responseTimeFilter === 'custom'
+        ? Number(customResponseTimeSec) * 1000
+        : Number(responseTimeFilter)
+    if (maxMs <= 0) return success
+    return success.filter(
+      (model) => (testResults[model]?.responseTime ?? Infinity) <= maxMs
+    )
+  }, [filteredModels, testResults, responseTimeFilter, customResponseTimeSec])
+
+  const handleSelectFittingModels = useCallback(() => {
     setRowSelection(() => {
       const next: RowSelectionState = {}
-      for (const model of successModels) {
+      for (const model of fittingModels) {
         next[model] = true
       }
       return next
     })
-  }, [successModels])
+  }, [fittingModels])
 
   const handleDeleteFailedModels = useCallback(async () => {
     const failed = models.filter(
@@ -1030,11 +1112,11 @@ function ChannelTestDialogContent({
                     <Button
                       variant='outline'
                       size='sm'
-                      onClick={handleSelectSuccessfulModels}
+                      onClick={handleSelectFittingModels}
                     >
                       <CheckCircle2 data-icon='inline-start' />
-                      {t('Select successful models ({{count}})', {
-                        count: successModels.length,
+                      {t('Select fitting models ({{count}})', {
+                        count: fittingModels.length,
                       })}
                     </Button>
                   )}
@@ -1052,6 +1134,63 @@ function ChannelTestDialogContent({
                   )}
                 </div>
               )}
+
+            <div className='grid gap-4 md:grid-cols-2 pt-2 border-t'>
+              <div className='grid gap-2'>
+                <Label htmlFor='test-timeout'>{t('Test timeout (seconds)')}</Label>
+                <Input
+                  id='test-timeout'
+                  type='number'
+                  min={1}
+                  step={1}
+                  value={testTimeoutMs / 1000}
+                  onChange={(e) => {
+                    const sec = Number(e.target.value)
+                    if (sec >= 1) setTestTimeoutMs(sec * 1000)
+                  }}
+                  className='w-full'
+                />
+                <p className='text-muted-foreground text-xs'>
+                  {t('Fail the test automatically if no response within this time.')}
+                </p>
+              </div>
+              <div className='grid gap-2'>
+                <Label>{t('Response time filter')}</Label>
+                <div className='flex items-center gap-2'>
+                  <Select
+                    value={responseTimeFilter}
+                    onValueChange={(value: string | null) => { if (value !== null) setResponseTimeFilter(value) }}
+                  >
+                    <SelectTrigger className='w-full min-w-0'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {RESPONSE_TIME_FILTER_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {t(option.label)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  {responseTimeFilter === 'custom' && (
+                    <Input
+                      type='number'
+                      min={0.5}
+                      step={0.5}
+                      value={customResponseTimeSec}
+                      onChange={(e) => setCustomResponseTimeSec(e.target.value)}
+                      placeholder={t('Max seconds')}
+                      className='w-28'
+                    />
+                  )}
+                </div>
+                <p className='text-muted-foreground text-xs'>
+                  {t('Filter models by response time after testing.')}
+                </p>
+              </div>
+            </div>
 
             <div className='space-y-3'>
               <DataTableView

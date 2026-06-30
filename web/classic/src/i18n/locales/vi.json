@@ -4214,6 +4214,17 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "测试超时时间（秒）": "Thời gian chờ (giây)",
+    "超时未响应则自动判定测试失败。": "Tự động thất bại nếu không có phản hồi.",
+    "响应时间筛选": "Bộ lọc thời gian phản hồi",
+    "最大秒数": "Số giây tối đa",
+    "测试超时 ({{timeout}}s)": "Hết thời gian chờ ({{timeout}}s)",
+    "测试已取消": "Đã hủy kiểm tra",
+    "暂无符合条件的模型": "Không có mô hình phù hợp",
+    "优秀": "Xuất sắc",
+    "良好": "Tốt",
+    "一般": "Trung bình",
+    "较差": "Kém"
   }
 }
