@@ -8,7 +8,7 @@ name: Deploy
 # Usage:
 #   GitHub -> Actions -> Deploy -> Run workflow -> tag = v2026.06.30-1 -> Run
 #
-# The tag must already exist in GHCR (i.e. it must have been built by
+# The tag must already exist in private registry (i.e. it must have been built by
 # a prior Release run). No rebuild happens here.
 
 on:
