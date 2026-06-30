@@ -7,12 +7,12 @@ describe("Mixpanel browser script", () => {
     expect(MIXPANEL_BROWSER_SCRIPT).toContain(MIXPANEL_TOKEN);
   });
 
-  test("initializes Mixpanel directly on page load", () => {
+  test("initializes Mixpanel after idle work without blocking on consent", () => {
     expect(MIXPANEL_BROWSER_SCRIPT).toContain("mixpanel.init");
+    expect(MIXPANEL_BROWSER_SCRIPT).toContain("requestIdleCallback");
+    expect(MIXPANEL_BROWSER_SCRIPT).toContain("timeout:3000");
+    expect(MIXPANEL_BROWSER_SCRIPT).not.toContain("flatkey_analytics_consent");
     expect(MIXPANEL_BROWSER_SCRIPT).not.toContain("consent()!=='granted'");
-    expect(MIXPANEL_BROWSER_SCRIPT).not.toContain(
-      "flatkey_analytics_consent"
-    );
   });
 
   test("uses the requested autocapture and session recording config", () => {

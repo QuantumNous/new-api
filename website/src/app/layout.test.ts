@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { ATTRIBUTION_COOKIE_SCRIPT } from "@/components/root-document";
+import {
+  ATTRIBUTION_COOKIE_SCRIPT,
+  LIVECHAT_BOOTSTRAP_SCRIPT,
+  ROOT_DOCUMENT_PERFORMANCE_POLICY,
+} from "@/components/root-document";
 import { resolveLocaleFromPathname } from "@/lib/locales";
 
 describe("resolveLocaleFromPathname", () => {
@@ -25,5 +29,19 @@ describe("ATTRIBUTION_COOKIE_SCRIPT", () => {
     expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("utm_");
     expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("domain=.flatkey.ai");
     expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("SameSite=Lax");
+  });
+});
+
+describe("RootDocument performance policy", () => {
+  test("keeps third-party scripts off the initial render path", () => {
+    expect(ROOT_DOCUMENT_PERFORMANCE_POLICY.gtmStrategy).toBe("lazyOnload");
+    expect(ROOT_DOCUMENT_PERFORMANCE_POLICY.livechatStrategy).toBe("lazyOnload");
+    expect(ROOT_DOCUMENT_PERFORMANCE_POLICY.mixpanelStrategy).toBe("lazyOnload");
+  });
+
+  test("defers livechat network work until idle or user intent", () => {
+    expect(LIVECHAT_BOOTSTRAP_SCRIPT).toContain("requestIdleCallback");
+    expect(LIVECHAT_BOOTSTRAP_SCRIPT).toContain("pointerdown");
+    expect(LIVECHAT_BOOTSTRAP_SCRIPT).toContain("solvea-livechat-embed");
   });
 });

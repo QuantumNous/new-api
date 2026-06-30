@@ -181,10 +181,11 @@ function CherryStudioIcon() {
 function CCSwitchIcon() {
   return (
     <span
-      className="size-5 shrink-0 rounded-md bg-contain bg-center bg-no-repeat"
-      style={{ backgroundImage: "url(https://ccswitch.io/favicon.png)" }}
+      className="flex size-5 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-violet-600 to-fuchsia-500 font-mono text-[9px] font-black text-white"
       aria-hidden="true"
-    />
+    >
+      CC
+    </span>
   );
 }
 
@@ -204,11 +205,17 @@ function MoreAppsIcon() {
   );
 }
 
-const supportedApps = [
-  { label: "Cherry Studio", icon: <CherryStudioIcon />, muted: false },
-  { label: "CC Switch", icon: <CCSwitchIcon />, muted: false },
-  { label: "More Apps", icon: <MoreAppsIcon />, muted: true },
+export const HOMEPAGE_SUPPORTED_APPS = [
+  { label: "Cherry Studio", icon: "cherry-studio", iconUrl: undefined, muted: false },
+  { label: "CC Switch", icon: "cc-switch", iconUrl: undefined, muted: false },
+  { label: "More Apps", icon: "more-apps", iconUrl: undefined, muted: true },
 ] as const;
+
+function SupportedAppIcon(props: { icon: (typeof HOMEPAGE_SUPPORTED_APPS)[number]["icon"] }) {
+  if (props.icon === "cherry-studio") return <CherryStudioIcon />;
+  if (props.icon === "cc-switch") return <CCSwitchIcon />;
+  return <MoreAppsIcon />;
+}
 
 export function HomePage(props: Props) {
   const copy = getCopy(props.locale);
@@ -333,7 +340,7 @@ export function HomePage(props: Props) {
                   <p className="text-muted-foreground/60 text-xs leading-relaxed">{copy.home.hero.toolsDescription}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  {supportedApps.map((item) => (
+                  {HOMEPAGE_SUPPORTED_APPS.map((item) => (
                     <div
                       key={item.label}
                       className={cn(
@@ -341,7 +348,7 @@ export function HomePage(props: Props) {
                         item.muted ? "text-foreground/55" : "text-foreground/80"
                       )}
                     >
-                      {item.icon}
+                      <SupportedAppIcon icon={item.icon} />
                       <span>{item.muted ? copy.home.hero.moreApps : item.label}</span>
                     </div>
                   ))}
