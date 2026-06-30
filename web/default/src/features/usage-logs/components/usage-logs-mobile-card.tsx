@@ -217,6 +217,7 @@ function CommonLogsCard<TData>({
           cell={cells.get('token_name')}
           valueClassName='[&_.flex-col]:max-w-none [&_.flex-col>*:not(:first-child)]:text-[11px] [&_.flex-col>*:not(:first-child)]:leading-none'
         />
+        <SummaryField label={t('IP Address')} cell={cells.get('ip')} />
         <SummaryField
           label={t('Timing')}
           cell={cells.get('use_time')}

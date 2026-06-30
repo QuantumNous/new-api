@@ -1299,6 +1299,7 @@ type UpdateUserSettingRequest struct {
 	UpstreamModelUpdateNotifyEnabled *bool   `json:"upstream_model_update_notify_enabled,omitempty"`
 	AcceptUnsetModelRatioModel       bool    `json:"accept_unset_model_ratio_model"`
 	RecordIpLog                      bool    `json:"record_ip_log"`
+	ShowIpInLogs                     *bool   `json:"show_ip_in_logs,omitempty"`
 }
 
 func UpdateUserSetting(c *gin.Context) {
@@ -1393,6 +1394,10 @@ func UpdateUserSetting(c *gin.Context) {
 	if user.Role >= common.RoleAdminUser && req.UpstreamModelUpdateNotifyEnabled != nil {
 		upstreamModelUpdateNotifyEnabled = *req.UpstreamModelUpdateNotifyEnabled
 	}
+	showIpInLogs := existingSettings.ShowIpInLogs
+	if req.ShowIpInLogs != nil {
+		showIpInLogs = *req.ShowIpInLogs
+	}
 
 	// 构建设置
 	settings := dto.UserSetting{
@@ -1401,6 +1406,10 @@ func UpdateUserSetting(c *gin.Context) {
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
 		RecordIpLog:                      req.RecordIpLog,
+		ShowIpInLogs:                     showIpInLogs,
+		SidebarModules:                   existingSettings.SidebarModules,
+		BillingPreference:                existingSettings.BillingPreference,
+		Language:                         existingSettings.Language,
 	}
 
 	// 如果是webhook类型,添加webhook相关设置
