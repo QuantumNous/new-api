@@ -37,8 +37,6 @@ describe("pricing page conversion copy", () => {
     expect(plans[1]?.badge).toBe("Most Popular");
     expect(plans[1]?.discount).toBe("+5 free bonus");
     expect(plans[2]?.discount).toBe("+100 free bonus");
-    expect(plans[1]?.discount).not.toBe("40% OFF");
-    expect(plans[2]?.discount).not.toBe("50% OFF");
     expect(plans[3]?.name).toBe("Enterprise");
     expect(plans[3]?.cta).toBe("Contact Us");
   });
@@ -56,10 +54,8 @@ describe("pricing page conversion copy", () => {
       "Discover live model availability, pricing, endpoint support, and model detail pages."
     );
     expect(plans[1]?.badge).not.toBe("Most Popular");
-    expect(plans[1]?.discount?.startsWith("+5")).toBe(true);
-    expect(plans[2]?.discount?.startsWith("+100")).toBe(true);
-    expect(plans[1]?.discount).not.toBe("40% de desconto");
-    expect(plans[2]?.discount).not.toBe("50% de desconto");
+    expect(plans[1]?.discount).toBe("+5 de bônus grátis");
+    expect(plans[2]?.discount).toBe("+100 de bônus grátis");
     expect(plans[3]?.cta).not.toBe("Contact Us");
     expect(plans[3]?.name).toBe(copy.enterprisePlanName);
   });

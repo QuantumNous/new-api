@@ -37,7 +37,7 @@ import {
   submitPaymentForm,
   buildPaddleWalletCheckoutUrlWithOrder,
   rememberPaddleCheckoutUrlFallback,
-  getStripeCheckoutCurrencyForLanguage,
+  buildStripePaymentRequest,
 } from '../lib'
 import type {
   ApiResponse,
@@ -202,23 +202,14 @@ export function usePayment() {
         const amount = Math.floor(topupAmount)
         const gaIdentifiers = getGAMeasurementIdentifiers()
 
-        const stripeRequest = {
+        const stripeRequest = buildStripePaymentRequest({
           amount,
-          payment_method: 'stripe',
-          stripe_currency:
-            options?.stripeCurrency ??
-            getStripeCheckoutCurrencyForLanguage(
-              i18next.resolvedLanguage || i18next.language
-            ),
-          ...gaIdentifiers,
-          ...getStripeRedirectUrls(),
-          ...(options?.invoiceRequested && options.invoiceProfile
-            ? {
-                invoice_requested: true,
-                invoice_profile: options.invoiceProfile,
-              }
-            : {}),
-        }
+          stripeCurrency: options?.stripeCurrency,
+          gaIdentifiers,
+          redirectUrls: getStripeRedirectUrls(),
+          invoiceRequested: options?.invoiceRequested,
+          invoiceProfile: options?.invoiceProfile,
+        })
 
         const response = isStripe
           ? await requestStripePayment(stripeRequest)

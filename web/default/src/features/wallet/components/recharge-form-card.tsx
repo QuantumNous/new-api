@@ -43,9 +43,7 @@ type CheckoutPlanCopy = {
   description: string
   features: string[]
   name: string
-  price: string
   badge?: string
-  discount?: string
   featured?: boolean
 }
 
@@ -58,32 +56,29 @@ type ContactPlanCopy = {
   price: string
   amount?: never
   badge?: never
-  discount?: never
   featured?: never
 }
 
-type PlanCopy = CheckoutPlanCopy | ContactPlanCopy
+const ENTRY_PACKAGE_FEATURES = [
+  'Prepaid balance, no surprise bill',
+  'One API key for everything',
+  'Zero vendor lock-in',
+  'Usage analytics and cost controls',
+]
 
-const WEBSITE_PLAN_CARDS: PlanCopy[] = [
-  {
+const WEBSITE_CHECKOUT_PLAN_COPY_BY_AMOUNT: Record<number, CheckoutPlanCopy> = {
+  10: {
     action: 'checkout',
     amount: 10,
-    price: '$10',
     name: 'Top up {{price}}',
     caption: 'Lowest entry to get started',
     description:
       'No contract required. Add balance, create a key, copy the base_url, and test your first request.',
-    features: [
-      'Prepaid balance, no surprise bill',
-      'One API key for everything',
-      'Zero vendor lock-in',
-      'Usage analytics and cost controls',
-    ],
+    features: ENTRY_PACKAGE_FEATURES,
   },
-  {
+  20: {
     action: 'checkout',
     amount: 20,
-    price: '$20',
     name: 'Top up {{price}}',
     caption: '3X more usage than the official plan',
     description:
@@ -95,13 +90,11 @@ const WEBSITE_PLAN_CARDS: PlanCopy[] = [
       'One invoice across providers',
     ],
     badge: 'Most Popular',
-    discount: '+5 free bonus',
     featured: true,
   },
-  {
+  200: {
     action: 'checkout',
     amount: 200,
-    price: '$200',
     name: 'Top up {{price}}',
     caption: '40X more usage than the official plan',
     description:
@@ -112,26 +105,65 @@ const WEBSITE_PLAN_CARDS: PlanCopy[] = [
       'Enterprise-grade privacy',
       'One invoice across providers',
     ],
-    discount: '+100 free bonus',
   },
-  {
-    action: 'contact',
-    price: 'Custom',
-    name: 'Enterprise',
-    caption: 'Custom usage, routing, and invoicing',
-    description:
-      'For higher monthly usage, invoicing, team procurement, or custom routing discounts.',
-    features: [
-      'Custom monthly usage',
-      'Team procurement support',
-      'Custom routing discounts',
-      'One invoice across providers',
-    ],
-  },
-]
+}
+
+const CONTACT_PLAN_CARD: ContactPlanCopy = {
+  action: 'contact',
+  price: 'Custom',
+  name: 'Enterprise',
+  caption: 'Custom usage, routing, and invoicing',
+  description:
+    'For higher monthly usage, invoicing, team procurement, or custom routing discounts.',
+  features: [
+    'Custom monthly usage',
+    'Team procurement support',
+    'Custom routing discounts',
+    'One invoice across providers',
+  ],
+}
 
 function formatTopUpAmount(amount: number): string {
   return `$${formatNumber(amount)}`
+}
+
+function getCheckoutPlanCopy(
+  preset: PresetAmount,
+  index: number
+): CheckoutPlanCopy {
+  const knownPlanCopy = WEBSITE_CHECKOUT_PLAN_COPY_BY_AMOUNT[preset.value]
+  if (knownPlanCopy) {
+    return knownPlanCopy
+  }
+
+  return {
+    action: 'checkout',
+    amount: preset.value,
+    name: 'Top up {{price}}',
+    caption:
+      index === 0
+        ? 'Lowest entry to get started'
+        : 'Prepaid balance, no surprise bill',
+    description:
+      'No contract required. Add balance, create a key, copy the base_url, and test your first request.',
+    features: ENTRY_PACKAGE_FEATURES,
+  }
+}
+
+function getConfiguredPresetAmounts(
+  presetAmounts: PresetAmount[]
+): PresetAmount[] {
+  const seen = new Set<number>()
+  return presetAmounts.filter((preset) => {
+    if (!Number.isFinite(preset.value) || preset.value <= 0) {
+      return false
+    }
+    if (seen.has(preset.value)) {
+      return false
+    }
+    seen.add(preset.value)
+    return true
+  })
 }
 
 export function RechargeFormCard(props: RechargeFormCardProps) {
@@ -161,6 +193,17 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
     props.onSelectPreset(preset)
     props.onStripeTopUp(preset)
   }
+  const checkoutPresetAmounts = getConfiguredPresetAmounts(props.presetAmounts)
+  const planCards: Array<
+    | { planCopy: CheckoutPlanCopy; preset: PresetAmount }
+    | { planCopy: ContactPlanCopy; preset: null }
+  > = [
+    ...checkoutPresetAmounts.map((preset, index) => ({
+      planCopy: getCheckoutPlanCopy(preset, index),
+      preset,
+    })),
+    { planCopy: CONTACT_PLAN_CARD, preset: null },
+  ]
 
   return (
     <TitledCard
@@ -169,22 +212,19 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
       icon={<WalletCards className='h-4 w-4' />}
       contentClassName='space-y-4 sm:space-y-6'
     >
-      {stripeEnabled ? (
+      {stripeEnabled && checkoutPresetAmounts.length > 0 ? (
         <div className='grid gap-3 lg:grid-cols-4'>
-          {WEBSITE_PLAN_CARDS.map((planCopy) => {
-            const preset =
-              planCopy.action === 'checkout'
-                ? props.presetAmounts.find(
-                    (candidate) => candidate.value === planCopy.amount
-                  ) || { value: planCopy.amount }
-                : null
+          {planCards.map((planCard) => {
+            const planCopy = planCard.planCopy
+            const preset = planCard.preset
             const selected =
               preset != null && props.selectedPreset === preset.value
             const loading =
               preset != null && props.paymentLoadingAmount === preset.value
-            const price = preset
-              ? formatTopUpAmount(preset.value)
-              : t(planCopy.price)
+            const price =
+              planCard.preset != null
+                ? formatTopUpAmount(planCard.preset.value)
+                : t(planCard.planCopy.price)
 
             return (
               <div
@@ -201,11 +241,6 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
                   {planCopy.badge ? (
                     <span className='bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-[11px] font-semibold'>
                       {t(planCopy.badge)}
-                    </span>
-                  ) : null}
-                  {planCopy.discount ? (
-                    <span className='rounded-full border border-[#FF2D78]/30 bg-[#FF2D78]/10 px-2 py-0.5 text-[11px] font-semibold text-[#D80D5D] dark:text-[#FF78A9]'>
-                      {t(planCopy.discount)}
                     </span>
                   ) : null}
                 </div>

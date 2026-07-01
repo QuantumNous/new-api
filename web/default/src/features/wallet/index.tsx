@@ -56,6 +56,7 @@ import {
   getPaddleCheckoutUrlFallback,
   getWalletCheckoutInitialTopupAmount,
   isPresetTopupAmount,
+  normalizeStripeCheckoutCurrency,
   shouldConsumeWalletCheckoutSearchParams,
   type WalletCheckoutSearch,
 } from './lib'
@@ -133,6 +134,7 @@ export function Wallet(props: WalletProps) {
   const paddleCheckoutCompletedRef = useRef(false)
   const cardBoundHandledRef = useRef(false)
   const appliedCheckoutSearchRef = useRef(false)
+  const stripeTopUpInFlightRef = useRef(false)
   const [cardBoundDialogOpen, setCardBoundDialogOpen] = useState(false)
 
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
@@ -596,6 +598,11 @@ export function Wallet(props: WalletProps) {
   }
 
   const handleStripeTopUp = async (preset: PresetAmount) => {
+    if (stripeTopUpInFlightRef.current) {
+      return
+    }
+
+    stripeTopUpInFlightRef.current = true
     setTopupAmount(preset.value)
     setSelectedPreset(preset.value)
     setPaymentLoadingAmount(preset.value)
@@ -611,13 +618,19 @@ export function Wallet(props: WalletProps) {
         return
       }
 
-      const success = await processPayment(preset.value, 'stripe', {
-        stripeCurrency: 'USD',
-      })
+      const checkoutCurrency = normalizeStripeCheckoutCurrency(
+        props.initialCheckoutSearch?.currency
+      )
+      const success = await processPayment(
+        preset.value,
+        'stripe',
+        checkoutCurrency ? { stripeCurrency: checkoutCurrency } : undefined
+      )
       if (success) {
         await fetchUser()
       }
     } finally {
+      stripeTopUpInFlightRef.current = false
       setPaymentLoadingAmount(null)
     }
   }

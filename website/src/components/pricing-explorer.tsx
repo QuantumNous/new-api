@@ -51,10 +51,6 @@ export function PricingExplorer(props: PricingExplorerProps) {
   const topVendors = useMemo(() => getTopVendors(props.models, 18), [props.models]);
   const topEndpoints = useMemo(() => getTopEndpoints(props.models, 10), [props.models]);
   const hasActiveFilters = vendor !== ALL || quota !== ALL || endpoint !== ALL;
-  const topVendorEntries = useMemo(
-    () => topVendors.map((vendorName) => props.vendors.find((item) => item.name === vendorName)).filter(Boolean),
-    [props.vendors, topVendors]
-  );
 
   const resetFilters = () => {
     setVendor(ALL);
@@ -117,19 +113,18 @@ export function PricingExplorer(props: PricingExplorerProps) {
                 active={vendor === ALL}
                 onClick={() => setVendor(ALL)}
               />
-              {topVendorEntries.map((vendorInfo) => {
-                const vendorSlug = vendorInfo?.slug ?? vendorInfo?.name ?? "";
-                const vendorName = vendorInfo?.name ?? vendorSlug;
-                const count = props.models.filter((model) => model.vendor_slug === vendorSlug || model.vendor_name === vendorName).length;
+              {topVendors.map((vendorName) => {
+                const vendorInfo = props.vendors.find((item) => item.name === vendorName);
+                const count = props.models.filter((model) => model.vendor_name === vendorName).length;
                 return (
                   <FilterChip
                     key={vendorName}
-                    href={pricingHref(props.locale, { vendor: vendorSlug })}
+                    href={pricingHref(props.locale, { vendor: vendorName })}
                     label={vendorName}
                     count={count}
-                    active={vendor === vendorSlug || vendor === vendorName}
+                    active={vendor === vendorName}
                     icon={vendorInfo?.icon ? <ModelLogo iconKey={vendorInfo.icon} fallback={vendorName.charAt(0)} size={14} /> : undefined}
-                    onClick={() => setVendor(vendorSlug)}
+                    onClick={() => setVendor(vendorName)}
                   />
                 );
               })}
@@ -191,13 +186,8 @@ export function PricingExplorer(props: PricingExplorerProps) {
               </MobileFilterRow>
               <MobileFilterRow title={copy(props.locale, "allVendors")}>
                 <FilterChip label={copy(props.locale, "allVendors")} active={vendor === ALL} onClick={() => setVendor(ALL)} />
-                {topVendorEntries.slice(0, 8).map((vendorInfo) => (
-                  <FilterChip
-                    key={vendorInfo?.slug ?? vendorInfo?.name}
-                    label={vendorInfo?.name ?? ""}
-                    active={vendor === vendorInfo?.slug || vendor === vendorInfo?.name}
-                    onClick={() => setVendor(vendorInfo?.slug ?? vendorInfo?.name ?? ALL)}
-                  />
+                {topVendors.slice(0, 8).map((vendorName) => (
+                  <FilterChip key={vendorName} label={vendorName} active={vendor === vendorName} onClick={() => setVendor(vendorName)} />
                 ))}
               </MobileFilterRow>
             </div>

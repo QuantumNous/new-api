@@ -17,22 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
-import { getStripeCheckoutCurrencyForLanguage } from './stripe-currency'
+import { normalizeStripeCheckoutCurrency } from './stripe-currency'
 
-describe('getStripeCheckoutCurrencyForLanguage', () => {
-  test('routes Japanese language to JPY checkout', () => {
-    expect(getStripeCheckoutCurrencyForLanguage('ja')).toBe('JPY')
-    expect(getStripeCheckoutCurrencyForLanguage('ja-JP')).toBe('JPY')
-  })
-
-  test('routes Portuguese language to BRL checkout', () => {
-    expect(getStripeCheckoutCurrencyForLanguage('pt')).toBe('BRL')
-    expect(getStripeCheckoutCurrencyForLanguage('pt-BR')).toBe('BRL')
-  })
-
-  test('uses USD checkout for all other languages', () => {
-    expect(getStripeCheckoutCurrencyForLanguage('en')).toBe('USD')
-    expect(getStripeCheckoutCurrencyForLanguage('zh-CN')).toBe('USD')
-    expect(getStripeCheckoutCurrencyForLanguage(undefined)).toBe('USD')
+describe('normalizeStripeCheckoutCurrency', () => {
+  test('normalizes explicit checkout currency search params', () => {
+    expect(normalizeStripeCheckoutCurrency('usd')).toBe('USD')
+    expect(normalizeStripeCheckoutCurrency(' JPY ')).toBe('JPY')
+    expect(normalizeStripeCheckoutCurrency('brl')).toBe('BRL')
+    expect(normalizeStripeCheckoutCurrency('eur')).toBeUndefined()
+    expect(normalizeStripeCheckoutCurrency(undefined)).toBeUndefined()
   })
 })

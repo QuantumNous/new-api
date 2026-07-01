@@ -5,7 +5,6 @@ export const API_BASE_URL = APP_CONSOLE_ORIGIN;
 export type PricingVendor = {
   id: number;
   name: string;
-  slug?: string;
   icon?: string;
   description?: string;
 };
@@ -13,12 +12,10 @@ export type PricingVendor = {
 export type PricingModel = {
   id?: number;
   model_name: string;
-  model_slug?: string;
   description?: string;
   icon?: string;
   vendor_id?: number;
   vendor_name?: string;
-  vendor_slug?: string;
   vendor_icon?: string;
   vendor_description?: string;
   quota_type: number;
@@ -120,14 +117,7 @@ export function filterPricingModels(models: PricingModel[], search: PricingSearc
       if (!haystack.includes(query)) return false;
     }
 
-    if (
-      vendor &&
-      vendor !== "all" &&
-      model.vendor_slug?.toLowerCase() !== vendor &&
-      model.vendor_name?.toLowerCase() !== vendor
-    ) {
-      return false;
-    }
+    if (vendor && vendor !== "all" && model.vendor_name?.toLowerCase() !== vendor) return false;
     if (endpoint && endpoint !== "all" && !(model.supported_endpoint_types ?? []).some((item) => item.toLowerCase() === endpoint)) {
       return false;
     }
