@@ -14,6 +14,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
@@ -98,6 +99,14 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 
 	if isCompact {
 		return request, nil
+	}
+	// Codex upstream (chatgpt.com/backend-api/codex/responses) only accepts
+	// streaming requests and rejects with 400 "Stream must be set to true"
+	// otherwise. Force it here so every call path (manual test, batch test,
+	// playground, third-party clients) honors the upstream contract.
+	request.Stream = lo.ToPtr(true)
+	if info != nil {
+		info.IsStream = true
 	}
 	// codex: store must be false
 	request.Store = json.RawMessage("false")
