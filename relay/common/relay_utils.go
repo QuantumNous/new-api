@@ -195,6 +195,7 @@ func isKnownTaskField(field string) bool {
 		"images":          true,
 		"size":            true,
 		"duration":        true,
+		"webhook":         true,
 		"input_reference": true, // Sora 特有字段
 	}
 	return knownFields[field]

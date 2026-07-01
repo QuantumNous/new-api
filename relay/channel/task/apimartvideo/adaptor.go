@@ -28,6 +28,7 @@ type submitPayload struct {
 	Resolution  string   `json:"resolution,omitempty"`
 	AspectRatio string   `json:"aspect_ratio,omitempty"`
 	ImageURLs   []string `json:"image_urls,omitempty"`
+	Webhook     string   `json:"webhook,omitempty"`
 }
 
 type motionControlPayload struct {
@@ -40,6 +41,7 @@ type motionControlPayload struct {
 	Mode                 string                 `json:"mode"`
 	WatermarkInfo        map[string]interface{} `json:"watermark_info,omitempty"`
 	Duration             int                    `json:"duration,omitempty"`
+	Webhook              string                 `json:"webhook,omitempty"`
 }
 
 type submitEnvelope struct {
@@ -146,6 +148,7 @@ func (a *TaskAdaptor) validateApimartJSON(c *gin.Context, info *relaycommon.Rela
 		Model:    body.Model,
 		Duration: body.Duration,
 		Images:   body.ImageURLs,
+		Webhook:  resolveWebhook(body.Webhook),
 		Metadata: map[string]interface{}{
 			"resolution":   body.Resolution,
 			"aspect_ratio": body.AspectRatio,
@@ -282,6 +285,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			if body.KeepOriginalSound == "" {
 				body.KeepOriginalSound = "yes"
 			}
+			body.Webhook = resolveWebhook(body.Webhook)
 			out, err := common.Marshal(body)
 			if err != nil {
 				return nil, err
@@ -303,6 +307,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if body.AspectRatio == "" {
 			body.AspectRatio = "16:9"
 		}
+		body.Webhook = resolveWebhook(body.Webhook)
 		out, err := common.Marshal(body)
 		if err != nil {
 			return nil, err
@@ -354,7 +359,15 @@ func openAIToApimart(req relaycommon.TaskSubmitReq, upstreamModel string) submit
 		Resolution:  resolution,
 		AspectRatio: aspect,
 		ImageURLs:   imageURLs,
+		Webhook:     resolveWebhook(req.Webhook),
 	}
+}
+
+func resolveWebhook(raw string) string {
+	if strings.TrimSpace(raw) != "" {
+		return strings.TrimSpace(raw)
+	}
+	return service.MediaTaskWebhookBase()
 }
 
 func sizeToApimart(size string) (resolution, aspect string) {

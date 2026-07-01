@@ -342,6 +342,28 @@ func GetByOnlyTaskId(taskId string) (*Task, bool, error) {
 	return task, exist, err
 }
 
+func GetByTaskOrUpstreamTaskId(taskId string) (*Task, bool, error) {
+	task, exist, err := GetByOnlyTaskId(taskId)
+	if err != nil || exist || taskId == "" {
+		return task, exist, err
+	}
+
+	var upstreamTask Task
+	err = DB.Where(
+		"private_data LIKE ? OR private_data LIKE ?",
+		`%"upstream_task_id":"`+taskId+`"%`,
+		`%"hedge_upstream_task_id":"`+taskId+`"%`,
+	).First(&upstreamTask).Error
+	exist, err = RecordExist(err)
+	if err != nil {
+		return nil, false, err
+	}
+	if !exist {
+		return nil, false, nil
+	}
+	return &upstreamTask, true, nil
+}
+
 func GetByTaskId(userId int, taskId string) (*Task, bool, error) {
 	if taskId == "" {
 		return nil, false, nil

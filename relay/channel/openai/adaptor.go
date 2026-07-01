@@ -575,8 +575,17 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		return &requestBody, nil
 
 	default:
+		if common.UsesAsyncImageTaskUpstream(info.OriginModelName) &&
+			isAPIMartCompatibleBase(info.ChannelBaseUrl) &&
+			strings.TrimSpace(request.Webhook) == "" {
+			request.Webhook = service.MediaTaskWebhookBase()
+		}
 		return request, nil
 	}
+}
+
+func isAPIMartCompatibleBase(baseURL string) bool {
+	return strings.Contains(strings.ToLower(baseURL), "apimart.ai")
 }
 
 func isJSONRequest(c *gin.Context) bool {

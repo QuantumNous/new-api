@@ -61,6 +61,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/waffo-pancake/webhook", controller.WaffoPancakeWebhook)
 		apiRouter.POST("/payment/platega/callback", controller.PlategaCallback)
 		apiRouter.POST("/payment/clink/webhook", controller.ClinkWebhook)
+		apiRouter.POST("/tasks/callback", controller.MediaTaskCallback)
 
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)

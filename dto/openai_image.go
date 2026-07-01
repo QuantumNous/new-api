@@ -38,6 +38,7 @@ type ImageRequest struct {
 	Image            json.RawMessage `json:"image,omitempty"`
 	ImageUrls        []string        `json:"image_urls,omitempty"`
 	MaskUrl          string          `json:"mask_url,omitempty"`
+	Webhook          string          `json:"webhook,omitempty"`
 	// 用匿名参数接收额外参数
 	Extra map[string]json.RawMessage `json:"-"`
 }
