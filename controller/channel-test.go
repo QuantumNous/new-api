@@ -771,6 +771,24 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	if strings.Contains(strings.ToLower(model), "embedding") ||
 		strings.HasPrefix(model, "m3e") ||
 		strings.Contains(model, "bge-") {
+		// Volcengine multimodal embedding endpoint (/api/v3/embeddings/multimodal)
+		// requires input to be an array of typed parts (e.g. [{type:"text",text:"..."}]),
+		// not a plain string array. Sending the standard `["hello world"]` shape
+		// against vision/multimodal models triggers a 400 from the upstream
+		// "we could not parse the JSON body of your request" — so emit the
+		// multimodal-compatible shape when the model name signals it.
+		lower := strings.ToLower(model)
+		if strings.Contains(lower, "vision") || strings.Contains(lower, "multimodal") {
+			return &dto.EmbeddingRequest{
+				Model: model,
+				Input: []any{
+					map[string]any{
+						"type": "text",
+						"text": "hello world",
+					},
+				},
+			}
+		}
 		// 返回 EmbeddingRequest
 		return &dto.EmbeddingRequest{
 			Model: model,
