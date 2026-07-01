@@ -199,6 +199,7 @@ func SubscriptionRequestAlipayPay(c *gin.Context) {
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
+	order.ApplyPaymentSnapshot(buildPaymentSnapshot(plan.PriceAmount, payMoney, "CNY"))
 	if err := model.CreateAlipaySubscriptionWithPendingTask(order, service.NextAlipayPendingQueryTime(time.Now())); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Alipay 创建订阅订单失败 user_id=%d trade_no=%s plan_id=%d error=%q", userId, tradeNo, plan.Id, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentCreateFailed)})

@@ -182,7 +182,15 @@ func getPayMoney(amount int64, group string) float64 {
 	}
 
 	dTopupGroupRatio := decimal.NewFromFloat(topupGroupRatio)
-	dPrice := decimal.NewFromFloat(operation_setting.Price)
+	exchangeRate := operation_setting.USDExchangeRate
+	if exchangeRate <= 0 {
+		// Backward-compatible fallback for old deployments that only configured Price.
+		exchangeRate = operation_setting.Price
+	}
+	if exchangeRate <= 0 {
+		exchangeRate = 1
+	}
+	dPrice := decimal.NewFromFloat(exchangeRate)
 	// apply optional preset discount by the original request amount (if configured), default 1.0
 	discount := 1.0
 	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(amount)]; ok {
@@ -276,6 +284,7 @@ func RequestEpay(c *gin.Context) {
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
+	topUp.ApplyPaymentSnapshot(buildPaymentSnapshot(float64(req.Amount), payMoney, "CNY"))
 	err = topUp.Insert()
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 创建充值订单失败 user_id=%d trade_no=%s payment_method=%s amount=%d error=%q", id, tradeNo, req.PaymentMethod, req.Amount, err.Error()))

@@ -25,10 +25,22 @@ func TestCreateAlipayTopUpWithPendingTask(t *testing.T) {
 		Status:          common.TopUpStatusPending,
 		CreateTime:      100,
 	}
+	topUp.ApplyPaymentSnapshot(PaymentSnapshot{
+		DisplayAmount:        10,
+		DisplayCurrency:      "USD",
+		SettlementAmount:     7.3,
+		SettlementCurrency:   "CNY",
+		ExchangeRateSnapshot: 7.3,
+	})
 	require.NoError(t, CreateAlipayTopUpWithPendingTask(topUp, 130))
 
 	var storedTopUp TopUp
 	require.NoError(t, DB.Where("trade_no = ?", topUp.TradeNo).First(&storedTopUp).Error)
+	require.Equal(t, 10.0, storedTopUp.DisplayAmount)
+	require.Equal(t, "USD", storedTopUp.DisplayCurrency)
+	require.Equal(t, 7.3, storedTopUp.SettlementAmount)
+	require.Equal(t, "CNY", storedTopUp.SettlementCurrency)
+	require.Equal(t, 7.3, storedTopUp.ExchangeRateSnapshot)
 
 	var task AlipayPendingTask
 	require.NoError(t, DB.Where("trade_no = ?", topUp.TradeNo).First(&task).Error)
@@ -65,6 +77,13 @@ func TestCreateAlipaySubscriptionWithPendingTask(t *testing.T) {
 		Status:          common.TopUpStatusPending,
 		CreateTime:      100,
 	}
+	order.ApplyPaymentSnapshot(PaymentSnapshot{
+		DisplayAmount:        9.99,
+		DisplayCurrency:      "USD",
+		SettlementAmount:     70,
+		SettlementCurrency:   "CNY",
+		ExchangeRateSnapshot: 7,
+	})
 	require.NoError(t, CreateAlipaySubscriptionWithPendingTask(order, 130))
 
 	var storedOrder SubscriptionOrder
@@ -77,6 +96,11 @@ func TestCreateAlipaySubscriptionWithPendingTask(t *testing.T) {
 	require.Equal(t, order.Money, storedTopUp.Money)
 	require.Equal(t, order.PaymentMethod, storedTopUp.PaymentMethod)
 	require.Equal(t, order.PaymentProvider, storedTopUp.PaymentProvider)
+	require.Equal(t, order.DisplayAmount, storedTopUp.DisplayAmount)
+	require.Equal(t, order.DisplayCurrency, storedTopUp.DisplayCurrency)
+	require.Equal(t, order.SettlementAmount, storedTopUp.SettlementAmount)
+	require.Equal(t, order.SettlementCurrency, storedTopUp.SettlementCurrency)
+	require.Equal(t, order.ExchangeRateSnapshot, storedTopUp.ExchangeRateSnapshot)
 
 	var task AlipayPendingTask
 	require.NoError(t, DB.Where("trade_no = ?", order.TradeNo).First(&task).Error)

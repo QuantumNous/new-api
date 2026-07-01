@@ -244,14 +244,19 @@ func TestAlipayNotifyCompletesSubscriptionOrderAndCreatesSubscription(t *testing
 		UpgradeGroup:  "",
 	}).Error)
 	require.NoError(t, model.DB.Create(&model.SubscriptionOrder{
-		UserId:          91,
-		PlanId:          92,
-		Money:           70,
-		TradeNo:         "sub_ref_real_callback_91",
-		PaymentMethod:   model.PaymentMethodAlipay,
-		PaymentProvider: model.PaymentProviderAlipay,
-		Status:          common.TopUpStatusPending,
-		CreateTime:      1,
+		UserId:               91,
+		PlanId:               92,
+		Money:                70,
+		DisplayAmount:        10,
+		DisplayCurrency:      "USD",
+		SettlementAmount:     70,
+		SettlementCurrency:   "CNY",
+		ExchangeRateSnapshot: 7,
+		TradeNo:              "sub_ref_real_callback_91",
+		PaymentMethod:        model.PaymentMethodAlipay,
+		PaymentProvider:      model.PaymentProviderAlipay,
+		Status:               common.TopUpStatusPending,
+		CreateTime:           1,
 	}).Error)
 
 	form := url.Values{}
@@ -274,6 +279,19 @@ func TestAlipayNotifyCompletesSubscriptionOrderAndCreatesSubscription(t *testing
 	order := model.GetSubscriptionOrderByTradeNo("sub_ref_real_callback_91")
 	require.NotNil(t, order)
 	require.Equal(t, common.TopUpStatusSuccess, order.Status)
+	require.Equal(t, 10.0, order.DisplayAmount)
+	require.Equal(t, "USD", order.DisplayCurrency)
+	require.Equal(t, 70.0, order.SettlementAmount)
+	require.Equal(t, "CNY", order.SettlementCurrency)
+	require.Equal(t, 7.0, order.ExchangeRateSnapshot)
+
+	topup := model.GetTopUpByTradeNo("sub_ref_real_callback_91")
+	require.NotNil(t, topup)
+	require.Equal(t, 10.0, topup.DisplayAmount)
+	require.Equal(t, "USD", topup.DisplayCurrency)
+	require.Equal(t, 70.0, topup.SettlementAmount)
+	require.Equal(t, "CNY", topup.SettlementCurrency)
+	require.Equal(t, 7.0, topup.ExchangeRateSnapshot)
 
 	var sub model.UserSubscription
 	require.NoError(t, model.DB.Where("user_id = ? AND plan_id = ?", 91, 92).First(&sub).Error)

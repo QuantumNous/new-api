@@ -95,6 +95,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
+	order.ApplyPaymentSnapshot(buildPaymentSnapshot(plan.PriceAmount, plan.PriceAmount, "CNY"))
 	if err := order.Insert(); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgPaymentCreateFailed)
 		return

@@ -250,6 +250,9 @@ func InitLogDB() (err error) {
 func migrateDB() error {
 	// Migrate price_amount column from float/double to decimal for existing tables
 	migrateSubscriptionPlanPriceAmount()
+	if err := migratePaymentSnapshotColumns(); err != nil {
+		return err
+	}
 	// Migrate model_limits column from varchar to text for existing tables
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
@@ -311,6 +314,9 @@ func migrateDB() error {
 func migrateDBFast() error {
 
 	var wg sync.WaitGroup
+	if err := migratePaymentSnapshotColumns(); err != nil {
+		return err
+	}
 	if err := ensurePlaygroundConversationTypeColumn(); err != nil {
 		return err
 	}
@@ -397,6 +403,38 @@ func ensurePlaygroundConversationTypeColumn() error {
 		return nil
 	}
 	return DB.Migrator().AddColumn(&PlaygroundConversation{}, "Type")
+}
+
+func migratePaymentSnapshotColumns() error {
+	if err := ensurePaymentSnapshotColumns(&TopUp{}); err != nil {
+		return err
+	}
+	if err := ensurePaymentSnapshotColumns(&SubscriptionOrder{}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ensurePaymentSnapshotColumns(model interface{}) error {
+	if !DB.Migrator().HasTable(model) {
+		return nil
+	}
+	columns := []string{
+		"DisplayAmount",
+		"DisplayCurrency",
+		"SettlementAmount",
+		"SettlementCurrency",
+		"ExchangeRateSnapshot",
+	}
+	for _, column := range columns {
+		if DB.Migrator().HasColumn(model, column) {
+			continue
+		}
+		if err := DB.Migrator().AddColumn(model, column); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func migrateLOGDB() error {
