@@ -5,62 +5,71 @@ import "fmt"
 var VolcAssetConfig = VolcAssetSettings{}
 
 const (
-	// AssetFormatVolcengine 官方内置出口：火山 Ark 直连（AK/SK HMAC 签名）。
-	// 仅此格式需内置——HMAC 签名无法用模板表达；其余协议（如火山兼容网关）请用自定义格式模板。
+	// AssetFormatVolcengine is an official built-in outbound: Volcengine Ark direct
+	// connection with AK/SK HMAC signing. Only this format needs to be built in—HMAC
+	// signing cannot be expressed as a template; use a custom format template for
+	// other protocols (such as Volcengine-compatible gateways).
 	AssetFormatVolcengine = "volcengine"
-	// AssetFormatNewAPI 官方内置出口：对接另一台 new-api 的资产接口（路径式 Action + Bearer），用于套娃。
+	// AssetFormatNewAPI is an official built-in outbound targeting another new-api
+	// instance's asset endpoints (path-style Action + Bearer), used for nesting.
 	AssetFormatNewAPI = "newapi"
 )
 
 const (
-	// DefaultOutboundSelectorHeader 客户端用于指定出口的请求头（值为出口 Id）。
+	// DefaultOutboundSelectorHeader is the request header clients use to select an
+	// outbound (its value is the outbound Id).
 	DefaultOutboundSelectorHeader = "X-Asset-Outbound"
-	// defaultOutboundId 出口未填 Id 时使用的稳定标识。
+	// defaultOutboundId is the stable identifier used when an outbound has no Id.
 	defaultOutboundId = "default"
 )
 
-// AssetAuthSpec 描述自定义出口格式的鉴权方式。Value 支持模板占位符：
-// {access_key} {secret_key} {access_token} {project_name} {region} {group_type}。
+// AssetAuthSpec describes the auth scheme for a custom outbound format. Value
+// supports template placeholders:
+// {access_key} {secret_key} {access_token} {project_name} {region} {group_type}.
 type AssetAuthSpec struct {
 	Type  string `json:"type,omitempty"` // none | header | query | bearer
-	Name  string `json:"name,omitempty"` // header/query 名称
+	Name  string `json:"name,omitempty"` // header/query name
 	Value string `json:"value,omitempty"`
 }
 
-// AssetFieldMap 描述一次 JSON 字段搬运：把 From 路径(gjson)的值写到 To 路径(sjson)。
+// AssetFieldMap describes one JSON field move: it writes the value at the From
+// path (gjson) to the To path (sjson).
 type AssetFieldMap struct {
 	From string `json:"from"`
 	To   string `json:"to"`
 }
 
-// AssetActionTemplate 描述某个动作（或一组动作的默认值）如何构造上游请求与解析上游响应。
+// AssetActionTemplate describes how one action (or the default for a group of
+// actions) builds the upstream request and parses the upstream response.
 type AssetActionTemplate struct {
-	// Method 上游 HTTP 方法，缺省 POST。
+	// Method is the upstream HTTP method; defaults to POST.
 	Method string `json:"method,omitempty"`
-	// URLTemplate 上游 URL 模板，支持 {base_url} {action} {field:<canonicalPath>} 占位符。
+	// URLTemplate is the upstream URL template; supports {base_url} {action} {field:<canonicalPath>} placeholders.
 	URLTemplate string `json:"url_template,omitempty"`
-	// Headers 附加静态请求头（值支持模板占位符）。
+	// Headers are extra static request headers (values support template placeholders).
 	Headers map[string]string `json:"headers,omitempty"`
-	// RequestStatic 写入上游请求体的静态字段，键为 sjson 路径，值支持模板占位符。
+	// RequestStatic are static fields written into the upstream request body; keys are sjson paths and values support template placeholders.
 	RequestStatic map[string]string `json:"request_static,omitempty"`
-	// RequestMapping 把规范化请求体(canonical)的字段搬运到上游请求体。
+	// RequestMapping moves fields from the canonical request body into the upstream request body.
 	RequestMapping []AssetFieldMap `json:"request_mapping,omitempty"`
-	// RequestPassthrough 为 true 时直接透传规范化请求体（仍会叠加 RequestStatic）。
+	// RequestPassthrough, when true, passes the canonical request body through directly (RequestStatic is still applied on top).
 	RequestPassthrough bool `json:"request_passthrough,omitempty"`
-	// ResultPath 上游响应中“结果”所在的 gjson 路径，留空表示整个响应体即结果。
+	// ResultPath is the gjson path to the "result" in the upstream response; empty means the whole response body is the result.
 	ResultPath string `json:"result_path,omitempty"`
-	// ErrorCodePath / ErrorMessagePath 上游业务错误码/消息所在路径，错误码非空即视为失败。
+	// ErrorCodePath / ErrorMessagePath are the paths to the upstream business error code/message; a non-empty error code is treated as failure.
 	ErrorCodePath    string `json:"error_code_path,omitempty"`
 	ErrorMessagePath string `json:"error_message_path,omitempty"`
-	// ItemsPath 列表结果中数组所在路径（相对 ResultPath）；配合 ItemMapping 逐元素归一。
+	// ItemsPath is the path to the array in a list result (relative to ResultPath); combined with ItemMapping it normalizes each element.
 	ItemsPath   string          `json:"items_path,omitempty"`
 	ItemMapping []AssetFieldMap `json:"item_mapping,omitempty"`
-	// ResponseMapping 把上游结果(相对 ResultPath)的标量字段搬运到规范化结果。
+	// ResponseMapping moves scalar fields from the upstream result (relative to ResultPath) into the canonical result.
 	ResponseMapping []AssetFieldMap `json:"response_mapping,omitempty"`
 }
 
-// AssetCustomFormat 是一份用户自定义的出口格式模板。内嵌的 AssetActionTemplate 作为所有动作的默认值，
-// Actions 可对单个动作覆盖。这样既能用一份默认模板覆盖全部动作，也能为差异动作单独定制。
+// AssetCustomFormat is a user-defined outbound format template. The embedded
+// AssetActionTemplate is the default for all actions, and Actions can override
+// individual actions. This lets one default template cover every action while
+// still customizing the actions that differ.
 type AssetCustomFormat struct {
 	Id   string        `json:"id"`
 	Name string        `json:"name,omitempty"`
@@ -69,11 +78,12 @@ type AssetCustomFormat struct {
 	Actions map[string]AssetActionTemplate `json:"actions,omitempty"`
 }
 
-// AssetOutbound 是一个出口（egress）：new-api 以何种格式、凭证、基址访问某个上游资产服务。
+// AssetOutbound is an egress: the format, credentials and base URL new-api uses
+// to reach an upstream asset service.
 type AssetOutbound struct {
 	Id          string `json:"id"`
 	Name        string `json:"name,omitempty"`
-	Format      string `json:"format"` // 内置: volcengine | newapi；或自定义格式 Id
+	Format      string `json:"format"` // built-in: volcengine | newapi; or a custom format Id
 	BaseURL     string `json:"base_url,omitempty"`
 	Region      string `json:"region,omitempty"`
 	ProjectName string `json:"project_name,omitempty"`
@@ -81,28 +91,30 @@ type AssetOutbound struct {
 	AccessKey   string `json:"access_key,omitempty"`
 	SecretKey   string `json:"secret_key,omitempty"`
 	AccessToken string `json:"access_token,omitempty"`
-	// Disabled 为 true 时该出口不参与解析（默认 false 即启用）。
+	// Disabled, when true, excludes the outbound from resolution (default false means enabled).
 	Disabled bool `json:"disabled,omitempty"`
 }
 
-// VolcAssetSettings 是资产网关的系统级配置：入口固定为规范化(火山原生)格式，出口可配置多个。
+// VolcAssetSettings is the system-level config of the asset gateway: the inbound is
+// fixed to the canonical (Volcengine-native) format, while multiple outbounds can be configured.
 type VolcAssetSettings struct {
-	// Outbounds 出口列表，可配置多个。
+	// Outbounds is the list of outbounds; multiple can be configured.
 	Outbounds []AssetOutbound `json:"outbounds"`
-	// DefaultOutbound 客户端未指定出口时使用的出口 Id。
+	// DefaultOutbound is the outbound Id used when the client does not specify one.
 	DefaultOutbound string `json:"default_outbound,omitempty"`
-	// OutboundSelectorHeader 客户端用于指定出口的请求头名（缺省 X-Asset-Outbound）。
+	// OutboundSelectorHeader is the request header name clients use to select an outbound (defaults to X-Asset-Outbound).
 	OutboundSelectorHeader string `json:"outbound_selector_header,omitempty"`
-	// Failover 为 true 时，所选/默认出口不可用时按顺序回退到其它已启用出口。
+	// Failover, when true, falls back in order to other enabled outbounds when the selected/default outbound is unavailable.
 	Failover bool `json:"failover,omitempty"`
-	// CustomFormats 自定义出口格式模板，被 Outbound.Format 以 Id 引用。
+	// CustomFormats are custom outbound format templates, referenced by Id from Outbound.Format.
 	CustomFormats []AssetCustomFormat `json:"custom_formats,omitempty"`
 
-	// ActionPrices 为每个面向用户的资产操作配置固定扣费额度（单位与系统额度一致）。
-	// 键为 Action（ListAssets/GetAsset/CreateAsset/UpdateAsset/DeleteAsset），缺省或 <=0 表示免费。
+	// ActionPrices configures a fixed charge for each user-facing asset operation
+	// (in the same unit as the system quota). Keys are actions
+	// (ListAssets/GetAsset/CreateAsset/UpdateAsset/DeleteAsset); missing or <=0 means free.
 	ActionPrices map[string]int `json:"action_prices,omitempty"`
 
-	// RateLimitCount / RateLimitDurationSeconds 控制按用户的资产接口限流；任一 <=0 表示关闭限流。
+	// RateLimitCount / RateLimitDurationSeconds control per-user rate limiting of the asset endpoints; either being <=0 disables rate limiting.
 	RateLimitCount           int `json:"rate_limit_count,omitempty"`
 	RateLimitDurationSeconds int `json:"rate_limit_duration_seconds,omitempty"`
 }
@@ -111,7 +123,7 @@ type VolcAssetSettings struct {
 // Outbound helpers
 // ============================
 
-// EffectiveFormat 返回归一化后的出口格式（空值视为 volcengine）。
+// EffectiveFormat returns the normalized outbound format (an empty value is treated as volcengine).
 func (o AssetOutbound) EffectiveFormat() string {
 	if o.Format == "" {
 		return AssetFormatVolcengine
@@ -119,7 +131,8 @@ func (o AssetOutbound) EffectiveFormat() string {
 	return o.Format
 }
 
-// EffectiveId 返回出口的稳定标识（空 Id 视为 default），用于隔离映射键与默认选择。
+// EffectiveId returns the outbound's stable identifier (an empty Id is treated as
+// default), used for isolation mapping keys and default selection.
 func (o AssetOutbound) EffectiveId() string {
 	if o.Id == "" {
 		return defaultOutboundId
@@ -141,7 +154,8 @@ func (o AssetOutbound) GetGroupType() string {
 	return o.GroupType
 }
 
-// ResolvedBaseURL 返回实际访问基址：volcengine 直连按区域拼接官方域名，其余使用配置的 BaseURL。
+// ResolvedBaseURL returns the actual base URL: a volcengine direct connection
+// composes the official domain from the region, while others use the configured BaseURL.
 func (o AssetOutbound) ResolvedBaseURL() string {
 	if o.EffectiveFormat() == AssetFormatVolcengine {
 		return fmt.Sprintf("https://ark.%s.volcengineapi.com", o.GetRegion())
@@ -149,7 +163,7 @@ func (o AssetOutbound) ResolvedBaseURL() string {
 	return o.BaseURL
 }
 
-// IsBuiltinAssetFormat 返回该格式是否为官方内置格式。
+// IsBuiltinAssetFormat reports whether the format is an official built-in format.
 func IsBuiltinAssetFormat(format string) bool {
 	switch format {
 	case "", AssetFormatVolcengine, AssetFormatNewAPI:
@@ -163,7 +177,7 @@ func IsBuiltinAssetFormat(format string) bool {
 // Settings helpers
 // ============================
 
-// EffectiveOutbounds 返回当前已启用的出口列表。
+// EffectiveOutbounds returns the list of currently enabled outbounds.
 func (v *VolcAssetSettings) EffectiveOutbounds() []AssetOutbound {
 	enabled := make([]AssetOutbound, 0, len(v.Outbounds))
 	for _, o := range v.Outbounds {
@@ -174,7 +188,7 @@ func (v *VolcAssetSettings) EffectiveOutbounds() []AssetOutbound {
 	return enabled
 }
 
-// CustomFormat 按 Id 返回自定义出口格式模板。
+// CustomFormat returns the custom outbound format template by Id.
 func (v *VolcAssetSettings) CustomFormat(id string) (*AssetCustomFormat, bool) {
 	for i := range v.CustomFormats {
 		if v.CustomFormats[i].Id == id {
@@ -184,7 +198,7 @@ func (v *VolcAssetSettings) CustomFormat(id string) (*AssetCustomFormat, bool) {
 	return nil, false
 }
 
-// OutboundConfigured 判断某出口所需的凭证/引用是否齐全（可用）。
+// OutboundConfigured reports whether an outbound has all the credentials/references it needs (i.e. is usable).
 func (v *VolcAssetSettings) OutboundConfigured(o AssetOutbound) bool {
 	switch o.EffectiveFormat() {
 	case AssetFormatVolcengine:
@@ -200,7 +214,7 @@ func (v *VolcAssetSettings) OutboundConfigured(o AssetOutbound) bool {
 	}
 }
 
-// IsConfigured 返回是否至少存在一个已配置好的可用出口。
+// IsConfigured reports whether at least one usable, configured outbound exists.
 func (v *VolcAssetSettings) IsConfigured() bool {
 	for _, o := range v.EffectiveOutbounds() {
 		if v.OutboundConfigured(o) {
@@ -210,9 +224,11 @@ func (v *VolcAssetSettings) IsConfigured() bool {
 	return false
 }
 
-// ResolveOutboundCandidates 按“客户端指定 → 默认 → 第一个”的优先级返回有序候选出口。
-// 开启 Failover 时，主候选之后追加其余已启用出口用于回退；未开启时仅返回主候选。
-// 仅返回已配置(可用)的候选。
+// ResolveOutboundCandidates returns an ordered list of candidate outbounds by the
+// priority "client-specified -> default -> first". When Failover is enabled, the
+// remaining enabled outbounds are appended after the primary candidate for
+// fallback; otherwise only the primary candidate is returned. Only configured
+// (usable) candidates are returned.
 func (v *VolcAssetSettings) ResolveOutboundCandidates(selector string) []AssetOutbound {
 	obs := v.EffectiveOutbounds()
 	if len(obs) == 0 {
@@ -259,7 +275,7 @@ func (v *VolcAssetSettings) ResolveOutboundCandidates(selector string) []AssetOu
 	return candidates
 }
 
-// GetOutboundSelectorHeader 返回出口选择请求头名（缺省 X-Asset-Outbound）。
+// GetOutboundSelectorHeader returns the outbound selector header name (defaults to X-Asset-Outbound).
 func (v *VolcAssetSettings) GetOutboundSelectorHeader() string {
 	if v.OutboundSelectorHeader == "" {
 		return DefaultOutboundSelectorHeader
@@ -267,7 +283,7 @@ func (v *VolcAssetSettings) GetOutboundSelectorHeader() string {
 	return v.OutboundSelectorHeader
 }
 
-// ActionPrice 返回某个操作的固定扣费额度；未配置或非正数时返回 0（免费）。
+// ActionPrice returns the fixed charge for an operation; returns 0 (free) when unconfigured or non-positive.
 func (v *VolcAssetSettings) ActionPrice(action string) int {
 	if v.ActionPrices == nil {
 		return 0
@@ -282,7 +298,7 @@ func (v *VolcAssetSettings) ActionPrice(action string) int {
 // Secret handling
 // ============================
 
-// Redacted 返回清空全部出口密钥字段的副本，用于安全地下发给管理端。
+// Redacted returns a copy with all outbound secret fields cleared, for safely sending to the admin UI.
 func (v VolcAssetSettings) Redacted() VolcAssetSettings {
 	if len(v.Outbounds) == 0 {
 		return v
@@ -297,8 +313,10 @@ func (v VolcAssetSettings) Redacted() VolcAssetSettings {
 	return v
 }
 
-// MergeSecretsFromExisting 按出口 Id 用 prev 中的密钥回填本配置里为空的密钥。
-// 管理端永不回显密钥，提交时为空表示“保持原值”，借此避免保存动作把已存密钥覆盖为空。
+// MergeSecretsFromExisting backfills empty secrets in this config from prev,
+// matched by outbound Id. The admin UI never echoes secrets, so an empty value on
+// submit means "keep the existing value"; this prevents a save from overwriting
+// stored secrets with empty strings.
 func (v VolcAssetSettings) MergeSecretsFromExisting(prev VolcAssetSettings) VolcAssetSettings {
 	if len(v.Outbounds) == 0 {
 		return v

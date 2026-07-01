@@ -8,9 +8,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// VolcAssetUserGroup 维护「new-api 用户 → 各出口上的资产分组」映射，用于资产接口的用户隔离。
-// 每个用户在每个出口(outbound)上拥有一个由系统自动开通的专属分组；所有绑定以 JSON 存于 Groups 列，
-// 键为出口 Id。采用单行 + JSON 列而非复合唯一索引，避免跨数据库的索引迁移问题（仅需 ADD COLUMN）。
+// VolcAssetUserGroup maintains the mapping "new-api user -> asset group on each
+// outbound", used for per-user isolation of the asset endpoints. Each user has a
+// system-provisioned dedicated group on each outbound; all bindings are stored as
+// JSON in the Groups column, keyed by outbound Id. A single row + JSON column is
+// used instead of a composite unique index to avoid cross-database index migration
+// issues (only ADD COLUMN is needed).
 type VolcAssetUserGroup struct {
 	Id        int    `json:"id" gorm:"primaryKey"`
 	UserId    int    `json:"user_id" gorm:"uniqueIndex"`
@@ -19,7 +22,7 @@ type VolcAssetUserGroup struct {
 	UpdatedAt int64  `json:"updated_at"`
 }
 
-// AssetGroupBinding 是用户在某个出口上的资产分组绑定。
+// AssetGroupBinding is a user's asset group binding on a given outbound.
 type AssetGroupBinding struct {
 	OutboundId  string `json:"outbound_id"`
 	Format      string `json:"format"`
@@ -37,10 +40,11 @@ func (r *VolcAssetUserGroup) parseBindings() map[string]AssetGroupBinding {
 	return bindings
 }
 
-// GetVolcAssetUserGroupBinding 返回用户在某出口上的资产分组绑定；不存在时返回 gorm.ErrRecordNotFound。
+// GetVolcAssetUserGroupBinding returns the user's asset group binding on a given
+// outbound; it returns gorm.ErrRecordNotFound when none exists.
 func GetVolcAssetUserGroupBinding(userId int, outboundId string) (*AssetGroupBinding, error) {
 	if userId == 0 {
-		return nil, errors.New("userId 为空")
+		return nil, errors.New("userId is empty")
 	}
 	var row VolcAssetUserGroup
 	if err := DB.Where("user_id = ?", userId).First(&row).Error; err != nil {
@@ -52,7 +56,8 @@ func GetVolcAssetUserGroupBinding(userId int, outboundId string) (*AssetGroupBin
 	return nil, gorm.ErrRecordNotFound
 }
 
-// SaveVolcAssetUserGroupBinding 以 (UserId) 为行键、出口 Id 为字段键 upsert 一条分组绑定。
+// SaveVolcAssetUserGroupBinding upserts one group binding, keyed by (UserId) at
+// the row level and by outbound Id at the field level.
 func SaveVolcAssetUserGroupBinding(userId int, binding AssetGroupBinding) error {
 	if userId == 0 || binding.OutboundId == "" {
 		return errors.New("invalid volc asset user group binding")

@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGetOptionsRedactsVolcAssetSecrets 锁定两条契约：
-//  1. GetOptions 必须返回 VolcAssetConfig（不被敏感后缀过滤误删）；
-//  2. 返回值里的 secret_key / access_token 必须脱敏为空，其余字段保留。
+// TestGetOptionsRedactsVolcAssetSecrets locks in two contracts:
+//  1. GetOptions must return VolcAssetConfig (not accidentally dropped by the sensitive-suffix filter);
+//  2. secret_key / access_token in the returned value must be redacted to empty while other fields are preserved.
 func TestGetOptionsRedactsVolcAssetSecrets(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

@@ -15,7 +15,7 @@ func TestVolcAssetSettingsActionPrice(t *testing.T) {
 	}}
 
 	assert.Equal(t, 1000, cfg.ActionPrice("CreateAsset"))
-	// 未配置、零值、负值均视为免费。
+	// Unconfigured, zero, and negative values are all treated as free.
 	assert.Equal(t, 0, cfg.ActionPrice("GetAsset"))
 	assert.Equal(t, 0, cfg.ActionPrice("DeleteAsset"))
 	assert.Equal(t, 0, cfg.ActionPrice("ListAssets"))
@@ -107,30 +107,30 @@ func TestResolveOutboundCandidates(t *testing.T) {
 		return VolcAssetSettings{Outbounds: []AssetOutbound{
 			{Id: "a", Format: AssetFormatVolcengine, AccessKey: "ak", SecretKey: "sk"},
 			{Id: "b", Format: AssetFormatNewAPI, BaseURL: "https://b", AccessToken: "t"},
-			{Id: "c", Format: AssetFormatVolcengine}, // 未配置（缺 sk），应被过滤
+			{Id: "c", Format: AssetFormatVolcengine}, // unconfigured (missing sk), should be filtered out
 		}}
 	}
 
-	// 客户端指定优先。
+	// Client-specified takes priority.
 	cfg := base()
 	got := cfg.ResolveOutboundCandidates("b")
 	require.Len(t, got, 1)
 	assert.Equal(t, "b", got[0].Id)
 
-	// 指定不存在 → 回退默认。
+	// Specified but nonexistent -> fall back to default.
 	cfg = base()
 	cfg.DefaultOutbound = "b"
 	got = cfg.ResolveOutboundCandidates("zzz")
 	require.Len(t, got, 1)
 	assert.Equal(t, "b", got[0].Id)
 
-	// 无指定无默认 → 第一个。
+	// Neither specified nor default -> the first one.
 	cfg = base()
 	got = cfg.ResolveOutboundCandidates("")
 	require.Len(t, got, 1)
 	assert.Equal(t, "a", got[0].Id)
 
-	// 开启 failover → 主候选 + 其它已配置出口（过滤掉未配置的 c）。
+	// failover enabled -> primary candidate + other configured outbounds (the unconfigured c is filtered out).
 	cfg = base()
 	cfg.Failover = true
 	got = cfg.ResolveOutboundCandidates("a")
@@ -138,7 +138,7 @@ func TestResolveOutboundCandidates(t *testing.T) {
 	assert.Equal(t, "a", got[0].Id)
 	assert.Equal(t, "b", got[1].Id)
 
-	// 空配置 → 无候选。
+	// Empty config -> no candidates.
 	assert.Empty(t, (&VolcAssetSettings{}).ResolveOutboundCandidates(""))
 }
 
@@ -152,9 +152,9 @@ func TestRedactedClearsOutboundSecrets(t *testing.T) {
 	got := cfg.Redacted()
 	assert.Empty(t, got.Outbounds[0].SecretKey)
 	assert.Empty(t, got.Outbounds[1].AccessToken)
-	// 非密钥字段保留。
+	// Non-secret fields are preserved.
 	assert.Equal(t, "ak", got.Outbounds[0].AccessKey)
-	// 值接收者语义：原对象不被修改。
+	// Value-receiver semantics: the original object is not modified.
 	assert.Equal(t, "sk-a", cfg.Outbounds[0].SecretKey)
 }
 
@@ -163,8 +163,8 @@ func TestMergeSecretsRestoresOutboundSecrets(t *testing.T) {
 		{Id: "a", SecretKey: "old-sk", AccessToken: "old-tok"},
 	}}
 	incoming := VolcAssetSettings{Outbounds: []AssetOutbound{
-		{Id: "a", SecretKey: "", AccessToken: "new-tok"}, // 空 sk 应回填旧值，新 tok 覆盖
-		{Id: "new", SecretKey: ""},                       // prev 无此出口，保持空
+		{Id: "a", SecretKey: "", AccessToken: "new-tok"}, // empty sk should be backfilled from old; new tok overrides
+		{Id: "new", SecretKey: ""},                       // prev has no such outbound, stays empty
 	}}
 	got := incoming.MergeSecretsFromExisting(prev)
 	assert.Equal(t, "old-sk", got.Outbounds[0].SecretKey)

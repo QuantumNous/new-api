@@ -32,7 +32,7 @@ const (
 
 type AssetFilter struct {
 	GroupIds  []string `json:"GroupIds,omitempty"`
-	GroupType string   `json:"GroupType" example:"AIGC"` // 可选，留空使用默认值(AIGC)
+	GroupType string   `json:"GroupType" example:"AIGC"` // optional; leave empty to use the default (AIGC)
 	Statuses  []string `json:"Statuses,omitempty"`
 	Name      string   `json:"Name,omitempty"`
 }
@@ -43,7 +43,7 @@ type ListAssetsRequest struct {
 	PageSize    int64        `json:"PageSize"`
 	SortBy      string       `json:"SortBy,omitempty"`
 	SortOrder   string       `json:"SortOrder,omitempty"`
-	ProjectName string       `json:"ProjectName,omitempty"` // 可选，留空使用默认值
+	ProjectName string       `json:"ProjectName,omitempty"` // optional; leave empty to use the default
 }
 
 type AssetError struct {
@@ -56,7 +56,7 @@ type AssetItem struct {
 	Name        string     `json:"Name"`
 	URL         string     `json:"URL"`
 	GroupId     string     `json:"GroupId"`
-	AssetType   string     `json:"AssetType" example:"Image" enums:"Image,Video,Audio"` // 素材类型：Image=图像, Video=视频, Audio=音频
+	AssetType   string     `json:"AssetType" example:"Image" enums:"Image,Video,Audio"` // asset type: Image, Video, Audio
 	Status      string     `json:"Status"`
 	Error       AssetError `json:"Error,omitempty"`
 	ProjectName string     `json:"ProjectName"`
@@ -184,7 +184,8 @@ type assetAPIError struct {
 // Billing + logging
 // ============================
 
-// proxyAssetCall 执行一次面向用户的资产调用：先做额度门槛校验，成功后扣费并记日志。
+// proxyAssetCall performs one user-facing asset call: it checks the quota
+// threshold first, then bills and logs on success.
 func proxyAssetCall(c *gin.Context, ob system_setting.AssetOutbound, action string, body []byte) {
 	userId := c.GetInt("id")
 	cost := system_setting.VolcAssetConfig.ActionPrice(action)
@@ -202,11 +203,12 @@ func proxyAssetCall(c *gin.Context, ob system_setting.AssetOutbound, action stri
 		return
 	}
 
-	settleAssetBilling(c, action, cost, result)
+	settleAssetBilling(c, ob, action, cost, result)
 	c.Data(status, "application/json", result)
 }
 
-// ensureAssetQuota 校验用户与令牌额度是否足够支付一次操作，不足时直接写 402 响应。
+// ensureAssetQuota checks whether the user and token quotas can cover one
+// operation; it writes a 402 response directly when they cannot.
 func ensureAssetQuota(c *gin.Context, userId, cost int) bool {
 	userQuota := common.GetContextKeyInt(c, constant.ContextKeyUserQuota)
 	if userQuota < cost {
@@ -225,8 +227,12 @@ func ensureAssetQuota(c *gin.Context, userId, cost int) bool {
 	return true
 }
 
-// settleAssetBilling 在调用成功后扣减用户与令牌额度（cost>0 时），并写入消费日志用于审计。
-func settleAssetBilling(c *gin.Context, action string, cost int, result []byte) {
+// settleAssetBilling deducts the user and token quotas after a successful call
+// (when cost > 0) and writes a consume log for auditing. The asset gateway does
+// not use the channel system; its routing dimension is the outbound, so the
+// outbound identity is recorded so the log UI can show which outbound each
+// request actually used (the channel column renders it instead of a misleading #0).
+func settleAssetBilling(c *gin.Context, ob system_setting.AssetOutbound, action string, cost int, result []byte) {
 	userId := c.GetInt("id")
 	if cost > 0 {
 		tokenId := c.GetInt("token_id")
@@ -237,9 +243,20 @@ func settleAssetBilling(c *gin.Context, action string, cost int, result []byte) 
 		model.UpdateUserUsedQuotaAndRequestCount(userId, cost)
 	}
 
+	// The outbound is upstream routing/infra info: keep it admin-only by placing
+	// it under `admin_info`, which the log layer strips for non-admin queries
+	// (mirrors use_channel / multi_key_index / channel_affinity).
+	adminInfo := map[string]interface{}{
+		"asset_outbound":        ob.EffectiveId(),
+		"asset_outbound_format": ob.EffectiveFormat(),
+	}
+	if ob.Name != "" {
+		adminInfo["asset_outbound_name"] = ob.Name
+	}
 	other := map[string]interface{}{
 		"action":       action,
 		"request_path": c.Request.URL.Path,
+		"admin_info":   adminInfo,
 	}
 	if assetId := extractAssetId(result); assetId != "" {
 		other["asset_id"] = assetId
@@ -272,7 +289,8 @@ func extractAssetId(result []byte) string {
 // Per-user isolation
 // ============================
 
-// assetScope 是某个用户在某个出口上的资产隔离边界：其全部资产读写都被限定在 groupId 内。
+// assetScope is a user's asset isolation boundary on a given outbound: all of
+// their asset reads and writes are confined to groupId.
 type assetScope struct {
 	userId      int
 	outbound    system_setting.AssetOutbound
@@ -281,8 +299,9 @@ type assetScope struct {
 	groupType   string
 }
 
-// resolveAssetOutbound 依据客户端选择头(默认 X-Asset-Outbound)、默认出口与 failover 解析出一个可用出口。
-// 解析失败时直接写响应。
+// resolveAssetOutbound resolves an available outbound from the client selector
+// header (default X-Asset-Outbound), the default outbound and failover. It
+// writes the response directly when resolution fails.
 func resolveAssetOutbound(c *gin.Context) (system_setting.AssetOutbound, bool) {
 	cfg := &system_setting.VolcAssetConfig
 	selector := strings.TrimSpace(c.GetHeader(cfg.GetOutboundSelectorHeader()))
@@ -297,7 +316,9 @@ func resolveAssetOutbound(c *gin.Context) (system_setting.AssetOutbound, bool) {
 	return candidates[0], true
 }
 
-// resolveAssetScope 校验配置、解析出口并确保调用者在该出口拥有已开通的专属分组，返回其隔离边界。
+// resolveAssetScope validates the config, resolves the outbound and ensures the
+// caller has a provisioned dedicated group on that outbound, returning their
+// isolation boundary.
 func resolveAssetScope(c *gin.Context) (*assetScope, bool) {
 	userId := c.GetInt("id")
 	if userId == 0 {
@@ -316,10 +337,16 @@ func resolveAssetScope(c *gin.Context) (*assetScope, bool) {
 	return &assetScope{userId: userId, outbound: ob, projectName: ob.ProjectName, groupId: groupId, groupType: groupType}, true
 }
 
-// ensureUserAssetGroup 返回用户在该出口专属分组的 Id 与 GroupType，必要时在上游开通并持久化映射。
-// 映射以 (用户, 出口Id) 为键：不同出口对应不同上游，各自拥有独立分组。
-// 当出口/project 与映射记录不一致时会重新开通，避免使用失效分组。
-// GroupType 取自映射记录（即分组创建时的类型），以免后续配置变更导致 List 过滤与实际分组错位。
+// ensureUserAssetGroup returns the Id and GroupType of the user's dedicated
+// group on the given outbound, provisioning it upstream and persisting the
+// mapping when needed.
+// The mapping is keyed by (user, outboundId): different outbounds map to
+// different upstreams and each has its own independent group.
+// When the outbound/project no longer matches the mapping record, it
+// re-provisions to avoid using a stale group.
+// GroupType is taken from the mapping record (the type used when the group was
+// created) so that later config changes do not make List filtering diverge from
+// the actual group.
 func ensureUserAssetGroup(c *gin.Context, ob system_setting.AssetOutbound, userId int) (string, string, error) {
 	outboundId := ob.EffectiveId()
 	if binding, err := model.GetVolcAssetUserGroupBinding(userId, outboundId); err == nil {
@@ -347,11 +374,13 @@ func ensureUserAssetGroup(c *gin.Context, ob system_setting.AssetOutbound, userI
 	return groupId, groupType, nil
 }
 
-// provisionUserAssetGroup 幂等地为用户在该出口开通专属分组并返回其 Id。
+// provisionUserAssetGroup idempotently provisions the user's dedicated group on
+// the given outbound and returns its Id.
 func provisionUserAssetGroup(c *gin.Context, ob system_setting.AssetOutbound, userId int) (string, error) {
 	groupName := fmt.Sprintf("newapi-user-%d", userId)
 
-	// 已存在则直接复用（映射丢失或重复开通时幂等）。
+	// Reuse it if it already exists (idempotent when the mapping is lost or
+	// provisioning is repeated).
 	if id, err := findAssetGroupIdByName(c.Request.Context(), ob, groupName); err == nil && id != "" {
 		return id, nil
 	}
@@ -370,7 +399,7 @@ func provisionUserAssetGroup(c *gin.Context, ob system_setting.AssetOutbound, us
 		return "", callErr
 	}
 	if apiErr != nil {
-		// 可能因重名冲突失败，回退按名查找。
+		// May fail due to a name conflict; fall back to lookup by name.
 		if id, ferr := findAssetGroupIdByName(c.Request.Context(), ob, groupName); ferr == nil && id != "" {
 			return id, nil
 		}
@@ -432,7 +461,8 @@ func parseAssetGroupId(result []byte) string {
 	return g.GroupId
 }
 
-// assetBelongsToScope 判断 GetAsset 结果中的资产是否归属调用者分组。
+// assetBelongsToScope reports whether the asset in a GetAsset result belongs to
+// the caller's group.
 func assetBelongsToScope(result []byte, scope *assetScope) bool {
 	var item AssetItem
 	if err := common.Unmarshal(result, &item); err != nil {
@@ -441,7 +471,8 @@ func assetBelongsToScope(result []byte, scope *assetScope) bool {
 	return item.GroupId != "" && item.GroupId == scope.groupId
 }
 
-// verifyAssetOwnership 通过一次内部 GetAsset 校验资产归属当前用户，校验失败时直接写响应。
+// verifyAssetOwnership verifies via an internal GetAsset that the asset belongs
+// to the current user; it writes the response directly when the check fails.
 func verifyAssetOwnership(c *gin.Context, scope *assetScope, assetId string) bool {
 	body, err := common.Marshal(GetAssetRequest{Id: assetId, ProjectName: scope.projectName})
 	if err != nil {
@@ -464,7 +495,8 @@ func verifyAssetOwnership(c *gin.Context, scope *assetScope, assetId string) boo
 	return true
 }
 
-// applyGroupDefaults 为分组管理接口（管理员）填充空的 ProjectName / GroupType（取自所选出口）。
+// applyGroupDefaults fills empty ProjectName / GroupType for the (admin)
+// group-management endpoints, taking them from the selected outbound.
 func applyGroupDefaults(ob system_setting.AssetOutbound, projectName, groupType *string) {
 	if projectName != nil && *projectName == "" {
 		*projectName = ob.ProjectName
@@ -478,7 +510,7 @@ func applyGroupDefaults(ob system_setting.AssetOutbound, projectName, groupType 
 // Asset handlers (per-user isolated)
 // ============================
 
-// HandleListAssets 列出当前用户专属分组内的资产。
+// HandleListAssets lists the assets inside the current user's dedicated group.
 func HandleListAssets(c *gin.Context) {
 	scope, ok := resolveAssetScope(c)
 	if !ok {
@@ -494,7 +526,7 @@ func HandleListAssets(c *gin.Context) {
 	if listReq.Filter == nil {
 		listReq.Filter = &AssetFilter{}
 	}
-	// 强制隔离：仅限定到调用者自己的分组与项目。
+	// Enforce isolation: restrict to the caller's own group and project only.
 	listReq.Filter.GroupIds = []string{scope.groupId}
 	listReq.Filter.GroupType = scope.groupType
 	listReq.Filter.Statuses = filterEmptyStrings(listReq.Filter.Statuses)
@@ -511,10 +543,10 @@ func HandleListAssets(c *gin.Context) {
 // GetAssetRequest is the request for GetAsset API.
 type GetAssetRequest struct {
 	Id          string `json:"Id"`
-	ProjectName string `json:"ProjectName,omitempty"` // 可选，留空使用默认值
+	ProjectName string `json:"ProjectName,omitempty"` // optional; leave empty to use the default
 }
 
-// HandleGetAsset 读取一个资产，并校验其归属当前用户。
+// HandleGetAsset reads one asset and verifies it belongs to the current user.
 func HandleGetAsset(c *gin.Context) {
 	scope, ok := resolveAssetScope(c)
 	if !ok {
@@ -554,7 +586,7 @@ func HandleGetAsset(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "asset not found"})
 		return
 	}
-	settleAssetBilling(c, "GetAsset", cost, result)
+	settleAssetBilling(c, scope.outbound, "GetAsset", cost, result)
 	c.Data(status, "application/json", result)
 }
 
@@ -563,14 +595,14 @@ func HandleGetAsset(c *gin.Context) {
 // ============================
 
 type CreateAssetRequest struct {
-	GroupId     string `json:"GroupId"` // 被服务端强制为用户专属分组
+	GroupId     string `json:"GroupId"` // forced by the server to the user's dedicated group
 	URL         string `json:"URL"`
 	Name        string `json:"Name,omitempty"`
-	AssetType   string `json:"AssetType" example:"Image" enums:"Image,Video,Audio"` // 素材类型：Image=图像, Video=视频, Audio=音频
-	ProjectName string `json:"ProjectName,omitempty"`                               // 可选，留空使用默认值
+	AssetType   string `json:"AssetType" example:"Image" enums:"Image,Video,Audio"` // asset type: Image, Video, Audio
+	ProjectName string `json:"ProjectName,omitempty"`                               // optional; leave empty to use the default
 }
 
-// HandleCreateAsset 在当前用户专属分组内创建资产。
+// HandleCreateAsset creates an asset inside the current user's dedicated group.
 func HandleCreateAsset(c *gin.Context) {
 	scope, ok := resolveAssetScope(c)
 	if !ok {
@@ -581,7 +613,7 @@ func HandleCreateAsset(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid request body: %v", err)})
 		return
 	}
-	// 强制隔离：落到调用者自己的分组与项目。
+	// Enforce isolation: place it into the caller's own group and project.
 	req.GroupId = scope.groupId
 	req.ProjectName = scope.projectName
 
@@ -600,10 +632,10 @@ func HandleCreateAsset(c *gin.Context) {
 type UpdateAssetRequest struct {
 	Id          string `json:"Id"`
 	Name        string `json:"Name,omitempty"`
-	ProjectName string `json:"ProjectName,omitempty"` // 可选，留空使用默认值
+	ProjectName string `json:"ProjectName,omitempty"` // optional; leave empty to use the default
 }
 
-// HandleUpdateAsset 更新一个资产，仅当其归属当前用户时允许。
+// HandleUpdateAsset updates an asset, allowed only when it belongs to the current user.
 func HandleUpdateAsset(c *gin.Context) {
 	scope, ok := resolveAssetScope(c)
 	if !ok {
@@ -637,10 +669,10 @@ func HandleUpdateAsset(c *gin.Context) {
 
 type DeleteAssetRequest struct {
 	Id          string `json:"Id"`
-	ProjectName string `json:"ProjectName,omitempty"` // 可选，留空使用默认值
+	ProjectName string `json:"ProjectName,omitempty"` // optional; leave empty to use the default
 }
 
-// HandleDeleteAsset 删除一个资产，仅当其归属当前用户时允许。
+// HandleDeleteAsset deletes an asset, allowed only when it belongs to the current user.
 func HandleDeleteAsset(c *gin.Context) {
 	scope, ok := resolveAssetScope(c)
 	if !ok {
@@ -675,8 +707,8 @@ func HandleDeleteAsset(c *gin.Context) {
 type CreateAssetGroupRequest struct {
 	Name        string `json:"Name"`
 	Description string `json:"Description,omitempty"`
-	GroupType   string `json:"GroupType,omitempty" example:"AIGC"` // 可选，留空使用默认值(AIGC)
-	ProjectName string `json:"ProjectName,omitempty"`              // 可选，留空使用默认值
+	GroupType   string `json:"GroupType,omitempty" example:"AIGC"` // optional; leave empty to use the default (AIGC)
+	ProjectName string `json:"ProjectName,omitempty"`              // optional; leave empty to use the default
 }
 
 func HandleCreateAssetGroup(c *gin.Context) {
@@ -705,7 +737,7 @@ func HandleCreateAssetGroup(c *gin.Context) {
 type AssetGroupFilter struct {
 	Name      string   `json:"Name,omitempty"`
 	GroupIds  []string `json:"GroupIds,omitempty"`
-	GroupType string   `json:"GroupType" example:"AIGC"` // 可选，留空使用默认值(AIGC)
+	GroupType string   `json:"GroupType" example:"AIGC"` // optional; leave empty to use the default (AIGC)
 }
 
 type ListAssetGroupsRequest struct {
@@ -714,7 +746,7 @@ type ListAssetGroupsRequest struct {
 	PageSize    int64             `json:"PageSize"`
 	SortBy      string            `json:"SortBy,omitempty"`
 	SortOrder   string            `json:"SortOrder,omitempty"`
-	ProjectName string            `json:"ProjectName,omitempty"` // 可选，留空使用默认值
+	ProjectName string            `json:"ProjectName,omitempty"` // optional; leave empty to use the default
 }
 
 type AssetGroupItem struct {
@@ -764,7 +796,7 @@ func HandleListAssetGroups(c *gin.Context) {
 
 type GetAssetGroupRequest struct {
 	Id          string `json:"Id"`
-	ProjectName string `json:"ProjectName,omitempty"` // 可选，留空使用默认值
+	ProjectName string `json:"ProjectName,omitempty"` // optional; leave empty to use the default
 }
 
 func HandleGetAssetGroup(c *gin.Context) {
@@ -798,7 +830,7 @@ type UpdateAssetGroupRequest struct {
 	Id          string `json:"Id"`
 	Name        string `json:"Name,omitempty"`
 	Description string `json:"Description,omitempty"`
-	ProjectName string `json:"ProjectName,omitempty"` // 可选，留空使用默认值
+	ProjectName string `json:"ProjectName,omitempty"` // optional; leave empty to use the default
 }
 
 func HandleUpdateAssetGroup(c *gin.Context) {
@@ -830,7 +862,7 @@ func HandleUpdateAssetGroup(c *gin.Context) {
 
 type DeleteAssetGroupRequest struct {
 	Id          string `json:"Id"`
-	ProjectName string `json:"ProjectName,omitempty"` // 可选，留空使用默认值
+	ProjectName string `json:"ProjectName,omitempty"` // optional; leave empty to use the default
 }
 
 func HandleDeleteAssetGroup(c *gin.Context) {

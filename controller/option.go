@@ -89,8 +89,9 @@ func GetOptions(c *gin.Context) {
 		if isSensitiveKey {
 			continue
 		}
-		// VolcAssetConfig 是 JSON 块，整体 key 不命中上面的敏感后缀，
-		// 但其中含 secret_key / access_token，下发给前端前需脱敏（置空）。
+		// VolcAssetConfig is a JSON blob whose top-level key does not match the
+		// sensitive suffixes above, but it contains secret_key / access_token, so it
+		// must be redacted (cleared) before being sent to the frontend.
 		if k == "VolcAssetConfig" {
 			if b, mErr := common.Marshal(system_setting.VolcAssetConfig.Redacted()); mErr == nil {
 				value = string(b)
@@ -339,13 +340,15 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "VolcAssetConfig":
-		// 前端为安全起见不回显 secret_key / access_token，提交时这两个字段可能为空，
-		// 表示“保持原值不变”。此处与内存中现有配置合并，避免被空值覆盖丢失密钥。
+		// For security the frontend does not echo secret_key / access_token, so on
+		// submit those two fields may be empty, meaning "keep the existing value".
+		// Merge with the current in-memory config here to avoid overwriting stored
+		// secrets with empty values.
 		var incoming system_setting.VolcAssetSettings
 		if err = common.UnmarshalJsonStr(option.Value.(string), &incoming); err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "资产管理配置解析失败: " + err.Error(),
+				"message": "failed to parse asset management config: " + err.Error(),
 			})
 			return
 		}
@@ -353,7 +356,7 @@ func UpdateOption(c *gin.Context) {
 		if mErr != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "资产管理配置序列化失败: " + mErr.Error(),
+				"message": "failed to serialize asset management config: " + mErr.Error(),
 			})
 			return
 		}

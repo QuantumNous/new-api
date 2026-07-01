@@ -29,9 +29,9 @@ func TestAssetBelongsToScope(t *testing.T) {
 
 func TestParseAssetGroupId(t *testing.T) {
 	assert.Equal(t, "g1", parseAssetGroupId([]byte(`{"Id":"g1"}`)))
-	// 回退到 GroupId 字段。
+	// Fall back to the GroupId field.
 	assert.Equal(t, "g2", parseAssetGroupId([]byte(`{"GroupId":"g2"}`)))
-	// Id 优先于 GroupId。
+	// Id takes precedence over GroupId.
 	assert.Equal(t, "g1", parseAssetGroupId([]byte(`{"Id":"g1","GroupId":"g2"}`)))
 	assert.Equal(t, "", parseAssetGroupId([]byte(`{}`)))
 	assert.Equal(t, "", parseAssetGroupId([]byte(``)))

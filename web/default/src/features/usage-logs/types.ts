@@ -99,6 +99,11 @@ export interface LogOtherData {
     use_channel?: number[]
     local_count_tokens?: boolean
     channel_affinity?: ChannelAffinityInfo
+    // Volcengine asset gateway outbound (admin-only; stripped for non-admin
+    // log queries). Present on logs whose model_name starts with `volc-asset/`.
+    asset_outbound?: string
+    asset_outbound_name?: string
+    asset_outbound_format?: string
     // Top-up audit fields (type=1, admin only)
     payment_method?: string
     callback_payment_method?: string

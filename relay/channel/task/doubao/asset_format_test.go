@@ -5,9 +5,9 @@ import (
 
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
-	"github.com/tidwall/gjson"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func testCustomOutbound() system_setting.AssetOutbound {
@@ -32,12 +32,12 @@ func TestApplyAssetTemplate(t *testing.T) {
 		"https://up.example.com/v1/ListAssets?p=proj",
 		applyAssetTemplate("{base_url}/v1/{action}?p={field:ProjectName}", tctx, []byte(`{"ProjectName":"proj"}`)),
 	)
-	// 缺失的 field 路径替换为空串。
+	// A missing field path is substituted with an empty string.
 	assert.Equal(t,
 		"https://up.example.com/x/",
 		applyAssetTemplate("{base_url}/x/{field:Missing}", tctx, []byte(`{}`)),
 	)
-	// 凭证占位符。
+	// Credential placeholder.
 	assert.Equal(t, "tok", applyAssetTemplate("{access_token}", tctx, nil))
 }
 
@@ -53,13 +53,13 @@ func TestResolveAssetActionTemplate(t *testing.T) {
 		},
 	}
 
-	// 命中覆盖：Method/URL 被覆盖，未覆盖的 ResultPath 保留默认。
+	// Override hit: Method/URL are overridden while the un-overridden ResultPath keeps the default.
 	got := resolveAssetActionTemplate(cf, "GetAsset")
 	assert.Equal(t, "GET", got.Method)
 	assert.Equal(t, "{base_url}/assets/{field:Id}", got.URLTemplate)
 	assert.Equal(t, "Result", got.ResultPath)
 
-	// 未命中覆盖：返回默认模板。
+	// Override miss: the default template is returned.
 	def := resolveAssetActionTemplate(cf, "ListAssets")
 	assert.Equal(t, "POST", def.Method)
 	assert.Equal(t, "{base_url}?Action={action}", def.URLTemplate)
@@ -106,13 +106,13 @@ func TestBuildCustomAssetRequest_Auth(t *testing.T) {
 	ob := testCustomOutbound()
 	tmpl := system_setting.AssetActionTemplate{URLTemplate: "{base_url}?Action={action}"}
 
-	// query 鉴权追加到 URL。
+	// query auth is appended to the URL.
 	cfQuery := &system_setting.AssetCustomFormat{Auth: system_setting.AssetAuthSpec{Type: "query", Name: "token", Value: "{access_token}"}}
 	_, url, _, _, err := buildCustomAssetRequest(ob, cfQuery, tmpl, "ListAssets", nil)
 	require.NoError(t, err)
 	assert.Contains(t, url, "&token=tok")
 
-	// bearer 鉴权写入 Authorization 头。
+	// bearer auth is written into the Authorization header.
 	cfBearer := &system_setting.AssetCustomFormat{Auth: system_setting.AssetAuthSpec{Type: "bearer", Value: "{access_token}"}}
 	_, _, headers, _, err := buildCustomAssetRequest(ob, cfBearer, tmpl, "ListAssets", nil)
 	require.NoError(t, err)

@@ -22,8 +22,10 @@ import (
 
 const assetMaxRespSize = 10 << 20 // 10MB
 
-// callAssetAPI 按出口(outbound)的格式执行一次上游资产 API 调用，仅负责传输与解包，不写 HTTP 响应、不计费。
-// 返回值：规范化(canonical)结果原始字节、上游业务错误、HTTP 状态码、传输层错误。
+// callAssetAPI performs one upstream asset API call using the outbound's format.
+// It only handles transport and unpacking; it does not write the HTTP response
+// or bill. It returns the canonical result bytes, an upstream business error, the
+// HTTP status code, and a transport-layer error.
 func callAssetAPI(ctx context.Context, ob system_setting.AssetOutbound, action string, body []byte) ([]byte, *assetAPIError, int, error) {
 	switch ob.EffectiveFormat() {
 	case system_setting.AssetFormatVolcengine:
@@ -39,7 +41,8 @@ func callAssetAPI(ctx context.Context, ob system_setting.AssetOutbound, action s
 	}
 }
 
-// assetHTTPSend 执行一次上游 HTTP 请求并返回原始响应体与状态码。signFn 可选，用于在发送前对请求签名。
+// assetHTTPSend performs one upstream HTTP request and returns the raw response
+// body and status code. signFn is optional and signs the request before sending.
 func assetHTTPSend(ctx context.Context, method, requestURL string, headers map[string]string, body []byte, signFn func(*http.Request)) ([]byte, int, error) {
 	req, err := http.NewRequestWithContext(ctx, method, requestURL, bytes.NewBuffer(body))
 	if err != nil {
@@ -75,7 +78,8 @@ func assetHTTPSend(ctx context.Context, method, requestURL string, headers map[s
 // Built-in formats
 // ============================
 
-// callVolcengineFormat 火山 Ark 直连：AK/SK HMAC 签名。火山兼容网关等其它协议请用自定义格式模板。
+// callVolcengineFormat calls Volcengine Ark directly with AK/SK HMAC signing.
+// For other protocols such as Volcengine-compatible gateways, use a custom format template.
 func callVolcengineFormat(ctx context.Context, ob system_setting.AssetOutbound, action string, body []byte) ([]byte, *assetAPIError, int, error) {
 	if ob.AccessKey == "" || ob.SecretKey == "" {
 		return nil, nil, 0, errors.New("asset outbound access_key or secret_key is not configured")
@@ -91,7 +95,7 @@ func callVolcengineFormat(ctx context.Context, ob system_setting.AssetOutbound, 
 	return decodeVolcengineEnvelope(respBody, status)
 }
 
-// decodeVolcengineEnvelope 解包火山标准信封 {ResponseMetadata.Error, Result}。
+// decodeVolcengineEnvelope unpacks the standard Volcengine envelope {ResponseMetadata.Error, Result}.
 func decodeVolcengineEnvelope(respBody []byte, status int) ([]byte, *assetAPIError, int, error) {
 	var envelope struct {
 		ResponseMetadata struct {
@@ -103,7 +107,7 @@ func decodeVolcengineEnvelope(respBody []byte, status int) ([]byte, *assetAPIErr
 		Result json.RawMessage `json:"Result"`
 	}
 	if err := common.Unmarshal(respBody, &envelope); err != nil {
-		// 上游返回非标准信封时原样透传。
+		// Pass the body through unchanged when the upstream returns a non-standard envelope.
 		return respBody, nil, status, nil
 	}
 	if envelope.ResponseMetadata.Error.Code != "" {
@@ -115,8 +119,9 @@ func decodeVolcengineEnvelope(respBody []byte, status int) ([]byte, *assetAPIErr
 	return respBody, nil, status, nil
 }
 
-// callNewAPIFormat 对接另一台 new-api 的资产接口：路径式 Action + Bearer 鉴权（套娃）。
-// 下游 new-api 成功时直接返回规范化结果，失败时返回 {"error": ...}。
+// callNewAPIFormat targets another new-api instance's asset endpoints: path-style
+// Action + Bearer auth (nested new-api). On success the downstream new-api returns
+// the canonical result directly; on failure it returns {"error": ...}.
 func callNewAPIFormat(ctx context.Context, ob system_setting.AssetOutbound, action string, body []byte) ([]byte, *assetAPIError, int, error) {
 	if ob.BaseURL == "" || ob.AccessToken == "" {
 		return nil, nil, 0, errors.New("asset outbound base_url or access_token is not configured")
@@ -161,7 +166,8 @@ func callCustomFormat(ctx context.Context, ob system_setting.AssetOutbound, cf *
 	return parseCustomAssetResponse(tmpl, respBody, status)
 }
 
-// resolveAssetActionTemplate 合并自定义格式的默认模板与该动作的覆盖项（非空字段覆盖默认）。
+// resolveAssetActionTemplate merges the custom format's default template with the
+// per-action overrides (non-empty fields override the defaults).
 func resolveAssetActionTemplate(cf *system_setting.AssetCustomFormat, action string) system_setting.AssetActionTemplate {
 	t := cf.AssetActionTemplate
 	ov, ok := cf.Actions[action]
@@ -270,7 +276,8 @@ func parseCustomAssetResponse(tmpl system_setting.AssetActionTemplate, respBody 
 		}
 	}
 
-	// 无字段映射时直接返回结果（适用于上游已是规范化形态的场景）。
+	// Return the result directly when there is no field mapping (for upstreams that
+	// are already in canonical form).
 	if len(tmpl.ResponseMapping) == 0 && len(tmpl.ItemMapping) == 0 {
 		return resultRaw, nil, http.StatusOK, nil
 	}
@@ -317,7 +324,7 @@ func parseCustomAssetResponse(tmpl system_setting.AssetActionTemplate, respBody 
 
 var assetFieldTemplateRe = regexp.MustCompile(`\{field:([^}]+)\}`)
 
-// assetTemplateContext 构造模板替换表（凭证、区域、动作等）。
+// assetTemplateContext builds the template substitution table (credentials, region, action, etc.).
 func assetTemplateContext(ob system_setting.AssetOutbound, action string) map[string]string {
 	return map[string]string{
 		"{base_url}":     strings.TrimRight(ob.ResolvedBaseURL(), "/"),
@@ -332,7 +339,8 @@ func assetTemplateContext(ob system_setting.AssetOutbound, action string) map[st
 	}
 }
 
-// applyAssetTemplate 先替换上下文占位符，再用 {field:<gjsonPath>} 从规范化请求体取值替换。
+// applyAssetTemplate first substitutes the context placeholders, then resolves
+// {field:<gjsonPath>} by pulling values from the canonical request body.
 func applyAssetTemplate(s string, tctx map[string]string, canonical []byte) string {
 	for k, v := range tctx {
 		s = strings.ReplaceAll(s, k, v)

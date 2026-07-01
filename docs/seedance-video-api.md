@@ -352,6 +352,58 @@ curl -X POST 'https://{host}/v1/video/generations' \
   }'
 ```
 
+### 7.2.1 真人图片：必须用 `asset://` 引用（重要）
+
+> **含真人的图片不能直接传 URL。** 上游会做隐私检测，直接传图片 URL（哪怕是素材库返回的签名 TOS 地址）都会被拦截：
+>
+> ```json
+> { "error": { "code": "InputImageSensitiveContentDetected.PrivacyInformation",
+>   "message": "The request failed because the input image may contain real person." } }
+> ```
+>
+> new-api 会把该 400 包装为 `fail_to_fetch_task` 透传给你。
+
+正确做法：**先把真人图片注册为素材，拿到 `asset-xxxx`，再在 `image_url.url` 里用 `asset://asset-xxxx` 协议引用**（不是签名 URL）。上游据此识别为「已注册/授权素材」，跳过内联 URL 的隐私拦截。
+
+```bash
+# 1) 注册素材，拿到 asset-xxxx（详见 volc-asset-api.md）
+curl -X POST 'https://{host}/doubao/open/CreateAsset' \
+  -H 'Authorization: Bearer sk-YOUR_TOKEN' -H 'Content-Type: application/json' \
+  -d '{ "URL": "https://example.com/real-person.jpg", "AssetType": "Image", "Name": "真人首帧" }'
+# → { "Id": "asset-20260701142244-hvbd4" }
+
+# 2) 轮询 GetAsset 至 Status=Active（此处只需要 asset id，不要用它返回的 URL）
+
+# 3) 用 asset:// 引用提交视频（关键：url 填 asset://asset-xxxx，不要填签名 URL）
+curl -X POST 'https://{host}/v1/video/generations' \
+  -H 'Authorization: Bearer sk-YOUR_TOKEN' -H 'Content-Type: application/json' \
+  -d '{
+    "model": "doubao-seedance-2.0",
+    "prompt": "人物缓缓转头并微笑，电影感打光",
+    "metadata": {
+      "ratio": "adaptive",
+      "duration": 5,
+      "content": [
+        { "type": "image_url", "image_url": { "url": "asset://asset-20260701142244-hvbd4" }, "role": "first_frame" }
+      ]
+    }
+  }'
+# → 200 { "id": "task_...", "status": "queued" }  正常进入生成流程
+```
+
+对比（实测 `doubao-seedance-2.0`，同一张真人图）：
+
+| `image_url.url` 传入 | 结果 |
+| --- | --- |
+| 原始真人图片 URL | ❌ 400 `InputImageSensitiveContentDetected.PrivacyInformation` |
+| `GetAsset` 返回的签名 TOS URL | ❌ 400 同上（**签名 URL 也不行**） |
+| `asset://asset-xxxx` | ✅ 200，任务正常生成至 `completed` |
+
+> 说明：
+> - `asset://` 引用仅需素材 `Id`；同一素材的签名 URL 只用于预览/下载，不能用于真人图生视频。
+> - 非真人图片（风景、物体等）直接传 URL 即可，无需走 `asset://`。
+> - 若上游对真人素材要求人脸核身授权（`LivenessFace` 组），请按上游 H5 授权流程处理；本网关只负责把 `asset://` 原样透传给上游。
+
 ### 7.3 完整端到端示例（Python）
 
 ```python

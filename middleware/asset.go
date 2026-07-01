@@ -11,8 +11,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AssetRateLimit 按用户对资产接口限流，配置来自系统设置（任一阈值 <=0 表示关闭）。
-// 必须在 TokenAuth 之后使用（依赖上下文中的用户 id）。
+// AssetRateLimit rate-limits the asset endpoints per user, configured from the
+// system settings (either threshold being <=0 disables it).
+// It must be used after TokenAuth (it depends on the user id in the context).
 func AssetRateLimit() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		cfg := &system_setting.VolcAssetConfig
@@ -45,8 +46,9 @@ func AssetRateLimit() func(c *gin.Context) {
 	}
 }
 
-// AssetGroupAdminOnly 限制资产分组管理接口仅管理员可调用。
-// 普通用户的分组由系统自动管理，不暴露分组 CRUD，以维持「一用户一分组」的隔离不变量。
+// AssetGroupAdminOnly restricts the asset group management endpoints to admins only.
+// Regular users' groups are managed automatically by the system and group CRUD is
+// not exposed, to preserve the "one user, one group" isolation invariant.
 func AssetGroupAdminOnly() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		userId := c.GetInt("id")

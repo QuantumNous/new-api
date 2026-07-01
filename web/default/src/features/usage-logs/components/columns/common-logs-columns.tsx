@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type ColumnDef } from '@tanstack/react-table'
-import { CircleAlert, GitBranch, Sparkles, KeyRound } from 'lucide-react'
+import { CircleAlert, GitBranch, Sparkles, KeyRound, Waypoints } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -324,6 +324,58 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           if (!isDisplayableLogType(log.type)) return null
 
           const other = parseLogOther(log.other)
+
+          // Volcengine asset gateway requests do not use the channel system:
+          // they route by configured "outbound". Show the outbound (recorded in
+          // `other`) instead of a misleading `#0`.
+          const assetOutbound = other?.admin_info?.asset_outbound
+          const isAssetLog =
+            !!assetOutbound ||
+            (typeof log.model_name === 'string' &&
+              log.model_name.startsWith('volc-asset/'))
+          if (isAssetLog) {
+            const outboundName = other?.admin_info?.asset_outbound_name
+            const outboundFormat = other?.admin_info?.asset_outbound_format
+            const outboundLabel = assetOutbound || t('Asset gateway')
+            return (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={<div className='inline-flex w-fit items-center' />}
+                  >
+                    <StatusBadge
+                      label={outboundLabel}
+                      icon={Waypoints}
+                      autoColor={assetOutbound || 'volc-asset'}
+                      copyText={assetOutbound || undefined}
+                      copyable={!!assetOutbound}
+                      size='sm'
+                      showDot={false}
+                      className='font-mono max-sm:!text-[11px]'
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className='space-y-0.5'>
+                      <p>
+                        {t('Asset outbound')}: {outboundLabel}
+                      </p>
+                      {outboundName && (
+                        <p className='text-muted-foreground text-xs'>
+                          {outboundName}
+                        </p>
+                      )}
+                      {outboundFormat && (
+                        <p className='text-muted-foreground text-xs'>
+                          {t('Format')}: {outboundFormat}
+                        </p>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )
+          }
+
           const affinity = other?.admin_info?.channel_affinity
           const rawUseChannel = other?.admin_info?.use_channel ?? []
           const useChannel = Array.isArray(rawUseChannel)
