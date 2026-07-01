@@ -113,6 +113,7 @@ export function UsersMutateDrawer({
   const currentUser = useAuthStore((s) => s.auth.user)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
+  const [isUpdatingUnlimited, setIsUpdatingUnlimited] = useState(false)
 
   // Fetch groups
   const { data: groupsData } = useQuery({
@@ -212,6 +213,12 @@ export function UsersMutateDrawer({
       form.reset(transformUserToFormDefaults(result.data))
     }
     triggerRefresh()
+  }
+
+  const getQuotaDisplayValue = (val: number | undefined) => {
+    if (currentRow?.unlimited_balance) return t('Unlimited')
+    if (tokensOnly) return String(val || 0)
+    return (val || 0).toFixed(6)
   }
 
   return (
@@ -405,13 +412,7 @@ export function UsersMutateDrawer({
                         <div className='flex gap-2'>
                           <FormControl>
                             <Input
-                              value={
-                                currentRow?.unlimited_balance
-                                  ? t('Unlimited')
-                                  : tokensOnly
-                                    ? String(field.value || 0)
-                                    : (field.value || 0).toFixed(6)
-                              }
+                              value={getQuotaDisplayValue(field.value)}
                               readOnly
                               className='flex-1'
                             />
@@ -439,16 +440,21 @@ export function UsersMutateDrawer({
                   {isUpdate && currentRow && (
                     <div className={sideDrawerSwitchItemClassName()}>
                       <div className='flex flex-col gap-0.5'>
-                        <FormLabel className='text-sm'>
+                        <FormLabel htmlFor='unlimited-balance-switch' className='text-sm'>
                           {t('Unlimited Balance')}
                         </FormLabel>
-                        <FormDescription className='text-xs'>
+                        <FormDescription id='unlimited-balance-desc' className='text-xs'>
                           {t('Enable unlimited balance for this user')}
                         </FormDescription>
                       </div>
                       <Switch
+                        id='unlimited-balance-switch'
+                        aria-describedby='unlimited-balance-desc'
+                        disabled={isUpdatingUnlimited}
                         checked={currentRow.unlimited_balance ?? false}
                         onCheckedChange={async (checked) => {
+                          if (isUpdatingUnlimited) return
+                          setIsUpdatingUnlimited(true)
                           try {
                             const result = await manageUserUnlimitedBalance(
                               currentRow.id,
@@ -460,7 +466,7 @@ export function UsersMutateDrawer({
                                   ? t('Unlimited balance enabled')
                                   : t('Unlimited balance disabled')
                               )
-                              refreshUserData()
+                              await refreshUserData()
                             } else {
                               toast.error(
                                 result.message ||
@@ -469,6 +475,8 @@ export function UsersMutateDrawer({
                             }
                           } catch {
                             toast.error(t('Failed to update unlimited balance'))
+                          } finally {
+                            setIsUpdatingUnlimited(false)
                           }
                         }}
                       />
