@@ -24,8 +24,14 @@ import { createSectionRegistry } from '@/features/system-settings/utils/section-
 const MODELS_SECTIONS = [
   {
     id: 'metadata',
-    titleKey: 'Metadata',
-    descriptionKey: 'Manage model metadata and configuration',
+    titleKey: 'Model Square Management',
+    descriptionKey: 'Manage model square metadata and display',
+    build: () => null, // Content is rendered directly in the page component
+  },
+  {
+    id: 'chat',
+    titleKey: 'Chat Model Management',
+    descriptionKey: 'Manage models shown in chat selectors',
     build: () => null, // Content is rendered directly in the page component
   },
   {

@@ -17,12 +17,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import React from 'react';
+import { Tabs } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 import ModelsTable from '../../components/table/models';
+import ChatModelsTable from '../../components/table/chat-models';
 
 const ModelPage = () => {
+  const { t } = useTranslation();
+
   return (
     <div className='mt-[60px] px-2'>
-      <ModelsTable />
+      <Tabs type='card' defaultActiveKey='marketplace'>
+        <Tabs.TabPane tab={t('模型广场管理')} itemKey='marketplace'>
+          <ModelsTable />
+        </Tabs.TabPane>
+        <Tabs.TabPane tab={t('对话模型管理')} itemKey='chat'>
+          <ChatModelsTable />
+        </Tabs.TabPane>
+      </Tabs>
     </div>
   );
 };

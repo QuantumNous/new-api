@@ -91,6 +91,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/self/groups", controller.GetUserGroups)
 				selfRoute.GET("/self", controller.GetSelf)
 				selfRoute.GET("/models", controller.GetUserModels)
+				selfRoute.GET("/chat-models", controller.GetUserChatModels)
 				selfRoute.PUT("/self", controller.UpdateSelf)
 				selfRoute.DELETE("/self", controller.DeleteSelf)
 				selfRoute.GET("/token", controller.GenerateAccessToken)
@@ -397,6 +398,17 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.POST("/", controller.CreateModelMeta)
 			modelsRoute.PUT("/", controller.UpdateModelMeta)
 			modelsRoute.DELETE("/:id", controller.DeleteModelMeta)
+		}
+
+		chatModelsRoute := apiRouter.Group("/chat-models")
+		chatModelsRoute.Use(middleware.AdminAuth())
+		{
+			chatModelsRoute.GET("/", controller.ListChatModels)
+			chatModelsRoute.GET("/candidates", controller.ListChatModelCandidates)
+			chatModelsRoute.POST("/batch", controller.BatchCreateChatModels)
+			chatModelsRoute.POST("/", controller.CreateChatModel)
+			chatModelsRoute.PATCH("/:id", controller.UpdateChatModel)
+			chatModelsRoute.DELETE("/:id", controller.DeleteChatModel)
 		}
 
 		// Deployments (model deployment management)

@@ -304,7 +304,80 @@ export type SyncSource = 'official' | 'config'
 /**
  * Model tab type
  */
-export type ModelTabCategory = 'metadata' | 'deployments'
+export type ModelTabCategory = 'metadata' | 'deployments' | 'chat'
+
+/**
+ * Chat model option entity from API
+ */
+export interface ChatModelOption {
+  id: number
+  model: string
+  name: string
+  enabled: boolean
+  is_auto: boolean
+  sort: number
+  price: number
+  available: boolean
+  created_time: number
+  updated_time: number
+}
+
+/**
+ * Chat model candidate from the model square pricing source
+ */
+export interface ChatModelCandidate {
+  model: string
+  name: string
+  price: number
+  configured: boolean
+}
+
+export interface ListChatModelsParams {
+  p?: number
+  page_size?: number
+  keyword?: string
+  enabled?: boolean
+  available?: boolean
+}
+
+export interface ListChatModelsResponse {
+  success: boolean
+  message?: string
+  data?: {
+    items?: ChatModelOption[]
+    total?: number
+    page?: number
+    page_size?: number
+  }
+}
+
+export interface ListChatModelCandidatesResponse {
+  success: boolean
+  message?: string
+  data?: {
+    items?: ChatModelCandidate[]
+    total?: number
+  }
+}
+
+export interface BatchCreateChatModelsResponse {
+  success: boolean
+  message?: string
+  data?: {
+    created?: ChatModelOption[]
+    skipped?: string[]
+    created_count?: number
+    skipped_count?: number
+  }
+}
+
+export interface UpsertChatModelPayload {
+  model?: string
+  name?: string
+  enabled?: boolean
+  is_auto?: boolean
+  sort?: number
+}
 
 /**
  * Deployment entity from API

@@ -16,7 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { GetModelsParams, SearchModelsParams } from '../types'
+import type {
+  GetModelsParams,
+  SearchModelsParams,
+  ListChatModelsParams,
+} from '../types'
 
 /**
  * React Query cache keys for models
@@ -28,6 +32,18 @@ export const modelsQueryKeys = {
     [...modelsQueryKeys.lists(), filters] as const,
   detail: (id: number) => [...modelsQueryKeys.all, 'detail', id] as const,
   missing: () => [...modelsQueryKeys.all, 'missing'] as const,
+}
+
+/**
+ * React Query cache keys for chat model options
+ */
+export const chatModelsQueryKeys = {
+  all: ['chat-models'] as const,
+  lists: () => [...chatModelsQueryKeys.all, 'list'] as const,
+  list: (filters: ListChatModelsParams) =>
+    [...chatModelsQueryKeys.lists(), filters] as const,
+  candidates: (filters?: { keyword?: string }) =>
+    [...chatModelsQueryKeys.all, 'candidates', filters] as const,
 }
 
 /**

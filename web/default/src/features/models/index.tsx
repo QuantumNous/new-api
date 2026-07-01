@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import { listDeployments } from './api'
+import { ChatModelsTable } from './components/chat-models-table'
 import { DeploymentAccessGuard } from './components/deployment-access-guard'
 import { DeploymentsTable } from './components/deployments-table'
 import { CreateDeploymentDrawer } from './components/dialogs/create-deployment-drawer'
@@ -47,8 +48,12 @@ const SECTION_META: Record<
   { titleKey: string; descriptionKey: string }
 > = {
   metadata: {
-    titleKey: 'Metadata',
-    descriptionKey: 'Manage model metadata and configuration',
+    titleKey: 'Model Square Management',
+    descriptionKey: 'Manage model square metadata and display',
+  },
+  chat: {
+    titleKey: 'Chat Model Management',
+    descriptionKey: 'Manage models shown in chat selectors',
   },
   deployments: {
     titleKey: 'Deployments',
@@ -132,12 +137,12 @@ function ModelsContent() {
         <SectionPageLayout.Actions>
           {activeSection === 'metadata' ? (
             <ModelsPrimaryButtons />
-          ) : (
+          ) : activeSection === 'deployments' ? (
             <Button onClick={() => setCreateDeploymentOpen(true)} size='sm'>
               <Plus className='h-4 w-4' />
               {t('Create deployment')}
             </Button>
-          )}
+          ) : null}
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <div className='space-y-4'>
@@ -152,6 +157,8 @@ function ModelsContent() {
             </Tabs>
             {activeSection === 'metadata' ? (
               <ModelsTable />
+            ) : activeSection === 'chat' ? (
+              <ChatModelsTable />
             ) : (
               <DeploymentAccessGuard
                 loading={deploymentLoading}

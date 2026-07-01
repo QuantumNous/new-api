@@ -1,0 +1,519 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "对话模型列表接口",
+    "description": "对话模型下拉列表与后台管理接口。候选模型与价格来自模型广场 pricing，配置表只保存对话列表展示与 Auto 选择。",
+    "version": "1.0.0"
+  },
+  "tags": [
+    {
+      "name": "对话模型",
+      "description": "用户侧对话模型下拉列表"
+    },
+    {
+      "name": "对话模型管理",
+      "description": "管理员维护对话模型列表"
+    }
+  ],
+  "paths": {
+    "/api/user/chat-models": {
+      "get": {
+        "summary": "获取当前用户可选对话模型",
+        "description": "需要用户登录。后端根据当前登录用户分组计算可用模型，不接受 group 查询参数。Auto 会作为普通模型行返回，name 固定为 Auto，model 为实际调用模型名。",
+        "tags": ["对话模型"],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserChatModelsResponse"
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "total": 2,
+                    "models": [
+                      {
+                        "model": "gpt-4o-mini",
+                        "name": "Auto",
+                        "price": 0.15
+                      },
+                      {
+                        "model": "gpt-4o",
+                        "name": "GPT-4o",
+                        "price": 5
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat-models/": {
+      "get": {
+        "summary": "分页获取对话模型配置",
+        "description": "需要管理员权限。available 表示该模型当前是否仍存在于模型广场 pricing 中且属于对话端点。",
+        "tags": ["对话模型管理"],
+        "parameters": [
+          {
+            "name": "p",
+            "in": "query",
+            "description": "页码，默认 1",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量，最大 100",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "description": "搜索模型名或展示名",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "enabled",
+            "in": "query",
+            "description": "按显示开关过滤",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "available",
+            "in": "query",
+            "description": "按当前模型广场可用状态过滤",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminChatModelListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "创建对话模型配置",
+        "description": "需要管理员权限。model 必须是当前模型广场 pricing 中可用于对话端点的模型。若 is_auto 为 true，后端会在事务内清除其他 Auto 并设置当前项为 Auto。",
+        "tags": ["对话模型管理"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChatModelRequest"
+              },
+              "example": {
+                "model": "gpt-4o-mini",
+                "name": "GPT-4o mini",
+                "enabled": true,
+                "is_auto": true,
+                "sort": 10
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminChatModelItemResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat-models/candidates": {
+      "get": {
+        "summary": "获取可添加的对话模型候选",
+        "description": "需要管理员权限。候选来自模型广场 pricing，只返回对话端点模型，并标记是否已经配置到对话模型列表。",
+        "tags": ["对话模型管理"],
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "description": "按模型名搜索候选",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatModelCandidatesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat-models/{id}": {
+      "patch": {
+        "summary": "编辑对话模型配置",
+        "description": "需要管理员权限。所有字段均可选，不传表示不修改。若 is_auto 为 true，后端会在事务内保证最多一个 Auto。",
+        "tags": ["对话模型管理"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateChatModelRequest"
+              },
+              "example": {
+                "name": "Fast default model",
+                "enabled": true,
+                "is_auto": true,
+                "sort": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminChatModelItemResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "删除对话模型配置",
+        "description": "需要管理员权限。删除 Auto 项后用户侧不再返回 Auto。",
+        "tags": ["对话模型管理"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiSuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiSuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": ""
+          },
+          "data": {
+            "nullable": true
+          }
+        },
+        "required": ["success"]
+      },
+      "UserChatModelsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/UserChatModelsData"
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "UserChatModelsData": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "description": "返回模型总数，包含 Auto"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserChatModelItem"
+            }
+          }
+        },
+        "required": ["total", "models"]
+      },
+      "UserChatModelItem": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "实际调用时使用的模型名"
+          },
+          "name": {
+            "type": "string",
+            "description": "前端展示名；Auto 行固定为 Auto"
+          },
+          "price": {
+            "type": "number",
+            "format": "double",
+            "description": "总估算价格，参考模型广场 token 输入价并套用当前用户可用分组最低倍率"
+          }
+        },
+        "required": ["model", "name", "price"]
+      },
+      "AdminChatModelListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AdminChatModelItem"
+                }
+              },
+              "total": {
+                "type": "integer"
+              },
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              }
+            },
+            "required": ["items", "total", "page", "page_size"]
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "AdminChatModelItemResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdminChatModelItem"
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "AdminChatModelItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "is_auto": {
+            "type": "boolean"
+          },
+          "sort": {
+            "type": "integer"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "created_time": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updated_time": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id",
+          "model",
+          "name",
+          "enabled",
+          "is_auto",
+          "sort",
+          "price",
+          "available",
+          "created_time",
+          "updated_time"
+        ]
+      },
+      "ChatModelCandidatesResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ChatModelCandidate"
+                }
+              },
+              "total": {
+                "type": "integer"
+              }
+            },
+            "required": ["items", "total"]
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "ChatModelCandidate": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "configured": {
+            "type": "boolean"
+          }
+        },
+        "required": ["model", "name", "price", "configured"]
+      },
+      "CreateChatModelRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "is_auto": {
+            "type": "boolean",
+            "default": false
+          },
+          "sort": {
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "required": ["model"]
+      },
+      "UpdateChatModelRequest": {
+        "type": "object",
+        "description": "字段均为可选；不传表示不修改。",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "is_auto": {
+            "type": "boolean"
+          },
+          "sort": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}
