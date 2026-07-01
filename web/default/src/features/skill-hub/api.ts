@@ -28,6 +28,7 @@ import type {
 
 export async function listAdminSkillHubSkills(params?: {
   keyword?: string
+  recommended?: boolean
   p?: number
   page_size?: number
 }): Promise<SkillHubListResponse> {
@@ -37,6 +38,7 @@ export async function listAdminSkillHubSkills(params?: {
 
 export async function listSkillHubSkills(params?: {
   keyword?: string
+  recommended?: boolean
   p?: number
   page_size?: number
 }): Promise<SkillHubListResponse> {
@@ -44,10 +46,18 @@ export async function listSkillHubSkills(params?: {
   return res.data
 }
 
+export async function listRecommendedSkillHubSkills(params?: {
+  page_size?: number
+}): Promise<SkillHubListResponse> {
+  const res = await api.get('/api/skill-hub/skills/recommend', { params })
+  return res.data
+}
+
 export async function listSkillHubSkillsByTags(
   tagIds: number[],
   params?: {
     keyword?: string
+    recommended?: boolean
     p?: number
     page_size?: number
   }
@@ -62,6 +72,7 @@ export async function listAdminSkillHubSkillsByTags(
   tagIds: number[],
   params?: {
     keyword?: string
+    recommended?: boolean
     p?: number
     page_size?: number
   }
@@ -185,6 +196,7 @@ export function skillToForm(skill?: SkillHubSkill): SkillHubForm {
     icon: skill?.icon || '',
     tags: cleanList(skill?.tags),
     verified: Boolean(skill?.verified),
+    recommended: Boolean(skill?.recommended),
     published: Boolean(skill?.published || skill?.status === 1),
     sort: skill?.sort || 0,
     sourceType: 'zip',
@@ -203,6 +215,7 @@ function formToPayload(form: SkillHubForm) {
     icon: form.icon.trim(),
     tags: cleanList(form.tags),
     verified: form.verified,
+    recommended: form.recommended,
     published: form.published,
     sort: Number(form.sort) || 0,
     source: {
@@ -233,6 +246,7 @@ function withTagIds(
   tagIds: number[],
   params?: {
     keyword?: string
+    recommended?: boolean
     p?: number
     page_size?: number
   }

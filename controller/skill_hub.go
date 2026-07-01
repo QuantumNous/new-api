@@ -22,6 +22,7 @@ type skillHubSkillRequest struct {
 	Icon        string               `json:"icon"`
 	Tags        []string             `json:"tags"`
 	Verified    bool                 `json:"verified"`
+	Recommended bool                 `json:"recommended"`
 	Published   bool                 `json:"published"`
 	Status      *int                 `json:"status"`
 	Sort        int                  `json:"sort"`
@@ -35,7 +36,7 @@ type skillHubTagRequest struct {
 
 func ListSkillHubSkills(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	skills, total, err := model.SearchSkillHubSkills(c.Query("keyword"), false, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	skills, total, err := model.SearchSkillHubSkills(c.Query("keyword"), false, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), parseSkillHubRecommendedOnly(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -48,6 +49,19 @@ func ListSkillHubSkills(c *gin.Context) {
 
 func ListSkillHubSkillsByTags(c *gin.Context) {
 	listSkillHubSkillsByTags(c, false)
+}
+
+func ListRecommendedSkillHubSkills(c *gin.Context) {
+	pageSize := parseRecommendedSkillHubPageSize(c)
+	skills, total, err := model.SearchRecommendedSkillHubSkills(pageSize)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, model.SkillHubListResponse{
+		Items: model.SkillHubSkillsToResponses(skills, false),
+		Total: total,
+	})
 }
 
 func ListSkillHubTags(c *gin.Context) {
@@ -87,7 +101,7 @@ func DownloadSkillHubSkill(c *gin.Context) {
 
 func AdminListSkillHubSkills(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	skills, total, err := model.SearchSkillHubSkills(c.Query("keyword"), true, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	skills, total, err := model.SearchSkillHubSkills(c.Query("keyword"), true, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), parseSkillHubRecommendedOnly(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -268,7 +282,7 @@ func listSkillHubSkillsByTags(c *gin.Context, admin bool) {
 	}
 	pageInfo := common.GetPageQuery(c)
 	if len(tagIDs) == 0 {
-		skills, total, err := model.SearchSkillHubSkills(c.Query("keyword"), admin, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		skills, total, err := model.SearchSkillHubSkills(c.Query("keyword"), admin, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), parseSkillHubRecommendedOnly(c))
 		if err != nil {
 			common.ApiError(c, err)
 			return
@@ -279,7 +293,7 @@ func listSkillHubSkillsByTags(c *gin.Context, admin bool) {
 		})
 		return
 	}
-	skills, total, err := model.SearchSkillHubSkillsByTagIDs(tagIDs, c.Query("keyword"), admin, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	skills, total, err := model.SearchSkillHubSkillsByTagIDs(tagIDs, c.Query("keyword"), admin, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), parseSkillHubRecommendedOnly(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -319,6 +333,26 @@ func parseSkillHubTagIDs(c *gin.Context) ([]int, error) {
 		return nil, fmt.Errorf("too many tag ids")
 	}
 	return ids, nil
+}
+
+func parseRecommendedSkillHubPageSize(c *gin.Context) int {
+	const (
+		defaultPageSize = 4
+		maxPageSize     = 20
+	)
+	pageSize, err := strconv.Atoi(c.Query("page_size"))
+	if err != nil || pageSize <= 0 {
+		return defaultPageSize
+	}
+	if pageSize > maxPageSize {
+		return maxPageSize
+	}
+	return pageSize
+}
+
+func parseSkillHubRecommendedOnly(c *gin.Context) bool {
+	value := strings.ToLower(strings.TrimSpace(c.Query("recommended")))
+	return value == "true" || value == "1" || value == "yes"
 }
 
 func AdminCreateSkillHubTag(c *gin.Context) {
@@ -373,7 +407,7 @@ func skillHubRequestToModel(request skillHubSkillRequest, existing *model.SkillH
 	skill.Icon = strings.TrimSpace(request.Icon)
 	skill.Tags = model.StringListToJSON(request.Tags)
 	skill.Verified = request.Verified
-	skill.Recommended = false
+	skill.Recommended = request.Recommended
 	skill.Sort = request.Sort
 	if request.Status != nil {
 		skill.Status = *request.Status

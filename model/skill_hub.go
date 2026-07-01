@@ -75,6 +75,7 @@ type SkillHubSkillResponse struct {
 	Icon        string         `json:"icon,omitempty"`
 	Tags        []string       `json:"tags,omitempty"`
 	Verified    bool           `json:"verified"`
+	Recommended bool           `json:"recommended"`
 	Published   bool           `json:"published,omitempty"`
 	Status      int            `json:"status,omitempty"`
 	Sort        int            `json:"sort,omitempty"`
@@ -311,10 +312,13 @@ func IsSkillHubSkillIDDuplicated(id int, skillID string) (bool, error) {
 	return count > 0, err
 }
 
-func SearchSkillHubSkills(keyword string, admin bool, offset int, limit int) ([]*SkillHubSkill, int64, error) {
+func SearchSkillHubSkills(keyword string, admin bool, offset int, limit int, recommendedOnly ...bool) ([]*SkillHubSkill, int64, error) {
 	db := DB.Model(&SkillHubSkill{})
 	if !admin {
 		db = db.Where("status = ?", SkillHubStatusPublished)
+	}
+	if len(recommendedOnly) > 0 && recommendedOnly[0] {
+		db = db.Where("recommended = ?", true)
 	}
 	like, err := skillHubContainsLikePattern(keyword)
 	if err != nil {
@@ -338,7 +342,29 @@ func SearchSkillHubSkills(keyword string, admin bool, offset int, limit int) ([]
 	return skills, total, err
 }
 
-func SearchSkillHubSkillsByTagIDs(tagIDs []int, keyword string, admin bool, offset int, limit int) ([]*SkillHubSkill, int64, error) {
+func SearchRecommendedSkillHubSkills(limit int) ([]*SkillHubSkill, int64, error) {
+	if limit <= 0 {
+		return []*SkillHubSkill{}, 0, nil
+	}
+	db := DB.Model(&SkillHubSkill{}).
+		Where("status = ? AND recommended = ?", SkillHubStatusPublished, true)
+
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	randomOrder := "RANDOM()"
+	if common.UsingMySQL {
+		randomOrder = "RAND()"
+	}
+
+	var skills []*SkillHubSkill
+	err := db.Order(randomOrder).Limit(limit).Find(&skills).Error
+	return skills, total, err
+}
+
+func SearchSkillHubSkillsByTagIDs(tagIDs []int, keyword string, admin bool, offset int, limit int, recommendedOnly ...bool) ([]*SkillHubSkill, int64, error) {
 	tags, err := GetSkillHubTagsByIDs(tagIDs)
 	if err != nil {
 		return nil, 0, err
@@ -362,6 +388,9 @@ func SearchSkillHubSkillsByTagIDs(tagIDs []int, keyword string, admin bool, offs
 		Where("skill_hub_skill_tags.tag_id IN ?", cleanTagIDs)
 	if !admin {
 		db = db.Where("status = ?", SkillHubStatusPublished)
+	}
+	if len(recommendedOnly) > 0 && recommendedOnly[0] {
+		db = db.Where("skill_hub_skills.recommended = ?", true)
 	}
 	keywordLike, err := skillHubContainsLikePattern(keyword)
 	if err != nil {
@@ -732,6 +761,7 @@ func (s *SkillHubSkill) ToResponse(admin bool) SkillHubSkillResponse {
 		Icon:        s.Icon,
 		Tags:        stringListFromJSON(s.Tags),
 		Verified:    s.Verified,
+		Recommended: s.Recommended,
 		Published:   s.Status == SkillHubStatusPublished,
 		Status:      s.Status,
 		Sort:        s.Sort,

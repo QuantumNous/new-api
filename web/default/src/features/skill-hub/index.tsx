@@ -46,6 +46,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { SectionPageLayout } from '@/components/layout'
 import {
@@ -74,6 +75,7 @@ export function SkillHub() {
   const [uploading, setUploading] = useState(false)
   const [iconUploading, setIconUploading] = useState(false)
   const [keyword, setKeyword] = useState('')
+  const [recommendedOnly, setRecommendedOnly] = useState(false)
   const zipInputRef = useRef<HTMLInputElement | null>(null)
   const iconInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -86,11 +88,15 @@ export function SkillHub() {
     [tagOptions]
   )
 
-  async function loadSkills(tagIds = selectedTagIds) {
+  async function loadSkills(
+    tagIds = selectedTagIds,
+    nextRecommendedOnly = recommendedOnly
+  ) {
     setLoading(true)
     try {
       const params = {
         keyword: keyword.trim(),
+        recommended: nextRecommendedOnly || undefined,
         page_size: 100,
       }
       const payload = tagIds.length
@@ -150,12 +156,17 @@ export function SkillHub() {
       ? selectedTagIds.filter((id) => id !== tagId)
       : [...selectedTagIds, tagId]
     setSelectedTagIds(next)
-    void loadSkills(next)
+    void loadSkills(next, recommendedOnly)
   }
 
   function clearTagFilter() {
     setSelectedTagIds([])
-    void loadSkills([])
+    void loadSkills([], recommendedOnly)
+  }
+
+  function applyRecommendedFilter(nextRecommendedOnly: boolean) {
+    setRecommendedOnly(nextRecommendedOnly)
+    void loadSkills(selectedTagIds, nextRecommendedOnly)
   }
 
   async function saveSkill() {
@@ -333,6 +344,24 @@ export function SkillHub() {
                   {t('Search')}
                 </Button>
               </div>
+              <div className='flex flex-wrap gap-1.5'>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant={recommendedOnly ? 'outline' : 'secondary'}
+                  onClick={() => applyRecommendedFilter(false)}
+                >
+                  {t('All')}
+                </Button>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant={recommendedOnly ? 'default' : 'outline'}
+                  onClick={() => applyRecommendedFilter(true)}
+                >
+                  {t('Recommended')}
+                </Button>
+              </div>
               {tagOptions.length > 0 && (
                 <div className='flex flex-wrap gap-1.5'>
                   <Button
@@ -382,9 +411,16 @@ export function SkillHub() {
                             {skill.id} · {skill.version}
                           </div>
                         </div>
-                        <Badge variant={published ? 'default' : 'outline'}>
-                          {published ? t('Published') : t('Draft')}
-                        </Badge>
+                        <div className='flex shrink-0 flex-wrap justify-end gap-1'>
+                          {skill.recommended && (
+                            <Badge variant='secondary'>
+                              {t('Recommended')}
+                            </Badge>
+                          )}
+                          <Badge variant={published ? 'default' : 'outline'}>
+                            {published ? t('Published') : t('Draft')}
+                          </Badge>
+                        </div>
                       </div>
                     </button>
                   )
@@ -579,6 +615,11 @@ export function SkillHub() {
                       label={t('Verified')}
                       checked={form.verified}
                       onChange={(checked) => update('verified', checked)}
+                    />
+                    <SwitchField
+                      label={t('Recommended')}
+                      checked={form.recommended}
+                      onChange={(checked) => update('recommended', checked)}
                     />
                   </div>
                 </FormSection>
@@ -806,6 +847,19 @@ function CheckboxField(props: {
         checked={props.checked}
         onChange={(event) => props.onChange(event.target.checked)}
       />
+      <span>{props.label}</span>
+    </label>
+  )
+}
+
+function SwitchField(props: {
+  label: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label className='flex items-center gap-2 text-sm font-medium'>
+      <Switch checked={props.checked} onCheckedChange={props.onChange} />
       <span>{props.label}</span>
     </label>
   )

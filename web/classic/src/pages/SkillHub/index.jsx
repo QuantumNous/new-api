@@ -41,6 +41,7 @@ const createDefaultForm = () => ({
   icon: '',
   tags: [],
   verified: false,
+  recommended: false,
   published: false,
   sort: 0,
   sourceUrl: '',
@@ -118,6 +119,7 @@ const skillToForm = (skill) => ({
   icon: skill?.icon || '',
   tags: normalizeTags(skill?.tags),
   verified: Boolean(skill?.verified),
+  recommended: Boolean(skill?.recommended),
   published: isPublishedSkill(skill),
   sort: skill?.sort || 0,
   sourceUrl: skill?.source?.url || '',
@@ -133,6 +135,7 @@ const formToPayload = (form) => ({
   icon: form.icon.trim(),
   tags: normalizeTags(form.tags),
   verified: form.verified,
+  recommended: form.recommended,
   published: form.published,
   sort: Number(form.sort) || 0,
   source: {
@@ -567,9 +570,14 @@ const SkillHub = () => {
                       <span className='truncate font-semibold'>
                         {skill.name}
                       </span>
-                      <Tag color={isPublishedSkill(skill) ? 'green' : 'grey'}>
-                        {isPublishedSkill(skill) ? '已发布' : '草稿'}
-                      </Tag>
+                      <Space spacing={4}>
+                        {skill.recommended ? (
+                          <Tag color='violet'>推荐</Tag>
+                        ) : null}
+                        <Tag color={isPublishedSkill(skill) ? 'green' : 'grey'}>
+                          {isPublishedSkill(skill) ? '已发布' : '草稿'}
+                        </Tag>
+                      </Space>
                     </div>
                     <div className='mt-1 truncate text-xs text-semi-color-text-2'>
                       {skill.id} · {skill.version}
@@ -759,6 +767,14 @@ const SkillHub = () => {
                       }
                     >
                       已验证
+                    </Checkbox>
+                    <Checkbox
+                      checked={form.recommended}
+                      onChange={(event) =>
+                        updateForm('recommended', event.target.checked)
+                      }
+                    >
+                      推荐
                     </Checkbox>
                   </Space>
                 </div>

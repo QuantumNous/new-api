@@ -133,6 +133,7 @@ func TestSkillHubSkillToResponseUsesCurrentCatalogSchema(t *testing.T) {
 		Icon:           "https://cdn.example.com/icon.png",
 		Tags:           StringListToJSON([]string{"code", "demo"}),
 		Verified:       true,
+		Recommended:    true,
 		Sort:           9,
 		SourceType:     "zip",
 		SourceURL:      "https://cdn.example.com/demo.zip",
@@ -148,6 +149,9 @@ func TestSkillHubSkillToResponseUsesCurrentCatalogSchema(t *testing.T) {
 	if response.Name != "Demo Skill" || response.Description != "Demo description" || !response.Verified {
 		t.Fatalf("response = %#v", response)
 	}
+	if !response.Recommended {
+		t.Fatalf("response.Recommended = false, want true")
+	}
 	if len(response.Tags) != 2 || response.Tags[0] != "code" || response.Tags[1] != "demo" {
 		t.Fatalf("tags = %#v", response.Tags)
 	}
@@ -162,6 +166,67 @@ func TestSkillHubSkillToResponseUsesCurrentCatalogSchema(t *testing.T) {
 	}
 	if response.Source.Ref != "" {
 		t.Fatalf("public response leaked source ref: %#v", response.Source)
+	}
+}
+
+func TestSearchRecommendedSkillHubSkillsOnlyReturnsPublishedRecommendedSkills(t *testing.T) {
+	setupSkillHubTestDB(t)
+
+	fixtures := []*SkillHubSkill{
+		{
+			SkillID:     "recommended-one",
+			Name:        "Recommended One",
+			Version:     "1.0.0",
+			Recommended: true,
+			Status:      SkillHubStatusPublished,
+			SourceType:  "zip",
+			SourceURL:   "https://cdn.example.com/recommended-one.zip",
+		},
+		{
+			SkillID:     "recommended-two",
+			Name:        "Recommended Two",
+			Version:     "1.0.0",
+			Recommended: true,
+			Status:      SkillHubStatusPublished,
+			SourceType:  "zip",
+			SourceURL:   "https://cdn.example.com/recommended-two.zip",
+		},
+		{
+			SkillID:     "recommended-draft",
+			Name:        "Recommended Draft",
+			Version:     "1.0.0",
+			Recommended: true,
+			Status:      SkillHubStatusDraft,
+			SourceType:  "zip",
+			SourceURL:   "https://cdn.example.com/recommended-draft.zip",
+		},
+		{
+			SkillID:     "published-regular",
+			Name:        "Published Regular",
+			Version:     "1.0.0",
+			Recommended: false,
+			Status:      SkillHubStatusPublished,
+			SourceType:  "zip",
+			SourceURL:   "https://cdn.example.com/published-regular.zip",
+		},
+	}
+	for _, skill := range fixtures {
+		if err := skill.Insert(); err != nil {
+			t.Fatalf("insert %s: %v", skill.SkillID, err)
+		}
+	}
+
+	skills, total, err := SearchRecommendedSkillHubSkills(10)
+	if err != nil {
+		t.Fatalf("SearchRecommendedSkillHubSkills() error = %v", err)
+	}
+	if total != 2 || len(skills) != 2 {
+		t.Fatalf("skills = %#v, total = %d; want two published recommended skills", skills, total)
+	}
+	for _, skill := range skills {
+		if !skill.Recommended || skill.Status != SkillHubStatusPublished {
+			t.Fatalf("unexpected recommended skill: %#v", skill)
+		}
 	}
 }
 

@@ -36,6 +36,7 @@ func SetApiRouter(router *gin.Engine) {
 			skillHubRoute.GET("/tags", controller.ListSkillHubTags)
 			skillHubRoute.GET("/tags/skills", controller.ListSkillHubSkillsByTags)
 			skillHubRoute.GET("/skills", controller.ListSkillHubSkills)
+			skillHubRoute.GET("/skills/recommend", controller.ListRecommendedSkillHubSkills)
 			skillHubRoute.GET("/skills/:id/download", controller.DownloadSkillHubSkill)
 			skillHubRoute.GET("/skills/:id", controller.GetSkillHubSkill)
 		}

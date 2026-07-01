@@ -33,6 +33,15 @@
             }
           },
           {
+            "name": "recommended",
+            "in": "query",
+            "description": "是否仅返回推荐技能；true、1、yes 表示仅推荐",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "p",
             "in": "query",
             "description": "页码",
@@ -48,6 +57,41 @@
             "required": false,
             "schema": {
               "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubListApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skill-hub/skills/recommend": {
+      "get": {
+        "summary": "随机获取推荐技能",
+        "deprecated": false,
+        "description": "🔓 无需鉴权；从已发布且标记推荐的技能中随机返回一组，用于前台“换一换”",
+        "tags": ["技能广场"],
+        "parameters": [
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "返回数量，默认 4，最大 20",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 4,
+              "maximum": 20,
+              "minimum": 1
             }
           }
         ],
@@ -139,6 +183,15 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "recommended",
+            "in": "query",
+            "description": "是否仅返回推荐技能；true、1、yes 表示仅推荐",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -489,6 +542,15 @@
             }
           },
           {
+            "name": "recommended",
+            "in": "query",
+            "description": "是否仅返回推荐技能；true、1、yes 表示仅推荐",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "p",
             "in": "query",
             "description": "页码",
@@ -588,6 +650,15 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "recommended",
+            "in": "query",
+            "description": "是否仅返回推荐技能；true、1、yes 表示仅推荐",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -964,6 +1035,10 @@
             "type": "boolean",
             "description": "是否认证"
           },
+          "recommended": {
+            "type": "boolean",
+            "description": "是否推荐到技能广场推荐模块"
+          },
           "published": {
             "type": "boolean",
             "description": "是否已发布；公开接口不返回有效值"
@@ -1102,6 +1177,10 @@
           "verified": {
             "type": "boolean",
             "description": "是否认证"
+          },
+          "recommended": {
+            "type": "boolean",
+            "description": "是否推荐到技能广场推荐模块"
           },
           "published": {
             "type": "boolean",

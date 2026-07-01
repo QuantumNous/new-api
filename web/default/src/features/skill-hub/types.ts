@@ -24,6 +24,7 @@ export type SkillHubSkill = {
   icon?: string
   tags?: string[]
   verified: boolean
+  recommended: boolean
   published?: boolean
   status?: number
   sort?: number
@@ -83,6 +84,7 @@ export type SkillHubForm = {
   icon: string
   tags: string[]
   verified: boolean
+  recommended: boolean
   published: boolean
   sort: number
   sourceType: 'zip'
