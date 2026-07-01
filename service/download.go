@@ -65,6 +65,7 @@ func DoDownloadRequest(originUrl string, reason ...string) (resp *http.Response,
 		}
 
 		common.SysLog(fmt.Sprintf("downloading from origin: %s, reason: %s", common.MaskSensitiveInfo(originUrl), strings.Join(reason, ", ")))
-		return GetHttpClient().Get(originUrl)
+		// 安全加固：用户可控 URL 的下载走 SSRF 安全客户端（拨号固定已校验 IP，防 DNS-rebinding）
+		return GetSSRFSafeClient().Get(originUrl)
 	}
 }
