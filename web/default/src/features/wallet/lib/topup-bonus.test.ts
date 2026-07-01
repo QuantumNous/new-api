@@ -103,28 +103,6 @@ describe('top-up bonus preset metadata', () => {
     expect(
       getWalletCheckoutInitialTopupAmount(
         normalizeWalletCheckoutSearch({
-          amount: '10',
-          currency: 'BRL',
-          amount_minor: '4990',
-          stripe_lookup_key: 'topup-brl-4990',
-        }),
-        presets
-      )
-    ).toBe(10)
-    expect(
-      getWalletCheckoutInitialTopupAmount(
-        normalizeWalletCheckoutSearch({
-          amount: '20',
-          currency: 'BRL',
-          amount_minor: '4990',
-          stripe_lookup_key: 'topup-brl-4990',
-        }),
-        presets
-      )
-    ).toBe(0)
-    expect(
-      getWalletCheckoutInitialTopupAmount(
-        normalizeWalletCheckoutSearch({
           amount: '49.9',
           currency: 'BRL',
           amount_minor: '4990',
@@ -146,21 +124,21 @@ describe('top-up bonus preset metadata', () => {
     ).toBe(0)
   })
 
-  test('only consumes checkout search params after applying a valid package', () => {
+  test('consumes pricing CTA search params only after a valid package is applied', () => {
     const checkoutSearch = normalizeWalletCheckoutSearch({
-      amount: '10',
-      currency: 'BRL',
-      amount_minor: '4990',
-      stripe_lookup_key: 'topup-brl-4990',
+      amount: '20',
+      currency: 'USD',
+      amount_minor: '2000',
+      stripe_lookup_key: 'topup-usd-2000',
     })
 
-    expect(shouldConsumeWalletCheckoutSearchParams(checkoutSearch, 10)).toBe(
+    expect(shouldConsumeWalletCheckoutSearchParams(checkoutSearch, 20)).toBe(
       true
     )
     expect(shouldConsumeWalletCheckoutSearchParams(checkoutSearch, 0)).toBe(
       false
     )
-    expect(shouldConsumeWalletCheckoutSearchParams(undefined, 0)).toBe(false)
+    expect(shouldConsumeWalletCheckoutSearchParams(undefined, 20)).toBe(false)
   })
 
   test('only accepts top-up amounts that match configured presets', () => {

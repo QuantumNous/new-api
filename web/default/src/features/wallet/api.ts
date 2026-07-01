@@ -18,13 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import type {
-  RedemptionRequest,
   PaymentRequest,
   AmountRequest,
   AffiliateTransferRequest,
   ApiResponse,
   TopupInfoResponse,
-  RedemptionResponse,
   AmountResponse,
   PaymentResponse,
   StripePaymentResponse,
@@ -62,16 +60,6 @@ export function isApiSuccess(response: ApiResponse): boolean {
  */
 export async function getTopupInfo(): Promise<TopupInfoResponse> {
   const res = await api.get('/api/user/topup/info')
-  return res.data
-}
-
-/**
- * Redeem a topup code
- */
-export async function redeemTopupCode(
-  request: RedemptionRequest
-): Promise<RedemptionResponse> {
-  const res = await api.post('/api/user/topup', request)
   return res.data
 }
 

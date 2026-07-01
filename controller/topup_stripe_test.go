@@ -53,65 +53,6 @@ func TestBuildStripeTopUpLineItemUsesConfiguredMultiCurrencyPrice(t *testing.T) 
 	require.Nil(t, lineItem.PriceData)
 }
 
-func TestBuildStripeCheckoutSessionParamsRespectsPromotionCodeSetting(t *testing.T) {
-	originalPriceId := setting.StripePriceId
-	originalPromotionCodesEnabled := setting.StripePromotionCodesEnabled
-	t.Cleanup(func() {
-		setting.StripePriceId = originalPriceId
-		setting.StripePromotionCodesEnabled = originalPromotionCodesEnabled
-	})
-	setting.StripePriceId = "price_multi_currency"
-	setting.StripePromotionCodesEnabled = false
-
-	params := buildStripeCheckoutSessionParams(
-		"ref_123",
-		"",
-		"user@example.com",
-		setting.StripePriceId,
-		20,
-		"https://flatkey.ai/wallet?show_history=true",
-		"https://flatkey.ai/wallet",
-		false,
-		false,
-	)
-
-	require.NotNil(t, params.AllowPromotionCodes)
-	require.False(t, *params.AllowPromotionCodes)
-	require.Len(t, params.LineItems, 1)
-	require.NotNil(t, params.LineItems[0].Price)
-	require.Equal(t, setting.StripePriceId, *params.LineItems[0].Price)
-	require.Nil(t, params.LineItems[0].PriceData)
-
-	params = buildStripeCheckoutSessionParams(
-		"ref_123",
-		"",
-		"user@example.com",
-		setting.StripePriceId,
-		20,
-		"https://flatkey.ai/wallet?show_history=true",
-		"https://flatkey.ai/wallet",
-		false,
-		true,
-	)
-	require.NotNil(t, params.AllowPromotionCodes)
-	require.False(t, *params.AllowPromotionCodes)
-
-	setting.StripePromotionCodesEnabled = true
-	params = buildStripeCheckoutSessionParams(
-		"ref_123",
-		"",
-		"user@example.com",
-		setting.StripePriceId,
-		20,
-		"https://flatkey.ai/wallet?show_history=true",
-		"https://flatkey.ai/wallet",
-		false,
-		false,
-	)
-	require.NotNil(t, params.AllowPromotionCodes)
-	require.True(t, *params.AllowPromotionCodes)
-}
-
 func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 	originalPriceId := setting.StripePriceId
 	originalPriceId20 := setting.StripePriceId20

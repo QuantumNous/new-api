@@ -33,7 +33,6 @@ export interface ApiResponse<T = unknown> {
  * Standard API response types
  */
 export type TopupInfoResponse = ApiResponse<TopupInfo>
-export type RedemptionResponse = ApiResponse<number>
 export type AmountResponse = ApiResponse<string>
 export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   url?: string
@@ -243,14 +242,6 @@ export interface PresetAmount {
 }
 
 /**
- * Redemption code request
- */
-export interface RedemptionRequest {
-  /** Redemption code key */
-  key: string
-}
-
-/**
  * Payment request parameters
  */
 export interface PaymentRequest {
@@ -279,6 +270,7 @@ export interface PaymentRequest {
 export interface PaymentOptions {
   invoiceRequested?: boolean
   invoiceProfile?: InvoiceProfile
+  stripeCurrency?: 'USD' | 'JPY' | 'BRL'
 }
 
 /**

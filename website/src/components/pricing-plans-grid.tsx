@@ -53,10 +53,10 @@ export function PricingPlansGrid(props: PricingPlansGridProps) {
             ) : null}
             <h2 className="text-xl font-black text-slate-950 dark:text-white">{plan.name}</h2>
             <p className="mt-2 h-[4.5rem] text-sm leading-6 text-slate-600 dark:text-slate-300">{plan.description}</p>
-            <div className="relative mt-6 w-fit pr-20">
+            <div className="mt-6 flex items-center gap-3">
               <span className={plan.action === "contact" ? "text-4xl font-black tracking-tight text-slate-950 dark:text-white" : "text-5xl font-black tracking-tight text-slate-950 dark:text-white"}>{plan.price}</span>
               {plan.discount ? (
-                <span className="absolute top-1/2 right-0 -translate-y-1/2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-black whitespace-nowrap text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-300/10 dark:text-emerald-200">{plan.discount}</span>
+                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-black whitespace-nowrap text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-300/10 dark:text-emerald-200">{plan.discount}</span>
               ) : null}
             </div>
             {plan.action === "contact" ? (

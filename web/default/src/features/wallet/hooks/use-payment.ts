@@ -205,9 +205,11 @@ export function usePayment() {
         const stripeRequest = {
           amount,
           payment_method: 'stripe',
-          stripe_currency: getStripeCheckoutCurrencyForLanguage(
-            i18next.resolvedLanguage || i18next.language
-          ),
+          stripe_currency:
+            options?.stripeCurrency ??
+            getStripeCheckoutCurrencyForLanguage(
+              i18next.resolvedLanguage || i18next.language
+            ),
           ...gaIdentifiers,
           ...getStripeRedirectUrls(),
           ...(options?.invoiceRequested && options.invoiceProfile

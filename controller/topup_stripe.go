@@ -1375,7 +1375,7 @@ func buildStripeCheckoutSessionParams(referenceId string, customerId string, ema
 			buildStripeTopUpLineItem(priceId, quantity),
 		},
 		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
-		AllowPromotionCodes: stripe.Bool(setting.StripePromotionCodesEnabled),
+		AllowPromotionCodes: stripe.Bool(true),
 	}
 
 	if "" == customerId {

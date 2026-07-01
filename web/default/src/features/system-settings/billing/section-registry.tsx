@@ -153,7 +153,6 @@ const BILLING_SECTIONS = [
           StripeTopUpPriceIds: settings.StripeTopUpPriceIds ?? '',
           StripeUnitPrice: settings.StripeUnitPrice,
           StripeMinTopUp: settings.StripeMinTopUp,
-          StripePromotionCodesEnabled: settings.StripePromotionCodesEnabled,
           CreemApiKey: settings.CreemApiKey,
           CreemWebhookSecret: settings.CreemWebhookSecret,
           CreemTestMode: settings.CreemTestMode,

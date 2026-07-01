@@ -14,6 +14,7 @@ import { PricingExplorer } from "@/components/pricing-explorer";
 import { FlatkeyTallyEmbed } from "@/components/flatkey-tally-embed";
 import type { Locale } from "@/lib/locales";
 import { SIGN_UP_URL, pricingCheckoutUrl } from "@/lib/pricing-links";
+import { buildPricingSeoIndex } from "@/lib/pricing-seo";
 
 type PricingPageProps = {
   locale: Locale;
@@ -75,8 +76,8 @@ type PricingPageLocalizedUiCopy = {
   bestFirstTopUpDescription: string;
   bestValueDescription: string;
   popularBadge: string;
-  discount40: string;
-  discount50: string;
+  topUp20Bonus: string;
+  topUp200Bonus: string;
   enterprisePlanName: string;
   customPriceLabel: string;
   enterprisePlanDescription: string;
@@ -524,8 +525,8 @@ const PRICING_UI_COPY: Record<Locale, PricingPageLocalizedUiCopy> = {
     bestFirstTopUpDescription: "Best first top-up for trying real API workloads with a clear discount.",
     bestValueDescription: "Best value for production testing, team workflows, and sustained model traffic.",
     popularBadge: "Most Popular",
-    discount40: "40% OFF",
-    discount50: "50% OFF",
+    topUp20Bonus: "+5 free bonus",
+    topUp200Bonus: "+100 free bonus",
     enterprisePlanName: "Enterprise",
     customPriceLabel: "Custom",
     enterprisePlanDescription: "For higher monthly usage, invoicing, team procurement, or custom routing discounts.",
@@ -552,8 +553,8 @@ const PRICING_UI_COPY: Record<Locale, PricingPageLocalizedUiCopy> = {
     bestFirstTopUpDescription: "适合首次尝试真实 API 工作负载，并享受明确折扣。",
     bestValueDescription: "适合生产测试、团队流程和持续模型流量的高性价比选择。",
     popularBadge: "最受欢迎",
-    discount40: "立减 40%",
-    discount50: "立减 50%",
+    topUp20Bonus: "+5 \u514d\u8d39\u8d60\u9001",
+    topUp200Bonus: "+100 \u514d\u8d39\u8d60\u9001",
     enterprisePlanName: "企业版",
     customPriceLabel: "定制",
     enterprisePlanDescription: "适合更高月用量、发票、团队采购或定制路由折扣。",
@@ -580,8 +581,8 @@ const PRICING_UI_COPY: Record<Locale, PricingPageLocalizedUiCopy> = {
     bestFirstTopUpDescription: "La mejor primera recarga para probar workloads API reales con un descuento claro.",
     bestValueDescription: "Mejor valor para pruebas de producción, flujos de equipo y tráfico sostenido de modelos.",
     popularBadge: "Más popular",
-    discount40: "40% de descuento",
-    discount50: "50% de descuento",
+    topUp20Bonus: "+5 de bono gratis",
+    topUp200Bonus: "+100 de bono gratis",
     enterprisePlanName: "Empresa",
     customPriceLabel: "A medida",
     enterprisePlanDescription: "Para mayor uso mensual, facturación, compras de equipo o descuentos de routing personalizados.",
@@ -608,8 +609,8 @@ const PRICING_UI_COPY: Record<Locale, PricingPageLocalizedUiCopy> = {
     bestFirstTopUpDescription: "Meilleure première recharge pour tester de vraies charges API avec une remise claire.",
     bestValueDescription: "Meilleur rapport valeur pour tests de production, workflows d'équipe et trafic modèle continu.",
     popularBadge: "Le plus populaire",
-    discount40: "40 % de remise",
-    discount50: "50 % de remise",
+    topUp20Bonus: "+5 de bonus gratuit",
+    topUp200Bonus: "+100 de bonus gratuit",
     enterprisePlanName: "Entreprise",
     customPriceLabel: "Sur mesure",
     enterprisePlanDescription: "Pour un usage mensuel plus élevé, la facturation, les achats d'équipe ou des remises de routage personnalisées.",
@@ -636,8 +637,8 @@ const PRICING_UI_COPY: Record<Locale, PricingPageLocalizedUiCopy> = {
     bestFirstTopUpDescription: "Melhor primeira recarga para testar workloads reais de API com desconto claro.",
     bestValueDescription: "Melhor valor para testes em produção, fluxos de equipe e tráfego contínuo de modelos.",
     popularBadge: "Mais popular",
-    discount40: "40% de desconto",
-    discount50: "50% de desconto",
+    topUp20Bonus: "+5 de b\u00f4nus gr\u00e1tis",
+    topUp200Bonus: "+100 de b\u00f4nus gr\u00e1tis",
     enterprisePlanName: "Empresarial",
     customPriceLabel: "Sob medida",
     enterprisePlanDescription: "Para maior uso mensal, faturamento, compras de equipe ou descontos personalizados de roteamento.",
@@ -664,8 +665,8 @@ const PRICING_UI_COPY: Record<Locale, PricingPageLocalizedUiCopy> = {
     bestFirstTopUpDescription: "Лучшее первое пополнение для проверки реальных API-нагрузок с понятной скидкой.",
     bestValueDescription: "Лучшее соотношение цены для production-тестов, командных процессов и стабильного model traffic.",
     popularBadge: "Самый популярный",
-    discount40: "Скидка 40%",
-    discount50: "Скидка 50%",
+    topUp20Bonus: "+5 \u0431\u0435\u0441\u043f\u043b\u0430\u0442\u043d\u043e\u0433\u043e \u0431\u043e\u043d\u0443\u0441\u0430",
+    topUp200Bonus: "+100 \u0431\u0435\u0441\u043f\u043b\u0430\u0442\u043d\u043e\u0433\u043e \u0431\u043e\u043d\u0443\u0441\u0430",
     enterprisePlanName: "Enterprise",
     customPriceLabel: "Индивидуально",
     enterprisePlanDescription: "Для большего месячного объема, счетов, закупок командой или индивидуальных routing-скидок.",
@@ -692,8 +693,8 @@ const PRICING_UI_COPY: Record<Locale, PricingPageLocalizedUiCopy> = {
     bestFirstTopUpDescription: "実際の API ワークロードを明確な割引で試す最初のチャージに最適です。",
     bestValueDescription: "本番テスト、チームワークフロー、継続的なモデル利用に最適な価値です。",
     popularBadge: "人気",
-    discount40: "40% 割引",
-    discount50: "50% 割引",
+    topUp20Bonus: "+5 \u7121\u6599\u30dc\u30fc\u30ca\u30b9",
+    topUp200Bonus: "+100 \u7121\u6599\u30dc\u30fc\u30ca\u30b9",
     enterprisePlanName: "エンタープライズ",
     customPriceLabel: "カスタム",
     enterprisePlanDescription: "より高い月間利用量、請求書、チーム調達、カスタムルーティング割引向け。",
@@ -720,8 +721,8 @@ const PRICING_UI_COPY: Record<Locale, PricingPageLocalizedUiCopy> = {
     bestFirstTopUpDescription: "Khoản nạp đầu tiên tốt nhất để thử workload API thật với mức giảm giá rõ ràng.",
     bestValueDescription: "Giá trị tốt nhất cho thử nghiệm production, workflow nhóm và traffic mô hình ổn định.",
     popularBadge: "Phổ biến nhất",
-    discount40: "Giảm 40%",
-    discount50: "Giảm 50%",
+    topUp20Bonus: "+5 bonus mi\u1ec5n ph\u00ed",
+    topUp200Bonus: "+100 bonus mi\u1ec5n ph\u00ed",
     enterprisePlanName: "Doanh nghiệp",
     customPriceLabel: "Tùy chỉnh",
     enterprisePlanDescription: "Cho usage tháng cao hơn, invoice, procurement nhóm hoặc giảm giá routing tùy chỉnh.",
@@ -748,8 +749,8 @@ const PRICING_UI_COPY: Record<Locale, PricingPageLocalizedUiCopy> = {
     bestFirstTopUpDescription: "Beste erste Aufladung zum Testen echter API-Workloads mit klarem Rabatt.",
     bestValueDescription: "Bester Wert für Produktionstests, Team-Workflows und dauerhaften Modell-Traffic.",
     popularBadge: "Am beliebtesten",
-    discount40: "40% Rabatt",
-    discount50: "50% Rabatt",
+    topUp20Bonus: "+5 Gratisbonus",
+    topUp200Bonus: "+100 Gratisbonus",
     enterprisePlanName: "Enterprise",
     customPriceLabel: "Individuell",
     enterprisePlanDescription: "Für höhere Monatsnutzung, Rechnungen, Team-Procurement oder individuelle Routing-Rabatte.",
@@ -965,7 +966,7 @@ export function getPricingPlans(locale: Locale): PricingPlan[] {
       description: copy.bestFirstTopUpDescription,
       cta: copy.getFreeApiKey,
       badge: copy.popularBadge,
-      discount: copy.discount40,
+      discount: copy.topUp20Bonus,
       featured: true,
       ...checkoutPlanFields(currency, 1),
       features: [copy.packageBullets[2], copy.trustSignals[1], copy.trustSignals[2], copy.trustSignals[3]],
@@ -976,7 +977,7 @@ export function getPricingPlans(locale: Locale): PricingPlan[] {
       caption: copy.fortyXCaption,
       description: copy.bestValueDescription,
       cta: copy.getFreeApiKey,
-      discount: copy.discount50,
+      discount: copy.topUp200Bonus,
       featured: false,
       ...checkoutPlanFields(currency, 2),
       features: [copy.highestPrepaidValue, copy.trustSignals[1], copy.trustSignals[2], copy.trustSignals[3]],
@@ -1118,7 +1119,13 @@ export async function PricingPage(props: PricingPageProps) {
 
 export async function ModelsPage(props: PricingPageProps) {
   const pricing = await getPricingData();
-  const allModels = enrichVendorNames(pricing.models, pricing.vendors, pricing.groupRatio, pricing.usableGroup);
+  const seoIndex = buildPricingSeoIndex(pricing);
+  const allModels = enrichVendorNames(
+    seoIndex.models.map((entry) => entry.model),
+    seoIndex.vendors,
+    pricing.groupRatio,
+    pricing.usableGroup
+  );
   const copy = pricingCopy(props.locale);
 
   return (
@@ -1158,7 +1165,7 @@ export async function ModelsPage(props: PricingPageProps) {
           <PricingExplorer
             locale={props.locale}
             models={allModels}
-            vendors={pricing.vendors}
+            vendors={seoIndex.vendors}
             groupRatio={pricing.groupRatio}
             usableGroup={pricing.usableGroup}
             endpointMap={pricing.supportedEndpoint}
