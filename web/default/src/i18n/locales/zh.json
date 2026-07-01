@@ -4977,14 +4977,13 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Fail the test automatically if no response within this time.": "超过此时间未响应则自动判定测试失败。",
+    "Filter models by response time after testing.": "测试后按响应时间筛选模型。",
+    "Max seconds": "最大秒数",
+    "Response time filter": "响应时间筛选",
+    "Select fitting models ({{count}})": "选择符合条件的模型 ({{count}})",
+    "Test timeout (seconds)": "测试超时 (秒)",
+    "Test timed out ({{timeout}}s)": "测试超时 ({{timeout}}s)"
   }
-  ,
-  "Test timeout (seconds)": "测试超时 (秒)",
-  "Fail the test automatically if no response within this time.": "超过此时间未响应则自动判定测试失败。",
-  "Response time filter": "响应时间筛选",
-  "Filter models by response time after testing.": "测试后按响应时间筛选模型。",
-  "Select fitting models ({{count}})": "选择符合条件的模型 ({{count}})",
-  "Test timed out ({{timeout}}s)": "测试超时 ({{timeout}}s)",
-  "Max seconds": "最大秒数"
 }

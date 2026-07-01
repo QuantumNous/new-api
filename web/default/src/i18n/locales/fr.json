@@ -4977,14 +4977,13 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Fail the test automatically if no response within this time.": "Échouer le test automatiquement si aucune réponse dans ce délai.",
+    "Filter models by response time after testing.": "Filtrer les modèles par temps de réponse après le test.",
+    "Max seconds": "Secondes max",
+    "Response time filter": "Filtre de temps de réponse",
+    "Select fitting models ({{count}})": "Sélectionner les modèles correspondants ({{count}})",
+    "Test timeout (seconds)": "Délai d'attente du test (secondes)",
+    "Test timed out ({{timeout}}s)": "Test expiré ({{timeout}}s)"
   }
-  ,
-  "Test timeout (seconds)": "Test timeout (seconds)",
-  "Fail the test automatically if no response within this time.": "Fail the test automatically if no response within this time.",
-  "Response time filter": "Response time filter",
-  "Filter models by response time after testing.": "Filter models by response time after testing.",
-  "Select fitting models ({{count}})": "Select fitting models ({{count}})",
-  "Test timed out ({{timeout}}s)": "Test timed out ({{timeout}}s)",
-  "Max seconds": "Max seconds"
 }

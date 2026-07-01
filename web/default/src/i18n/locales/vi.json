@@ -4977,14 +4977,13 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Fail the test automatically if no response within this time.": "Tự động đánh dấu thất bại nếu không có phản hồi trong thời gian này.",
+    "Filter models by response time after testing.": "Lọc mô hình theo thời gian phản hồi sau khi kiểm tra.",
+    "Max seconds": "Số giây tối đa",
+    "Response time filter": "Bộ lọc thời gian phản hồi",
+    "Select fitting models ({{count}})": "Chọn mô hình phù hợp ({{count}})",
+    "Test timeout (seconds)": "Thời gian chờ kiểm tra (giây)",
+    "Test timed out ({{timeout}}s)": "Kiểm tra hết thời gian chờ ({{timeout}}s)"
   }
-  ,
-  "Test timeout (seconds)": "Test timeout (seconds)",
-  "Fail the test automatically if no response within this time.": "Fail the test automatically if no response within this time.",
-  "Response time filter": "Response time filter",
-  "Filter models by response time after testing.": "Filter models by response time after testing.",
-  "Select fitting models ({{count}})": "Select fitting models ({{count}})",
-  "Test timed out ({{timeout}}s)": "Test timed out ({{timeout}}s)",
-  "Max seconds": "Max seconds"
 }
