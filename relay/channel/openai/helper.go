@@ -169,6 +169,43 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		for _, resp := range claudeResponses {
 			_ = helper.ClaudeData(c, *resp)
 		}
+
+		// Fallback: ensure closing events are emitted even if upstream never sent
+		// finish_reason / usage. Some OpenAI-compatible upstreams (e.g. LiteLLM)
+		// truncate the stream without proper terminators, and Claude Code hangs
+		// indefinitely without message_stop.
+		if !info.ClaudeConvertInfo.Done {
+			// Close any open content blocks first so the event sequence stays
+			// valid (content_block_start … content_block_stop pairs).
+			for _, stopBlock := range service.GenerateClaudeStopBlocksForOpenInfo(info) {
+				_ = helper.ClaudeData(c, *stopBlock)
+			}
+			info.ClaudeConvertInfo.LastMessagesType = relaycommon.LastMessageTypeNone
+
+			stopReason := service.StopReasonOpenAI2Claude(info.FinishReason)
+			if stopReason == "" {
+				stopReason = "end_turn"
+			}
+			if usage != nil {
+				_ = helper.ClaudeData(c, dto.ClaudeResponse{
+					Type:  "message_delta",
+					Usage: service.BuildClaudeUsageFromOpenAIUsage(usage),
+					Delta: &dto.ClaudeMediaMessage{
+						StopReason: common.GetPointer[string](stopReason),
+					},
+				})
+			} else {
+				_ = helper.ClaudeData(c, dto.ClaudeResponse{
+					Type: "message_delta",
+					Delta: &dto.ClaudeMediaMessage{
+						StopReason: common.GetPointer[string](stopReason),
+					},
+				})
+			}
+			_ = helper.ClaudeData(c, dto.ClaudeResponse{
+				Type: "message_stop",
+			})
+		}
 		info.ClaudeConvertInfo.Done = true
 
 	case types.RelayFormatGemini:
