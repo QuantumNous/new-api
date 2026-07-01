@@ -8,6 +8,7 @@ const EMPTY_CANDIDATE_MODEL_NAMES = [];
 const EMPTY_MODEL = {
   name: '',
   billingMode: 'per-token',
+  taskBillingUnit: 'per_item',
   fixedPrice: '',
   inputPrice: '',
   completionPrice: '',
@@ -111,6 +112,8 @@ const buildModelState = (name, sourceMaps) => {
     sourceMaps.AudioCompletionRatio[name],
   );
   const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
+  const taskBillingUnit =
+    sourceMaps.TaskBillingUnit[name] === 'per_second' ? 'per_second' : 'per_item';
   const inputPrice = ratioToBasePrice(modelRatio);
   const inputPriceNumber = toNumberOrNull(inputPrice);
   const audioInputPrice =
@@ -122,6 +125,7 @@ const buildModelState = (name, sourceMaps) => {
     ...EMPTY_MODEL,
     name,
     billingMode: hasValue(fixedPrice) ? 'per-request' : 'per-token',
+    taskBillingUnit,
     fixedPrice,
     inputPrice,
     completionRatioLocked: completionRatioMeta.locked,
@@ -245,7 +249,8 @@ export const getModelWarnings = (model, t) => {
 
 export const buildSummaryText = (model, t) => {
   if (model.billingMode === 'per-request' && hasValue(model.fixedPrice)) {
-    return `${t('按次')} $${model.fixedPrice} / ${t('次')}`;
+    const unit = model.taskBillingUnit === 'per_second' ? t('秒') : t('次');
+    return `${model.taskBillingUnit === 'per_second' ? t('按秒') : t('按次')} $${model.fixedPrice} / ${unit}`;
   }
 
   if (hasValue(model.inputPrice)) {
@@ -278,6 +283,7 @@ export const buildOptionalFieldToggles = (model) => ({
 const serializeModel = (model, t) => {
   const result = {
     ModelPrice: null,
+    TaskBillingUnit: null,
     ModelRatio: null,
     CompletionRatio: null,
     CacheRatio: null,
@@ -291,6 +297,8 @@ const serializeModel = (model, t) => {
     if (hasValue(model.fixedPrice)) {
       result.ModelPrice = toNormalizedNumber(model.fixedPrice);
     }
+    result.TaskBillingUnit =
+      model.taskBillingUnit === 'per_second' ? 'per_second' : 'per_item';
     return result;
   }
 
@@ -402,6 +410,14 @@ export const buildPreviewRows = (model, t) => {
         key: 'ModelPrice',
         label: 'ModelPrice',
         value: hasValue(model.fixedPrice) ? model.fixedPrice : t('空'),
+      },
+      {
+        key: 'TaskBillingUnit',
+        label: 'TaskBillingUnit',
+        value:
+          model.taskBillingUnit === 'per_second'
+            ? 'per_second'
+            : 'per_item',
       },
     ];
   }
@@ -552,6 +568,7 @@ export function useModelPricingEditorState({
       ImageRatio: parseOptionJSON(options.ImageRatio),
       AudioRatio: parseOptionJSON(options.AudioRatio),
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
+      TaskBillingUnit: parseOptionJSON(options.TaskBillingUnit),
     };
 
     const names = new Set([
@@ -565,6 +582,7 @@ export function useModelPricingEditorState({
       ...Object.keys(sourceMaps.ImageRatio),
       ...Object.keys(sourceMaps.AudioRatio),
       ...Object.keys(sourceMaps.AudioCompletionRatio),
+      ...Object.keys(sourceMaps.TaskBillingUnit),
     ]);
 
     const nextModels = Array.from(names)
@@ -782,6 +800,14 @@ export function useModelPricingEditorState({
     }));
   };
 
+  const handleTaskBillingUnitChange = (value) => {
+    if (!selectedModel) return;
+    upsertModel(selectedModel.name, (model) => ({
+      ...model,
+      taskBillingUnit: value === 'per_second' ? 'per_second' : 'per_item',
+    }));
+  };
+
   const addModel = (modelName) => {
     const trimmedName = modelName.trim();
     if (!trimmedName) {
@@ -846,6 +872,7 @@ export function useModelPricingEditorState({
         const nextModel = {
           ...model,
           billingMode: selectedModel.billingMode,
+          taskBillingUnit: selectedModel.taskBillingUnit,
           fixedPrice: selectedModel.fixedPrice,
           inputPrice: selectedModel.inputPrice,
           completionPrice: selectedModel.completionPrice,
@@ -913,6 +940,7 @@ export function useModelPricingEditorState({
         ImageRatio: {},
         AudioRatio: {},
         AudioCompletionRatio: {},
+        TaskBillingUnit: {},
       };
 
       for (const model of models) {
@@ -970,6 +998,7 @@ export function useModelPricingEditorState({
     handleOptionalFieldToggle,
     handleNumericFieldChange,
     handleBillingModeChange,
+    handleTaskBillingUnitChange,
     handleSubmit,
     addModel,
     deleteModel,

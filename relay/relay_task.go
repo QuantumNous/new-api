@@ -19,6 +19,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -194,13 +195,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 
 	// 6. 将 OtherRatios 应用到基础额度
-	if !isTaskPerCallModel(modelName) {
-		for _, ra := range info.PriceData.OtherRatios {
-			if ra != 1.0 {
-				info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)
-			}
-		}
-	}
+	applyTaskBillingRatios(info, modelName)
 
 	// 7. 预扣费（仅首次 — 重试时 info.Billing 已存在，跳过）
 	if info.Billing == nil && !info.PriceData.FreeModel {
@@ -244,7 +239,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	finalQuota := info.PriceData.Quota
 	if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, taskData); len(adjustedRatios) > 0 {
 		// 基于调整后的 ratios 重新计算 quota；按次模型仅记录倍率，不参与扣费。
-		finalQuota = recalcQuotaFromRatios(info, adjustedRatios, isTaskPerCallModel(modelName))
+		finalQuota = recalcQuotaFromRatios(info, adjustedRatios, ratio_setting.IsTaskPerItemBilling(modelName))
 		info.PriceData.OtherRatios = adjustedRatios
 		info.PriceData.Quota = finalQuota
 	}
@@ -255,6 +250,17 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		Platform:       platform,
 		Quota:          finalQuota,
 	}, nil
+}
+
+func applyTaskBillingRatios(info *relaycommon.RelayInfo, modelName string) {
+	if ratio_setting.IsTaskPerItemBilling(modelName) {
+		return
+	}
+	for _, ra := range info.PriceData.OtherRatios {
+		if ra != 1.0 {
+			info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)
+		}
+	}
 }
 
 // recalcQuotaFromRatios 根据 adjustedRatios 重新计算 quota。
@@ -279,10 +285,6 @@ func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float6
 		}
 	}
 	return int(result)
-}
-
-func isTaskPerCallModel(modelName string) bool {
-	return common.StringsContains(constant.TaskPricePatches, modelName)
 }
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){

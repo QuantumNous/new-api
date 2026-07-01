@@ -341,10 +341,13 @@ func updatePricing() {
 }
 
 func fixedPriceQuotaType(modelName, tags string) int {
-	if strings.Contains(tags, "按秒") {
+	if ratio_setting.IsTaskPerSecondBilling(modelName) {
 		return 2
 	}
-	if strings.HasPrefix(modelName, "seedance-") && !common.StringsContains(constant.TaskPricePatches, modelName) {
+	if ratio_setting.IsTaskPerItemBilling(modelName) {
+		return 1
+	}
+	if strings.Contains(tags, "按秒") {
 		return 2
 	}
 	return 1

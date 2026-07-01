@@ -41,6 +41,7 @@ export default function ModelRatioSettings(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     ModelPrice: '',
+    TaskBillingUnit: '',
     ModelRatio: '',
     CacheRatio: '',
     CreateCacheRatio: '',
@@ -160,6 +161,32 @@ export default function ModelRatioSettings(props) {
                 },
               ]}
               onChange={(value) => setInputs({ ...inputs, ModelPrice: value })}
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('任务固定价格单位')}
+              extraText={t(
+                '固定价格任务模型的计费单位：per_item 表示按次，per_second 表示按秒。',
+              )}
+              placeholder={t(
+                '为一个 JSON 文本，键为模型名称，值为 per_item 或 per_second，比如 "seedance-480p-fast-c13": "per_second"',
+              )}
+              field={'TaskBillingUnit'}
+              autosize={{ minRows: 4, maxRows: 10 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: '不是合法的 JSON 字符串',
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, TaskBillingUnit: value })
+              }
             />
           </Col>
         </Row>
