@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import type { InvoiceProfile, PaymentRequest } from '../types'
 import type { StripeCheckoutCurrency } from './stripe-currency'
 
+const DEFAULT_STRIPE_CHECKOUT_CURRENCY: StripeCheckoutCurrency = 'USD'
+
 interface StripeRedirectUrls {
   success_url: string
   cancel_url: string
@@ -51,12 +53,9 @@ export function buildStripePaymentRequest({
   const request: PaymentRequest = {
     amount,
     payment_method: 'stripe',
+    stripe_currency: stripeCurrency ?? DEFAULT_STRIPE_CHECKOUT_CURRENCY,
     ...gaIdentifiers,
     ...redirectUrls,
-  }
-
-  if (stripeCurrency) {
-    request.stripe_currency = stripeCurrency
   }
 
   if (saveCard) {
