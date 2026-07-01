@@ -185,6 +185,11 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 // actualQuota 是任务完成后的实际应扣额度，与预扣额度 (task.Quota) 做差额结算。
 // reason 用于日志记录（例如 "token重算" 或 "adaptor调整"）。
 func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int, reason string) {
+	RecalculateTaskQuotaWithUsage(ctx, task, actualQuota, reason, 0, 0)
+}
+
+// RecalculateTaskQuotaWithUsage records optional token usage when settling an async task.
+func RecalculateTaskQuotaWithUsage(ctx context.Context, task *model.Task, actualQuota int, reason string, promptTokens int, completionTokens int) {
 	if actualQuota <= 0 {
 		return
 	}
@@ -240,6 +245,8 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		Quota:     logQuota,
 		TokenId:   task.PrivateData.TokenId,
 		Group:     task.Group,
+		PromptTokens:     promptTokens,
+		CompletionTokens: completionTokens,
 		Other:     other,
 		NodeName:  task.PrivateData.NodeName,
 	})
@@ -298,5 +305,5 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	actualQuota := int(float64(totalTokens) * modelRatio * finalGroupRatio * otherMultiplier)
 
 	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, otherMultiplier=%.4f", totalTokens, modelRatio, finalGroupRatio, otherMultiplier)
-	RecalculateTaskQuota(ctx, task, actualQuota, reason)
+	RecalculateTaskQuotaWithUsage(ctx, task, actualQuota, reason, 0, totalTokens)
 }
