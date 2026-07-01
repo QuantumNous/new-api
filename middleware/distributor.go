@@ -81,8 +81,9 @@ func Distribute() func(c *gin.Context) {
 				}
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
-				// check path is /pg/chat/completions
-				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
+				// playground 代理路由（/pg/chat/completions、/pg/images/generations 等）：
+				// 统一让请求体里的 group 生效，否则图片生成会忽略用户选择的分组。
+				if strings.HasPrefix(c.Request.URL.Path, "/pg/") {
 					playgroundRequest := &dto.PlayGroundRequest{}
 					err = common.UnmarshalBodyReusable(c, playgroundRequest)
 					if err != nil {
@@ -231,7 +232,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		relayMode := relayconstant.RelayModeVideoSubmit
 		c.Set("relay_mode", relayMode)
 		shouldSelectChannel = false
-	} else if strings.Contains(c.Request.URL.Path, "/v1/videos") {
+	} else if strings.Contains(c.Request.URL.Path, "/v1/videos") || strings.Contains(c.Request.URL.Path, "/pg/videos") {
 		//curl https://api.openai.com/v1/videos \
 		//  -H "Authorization: Bearer $OPENAI_API_KEY" \
 		//  -F "model=sora-2" \

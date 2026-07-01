@@ -158,6 +158,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		var bodyMap map[string]interface{}
 		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil {
 			bodyMap["model"] = info.UpstreamModelName
+			// group 是 /pg 体验入口的本地分组字段，仅用于渠道选择，不应转发给上游
+			delete(bodyMap, "group")
 			if newBody, err := common.Marshal(bodyMap); err == nil {
 				return bytes.NewReader(newBody), nil
 			}
@@ -174,7 +176,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		writer := multipart.NewWriter(&buf)
 		writer.WriteField("model", info.UpstreamModelName)
 		for key, values := range formData.Value {
-			if key == "model" {
+			// model 已单独写入；group 是 /pg 体验入口的本地分组字段，
+			// 仅用于渠道选择，不应转发给上游（与上面 JSON 分支保持一致）
+			if key == "model" || key == "group" {
 				continue
 			}
 			for _, v := range values {
@@ -297,22 +301,32 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		Code: 0,
 	}
 
-	switch resTask.Status {
-	case "queued", "pending":
+	// 大小写不敏感 + 兼容常见同义词（上游若是 MiniMax→OpenAI 中转，
+	// 可能回传 Success/succeeded/Processing 等非标准取值）。
+	switch strings.ToLower(strings.TrimSpace(resTask.Status)) {
+	case "queued", "pending", "submitted", "not_start", "preparing":
 		taskResult.Status = model.TaskStatusQueued
-	case "processing", "in_progress":
+	case "processing", "in_progress", "running", "generating":
 		taskResult.Status = model.TaskStatusInProgress
-	case "completed":
+	case "completed", "complete", "success", "succeeded", "finished":
 		taskResult.Status = model.TaskStatusSuccess
 		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
-	case "failed", "cancelled":
+	case "failed", "failure", "fail", "error", "cancelled", "canceled":
 		taskResult.Status = model.TaskStatusFailure
 		if resTask.Error != nil {
 			taskResult.Reason = resTask.Error.Message
 		} else {
 			taskResult.Reason = "task failed"
 		}
+	case "unknown", "notstarted", "created", "starting":
+		// 非终态：上游可能刚提交（NOT_START/unknown）。保持排队、交由后续轮询，
+		// 不在此判失败，否则会误杀刚提交的任务；长期不完成会被超时清理兜底。
+		taskResult.Status = model.TaskStatusQueued
 	default:
+		// 未知 status：单独记录原始取值，便于定位上游格式差异
+		if strings.TrimSpace(resTask.Status) != "" {
+			common.SysLog(fmt.Sprintf("[sora] unrecognized task status %q, body: %s", resTask.Status, string(respBody)))
+		}
 	}
 	if resTask.Progress > 0 && resTask.Progress < 100 {
 		taskResult.Progress = fmt.Sprintf("%d%%", resTask.Progress)
@@ -323,9 +337,35 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	data := task.Data
+	if len(data) == 0 {
+		data = []byte("{}")
+	}
 	var err error
 	if data, err = sjson.SetBytes(data, "id", task.TaskID); err != nil {
 		return nil, errors.Wrap(err, "set id failed")
+	}
+	// 用 DB 中的权威状态覆盖：存储的上游响应可能没有终态，
+	// 否则任务失败/完成后前端会一直停在生成中。
+	// 刚提交(NOT_START)/未识别会被映射为 unknown，而 unknown 不是合法的
+	// OpenAI 视频状态；对客户端而言等价于排队中，统一回退为 queued，避免下游误判。
+	status := task.Status.ToVideoStatus()
+	if status == dto.VideoStatusUnknown {
+		status = dto.VideoStatusQueued
+	}
+	if data, err = sjson.SetBytes(data, "status", status); err != nil {
+		return nil, errors.Wrap(err, "set status failed")
+	}
+	progress := 0
+	if p := strings.TrimSuffix(task.Progress, "%"); p != "" {
+		progress, _ = strconv.Atoi(p)
+	}
+	if data, err = sjson.SetBytes(data, "progress", progress); err != nil {
+		return nil, errors.Wrap(err, "set progress failed")
+	}
+	if task.Status == model.TaskStatusFailure && task.FailReason != "" {
+		if data, err = sjson.SetBytes(data, "error.message", task.FailReason); err != nil {
+			return nil, errors.Wrap(err, "set error failed")
+		}
 	}
 	return data, nil
 }

@@ -68,6 +68,15 @@ func SetRelayRouter(router *gin.Engine) {
 	playgroundRouter.Use(middleware.UserAuth(), middleware.KYCRequired(), middleware.Distribute())
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
+		playgroundRouter.POST("/images/generations", controller.PlaygroundImage)
+		playgroundRouter.POST("/videos", controller.PlaygroundVideo)
+		playgroundRouter.GET("/videos/:task_id", controller.PlaygroundVideoFetch)
+	}
+	// 图片代理：仅需登录会话鉴权，不经过 Distribute（GET 无模型可分发）
+	playgroundUtilRouter := router.Group("/pg")
+	playgroundUtilRouter.Use(middleware.UserAuth())
+	{
+		playgroundUtilRouter.GET("/images/proxy", controller.PlaygroundImageProxy)
 	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))

@@ -76,7 +76,7 @@ const ChatArea = ({
               </div>
               <div>
                 <Typography.Title heading={5} className='!text-white mb-0'>
-                  {t('AI 智能助手')}
+                  {t('爱芯AI智能助手')}
                 </Typography.Title>
                 <Typography.Text className='!text-white/80 text-sm hidden sm:inline'>
                   {getModelDisplayName(inputs.model) || t('选择模型开始对话')}

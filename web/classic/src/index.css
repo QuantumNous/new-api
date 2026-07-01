@@ -329,6 +329,58 @@ code {
   scrollbar-width: none;
 }
 
+/* 体验区（图片/视频）对话历史：细的、常显滚动条 */
+.pg-history-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--semi-color-border) transparent;
+}
+.pg-history-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.pg-history-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pg-history-scroll::-webkit-scrollbar-thumb {
+  background: var(--semi-color-border);
+  border-radius: 3px;
+}
+.pg-history-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--semi-color-tertiary);
+}
+
+/* 体验区（图片/视频）对话消息区：覆盖全局“隐藏聊天滚动条”，改为细的常显滚动条 */
+.pg-chat-scroll .semi-chat,
+.pg-chat-scroll .semi-chat-container,
+.pg-chat-scroll .semi-chat-content,
+.pg-chat-scroll .semi-chat-list,
+.pg-chat-scroll .semi-chat-chatBox-wrap {
+  scrollbar-width: thin;
+  scrollbar-color: var(--semi-color-border) transparent;
+}
+.pg-chat-scroll .semi-chat::-webkit-scrollbar,
+.pg-chat-scroll .semi-chat-container::-webkit-scrollbar,
+.pg-chat-scroll .semi-chat-content::-webkit-scrollbar,
+.pg-chat-scroll .semi-chat-list::-webkit-scrollbar,
+.pg-chat-scroll .semi-chat-chatBox-wrap::-webkit-scrollbar {
+  display: block;
+  width: 6px;
+}
+.pg-chat-scroll .semi-chat::-webkit-scrollbar-thumb,
+.pg-chat-scroll .semi-chat-container::-webkit-scrollbar-thumb,
+.pg-chat-scroll .semi-chat-content::-webkit-scrollbar-thumb,
+.pg-chat-scroll .semi-chat-list::-webkit-scrollbar-thumb,
+.pg-chat-scroll .semi-chat-chatBox-wrap::-webkit-scrollbar-thumb {
+  background: var(--semi-color-border);
+  border-radius: 3px;
+}
+.pg-chat-scroll .semi-chat::-webkit-scrollbar-thumb:hover,
+.pg-chat-scroll .semi-chat-container::-webkit-scrollbar-thumb:hover,
+.pg-chat-scroll .semi-chat-content::-webkit-scrollbar-thumb:hover,
+.pg-chat-scroll .semi-chat-list::-webkit-scrollbar-thumb:hover,
+.pg-chat-scroll .semi-chat-chatBox-wrap::-webkit-scrollbar-thumb:hover {
+  background: var(--semi-color-tertiary);
+}
+
 /* ==================== 组件特定样式 ==================== */
 /* SelectableButtonGroup */
 .sbg-button .semi-button-content {

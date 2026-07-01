@@ -103,6 +103,12 @@ func GetStatus(c *gin.Context) {
 		"HeaderNavModules":    common.OptionMap["HeaderNavModules"],
 		"SidebarModulesAdmin": common.OptionMap["SidebarModulesAdmin"],
 
+		// 图片模型可选尺寸配置（按模型）
+		"ImageModelSizeConfig": common.OptionMap["ImageModelSizeConfig"],
+
+		// 视频模型配置（按模型：声明 + 尺寸 + 时长）
+		"VideoModelConfig": common.OptionMap["VideoModelConfig"],
+
 		"oidc_enabled":                system_setting.GetOIDCSettings().Enabled,
 		"oidc_client_id":              system_setting.GetOIDCSettings().ClientId,
 		"oidc_authorization_endpoint": system_setting.GetOIDCSettings().AuthorizationEndpoint,

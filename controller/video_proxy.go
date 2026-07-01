@@ -143,6 +143,11 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 
+	// 透传浏览器的 Range 请求，使 <video> 可读取时长、拖动进度（上游返回 206 时直接转发）
+	if rng := c.GetHeader("Range"); rng != "" {
+		req.Header.Set("Range", rng)
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to fetch video from %s: %s", videoURL, err.Error()))
@@ -151,7 +156,8 @@ func VideoProxy(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	// 200(完整内容) 与 206(部分内容/Range) 均为正常
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Upstream returned status %d for %s", resp.StatusCode, videoURL))
 		videoProxyError(c, http.StatusBadGateway, "server_error",
 			fmt.Sprintf("Upstream service returned status %d", resp.StatusCode))

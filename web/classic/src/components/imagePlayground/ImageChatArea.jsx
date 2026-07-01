@@ -1,0 +1,304 @@
+import React, { useState, useMemo, useCallback, useContext } from 'react';
+import { Card, Chat, Button, Typography } from '@douyinfe/semi-ui';
+import { Copy, Download, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import {
+  API,
+  showSuccess,
+  showError,
+  getLogo,
+  stringToColor,
+} from '../../helpers';
+import {
+  IMAGE_GEN_STATUS,
+  IMAGE_API_ENDPOINTS,
+} from '../../constants/imagePlayground.constants';
+import { UserContext } from '../../context/User';
+import ImagePreviewModal from './ImagePreviewModal';
+
+const WELCOME_ID = '__welcome__';
+const MAX_PROMPT_LEN = 2000;
+
+const genUserAvatar = (username) => {
+  if (!username) return getLogo();
+  const firstLetter = username[0].toUpperCase();
+  const bgColor = stringToColor(username);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="${bgColor}"/><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="16" fill="#ffffff" font-family="sans-serif">${firstLetter}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+};
+
+const parseTs = (id, fallback) => {
+  const n = Number(String(id).split('-')[1]);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+// 取图片字节：base64 直接取；远程 url 经后端代理取，绕开 CDN 的 CORS 限制
+const fetchImageBlob = async (src) => {
+  if (src.startsWith('data:')) {
+    const resp = await fetch(src);
+    return resp.blob();
+  }
+  const res = await API.get(
+    `${IMAGE_API_ENDPOINTS.IMAGE_PROXY}?url=${encodeURIComponent(src)}`,
+    { responseType: 'blob', skipErrorHandler: true },
+  );
+  return res.data;
+};
+
+const copyImage = async (src, t) => {
+  try {
+    if (!navigator.clipboard || !window.ClipboardItem) {
+      throw new Error('clipboard unsupported');
+    }
+    const blob = await fetchImageBlob(src);
+    await navigator.clipboard.write([
+      new window.ClipboardItem({ [blob.type || 'image/png']: blob }),
+    ]);
+    showSuccess(t('图片已复制'));
+  } catch (e) {
+    showError(t('复制失败'));
+  }
+};
+
+const downloadImage = async (src, t) => {
+  try {
+    const blob = await fetchImageBlob(src);
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `image-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  } catch (e) {
+    showError(t('下载失败'));
+  }
+};
+
+const ImageChatArea = ({
+  messages,
+  generating,
+  turnLimitReached = false,
+  onSend,
+  onRegenerate,
+  onClear,
+}) => {
+  const { t } = useTranslation();
+  const [userState] = useContext(UserContext);
+  const [preview, setPreview] = useState({ visible: false, src: '' });
+
+  const roleConfig = useMemo(
+    () => ({
+      user: {
+        name: userState?.user?.username || 'User',
+        avatar: genUserAvatar(userState?.user?.username),
+      },
+      assistant: { name: t('图片模型'), avatar: getLogo() },
+      system: { name: 'System', avatar: getLogo() },
+    }),
+    [userState, t],
+  );
+
+  // 内部消息 -> Semi Chat 所需结构
+  const chats = useMemo(() => {
+    if (!messages.length) {
+      return [
+        {
+          role: 'assistant',
+          id: WELCOME_ID,
+          createAt: 1,
+          content: t('欢迎使用 AI 图像生成，请在下方输入您的提示词'),
+        },
+      ];
+    }
+    return messages.map((m, i) => {
+      if (m.role === 'user') {
+        return {
+          role: 'user',
+          id: m.id,
+          createAt: parseTs(m.id, i + 1),
+          content: m.content,
+        };
+      }
+      const status =
+        m.status === IMAGE_GEN_STATUS.PENDING
+          ? 'loading'
+          : m.status === IMAGE_GEN_STATUS.FAILED
+            ? 'error'
+            : 'complete';
+      return {
+        role: 'assistant',
+        id: m.id,
+        createAt: parseTs(m.id, i + 1),
+        status,
+        content:
+          m.status === IMAGE_GEN_STATUS.FAILED
+            ? m.error || t('图片生成失败')
+            : '',
+      };
+    });
+  }, [messages, t]);
+
+  const byId = useMemo(
+    () => new Map(messages.map((m) => [m.id, m])),
+    [messages],
+  );
+
+  // 自定义消息内容：成功的助手消息渲染图片 + 操作按钮
+  const renderChatBoxContent = useCallback(
+    ({ message, defaultContent }) => {
+      const m = byId.get(message.id);
+      if (!m || m.role === 'user' || m.status !== IMAGE_GEN_STATUS.SUCCESS) {
+        return defaultContent;
+      }
+      // base64 图片不落盘，刷新后历史里这类图已不在
+      if ((!m.images || m.images.length === 0) && m.imagesNotPersisted) {
+        return (
+          <Typography.Text type='tertiary' className='text-sm'>
+            {t('图片仅本次会话可见，刷新后不再保留，请重新生成')}
+          </Typography.Text>
+        );
+      }
+      return (
+        <div className='inline-block'>
+          <Typography.Text className='text-sm text-gray-600 block mb-2'>
+            {t('图像已生成')}
+          </Typography.Text>
+          <div className='flex flex-wrap gap-3'>
+            {(m.images || []).map((src, idx) => (
+              <img
+                key={idx}
+                src={src}
+                alt='generated'
+                onClick={() => setPreview({ visible: true, src })}
+                className='rounded-lg cursor-zoom-in object-cover'
+                style={{ maxWidth: 360, maxHeight: 360 }}
+              />
+            ))}
+          </div>
+          <div className='flex items-center gap-1 mt-2'>
+            <Button
+              theme='borderless'
+              type='tertiary'
+              size='small'
+              icon={<Copy size={14} />}
+              onClick={() => copyImage(m.images[0], t)}
+              className='!text-gray-500'
+            />
+            <Button
+              theme='borderless'
+              type='tertiary'
+              size='small'
+              icon={<Download size={14} />}
+              onClick={() => downloadImage(m.images[0], t)}
+              className='!text-gray-500'
+            />
+            <Button
+              theme='borderless'
+              type='tertiary'
+              size='small'
+              icon={<RefreshCw size={14} />}
+              onClick={() => onRegenerate(m.prompt)}
+              disabled={generating}
+              className='!text-gray-500'
+            />
+          </div>
+        </div>
+      );
+    },
+    [byId, generating, onRegenerate, t],
+  );
+
+  // 自定义输入区：完全沿用文本模型的圆角容器 + 圆形发送按钮
+  const renderInputArea = useCallback(
+    (props) => {
+      const { detailProps } = props;
+      const { inputNode, sendNode, onClick } = detailProps;
+      const blockSend = generating || turnLimitReached;
+      const styledSend = React.cloneElement(sendNode, {
+        disabled: blockSend || sendNode.props.disabled,
+        className: `!rounded-full !bg-purple-500 hover:!bg-purple-600 flex-shrink-0 ${sendNode.props.className || ''}`,
+        style: {
+          ...sendNode.props.style,
+          width: 32,
+          height: 32,
+          minWidth: 32,
+          padding: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+      });
+      return (
+        <div className='p-2 sm:p-4'>
+          {turnLimitReached && (
+            <Typography.Text
+              type='warning'
+              className='text-xs block mb-2 text-center'
+            >
+              {t('本轮对话已达生成上限，请点击右侧「新对话」继续')}
+            </Typography.Text>
+          )}
+          <div
+            className='flex items-center gap-2 sm:gap-3 px-3 py-2.5 bg-gray-50 rounded-xl sm:rounded-2xl shadow-sm hover:shadow-md transition-shadow'
+            style={{ border: '1px solid var(--semi-color-border)', minHeight: 52 }}
+            onClick={onClick}
+          >
+            <div
+              className='flex-1'
+              onKeyDownCapture={(e) => {
+                // 生成中/达上限时拦截回车，阻止 Semi 触发 send（否则会清空输入框且不发送）
+                if (blockSend && e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
+            >
+              {React.cloneElement(inputNode, { maxLength: MAX_PROMPT_LEN })}
+            </div>
+            {styledSend}
+          </div>
+        </div>
+      );
+    },
+    [generating, turnLimitReached, t],
+  );
+
+  return (
+    <Card
+      className='h-full pg-chat-scroll'
+      bordered={false}
+      bodyStyle={{
+        padding: 0,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}
+    >
+      <Chat
+        chats={chats}
+        roleConfig={roleConfig}
+        onMessageSend={(content) => onSend(content)}
+        onClear={onClear}
+        renderInputArea={renderInputArea}
+        chatBoxRenderConfig={{
+          renderChatBoxContent,
+          renderChatBoxTitle: () => null,
+          renderChatBoxAction: () => null,
+        }}
+        showClearContext
+        placeholder={t('请输入图片生成提示词')}
+        style={{ height: '100%' }}
+      />
+      <ImagePreviewModal
+        visible={preview.visible}
+        src={preview.src}
+        onClose={() => setPreview({ visible: false, src: '' })}
+      />
+    </Card>
+  );
+};
+
+export default ImageChatArea;

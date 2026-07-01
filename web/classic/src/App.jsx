@@ -44,6 +44,8 @@ import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
+import VideoModel from './pages/Video';
+import ImageModel from './pages/Image';
 import Subscription from './pages/Subscription';
 import Reconcile from './pages/Reconcile';
 import OAuth2Callback from './components/auth/OAuth2Callback';
@@ -167,6 +169,22 @@ function App() {
           element={
             <PrivateRoute>
               <Playground />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/video'
+          element={
+            <PrivateRoute>
+              <VideoModel />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/image'
+          element={
+            <PrivateRoute>
+              <ImageModel />
             </PrivateRoute>
           }
         />
