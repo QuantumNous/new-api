@@ -218,11 +218,26 @@ export function processChartData(
   // Aggregate all metrics by time and model
   const timeModelMap = new Map<
     string,
-    Map<string, { quota: number; count: number; tokens: number }>
+    Map<
+      string,
+      {
+        quota: number
+        count: number
+        tokens: number
+        cacheRead: number
+        cacheWrite: number
+      }
+    >
   >()
   const modelTotalsMap = new Map<
     string,
-    { quota: number; count: number; tokens: number }
+    {
+      quota: number
+      count: number
+      tokens: number
+      cacheRead: number
+      cacheWrite: number
+    }
   >()
 
   data.forEach((item) => {
@@ -232,17 +247,27 @@ export function processChartData(
     const quota = Number(item.quota) || 0
     const count = Number(item.count) || 0
     const tokens = Number(item.token_used) || 0
+    const cacheRead = Number(item.cache_read_tokens) || 0
+    const cacheWrite = Number(item.cache_write_tokens) || 0
 
     // Aggregate by time and model
     if (!timeModelMap.has(timeKey)) {
       timeModelMap.set(timeKey, new Map())
     }
     const modelMap = timeModelMap.get(timeKey)!
-    const existing = modelMap.get(model) || { quota: 0, count: 0, tokens: 0 }
+    const existing = modelMap.get(model) || {
+      quota: 0,
+      count: 0,
+      tokens: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+    }
     modelMap.set(model, {
       quota: existing.quota + quota,
       count: existing.count + count,
       tokens: existing.tokens + tokens,
+      cacheRead: existing.cacheRead + cacheRead,
+      cacheWrite: existing.cacheWrite + cacheWrite,
     })
 
     // Calculate totals
@@ -250,11 +275,15 @@ export function processChartData(
       quota: 0,
       count: 0,
       tokens: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
     }
     modelTotalsMap.set(model, {
       quota: totalExisting.quota + quota,
       count: totalExisting.count + count,
       tokens: totalExisting.tokens + tokens,
+      cacheRead: totalExisting.cacheRead + cacheRead,
+      cacheWrite: totalExisting.cacheWrite + cacheWrite,
     })
   })
 
@@ -436,16 +465,36 @@ export function processChartData(
     .map(([model, stats]) => ({
       Model: model,
       Count: Number(stats.count) || 0,
+      Tokens: Number(stats.tokens) || 0,
+      CacheRead: Number(stats.cacheRead) || 0,
+      CacheWrite: Number(stats.cacheWrite) || 0,
     }))
     .sort((a, b) => b.Count - a.Count)
 
   let rankValues: typeof allRankValues
   if (allRankValues.length > MAX_RANK_MODELS) {
     const topModels = allRankValues.slice(0, MAX_RANK_MODELS)
-    const otherCount = allRankValues
+    const otherAgg = allRankValues
       .slice(MAX_RANK_MODELS)
-      .reduce((sum, item) => sum + item.Count, 0)
-    rankValues = [...topModels, { Model: otherLabel, Count: otherCount }]
+      .reduce(
+        (acc, item) => ({
+          Count: acc.Count + item.Count,
+          Tokens: acc.Tokens + item.Tokens,
+          CacheRead: acc.CacheRead + item.CacheRead,
+          CacheWrite: acc.CacheWrite + item.CacheWrite,
+        }),
+        { Count: 0, Tokens: 0, CacheRead: 0, CacheWrite: 0 }
+      )
+    rankValues = [
+      ...topModels,
+      {
+        Model: otherLabel,
+        Count: otherAgg.Count,
+        Tokens: otherAgg.Tokens,
+        CacheRead: otherAgg.CacheRead,
+        CacheWrite: otherAgg.CacheWrite,
+      },
+    ]
   } else {
     rankValues = allRankValues
   }
@@ -676,6 +725,30 @@ export function processChartData(
               key: (datum: Record<string, unknown>) => datum?.Model,
               value: (datum: Record<string, unknown>) =>
                 formatInt(Number(datum?.Count) || 0),
+            },
+            {
+              key: tt('Total Tokens'),
+              value: (datum: Record<string, unknown>) =>
+                formatInt(Number(datum?.Tokens) || 0),
+            },
+            {
+              key: tt('Cache Read'),
+              value: (datum: Record<string, unknown>) =>
+                formatInt(Number(datum?.CacheRead) || 0),
+            },
+            {
+              key: tt('Cache Write'),
+              value: (datum: Record<string, unknown>) =>
+                formatInt(Number(datum?.CacheWrite) || 0),
+            },
+            {
+              key: tt('Cache Hit Rate'),
+              value: (datum: Record<string, unknown>) => {
+                const tokens = Number(datum?.Tokens) || 0
+                const read = Number(datum?.CacheRead) || 0
+                if (tokens <= 0) return '0%'
+                return `${((read / tokens) * 100).toFixed(1)}%`
+              },
             },
           ],
         },

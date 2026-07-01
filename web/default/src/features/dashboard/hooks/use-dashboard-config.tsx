@@ -25,6 +25,8 @@ import {
   Flame,
   TrendingUp,
   Activity,
+  Database,
+  Percent,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -79,6 +81,25 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
       icon: Zap,
       getValue: (stat, timeRangeMinutes = 1) =>
         safeDivide(stat?.tpm ?? 0, timeRangeMinutes),
+    },
+    {
+      key: 'cacheRead',
+      title: t('Cache Read'),
+      description: t('Cached input tokens'),
+      icon: Database,
+      getValue: (stat) => stat?.cacheReadTokens ?? 0,
+    },
+    {
+      key: 'cacheHitRate',
+      title: t('Cache Hit Rate'),
+      description: t('Cache read share of total tokens'),
+      icon: Percent,
+      getValue: (stat) => {
+        const total = stat?.tpm ?? 0
+        const read = stat?.cacheReadTokens ?? 0
+        if (!total || total <= 0) return 0
+        return safeDivide((read / total) * 100, 1, 2)
+      },
     },
   ]
 }

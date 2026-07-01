@@ -31,6 +31,8 @@ export interface QuotaDataItem {
   token_used?: number
   count?: number
   quota?: number
+  cache_read_tokens?: number
+  cache_write_tokens?: number
 }
 
 export interface FlowQuotaDataItem {
@@ -46,6 +48,8 @@ export interface FlowQuotaDataItem {
   token_used?: number
   count?: number
   quota?: number
+  cache_read_tokens?: number
+  cache_write_tokens?: number
 }
 
 export type FlowMetric = 'quota' | 'tokens' | 'requests'

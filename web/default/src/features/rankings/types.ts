@@ -48,6 +48,10 @@ export type ModelRanking = {
   category: RankingCategoryId
   /** Total tokens routed through this model in the period. */
   total_tokens: number
+  /** Cache read tokens routed through this model in the period. */
+  cache_read_tokens?: number
+  /** Cache write tokens (normalized sum of creation kinds). */
+  cache_write_tokens?: number
   /** Share of all tokens served (0..1). */
   share: number
   /** Period-over-period change in token volume (%). */
@@ -59,6 +63,8 @@ export type VendorRanking = {
   vendor: string
   vendor_icon?: string
   total_tokens: number
+  cache_read_tokens?: number
+  cache_write_tokens?: number
   share: number
   growth_pct: number
   /** Number of distinct models from this vendor with traffic. */
@@ -91,13 +97,21 @@ export type ModelHistoryPoint = {
   vendor: string
   /** Token count routed through the model in this bucket. */
   tokens: number
+  cache_read_tokens?: number
+  cache_write_tokens?: number
 }
 
 export type ModelHistorySeries = {
   /** Flat points ready for VChart, ordered oldest → newest. */
   points: ModelHistoryPoint[]
   /** Models that appear in the series, sorted by total tokens desc. */
-  models: Array<{ name: string; vendor: string; total: number }>
+  models: Array<{
+    name: string
+    vendor: string
+    total: number
+    cache_read_tokens?: number
+    cache_write_tokens?: number
+  }>
   /** Bucket count (used for sizing axis ticks). */
   buckets: number
 }
@@ -113,13 +127,21 @@ export type VendorSharePoint = {
   vendor: string
   share: number
   tokens: number
+  cache_read_tokens?: number
+  cache_write_tokens?: number
 }
 
 export type VendorShareSeries = {
   /** Flat points ready for VChart, ordered oldest → newest. */
   points: VendorSharePoint[]
   /** Vendors that appear in the series, sorted by aggregate tokens desc. */
-  vendors: Array<{ name: string; total: number; share: number }>
+  vendors: Array<{
+    name: string
+    total: number
+    share: number
+    cache_read_tokens?: number
+    cache_write_tokens?: number
+  }>
   buckets: number
 }
 
