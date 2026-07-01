@@ -3826,6 +3826,17 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "测试超时时间（秒）": "Test timeout (seconds)",
+    "超时未响应则自动判定测试失败。": "Fail the test automatically if no response within this time.",
+    "响应时间筛选": "Response time filter",
+    "最大秒数": "Max seconds",
+    "测试超时 ({{timeout}}s)": "Test timed out ({{timeout}}s)",
+    "测试已取消": "Test cancelled",
+    "暂无符合条件的模型": "No matching models",
+    "优秀": "Excellent",
+    "良好": "Good",
+    "一般": "Fair",
+    "较差": "Poor"
   }
 }

@@ -3680,6 +3680,17 @@
     "并确认自行承担部署": "confirm that I bear legal responsibility arising from deployment",
     "运营和收费行为产生的法律责任": "operation and charging behavior",
     "，": ", ",
-    "、": ", "
+    "、": ", ",
+    "测试超时时间（秒）": "Délai d'expiration (secondes)",
+    "超时未响应则自动判定测试失败。": "Échec automatique si aucune réponse dans ce délai.",
+    "响应时间筛选": "Filtre de temps de réponse",
+    "最大秒数": "Secondes max",
+    "测试超时 ({{timeout}}s)": "Test expiré ({{timeout}}s)",
+    "测试已取消": "Test annulé",
+    "暂无符合条件的模型": "Aucun modèle correspondant",
+    "优秀": "Excellent",
+    "良好": "Bon",
+    "一般": "Moyen",
+    "较差": "Médiocre"
   }
 }
