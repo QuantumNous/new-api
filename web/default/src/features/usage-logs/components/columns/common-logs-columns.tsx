@@ -359,7 +359,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                       copyText={String(log.channel)}
                       size='sm'
                       showDot={false}
-                      className='font-mono'
+                      className='font-mono max-sm:!text-[11px]'
                     />
                     {showMultiKeyIndex && (
                       <StatusBadge
@@ -509,7 +509,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 <Tooltip>
                   <TooltipTrigger
                     render={
-                      <span className='text-muted-foreground max-w-[100px] truncate text-sm hover:underline' />
+                      <span className='text-muted-foreground max-w-[100px] truncate text-sm hover:underline max-sm:text-xs' />
                     }
                   >
                     {sensitiveVisible ? log.username : '••••'}
@@ -560,7 +560,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   copyText={sensitiveVisible ? tokenName : undefined}
                   size='sm'
                   showDot={false}
-                  className='border-border/60 bg-muted/30 text-foreground h-6 max-w-full gap-1.5 overflow-hidden rounded-md border px-2 py-0.5 [font-family:var(--font-body)]'
+                  className='border-border/60 bg-muted/30 text-foreground h-6 max-w-full gap-1.5 overflow-hidden rounded-md border px-2 py-0.5 [font-family:var(--font-body)] max-sm:h-5 max-sm:!text-xs'
                 />
               </TooltipTrigger>
               {sensitiveVisible && tokenName.length > 16 && (
@@ -639,7 +639,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                 variant={timeVariant as StatusBadgeProps['variant']}
                 size='sm'
                 copyable={false}
-                className={cn('rounded-md font-mono', timingBgMap[timeVariant])}
+                className={cn(
+                  'rounded-md font-mono max-sm:!text-[11px]',
+                  timingBgMap[timeVariant]
+                )}
               />
               {log.is_stream &&
                 (frt != null && frt > 0 ? (
@@ -650,7 +653,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     showDot={false}
                     copyable={false}
                     className={cn(
-                      'rounded-md font-mono',
+                      'rounded-md font-mono max-sm:!text-[11px]',
                       timingBgMap[frtVariant]
                     )}
                   />
@@ -661,7 +664,10 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     size='sm'
                     showDot={false}
                     copyable={false}
-                    className={cn('rounded-md font-mono', timingBgMap.neutral)}
+                    className={cn(
+                      'rounded-md font-mono max-sm:!text-[11px]',
+                      timingBgMap.neutral
+                    )}
                   />
                 ))}
             </div>
@@ -798,7 +804,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         return (
           <div className='flex flex-col gap-0.5'>
-            <span className='border-border/80 bg-muted/60 inline-flex h-6 w-fit items-center rounded-md border px-2 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums'>
+            <span className='border-border/80 bg-muted/60 inline-flex h-6 w-fit items-center rounded-md border px-2 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums max-sm:h-5 max-sm:px-1.5 max-sm:text-xs'>
               {quotaDisplay.prefix && (
                 <span className='mr-1'>{quotaDisplay.prefix}</span>
               )}

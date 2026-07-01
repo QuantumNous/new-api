@@ -199,7 +199,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
                 {sensitiveVisible ? getUserAvatarFallback(displayName) : '•'}
               </AvatarFallback>
             </Avatar>
-            <span className='text-muted-foreground truncate text-sm hover:underline'>
+            <span className='text-muted-foreground truncate text-sm hover:underline max-sm:text-xs'>
               {sensitiveVisible ? displayName : '••••'}
             </span>
           </button>
@@ -232,11 +232,11 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               copyText={taskId}
               variant='neutral'
               size='sm'
-              className='border-border/60 bg-muted/30 !text-foreground w-full max-w-none shrink-0 items-start rounded-md border px-1.5 py-0.5 font-mono !whitespace-normal'
+              className='border-border/60 bg-muted/30 !text-foreground w-full max-w-none shrink-0 items-start rounded-md border px-1.5 py-0.5 font-mono !whitespace-normal max-sm:h-auto max-sm:!text-[11px] max-sm:leading-tight'
             >
               <span className='break-all whitespace-normal'>{taskId}</span>
             </StatusBadge>
-            <span className='text-muted-foreground/60 text-[11px] leading-snug break-all'>
+            <span className='text-muted-foreground/60 text-[11px] leading-snug break-all max-sm:text-[10px]'>
               {subtitle}
             </span>
           </div>
@@ -255,7 +255,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           return <span className='text-muted-foreground/60 text-xs'>-</span>
         }
         return (
-          <span className='border-border/80 bg-muted/60 inline-flex h-6 w-fit items-center rounded-md border px-2 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums'>
+          <span className='border-border/80 bg-muted/60 inline-flex h-6 w-fit items-center rounded-md border px-2 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums max-sm:h-5 max-sm:px-1.5 max-sm:text-xs'>
             {formatLogQuota(quota)}
           </span>
         )
@@ -279,7 +279,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
             variant={taskStatusMapper.getVariant(status)}
             size='sm'
             copyable={false}
-            className='-ml-1.5'
+            className='-ml-1.5 max-sm:ml-0 max-sm:!text-[11px]'
           />
         )
       },

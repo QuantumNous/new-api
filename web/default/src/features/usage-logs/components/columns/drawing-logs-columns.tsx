@@ -103,6 +103,7 @@ export function useDrawingLogsColumns(
               variant={mjStatusMapper.getVariant(log.status)}
               size='sm'
               copyable={false}
+              className='max-sm:!text-[11px]'
             />
           </div>
         )
@@ -129,7 +130,7 @@ export function useDrawingLogsColumns(
           icon={getDrawingTypeIcon(action)}
           size='sm'
           copyable={false}
-          className='-ml-1.5'
+          className='-ml-1.5 max-sm:ml-0 max-sm:!text-[11px]'
         />
       )
     },
@@ -152,7 +153,7 @@ export function useDrawingLogsColumns(
             copyText={mjId}
             variant='neutral'
             size='sm'
-            className='border-border/60 bg-muted/30 !text-foreground max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
+            className='border-border/60 bg-muted/30 !text-foreground max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono max-sm:!text-[11px]'
           />
         </div>
       )
@@ -181,7 +182,7 @@ export function useDrawingLogsColumns(
             variant={mjSubmitResultMapper.getVariant(String(code))}
             size='sm'
             copyable={false}
-            className='-ml-1.5'
+            className='-ml-1.5 max-sm:ml-0 max-sm:!text-[11px]'
           />
         )
       },

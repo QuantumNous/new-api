@@ -86,16 +86,25 @@ function CompactCell<TData>({
   fallback = '-',
   className,
   primaryOnly = false,
+  clip = true,
 }: {
   cell?: Cell<TData, unknown>
   fallback?: string
   className?: string
   primaryOnly?: boolean
+  /**
+   * When true (default) the cell is width-constrained and its inner content is
+   * clipped/truncated — used for the flexible left/primary column. Set to false
+   * for short trailing badges (status, code, quota) so they render in full
+   * instead of being truncated to a single glyph.
+   */
+  clip?: boolean
 }) {
   return (
     <div
       className={cn(
-        'min-w-0 overflow-hidden leading-tight [&_button]:max-w-full [&_span]:max-w-full',
+        'min-w-0 leading-tight',
+        clip && 'overflow-hidden [&_button]:max-w-full [&_span]:max-w-full',
         primaryOnly &&
           '[&_.flex-col]:min-w-0 [&_.flex-col>*:not(:first-child)]:hidden',
         className
@@ -190,10 +199,11 @@ function CommonLogsCard<TData>({
 
   return (
     <div className='space-y-2.5'>
-      <div className='flex min-w-0 items-center justify-between gap-3'>
-        <CompactCell cell={modelCell} className='flex-1' />
+      <div className='flex min-w-0 items-center justify-between gap-2'>
+        <CompactCell cell={modelCell} className='min-w-0 flex-1' />
         <CompactCell
           cell={quotaCell}
+          clip={false}
           className='shrink-0 text-right [&_.flex-col]:items-end'
         />
       </div>
@@ -252,9 +262,13 @@ function TaskLogsCard<TData>({
 
   return (
     <div className='space-y-2.5'>
-      <div className='flex min-w-0 items-start justify-between gap-3'>
-        <CompactCell cell={taskIdCell} className='flex-1' />
-        <CompactCell cell={statusCell} className='shrink-0 text-right' />
+      <div className='flex min-w-0 items-start justify-between gap-2'>
+        <CompactCell cell={taskIdCell} className='min-w-0 flex-1' />
+        <CompactCell
+          cell={statusCell}
+          clip={false}
+          className='shrink-0 text-right whitespace-nowrap'
+        />
       </div>
 
       <div className='grid grid-cols-2 gap-1.5'>
@@ -294,9 +308,13 @@ function DrawingLogsCard<TData>({
 
   return (
     <div className='space-y-2.5'>
-      <div className='flex min-w-0 items-start justify-between gap-3'>
-        <CompactCell cell={actionCell} className='flex-1' />
-        <CompactCell cell={codeCell} className='shrink-0 text-right' />
+      <div className='flex min-w-0 items-start justify-between gap-2'>
+        <CompactCell cell={actionCell} className='min-w-0 flex-1' />
+        <CompactCell
+          cell={codeCell}
+          clip={false}
+          className='shrink-0 text-right whitespace-nowrap'
+        />
       </div>
 
       <div className='grid grid-cols-2 gap-1.5'>

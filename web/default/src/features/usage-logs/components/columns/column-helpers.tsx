@@ -152,7 +152,10 @@ export function createDurationColumn<T>(config: {
           variant={variant}
           size='sm'
           copyable={false}
-          className={cn('rounded-md font-mono', durationBgMap[variant])}
+          className={cn(
+            'rounded-md font-mono max-sm:!text-[11px]',
+            durationBgMap[variant]
+          )}
         />
       )
     },
@@ -186,7 +189,7 @@ export function createChannelColumn<T>(config: {
           copyText={String(channelId)}
           size='sm'
           showDot={false}
-          className='font-mono'
+          className='font-mono max-sm:!text-[11px]'
         />
       )
     },
@@ -261,7 +264,7 @@ export function createProgressColumn<T>(config: {
         return <span className='text-muted-foreground/60 text-xs'>-</span>
       }
       return (
-        <span className='border-border/60 bg-muted/30 inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-xs'>
+        <span className='border-border/60 bg-muted/30 inline-flex items-center rounded-md border px-1.5 py-0.5 font-mono text-xs max-sm:text-[11px]'>
           {progress}
         </span>
       )
