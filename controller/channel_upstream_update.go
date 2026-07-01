@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -297,18 +298,18 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		}
 	case constant.ChannelTypeVolcEngine:
 		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			url = fmt.Sprintf("%s/v1/models", plan.OpenAIBaseURL)
+			url = relaycommon.GetFullRequestURL(plan.OpenAIBaseURL, "/v1/models", channel.Type)
 		} else {
-			url = fmt.Sprintf("%s/v1/models", baseURL)
+			url = relaycommon.GetFullRequestURL(baseURL, "/v1/models", channel.Type)
 		}
 	case constant.ChannelTypeMoonshot:
 		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
 			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
 		} else {
-			url = fmt.Sprintf("%s/v1/models", baseURL)
+			url = relaycommon.GetFullRequestURL(baseURL, "/v1/models", channel.Type)
 		}
 	default:
-		url = fmt.Sprintf("%s/v1/models", baseURL)
+		url = relaycommon.GetFullRequestURL(baseURL, "/v1/models", channel.Type)
 	}
 
 	key, _, apiErr := channel.GetNextEnabledKey()
