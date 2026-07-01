@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
  * Column definitions factory
  */
 import type { ColumnDef } from '@tanstack/react-table'
+
 import { useCommonLogsColumns } from '../components/columns/common-logs-columns'
 import { useDrawingLogsColumns } from '../components/columns/drawing-logs-columns'
 import { useTaskLogsColumns } from '../components/columns/task-logs-columns'

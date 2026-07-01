@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { type SVGProps } from 'react'
-import { cn } from '@/lib/utils'
+
 import { type Direction } from '@/context/direction-provider'
+import { cn } from '@/lib/utils'
 
 type IconDirProps = SVGProps<SVGSVGElement> & {
   dir: Direction

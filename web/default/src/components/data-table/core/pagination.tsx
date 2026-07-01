@@ -24,7 +24,7 @@ import {
   ChevronsRight as DoubleArrowRightIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn, getPageNumbers } from '@/lib/utils'
+
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { cn, getPageNumbers } from '@/lib/utils'
 
 type DataTablePaginationProps<TData> = {
   table: Table<TData>

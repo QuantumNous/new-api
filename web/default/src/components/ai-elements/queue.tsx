@@ -18,9 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
-import type { ComponentProps } from 'react'
 import { ChevronDownIcon, PaperclipIcon } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import type { ComponentProps } from 'react'
+
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -28,6 +28,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
 
 export type QueueMessagePart = {
   type: string

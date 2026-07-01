@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+
 import { USAGE_LOGS_DEFAULT_SECTION } from '@/features/usage-logs/section-registry'
 
 export const Route = createFileRoute('/_authenticated/usage-logs/')({

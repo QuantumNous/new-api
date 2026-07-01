@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Accordion as AccordionPrimitive } from '@base-ui/react/accordion'
 import { ArrowDown01Icon, ArrowUp01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+
 import { cn } from '@/lib/utils'
 
 function Accordion({ className, ...props }: AccordionPrimitive.Root.Props) {

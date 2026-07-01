@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
  * Shared constants for usage logs feature
  */
 import type { StatusBadgeProps } from '@/components/status-badge'
+
 import type { LogStatistics, LogCategory } from './types'
 
 // ============================================================================
