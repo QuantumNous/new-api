@@ -13,7 +13,7 @@ import (
 
 func TestValidateMultipartDirectNormalizesImageField(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	body := strings.NewReader(`{"model":"wan2.7-i2v","prompt":"animate","image":"https://example.com/first.png"}`)
+	body := strings.NewReader(`{"model":"wan2.7-i2v","prompt":"animate","image":" https://example.com/first.png "}`)
 	request := httptest.NewRequest(http.MethodPost, "/v1/video/generations", body)
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()

@@ -266,29 +266,40 @@ func isWan27I2VModel(model string) bool {
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
 		}
 	}
 	return ""
 }
 
 func firstTaskImage(req relaycommon.TaskSubmitReq) string {
-	if req.InputReference != "" {
-		return req.InputReference
+	if image := strings.TrimSpace(req.Image); image != "" {
+		return image
 	}
-	if req.Image != "" {
-		return req.Image
+	for _, image := range req.Images {
+		if trimmed := strings.TrimSpace(image); trimmed != "" {
+			return trimmed
+		}
 	}
-	if len(req.Images) > 0 {
-		return req.Images[0]
+	if inputReference := strings.TrimSpace(req.InputReference); inputReference != "" {
+		return inputReference
 	}
 	return ""
 }
 
 func secondTaskImage(req relaycommon.TaskSubmitReq) string {
-	if len(req.Images) > 1 {
-		return req.Images[1]
+	nonEmptyImages := 0
+	for _, image := range req.Images {
+		trimmed := strings.TrimSpace(image)
+		if trimmed == "" {
+			continue
+		}
+		nonEmptyImages++
+		if nonEmptyImages == 2 {
+			return trimmed
+		}
 	}
 	return ""
 }

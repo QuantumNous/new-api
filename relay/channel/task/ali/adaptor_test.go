@@ -62,11 +62,56 @@ func TestConvertToAliRequestWan27I2VBuildsFirstAndLastFrameFromImages(t *testing
 	}, aliReq.Input.Media)
 }
 
-func TestConvertToAliRequestWan27I2VKeepsExplicitMetadataMedia(t *testing.T) {
+func TestConvertToAliRequestWan27I2VPrefersImageBeforeImagesAndInputReference(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+	req := relaycommon.TaskSubmitReq{
+		Model:          "wan2.7-i2v",
+		Prompt:         "use the direct image",
+		Image:          " https://example.com/direct.png ",
+		Images:         []string{"https://example.com/images-first.png", " https://example.com/images-last.png "},
+		InputReference: "https://example.com/input-reference.png",
+	}
+
+	aliReq, err := adaptor.convertToAliRequest(testRelayInfo(), req)
+
+	require.NoError(t, err)
+	require.Equal(t, []AliVideoMedia{
+		{Type: "first_frame", URL: "https://example.com/direct.png"},
+		{Type: "last_frame", URL: "https://example.com/images-last.png"},
+	}, aliReq.Input.Media)
+}
+
+func TestConvertToAliRequestWan27I2VFallsBackToFirstNonEmptyImage(t *testing.T) {
 	adaptor := &TaskAdaptor{}
 	req := relaycommon.TaskSubmitReq{
 		Model:  "wan2.7-i2v",
-		Prompt: "continue the clip",
+		Prompt: "skip blank images",
+		Image:  " ",
+		Images: []string{
+			" ",
+			" https://example.com/first.png ",
+			" https://example.com/last.png ",
+		},
+		InputReference: "https://example.com/input-reference.png",
+	}
+
+	aliReq, err := adaptor.convertToAliRequest(testRelayInfo(), req)
+
+	require.NoError(t, err)
+	require.Equal(t, []AliVideoMedia{
+		{Type: "first_frame", URL: "https://example.com/first.png"},
+		{Type: "last_frame", URL: "https://example.com/last.png"},
+	}, aliReq.Input.Media)
+}
+
+func TestConvertToAliRequestWan27I2VKeepsExplicitMetadataMedia(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+	req := relaycommon.TaskSubmitReq{
+		Model:          "wan2.7-i2v",
+		Prompt:         "continue the clip",
+		Image:          "https://example.com/direct.png",
+		Images:         []string{"https://example.com/images-first.png", "https://example.com/images-last.png"},
+		InputReference: "https://example.com/input-reference.png",
 		Metadata: map[string]interface{}{
 			"input": map[string]interface{}{
 				"media": []interface{}{
@@ -85,6 +130,12 @@ func TestConvertToAliRequestWan27I2VKeepsExplicitMetadataMedia(t *testing.T) {
 	require.Equal(t, []AliVideoMedia{
 		{Type: "first_clip", URL: "https://example.com/input.mp4"},
 	}, aliReq.Input.Media)
+	require.Empty(t, aliReq.Input.ImgURL)
+
+	body, err := common.Marshal(aliReq)
+	require.NoError(t, err)
+	require.Contains(t, string(body), `"media"`)
+	require.NotContains(t, string(body), `"img_url"`)
 }
 
 func TestConvertToAliRequestWan27I2VRequiresMedia(t *testing.T) {
