@@ -43,6 +43,7 @@ const defaultOperationsSettings: OperationsSettings = {
   WorkerUrl: '',
   WorkerValidKey: '',
   WorkerAllowHttpImageRequestEnabled: false,
+  ImageAwareModelRouting: '{}',
   LogConsumeEnabled: false,
   'performance_setting.disk_cache_enabled': false,
   'performance_setting.disk_cache_threshold_mb': 10,

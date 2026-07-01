@@ -193,6 +193,16 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 
+	if entryModel := common.GetContextKeyString(c, constant.ContextKeyImageAwareEntryModel); entryModel != "" {
+		reason := "no_image"
+		if common.GetContextKeyBool(c, constant.ContextKeyImageAwareHasImage) {
+			reason = "image_detected"
+		}
+		c.Header("X-Routed-Model", info.OriginModelName)
+		c.Header("X-Route-Entry-Model", entryModel)
+		c.Header("X-Route-Reason", reason)
+	}
+
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")

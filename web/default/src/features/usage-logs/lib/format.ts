@@ -157,6 +157,7 @@ export function formatModelName(log: UsageLog): {
   name: string
   isMapped: boolean
   actualModel?: string
+  imageAwareEntryModel?: string
 } {
   const other = parseLogOther(log.other)
   const isMapped = !!(
@@ -169,6 +170,7 @@ export function formatModelName(log: UsageLog): {
     name: log.model_name,
     isMapped,
     actualModel: isMapped ? other.upstream_model_name : undefined,
+    imageAwareEntryModel: other?.image_aware_entry_model,
   }
 }
 

@@ -522,6 +522,30 @@ export function ApiKeysMutateDrawer({
                   <div className='flex flex-col gap-4 pt-2'>
                     <FormField
                       control={form.control}
+                      name='model_route_notify'
+                      render={({ field }) => (
+                        <FormItem className={sideDrawerSwitchItemClassName()}>
+                          <div className='flex flex-col gap-0.5'>
+                            <FormLabel className='text-sm'>
+                              {t('Model Route Notify')}
+                            </FormLabel>
+                            <FormDescription className='line-clamp-2 text-xs sm:line-clamp-none'>
+                              {t(
+                                'Show a hint in the response when the request is auto-routed to a different model.'
+                              )}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={!!field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
                       name='model_limits'
                       render={({ field }) => (
                         <FormItem>

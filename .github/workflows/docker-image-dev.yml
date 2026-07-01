@@ -1,0 +1,152 @@
+name: Publish Docker image (dev)
+
+# Builds the full image (Dockerfile): frontend (web/default + classic) is
+# built with bun and embedded into the Go binary, so a single port (:3000)
+# serves both the API and the frontend. Pushed to the GitHub Container
+# Registry (ghcr.io) under this repo's owner namespace. Authenticates with
+# the built-in GITHUB_TOKEN, so no Docker Hub secrets are required.
+#
+# Each architecture is built natively in parallel (no QEMU emulation), then
+# merged into a single multi-arch manifest — much faster than a single
+# emulated multi-arch build.
+#
+# After the first publish, set the package to "public" at
+#   https://github.com/users/<owner>/packages/container/new-api/settings
+# so it can be pulled anonymously.
+
+on:
+  push:
+    branches:
+      - feat/image-aware-model-routing
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      name:
+        description: "reason"
+        required: false
+
+jobs:
+  build_single_arch:
+    name: Build & push (${{ matrix.arch }}) [native]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Check out (shallow)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Resolve GHCR image name
+        id: ghcr
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "image=ghcr.io/${OWNER_LC}/new-api" >> $GITHUB_OUTPUT
+
+      - name: Determine dev version
+        id: version
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "versioned=dev-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "Publishing dev image for ${{ matrix.arch }}: dev, dev-${SHORT_SHA}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push single-arch
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: |
+            ${{ steps.ghcr.outputs.image }}:dev-${{ matrix.arch }}
+            ${{ steps.ghcr.outputs.image }}:${{ steps.version.outputs.versioned }}-${{ matrix.arch }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Output digest
+        run: |
+          echo "### Dev image (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.ghcr.outputs.image }}:dev-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  create_manifests:
+    name: Create multi-arch manifest
+    needs: [build_single_arch]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Check out (shallow)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Resolve GHCR image name
+        id: ghcr
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "image=ghcr.io/${OWNER_LC}/new-api" >> $GITHUB_OUTPUT
+
+      - name: Determine dev version
+        id: version
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "versioned=dev-${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create & push manifest (dev)
+        run: |
+          docker buildx imagetools create \
+            -t ${{ steps.ghcr.outputs.image }}:dev \
+            ${{ steps.ghcr.outputs.image }}:dev-amd64 \
+            ${{ steps.ghcr.outputs.image }}:dev-arm64
+
+      - name: Create & push manifest (versioned)
+        run: |
+          docker buildx imagetools create \
+            -t ${{ steps.ghcr.outputs.image }}:${{ steps.version.outputs.versioned }} \
+            ${{ steps.ghcr.outputs.image }}:${{ steps.version.outputs.versioned }}-amd64 \
+            ${{ steps.ghcr.outputs.image }}:${{ steps.version.outputs.versioned }}-arm64
+
+      - name: Output manifest digest
+        run: |
+          echo "### Multi-arch Manifest (dev)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect ${{ steps.ghcr.outputs.image }}:dev >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
