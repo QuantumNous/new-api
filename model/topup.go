@@ -12,16 +12,40 @@ import (
 )
 
 type TopUp struct {
-	Id              int     `json:"id"`
-	UserId          int     `json:"user_id" gorm:"index"`
-	Amount          int64   `json:"amount"`
-	Money           float64 `json:"money"`
-	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
-	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
-	CreateTime      int64   `json:"create_time"`
-	CompleteTime    int64   `json:"complete_time"`
-	Status          string  `json:"status"`
+	Id                   int     `json:"id"`
+	UserId               int     `json:"user_id" gorm:"index"`
+	Amount               int64   `json:"amount"`
+	Money                float64 `json:"money"`
+	DisplayAmount        float64 `json:"display_amount" gorm:"type:decimal(12,6);not null;default:0"`
+	DisplayCurrency      string  `json:"display_currency" gorm:"type:varchar(32);not null;default:''"`
+	SettlementAmount     float64 `json:"settlement_amount" gorm:"type:decimal(12,6);not null;default:0"`
+	SettlementCurrency   string  `json:"settlement_currency" gorm:"type:varchar(16);not null;default:''"`
+	ExchangeRateSnapshot float64 `json:"exchange_rate_snapshot" gorm:"type:decimal(12,6);not null;default:0"`
+	TradeNo              string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod        string  `json:"payment_method" gorm:"type:varchar(50)"`
+	PaymentProvider      string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	CreateTime           int64   `json:"create_time"`
+	CompleteTime         int64   `json:"complete_time"`
+	Status               string  `json:"status"`
+}
+
+type PaymentSnapshot struct {
+	DisplayAmount        float64
+	DisplayCurrency      string
+	SettlementAmount     float64
+	SettlementCurrency   string
+	ExchangeRateSnapshot float64
+}
+
+func (topUp *TopUp) ApplyPaymentSnapshot(snapshot PaymentSnapshot) {
+	if topUp == nil {
+		return
+	}
+	topUp.DisplayAmount = snapshot.DisplayAmount
+	topUp.DisplayCurrency = snapshot.DisplayCurrency
+	topUp.SettlementAmount = snapshot.SettlementAmount
+	topUp.SettlementCurrency = snapshot.SettlementCurrency
+	topUp.ExchangeRateSnapshot = snapshot.ExchangeRateSnapshot
 }
 
 const (

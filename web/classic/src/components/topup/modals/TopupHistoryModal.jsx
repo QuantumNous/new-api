@@ -72,6 +72,38 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [keyword, setKeyword] = useState('');
   const isMobile = useIsMobile();
   const { symbol } = getCurrencyConfig();
+  const getCurrencySymbolForRecord = (currency) => {
+    if (currency === 'USD') return '$';
+    if (currency === 'CNY') return '¥';
+    return currency || symbol;
+  };
+  const formatCurrencyAmount = (currencySymbol, amount) => {
+    const numericAmount = Number(amount || 0);
+    if (!Number.isFinite(numericAmount)) {
+      return `${currencySymbol}0.00`;
+    }
+    return `${currencySymbol}${numericAmount.toFixed(2)}`;
+  };
+
+  const getFallbackHistoryMoney = (money) => {
+    return formatCurrencyAmount(symbol, money);
+  };
+
+  const getRecordDisplayMoney = (record) => {
+    const displayAmount = Number(record?.display_amount || 0);
+    const displayCurrency = record?.display_currency || '';
+    if (
+      displayCurrency &&
+      Number.isFinite(displayAmount) &&
+      displayAmount > 0
+    ) {
+      return formatCurrencyAmount(
+        getCurrencySymbolForRecord(displayCurrency),
+        displayAmount,
+      );
+    }
+    return getFallbackHistoryMoney(record?.money);
+  };
 
   const loadTopups = async (currentPage, currentPageSize) => {
     setLoading(true);
@@ -243,10 +275,9 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('支付金额'),
         dataIndex: 'money',
         key: 'money',
-        render: (money) => (
+        render: (_, record) => (
           <Text className='topup-history-money'>
-            {symbol}
-            {money.toFixed(2)}
+            {getRecordDisplayMoney(record)}
           </Text>
         ),
       },

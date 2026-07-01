@@ -30,6 +30,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { Crown, CalendarClock, Package } from 'lucide-react';
 import { SiStripe } from 'react-icons/si';
+import { SiAlipay } from 'react-icons/si';
 import { IconCreditCard } from '@douyinfe/semi-icons';
 import { renderQuota } from '../../../helpers';
 import { getCurrencyConfig } from '../../../helpers/render';
@@ -49,10 +50,12 @@ const SubscriptionPurchaseModal = ({
   selectedEpayMethod,
   setSelectedEpayMethod,
   epayMethods = [],
+  enableAlipayTopUp = false,
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
   purchaseLimitInfo = null,
+  onPayAlipay,
   onPayStripe,
   onPayCreem,
   onPayEpay,
@@ -65,11 +68,37 @@ const SubscriptionPurchaseModal = ({
   const displayPrice = convertedPrice.toFixed(
     Number.isInteger(convertedPrice) ? 0 : 2,
   );
-  // 只有当管理员开启支付网关 AND 套餐配置了对应的支付ID时才显示
-  const hasStripe = enableStripeTopUp && !!plan?.stripe_price_id;
-  const hasCreem = enableCreemTopUp && !!plan?.creem_product_id;
+  const providerButtons = [
+    enableAlipayTopUp
+      ? {
+          key: 'alipay',
+          label: t('支付宝'),
+          icon: <SiAlipay size={14} color='var(--app-accent)' />,
+          onClick: onPayAlipay,
+          className: 'is-secondary',
+        }
+      : null,
+    enableStripeTopUp && !!plan?.stripe_price_id
+      ? {
+          key: 'stripe',
+          label: 'Stripe',
+          icon: <SiStripe size={14} color='var(--app-accent)' />,
+          onClick: onPayStripe,
+          className: 'is-secondary',
+        }
+      : null,
+    enableCreemTopUp && !!plan?.creem_product_id
+      ? {
+          key: 'creem',
+          label: 'Creem',
+          icon: <IconCreditCard />,
+          onClick: onPayCreem,
+          className: 'is-secondary',
+        }
+      : null,
+  ].filter(Boolean);
   const hasEpay = enableOnlineTopUp && epayMethods.length > 0;
-  const hasAnyPayment = hasStripe || hasCreem || hasEpay;
+  const hasAnyPayment = providerButtons.length > 0 || hasEpay;
   const purchaseLimit = Number(purchaseLimitInfo?.limit || 0);
   const purchaseCount = Number(purchaseLimitInfo?.count || 0);
   const purchaseLimitReached =
@@ -196,33 +225,21 @@ const SubscriptionPurchaseModal = ({
                 {t('选择支付方式')}：
               </Text>
 
-              {/* Stripe / Creem */}
-              {(hasStripe || hasCreem) && (
+              {providerButtons.length > 0 && (
                 <div className='subscription-purchase-provider-row flex gap-2'>
-                  {hasStripe && (
+                  {providerButtons.map((provider) => (
                     <Button
+                      key={provider.key}
                       theme='light'
-                      className='subscription-purchase-pay-button is-secondary flex-1'
-                      icon={<SiStripe size={14} color='var(--app-accent)' />}
-                      onClick={onPayStripe}
+                      className={`subscription-purchase-pay-button ${provider.className} flex-1`}
+                      icon={provider.icon}
+                      onClick={provider.onClick}
                       loading={paying}
                       disabled={purchaseLimitReached}
                     >
-                      Stripe
+                      {provider.label}
                     </Button>
-                  )}
-                  {hasCreem && (
-                    <Button
-                      theme='light'
-                      className='subscription-purchase-pay-button is-secondary flex-1'
-                      icon={<IconCreditCard />}
-                      onClick={onPayCreem}
-                      loading={paying}
-                      disabled={purchaseLimitReached}
-                    >
-                      Creem
-                    </Button>
-                  )}
+                  ))}
                 </div>
               )}
 

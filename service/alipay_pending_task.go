@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -33,7 +34,7 @@ func StartAlipayPendingTopUpTask() {
 			return
 		}
 		gopool.Go(func() {
-			logger.LogInfo(context.Background(), fmt.Sprintf("alipay pending topup task started: tick=%s", alipayPendingTickInterval))
+			logger.LogInfo(context.Background(), fmt.Sprintf("alipay pending task started: tick=%s", alipayPendingTickInterval))
 			ticker := time.NewTicker(alipayPendingTickInterval)
 			defer ticker.Stop()
 
@@ -47,6 +48,47 @@ func StartAlipayPendingTopUpTask() {
 
 func NextAlipayPendingQueryTime(base time.Time) int64 {
 	return base.Add(alipayPendingQueryDelay).Unix()
+}
+
+func alipayOrderQueryExpired(createTime int64, now time.Time) bool {
+	if createTime <= 0 {
+		return false
+	}
+	timeout := DefaultAlipayTimeoutExpress()
+	duration, err := parseAlipayTimeoutExpress(timeout)
+	if err != nil || duration <= 0 {
+		duration = 30 * time.Minute
+	}
+	return now.Unix() >= createTime+int64(duration.Seconds())
+}
+
+func parseAlipayTimeoutExpress(timeout string) (time.Duration, error) {
+	trimmed := strings.ToLower(strings.TrimSpace(timeout))
+	if trimmed == "" {
+		return 0, errors.New("empty timeout express")
+	}
+	if strings.HasSuffix(trimmed, "m") {
+		value, err := strconv.Atoi(strings.TrimSuffix(trimmed, "m"))
+		if err != nil {
+			return 0, err
+		}
+		return time.Duration(value) * time.Minute, nil
+	}
+	if strings.HasSuffix(trimmed, "h") {
+		value, err := strconv.Atoi(strings.TrimSuffix(trimmed, "h"))
+		if err != nil {
+			return 0, err
+		}
+		return time.Duration(value) * time.Hour, nil
+	}
+	if strings.HasSuffix(trimmed, "d") {
+		value, err := strconv.Atoi(strings.TrimSuffix(trimmed, "d"))
+		if err != nil {
+			return 0, err
+		}
+		return time.Duration(value) * 24 * time.Hour, nil
+	}
+	return 0, fmt.Errorf("unsupported timeout express: %s", timeout)
 }
 
 func runAlipayPendingTopUpTaskOnce() {
@@ -63,50 +105,122 @@ func runAlipayPendingTopUpTaskOnce() {
 	now := time.Now()
 	tasks, err := model.GetDueAlipayPendingTasks(now.Unix(), alipayPendingBatchSize)
 	if err != nil {
-		logger.LogWarn(ctx, fmt.Sprintf("alipay pending topup query failed: %v", err))
+		logger.LogWarn(ctx, fmt.Sprintf("alipay pending query failed: %v", err))
 		return
 	}
 
 	for _, task := range tasks {
-		topUp := model.GetTopUpByTradeNo(task.TradeNo)
-		if topUp == nil || topUp.PaymentProvider != model.PaymentProviderAlipay || topUp.Status != common.TopUpStatusPending {
-			_ = model.DeleteAlipayPendingTask(task.TradeNo)
-			continue
+		switch task.TradeType {
+		case model.AlipayPendingTaskTypeSubscription:
+			handleAlipayPendingSubscriptionTask(ctx, now, task)
+		default:
+			handleAlipayPendingTopUpTask(ctx, now, task)
 		}
+	}
+}
 
-		result, err := QueryAlipayTrade(ctx, setting.AlipayGateway, setting.AlipayAppID, setting.AlipayPrivateKey, task.TradeNo)
-		if err != nil {
-			if IsAlipayPermanentTradeQueryError(err) {
-				updateErr := model.UpdatePendingTopUpStatus(task.TradeNo, model.PaymentProviderAlipay, common.TopUpStatusExpired)
-				if updateErr != nil && !errors.Is(updateErr, model.ErrTopUpNotFound) && !errors.Is(updateErr, model.ErrTopUpStatusInvalid) {
-					logger.LogWarn(ctx, fmt.Sprintf("alipay pending topup permanent failure update failed trade_no=%s error=%v", task.TradeNo, updateErr))
-				}
+func handleAlipayPendingTopUpTask(ctx context.Context, now time.Time, task *model.AlipayPendingTask) {
+	topUp := model.GetTopUpByTradeNo(task.TradeNo)
+	if topUp == nil || topUp.PaymentProvider != model.PaymentProviderAlipay || topUp.Status != common.TopUpStatusPending {
+		_ = model.DeleteAlipayPendingTask(task.TradeNo)
+		return
+	}
+
+	result, err := QueryAlipayTrade(ctx, setting.AlipayGateway, setting.AlipayAppID, setting.AlipayPrivateKey, task.TradeNo)
+	if err != nil {
+		if IsAlipayPermanentTradeQueryError(err) {
+			if !alipayOrderQueryExpired(topUp.CreateTime, now) {
+				_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
+				logger.LogWarn(ctx, fmt.Sprintf("alipay pending topup trade not found before timeout, will retry trade_no=%s error=%v", task.TradeNo, err))
+				return
+			}
+			updateErr := model.UpdatePendingTopUpStatus(task.TradeNo, model.PaymentProviderAlipay, common.TopUpStatusExpired)
+			if updateErr != nil && !errors.Is(updateErr, model.ErrTopUpNotFound) && !errors.Is(updateErr, model.ErrTopUpStatusInvalid) {
+				_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), updateErr.Error())
+				logger.LogWarn(ctx, fmt.Sprintf("alipay pending topup permanent failure update failed trade_no=%s error=%v", task.TradeNo, updateErr))
+				return
+			}
+			_ = model.DeleteAlipayPendingTask(task.TradeNo)
+		} else {
+			_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
+		}
+		logger.LogWarn(ctx, fmt.Sprintf("alipay trade query failed trade_no=%s error=%v", task.TradeNo, err))
+		return
+	}
+
+	targetStatus := MapAlipayTradeStatusToLocalStatus(result.TradeStatus)
+	switch targetStatus {
+	case common.TopUpStatusSuccess:
+		if err := model.RechargeAlipay(task.TradeNo, "system/alipay-pending-task"); err != nil {
+			_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
+			logger.LogWarn(ctx, fmt.Sprintf("alipay pending topup settle failed trade_no=%s error=%v", task.TradeNo, err))
+		}
+	case common.TopUpStatusPending:
+		_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), result.TradeStatus)
+	case common.TopUpStatusExpired, common.TopUpStatusFailed:
+		err := model.UpdatePendingTopUpStatus(task.TradeNo, model.PaymentProviderAlipay, targetStatus)
+		if err != nil && !errors.Is(err, model.ErrTopUpNotFound) && !errors.Is(err, model.ErrTopUpStatusInvalid) {
+			_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
+			logger.LogWarn(ctx, fmt.Sprintf("alipay pending topup status update failed trade_no=%s status=%s error=%v", task.TradeNo, targetStatus, err))
+			return
+		}
+		_ = model.DeleteAlipayPendingTask(task.TradeNo)
+	}
+}
+
+func handleAlipayPendingSubscriptionTask(ctx context.Context, now time.Time, task *model.AlipayPendingTask) {
+	order := model.GetSubscriptionOrderByTradeNo(task.TradeNo)
+	if order == nil || order.PaymentProvider != model.PaymentProviderAlipay || order.Status != common.TopUpStatusPending {
+		_ = model.DeleteAlipayPendingTask(task.TradeNo)
+		return
+	}
+
+	result, err := QueryAlipayTrade(ctx, setting.AlipayGateway, setting.AlipayAppID, setting.AlipayPrivateKey, task.TradeNo)
+	if err != nil {
+		if IsAlipayPermanentTradeQueryError(err) {
+			if !alipayOrderQueryExpired(order.CreateTime, now) {
+				_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
+				logger.LogWarn(ctx, fmt.Sprintf("alipay pending subscription trade not found before timeout, will retry trade_no=%s error=%v", task.TradeNo, err))
+				return
+			}
+			if expireErr := model.ExpireSubscriptionOrder(task.TradeNo, model.PaymentProviderAlipay); expireErr != nil &&
+				!errors.Is(expireErr, model.ErrSubscriptionOrderNotFound) &&
+				!errors.Is(expireErr, model.ErrPaymentMethodMismatch) {
+				_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), expireErr.Error())
+				logger.LogWarn(ctx, fmt.Sprintf("alipay pending subscription expire failed trade_no=%s error=%v", task.TradeNo, expireErr))
+				return
+			}
+			_ = model.DeleteAlipayPendingTask(task.TradeNo)
+		} else {
+			_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
+		}
+		logger.LogWarn(ctx, fmt.Sprintf("alipay pending subscription query failed trade_no=%s error=%v", task.TradeNo, err))
+		return
+	}
+
+	switch MapAlipayTradeStatusToLocalStatus(result.TradeStatus) {
+	case common.TopUpStatusSuccess:
+		if err := model.CompleteSubscriptionOrder(task.TradeNo, common.GetJsonString(result), model.PaymentProviderAlipay, model.PaymentMethodAlipay); err != nil {
+			if errors.Is(err, model.ErrSubscriptionOrderNotFound) || errors.Is(err, model.ErrSubscriptionOrderStatusInvalid) || errors.Is(err, model.ErrPaymentMethodMismatch) {
 				_ = model.DeleteAlipayPendingTask(task.TradeNo)
-			} else {
-				_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
+				return
 			}
-			logger.LogWarn(ctx, fmt.Sprintf("alipay trade query failed trade_no=%s error=%v", task.TradeNo, err))
-			continue
+			_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
+			logger.LogWarn(ctx, fmt.Sprintf("alipay pending subscription settle failed trade_no=%s error=%v", task.TradeNo, err))
+			return
 		}
-
-		targetStatus := MapAlipayTradeStatusToLocalStatus(result.TradeStatus)
-		switch targetStatus {
-		case common.TopUpStatusSuccess:
-			if err := model.RechargeAlipay(task.TradeNo, "system/alipay-pending-task"); err != nil {
-				_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
-				logger.LogWarn(ctx, fmt.Sprintf("alipay pending topup settle failed trade_no=%s error=%v", task.TradeNo, err))
-			}
-		case common.TopUpStatusPending:
-			_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), result.TradeStatus)
-		case common.TopUpStatusExpired, common.TopUpStatusFailed:
-			err := model.UpdatePendingTopUpStatus(task.TradeNo, model.PaymentProviderAlipay, targetStatus)
-			if err != nil && !errors.Is(err, model.ErrTopUpNotFound) && !errors.Is(err, model.ErrTopUpStatusInvalid) {
-				_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
-				logger.LogWarn(ctx, fmt.Sprintf("alipay pending topup status update failed trade_no=%s status=%s error=%v", task.TradeNo, targetStatus, err))
-				continue
-			}
-			_ = model.DeleteAlipayPendingTask(task.TradeNo)
+		_ = model.DeleteAlipayPendingTask(task.TradeNo)
+	case common.TopUpStatusPending:
+		_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), result.TradeStatus)
+	case common.TopUpStatusExpired, common.TopUpStatusFailed:
+		if err := model.ExpireSubscriptionOrder(task.TradeNo, model.PaymentProviderAlipay); err != nil &&
+			!errors.Is(err, model.ErrSubscriptionOrderNotFound) &&
+			!errors.Is(err, model.ErrPaymentMethodMismatch) {
+			_ = model.UpdateAlipayPendingTaskRetry(task.TradeNo, NextAlipayPendingQueryTime(now), err.Error())
+			logger.LogWarn(ctx, fmt.Sprintf("alipay pending subscription status update failed trade_no=%s error=%v", task.TradeNo, err))
+			return
 		}
+		_ = model.DeleteAlipayPendingTask(task.TradeNo)
 	}
 }
 

@@ -159,6 +159,7 @@ type SubscriptionPlan struct {
 	Enabled   bool `json:"enabled" gorm:"default:true"`
 	SortOrder int  `json:"sort_order" gorm:"type:int;default:0"`
 
+	AlipayEnabled  bool   `json:"alipay_enabled" gorm:"default:false"`
 	StripePriceId  string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
 	CreemProductId string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
 
@@ -193,10 +194,15 @@ func (p *SubscriptionPlan) BeforeUpdate(tx *gorm.DB) error {
 
 // Subscription order (payment -> webhook -> create UserSubscription)
 type SubscriptionOrder struct {
-	Id     int     `json:"id"`
-	UserId int     `json:"user_id" gorm:"index"`
-	PlanId int     `json:"plan_id" gorm:"index"`
-	Money  float64 `json:"money"`
+	Id                   int     `json:"id"`
+	UserId               int     `json:"user_id" gorm:"index"`
+	PlanId               int     `json:"plan_id" gorm:"index"`
+	Money                float64 `json:"money"`
+	DisplayAmount        float64 `json:"display_amount" gorm:"type:decimal(12,6);not null;default:0"`
+	DisplayCurrency      string  `json:"display_currency" gorm:"type:varchar(32);not null;default:''"`
+	SettlementAmount     float64 `json:"settlement_amount" gorm:"type:decimal(12,6);not null;default:0"`
+	SettlementCurrency   string  `json:"settlement_currency" gorm:"type:varchar(16);not null;default:''"`
+	ExchangeRateSnapshot float64 `json:"exchange_rate_snapshot" gorm:"type:decimal(12,6);not null;default:0"`
 
 	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
@@ -208,11 +214,27 @@ type SubscriptionOrder struct {
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
 }
 
+func (o *SubscriptionOrder) ApplyPaymentSnapshot(snapshot PaymentSnapshot) {
+	if o == nil {
+		return
+	}
+	o.DisplayAmount = snapshot.DisplayAmount
+	o.DisplayCurrency = snapshot.DisplayCurrency
+	o.SettlementAmount = snapshot.SettlementAmount
+	o.SettlementCurrency = snapshot.SettlementCurrency
+	o.ExchangeRateSnapshot = snapshot.ExchangeRateSnapshot
+}
+
 func (o *SubscriptionOrder) Insert() error {
 	if o.CreateTime == 0 {
 		o.CreateTime = common.GetTimestamp()
 	}
-	return DB.Create(o).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(o).Error; err != nil {
+			return err
+		}
+		return ensurePendingSubscriptionTopUpTx(tx, o)
+	})
 }
 
 func (o *SubscriptionOrder) Update() error {
@@ -535,7 +557,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if order.Status != common.TopUpStatusPending {
 			return ErrSubscriptionOrderStatusInvalid
 		}
-		plan, err := GetSubscriptionPlanById(order.PlanId)
+		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
 		if err != nil {
 			return err
 		}
@@ -589,20 +611,30 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	if err := tx.Where("trade_no = ?", order.TradeNo).First(&topup).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			topup = TopUp{
-				UserId:        order.UserId,
-				Amount:        0,
-				Money:         order.Money,
-				TradeNo:       order.TradeNo,
-				PaymentMethod: order.PaymentMethod,
-				CreateTime:    order.CreateTime,
-				CompleteTime:  now,
-				Status:        common.TopUpStatusSuccess,
+				UserId:               order.UserId,
+				Amount:               0,
+				Money:                order.Money,
+				DisplayAmount:        order.DisplayAmount,
+				DisplayCurrency:      order.DisplayCurrency,
+				SettlementAmount:     order.SettlementAmount,
+				SettlementCurrency:   order.SettlementCurrency,
+				ExchangeRateSnapshot: order.ExchangeRateSnapshot,
+				TradeNo:              order.TradeNo,
+				PaymentMethod:        order.PaymentMethod,
+				CreateTime:           order.CreateTime,
+				CompleteTime:         now,
+				Status:               common.TopUpStatusSuccess,
 			}
 			return tx.Create(&topup).Error
 		}
 		return err
 	}
 	topup.Money = order.Money
+	topup.DisplayAmount = order.DisplayAmount
+	topup.DisplayCurrency = order.DisplayCurrency
+	topup.SettlementAmount = order.SettlementAmount
+	topup.SettlementCurrency = order.SettlementCurrency
+	topup.ExchangeRateSnapshot = order.ExchangeRateSnapshot
 	if topup.PaymentMethod == "" {
 		topup.PaymentMethod = order.PaymentMethod
 	} else if topup.PaymentMethod != order.PaymentMethod {
@@ -613,6 +645,54 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	}
 	topup.CompleteTime = now
 	topup.Status = common.TopUpStatusSuccess
+	return tx.Save(&topup).Error
+}
+
+func ensurePendingSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
+	if tx == nil || order == nil {
+		return errors.New("invalid subscription order")
+	}
+	var topup TopUp
+	if err := tx.Where("trade_no = ?", order.TradeNo).First(&topup).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			topup = TopUp{
+				UserId:               order.UserId,
+				Amount:               0,
+				Money:                order.Money,
+				DisplayAmount:        order.DisplayAmount,
+				DisplayCurrency:      order.DisplayCurrency,
+				SettlementAmount:     order.SettlementAmount,
+				SettlementCurrency:   order.SettlementCurrency,
+				ExchangeRateSnapshot: order.ExchangeRateSnapshot,
+				TradeNo:              order.TradeNo,
+				PaymentMethod:        order.PaymentMethod,
+				PaymentProvider:      order.PaymentProvider,
+				CreateTime:           order.CreateTime,
+				Status:               common.TopUpStatusPending,
+			}
+			return tx.Create(&topup).Error
+		}
+		return err
+	}
+	topup.UserId = order.UserId
+	topup.Money = order.Money
+	topup.DisplayAmount = order.DisplayAmount
+	topup.DisplayCurrency = order.DisplayCurrency
+	topup.SettlementAmount = order.SettlementAmount
+	topup.SettlementCurrency = order.SettlementCurrency
+	topup.ExchangeRateSnapshot = order.ExchangeRateSnapshot
+	topup.PaymentProvider = order.PaymentProvider
+	if topup.PaymentMethod == "" {
+		topup.PaymentMethod = order.PaymentMethod
+	} else if topup.PaymentMethod != order.PaymentMethod {
+		return ErrPaymentMethodMismatch
+	}
+	if topup.CreateTime == 0 {
+		topup.CreateTime = order.CreateTime
+	}
+	if topup.Status == "" {
+		topup.Status = common.TopUpStatusPending
+	}
 	return tx.Save(&topup).Error
 }
 
@@ -637,8 +717,38 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 		}
 		order.Status = common.TopUpStatusExpired
 		order.CompleteTime = common.GetTimestamp()
-		return tx.Save(&order).Error
+		if err := tx.Save(&order).Error; err != nil {
+			return err
+		}
+		return syncSubscriptionTopUpStatusTx(tx, &order, common.TopUpStatusExpired)
 	})
+}
+
+func syncSubscriptionTopUpStatusTx(tx *gorm.DB, order *SubscriptionOrder, targetStatus string) error {
+	if tx == nil || order == nil {
+		return errors.New("invalid subscription order")
+	}
+	var topup TopUp
+	if err := tx.Where("trade_no = ?", order.TradeNo).First(&topup).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if topup.PaymentProvider != "" && order.PaymentProvider != "" && topup.PaymentProvider != order.PaymentProvider {
+		return ErrPaymentMethodMismatch
+	}
+	topup.Status = targetStatus
+	if topup.PaymentProvider == "" {
+		topup.PaymentProvider = order.PaymentProvider
+	}
+	if topup.PaymentMethod == "" {
+		topup.PaymentMethod = order.PaymentMethod
+	}
+	if targetStatus == common.TopUpStatusSuccess || targetStatus == common.TopUpStatusExpired || targetStatus == common.TopUpStatusFailed {
+		topup.CompleteTime = order.CompleteTime
+	}
+	return tx.Save(&topup).Error
 }
 
 // Admin bind (no payment). Creates a UserSubscription from a plan.

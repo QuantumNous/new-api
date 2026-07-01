@@ -623,6 +623,7 @@ const RechargeCard = ({
                 loading={subscriptionLoading}
                 plans={subscriptionPlans}
                 payMethods={payMethods}
+                enableAlipayTopUp={enableAlipayTopUp}
                 enableOnlineTopUp={enableOnlineTopUp}
                 enableStripeTopUp={enableStripeTopUp}
                 enableCreemTopUp={enableCreemTopUp}
