@@ -318,6 +318,8 @@ func TestStripeCheckoutSessionKeepsAccountEmailVerbatim(t *testing.T) {
 
 	require.NotNil(t, params.CustomerEmail)
 	require.Equal(t, "buyer+location_JP@example.com", *params.CustomerEmail)
+	require.NotNil(t, params.AllowPromotionCodes)
+	require.True(t, *params.AllowPromotionCodes)
 }
 
 func TestStripePaymentSnapshotFromEventUsesCurrencyMinorUnits(t *testing.T) {
@@ -416,7 +418,7 @@ func TestFulfillOrderRejectsMismatchedStripePaymentContract(t *testing.T) {
 	assert.Equal(t, 0, stripeFulfillmentUserQuota(t, 901))
 }
 
-func TestFulfillOrderRejectsDiscountedStripePaymentContract(t *testing.T) {
+func TestFulfillOrderAcceptsDiscountedStripePaymentContract(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
 	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent
 	t.Cleanup(func() {
@@ -460,26 +462,31 @@ func TestFulfillOrderRejectsDiscountedStripePaymentContract(t *testing.T) {
 
 	reloaded := model.GetTopUpByTradeNo("ref_stripe_contract_discount")
 	require.NotNil(t, reloaded)
-	assert.Equal(t, common.TopUpStatusPending, reloaded.Status)
-	assert.Equal(t, 0, stripeFulfillmentUserQuota(t, 902))
+	assert.Equal(t, common.TopUpStatusSuccess, reloaded.Status)
+	assert.Equal(t, int(200*common.QuotaPerUnit), stripeFulfillmentUserQuota(t, 902))
 }
 
 func setupStripeFulfillmentTestDB(t *testing.T) {
 	t.Helper()
 	originalDB := model.DB
 	originalLogDB := model.LOG_DB
+	originalRedisEnabled := common.RedisEnabled
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	model.DB = db
 	model.LOG_DB = db
+	common.RedisEnabled = false
 	t.Cleanup(func() {
 		model.DB = originalDB
 		model.LOG_DB = originalLogDB
+		common.RedisEnabled = originalRedisEnabled
 	})
 	require.NoError(t, db.AutoMigrate(
 		&model.User{},
 		&model.TopUp{},
 		&model.TopUpBonusClaim{},
+		&model.Log{},
+		&model.PaymentInvoice{},
 		&model.SubscriptionPlan{},
 		&model.SubscriptionOrder{},
 		&model.UserSubscription{},
