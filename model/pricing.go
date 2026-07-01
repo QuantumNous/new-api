@@ -295,10 +295,7 @@ func updatePricing() {
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {
 			pricing.ModelPrice = modelPrice
-			pricing.QuotaType = 1
-			if strings.Contains(pricing.Tags, "按秒") {
-				pricing.QuotaType = 2
-			}
+			pricing.QuotaType = fixedPriceQuotaType(model, pricing.Tags)
 		} else {
 			modelRatio, _, _ := ratio_setting.GetModelRatio(model)
 			pricing.ModelRatio = modelRatio
@@ -341,6 +338,16 @@ func updatePricing() {
 	modelEnableGroupsLock.Unlock()
 
 	lastGetPricingTime = time.Now()
+}
+
+func fixedPriceQuotaType(modelName, tags string) int {
+	if strings.Contains(tags, "按秒") {
+		return 2
+	}
+	if strings.HasPrefix(modelName, "seedance-") && !common.StringsContains(constant.TaskPricePatches, modelName) {
+		return 2
+	}
+	return 1
 }
 
 // GetSupportedEndpointMap 返回全局端点到路径的映射
