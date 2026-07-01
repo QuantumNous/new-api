@@ -177,9 +177,9 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     defaultBaseUrl: 'https://996k.cn/v1',
     hints: {
       key: 'Bearer token',
-      models: 'vyro-seedance-2-fast',
+      models: 'vyro-seedance-2-fast, Seedance-2.0, Seedance 2.0',
       baseUrl: 'Default: https://996k.cn/v1',
-      other: 'Video only: POST /videos (multipart, reference_images as files) + GET /videos/{id}. Supports text_to_video and reference_to_video.',
+      other: 'Video only: POST /videos + GET /videos/{id}. vyro-seedance-2-fast uses multipart (reference_images as files); Seedance-2.0 uses JSON (aspect_ratio, duration, resolution, generate_audio).',
     },
   },
 }

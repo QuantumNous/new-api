@@ -98,10 +98,11 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 	req.Header.Set("Authorization", "Bearer "+a.apiKey)
 	req.Header.Set("Accept", "application/json")
 
-	// Critical for multipart: the Content-Type (with boundary) must be set on the *outgoing* request.
-	// BuildRequestBody sets it on c.Request.Header, we must copy it here.
+	// BuildRequestBody sets Content-Type on c.Request (multipart boundary or application/json).
 	if ct := c.Request.Header.Get("Content-Type"); ct != "" {
 		req.Header.Set("Content-Type", ct)
+	} else if UsesJSONAPI(resolveUpstreamModelName(c, info)) {
+		req.Header.Set("Content-Type", "application/json")
 	}
 
 	common.SysLog(fmt.Sprintf("[VYRO-DEBUG] sending to upstream: %s , Authorization: Bearer %s (masked), Content-Type: %s", req.URL.String(), maskKey(a.apiKey), req.Header.Get("Content-Type")))
@@ -115,56 +116,16 @@ func maskKey(k string) string {
 	return k[:4] + "..." + k[len(k)-4:]
 }
 
-// BuildRequestBody constructs the exact multipart/form-data that Vyro Seedance expects.
-// Supports two input styles:
-//   - Incoming multipart with actual reference_images file parts (drama sends pre-downloaded files) → forward them.
-//   - JSON or form with reference_image_urls / images → download inside relay and attach as files.
+// BuildRequestBody forwards to upstream as JSON (Seedance 2.0) or multipart/form-data (legacy vyro-seedance-2-fast).
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	modelName := strings.TrimSpace(info.UpstreamModelName)
 	contentType := c.GetHeader("Content-Type")
+	modelName := resolveUpstreamModelName(c, info)
 
-	common.SysLog(fmt.Sprintf("[VYRO-DEBUG] BuildRequestBody ENTRY: Origin=%q Upstream=%q contentType=%s", info.OriginModelName, info.UpstreamModelName, contentType))
+	common.SysLog(fmt.Sprintf("[VYRO-DEBUG] BuildRequestBody ENTRY: Origin=%q Upstream=%q contentType=%s model=%q", info.OriginModelName, info.UpstreamModelName, contentType, modelName))
 
-	// Robust fallback for model name (very important for direct curl / multipart tests):
-	// 1. Prefer UpstreamModelName from channel model mapping
-	// 2. Try OriginModelName
-	// 3. Read directly from incoming multipart form (the -F "model=..." the client actually sent)
-	// 4. Read from parsed TaskSubmitReq
-	// 5. Default
-	if modelName == "" {
-		modelName = strings.TrimSpace(info.OriginModelName)
+	if UsesJSONAPI(modelName) {
+		return a.buildJSONRequestBody(c, info, modelName)
 	}
-
-	if modelName == "" && strings.Contains(contentType, "multipart/form-data") {
-		// Force parse the multipart so form values are available
-		if _, perr := c.MultipartForm(); perr == nil {
-			if v := strings.TrimSpace(c.PostForm("model")); v != "" {
-				modelName = v
-			}
-		}
-		// Also try the reusable parser
-		if modelName == "" {
-			if fd, _ := common.ParseMultipartFormReusable(c); fd != nil {
-				if vals := fd.Value["model"]; len(vals) > 0 {
-					if v := strings.TrimSpace(vals[0]); v != "" {
-						modelName = v
-					}
-				}
-			}
-		}
-	}
-
-	if modelName == "" {
-		if req, _ := relaycommon.GetTaskRequest(c); strings.TrimSpace(req.Model) != "" {
-			modelName = strings.TrimSpace(req.Model)
-		}
-	}
-
-	if modelName == "" {
-		modelName = "vyro-seedance-2-fast"
-	}
-
-	common.SysLog(fmt.Sprintf("[VYRO-DEBUG] final modelName chosen for upstream: %q", modelName))
 
 	// If client already sent multipart (with binary reference_images), rebuild/forward it.
 	if strings.Contains(contentType, "multipart/form-data") {
@@ -367,6 +328,152 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 
 	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
 	return &buf, nil
+}
+
+func resolveUpstreamModelName(c *gin.Context, info *relaycommon.RelayInfo) string {
+	modelName := strings.TrimSpace(info.UpstreamModelName)
+	contentType := c.GetHeader("Content-Type")
+
+	if modelName == "" {
+		modelName = strings.TrimSpace(info.OriginModelName)
+	}
+
+	if modelName == "" && strings.Contains(contentType, "multipart/form-data") {
+		if _, perr := c.MultipartForm(); perr == nil {
+			if v := strings.TrimSpace(c.PostForm("model")); v != "" {
+				modelName = v
+			}
+		}
+		if modelName == "" {
+			if fd, _ := common.ParseMultipartFormReusable(c); fd != nil {
+				if vals := fd.Value["model"]; len(vals) > 0 {
+					if v := strings.TrimSpace(vals[0]); v != "" {
+						modelName = v
+					}
+				}
+			}
+		}
+	}
+
+	if modelName == "" {
+		if req, _ := relaycommon.GetTaskRequest(c); strings.TrimSpace(req.Model) != "" {
+			modelName = strings.TrimSpace(req.Model)
+		}
+	}
+
+	if modelName == "" {
+		modelName = "vyro-seedance-2-fast"
+	}
+	return modelName
+}
+
+func (a *TaskAdaptor) buildJSONRequestBody(c *gin.Context, info *relaycommon.RelayInfo, modelName string) (io.Reader, error) {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil, err
+	}
+
+	upstreamModel := strings.TrimSpace(info.UpstreamModelName)
+	if upstreamModel == "" {
+		upstreamModel = modelName
+	}
+	upstreamModel = UpstreamJSONModelName(upstreamModel)
+
+	payload := map[string]interface{}{
+		"model":  upstreamModel,
+		"prompt": strings.TrimSpace(req.Prompt),
+	}
+
+	aspectRatio := strings.TrimSpace(req.AspectRatio)
+	if aspectRatio == "" {
+		aspectRatio = strings.TrimSpace(req.Ratio)
+	}
+	if aspectRatio == "" {
+		aspectRatio = getStringField(c, "aspect_ratio", "aspectRatio", "ratio")
+	}
+	if aspectRatio != "" {
+		payload["aspect_ratio"] = aspectRatio
+	}
+
+	duration := req.Duration
+	if duration <= 0 {
+		duration = getIntField(c, "duration", "seconds")
+	}
+	if duration > 0 {
+		payload["duration"] = duration
+	}
+
+	resolution := strings.TrimSpace(req.Resolution)
+	if resolution == "" {
+		resolution = getStringField(c, "resolution", "res")
+	}
+	if resolution != "" {
+		payload["resolution"] = resolution
+	}
+
+	if req.GenerateAudio != nil {
+		payload["generate_audio"] = *req.GenerateAudio
+	} else if b := getBoolFieldAsBool(c, "generate_audio", "generateAudio", "audio"); b != nil {
+		payload["generate_audio"] = *b
+	}
+
+	if urls := collectReferenceImageURLs(c, &req); len(urls) > 0 {
+		payload["reference_image_urls"] = urls
+	}
+
+	applyJSONExtraFields(c, payload)
+
+	data, err := common.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	c.Request.Header.Set("Content-Type", "application/json")
+	common.SysLog(fmt.Sprintf("[VYRO-DEBUG] JSON body built for model=%q upstream=%q, size=%d bytes", modelName, upstreamModel, len(data)))
+	return bytes.NewReader(data), nil
+}
+
+func applyJSONExtraFields(c *gin.Context, payload map[string]interface{}) {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return
+	}
+	raw, err := storage.Bytes()
+	if err != nil {
+		return
+	}
+	for _, key := range []string{"seed", "watermark", "callback_url", "negative_prompt"} {
+		if _, exists := payload[key]; exists {
+			continue
+		}
+		if v := gjson.GetBytes(raw, key); v.Exists() {
+			switch v.Type {
+			case gjson.String:
+				payload[key] = v.String()
+			case gjson.Number:
+				payload[key] = v.Num
+			case gjson.True, gjson.False:
+				payload[key] = v.Bool()
+			}
+		}
+	}
+}
+
+func getBoolFieldAsBool(c *gin.Context, keys ...string) *bool {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return nil
+	}
+	raw, err := storage.Bytes()
+	if err != nil {
+		return nil
+	}
+	for _, k := range keys {
+		if v := gjson.GetBytes(raw, k); v.Exists() {
+			b := v.Bool()
+			return &b
+		}
+	}
+	return nil
 }
 
 func collectReferenceImageURLs(c *gin.Context, req *relaycommon.TaskSubmitReq) []string {

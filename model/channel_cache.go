@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
 var group2model2channels map[string]map[string][]int // enabled channel
@@ -42,9 +40,9 @@ func InitChannelCache() {
 		if channel.Status != common.ChannelStatusEnabled {
 			continue // skip disabled channels
 		}
-		groups := strings.Split(channel.Group, ",")
+		groups := TrimChannelList(channel.Group)
 		for _, group := range groups {
-			models := strings.Split(channel.Models, ",")
+			models := TrimChannelList(channel.Models)
 			for _, model := range models {
 				if _, ok := newGroup2model2channels[group][model]; !ok {
 					newGroup2model2channels[group][model] = make([]int, 0)
@@ -102,13 +100,12 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	channelSyncLock.RLock()
 	defer channelSyncLock.RUnlock()
 
-	// First, try to find channels with the exact model name.
-	channels := group2model2channels[group][model]
-
-	// If no channels found, try to find channels with the normalized model name.
-	if len(channels) == 0 {
-		normalizedModel := ratio_setting.FormatMatchingModelName(model)
-		channels = group2model2channels[group][normalizedModel]
+	var channels []int
+	for _, candidate := range ChannelModelLookupCandidates(model) {
+		channels = group2model2channels[group][candidate]
+		if len(channels) > 0 {
+			break
+		}
 	}
 
 	if len(channels) == 0 {
