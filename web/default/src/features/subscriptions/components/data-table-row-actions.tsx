@@ -19,12 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 import type { Row } from '@tanstack/react-table'
 import { Pencil, Power, PowerOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+
 import type { PlanRecord } from '../types'
 import { useSubscriptions } from './subscriptions-provider'
 

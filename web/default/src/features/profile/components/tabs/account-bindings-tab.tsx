@@ -16,25 +16,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Mail, Shield, Send, Link2, Unlink } from 'lucide-react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SiGithub, SiWechat, SiLinux } from 'react-icons/si'
 import { toast } from 'sonner'
+
 import { IconDiscord } from '@/assets/brand-icons'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
+import { useDialogs } from '@/hooks/use-dialog'
+import { useStatus } from '@/hooks/use-status'
 import {
   handleGitHubOAuth,
   handleOIDCOAuth,
   handleDiscordOAuth,
   handleLinuxDOOAuth,
 } from '@/lib/oauth'
-import { useDialogs } from '@/hooks/use-dialog'
-import { useStatus } from '@/hooks/use-status'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { StatusBadge } from '@/components/status-badge'
-import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
+
 import {
   getSelfOAuthBindings,
   unbindCustomOAuth,

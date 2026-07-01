@@ -16,15 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as React from 'react'
 import {
   flexRender,
   type Cell,
   type Row,
   type Table as TanstackTable,
 } from '@tanstack/react-table'
-import { cn } from '@/lib/utils'
+import * as React from 'react'
+
 import { TableCell, TableRow } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
+
 import { TruncatedCell } from './truncated-cell'
 import type { DataTableColumnClassName } from './types'
 

@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { z } from 'zod'
 import { createFileRoute } from '@tanstack/react-router'
+import { z } from 'zod'
+
 import { Wallet } from '@/features/wallet'
 
 const walletSearchSchema = z.object({

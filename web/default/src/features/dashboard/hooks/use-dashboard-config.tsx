@@ -28,6 +28,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
 import { safeDivide } from '@/features/dashboard/lib'
 
 interface StatCardConfig {
