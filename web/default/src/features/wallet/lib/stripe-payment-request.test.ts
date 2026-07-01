@@ -25,7 +25,7 @@ const redirectUrls = {
 }
 
 describe('buildStripePaymentRequest', () => {
-  test('does not send a Stripe currency by default', () => {
+  test('sends USD as the default Stripe checkout currency', () => {
     const request = buildStripePaymentRequest({
       amount: 20,
       redirectUrls,
@@ -38,14 +38,14 @@ describe('buildStripePaymentRequest', () => {
     expect(request).toEqual({
       amount: 20,
       payment_method: 'stripe',
+      stripe_currency: 'USD',
       ga_client_id: 'client-1',
       ga_session_id: 'session-1',
       ...redirectUrls,
     })
-    expect(request).not.toHaveProperty('stripe_currency')
   })
 
-  test('sends Stripe currency only when explicitly provided', () => {
+  test('uses the explicit Stripe currency when provided', () => {
     const request = buildStripePaymentRequest({
       amount: 200,
       stripeCurrency: 'JPY',
@@ -55,7 +55,7 @@ describe('buildStripePaymentRequest', () => {
     expect(request.stripe_currency).toBe('JPY')
   })
 
-  test('keeps promo card binding fields without adding currency', () => {
+  test('keeps promo card binding fields with the default currency', () => {
     const request = buildStripePaymentRequest({
       amount: 200,
       saveCard: true,
@@ -63,6 +63,6 @@ describe('buildStripePaymentRequest', () => {
     })
 
     expect(request.save_card).toBe(true)
-    expect(request).not.toHaveProperty('stripe_currency')
+    expect(request.stripe_currency).toBe('USD')
   })
 })

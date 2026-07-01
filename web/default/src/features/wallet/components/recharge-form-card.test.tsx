@@ -3,7 +3,10 @@ import i18n from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { initReactI18next } from 'react-i18next'
 import type { TopupInfo } from '../types'
-import { RechargeFormCard } from './recharge-form-card'
+import {
+  RechargeFormCard,
+  WalletEnterpriseContactContent,
+} from './recharge-form-card'
 
 const topupInfoWithStripe: TopupInfo = {
   enable_online_topup: false,
@@ -64,6 +67,7 @@ describe('RechargeFormCard', () => {
     expect(html).toContain('Top up for $20')
     expect(html).toContain('Top up for $200')
     expect(html).toContain('Contact Us')
+    expect(html).not.toContain('mailto:support@flatkey.ai')
     expect(html).not.toContain('Top Up')
     expect(html).toContain('Top up $10')
     expect(html).toContain('Top up $20')
@@ -163,5 +167,14 @@ describe('RechargeFormCard', () => {
     expect(html).toContain('Top up for $50')
     expect(html).not.toContain('Top up for $200')
     expect(html).toContain('Get $10 free')
+  })
+
+  test('renders the website-style enterprise sales inquiry form content', () => {
+    const html = renderToStaticMarkup(<WalletEnterpriseContactContent />)
+
+    expect(html).toContain('Enterprise sales inquiry form')
+    expect(html).toContain('https://tally.so/embed/')
+    expect(html).toContain('For higher monthly usage')
+    expect(html).not.toContain('mailto:support@flatkey.ai')
   })
 })

@@ -16,14 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CheckCircle2, Loader2, Mail, WalletCards } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Loader2, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
+import { FlatkeyTallyEmbed } from '@/features/pricing/components/flatkey-tally-embed'
 import type { PresetAmount, TopupInfo } from '../types'
 
 interface RechargeFormCardProps {
@@ -166,6 +173,29 @@ function getConfiguredPresetAmounts(
   })
 }
 
+export function WalletEnterpriseContactContent() {
+  const { t } = useTranslation()
+
+  return (
+    <>
+      <DialogHeader className='pr-8'>
+        <p className='text-muted-foreground text-xs font-medium tracking-normal uppercase'>
+          {t('Enterprise teams')}
+        </p>
+        <h2 className='text-base leading-none font-medium'>
+          {t('Enterprise sales inquiry form')}
+        </h2>
+        <p className='text-muted-foreground text-sm'>
+          {t(
+            'For higher monthly usage, invoicing, team procurement, or custom routing discounts.'
+          )}
+        </p>
+      </DialogHeader>
+      <FlatkeyTallyEmbed className='border-border/70 bg-background mt-2 rounded-lg border' />
+    </>
+  )
+}
+
 export function RechargeFormCard(props: RechargeFormCardProps) {
   const { t } = useTranslation()
   const stripeEnabled =
@@ -291,13 +321,22 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
                     })}
                   </Button>
                 ) : (
-                  <a
-                    className='border-border bg-background hover:bg-muted mt-auto inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border px-2.5 text-sm font-medium transition-colors'
-                    href='mailto:support@flatkey.ai'
-                  >
-                    <Mail className='h-4 w-4' />
-                    {t('Contact Us')}
-                  </a>
+                  <Dialog>
+                    <DialogTrigger
+                      render={
+                        <Button
+                          variant='outline'
+                          className='mt-auto w-full'
+                        />
+                      }
+                    >
+                      {t('Contact Us')}
+                      <ArrowRight className='h-4 w-4' />
+                    </DialogTrigger>
+                    <DialogContent className='max-h-[94dvh] overflow-y-auto sm:max-w-3xl lg:max-w-4xl'>
+                      <WalletEnterpriseContactContent />
+                    </DialogContent>
+                  </Dialog>
                 )}
               </div>
             )
