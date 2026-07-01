@@ -249,6 +249,31 @@ export function hasAnyCacheTokens(
   )
 }
 
+export function calculateCacheHitRate(
+  promptTokens: number,
+  cacheReadTokens: number,
+  other: LogOtherData | null | undefined
+): number {
+  if (cacheReadTokens <= 0) return 0
+
+  let totalInputTokens = promptTokens
+  if (other?.input_tokens_total != null && other.input_tokens_total > 0) {
+    totalInputTokens = other.input_tokens_total
+  }
+
+  if (other?.claude === true || other?.usage_semantic === 'anthropic') {
+    const cacheWriteTokens =
+      other.cache_write_tokens ||
+      other.cache_creation_tokens ||
+      (other.cache_creation_tokens_5m || 0) +
+        (other.cache_creation_tokens_1h || 0)
+    totalInputTokens = promptTokens + cacheReadTokens + cacheWriteTokens
+  }
+
+  if (totalInputTokens <= 0) return 0
+  return (cacheReadTokens / totalInputTokens) * 100
+}
+
 export function getTieredBillingSummary(
   other: LogOtherData | null
 ): TieredBillingSummary | null {

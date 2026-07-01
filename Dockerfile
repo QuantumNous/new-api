@@ -25,13 +25,16 @@ ENV GO111MODULE=on CGO_ENABLED=0
 
 ARG TARGETOS
 ARG TARGETARCH
+ARG GOPROXY=https://goproxy.cn,direct
+ARG GOSUMDB=sum.golang.google.cn
 ENV GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64}
 ENV GOEXPERIMENT=greenteagc
+ENV GOPROXY=${GOPROXY} GOSUMDB=${GOSUMDB}
 
 WORKDIR /build
 
 ADD go.mod go.sum ./
-RUN go mod download
+RUN sh -c 'go mod download || go mod download || go mod download'
 
 COPY . .
 COPY --from=builder /build/web/default/dist ./web/default/dist

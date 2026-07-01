@@ -49,6 +49,7 @@ import {
   getResponseTimeColor,
   getTieredBillingSummary,
   hasAnyCacheTokens,
+  calculateCacheHitRate,
   parseLogOther,
   isViolationFeeLog,
   renderAuditContent,
@@ -727,11 +728,12 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const hasSplitCache = cacheWrite5m > 0 || cacheWrite1h > 0
         const cacheWriteTokens = hasSplitCache
           ? cacheWrite5m + cacheWrite1h
-          : other?.cache_creation_tokens || 0
-        const cacheHitRate =
-          promptTokens > 0 && cacheReadTokens > 0
-            ? (cacheReadTokens / promptTokens) * 100
-            : 0
+          : other?.cache_write_tokens || other?.cache_creation_tokens || 0
+        const cacheHitRate = calculateCacheHitRate(
+          promptTokens,
+          cacheReadTokens,
+          other
+        )
 
         return (
           <div className='flex flex-col gap-0.5'>

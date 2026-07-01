@@ -53,6 +53,7 @@ import {
   getFirstResponseTimeColor,
   getResponseTimeColor,
   renderAuditContent,
+  calculateCacheHitRate,
 } from '../../lib/format'
 import {
   getLogTypeConfig,
@@ -338,9 +339,10 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   const promptTokens = log.prompt_tokens || 0
   const completionTokens = log.completion_tokens || 0
   const cacheRead = other.cache_tokens || 0
-  const cacheWrite = other.cache_creation_tokens || 0
+  const cacheWrite = other.cache_write_tokens || other.cache_creation_tokens || 0
   const cacheWrite5m = other.cache_creation_tokens_5m || 0
   const cacheWrite1h = other.cache_creation_tokens_1h || 0
+  const cacheHitRate = calculateCacheHitRate(promptTokens, cacheRead, other)
   const hasTokens = promptTokens > 0 || completionTokens > 0
 
   if (!hasTokens) return null
@@ -357,6 +359,13 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
     rows.push({
       label: t('Cache Read'),
       value: cacheRead.toLocaleString(),
+    })
+  }
+
+  if (cacheHitRate > 0) {
+    rows.push({
+      label: t('Cache Hit Rate'),
+      value: `${cacheHitRate.toFixed(1)}%`,
     })
   }
 

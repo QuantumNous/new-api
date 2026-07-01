@@ -591,6 +591,46 @@ type Stat struct {
 	CacheHitRate float64 `json:"cache_hit_rate"`
 }
 
+type logCacheUsage struct {
+	CacheTokens           int    `json:"cache_tokens"`
+	CacheCreationTokens   int    `json:"cache_creation_tokens"`
+	CacheCreationTokens5m int    `json:"cache_creation_tokens_5m"`
+	CacheCreationTokens1h int    `json:"cache_creation_tokens_1h"`
+	CacheWriteTokens      int    `json:"cache_write_tokens"`
+	InputTokensTotal      int    `json:"input_tokens_total"`
+	UsageSemantic         string `json:"usage_semantic"`
+	Claude                bool   `json:"claude"`
+}
+
+func readLogCacheUsage(other string) (logCacheUsage, bool) {
+	if other == "" {
+		return logCacheUsage{}, false
+	}
+	usage := logCacheUsage{}
+	if err := common.UnmarshalJsonStr(other, &usage); err != nil {
+		return logCacheUsage{}, false
+	}
+	return usage, true
+}
+
+func cacheHitRatePromptTotal(promptTokens int, usage logCacheUsage) int {
+	totalPrompt := promptTokens
+	if usage.InputTokensTotal > 0 {
+		totalPrompt = usage.InputTokensTotal
+	}
+	if usage.Claude || usage.UsageSemantic == "anthropic" {
+		cacheCreationTokens := usage.CacheWriteTokens
+		if cacheCreationTokens == 0 {
+			cacheCreationTokens = usage.CacheCreationTokens
+		}
+		if cacheCreationTokens == 0 {
+			cacheCreationTokens = usage.CacheCreationTokens5m + usage.CacheCreationTokens1h
+		}
+		totalPrompt = promptTokens + usage.CacheTokens + cacheCreationTokens
+	}
+	return totalPrompt
+}
+
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
 
@@ -703,17 +743,13 @@ func sumCacheTokens(modelName string, username string, tokenName string, channel
 	}
 
 	for _, row := range rows {
-		totalPrompt += row.PromptTokens
-		if row.Other != "" {
-			otherMap, mapErr := common.StrToMap(row.Other)
-			if mapErr == nil && otherMap != nil {
-				if ct, ok := otherMap["cache_tokens"]; ok {
-					if f, ok := ct.(float64); ok {
-						cacheTokens += int(f)
-					}
-				}
-			}
+		usage, ok := readLogCacheUsage(row.Other)
+		if !ok {
+			totalPrompt += row.PromptTokens
+			continue
 		}
+		cacheTokens += usage.CacheTokens
+		totalPrompt += cacheHitRatePromptTotal(row.PromptTokens, usage)
 	}
 
 	return cacheTokens, totalPrompt, nil
@@ -764,17 +800,13 @@ func SumCacheTokensByModel(startTimestamp int64, endTimestamp int64, username st
 			modelData[row.ModelName] = &ModelCacheStat{ModelName: row.ModelName}
 		}
 		stat := modelData[row.ModelName]
-		stat.TotalPrompt += row.PromptTokens
-		if row.Other != "" {
-			otherMap, mapErr := common.StrToMap(row.Other)
-			if mapErr == nil && otherMap != nil {
-				if ct, ok := otherMap["cache_tokens"]; ok {
-					if f, ok := ct.(float64); ok {
-						stat.CacheTokens += int(f)
-					}
-				}
-			}
+		usage, ok := readLogCacheUsage(row.Other)
+		if !ok {
+			stat.TotalPrompt += row.PromptTokens
+			continue
 		}
+		stat.CacheTokens += usage.CacheTokens
+		stat.TotalPrompt += cacheHitRatePromptTotal(row.PromptTokens, usage)
 	}
 
 	result := make([]ModelCacheStat, 0, len(modelData))
