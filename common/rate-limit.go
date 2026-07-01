@@ -45,6 +45,9 @@ func (l *InMemoryRateLimiter) clearExpiredItems() {
 func (l *InMemoryRateLimiter) Request(key string, maxRequestNum int, duration int64) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
+	if maxRequestNum == 0 {
+		return true
+	}
 	// [old <-- new]
 	queue, ok := l.store[key]
 	now := time.Now().Unix()
@@ -67,4 +70,20 @@ func (l *InMemoryRateLimiter) Request(key string, maxRequestNum int, duration in
 		*(l.store[key]) = append(*(l.store[key]), now)
 	}
 	return true
+}
+
+// Check reports whether a request would be allowed without recording it.
+// The duration parameter's unit is seconds.
+func (l *InMemoryRateLimiter) Check(key string, maxRequestNum int, duration int64) bool {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	if maxRequestNum == 0 {
+		return true
+	}
+	queue, ok := l.store[key]
+	if !ok || len(*queue) < maxRequestNum {
+		return true
+	}
+	now := time.Now().Unix()
+	return now-(*queue)[0] >= duration
 }
