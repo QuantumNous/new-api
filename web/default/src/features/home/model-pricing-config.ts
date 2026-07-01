@@ -85,6 +85,12 @@ export const modelPricingConfig: ModelPricingConfig[] = [
     cacheHit: '>93%',
   },
   {
+    name: 'claude-sonnet-5',
+    officialInput: 21,
+    officialOutput: 105,
+    cacheHit: '>93%',
+  },
+  {
     name: 'claude-sonnet-4-6',
     officialInput: 21,
     officialOutput: 105,
