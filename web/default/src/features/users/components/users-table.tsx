@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
@@ -39,13 +39,15 @@ import {
   DISABLED_ROW_MOBILE,
   DataTablePage,
 } from '@/components/data-table'
-import { getUsers, searchUsers } from '../api'
+import { Combobox } from '@/components/ui/combobox'
+import { getAssignableUserGroups, getUsers, searchUsers } from '../api'
 import {
   USER_STATUS,
   getUserStatusOptions,
   getUserRoleOptions,
   isUserDeleted,
 } from '../constants'
+import { buildUserGroupFilterOptions } from '../lib/user-group-filter'
 import type { User } from '../types'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useUsersColumns } from './users-columns'
@@ -96,6 +98,16 @@ export function UsersTable() {
   const groupFilter =
     (columnFilters.find((filter) => filter.id === 'group')?.value as string) ??
     ''
+
+  const { data: groupsData } = useQuery({
+    queryKey: ['assignable-user-groups'],
+    queryFn: getAssignableUserGroups,
+  })
+
+  const groupOptions = useMemo(
+    () => buildUserGroupFilterOptions(groupsData?.data || [], groupFilter),
+    [groupsData?.data, groupFilter]
+  )
 
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({
@@ -205,6 +217,20 @@ export function UsersTable() {
       skeletonKeyPrefix='users-skeleton'
       toolbarProps={{
         searchPlaceholder: t('Filter by username, name or email...'),
+        additionalSearch: (
+          <Combobox
+            options={groupOptions}
+            value={groupFilter}
+            onValueChange={(value) =>
+              table.getColumn('group')?.setFilterValue(value || undefined)
+            }
+            placeholder={t('Group')}
+            searchPlaceholder={t('Group')}
+            emptyText={t('No group found.')}
+            allowCustomValue
+            className='w-full sm:w-[150px] lg:w-[180px]'
+          />
+        ),
         filters: [
           {
             columnId: 'status',
