@@ -38,6 +38,7 @@ var urlSuffixes = []string{"", "/api", "/v1", "/api/v1"}
 // model name against all known variants when querying pricing/detect-log tables.
 var ModelIDCandidates = map[string][]string{
 	"claude-haiku-4-5":  {"claude-haiku-4-5-20251001", "anthropic/claude-haiku-4.5"},
+	"claude-sonnet-5":   {"anthropic/claude-sonnet-5", "claude-sonnet-5-20260601"},
 	"claude-sonnet-4-6": {"anthropic/claude-sonnet-4.6"},
 	"claude-opus-4-7":   {"anthropic/claude-opus-4.7"},
 	"claude-opus-4-8":   {"anthropic/claude-opus-4.8", "claude-opus-4-8-20260528"},

@@ -26,6 +26,7 @@ var ModelList = []string{
 	"claude-opus-4-6-medium",
 	"claude-opus-4-6-low",
 	"claude-sonnet-4-6",
+	"claude-sonnet-5",
 	"claude-opus-4-7",
 	"claude-opus-4-7-max",
 	"claude-opus-4-7-xhigh",
