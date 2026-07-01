@@ -21,7 +21,7 @@ build-frontend:
 
 build-frontend-classic:
 	@echo "Building classic frontend..."
-	@cd ./web && bun install --frozen-lockfile
+	@cd ./web && rm -rf node_modules classic/node_modules && bun install --filter ./classic --frozen-lockfile
 	@cd $(FRONTEND_CLASSIC_DIR) && VITE_REACT_APP_VERSION=$(cat ../../VERSION) bun run build
 
 build-all-frontends: build-frontend build-frontend-classic
