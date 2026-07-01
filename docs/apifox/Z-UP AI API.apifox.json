@@ -31218,6 +31218,19 @@
                       "omitGeneratedExample": false
                     },
                     {
+                      "id": "skillHubRecommendedPublic",
+                      "name": "recommended",
+                      "required": false,
+                      "enable": true,
+                      "description": "是否仅返回推荐技能；true、1、yes 表示仅推荐",
+                      "example": "",
+                      "type": "boolean",
+                      "schema": {
+                        "type": "boolean"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
                       "id": "nmBm0UovdE",
                       "name": "p",
                       "required": false,
@@ -31304,6 +31317,17 @@
                           "isDelete": false
                         },
                         {
+                          "id": "skillHubRecommendedPublicCase",
+                          "relatedId": "skillHubRecommendedPublic",
+                          "relatedName": "recommended",
+                          "name": "recommended",
+                          "type": "boolean",
+                          "value": "",
+                          "enable": true,
+                          "description": "是否仅返回推荐技能；true、1、yes 表示仅推荐",
+                          "isDelete": false
+                        },
+                        {
                           "id": "5CXbGbM7Wa",
                           "relatedId": "nmBm0UovdE",
                           "relatedName": "p",
@@ -31323,6 +31347,137 @@
                           "value": "",
                           "enable": true,
                           "description": "每页数量",
+                          "isDelete": false
+                        }
+                      ],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "随机获取推荐技能",
+              "api": {
+                "id": "479716180",
+                "method": "get",
+                "path": "/api/skill-hub/skills/recommend",
+                "parameters": {
+                  "path": [],
+                  "query": [
+                    {
+                      "id": "skillHubRecommendPageSize",
+                      "name": "page_size",
+                      "required": false,
+                      "enable": true,
+                      "description": "返回数量，默认 4，最大 20",
+                      "example": "4",
+                      "type": "integer",
+                      "schema": {
+                        "type": "integer",
+                        "default": 4,
+                        "maximum": 20,
+                        "minimum": 1
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {},
+                "securityScheme": {},
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "188921454",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/288594279"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "🔓 无需鉴权；从已发布且标记推荐的技能中随机返回一组，用于前台“换一换”",
+                "tags": [
+                  "技能广场"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 6,
+                "cases": [
+                  {
+                    "id": 388984270,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "188921454",
+                    "parameters": {
+                      "path": [],
+                      "query": [
+                        {
+                          "id": "skillHubRecommendPageSizeCase",
+                          "relatedId": "skillHubRecommendPageSize",
+                          "relatedName": "page_size",
+                          "name": "page_size",
+                          "type": "integer",
+                          "value": "4",
+                          "enable": true,
+                          "description": "返回数量，默认 4，最大 20",
                           "isDelete": false
                         }
                       ],
@@ -31457,7 +31612,7 @@
                 "serverId": "",
                 "operationId": "",
                 "sourceUrl": "",
-                "ordering": 6,
+                "ordering": 12,
                 "cases": [
                   {
                     "id": 388984253,
@@ -31583,6 +31738,19 @@
                       "omitGeneratedExample": false
                     },
                     {
+                      "id": "skillHubRecommendedTags",
+                      "name": "recommended",
+                      "required": false,
+                      "enable": true,
+                      "description": "是否仅返回推荐技能；true、1、yes 表示仅推荐",
+                      "example": "",
+                      "type": "boolean",
+                      "schema": {
+                        "type": "boolean"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
                       "id": "3cxrSjtt0Z",
                       "name": "p",
                       "required": false,
@@ -31646,7 +31814,7 @@
                 "serverId": "",
                 "operationId": "",
                 "sourceUrl": "",
-                "ordering": 12,
+                "ordering": 18,
                 "cases": [
                   {
                     "id": 388984254,
@@ -31677,6 +31845,17 @@
                           "value": "",
                           "enable": true,
                           "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "skillHubRecommendedTagsCase",
+                          "relatedId": "skillHubRecommendedTags",
+                          "relatedName": "recommended",
+                          "name": "recommended",
+                          "type": "boolean",
+                          "value": "",
+                          "enable": true,
+                          "description": "是否仅返回推荐技能；true、1、yes 表示仅推荐",
                           "isDelete": false
                         },
                         {
@@ -31807,7 +31986,7 @@
                 "serverId": "",
                 "operationId": "",
                 "sourceUrl": "",
-                "ordering": 18,
+                "ordering": 24,
                 "cases": [
                   {
                     "id": 388984255,
@@ -31957,7 +32136,7 @@
                 "serverId": "",
                 "operationId": "",
                 "sourceUrl": "",
-                "ordering": 24,
+                "ordering": 30,
                 "cases": [
                   {
                     "id": 388984256,
@@ -32821,6 +33000,19 @@
                       "omitGeneratedExample": false
                     },
                     {
+                      "id": "skillHubRecommendedAdminTags",
+                      "name": "recommended",
+                      "required": false,
+                      "enable": true,
+                      "description": "是否仅返回推荐技能；true、1、yes 表示仅推荐",
+                      "example": "",
+                      "type": "boolean",
+                      "schema": {
+                        "type": "boolean"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
                       "id": "MVgN6rurpq",
                       "name": "p",
                       "required": false,
@@ -32942,6 +33134,17 @@
                           "value": "",
                           "enable": true,
                           "description": "可选搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "skillHubRecommendedAdminTagsCase",
+                          "relatedId": "skillHubRecommendedAdminTags",
+                          "relatedName": "recommended",
+                          "name": "recommended",
+                          "type": "boolean",
+                          "value": "",
+                          "enable": true,
+                          "description": "是否仅返回推荐技能；true、1、yes 表示仅推荐",
                           "isDelete": false
                         },
                         {
@@ -33187,6 +33390,19 @@
                       "omitGeneratedExample": false
                     },
                     {
+                      "id": "skillHubRecommendedAdmin",
+                      "name": "recommended",
+                      "required": false,
+                      "enable": true,
+                      "description": "是否仅返回推荐技能；true、1、yes 表示仅推荐",
+                      "example": "",
+                      "type": "boolean",
+                      "schema": {
+                        "type": "boolean"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
                       "id": "eEu0YSdSFd",
                       "name": "p",
                       "required": false,
@@ -33297,6 +33513,17 @@
                           "value": "",
                           "enable": true,
                           "description": "搜索关键字，匹配技能 ID、名称、描述或标签；最多 128 个字符，%、_、! 按普通字符处理",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "skillHubRecommendedAdminCase",
+                          "relatedId": "skillHubRecommendedAdmin",
+                          "relatedName": "recommended",
+                          "name": "recommended",
+                          "type": "boolean",
+                          "value": "",
+                          "enable": true,
+                          "description": "是否仅返回推荐技能；true、1、yes 表示仅推荐",
                           "isDelete": false
                         },
                         {
@@ -46088,6 +46315,10 @@
                   "type": "string",
                   "description": "技能版本"
                 },
+                "author": {
+                  "type": "string",
+                  "description": "技能作者"
+                },
                 "icon": {
                   "type": "string",
                   "description": "图标 URL",
@@ -46103,6 +46334,10 @@
                 "verified": {
                   "type": "boolean",
                   "description": "是否认证"
+                },
+                "recommended": {
+                  "type": "boolean",
+                  "description": "是否推荐到技能广场推荐模块"
                 },
                 "published": {
                   "type": "boolean",
@@ -46134,9 +46369,11 @@
                 "name",
                 "description",
                 "version",
+                "author",
                 "icon",
                 "tags",
                 "verified",
+                "recommended",
                 "published",
                 "status",
                 "sort",
@@ -46321,6 +46558,10 @@
                   "type": "string",
                   "description": "技能版本"
                 },
+                "author": {
+                  "type": "string",
+                  "description": "技能作者"
+                },
                 "icon": {
                   "type": "string",
                   "description": "图标 URL",
@@ -46336,6 +46577,10 @@
                 "verified": {
                   "type": "boolean",
                   "description": "是否认证"
+                },
+                "recommended": {
+                  "type": "boolean",
+                  "description": "是否推荐到技能广场推荐模块"
                 },
                 "published": {
                   "type": "boolean",
@@ -46362,9 +46607,11 @@
                 "name",
                 "description",
                 "version",
+                "author",
                 "icon",
                 "tags",
                 "verified",
+                "recommended",
                 "published",
                 "status",
                 "sort",

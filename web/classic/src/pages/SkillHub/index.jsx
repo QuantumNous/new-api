@@ -38,6 +38,7 @@ const createDefaultForm = () => ({
   name: '',
   description: '',
   version: '1.0.0',
+  author: '',
   icon: '',
   tags: [],
   verified: false,
@@ -116,6 +117,7 @@ const skillToForm = (skill) => ({
   name: skill?.name || '',
   description: skill?.description || '',
   version: skill?.version || '1.0.0',
+  author: skill?.author || '',
   icon: skill?.icon || '',
   tags: normalizeTags(skill?.tags),
   verified: Boolean(skill?.verified),
@@ -132,6 +134,7 @@ const formToPayload = (form) => ({
   name: form.name.trim(),
   description: form.description.trim(),
   version: form.version.trim(),
+  author: form.author.trim(),
   icon: form.icon.trim(),
   tags: normalizeTags(form.tags),
   verified: form.verified,
@@ -581,6 +584,7 @@ const SkillHub = () => {
                     </div>
                     <div className='mt-1 truncate text-xs text-semi-color-text-2'>
                       {skill.id} · {skill.version}
+                      {skill.author ? ` · ${skill.author}` : ''}
                     </div>
                     <div className='mt-2 line-clamp-2 min-h-[40px] text-sm text-semi-color-text-1'>
                       {skill.description || '暂无描述'}
@@ -633,6 +637,12 @@ const SkillHub = () => {
                   <Input
                     value={form.version}
                     onChange={(value) => updateForm('version', value)}
+                  />
+                </Field>
+                <Field label='作者'>
+                  <Input
+                    value={form.author}
+                    onChange={(value) => updateForm('author', value)}
                   />
                 </Field>
                 <Field label='排序'>

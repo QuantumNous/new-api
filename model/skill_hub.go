@@ -72,6 +72,7 @@ type SkillHubSkillResponse struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
 	Version     string         `json:"version"`
+	Author      string         `json:"author,omitempty"`
 	Icon        string         `json:"icon,omitempty"`
 	Tags        []string       `json:"tags,omitempty"`
 	Verified    bool           `json:"verified"`
@@ -758,6 +759,7 @@ func (s *SkillHubSkill) ToResponse(admin bool) SkillHubSkillResponse {
 		Name:        s.Name,
 		Description: s.Description,
 		Version:     s.Version,
+		Author:      s.Author,
 		Icon:        s.Icon,
 		Tags:        stringListFromJSON(s.Tags),
 		Verified:    s.Verified,

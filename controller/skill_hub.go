@@ -19,6 +19,7 @@ type skillHubSkillRequest struct {
 	Name        string               `json:"name"`
 	Description string               `json:"description"`
 	Version     string               `json:"version"`
+	Author      string               `json:"author"`
 	Icon        string               `json:"icon"`
 	Tags        []string             `json:"tags"`
 	Verified    bool                 `json:"verified"`
@@ -403,7 +404,7 @@ func skillHubRequestToModel(request skillHubSkillRequest, existing *model.SkillH
 	skill.Name = strings.TrimSpace(request.Name)
 	skill.Description = strings.TrimSpace(request.Description)
 	skill.Version = strings.TrimSpace(request.Version)
-	skill.Author = ""
+	skill.Author = strings.TrimSpace(request.Author)
 	skill.Icon = strings.TrimSpace(request.Icon)
 	skill.Tags = model.StringListToJSON(request.Tags)
 	skill.Verified = request.Verified

@@ -170,6 +170,10 @@ export function SkillHub() {
   }
 
   async function saveSkill() {
+    if (!form.id.trim() || !form.name.trim() || !form.version.trim()) {
+      toast.error(t('Please enter Skill ID, name, and version'))
+      return
+    }
     if (!isAllowedZipUrl(form.sourceUrl)) {
       toast.error(
         t('Zip URL must use HTTPS, except localhost during development')
@@ -201,6 +205,10 @@ export function SkillHub() {
     if (!file) return
     if (!form.id.trim()) {
       toast.error(t('Please enter Skill ID before uploading'))
+      return
+    }
+    if (!form.version.trim()) {
+      toast.error(t('Please enter version before uploading'))
       return
     }
     if (!file.name.toLowerCase().endsWith('.zip')) {
@@ -409,6 +417,7 @@ export function SkillHub() {
                           </div>
                           <div className='text-muted-foreground truncate text-xs'>
                             {skill.id} · {skill.version}
+                            {skill.author ? ` · ${skill.author}` : ''}
                           </div>
                         </div>
                         <div className='flex shrink-0 flex-wrap justify-end gap-1'>
@@ -466,14 +475,6 @@ export function SkillHub() {
                         onChange={(event) => update('name', event.target.value)}
                       />
                     </Field>
-                    <Field label={t('Version')}>
-                      <Input
-                        value={form.version}
-                        onChange={(event) =>
-                          update('version', event.target.value)
-                        }
-                      />
-                    </Field>
                   </div>
                   <Field label={t('Description')}>
                     <Textarea
@@ -484,6 +485,14 @@ export function SkillHub() {
                     />
                   </Field>
                   <div className='grid gap-3 md:grid-cols-3'>
+                    <Field label={t('Author')}>
+                      <Input
+                        value={form.author}
+                        onChange={(event) =>
+                          update('author', event.target.value)
+                        }
+                      />
+                    </Field>
                     <Field label={t('Icon')}>
                       <div className='flex gap-2'>
                         <div className='bg-muted flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border text-sm'>
@@ -577,7 +586,15 @@ export function SkillHub() {
                       )}
                     </span>
                   </div>
-                  <div className='grid gap-3 md:grid-cols-2'>
+                  <div className='grid gap-3 md:grid-cols-[180px_minmax(0,1fr)]'>
+                    <Field label={t('Version')}>
+                      <Input
+                        value={form.version}
+                        onChange={(event) =>
+                          update('version', event.target.value)
+                        }
+                      />
+                    </Field>
                     <Field label={t('Zip URL')}>
                       <Input
                         value={form.sourceUrl}
@@ -587,6 +604,8 @@ export function SkillHub() {
                         placeholder='https://example.com/skill.zip'
                       />
                     </Field>
+                  </div>
+                  <div className='grid gap-3'>
                     <Field label={t('SHA256 checksum')}>
                       <Input
                         value={form.sourceChecksum}
