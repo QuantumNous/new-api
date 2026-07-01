@@ -16,11 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback } from 'react'
 import i18next from 'i18next'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { getSelf } from '@/lib/api'
+
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { getSelf } from '@/lib/api'
+
 import { getAffiliateCode, transferAffiliateQuota } from '../api'
 import { generateAffiliateLink } from '../lib'
 

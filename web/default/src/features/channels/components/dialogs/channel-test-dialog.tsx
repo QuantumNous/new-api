@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ChangeEvent, useCallback, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   type ColumnDef,
@@ -32,10 +31,25 @@ import {
   Settings,
   Trash2,
 } from 'lucide-react'
+import { type ChangeEvent, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { useIsMobile } from '@/hooks/use-mobile'
+
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import {
+  DataTableBulkActions as BulkActionsToolbar,
+  DataTablePagination,
+  DataTableView,
+  useDataTable,
+} from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
+import {
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -63,21 +77,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import {
-  DataTableBulkActions as BulkActionsToolbar,
-  DataTablePagination,
-  DataTableView,
-  useDataTable,
-} from '@/components/data-table'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Dialog } from '@/components/dialog'
-import {
-  sideDrawerContentClassName,
-  sideDrawerFooterClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-} from '@/components/drawer-layout'
-import { StatusBadge } from '@/components/status-badge'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { useIsMobile } from '@/hooks/use-mobile'
+
 import { updateChannel } from '../../api'
 import {
   channelsQueryKeys,
@@ -947,7 +949,7 @@ function ChannelTestDialogContent({
                         value={option.value}
                         className={endpointSelectItemClass}
                       >
-                        <span className='min-w-0 whitespace-normal break-words leading-snug'>
+                        <span className='min-w-0 leading-snug break-words whitespace-normal'>
                           {option.label}
                         </span>
                       </SelectItem>
@@ -1341,11 +1343,7 @@ function FailureDetailsSheet({
   )
 }
 
-function TestModelsBulkActions({
-  table,
-}: {
-  table: TanStackTable<ModelRow>
-}) {
+function TestModelsBulkActions({ table }: { table: TanStackTable<ModelRow> }) {
   const { t } = useTranslation()
   const { copyToClipboard } = useCopyToClipboard()
   const selectedRows = table.getFilteredSelectedRowModel().rows

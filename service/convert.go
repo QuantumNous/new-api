@@ -615,24 +615,27 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relayco
 	}
 	for _, choice := range openAIResponse.Choices {
 		stopReason = stopReasonOpenAI2Claude(choice.FinishReason)
-		if choice.FinishReason == "tool_calls" {
-			for _, toolUse := range choice.Message.ParseToolCalls() {
-				claudeContent := dto.ClaudeMediaMessage{}
-				claudeContent.Type = "tool_use"
-				claudeContent.Id = toolUse.ID
-				claudeContent.Name = toolUse.Function.Name
-				var mapParams map[string]interface{}
-				if err := common.Unmarshal([]byte(toolUse.Function.Arguments), &mapParams); err == nil {
-					claudeContent.Input = mapParams
-				} else {
-					claudeContent.Input = toolUse.Function.Arguments
-				}
-				contents = append(contents, claudeContent)
-			}
-		} else {
+		textContent := choice.Message.StringContent()
+		toolCalls := choice.Message.ParseToolCalls()
+		if textContent != "" || len(toolCalls) == 0 {
 			claudeContent := dto.ClaudeMediaMessage{}
 			claudeContent.Type = "text"
-			claudeContent.SetText(choice.Message.StringContent())
+			claudeContent.SetText(textContent)
+			contents = append(contents, claudeContent)
+		}
+		for _, toolUse := range toolCalls {
+			claudeContent := dto.ClaudeMediaMessage{}
+			claudeContent.Type = "tool_use"
+			claudeContent.Id = toolUse.ID
+			claudeContent.Name = toolUse.Function.Name
+			mapParams := map[string]interface{}{}
+			if strings.TrimSpace(toolUse.Function.Arguments) != "" {
+				var parsed map[string]interface{}
+				if err := common.Unmarshal([]byte(toolUse.Function.Arguments), &parsed); err == nil && parsed != nil {
+					mapParams = parsed
+				}
+			}
+			claudeContent.Input = mapParams
 			contents = append(contents, claudeContent)
 		}
 	}
@@ -863,37 +866,32 @@ func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info *relayco
 			Parts: make([]dto.GeminiPart, 0),
 		}
 
-		// 处理工具调用
-		toolCalls := choice.Message.ParseToolCalls()
-		if len(toolCalls) > 0 {
-			for _, toolCall := range toolCalls {
-				// 解析参数
-				var args map[string]interface{}
-				if toolCall.Function.Arguments != "" {
-					if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-						args = map[string]interface{}{"arguments": toolCall.Function.Arguments}
-					}
-				} else {
-					args = make(map[string]interface{})
-				}
+		textContent := choice.Message.StringContent()
+		if textContent != "" {
+			part := dto.GeminiPart{
+				Text: textContent,
+			}
+			content.Parts = append(content.Parts, part)
+		}
 
-				part := dto.GeminiPart{
-					FunctionCall: &dto.FunctionCall{
-						FunctionName: toolCall.Function.Name,
-						Arguments:    args,
-					},
+		toolCalls := choice.Message.ParseToolCalls()
+		for _, toolCall := range toolCalls {
+			var args map[string]interface{}
+			if toolCall.Function.Arguments != "" {
+				if err := common.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+					args = map[string]interface{}{"arguments": toolCall.Function.Arguments}
 				}
-				content.Parts = append(content.Parts, part)
+			} else {
+				args = make(map[string]interface{})
 			}
-		} else {
-			// 处理文本内容
-			textContent := choice.Message.StringContent()
-			if textContent != "" {
-				part := dto.GeminiPart{
-					Text: textContent,
-				}
-				content.Parts = append(content.Parts, part)
+
+			part := dto.GeminiPart{
+				FunctionCall: &dto.FunctionCall{
+					FunctionName: toolCall.Function.Name,
+					Arguments:    args,
+				},
 			}
+			content.Parts = append(content.Parts, part)
 		}
 
 		candidate.Content = content

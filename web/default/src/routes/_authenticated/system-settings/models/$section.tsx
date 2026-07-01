@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+
 import { ModelSettings } from '@/features/system-settings/models'
 import {
   MODELS_DEFAULT_SECTION,

@@ -16,20 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-/* eslint-disable react-refresh/only-export-components */
-import { useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Zap } from 'lucide-react'
-import { formatTimestampToDate, formatTokens } from '@/lib/format'
-import { cn } from '@/lib/utils'
+/* eslint-disable react-refresh/only-export-components */
+import { useState } from 'react'
+
+import { DataTableColumnHeader } from '@/components/data-table'
+import { StatusBadge } from '@/components/status-badge'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { DataTableColumnHeader } from '@/components/data-table'
-import { StatusBadge } from '@/components/status-badge'
+import { formatTimestampToDate, formatTokens } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
 import { formatDuration } from '../../lib/format'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
 

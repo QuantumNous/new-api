@@ -215,11 +215,7 @@ For commercial licensing, please contact support@quantumnous.com
   --skeleton-base: oklch(0.335 0 0);
   --skeleton-highlight: oklch(0.44 0 0);
   --table-row: var(--background);
-  --table-header: color-mix(
-    in oklch,
-    var(--foreground) 6%,
-    var(--background)
-  );
+  --table-header: color-mix(in oklch, var(--foreground) 6%, var(--background));
   --table-header-hover: color-mix(
     in oklch,
     var(--foreground) 9%,

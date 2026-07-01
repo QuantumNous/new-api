@@ -18,8 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { formatQuota, formatTimestamp } from '@/lib/format'
-import { cn } from '@/lib/utils'
+
+import { BadgeCell } from '@/components/data-table'
+import { GroupBadge } from '@/components/group-badge'
+import { LongText } from '@/components/long-text'
+import { StatusBadge } from '@/components/status-badge'
+import { TableId } from '@/components/table-id'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -27,11 +31,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { BadgeCell } from '@/components/data-table'
-import { GroupBadge } from '@/components/group-badge'
-import { LongText } from '@/components/long-text'
-import { StatusBadge } from '@/components/status-badge'
-import { TableId } from '@/components/table-id'
+import { formatQuota, formatTimestamp } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
 import {
   USER_STATUS,
   USER_STATUSES,
