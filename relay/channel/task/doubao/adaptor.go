@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -117,6 +118,29 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
+	if c.GetBool(common.KeySeedanceOfficialAPI) {
+		var body map[string]interface{}
+		if err := common.UnmarshalBodyReusable(c, &body); err != nil {
+			return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+		}
+
+		modelName, _ := body["model"].(string)
+		if strings.TrimSpace(modelName) == "" {
+			return service.TaskErrorWrapperLocal(fmt.Errorf("field model is required"), "missing_model", http.StatusBadRequest)
+		}
+		if _, ok := body["content"]; !ok {
+			return service.TaskErrorWrapperLocal(fmt.Errorf("field content is required"), "missing_content", http.StatusBadRequest)
+		}
+
+		info.Action = constant.TaskActionGenerate
+		c.Set("task_request", relaycommon.TaskSubmitReq{
+			Model:    modelName,
+			Prompt:   seedanceTextPrompt(body),
+			Metadata: body,
+		})
+		return nil
+	}
+
 	// Accept only POST /v1/video/generations as "generate" action.
 	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
 }
@@ -180,6 +204,30 @@ func hasVideoInMetadata(metadata map[string]interface{}) bool {
 
 // BuildRequestBody converts request into Doubao specific format.
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	if c.GetBool(common.KeySeedanceOfficialAPI) {
+		storage, err := common.GetBodyStorage(c)
+		if err != nil {
+			return nil, err
+		}
+		cachedBody, err := storage.Bytes()
+		if err != nil {
+			return nil, err
+		}
+
+		var bodyMap map[string]interface{}
+		if err := common.Unmarshal(cachedBody, &bodyMap); err != nil {
+			return bytes.NewReader(cachedBody), nil
+		}
+		if info.UpstreamModelName != "" {
+			bodyMap["model"] = info.UpstreamModelName
+		}
+		data, err := common.Marshal(bodyMap)
+		if err != nil {
+			return nil, err
+		}
+		return bytes.NewReader(data), nil
+	}
+
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil, err
@@ -225,6 +273,13 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	if dResp.ID == "" {
 		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
 		return
+	}
+
+	if c.GetBool(common.KeySeedanceOfficialAPI) {
+		c.JSON(http.StatusOK, gin.H{
+			"id": dResp.ID,
+		})
+		return dResp.ID, responseBody, nil
 	}
 
 	ov := dto.NewOpenAIVideo()
@@ -306,6 +361,27 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	return &r, nil
 }
 
+func seedanceTextPrompt(body map[string]interface{}) string {
+	content, ok := body["content"].([]interface{})
+	if !ok {
+		return ""
+	}
+	for _, item := range content {
+		itemMap, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if itemMap["type"] != "text" {
+			continue
+		}
+		text, _ := itemMap["text"].(string)
+		if strings.TrimSpace(text) != "" {
+			return text
+		}
+	}
+	return ""
+}
+
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
 	resTask := responseTask{}
 	if err := common.Unmarshal(respBody, &resTask); err != nil {
@@ -335,6 +411,10 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Status = model.TaskStatusFailure
 		taskResult.Progress = "100%"
 		taskResult.Reason = resTask.Error.Message
+	case "expired", "cancelled":
+		taskResult.Status = model.TaskStatusFailure
+		taskResult.Progress = "100%"
+		taskResult.Reason = resTask.Status
 	default:
 		// Unknown status, treat as processing
 		taskResult.Status = model.TaskStatusInProgress
