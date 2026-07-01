@@ -38,7 +38,6 @@ export default function SettingsPaymentGateway(props) {
     StripePriceId: '',
     StripeUnitPrice: 8.0,
     StripeMinTopUp: 1,
-    StripePromotionCodesEnabled: false,
   });
   const [originInputs, setOriginInputs] = useState({});
   const formApiRef = useRef(null);
@@ -57,10 +56,6 @@ export default function SettingsPaymentGateway(props) {
           props.options.StripeMinTopUp !== undefined
             ? parseFloat(props.options.StripeMinTopUp)
             : 1,
-        StripePromotionCodesEnabled:
-          props.options.StripePromotionCodesEnabled !== undefined
-            ? props.options.StripePromotionCodesEnabled
-            : false,
       };
       setInputs(currentInputs);
       setOriginInputs({ ...currentInputs });
@@ -112,17 +107,6 @@ export default function SettingsPaymentGateway(props) {
           value: inputs.StripeMinTopUp.toString(),
         });
       }
-      if (
-        originInputs['StripePromotionCodesEnabled'] !==
-          inputs.StripePromotionCodesEnabled &&
-        inputs.StripePromotionCodesEnabled !== undefined
-      ) {
-        options.push({
-          key: 'StripePromotionCodesEnabled',
-          value: inputs.StripePromotionCodesEnabled ? 'true' : 'false',
-        });
-      }
-
       // 发送请求
       const requestQueue = options.map((opt) =>
         API.put('/api/option/', {
@@ -246,15 +230,6 @@ export default function SettingsPaymentGateway(props) {
                 label={t('最低充值美元数量')}
                 placeholder={t('例如：2，就是最低充值2$')}
                 extraText={t('用户单次最少可充值的美元数量')}
-              />
-            </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Switch
-                field='StripePromotionCodesEnabled'
-                size='default'
-                checkedText='｜'
-                uncheckedText='〇'
-                label={t('允许在 Stripe 支付中输入促销码')}
               />
             </Col>
           </Row>

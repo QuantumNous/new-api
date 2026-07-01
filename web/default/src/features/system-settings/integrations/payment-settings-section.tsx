@@ -365,7 +365,6 @@ const paymentSchema = z
     }),
     StripeUnitPrice: z.coerce.number().min(0),
     StripeMinTopUp: z.coerce.number().min(0),
-    StripePromotionCodesEnabled: z.boolean(),
     CreemApiKey: z.string(),
     CreemWebhookSecret: z.string(),
     CreemTestMode: z.boolean(),
@@ -758,7 +757,6 @@ export function PaymentSettingsSection({
       ),
       StripeUnitPrice: values.StripeUnitPrice,
       StripeMinTopUp: values.StripeMinTopUp,
-      StripePromotionCodesEnabled: values.StripePromotionCodesEnabled,
       CreemApiKey: values.CreemApiKey.trim(),
       CreemWebhookSecret: values.CreemWebhookSecret.trim(),
       CreemTestMode: values.CreemTestMode,
@@ -826,8 +824,6 @@ export function PaymentSettingsSection({
       ),
       StripeUnitPrice: initialRef.current.StripeUnitPrice,
       StripeMinTopUp: initialRef.current.StripeMinTopUp,
-      StripePromotionCodesEnabled:
-        initialRef.current.StripePromotionCodesEnabled,
       CreemApiKey: initialRef.current.CreemApiKey.trim(),
       CreemWebhookSecret: initialRef.current.CreemWebhookSecret.trim(),
       CreemTestMode: initialRef.current.CreemTestMode,
@@ -998,16 +994,6 @@ export function PaymentSettingsSection({
 
     if (sanitized.StripeMinTopUp !== initial.StripeMinTopUp) {
       updates.push({ key: 'StripeMinTopUp', value: sanitized.StripeMinTopUp })
-    }
-
-    if (
-      sanitized.StripePromotionCodesEnabled !==
-      initial.StripePromotionCodesEnabled
-    ) {
-      updates.push({
-        key: 'StripePromotionCodesEnabled',
-        value: sanitized.StripePromotionCodesEnabled,
-      })
     }
 
     if (
@@ -2056,31 +2042,6 @@ export function PaymentSettingsSection({
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='StripePromotionCodesEnabled'
-                render={({ field }) => (
-                  <SettingsSwitchItem>
-                    <SettingsSwitchContent>
-                      <FormLabel>
-                        {t('Promotion codes always enabled')}
-                      </FormLabel>
-                      <FormDescription>
-                        {t(
-                          'Stripe Checkout always shows the coupon code field. This legacy switch is kept for compatibility.'
-                        )}
-                      </FormDescription>
-                    </SettingsSwitchContent>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </SettingsSwitchItem>
                 )}
               />
             </div>

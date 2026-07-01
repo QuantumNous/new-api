@@ -18,18 +18,23 @@ For commercial licensing, please contact support@quantumnous.com
 */
 export type StripeCheckoutCurrency = 'USD' | 'JPY' | 'BRL'
 
-export function getStripeCheckoutCurrencyForLanguage(
-  language: string | undefined
-): StripeCheckoutCurrency {
-  const normalized = language?.trim().toLowerCase().replace('_', '-') ?? ''
+const STRIPE_CHECKOUT_CURRENCIES = new Set<StripeCheckoutCurrency>([
+  'USD',
+  'JPY',
+  'BRL',
+])
 
-  if (normalized === 'ja' || normalized.startsWith('ja-')) {
-    return 'JPY'
+export function normalizeStripeCheckoutCurrency(
+  currency: string | undefined
+): StripeCheckoutCurrency | undefined {
+  const normalized = currency?.trim().toUpperCase()
+  if (!normalized) {
+    return undefined
   }
 
-  if (normalized === 'pt' || normalized.startsWith('pt-')) {
-    return 'BRL'
-  }
-
-  return 'USD'
+  return STRIPE_CHECKOUT_CURRENCIES.has(
+    normalized as StripeCheckoutCurrency
+  )
+    ? (normalized as StripeCheckoutCurrency)
+    : undefined
 }

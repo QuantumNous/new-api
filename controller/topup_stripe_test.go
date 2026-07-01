@@ -53,65 +53,6 @@ func TestBuildStripeTopUpLineItemUsesConfiguredMultiCurrencyPrice(t *testing.T) 
 	require.Nil(t, lineItem.PriceData)
 }
 
-func TestBuildStripeCheckoutSessionParamsRespectsPromotionCodeSetting(t *testing.T) {
-	originalPriceId := setting.StripePriceId
-	originalPromotionCodesEnabled := setting.StripePromotionCodesEnabled
-	t.Cleanup(func() {
-		setting.StripePriceId = originalPriceId
-		setting.StripePromotionCodesEnabled = originalPromotionCodesEnabled
-	})
-	setting.StripePriceId = "price_multi_currency"
-	setting.StripePromotionCodesEnabled = false
-
-	params := buildStripeCheckoutSessionParams(
-		"ref_123",
-		"",
-		"user@example.com",
-		setting.StripePriceId,
-		20,
-		"https://flatkey.ai/wallet?show_history=true",
-		"https://flatkey.ai/wallet",
-		false,
-		false,
-	)
-
-	require.NotNil(t, params.AllowPromotionCodes)
-	require.False(t, *params.AllowPromotionCodes)
-	require.Len(t, params.LineItems, 1)
-	require.NotNil(t, params.LineItems[0].Price)
-	require.Equal(t, setting.StripePriceId, *params.LineItems[0].Price)
-	require.Nil(t, params.LineItems[0].PriceData)
-
-	params = buildStripeCheckoutSessionParams(
-		"ref_123",
-		"",
-		"user@example.com",
-		setting.StripePriceId,
-		20,
-		"https://flatkey.ai/wallet?show_history=true",
-		"https://flatkey.ai/wallet",
-		false,
-		true,
-	)
-	require.NotNil(t, params.AllowPromotionCodes)
-	require.False(t, *params.AllowPromotionCodes)
-
-	setting.StripePromotionCodesEnabled = true
-	params = buildStripeCheckoutSessionParams(
-		"ref_123",
-		"",
-		"user@example.com",
-		setting.StripePriceId,
-		20,
-		"https://flatkey.ai/wallet?show_history=true",
-		"https://flatkey.ai/wallet",
-		false,
-		false,
-	)
-	require.NotNil(t, params.AllowPromotionCodes)
-	require.True(t, *params.AllowPromotionCodes)
-}
-
 func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 	originalPriceId := setting.StripePriceId
 	originalPriceId20 := setting.StripePriceId20
@@ -377,6 +318,8 @@ func TestStripeCheckoutSessionKeepsAccountEmailVerbatim(t *testing.T) {
 
 	require.NotNil(t, params.CustomerEmail)
 	require.Equal(t, "buyer+location_JP@example.com", *params.CustomerEmail)
+	require.NotNil(t, params.AllowPromotionCodes)
+	require.True(t, *params.AllowPromotionCodes)
 }
 
 func TestStripePaymentSnapshotFromEventUsesCurrencyMinorUnits(t *testing.T) {
@@ -475,7 +418,7 @@ func TestFulfillOrderRejectsMismatchedStripePaymentContract(t *testing.T) {
 	assert.Equal(t, 0, stripeFulfillmentUserQuota(t, 901))
 }
 
-func TestFulfillOrderRejectsDiscountedStripePaymentContract(t *testing.T) {
+func TestFulfillOrderAcceptsDiscountedStripePaymentContract(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
 	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent
 	t.Cleanup(func() {
@@ -519,26 +462,31 @@ func TestFulfillOrderRejectsDiscountedStripePaymentContract(t *testing.T) {
 
 	reloaded := model.GetTopUpByTradeNo("ref_stripe_contract_discount")
 	require.NotNil(t, reloaded)
-	assert.Equal(t, common.TopUpStatusPending, reloaded.Status)
-	assert.Equal(t, 0, stripeFulfillmentUserQuota(t, 902))
+	assert.Equal(t, common.TopUpStatusSuccess, reloaded.Status)
+	assert.Equal(t, int(200*common.QuotaPerUnit), stripeFulfillmentUserQuota(t, 902))
 }
 
 func setupStripeFulfillmentTestDB(t *testing.T) {
 	t.Helper()
 	originalDB := model.DB
 	originalLogDB := model.LOG_DB
+	originalRedisEnabled := common.RedisEnabled
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	model.DB = db
 	model.LOG_DB = db
+	common.RedisEnabled = false
 	t.Cleanup(func() {
 		model.DB = originalDB
 		model.LOG_DB = originalLogDB
+		common.RedisEnabled = originalRedisEnabled
 	})
 	require.NoError(t, db.AutoMigrate(
 		&model.User{},
 		&model.TopUp{},
 		&model.TopUpBonusClaim{},
+		&model.Log{},
+		&model.PaymentInvoice{},
 		&model.SubscriptionPlan{},
 		&model.SubscriptionOrder{},
 		&model.UserSubscription{},

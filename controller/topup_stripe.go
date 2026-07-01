@@ -845,9 +845,6 @@ func validateStripeTopUpPaymentContract(event stripe.Event, referenceId string) 
 	if actual.AmountSubtotalMinor != topUp.PaymentAmountMinor {
 		return fmt.Errorf("Stripe checkout amount mismatch: expected %d got %d", topUp.PaymentAmountMinor, actual.AmountSubtotalMinor)
 	}
-	if actual.AmountTotalMinor < topUp.PaymentAmountMinor {
-		return fmt.Errorf("Stripe checkout total mismatch: expected at least %d got %d", topUp.PaymentAmountMinor, actual.AmountTotalMinor)
-	}
 	if strings.ToUpper(strings.TrimSpace(actual.Currency)) != expectedCurrency {
 		return fmt.Errorf("Stripe checkout currency mismatch: expected %s got %s", expectedCurrency, actual.Currency)
 	}
@@ -1375,7 +1372,7 @@ func buildStripeCheckoutSessionParams(referenceId string, customerId string, ema
 			buildStripeTopUpLineItem(priceId, quantity),
 		},
 		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
-		AllowPromotionCodes: stripe.Bool(setting.StripePromotionCodesEnabled),
+		AllowPromotionCodes: stripe.Bool(true),
 	}
 
 	if "" == customerId {

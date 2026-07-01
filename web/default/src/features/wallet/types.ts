@@ -33,7 +33,6 @@ export interface ApiResponse<T = unknown> {
  * Standard API response types
  */
 export type TopupInfoResponse = ApiResponse<TopupInfo>
-export type RedemptionResponse = ApiResponse<number>
 export type AmountResponse = ApiResponse<string>
 export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   url?: string
@@ -243,14 +242,6 @@ export interface PresetAmount {
 }
 
 /**
- * Redemption code request
- */
-export interface RedemptionRequest {
-  /** Redemption code key */
-  key: string
-}
-
-/**
  * Payment request parameters
  */
 export interface PaymentRequest {
@@ -258,7 +249,7 @@ export interface PaymentRequest {
   amount: number
   /** Payment method identifier */
   payment_method: string
-  /** Stripe checkout package currency selected from the current locale */
+  /** Optional explicit Stripe checkout package currency override */
   stripe_currency?: 'USD' | 'JPY' | 'BRL'
   /** Save the card during payment (setup_future_usage) for later off-session auto-charge */
   save_card?: boolean
@@ -279,6 +270,8 @@ export interface PaymentRequest {
 export interface PaymentOptions {
   invoiceRequested?: boolean
   invoiceProfile?: InvoiceProfile
+  /** Optional explicit Stripe checkout package currency override */
+  stripeCurrency?: 'USD' | 'JPY' | 'BRL'
 }
 
 /**
