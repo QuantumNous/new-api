@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -47,6 +48,19 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
+	if info.RelayMode == constant.RelayModeAudioTranscription {
+		c.Set(contextKeyResponseFormat, request.ResponseFormat)
+		volcRequest, err := buildASRRequest(c, info)
+		if err != nil {
+			return nil, err
+		}
+		jsonData, err := common.Marshal(volcRequest)
+		if err != nil {
+			return nil, fmt.Errorf("error marshalling volcengine asr request: %w", err)
+		}
+		return bytes.NewReader(jsonData), nil
+	}
+
 	if info.RelayMode != constant.RelayModeAudioSpeech {
 		return nil, errors.New("unsupported audio relay mode")
 	}
@@ -86,7 +100,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	if len(request.Metadata) > 0 {
-		if err = json.Unmarshal(request.Metadata, &volcRequest); err != nil {
+		if err = common.Unmarshal(request.Metadata, &volcRequest); err != nil {
 			return nil, fmt.Errorf("error unmarshalling metadata to volcengine request: %w", err)
 		}
 	}
@@ -97,7 +111,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 		info.IsStream = true
 	}
 
-	jsonData, err := json.Marshal(volcRequest)
+	jsonData, err := common.Marshal(volcRequest)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling volcengine request: %w", err)
 	}
@@ -273,6 +287,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			return fmt.Sprintf("%s/api/v3/rerank", baseUrl), nil
 		case constant.RelayModeResponses:
 			return fmt.Sprintf("%s/api/v3/responses", baseUrl), nil
+		case constant.RelayModeAudioTranscription:
+			return volcengineASRURL, nil
 		case constant.RelayModeAudioSpeech:
 			if baseUrl == channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine] {
 				return "wss://openspeech.bytedance.com/api/v1/tts/ws_binary", nil
@@ -293,6 +309,19 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 			req.Set("Authorization", "Bearer;"+parts[1])
 		}
 		req.Set("Content-Type", "application/json")
+		return nil
+	} else if info.RelayMode == constant.RelayModeAudioTranscription {
+		appID, token, err := parseVolcengineAuth(info.ApiKey)
+		if err != nil {
+			return err
+		}
+		req.Set("X-Api-App-Key", appID)
+		req.Set("X-Api-Access-Key", token)
+		req.Set("X-Api-Resource-Id", volcengineASRResourceID)
+		req.Set("X-Api-Request-Id", newVolcengineRequestID())
+		req.Set("X-Api-Sequence", "-1")
+		req.Set("Content-Type", gin.MIMEJSON)
+		req.Set("Accept", gin.MIMEJSON)
 		return nil
 	} else if info.RelayMode == constant.RelayModeImagesEdits {
 		req.Set("Content-Type", gin.MIMEJSON)
@@ -386,6 +415,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			return handleTTSWebSocketResponse(c, requestURL, volcRequest, info, encoding)
 		}
 		return handleTTSResponse(c, resp, info, encoding)
+	}
+
+	if info.RelayMode == constant.RelayModeAudioTranscription {
+		return handleASRResponse(c, resp, info, c.GetString(contextKeyResponseFormat))
 	}
 
 	adaptor := openai.Adaptor{}
