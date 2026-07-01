@@ -170,6 +170,16 @@ export function useUsersColumns(): ColumnDef<User>[] {
       header: t('Quota'),
       cell: ({ row }) => {
         const user = row.original
+        if (user.unlimited_balance) {
+          return (
+            <StatusBadge
+              label={t('Unlimited')}
+              variant='success'
+              copyable={false}
+              className='-ml-1.5'
+            />
+          )
+        }
         const used = user.used_quota
         const remaining = user.quota
         const total = used + remaining

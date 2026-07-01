@@ -30,6 +30,7 @@ import {
   sideDrawerFooterClassName,
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
+  sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -44,6 +45,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -80,6 +82,7 @@ import {
   getUser,
   getGroups,
   getPermissionCatalog,
+  manageUserUnlimitedBalance,
 } from '../api'
 import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
@@ -403,9 +406,11 @@ export function UsersMutateDrawer({
                           <FormControl>
                             <Input
                               value={
-                                tokensOnly
-                                  ? String(field.value || 0)
-                                  : (field.value || 0).toFixed(6)
+                                currentRow?.unlimited_balance
+                                  ? t('Unlimited')
+                                  : tokensOnly
+                                    ? String(field.value || 0)
+                                    : (field.value || 0).toFixed(6)
                               }
                               readOnly
                               className='flex-1'
@@ -421,12 +426,54 @@ export function UsersMutateDrawer({
                           </Button>
                         </div>
                         <FormDescription>
-                          {formatQuota(parseQuotaFromDollars(field.value || 0))}
+                          {currentRow?.unlimited_balance
+                            ? t('Unlimited Balance')
+                            : formatQuota(parseQuotaFromDollars(field.value || 0))}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+
+                  {/* Unlimited Balance Toggle */}
+                  {isUpdate && currentRow && (
+                    <div className={sideDrawerSwitchItemClassName()}>
+                      <div className='flex flex-col gap-0.5'>
+                        <FormLabel className='text-sm'>
+                          {t('Unlimited Balance')}
+                        </FormLabel>
+                        <FormDescription className='text-xs'>
+                          {t('Enable unlimited balance for this user')}
+                        </FormDescription>
+                      </div>
+                      <Switch
+                        checked={currentRow.unlimited_balance ?? false}
+                        onCheckedChange={async (checked) => {
+                          try {
+                            const result = await manageUserUnlimitedBalance(
+                              currentRow.id,
+                              checked
+                            )
+                            if (result.success) {
+                              toast.success(
+                                checked
+                                  ? t('Unlimited balance enabled')
+                                  : t('Unlimited balance disabled')
+                              )
+                              refreshUserData()
+                            } else {
+                              toast.error(
+                                result.message ||
+                                  t('Failed to update unlimited balance')
+                              )
+                            }
+                          } catch {
+                            toast.error(t('Failed to update unlimited balance'))
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
 
                   <FormField
                     control={form.control}
