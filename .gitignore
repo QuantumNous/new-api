@@ -23,7 +23,6 @@ tiktoken_cache
 .gomodcache/
 .cache
 plans
-.claude
 .cursor
 
 electron/node_modules
@@ -41,3 +40,5 @@ skills-lock.json
 .local-tests/
 service/relayconvert/chat_responses_live_local_test.go
 service/openaicompat/chat_responses_live_local_test.go
+
+.codegraph
