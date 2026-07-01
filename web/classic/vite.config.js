@@ -102,6 +102,12 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      // 视频内容代理（/v1/videos/:id/content）走后端；开发下必须代理，
+      // 否则相对地址会打到 vite 返回 index.html，导致视频无法预览。
+      '/v1': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
     },
   },
 });

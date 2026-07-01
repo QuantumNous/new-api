@@ -17,6 +17,7 @@ import { UserContext } from '../../context/User';
 import ImagePreviewModal from './ImagePreviewModal';
 
 const WELCOME_ID = '__welcome__';
+const MAX_PROMPT_LEN = 2000;
 
 const genUserAvatar = (username) => {
   if (!username) return getLogo();
@@ -214,8 +215,9 @@ const ImageChatArea = ({
     (props) => {
       const { detailProps } = props;
       const { inputNode, sendNode, onClick } = detailProps;
+      const blockSend = generating || turnLimitReached;
       const styledSend = React.cloneElement(sendNode, {
-        disabled: turnLimitReached || sendNode.props.disabled,
+        disabled: blockSend || sendNode.props.disabled,
         className: `!rounded-full !bg-purple-500 hover:!bg-purple-600 flex-shrink-0 ${sendNode.props.className || ''}`,
         style: {
           ...sendNode.props.style,
@@ -239,22 +241,33 @@ const ImageChatArea = ({
             </Typography.Text>
           )}
           <div
-            className='flex items-center gap-2 sm:gap-3 p-2 bg-gray-50 rounded-xl sm:rounded-2xl shadow-sm hover:shadow-md transition-shadow'
-            style={{ border: '1px solid var(--semi-color-border)' }}
+            className='flex items-center gap-2 sm:gap-3 px-3 py-2.5 bg-gray-50 rounded-xl sm:rounded-2xl shadow-sm hover:shadow-md transition-shadow'
+            style={{ border: '1px solid var(--semi-color-border)', minHeight: 52 }}
             onClick={onClick}
           >
-            <div className='flex-1'>{inputNode}</div>
+            <div
+              className='flex-1'
+              onKeyDownCapture={(e) => {
+                // 生成中/达上限时拦截回车，阻止 Semi 触发 send（否则会清空输入框且不发送）
+                if (blockSend && e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
+            >
+              {React.cloneElement(inputNode, { maxLength: MAX_PROMPT_LEN })}
+            </div>
             {styledSend}
           </div>
         </div>
       );
     },
-    [turnLimitReached, t],
+    [generating, turnLimitReached, t],
   );
 
   return (
     <Card
-      className='h-full'
+      className='h-full pg-chat-scroll'
       bordered={false}
       bodyStyle={{
         padding: 0,

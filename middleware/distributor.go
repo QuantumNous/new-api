@@ -232,7 +232,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		relayMode := relayconstant.RelayModeVideoSubmit
 		c.Set("relay_mode", relayMode)
 		shouldSelectChannel = false
-	} else if strings.Contains(c.Request.URL.Path, "/v1/videos") {
+	} else if strings.Contains(c.Request.URL.Path, "/v1/videos") || strings.Contains(c.Request.URL.Path, "/pg/videos") {
 		//curl https://api.openai.com/v1/videos \
 		//  -H "Authorization: Bearer $OPENAI_API_KEY" \
 		//  -F "model=sora-2" \

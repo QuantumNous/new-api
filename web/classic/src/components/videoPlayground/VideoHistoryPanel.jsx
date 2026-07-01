@@ -1,11 +1,11 @@
 import React from 'react';
-import { Card, Button, Typography, Tag, Empty } from '@douyinfe/semi-ui';
+import { Card, Button, Typography, Tag } from '@douyinfe/semi-ui';
 import { Plus, Trash2, History } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
-  IMAGE_GEN_STATUS,
-  IMAGE_HISTORY_LIMIT,
-} from '../../constants/imagePlayground.constants';
+  VIDEO_STATUS,
+  VIDEO_HISTORY_LIMIT,
+} from '../../constants/videoPlayground.constants';
 
 const formatTime = (iso) => {
   if (!iso) return '';
@@ -15,36 +15,42 @@ const formatTime = (iso) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 };
 
-const statusMeta = (status, t) => {
+const statusMeta = (status, progress, t) => {
   switch (status) {
-    case IMAGE_GEN_STATUS.SUCCESS:
+    case VIDEO_STATUS.COMPLETED:
       return { color: 'green', text: t('已完成') };
-    case IMAGE_GEN_STATUS.FAILED:
+    case VIDEO_STATUS.FAILED:
       return { color: 'red', text: t('失败') };
+    case VIDEO_STATUS.CANCELED:
+      return { color: 'grey', text: t('已取消') };
+    case VIDEO_STATUS.IN_PROGRESS:
+      return {
+        color: 'blue',
+        text:
+          typeof progress === 'number' && progress > 0
+            ? `${t('生成中')} ${progress}%`
+            : t('生成中'),
+      };
     default:
-      return { color: 'blue', text: t('生成中') };
+      return { color: 'blue', text: t('排队中') };
   }
 };
 
-// 从一段对话里提取展示信息：标题、最新状态、成功图片数
 const convSummary = (conv) => {
   const assistants = (conv.messages || []).filter(
     (m) => m.role === 'assistant',
   );
   const last = assistants[assistants.length - 1];
-  const imageCount = assistants.reduce(
-    (acc, m) => acc + (m.images ? m.images.length : 0),
-    0,
-  );
   return {
     title: conv.title || assistants[0]?.prompt || '',
-    status: last ? last.status : IMAGE_GEN_STATUS.PENDING,
-    imageCount,
+    status: last ? last.status : VIDEO_STATUS.QUEUED,
+    progress: last ? last.progress : 0,
+    count: assistants.filter((m) => m.status === VIDEO_STATUS.COMPLETED).length,
     time: conv.updatedAt || conv.createdAt,
   };
 };
 
-const ImageHistoryPanel = ({
+const VideoHistoryPanel = ({
   history,
   onNewConversation,
   onClear,
@@ -65,7 +71,6 @@ const ImageHistoryPanel = ({
         flexDirection: 'column',
       }}
     >
-      {/* 新对话 */}
       <Button
         theme='outline'
         type='primary'
@@ -77,14 +82,13 @@ const ImageHistoryPanel = ({
         {t('新对话')}
       </Button>
 
-      {/* 历史标题 */}
       <div className='flex items-center justify-between mb-3 flex-shrink-0'>
         <div className='flex items-baseline gap-1.5'>
           <Typography.Title heading={6} className='mb-0'>
             {t('对话历史')}
           </Typography.Title>
           <Typography.Text type='tertiary' style={{ fontSize: 11 }}>
-            {t('（仅保留近 {{count}} 次）', { count: IMAGE_HISTORY_LIMIT })}
+            {t('（仅保留近 {{count}} 次）', { count: VIDEO_HISTORY_LIMIT })}
           </Typography.Text>
         </div>
         {history.length > 0 && (
@@ -100,7 +104,6 @@ const ImageHistoryPanel = ({
         )}
       </div>
 
-      {/* 历史列表 */}
       <div className='flex-1 overflow-y-auto space-y-2 pg-history-scroll'>
         {history.length === 0 ? (
           <div className='h-full flex flex-col items-center justify-center text-gray-400'>
@@ -112,7 +115,7 @@ const ImageHistoryPanel = ({
         ) : (
           history.map((item) => {
             const summary = convSummary(item);
-            const meta = statusMeta(summary.status, t);
+            const meta = statusMeta(summary.status, summary.progress, t);
             return (
               <div
                 key={item.id}
@@ -142,16 +145,9 @@ const ImageHistoryPanel = ({
                   {summary.title}
                 </Typography.Text>
                 <div className='flex items-center justify-between mt-2'>
-                  <div className='flex items-center gap-2'>
-                    <Tag size='small' color={meta.color} shape='circle'>
-                      {meta.text}
-                    </Tag>
-                    {summary.imageCount > 0 && (
-                      <Typography.Text className='text-xs text-gray-400'>
-                        {t('{{count}} 张', { count: summary.imageCount })}
-                      </Typography.Text>
-                    )}
-                  </div>
+                  <Tag size='small' color={meta.color} shape='circle'>
+                    {meta.text}
+                  </Tag>
                   <Typography.Text className='text-xs text-gray-400'>
                     {formatTime(summary.time)}
                   </Typography.Text>
@@ -165,4 +161,4 @@ const ImageHistoryPanel = ({
   );
 };
 
-export default ImageHistoryPanel;
+export default VideoHistoryPanel;

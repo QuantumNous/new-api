@@ -23,10 +23,10 @@ export const FALLBACK_IMAGE_SIZES = [
 export const IMAGE_HISTORY_STORAGE_KEY = 'image_playground_history';
 
 // 对话（历史）数量上限
-export const IMAGE_HISTORY_LIMIT = 20;
+export const IMAGE_HISTORY_LIMIT = 10;
 
 // 单段对话内最多生成次数
-export const IMAGE_CONV_TURN_LIMIT = 20;
+export const IMAGE_CONV_TURN_LIMIT = 10;
 
 export const IMAGE_GEN_STATUS = {
   PENDING: 'pending',

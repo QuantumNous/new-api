@@ -17,14 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   API,
   processModelsData,
   processGroupsData,
   showWarning,
+  showError,
 } from '../../helpers';
+import { isPlaygroundSupported } from '../../helpers/playground';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
 
 export const useDataLoader = (
@@ -36,6 +38,9 @@ export const useDataLoader = (
   setModelEndpointTypes,
 ) => {
   const { t } = useTranslation();
+  // 本地保存 pricing 的 model->端点类型、model->分组 映射，用于"仅展示文本模型/分组"过滤。
+  const pricingRef = useRef({ types: new Map(), groups: new Map() });
+  const [pricingVersion, setPricingVersion] = useState(0);
 
   const loadModels = useCallback(async () => {
     try {
@@ -47,8 +52,14 @@ export const useDataLoader = (
 
       if (success) {
         const previousModel = inputs.model;
+        // 仅保留文本模型（排除 图片/视频/embedding/rerank）。pricing 不可用时不过滤。
+        let list = Array.isArray(data) ? data : [];
+        const types = pricingRef.current.types;
+        if (types.size > 0) {
+          list = list.filter((m) => isPlaygroundSupported(m, types));
+        }
         const { modelOptions, selectedModel } = processModelsData(
-          data,
+          list,
           previousModel,
         );
         setModels(modelOptions);
@@ -81,7 +92,24 @@ export const useDataLoader = (
         const userGroup =
           userState?.user?.group ||
           JSON.parse(localStorage.getItem('user'))?.group;
-        const groupOptions = processGroupsData(data, userGroup);
+        let groupOptions = processGroupsData(data, userGroup);
+
+        // 仅保留含文本模型的分组（auto / "all" 哨兵放行）
+        const { types, groups: gmap } = pricingRef.current;
+        if (types.size > 0) {
+          const textGroupSet = new Set();
+          types.forEach((_tp, model) => {
+            if (isPlaygroundSupported(model, types)) {
+              (gmap.get(model) || []).forEach((g) => textGroupSet.add(g));
+            }
+          });
+          const allowAll = textGroupSet.has('all');
+          if (textGroupSet.size > 0 && !allowAll) {
+            groupOptions = groupOptions.filter(
+              (g) => textGroupSet.has(g.value) || g.value === 'auto',
+            );
+          }
+        }
         setGroups(groupOptions);
 
         const hasCurrentGroup = groupOptions.some(
@@ -111,25 +139,35 @@ export const useDataLoader = (
       const { success, data } = res.data || {};
       if (!success || !Array.isArray(data)) return;
       const map = new Map();
+      const groupsMap = new Map();
       data.forEach((item) => {
         if (item && item.model_name) {
           map.set(item.model_name, item.supported_endpoint_types || []);
+          groupsMap.set(item.model_name, item.enable_groups || []);
         }
       });
+      pricingRef.current = { types: map, groups: groupsMap };
       setModelEndpointTypes(map);
+      // 通知 models/groups 重新按能力过滤
+      setPricingVersion((v) => v + 1);
     } catch (_) {
-      // 静默：保持 map 为空 → isPlaygroundSupported 一律放行
+      // 静默：保持 map 为空 → 不过滤（全部放行）
     }
   }, [setModelEndpointTypes]);
 
-  // 自动加载数据
+  // pricing 先加载一次
+  useEffect(() => {
+    if (userState?.user) loadModelEndpointTypes();
+  }, [userState?.user, loadModelEndpointTypes]);
+
+  // models/groups：用户/分组变化或 pricing 就绪后（重新）按能力过滤加载
   useEffect(() => {
     if (userState?.user) {
       loadModels();
       loadGroups();
-      loadModelEndpointTypes();
     }
-  }, [userState?.user, loadModels, loadGroups, loadModelEndpointTypes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userState?.user, loadModels, loadGroups, pricingVersion]);
 
   return {
     loadModels,

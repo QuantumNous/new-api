@@ -69,6 +69,8 @@ func SetRelayRouter(router *gin.Engine) {
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
 		playgroundRouter.POST("/images/generations", controller.PlaygroundImage)
+		playgroundRouter.POST("/videos", controller.PlaygroundVideo)
+		playgroundRouter.GET("/videos/:task_id", controller.PlaygroundVideoFetch)
 	}
 	// 图片代理：仅需登录会话鉴权，不经过 Distribute（GET 无模型可分发）
 	playgroundUtilRouter := router.Group("/pg")
