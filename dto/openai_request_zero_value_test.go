@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -65,8 +66,8 @@ func TestGeneralOpenAIRequestPreserveQwenThinkingBudget(t *testing.T) {
 	require.NoError(t, err)
 
 	value := gjson.GetBytes(encoded, "thinking_budget")
-	require.True(t, value.Exists())
-	require.Equal(t, int64(0), value.Int())
+	assert.True(t, value.Exists())
+	assert.Equal(t, int64(0), value.Int())
 }
 
 func TestGeneralOpenAIRequestDropsThinkingBudgetForNonQwenModel(t *testing.T) {
@@ -78,7 +79,7 @@ func TestGeneralOpenAIRequestDropsThinkingBudgetForNonQwenModel(t *testing.T) {
 	encoded, err := common.Marshal(req)
 	require.NoError(t, err)
 
-	require.False(t, gjson.GetBytes(encoded, "thinking_budget").Exists())
+	assert.False(t, gjson.GetBytes(encoded, "thinking_budget").Exists())
 }
 
 func TestIsQwenThinkingBudgetModel(t *testing.T) {
@@ -95,7 +96,7 @@ func TestIsQwenThinkingBudgetModel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.model, func(t *testing.T) {
-			require.Equal(t, tt.want, IsQwenThinkingBudgetModel(tt.model))
+			assert.Equal(t, tt.want, IsQwenThinkingBudgetModel(tt.model))
 		})
 	}
 }
@@ -132,8 +133,8 @@ func TestOpenAIResponsesRequestPreserveQwenThinkingBudget(t *testing.T) {
 	require.NoError(t, err)
 
 	value := gjson.GetBytes(encoded, "thinking_budget")
-	require.True(t, value.Exists())
-	require.Equal(t, int64(0), value.Int())
+	assert.True(t, value.Exists())
+	assert.Equal(t, int64(0), value.Int())
 }
 
 func TestOpenAIResponsesRequestDropsThinkingBudgetForNonQwenModel(t *testing.T) {
@@ -145,7 +146,7 @@ func TestOpenAIResponsesRequestDropsThinkingBudgetForNonQwenModel(t *testing.T) 
 	encoded, err := common.Marshal(req)
 	require.NoError(t, err)
 
-	require.False(t, gjson.GetBytes(encoded, "thinking_budget").Exists())
+	assert.False(t, gjson.GetBytes(encoded, "thinking_budget").Exists())
 }
 
 func TestGeneralOpenAIRequestGetSystemRoleName(t *testing.T) {

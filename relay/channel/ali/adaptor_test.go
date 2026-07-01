@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -29,8 +30,8 @@ func TestConvertOpenAIRequestPreservesThinkingBudgetForQwen(t *testing.T) {
 	encoded, err := common.Marshal(converted)
 	require.NoError(t, err)
 
-	require.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
-	require.Equal(t, int64(128), gjson.GetBytes(encoded, "thinking_budget").Int())
+	assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
+	assert.Equal(t, int64(128), gjson.GetBytes(encoded, "thinking_budget").Int())
 }
 
 func TestConvertOpenAIRequestDropsThinkingBudgetForNonQwen(t *testing.T) {
@@ -51,5 +52,5 @@ func TestConvertOpenAIRequestDropsThinkingBudgetForNonQwen(t *testing.T) {
 	encoded, err := common.Marshal(converted)
 	require.NoError(t, err)
 
-	require.False(t, gjson.GetBytes(encoded, "thinking_budget").Exists())
+	assert.False(t, gjson.GetBytes(encoded, "thinking_budget").Exists())
 }
