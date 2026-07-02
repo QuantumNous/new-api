@@ -316,6 +316,13 @@ docker run --name new-api -d --restart always \
 | `CRYPTO_SECRET` | Encryption secret (required for Redis) | - |
 | `SQL_DSN` | Database connection string | - |
 | `REDIS_CONN_STRING` | Redis connection string | - |
+| `IDENTITY_SYNC_ENABLED` | Enable one-way identity/auth table sync from a remote database | `false` |
+| `IDENTITY_SYNC_REMOTE_DSN` | Remote database DSN for identity sync; store it in runtime Secret/config only | - |
+| `IDENTITY_SYNC_TABLES` | Comma-separated allowlisted tables to sync | `users,setups,custom_oauth_providers,tokens,two_fas,two_fa_backup_codes,passkey_credentials,user_oauth_bindings` |
+| `IDENTITY_SYNC_INTERVAL_SECONDS` | Periodic identity sync interval; set `0` for startup-only sync | `300` |
+| `IDENTITY_SYNC_ON_STARTUP` | Run one identity sync pass during startup | `true` |
+| `IDENTITY_SYNC_DELETE_MISSING` | Delete local rows from synced tables when they no longer exist remotely | `true` |
+| `IDENTITY_SYNC_MAX_ROWS_PER_TABLE` | Safety cap for each synced remote table | `10000` |
 | `RELAY_IDLE_CONN_TIMEOUT` | Idle keep-alive timeout for relay HTTP clients, seconds. Defaults to Go standard library behavior; set `0` to disable | `90` |
 | `STREAMING_TIMEOUT` | Streaming idle/first-data timeout (seconds) | `60` |
 | `STREAM_SCANNER_MAX_BUFFER_MB` | Max per-line buffer (MB) for the stream scanner; increase when upstream sends huge image/base64 payloads | `64` |

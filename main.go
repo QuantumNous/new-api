@@ -316,6 +316,13 @@ func InitResources() error {
 		return err
 	}
 
+	model.StartIdentitySync(func() {
+		model.InitOptionMap()
+		if err := oauth.LoadCustomProviders(); err != nil {
+			common.SysError("failed to reload custom OAuth providers after identity sync: " + err.Error())
+		}
+	})
+
 	perfmetrics.Init()
 
 	// 启动系统监控
