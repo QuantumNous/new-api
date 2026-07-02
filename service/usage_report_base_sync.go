@@ -147,8 +147,6 @@ func syncAccountTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 			record["接收人员"] = []map[string]string{
 				{"id": it.ReceiverFeishuOpenId},
 			}
-		} else {
-			record["接收人员"] = nil
 		}
 
 		records = append(records, record)

@@ -370,8 +370,10 @@ func generateModelSnapshots(rp ReportPeriod) error {
 		}
 		prev := prevMap[it.ModelName]
 		prevQuota := 0
+		prevToken := 0
 		if prev != nil {
 			prevQuota = prev.Quota
+			prevToken = prev.TokenUsed
 		}
 
 		usageShare := 0.0
@@ -397,6 +399,8 @@ func generateModelSnapshots(rp ReportPeriod) error {
 			QuotaCNY:           quotaToCNY(it.Quota),
 			PreviousQuota:      prevQuota,
 			QuotaGrowthRate:    model.GrowthRate(it.Quota, prevQuota),
+			PreviousTokenUsed:  prevToken,
+			TokenGrowthRate:    model.GrowthRate(it.TokenUsed, prevToken),
 			UsageShare:         usageShare,
 			RankNo:             rank + 1,
 			Rolling7dAvgQuota:  rolling7d,
@@ -501,8 +505,8 @@ func checkAccountAnomaly(snap *model.UsageReportSnapshot, prev *model.UserStatIt
 		}
 	}
 
-	// 规则2: Token环比增长
-	if settings.AccountGrowthRateThreshold > 0 && snap.TokenGrowthRate >= settings.AccountGrowthRateThreshold {
+	// 规则2: Token环比增长（上周期无数据则跳过，避免新用户误报）
+	if settings.AccountGrowthRateThreshold > 0 && snap.PreviousTokenUsed > 0 && snap.TokenGrowthRate >= settings.AccountGrowthRateThreshold {
 		snap.IsAnomaly = true
 		snap.AnomalyType = "growth_rate"
 		snap.AnomalyReason = fmt.Sprintf("Token环比增长 %.1f%% 超过阈值 %.1f%%", snap.TokenGrowthRate, settings.AccountGrowthRateThreshold)
@@ -559,8 +563,8 @@ func checkModelPurchaseWarning(snap *model.UsageReportSnapshot, settings *system
 		snap.PurchaseWarningReason += fmt.Sprintf("周期额度 %.2f USD 超过阈值 %.2f USD", snap.QuotaUSD, settings.PurchaseWarningDailyQuotaThreshold)
 	}
 
-	// 模型异常: Token环比增长
-	if settings.ModelGrowthRateThreshold > 0 && snap.TokenGrowthRate >= settings.ModelGrowthRateThreshold {
+	// 模型异常: Token环比增长（上周期无数据则跳过，避免新模型误报）
+	if settings.ModelGrowthRateThreshold > 0 && snap.PreviousTokenUsed > 0 && snap.TokenGrowthRate >= settings.ModelGrowthRateThreshold {
 		snap.IsAnomaly = true
 		snap.AnomalyType = "model_growth_spike"
 		snap.AnomalyReason = fmt.Sprintf("模型Token环比增长 %.1f%% 超过阈值 %.1f%%", snap.TokenGrowthRate, settings.ModelGrowthRateThreshold)
