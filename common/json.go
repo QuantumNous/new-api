@@ -22,6 +22,11 @@ func Marshal(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
+// ValidJson 校验数据是否为合法 JSON（替代 encoding/json 的 json.Valid）。
+func ValidJson(data []byte) bool {
+	return json.Valid(data)
+}
+
 func GetJsonType(data json.RawMessage) string {
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 {

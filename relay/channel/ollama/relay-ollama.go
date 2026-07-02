@@ -1,7 +1,6 @@
 package ollama
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -32,7 +31,9 @@ func openAIChatToOllamaChat(c *gin.Context, r *dto.GeneralOpenAIRequest) (*Ollam
 		} else if r.ResponseFormat.Type == "json_schema" {
 			if len(r.ResponseFormat.JsonSchema) > 0 {
 				var schema any
-				_ = json.Unmarshal(r.ResponseFormat.JsonSchema, &schema)
+				if err := common.Unmarshal(r.ResponseFormat.JsonSchema, &schema); err != nil {
+					return nil, fmt.Errorf("invalid json_schema: %w", err)
+				}
 				chatReq.Format = schema
 			}
 		}
@@ -127,7 +128,9 @@ func openAIChatToOllamaChat(c *gin.Context, r *dto.GeneralOpenAIRequest) (*Ollam
 				for _, tc := range parsed {
 					var args interface{}
 					if tc.Function.Arguments != "" {
-						_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
+						if err := common.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+							return nil, fmt.Errorf("invalid tool call arguments: %w", err)
+						}
 					}
 					if args == nil {
 						args = map[string]any{}
@@ -180,7 +183,9 @@ func openAIToGenerate(c *gin.Context, r *dto.GeneralOpenAIRequest) (*OllamaGener
 			gen.Format = "json"
 		} else if r.ResponseFormat.Type == "json_schema" {
 			var schema any
-			_ = json.Unmarshal(r.ResponseFormat.JsonSchema, &schema)
+			if err := common.Unmarshal(r.ResponseFormat.JsonSchema, &schema); err != nil {
+				return nil, fmt.Errorf("invalid json_schema: %w", err)
+			}
 			gen.Format = schema
 		}
 	}
@@ -510,7 +515,7 @@ func FetchOllamaVersion(baseURL, apiKey string) (string, error) {
 		Version string `json:"version"`
 	}
 
-	if err := json.Unmarshal(body, &versionResp); err != nil {
+	if err := common.Unmarshal(body, &versionResp); err != nil {
 		return "", fmt.Errorf("解析响应失败: %v", err)
 	}
 

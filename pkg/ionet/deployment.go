@@ -1,11 +1,12 @@
 package ionet
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/samber/lo"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 // DeployContainer deploys a new container with the specified configuration
@@ -45,7 +46,7 @@ func (c *Client) DeployContainer(req *DeploymentRequest) (*DeploymentResponse, e
 	// API returns direct format:
 	// {"status": "string", "deployment_id": "..."}
 	var deployResp DeploymentResponse
-	if err := json.Unmarshal(resp.Body, &deployResp); err != nil {
+	if err := common.Unmarshal(resp.Body, &deployResp); err != nil {
 		return nil, fmt.Errorf("failed to parse deployment response: %w", err)
 	}
 
@@ -126,7 +127,7 @@ func (c *Client) UpdateDeployment(deploymentID string, req *UpdateDeploymentRequ
 	// API returns direct format:
 	// {"status": "string", "deployment_id": "..."}
 	var updateResp UpdateDeploymentResponse
-	if err := json.Unmarshal(resp.Body, &updateResp); err != nil {
+	if err := common.Unmarshal(resp.Body, &updateResp); err != nil {
 		return nil, fmt.Errorf("failed to parse update deployment response: %w", err)
 	}
 
@@ -176,7 +177,7 @@ func (c *Client) DeleteDeployment(deploymentID string) (*UpdateDeploymentRespons
 	// API returns direct format:
 	// {"status": "string", "deployment_id": "..."}
 	var deleteResp UpdateDeploymentResponse
-	if err := json.Unmarshal(resp.Body, &deleteResp); err != nil {
+	if err := common.Unmarshal(resp.Body, &deleteResp); err != nil {
 		return nil, fmt.Errorf("failed to parse delete deployment response: %w", err)
 	}
 
@@ -341,7 +342,7 @@ func (c *Client) CheckClusterNameAvailability(clusterName string) (bool, error) 
 	}
 
 	var availabilityResp bool
-	if err := json.Unmarshal(resp.Body, &availabilityResp); err != nil {
+	if err := common.Unmarshal(resp.Body, &availabilityResp); err != nil {
 		return false, fmt.Errorf("failed to parse cluster name availability response: %w", err)
 	}
 
@@ -369,7 +370,7 @@ func (c *Client) UpdateClusterName(clusterID string, req *UpdateClusterNameReque
 
 	// Parse the response directly without data wrapper based on API docs
 	var updateResp UpdateClusterNameResponse
-	if err := json.Unmarshal(resp.Body, &updateResp); err != nil {
+	if err := common.Unmarshal(resp.Body, &updateResp); err != nil {
 		return nil, fmt.Errorf("failed to parse update cluster name response: %w", err)
 	}
 
