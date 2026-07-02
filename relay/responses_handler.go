@@ -71,7 +71,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	}
 	adaptor.Init(info)
 	var requestBody io.Reader
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+	if shouldPassThroughResponsesRequest(info) {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
@@ -163,4 +163,14 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		service.PostTextConsumeQuota(c, info, usageDto, nil)
 	}
 	return nil
+}
+
+func shouldPassThroughResponsesRequest(info *relaycommon.RelayInfo) bool {
+	if info != nil &&
+		info.ApiType == appconstant.APITypeBlockRun &&
+		info.RelayMode == relayconstant.RelayModeResponses {
+		return false
+	}
+	return model_setting.GetGlobalSettings().PassThroughRequestEnabled ||
+		(info != nil && info.ChannelSetting.PassThroughBodyEnabled)
 }
