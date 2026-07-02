@@ -216,7 +216,7 @@ func TestPreConsume_ActivationWindowExpired_Skipped(t *testing.T) {
 func TestGetAllUserSubscriptions_RefreshesDuePeriod(t *testing.T) {
 	setupTimeQuotaTestDB(t)
 
-	now := common.GetTimestamp()
+	now := GetDBTimestamp()
 	plan := &SubscriptionPlan{
 		Title:                   "按需重置套餐",
 		DurationUnit:            SubscriptionDurationDay,
@@ -968,6 +968,163 @@ func TestPostConsumeUserSubscriptionDelta_AdjustsUsage(t *testing.T) {
 	var updated UserSubscription
 	DB.First(&updated, sub.Id)
 	assert.Equal(t, int64(80), updated.AmountUsed)
+}
+
+// ============================================================
+// T_WINDOW_24H_01: GetSubscriptionWindowUsage includes 24h limits and usage
+// ============================================================
+func TestSubscriptionWindowUsage_Includes24hLimit(t *testing.T) {
+	setupTimeQuotaTestDB(t)
+
+	now := common.GetTimestamp()
+	plan := &SubscriptionPlan{
+		Title:          "24小时窗口套餐",
+		DurationUnit:   SubscriptionDurationDay,
+		DurationValue:  30,
+		TotalAmount:    100000,
+		WindowLimit24h: 2400,
+		ActivationMode: SubscriptionActivationImmediate,
+		Enabled:        true,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	userId := createTestUser(t, "default", "default")
+	sub, err := CreateUserSubscriptionFromPlanTx(DB, userId, plan, "order")
+	require.NoError(t, err)
+
+	recent := now - 2*3600
+	recentRecord := &SubscriptionPreConsumeRecord{
+		RequestId:          "req-window-24h-recent",
+		UserId:             userId,
+		UserSubscriptionId: sub.Id,
+		PreConsumed:        600,
+		Status:             "consumed",
+	}
+	require.NoError(t, DB.Create(recentRecord).Error)
+	require.NoError(t, DB.Model(recentRecord).UpdateColumns(map[string]interface{}{
+		"created_at": recent,
+		"updated_at": recent,
+	}).Error)
+
+	old := now - 25*3600
+	oldRecord := &SubscriptionPreConsumeRecord{
+		RequestId:          "req-window-24h-old",
+		UserId:             userId,
+		UserSubscriptionId: sub.Id,
+		PreConsumed:        700,
+		Status:             "consumed",
+	}
+	require.NoError(t, DB.Create(oldRecord).Error)
+	require.NoError(t, DB.Model(oldRecord).UpdateColumns(map[string]interface{}{
+		"created_at": old,
+		"updated_at": old,
+	}).Error)
+
+	usage, err := GetSubscriptionWindowUsage(sub.Id)
+	require.NoError(t, err)
+	require.Contains(t, usage, "24h")
+	assert.Equal(t, int64(600), usage["24h"].Used)
+	assert.Equal(t, int64(2400), usage["24h"].Limit)
+	assert.Equal(t, int64(24*3600), usage["24h"].WindowSeconds)
+	assert.Greater(t, usage["24h"].ResetAfterSeconds, int64(0))
+}
+
+// ============================================================
+// T_WINDOW_OPT_01: API limit path ignores unconfigured window records
+// ============================================================
+func TestSubscriptionAvailableAmount_IgnoresUnconfiguredWindow(t *testing.T) {
+	setupTimeQuotaTestDB(t)
+
+	now := GetDBTimestamp()
+	plan := &SubscriptionPlan{
+		Title:          "仅24小时窗口套餐",
+		DurationUnit:   SubscriptionDurationDay,
+		DurationValue:  30,
+		TotalAmount:    100000,
+		WindowLimit24h: 2400,
+		ActivationMode: SubscriptionActivationImmediate,
+		Enabled:        true,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	userId := createTestUser(t, "default", "default")
+	sub, err := CreateUserSubscriptionFromPlanTx(DB, userId, plan, "order")
+	require.NoError(t, err)
+
+	record := &SubscriptionPreConsumeRecord{
+		RequestId:          "req-unconfigured-5h-old",
+		UserId:             userId,
+		UserSubscriptionId: sub.Id,
+		PreConsumed:        3000,
+		Status:             "consumed",
+	}
+	require.NoError(t, DB.Create(record).Error)
+	oldFor24h := now - 25*3600
+	require.NoError(t, DB.Model(record).UpdateColumns(map[string]interface{}{
+		"created_at": oldFor24h,
+		"updated_at": oldFor24h,
+	}).Error)
+
+	available := getSubscriptionAvailableAmountWithPlanTx(DB, sub, plan)
+	assert.Equal(t, int64(2400), available)
+}
+
+// ============================================================
+// T_WINDOW_OPT_02: legacy window usage can be disabled
+// ============================================================
+func TestSubscriptionWindowUsage_LegacyToggle(t *testing.T) {
+	setupTimeQuotaTestDB(t)
+	t.Setenv("SUBSCRIPTION_LEGACY_WINDOW_USAGE", "false")
+
+	now := GetDBTimestamp()
+	plan := &SubscriptionPlan{
+		Title:          "关闭Legacy窗口套餐",
+		DurationUnit:   SubscriptionDurationDay,
+		DurationValue:  30,
+		TotalAmount:    100000,
+		WindowLimit24h: 2400,
+		ActivationMode: SubscriptionActivationImmediate,
+		Enabled:        true,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	require.NoError(t, DB.Create(plan).Error)
+
+	userId := createTestUser(t, "default", "default")
+	sub, err := CreateUserSubscriptionFromPlanTx(DB, userId, plan, "order")
+	require.NoError(t, err)
+
+	legacyRecord := &SubscriptionPreConsumeRecord{
+		RequestId:          "req-legacy-disabled",
+		UserId:             userId,
+		UserSubscriptionId: sub.Id,
+		PreConsumed:        700,
+		Status:             "consumed",
+	}
+	require.NoError(t, DB.Create(legacyRecord).Error)
+	recent := now - 2*3600
+	require.NoError(t, DB.Model(legacyRecord).UpdateColumns(map[string]interface{}{
+		"created_at": recent,
+		"updated_at": recent,
+	}).Error)
+
+	usage, err := GetSubscriptionWindowUsage(sub.Id)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), usage["24h"].Used)
+}
+
+// ============================================================
+// T_WINDOW_OPT_03: window usage composite indexes are migrated
+// ============================================================
+func TestSubscriptionWindowUsage_WindowIndexesMigrated(t *testing.T) {
+	setupTimeQuotaTestDB(t)
+
+	assert.True(t, DB.Migrator().HasIndex(&SubscriptionPreConsumeDetail{}, "idx_sub_preconsume_detail_window"))
+	assert.True(t, DB.Migrator().HasIndex(&SubscriptionPreConsumeRecord{}, "idx_sub_preconsume_record_window"))
 }
 
 // ============================================================

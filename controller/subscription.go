@@ -331,7 +331,7 @@ func validateAdminSubscriptionPlan(plan *model.SubscriptionPlan) string {
 	default:
 		return "无效的套餐时长单位"
 	}
-	if plan.WindowLimit5h < 0 || plan.WindowLimit7d < 0 || plan.WindowLimit30d < 0 {
+	if plan.WindowLimit5h < 0 || plan.WindowLimit24h < 0 || plan.WindowLimit7d < 0 || plan.WindowLimit30d < 0 {
 		return "窗口额度不能为负数"
 	}
 	return ""
@@ -519,6 +519,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"activation_mode":            req.Plan.ActivationMode,
 			"activation_window_seconds":  req.Plan.ActivationWindowSeconds,
 			"window_limit5h":             req.Plan.WindowLimit5h,
+			"window_limit24h":            req.Plan.WindowLimit24h,
 			"window_limit7d":             req.Plan.WindowLimit7d,
 			"window_limit30d":            req.Plan.WindowLimit30d,
 			"is_recommended":             req.Plan.IsRecommended,

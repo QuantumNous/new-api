@@ -31,6 +31,10 @@ import {
 } from '@douyinfe/semi-ui';
 import { renderQuota } from '../../../helpers';
 import { convertUSDToCurrency } from '../../../helpers/render';
+import {
+  getSubscriptionWindowLimitItems,
+  hasSubscriptionWindowLimit,
+} from '../../../helpers/subscriptionFormat';
 
 const { Text } = Typography;
 
@@ -67,6 +71,7 @@ function formatResetPeriod(plan, t) {
 const renderPlanTitle = (text, record, t) => {
   const subtitle = record?.plan?.subtitle;
   const plan = record?.plan;
+  const windowLimitItems = getSubscriptionWindowLimitItems(plan, t);
   const popoverContent = (
     <div style={{ width: 260 }}>
       <Text strong>{text}</Text>
@@ -101,6 +106,14 @@ const renderPlanTitle = (text, record, t) => {
         <Text>{formatDuration(plan, t)}</Text>
         <Text type='tertiary'>{t('重置')}</Text>
         <Text>{formatResetPeriod(plan, t)}</Text>
+        {windowLimitItems.map((item) => (
+          <React.Fragment key={item.key}>
+            <Text type='tertiary'>{item.label}</Text>
+            <Tooltip content={`${t('原生额度')}：${item.value}`}>
+              <Text>{renderQuota(item.value)}</Text>
+            </Tooltip>
+          </React.Fragment>
+        ))}
       </div>
     </div>
   );
@@ -169,11 +182,7 @@ const renderPurchaseLimit = (text, record, t) => {
 
 const renderPlanType = (text, record, t) => {
   const plan = record?.plan || {};
-  const hasWindowLimit =
-    Number(plan.window_limit_5h || 0) > 0 ||
-    Number(plan.window_limit_7d || 0) > 0 ||
-    Number(plan.window_limit_30d || 0) > 0;
-  return hasWindowLimit ? (
+  return hasSubscriptionWindowLimit(plan) ? (
     <Tag color='blue' shape='circle'>
       {t('标准套餐')}
     </Tag>

@@ -56,6 +56,7 @@ import {
   ArrowUpRight,
   SlidersHorizontal,
 } from 'lucide-react';
+import { subscriptionWindowLimitDefinitions } from '../../helpers/subscriptionFormat';
 
 const { Text, Title } = Typography;
 
@@ -301,13 +302,6 @@ function SortableCard({
   const quotaTotal = progress?.quota_total || 0;
   const quotaPct =
     quotaTotal > 0 ? Math.min((quotaUsed / quotaTotal) * 100, 100) : 0;
-  const monthlyTotal = Number(
-    windowUsage?.['30d']?.limit || plan?.window_limit_30d || quotaTotal || 0,
-  );
-  const hasWindowLimit =
-    Number(plan?.window_limit_5h || 0) > 0 ||
-    Number(plan?.window_limit_7d || 0) > 0 ||
-    Number(plan?.window_limit_30d || 0) > 0;
   const allowedGroups = String(plan?.allowed_groups || '')
     .split(',')
     .map((group) => group.trim())
@@ -380,11 +374,15 @@ function SortableCard({
     };
   };
 
-  const windowMetrics = [
-    getWindowMetric('5h', t('5小时'), plan?.window_limit_5h),
-    getWindowMetric('7d', t('7日'), plan?.window_limit_7d),
-    getWindowMetric('30d', t('30天'), plan?.window_limit_30d),
-  ];
+  const windowMetrics = subscriptionWindowLimitDefinitions
+    .map((item) =>
+      getWindowMetric(item.key, item.getLabel(t), plan?.[item.field]),
+    )
+    .filter((metric) => metric.limit > 0);
+  const hasWindowLimit = windowMetrics.length > 0;
+  const quotaDisplayTotal = Number(
+    quotaTotal || windowMetrics[windowMetrics.length - 1]?.limit || 0,
+  );
 
   return (
     <div ref={setNodeRef} style={{ ...style }}>
@@ -504,9 +502,9 @@ function SortableCard({
                 flexWrap: 'wrap',
               }}
             >
-              {monthlyTotal > 0 && (
+              {quotaDisplayTotal > 0 && (
                 <SoftPill tone='blue'>
-                  {t('总额度')} {renderQuota(monthlyTotal)}
+                  {t('总额度')} {renderQuota(quotaDisplayTotal)}
                 </SoftPill>
               )}
               <DimensionTag plan={plan} />
@@ -606,7 +604,7 @@ function SortableCard({
             </div>
           )}
 
-          {/* 三个窗口进度条 */}
+          {/* 窗口进度条 */}
           {sub.status === 'active' && hasWindowLimit && (
             <div
               style={{

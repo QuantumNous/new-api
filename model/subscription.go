@@ -245,6 +245,7 @@ type SubscriptionPlan struct {
 
 	// Per-window quota limits (0 = no limit for that window)
 	WindowLimit5h  int64 `json:"window_limit_5h" gorm:"type:bigint;not null;default:0"`
+	WindowLimit24h int64 `json:"window_limit_24h" gorm:"type:bigint;not null;default:0"`
 	WindowLimit7d  int64 `json:"window_limit_7d" gorm:"type:bigint;not null;default:0"`
 	WindowLimit30d int64 `json:"window_limit_30d" gorm:"type:bigint;not null;default:0"`
 
@@ -1296,10 +1297,10 @@ type SubscriptionPreConsumeRecord struct {
 	Id                 int    `json:"id"`
 	RequestId          string `json:"request_id" gorm:"type:varchar(64);uniqueIndex"`
 	UserId             int    `json:"user_id" gorm:"index"`
-	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index"`
+	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index;index:idx_sub_preconsume_record_window,priority:1"`
 	PreConsumed        int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
-	Status             string `json:"status" gorm:"type:varchar(32);index"` // consumed/refunded
-	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
+	Status             string `json:"status" gorm:"type:varchar(32);index;index:idx_sub_preconsume_record_window,priority:2"` // consumed/refunded
+	CreatedAt          int64  `json:"created_at" gorm:"bigint;index:idx_sub_preconsume_record_window,priority:3"`
 	UpdatedAt          int64  `json:"updated_at" gorm:"bigint;index"`
 }
 
@@ -1308,18 +1309,20 @@ type SubscriptionPreConsumeDetail struct {
 	Id                 int    `json:"id"`
 	RequestId          string `json:"request_id" gorm:"type:varchar(64);index"`
 	UserId             int    `json:"user_id" gorm:"index"`
-	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index"`
+	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index;index:idx_sub_preconsume_detail_window,priority:1"`
 	PreConsumed        int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
 	PeriodStart        int64  `json:"period_start" gorm:"type:bigint;not null;default:0;index"`
 	PeriodEnd          int64  `json:"period_end" gorm:"type:bigint;not null;default:0;index"`
-	Status             string `json:"status" gorm:"type:varchar(32);index"`
-	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
+	Status             string `json:"status" gorm:"type:varchar(32);index;index:idx_sub_preconsume_detail_window,priority:2"`
+	CreatedAt          int64  `json:"created_at" gorm:"bigint;index:idx_sub_preconsume_detail_window,priority:3"`
 	UpdatedAt          int64  `json:"updated_at" gorm:"bigint;index"`
 }
 
 func (r *SubscriptionPreConsumeDetail) BeforeCreate(tx *gorm.DB) error {
 	now := common.GetTimestamp()
-	r.CreatedAt = now
+	if r.CreatedAt == 0 {
+		r.CreatedAt = now
+	}
 	r.UpdatedAt = now
 	return nil
 }
@@ -1331,7 +1334,9 @@ func (r *SubscriptionPreConsumeDetail) BeforeUpdate(tx *gorm.DB) error {
 
 func (r *SubscriptionPreConsumeRecord) BeforeCreate(tx *gorm.DB) error {
 	now := common.GetTimestamp()
-	r.CreatedAt = now
+	if r.CreatedAt == 0 {
+		r.CreatedAt = now
+	}
 	r.UpdatedAt = now
 	return nil
 }
@@ -1433,17 +1438,43 @@ func getSubscriptionAvailableAmountTx(tx *gorm.DB, sub *UserSubscription) int64 
 	if sub == nil {
 		return 0
 	}
+	plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
+	if err != nil {
+		available := int64(1<<63 - 1)
+		if sub.AmountTotal > 0 {
+			available = sub.AmountTotal - sub.AmountUsed
+		}
+		if available < 0 {
+			return 0
+		}
+		return available
+	}
+	return getSubscriptionAvailableAmountWithPlanTx(tx, sub, plan)
+}
+
+func getSubscriptionTotalAvailableAmount(sub *UserSubscription) int64 {
+	if sub == nil {
+		return 0
+	}
 	available := int64(1<<63 - 1)
 	if sub.AmountTotal > 0 {
 		available = sub.AmountTotal - sub.AmountUsed
 	}
-	usage, err := getSubscriptionWindowUsageTx(tx, sub.Id)
+	if available < 0 {
+		return 0
+	}
+	return available
+}
+
+func getSubscriptionAvailableAmountWithPlanTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan) int64 {
+	if sub == nil {
+		return 0
+	}
+	available := getSubscriptionTotalAvailableAmount(sub)
+	usage, err := getSubscriptionWindowLimitUsedTx(tx, sub.Id, plan)
 	if err == nil {
-		for _, wu := range usage {
-			if wu.Limit <= 0 {
-				continue
-			}
-			windowAvailable := wu.Limit - wu.Used
+		for _, item := range usage {
+			windowAvailable := item.limit - item.used
 			if windowAvailable < available {
 				available = windowAvailable
 			}
@@ -1455,7 +1486,169 @@ func getSubscriptionAvailableAmountTx(tx *gorm.DB, sub *UserSubscription) int64 
 	return available
 }
 
-func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amount int64, group string, allowPartial bool) (firstSub *UserSubscription, consumed int64, usedBefore int64, usedAfter int64, err error) {
+type subscriptionWindowDef struct {
+	key     string
+	limit   int64
+	since   int64
+	seconds int64
+}
+
+type subscriptionWindowAggregate struct {
+	used        int64
+	resetSource int64
+}
+
+func buildSubscriptionWindowDefs(plan *SubscriptionPlan, now int64, onlyLimited bool) []subscriptionWindowDef {
+	if plan == nil {
+		return nil
+	}
+	defs := []subscriptionWindowDef{
+		{key: "5h", since: now - 5*3600, limit: plan.WindowLimit5h, seconds: 5 * 3600},
+		{key: "24h", since: now - 24*3600, limit: plan.WindowLimit24h, seconds: 24 * 3600},
+		{key: "7d", since: now - 7*86400, limit: plan.WindowLimit7d, seconds: 7 * 86400},
+		{key: "30d", since: now - 30*86400, limit: plan.WindowLimit30d, seconds: 30 * 86400},
+	}
+	if !onlyLimited {
+		return defs
+	}
+	limited := make([]subscriptionWindowDef, 0, len(defs))
+	for _, def := range defs {
+		if def.limit > 0 {
+			limited = append(limited, def)
+		}
+	}
+	return limited
+}
+
+func minSubscriptionWindowSince(defs []subscriptionWindowDef) int64 {
+	if len(defs) == 0 {
+		return 0
+	}
+	minSince := defs[0].since
+	for _, def := range defs[1:] {
+		if def.since < minSince {
+			minSince = def.since
+		}
+	}
+	return minSince
+}
+
+func subscriptionLegacyWindowUsageEnabled() bool {
+	return common.GetEnvOrDefaultBool("SUBSCRIPTION_LEGACY_WINDOW_USAGE", true)
+}
+
+func scanSubscriptionWindowAggregatesTx(tx *gorm.DB, userSubscriptionId int, defs []subscriptionWindowDef, includeReset bool, includeLegacy bool) (map[string]subscriptionWindowAggregate, error) {
+	result := make(map[string]subscriptionWindowAggregate, len(defs))
+	if userSubscriptionId <= 0 || len(defs) == 0 {
+		return result, nil
+	}
+	query := DB
+	if tx != nil {
+		query = tx
+	}
+	minSince := minSubscriptionWindowSince(defs)
+
+	scanTable := func(table string, excludeExistingDetails bool) ([]int64, []int64, error) {
+		selectParts := make([]string, 0, len(defs)*2)
+		args := make([]interface{}, 0, len(defs)*2)
+		for _, def := range defs {
+			selectParts = append(selectParts, "COALESCE(SUM(CASE WHEN created_at >= ? THEN pre_consumed ELSE 0 END), 0)")
+			args = append(args, def.since)
+		}
+		if includeReset {
+			for _, def := range defs {
+				selectParts = append(selectParts, "COALESCE(MIN(CASE WHEN created_at >= ? THEN created_at ELSE NULL END), 0)")
+				args = append(args, def.since)
+			}
+		}
+		selectSQL := strings.Join(selectParts, ", ")
+		rows, err := query.Table(table).
+			Where("user_subscription_id = ? AND status = ? AND created_at >= ?", userSubscriptionId, "consumed", minSince).
+			Scopes(func(db *gorm.DB) *gorm.DB {
+				if !excludeExistingDetails {
+					return db
+				}
+				return db.Where("NOT EXISTS (?)", query.Model(&SubscriptionPreConsumeDetail{}).Select("1").Where("subscription_pre_consume_details.request_id = subscription_pre_consume_records.request_id"))
+			}).
+			Select(selectSQL, args...).Rows()
+		if err != nil {
+			return nil, nil, err
+		}
+		defer rows.Close()
+
+		used := make([]int64, len(defs))
+		reset := make([]int64, len(defs))
+		if !rows.Next() {
+			return used, reset, nil
+		}
+		dest := make([]interface{}, 0, len(defs)*2)
+		for i := range used {
+			dest = append(dest, &used[i])
+		}
+		if includeReset {
+			for i := range reset {
+				dest = append(dest, &reset[i])
+			}
+		}
+		if err := rows.Scan(dest...); err != nil {
+			return nil, nil, err
+		}
+		return used, reset, nil
+	}
+
+	detailUsed, detailReset, err := scanTable("subscription_pre_consume_details", false)
+	if err != nil {
+		return nil, err
+	}
+	for i, def := range defs {
+		result[def.key] = subscriptionWindowAggregate{used: detailUsed[i], resetSource: detailReset[i]}
+	}
+
+	if !includeLegacy {
+		return result, nil
+	}
+	legacyUsed, legacyReset, err := scanTable("subscription_pre_consume_records", true)
+	if err != nil {
+		return nil, err
+	}
+	for i, def := range defs {
+		item := result[def.key]
+		item.used += legacyUsed[i]
+		if includeReset && (item.resetSource == 0 || (legacyReset[i] > 0 && legacyReset[i] < item.resetSource)) {
+			item.resetSource = legacyReset[i]
+		}
+		result[def.key] = item
+	}
+	return result, nil
+}
+
+func getSubscriptionWindowLimitUsedTx(tx *gorm.DB, userSubscriptionId int, plan *SubscriptionPlan) (map[string]struct {
+	used  int64
+	limit int64
+}, error) {
+	now := getDBTimestampTx(tx)
+	defs := buildSubscriptionWindowDefs(plan, now, true)
+	result := make(map[string]struct {
+		used  int64
+		limit int64
+	}, len(defs))
+	if len(defs) == 0 {
+		return result, nil
+	}
+	agg, err := scanSubscriptionWindowAggregatesTx(tx, userSubscriptionId, defs, false, subscriptionLegacyWindowUsageEnabled())
+	if err != nil {
+		return nil, err
+	}
+	for _, def := range defs {
+		result[def.key] = struct {
+			used  int64
+			limit int64
+		}{used: agg[def.key].used, limit: def.limit}
+	}
+	return result, nil
+}
+
+func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amount int64, group string, allowPartial bool) (firstSub *UserSubscription, consumed int64, usedBefore int64, usedAfter int64, redisDeltas []subscriptionWindowRedisBucketDelta, err error) {
 	remaining := amount
 	now := getDBTimestampTx(tx)
 
@@ -1465,10 +1658,10 @@ func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amou
 			userId, "active", false, now, "pending_activation", false).
 		Order("priority desc, end_time asc, id asc").
 		Find(&subs).Error; err != nil {
-		return nil, 0, 0, 0, errors.New("no active subscription")
+		return nil, 0, 0, 0, nil, errors.New("no active subscription")
 	}
 	if len(subs) == 0 {
-		return nil, 0, 0, 0, errors.New("no active subscription")
+		return nil, 0, 0, 0, nil, errors.New("no active subscription")
 	}
 
 	for _, candidate := range subs {
@@ -1478,7 +1671,7 @@ func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amou
 		sub := candidate
 		plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 		if err != nil {
-			return nil, 0, 0, 0, err
+			return nil, 0, 0, 0, redisDeltas, err
 		}
 
 		if sub.Disabled {
@@ -1492,14 +1685,14 @@ func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amou
 					"status":     "expired",
 					"updated_at": common.GetTimestamp(),
 				}).Error; err != nil {
-					return nil, 0, 0, 0, err
+					return nil, 0, 0, 0, redisDeltas, err
 				}
 				continue
 			}
 			activateTime := time.Unix(now, 0)
 			endUnix, err := calcPlanEndTime(activateTime, plan)
 			if err != nil {
-				return nil, 0, 0, 0, err
+				return nil, 0, 0, 0, redisDeltas, err
 			}
 			nextReset := calcNextResetTime(activateTime, plan, endUnix)
 			lastReset := int64(0)
@@ -1516,7 +1709,7 @@ func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amou
 				"updated_at":      common.GetTimestamp(),
 			}
 			if err := tx.Model(&sub).Updates(updates).Error; err != nil {
-				return nil, 0, 0, 0, err
+				return nil, 0, 0, 0, redisDeltas, err
 			}
 			sub.Status = UserSubscriptionStatusActive
 			sub.ActivatedAt = now
@@ -1527,7 +1720,7 @@ func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amou
 
 			if strings.TrimSpace(plan.UpgradeGroup) != "" {
 				if _, err := applyResolvedUserGroup(tx, userId); err != nil {
-					return nil, 0, 0, 0, err
+					return nil, 0, 0, 0, redisDeltas, err
 				}
 			}
 		}
@@ -1537,10 +1730,14 @@ func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amou
 		}
 
 		if err := ensureUserSubscriptionPeriodFreshTx(tx, &sub, plan, now); err != nil {
-			return nil, 0, 0, 0, err
+			return nil, 0, 0, 0, redisDeltas, err
 		}
 
-		available := getSubscriptionAvailableAmountTx(tx, &sub)
+		useRedisWindow := subscriptionWindowRedisBucketEnabled() && len(buildSubscriptionWindowDefs(plan, now, true)) > 0
+		available := getSubscriptionAvailableAmountWithPlanTx(tx, &sub, plan)
+		if useRedisWindow {
+			available = getSubscriptionTotalAvailableAmount(&sub)
+		}
 		if available <= 0 {
 			continue
 		}
@@ -1550,6 +1747,19 @@ func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amou
 		}
 		if consume <= 0 {
 			continue
+		}
+		if useRedisWindow {
+			reserved, redisDelta, err := reserveSubscriptionWindowRedisBucketTx(tx, &sub, plan, consume, now)
+			if err != nil {
+				return nil, 0, 0, 0, redisDeltas, err
+			}
+			if reserved <= 0 {
+				continue
+			}
+			consume = reserved
+			if redisDelta != nil {
+				redisDeltas = append(redisDeltas, *redisDelta)
+			}
 		}
 
 		if firstSub == nil {
@@ -1568,11 +1778,16 @@ func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amou
 			Status:             "consumed",
 		}
 		if err := tx.Create(detail).Error; err != nil {
-			return nil, 0, 0, 0, err
+			return nil, 0, 0, 0, redisDeltas, err
 		}
 		sub.AmountUsed += consume
 		if err := tx.Save(&sub).Error; err != nil {
-			return nil, 0, 0, 0, err
+			return nil, 0, 0, 0, redisDeltas, err
+		}
+		if useRedisWindow {
+			if err := refreshSubscriptionWindowRedisWatermarkTx(tx, sub.Id, now); err != nil {
+				return nil, 0, 0, 0, redisDeltas, err
+			}
 		}
 		InvalidateWindowUsageCache(sub.Id)
 		if firstSub != nil && firstSub.Id == sub.Id {
@@ -1583,12 +1798,12 @@ func consumeSubscriptionAmountTx(tx *gorm.DB, requestId string, userId int, amou
 	}
 
 	if remaining > 0 && !allowPartial {
-		return nil, 0, 0, 0, fmt.Errorf("subscription quota insufficient, need=%d", amount)
+		return nil, 0, 0, 0, redisDeltas, fmt.Errorf("subscription quota insufficient, need=%d", amount)
 	}
 	if firstSub == nil {
-		return nil, 0, 0, 0, fmt.Errorf("subscription quota insufficient, need=%d", amount)
+		return nil, 0, 0, 0, redisDeltas, fmt.Errorf("subscription quota insufficient, need=%d", amount)
 	}
-	return firstSub, consumed, usedBefore, usedAfter, nil
+	return firstSub, consumed, usedBefore, usedAfter, redisDeltas, nil
 }
 
 // PreConsumeUserSubscription pre-consumes from user's subscriptions sorted by priority.
@@ -1609,6 +1824,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 
 	var err error
 	for attempt := 0; attempt < 3; attempt++ {
+		var redisDeltas []subscriptionWindowRedisBucketDelta
 		err = DB.Transaction(func(tx *gorm.DB) error {
 			var existing SubscriptionPreConsumeRecord
 			query := tx.Where("request_id = ?", requestId).Limit(1).Find(&existing)
@@ -1631,7 +1847,8 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				return err
 			}
 
-			firstSub, consumed, usedBefore, usedAfter, err := consumeSubscriptionAmountTx(tx, requestId, userId, amount, group, false)
+			firstSub, consumed, usedBefore, usedAfter, deltas, err := consumeSubscriptionAmountTx(tx, requestId, userId, amount, group, false)
+			redisDeltas = append(redisDeltas, deltas...)
 			if err != nil {
 				return err
 			}
@@ -1647,6 +1864,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountUsedAfter = usedAfter
 			return nil
 		})
+		if err != nil {
+			err = appendRedisRollbackError(err, redisDeltas)
+		}
 		if !errors.Is(err, errSubscriptionPreConsumeRetry) {
 			break
 		}
@@ -1672,6 +1892,7 @@ func PreConsumeUserSubscriptionPartial(requestId string, userId int, modelName s
 
 	var err error
 	for attempt := 0; attempt < 3; attempt++ {
+		var redisDeltas []subscriptionWindowRedisBucketDelta
 		err = DB.Transaction(func(tx *gorm.DB) error {
 			var existing SubscriptionPreConsumeRecord
 			query := tx.Where("request_id = ?", requestId).Limit(1).Find(&existing)
@@ -1694,7 +1915,8 @@ func PreConsumeUserSubscriptionPartial(requestId string, userId int, modelName s
 				return err
 			}
 
-			firstSub, consumed, usedBefore, usedAfter, err := consumeSubscriptionAmountTx(tx, requestId, userId, amount, group, true)
+			firstSub, consumed, usedBefore, usedAfter, deltas, err := consumeSubscriptionAmountTx(tx, requestId, userId, amount, group, true)
+			redisDeltas = append(redisDeltas, deltas...)
 			if err != nil {
 				return err
 			}
@@ -1710,6 +1932,9 @@ func PreConsumeUserSubscriptionPartial(requestId string, userId int, modelName s
 			returnValue.AmountUsedAfter = usedAfter
 			return nil
 		})
+		if err != nil {
+			err = appendRedisRollbackError(err, redisDeltas)
+		}
 		if !errors.Is(err, errSubscriptionPreConsumeRetry) {
 			break
 		}
@@ -1726,7 +1951,8 @@ func RefundSubscriptionPreConsume(requestId string) error {
 	if strings.TrimSpace(requestId) == "" {
 		return errors.New("requestId is empty")
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
+	var redisDeltas []subscriptionWindowRedisBucketDelta
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		var record SubscriptionPreConsumeRecord
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("request_id = ?", requestId).First(&record).Error; err != nil {
@@ -1737,7 +1963,10 @@ func RefundSubscriptionPreConsume(requestId string) error {
 		}
 		if record.PreConsumed <= 0 {
 			record.Status = "refunded"
-			return tx.Save(&record).Error
+			if err := tx.Save(&record).Error; err != nil {
+				return err
+			}
+			return refreshSubscriptionWindowRedisWatermarkTx(tx, record.UserSubscriptionId, getDBTimestampTx(tx))
 		}
 		var details []SubscriptionPreConsumeDetail
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -1753,6 +1982,13 @@ func RefundSubscriptionPreConsume(requestId string) error {
 				if err := postConsumeUserSubscriptionDetailDeltaTx(tx, &detail, -detail.PreConsumed); err != nil {
 					return err
 				}
+				redisDelta, err := syncSubscriptionWindowRedisBucketDeltaForTimeTx(tx, detail.UserSubscriptionId, detail.CreatedAt, -detail.PreConsumed)
+				if err != nil {
+					return err
+				}
+				if redisDelta != nil {
+					redisDeltas = append(redisDeltas, *redisDelta)
+				}
 				detail.Status = "refunded"
 				if err := tx.Save(&detail).Error; err != nil {
 					return err
@@ -1763,11 +1999,25 @@ func RefundSubscriptionPreConsume(requestId string) error {
 			if err := postConsumeUserSubscriptionDeltaTx(tx, record.UserSubscriptionId, -record.PreConsumed); err != nil {
 				return err
 			}
+			redisDelta, err := syncSubscriptionWindowRedisBucketDeltaForTimeTx(tx, record.UserSubscriptionId, record.CreatedAt, -record.PreConsumed)
+			if err != nil {
+				return err
+			}
+			if redisDelta != nil {
+				redisDeltas = append(redisDeltas, *redisDelta)
+			}
 			InvalidateWindowUsageCache(record.UserSubscriptionId)
 		}
 		record.Status = "refunded"
-		return tx.Save(&record).Error
+		if err := tx.Save(&record).Error; err != nil {
+			return err
+		}
+		return refreshSubscriptionWindowRedisWatermarkTx(tx, record.UserSubscriptionId, getDBTimestampTx(tx))
 	})
+	if err != nil {
+		err = appendRedisRollbackError(err, redisDeltas)
+	}
+	return err
 }
 
 // AdjustSubscriptionPreConsume adjusts a consumed request by delta.
@@ -1779,7 +2029,8 @@ func AdjustSubscriptionPreConsume(requestId string, userId int, delta int64, gro
 	if delta == 0 {
 		return nil
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
+	var redisDeltas []subscriptionWindowRedisBucketDelta
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		var record SubscriptionPreConsumeRecord
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("request_id = ?", requestId).First(&record).Error; err != nil {
@@ -1792,11 +2043,16 @@ func AdjustSubscriptionPreConsume(requestId string, userId int, delta int64, gro
 			userId = record.UserId
 		}
 		if delta > 0 {
-			if _, _, _, _, err := consumeSubscriptionAmountTx(tx, requestId, userId, delta, group, false); err != nil {
+			_, _, _, _, deltas, err := consumeSubscriptionAmountTx(tx, requestId, userId, delta, group, false)
+			redisDeltas = append(redisDeltas, deltas...)
+			if err != nil {
 				return err
 			}
 			record.PreConsumed += delta
-			return tx.Save(&record).Error
+			if err := tx.Save(&record).Error; err != nil {
+				return err
+			}
+			return refreshSubscriptionWindowRedisWatermarkTx(tx, record.UserSubscriptionId, getDBTimestampTx(tx))
 		}
 
 		refund := -delta
@@ -1824,6 +2080,13 @@ func AdjustSubscriptionPreConsume(requestId string, userId int, delta int64, gro
 			if err := postConsumeUserSubscriptionDetailDeltaTx(tx, &detail, -part); err != nil {
 				return err
 			}
+			redisDelta, err := syncSubscriptionWindowRedisBucketDeltaForTimeTx(tx, detail.UserSubscriptionId, detail.CreatedAt, -part)
+			if err != nil {
+				return err
+			}
+			if redisDelta != nil {
+				redisDeltas = append(redisDeltas, *redisDelta)
+			}
 			detail.PreConsumed -= part
 			if detail.PreConsumed == 0 {
 				detail.Status = "refunded"
@@ -1838,14 +2101,28 @@ func AdjustSubscriptionPreConsume(requestId string, userId int, delta int64, gro
 			if err := postConsumeUserSubscriptionDeltaTx(tx, record.UserSubscriptionId, -remaining); err != nil {
 				return err
 			}
+			redisDelta, err := syncSubscriptionWindowRedisBucketDeltaForTimeTx(tx, record.UserSubscriptionId, record.CreatedAt, -remaining)
+			if err != nil {
+				return err
+			}
+			if redisDelta != nil {
+				redisDeltas = append(redisDeltas, *redisDelta)
+			}
 			InvalidateWindowUsageCache(record.UserSubscriptionId)
 		}
 		record.PreConsumed -= refund
 		if record.PreConsumed < 0 {
 			record.PreConsumed = 0
 		}
-		return tx.Save(&record).Error
+		if err := tx.Save(&record).Error; err != nil {
+			return err
+		}
+		return refreshSubscriptionWindowRedisWatermarkTx(tx, record.UserSubscriptionId, getDBTimestampTx(tx))
 	})
+	if err != nil {
+		err = appendRedisRollbackError(err, redisDeltas)
+	}
+	return err
 }
 
 func AdjustSubscriptionPreConsumePartial(requestId string, userId int, delta int64, group string) (int64, error) {
@@ -1856,6 +2133,7 @@ func AdjustSubscriptionPreConsumePartial(requestId string, userId int, delta int
 		return 0, nil
 	}
 	consumed := int64(0)
+	var redisDeltas []subscriptionWindowRedisBucketDelta
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var record SubscriptionPreConsumeRecord
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -1868,7 +2146,8 @@ func AdjustSubscriptionPreConsumePartial(requestId string, userId int, delta int
 		if userId <= 0 {
 			userId = record.UserId
 		}
-		_, part, _, _, err := consumeSubscriptionAmountTx(tx, requestId, userId, delta, group, true)
+		_, part, _, _, deltas, err := consumeSubscriptionAmountTx(tx, requestId, userId, delta, group, true)
+		redisDeltas = append(redisDeltas, deltas...)
 		if err != nil {
 			if strings.Contains(err.Error(), "subscription quota insufficient") || strings.Contains(err.Error(), "no active subscription") {
 				return nil
@@ -1880,8 +2159,14 @@ func AdjustSubscriptionPreConsumePartial(requestId string, userId int, delta int
 		}
 		consumed = part
 		record.PreConsumed += part
-		return tx.Save(&record).Error
+		if err := tx.Save(&record).Error; err != nil {
+			return err
+		}
+		return refreshSubscriptionWindowRedisWatermarkTx(tx, record.UserSubscriptionId, getDBTimestampTx(tx))
 	})
+	if err != nil {
+		err = appendRedisRollbackError(err, redisDeltas)
+	}
 	return consumed, err
 }
 
@@ -1939,7 +2224,7 @@ type WindowUsage struct {
 }
 
 // GetSubscriptionWindowUsage returns per-window usage and limits for a subscription.
-// Windows: 5h, 7d, 30d. Only counts 'consumed' (not refunded) records.
+// Windows: 5h, 24h, 7d, 30d. Only counts 'consumed' (not refunded) records.
 func GetSubscriptionWindowUsage(userSubscriptionId int) (map[string]WindowUsage, error) {
 	return getSubscriptionWindowUsageTx(nil, userSubscriptionId)
 }
@@ -1966,56 +2251,17 @@ func getSubscriptionWindowUsageTx(tx *gorm.DB, userSubscriptionId int) (map[stri
 	}
 
 	now := getDBTimestampTx(tx)
-	type windowDef struct {
-		since   int64
-		limit   int64
-		seconds int64
-	}
-	windows := map[string]windowDef{
-		"5h":  {since: now - 5*3600, limit: plan.WindowLimit5h, seconds: 5 * 3600},
-		"7d":  {since: now - 7*86400, limit: plan.WindowLimit7d, seconds: 7 * 86400},
-		"30d": {since: now - 30*86400, limit: plan.WindowLimit30d, seconds: 30 * 86400},
+	defs := buildSubscriptionWindowDefs(plan, now, false)
+	agg, err := scanSubscriptionWindowAggregatesTx(tx, userSubscriptionId, defs, true, subscriptionLegacyWindowUsageEnabled())
+	if err != nil {
+		return nil, err
 	}
 
-	result := make(map[string]WindowUsage, len(windows))
-	for name, w := range windows {
-		var total int64
-		err := query.Model(&SubscriptionPreConsumeDetail{}).
-			Where("user_subscription_id = ? AND status = 'consumed' AND created_at >= ?", userSubscriptionId, w.since).
-			Select("COALESCE(SUM(pre_consumed), 0)").Scan(&total).Error
-		if err != nil {
-			return nil, err
-		}
-		var legacyTotal int64
-		err = query.Model(&SubscriptionPreConsumeRecord{}).
-			Where("user_subscription_id = ? AND status = 'consumed' AND created_at >= ?", userSubscriptionId, w.since).
-			Where("NOT EXISTS (?)", query.Model(&SubscriptionPreConsumeDetail{}).Select("1").Where("subscription_pre_consume_details.request_id = subscription_pre_consume_records.request_id")).
-			Select("COALESCE(SUM(pre_consumed), 0)").Scan(&legacyTotal).Error
-		if err != nil {
-			return nil, err
-		}
-		total += legacyTotal
-
-		var resetSource int64
-		if total > 0 {
-			err = query.Model(&SubscriptionPreConsumeDetail{}).
-				Where("user_subscription_id = ? AND status = 'consumed' AND created_at >= ?", userSubscriptionId, w.since).
-				Select("COALESCE(MIN(created_at), 0)").Scan(&resetSource).Error
-			if err != nil {
-				return nil, err
-			}
-			var legacyResetSource int64
-			err = query.Model(&SubscriptionPreConsumeRecord{}).
-				Where("user_subscription_id = ? AND status = 'consumed' AND created_at >= ?", userSubscriptionId, w.since).
-				Where("NOT EXISTS (?)", query.Model(&SubscriptionPreConsumeDetail{}).Select("1").Where("subscription_pre_consume_details.request_id = subscription_pre_consume_records.request_id")).
-				Select("COALESCE(MIN(created_at), 0)").Scan(&legacyResetSource).Error
-			if err != nil {
-				return nil, err
-			}
-			if resetSource == 0 || (legacyResetSource > 0 && legacyResetSource < resetSource) {
-				resetSource = legacyResetSource
-			}
-		}
+	result := make(map[string]WindowUsage, len(defs))
+	for _, w := range defs {
+		item := agg[w.key]
+		total := item.used
+		resetSource := item.resetSource
 
 		resetAt := int64(0)
 		resetAfterSeconds := int64(0)
@@ -2027,7 +2273,7 @@ func getSubscriptionWindowUsageTx(tx *gorm.DB, userSubscriptionId int) (map[stri
 			}
 		}
 
-		result[name] = WindowUsage{Used: total, Limit: w.limit, Since: w.since, WindowSeconds: w.seconds, ResetAt: resetAt, ResetAfterSeconds: resetAfterSeconds}
+		result[w.key] = WindowUsage{Used: total, Limit: w.limit, Since: w.since, WindowSeconds: w.seconds, ResetAt: resetAt, ResetAfterSeconds: resetAfterSeconds}
 	}
 	return result, nil
 }

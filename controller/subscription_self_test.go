@@ -503,6 +503,7 @@ func TestAdminCreateSubscriptionPlan_AllowsWindowDifferentFromTotal(t *testing.T
 			DurationValue:  1,
 			TotalAmount:    100000,
 			WindowLimit5h:  0,
+			WindowLimit24h: 24000,
 			WindowLimit7d:  0,
 			WindowLimit30d: 0,
 			Enabled:        true,
@@ -516,7 +517,44 @@ func TestAdminCreateSubscriptionPlan_AllowsWindowDifferentFromTotal(t *testing.T
 	var plan model.SubscriptionPlan
 	require.NoError(t, db.Where("title = ?", "无窗口包月套餐").First(&plan).Error)
 	assert.Equal(t, int64(100000), plan.TotalAmount)
+	assert.Equal(t, int64(24000), plan.WindowLimit24h)
 	assert.Equal(t, int64(0), plan.WindowLimit30d)
+}
+
+func TestAdminUpdateSubscriptionPlan_UpdatesWindowLimit24h(t *testing.T) {
+	db := openSubControllerTestDB(t)
+
+	plan := &model.SubscriptionPlan{
+		Title:         "24h更新前",
+		PriceAmount:   9.9,
+		DurationUnit:  model.SubscriptionDurationMonth,
+		DurationValue: 1,
+		TotalAmount:   100000,
+		Enabled:       true,
+	}
+	require.NoError(t, db.Create(plan).Error)
+
+	ctx, recorder := newAuthContext(t, http.MethodPut, fmt.Sprintf("/api/subscription/admin/plans/%d", plan.Id), AdminUpsertSubscriptionPlanRequest{
+		Plan: model.SubscriptionPlan{
+			Title:          "24h更新后",
+			PriceAmount:    19.9,
+			DurationUnit:   model.SubscriptionDurationMonth,
+			DurationValue:  1,
+			TotalAmount:    200000,
+			WindowLimit24h: 24000,
+			Enabled:        true,
+		},
+	}, 1)
+	ctx.Params = gin.Params{{Key: "id", Value: fmt.Sprintf("%d", plan.Id)}}
+
+	AdminUpdateSubscriptionPlan(ctx)
+	resp := decodeResponse(t, recorder)
+	assert.True(t, resp.Success)
+
+	var updated model.SubscriptionPlan
+	require.NoError(t, db.First(&updated, plan.Id).Error)
+	assert.Equal(t, int64(24000), updated.WindowLimit24h)
+	assert.Equal(t, int64(0), updated.WindowLimit5h)
 }
 
 func TestAdminCreateSubscriptionPlan_RejectsNegativeWindowLimit(t *testing.T) {
@@ -529,7 +567,7 @@ func TestAdminCreateSubscriptionPlan_RejectsNegativeWindowLimit(t *testing.T) {
 			DurationUnit:   model.SubscriptionDurationMonth,
 			DurationValue:  1,
 			TotalAmount:    100000,
-			WindowLimit5h:  -1,
+			WindowLimit24h: -1,
 			WindowLimit7d:  0,
 			WindowLimit30d: 0,
 			Enabled:        true,

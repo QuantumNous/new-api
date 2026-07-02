@@ -44,6 +44,7 @@ import {
   quotaToDisplayAmount,
   displayAmountToQuota,
 } from '../../../../helpers/quota';
+import { subscriptionWindowLimitDefinitions } from '../../../../helpers/subscriptionFormat';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
 const { Text, Title } = Typography;
@@ -101,6 +102,7 @@ const AddEditSubscriptionModal = ({
     is_recommended: false,
     tags: '',
     window_limit_5h: 0,
+    window_limit_24h: 0,
     window_limit_7d: 0,
     window_limit_30d: 0,
   });
@@ -127,13 +129,21 @@ const AddEditSubscriptionModal = ({
         quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
       ),
       upgrade_group: p.upgrade_group || '',
-      allowed_groups: p.allowed_groups ? p.allowed_groups.split(',').map(g => g.trim()).filter(g => g) : [],
+      allowed_groups: p.allowed_groups
+        ? p.allowed_groups
+            .split(',')
+            .map((g) => g.trim())
+            .filter((g) => g)
+        : [],
       stripe_price_id: p.stripe_price_id || '',
       creem_product_id: p.creem_product_id || '',
       is_recommended: p.is_recommended || false,
       tags: p.tags || '',
       window_limit_5h: Number(
         quotaToDisplayAmount(p.window_limit_5h || 0).toFixed(2),
+      ),
+      window_limit_24h: Number(
+        quotaToDisplayAmount(p.window_limit_24h || 0).toFixed(2),
       ),
       window_limit_7d: Number(
         quotaToDisplayAmount(p.window_limit_7d || 0).toFixed(2),
@@ -184,10 +194,11 @@ const AddEditSubscriptionModal = ({
           upgrade_group: values.upgrade_group || '',
           allowed_groups: Array.isArray(values.allowed_groups)
             ? values.allowed_groups.join(',')
-            : (values.allowed_groups || ''),
+            : values.allowed_groups || '',
           is_recommended: values.is_recommended || false,
           tags: values.tags || '',
           window_limit_5h: displayAmountToQuota(values.window_limit_5h),
+          window_limit_24h: displayAmountToQuota(values.window_limit_24h),
           window_limit_7d: displayAmountToQuota(values.window_limit_7d),
           window_limit_30d: displayAmountToQuota(values.window_limit_30d),
         },
@@ -588,42 +599,20 @@ const AddEditSubscriptionModal = ({
                   </div>
 
                   <Row gutter={12}>
-                    <Col span={8}>
-                      <Form.InputNumber
-                        field='window_limit_5h'
-                        label={t('5小时窗口($)')}
-                        min={0}
-                        precision={2}
-                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
-                          values.window_limit_5h,
-                        )}`}
-                        style={{ width: '100%' }}
-                      />
-                    </Col>
-                    <Col span={8}>
-                      <Form.InputNumber
-                        field='window_limit_7d'
-                        label={t('7天窗口($)')}
-                        min={0}
-                        precision={2}
-                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
-                          values.window_limit_7d,
-                        )}`}
-                        style={{ width: '100%' }}
-                      />
-                    </Col>
-                    <Col span={8}>
-                      <Form.InputNumber
-                        field='window_limit_30d'
-                        label={t('30天窗口($)')}
-                        min={0}
-                        precision={2}
-                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
-                          values.window_limit_30d,
-                        )}`}
-                        style={{ width: '100%' }}
-                      />
-                    </Col>
+                    {subscriptionWindowLimitDefinitions.map((item) => (
+                      <Col key={item.key} span={isMobile ? 24 : 12}>
+                        <Form.InputNumber
+                          field={item.field}
+                          label={item.getFormLabel(t)}
+                          min={0}
+                          precision={2}
+                          extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
+                            values[item.field],
+                          )}`}
+                          style={{ width: '100%' }}
+                        />
+                      </Col>
+                    ))}
                   </Row>
                 </Card>
 

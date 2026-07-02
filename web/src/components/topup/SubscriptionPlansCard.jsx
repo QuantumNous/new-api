@@ -44,6 +44,7 @@ import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
 import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
+  getSubscriptionWindowLimitItems,
 } from '../../helpers/subscriptionFormat';
 
 const { Text } = Typography;
@@ -638,23 +639,10 @@ const SubscriptionPlansCard = ({
                       .split(',')
                       .map((group) => group.trim())
                       .filter(Boolean);
-                    const windowQuotaItems = [
-                      {
-                        key: '5h',
-                        label: t('5小时'),
-                        value: Number(plan?.window_limit_5h || 0),
-                      },
-                      {
-                        key: '7d',
-                        label: t('7日'),
-                        value: Number(plan?.window_limit_7d || 0),
-                      },
-                      {
-                        key: '30d',
-                        label: t('30天'),
-                        value: Number(plan?.window_limit_30d || 0),
-                      },
-                    ].filter((item) => item.value > 0);
+                    const windowQuotaItems = getSubscriptionWindowLimitItems(
+                      plan,
+                      t,
+                    );
                     const visibleQuotaItems =
                       windowQuotaItems.length > 0
                         ? windowQuotaItems

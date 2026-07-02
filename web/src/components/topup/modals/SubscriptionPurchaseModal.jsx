@@ -35,6 +35,7 @@ import { getCurrencyConfig } from '../../../helpers/render';
 import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
+  getSubscriptionWindowLimitItems,
 } from '../../../helpers/subscriptionFormat';
 
 const { Text } = Typography;
@@ -77,11 +78,7 @@ const SubscriptionPurchaseModal = ({
   const purchaseCount = Number(purchaseLimitInfo?.count || 0);
   const purchaseLimitReached =
     purchaseLimit > 0 && purchaseCount >= purchaseLimit;
-  const windowQuotas = [
-    { label: t('5小时额度'), value: Number(plan?.window_limit_5h || 0) },
-    { label: t('本周额度'), value: Number(plan?.window_limit_7d || 0) },
-    { label: t('本月额度'), value: Number(plan?.window_limit_30d || 0) },
-  ].filter((item) => item.value > 0);
+  const windowQuotas = getSubscriptionWindowLimitItems(plan, t, 'quota');
 
   return (
     <Modal
@@ -184,16 +181,14 @@ const SubscriptionPurchaseModal = ({
                 ))}
                 <div className='flex justify-between items-center'>
                   <Text strong className='text-slate-700 dark:text-slate-200'>
-                    {t('本月总额度')}：
+                    {t('重置周期额度')}：
                   </Text>
                   <div className='flex items-center'>
                     <Package size={14} className='mr-1 text-slate-500' />
                     {totalAmount > 0 ? (
-                      <Tooltip content={`${t('原生额度')}：${totalAmount}`}>
-                        <Text className='text-slate-900 dark:text-slate-100'>
-                          {renderQuota(totalAmount)}
-                        </Text>
-                      </Tooltip>
+                      <Text className='text-slate-900 dark:text-slate-100'>
+                        {renderQuota(totalAmount)}
+                      </Text>
                     ) : (
                       <Text className='text-slate-900 dark:text-slate-100'>
                         {t('不限')}
