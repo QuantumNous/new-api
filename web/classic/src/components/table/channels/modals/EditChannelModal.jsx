@@ -163,6 +163,8 @@ function type2secretPrompt(type) {
       return 'agnes_key_prompt';
     case 61:
       return 'vyro_key_prompt';
+    case 62:
+      return '83zi_key_prompt';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -706,6 +708,13 @@ const EditChannelModal = (props) => {
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://996k.cn/v1',
+          }));
+          break;
+        case 62: // 83zi SD2
+          localModels = ['sd2fast', 'sd2'];
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://sd2.83zi.com',
           }));
           break;
         default:
@@ -2699,13 +2708,17 @@ const EditChannelModal = (props) => {
                       />
                     )}
 
-                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61) && (
+                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62) && (
                       <Banner
                         type='info'
                         closeIcon={null}
                         className='mb-4 rounded-xl'
                         description={t(
-                          inputs.type === 61 ? 'VyroSeedance 渠道说明' : '异步视频渠道通用说明',
+                          inputs.type === 61
+                            ? 'VyroSeedance 渠道说明'
+                            : inputs.type === 62
+                              ? '83zi 渠道说明'
+                              : '异步视频渠道通用说明',
                         )}
                       />
                     )}

@@ -182,6 +182,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       other: 'Video only: POST /videos + GET /videos/{id}. Recommended: Seedance-2.0 JSON (reference_images as URL array, generate_audio). Legacy vyro-seedance-2-fast multipart is unstable and not recommended.',
     },
   },
+  62: {
+    id: 62,
+    name: CHANNEL_TYPES[62],
+    icon: 'openai',
+    defaultBaseUrl: 'https://sd2.83zi.com',
+    hints: {
+      key: 'X-License-Key (83zi License Key)',
+      models: 'sd2fast (fast), sd2 (2.0)',
+      baseUrl: 'Default: https://sd2.83zi.com',
+      other: 'Async video: POST /api/generate-video, poll GET /api/task/{id}. Client models sd2fast/sd2 map to upstream fast/2.0. Supports JSON image_urls or multipart files=@image.png.',
+    },
+  },
 }
 
 /**
