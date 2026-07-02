@@ -106,6 +106,19 @@ func PingData(c *gin.Context) error {
 	return FlushWriter(c)
 }
 
+func ClaudePingData(c *gin.Context) error {
+	if c == nil || c.Writer == nil {
+		return errors.New("context or writer is nil")
+	}
+	if c.Request != nil && c.Request.Context().Err() != nil {
+		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
+	}
+	if _, err := c.Writer.Write([]byte("event: ping\ndata: {\"type\": \"ping\"}\n\n")); err != nil {
+		return fmt.Errorf("write claude ping data failed: %w", err)
+	}
+	return FlushWriter(c)
+}
+
 func ObjectData(c *gin.Context, object interface{}) error {
 	if object == nil {
 		return errors.New("object is nil")

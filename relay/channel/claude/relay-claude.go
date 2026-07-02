@@ -785,6 +785,49 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 	return true
 }
 
+func HandleRawLineStreamData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, line string) *types.NewAPIError {
+	if info.ClientDisconnected {
+		if strings.HasPrefix(line, "data: ") {
+			payload := strings.TrimPrefix(line, "data: ")
+			payload = strings.TrimSpace(payload)
+			if payload != "" && payload != "[DONE]" {
+				var claudeResponse dto.ClaudeResponse
+				if err := common.UnmarshalJsonStr(payload, &claudeResponse); err == nil {
+					FormatClaudeResponseInfo(&claudeResponse, nil, claudeInfo)
+				}
+			}
+		}
+		return nil
+	}
+
+	if _, err := fmt.Fprintf(c.Writer, "%s\n", line); err != nil {
+		info.ClientDisconnected = true
+		return nil
+	}
+
+	if line == "" {
+		helper.FlushWriter(c)
+	}
+
+	if strings.HasPrefix(line, "data: ") {
+		payload := strings.TrimPrefix(line, "data: ")
+		payload = strings.TrimSpace(payload)
+		if payload != "" && payload != "[DONE]" {
+			info.SetFirstResponseTime()
+			info.ReceivedResponseCount++
+			var claudeResponse dto.ClaudeResponse
+			if err := common.UnmarshalJsonStr(payload, &claudeResponse); err == nil {
+				FormatClaudeResponseInfo(&claudeResponse, nil, claudeInfo)
+				if claudeResponse.Message != nil && claudeResponse.Message.Model != "" {
+					info.UpstreamModelName = claudeResponse.Message.Model
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, data string) *types.NewAPIError {
 	var claudeResponse dto.ClaudeResponse
 	err := common.UnmarshalJsonStr(data, &claudeResponse)
@@ -878,9 +921,18 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		ResponseText: strings.Builder{},
 		Usage:        &dto.Usage{},
 	}
+
+	if info.RelayFormat == types.RelayFormatClaude {
+		info.RawLineMode = true
+	}
+
 	var err *types.NewAPIError
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
-		err = HandleStreamResponseData(c, info, claudeInfo, data)
+		if info.RawLineMode {
+			err = HandleRawLineStreamData(c, info, claudeInfo, data)
+		} else {
+			err = HandleStreamResponseData(c, info, claudeInfo, data)
+		}
 		if err != nil {
 			sr.Stop(err)
 		}

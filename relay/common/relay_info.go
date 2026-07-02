@@ -107,6 +107,8 @@ type RelayInfo struct {
 	RequestHeaders         map[string]string
 	ShouldIncludeUsage     bool
 	DisablePing            bool // 是否禁止向下游发送自定义 Ping
+	RawLineMode            bool // SSE 原样透传模式，不过滤 event: 行
+	ClientDisconnected     bool // 客户端已断开，继续读上游获取 usage
 	ClientWs               *websocket.Conn
 	TargetWs               *websocket.Conn
 	InputAudioFormat       string

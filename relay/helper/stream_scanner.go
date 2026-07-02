@@ -59,13 +59,19 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	streamingTimeout := time.Duration(constant.StreamingTimeout) * time.Second
 
 	var (
-		stopChan   = make(chan bool, 3) // 增加缓冲区避免阻塞
+		stopChan   = make(chan bool, 3)
 		scanner    = NewStreamScanner(resp.Body)
-		ticker     = time.NewTicker(streamingTimeout)
+		ticker     *time.Ticker
 		pingTicker *time.Ticker
-		writeMutex sync.Mutex     // Mutex to protect concurrent writes
-		wg         sync.WaitGroup // 用于等待所有 goroutine 退出
+		writeMutex sync.Mutex
+		wg         sync.WaitGroup
 	)
+
+	if streamingTimeout > 0 {
+		ticker = time.NewTicker(streamingTimeout)
+	} else {
+		ticker = time.NewTicker(24 * time.Hour) // 不超时，用极大值占位
+	}
 
 	generalSettings := operation_setting.GetGeneralSetting()
 	pingEnabled := generalSettings.PingIntervalEnabled && !info.DisablePing
@@ -145,7 +151,11 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 					gopool.Go(func() {
 						writeMutex.Lock()
 						defer writeMutex.Unlock()
-						done <- PingData(c)
+						if info.RawLineMode {
+							done <- ClaudePingData(c)
+						} else {
+							done <- PingData(c)
+						}
 					})
 
 					select {
@@ -219,21 +229,38 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		}()
 
 		for scanner.Scan() {
-			// 检查是否需要停止
 			select {
 			case <-stopChan:
 				return
 			case <-ctx.Done():
 				return
 			case <-c.Request.Context().Done():
-				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
-				return
+				if !info.RawLineMode {
+					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
+					return
+				}
+				info.ClientDisconnected = true
 			default:
 			}
 
-			ticker.Reset(streamingTimeout)
+			if streamingTimeout > 0 {
+				ticker.Reset(streamingTimeout)
+			}
 			data := scanner.Text()
 			logger.LogDebug(c, "stream scanner data: %s", data)
+
+			if info.RawLineMode {
+				select {
+				case dataChan <- data:
+				case <-ctx.Done():
+					if !info.ClientDisconnected {
+						return
+					}
+				case <-stopChan:
+					return
+				}
+				continue
+			}
 
 			if len(data) < 6 {
 				continue
@@ -273,14 +300,22 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
 	})
 
-	// 主循环等待完成或超时
-	select {
-	case <-ticker.C:
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
-	case <-stopChan:
-		// EndReason already set by the goroutine that triggered stopChan
-	case <-c.Request.Context().Done():
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
+	if info.RawLineMode {
+		select {
+		case <-ticker.C:
+			if streamingTimeout > 0 {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
+			}
+		case <-stopChan:
+		}
+	} else {
+		select {
+		case <-ticker.C:
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
+		case <-stopChan:
+		case <-c.Request.Context().Done():
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
+		}
 	}
 
 	if info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() {
