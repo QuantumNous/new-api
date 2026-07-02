@@ -35,7 +35,7 @@ func newRelayInfo() *relaycommon.RelayInfo {
 	}
 }
 
-func TestBuildRequestURL_UsesSynchronousVideoGenerationsEndpoint(t *testing.T) {
+func TestBuildRequestURL_UsesAsyncVideoTasksEndpoint(t *testing.T) {
 	a := &TaskAdaptor{}
 	a.Init(newRelayInfo())
 
@@ -43,7 +43,7 @@ func TestBuildRequestURL_UsesSynchronousVideoGenerationsEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildRequestURL error: %v", err)
 	}
-	if got != "https://zhizinan.example/v1/videos/generations" {
+	if got != "https://zhizinan.example/v1/videos" {
 		t.Fatalf("url = %q", got)
 	}
 }
@@ -124,12 +124,12 @@ func TestBuildRequestBody_MapsSeedanceContentWithoutHTMLEscapingURL(t *testing.T
 	}
 }
 
-func TestDoResponse_PollURLStartsAsyncTask(t *testing.T) {
+func TestDoResponse_SubmitIDStartsAsyncTask(t *testing.T) {
 	a := &TaskAdaptor{}
 	a.Init(newRelayInfo())
 	c := newJSONCtx(`{}`)
 	resp := &http.Response{
-		Body: io.NopCloser(strings.NewReader(`{"id":"upstream-123","status":"queued","poll_url":"/v1/videos/tasks/upstream-123"}`)),
+		Body: io.NopCloser(strings.NewReader(`{"id":"task_upstream_123","object":"video.generation","status":"queued","progress":"0%","model":"jimeng-video-seedance-2.0-mini","url":null,"error":null}`)),
 	}
 	info := newRelayInfo()
 
@@ -137,15 +137,15 @@ func TestDoResponse_PollURLStartsAsyncTask(t *testing.T) {
 	if taskErr != nil {
 		t.Fatalf("DoResponse task error: %+v", taskErr)
 	}
-	if taskID != "https://zhizinan.example/v1/videos/tasks/upstream-123" {
-		t.Fatalf("taskID = %q, want absolutized poll_url", taskID)
+	if taskID != "task_upstream_123" {
+		t.Fatalf("taskID = %q, want upstream task id", taskID)
 	}
-	if string(taskData) != `{"id":"upstream-123","status":"queued","poll_url":"/v1/videos/tasks/upstream-123"}` {
+	if string(taskData) != `{"id":"task_upstream_123","object":"video.generation","status":"queued","progress":"0%","model":"jimeng-video-seedance-2.0-mini","url":null,"error":null}` {
 		t.Fatalf("taskData = %s", string(taskData))
 	}
 }
 
-func TestDoResponse_RejectsSynchronousURLWithoutAsyncContract(t *testing.T) {
+func TestDoResponse_RejectsSynchronousURLWithoutTaskID(t *testing.T) {
 	a := &TaskAdaptor{}
 	c := newJSONCtx(`{}`)
 	resp := &http.Response{
@@ -155,7 +155,7 @@ func TestDoResponse_RejectsSynchronousURLWithoutAsyncContract(t *testing.T) {
 
 	taskID, taskData, taskErr := a.DoResponse(c, resp, info)
 	if taskErr == nil {
-		t.Fatal("expected missing async poll_url to fail instead of faking a completed task")
+		t.Fatal("expected missing async task id to fail instead of faking a completed task")
 	}
 	if taskID != "" {
 		t.Fatalf("taskID = %q, want empty on invalid submit response", taskID)
@@ -165,14 +165,14 @@ func TestDoResponse_RejectsSynchronousURLWithoutAsyncContract(t *testing.T) {
 	}
 }
 
-func TestFetchTask_GETsPollURLAndNormalizesAcceptedStatus(t *testing.T) {
+func TestFetchTask_GETsTaskStatusEndpointAndNormalizesAcceptedStatus(t *testing.T) {
 	var sawPoll bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sawPoll = true
 		if r.Method != http.MethodGet {
 			t.Fatalf("method = %s, want GET", r.Method)
 		}
-		if r.URL.Path != "/v1/videos/tasks/upstream-123" {
+		if r.URL.Path != "/v1/videos/task_upstream_123" {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
 		if got := r.Header.Get("Authorization"); got != "Bearer session-id" {
@@ -183,8 +183,8 @@ func TestFetchTask_GETsPollURLAndNormalizesAcceptedStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	resp, err := (&TaskAdaptor{}).FetchTask("", "session-id", map[string]any{
-		"task_id": srv.URL + "/v1/videos/tasks/upstream-123",
+	resp, err := (&TaskAdaptor{}).FetchTask(srv.URL, "session-id", map[string]any{
+		"task_id": "task_upstream_123",
 	}, "")
 	if err != nil {
 		t.Fatalf("FetchTask error: %v", err)
@@ -198,11 +198,13 @@ func TestFetchTask_GETsPollURLAndNormalizesAcceptedStatus(t *testing.T) {
 	}
 }
 
-func TestParseTaskResult_MapsPollSuccessWithVideoURLAndUsage(t *testing.T) {
+func TestParseTaskResult_MapsCompletedTopLevelURL(t *testing.T) {
 	info, err := (&TaskAdaptor{}).ParseTaskResult([]byte(`{
-		"status":"succeeded",
-		"data":[{"video_url":"https://cdn.example.com/video.mp4"}],
-		"usage":{"completion_tokens":12,"total_tokens":34}
+		"id":"task_upstream_123",
+		"status":"completed",
+		"progress":"100%",
+		"url":"https://cdn.example.com/video.mp4",
+		"error":null
 	}`))
 	if err != nil {
 		t.Fatalf("ParseTaskResult error: %v", err)
@@ -213,13 +215,32 @@ func TestParseTaskResult_MapsPollSuccessWithVideoURLAndUsage(t *testing.T) {
 	if info.Url != "https://cdn.example.com/video.mp4" {
 		t.Fatalf("url = %q", info.Url)
 	}
-	if info.CompletionTokens != 12 || info.TotalTokens != 34 {
-		t.Fatalf("usage = %d/%d", info.CompletionTokens, info.TotalTokens)
+	if info.Progress != "100%" {
+		t.Fatalf("progress = %q", info.Progress)
+	}
+}
+
+func TestParseTaskResult_MapsFailedTopLevelError(t *testing.T) {
+	info, err := (&TaskAdaptor{}).ParseTaskResult([]byte(`{
+		"id":"task_upstream_123",
+		"status":"failed",
+		"progress":"100%",
+		"url":null,
+		"error":"video generation failed: raw_failed"
+	}`))
+	if err != nil {
+		t.Fatalf("ParseTaskResult error: %v", err)
+	}
+	if info.Status != model.TaskStatusFailure {
+		t.Fatalf("status = %q, want FAILURE", info.Status)
+	}
+	if info.Reason != "video generation failed: raw_failed" {
+		t.Fatalf("reason = %q", info.Reason)
 	}
 }
 
 func TestExtractUpstreamVideoURL(t *testing.T) {
-	raw := []byte(`{"status":"SUCCESS","data":[{"url":"https://cdn.example.com/video.mp4"}]}`)
+	raw := []byte(`{"status":"completed","url":"https://cdn.example.com/video.mp4"}`)
 
 	if got := ExtractUpstreamVideoURL(raw); got != "https://cdn.example.com/video.mp4" {
 		t.Fatalf("ExtractUpstreamVideoURL = %q", got)
