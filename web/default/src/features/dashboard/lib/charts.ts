@@ -16,14 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { dataScheme as vchartDefaultDataScheme } from '@visactor/vchart/esm/theme/color-scheme/builtin/default'
-
 import { MAX_CHART_TREND_POINTS } from '@/features/dashboard/constants'
 import type {
   QuotaDataItem,
   ProcessedChartData,
   ProcessedUserChartData,
 } from '@/features/dashboard/types'
+import { CHART_COLORS } from '@/lib/colors'
 import { getCurrencyDisplay } from '@/lib/currency'
 import { formatChartTime, type TimeGranularity } from '@/lib/time'
 
@@ -39,14 +38,13 @@ type TooltipLineItem = {
   shapeSize?: number
 }
 
+/**
+ * Build chart color range from the shared chart color palette,
+ * cycling when model count exceeds the palette length.
+ */
 export function getDashboardChartColors(domainLength: number): string[] {
-  const scheme =
-    vchartDefaultDataScheme.find(
-      (item) => !item.maxDomainLength || domainLength <= item.maxDomainLength
-    ) ?? vchartDefaultDataScheme[vchartDefaultDataScheme.length - 1]
-
-  return scheme.scheme.filter(
-    (color): color is string => typeof color === 'string'
+  return Array.from({ length: domainLength }, (_, i) =>
+    CHART_COLORS[i % CHART_COLORS.length]
   )
 }
 
