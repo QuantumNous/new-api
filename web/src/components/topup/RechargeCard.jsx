@@ -40,6 +40,8 @@ import {
   AlertTriangle,
   FileText,
   Info,
+  Activity,
+  ArrowUpRight,
 } from 'lucide-react';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { getCurrencyConfig } from '../../helpers/render';
@@ -71,10 +73,7 @@ const getPayMethodIcon = (method) => {
     return <CreditCard size={24} color='var(--semi-color-primary)' />;
   }
   return (
-    <CreditCard
-      size={24}
-      color={method.color || 'var(--semi-color-text-2)'}
-    />
+    <CreditCard size={24} color={method.color || 'var(--semi-color-text-2)'} />
   );
 };
 
@@ -159,7 +158,11 @@ const RechargeCard = ({
     enableWaffoPancakeTopUp;
 
   // Currency info for summary
-  const { symbol: currencySymbol, rate: currencyRate, type: currencyType } = getCurrencyConfig();
+  const {
+    symbol: currencySymbol,
+    rate: currencyRate,
+    type: currencyType,
+  } = getCurrencyConfig();
 
   // Get USD exchange rate from status
   let usdRate = 7;
@@ -223,8 +226,7 @@ const RechargeCard = ({
     const minTopupVal = Number(payMethod.min_topup) || 0;
     const isStripe = payMethod.type === 'stripe';
     const isWaffo =
-      typeof payMethod.type === 'string' &&
-      payMethod.type.startsWith('waffo:');
+      typeof payMethod.type === 'string' && payMethod.type.startsWith('waffo:');
     const isWaffoPancake = payMethod.type === 'waffo_pancake';
     return (
       (!enableOnlineTopUp && !isStripe && !isWaffo && !isWaffoPancake) ||
@@ -238,75 +240,77 @@ const RechargeCard = ({
   // ─── Account Statistics Bar ────────────────────────────────────
   const statsBar = (
     <div
-      className='relative rounded-2xl overflow-hidden mb-6'
+      className='mb-8 overflow-hidden rounded-[28px] border'
       style={{
-        '--palette-primary-darkerChannel': '37 99 235',
-        backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
+        background: '#f8fafc',
+        borderColor: 'rgba(15, 23, 42, 0.08)',
+        boxShadow: '0 20px 50px rgba(15, 23, 42, 0.08)',
       }}
     >
-      <div className='relative z-10 flex flex-col justify-between p-5'>
-        <div className='flex justify-between items-center mb-4'>
-          <Text strong style={{ color: 'white', fontSize: '16px' }}>
-            {t('账户统计')}
-          </Text>
-        </div>
-        <div className='grid grid-cols-3 gap-6'>
-          <div className='text-center'>
-            <div
-              className='text-base sm:text-2xl font-bold mb-2'
-              style={{ color: 'white' }}
-            >
+      <div className='grid gap-0 lg:grid-cols-[1.2fr_1fr]'>
+        <div className='border-b border-slate-200/80 bg-white p-6 sm:p-8 lg:border-b-0 lg:border-r'>
+          <div className='flex items-start justify-between gap-4'>
+            <div>
+              <div className='mb-4 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600'>
+                <Activity size={14} />
+                {t('账户资金总览')}
+              </div>
+              <Typography.Title
+                heading={2}
+                style={{
+                  margin: 0,
+                  color: '#020617',
+                  fontSize: 32,
+                  lineHeight: 1.08,
+                  letterSpacing: '-0.04em',
+                }}
+              >
+                {t('钱包管理')}
+              </Typography.Title>
+              <div className='mt-2 max-w-md text-sm leading-6 text-slate-500'>
+                {t('管理余额充值、兑换码与订阅套餐')}
+              </div>
+            </div>
+            <div className='hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white sm:flex'>
+              <Wallet size={22} />
+            </div>
+          </div>
+
+          <div className='mt-10'>
+            <div className='text-xs font-semibold uppercase tracking-[0.22em] text-slate-400'>
+              {t('当前余额')}
+            </div>
+            <div className='mt-3 text-5xl font-black tracking-[-0.07em] text-slate-950 sm:text-6xl'>
               {renderQuota(userState?.user?.quota)}
             </div>
-            <div className='flex items-center justify-center text-sm'>
-              <Wallet
-                size={14}
-                className='mr-1'
-                style={{ color: 'rgba(255,255,255,0.8)' }}
-              />
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>
-                {t('当前余额')}
-              </Text>
-            </div>
           </div>
-          <div className='text-center'>
-            <div
-              className='text-base sm:text-2xl font-bold mb-2'
-              style={{ color: 'white' }}
-            >
-              {renderQuota(userState?.user?.used_quota)}
-            </div>
-            <div className='flex items-center justify-center text-sm'>
-              <TrendingUp
-                size={14}
-                className='mr-1'
-                style={{ color: 'rgba(255,255,255,0.8)' }}
-              />
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>
+        </div>
+
+        <div className='grid bg-slate-50 p-3 sm:grid-cols-2 lg:grid-cols-1'>
+          <div className='flex items-center justify-between gap-4 border-b border-slate-200 bg-white p-5 last:border-b-0 sm:border-b-0 sm:border-r lg:border-b lg:border-r-0'>
+            <div>
+              <div className='flex items-center gap-2 text-sm font-semibold text-slate-500'>
+                <TrendingUp size={16} />
                 {t('历史消耗')}
-              </Text>
+              </div>
+              <div className='mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950'>
+                {renderQuota(userState?.user?.used_quota)}
+              </div>
             </div>
+            <ArrowUpRight size={18} className='text-slate-300' />
           </div>
-          <div className='text-center'>
-            <div
-              className='text-base sm:text-2xl font-bold mb-2'
-              style={{ color: 'white' }}
-            >
-              {userState?.user?.request_count || 0}
-            </div>
-            <div className='flex items-center justify-center text-sm'>
-              <BarChart2
-                size={14}
-                className='mr-1'
-                style={{ color: 'rgba(255,255,255,0.8)' }}
-              />
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>
+
+          <div className='flex items-center justify-between gap-4 border-b border-slate-200 bg-white p-5 last:border-b-0 sm:border-b-0 sm:border-r lg:border-b lg:border-r-0'>
+            <div>
+              <div className='flex items-center gap-2 text-sm font-semibold text-slate-500'>
+                <BarChart2 size={16} />
                 {t('请求次数')}
-              </Text>
+              </div>
+              <div className='mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950'>
+                {userState?.user?.request_count || 0}
+              </div>
             </div>
+            <ArrowUpRight size={18} className='text-slate-300' />
           </div>
         </div>
       </div>
@@ -346,7 +350,10 @@ const RechargeCard = ({
                     href={url}
                     target='_blank'
                     rel='noreferrer'
-                    style={{ color: 'var(--semi-color-primary)', textDecoration: 'underline' }}
+                    style={{
+                      color: 'var(--semi-color-primary)',
+                      textDecoration: 'underline',
+                    }}
                   >
                     {url}
                   </a>
@@ -366,7 +373,7 @@ const RechargeCard = ({
     const card = (
       <div
         key={method.type}
-        className='flex items-center justify-between px-4 py-3.5 rounded-xl border-2 transition-all cursor-pointer select-none'
+        className='flex items-center justify-between px-4 py-3.5 rounded-2xl border transition-all cursor-pointer select-none'
         onClick={() => {
           if (!disabled) setSelectedPayMethod(method.type);
         }}
@@ -376,12 +383,13 @@ const RechargeCard = ({
             ? { opacity: 0.5, cursor: 'not-allowed' }
             : isSelected
               ? {
-                  borderColor: '#3b82f6',
-                  backgroundColor: 'rgba(59, 130, 246, 0.08)',
-                  boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.2)',
+                  borderColor: '#0f766e',
+                  backgroundColor: 'rgba(20, 184, 166, 0.10)',
+                  boxShadow: '0 12px 30px rgba(15, 118, 110, 0.12)',
                 }
               : {
-                  borderColor: 'var(--semi-color-border)',
+                  borderColor: 'rgba(148, 163, 184, 0.22)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.72)',
                 }),
         }}
       >
@@ -393,12 +401,12 @@ const RechargeCard = ({
                 width: 22,
                 height: 22,
                 borderRadius: '50%',
-                backgroundColor: '#3b82f6',
+                backgroundColor: '#0f766e',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.25)',
+                boxShadow: '0 0 0 3px rgba(20, 184, 166, 0.18)',
               }}
             >
               <svg width='12' height='12' viewBox='0 0 12 12' fill='none'>
@@ -425,7 +433,7 @@ const RechargeCard = ({
           <span
             className='font-medium text-sm'
             style={{
-              color: isSelected ? '#2563eb' : 'var(--semi-color-text-0)',
+              color: isSelected ? '#0f766e' : 'var(--semi-color-text-0)',
               fontWeight: isSelected ? 600 : 500,
             }}
           >
@@ -453,8 +461,13 @@ const RechargeCard = ({
   const paymentSummary = (
     <div className='w-full lg:w-[320px] flex-shrink-0'>
       <div
-        className='rounded-2xl p-6 lg:sticky lg:top-20'
-        style={{ background: 'var(--semi-color-fill-0)' }}
+        className='rounded-[28px] p-6 lg:sticky lg:top-24'
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(255,255,255,0.96), rgba(240,253,250,0.86))',
+          border: '1px solid rgba(20, 184, 166, 0.18)',
+          boxShadow: '0 22px 58px rgba(15, 23, 42, 0.08)',
+        }}
       >
         <div className='space-y-4'>
           <div className='flex justify-between items-center'>
@@ -462,7 +475,8 @@ const RechargeCard = ({
               {t('充值金额')}
             </Text>
             <Text strong style={{ fontSize: 15 }}>
-              {currencySymbol}{topUpCount || 0}
+              {currencySymbol}
+              {topUpCount || 0}
             </Text>
           </div>
           <div className='flex justify-between items-center'>
@@ -472,7 +486,13 @@ const RechargeCard = ({
               </Text>
               {includeTax && (
                 <Tooltip content={t('包含票面产生的赋税、财务开票业务费用等')}>
-                  <Info size={14} style={{ color: 'var(--semi-color-text-2)', cursor: 'pointer' }} />
+                  <Info
+                    size={14}
+                    style={{
+                      color: 'var(--semi-color-text-2)',
+                      cursor: 'pointer',
+                    }}
+                  />
                 </Tooltip>
               )}
             </span>
@@ -485,7 +505,9 @@ const RechargeCard = ({
               {t('开票额')}
             </Text>
             <Text strong style={{ fontSize: 15 }}>
-              {includeTax ? `${t('等值')}${currencySymbol}${topUpCount || 0}` : `${currencySymbol}0`}
+              {includeTax
+                ? `${t('等值')}${currencySymbol}${topUpCount || 0}`
+                : `${currencySymbol}0`}
             </Text>
           </div>
 
@@ -522,9 +544,9 @@ const RechargeCard = ({
             onClick={handlePayFromSidebar}
             style={{
               marginTop: 8,
-              background: 'var(--semi-color-text-0)',
-              borderColor: 'var(--semi-color-text-0)',
-              borderRadius: 12,
+              background: 'linear-gradient(135deg, #0f766e, #14b8a6)',
+              borderColor: '#0f766e',
+              borderRadius: 16,
               height: 48,
               fontSize: 16,
               fontWeight: 600,
@@ -540,8 +562,14 @@ const RechargeCard = ({
   // ─── Main Content: Online Recharge ─────────────────────────────
   const onlineRechargeContent = (
     <Card
-      className='!rounded-2xl !border-0 shadow-sm'
-      bodyStyle={{ padding: '24px' }}
+      className='!rounded-[28px] !border-0 shadow-sm'
+      bodyStyle={{ padding: '26px' }}
+      style={{
+        background:
+          'linear-gradient(145deg, rgba(255,255,255,0.98), rgba(248,250,252,0.92))',
+        border: '1px solid rgba(148, 163, 184, 0.16)',
+        boxShadow: '0 22px 54px rgba(15, 23, 42, 0.06)',
+      }}
     >
       <Typography.Title heading={4} style={{ marginBottom: 20 }}>
         {t('在线充值')}
@@ -560,9 +588,7 @@ const RechargeCard = ({
             {/* Payment Methods Grid */}
             {regularPayMethods.length > 0 && (
               <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-                {regularPayMethods.map((method) =>
-                  renderPayMethodCard(method),
-                )}
+                {regularPayMethods.map((method) => renderPayMethodCard(method))}
               </div>
             )}
 
@@ -577,63 +603,110 @@ const RechargeCard = ({
 
             {/* Tax Type Toggle */}
             <div
-              className='rounded-xl px-4 py-3'
-              style={{ background: 'var(--semi-color-fill-0)' }}
+              className='rounded-[20px] p-4'
+              style={{
+                background:
+                  'linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.92))',
+                border: '1px solid rgba(203, 213, 225, 0.72)',
+                boxShadow: '0 12px 30px rgba(15, 23, 42, 0.06)',
+              }}
             >
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-2'>
-                  <FileText size={16} style={{ color: 'var(--semi-color-text-2)' }} />
-                  <Text strong size='small'>
-                    {t('税费类型')}
-                  </Text>
+              <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+                <div className='flex items-start gap-3'>
+                  <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm ring-1 ring-slate-200'>
+                    <FileText size={18} />
+                  </div>
+                  <div>
+                    <Text
+                      strong
+                      style={{
+                        display: 'block',
+                        color: '#0f172a',
+                        fontSize: 15,
+                      }}
+                    >
+                      {t('税费类型')}
+                    </Text>
+                    <Text
+                      size='small'
+                      style={{ color: 'var(--semi-color-text-2)' }}
+                    >
+                      {t('点击切换本次支付是否需要开票')}
+                    </Text>
+                  </div>
                 </div>
-                <div className='flex rounded-lg overflow-hidden' style={{ border: '1px solid var(--semi-color-border)' }}>
+
+                <div
+                  className='grid grid-cols-2 gap-1.5 rounded-2xl bg-white p-1.5 shadow-sm'
+                  style={{ border: '1px solid rgba(20, 184, 166, 0.22)' }}
+                >
                   {[
                     { value: false, label: t('不含税') },
                     { value: true, label: t('含税') },
-                  ].map((opt) => (
-                    <div
-                      key={String(opt.value)}
-                      className='cursor-pointer select-none transition-all'
-                      style={{
-                        padding: '6px 16px',
-                        fontSize: 13,
-                        fontWeight: includeTax === opt.value ? 600 : 400,
-                        backgroundColor: includeTax === opt.value ? '#3b82f6' : 'transparent',
-                        color: includeTax === opt.value ? '#fff' : 'var(--semi-color-text-0)',
-                      }}
-                      onClick={() => setIncludeTax(opt.value)}
-                    >
-                      {opt.label}
-                    </div>
-                  ))}
+                  ].map((opt) => {
+                    const active = includeTax === opt.value;
+                    return (
+                      <button
+                        key={String(opt.value)}
+                        type='button'
+                        className='min-w-[92px] cursor-pointer rounded-xl px-4 py-2.5 text-sm font-bold transition-all duration-200'
+                        style={
+                          active
+                            ? {
+                                backgroundColor: '#0f766e',
+                                color: '#ffffff',
+                                boxShadow:
+                                  '0 8px 20px rgba(15, 118, 110, 0.22)',
+                              }
+                            : {
+                                backgroundColor: 'transparent',
+                                color: '#64748b',
+                              }
+                        }
+                        onClick={() => setIncludeTax(opt.value)}
+                        onMouseEnter={(event) => {
+                          if (!active) {
+                            event.currentTarget.style.backgroundColor =
+                              '#ecfdf5';
+                            event.currentTarget.style.color = '#115e59';
+                          }
+                        }}
+                        onMouseLeave={(event) => {
+                          if (!active) {
+                            event.currentTarget.style.backgroundColor =
+                              'transparent';
+                            event.currentTarget.style.color = '#64748b';
+                          }
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div
-                className='flex items-center gap-1.5 mt-2'
+                className='mt-4 rounded-2xl px-4 py-3'
                 style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
                   backgroundColor: includeTax
-                    ? 'rgba(59, 130, 246, 0.06)'
-                    : 'rgba(245, 158, 11, 0.06)',
+                    ? 'rgba(236, 253, 245, 0.78)'
+                    : 'rgba(255, 251, 235, 0.78)',
                   border: includeTax
-                    ? '1px solid rgba(59, 130, 246, 0.15)'
-                    : '1px solid rgba(245, 158, 11, 0.15)',
+                    ? '1px solid rgba(110, 231, 183, 0.45)'
+                    : '1px solid rgba(253, 230, 138, 0.72)',
                 }}
               >
                 <Text
                   size='small'
-                  style={{
-                    color: includeTax
-                      ? 'var(--semi-color-primary)'
-                      : 'var(--semi-color-warning)',
-                    fontSize: 12,
-                  }}
+                  style={{ color: 'var(--semi-color-text-1)', fontSize: 12 }}
                 >
                   {includeTax
-                    ? t('已选择含税支付，支付完成后可在充值记录中申请开具发票。')
-                    : t('选择不含税支付，本订单将无法开具发票。如需开票，请选择含税支付方式。2026年05月01日 00:00:00（UTC+0）前的充值订单如需开票，请联系站长处理；此后的订单请按照页面指引自助申请开票。')}
+                    ? t(
+                        '已选择含税支付，支付完成后可在充值记录中申请开具发票。',
+                      )
+                    : t(
+                        '选择不含税支付，本订单将无法开具发票。如需开票，请选择含税支付方式。2026年05月01日 00:00:00（UTC+0）前的充值订单如需开票，请联系站长处理；此后的订单请按照页面指引自助申请开票。',
+                      )}
                 </Text>
               </div>
             </div>
@@ -680,7 +753,8 @@ const RechargeCard = ({
                   }
                   extraText={
                     <Text type='tertiary' size='small'>
-                      {t('金额需要')} {'>'}= {currencySymbol}{minTopUp}
+                      {t('金额需要')} {'>'}= {currencySymbol}
+                      {minTopUp}
                     </Text>
                   }
                   style={{ width: '100%' }}
@@ -689,9 +763,7 @@ const RechargeCard = ({
             )}
 
             {/* Preset Amounts */}
-            {(enableOnlineTopUp ||
-              enableStripeTopUp ||
-              enableWaffoTopUp) &&
+            {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) &&
               presetAmounts.length > 0 && (
                 <div>
                   <div className='flex items-center gap-2 mb-3'>
@@ -702,10 +774,7 @@ const RechargeCard = ({
                       const { symbol, rate, type } = getCurrencyConfig();
                       if (type === 'USD') return null;
                       return (
-                        <Text
-                          type='tertiary'
-                          size='small'
-                        >
+                        <Text type='tertiary' size='small'>
                           (1 $ = {rate.toFixed(2)} {symbol})
                         </Text>
                       );
@@ -757,9 +826,10 @@ const RechargeCard = ({
                           style={
                             selectedPreset === preset.value
                               ? {
-                                  borderColor: '#3b82f6',
-                                  backgroundColor: 'rgba(59, 130, 246, 0.08)',
-                                  boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.2)',
+                                  borderColor: '#0f766e',
+                                  backgroundColor: 'rgba(20, 184, 166, 0.10)',
+                                  boxShadow:
+                                    '0 12px 30px rgba(15, 118, 110, 0.12)',
                                 }
                               : {
                                   borderColor: 'var(--semi-color-border)',
@@ -786,10 +856,9 @@ const RechargeCard = ({
                                 size='small'
                               >
                                 {t('折').includes('off')
-                                  ? (
-                                      (1 - parseFloat(discount)) *
-                                      100
-                                    ).toFixed(1)
+                                  ? ((1 - parseFloat(discount)) * 100).toFixed(
+                                      1,
+                                    )
                                   : (discount * 10).toFixed(1)}
                                 {t('折')}
                               </Tag>
@@ -815,7 +884,11 @@ const RechargeCard = ({
             {/* Creem Section */}
             {enableCreemTopUp && creemProducts.length > 0 && (
               <div>
-                <Text strong size='small' style={{ marginBottom: 12, display: 'block' }}>
+                <Text
+                  strong
+                  size='small'
+                  style={{ marginBottom: 12, display: 'block' }}
+                >
                   {t('Creem 充值')}
                 </Text>
                 <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3'>
@@ -859,8 +932,14 @@ const RechargeCard = ({
   // ─── Card Redemption ───────────────────────────────────────────
   const redemptionContent = showRedemption ? (
     <Card
-      className='!rounded-2xl !border-0 shadow-sm'
-      bodyStyle={{ padding: '24px' }}
+      className='!rounded-[28px] !border-0 shadow-sm'
+      bodyStyle={{ padding: '26px' }}
+      style={{
+        background:
+          'linear-gradient(145deg, rgba(255,255,255,0.98), rgba(255,251,235,0.70))',
+        border: '1px solid rgba(245, 158, 11, 0.18)',
+        boxShadow: '0 22px 54px rgba(15, 23, 42, 0.05)',
+      }}
     >
       <Typography.Title heading={4} style={{ marginBottom: 16 }}>
         {t('卡密充值')}
@@ -886,9 +965,9 @@ const RechargeCard = ({
             onClick={topUp}
             loading={isSubmitting}
             style={{
-              background: 'var(--semi-color-text-0)',
-              borderColor: 'var(--semi-color-text-0)',
-              borderRadius: 8,
+              background: 'linear-gradient(135deg, #0f766e, #14b8a6)',
+              borderColor: '#0f766e',
+              borderRadius: 14,
               paddingLeft: 24,
               paddingRight: 24,
             }}
@@ -918,7 +997,7 @@ const RechargeCard = ({
 
   // ─── Main Render ───────────────────────────────────────────────
   return (
-    <div className='space-y-6'>
+    <div className='space-y-7'>
       {/* Account Statistics */}
       {statsBar}
 
@@ -948,6 +1027,7 @@ const RechargeCard = ({
           onChangeBillingPreference={onChangeBillingPreference}
           activeSubscriptions={activeSubscriptions}
           allSubscriptions={allSubscriptions}
+          showMySubscription={false}
           reloadSubscriptionSelf={reloadSubscriptionSelf}
           withCard={false}
           includeTax={includeTax}

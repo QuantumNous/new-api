@@ -100,6 +100,9 @@ const AddEditSubscriptionModal = ({
     creem_product_id: '',
     is_recommended: false,
     tags: '',
+    window_limit_5h: 0,
+    window_limit_7d: 0,
+    window_limit_30d: 0,
   });
 
   const buildFormValues = () => {
@@ -129,6 +132,15 @@ const AddEditSubscriptionModal = ({
       creem_product_id: p.creem_product_id || '',
       is_recommended: p.is_recommended || false,
       tags: p.tags || '',
+      window_limit_5h: Number(
+        quotaToDisplayAmount(p.window_limit_5h || 0).toFixed(2),
+      ),
+      window_limit_7d: Number(
+        quotaToDisplayAmount(p.window_limit_7d || 0).toFixed(2),
+      ),
+      window_limit_30d: Number(
+        quotaToDisplayAmount(p.window_limit_30d || 0).toFixed(2),
+      ),
     };
   };
 
@@ -175,6 +187,9 @@ const AddEditSubscriptionModal = ({
             : (values.allowed_groups || ''),
           is_recommended: values.is_recommended || false,
           tags: values.tags || '',
+          window_limit_5h: displayAmountToQuota(values.window_limit_5h),
+          window_limit_7d: displayAmountToQuota(values.window_limit_7d),
+          window_limit_30d: displayAmountToQuota(values.window_limit_30d),
         },
       };
       if (editingPlan?.plan?.id) {
@@ -548,6 +563,66 @@ const AddEditSubscriptionModal = ({
                           disabled
                         />
                       )}
+                    </Col>
+                  </Row>
+                </Card>
+
+                {/* 窗口限额 */}
+                <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
+                  <div className='flex items-center mb-2'>
+                    <Avatar
+                      size='small'
+                      color='cyan'
+                      className='mr-2 shadow-md'
+                    >
+                      <Clock size={16} />
+                    </Avatar>
+                    <div>
+                      <Text className='text-lg font-medium'>
+                        {t('窗口限额')}
+                      </Text>
+                      <div className='text-xs text-gray-600'>
+                        {t('限制不同时间窗口内的额度使用量，0 表示不限')}
+                      </div>
+                    </div>
+                  </div>
+
+                  <Row gutter={12}>
+                    <Col span={8}>
+                      <Form.InputNumber
+                        field='window_limit_5h'
+                        label={t('5小时窗口($)')}
+                        min={0}
+                        precision={2}
+                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
+                          values.window_limit_5h,
+                        )}`}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Form.InputNumber
+                        field='window_limit_7d'
+                        label={t('7天窗口($)')}
+                        min={0}
+                        precision={2}
+                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
+                          values.window_limit_7d,
+                        )}`}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Form.InputNumber
+                        field='window_limit_30d'
+                        label={t('30天窗口($)')}
+                        min={0}
+                        precision={2}
+                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
+                          values.window_limit_30d,
+                        )}`}
+                        style={{ width: '100%' }}
+                      />
                     </Col>
                   </Row>
                 </Card>

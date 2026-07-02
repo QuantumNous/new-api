@@ -53,6 +53,7 @@ const routerMap = {
   'image-studio': '/console/image-studio',
   commission: '/console/commission',
   invoice: '/console/invoice',
+  'subscription-self': '/console/subscription-self',
 };
 
 // 需要在新标签页打开的外部路径
@@ -135,6 +136,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('钱包管理'),
         itemKey: 'topup',
         to: '/topup',
+      },
+      {
+        text: t('订阅管理'),
+        itemKey: 'subscription-self',
+        to: '/console/subscription-self',
       },
       {
         text: t('充值订单'),

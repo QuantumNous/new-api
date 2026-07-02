@@ -144,10 +144,7 @@ function renderType(type, t) {
 
 function buildStreamStatusTooltip(ss, t) {
   if (!ss) return null;
-  const lines = [
-    t('流状态') + '：' + t('异常'),
-    (ss.end_reason || 'unknown'),
-  ];
+  const lines = [t('流状态') + '：' + t('异常'), ss.end_reason || 'unknown'];
   if (ss.error_count > 0) {
     lines.push(`${t('软错误')}: ${ss.error_count}`);
   }
@@ -185,11 +182,7 @@ function renderIsStream(bool, t, streamStatus) {
                 userSelect: 'none',
               }}
             >
-              <CircleAlert
-                size={14}
-                strokeWidth={2.5}
-                color='currentColor'
-              />
+              <CircleAlert size={14} strokeWidth={2.5} color='currentColor' />
             </span>
           </Tooltip>
         )}
@@ -259,6 +252,13 @@ function renderFirstUseTime(type, t) {
 
 function renderBillingTag(record, t) {
   const other = getLogOther(record.other);
+  if (other?.billing_source === 'hybrid') {
+    return (
+      <Tag color='teal' shape='circle'>
+        {t('订阅+余额')}
+      </Tag>
+    );
+  }
   if (other?.billing_source === 'subscription') {
     return (
       <Tag color='green' shape='circle'>
@@ -461,7 +461,11 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     };
   }
 
-  const summaryOpts = { ...other, displayMode: billingDisplayMode, outputMode: 'segments' };
+  const summaryOpts = {
+    ...other,
+    displayMode: billingDisplayMode,
+    outputMode: 'segments',
+  };
 
   if (other?.billing_mode === 'tiered_expr') {
     return { segments: renderTieredModelPriceSimple(summaryOpts) };
@@ -830,11 +834,17 @@ export const getLogsColumns = ({
           return <></>;
         }
         const other = getLogOther(record.other);
-        const isSubscription = other?.billing_source === 'subscription';
+        const isSubscription =
+          other?.billing_source === 'subscription' ||
+          other?.billing_source === 'hybrid';
         if (isSubscription) {
-          // Subscription billed: show only tag (no $0), but keep tooltip for equivalent cost.
+          // Subscription or hybrid billed: show tag, keep tooltip for equivalent cost.
+          const tooltipPrefix =
+            other?.billing_source === 'hybrid'
+              ? t('由订阅和余额抵扣')
+              : t('由订阅抵扣');
           return (
-            <Tooltip content={`${t('由订阅抵扣')}：${renderQuota(text, 6)}`}>
+            <Tooltip content={`${tooltipPrefix}：${renderQuota(text, 6)}`}>
               <span>{renderBillingTag(record, t)}</span>
             </Tooltip>
           );

@@ -22,22 +22,23 @@ import {
   Avatar,
   Card,
   Tag,
-  Divider,
   Typography,
-  Badge,
   Button,
   Toast,
 } from '@douyinfe/semi-ui';
-import {
-  isRoot,
-  isAdmin,
-  renderQuota,
-  stringToColor,
-} from '../../../../helpers';
+import { isRoot, isAdmin, stringToColor } from '../../../../helpers';
 import { API } from '../../../../helpers';
-import { Coins, BarChart2, Users, Crown } from 'lucide-react';
+import {
+  ArrowUpRight,
+  Crown,
+  KeyRound,
+  Mail,
+  ShieldCheck,
+  UserRound,
+  Users,
+} from 'lucide-react';
 
-const UserInfoHeader = ({ t, userState, onRefresh }) => {
+const UserInfoHeader = ({ t, userState, passkeyStatus, onRefresh }) => {
   const [upgrading, setUpgrading] = useState(false);
   const getUsername = () => {
     if (userState.user) {
@@ -72,184 +73,203 @@ const UserInfoHeader = ({ t, userState, onRefresh }) => {
     setUpgrading(false);
   };
 
-  const isVIP = userState?.user?.group === 'vip' || userState?.user?.group === 'svip';
+  const isVIP =
+    userState?.user?.group === 'vip' || userState?.user?.group === 'svip';
+  const roleLabel = isRoot()
+    ? t('超级管理员')
+    : isAdmin()
+      ? t('管理员')
+      : t('普通用户');
+  const emailBound = Boolean(userState.user?.email);
+  const passkeyEnabled = Boolean(passkeyStatus?.enabled);
+
+  const renderMetricRow = (Icon, label, value, options = {}) => (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 18,
+        padding: '22px 24px',
+        borderBottom: options.last ? 0 : '1px solid rgba(15, 23, 42, 0.12)',
+      }}
+    >
+      <div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 9,
+            marginBottom: 8,
+            color: '#475569',
+            fontSize: 14,
+            fontWeight: 800,
+          }}
+        >
+          <Icon size={16} />
+          {label}
+        </div>
+        <div
+          style={{
+            color: options.accent ? '#0f766e' : '#0f172a',
+            fontSize: 31,
+            lineHeight: 1,
+            fontWeight: 900,
+            letterSpacing: '-0.055em',
+          }}
+        >
+          {value}
+        </div>
+      </div>
+      <ArrowUpRight size={18} style={{ color: '#cbd5e1' }} />
+    </div>
+  );
 
   return (
     <Card
-      className='!rounded-2xl overflow-hidden'
-      cover={
+      bodyStyle={{ padding: 0 }}
+      style={{
+        marginBottom: 26,
+        borderRadius: 30,
+        overflow: 'hidden',
+        border: '1px solid rgba(15, 23, 42, 0.08)',
+        background: '#ffffff',
+        boxShadow: '0 18px 45px rgba(15, 23, 42, 0.06)',
+      }}
+    >
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
+          minHeight: 276,
+        }}
+      >
         <div
-          className='relative h-32'
           style={{
-            '--palette-primary-darkerChannel': '0 75 80',
-            backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
+            padding: '34px 36px 32px',
+            borderRight: '1px solid rgba(15, 23, 42, 0.08)',
+            background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
           }}
         >
-          {/* 用户信息内容 */}
-          <div className='relative z-10 h-full flex flex-col justify-end p-6'>
-            <div className='flex items-center'>
-              <div className='flex items-stretch gap-3 sm:gap-4 flex-1 min-w-0'>
-                <Avatar size='large' color={stringToColor(getUsername())}>
-                  {getAvatarText()}
-                </Avatar>
-                <div className='flex-1 min-w-0 flex flex-col justify-between'>
-                  <div
-                    className='text-3xl font-bold truncate'
-                    style={{ color: 'white' }}
-                  >
-                    {getUsername()}
-                  </div>
-                  <div className='flex flex-wrap items-center gap-2'>
-                    {isRoot() ? (
-                      <Tag
-                        size='large'
-                        shape='circle'
-                        style={{ color: 'white' }}
-                      >
-                        {t('超级管理员')}
-                      </Tag>
-                    ) : isAdmin() ? (
-                      <Tag
-                        size='large'
-                        shape='circle'
-                        style={{ color: 'white' }}
-                      >
-                        {t('管理员')}
-                      </Tag>
-                    ) : (
-                      <Tag
-                        size='large'
-                        shape='circle'
-                        style={{ color: 'white' }}
-                      >
-                        {t('普通用户')}
-                      </Tag>
-                    )}
-                    <Tag size='large' shape='circle' style={{ color: 'white' }}>
-                      ID: {userState?.user?.id}
-                    </Tag>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      }
-    >
-      {/* 当前余额和桌面版统计信息 */}
-      <div className='flex items-start justify-between gap-6'>
-        {/* 当前余额显示 */}
-        <div className='flex items-center gap-3'>
-          <Badge count={t('当前余额')} position='rightTop' type='danger'>
-            <div className='text-2xl sm:text-3xl md:text-4xl font-bold tracking-wide'>
-              {renderQuota(userState?.user?.quota)}
-            </div>
-          </Badge>
-          {!isVIP && (
-            <Button
-              theme='solid'
-              type='warning'
-              size='small'
-              icon={<Crown size={14} />}
-              loading={upgrading}
-              onClick={handleUpgradeVIP}
-              style={{ borderRadius: 16 }}
-            >
-              {t('升级VIP')}
-            </Button>
-          )}
-        </div>
-
-        {/* 桌面版统计信息（Semi UI 卡片） */}
-        <div className='hidden lg:block flex-shrink-0'>
-          <Card
-            size='small'
-            className='!rounded-xl'
-            bodyStyle={{ padding: '12px 16px' }}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 18,
+              marginBottom: 30,
+            }}
           >
-            <div className='flex items-center gap-4'>
-              <div className='flex items-center gap-2'>
-                <Coins size={16} />
-                <Typography.Text size='small' type='tertiary'>
-                  {t('历史消耗')}
-                </Typography.Text>
-                <Typography.Text size='small' type='tertiary' strong>
-                  {renderQuota(userState?.user?.used_quota)}
-                </Typography.Text>
+            <div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  marginBottom: 14,
+                  color: '#0f172a',
+                  fontSize: 15,
+                  fontWeight: 800,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                <UserRound size={18} />
+                {t('账号身份总览')}
               </div>
-              <Divider layout='vertical' />
-              <div className='flex items-center gap-2'>
-                <BarChart2 size={16} />
-                <Typography.Text size='small' type='tertiary'>
-                  {t('请求次数')}
-                </Typography.Text>
-                <Typography.Text size='small' type='tertiary' strong>
-                  {userState.user?.request_count || 0}
-                </Typography.Text>
-              </div>
-              <Divider layout='vertical' />
-              <div className='flex items-center gap-2'>
-                <Users size={16} />
-                <Typography.Text size='small' type='tertiary'>
-                  {t('用户分组')}
-                </Typography.Text>
-                <Typography.Text size='small' type='tertiary' strong>
-                  {userState?.user?.group || t('默认')}
-                </Typography.Text>
+              <div
+                style={{
+                  color: '#0f172a',
+                  fontSize: 44,
+                  lineHeight: 1.05,
+                  letterSpacing: '-0.07em',
+                  fontWeight: 900,
+                  wordBreak: 'break-word',
+                }}
+              >
+                {getUsername()}
               </div>
             </div>
-          </Card>
-        </div>
-      </div>
-
-      {/* 移动端和中等屏幕统计信息卡片 */}
-      <div className='lg:hidden mt-2'>
-        <Card
-          size='small'
-          className='!rounded-xl'
-          bodyStyle={{ padding: '12px 16px' }}
-        >
-          <div className='space-y-3'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-2'>
-                <Coins size={16} />
-                <Typography.Text size='small' type='tertiary'>
-                  {t('历史消耗')}
-                </Typography.Text>
-              </div>
-              <Typography.Text size='small' type='tertiary' strong>
-                {renderQuota(userState?.user?.used_quota)}
-              </Typography.Text>
-            </div>
-            <Divider margin='8px' />
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-2'>
-                <BarChart2 size={16} />
-                <Typography.Text size='small' type='tertiary'>
-                  {t('请求次数')}
-                </Typography.Text>
-              </div>
-              <Typography.Text size='small' type='tertiary' strong>
-                {userState.user?.request_count || 0}
-              </Typography.Text>
-            </div>
-            <Divider margin='8px' />
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-2'>
-                <Users size={16} />
-                <Typography.Text size='small' type='tertiary'>
-                  {t('用户分组')}
-                </Typography.Text>
-              </div>
-              <Typography.Text size='small' type='tertiary' strong>
-                {userState?.user?.group || t('默认')}
-              </Typography.Text>
-            </div>
+            <Avatar
+              size='extra-large'
+              color={stringToColor(getUsername())}
+              style={{ flexShrink: 0 }}
+            >
+              {getAvatarText()}
+            </Avatar>
           </div>
-        </Card>
+
+          <Typography.Text
+            style={{
+              display: 'block',
+              maxWidth: 540,
+              color: '#475569',
+              fontSize: 16,
+              lineHeight: 1.7,
+              letterSpacing: '-0.02em',
+            }}
+          >
+            {t('管理账号绑定、安全验证、通知偏好与控制台个性化设置。')}
+          </Typography.Text>
+
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 8,
+              marginTop: 32,
+            }}
+          >
+            <Tag color='teal' shape='circle' size='large'>
+              {roleLabel}
+            </Tag>
+            <Tag color='grey' shape='circle' size='large'>
+              ID: {userState?.user?.id}
+            </Tag>
+            {!isVIP && (
+              <Button
+                theme='solid'
+                type='warning'
+                size='small'
+                icon={<Crown size={14} />}
+                loading={upgrading}
+                onClick={handleUpgradeVIP}
+                style={{ borderRadius: 999, fontWeight: 800 }}
+              >
+                {t('升级VIP')}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', background: '#f8fafc', padding: 12 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateRows: '1fr 1fr 1fr',
+              background: '#ffffff',
+            }}
+          >
+            {renderMetricRow(ShieldCheck, t('账号角色'), roleLabel, {
+              accent: isAdmin() || isRoot(),
+            })}
+            {renderMetricRow(
+              Users,
+              t('用户分组'),
+              userState?.user?.group || t('默认'),
+            )}
+            {renderMetricRow(
+              emailBound ? Mail : KeyRound,
+              t('安全绑定'),
+              emailBound
+                ? t('邮箱已绑定')
+                : passkeyEnabled
+                  ? t('Passkey 已启用')
+                  : t('待完善'),
+              { last: true, accent: emailBound || passkeyEnabled },
+            )}
+          </div>
+        </div>
       </div>
     </Card>
   );

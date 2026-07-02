@@ -543,62 +543,71 @@ const PersonalSetting = () => {
   };
 
   return (
-    <div className='mt-[60px]'>
-      <div className='flex justify-center'>
-        <div className='w-full max-w-7xl mx-auto px-2'>
-          {/* 顶部用户信息区域 */}
-          <UserInfoHeader t={t} userState={userState} />
+    <div
+      style={{
+        width: '100%',
+        minHeight: '100vh',
+        background: '#f8fafc',
+        padding: '82px 24px 36px',
+      }}
+    >
+      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+        {/* 顶部用户信息区域 */}
+        <UserInfoHeader
+          t={t}
+          userState={userState}
+          passkeyStatus={passkeyStatus}
+        />
 
-          {/* 签到日历 - 仅在启用时显示 */}
-          {status?.checkin_enabled && (
-            <div className='mt-4 md:mt-6'>
-              <CheckinCalendar
-                t={t}
-                status={status}
-                turnstileEnabled={turnstileEnabled}
-                turnstileSiteKey={turnstileSiteKey}
-              />
-            </div>
-          )}
-
-          {/* 账户管理和其他设置 */}
-          <div className='grid grid-cols-1 xl:grid-cols-2 items-start gap-4 md:gap-6 mt-4 md:mt-6'>
-            {/* 左侧：账户管理设置 */}
-            <div className='flex flex-col gap-4 md:gap-6'>
-              <AccountManagement
-                t={t}
-                userState={userState}
-                status={status}
-                systemToken={systemToken}
-                setShowEmailBindModal={setShowEmailBindModal}
-                setShowWeChatBindModal={setShowWeChatBindModal}
-                generateAccessToken={generateAccessToken}
-                handleSystemTokenClick={handleSystemTokenClick}
-                setShowChangePasswordModal={setShowChangePasswordModal}
-                setShowAccountDeleteModal={setShowAccountDeleteModal}
-                passkeyStatus={passkeyStatus}
-                passkeySupported={passkeySupported}
-                passkeyRegisterLoading={passkeyRegisterLoading}
-                passkeyDeleteLoading={passkeyDeleteLoading}
-                onPasskeyRegister={handleRegisterPasskey}
-                onPasskeyDelete={handleRemovePasskey}
-              />
-
-              {/* 偏好设置（语言等） */}
-              <PreferencesSettings t={t} />
-
-              {/* 生图工具 */}
-              <ImageStudioCard t={t} />
-            </div>
-
-            {/* 右侧：其他设置 */}
-            <NotificationSettings
+        {/* 签到日历 - 仅在启用时显示 */}
+        {status?.checkin_enabled && (
+          <div className='mt-4 md:mt-6'>
+            <CheckinCalendar
               t={t}
-              notificationSettings={notificationSettings}
-              handleNotificationSettingChange={handleNotificationSettingChange}
-              saveNotificationSettings={saveNotificationSettings}
+              status={status}
+              turnstileEnabled={turnstileEnabled}
+              turnstileSiteKey={turnstileSiteKey}
             />
           </div>
+        )}
+
+        {/* 账户管理和其他设置 */}
+        <div className='grid grid-cols-1 xl:grid-cols-2 items-start gap-4 md:gap-6 mt-4 md:mt-6'>
+          {/* 左侧：账户管理设置 */}
+          <div className='flex flex-col gap-4 md:gap-6'>
+            <AccountManagement
+              t={t}
+              userState={userState}
+              status={status}
+              systemToken={systemToken}
+              setShowEmailBindModal={setShowEmailBindModal}
+              setShowWeChatBindModal={setShowWeChatBindModal}
+              generateAccessToken={generateAccessToken}
+              handleSystemTokenClick={handleSystemTokenClick}
+              setShowChangePasswordModal={setShowChangePasswordModal}
+              setShowAccountDeleteModal={setShowAccountDeleteModal}
+              passkeyStatus={passkeyStatus}
+              passkeySupported={passkeySupported}
+              passkeyRegisterLoading={passkeyRegisterLoading}
+              passkeyDeleteLoading={passkeyDeleteLoading}
+              onPasskeyRegister={handleRegisterPasskey}
+              onPasskeyDelete={handleRemovePasskey}
+            />
+
+            {/* 偏好设置（语言等） */}
+            <PreferencesSettings t={t} />
+
+            {/* 生图工具 */}
+            <ImageStudioCard t={t} />
+          </div>
+
+          {/* 右侧：其他设置 */}
+          <NotificationSettings
+            t={t}
+            notificationSettings={notificationSettings}
+            handleNotificationSettingChange={handleNotificationSettingChange}
+            saveNotificationSettings={saveNotificationSettings}
+          />
         </div>
       </div>
 

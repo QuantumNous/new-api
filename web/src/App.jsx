@@ -47,6 +47,7 @@ const ModelPage = lazy(() => import('./pages/Model'));
 const ModelDeploymentPage = lazy(() => import('./pages/ModelDeployment'));
 const Playground = lazy(() => import('./pages/Playground'));
 const Subscription = lazy(() => import('./pages/Subscription'));
+const SubscriptionSelf = lazy(() => import('./pages/SubscriptionSelf'));
 const Setup = lazy(() => import('./pages/Setup'));
 const PersonalSetting = lazy(
   () => import('./components/settings/PersonalSetting'),
@@ -340,6 +341,16 @@ function App() {
             <PrivateRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <TopUp />
+              </Suspense>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/subscription-self'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <SubscriptionSelf />
               </Suspense>
             </PrivateRoute>
           }

@@ -17,22 +17,26 @@ const (
 )
 
 func CacheGetGroupRatio(name string) (float64, bool) {
-	if common.RedisEnabled {
-		val, err := common.RedisGet(groupRatioKeyPrefix + name)
+	if !common.RedisEnabled {
+		group, err := GetGroupByName(name)
+		if err != nil {
+			return 0, false
+		}
+		return group.Ratio, true
+	}
+	val, err := common.RedisGet(groupRatioKeyPrefix + name)
+	if err == nil {
+		ratio, err := strconv.ParseFloat(val, 64)
 		if err == nil {
-			ratio, err := strconv.ParseFloat(val, 64)
-			if err == nil {
-				return ratio, true
-			}
+			return ratio, true
 		}
 	}
+	// Redis miss: load from DB, write to Redis, return
 	group, err := GetGroupByName(name)
 	if err != nil {
 		return 0, false
 	}
-	if common.RedisEnabled {
-		_ = common.RedisSet(groupRatioKeyPrefix+name, strconv.FormatFloat(group.Ratio, 'f', -1, 64), groupCacheDuration)
-	}
+	_ = common.RedisSet(groupRatioKeyPrefix+name, strconv.FormatFloat(group.Ratio, 'f', -1, 64), groupCacheDuration)
 	return group.Ratio, true
 }
 
@@ -41,25 +45,28 @@ func CacheContainsGroup(name string) bool {
 	return ok
 }
 
+// CacheGetAllGroups returns all groups. Redis-only when Redis is enabled.
+// On cache miss, loads from DB and repopulates Redis.
 func CacheGetAllGroups() ([]Group, error) {
 	if common.RedisEnabled {
 		val, err := common.RedisGet(groupAllKey)
 		if err == nil && val != "" {
 			var groups []Group
-			if err := common.Unmarshal([]byte(val), &groups); err == nil {
+			if err := common.Unmarshal([]byte(val), &groups); err == nil && len(groups) > 0 {
 				return groups, nil
 			}
 		}
-	}
-	groups, err := GetAllGroups()
-	if err != nil {
-		return nil, err
-	}
-	if common.RedisEnabled {
+		// Cache miss or empty — reload from DB and repopulate Redis
+		groups, err := GetAllGroups()
+		if err != nil {
+			return nil, err
+		}
 		data, _ := common.Marshal(groups)
 		_ = common.RedisSet(groupAllKey, string(data), groupCacheDuration)
+		return groups, nil
 	}
-	return groups, nil
+	// Redis disabled: direct DB read
+	return GetAllGroups()
 }
 
 func CacheGetGroupByName(name string) (*Group, bool) {
@@ -125,8 +132,11 @@ func InvalidateAllGroupCache() {
 	_ = common.RDB.Unlink(ctx, keys...).Err()
 }
 
+// WarmUpGroupCache loads all groups from DB and writes to Redis.
+// Called once at startup. Must succeed or group features won't work.
 func WarmUpGroupCache() {
 	if !common.RedisEnabled {
+		common.SysLog("group cache warmup skipped: redis not enabled")
 		return
 	}
 	groups, err := GetAllGroups()

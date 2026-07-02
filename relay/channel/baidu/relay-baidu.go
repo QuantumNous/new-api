@@ -188,7 +188,14 @@ func baiduEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 	return nil, &fullTextResponse.Usage
 }
 
+const baiduTokenRedisPrefix = "baidu_token:"
+
 func getBaiduAccessToken(apiKey string) (string, error) {
+	if common.RedisEnabled {
+		if val, err := common.RedisGet(baiduTokenRedisPrefix + apiKey); err == nil && val != "" {
+			return val, nil
+		}
+	}
 	if val, ok := baiduTokenStore.Load(apiKey); ok {
 		var accessToken BaiduAccessToken
 		if accessToken, ok = val.(BaiduAccessToken); ok {
@@ -242,5 +249,9 @@ func getBaiduAccessTokenHelper(apiKey string) (*BaiduAccessToken, error) {
 	}
 	accessToken.ExpiresAt = time.Now().Add(time.Duration(accessToken.ExpiresIn) * time.Second)
 	baiduTokenStore.Store(apiKey, accessToken)
+	if common.RedisEnabled {
+		ttl := time.Duration(accessToken.ExpiresIn) * time.Second
+		_ = common.RedisSet(baiduTokenRedisPrefix+apiKey, accessToken.AccessToken, ttl)
+	}
 	return &accessToken, nil
 }

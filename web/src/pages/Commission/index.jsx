@@ -1,4 +1,23 @@
-import React, { useEffect, useState, useContext } from 'react';
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+import React, { useEffect, useState } from 'react';
 import {
   Card,
   Table,
@@ -6,28 +25,31 @@ import {
   Button,
   Modal,
   Form,
-  InputNumber,
   Select,
-  Input,
   Typography,
   Tabs,
   TabPane,
-  Descriptions,
   Space,
   Empty,
-  Spin,
 } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { API, showError, showSuccess } from '../../helpers';
-import { UserContext } from '../../context/User';
+import {
+  ArrowUpRight,
+  Banknote,
+  Gift,
+  Link2,
+  ReceiptText,
+  Users,
+  WalletCards,
+} from 'lucide-react';
 
 const { Text, Title } = Typography;
 
 const Commission = () => {
   const { t } = useTranslation();
-  const [userState] = useContext(UserContext);
 
   // Summary
   const [summary, setSummary] = useState(null);
@@ -115,9 +137,7 @@ const Commission = () => {
     try {
       const res = await API.get('/api/user/aff');
       if (res.data?.success) {
-        setAffLink(
-          `${window.location.origin}/register?aff=${res.data.data}`,
-        );
+        setAffLink(`${window.location.origin}/register?aff=${res.data.data}`);
       }
     } catch (e) {
       // ignore
@@ -136,7 +156,9 @@ const Commission = () => {
       const res = await API.post('/api/user/commission/withdraw', {
         amount: Math.round(values.amount * 100), // convert yuan to fen
         method: values.method,
-        account: values.account_type ? `[${values.account_type}] ${values.account}` : (values.account || ''),
+        account: values.account_type
+          ? `[${values.account_type}] ${values.account}`
+          : values.account || '',
       });
       if (res.data?.success) {
         showSuccess(res.data.message || t('提现申请已提交'));
@@ -219,13 +241,18 @@ const Commission = () => {
     {
       title: t('充值金额'),
       dataIndex: 'top_up_money',
-      render: (val) => val ? `¥${Number(val).toFixed(2)}` : '-',
+      render: (val) => (val ? `¥${Number(val).toFixed(2)}` : '-'),
       width: 120,
     },
     {
       title: t('佣金金额'),
       dataIndex: 'commission_amount',
-      render: (val) => <Text strong style={{ color: 'var(--semi-color-success)' }}>{t('¥')}{formatMoney(val)}</Text>,
+      render: (val) => (
+        <Text strong style={{ color: 'var(--semi-color-success)' }}>
+          {t('¥')}
+          {formatMoney(val)}
+        </Text>
+      ),
       width: 120,
     },
     {
@@ -251,7 +278,12 @@ const Commission = () => {
     {
       title: t('金额'),
       dataIndex: 'amount',
-      render: (val) => <Text strong>{t('¥')}{formatMoney(val)}</Text>,
+      render: (val) => (
+        <Text strong>
+          {t('¥')}
+          {formatMoney(val)}
+        </Text>
+      ),
       width: 120,
     },
     {
@@ -279,220 +311,441 @@ const Commission = () => {
     },
   ];
 
-  return (
-    <div className='w-full max-w-7xl mx-auto mt-[60px] px-2'>
-      {/* Summary Cards */}
-      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6'>
-        <Card loading={summaryLoading}>
-          <div className='text-center'>
-            <Text type='tertiary' size='small'>
-              {t('可提现余额')}
-            </Text>
-            <Title heading={3} style={{ color: 'var(--semi-color-success)', margin: '8px 0 0' }}>
-              {t('¥')}{formatMoney(summary?.commission_balance)}
-            </Title>
-          </div>
-        </Card>
-        <Card loading={summaryLoading}>
-          <div className='text-center'>
-            <Text type='tertiary' size='small'>
-              {t('佣金总额')}
-            </Text>
-            <Title heading={3} style={{ margin: '8px 0 0' }}>
-              {t('¥')}{formatMoney(summary?.commission_total)}
-            </Title>
-          </div>
-        </Card>
-        <Card loading={summaryLoading}>
-          <div className='text-center'>
-            <Text type='tertiary' size='small'>
-              {t('已提现')}
-            </Text>
-            <Title heading={3} style={{ margin: '8px 0 0' }}>
-              {t('¥')}{formatMoney(summary?.commission_withdrawn)}
-            </Title>
-          </div>
-        </Card>
-        <Card loading={summaryLoading}>
-          <div className='text-center'>
-            <Text type='tertiary' size='small'>
-              {t('邀请人数')}
-            </Text>
-            <Title heading={3} style={{ margin: '8px 0 0' }}>
-              {summary?.invite_count ?? 0}
-            </Title>
-          </div>
-        </Card>
-      </div>
-
-      {/* Notice */}
-      {notice && (
-        <div className='mb-6' style={{ padding: '12px 16px', borderRadius: 8, background: 'var(--semi-color-fill-0)' }}>
-          <div
-            dangerouslySetInnerHTML={{
-              __html: DOMPurify.sanitize(
-                notice.trim().startsWith('<')
-                  ? notice
-                  : marked.parse(notice),
-              ),
-            }}
-          />
+  const renderMetricRow = (Icon, label, value, options = {}) => (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 18,
+        padding: '22px 24px',
+        borderBottom: options.last ? 0 : '1px solid rgba(15, 23, 42, 0.12)',
+      }}
+    >
+      <div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 9,
+            marginBottom: 8,
+            color: '#475569',
+            fontSize: 14,
+            fontWeight: 800,
+          }}
+        >
+          <Icon size={16} />
+          {label}
         </div>
-      )}
+        <div
+          style={{
+            color: options.accent ? '#0f766e' : '#0f172a',
+            fontSize: 31,
+            lineHeight: 1,
+            fontWeight: 900,
+            letterSpacing: '-0.055em',
+          }}
+        >
+          {value}
+        </div>
+      </div>
+      <ArrowUpRight size={18} style={{ color: '#cbd5e1' }} />
+    </div>
+  );
 
-      {/* Invite Link & Withdraw Button */}
-      <Card className='mb-6'>
-        <div className='flex flex-col md:flex-row items-start md:items-center justify-between gap-4'>
-          <div className='flex-1'>
-            <Text strong>{t('邀请链接')}</Text>
-            <div className='mt-2'>
-              {affLink ? (
-                <Space>
-                  <Text
-                    copyable={{ content: affLink, successTip: t('已复制') }}
+  return (
+    <div
+      style={{
+        width: '100%',
+        minHeight: '100vh',
+        background: '#f8fafc',
+        padding: '82px 24px 36px',
+      }}
+    >
+      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+        <Card
+          loading={summaryLoading}
+          bodyStyle={{ padding: 0 }}
+          style={{
+            marginBottom: 26,
+            borderRadius: 30,
+            overflow: 'hidden',
+            border: '1px solid rgba(15, 23, 42, 0.08)',
+            background: '#ffffff',
+            boxShadow: '0 18px 45px rgba(15, 23, 42, 0.06)',
+          }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
+              minHeight: 276,
+            }}
+          >
+            <div
+              style={{
+                padding: '34px 36px 32px',
+                borderRight: '1px solid rgba(15, 23, 42, 0.08)',
+                background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 18,
+                  marginBottom: 30,
+                }}
+              >
+                <div>
+                  <div
                     style={{
-                      wordBreak: 'break-all',
-                      fontSize: '13px',
-                      color: 'var(--semi-color-text-2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      marginBottom: 14,
+                      color: '#0f172a',
+                      fontSize: 15,
+                      fontWeight: 800,
+                      letterSpacing: '-0.02em',
                     }}
                   >
-                    {affLink}
-                  </Text>
-                </Space>
-              ) : (
-                <Text type='tertiary'>{t('加载中...')}</Text>
+                    <Gift size={18} />
+                    {t('返佣资金总览')}
+                  </div>
+                  <div
+                    style={{
+                      color: '#0f172a',
+                      fontSize: 44,
+                      lineHeight: 1.05,
+                      letterSpacing: '-0.07em',
+                      fontWeight: 900,
+                    }}
+                  >
+                    {t('返佣管理')}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#0f172a',
+                    background: '#f8fafc',
+                    border: '1px solid rgba(15, 23, 42, 0.08)',
+                  }}
+                >
+                  <WalletCards size={21} />
+                </div>
+              </div>
+
+              <Text
+                style={{
+                  display: 'block',
+                  maxWidth: 540,
+                  color: '#475569',
+                  fontSize: 16,
+                  lineHeight: 1.7,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {t(
+                  '管理邀请返佣、提现申请与返佣流水，清晰追踪可提现余额和累计收益。',
+                )}
+              </Text>
+              {notice && (
+                <div
+                  style={{
+                    marginTop: 64,
+                    maxWidth: 560,
+                    padding: '18px 20px',
+                    borderRadius: 20,
+                    background: 'rgba(255, 255, 255, 0.82)',
+                    border: '1px solid rgba(15, 23, 42, 0.08)',
+                    boxShadow: '0 14px 32px rgba(15, 23, 42, 0.04)',
+                    color: '#334155',
+                    lineHeight: 1.7,
+                  }}
+                >
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: DOMPurify.sanitize(
+                        notice.trim().startsWith('<')
+                          ? notice
+                          : marked.parse(notice),
+                      ),
+                    }}
+                  />
+                </div>
               )}
             </div>
-          </div>
-          <Button
-            theme='solid'
-            type='primary'
-            onClick={() => setWithdrawModalVisible(true)}
-            disabled={!summary || summary.commission_balance <= 0}
-          >
-            {t('申请提现')}
-          </Button>
-        </div>
-      </Card>
 
-      {/* Tabs: Commission Records & Withdrawal Records */}
-      <Card>
-        <Tabs type='line'>
-          <TabPane tab={t('返佣记录')} itemKey='commissions'>
-            <Table
-              columns={commissionColumns}
-              dataSource={commissions}
-              loading={commissionLoading}
-              pagination={{
-                currentPage: commissionPage,
-                pageSize: pageSize,
-                total: commissionTotal,
-                onPageChange: (page) => {
-                  setCommissionPage(page);
-                  fetchCommissions(page);
-                },
-              }}
-              empty={<Empty description={t('暂无返佣记录')} />}
-              size='middle'
-            />
-          </TabPane>
-          <TabPane tab={t('提现记录')} itemKey='withdrawals'>
-            <Table
-              columns={withdrawalColumns}
-              dataSource={withdrawals}
-              loading={withdrawalLoading}
-              pagination={{
-                currentPage: withdrawalPage,
-                pageSize: pageSize,
-                total: withdrawalTotal,
-                onPageChange: (page) => {
-                  setWithdrawalPage(page);
-                  fetchWithdrawals(page);
-                },
-              }}
-              empty={<Empty description={t('暂无提现记录')} />}
-              size='middle'
-            />
-          </TabPane>
-        </Tabs>
-      </Card>
-
-      {/* Withdrawal Modal */}
-      <Modal
-        title={t('申请提现')}
-        visible={withdrawModalVisible}
-        onCancel={() => { setWithdrawModalVisible(false); setWithdrawMethod('balance'); }}
-        footer={null}
-        maskClosable={false}
-        centered
-      >
-        <Form onSubmit={handleWithdraw} labelPosition='top'>
-          <Form.InputNumber
-            field='amount'
-            label={t('提现金额（元）')}
-            placeholder={t('请输入提现金额')}
-            min={0.01}
-            max={summary ? summary.commission_balance / 100 : 0}
-            precision={2}
-            step={1}
-            rules={[{ required: true, message: t('请输入提现金额') }]}
-            style={{ width: '100%' }}
-            extraText={
-              <span style={{ color: 'var(--semi-color-text-2)' }}>
-                {t('可提现余额')}：<span style={{ color: 'var(--semi-color-success)', fontWeight: 600 }}>{t('¥')}{formatMoney(summary?.commission_balance)}</span>
-              </span>
-            }
-          />
-          <Form.Select
-            field='method'
-            label={t('提现方式')}
-            placeholder={t('请选择提现方式')}
-            rules={[{ required: true, message: t('请选择提现方式') }]}
-            style={{ width: '100%' }}
-            initValue='balance'
-            onChange={(val) => setWithdrawMethod(val)}
-          >
-            <Select.Option value='balance'>{t('转入余额')}</Select.Option>
-            <Select.Option value='cash'>{t('现金提现')}</Select.Option>
-          </Form.Select>
-          {withdrawMethod === 'cash' && (
-            <>
-              <Form.Select
-                field='account_type'
-                label={t('收款方式')}
-                placeholder={t('请选择收款方式')}
-                rules={[{ required: true, message: t('请选择收款方式') }]}
-                style={{ width: '100%' }}
+            <div
+              style={{ display: 'grid', background: '#f8fafc', padding: 12 }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateRows: '1fr 1fr 1fr 1fr',
+                  background: '#ffffff',
+                }}
               >
-                <Select.Option value='支付宝'>{t('支付宝')}</Select.Option>
-                <Select.Option value='银行卡'>{t('银行卡')}</Select.Option>
-              </Form.Select>
-              <Form.Input
-                field='account'
-                label={t('收款账号')}
-                placeholder={t('请输入收款账号')}
-                rules={[{ required: true, message: t('请填写收款账号') }]}
-                style={{ width: '100%' }}
+                {renderMetricRow(
+                  WalletCards,
+                  t('可提现余额'),
+                  <>
+                    {t('¥')}
+                    {formatMoney(summary?.commission_balance)}
+                  </>,
+                  { accent: true },
+                )}
+                {renderMetricRow(
+                  Banknote,
+                  t('佣金总额'),
+                  <>
+                    {t('¥')}
+                    {formatMoney(summary?.commission_total)}
+                  </>,
+                )}
+                {renderMetricRow(
+                  ReceiptText,
+                  t('已提现'),
+                  <>
+                    {t('¥')}
+                    {formatMoney(summary?.commission_withdrawn)}
+                  </>,
+                )}
+                {renderMetricRow(
+                  Users,
+                  t('邀请人数'),
+                  summary?.invite_count ?? 0,
+                  { last: true },
+                )}
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Invite Link & Withdraw Button */}
+        <Card
+          bodyStyle={{ padding: 0 }}
+          style={{
+            marginBottom: 26,
+            borderRadius: 28,
+            overflow: 'hidden',
+            border: '1px solid rgba(15, 23, 42, 0.08)',
+            background: '#ffffff',
+            boxShadow: '0 18px 45px rgba(15, 23, 42, 0.05)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 18,
+              padding: '22px 24px',
+            }}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 9,
+                  marginBottom: 10,
+                  color: '#0f172a',
+                  fontSize: 16,
+                  fontWeight: 800,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                <Link2 size={17} />
+                {t('邀请链接')}
+              </div>
+              <div>
+                {affLink ? (
+                  <Space>
+                    <Text
+                      copyable={{ content: affLink, successTip: t('已复制') }}
+                      style={{
+                        wordBreak: 'break-all',
+                        fontSize: '13px',
+                        color: '#64748b',
+                      }}
+                    >
+                      {affLink}
+                    </Text>
+                  </Space>
+                ) : (
+                  <Text type='tertiary'>{t('加载中...')}</Text>
+                )}
+              </div>
+            </div>
+            <Button
+              theme='solid'
+              type='primary'
+              onClick={() => setWithdrawModalVisible(true)}
+              disabled={!summary || summary.commission_balance <= 0}
+              style={{
+                borderRadius: 999,
+                background: '#0f766e',
+                borderColor: '#0f766e',
+                fontWeight: 800,
+                padding: '0 22px',
+              }}
+            >
+              {t('申请提现')}
+            </Button>
+          </div>
+        </Card>
+
+        {/* Tabs: Commission Records & Withdrawal Records */}
+        <Card
+          bodyStyle={{ padding: 20 }}
+          style={{
+            borderRadius: 28,
+            border: '1px solid rgba(15, 23, 42, 0.08)',
+            background: '#ffffff',
+            boxShadow: '0 18px 45px rgba(15, 23, 42, 0.05)',
+            overflow: 'hidden',
+          }}
+        >
+          <Tabs type='line'>
+            <TabPane tab={t('返佣记录')} itemKey='commissions'>
+              <Table
+                columns={commissionColumns}
+                dataSource={commissions}
+                loading={commissionLoading}
+                pagination={{
+                  currentPage: commissionPage,
+                  pageSize: pageSize,
+                  total: commissionTotal,
+                  onPageChange: (page) => {
+                    setCommissionPage(page);
+                    fetchCommissions(page);
+                  },
+                }}
+                empty={<Empty description={t('暂无返佣记录')} />}
+                size='middle'
               />
-            </>
-          )}
-          <div className='mt-4 mb-2' style={{ textAlign: 'right' }}>
-            <Space>
-              <Button onClick={() => setWithdrawModalVisible(false)}>
-                {t('取消')}
-              </Button>
-              <Button
-                theme='solid'
-                type='primary'
-                htmlType='submit'
-                loading={withdrawSubmitting}
-              >
-                {t('提交申请')}
-              </Button>
-            </Space>
-          </div>
-        </Form>
-      </Modal>
+            </TabPane>
+            <TabPane tab={t('提现记录')} itemKey='withdrawals'>
+              <Table
+                columns={withdrawalColumns}
+                dataSource={withdrawals}
+                loading={withdrawalLoading}
+                pagination={{
+                  currentPage: withdrawalPage,
+                  pageSize: pageSize,
+                  total: withdrawalTotal,
+                  onPageChange: (page) => {
+                    setWithdrawalPage(page);
+                    fetchWithdrawals(page);
+                  },
+                }}
+                empty={<Empty description={t('暂无提现记录')} />}
+                size='middle'
+              />
+            </TabPane>
+          </Tabs>
+        </Card>
+
+        {/* Withdrawal Modal */}
+        <Modal
+          title={t('申请提现')}
+          visible={withdrawModalVisible}
+          onCancel={() => {
+            setWithdrawModalVisible(false);
+            setWithdrawMethod('balance');
+          }}
+          footer={null}
+          maskClosable={false}
+          centered
+        >
+          <Form onSubmit={handleWithdraw} labelPosition='top'>
+            <Form.InputNumber
+              field='amount'
+              label={t('提现金额（元）')}
+              placeholder={t('请输入提现金额')}
+              min={0.01}
+              max={summary ? summary.commission_balance / 100 : 0}
+              precision={2}
+              step={1}
+              rules={[{ required: true, message: t('请输入提现金额') }]}
+              style={{ width: '100%' }}
+              extraText={
+                <span style={{ color: 'var(--semi-color-text-2)' }}>
+                  {t('可提现余额')}：
+                  <span
+                    style={{
+                      color: 'var(--semi-color-success)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {t('¥')}
+                    {formatMoney(summary?.commission_balance)}
+                  </span>
+                </span>
+              }
+            />
+            <Form.Select
+              field='method'
+              label={t('提现方式')}
+              placeholder={t('请选择提现方式')}
+              rules={[{ required: true, message: t('请选择提现方式') }]}
+              style={{ width: '100%' }}
+              initValue='balance'
+              onChange={(val) => setWithdrawMethod(val)}
+            >
+              <Select.Option value='balance'>{t('转入余额')}</Select.Option>
+              <Select.Option value='cash'>{t('现金提现')}</Select.Option>
+            </Form.Select>
+            {withdrawMethod === 'cash' && (
+              <>
+                <Form.Select
+                  field='account_type'
+                  label={t('收款方式')}
+                  placeholder={t('请选择收款方式')}
+                  rules={[{ required: true, message: t('请选择收款方式') }]}
+                  style={{ width: '100%' }}
+                >
+                  <Select.Option value='支付宝'>{t('支付宝')}</Select.Option>
+                  <Select.Option value='银行卡'>{t('银行卡')}</Select.Option>
+                </Form.Select>
+                <Form.Input
+                  field='account'
+                  label={t('收款账号')}
+                  placeholder={t('请输入收款账号')}
+                  rules={[{ required: true, message: t('请填写收款账号') }]}
+                  style={{ width: '100%' }}
+                />
+              </>
+            )}
+            <div className='mt-4 mb-2' style={{ textAlign: 'right' }}>
+              <Space>
+                <Button onClick={() => setWithdrawModalVisible(false)}>
+                  {t('取消')}
+                </Button>
+                <Button
+                  theme='solid'
+                  type='primary'
+                  htmlType='submit'
+                  loading={withdrawSubmitting}
+                >
+                  {t('提交申请')}
+                </Button>
+              </Space>
+            </div>
+          </Form>
+        </Modal>
+      </div>
     </div>
   );
 };

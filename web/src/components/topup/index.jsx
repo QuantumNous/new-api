@@ -668,7 +668,12 @@ const TopUp = () => {
   };
 
   return (
-    <div className='w-full max-w-7xl mx-auto relative min-h-screen lg:min-h-0 mt-[60px] px-2'>
+    <div
+      className='w-full max-w-7xl mx-auto relative min-h-screen lg:min-h-0 mt-[72px] px-3 sm:px-4 pb-10'
+      style={{
+        background: '#f8fafc',
+      }}
+    >
       {/* 大陆地区访问提醒 */}
       <Modal
         visible={geoWarnVisible}
@@ -677,26 +682,46 @@ const TopUp = () => {
         centered
         size='small'
         header={null}
-        bodyStyle={{ padding: '36px 28px 28px', textAlign: 'center', position: 'relative' }}
+        bodyStyle={{
+          padding: '38px 30px 30px',
+          textAlign: 'center',
+          position: 'relative',
+        }}
+        style={{ borderRadius: 28, overflow: 'hidden' }}
       >
         {/* 关闭按钮 */}
         <button
           onClick={() => setGeoWarnVisible(false)}
           style={{
-            position: 'absolute', top: 14, right: 16,
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: 'var(--semi-color-text-2)', fontSize: 18, lineHeight: 1, padding: 4,
+            position: 'absolute',
+            top: 14,
+            right: 16,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--semi-color-text-2)',
+            fontSize: 18,
+            lineHeight: 1,
+            padding: 4,
           }}
-        >✕</button>
+        >
+          ✕
+        </button>
 
         {/* 图标 */}
-        <div style={{
-          width: 68, height: 68, borderRadius: '50%',
-          background: 'linear-gradient(135deg, #ff6b6b 0%, #d9363e 100%)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 18px',
-          boxShadow: '0 8px 24px rgba(217,54,62,0.30)',
-        }}>
+        <div
+          style={{
+            width: 68,
+            height: 68,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #fb7185 0%, #be123c 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 18px',
+            boxShadow: '0 8px 24px rgba(217,54,62,0.30)',
+          }}
+        >
           <ShieldAlert size={32} color='#fff' />
         </div>
 
@@ -706,16 +731,30 @@ const TopUp = () => {
         </Typography.Title>
 
         {/* 分割线 */}
-        <div style={{ height: 1, background: 'var(--semi-color-border)', margin: '12px 0 16px' }} />
+        <div
+          style={{
+            height: 1,
+            background: 'var(--semi-color-border)',
+            margin: '12px 0 16px',
+          }}
+        />
 
         {/* 正文 */}
-        <Typography.Paragraph style={{
-          fontSize: 14, lineHeight: '1.8', color: 'var(--semi-color-text-1)',
-          margin: '0 0 24px', textAlign: 'left',
-        }}>
+        <Typography.Paragraph
+          style={{
+            fontSize: 14,
+            lineHeight: '1.8',
+            color: 'var(--semi-color-text-1)',
+            margin: '0 0 24px',
+            textAlign: 'left',
+          }}
+        >
           {t('本平台拒绝向中国大陆地区用户提供服务。')}
-            <br /><br />
-            {t('当前检测到您位于中国大陆地区，请立即停止使用。如继续使用，本平台不承担任何责任，请知悉。')}
+          <br />
+          <br />
+          {t(
+            '当前检测到您位于中国大陆地区，请立即停止使用。如继续使用，本平台不承担任何责任，请知悉。',
+          )}
         </Typography.Paragraph>
 
         <Button
@@ -723,7 +762,7 @@ const TopUp = () => {
           type='danger'
           theme='solid'
           size='large'
-          style={{ borderRadius: 8, fontWeight: 600 }}
+          style={{ borderRadius: 14, fontWeight: 700, height: 44 }}
           onClick={() => setGeoWarnVisible(false)}
         >
           {t('我已知晓')}
@@ -738,26 +777,46 @@ const TopUp = () => {
         centered
         size='small'
         header={null}
-        bodyStyle={{ padding: '36px 28px 28px', textAlign: 'center', position: 'relative' }}
+        bodyStyle={{
+          padding: '38px 30px 30px',
+          textAlign: 'center',
+          position: 'relative',
+        }}
+        style={{ borderRadius: 28, overflow: 'hidden' }}
       >
         {/* 关闭按钮 */}
         <button
           onClick={() => setGeoPayWarnVisible(false)}
           style={{
-            position: 'absolute', top: 14, right: 16,
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: 'var(--semi-color-text-2)', fontSize: 18, lineHeight: 1, padding: 4,
+            position: 'absolute',
+            top: 14,
+            right: 16,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--semi-color-text-2)',
+            fontSize: 18,
+            lineHeight: 1,
+            padding: 4,
           }}
-        >✕</button>
+        >
+          ✕
+        </button>
 
         {/* 图标 */}
-        <div style={{
-          width: 68, height: 68, borderRadius: '50%',
-          background: 'linear-gradient(135deg, #fa8c16 0%, #d46b08 100%)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 18px',
-          boxShadow: '0 8px 24px rgba(250,140,22,0.30)',
-        }}>
+        <div
+          style={{
+            width: 68,
+            height: 68,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #f59e0b 0%, #b45309 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 18px',
+            boxShadow: '0 8px 24px rgba(250,140,22,0.30)',
+          }}
+        >
           <ShieldAlert size={32} color='#fff' />
         </div>
 
@@ -767,14 +826,27 @@ const TopUp = () => {
         </Typography.Title>
 
         {/* 分割线 */}
-        <div style={{ height: 1, background: 'var(--semi-color-border)', margin: '12px 0 16px' }} />
+        <div
+          style={{
+            height: 1,
+            background: 'var(--semi-color-border)',
+            margin: '12px 0 16px',
+          }}
+        />
 
         {/* 正文 */}
-        <Typography.Paragraph style={{
-          fontSize: 14, lineHeight: '1.8', color: 'var(--semi-color-text-1)',
-          margin: '0 0 24px', textAlign: 'left',
-        }}>
-          {t('检测到本次充值位于中国，强烈建议用户遵守相关国家法律法规，切勿违反任何法定约束。')}
+        <Typography.Paragraph
+          style={{
+            fontSize: 14,
+            lineHeight: '1.8',
+            color: 'var(--semi-color-text-1)',
+            margin: '0 0 24px',
+            textAlign: 'left',
+          }}
+        >
+          {t(
+            '检测到本次充值位于中国，强烈建议用户遵守相关国家法律法规，切勿违反任何法定约束。',
+          )}
         </Typography.Paragraph>
 
         {/* 确认按钮 */}
@@ -782,13 +854,28 @@ const TopUp = () => {
           block
           theme='solid'
           size='large'
-          style={{ borderRadius: 8, fontWeight: 600, marginBottom: 10, background: '#fa8c16', borderColor: '#fa8c16', whiteSpace: 'normal', height: 'auto', padding: '10px 16px', lineHeight: '1.6' }}
+          style={{
+            borderRadius: 14,
+            fontWeight: 700,
+            marginBottom: 10,
+            background: '#b45309',
+            borderColor: '#b45309',
+            whiteSpace: 'normal',
+            height: 'auto',
+            padding: '10px 16px',
+            lineHeight: '1.6',
+          }}
           onClick={() => {
             setGeoPayWarnVisible(false);
-            if (pendingPayAction) { pendingPayAction(); setPendingPayAction(null); }
+            if (pendingPayAction) {
+              pendingPayAction();
+              setPendingPayAction(null);
+            }
           }}
         >
-          {t('我承诺本次充值关联业务和使用均不在中国大陆，')}<br />{t('我确认继续充值')}
+          {t('我承诺本次充值关联业务和使用均不在中国大陆，')}
+          <br />
+          {t('我确认继续充值')}
         </Button>
 
         {/* 取消按钮 */}
@@ -796,7 +883,7 @@ const TopUp = () => {
           block
           type='tertiary'
           size='large'
-          style={{ borderRadius: 8 }}
+          style={{ borderRadius: 14 }}
           onClick={() => setGeoPayWarnVisible(false)}
         >
           {t('取消')}

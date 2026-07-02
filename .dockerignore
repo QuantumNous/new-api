@@ -8,4 +8,7 @@ docs
 .eslintcache
 .gocache
 /web/node_modules
+/data
+/logs
+/logs-verify
 bw.go

@@ -17,27 +17,5 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { useTranslation } from 'react-i18next';
-import TopupHistoryModal from '../../components/topup/modals/TopupHistoryModal';
-
-const Invoice = () => {
-  const { t } = useTranslation();
-
-  return (
-    <div
-      style={{
-        width: '100%',
-        minHeight: '100vh',
-        background: '#f8fafc',
-        padding: '82px 24px 36px',
-      }}
-    >
-      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-        <TopupHistoryModal asPage t={t} />
-      </div>
-    </div>
-  );
-};
-
-export default Invoice;
+import SubscriptionManagement from '../../components/subscriptions/SubscriptionManagement';
+export default SubscriptionManagement;

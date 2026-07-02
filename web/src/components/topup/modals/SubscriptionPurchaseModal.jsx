@@ -25,7 +25,6 @@ import {
   Card,
   Button,
   Select,
-  Divider,
   Tooltip,
 } from '@douyinfe/semi-ui';
 import { Crown, CalendarClock, Package } from 'lucide-react';
@@ -65,7 +64,7 @@ const SubscriptionPurchaseModal = ({
   const { symbol, rate } = getCurrencyConfig();
   const price = plan ? Number(plan.price_amount || 0) : 0;
   const convertedPrice = price * rate;
-  const taxMultiplier = includeTax ? (1 + taxRate) : 1;
+  const taxMultiplier = includeTax ? 1 + taxRate : 1;
   const displayPrice = (convertedPrice * taxMultiplier).toFixed(
     Number.isInteger(convertedPrice * taxMultiplier) ? 0 : 2,
   );
@@ -78,6 +77,11 @@ const SubscriptionPurchaseModal = ({
   const purchaseCount = Number(purchaseLimitInfo?.count || 0);
   const purchaseLimitReached =
     purchaseLimit > 0 && purchaseCount >= purchaseLimit;
+  const windowQuotas = [
+    { label: t('5小时额度'), value: Number(plan?.window_limit_5h || 0) },
+    { label: t('本周额度'), value: Number(plan?.window_limit_7d || 0) },
+    { label: t('本月额度'), value: Number(plan?.window_limit_30d || 0) },
+  ].filter((item) => item.value > 0);
 
   return (
     <Modal
@@ -90,216 +94,261 @@ const SubscriptionPurchaseModal = ({
       visible={visible}
       onCancel={onCancel}
       footer={null}
-      size='small'
+      size='medium'
       centered
+      className='subscription-purchase-modal'
+      bodyStyle={{ padding: 0 }}
     >
       {plan ? (
-        <div className='space-y-4 pb-10'>
-          {/* 套餐信息 */}
-          <Card className='!rounded-xl !border-0 bg-slate-50 dark:bg-slate-800'>
-            <div className='space-y-3'>
-              <div className='flex justify-between items-center'>
-                <Text strong className='text-slate-700 dark:text-slate-200'>
-                  {t('套餐名称')}：
-                </Text>
-                <Typography.Text
-                  className='text-slate-900 dark:text-slate-100'
-                  style={{ wordBreak: 'break-all' }}
-                >
-                  {plan.title}
-                </Typography.Text>
+        <div
+          className='overflow-hidden rounded-3xl'
+          style={{
+            background:
+              'radial-gradient(circle at 12% 0%, rgba(14, 165, 233, 0.14), transparent 35%), linear-gradient(180deg, #f8fafc 0%, #ffffff 46%)',
+          }}
+        >
+          <div className='px-6 pb-6 pt-5'>
+            <div className='mb-5 rounded-3xl bg-slate-950 p-5 text-white shadow-2xl shadow-slate-950/15'>
+              <div className='text-xs font-bold uppercase tracking-[0.22em] text-cyan-200/80'>
+                {t('订阅套餐')}
               </div>
-              <div className='flex justify-between items-center'>
-                <Text strong className='text-slate-700 dark:text-slate-200'>
-                  {t('有效期')}：
-                </Text>
-                <div className='flex items-center'>
-                  <CalendarClock size={14} className='mr-1 text-slate-500' />
-                  <Text className='text-slate-900 dark:text-slate-100'>
+              <div className='mt-2 flex items-end justify-between gap-4'>
+                <div className='min-w-0'>
+                  <div className='truncate text-2xl font-black tracking-tight'>
+                    {plan.title}
+                  </div>
+                  <div className='mt-2 flex items-center gap-2 text-sm text-slate-300'>
+                    <CalendarClock size={15} />
                     {formatSubscriptionDuration(plan, t)}
-                  </Text>
+                  </div>
+                </div>
+                <div className='text-right'>
+                  <div className='text-xs text-slate-400'>{t('应付金额')}</div>
+                  <div className='text-3xl font-black text-cyan-200'>
+                    {symbol}
+                    {displayPrice}
+                  </div>
                 </div>
               </div>
-              {formatSubscriptionResetPeriod(plan, t) !== t('不重置') && (
+            </div>
+
+            {/* 套餐信息 */}
+            <Card className='!rounded-3xl !border-0 bg-white/80 shadow-sm ring-1 ring-slate-200/80 backdrop-blur'>
+              <div className='space-y-3'>
                 <div className='flex justify-between items-center'>
                   <Text strong className='text-slate-700 dark:text-slate-200'>
-                    {t('重置周期')}：
+                    {t('套餐名称')}：
                   </Text>
-                  <Text className='text-slate-900 dark:text-slate-100'>
-                    {formatSubscriptionResetPeriod(plan, t)}
-                  </Text>
+                  <Typography.Text
+                    className='text-slate-900 dark:text-slate-100'
+                    style={{ wordBreak: 'break-all' }}
+                  >
+                    {plan.title}
+                  </Typography.Text>
                 </div>
-              )}
-              <div className='flex justify-between items-center'>
-                <Text strong className='text-slate-700 dark:text-slate-200'>
-                  {t('总额度')}：
-                </Text>
-                <div className='flex items-center'>
-                  <Package size={14} className='mr-1 text-slate-500' />
-                  {totalAmount > 0 ? (
-                    <Tooltip content={`${t('原生额度')}：${totalAmount}`}>
+                <div className='flex justify-between items-center'>
+                  <Text strong className='text-slate-700 dark:text-slate-200'>
+                    {t('有效期')}：
+                  </Text>
+                  <div className='flex items-center'>
+                    <CalendarClock size={14} className='mr-1 text-slate-500' />
+                    <Text className='text-slate-900 dark:text-slate-100'>
+                      {formatSubscriptionDuration(plan, t)}
+                    </Text>
+                  </div>
+                </div>
+                {formatSubscriptionResetPeriod(plan, t) !== t('不重置') && (
+                  <div className='flex justify-between items-center'>
+                    <Text strong className='text-slate-700 dark:text-slate-200'>
+                      {t('重置周期')}：
+                    </Text>
+                    <Text className='text-slate-900 dark:text-slate-100'>
+                      {formatSubscriptionResetPeriod(plan, t)}
+                    </Text>
+                  </div>
+                )}
+                {windowQuotas.map((item) => (
+                  <div
+                    key={item.label}
+                    className='flex justify-between items-center'
+                  >
+                    <Text strong className='text-slate-700 dark:text-slate-200'>
+                      {item.label}：
+                    </Text>
+                    <Tooltip content={`${t('原生额度')}：${item.value}`}>
                       <Text className='text-slate-900 dark:text-slate-100'>
-                        {renderQuota(totalAmount)}
+                        {renderQuota(item.value)}
                       </Text>
                     </Tooltip>
-                  ) : (
-                    <Text className='text-slate-900 dark:text-slate-100'>
-                      {t('不限')}
-                    </Text>
-                  )}
-                </div>
-              </div>
-              {plan?.upgrade_group ? (
-                <div className='flex justify-between items-center'>
-                  <Text strong className='text-slate-700 dark:text-slate-200'>
-                    {t('升级分组')}：
-                  </Text>
-                  <Text className='text-slate-900 dark:text-slate-100'>
-                    {plan.upgrade_group}
-                  </Text>
-                </div>
-              ) : null}
-              {plan?.allowed_groups ? (
-                <div className='flex justify-between items-center'>
-                  <Text strong className='text-slate-700 dark:text-slate-200'>
-                    {t('限制分组')}：
-                  </Text>
-                  <Text className='text-slate-900 dark:text-slate-100'>
-                    {typeof plan.allowed_groups === 'string'
-                      ? plan.allowed_groups
-                      : (Array.isArray(plan.allowed_groups)
-                          ? plan.allowed_groups.join(', ')
-                          : String(plan.allowed_groups))}
-                  </Text>
-                </div>
-              ) : null}
-              <Divider margin={8} />
-              <div className='flex justify-between items-center'>
-                <Text strong className='text-slate-700 dark:text-slate-200'>
-                  {t('应付金额')}：
-                </Text>
-                <Text strong className='text-xl text-purple-600'>
-                  {symbol}
-                  {displayPrice}
-                </Text>
-              </div>
-            </div>
-          </Card>
-
-          {/* 税费类型 */}
-          <div
-            className='rounded-xl px-4 py-3'
-            style={{ background: 'var(--semi-color-fill-0)' }}
-          >
-            <div className='flex items-center justify-between'>
-              <Text strong size='small'>
-                {t('税费类型')}
-              </Text>
-              <div className='flex rounded-lg overflow-hidden' style={{ border: '1px solid var(--semi-color-border)' }}>
-                {[
-                  { value: false, label: t('不含税') },
-                  { value: true, label: t('含税') },
-                ].map((opt) => (
-                  <div
-                    key={String(opt.value)}
-                    className='cursor-pointer select-none transition-all'
-                    style={{
-                      padding: '6px 14px',
-                      fontSize: 12,
-                      fontWeight: includeTax === opt.value ? 600 : 400,
-                      backgroundColor: includeTax === opt.value ? '#3b82f6' : 'transparent',
-                      color: includeTax === opt.value ? '#fff' : 'var(--semi-color-text-0)',
-                    }}
-                    onClick={() => setIncludeTax(opt.value)}
-                  >
-                    {opt.label}
                   </div>
                 ))}
+                <div className='flex justify-between items-center'>
+                  <Text strong className='text-slate-700 dark:text-slate-200'>
+                    {t('本月总额度')}：
+                  </Text>
+                  <div className='flex items-center'>
+                    <Package size={14} className='mr-1 text-slate-500' />
+                    {totalAmount > 0 ? (
+                      <Tooltip content={`${t('原生额度')}：${totalAmount}`}>
+                        <Text className='text-slate-900 dark:text-slate-100'>
+                          {renderQuota(totalAmount)}
+                        </Text>
+                      </Tooltip>
+                    ) : (
+                      <Text className='text-slate-900 dark:text-slate-100'>
+                        {t('不限')}
+                      </Text>
+                    )}
+                  </div>
+                </div>
+                {plan?.upgrade_group ? (
+                  <div className='flex justify-between items-center'>
+                    <Text strong className='text-slate-700 dark:text-slate-200'>
+                      {t('升级分组')}：
+                    </Text>
+                    <Text className='text-slate-900 dark:text-slate-100'>
+                      {plan.upgrade_group}
+                    </Text>
+                  </div>
+                ) : null}
+                {plan?.allowed_groups ? (
+                  <div className='flex justify-between items-center'>
+                    <Text strong className='text-slate-700 dark:text-slate-200'>
+                      {t('限制分组')}：
+                    </Text>
+                    <Text className='text-slate-900 dark:text-slate-100'>
+                      {typeof plan.allowed_groups === 'string'
+                        ? plan.allowed_groups
+                        : Array.isArray(plan.allowed_groups)
+                          ? plan.allowed_groups.join(', ')
+                          : String(plan.allowed_groups)}
+                    </Text>
+                  </div>
+                ) : null}
+              </div>
+            </Card>
+
+            {/* 税费类型 */}
+            <div
+              className='mt-4 rounded-2xl px-4 py-3 ring-1 ring-slate-200/80'
+              style={{ background: 'rgba(255,255,255,0.78)' }}
+            >
+              <div className='flex items-center justify-between'>
+                <Text strong size='small'>
+                  {t('税费类型')}
+                </Text>
+                <div className='flex rounded-full overflow-hidden bg-slate-100 p-1'>
+                  {[
+                    { value: false, label: t('不含税') },
+                    { value: true, label: t('含税') },
+                  ].map((opt) => (
+                    <div
+                      key={String(opt.value)}
+                      className='cursor-pointer select-none transition-all'
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: includeTax === opt.value ? 600 : 400,
+                        backgroundColor:
+                          includeTax === opt.value ? '#0f172a' : 'transparent',
+                        color:
+                          includeTax === opt.value
+                            ? '#fff'
+                            : 'var(--semi-color-text-0)',
+                      }}
+                      onClick={() => setIncludeTax(opt.value)}
+                    >
+                      {opt.label}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
+
+            {/* 支付方式 */}
+            {purchaseLimitReached && (
+              <Banner
+                type='warning'
+                description={`${t('已达到购买上限')} (${purchaseCount}/${purchaseLimit})`}
+                className='!rounded-xl'
+                closeIcon={null}
+              />
+            )}
+
+            {hasAnyPayment ? (
+              <div className='mt-4 space-y-3'>
+                <Text size='small' type='tertiary'>
+                  {t('选择支付方式')}：
+                </Text>
+
+                {/* Stripe / Creem */}
+                {(hasStripe || hasCreem) && (
+                  <div className='flex gap-2'>
+                    {hasStripe && (
+                      <Button
+                        theme='light'
+                        className='flex-1 !h-11 !rounded-2xl'
+                        icon={<SiStripe size={14} color='#635BFF' />}
+                        onClick={onPayStripe}
+                        loading={paying}
+                        disabled={purchaseLimitReached}
+                      >
+                        Stripe
+                      </Button>
+                    )}
+                    {hasCreem && (
+                      <Button
+                        theme='light'
+                        className='flex-1 !h-11 !rounded-2xl'
+                        icon={<IconCreditCard />}
+                        onClick={onPayCreem}
+                        loading={paying}
+                        disabled={purchaseLimitReached}
+                      >
+                        Creem
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* 易支付 */}
+                {hasEpay && (
+                  <div className='flex gap-2'>
+                    <Select
+                      value={selectedEpayMethod}
+                      onChange={setSelectedEpayMethod}
+                      style={{ flex: 1 }}
+                      size='default'
+                      placeholder={t('选择支付方式')}
+                      optionList={epayMethods.map((m) => ({
+                        value: m.type,
+                        label: m.name || m.type,
+                      }))}
+                      disabled={purchaseLimitReached}
+                    />
+                    <Button
+                      theme='solid'
+                      type='primary'
+                      className='!rounded-2xl'
+                      onClick={onPayEpay}
+                      loading={paying}
+                      disabled={!selectedEpayMethod || purchaseLimitReached}
+                    >
+                      {t('支付')}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Banner
+                type='info'
+                description={t('管理员未开启在线支付功能，请联系管理员配置。')}
+                className='!rounded-xl'
+                closeIcon={null}
+              />
+            )}
           </div>
-
-          {/* 支付方式 */}
-          {purchaseLimitReached && (
-            <Banner
-              type='warning'
-              description={`${t('已达到购买上限')} (${purchaseCount}/${purchaseLimit})`}
-              className='!rounded-xl'
-              closeIcon={null}
-            />
-          )}
-
-          {hasAnyPayment ? (
-            <div className='space-y-3'>
-              <Text size='small' type='tertiary'>
-                {t('选择支付方式')}：
-              </Text>
-
-              {/* Stripe / Creem */}
-              {(hasStripe || hasCreem) && (
-                <div className='flex gap-2'>
-                  {hasStripe && (
-                    <Button
-                      theme='light'
-                      className='flex-1'
-                      icon={<SiStripe size={14} color='#635BFF' />}
-                      onClick={onPayStripe}
-                      loading={paying}
-                      disabled={purchaseLimitReached}
-                    >
-                      Stripe
-                    </Button>
-                  )}
-                  {hasCreem && (
-                    <Button
-                      theme='light'
-                      className='flex-1'
-                      icon={<IconCreditCard />}
-                      onClick={onPayCreem}
-                      loading={paying}
-                      disabled={purchaseLimitReached}
-                    >
-                      Creem
-                    </Button>
-                  )}
-                </div>
-              )}
-
-              {/* 易支付 */}
-              {hasEpay && (
-                <div className='flex gap-2'>
-                  <Select
-                    value={selectedEpayMethod}
-                    onChange={setSelectedEpayMethod}
-                    style={{ flex: 1 }}
-                    size='default'
-                    placeholder={t('选择支付方式')}
-                    optionList={epayMethods.map((m) => ({
-                      value: m.type,
-                      label: m.name || m.type,
-                    }))}
-                    disabled={purchaseLimitReached}
-                  />
-                  <Button
-                    theme='solid'
-                    type='primary'
-                    onClick={onPayEpay}
-                    loading={paying}
-                    disabled={!selectedEpayMethod || purchaseLimitReached}
-                  >
-                    {t('支付')}
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <Banner
-              type='info'
-              description={t('管理员未开启在线支付功能，请联系管理员配置。')}
-              className='!rounded-xl'
-              closeIcon={null}
-            />
-          )}
         </div>
       ) : null}
     </Modal>

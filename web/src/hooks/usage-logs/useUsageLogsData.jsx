@@ -29,6 +29,7 @@ import {
   timestamp2string,
   renderQuota,
   renderNumber,
+  getQuotaWithUnit,
   getLogOther,
   copy,
   renderClaudeLogContent,
@@ -45,6 +46,15 @@ import ParamOverrideEntry from '../../components/table/usage-logs/components/Par
 
 export const useLogsData = () => {
   const { t } = useTranslation();
+
+  const renderSubscriptionMoney = (quota, digits = 3) => {
+    const rawQuota = Number(quota || 0);
+    const value = Number(getQuotaWithUnit(rawQuota, digits));
+    if (!Number.isFinite(value)) {
+      return `${rawQuota} ${t('额度')}`;
+    }
+    return `$${value.toFixed(digits).replace(/\.?0+$/, '')}`;
+  };
 
   // Define column keys for selection
   const COLUMN_KEYS = {
@@ -164,7 +174,9 @@ export const useLogsData = () => {
   };
 
   // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState(
+    getInitialVisibleColumns,
+  );
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [billingDisplayMode, setBillingDisplayMode] = useState(
     getInitialBillingDisplayMode,
@@ -364,7 +376,6 @@ export const useLogsData = () => {
     setShowParamOverrideModal(true);
   };
 
-
   // Format logs data
   const setLogsFormat = (logs) => {
     const requestConversionDisplayValue = (conversionChain) => {
@@ -384,7 +395,10 @@ export const useLogsData = () => {
       let other = getLogOther(logs[i].other);
       let expandDataLocal = [];
 
-      if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
+      if (
+        isAdminUser &&
+        (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)
+      ) {
         expandDataLocal.push({
           key: t('渠道信息'),
           value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
@@ -431,7 +445,10 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('日志详情'),
             value: other?.claude
-              ? renderClaudeLogContent({ ...other, displayMode: billingDisplayMode })
+              ? renderClaudeLogContent({
+                  ...other,
+                  displayMode: billingDisplayMode,
+                })
               : renderLogContent({ ...other, displayMode: billingDisplayMode }),
           });
         }
@@ -521,7 +538,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('失败原因'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {other.reason}
               </div>
             ),
@@ -538,7 +562,8 @@ export const useLogsData = () => {
         const ss = other.stream_status;
         const isOk = ss.status === 'ok';
         const statusLabel = isOk ? '✓ ' + t('正常') : '✗ ' + t('异常');
-        let streamValue = statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
+        let streamValue =
+          statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
         if (ss.error_count > 0) {
           streamValue += ` [${t('软错误')}: ${ss.error_count}]`;
         }
@@ -553,7 +578,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('流错误详情'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'pre-line', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'pre-line',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {ss.errors.join('\n')}
               </div>
             ),
@@ -575,33 +607,76 @@ export const useLogsData = () => {
           ),
         });
       }
-      if (other?.billing_source === 'subscription') {
+      if (
+        other?.billing_source === 'subscription' ||
+        other?.billing_source === 'hybrid'
+      ) {
+        const subscriptionDetails = Array.isArray(other?.subscription_details)
+          ? other.subscription_details
+          : [];
         const planId = other?.subscription_plan_id;
         const planTitle = other?.subscription_plan_title || '';
         const subscriptionId = other?.subscription_id;
-        const unit = t('额度');
         const pre = other?.subscription_pre_consumed ?? 0;
         const postDelta = other?.subscription_post_delta ?? 0;
         const finalConsumed = other?.subscription_consumed ?? pre + postDelta;
         const remain = other?.subscription_remain;
         const total = other?.subscription_total;
+        if (subscriptionDetails.length > 0) {
+          expandDataLocal.push({
+            key: t('订阅明细'),
+            value: (
+              <div style={{ whiteSpace: 'pre-line' }}>
+                {subscriptionDetails
+                  .map((detail) => {
+                    const detailPlanId = detail?.plan_id;
+                    const detailPlanTitle = detail?.plan_title || '';
+                    const detailSubId = detail?.subscription_id;
+                    const detailPre = detail?.pre_consumed ?? 0;
+                    const detailUsed = detail?.amount_used;
+                    const detailTotal = detail?.amount_total;
+                    const title = detailPlanId
+                      ? `#${detailPlanId} ${detailPlanTitle}`.trim()
+                      : detailPlanTitle;
+                    const parts = [];
+                    if (title) parts.push(t('套餐') + ` ${title}`);
+                    if (detailSubId) parts.push(t('实例') + ` #${detailSubId}`);
+                    parts.push(
+                      t('抵扣') +
+                        ` ${renderSubscriptionMoney(detailPre)} ${t('额度')}`,
+                    );
+                    let line = parts.join('，');
+                    if (detailUsed !== undefined && detailTotal !== undefined) {
+                      const remainQuota = Math.max(
+                        Number(detailTotal) - Number(detailUsed),
+                        0,
+                      );
+                      line += `；${t('总额度')}${renderSubscriptionMoney(detailTotal)}，${t('剩余')} ${renderSubscriptionMoney(remainQuota)}；`;
+                    }
+                    return line;
+                  })
+                  .join('\n')}
+              </div>
+            ),
+          });
+        }
         // Use multiple Description items to avoid an overlong single line.
-        if (planId) {
+        if (planId && subscriptionDetails.length === 0) {
           expandDataLocal.push({
             key: t('订阅套餐'),
             value: `#${planId} ${planTitle}`.trim(),
           });
         }
-        if (subscriptionId) {
+        if (subscriptionId && subscriptionDetails.length === 0) {
           expandDataLocal.push({
             key: t('订阅实例'),
             value: `#${subscriptionId}`,
           });
         }
         const settlementLines = [
-          `${t('预扣')}：${pre} ${unit}`,
-          `${t('结算差额')}：${postDelta > 0 ? '+' : ''}${postDelta} ${unit}`,
-          `${t('最终抵扣')}：${finalConsumed} ${unit}`,
+          `${t('预扣')}：${renderSubscriptionMoney(pre)}`,
+          `${t('结算差额')}：${postDelta > 0 ? '+' : ''}${renderSubscriptionMoney(postDelta)}`,
+          `${t('最终抵扣')}：${renderSubscriptionMoney(finalConsumed)}`,
         ]
           .filter(Boolean)
           .join('\n');
@@ -611,10 +686,20 @@ export const useLogsData = () => {
             <div style={{ whiteSpace: 'pre-line' }}>{settlementLines}</div>
           ),
         });
-        if (remain !== undefined && total !== undefined) {
+        if (other?.billing_source === 'hybrid') {
+          expandDataLocal.push({
+            key: t('余额补扣'),
+            value: renderSubscriptionMoney(other?.wallet_quota_deducted || 0),
+          });
+        }
+        if (
+          subscriptionDetails.length === 0 &&
+          remain !== undefined &&
+          total !== undefined
+        ) {
           expandDataLocal.push({
             key: t('订阅剩余'),
-            value: `${remain}/${total} ${unit}`,
+            value: `${renderSubscriptionMoney(remain)}/${renderSubscriptionMoney(total)}`,
           });
         }
         expandDataLocal.push({

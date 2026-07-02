@@ -33,7 +33,13 @@ import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
-import { Coins } from 'lucide-react';
+import {
+  ArrowUpRight,
+  Coins,
+  FileText,
+  ReceiptText,
+  Search,
+} from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
 import { isAdmin } from '../../../helpers/utils';
@@ -175,6 +181,29 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
   // 检查是否为管理员
   const userIsAdmin = useMemo(() => isAdmin(), []);
 
+  const pageSummary = useMemo(() => {
+    return topups.reduce(
+      (summary, record) => {
+        if (record.status === 'success') {
+          const money = Number(record.money || 0);
+          summary.successCount += 1;
+          summary.successAmount += Number.isFinite(money) ? money : 0;
+
+          if (record.include_tax) {
+            const invoiceable = Number(
+              record.pre_tax_money || record.money - (record.tax_amount || 0),
+            );
+            summary.invoiceableAmount += Number.isFinite(invoiceable)
+              ? Math.max(invoiceable, 0)
+              : 0;
+          }
+        }
+        return summary;
+      },
+      { successCount: 0, successAmount: 0, invoiceableAmount: 0 },
+    );
+  }, [topups]);
+
   // 打开开票申请弹窗
   const openInvoiceModal = (record) => {
     setSelectedTopUp(record);
@@ -211,7 +240,8 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
 
   // 渲染开票状态
   const renderInvoiceStatus = (invoiceStatus, record) => {
-    const config = INVOICE_STATUS_CONFIG[invoiceStatus] || INVOICE_STATUS_CONFIG.none;
+    const config =
+      INVOICE_STATUS_CONFIG[invoiceStatus] || INVOICE_STATUS_CONFIG.none;
     return (
       <Tag color={config.color} size='small'>
         {t(config.key)}
@@ -230,7 +260,11 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
               render: (userId, record) => (
                 <div>
                   <Text>{record.username || '-'}</Text>
-                  <div><Text type='tertiary' size='small'>ID: {userId}</Text></div>
+                  <div>
+                    <Text type='tertiary' size='small'>
+                      ID: {userId}
+                    </Text>
+                  </div>
                 </div>
               ),
             },
@@ -290,7 +324,8 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
         key: 'invoiceable_amount',
         render: (_, record) => {
           if (!record.include_tax) return <Text type='tertiary'>¥0.00</Text>;
-          const amount = record.pre_tax_money || (record.money - (record.tax_amount || 0));
+          const amount =
+            record.pre_tax_money || record.money - (record.tax_amount || 0);
           return <Text>¥{amount.toFixed(2)}</Text>;
         },
       },
@@ -301,7 +336,8 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
           if (!record.include_tax) return <Text type='tertiary'>¥0.00</Text>;
           const status = record.invoice_status || 'none';
           if (status === 'issued') {
-            const amount = record.pre_tax_money || (record.money - (record.tax_amount || 0));
+            const amount =
+              record.pre_tax_money || record.money - (record.tax_amount || 0);
             return <Text type='success'>¥{amount.toFixed(2)}</Text>;
           }
           return <Text type='tertiary'>¥0.00</Text>;
@@ -356,14 +392,14 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
           if (record.status === 'pending') {
             actions.push(
               <Button
-                key="complete"
+                key='complete'
                 size='small'
                 type='primary'
                 theme='outline'
                 onClick={() => confirmAdminComplete(record.trade_no)}
               >
                 {t('补单')}
-              </Button>
+              </Button>,
             );
           }
           return actions.length > 0 ? <>{actions}</> : null;
@@ -381,44 +417,37 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
     return baseColumns;
   }, [t, userIsAdmin]);
 
-  const tableContent = (
-    <>
-      <div className='mb-3'>
-        <Input
-          prefix={<IconSearch />}
-          placeholder={t('订单号')}
-          value={keyword}
-          onChange={handleKeywordChange}
-          showClear
+  const tableNode = (
+    <Table
+      columns={columns}
+      dataSource={topups}
+      loading={loading}
+      rowKey='id'
+      pagination={{
+        currentPage: page,
+        pageSize: pageSize,
+        total: total,
+        showSizeChanger: true,
+        pageSizeOpts: [10, 20, 50, 100],
+        onPageChange: handlePageChange,
+        onPageSizeChange: handlePageSizeChange,
+      }}
+      size='small'
+      empty={
+        <Empty
+          image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
+          darkModeImage={
+            <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+          }
+          description={t('暂无充值记录')}
+          style={{ padding: 30 }}
         />
-      </div>
-      <Table
-        columns={columns}
-        dataSource={topups}
-        loading={loading}
-        rowKey='id'
-        pagination={{
-          currentPage: page,
-          pageSize: pageSize,
-          total: total,
-          showSizeChanger: true,
-          pageSizeOpts: [10, 20, 50, 100],
-          onPageChange: handlePageChange,
-          onPageSizeChange: handlePageSizeChange,
-        }}
-        size='small'
-        empty={
-          <Empty
-            image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-            darkModeImage={
-              <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
-            }
-            description={t('暂无充值记录')}
-            style={{ padding: 30 }}
-          />
-        }
-      />
+      }
+    />
+  );
 
+  const invoiceModalNode = (
+    <>
       {/* 开票申请弹窗 */}
       <Modal
         title={t('申请开票')}
@@ -452,8 +481,10 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
             )}
             <br />
             <Text strong>
-              {t('可开票额度')}：¥{(selectedTopUp.include_tax
-                ? (selectedTopUp.pre_tax_money || selectedTopUp.money - (selectedTopUp.tax_amount || 0))
+              {t('可开票额度')}：¥
+              {(selectedTopUp.include_tax
+                ? selectedTopUp.pre_tax_money ||
+                  selectedTopUp.money - (selectedTopUp.tax_amount || 0)
                 : 0
               ).toFixed(2)}
             </Text>
@@ -491,8 +522,305 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
     </>
   );
 
+  const tableContent = (
+    <>
+      <div className='mb-3'>
+        <Input
+          prefix={<IconSearch />}
+          placeholder={t('订单号')}
+          value={keyword}
+          onChange={handleKeywordChange}
+          showClear
+        />
+      </div>
+      {tableNode}
+      {invoiceModalNode}
+    </>
+  );
+
   if (asPage) {
-    return tableContent;
+    return (
+      <>
+        <div
+          style={{
+            marginBottom: 26,
+            borderRadius: 30,
+            overflow: 'hidden',
+            border: '1px solid rgba(15, 23, 42, 0.08)',
+            background: '#ffffff',
+            boxShadow: '0 18px 45px rgba(15, 23, 42, 0.06)',
+          }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
+              minHeight: 236,
+            }}
+          >
+            <div
+              style={{
+                padding: '34px 36px 32px',
+                borderRight: '1px solid rgba(15, 23, 42, 0.08)',
+                background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 18,
+                  marginBottom: 30,
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      marginBottom: 14,
+                      color: '#0f172a',
+                      fontSize: 15,
+                      fontWeight: 800,
+                      letterSpacing: '-0.02em',
+                    }}
+                  >
+                    <ReceiptText size={18} />
+                    {t('充值资金流水')}
+                  </div>
+                  <div
+                    style={{
+                      color: '#0f172a',
+                      fontSize: 44,
+                      lineHeight: 1.05,
+                      letterSpacing: '-0.07em',
+                      fontWeight: 900,
+                    }}
+                  >
+                    {t('充值账单')}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#0f172a',
+                    background: '#f8fafc',
+                    border: '1px solid rgba(15, 23, 42, 0.08)',
+                  }}
+                >
+                  <FileText size={21} />
+                </div>
+              </div>
+
+              <Text
+                style={{
+                  display: 'block',
+                  maxWidth: 520,
+                  color: '#475569',
+                  fontSize: 16,
+                  lineHeight: 1.7,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {t(
+                  '查看充值订单、支付状态与开票进度，成功订单可按规则发起开票申请。',
+                )}
+              </Text>
+            </div>
+
+            <div
+              style={{ display: 'grid', background: '#f8fafc', padding: 12 }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateRows: '1fr 1fr 1fr',
+                  background: '#ffffff',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 18,
+                    padding: '22px 24px',
+                    borderBottom: '1px solid rgba(15, 23, 42, 0.12)',
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 9,
+                        marginBottom: 8,
+                        color: '#475569',
+                        fontSize: 14,
+                        fontWeight: 800,
+                      }}
+                    >
+                      <ReceiptText size={16} />
+                      {t('账单记录')}
+                    </div>
+                    <div
+                      style={{
+                        color: '#0f172a',
+                        fontSize: 31,
+                        lineHeight: 1,
+                        fontWeight: 900,
+                        letterSpacing: '-0.055em',
+                      }}
+                    >
+                      {total}
+                    </div>
+                  </div>
+                  <ArrowUpRight size={18} style={{ color: '#cbd5e1' }} />
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 18,
+                    padding: '22px 24px',
+                    borderBottom: '1px solid rgba(15, 23, 42, 0.12)',
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 9,
+                        marginBottom: 8,
+                        color: '#475569',
+                        fontSize: 14,
+                        fontWeight: 800,
+                      }}
+                    >
+                      <Coins size={16} />
+                      {t('当前页成功金额')}
+                    </div>
+                    <div
+                      style={{
+                        color: '#0f172a',
+                        fontSize: 31,
+                        lineHeight: 1,
+                        fontWeight: 900,
+                        letterSpacing: '-0.055em',
+                      }}
+                    >
+                      ¥{pageSummary.successAmount.toFixed(2)}
+                    </div>
+                  </div>
+                  <ArrowUpRight size={18} style={{ color: '#cbd5e1' }} />
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 16,
+                    padding: '22px 24px',
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 9,
+                        marginBottom: 8,
+                        color: '#475569',
+                        fontSize: 14,
+                        fontWeight: 800,
+                      }}
+                    >
+                      <FileText size={16} />
+                      {t('当前页可开票')}
+                    </div>
+                    <div
+                      style={{
+                        color: '#0f172a',
+                        fontSize: 31,
+                        lineHeight: 1,
+                        fontWeight: 900,
+                        letterSpacing: '-0.055em',
+                      }}
+                    >
+                      ¥{pageSummary.invoiceableAmount.toFixed(2)}
+                    </div>
+                  </div>
+                  <ArrowUpRight size={18} style={{ color: '#cbd5e1' }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            borderRadius: 28,
+            border: '1px solid rgba(15, 23, 42, 0.08)',
+            background: '#ffffff',
+            boxShadow: '0 18px 45px rgba(15, 23, 42, 0.05)',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 16,
+              padding: '18px 20px',
+              borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
+              background: '#ffffff',
+            }}
+          >
+            <div>
+              <Text
+                strong
+                style={{
+                  display: 'block',
+                  color: '#0f172a',
+                  fontSize: 16,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {t('账单明细')}
+              </Text>
+              <Text style={{ color: '#64748b', fontSize: 13 }}>
+                {t('按订单号搜索充值和开票记录')}
+              </Text>
+            </div>
+            <Input
+              prefix={<Search size={16} />}
+              placeholder={t('订单号')}
+              value={keyword}
+              onChange={handleKeywordChange}
+              showClear
+              style={{ width: isMobile ? '100%' : 320 }}
+            />
+          </div>
+          <div style={{ padding: 20 }}>{tableNode}</div>
+        </div>
+        {invoiceModalNode}
+      </>
+    );
   }
 
   return (

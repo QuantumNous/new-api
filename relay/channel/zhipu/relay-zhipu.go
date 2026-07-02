@@ -30,7 +30,14 @@ import (
 var zhipuTokens sync.Map
 var expSeconds int64 = 24 * 3600
 
+const zhipuTokenRedisPrefix = "zhipu_token:"
+
 func getZhipuToken(apikey string) string {
+	if common.RedisEnabled {
+		if val, err := common.RedisGet(zhipuTokenRedisPrefix + apikey); err == nil && val != "" {
+			return val
+		}
+	}
 	data, ok := zhipuTokens.Load(apikey)
 	if ok {
 		tokenData := data.(zhipuTokenData)
@@ -73,6 +80,11 @@ func getZhipuToken(apikey string) string {
 		Token:      tokenString,
 		ExpiryTime: expiryTime,
 	})
+
+	if common.RedisEnabled {
+		ttl := time.Duration(expSeconds) * time.Second
+		_ = common.RedisSet(zhipuTokenRedisPrefix+apikey, tokenString, ttl)
+	}
 
 	return tokenString
 }

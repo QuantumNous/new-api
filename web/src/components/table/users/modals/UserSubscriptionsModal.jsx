@@ -27,6 +27,7 @@ import {
   Space,
   Tag,
   Typography,
+  Tooltip,
 } from '@douyinfe/semi-ui';
 import { IconPlusCircle } from '@douyinfe/semi-icons';
 import {
@@ -34,7 +35,10 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { API, showError, showSuccess } from '../../../../helpers';
-import { convertUSDToCurrency } from '../../../../helpers/render';
+import {
+  convertUSDToCurrency,
+  getQuotaWithUnit,
+} from '../../../../helpers/render';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import CardTable from '../../../common/ui/CardTable';
 
@@ -71,6 +75,10 @@ function renderStatusTag(sub, t) {
       {t('已过期')}
     </Tag>
   );
+}
+
+function renderQuotaUSD(quota) {
+  return `$${getQuotaWithUnit(quota, 2)}`;
 }
 
 const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
@@ -233,7 +241,6 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     });
   };
 
-
   const columns = useMemo(() => {
     return [
       {
@@ -295,7 +302,15 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           const used = Number(sub?.amount_used || 0);
           return (
             <Text type={total > 0 ? 'secondary' : 'tertiary'}>
-              {total > 0 ? `${used}/${total}` : t('不限')}
+              {total > 0 ? (
+                <Tooltip content={`${t('原生额度')}：${used}/${total}`}>
+                  <span>
+                    {renderQuotaUSD(used)}/{renderQuotaUSD(total)}
+                  </span>
+                </Tooltip>
+              ) : (
+                t('不限')
+              )}
             </Text>
           );
         },

@@ -23,6 +23,8 @@ var verificationMap map[string]verificationValue
 var verificationMapMaxSize = 10
 var VerificationValidMinutes = 10
 
+const verificationRedisPrefix = "verify:"
+
 func GenerateVerificationCode(length int) string {
 	code := uuid.New().String()
 	code = strings.Replace(code, "-", "", -1)
@@ -33,6 +35,11 @@ func GenerateVerificationCode(length int) string {
 }
 
 func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
+	if RedisEnabled {
+		ttl := time.Duration(VerificationValidMinutes) * time.Minute
+		_ = RedisSet(verificationRedisPrefix+purpose+key, code, ttl)
+		return
+	}
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	verificationMap[purpose+key] = verificationValue{
@@ -45,6 +52,13 @@ func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
 }
 
 func VerifyCodeWithKey(key string, code string, purpose string) bool {
+	if RedisEnabled {
+		val, err := RedisGet(verificationRedisPrefix + purpose + key)
+		if err != nil {
+			return false
+		}
+		return val == code
+	}
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	value, okay := verificationMap[purpose+key]
@@ -56,6 +70,10 @@ func VerifyCodeWithKey(key string, code string, purpose string) bool {
 }
 
 func DeleteKey(key string, purpose string) {
+	if RedisEnabled {
+		_ = RedisDel(verificationRedisPrefix + purpose + key)
+		return
+	}
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	delete(verificationMap, purpose+key)

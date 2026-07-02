@@ -110,33 +110,41 @@ const renderPlanTitle = (text, record, t) => {
       <div style={{ cursor: 'pointer' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {plan?.is_recommended && (
-            <Tag color='purple' size='small' shape='circle'>{t('推荐')}</Tag>
+            <Tag color='purple' size='small' shape='circle'>
+              {t('推荐')}
+            </Tag>
           )}
-          <Text strong>
-            {text}
-          </Text>
+          <Text strong>{text}</Text>
         </div>
         {subtitle && (
-          <Text
-            type='tertiary'
-            style={{ display: 'block' }}
-          >
+          <Text type='tertiary' style={{ display: 'block' }}>
             {subtitle}
           </Text>
         )}
-        {plan?.tags && (() => {
-          const tagList = plan.tags.split(',').map(t => t.trim()).filter(Boolean);
-          if (tagList.length === 0) return null;
-          return (
-            <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              {tagList.map((tag, idx) => (
-                <Tag key={idx} color='blue' size='small' shape='circle'>
-                  {tag}
-                </Tag>
-              ))}
-            </div>
-          );
-        })()}
+        {plan?.tags &&
+          (() => {
+            const tagList = plan.tags
+              .split(',')
+              .map((t) => t.trim())
+              .filter(Boolean);
+            if (tagList.length === 0) return null;
+            return (
+              <div
+                style={{
+                  marginTop: 4,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 2,
+                }}
+              >
+                {tagList.map((tag, idx) => (
+                  <Tag key={idx} color='blue' size='small' shape='circle'>
+                    {tag}
+                  </Tag>
+                ))}
+              </div>
+            );
+          })()}
       </div>
     </Popover>
   );
@@ -156,6 +164,23 @@ const renderPurchaseLimit = (text, record, t) => {
     <Text type={limit > 0 ? 'secondary' : 'tertiary'}>
       {limit > 0 ? limit : t('不限')}
     </Text>
+  );
+};
+
+const renderPlanType = (text, record, t) => {
+  const plan = record?.plan || {};
+  const hasWindowLimit =
+    Number(plan.window_limit_5h || 0) > 0 ||
+    Number(plan.window_limit_7d || 0) > 0 ||
+    Number(plan.window_limit_30d || 0) > 0;
+  return hasWindowLimit ? (
+    <Tag color='blue' shape='circle'>
+      {t('标准套餐')}
+    </Tag>
+  ) : (
+    <Tag color='green' shape='circle'>
+      {t('包月不限套餐')}
+    </Tag>
   );
 };
 
@@ -219,28 +244,23 @@ const renderResetPeriod = (text, record, t) => {
   );
 };
 
-const renderPaymentConfig = (text, record, t, enableEpay) => {
-  const hasStripe = !!record?.plan?.stripe_price_id;
-  const hasCreem = !!record?.plan?.creem_product_id;
-  const hasEpay = !!enableEpay;
+const renderAllowedGroups = (text, record, t) => {
+  const groups = String(record?.plan?.allowed_groups || '')
+    .split(',')
+    .map((group) => group.trim())
+    .filter(Boolean);
+
+  if (groups.length === 0) {
+    return <Text type='tertiary'>{t('全部分组')}</Text>;
+  }
 
   return (
-    <Space spacing={4}>
-      {hasStripe && (
-        <Tag color='violet' shape='circle'>
-          Stripe
+    <Space spacing={4} wrap>
+      {groups.map((group) => (
+        <Tag key={group} color='blue' shape='circle'>
+          {group}
         </Tag>
-      )}
-      {hasCreem && (
-        <Tag color='cyan' shape='circle'>
-          Creem
-        </Tag>
-      )}
-      {hasEpay && (
-        <Tag color='light-green' shape='circle'>
-          {t('易支付')}
-        </Tag>
-      )}
+      ))}
     </Space>
   );
 };
@@ -294,12 +314,7 @@ const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
   );
 };
 
-export const getSubscriptionsColumns = ({
-  t,
-  openEdit,
-  setPlanEnabled,
-  enableEpay,
-}) => {
+export const getSubscriptionsColumns = ({ t, openEdit, setPlanEnabled }) => {
   return [
     {
       title: 'ID',
@@ -318,6 +333,11 @@ export const getSubscriptionsColumns = ({
       dataIndex: ['plan', 'price_amount'],
       width: 100,
       render: (text) => renderPrice(text),
+    },
+    {
+      title: t('类型'),
+      width: 130,
+      render: (text, record) => renderPlanType(text, record, t),
     },
     {
       title: t('购买上限'),
@@ -347,10 +367,9 @@ export const getSubscriptionsColumns = ({
       render: (text, record) => renderEnabled(text, record, t),
     },
     {
-      title: t('支付渠道'),
-      width: 180,
-      render: (text, record) =>
-        renderPaymentConfig(text, record, t, enableEpay),
+      title: t('支持分组'),
+      width: 150,
+      render: (text, record) => renderAllowedGroups(text, record, t),
     },
     {
       title: t('总额度'),
