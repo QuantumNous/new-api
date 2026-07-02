@@ -21,11 +21,14 @@ const trustBadges = [
 
 export function EdmLandingPage(props: Props) {
   const ctaUrl = getEdmCtaUrl();
+  const mainClassName = ["min-h-screen bg-background pt-20 text-foreground", props.locale === "ja" ? "ja-gothic-landing" : ""]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <>
       <SiteHeader locale={props.locale} pathname={props.pathname} />
-      <main className="min-h-screen bg-background pt-20 text-foreground">
+      <main className={mainClassName}>
       <section className="mx-auto grid max-w-6xl gap-8 px-5 py-9 md:grid-cols-[minmax(0,1.02fr)_minmax(340px,0.98fr)] md:px-6 md:py-14 lg:gap-14">
         <div className="flex flex-col justify-center">
           <p className="mb-3 text-xs font-bold tracking-[0.22em] text-violet-700 uppercase dark:text-violet-300">{props.campaign.eyebrow}</p>

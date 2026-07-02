@@ -261,6 +261,12 @@ body {
   text-rendering: geometricPrecision;
 }
 
+.ja-gothic-landing {
+  font-family:
+    "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic",
+    "Meiryo", "Hiragino Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
 a {
   color: inherit;
   text-decoration: none;
