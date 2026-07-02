@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
@@ -94,13 +95,13 @@ func InitChannelCache() {
 	channelsIDM = newChannelId2channel
 	channel2advancedCustomConfig = newChannel2advancedCustomConfig
 	channelSyncLock.Unlock()
-	common.SysLog("channels synced from database")
+	common.SysLog(i18n.Translate("model.channels_synced_from_database"))
 }
 
 func SyncChannelCache(frequency int) {
 	for {
 		time.Sleep(time.Duration(frequency) * time.Second)
-		common.SysLog("syncing channels from database")
+		common.SysLog(i18n.Translate("model.syncing_channels_from_database"))
 		InitChannelCache()
 	}
 }
@@ -131,7 +132,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 		if channel, ok := channelsIDM[channels[0]]; ok {
 			return channel, nil
 		}
-		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
+		return nil, errors.New(i18n.Translate("channel.db_consistency_error_fmt", map[string]any{"Id": channels[0]}))
 	}
 
 	uniquePriorities := make(map[int]bool)
@@ -139,7 +140,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 		if channel, ok := channelsIDM[channelId]; ok {
 			uniquePriorities[int(channel.GetPriority())] = true
 		} else {
-			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
+			return nil, errors.New(i18n.Translate("channel.db_consistency_error_fmt", map[string]any{"Id": channelId}))
 		}
 	}
 	var sortedUniquePriorities []int
@@ -163,12 +164,12 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 				targetChannels = append(targetChannels, channel)
 			}
 		} else {
-			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
+			return nil, errors.New(i18n.Translate("channel.db_consistency_error_fmt", map[string]any{"Id": channelId}))
 		}
 	}
 
 	if len(targetChannels) == 0 {
-		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+		return nil, errors.New(fmt.Sprintf(i18n.Translate("model.no_channel_found_group_model_priority"), group, model, targetPriority))
 	}
 
 	// smoothing factor and adjustment
@@ -199,7 +200,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int, requestPat
 		}
 	}
 	// return null if no channel is not found
-	return nil, errors.New("channel not found")
+	return nil, errors.New(i18n.Translate("model.channel_not_found"))
 }
 
 // filterChannelsByRequestPath restricts candidates by request path. Only Advanced
@@ -239,7 +240,7 @@ func CacheGetChannel(id int) (*Channel, error) {
 
 	c, ok := channelsIDM[id]
 	if !ok {
-		return nil, fmt.Errorf("渠道# %d，已不存在", id)
+		return nil, errors.New(i18n.Translate("channel.no_longer_exists_fmt", map[string]any{"Id": id}))
 	}
 	return c, nil
 }
@@ -257,7 +258,7 @@ func CacheGetChannelInfo(id int) (*ChannelInfo, error) {
 
 	c, ok := channelsIDM[id]
 	if !ok {
-		return nil, fmt.Errorf("渠道# %d，已不存在", id)
+		return nil, errors.New(i18n.Translate("channel.no_longer_exists_fmt", map[string]any{"Id": id}))
 	}
 	return &c.ChannelInfo, nil
 }

@@ -1,6 +1,8 @@
 package model
 
 import (
+	"errors"
+	"github.com/QuantumNous/new-api/i18n"
 	"fmt"
 	"time"
 
@@ -53,7 +55,7 @@ func cacheSetTokenField(key string, field string, value string) error {
 func cacheGetTokenByKey(key string) (*Token, error) {
 	hmacKey := common.GenerateHMAC(key)
 	if !common.RedisEnabled {
-		return nil, fmt.Errorf("redis is not enabled")
+		return nil, errors.New(i18n.Translate("model.redis_is_not_enabled"))
 	}
 	var token Token
 	err := common.RedisHGetObj(fmt.Sprintf("token:%s", hmacKey), &token)
