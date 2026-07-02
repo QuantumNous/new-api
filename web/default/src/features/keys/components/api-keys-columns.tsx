@@ -34,6 +34,7 @@ import { getUserGroups } from '@/lib/api'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { API_KEY_DERIVED_STATUS } from '../constants'
 import { getQuotaPolicyDisableState } from '../lib/quota-policy-status'
 import type { ApiKey } from '../types'
 import {
@@ -114,7 +115,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       },
       filterFn: (row, id, value) => {
         const displayStatus = getQuotaPolicyDisableState(row.original)
-          ? 'quota_policy_disabled'
+          ? API_KEY_DERIVED_STATUS.QUOTA_POLICY_DISABLED
           : String(row.getValue(id))
         return value.includes(displayStatus)
       },

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type StatusBadgeProps } from '@/components/status-badge'
+import type { StatusBadgeProps } from '@/components/status-badge'
 
 // ============================================================================
 // API Key Status Configuration
@@ -59,15 +59,33 @@ export const API_KEY_STATUSES: Record<
   },
 } as const
 
+export const API_KEY_DERIVED_STATUS = {
+  QUOTA_POLICY_DISABLED: 'quota_policy_disabled',
+} as const
+
+export const API_KEY_DERIVED_STATUSES: Record<
+  string,
+  Pick<StatusBadgeProps, 'variant'> & {
+    label: string
+    value: string
+  }
+> = {
+  [API_KEY_DERIVED_STATUS.QUOTA_POLICY_DISABLED]: {
+    label: 'Temporarily disabled',
+    variant: 'warning',
+    value: API_KEY_DERIVED_STATUS.QUOTA_POLICY_DISABLED,
+  },
+} as const
+
 export const API_KEY_STATUS_OPTIONS = [
   ...Object.values(API_KEY_STATUSES).map((config) => ({
     label: config.label,
     value: String(config.value),
   })),
-  {
-    label: 'Temporarily disabled',
-    value: 'quota_policy_disabled',
-  },
+  ...Object.values(API_KEY_DERIVED_STATUSES).map((config) => ({
+    label: config.label,
+    value: config.value,
+  })),
 ]
 
 // ============================================================================
