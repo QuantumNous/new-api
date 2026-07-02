@@ -242,37 +242,37 @@ func generateOrgSnapshots(rp ReportPeriod) error {
 		agg.Quota += it.Quota
 	}
 
-	// 读取上期 account 快照，聚合出上期组织用量
-	prevOrgMap := make(map[string]int) // key -> prevQuota
+	// 读取上期 account 快照，聚合出上期组织用量（用 token）
+	prevOrgTokenMap := make(map[string]int) // key -> prevTokenUsed
 	prevItems, _ := model.GetReportSnapshots(rp.PeriodType, rp.PrevPeriodStart.Unix(), model.ReportScopeAccount)
 	for _, it := range prevItems {
 		if it.OrgLevel1Name == "" && it.OrgLevel2Name == "" {
 			continue
 		}
 		key := it.OrgLevel1Name + "|" + it.OrgLevel2Name
-		prevOrgMap[key] += it.Quota
+		prevOrgTokenMap[key] += it.TokenUsed
 	}
 
 	var snapshots []*model.UsageReportSnapshot
 	for key, agg := range orgMap {
-		prevQuota := prevOrgMap[key]
+		prevTokenUsed := prevOrgTokenMap[key]
 		snap := &model.UsageReportSnapshot{
-			PeriodType:      rp.PeriodType,
-			PeriodStart:     rp.StartTimestamp,
-			PeriodEnd:       rp.EndTimestamp,
-			PeriodLabel:     rp.PeriodLabel,
-			ScopeType:       model.ReportScopeOrgDept,
-			OrgLevel1Name:   agg.OrgLevel1Name,
-			OrgLevel2Name:   agg.OrgLevel2Name,
-			OrgPath:         agg.OrgPath,
-			TotalUsers:      agg.UserCount,
-			RequestCount:    agg.RequestCount,
-			TokenUsed:       agg.TokenUsed,
-			Quota:           agg.Quota,
-			QuotaUSD:        quotaToUSD(agg.Quota),
-			QuotaCNY:        quotaToCNY(agg.Quota),
-			PreviousQuota:   prevQuota,
-			QuotaGrowthRate: model.GrowthRate(agg.Quota, prevQuota),
+			PeriodType:        rp.PeriodType,
+			PeriodStart:       rp.StartTimestamp,
+			PeriodEnd:         rp.EndTimestamp,
+			PeriodLabel:       rp.PeriodLabel,
+			ScopeType:         model.ReportScopeOrgDept,
+			OrgLevel1Name:     agg.OrgLevel1Name,
+			OrgLevel2Name:     agg.OrgLevel2Name,
+			OrgPath:           agg.OrgPath,
+			TotalUsers:        agg.UserCount,
+			RequestCount:      agg.RequestCount,
+			TokenUsed:         agg.TokenUsed,
+			Quota:             agg.Quota,
+			QuotaUSD:          quotaToUSD(agg.Quota),
+			QuotaCNY:          quotaToCNY(agg.Quota),
+			PreviousTokenUsed: prevTokenUsed,
+			TokenGrowthRate:   model.GrowthRate(agg.TokenUsed, prevTokenUsed),
 		}
 		snapshots = append(snapshots, snap)
 	}
@@ -501,11 +501,11 @@ func checkAccountAnomaly(snap *model.UsageReportSnapshot, prev *model.UserStatIt
 		}
 	}
 
-	// 规则2: 环比增长
-	if settings.AccountGrowthRateThreshold > 0 && snap.QuotaGrowthRate >= settings.AccountGrowthRateThreshold {
+	// 规则2: Token环比增长
+	if settings.AccountGrowthRateThreshold > 0 && snap.TokenGrowthRate >= settings.AccountGrowthRateThreshold {
 		snap.IsAnomaly = true
 		snap.AnomalyType = "growth_rate"
-		snap.AnomalyReason = fmt.Sprintf("额度环比增长 %.1f%% 超过阈值 %.1f%%", snap.QuotaGrowthRate, settings.AccountGrowthRateThreshold)
+		snap.AnomalyReason = fmt.Sprintf("Token环比增长 %.1f%% 超过阈值 %.1f%%", snap.TokenGrowthRate, settings.AccountGrowthRateThreshold)
 		snap.WarningLevel = "warning"
 		return
 	}
@@ -559,11 +559,11 @@ func checkModelPurchaseWarning(snap *model.UsageReportSnapshot, settings *system
 		snap.PurchaseWarningReason += fmt.Sprintf("周期额度 %.2f USD 超过阈值 %.2f USD", snap.QuotaUSD, settings.PurchaseWarningDailyQuotaThreshold)
 	}
 
-	// 模型异常: 环比增长
-	if settings.ModelGrowthRateThreshold > 0 && snap.QuotaGrowthRate >= settings.ModelGrowthRateThreshold {
+	// 模型异常: Token环比增长
+	if settings.ModelGrowthRateThreshold > 0 && snap.TokenGrowthRate >= settings.ModelGrowthRateThreshold {
 		snap.IsAnomaly = true
 		snap.AnomalyType = "model_growth_spike"
-		snap.AnomalyReason = fmt.Sprintf("模型额度环比增长 %.1f%% 超过阈值 %.1f%%", snap.QuotaGrowthRate, settings.ModelGrowthRateThreshold)
+		snap.AnomalyReason = fmt.Sprintf("模型Token环比增长 %.1f%% 超过阈值 %.1f%%", snap.TokenGrowthRate, settings.ModelGrowthRateThreshold)
 	}
 }
 
