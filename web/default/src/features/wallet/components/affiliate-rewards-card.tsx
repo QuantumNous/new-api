@@ -32,7 +32,9 @@ interface AffiliateRewardsCardProps {
   user: UserWalletData | null
   affiliateLink: string
   onTransfer: () => void
+  onWithdraw: () => void
   complianceConfirmed?: boolean
+  withdrawalEnabled?: boolean
   loading?: boolean
 }
 
@@ -40,7 +42,9 @@ export function AffiliateRewardsCard({
   user,
   affiliateLink,
   onTransfer,
+  onWithdraw,
   complianceConfirmed = true,
+  withdrawalEnabled = false,
   loading,
 }: AffiliateRewardsCardProps) {
   const { t } = useTranslation()
@@ -74,15 +78,16 @@ export function AffiliateRewardsCard({
             </h3>
             <p className='text-muted-foreground line-clamp-1 text-xs'>
               {t(
-                'Earn rewards when your referrals add funds. Transfer accumulated rewards to your balance anytime.'
+                'Earn rewards when your referrals add funds. Use available rewards after they settle.'
               )}
             </p>
           </div>
         </div>
 
-        <div className='grid grid-cols-3 gap-1.5 text-center'>
+        <div className='grid grid-cols-4 gap-1.5 text-center'>
           {[
-            [t('Pending'), formatQuota(user?.aff_quota ?? 0)],
+            [t('Available'), formatQuota(user?.aff_quota ?? 0)],
+            [t('Pending'), formatQuota(user?.aff_pending_quota ?? 0)],
             [t('Total Earned'), formatQuota(user?.aff_history_quota ?? 0)],
             [t('Invites'), String(user?.aff_count ?? 0)],
           ].map(([label, value]) => (
@@ -97,7 +102,7 @@ export function AffiliateRewardsCard({
           ))}
         </div>
 
-        <div className='flex items-center gap-2'>
+        <div className='flex flex-wrap items-center gap-2'>
           <Input
             value={affiliateLink}
             readOnly
@@ -112,14 +117,27 @@ export function AffiliateRewardsCard({
             aria-label={t('Copy referral link')}
           />
           {hasRewards && (
-            <Button
-              onClick={onTransfer}
-              disabled={!complianceConfirmed}
-              className='h-9 shrink-0 px-3'
-              size='sm'
-            >
-              {t('Transfer to Balance')}
-            </Button>
+            <>
+              <Button
+                onClick={onTransfer}
+                disabled={!complianceConfirmed}
+                className='h-9 shrink-0 px-3'
+                size='sm'
+              >
+                {t('Transfer to Balance')}
+              </Button>
+              {withdrawalEnabled ? (
+                <Button
+                  onClick={onWithdraw}
+                  disabled={!complianceConfirmed}
+                  className='h-9 shrink-0 px-3'
+                  size='sm'
+                  variant='outline'
+                >
+                  {t('Withdraw')}
+                </Button>
+              ) : null}
+            </>
           )}
         </div>
         {!complianceConfirmed ? (

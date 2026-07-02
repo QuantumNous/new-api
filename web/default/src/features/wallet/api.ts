@@ -23,6 +23,7 @@ import type {
   PaymentRequest,
   AmountRequest,
   AffiliateTransferRequest,
+  AffiliateWithdrawalRequest,
   ApiResponse,
   TopupInfoResponse,
   RedemptionResponse,
@@ -31,6 +32,7 @@ import type {
   StripePaymentResponse,
   AffiliateCodeResponse,
   AffiliateTransferResponse,
+  AffiliateWithdrawalResponse,
   BillingHistoryResponse,
   CompleteOrderRequest,
   CreemPaymentRequest,
@@ -184,6 +186,16 @@ export async function transferAffiliateQuota(
   request: AffiliateTransferRequest
 ): Promise<AffiliateTransferResponse> {
   const res = await api.post('/api/user/aff_transfer', request)
+  return res.data
+}
+
+/**
+ * Submit affiliate withdrawal request
+ */
+export async function createAffiliateWithdrawal(
+  request: AffiliateWithdrawalRequest
+): Promise<AffiliateWithdrawalResponse> {
+  const res = await api.post('/api/user/aff_withdrawal', request)
   return res.data
 }
 
