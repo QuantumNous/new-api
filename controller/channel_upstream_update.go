@@ -259,6 +259,10 @@ func getUpstreamModelUpdateMinCheckIntervalSeconds() int64 {
 	return interval
 }
 
+func normalizeUpstreamModelFetchKey(key string) string {
+	return strings.TrimSpace(strings.Split(key, "\n")[0])
+}
+
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	baseURL := constant.ChannelBaseURLs[channel.Type]
 	if channel.GetBaseURL() != "" {
@@ -266,7 +270,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	}
 
 	if channel.Type == constant.ChannelTypeOllama {
-		key := strings.TrimSpace(strings.Split(channel.Key, "\n")[0])
+		key := normalizeUpstreamModelFetchKey(channel.Key)
 		models, err := ollama.FetchOllamaModels(baseURL, key)
 		if err != nil {
 			return nil, err
@@ -281,7 +285,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		if apiErr != nil {
 			return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
 		}
-		key = strings.TrimSpace(key)
+		key = normalizeUpstreamModelFetchKey(key)
 		models, err := gemini.FetchGeminiModels(baseURL, key, channel.GetSetting().Proxy)
 		if err != nil {
 			return nil, err
@@ -319,7 +323,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if apiErr != nil {
 		return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
 	}
-	key = strings.TrimSpace(key)
+	key = normalizeUpstreamModelFetchKey(key)
 
 	headers, err := buildFetchModelsHeaders(channel, key)
 	if err != nil {
