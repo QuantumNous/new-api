@@ -16,18 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Plus } from 'lucide-react'
 import { type ChangeEvent, useRef, type SetStateAction, useState } from 'react'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
+import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
-import { StaticDataTable } from '@/components/data-table'
-import { Dialog } from '@/components/dialog'
+
 import { SettingsSwitchField } from '../components/settings-form-layout'
 
 export interface WaffoSettingsValues {
@@ -97,8 +100,9 @@ export function WaffoSettingsSection({
   }
 
   const saveMethod = () => {
-    if (!methodForm.name.trim())
+    if (!methodForm.name.trim()) {
       return toast.error(t('Payment method name is required'))
+    }
     if (editingIdx === -1) {
       onPayMethodsChange((prev) => [...prev, methodForm])
     } else {
@@ -125,15 +129,12 @@ export function WaffoSettingsSection({
     }
 
     const reader = new FileReader()
-    reader.onload = (loadEvent) => {
+    reader.addEventListener('load', () => {
       setMethodForm((previous) => ({
         ...previous,
-        icon:
-          typeof loadEvent.target?.result === 'string'
-            ? loadEvent.target.result
-            : '',
+        icon: typeof reader.result === 'string' ? reader.result : '',
       }))
-    }
+    })
     reader.readAsDataURL(file)
     event.target.value = ''
   }
@@ -164,13 +165,13 @@ export function WaffoSettingsSection({
             checked={values.WaffoEnabled}
             onCheckedChange={(v) => onValueChange('WaffoEnabled', v)}
             label={t('Enable Waffo')}
-            className='border-b-0 py-0'
+            className='py-0'
           />
           <SettingsSwitchField
             checked={values.WaffoSandbox}
             onCheckedChange={(v) => onValueChange('WaffoSandbox', v)}
             label={t('Sandbox mode')}
-            className='border-b-0 py-0'
+            className='py-0'
           />
         </div>
 
@@ -366,30 +367,17 @@ export function WaffoSettingsSection({
               className: 'text-right',
               cellClassName: 'text-right',
               cell: (_m, idx) => (
-                <div className='flex justify-end gap-1'>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='icon'
-                    className='h-7 w-7'
-                    onClick={() => openEdit(idx)}
-                  >
-                    <Pencil className='h-3 w-3' />
-                  </Button>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    size='icon'
-                    className='h-7 w-7'
-                    onClick={() =>
-                      onPayMethodsChange((prev) =>
-                        prev.filter((_, i) => i !== idx)
-                      )
-                    }
-                  >
-                    <Trash2 className='h-3 w-3' />
-                  </Button>
-                </div>
+                <StaticRowActions
+                  editLabel={t('Edit')}
+                  deleteLabel={t('Delete')}
+                  menuLabel={t('Open menu')}
+                  onEdit={() => openEdit(idx)}
+                  onDelete={() =>
+                    onPayMethodsChange((prev) =>
+                      prev.filter((_, i) => i !== idx)
+                    )
+                  }
+                />
               ),
             },
           ]}

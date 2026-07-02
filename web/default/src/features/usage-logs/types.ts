@@ -221,7 +221,7 @@ export interface LogStatistics {
 }
 
 // ============================================================================
-// Drawing Logs (Midjourney) Types
+// Drawing Logs (MjProxy) Types
 // ============================================================================
 
 export interface MidjourneyLog {

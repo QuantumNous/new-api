@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ComponentProps } from 'react'
 import { NodeToolbar, Position } from '@xyflow/react'
+import type { ComponentProps } from 'react'
+
 import { cn } from '@/lib/utils'
 
 type ToolbarProps = ComponentProps<typeof NodeToolbar>

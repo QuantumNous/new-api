@@ -44,6 +44,10 @@ export const ADVANCED_CUSTOM_CONVERTER_OPTIONS: Array<{
     label: 'OpenAI Chat to OpenAI Responses',
   },
   {
+    value: 'openai_responses_to_openai_chat_completions',
+    label: 'OpenAI Responses to OpenAI Chat',
+  },
+  {
     value: 'gemini_generate_content_to_openai_chat_completions',
     label: 'Gemini Generate Content to OpenAI Chat',
   },
@@ -74,11 +78,7 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
   [
     {
       value: '/v1/chat/completions',
-      label: 'OpenAI Chat Completions',
-    },
-    {
-      value: '/v1/completions',
-      label: 'OpenAI Completions',
+      label: 'OpenAI Chat',
     },
     {
       value: '/v1/responses',
@@ -99,6 +99,10 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
     {
       value: '/v1/images/edits',
       label: 'OpenAI Image Edits',
+    },
+    {
+      value: '/v1/completions',
+      label: 'OpenAI Completions',
     },
     {
       value: '/v1/audio/speech',
@@ -138,6 +142,10 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
     },
   ]
 
+const ADVANCED_CUSTOM_ROUTE_SUMMARY_LABELS: Record<string, string> = {
+  '/v1/chat/completions': 'OpenAI Chat',
+}
+
 export type AdvancedCustomValidationError = {
   message: string
   routeIndex?: number
@@ -176,12 +184,11 @@ export const ADVANCED_CUSTOM_TEMPLATE_OPTIONS: AdvancedCustomTemplateOption[] =
         advanced_routes: [
           {
             incoming_path: '/v1/chat/completions',
-            upstream_path: 'https://api.openai.com/v1/chat/completions',
+            upstream_path: '/v1/chat/completions',
             converter: 'none',
             auth: bearerHeaderAuth(),
           },
         ],
-        advanced_fallback: { enabled: false },
       },
     },
     {
@@ -191,12 +198,11 @@ export const ADVANCED_CUSTOM_TEMPLATE_OPTIONS: AdvancedCustomTemplateOption[] =
         advanced_routes: [
           {
             incoming_path: '/v1/responses',
-            upstream_path: 'https://api.openai.com/v1/responses',
+            upstream_path: '/v1/responses',
             converter: 'none',
             auth: bearerHeaderAuth(),
           },
         ],
-        advanced_fallback: { enabled: false },
       },
     },
     {
@@ -206,12 +212,11 @@ export const ADVANCED_CUSTOM_TEMPLATE_OPTIONS: AdvancedCustomTemplateOption[] =
         advanced_routes: [
           {
             incoming_path: '/v1/embeddings',
-            upstream_path: 'https://api.openai.com/v1/embeddings',
+            upstream_path: '/v1/embeddings',
             converter: 'none',
             auth: bearerHeaderAuth(),
           },
         ],
-        advanced_fallback: { enabled: false },
       },
     },
     {
@@ -221,18 +226,17 @@ export const ADVANCED_CUSTOM_TEMPLATE_OPTIONS: AdvancedCustomTemplateOption[] =
         advanced_routes: [
           {
             incoming_path: '/v1/images/generations',
-            upstream_path: 'https://api.openai.com/v1/images/generations',
+            upstream_path: '/v1/images/generations',
             converter: 'none',
             auth: bearerHeaderAuth(),
           },
           {
             incoming_path: '/v1/images/edits',
-            upstream_path: 'https://api.openai.com/v1/images/edits',
+            upstream_path: '/v1/images/edits',
             converter: 'none',
             auth: bearerHeaderAuth(),
           },
         ],
-        advanced_fallback: { enabled: false },
       },
     },
     {
@@ -242,12 +246,11 @@ export const ADVANCED_CUSTOM_TEMPLATE_OPTIONS: AdvancedCustomTemplateOption[] =
         advanced_routes: [
           {
             incoming_path: '/v1/messages',
-            upstream_path: 'https://api.anthropic.com/v1/messages',
+            upstream_path: '/v1/messages',
             converter: 'none',
             auth: apiKeyHeaderAuth(),
           },
         ],
-        advanced_fallback: { enabled: false },
       },
     },
     {
@@ -257,27 +260,23 @@ export const ADVANCED_CUSTOM_TEMPLATE_OPTIONS: AdvancedCustomTemplateOption[] =
         advanced_routes: [
           {
             incoming_path: '/v1beta/models/{model}:generateContent',
-            upstream_path:
-              'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
+            upstream_path: '/v1beta/models/{model}:generateContent',
             converter: 'none',
             auth: geminiQueryAuth(),
           },
           {
             incoming_path: '/v1beta/models/{model}:embedContent',
-            upstream_path:
-              'https://generativelanguage.googleapis.com/v1beta/models/{model}:embedContent',
+            upstream_path: '/v1beta/models/{model}:embedContent',
             converter: 'none',
             auth: geminiQueryAuth(),
           },
           {
             incoming_path: '/v1beta/models/{model}:batchEmbedContents',
-            upstream_path:
-              'https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbedContents',
+            upstream_path: '/v1beta/models/{model}:batchEmbedContents',
             converter: 'none',
             auth: geminiQueryAuth(),
           },
         ],
-        advanced_fallback: { enabled: false },
       },
     },
     {
@@ -287,13 +286,11 @@ export const ADVANCED_CUSTOM_TEMPLATE_OPTIONS: AdvancedCustomTemplateOption[] =
         advanced_routes: [
           {
             incoming_path: '/v1/chat/completions',
-            upstream_path:
-              'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
+            upstream_path: '/v1beta/models/{model}:generateContent',
             converter: 'openai_chat_completions_to_gemini_generate_content',
             auth: geminiQueryAuth(),
           },
         ],
-        advanced_fallback: { enabled: false },
       },
     },
   ]
@@ -325,7 +322,6 @@ export function createAdvancedCustomRoute(): AdvancedCustomRoute {
 export function createAdvancedCustomConfig(): AdvancedCustomConfig {
   return {
     advanced_routes: [createAdvancedCustomRoute()],
-    advanced_fallback: { enabled: false },
   }
 }
 
@@ -337,6 +333,9 @@ export function getAdvancedCustomUpstreamPathPlaceholder(
   }
   if (converter === 'openai_chat_completions_to_anthropic_messages') {
     return '/v1/messages'
+  }
+  if (converter === 'openai_responses_to_openai_chat_completions') {
+    return '/v1/chat/completions'
   }
   return '/v1/chat/completions'
 }
@@ -362,8 +361,17 @@ export function isAdvancedCustomIncomingPathAllowed(
   incomingPath: string,
   converter: AdvancedCustomConverter
 ): boolean {
-  return getAdvancedCustomIncomingPathOptions(converter).some(
-    (option) => option.value === incomingPath
+  return isConverterPathAllowed(incomingPath, converter)
+}
+
+export function getAdvancedCustomConverterOptions(
+  incomingPath: string
+): typeof ADVANCED_CUSTOM_CONVERTER_OPTIONS {
+  const normalizedIncomingPath = incomingPath.trim()
+  return ADVANCED_CUSTOM_CONVERTER_OPTIONS.filter(
+    (option) =>
+      option.value === 'none' ||
+      isConverterPathAllowed(normalizedIncomingPath, option.value)
   )
 }
 
@@ -405,9 +413,6 @@ export function normalizeAdvancedCustomConfig(
 
   return {
     advanced_routes: routes,
-    advanced_fallback: {
-      enabled: config.advanced_fallback?.enabled === true,
-    },
   }
 }
 
@@ -420,11 +425,9 @@ export function validateAdvancedCustomConfig(
 
   const normalized = normalizeAdvancedCustomConfig(config)
   const routes = normalized.advanced_routes || []
-  const fallbackEnabled = normalized.advanced_fallback?.enabled === true
-  if (routes.length === 0 && !fallbackEnabled) {
+  if (routes.length === 0) {
     return {
-      message:
-        'Advanced custom configuration requires at least one route or fallback',
+      message: 'Advanced custom configuration requires at least one route',
     }
   }
 
@@ -492,18 +495,29 @@ export function advancedCustomConfigUsesRelativeUpstreamPath(
 
 export function getAdvancedCustomStats(value: string | undefined): {
   routeCount: number
-  fallbackEnabled: boolean
   valid: boolean
+  routeTypeLabels: string[]
 } {
   const config = parseAdvancedCustomConfig(value)
   if (!config) {
-    return { routeCount: 0, fallbackEnabled: false, valid: false }
+    return { routeCount: 0, valid: false, routeTypeLabels: [] }
   }
   const normalized = normalizeAdvancedCustomConfig(config)
+  const routes = normalized.advanced_routes || []
+  const routeTypeLabels: string[] = []
+  const seenRouteTypeLabels = new Set<string>()
+
+  for (const route of routes) {
+    const label = getAdvancedCustomRouteSummaryLabel(route)
+    if (!label || seenRouteTypeLabels.has(label)) continue
+    routeTypeLabels.push(label)
+    seenRouteTypeLabels.add(label)
+  }
+
   return {
-    routeCount: normalized.advanced_routes?.length || 0,
-    fallbackEnabled: normalized.advanced_fallback?.enabled === true,
+    routeCount: routes.length,
     valid: validateAdvancedCustomConfig(normalized) === null,
+    routeTypeLabels,
   }
 }
 
@@ -551,8 +565,21 @@ function normalizeAdvancedCustomRoute(
   return nextRoute
 }
 
-function getAdvancedCustomRouteUpstreamPath(route: AdvancedCustomRoute): string {
+function getAdvancedCustomRouteUpstreamPath(
+  route: AdvancedCustomRoute
+): string {
   return (route.upstream_path || '').trim()
+}
+
+function getAdvancedCustomRouteSummaryLabel(
+  route: AdvancedCustomRoute
+): string | null {
+  const incomingPath = route.incoming_path?.trim() || ''
+  if (!incomingPath) return null
+  return (
+    ADVANCED_CUSTOM_ROUTE_SUMMARY_LABELS[incomingPath] ||
+    getAdvancedCustomIncomingPathLabel(incomingPath)
+  )
 }
 
 function isFullHttpURLOrAbsolutePath(value: string): boolean {
@@ -591,6 +618,9 @@ function isConverterPathAllowed(
     converter === 'openai_chat_completions_to_gemini_generate_content'
   ) {
     return incomingPath === '/v1/chat/completions'
+  }
+  if (converter === 'openai_responses_to_openai_chat_completions') {
+    return incomingPath === '/v1/responses'
   }
   return (
     incomingPath.includes(':generateContent') ||

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useStatus } from '@/hooks/use-status'
+
 import { SettingsPage } from '../components/settings-page'
 import type { OperationsSettings } from '../types'
 import {
@@ -26,26 +27,18 @@ import {
 } from './section-registry.tsx'
 
 const defaultOperationsSettings: OperationsSettings = {
-  RetryTimes: 0,
   DefaultCollapseSidebar: false,
   DemoSiteEnabled: false,
   SelfUseModeEnabled: false,
-  ChannelDisableThreshold: '',
   QuotaRemindThreshold: '',
-  AutomaticDisableChannelEnabled: false,
-  AutomaticEnableChannelEnabled: false,
-  AutomaticDisableKeywords: '',
-  AutomaticDisableStatusCodes: '401',
-  AutomaticRetryStatusCodes:
-    '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
-  'monitor_setting.auto_test_channel_enabled': false,
-  'monitor_setting.auto_test_channel_minutes': 10,
   SMTPServer: '',
   SMTPPort: '',
   SMTPAccount: '',
   SMTPFrom: '',
   SMTPToken: '',
   SMTPSSLEnabled: false,
+  SMTPStartTLSEnabled: false,
+  SMTPInsecureSkipVerify: false,
   SMTPForceAuthLogin: false,
   WorkerUrl: '',
   WorkerValidKey: '',

@@ -16,15 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { User, Wallet, LogOut, Settings } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
-import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
-import { ROLE } from '@/lib/roles'
-import useDialogState from '@/hooks/use-dialog'
-import { useUserDisplay } from '@/hooks/use-user-display'
+
+import { SignOutDialog } from '@/components/sign-out-dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -34,7 +31,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { SignOutDialog } from '@/components/sign-out-dialog'
+import useDialogState from '@/hooks/use-dialog'
+import { useIsSidebarModuleVisible } from '@/hooks/use-sidebar-config'
+import { useUserDisplay } from '@/hooks/use-user-display'
+import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 const avatarFallbackClassName = 'font-semibold text-white'
 
@@ -45,6 +47,7 @@ export function ProfileDropdown() {
   const user = useAuthStore((state) => state.auth.user)
   const { displayName, roleLabel } = useUserDisplay(user)
   const isSuperAdmin = user?.role === ROLE.SUPER_ADMIN
+  const isWalletVisible = useIsSidebarModuleVisible('/wallet')
   const avatarName = user?.username || displayName
   const avatarFallback = getUserAvatarFallback(avatarName)
   const avatarFallbackStyle = useMemo(
@@ -104,10 +107,12 @@ export function ProfileDropdown() {
             {t('Profile')}
           </DropdownMenuItem>
 
-          <DropdownMenuItem onClick={() => navigate({ to: '/wallet' })}>
-            <Wallet className='size-4' />
-            {t('Wallet')}
-          </DropdownMenuItem>
+          {isWalletVisible && (
+            <DropdownMenuItem onClick={() => navigate({ to: '/wallet' })}>
+              <Wallet className='size-4' />
+              {t('Wallet')}
+            </DropdownMenuItem>
+          )}
 
           {isSuperAdmin && (
             <DropdownMenuItem

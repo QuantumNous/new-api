@@ -18,14 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getLobeIcon } from '@/lib/lobe-icon'
-import { cn } from '@/lib/utils'
+
+import { StatusBadge } from '@/components/status-badge'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { StatusBadge } from '@/components/status-badge'
+import { getLobeIcon } from '@/lib/lobe-icon'
+import { cn } from '@/lib/utils'
 
 interface ModelBadgeProps {
   modelName: string
@@ -78,6 +79,36 @@ function resolveModelProvider(modelName: string): ModelProvider | null {
   if (hasAny(['moonshot-', 'kimi-'])) {
     return { icon: 'Moonshot.Color', label: 'Moonshot' }
   }
+  if (hasAny(['minimax', 'abab'])) {
+    return { icon: 'Minimax.Color', label: 'MiniMax' }
+  }
+  if (hasAny(['glm-', 'chatglm', 'cogview', 'cogvideo'])) {
+    return { icon: 'Zhipu.Color', label: 'Zhipu' }
+  }
+  if (hasAny(['mimo-'])) {
+    return { icon: 'XiaomiMiMo', label: 'MiMo' }
+  }
+  if (hasAny(['ernie'])) {
+    return { icon: 'Wenxin.Color', label: 'Baidu' }
+  }
+  if (hasAny(['spark'])) {
+    return { icon: 'Spark.Color', label: 'iFlyTek' }
+  }
+  if (hasAny(['hunyuan'])) {
+    return { icon: 'Hunyuan.Color', label: 'Tencent' }
+  }
+  if (hasAny(['baichuan'])) {
+    return { icon: 'Baichuan.Color', label: 'Baichuan' }
+  }
+  if (hasAny(['internlm'])) {
+    return { icon: 'InternLM.Color', label: 'InternLM' }
+  }
+  if (hasAny(['step-'])) {
+    return { icon: 'Stepfun.Color', label: 'StepFun' }
+  }
+  if (hasAny(['yi-'])) {
+    return { icon: 'Yi.Color', label: 'Yi' }
+  }
   if (hasAny(['mistral-', 'mixtral-'])) {
     return { icon: 'Mistral.Color', label: 'Mistral' }
   }
@@ -109,11 +140,11 @@ function ModelBadgeContent(props: ModelBadgeProps) {
       <span className='flex max-w-none items-center gap-1.5'>
         {provider && (
           <span
-            className='flex size-3.5 shrink-0 items-center justify-center'
+            className='flex h-[18px] w-[18px] shrink-0 items-center justify-center'
             title={provider.label}
             aria-label={provider.label}
           >
-            {getLobeIcon(provider.icon, 14)}
+            {getLobeIcon(provider.icon, 18)}
           </span>
         )}
         <span className='whitespace-nowrap'>{props.modelName}</span>

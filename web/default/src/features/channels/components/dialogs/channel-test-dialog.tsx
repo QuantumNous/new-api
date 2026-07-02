@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ChangeEvent, useCallback, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   type ColumnDef,
@@ -32,10 +31,25 @@ import {
   Settings,
   Trash2,
 } from 'lucide-react'
+import { type ChangeEvent, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { useIsMobile } from '@/hooks/use-mobile'
+
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import {
+  DataTableBulkActions as BulkActionsToolbar,
+  DataTablePagination,
+  DataTableView,
+  useDataTable,
+} from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
+import {
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -63,21 +77,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import {
-  DataTableBulkActions as BulkActionsToolbar,
-  DataTablePagination,
-  DataTableView,
-  useDataTable,
-} from '@/components/data-table'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Dialog } from '@/components/dialog'
-import {
-  sideDrawerContentClassName,
-  sideDrawerFooterClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-} from '@/components/drawer-layout'
-import { StatusBadge } from '@/components/status-badge'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { useIsMobile } from '@/hooks/use-mobile'
+
 import { updateChannel } from '../../api'
 import {
   channelsQueryKeys,
@@ -189,6 +191,10 @@ const endpointTypeOptions: Array<{ value: string; label: string }> = [
   },
   { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
 ]
+
+const endpointSelectContentClass = 'w-[460px] max-w-[calc(100vw-2rem)]'
+const endpointSelectItemClass =
+  'items-start py-2 [&_[data-slot=select-item-text]]:min-w-0 [&_[data-slot=select-item-text]]:shrink [&_[data-slot=select-item-text]]:whitespace-normal'
 
 const STREAM_INCOMPATIBLE_ENDPOINTS = new Set([
   'embeddings',
@@ -868,7 +874,6 @@ function ChannelTestDialogContent({
           )
         },
         enableSorting: false,
-        size: 120,
       },
     ],
     [
@@ -927,14 +932,26 @@ function ChannelTestDialogContent({
                 value={endpointType}
                 onValueChange={handleEndpointTypeChange}
               >
-                <SelectTrigger id='endpoint-type'>
-                  <SelectValue placeholder={t('Auto detect (default)')} />
+                <SelectTrigger id='endpoint-type' className='w-full min-w-0'>
+                  <SelectValue
+                    className='min-w-0 truncate'
+                    placeholder={t('Auto detect (default)')}
+                  />
                 </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
+                <SelectContent
+                  alignItemWithTrigger={false}
+                  className={endpointSelectContentClass}
+                >
                   <SelectGroup>
                     {endpointSelectItems.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        className={endpointSelectItemClass}
+                      >
+                        <span className='min-w-0 leading-snug break-words whitespace-normal'>
+                          {option.label}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -1052,7 +1069,6 @@ function ChannelTestDialogContent({
                   {
                     columnId: 'actions',
                     side: 'right',
-                    className: 'w-24 min-w-24 sm:w-28 sm:min-w-28',
                     cellClassName: 'bg-popover',
                   },
                 ]}
@@ -1061,7 +1077,7 @@ function ChannelTestDialogContent({
                     <col className='w-10 min-w-10' />
                     <col className='w-auto' />
                     <col className='w-70' />
-                    <col className='w-24 sm:w-28' />
+                    <col className='w-auto' />
                   </colgroup>
                 }
                 getColumnClassName={(columnId) =>
@@ -1327,11 +1343,7 @@ function FailureDetailsSheet({
   )
 }
 
-function TestModelsBulkActions({
-  table,
-}: {
-  table: TanStackTable<ModelRow>
-}) {
+function TestModelsBulkActions({ table }: { table: TanStackTable<ModelRow> }) {
   const { t } = useTranslation()
   const { copyToClipboard } = useCopyToClipboard()
   const selectedRows = table.getFilteredSelectedRowModel().rows

@@ -138,7 +138,7 @@ func NormalizeChannelGroupFilter(group string) string {
 }
 
 func channelGroupFilterCondition() string {
-	if common.UsingMySQL {
+	if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
 		return `CONCAT(',', ` + commonGroupCol + `, ',') LIKE ? ESCAPE '!'`
 	}
 	return `(',' || ` + commonGroupCol + ` || ',') LIKE ? ESCAPE '!'`
@@ -381,13 +381,13 @@ func SearchChannels(keyword string, group string, model string, idSort bool, sor
 	modelsCol := "`models`"
 
 	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		modelsCol = `"models"`
 	}
 
 	baseURLCol := "`base_url`"
 	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		baseURLCol = `"base_url"`
 	}
 
@@ -898,13 +898,13 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 	modelsCol := "`models`"
 
 	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		modelsCol = `"models"`
 	}
 
 	baseURLCol := "`base_url`"
 	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		baseURLCol = `"base_url"`
 	}
 
@@ -955,9 +955,6 @@ func (channel *Channel) ValidateSettings() error {
 	if channel.Type == constant.ChannelTypeAdvancedCustom {
 		if channelOtherSettings.AdvancedCustom == nil {
 			return fmt.Errorf("advanced_custom is required")
-		}
-		if channelOtherSettings.AdvancedCustom.Fallback.Enabled && (channel.BaseURL == nil || strings.TrimSpace(*channel.BaseURL) == "") {
-			return fmt.Errorf("base_url is required when advanced_custom advanced_fallback is enabled")
 		}
 	}
 	if channelOtherSettings.AdvancedCustom != nil {

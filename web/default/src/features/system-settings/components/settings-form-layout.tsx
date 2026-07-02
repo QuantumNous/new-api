@@ -17,10 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ComponentProps, ReactNode } from 'react'
-import { cn } from '@/lib/utils'
+
 import { FormItem } from '@/components/ui/form'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { cn } from '@/lib/utils'
 
 type SettingsFormGridProps = {
   children: ReactNode
@@ -44,7 +45,7 @@ type SettingsSwitchFieldProps = SettingsSwitchRowProps & {
 }
 
 const settingsSwitchRowClassName =
-  'flex min-w-0 flex-row items-center justify-between gap-4 border-b py-2.5 last:border-b-0'
+  'flex min-w-0 flex-row items-center justify-between gap-4 py-2.5'
 
 export function SettingsFormGrid(props: SettingsFormGridProps) {
   return (

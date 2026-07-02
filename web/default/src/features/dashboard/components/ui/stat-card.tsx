@@ -16,10 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useId, type ReactNode } from 'react'
 import { type LucideIcon } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { useId, type ReactNode } from 'react'
+
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 
 type StatCardTone = 'rose' | 'teal' | 'gray'
 type StatCardSparklineVariant = 'bars' | 'line'

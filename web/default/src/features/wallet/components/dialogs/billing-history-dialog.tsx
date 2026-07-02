@@ -16,12 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { formatCurrencyFromUSD } from '@/lib/currency'
-import { formatNumber } from '@/lib/format'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+
+import { Dialog } from '@/components/dialog'
+import { StatusBadge } from '@/components/status-badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,7 +35,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
@@ -45,8 +44,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { formatCurrencyFromUSD } from '@/lib/currency'
+import { formatNumber } from '@/lib/format'
+
 import { useBillingHistory } from '../../hooks/use-billing-history'
 import {
   getStatusConfig,
@@ -145,7 +146,7 @@ export function BillingHistoryDialog({
           </div>
 
           {/* Records List */}
-          <ScrollArea className='max-h-[min(54vh,520px)] pr-3 sm:pr-4'>
+          <div className='max-h-[min(54vh,520px)] overflow-y-auto pr-1'>
             {loading ? (
               <div className='space-y-3'>
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -275,7 +276,7 @@ export function BillingHistoryDialog({
                 })}
               </div>
             )}
-          </ScrollArea>
+          </div>
 
           {/* Pagination */}
           {!loading && records.length > 0 && (

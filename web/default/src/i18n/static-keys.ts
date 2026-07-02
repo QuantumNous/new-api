@@ -30,6 +30,9 @@ export const STATIC_I18N_KEYS = [
   // Sidebar views (drill-in workspaces)
   'System Settings',
   'Back to Dashboard',
+  'Auto-disable rules',
+  'Channel health checks',
+  'Request retry',
 
   // System settings sidebar
   'System Administration',
@@ -39,7 +42,15 @@ export const STATIC_I18N_KEYS = [
   'Content',
   'Integrations',
   'Models',
+  'Routing Reliability',
   'Maintenance',
+
+  // System info
+  'online',
+  'stale',
+  'Master instances run scheduled background tasks.',
+  'Worker instances do not run master-only background tasks.',
+  'Drawing task polling',
 
   // Pricing constants
   'Name',
@@ -341,6 +352,7 @@ export const STATIC_I18N_KEYS = [
 
   // Subscription management
   'Subscription Management',
+  'Subscriptions',
   'Stripe/Creem requires creating products on the third-party platform and entering the ID',
   'Create Plan',
   'Active',
@@ -427,10 +439,28 @@ export const STATIC_I18N_KEYS = [
   'Playground',
   'AI model testing environment',
   'Chat session management',
+  'No content to copy',
+  'Please wait for the current generation to complete',
+  'An unknown error occurred',
+  'Request error occurred',
+  'Network connection failed or server not responding',
+  'Error parsing response data',
+  'Error establishing connection',
+  'Connection closed',
+  'Generation was interrupted',
+  'Note',
+  'Tip',
+  'Important',
+  'Image not available',
+  'Back to footnote {{id}} reference',
   'Console Area',
   'Data management and log viewing',
   'Dashboard',
   'System data statistics',
+  'Flow',
+  'Flow Filters',
+  'Filter the traffic flow view by time range and user.',
+  'Requests',
   'Token Management',
   'API token management',
   'Usage Logs',
@@ -485,6 +515,20 @@ export const STATIC_I18N_KEYS = [
   'Detection complete: {{add}} to add, {{remove}} to remove',
   'Batch detection failed',
   'Batch detection complete: {{channels}} channels, {{add}} to add, {{remove}} to remove, {{fails}} failed',
+
+  // Dashboard flow stages (labels/descriptions passed to t at runtime)
+  'User',
+  'Node',
+  'Token',
+  'Group',
+  'Model',
+  'Channel',
+  'The user who made the requests',
+  'The deployment node that handled the requests',
+  'The API key used for the requests',
+  'The user group applied to the requests',
+  'The model that was requested',
+  'The upstream channel that served the requests',
 
   // Misc
   'Cancel',

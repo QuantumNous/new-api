@@ -16,16 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
-import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
+
+import {
+  SideDrawerSection,
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
   FormControl,
@@ -56,13 +63,24 @@ import {
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  SideDrawerSection,
-  sideDrawerContentClassName,
-  sideDrawerFooterClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-} from '@/components/drawer-layout'
-import { createUser, updateUser, getUser, getGroups } from '../api'
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  EMPTY_PERMISSION_CATALOG,
+  hasPermission,
+  normalizeAdminPermissions,
+} from '@/lib/admin-permissions'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
+
+import {
+  createUser,
+  updateUser,
+  getUser,
+  getGroups,
+  getPermissionCatalog,
+} from '../api'
 import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
   userFormSchema,
@@ -89,6 +107,7 @@ export function UsersMutateDrawer({
   const { t } = useTranslation()
   const isUpdate = !!currentRow
   const { triggerRefresh } = useUsers()
+  const currentUser = useAuthStore((s) => s.auth.user)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
 
@@ -100,6 +119,13 @@ export function UsersMutateDrawer({
   })
 
   const groups = groupsData?.data || []
+
+  // Permission catalog is owned by the backend; fetched once and reused.
+  const { data: permissionCatalog = EMPTY_PERMISSION_CATALOG } = useQuery({
+    queryKey: ['admin-permission-catalog'],
+    queryFn: getPermissionCatalog,
+    staleTime: 5 * 60 * 1000,
+  })
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
@@ -126,6 +152,9 @@ export function UsersMutateDrawer({
   const tokensOnly = currencyMeta.kind === 'tokens'
 
   const currentQuotaRaw = form.watch('quota_dollars') || 0
+  const selectedRole = form.watch('role')
+  const canEditAdminPermissions = currentUser?.role === ROLE.SUPER_ADMIN
+  const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
 
   const onSubmit = async (data: UserFormValues) => {
     if (!isUpdate) {
@@ -141,7 +170,11 @@ export function UsersMutateDrawer({
 
     setIsSubmitting(true)
     try {
-      const payload = transformFormDataToPayload(data, currentRow?.id)
+      const payload = transformFormDataToPayload(
+        data,
+        currentRow?.id,
+        permissionCatalog
+      )
       const result = isUpdate
         ? await updateUser(payload as typeof payload & { id: number })
         : await createUser(payload)
@@ -305,7 +338,7 @@ export function UsersMutateDrawer({
                           placeholder={
                             isUpdate
                               ? t('Leave empty to keep unchanged')
-                              : t('Enter password (min 8 characters)')
+                              : t('Enter password (8-20 characters)')
                           }
                         />
                       </FormControl>
@@ -416,6 +449,97 @@ export function UsersMutateDrawer({
                   />
                 </SideDrawerSection>
               )}
+
+              {canEditAdminPermissions &&
+                targetIsAdmin &&
+                permissionCatalog.resources.length > 0 && (
+                  <SideDrawerSection>
+                    <h3 className='text-sm font-medium'>
+                      {t('Admin Permissions')}
+                    </h3>
+                    <p className='text-muted-foreground text-xs'>
+                      {t(
+                        'Default administrator permissions can be overridden for this user.'
+                      )}
+                    </p>
+                    <FormField
+                      control={form.control}
+                      name='admin_permissions'
+                      render={({ field }) => {
+                        const selected = normalizeAdminPermissions(
+                          field.value,
+                          permissionCatalog
+                        )
+                        return (
+                          <FormItem>
+                            <div className='space-y-3'>
+                              {permissionCatalog.resources.map((resource) => (
+                                <div
+                                  key={resource.resource}
+                                  className='space-y-2 rounded-md border p-3'
+                                >
+                                  <div className='text-sm font-medium'>
+                                    {t(resource.label_key)}
+                                  </div>
+                                  <div className='space-y-2'>
+                                    {resource.actions.map((option) => (
+                                      <label
+                                        key={option.action}
+                                        className='flex items-start gap-3'
+                                      >
+                                        <Checkbox
+                                          checked={
+                                            selected[resource.resource]?.[
+                                              option.action
+                                            ] === true
+                                          }
+                                          onCheckedChange={(checked) => {
+                                            field.onChange({
+                                              ...selected,
+                                              [resource.resource]: {
+                                                ...selected[resource.resource],
+                                                [option.action]:
+                                                  checked === true,
+                                              },
+                                            })
+                                          }}
+                                        />
+                                        <span className='flex flex-col gap-1'>
+                                          <span className='text-sm font-medium'>
+                                            {t(option.label_key)}
+                                          </span>
+                                          <span className='text-muted-foreground text-xs'>
+                                            {t(option.description_key)}
+                                          </span>
+                                        </span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )
+                      }}
+                    />
+                    {currentUser && (
+                      <p className='text-muted-foreground text-xs'>
+                        {hasPermission(
+                          currentUser,
+                          ADMIN_PERMISSION_RESOURCES.CHANNEL,
+                          ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
+                        )
+                          ? t(
+                              'Your account can edit sensitive channel settings.'
+                            )
+                          : t(
+                              'Your account cannot edit sensitive channel settings.'
+                            )}
+                      </p>
+                    )}
+                  </SideDrawerSection>
+                )}
 
               {/* Binding Information (Read-only) */}
               {isUpdate && (

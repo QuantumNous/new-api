@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as React from 'react'
 import { Combobox as ComboboxPrimitive } from '@base-ui/react'
 import {
   ArrowDown01Icon,
@@ -24,7 +23,8 @@ import {
   Tick02Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { cn } from '@/lib/utils'
+import * as React from 'react'
+
 import { Button } from '@/components/ui/button'
 import {
   ComboboxInput as LegacyComboboxInput,
@@ -36,6 +36,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from '@/components/ui/input-group'
+import { cn } from '@/lib/utils'
 
 type LegacyComboboxProps = {
   options: ComboboxInputOption[]
@@ -47,6 +48,7 @@ type LegacyComboboxProps = {
   allowCustomValue?: boolean
   className?: string
   id?: string
+  openOnFocus?: boolean
 }
 
 function Combobox(props: LegacyComboboxProps): React.ReactElement
@@ -69,6 +71,7 @@ function Combobox(
         emptyText={props.emptyText}
         className={props.className}
         allowCustomValue={props.allowCustomValue}
+        openOnFocus={props.openOnFocus}
       />
     )
   }

@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useMemo, useState } from 'react'
 import { AlertTriangle, KeyRound, Loader2, ShieldAlert } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import dayjs from '@/lib/dayjs'
+
+import { StatusBadge } from '@/components/status-badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,7 +42,6 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { StatusBadge } from '@/components/status-badge'
 import { usePasskeyManagement } from '@/features/auth/passkey'
 import {
   SecureVerificationDialog,
@@ -49,6 +49,7 @@ import {
   type VerificationMethod,
   type VerificationMethods,
 } from '@/features/auth/secure-verification'
+import dayjs from '@/lib/dayjs'
 
 interface PasskeyCardProps {
   loading: boolean
@@ -125,11 +126,12 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
   const handleRemove = useCallback(async () => {
     const methods = await fetchVerificationMethods()
-    const required: VerificationMethod | null = methods.has2FA
-      ? '2fa'
-      : methods.hasPasskey
-        ? 'passkey'
-        : null
+    let required: VerificationMethod | null = null
+    if (methods.has2FA) {
+      required = '2fa'
+    } else if (methods.hasPasskey) {
+      required = 'passkey'
+    }
 
     if (!required) {
       toast.error(
@@ -205,6 +207,24 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
       : t('Not used yet')
 
   const showUnsupportedNotice = !supported && !enabled
+  let backupStatus: {
+    label: string
+    variant: 'success' | 'warning' | 'neutral'
+  } | null = null
+
+  if (status?.backup_eligible !== undefined) {
+    backupStatus = {
+      label: t('No backup'),
+      variant: 'neutral',
+    }
+
+    if (status.backup_eligible) {
+      backupStatus = {
+        label: status.backup_state ? t('Backed up') : t('Not backed up'),
+        variant: status.backup_state ? 'success' : 'warning',
+      }
+    }
+  }
 
   return (
     <>
@@ -234,22 +254,10 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                       showDot
                       copyable={false}
                     />
-                    {status?.backup_eligible !== undefined && (
+                    {backupStatus && (
                       <StatusBadge
-                        label={
-                          status.backup_eligible
-                            ? status.backup_state
-                              ? t('Backed up')
-                              : t('Not backed up')
-                            : t('No backup')
-                        }
-                        variant={
-                          status.backup_eligible
-                            ? status.backup_state
-                              ? 'success'
-                              : 'warning'
-                            : 'neutral'
-                        }
+                        label={backupStatus.label}
+                        variant={backupStatus.variant}
                         showDot
                         copyable={false}
                       />
@@ -310,7 +318,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                         {t('Cancel')}
                       </AlertDialogCancel>
                       <AlertDialogAction
-                        className='bg-destructive text-destructive-foreground'
+                        variant='destructive'
                         disabled={removing}
                         onClick={(event) => {
                           event.preventDefault()

@@ -16,21 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as React from 'react'
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
   ArrowDownIcon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import * as React from 'react'
 import {
   DayPicker,
   getDefaultClassNames,
   type DayButton,
   type Locale,
 } from 'react-day-picker'
-import { cn } from '@/lib/utils'
+
 import { Button, buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 function Calendar({
   className,

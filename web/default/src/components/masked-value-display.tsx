@@ -16,13 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { CopyButton } from '@/components/copy-button'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { CopyButton } from '@/components/copy-button'
 
 interface MaskedValueDisplayProps {
   /** 弹层内标题，如 "Full API Key" / "Full Code" */

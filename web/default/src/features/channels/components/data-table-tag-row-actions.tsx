@@ -17,18 +17,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import { type Row } from '@tanstack/react-table'
-import { MoreHorizontal, Power, PowerOff, Pencil, Edit } from 'lucide-react'
+import type { Row } from '@tanstack/react-table'
+import { Power, PowerOff, Pencil, Edit } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
-  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+
 import { handleEnableTagChannels, handleDisableTagChannels } from '../lib'
 import type { Channel } from '../types'
 import { useChannels } from './channels-provider'
@@ -64,27 +69,24 @@ export function DataTableTagRowActions({ row }: DataTableTagRowActionsProps) {
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant='ghost'
-            className='data-popup-open:bg-muted flex h-8 w-8 p-0'
-          />
-        }
-      >
-        <MoreHorizontal className='h-4 w-4' />
-        <span className='sr-only'>{t('Open menu')}</span>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' className='w-48'>
-        {/* Edit Tag */}
-        <DropdownMenuItem onClick={handleEditTag}>
-          {t('Edit Tag')}
-          <DropdownMenuShortcut>
-            <Edit size={16} />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
+    <div className='-ml-1.5 flex items-center gap-1'>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={handleEditTag}
+              aria-label={t('Edit Tag')}
+            />
+          }
+        >
+          <Edit />
+        </TooltipTrigger>
+        <TooltipContent>{t('Edit Tag')}</TooltipContent>
+      </Tooltip>
 
+      <DataTableRowActionMenu ariaLabel={t('Open menu')}>
         {/* Batch Edit */}
         <DropdownMenuItem onClick={handleBatchEdit}>
           {t('Batch Edit')}
@@ -110,7 +112,7 @@ export function DataTableTagRowActions({ row }: DataTableTagRowActionsProps) {
             <PowerOff size={16} />
           </DropdownMenuShortcut>
         </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </DataTableRowActionMenu>
+    </div>
   )
 }

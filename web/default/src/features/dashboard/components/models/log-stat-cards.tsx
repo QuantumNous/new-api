@@ -17,10 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
-import { useAuthStore } from '@/stores/auth-store'
-import { formatCompactNumber, formatNumber, formatQuota } from '@/lib/format'
-import { computeTimeRange } from '@/lib/time'
-import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
+
 import { Skeleton } from '@/components/ui/skeleton'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useModelStatCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
@@ -33,6 +31,10 @@ import type {
   QuotaDataItem,
   DashboardFilters,
 } from '@/features/dashboard/types'
+import { formatCompactNumber, formatNumber, formatQuota } from '@/lib/format'
+import { computeTimeRange } from '@/lib/time'
+import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
 interface LogStatCardsProps {
   filters?: DashboardFilters
@@ -41,11 +43,11 @@ interface LogStatCardsProps {
 
 const MAX_INLINE_STAT_CHARS = 9
 
-function formatStatNumber(value: number) {
-  const fullValue = formatNumber(value)
+function formatStatNumber(value: number, locale: Intl.LocalesArgument) {
+  const fullValue = formatNumber(value, locale)
   const displayValue =
     fullValue.length > MAX_INLINE_STAT_CHARS
-      ? formatCompactNumber(value)
+      ? formatCompactNumber(value, locale)
       : fullValue
 
   return {
@@ -55,6 +57,7 @@ function formatStatNumber(value: number) {
 }
 
 export function LogStatCards(props: LogStatCardsProps) {
+  const { i18n } = useTranslation()
   const statCardsConfig = useModelStatCardsConfig()
   const user = useAuthStore((state) => state.auth.user)
   const isAdmin = !!(user?.role && user.role >= 10)
@@ -118,13 +121,14 @@ export function LogStatCards(props: LogStatCardsProps) {
 
   const items = statCardsConfig.map((config) => {
     const rawValue = config.getValue(adaptedStats, timeRangeMinutes)
+    const locale = i18n.resolvedLanguage || i18n.language
     const formatted =
       config.key === 'quota'
         ? {
             displayValue: formatQuota(rawValue),
             fullValue: formatQuota(rawValue),
           }
-        : formatStatNumber(rawValue)
+        : formatStatNumber(rawValue, locale)
 
     return {
       title: config.title,

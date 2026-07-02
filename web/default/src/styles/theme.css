@@ -142,23 +142,49 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-ring: oklch(0.708 0 0);
   --skeleton-base: oklch(0.97 0 0);
   --skeleton-highlight: oklch(0.985 0 0);
+  --table-row: var(--background);
+  --table-header: color-mix(
+    in oklch,
+    var(--foreground) 1.5%,
+    var(--background)
+  );
+  --table-header-hover: color-mix(
+    in oklch,
+    var(--foreground) 3%,
+    var(--background)
+  );
+  --table-disabled: color-mix(
+    in oklch,
+    var(--foreground) 5.5%,
+    var(--background)
+  );
+  --table-disabled-hover: color-mix(
+    in oklch,
+    var(--foreground) 7%,
+    var(--background)
+  );
+  --table-disabled-border: color-mix(
+    in oklch,
+    var(--foreground) 24%,
+    var(--background)
+  );
 }
 
 .dark {
-  /* OpenAI-like dark mode: nearly black chrome, readable raised surfaces. */
-  --background: oklch(0.185 0 0);
+  /* OpenAI-like dark mode with a crisp charcoal canvas. */
+  --background: oklch(0.235 0 0);
   --foreground: oklch(0.965 0 0);
-  --card: oklch(0.235 0 0);
+  --card: oklch(0.285 0 0);
   --card-foreground: oklch(0.965 0 0);
-  --popover: oklch(0.255 0 0);
+  --popover: oklch(0.305 0 0);
   --popover-foreground: oklch(0.965 0 0);
   --primary: oklch(0.965 0 0);
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.285 0 0);
+  --primary-foreground: oklch(0.155 0 0);
+  --secondary: oklch(0.335 0 0);
   --secondary-foreground: oklch(0.965 0 0);
-  --muted: oklch(0.255 0 0);
-  --muted-foreground: oklch(0.76 0 0);
-  --accent: oklch(0.325 0 0);
+  --muted: oklch(0.305 0 0);
+  --muted-foreground: oklch(0.78 0 0);
+  --accent: oklch(0.365 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
@@ -169,23 +195,45 @@ For commercial licensing, please contact support@quantumnous.com
   --info: oklch(0.68 0.17 237.323);
   --info-foreground: oklch(0.145 0 0);
   --neutral: oklch(0.76 0 0);
-  --neutral-foreground: oklch(0.145 0 0);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 16%);
+  --neutral-foreground: oklch(0.155 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 17%);
   --ring: oklch(0.68 0 0);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.115 0 0);
+  --sidebar: oklch(0.225 0 0);
   --sidebar-foreground: oklch(0.95 0 0);
   --sidebar-primary: oklch(0.965 0 0);
-  --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: oklch(0.31 0 0);
+  --sidebar-primary-foreground: oklch(0.155 0 0);
+  --sidebar-accent: oklch(0.355 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-border: oklch(1 0 0 / 11%);
   --sidebar-ring: oklch(0.68 0 0);
-  --skeleton-base: oklch(0.285 0 0);
-  --skeleton-highlight: oklch(0.39 0 0);
+  --skeleton-base: oklch(0.335 0 0);
+  --skeleton-highlight: oklch(0.44 0 0);
+  --table-row: var(--background);
+  --table-header: color-mix(in oklch, var(--foreground) 6%, var(--background));
+  --table-header-hover: color-mix(
+    in oklch,
+    var(--foreground) 9%,
+    var(--background)
+  );
+  --table-disabled: color-mix(
+    in oklch,
+    var(--foreground) 10%,
+    var(--background)
+  );
+  --table-disabled-hover: color-mix(
+    in oklch,
+    var(--foreground) 13%,
+    var(--background)
+  );
+  --table-disabled-border: color-mix(
+    in oklch,
+    var(--foreground) 34%,
+    var(--background)
+  );
 }

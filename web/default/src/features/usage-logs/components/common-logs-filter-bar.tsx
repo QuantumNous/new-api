@@ -16,13 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback, useMemo } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
-import { type Table } from '@tanstack/react-table'
+import type { Table } from '@tanstack/react-table'
 import { Eye, EyeOff } from 'lucide-react'
+import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useIsAdmin } from '@/hooks/use-admin'
+
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -37,6 +37,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useIsAdmin } from '@/hooks/use-admin'
+
 import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
@@ -265,25 +267,27 @@ export function CommonLogsFilterBar<TData>(
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
       <CommonLogsStats />
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='icon'
-              onClick={() => setSensitiveVisible(!sensitiveVisible)}
-              aria-label={sensitiveVisible ? t('Hide') : t('Show')}
-              className='text-muted-foreground hover:text-foreground size-7'
-            />
-          }
-        >
-          {sensitiveVisible ? <Eye /> : <EyeOff />}
-        </TooltipTrigger>
-        <TooltipContent>
-          {sensitiveVisible ? t('Hide') : t('Show')}
-        </TooltipContent>
-      </Tooltip>
     </div>
+  )
+  const sensitiveToggle = (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant='ghost'
+            size='icon'
+            onClick={() => setSensitiveVisible(!sensitiveVisible)}
+            aria-label={sensitiveVisible ? t('Hide') : t('Show')}
+            className='text-muted-foreground hover:text-foreground size-7'
+          />
+        }
+      >
+        {sensitiveVisible ? <Eye /> : <EyeOff />}
+      </TooltipTrigger>
+      <TooltipContent>
+        {sensitiveVisible ? t('Hide') : t('Show')}
+      </TooltipContent>
+    </Tooltip>
   )
 
   const dateRangeFilter = (
@@ -410,6 +414,7 @@ export function CommonLogsFilterBar<TData>(
     <LogsFilterToolbar
       table={props.table}
       stats={statsBar}
+      actionStart={sensitiveToggle}
       primaryFilters={
         <>
           {dateRangeFilter}
