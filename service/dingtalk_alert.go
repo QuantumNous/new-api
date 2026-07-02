@@ -74,7 +74,7 @@ var (
 	dingTalkGoogleAPIKeyPattern        = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
 	dingTalkMaxResponseBodyBytes       = int64(64 * 1024)
 	dingTalkRequestTimeout             = 10 * time.Second
-	dingTalkAlertPendingReservationTTL = 2 * dingTalkRequestTimeout
+	dingTalkAlertPendingReservationTTL = dingTalkChannelAlertAISummaryTimeout + 2*dingTalkRequestTimeout
 )
 
 const maxDingTalkChannelAlertBatchSize = 5
@@ -568,10 +568,12 @@ func sendReservedDingTalkChannelAlertBatch(setting *operation_setting.MonitorSet
 	if len(alerts) == 0 {
 		return nil
 	}
+	rawContent := BuildDingTalkChannelAlertBatchContent(alerts)
+	content := buildDingTalkChannelAlertContentWithOptionalAISummary(alerts, rawContent)
 	if err := SendDingTalkText(
 		setting.DingTalkAlertWebhookURL,
 		setting.DingTalkAlertSecret,
-		BuildDingTalkChannelAlertBatchContent(alerts),
+		content,
 	); err != nil {
 		for _, reservation := range reservations {
 			reservation.Rollback()
