@@ -150,6 +150,11 @@ func SetApiRouter(router *gin.Engine) {
 				// Account type conversion
 				adminRoute.POST("/:id/convert-to-organization", controller.ConvertToOrganization)
 
+				// Agent owner management (组织类智能体账号负责人)
+				adminRoute.GET("/:id/agent-owner", controller.GetAgentOwner)
+				adminRoute.POST("/:id/agent-owner/bind", controller.BindAgentOwner)
+				adminRoute.DELETE("/:id/agent-owner", controller.UnbindAgentOwner)
+
 				// Admin Feishu binding management
 				adminRoute.GET("/feishu/bindings", controller.GetFeishuBindings)
 				adminRoute.POST("/feishu/bindings/import", controller.ImportFeishuBindings)
@@ -166,6 +171,7 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.POST("/feishu/stats/push/daily", controller.ManualPushFeishuDailyStats)
 				adminRoute.POST("/feishu/stats/push/weekly", controller.ManualPushFeishuWeeklyStats)
 				adminRoute.POST("/feishu/stats/push/monthly", controller.ManualPushFeishuMonthlyStats)
+				adminRoute.POST("/feishu/stats/report/run", controller.RunFeishuUsageReport)
 			}
 		}
 

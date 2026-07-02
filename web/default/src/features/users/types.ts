@@ -95,6 +95,17 @@ export interface ApiResponse<T = unknown> {
   data?: T
 }
 
+export interface AgentOwnerInfo {
+  user_id: number
+  agent_owner_name: string
+  agent_owner_mobile: string
+  agent_owner_employee_no: string
+  agent_owner_feishu_open_id: string
+  agent_owner_feishu_user_id: string
+  agent_owner_department_name: string
+  agent_owner_bound_at: number
+}
+
 export interface GetUsersParams {
   p?: number
   page_size?: number
@@ -165,3 +176,4 @@ export type UsersDialogType =
   | 'delete'
   | 'feishu_batch_init'
   | 'feishu_token_manager'
+  | 'agent_owner'

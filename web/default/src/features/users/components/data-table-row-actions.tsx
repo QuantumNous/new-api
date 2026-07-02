@@ -30,6 +30,7 @@ import {
   CreditCard,
   Building2,
   Gauge,
+  UserCog,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -65,6 +66,7 @@ import { getUserActionMessage } from '../lib'
 import type { User, ManageUserAction } from '../types'
 import { UserBindingDialog } from './dialogs/user-binding-dialog'
 import { FeishuTokenManagerDialog } from './feishu-token-manager-dialog'
+import { AgentOwnerDialog } from './agent-owner-dialog'
 import { UserModelQuotaDialog } from '@/features/model-quota/user-model-quota-dialog'
 import { useUsers } from './users-provider'
 
@@ -86,6 +88,7 @@ export function DataTableRowActions({
   const [subscriptionsDialogOpen, setSubscriptionsDialogOpen] = useState(false)
   const [tokenManagerOpen, setTokenManagerOpen] = useState(false)
   const [convertOrgOpen, setConvertOrgOpen] = useState(false)
+  const [agentOwnerOpen, setAgentOwnerOpen] = useState(false)
   const [modelQuotaOpen, setModelQuotaOpen] = useState(false)
 
   const handleEdit = () => {
@@ -295,6 +298,32 @@ export function DataTableRowActions({
           </DropdownMenuShortcut>
         </DropdownMenuItem>
 
+          {accountType === 1 && (
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault()
+                setAgentOwnerOpen(true)
+              }}
+            >
+              {t('管理负责人')}
+              <DropdownMenuShortcut>
+                <UserCog size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
+
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault()
+              setModelQuotaOpen(true)
+            }}
+          >
+            {t('模型额度详情')}
+            <DropdownMenuShortcut>
+              <Gauge size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+
         <DropdownMenuSeparator />
 
         <DropdownMenuItem
@@ -398,6 +427,15 @@ export function DataTableRowActions({
         open={modelQuotaOpen}
         onOpenChange={setModelQuotaOpen}
       />
+
+      {accountType === 1 && (
+        <AgentOwnerDialog
+          open={agentOwnerOpen}
+          onOpenChange={setAgentOwnerOpen}
+          user={user}
+          onSuccess={triggerRefresh}
+        />
+      )}
     </div>
   )
 }

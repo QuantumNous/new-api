@@ -53,6 +53,16 @@ type User struct {
 	OrgContactName             string                     `json:"org_contact_name" gorm:"column:org_contact_name;type:varchar(255);default:''"`
 	OrgContactInfo             string                     `json:"org_contact_info" gorm:"column:org_contact_info;type:varchar(255);default:''"`
 	OrgDescription             string                     `json:"org_description" gorm:"column:org_description;type:varchar(500);default:''"`
+	// 组织类智能体账号负责人（与个人用户飞书登录身份区分，不唯一校验）
+	AgentOwnerName             string                     `json:"agent_owner_name" gorm:"column:agent_owner_name;type:varchar(255);default:''"`
+	AgentOwnerMobile           string                     `json:"agent_owner_mobile" gorm:"column:agent_owner_mobile;type:varchar(64);default:'';index"`
+	AgentOwnerEmployeeNo       string                     `json:"agent_owner_employee_no" gorm:"column:agent_owner_employee_no;type:varchar(128);default:'';index"`
+	AgentOwnerFeishuOpenId     string                     `json:"agent_owner_feishu_open_id" gorm:"column:agent_owner_feishu_open_id;type:varchar(128);default:'';index"`
+	AgentOwnerFeishuUnionId    string                     `json:"agent_owner_feishu_union_id" gorm:"column:agent_owner_feishu_union_id;type:varchar(128);default:''"`
+	AgentOwnerFeishuUserId     string                     `json:"agent_owner_feishu_user_id" gorm:"column:agent_owner_feishu_user_id;type:varchar(128);default:''"`
+	AgentOwnerDepartmentId     string                     `json:"agent_owner_department_id" gorm:"column:agent_owner_department_id;type:varchar(128);default:''"`
+	AgentOwnerDepartmentName   string                     `json:"agent_owner_department_name" gorm:"column:agent_owner_department_name;type:varchar(255);default:''"`
+	AgentOwnerBoundAt          int64                      `json:"agent_owner_bound_at" gorm:"column:agent_owner_bound_at;default:0"`
 	VerificationCode           string                     `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
 	AccessToken                *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota                      int                        `json:"quota" gorm:"type:int;default:0"`

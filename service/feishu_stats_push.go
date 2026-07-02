@@ -63,6 +63,29 @@ func runFeishuStatsPushIfNeeded() {
 	hour, minute, weekday := now.Hour(), now.Minute(), now.Weekday()
 	day := now.Day()
 
+	settings := system_setting.GetFeishuSettings()
+
+	// 新快照体系：生成快照 -> 同步多维表格 -> 推送管理群
+	// 个人/组织账号推送交给多维表格自动化（基于人员字段）
+	if settings.UsageReportEnabled {
+		// 每天凌晨 3:00 生成日报
+		if hour == 3 && minute == 0 {
+			RunUsageReportFullPipeline(model.ReportPeriodDaily)
+		}
+
+		// 周一凌晨 3:30 生成周报
+		if weekday == time.Monday && hour == 3 && minute == 30 {
+			RunUsageReportFullPipeline(model.ReportPeriodWeekly)
+		}
+
+		// 每月 1 号凌晨 4:00 生成月报
+		if day == 1 && hour == 4 && minute == 0 {
+			RunUsageReportFullPipeline(model.ReportPeriodMonthly)
+		}
+		return
+	}
+
+	// 兼容旧逻辑（未启用新快照体系时回退）
 	// 每天凌晨 3:00 推送前一天日报
 	if hour == 3 && minute == 0 {
 		req := BuildFeishuStatsPushRequest("daily", now)

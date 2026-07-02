@@ -28,6 +28,7 @@ import type {
   ManageUserAction,
   ManageUserQuotaPayload,
   ApiResponse,
+  AgentOwnerInfo,
 } from './types'
 
 // ============================================================================
@@ -160,6 +161,44 @@ export async function convertToOrganization(
   id: number
 ): Promise<ApiResponse<Partial<User>>> {
   const res = await api.post(`/api/user/${id}/convert-to-organization`)
+  return res.data
+}
+
+/**
+ * Bind agent owner (负责人) for organization/agent accounts
+ */
+export async function bindAgentOwner(
+  id: number,
+  payload: {
+    mobile?: string
+    employee_no?: string
+    email?: string
+    feishu_open_id?: string
+    feishu_user_id?: string
+    name?: string
+  }
+): Promise<ApiResponse<Record<string, unknown>>> {
+  const res = await api.post(`/api/user/${id}/agent-owner/bind`, payload)
+  return res.data
+}
+
+/**
+ * Unbind agent owner for organization/agent accounts
+ */
+export async function unbindAgentOwner(
+  id: number
+): Promise<ApiResponse<null>> {
+  const res = await api.delete(`/api/user/${id}/agent-owner`)
+  return res.data
+}
+
+/**
+ * Get agent owner info for organization/agent accounts
+ */
+export async function getAgentOwner(
+  id: number
+): Promise<ApiResponse<AgentOwnerInfo>> {
+  const res = await api.get(`/api/user/${id}/agent-owner`)
   return res.data
 }
 
