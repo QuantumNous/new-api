@@ -100,6 +100,23 @@ func TestValidateRequestAndSetAction_RejectsPrivateSeedanceImageURL(t *testing.T
 	}
 }
 
+func TestValidateRequestAndSetAction_RejectsNonHTTPSeedanceImageURLWhenSSRFDisabled(t *testing.T) {
+	disableFetchSSRFProtection(t)
+
+	a := &TaskAdaptor{}
+	c := newJSONCtx(`{
+		"model":"jimeng-video-seedance-2.0-mini",
+		"content":[
+			{"type":"text","text":"a cat walking"},
+			{"type":"image_url","image_url":{"url":"file:///tmp/private.png"}}
+		]
+	}`)
+
+	if taskErr := a.ValidateRequestAndSetAction(c, newRelayInfo()); taskErr == nil {
+		t.Fatal("expected non-http seedance image URL to be rejected even when SSRF protection is disabled")
+	}
+}
+
 func TestBuildRequestBody_MapsSeedanceContentWithoutHTMLEscapingURL(t *testing.T) {
 	disableFetchSSRFProtection(t)
 

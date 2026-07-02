@@ -151,6 +151,21 @@ func TestValidateRequestAndSetAction_RejectsPrivateInputImageURL(t *testing.T) {
 	}
 }
 
+func TestValidateRequestAndSetAction_RejectsNonHTTPImageURLWhenSSRFDisabled(t *testing.T) {
+	disableFetchSSRFProtection(t)
+
+	a := &TaskAdaptor{}
+	c := newJSONCtx(`{
+		"model":"jimeng-video-2.0",
+		"prompt":"legacy prompt",
+		"images":["file:///tmp/private.png"]
+	}`)
+
+	if taskErr := a.ValidateRequestAndSetAction(c, newRelayInfo()); taskErr == nil {
+		t.Fatal("expected non-http image URL to be rejected even when SSRF protection is disabled")
+	}
+}
+
 func TestParseTaskResult_CompletedWithoutURLFails(t *testing.T) {
 	info, err := (&TaskAdaptor{}).ParseTaskResult([]byte(`{"status":"completed","data":[]}`))
 	if err != nil {

@@ -3,6 +3,7 @@ package taskcommon
 import (
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -95,9 +96,18 @@ func ScrubBrandedText(s string) string {
 // server-side fetch paths before a task adaptor forwards a user-supplied media
 // URL to an upstream service that may fetch it.
 func ValidateRemoteMediaURL(raw string) error {
+	trimmed := strings.TrimSpace(raw)
+	u, err := url.Parse(trimmed)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("image url is invalid")
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("image url must use http or https")
+	}
+
 	fetchSetting := system_setting.GetFetchSetting()
 	if err := common.ValidateURLWithFetchSetting(
-		raw,
+		trimmed,
 		fetchSetting.EnableSSRFProtection,
 		fetchSetting.AllowPrivateIp,
 		fetchSetting.DomainFilterMode,
