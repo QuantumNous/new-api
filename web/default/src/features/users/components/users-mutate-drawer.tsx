@@ -30,6 +30,7 @@ import {
   sideDrawerFooterClassName,
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
+  sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -44,6 +45,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -80,6 +82,7 @@ import {
   getUser,
   getGroups,
   getPermissionCatalog,
+  manageUserUnlimitedBalance,
 } from '../api'
 import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
@@ -110,6 +113,7 @@ export function UsersMutateDrawer({
   const currentUser = useAuthStore((s) => s.auth.user)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
+  const [isUpdatingUnlimited, setIsUpdatingUnlimited] = useState(false)
 
   // Fetch groups
   const { data: groupsData } = useQuery({
@@ -209,6 +213,12 @@ export function UsersMutateDrawer({
       form.reset(transformUserToFormDefaults(result.data))
     }
     triggerRefresh()
+  }
+
+  const getQuotaDisplayValue = (val: number | undefined) => {
+    if (currentRow?.unlimited_balance) return t('Unlimited')
+    if (tokensOnly) return String(val || 0)
+    return (val || 0).toFixed(6)
   }
 
   return (
@@ -402,11 +412,7 @@ export function UsersMutateDrawer({
                         <div className='flex gap-2'>
                           <FormControl>
                             <Input
-                              value={
-                                tokensOnly
-                                  ? String(field.value || 0)
-                                  : (field.value || 0).toFixed(6)
-                              }
+                              value={getQuotaDisplayValue(field.value)}
                               readOnly
                               className='flex-1'
                             />
@@ -421,12 +427,61 @@ export function UsersMutateDrawer({
                           </Button>
                         </div>
                         <FormDescription>
-                          {formatQuota(parseQuotaFromDollars(field.value || 0))}
+                          {currentRow?.unlimited_balance
+                            ? t('Unlimited Balance')
+                            : formatQuota(parseQuotaFromDollars(field.value || 0))}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+
+                  {/* Unlimited Balance Toggle */}
+                  {isUpdate && currentRow && (
+                    <div className={sideDrawerSwitchItemClassName()}>
+                      <div className='flex flex-col gap-0.5'>
+                        <FormLabel htmlFor='unlimited-balance-switch' className='text-sm'>
+                          {t('Unlimited Balance')}
+                        </FormLabel>
+                        <FormDescription id='unlimited-balance-desc' className='text-xs'>
+                          {t('Enable unlimited balance for this user')}
+                        </FormDescription>
+                      </div>
+                      <Switch
+                        id='unlimited-balance-switch'
+                        aria-describedby='unlimited-balance-desc'
+                        disabled={isUpdatingUnlimited}
+                        checked={currentRow.unlimited_balance ?? false}
+                        onCheckedChange={async (checked) => {
+                          if (isUpdatingUnlimited) return
+                          setIsUpdatingUnlimited(true)
+                          try {
+                            const result = await manageUserUnlimitedBalance(
+                              currentRow.id,
+                              checked
+                            )
+                            if (result.success) {
+                              toast.success(
+                                checked
+                                  ? t('Unlimited balance enabled')
+                                  : t('Unlimited balance disabled')
+                              )
+                              await refreshUserData()
+                            } else {
+                              toast.error(
+                                result.message ||
+                                  t('Failed to update unlimited balance')
+                              )
+                            }
+                          } catch {
+                            toast.error(t('Failed to update unlimited balance'))
+                          } finally {
+                            setIsUpdatingUnlimited(false)
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
 
                   <FormField
                     control={form.control}

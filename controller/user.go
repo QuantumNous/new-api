@@ -1065,6 +1065,22 @@ func ManageUser(c *gin.Context) {
 			return
 		}
 		user.Role = common.RoleCommonUser
+	case "unlimited_balance":
+		if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("unlimited_balance", req.Value == 1).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if err := model.InvalidateUserCache(user.Id); err != nil {
+			common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %d: %s", user.Id, err.Error()))
+		}
+		recordManageAuditFor(c, user.Id, "user.unlimited_balance", map[string]interface{}{
+			"enabled": req.Value == 1,
+		})
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+		})
+		return
 	case "add_quota":
 		switch req.Mode {
 		case "add":

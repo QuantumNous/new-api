@@ -118,6 +118,21 @@ export async function manageUser(
 }
 
 /**
+ * Toggle unlimited balance for a user
+ */
+export async function manageUserUnlimitedBalance(
+  id: number,
+  enabled: boolean
+): Promise<ApiResponse> {
+  const res = await api.post('/api/user/manage', {
+    id,
+    action: 'unlimited_balance',
+    value: enabled ? 1 : 0,
+  })
+  return res.data
+}
+
+/**
  * Adjust user quota atomically (add/subtract/override)
  */
 export async function adjustUserQuota(
