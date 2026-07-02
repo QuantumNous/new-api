@@ -35,8 +35,8 @@ import {
   handleOIDCOAuth,
   handleDiscordOAuth,
   handleLinuxDOOAuth,
+  getOAuthState,
 } from '@/lib/oauth'
-
 import {
   getSelfOAuthBindings,
   unbindCustomOAuth,
@@ -72,7 +72,7 @@ export function AccountBindingsTab({
   const [unbinding, setUnbinding] = useState(false)
 
   const customProviders = status?.custom_oauth_providers as
-    | Array<{ id: string; name: string }>
+    | CustomOAuthProviderInfo[]
     | undefined
 
   const fetchCustomBindings = useCallback(async () => {
@@ -115,9 +115,32 @@ export function AccountBindingsTab({
     }
   }
 
-  const handleBindCustomOAuth = (provider: { id: string; name: string }) => {
-    const redirectUrl = `${window.location.origin}/oauth/${provider.id}?bind=true`
-    window.location.href = `/api/oauth/${provider.id}?redirect=${encodeURIComponent(redirectUrl)}`
+  const handleBindCustomOAuth = async (provider: CustomOAuthProviderInfo) => {
+    if (!provider.authorization_endpoint || !provider.client_id) return
+
+    const popup = window.open('', '_blank')
+    const state = await getOAuthState()
+    if (!state) {
+      popup?.close()
+      toast.error(t('Failed to initialize OAuth'))
+      return
+    }
+
+    const redirectUri = `${window.location.origin}/oauth/${provider.slug}`
+    const url = new URL(provider.authorization_endpoint)
+    url.searchParams.set('client_id', provider.client_id)
+    url.searchParams.set('redirect_uri', redirectUri)
+    url.searchParams.set('response_type', 'code')
+    url.searchParams.set('state', state)
+    if (provider.scopes) {
+      url.searchParams.set('scope', provider.scopes)
+    }
+
+    if (popup) {
+      popup.location.href = url.toString()
+    } else {
+      window.location.href = url.toString()
+    }
   }
 
   useEffect(() => {
@@ -343,7 +366,7 @@ export function AccountBindingsTab({
                       </div>
                       <p className='text-muted-foreground truncate text-xs'>
                         {isBound
-                          ? binding?.external_id || t('Bound')
+                          ? binding?.provider_user_id || t('Bound')
                           : t('Not bound')}
                       </p>
                     </div>
