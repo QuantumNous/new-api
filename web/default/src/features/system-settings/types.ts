@@ -186,6 +186,7 @@ export type BillingSettings = {
   GptImage2RaceTimeout1K: number
   GptImage2RaceTimeout2K: number
   GptImage2RaceTimeout4K: number
+  NewAPIShadowBenchmarkEnabled: boolean
   TopUpLink: string
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean

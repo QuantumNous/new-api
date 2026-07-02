@@ -37,6 +37,7 @@ const defaultBillingSettings: BillingSettings = {
   GptImage2RaceTimeout1K: 45,
   GptImage2RaceTimeout2K: 90,
   GptImage2RaceTimeout4K: 135,
+  NewAPIShadowBenchmarkEnabled: false,
   TopUpLink: '',
   'general_setting.docs_link': '',
   'quota_setting.enable_free_model_pre_consume': true,

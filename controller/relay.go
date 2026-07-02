@@ -1,11 +1,13 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/textproto"
 	"strings"
 	"time"
 
@@ -31,6 +33,21 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
+
+const officialFallbackChannelID = 38
+
+func isOfficialFallbackModel(modelName string) bool {
+	return modelName == "gpt-5.4" || modelName == "gpt-5.5"
+}
+
+func markOfficialFallbackChannel(c *gin.Context, channel *model.Channel) {
+	if c == nil || channel == nil {
+		return
+	}
+	c.Set("official_fallback_triggered", true)
+	c.Set("official_fallback_channel_id", channel.Id)
+	c.Set("official_fallback_channel_name", channel.Name)
+}
 
 func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	var err *types.NewAPIError
@@ -73,6 +90,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	var (
 		newAPIError *types.NewAPIError
+		relayInfo   *relaycommon.RelayInfo
 		ws          *websocket.Conn
 	)
 
@@ -88,6 +106,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	defer func() {
 		if newAPIError != nil {
+			if relayInfo != nil {
+				recordFailedRequestSnapshot(c, relayInfo, relayFormat, newAPIError)
+			}
 			logger.LogError(c, fmt.Sprintf("relay error: %s", newAPIError.Error()))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
@@ -117,7 +138,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
+	relayInfo, err = relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
@@ -223,15 +244,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError == nil {
 			relayInfo.LastError = nil
 			service.RecordChannelSuccess(channel.Id)
+			notifyOfficialFallbackResult(c, relayInfo, nil)
+			service.MaybeEnqueueShadowBenchmark(c, relayInfo, relayFormat, nil)
 			return
 		}
 
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
+		retryDecision := evaluateRetry(c, newAPIError, retryParam.GetRetry(), common.RetryTimes-retryParam.GetRetry())
+		setRetryDecision(c, retryDecision)
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
-		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+		if !retryDecision.ShouldRetry {
 			break
 		}
 	}
@@ -242,9 +267,248 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		logger.LogInfo(c, retryLogStr)
 	}
 	if newAPIError != nil {
+		service.MaybeEnqueueShadowBenchmark(c, relayInfo, relayFormat, newAPIError)
+		notifyFinalRelayFailure(c, relayInfo, newAPIError)
 		gopool.Go(func() {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
+	}
+}
+
+func captureReplayHeaders(c *gin.Context) map[string][]string {
+	headers := make(map[string][]string)
+	if c == nil || c.Request == nil {
+		return headers
+	}
+	allow := map[string]bool{
+		"Accept":           true,
+		"Content-Type":     true,
+		"OpenAI-Beta":      true,
+		"OpenAI-Intent":    true,
+		"OpenAI-Project":   true,
+		"OpenAI-Org":       true,
+		"User-Agent":       true,
+		"X-Client-Name":    true,
+		"X-Client-Version": true,
+	}
+	for key, values := range c.Request.Header {
+		canonical := textproto.CanonicalMIMEHeaderKey(key)
+		if !allow[canonical] {
+			continue
+		}
+		copied := make([]string, 0, len(values))
+		for _, value := range values {
+			copied = append(copied, value)
+		}
+		headers[canonical] = copied
+	}
+	return headers
+}
+
+func notifyOfficialFallbackResult(c *gin.Context, relayInfo *relaycommon.RelayInfo, finalErr *types.NewAPIError) {
+	if c == nil || relayInfo == nil || !c.GetBool("official_fallback_triggered") {
+		return
+	}
+	if c.GetBool("official_fallback_notified") {
+		return
+	}
+	c.Set("official_fallback_notified", true)
+	chatID := common.FeishuNewAPILogChatID()
+	if chatID == "" {
+		return
+	}
+	requestID := c.GetString(common.RequestIdKey)
+	useChannel := strings.Join(c.GetStringSlice("use_channel"), " -> ")
+	requestPath := relayInfo.RequestURLPath
+	if c.Request != nil && c.Request.URL != nil {
+		requestPath = c.Request.URL.Path
+	}
+	officialChannel := fmt.Sprintf("%d", c.GetInt("official_fallback_channel_id"))
+	if name := strings.TrimSpace(c.GetString("official_fallback_channel_name")); name != "" {
+		officialChannel = officialChannel + " / " + name
+	}
+	result := "成功"
+	title := "NewAPI 官方兜底成功"
+	lines := []string{
+		fmt.Sprintf("- request_id：`%s`", requestID),
+		fmt.Sprintf("- model：`%s`", relayInfo.OriginModelName),
+		fmt.Sprintf("- path：`%s`", requestPath),
+		fmt.Sprintf("- 链路：`%s`", useChannel),
+		fmt.Sprintf("- 官方兜底渠道：`%s`", officialChannel),
+	}
+	if finalErr != nil {
+		result = "失败"
+		title = "NewAPI 官方兜底失败"
+		lines = append(lines,
+			fmt.Sprintf("- 最终错误：`%s / HTTP %d（%s）`", finalErr.GetErrorCode(), finalErr.StatusCode, finalErr.MaskSensitiveErrorWithStatusCode()),
+		)
+	}
+	lines = append(lines, fmt.Sprintf("- 结果：`%s`", result))
+	gopool.Go(func() {
+		if err := common.SendFeishuCard(chatID, title, lines); err != nil {
+			logger.LogError(context.Background(), fmt.Sprintf("failed to send official fallback feishu notification: %s", err.Error()))
+		}
+	})
+}
+
+func notifyFinalRelayFailure(c *gin.Context, relayInfo *relaycommon.RelayInfo, finalErr *types.NewAPIError) {
+	if c == nil || relayInfo == nil || finalErr == nil {
+		return
+	}
+	if c.GetBool("final_failure_notified") {
+		return
+	}
+	c.Set("final_failure_notified", true)
+	chatID := common.FeishuNewAPILogChatID()
+	if chatID == "" {
+		return
+	}
+	requestID := c.GetString(common.RequestIdKey)
+	useChannel := strings.Join(c.GetStringSlice("use_channel"), " -> ")
+	if strings.TrimSpace(useChannel) == "" {
+		useChannel = "-"
+	}
+	requestPath := relayInfo.RequestURLPath
+	if c.Request != nil && c.Request.URL != nil {
+		requestPath = c.Request.URL.Path
+	}
+	finalChannel := "-"
+	if channelID := c.GetInt("channel_id"); channelID > 0 {
+		finalChannel = fmt.Sprintf("%d", channelID)
+		if channelName := strings.TrimSpace(c.GetString("channel_name")); channelName != "" {
+			finalChannel = finalChannel + " / " + channelName
+		}
+	}
+	lines := []string{
+		fmt.Sprintf("- request_id：`%s`", requestID),
+		fmt.Sprintf("- model：`%s`", relayInfo.OriginModelName),
+		fmt.Sprintf("- path：`%s`", requestPath),
+		fmt.Sprintf("- 链路：`%s`", useChannel),
+		fmt.Sprintf("- 最终渠道：`%s`", finalChannel),
+		fmt.Sprintf("- 最终错误：`%s / HTTP %d（%s）`", finalErr.GetErrorCode(), finalErr.StatusCode, explainRelayFailure(finalErr)),
+		fmt.Sprintf("- 错误信息：`%s`", finalErr.MaskSensitiveErrorWithStatusCode()),
+	}
+	if decision, ok := getRetryDecision(c); ok {
+		lines = append(lines, fmt.Sprintf("- retry_decision：`%s`", common.GetJsonString(decision)))
+	}
+	if c.GetBool("official_fallback_triggered") {
+		officialChannel := fmt.Sprintf("%d", c.GetInt("official_fallback_channel_id"))
+		if name := strings.TrimSpace(c.GetString("official_fallback_channel_name")); name != "" {
+			officialChannel = officialChannel + " / " + name
+		}
+		lines = append(lines, fmt.Sprintf("- 官方兜底渠道：`%s`", officialChannel))
+	}
+	gopool.Go(func() {
+		if err := common.SendFeishuCard(chatID, "NewAPI 请求最终失败", lines); err != nil {
+			logger.LogError(context.Background(), fmt.Sprintf("failed to send final failure feishu notification: %s", err.Error()))
+		}
+	})
+}
+
+func explainRelayFailure(err *types.NewAPIError) string {
+	if err == nil {
+		return "未知错误"
+	}
+	switch err.GetErrorCode() {
+	case types.ErrorCode("missing_required_parameter"):
+		return "请求参数缺失"
+	case types.ErrorCodeBadResponse:
+		return "上游返回异常内容"
+	case types.ErrorCodeBadResponseStatusCode:
+		switch err.StatusCode {
+		case http.StatusBadGateway:
+			return "上游网关错误"
+		case http.StatusServiceUnavailable:
+			return "上游服务不可用"
+		case 524:
+			return "上游超时"
+		}
+	case types.ErrorCodeInsufficientUserQuota:
+		return "用户额度不足"
+	case types.ErrorCodePreConsumeTokenQuotaFailed:
+		return "用户令牌额度不足"
+	case types.ErrorCodeGetChannelFailed:
+		return "没有可用渠道"
+	}
+	switch err.StatusCode {
+	case http.StatusBadRequest:
+		return "上游参数/策略限制"
+	case http.StatusTooManyRequests:
+		return "上游限流"
+	case http.StatusInternalServerError:
+		return "上游内部错误"
+	case http.StatusBadGateway:
+		return "上游网关错误"
+	case http.StatusServiceUnavailable:
+		return "上游服务不可用"
+	case 524:
+		return "上游超时"
+	}
+	return "其他错误"
+}
+
+func recordFailedRequestSnapshot(c *gin.Context, relayInfo *relaycommon.RelayInfo, relayFormat types.RelayFormat, newAPIError *types.NewAPIError) {
+	if c == nil || relayInfo == nil || newAPIError == nil {
+		return
+	}
+	if strings.EqualFold(strings.TrimSpace(c.GetHeader("X-NewAPI-Replay")), "true") {
+		return
+	}
+	requestId := c.GetString(common.RequestIdKey)
+	if strings.TrimSpace(requestId) == "" {
+		return
+	}
+	bodyStorage, err := common.GetBodyStorage(c)
+	if err != nil {
+		logger.LogError(c, fmt.Sprintf("failed to capture failed request body: %s", err.Error()))
+		return
+	}
+	body, err := bodyStorage.Bytes()
+	if err != nil {
+		logger.LogError(c, fmt.Sprintf("failed to read failed request body: %s", err.Error()))
+		return
+	}
+	headersJSON := common.GetJsonString(captureReplayHeaders(c))
+	useChannelJSON := common.GetJsonString(c.GetStringSlice("use_channel"))
+	retryDecisionJSON := ""
+	if decision, ok := getRetryDecision(c); ok {
+		retryDecisionJSON = common.MapToJsonStr(decision)
+	}
+	requestPath := relayInfo.RequestURLPath
+	if c.Request != nil && c.Request.URL != nil && c.Request.URL.Path != "" {
+		requestPath = c.Request.URL.Path
+	}
+	method := http.MethodPost
+	contentType := ""
+	if c.Request != nil {
+		method = c.Request.Method
+		contentType = c.Request.Header.Get("Content-Type")
+	}
+	snapshot := &model.FailedRequestSnapshot{
+		RequestId:       requestId,
+		UserId:          relayInfo.UserId,
+		TokenId:         relayInfo.TokenId,
+		ModelName:       relayInfo.OriginModelName,
+		RequestPath:     requestPath,
+		Method:          method,
+		ContentType:     contentType,
+		Headers:         headersJSON,
+		Body:            string(body),
+		BodySize:        int64(len(body)),
+		UseChannel:      useChannelJSON,
+		ErrorCode:       string(newAPIError.GetErrorCode()),
+		ErrorType:       string(newAPIError.GetErrorType()),
+		StatusCode:      newAPIError.StatusCode,
+		ErrorMessage:    newAPIError.MaskSensitiveErrorWithStatusCode(),
+		RetryDecision:   retryDecisionJSON,
+		RequestFormat:   string(relayInfo.RelayFormat),
+		RelayMode:       int(relayInfo.RelayMode),
+		RelayFormat:     string(relayFormat),
+		LastChannelId:   c.GetInt("channel_id"),
+		LastChannelName: c.GetString("channel_name"),
+	}
+	if err := model.SaveFailedRequestSnapshot(snapshot); err != nil {
+		logger.LogError(c, fmt.Sprintf("failed to save failed request snapshot: %s", err.Error()))
 	}
 }
 
@@ -304,9 +568,26 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			AutoBan: &autoBanInt,
 		}, nil
 	}
-	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
-
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
+	if shouldUseOfficialFallback(c, info, retryParam) {
+		channel, err := model.GetChannelById(officialFallbackChannelID, true)
+		if err != nil {
+			return nil, types.NewError(fmt.Errorf("获取官方兜底渠道 #%d 失败: %s", officialFallbackChannelID, err.Error()), types.ErrorCodeGetChannelFailed)
+		}
+		if channel.Status != common.ChannelStatusEnabled {
+			return nil, types.NewError(fmt.Errorf("官方兜底渠道 #%d 未启用", officialFallbackChannelID), types.ErrorCodeGetChannelFailed)
+		}
+		if !common.StringsContains(channel.GetModels(), info.OriginModelName) {
+			return nil, types.NewError(fmt.Errorf("官方兜底渠道 #%d 不支持模型 %s", officialFallbackChannelID, info.OriginModelName), types.ErrorCodeGetChannelFailed)
+		}
+		markOfficialFallbackChannel(c, channel)
+		newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
+		if newAPIError != nil {
+			return nil, newAPIError
+		}
+		return channel, nil
+	}
+	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 
 	if err != nil {
 		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
@@ -319,47 +600,309 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	if newAPIError != nil {
 		return nil, newAPIError
 	}
+	if isOfficialFallbackModel(info.OriginModelName) && retryParam.GetRetry() > 0 && channel.Id == officialFallbackChannelID {
+		markOfficialFallbackChannel(c, channel)
+	}
 	return channel, nil
 }
 
-func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
-	if openaiErr == nil {
-		return false
-	}
-	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-		return false
-	}
-	if types.IsChannelError(openaiErr) {
-		return true
-	}
-	// model_not_found on a channel is a channel-side problem, not a client error —
-	// retry with the next channel even though the HTTP status is 400.
-	if openaiErr.GetErrorCode() == types.ErrorCodeModelNotFound {
-		return true
-	}
-	if types.IsSkipRetryError(openaiErr) {
-		return false
-	}
-	if types.IsContextOverflowError(openaiErr) {
-		return false
-	}
-	if retryTimes <= 0 {
+func shouldUseOfficialFallback(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) bool {
+	if c == nil || info == nil || retryParam == nil {
 		return false
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
 	}
-	code := openaiErr.StatusCode
-	if code >= 200 && code < 300 {
+	if !isOfficialFallbackModel(info.OriginModelName) {
 		return false
 	}
-	if code < 100 || code > 599 {
+	if retryParam.GetRetry() < 2 {
+		return false
+	}
+	for _, channelID := range c.GetStringSlice("use_channel") {
+		if channelID == fmt.Sprintf("%d", officialFallbackChannelID) {
+			return false
+		}
+	}
+	return true
+}
+
+type retryDecision struct {
+	ShouldRetry  bool
+	Reason       string
+	RetryIndex   int
+	AttemptIndex int
+	RetryTimes   int
+	StatusCode   int
+	ErrorCode    string
+}
+
+func setRetryDecision(c *gin.Context, decision retryDecision) {
+	if c == nil {
+		return
+	}
+	c.Set("retry_decision", retryDecisionToMap(decision))
+}
+
+func setTaskRetryDecision(c *gin.Context, decision taskRetryDecision) {
+	if c == nil {
+		return
+	}
+	c.Set("retry_decision", taskRetryDecisionToMap(decision))
+}
+
+func getRetryDecision(c *gin.Context) (map[string]interface{}, bool) {
+	if c == nil {
+		return nil, false
+	}
+	value, ok := c.Get("retry_decision")
+	if !ok {
+		return nil, false
+	}
+	decision, ok := value.(map[string]interface{})
+	return decision, ok
+}
+
+func isUserQuotaError(openaiErr *types.NewAPIError) bool {
+	if openaiErr == nil {
+		return false
+	}
+	switch openaiErr.GetErrorCode() {
+	case types.ErrorCodeInsufficientUserQuota, types.ErrorCodePreConsumeTokenQuotaFailed:
 		return true
 	}
+	return false
+}
+
+func evaluateRetry(c *gin.Context, openaiErr *types.NewAPIError, retryIndex int, retryTimes int) retryDecision {
+	decision := retryDecision{
+		RetryIndex:   retryIndex,
+		AttemptIndex: retryIndex + 1,
+		RetryTimes:   retryTimes,
+	}
+	if openaiErr == nil {
+		decision.Reason = "nil_error"
+		return decision
+	}
+	decision.StatusCode = openaiErr.StatusCode
+	decision.ErrorCode = string(openaiErr.GetErrorCode())
+	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+		decision.Reason = "channel_affinity_skip_retry"
+		return decision
+	}
+	if isUserQuotaError(openaiErr) {
+		decision.Reason = "user_quota_error"
+		return decision
+	}
+	if types.IsSkipRetryError(openaiErr) {
+		decision.Reason = "skip_retry_error"
+		return decision
+	}
 	if operation_setting.IsAlwaysSkipRetryCode(openaiErr.GetErrorCode()) {
+		decision.Reason = "always_skip_retry_code"
+		return decision
+	}
+	if retryTimes <= 0 {
+		decision.Reason = "retry_times_exhausted"
+		return decision
+	}
+	if _, ok := c.Get("specific_channel_id"); ok {
+		decision.Reason = "specific_channel_id"
+		return decision
+	}
+	if c.GetBool("official_fallback_triggered") {
+		decision.Reason = "official_fallback_exhausted"
+		return decision
+	}
+	if shouldRetryForOfficialFallback(c, retryIndex) {
+		decision.ShouldRetry = true
+		decision.Reason = "official_fallback_pending"
+		return decision
+	}
+	if shouldRetryForOfficialFallbackModel(c, retryIndex) {
+		decision.ShouldRetry = true
+		decision.Reason = "official_fallback_model_first_retry"
+		return decision
+	}
+	if types.IsChannelError(openaiErr) {
+		decision.ShouldRetry = true
+		decision.Reason = "channel_error"
+		return decision
+	}
+	if openaiErr.GetErrorCode() == types.ErrorCodeModelNotFound {
+		decision.ShouldRetry = true
+		decision.Reason = "model_not_found_channel_side"
+		return decision
+	}
+	code := openaiErr.StatusCode
+	if code >= 200 && code < 300 {
+		decision.Reason = "success_status_code"
+		return decision
+	}
+	if code < 100 || code > 599 {
+		decision.ShouldRetry = true
+		decision.Reason = "invalid_status_code_retry"
+		return decision
+	}
+	if operation_setting.ShouldRetryByStatusCode(code) {
+		decision.ShouldRetry = true
+		decision.Reason = "retryable_status_code"
+		return decision
+	}
+	decision.ShouldRetry = true
+	decision.Reason = "default_fallback_all_models"
+	return decision
+}
+
+func shouldRetryForOfficialFallback(c *gin.Context, retryIndex int) bool {
+	if c == nil || c.GetBool("official_fallback_triggered") {
 		return false
 	}
-	return operation_setting.ShouldRetryByStatusCode(code)
+	modelName := c.GetString("original_model")
+	if !isOfficialFallbackModel(modelName) {
+		return false
+	}
+	if retryIndex < 1 {
+		return false
+	}
+	for _, channelID := range c.GetStringSlice("use_channel") {
+		if channelID == fmt.Sprintf("%d", officialFallbackChannelID) {
+			return false
+		}
+	}
+	return true
+}
+
+func shouldRetryForOfficialFallbackModel(c *gin.Context, retryIndex int) bool {
+	if c == nil || c.GetBool("official_fallback_triggered") {
+		return false
+	}
+	if !isOfficialFallbackModel(c.GetString("original_model")) {
+		return false
+	}
+	if retryIndex != 0 {
+		return false
+	}
+	return true
+}
+
+func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
+	return evaluateRetry(c, openaiErr, common.RetryTimes-retryTimes, retryTimes).ShouldRetry
+}
+
+type taskRetryDecision struct {
+	ShouldRetry  bool
+	Reason       string
+	RetryIndex   int
+	AttemptIndex int
+	RetryTimes   int
+	StatusCode   int
+	ErrorCode    string
+	ChannelId    int
+}
+
+func evaluateTaskRetry(c *gin.Context, channelId int, taskErr *dto.TaskError, retryIndex int, retryTimes int) taskRetryDecision {
+	decision := taskRetryDecision{
+		RetryIndex:   retryIndex,
+		AttemptIndex: retryIndex + 1,
+		RetryTimes:   retryTimes,
+		ChannelId:    channelId,
+	}
+	if taskErr == nil {
+		decision.Reason = "nil_error"
+		return decision
+	}
+	decision.StatusCode = taskErr.StatusCode
+	decision.ErrorCode = taskErr.Code
+	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+		decision.Reason = "channel_affinity_skip_retry"
+		return decision
+	}
+	if retryTimes <= 0 {
+		decision.Reason = "retry_times_exhausted"
+		return decision
+	}
+	if _, ok := c.Get("specific_channel_id"); ok {
+		decision.Reason = "specific_channel_id"
+		return decision
+	}
+	if taskErr.StatusCode == http.StatusTooManyRequests {
+		decision.ShouldRetry = true
+		decision.Reason = "too_many_requests"
+		return decision
+	}
+	if taskErr.StatusCode == 307 {
+		decision.ShouldRetry = true
+		decision.Reason = "temporary_redirect"
+		return decision
+	}
+	if taskErr.StatusCode/100 == 5 {
+		if operation_setting.IsAlwaysSkipRetryStatusCode(taskErr.StatusCode) {
+			decision.Reason = "always_skip_retry_status_code"
+			return decision
+		}
+		decision.ShouldRetry = true
+		decision.Reason = "server_error_status_code"
+		return decision
+	}
+	if taskErr.StatusCode == http.StatusBadRequest {
+		decision.Reason = "bad_request_status_code"
+		return decision
+	}
+	if taskErr.StatusCode == 408 {
+		decision.Reason = "request_timeout_status_code"
+		return decision
+	}
+	if taskErr.LocalError {
+		decision.Reason = "local_error"
+		return decision
+	}
+	if taskErr.StatusCode/100 == 2 {
+		decision.Reason = "success_status_code"
+		return decision
+	}
+	if strings.Contains(taskErr.Code, "RateLimit") {
+		decision.ShouldRetry = true
+		decision.Reason = "rate_limit_code"
+		return decision
+	}
+	if strings.Contains(taskErr.Message, "RateLimit") {
+		decision.ShouldRetry = true
+		decision.Reason = "rate_limit_message"
+		return decision
+	}
+	decision.ShouldRetry = true
+	decision.Reason = "task_default_retry"
+	return decision
+}
+
+func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError, retryTimes int) bool {
+	return evaluateTaskRetry(c, channelId, taskErr, common.RetryTimes-retryTimes, retryTimes).ShouldRetry
+}
+
+func retryDecisionToMap(decision retryDecision) map[string]interface{} {
+	return map[string]interface{}{
+		"should_retry":          decision.ShouldRetry,
+		"reason":                decision.Reason,
+		"retry_index":           decision.RetryIndex,
+		"attempt_index":         decision.AttemptIndex,
+		"remaining_retry_times": decision.RetryTimes,
+		"status_code":           decision.StatusCode,
+		"error_code":            decision.ErrorCode,
+	}
+}
+
+func taskRetryDecisionToMap(decision taskRetryDecision) map[string]interface{} {
+	return map[string]interface{}{
+		"should_retry":          decision.ShouldRetry,
+		"reason":                decision.Reason,
+		"retry_index":           decision.RetryIndex,
+		"attempt_index":         decision.AttemptIndex,
+		"remaining_retry_times": decision.RetryTimes,
+		"status_code":           decision.StatusCode,
+		"error_code":            decision.ErrorCode,
+		"channel_id":            decision.ChannelId,
+	}
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
@@ -402,6 +945,10 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		}
 		adminInfo := make(map[string]interface{})
 		adminInfo["use_channel"] = c.GetStringSlice("use_channel")
+		if decision, ok := getRetryDecision(c); ok {
+			adminInfo["retry_decision"] = decision
+		}
+		appendOfficialFallbackErrorAdminInfo(c, adminInfo, err)
 		isMultiKey := common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey)
 		if isMultiKey {
 			adminInfo["is_multi_key"] = true
@@ -417,6 +964,30 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 
+}
+
+func appendOfficialFallbackErrorAdminInfo(c *gin.Context, adminInfo map[string]interface{}, err *types.NewAPIError) {
+	if c == nil || adminInfo == nil || !c.GetBool("official_fallback_triggered") {
+		return
+	}
+	adminInfo["official_fallback_triggered"] = true
+	if channelID := c.GetInt("official_fallback_channel_id"); channelID > 0 {
+		adminInfo["official_fallback_channel_id"] = channelID
+	}
+	if channelName := strings.TrimSpace(c.GetString("official_fallback_channel_name")); channelName != "" {
+		adminInfo["official_fallback_channel_name"] = channelName
+	}
+	if currentChannelID := c.GetInt("channel_id"); currentChannelID > 0 {
+		adminInfo["official_fallback_final_channel_id"] = currentChannelID
+		if currentChannelID == c.GetInt("official_fallback_channel_id") {
+			adminInfo["official_fallback_success"] = false
+			if err != nil {
+				adminInfo["official_fallback_error_code"] = err.GetErrorCode()
+				adminInfo["official_fallback_status_code"] = err.StatusCode
+				adminInfo["official_fallback_error_message"] = err.MaskSensitiveErrorWithStatusCode()
+			}
+		}
+	}
 }
 
 func RelayMidjourney(c *gin.Context) {
@@ -571,14 +1142,16 @@ func RelayTask(c *gin.Context) {
 			break
 		}
 
+		retryDecision := evaluateTaskRetry(c, channel.Id, taskErr, retryParam.GetRetry(), common.RetryTimes-retryParam.GetRetry())
 		if !taskErr.LocalError {
+			setTaskRetryDecision(c, retryDecision)
 			processChannelError(c,
 				*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
 					common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
 				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
 		}
 
-		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
+		if !retryDecision.ShouldRetry {
 			break
 		}
 	}
@@ -635,46 +1208,4 @@ func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
 	c.JSON(taskErr.StatusCode, taskErr)
-}
-
-func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError, retryTimes int) bool {
-	if taskErr == nil {
-		return false
-	}
-	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-		return false
-	}
-	if retryTimes <= 0 {
-		return false
-	}
-	if _, ok := c.Get("specific_channel_id"); ok {
-		return false
-	}
-	if taskErr.StatusCode == http.StatusTooManyRequests {
-		return true
-	}
-	if taskErr.StatusCode == 307 {
-		return true
-	}
-	if taskErr.StatusCode/100 == 5 {
-		// 超时不重试
-		if operation_setting.IsAlwaysSkipRetryStatusCode(taskErr.StatusCode) {
-			return false
-		}
-		return true
-	}
-	if taskErr.StatusCode == http.StatusBadRequest {
-		return false
-	}
-	if taskErr.StatusCode == 408 {
-		// azure处理超时不重试
-		return false
-	}
-	if taskErr.LocalError {
-		return false
-	}
-	if taskErr.StatusCode/100 == 2 {
-		return false
-	}
-	return true
 }

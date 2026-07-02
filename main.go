@@ -133,6 +133,9 @@ func main() {
 	// Billing hold reconcile (HoldRefund timeout release)
 	service.StartBillingHoldReconcileTask()
 
+	// Optional production shadow benchmark for APIMaster vs upstream latency/success comparison.
+	service.InitShadowBenchmark()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)
