@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import type { Row } from '@tanstack/react-table'
 import {
   Pencil,
@@ -32,21 +31,23 @@ import {
   Building2,
   Gauge,
 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
-import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { ConfirmDialog } from '@/components/confirm-dialog'
 import { UserSubscriptionsDialog } from '@/features/subscriptions/components/dialogs/user-subscriptions-dialog'
 import {
   convertToOrganization,
@@ -189,7 +190,10 @@ export function DataTableRowActions({
         <TooltipContent>{t('Edit')}</TooltipContent>
       </Tooltip>
 
-      <DataTableRowActionMenu ariaLabel={t('Open menu')} contentClassName='w-48'>
+      <DataTableRowActionMenu
+        ariaLabel={t('Open menu')}
+        contentClassName='w-48'
+      >
         {isDisabled ? (
           <DropdownMenuItem onClick={() => handleManage('enable')}>
             {t('Enable')}
@@ -209,126 +213,128 @@ export function DataTableRowActions({
           </DropdownMenuItem>
         )}
 
-          {isAdmin && !isRoot && (
-            <DropdownMenuItem onClick={() => handleManage('demote')}>
-              {t('Demote')}
-              <DropdownMenuShortcut>
-                <ArrowDown size={16} />
-              </DropdownMenuShortcut>
-            </DropdownMenuItem>
-          )}
+        {isAdmin && !isRoot && (
+          <DropdownMenuItem onClick={() => handleManage('demote')}>
+            {t('Demote')}
+            <DropdownMenuShortcut>
+              <ArrowDown size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        )}
 
-          {!isAdmin && (
-            <DropdownMenuItem onClick={() => handleManage('promote')}>
-              {t('Promote')}
-              <DropdownMenuShortcut>
-                <ArrowUp size={16} />
-              </DropdownMenuShortcut>
-            </DropdownMenuItem>
-          )}
+        {!isAdmin && (
+          <DropdownMenuItem onClick={() => handleManage('promote')}>
+            {t('Promote')}
+            <DropdownMenuShortcut>
+              <ArrowUp size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        )}
 
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault()
+            setTokenManagerOpen(true)
+          }}
+        >
+          {t('Manage User Tokens')}
+          <DropdownMenuShortcut>
+            <KeyRound size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault()
+            setBindingDialogOpen(true)
+          }}
+        >
+          {t('Manage Bindings')}
+          <DropdownMenuShortcut>
+            <Link2 size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+
+        {accountType === 0 && !user.feishu_id && (
           <DropdownMenuItem
             onSelect={(event) => {
               event.preventDefault()
-              setBindingDialogOpen(true)
+              setConvertOrgOpen(true)
             }}
           >
-            {t('Manage Bindings')}
+            {t('Convert to Organization')}
             <DropdownMenuShortcut>
-              <Link2 size={16} />
+              <Building2 size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
+        )}
 
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              setSubscriptionsDialogOpen(true)
-            }}
-          >
-            {t('Manage Subscriptions')}
-            <DropdownMenuShortcut>
-              <CreditCard size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault()
+            setModelQuotaOpen(true)
+          }}
+        >
+          {t('模型额度详情')}
+          <DropdownMenuShortcut>
+            <Gauge size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
 
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              setTokenManagerOpen(true)
-            }}
-          >
-            {t('Manage User Tokens')}
-            <DropdownMenuShortcut>
-              <KeyRound size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
+        <DropdownMenuSeparator />
 
-          {accountType === 0 && !user.feishu_id && (
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault()
-                setConvertOrgOpen(true)
-              }}
-            >
-              {t('Convert to Organization')}
-              <DropdownMenuShortcut>
-                <Building2 size={16} />
-              </DropdownMenuShortcut>
-            </DropdownMenuItem>
-          )}
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault()
+            setSubscriptionsDialogOpen(true)
+          }}
+        >
+          {t('Manage Subscriptions')}
+          <DropdownMenuShortcut>
+            <CreditCard size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
 
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              setModelQuotaOpen(true)
-            }}
-          >
-            {t('模型额度详情')}
-            <DropdownMenuShortcut>
-              <Gauge size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
+        <DropdownMenuSeparator />
 
-          <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault()
+            setResetPasskeyOpen(true)
+          }}
+          disabled={isRoot}
+        >
+          {t('Reset Passkey')}
+          <DropdownMenuShortcut>
+            <KeyRound size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
 
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              setResetPasskeyOpen(true)
-            }}
-            disabled={isRoot}
-          >
-            {t('Reset Passkey')}
-            <DropdownMenuShortcut>
-              <KeyRound size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault()
+            setResetTwoFAOpen(true)
+          }}
+          disabled={isRoot}
+        >
+          {t('Reset 2FA')}
+          <DropdownMenuShortcut>
+            <ShieldAlert size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
 
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              setResetTwoFAOpen(true)
-            }}
-            disabled={isRoot}
-          >
-            {t('Reset 2FA')}
-            <DropdownMenuShortcut>
-              <ShieldAlert size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
+        <DropdownMenuSeparator />
 
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem
-            onClick={handleDelete}
-            className='text-destructive focus:text-destructive'
-            disabled={isRoot}
-          >
-            {t('Delete')}
-            <DropdownMenuShortcut>
-              <Trash2 size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={handleDelete}
+          className='text-destructive focus:text-destructive'
+          disabled={isRoot}
+        >
+          {t('Delete')}
+          <DropdownMenuShortcut>
+            <Trash2 size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
       </DataTableRowActionMenu>
 
       <ConfirmDialog

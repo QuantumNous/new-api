@@ -16,13 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect } from 'react'
 import { Code, Table, Plus, Trash2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 
 type JsonEditorProps = {
   value: string

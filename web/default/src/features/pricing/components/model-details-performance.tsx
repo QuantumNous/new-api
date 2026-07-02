@@ -16,11 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, HeartPulse, Timer } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import {
   StaticDataTable,
   staticDataTableClassNames as tableStyles,
@@ -34,6 +34,8 @@ import {
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import type { PerformanceGroup } from '@/features/performance-metrics/types'
+import { cn } from '@/lib/utils'
+
 import { type UptimeDayPoint } from '../lib/mock-stats'
 import type { PricingModel } from '../types'
 import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'

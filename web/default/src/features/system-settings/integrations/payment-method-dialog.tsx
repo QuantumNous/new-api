@@ -16,11 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
+
+import { Dialog } from '@/components/dialog'
+import { ReactIconByName } from '@/components/react-icon-by-name'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import {
@@ -33,8 +36,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Dialog } from '@/components/dialog'
-import { ReactIconByName } from '@/components/react-icon-by-name'
 
 const createPaymentMethodDialogSchema = (t: (key: string) => string) =>
   z.object({

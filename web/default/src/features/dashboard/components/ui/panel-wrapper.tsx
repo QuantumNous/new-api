@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 
 interface PanelWrapperProps {
   title: ReactNode

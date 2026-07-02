@@ -18,9 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Dialog } from '@/components/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Dialog } from '@/components/dialog'
 
 interface ImageDialogProps {
   imageUrl: string

@@ -16,12 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { formatCurrencyFromUSD } from '@/lib/currency'
-import { formatNumber } from '@/lib/format'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+
+import { Dialog } from '@/components/dialog'
+import { StatusBadge } from '@/components/status-badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,8 +44,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { formatCurrencyFromUSD } from '@/lib/currency'
+import { formatNumber } from '@/lib/format'
+
 import { useBillingHistory } from '../../hooks/use-billing-history'
 import {
   getStatusConfig,

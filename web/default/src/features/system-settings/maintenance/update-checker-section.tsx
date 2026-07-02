@@ -16,14 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { ExternalLinkIcon, RefreshCcwIcon } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatTimestamp, formatTimestampToDate } from '@/lib/format'
+
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Markdown } from '@/components/ui/markdown'
-import { Dialog } from '@/components/dialog'
+import { formatTimestamp, formatTimestampToDate } from '@/lib/format'
+
 import { SettingsSection } from '../components/settings-section'
 
 type ReleaseInfo = {

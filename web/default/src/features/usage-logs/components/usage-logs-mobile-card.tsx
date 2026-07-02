@@ -19,8 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { flexRender, type Cell, type Table } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatTimestampToDate } from '@/lib/format'
-import { cn } from '@/lib/utils'
+
+import {
+  dotColorMap,
+  textColorMap,
+  type StatusVariant,
+} from '@/components/status-badge'
 import {
   Empty,
   EmptyDescription,
@@ -29,11 +33,9 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  dotColorMap,
-  textColorMap,
-  type StatusVariant,
-} from '@/components/status-badge'
+import { formatTimestampToDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
 import { LOG_TYPE_ENUM } from '../constants'
 import { getLogTypeConfig } from '../lib/utils'
 import type { LogCategory } from '../types'

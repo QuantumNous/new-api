@@ -18,12 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Grid2X2, Table2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
+
 import {
   DATA_TABLE_VIEW_MODES,
   type DataTableViewMode,

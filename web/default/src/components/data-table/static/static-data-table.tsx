@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
-import { cn } from '@/lib/utils'
+
 import {
   Table,
   TableBody,
@@ -26,6 +26,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
+
 import { TruncatedCell } from '../core/truncated-cell'
 import { staticDataTableClassNames } from './static-data-table-classnames'
 

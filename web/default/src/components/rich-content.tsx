@@ -16,7 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { HtmlContent } from '@/components/html-content'
+import {
+  HtmlContent,
+  type HtmlContentVariant,
+} from '@/components/html-content'
 import { Markdown } from '@/components/ui/markdown'
 
 type RichContentMode = 'markdown' | 'html'
@@ -26,11 +29,18 @@ interface RichContentProps {
   mode?: RichContentMode
   breaks?: boolean
   className?: string
+  htmlVariant?: HtmlContentVariant
 }
 
 export function RichContent(props: RichContentProps) {
   if (props.mode === 'html') {
-    return <HtmlContent content={props.content} className={props.className} />
+    return (
+      <HtmlContent
+        content={props.content}
+        className={props.className}
+        variant={props.htmlVariant}
+      />
+    )
   }
 
   return (

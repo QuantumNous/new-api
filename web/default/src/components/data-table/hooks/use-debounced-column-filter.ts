@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as React from 'react'
 import type { ColumnFiltersState, OnChangeFn } from '@tanstack/react-table'
+import * as React from 'react'
+
 import { useDebounce } from '@/hooks/use-debounce'
 
 type UseDebouncedColumnFilterOptions = {

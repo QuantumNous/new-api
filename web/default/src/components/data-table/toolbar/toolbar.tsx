@@ -16,15 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { Table } from '@tanstack/react-table'
+import { ChevronDown, Loader2, X as Cross2Icon } from 'lucide-react'
 import * as React from 'react'
 import { useState, type ReactNode } from 'react'
-import type { Table } from '@tanstack/react-table'
-import { useDebounce } from '@/hooks'
-import { ChevronDown, Loader2, X as Cross2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useDebounce } from '@/hooks'
+import { cn } from '@/lib/utils'
+
 import { DataTableFacetedFilter } from './faceted-filter'
 import { DataTableViewOptions } from './view-options'
 

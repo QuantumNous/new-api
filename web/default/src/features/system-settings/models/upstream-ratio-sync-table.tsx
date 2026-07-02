@@ -16,9 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useMemo, useState } from 'react'
 import { Loader2, Search } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import {
+  DataTablePagination,
+  DataTableView,
+  useDataTable,
+} from '@/components/data-table'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -28,11 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  DataTablePagination,
-  DataTableView,
-  useDataTable,
-} from '@/components/data-table'
+
 import type { DifferencesMap, RatioType } from '../types'
 import { RATIO_TYPE_OPTIONS } from './constants'
 import { useUpstreamRatioSyncColumns } from './upstream-ratio-sync-columns'

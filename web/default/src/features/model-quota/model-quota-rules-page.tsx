@@ -780,7 +780,7 @@ function GroupRuleDialog({
   const [quotaAmount, setQuotaAmount] = useState(
     isEdit ? String(quotaUnitsToDollars(rule!.quota_limit)) : ''
   )
-  const [enabled, setEnabled] = useState(rule?.enabled ?? true)
+  const [enabled] = useState(rule?.enabled ?? true)
 
   const { meta: currencyMeta } = getCurrencyDisplay()
   const currencyLabel = getCurrencyLabel()

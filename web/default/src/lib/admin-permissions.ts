@@ -1,5 +1,6 @@
-import { ROLE } from './roles'
 import type { AuthUser } from '@/stores/auth-store'
+
+import { ROLE } from './roles'
 
 export type AdminPermissionMatrix = Record<string, Record<string, boolean>>
 export type AdminCapabilities = AdminPermissionMatrix

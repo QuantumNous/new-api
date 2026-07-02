@@ -16,14 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useMemo } from 'react'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSidebarConfig } from '@/hooks/use-sidebar-config'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
 import { SectionPageLayout } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
+import { useSidebarConfig } from '@/hooks/use-sidebar-config'
+
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import {
   UsageLogsProvider,

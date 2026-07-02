@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { isValidElement } from 'react'
 import { Button as ButtonPrimitive } from '@base-ui/react/button'
 import { cva, type VariantProps } from 'class-variance-authority'
+import { isValidElement } from 'react'
+
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(

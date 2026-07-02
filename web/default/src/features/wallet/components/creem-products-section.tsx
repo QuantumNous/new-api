@@ -17,9 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
-import { formatNumber } from '@/lib/format'
+
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatNumber } from '@/lib/format'
+
 import { formatCreemPrice } from '../lib/format'
 import type { CreemProduct } from '../types'
 

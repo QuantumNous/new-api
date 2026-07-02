@@ -16,13 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { useLocation } from '@tanstack/react-router'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
+
 import { resolveSidebarView } from '@/components/layout/lib/sidebar-view-registry'
 import type { NavGroup, ResolvedSidebarView } from '@/components/layout/types'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { useSidebarConfig } from './use-sidebar-config'
 import { useSidebarData } from './use-sidebar-data'
 
