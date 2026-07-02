@@ -106,6 +106,7 @@ type ModelTab = {
 }
 
 const MODEL_TABS: ModelTab[] = [
+  { label: 'Fable 5',         modelId: 'claude-fable-5',    accent: '#a855f7' },
   { label: 'Sonnet 5',        modelId: 'claude-sonnet-5',   accent: '#a855f7' },
   { label: 'GPT 5.4',         modelId: 'gpt-5.4',           accent: '#22d3ee' },
   { label: 'GPT 5.5',         modelId: 'gpt-5.5',           accent: '#22d3ee' },
