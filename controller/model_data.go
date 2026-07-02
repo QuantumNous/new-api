@@ -176,13 +176,26 @@ func GetModelData(c *gin.Context) {
 	for i, r := range rows {
 		channelIDs[i] = r.ChannelID
 	}
+	// Fetch fingerprint (non-uptime) and uptime logs SEPARATELY. A single shared
+	// LIMIT let the far more numerous/recent uptime probes starve the sparse
+	// fingerprint series out of the window (fingerprint_history came back empty).
 	var logs []model.ChannelDetectLog
 	model.DB.
 		Where("channel_id IN ?", channelIDs).
 		Where("claimed_model = ?", modelName).
+		Where("source <> ?", "uptime").
+		Order("detect_time DESC").
+		Limit(len(channelIDs) * modelDataHistorySize).
+		Find(&logs)
+	var uptimeLogs []model.ChannelDetectLog
+	model.DB.
+		Where("channel_id IN ?", channelIDs).
+		Where("claimed_model = ?", modelName).
+		Where("source = ?", "uptime").
 		Order("detect_time DESC").
 		Limit(len(channelIDs) * (modelDataHistorySize + modelDataLatencyMax*3)).
-		Find(&logs)
+		Find(&uptimeLogs)
+	logs = append(logs, uptimeLogs...)
 
 	// Group into fingerprint vs uptime per channel, capped at modelDataHistorySize each.
 	// Collect up to modelDataLatencyMax pass-only uptime probes for the latency columns.
@@ -643,7 +656,9 @@ func GetPublicMarketplace(c *gin.Context) {
 		return
 	}
 
-	// Batch fetch recent detect logs.
+	// Batch fetch recent detect logs. Fingerprint (non-uptime) and uptime are
+	// fetched SEPARATELY so the far more numerous/recent uptime probes can't
+	// starve the sparse fingerprint series out of a shared LIMIT window.
 	channelIDs := make([]int, len(rows))
 	for i, r := range rows {
 		channelIDs[i] = r.ChannelID
@@ -652,9 +667,19 @@ func GetPublicMarketplace(c *gin.Context) {
 	model.DB.
 		Where("channel_id IN ?", channelIDs).
 		Where("claimed_model = ?", modelName).
+		Where("source <> ?", "uptime").
+		Order("detect_time DESC").
+		Limit(len(channelIDs) * modelDataHistorySize).
+		Find(&logs)
+	var uptimeLogs []model.ChannelDetectLog
+	model.DB.
+		Where("channel_id IN ?", channelIDs).
+		Where("claimed_model = ?", modelName).
+		Where("source = ?", "uptime").
 		Order("detect_time DESC").
 		Limit(len(channelIDs) * (modelDataHistorySize + modelDataLatencyMax*3)).
-		Find(&logs)
+		Find(&uptimeLogs)
+	logs = append(logs, uptimeLogs...)
 
 	type histories struct {
 		Fingerprint []DetectPoint
