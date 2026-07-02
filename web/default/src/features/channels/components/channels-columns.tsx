@@ -570,6 +570,10 @@ export function useChannelsColumns(
         header: t('ID'),
         meta: { mobileHidden: true },
         cell: ({ row }) => {
+          if (isTagAggregateRow(row.original)) {
+            return null
+          }
+
           const id = row.getValue('id') as number
           return <TableId value={sensitiveVisible ? id : SENSITIVE_MASK} />
         },
@@ -589,13 +593,16 @@ export function useChannelsColumns(
           if (isTagRow) {
             const tag = (row.original as TagRow).tag || name
             const childrenCount = (row.original as TagRow).children?.length || 0
+            const channelCountLabel = t('{{count}} channel', {
+              count: childrenCount,
+            })
 
             return (
-              <div className='flex items-center gap-2'>
+              <div className='flex max-w-[220px] min-w-0 items-start gap-2 overflow-hidden'>
                 <Button
                   variant='ghost'
                   size='sm'
-                  className='h-6 w-6 p-0'
+                  className='h-6 w-6 shrink-0 p-0'
                   onClick={row.getToggleExpandedHandler()}
                 >
                   {row.getIsExpanded() ? (
@@ -604,13 +611,16 @@ export function useChannelsColumns(
                     <ChevronRight className='h-4 w-4' />
                   )}
                 </Button>
-                <div className='flex items-center gap-1.5'>
-                  <span className='font-semibold'>Tag：{tag}</span>
+                <div className='flex max-w-full min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1 overflow-hidden'>
+                  <span className='min-w-0 max-w-full flex-1 break-words whitespace-normal font-semibold'>
+                    {t('Tag:')} {tag}
+                  </span>
                   <StatusBadge
-                    label={`${childrenCount} channels`}
+                    label={channelCountLabel}
                     variant='blue'
                     size='sm'
                     copyable={false}
+                    className='shrink-0'
                   />
                 </div>
               </div>
@@ -835,11 +845,16 @@ export function useChannelsColumns(
           if (isTagRow) {
             const childrenCount = (row.original as TagRow).children?.length || 0
             const hasEnabled = status === 1
+            const statusLabel = t(hasEnabled ? 'Active' : 'Inactive')
+            const aggregateStatusLabel = t('{{status}} ({{count}})', {
+              status: statusLabel,
+              count: childrenCount,
+            })
 
             if (hasEnabled) {
               return (
                 <StatusBadge
-                  label={`Active (${childrenCount})`}
+                  label={aggregateStatusLabel}
                   variant='success'
                   size='sm'
                   copyable={false}
@@ -849,7 +864,7 @@ export function useChannelsColumns(
             } else {
               return (
                 <StatusBadge
-                  label={`Inactive (${childrenCount})`}
+                  label={aggregateStatusLabel}
                   variant='neutral'
                   size='sm'
                   copyable={false}
