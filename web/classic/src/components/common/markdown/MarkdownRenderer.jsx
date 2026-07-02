@@ -24,7 +24,6 @@ import './markdown.css';
 import RemarkMath from 'remark-math';
 import RemarkBreaks from 'remark-breaks';
 import RehypeKatex from 'rehype-katex';
-import RemarkGfm from 'remark-gfm';
 import RehypeHighlight from 'rehype-highlight';
 import { useRef, useState, useEffect, useMemo } from 'react';
 import mermaid from 'mermaid';
@@ -33,6 +32,7 @@ import { useDebouncedCallback } from 'use-debounce';
 import clsx from 'clsx';
 import { Button, Tooltip, Toast } from '@douyinfe/semi-ui';
 import { copy, rehypeSplitWordsIntoSpans } from '../../../helpers';
+import RemarkGfmCompatible from '../../../helpers/remarkGfmCompatible';
 import { IconCopy } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 
@@ -412,7 +412,7 @@ function _MarkdownContent(props) {
 
   return (
     <ReactMarkdown
-      remarkPlugins={[RemarkMath, RemarkGfm, RemarkBreaks]}
+      remarkPlugins={[RemarkMath, RemarkGfmCompatible, RemarkBreaks]}
       rehypePlugins={rehypePluginsBase}
       components={{
         pre: PreCode,

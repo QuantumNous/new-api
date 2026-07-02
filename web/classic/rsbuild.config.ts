@@ -43,6 +43,10 @@ export default defineConfig(({ envMode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        'remark-gfm': path.resolve(
+          __dirname,
+          './src/helpers/remarkGfmCompatible.js',
+        ),
         '@douyinfe/semi-ui/dist/css/semi.css': path.resolve(
           semiUiDir,
           'dist/css/semi.css',
