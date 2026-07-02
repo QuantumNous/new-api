@@ -41,6 +41,14 @@ export const userFormSchema = z.object({
   quota_dollars: z.number().min(0).optional(),
   group: z.string().optional(),
   remark: z.string().optional(),
+  affiliate_rule: z
+    .object({
+      custom: z.boolean(),
+      enabled: z.boolean(),
+      reward_percent: z.number().min(0).max(100),
+      settle_after_invitee_consumed: z.boolean(),
+    })
+    .optional(),
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
@@ -60,6 +68,12 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   quota_dollars: 0,
   group: DEFAULT_GROUP,
   remark: '',
+  affiliate_rule: {
+    custom: false,
+    enabled: false,
+    reward_percent: 0,
+    settle_after_invitee_consumed: false,
+  },
   // Filled against the backend catalog at render time; see UsersMutateDrawer.
   admin_permissions: {},
 }
@@ -101,6 +115,7 @@ export function transformFormDataToPayload(
     // For update: quota is adjusted atomically via /api/user/manage, not sent here
     payload.group = data.group
     payload.remark = data.remark || undefined
+    payload.affiliate_rule = data.affiliate_rule
     payload.id = userId
   }
 
@@ -121,6 +136,12 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
+    affiliate_rule: user.affiliate_rule ?? {
+      custom: false,
+      enabled: false,
+      reward_percent: 0,
+      settle_after_invitee_consumed: false,
+    },
     admin_permissions: user.admin_permissions ?? {},
   }
 }

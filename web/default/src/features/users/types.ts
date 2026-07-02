@@ -59,6 +59,14 @@ export const userSchema = z.object({
   last_login_at: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
+  affiliate_rule: z
+    .object({
+      custom: z.boolean(),
+      enabled: z.boolean(),
+      reward_percent: z.number(),
+      settle_after_invitee_consumed: z.boolean(),
+    })
+    .optional(),
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
@@ -111,6 +119,12 @@ export interface UserFormData {
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
+  affiliate_rule?: {
+    custom: boolean
+    enabled: boolean
+    reward_percent: number
+    settle_after_invitee_consumed: boolean
+  }
   admin_permissions?: AdminPermissionMatrix
 }
 
