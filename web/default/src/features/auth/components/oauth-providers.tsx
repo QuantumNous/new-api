@@ -47,6 +47,23 @@ type ProviderButton = {
   disabled?: boolean
 }
 
+function CustomProviderIcon(props: { icon?: string; name: string }) {
+  if (!props.icon) return null
+
+  return (
+    <img
+      src={props.icon}
+      alt={props.name}
+      className='h-4 w-4 rounded-sm object-contain'
+      loading='lazy'
+      referrerPolicy='no-referrer'
+      onError={(event) => {
+        event.currentTarget.style.display = 'none'
+      }}
+    />
+  )
+}
+
 export function OAuthProviders({
   status,
   disabled = false,
@@ -131,6 +148,7 @@ export function OAuthProviders({
         key: `custom-${provider.slug}`,
         label: t('Continue with {{name}}', { name: provider.name }),
         onClick: () => handleCustomOAuthLogin(provider),
+        icon: <CustomProviderIcon icon={provider.icon} name={provider.name} />,
       })
     }
   }
