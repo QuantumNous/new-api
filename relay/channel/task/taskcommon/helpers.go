@@ -22,6 +22,7 @@ var whitelabelChannels = map[int]struct{}{
 	constant.ChannelTypeKuaiziLizhen:     {},
 	constant.ChannelTypeBlockRunVideo:    {},
 	constant.ChannelTypeBlockRunSeedance: {},
+	constant.ChannelTypeJimengProxy:      {},
 	constant.ChannelTypeJimengZhizinan:   {},
 }
 
@@ -88,6 +89,27 @@ func ScrubBrandedText(s string) string {
 		return "task failed at upstream provider"
 	}
 	return s
+}
+
+// ValidateRemoteMediaURL applies the same fetch/SSRF policy used by NewAPI's
+// server-side fetch paths before a task adaptor forwards a user-supplied media
+// URL to an upstream service that may fetch it.
+func ValidateRemoteMediaURL(raw string) error {
+	fetchSetting := system_setting.GetFetchSetting()
+	if err := common.ValidateURLWithFetchSetting(
+		raw,
+		fetchSetting.EnableSSRFProtection,
+		fetchSetting.AllowPrivateIp,
+		fetchSetting.DomainFilterMode,
+		fetchSetting.IpFilterMode,
+		fetchSetting.DomainList,
+		fetchSetting.IpList,
+		fetchSetting.AllowedPorts,
+		fetchSetting.ApplyIPFilterForDomain,
+	); err != nil {
+		return fmt.Errorf("image url is not allowed: %w", err)
+	}
+	return nil
 }
 
 // UnmarshalMetadata converts a map[string]any metadata to a typed struct via JSON round-trip.

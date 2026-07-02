@@ -189,6 +189,9 @@ func (a *TaskAdaptor) FetchTask(baseURL string, key string, body map[string]any,
 	if !ok || strings.TrimSpace(upstreamTaskID) == "" {
 		return nil, fmt.Errorf("invalid task_id")
 	}
+	if isAbsoluteURL(upstreamTaskID) {
+		return nil, fmt.Errorf("absolute task_id url is not allowed")
+	}
 	taskURL := a.taskStatusURL(baseURL, upstreamTaskID)
 	req, err := http.NewRequest(http.MethodGet, taskURL, nil)
 	if err != nil {
@@ -209,14 +212,16 @@ func (a *TaskAdaptor) FetchTask(baseURL string, key string, body map[string]any,
 
 func (a *TaskAdaptor) taskStatusURL(baseURL string, upstreamTaskID string) string {
 	taskID := strings.TrimSpace(upstreamTaskID)
-	if parsed, err := url.Parse(taskID); err == nil && parsed.Scheme != "" && parsed.Host != "" {
-		return taskID
-	}
 	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if base == "" {
 		base = strings.TrimRight(a.baseURL, "/")
 	}
 	return fmt.Sprintf("%s%s/%s", base, videoTasksPath, url.PathEscape(taskID))
+}
+
+func isAbsoluteURL(value string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	return err == nil && parsed.Scheme != "" && parsed.Host != ""
 }
 
 func firstNonEmpty(values ...string) string {
@@ -436,14 +441,7 @@ func validateSeedanceInput(req *dto.SeedanceVideoRequest) ([]string, error) {
 }
 
 func validateImageURL(raw string) error {
-	u, err := url.Parse(raw)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return fmt.Errorf("image url is invalid")
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("image url must use http or https")
-	}
-	return nil
+	return taskcommon.ValidateRemoteMediaURL(raw)
 }
 
 func (a *TaskAdaptor) GetModelList() []string {

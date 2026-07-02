@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,7 +31,15 @@ func newRelayInfo() *relaycommon.RelayInfo {
 	}
 }
 
+func disableFetchSSRFProtection(t *testing.T) {
+	t.Helper()
+	original := *system_setting.GetFetchSetting()
+	t.Cleanup(func() { *system_setting.GetFetchSetting() = original })
+	system_setting.GetFetchSetting().EnableSSRFProtection = false
+}
+
 func TestValidateRequestAndSetAction_SeedanceContentBuildsSubmitPayload(t *testing.T) {
+	disableFetchSSRFProtection(t)
 	a := &TaskAdaptor{}
 	c := newJSONCtx(`{
 		"model":"seedance-2.0",
@@ -91,6 +100,54 @@ func TestValidateRequestAndSetAction_RejectsTooManyImages(t *testing.T) {
 
 	if taskErr := a.ValidateRequestAndSetAction(c, newRelayInfo()); taskErr == nil {
 		t.Fatal("expected image count validation error")
+	}
+}
+
+func TestValidateRequestAndSetAction_NonSeedanceContentUsesBasicTaskRequest(t *testing.T) {
+	disableFetchSSRFProtection(t)
+	a := &TaskAdaptor{}
+	c := newJSONCtx(`{
+		"model":"jimeng-video-2.0",
+		"prompt":"legacy prompt",
+		"images":["https://cdn.example.com/input.png"],
+		"content":{"note":"not seedance content array"}
+	}`)
+	info := newRelayInfo()
+
+	if taskErr := a.ValidateRequestAndSetAction(c, info); taskErr != nil {
+		t.Fatalf("unexpected validation error for basic task request: %+v", taskErr)
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		t.Fatalf("GetTaskRequest error: %v", err)
+	}
+	if req.Prompt != "legacy prompt" {
+		t.Fatalf("prompt = %q", req.Prompt)
+	}
+	if len(req.Images) != 1 || req.Images[0] != "https://cdn.example.com/input.png" {
+		t.Fatalf("images = %+v", req.Images)
+	}
+}
+
+func TestValidateRequestAndSetAction_RejectsPrivateInputImageURL(t *testing.T) {
+	original := *system_setting.GetFetchSetting()
+	t.Cleanup(func() { *system_setting.GetFetchSetting() = original })
+	system_setting.GetFetchSetting().EnableSSRFProtection = true
+	system_setting.GetFetchSetting().AllowPrivateIp = false
+	system_setting.GetFetchSetting().DomainFilterMode = false
+	system_setting.GetFetchSetting().IpFilterMode = false
+	system_setting.GetFetchSetting().AllowedPorts = []string{"80", "443"}
+	system_setting.GetFetchSetting().ApplyIPFilterForDomain = true
+
+	a := &TaskAdaptor{}
+	c := newJSONCtx(`{
+		"model":"jimeng-video-2.0",
+		"prompt":"legacy prompt",
+		"images":["http://127.0.0.1/private.png"]
+	}`)
+
+	if taskErr := a.ValidateRequestAndSetAction(c, newRelayInfo()); taskErr == nil {
+		t.Fatal("expected private input image URL to be rejected")
 	}
 }
 

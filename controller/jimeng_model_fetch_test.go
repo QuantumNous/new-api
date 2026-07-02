@@ -7,10 +7,13 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/stretchr/testify/require"
 )
 
 func TestFetchChannelUpstreamModelIDs_JimengZhizinanUsesModelsEndpoint(t *testing.T) {
+	service.InitHttpClient()
+
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests++

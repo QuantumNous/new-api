@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -240,8 +239,12 @@ func hasSeedanceContent(c *gin.Context) bool {
 	if err := common.UnmarshalBodyReusable(c, &raw); err != nil {
 		return false
 	}
-	_, ok := raw["content"]
-	return ok
+	content, ok := raw["content"]
+	if !ok {
+		return false
+	}
+	items, ok := content.([]any)
+	return ok && len(items) > 0
 }
 
 func validateAndStoreInputImages(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
@@ -276,14 +279,7 @@ func normalizeInputImages(req *relaycommon.TaskSubmitReq) error {
 }
 
 func validateImageURL(raw string) error {
-	u, err := url.Parse(raw)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return fmt.Errorf("image url is invalid")
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("image url must use http or https")
-	}
-	return nil
+	return taskcommon.ValidateRemoteMediaURL(raw)
 }
 
 func (a *TaskAdaptor) GetModelList() []string {

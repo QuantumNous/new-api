@@ -11,6 +11,8 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -74,7 +76,33 @@ func TestValidateRequestAndSetAction_RejectsUnsupportedSeedanceMedia(t *testing.
 	}
 }
 
+func TestValidateRequestAndSetAction_RejectsPrivateSeedanceImageURL(t *testing.T) {
+	original := *system_setting.GetFetchSetting()
+	t.Cleanup(func() { *system_setting.GetFetchSetting() = original })
+	system_setting.GetFetchSetting().EnableSSRFProtection = true
+	system_setting.GetFetchSetting().AllowPrivateIp = false
+	system_setting.GetFetchSetting().DomainFilterMode = false
+	system_setting.GetFetchSetting().IpFilterMode = false
+	system_setting.GetFetchSetting().AllowedPorts = []string{"80", "443"}
+	system_setting.GetFetchSetting().ApplyIPFilterForDomain = true
+
+	a := &TaskAdaptor{}
+	c := newJSONCtx(`{
+		"model":"jimeng-video-seedance-2.0-mini",
+		"content":[
+			{"type":"text","text":"a cat walking"},
+			{"type":"image_url","image_url":{"url":"http://127.0.0.1/private.png"}}
+		]
+	}`)
+
+	if taskErr := a.ValidateRequestAndSetAction(c, newRelayInfo()); taskErr == nil {
+		t.Fatal("expected private seedance image URL to be rejected")
+	}
+}
+
 func TestBuildRequestBody_MapsSeedanceContentWithoutHTMLEscapingURL(t *testing.T) {
+	disableFetchSSRFProtection(t)
+
 	a := &TaskAdaptor{}
 	c := newJSONCtx(`{
 		"model":"jimeng-video-seedance-2.0-mini",
@@ -124,6 +152,13 @@ func TestBuildRequestBody_MapsSeedanceContentWithoutHTMLEscapingURL(t *testing.T
 	}
 }
 
+func disableFetchSSRFProtection(t *testing.T) {
+	t.Helper()
+	original := *system_setting.GetFetchSetting()
+	t.Cleanup(func() { *system_setting.GetFetchSetting() = original })
+	system_setting.GetFetchSetting().EnableSSRFProtection = false
+}
+
 func TestDoResponse_SubmitIDStartsAsyncTask(t *testing.T) {
 	a := &TaskAdaptor{}
 	a.Init(newRelayInfo())
@@ -166,6 +201,7 @@ func TestDoResponse_RejectsSynchronousURLWithoutTaskID(t *testing.T) {
 }
 
 func TestFetchTask_GETsTaskStatusEndpointAndNormalizesAcceptedStatus(t *testing.T) {
+	service.InitHttpClient()
 	var sawPoll bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sawPoll = true
@@ -195,6 +231,41 @@ func TestFetchTask_GETsTaskStatusEndpointAndNormalizesAcceptedStatus(t *testing.
 	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want normalized 200", resp.StatusCode)
+	}
+}
+
+func TestFetchTask_RejectsAbsoluteTaskURL(t *testing.T) {
+	service.InitHttpClient()
+	var sawPoll bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawPoll = true
+		t.Fatalf("poll endpoint should not be requested for absolute upstream task URL: %s", r.URL.String())
+	}))
+	defer srv.Close()
+	var sawExternal bool
+	externalSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawExternal = true
+		if got := r.Header.Get("Authorization"); got != "" {
+			t.Fatalf("Authorization leaked to absolute upstream task URL: %q", got)
+		}
+		_, _ = w.Write([]byte(`{"status":"queued"}`))
+	}))
+	defer externalSrv.Close()
+
+	resp, err := (&TaskAdaptor{}).FetchTask(srv.URL, "session-id", map[string]any{
+		"task_id": externalSrv.URL + "/poll",
+	}, "")
+	if err == nil {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		t.Fatal("expected absolute upstream task URL to be rejected")
+	}
+	if sawPoll {
+		t.Fatal("base poll endpoint was requested after rejecting absolute upstream task URL")
+	}
+	if sawExternal {
+		t.Fatal("external absolute upstream task URL was requested")
 	}
 }
 
