@@ -491,7 +491,7 @@ func queryUsersByIds(ids []int) map[int]*model.User {
 		return map[int]*model.User{}
 	}
 	var users []*model.User
-	model.DB.Where("id IN ?", ids).Find(&users)
+	model.DB.Where("id IN ? AND status = ? AND deleted_at IS NULL", ids, common.UserStatusEnabled).Find(&users)
 	m := make(map[int]*model.User, len(users))
 	for _, u := range users {
 		m[u.Id] = u
