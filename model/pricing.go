@@ -296,7 +296,8 @@ func updatePricing() {
 		// 补充模型元数据（描述、标签、供应商、状态）
 		if meta, ok := metaMap[model]; ok {
 			// 若模型被禁用(status!=1)，则直接跳过，不返回给前端
-			if meta.Status != 1 {
+			// Id==0 表示该模型未配置，不返回给前端
+			if meta.Status != 1 || meta.Id == 0 {
 				continue
 			}
 			pricing.Description = meta.Description
