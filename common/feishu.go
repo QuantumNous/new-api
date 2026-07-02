@@ -19,6 +19,9 @@ var (
 func FeishuAppID() string     { return os.Getenv("FEISHU_APP_ID") }
 func FeishuAppSecret() string { return os.Getenv("FEISHU_APP_SECRET") }
 func FeishuOpsChatID() string { return os.Getenv("FEISHU_OPS_CHAT_ID") }
+func FeishuNewAPILogChatID() string {
+	return os.Getenv("FEISHU_NEWAPI_LOG_CHAT_ID")
+}
 
 func getFeishuToken() (string, error) {
 	feishuTokenMu.Lock()

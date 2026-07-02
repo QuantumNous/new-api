@@ -72,6 +72,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	}
 
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
+	appendOfficialFallbackAdminInfo(ctx, adminInfo)
 
 	other["admin_info"] = adminInfo
 	appendChannelRetryFallbackInfo(ctx, other, useChannels)
@@ -86,6 +87,26 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 		AppendClientExclusiveLogInfo(ctx, relayInfo.OriginModelName, other)
 	}
 	return other
+}
+
+func appendOfficialFallbackAdminInfo(ctx *gin.Context, adminInfo map[string]interface{}) {
+	if ctx == nil || adminInfo == nil {
+		return
+	}
+	if !ctx.GetBool("official_fallback_triggered") {
+		return
+	}
+	adminInfo["official_fallback_triggered"] = true
+	if channelID := ctx.GetInt("official_fallback_channel_id"); channelID > 0 {
+		adminInfo["official_fallback_channel_id"] = channelID
+	}
+	if channelName := strings.TrimSpace(ctx.GetString("official_fallback_channel_name")); channelName != "" {
+		adminInfo["official_fallback_channel_name"] = channelName
+	}
+	if currentChannelID := ctx.GetInt("channel_id"); currentChannelID > 0 {
+		adminInfo["official_fallback_final_channel_id"] = currentChannelID
+		adminInfo["official_fallback_success"] = currentChannelID == ctx.GetInt("official_fallback_channel_id")
+	}
 }
 
 // appendChannelRetryFallbackInfo records relay retry / fallback winner on consume logs.

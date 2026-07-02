@@ -254,6 +254,8 @@ func SetApiRouter(router *gin.Engine) {
 			adminRoute.GET("/registration-channels", controller.ListRegistrationChannels)
 			adminRoute.POST("/registration-channels", controller.UpsertRegistrationChannel)
 			adminRoute.PATCH("/registration-channels/status", controller.SetRegistrationChannelStatus)
+			adminRoute.GET("/failed-request-snapshots/:request_id", controller.GetFailedRequestSnapshot)
+			adminRoute.POST("/failed-request-snapshots/:request_id/replay", controller.ReplayFailedRequestSnapshot)
 		}
 
 		channelRoute := apiRouter.Group("/channel")
