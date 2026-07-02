@@ -19,7 +19,12 @@ func TurnstileCheck() gin.HandlerFunc {
 		enabled := common.TurnstileCheckEnabled
 		if !enabled && common.RegisterPageWithCaptchaEnabled {
 			path := c.Request.URL.Path
-			if path == "/api/verification" || path == "/api/user/register" {
+			// /api/user/register is always a registration flow.
+			// /api/verification is shared: registration (unauthenticated) and
+			// email binding (authenticated). Only enforce for the former.
+			if path == "/api/user/register" {
+				enabled = true
+			} else if path == "/api/verification" && c.GetHeader("Authorization") == "" {
 				enabled = true
 			}
 		}
