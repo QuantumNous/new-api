@@ -702,7 +702,7 @@ const EditChannelModal = (props) => {
           }));
           break;
         case 61: // VyroSeedance (996k)
-          localModels = ['vyro-seedance-2-fast', 'Seedance-2.0', 'Seedance 2.0'];
+          localModels = ['Seedance-2.0', 'Seedance 2.0', 'vyro-seedance-2-fast'];
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://996k.cn/v1',

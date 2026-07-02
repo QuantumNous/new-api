@@ -116,12 +116,16 @@ func maskKey(k string) string {
 	return k[:4] + "..." + k[len(k)-4:]
 }
 
-// BuildRequestBody forwards to upstream as JSON (Seedance 2.0) or multipart/form-data (legacy vyro-seedance-2-fast).
+// BuildRequestBody forwards Seedance 2.0 as JSON or multipart (image/audio/video files), or legacy vyro-seedance-2-fast multipart.
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	contentType := c.GetHeader("Content-Type")
 	modelName := resolveUpstreamModelName(c, info)
 
 	common.SysLog(fmt.Sprintf("[VYRO-DEBUG] BuildRequestBody ENTRY: Origin=%q Upstream=%q contentType=%s model=%q", info.OriginModelName, info.UpstreamModelName, contentType, modelName))
+
+	if strings.Contains(contentType, "multipart/form-data") && isSeedance20MultipartRequest(c, modelName) {
+		return a.buildSeedance20MultipartRequestBody(c, info, modelName)
+	}
 
 	if UsesJSONAPI(modelName) {
 		return a.buildJSONRequestBody(c, info, modelName)
@@ -417,10 +421,21 @@ func (a *TaskAdaptor) buildJSONRequestBody(c *gin.Context, info *relaycommon.Rel
 		payload["generate_audio"] = *b
 	}
 
-	if urls := collectReferenceImageURLs(c, &req); len(urls) > 0 {
-		payload["reference_image_urls"] = urls
+	if mode := strings.TrimSpace(req.Mode); mode != "" {
+		payload["mode"] = mode
+	} else if mode := getStringField(c, "mode"); mode != "" {
+		payload["mode"] = mode
 	}
 
+	applyJSONMedias(c, payload)
+
+	if _, hasMedias := payload["medias"]; !hasMedias {
+		if urls := collectReferenceImageURLs(c, &req); len(urls) > 0 {
+			payload["images"] = urls
+		}
+	}
+
+	applyJSONMediaURLFields(c, payload)
 	applyJSONExtraFields(c, payload)
 
 	data, err := common.Marshal(payload)
@@ -432,6 +447,141 @@ func (a *TaskAdaptor) buildJSONRequestBody(c *gin.Context, info *relaycommon.Rel
 	return bytes.NewReader(data), nil
 }
 
+func isSeedance20MultipartRequest(c *gin.Context, modelName string) bool {
+	if isSeedance20ModelName(modelName) {
+		return true
+	}
+	formData, err := common.ParseMultipartFormReusable(c)
+	if err != nil || formData == nil {
+		return false
+	}
+	if vals := formData.Value["model"]; len(vals) > 0 && isSeedance20ModelName(vals[0]) {
+		return true
+	}
+	for _, key := range []string{"image", "audio", "video"} {
+		if len(formData.File[key]) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *TaskAdaptor) buildSeedance20MultipartRequestBody(c *gin.Context, info *relaycommon.RelayInfo, modelName string) (io.Reader, error) {
+	formData, err := common.ParseMultipartFormReusable(c)
+	if err != nil || formData == nil {
+		return nil, fmt.Errorf("parse multipart form failed: %w", err)
+	}
+
+	upstreamModel := UpstreamJSONModelName(modelName)
+	if vals := formData.Value["model"]; len(vals) > 0 {
+		if m := strings.TrimSpace(vals[0]); m != "" {
+			upstreamModel = UpstreamJSONModelName(m)
+		}
+	}
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	_ = writer.WriteField("model", upstreamModel)
+
+	for key, vals := range formData.Value {
+		if key == "model" {
+			continue
+		}
+		for _, v := range vals {
+			_ = writer.WriteField(key, v)
+		}
+	}
+
+	if req, _ := relaycommon.GetTaskRequest(c); strings.TrimSpace(req.Prompt) != "" {
+		if len(formData.Value["prompt"]) == 0 {
+			_ = writer.WriteField("prompt", strings.TrimSpace(req.Prompt))
+		}
+	}
+
+	for fieldName, fhs := range formData.File {
+		for _, fh := range fhs {
+			f, err := fh.Open()
+			if err != nil {
+				continue
+			}
+			ct := fh.Header.Get("Content-Type")
+			if ct == "" || ct == "application/octet-stream" {
+				buf512 := make([]byte, 512)
+				n, _ := io.ReadFull(f, buf512)
+				ct = http.DetectContentType(buf512[:n])
+				f.Close()
+				f, _ = fh.Open()
+			}
+			h := make(textproto.MIMEHeader)
+			h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, fh.Filename))
+			if ct != "" {
+				h.Set("Content-Type", ct)
+			}
+			part, err := writer.CreatePart(h)
+			if err != nil {
+				f.Close()
+				continue
+			}
+			io.Copy(part, f)
+			f.Close()
+		}
+	}
+
+	writer.Close()
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	common.SysLog(fmt.Sprintf("[VYRO-DEBUG] Seedance-2.0 multipart body built, size=%d", buf.Len()))
+	return &buf, nil
+}
+
+func applyJSONMedias(c *gin.Context, payload map[string]interface{}) {
+	if _, exists := payload["medias"]; exists {
+		return
+	}
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return
+	}
+	raw, err := storage.Bytes()
+	if err != nil {
+		return
+	}
+	arr := gjson.GetBytes(raw, "medias")
+	if !arr.IsArray() {
+		return
+	}
+	medias := make([]map[string]string, 0, len(arr.Array()))
+	for _, item := range arr.Array() {
+		role := strings.TrimSpace(item.Get("role").String())
+		url := strings.TrimSpace(item.Get("url").String())
+		if role == "" || url == "" {
+			continue
+		}
+		medias = append(medias, map[string]string{"role": role, "url": url})
+	}
+	if len(medias) > 0 {
+		payload["medias"] = medias
+	}
+}
+
+func applyJSONMediaURLFields(c *gin.Context, payload map[string]interface{}) {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return
+	}
+	raw, err := storage.Bytes()
+	if err != nil {
+		return
+	}
+	for _, key := range []string{"audio_url", "video_url"} {
+		if _, exists := payload[key]; exists {
+			continue
+		}
+		if s := strings.TrimSpace(gjson.GetBytes(raw, key).String()); s != "" {
+			payload[key] = s
+		}
+	}
+}
+
 func applyJSONExtraFields(c *gin.Context, payload map[string]interface{}) {
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {
@@ -441,7 +591,7 @@ func applyJSONExtraFields(c *gin.Context, payload map[string]interface{}) {
 	if err != nil {
 		return
 	}
-	for _, key := range []string{"seed", "watermark", "callback_url", "negative_prompt"} {
+	for _, key := range []string{"seed", "watermark", "callback_url", "negative_prompt", "mode"} {
 		if _, exists := payload[key]; exists {
 			continue
 		}

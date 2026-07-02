@@ -2303,7 +2303,7 @@
     "渠道的基本配置信息": "渠道的基本配置信息",
     "渠道的模型测试": "渠道的模型测试",
     "渠道的高级配置选项": "渠道的高级配置选项",
-    "VyroSeedance 渠道说明": "Vyro Seedance（996k）：异步视频生成。支持文生视频和参考图生视频（multipart 上传 reference_images）。模型通常为 vyro-seedance-2-fast，Base URL 默认 https://996k.cn/v1，Key 为 Bearer token。",
+    "VyroSeedance 渠道说明": "Vyro Seedance（996k）：异步视频生成。推荐使用 Seedance-2.0（JSON，参考图 URL、generate_audio）；遗留模型 vyro-seedance-2-fast（multipart）不稳定、不推荐。Base URL 默认 https://996k.cn/v1，Key 为 Bearer token。",
     "异步视频渠道通用说明": "异步视频渠道（ApiWenhao / ApiMart / Agnes 等）：请参考对应平台文档配置 Base URL 与 Key。",
     "apiwenhao_key_prompt": "格式：sk-...（ApiWenhao 的 Bearer token）",
     "apimart_key_prompt": "格式：sk-...（ApiMart 的 Bearer token）",
