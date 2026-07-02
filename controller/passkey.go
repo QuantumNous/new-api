@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	passkeysvc "github.com/QuantumNous/new-api/service/passkey"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -17,6 +18,27 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 )
+
+var passkeyServiceErrorKeys = map[passkeysvc.UserErrorCode]string{
+	passkeysvc.UserErrorSettingsNotFound: i18n.MsgPasskeySettingsNotFound,
+	passkeysvc.UserErrorInsecureOrigin:   i18n.MsgPasskeyInsecureOrigin,
+	passkeysvc.UserErrorHTTPSRequired:    i18n.MsgPasskeyHTTPSRequired,
+	passkeysvc.UserErrorOriginUnknown:    i18n.MsgPasskeyOriginUnknown,
+	passkeysvc.UserErrorRPIDNoOrigin:     i18n.MsgPasskeyRPIDNoOrigin,
+	passkeysvc.UserErrorOriginParse:      i18n.MsgPasskeyOriginParseFailed,
+	passkeysvc.UserErrorSessionNotFound:  i18n.MsgPasskeySessionNotFound,
+	passkeysvc.UserErrorSessionInvalid:   i18n.MsgPasskeySessionInvalid,
+}
+
+func apiPasskeyServiceError(c *gin.Context, err error) {
+	if userErr, ok := passkeysvc.AsUserError(err); ok {
+		if key, exists := passkeyServiceErrorKeys[userErr.Code]; exists {
+			common.ApiErrorI18n(c, key, userErr.Args)
+			return
+		}
+	}
+	common.ApiError(c, err)
+}
 
 func PasskeyRegisterBegin(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
@@ -51,7 +73,7 @@ func PasskeyRegisterBegin(c *gin.Context) {
 
 	wa, err := passkeysvc.BuildWebAuthn(c.Request)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyServiceError(c, err)
 		return
 	}
 
@@ -106,7 +128,7 @@ func PasskeyRegisterFinish(c *gin.Context) {
 
 	wa, err := passkeysvc.BuildWebAuthn(c.Request)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyServiceError(c, err)
 		return
 	}
 
@@ -121,7 +143,7 @@ func PasskeyRegisterFinish(c *gin.Context) {
 
 	sessionData, err := passkeysvc.PopSessionData(c, passkeysvc.RegistrationSessionKey)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyServiceError(c, err)
 		return
 	}
 
@@ -225,7 +247,7 @@ func PasskeyLoginBegin(c *gin.Context) {
 
 	wa, err := passkeysvc.BuildWebAuthn(c.Request)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyServiceError(c, err)
 		return
 	}
 
@@ -260,13 +282,13 @@ func PasskeyLoginFinish(c *gin.Context) {
 
 	wa, err := passkeysvc.BuildWebAuthn(c.Request)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyServiceError(c, err)
 		return
 	}
 
 	sessionData, err := passkeysvc.PopSessionData(c, passkeysvc.LoginSessionKey)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyServiceError(c, err)
 		return
 	}
 
@@ -413,7 +435,7 @@ func PasskeyVerifyBegin(c *gin.Context) {
 
 	wa, err := passkeysvc.BuildWebAuthn(c.Request)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyServiceError(c, err)
 		return
 	}
 
@@ -458,7 +480,7 @@ func PasskeyVerifyFinish(c *gin.Context) {
 
 	wa, err := passkeysvc.BuildWebAuthn(c.Request)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyServiceError(c, err)
 		return
 	}
 
@@ -473,7 +495,7 @@ func PasskeyVerifyFinish(c *gin.Context) {
 
 	sessionData, err := passkeysvc.PopSessionData(c, passkeysvc.VerifySessionKey)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyServiceError(c, err)
 		return
 	}
 
