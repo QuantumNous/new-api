@@ -16,41 +16,80 @@ func SyncUsageReportToBase(periodType string) {
 }
 
 // SyncUsageReportPeriodToBase 将指定周期快照同步到飞书多维表格。
-// 按周期覆盖写入（删除同周期旧记录，写入新记录）。
 func SyncUsageReportPeriodToBase(rp ReportPeriod) {
+	SyncUsageReportPeriodToBaseWithDiagnostics(rp)
+}
+
+// SyncUsageReportPeriodToBaseWithDiagnostics 同步并返回诊断消息列表。
+func SyncUsageReportPeriodToBaseWithDiagnostics(rp ReportPeriod) []string {
+	var msgs []string
 	settings := system_setting.GetFeishuSettings()
 	baseToken := strings.TrimSpace(settings.StatsBaseToken)
 	if baseToken == "" {
+		msgs = append(msgs, "skip: stats_base_token is empty")
 		common.SysLog("usage report base sync: stats_base_token is empty, skip")
-		return
+		return msgs
 	}
 	appID := strings.TrimSpace(settings.AppID)
 	appSecret := strings.TrimSpace(settings.AppSecret)
 	if appID == "" || appSecret == "" {
+		msgs = append(msgs, "skip: app_id or app_secret is empty")
 		common.SysLog("usage report base sync: app_id/app_secret is empty, skip")
-		return
+		return msgs
 	}
 
 	token, err := getFeishuTenantAccessToken(appID, appSecret)
 	if err != nil {
-		common.SysError(fmt.Sprintf("usage report base sync: get token failed: %s", err))
-		return
+		msg := fmt.Sprintf("get token failed: %s", err)
+		msgs = append(msgs, msg)
+		common.SysError("usage report base sync: " + msg)
+		return msgs
 	}
 
 	if rp.PeriodType == "" {
-		return
+		msgs = append(msgs, "skip: period_type is empty")
+		return msgs
 	}
 
 	common.SysLog(fmt.Sprintf("usage report base sync: start syncing %s for %s", rp.PeriodType, rp.PeriodLabel))
 
-	// 同步5张表
-	syncAccountTable(token, baseToken, settings.ReportTableAccountID, rp)
-	syncTokenTable(token, baseToken, settings.ReportTableTokenID, rp)
-	syncPlatformTable(token, baseToken, settings.ReportTablePlatformID, rp)
-	syncModelTable(token, baseToken, settings.ReportTableModelID, rp)
-	syncAnomalyTable(token, baseToken, settings.ReportTableAnomalyID, rp)
+	// 同步5张表，收集各表的诊断信息
+	tableMsgs := syncTableWithDiagnostics("account", settings.ReportTableAccountID, func() {
+		syncAccountTable(token, baseToken, settings.ReportTableAccountID, rp)
+	})
+	msgs = append(msgs, tableMsgs...)
+
+	tableMsgs = syncTableWithDiagnostics("token", settings.ReportTableTokenID, func() {
+		syncTokenTable(token, baseToken, settings.ReportTableTokenID, rp)
+	})
+	msgs = append(msgs, tableMsgs...)
+
+	tableMsgs = syncTableWithDiagnostics("platform", settings.ReportTablePlatformID, func() {
+		syncPlatformTable(token, baseToken, settings.ReportTablePlatformID, rp)
+	})
+	msgs = append(msgs, tableMsgs...)
+
+	tableMsgs = syncTableWithDiagnostics("model", settings.ReportTableModelID, func() {
+		syncModelTable(token, baseToken, settings.ReportTableModelID, rp)
+	})
+	msgs = append(msgs, tableMsgs...)
+
+	tableMsgs = syncTableWithDiagnostics("anomaly", settings.ReportTableAnomalyID, func() {
+		syncAnomalyTable(token, baseToken, settings.ReportTableAnomalyID, rp)
+	})
+	msgs = append(msgs, tableMsgs...)
 
 	common.SysLog(fmt.Sprintf("usage report base sync: completed %s for %s", rp.PeriodType, rp.PeriodLabel))
+	return msgs
+}
+
+// syncTableWithDiagnostics 执行单表同步并返回诊断消息。
+func syncTableWithDiagnostics(tableName, tableID string, fn func()) []string {
+	if tableID == "" {
+		return []string{fmt.Sprintf("table %s: skipped (table_id is empty)")}
+	}
+	fn()
+	return []string{fmt.Sprintf("table %s: synced (table_id=%s)", tableName, tableID)}
 }
 
 // syncAccountTable 同步账号周期统计表

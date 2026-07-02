@@ -576,14 +576,16 @@ func RunUsageReportPeriod(periodType string) {
 }
 
 type UsageReportRunResult struct {
-	PeriodType    string `json:"period_type"`
-	PeriodLabel   string `json:"period_label"`
-	PeriodStart   int64  `json:"period_start"`
-	PeriodEnd     int64  `json:"period_end"`
-	SnapshotCount int    `json:"snapshot_count"`
-	SyncBase      bool   `json:"sync_base"`
-	AdminPushTask bool   `json:"admin_push_task"`
-	Status        string `json:"status"`
+	PeriodType     string         `json:"period_type"`
+	PeriodLabel    string         `json:"period_label"`
+	PeriodStart    int64          `json:"period_start"`
+	PeriodEnd      int64          `json:"period_end"`
+	SnapshotCount  int            `json:"snapshot_count"`
+	SyncBase       bool           `json:"sync_base"`
+	AdminPushTask  bool           `json:"admin_push_task"`
+	Status         string         `json:"status"`
+	SyncMessages   []string       `json:"sync_messages,omitempty"`
+	ConfigDiagnose map[string]any `json:"config_diagnose,omitempty"`
 }
 
 // RunUsageReportFullPipeline 执行完整链路：生成快照 -> 同步多维表格 -> 写入管理推送任务表。
@@ -602,14 +604,23 @@ func RunUsageReportFullPipelineForPeriod(rp ReportPeriod, syncBase, adminPushTas
 	if err := GenerateUsageReportForPeriod(rp); err != nil {
 		return nil, err
 	}
-	if syncBase && system_setting.GetFeishuSettings().UsageReportBaseSyncEnabled {
-		SyncUsageReportPeriodToBase(rp)
+	settings := system_setting.GetFeishuSettings()
+
+	var syncMessages []string
+
+	if syncBase && settings.UsageReportBaseSyncEnabled {
+		msgs := SyncUsageReportPeriodToBaseWithDiagnostics(rp)
+		syncMessages = append(syncMessages, msgs...)
+	} else if syncBase && !settings.UsageReportBaseSyncEnabled {
+		syncMessages = append(syncMessages, "base sync skipped: usage_report_base_sync_enabled=false")
 	}
-	if adminPushTask && system_setting.GetFeishuSettings().UsageReportAdminGroupPushEnabled {
+
+	if adminPushTask && settings.UsageReportAdminGroupPushEnabled {
 		PushUsageReportAdminTaskToBase(rp)
 	}
+
 	count := countUsageReportSnapshots(rp)
-	return &UsageReportRunResult{
+	result := &UsageReportRunResult{
 		PeriodType:    rp.PeriodType,
 		PeriodLabel:   rp.PeriodLabel,
 		PeriodStart:   rp.StartTimestamp,
@@ -618,7 +629,26 @@ func RunUsageReportFullPipelineForPeriod(rp ReportPeriod, syncBase, adminPushTas
 		SyncBase:      syncBase,
 		AdminPushTask: adminPushTask,
 		Status:        "success",
-	}, nil
+		SyncMessages:  syncMessages,
+	}
+
+	// 配置诊断（帮助排查同步失败原因）
+	result.ConfigDiagnose = map[string]any{
+		"base_token_set":                 settings.StatsBaseToken != "",
+		"app_id_set":                     settings.AppID != "",
+		"app_secret_set":                 settings.AppSecret != "",
+		"usage_report_enabled":           settings.UsageReportEnabled,
+		"base_sync_enabled":              settings.UsageReportBaseSyncEnabled,
+		"admin_push_enabled":             settings.UsageReportAdminGroupPushEnabled,
+		"report_table_account_id_set":    settings.ReportTableAccountID != "",
+		"report_table_token_id_set":      settings.ReportTableTokenID != "",
+		"report_table_platform_id_set":   settings.ReportTablePlatformID != "",
+		"report_table_model_id_set":      settings.ReportTableModelID != "",
+		"report_table_anomaly_id_set":    settings.ReportTableAnomalyID != "",
+		"report_table_admin_push_id_set": settings.ReportTableAdminPushID != "",
+	}
+
+	return result, nil
 }
 
 // ManualRunUsageReport 手动触发报表全链路（供 Controller 调用）
