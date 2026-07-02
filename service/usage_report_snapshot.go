@@ -242,8 +242,20 @@ func generateOrgSnapshots(rp ReportPeriod) error {
 		agg.Quota += it.Quota
 	}
 
-	// 从 quota_data 实时查询上期各组织 token（不依赖上期快照是否存在）
-	prevOrgTokenMap := queryOrgPrevPeriodTokens(rp)
+	// 上期组织 token：优先取上期快照，没有时 fallback 到 quota_data 实时查
+	prevOrgTokenMap := make(map[string]int)
+	prevItems, _ := model.GetReportSnapshots(rp.PeriodType, rp.PrevPeriodStart.Unix(), model.ReportScopeAccount)
+	for _, it := range prevItems {
+		if it.OrgLevel1Name == "" && it.OrgLevel2Name == "" {
+			continue
+		}
+		key := it.OrgLevel1Name + "|" + it.OrgLevel2Name
+		prevOrgTokenMap[key] += it.TokenUsed
+	}
+	// 上期快照为空时，fallback 到 quota_data 实时查
+	if len(prevItems) == 0 {
+		prevOrgTokenMap = queryOrgPrevPeriodTokens(rp)
+	}
 
 	var snapshots []*model.UsageReportSnapshot
 	for key, agg := range orgMap {
