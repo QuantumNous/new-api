@@ -317,7 +317,7 @@ func Any2Type[T any](data any) (T, error) {
 	return res, nil
 }
 
-// SaveTmpFile saves data to a temporary file. The filename would be apppended with a random string.
+// SaveTmpFile saves data to a temporary file. The filename is appended with a random string.
 func SaveTmpFile(filename string, data io.Reader) (string, error) {
 	f, err := os.CreateTemp(os.TempDir(), filename)
 	if err != nil {
