@@ -3,6 +3,7 @@ package taskcommon
 import (
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -22,6 +23,8 @@ var whitelabelChannels = map[int]struct{}{
 	constant.ChannelTypeKuaiziLizhen:     {},
 	constant.ChannelTypeBlockRunVideo:    {},
 	constant.ChannelTypeBlockRunSeedance: {},
+	constant.ChannelTypeJimengProxy:      {},
+	constant.ChannelTypeJimengZhizinan:   {},
 }
 
 // ShouldWhitelabelPlatform reports whether tasks on the given platform must
@@ -54,6 +57,7 @@ var brandKeywords = []string{
 	"kz-cgt",
 	"tos-cn-beijing",
 	"blockrun", "flatkey",
+	"jimeng", "jianying", "dreamina", "seedance",
 }
 
 // ContainsBrandKeyword reports whether s contains any provider-identifying
@@ -86,6 +90,36 @@ func ScrubBrandedText(s string) string {
 		return "task failed at upstream provider"
 	}
 	return s
+}
+
+// ValidateRemoteMediaURL applies the same fetch/SSRF policy used by NewAPI's
+// server-side fetch paths before a task adaptor forwards a user-supplied media
+// URL to an upstream service that may fetch it.
+func ValidateRemoteMediaURL(raw string) error {
+	trimmed := strings.TrimSpace(raw)
+	u, err := url.Parse(trimmed)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("image url is invalid")
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("image url must use http or https")
+	}
+
+	fetchSetting := system_setting.GetFetchSetting()
+	if err := common.ValidateURLWithFetchSetting(
+		trimmed,
+		fetchSetting.EnableSSRFProtection,
+		fetchSetting.AllowPrivateIp,
+		fetchSetting.DomainFilterMode,
+		fetchSetting.IpFilterMode,
+		fetchSetting.DomainList,
+		fetchSetting.IpList,
+		fetchSetting.AllowedPorts,
+		fetchSetting.ApplyIPFilterForDomain,
+	); err != nil {
+		return fmt.Errorf("image url is not allowed: %w", err)
+	}
+	return nil
 }
 
 // UnmarshalMetadata converts a map[string]any metadata to a typed struct via JSON round-trip.

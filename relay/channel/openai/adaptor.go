@@ -436,11 +436,23 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	// upstream never sees it (restores pre-Stream-field behavior).
 	request.Stream = nil
 	request.PartialImages = nil
+	if info != nil && info.ChannelMeta != nil &&
+		info.ChannelType == constant.ChannelTypeJimengZhizinan {
+		switch info.RelayMode {
+		case relayconstant.RelayModeImagesGenerations:
+			return convertJimengZhizinanImageRequest(request)
+		case relayconstant.RelayModeImagesEdits:
+			if isJSONRequest(c) {
+				return convertJimengZhizinanImageEditRequest(request)
+			}
+		}
+	}
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesEdits:
 		if isJSONRequest(c) {
 			return request, nil
 		}
+		dropJimengZhizinanMask := info.ChannelMeta != nil && info.ChannelType == constant.ChannelTypeJimengZhizinan
 
 		var requestBody bytes.Buffer
 		writer := multipart.NewWriter(&requestBody)
@@ -461,7 +473,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 				// stream / partial_images are stripped from the struct path above;
 				// the multipart edits path forwards raw form fields, so filter them
 				// here too — upstreams that don't synthesize streaming would 400.
-				if key == "model" || key == "stream" || key == "partial_images" {
+				if key == "model" || key == "stream" || key == "partial_images" || (dropJimengZhizinanMask && key == "mask") {
 					continue
 				}
 				for _, value := range values {
@@ -530,7 +542,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			}
 
 			// Handle mask file if present
-			if maskFiles, exists := mf.File["mask"]; exists && len(maskFiles) > 0 {
+			if maskFiles, exists := mf.File["mask"]; !dropJimengZhizinanMask && exists && len(maskFiles) > 0 {
 				maskFile, err := maskFiles[0].Open()
 				if err != nil {
 					return nil, errors.New("failed to open mask file")
