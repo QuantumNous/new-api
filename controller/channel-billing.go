@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -241,7 +242,8 @@ func updateChannelAPI2GPTBalance(channel *model.Channel) (float64, error) {
 }
 
 func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
-	url := "https://api.siliconflow.cn/v1/user/info"
+	baseURL := channel.GetBaseURL()
+	url := fmt.Sprintf("%s/v1/user/info", baseURL)
 	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err
@@ -258,6 +260,13 @@ func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+	// SiliconFlow .cn returns RMB; .com returns USD.
+	// Determine currency from the channel base_url domain.
+	if strings.Contains(baseURL, ".cn") {
+		if rate := operation_setting.USDExchangeRate; rate > 0 {
+			balance = balance / rate
+		}
+	}
 	channel.UpdateBalance(balance)
 	return balance, nil
 }
@@ -273,22 +282,27 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	index := -1
-	for i, balanceInfo := range response.BalanceInfos {
-		if balanceInfo.Currency == "CNY" {
-			index = i
-			break
+	// DeepSeek returns balance_infos with per-currency entries.
+	// Domestic accounts return CNY; international accounts return USD.
+	for _, info := range response.BalanceInfos {
+		switch info.Currency {
+		case "USD":
+			if balance, err := strconv.ParseFloat(info.TotalBalance, 64); err == nil && balance > 0 {
+				channel.UpdateBalance(balance)
+				return balance, nil
+			}
+		case "CNY":
+			if cny, err := strconv.ParseFloat(info.TotalBalance, 64); err == nil && cny > 0 {
+				rate := operation_setting.USDExchangeRate
+				if rate > 0 {
+					cny = cny / rate
+				}
+				channel.UpdateBalance(cny)
+				return cny, nil
+			}
 		}
 	}
-	if index == -1 {
-		return 0, errors.New("currency CNY not found")
-	}
-	balance, err := strconv.ParseFloat(response.BalanceInfos[index].TotalBalance, 64)
-	if err != nil {
-		return 0, err
-	}
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return 0, errors.New("no USD or CNY balance found")
 }
 
 func updateChannelAIGC2DBalance(channel *model.Channel) (float64, error) {
@@ -323,7 +337,8 @@ func updateChannelOpenRouterBalance(channel *model.Channel) (float64, error) {
 }
 
 func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
-	url := "https://api.moonshot.cn/v1/users/me/balance"
+	baseURL := channel.GetBaseURL()
+	url := fmt.Sprintf("%s/v1/users/me/balance", baseURL)
 	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
 	if err != nil {
 		return 0, err
@@ -350,10 +365,18 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 	if !response.Status || response.Code != 0 {
 		return 0, fmt.Errorf("failed to update moonshot balance, status: %v, code: %d, scode: %s", response.Status, response.Code, response.Scode)
 	}
-	availableBalanceCny := response.Data.AvailableBalance
-	availableBalanceUsd := decimal.NewFromFloat(availableBalanceCny).Div(decimal.NewFromFloat(operation_setting.Price)).InexactFloat64()
-	channel.UpdateBalance(availableBalanceUsd)
-	return availableBalanceUsd, nil
+	// Moonshot .cn returns CNY (元); .ai returns USD.
+	// Determine currency from the channel base_url domain.
+	balance := response.Data.AvailableBalance
+	if strings.Contains(baseURL, ".cn") {
+		rate := operation_setting.USDExchangeRate
+		if rate <= 0 {
+			rate = 1
+		}
+		balance = decimal.NewFromFloat(balance).Div(decimal.NewFromFloat(rate)).InexactFloat64()
+	}
+	channel.UpdateBalance(balance)
+	return balance, nil
 }
 
 func updateChannelBalance(channel *model.Channel) (float64, error) {
