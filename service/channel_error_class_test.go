@@ -19,7 +19,7 @@ func TestClassifyChannelError_platformUserQuota(t *testing.T) {
 	require.Equal(t, CategorySkip, ClassifyChannelError(err))
 }
 
-func TestClassifyChannelError_upstreamRecharge_zxai(t *testing.T) {
+func TestClassifyChannelError_wrappedPlatformUserQuota(t *testing.T) {
 	t.Parallel()
 	err := types.NewErrorWithStatusCode(
 		types.NewError(nil, types.ErrorCodeBadResponseStatusCode),
@@ -27,7 +27,7 @@ func TestClassifyChannelError_upstreamRecharge_zxai(t *testing.T) {
 		403,
 	)
 	err.SetMessage("status_code=403, 用户额度不足, 剩余额度: ＄-0.009978")
-	require.Equal(t, CategoryUpstreamRecharge, ClassifyChannelError(err))
+	require.Equal(t, CategorySkip, ClassifyChannelError(err))
 }
 
 func TestClassifyChannelError_distributorSkip(t *testing.T) {
@@ -111,4 +111,31 @@ func TestEvaluateChannelHealth_rechargeHighConfidence(t *testing.T) {
 	action, reason := EvaluateChannelHealth(ch, err)
 	require.Equal(t, HealthNotifyRecharge, action)
 	require.Contains(t, reason, "余额不足")
+}
+
+func TestEvaluateChannelHealth_wrappedPlatformUserQuotaNeverDisables(t *testing.T) {
+	resetChannelHealthForTest()
+	ch := types.ChannelError{ChannelId: 68, ChannelName: "Apimart_原价", AutoBan: true}
+	commonBackup := common.AutomaticDisableChannelEnabled
+	common.AutomaticDisableChannelEnabled = true
+	t.Cleanup(func() {
+		common.AutomaticDisableChannelEnabled = commonBackup
+		resetChannelHealthForTest()
+	})
+
+	makeErr := func() *types.NewAPIError {
+		err := types.NewErrorWithStatusCode(
+			types.NewError(nil, types.ErrorCodeBadResponseStatusCode),
+			types.ErrorCodeBadResponseStatusCode,
+			403,
+		)
+		err.SetMessage("status_code=403, 用户额度不足, 剩余额度: ＄0.000000")
+		return err
+	}
+
+	for i := 0; i < 5; i++ {
+		action, reason := EvaluateChannelHealth(ch, makeErr())
+		require.Equal(t, HealthSkip, action, "attempt %d should skip", i+1)
+		require.Empty(t, reason)
+	}
 }

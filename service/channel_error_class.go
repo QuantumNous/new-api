@@ -34,14 +34,24 @@ var (
 	}
 
 	upstreamRechargeMediumConfidence = []string{
-		"用户额度不足",
-		"预扣费额度失败",
-		"剩余额度",
-		"用户剩余额度",
+		"remaining upstream balance",
+		"upstream remaining balance",
+		"account remaining balance",
 	}
 
 	distributorSkipMarkers = []string{
 		"no available channel for model",
+	}
+
+	platformUserQuotaMarkers = []string{
+		"用户额度不足",
+		"预扣费额度失败",
+		"用户剩余额度",
+		"订阅额度不足",
+		"subscription quota insufficient",
+		"insufficient user quota",
+		"token quota is not enough",
+		"user quota is not enough",
 	}
 
 	rateLimitCooldownMarkers = []string{
@@ -66,6 +76,9 @@ func ClassifyChannelError(err *types.NewAPIError) ChannelErrorCategory {
 	}
 
 	msg := strings.ToLower(err.Error())
+	if isPlatformUserQuotaError(err) {
+		return CategorySkip
+	}
 
 	for _, m := range distributorSkipMarkers {
 		if strings.Contains(msg, m) {
@@ -128,6 +141,24 @@ func isUpstreamRechargeError(err *types.NewAPIError) bool {
 		}
 	}
 	return hits >= 1 && (strings.Contains(msg, "剩余额度") || strings.Contains(lower, "403"))
+}
+
+func isPlatformUserQuotaError(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	code := err.GetErrorCode()
+	if code == types.ErrorCodeInsufficientUserQuota ||
+		code == types.ErrorCodePreConsumeTokenQuotaFailed {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	for _, kw := range platformUserQuotaMarkers {
+		if strings.Contains(msg, strings.ToLower(kw)) {
+			return true
+		}
+	}
+	return false
 }
 
 func isRateLimitCooldown(err *types.NewAPIError) bool {
