@@ -71,6 +71,7 @@ const BILLING_SECTIONS = [
           GptImage2RaceTimeout1K: settings.GptImage2RaceTimeout1K,
           GptImage2RaceTimeout2K: settings.GptImage2RaceTimeout2K,
           GptImage2RaceTimeout4K: settings.GptImage2RaceTimeout4K,
+          NewAPIShadowBenchmarkEnabled: settings.NewAPIShadowBenchmarkEnabled,
           TopUpLink: settings.TopUpLink,
           general_setting: {
             docs_link: settings['general_setting.docs_link'],

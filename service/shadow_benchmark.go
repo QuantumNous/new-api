@@ -81,9 +81,6 @@ type modelCounter struct {
 func InitShadowBenchmark() {
 	shadowOnce.Do(func() {
 		shadowConfig = loadShadowBenchmarkConfig()
-		if !shadowConfig.Enabled {
-			return
-		}
 		if len(shadowConfig.Models) == 0 {
 			common.SysLog("shadow benchmark disabled: no model rules configured")
 			shadowConfig.Enabled = false
@@ -95,7 +92,8 @@ func InitShadowBenchmark() {
 			go shadowBenchmarkWorker(i)
 		}
 		common.SysLog(fmt.Sprintf(
-			"shadow benchmark enabled: target_channel=%d target=%s models=%s concurrency=%d queue=%d timeout=%s",
+			"shadow benchmark initialized: enabled=%t target_channel=%d target=%s models=%s concurrency=%d queue=%d timeout=%s",
+			ShadowBenchmarkEnabled(),
 			shadowConfig.TargetChannelID,
 			shadowConfig.TargetName,
 			strings.Join(shadowModelNames(), ","),
@@ -176,11 +174,11 @@ func seedShadowBenchmarkCounters() {
 }
 
 func ShadowBenchmarkEnabled() bool {
-	return shadowConfig.Enabled
+	return shadowBenchmarkOptionEnabled() && len(shadowConfig.Models) > 0 && shadowQueue != nil
 }
 
 func MaybeEnqueueShadowBenchmark(c *gin.Context, relayInfo *relaycommon.RelayInfo, relayFormat types.RelayFormat, finalErr *types.NewAPIError) {
-	if !shadowConfig.Enabled || c == nil || relayInfo == nil {
+	if !ShadowBenchmarkEnabled() || c == nil || relayInfo == nil {
 		return
 	}
 	if strings.EqualFold(strings.TrimSpace(c.GetHeader("X-NewAPI-Replay")), "true") {
@@ -248,6 +246,20 @@ func MaybeEnqueueShadowBenchmark(c *gin.Context, relayInfo *relaycommon.RelayInf
 		counter.release()
 		logger.LogWarn(c, "shadow benchmark queue full, sample dropped")
 	}
+}
+
+func shadowBenchmarkOptionEnabled() bool {
+	common.OptionMapRWMutex.RLock()
+	value, ok := common.OptionMap["NewAPIShadowBenchmarkEnabled"]
+	common.OptionMapRWMutex.RUnlock()
+	if !ok {
+		return common.GetEnvOrDefaultBool("NEWAPI_SHADOW_BENCHMARK_ENABLED", false)
+	}
+	enabled, err := strconv.ParseBool(strings.TrimSpace(value))
+	if err != nil {
+		return false
+	}
+	return enabled
 }
 
 func (c *modelCounter) tryReserve(limit int64) bool {

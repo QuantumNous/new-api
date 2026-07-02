@@ -53,6 +53,7 @@ const quotaSchema = z.object({
   GptImage2RaceTimeout1K: z.coerce.number().min(1),
   GptImage2RaceTimeout2K: z.coerce.number().min(1),
   GptImage2RaceTimeout4K: z.coerce.number().min(1),
+  NewAPIShadowBenchmarkEnabled: z.boolean(),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -416,6 +417,32 @@ export function QuotaSettingsSection({
                   {t('For 4k/hd images: how long to wait on the primary channel before also trying a second channel.')}
                 </FormDescription>
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='NewAPIShadowBenchmarkEnabled'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5'>
+                  <FormLabel className='text-base'>
+                    {t('NewAPI Shadow Benchmark')}
+                  </FormLabel>
+                  <FormDescription>
+                    {t(
+                      'When enabled, gpt-5.4 / gpt-5.5 requests are asynchronously copied to OpenRouter for success rate and latency comparison without affecting user responses.'
+                    )}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={updateOption.isPending}
+                  />
+                </FormControl>
               </FormItem>
             )}
           />

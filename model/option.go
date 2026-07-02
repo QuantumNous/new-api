@@ -161,6 +161,7 @@ func InitOptionMap() {
 	common.OptionMap["GptImage2RaceTimeout1K"] = strconv.Itoa(common.GptImage2RaceTimeout1K)
 	common.OptionMap["GptImage2RaceTimeout2K"] = strconv.Itoa(common.GptImage2RaceTimeout2K)
 	common.OptionMap["GptImage2RaceTimeout4K"] = strconv.Itoa(common.GptImage2RaceTimeout4K)
+	common.OptionMap["NewAPIShadowBenchmarkEnabled"] = strconv.FormatBool(common.GetEnvOrDefaultBool("NEWAPI_SHADOW_BENCHMARK_ENABLED", false))
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
