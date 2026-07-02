@@ -969,6 +969,20 @@ type ManageRequest struct {
 }
 
 // ManageUser Only admin user can do this
+const banEmailSubject = "Your APIMaster.ai account has been suspended"
+
+const banEmailHTML = `<p>Hello,</p>
+<p>We're writing to inform you that your APIMaster.ai account has been <strong>suspended</strong> following a review by our risk and security systems.</p>
+<p>Activity associated with your account was flagged by our automated risk controls as violating our Terms of Service. To protect our platform and our users, access to the account and its services has been disabled.</p>
+<p>If you believe this was a mistake, please contact us at <a href="mailto:support@apimaster.ai">support@apimaster.ai</a> and our team will review your case. To help us look into it faster, kindly include your registered email address and any details you think are relevant.</p>
+<p>Thank you for your understanding.</p>
+<p>Best regards,<br/>The APIMaster.ai Team</p>`
+
+// isRealEmail skips empty addresses and Twitter placeholder emails (which bounce).
+func isRealEmail(e string) bool {
+	return strings.Contains(e, "@") && !strings.HasSuffix(e, "@twitter.invalid")
+}
+
 func ManageUser(c *gin.Context) {
 	var req ManageRequest
 	err := json.NewDecoder(c.Request.Body).Decode(&req)
@@ -991,8 +1005,12 @@ func ManageUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
 		return
 	}
+	banNotify := false
 	switch req.Action {
 	case "disable":
+		if user.Status == common.UserStatusEnabled {
+			banNotify = true
+		}
 		user.Status = common.UserStatusDisabled
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDisableRootUser)
@@ -1089,6 +1107,14 @@ func ManageUser(c *gin.Context) {
 	if err := user.Update(false); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	// 风控禁用后，异步给用户注册邮箱发一封封禁通知邮件（fire-and-forget，失败绝不影响禁用本身）。
+	if banNotify && isRealEmail(user.Email) {
+		go func(to string) {
+			if err := common.SendEmail(banEmailSubject, to, banEmailHTML); err != nil {
+				common.SysLog(fmt.Sprintf("failed to send ban email to %s: %s", to, err.Error()))
+			}
+		}(user.Email)
 	}
 	// 禁用 / 角色调整后，强制失效用户缓存与其全部令牌缓存，
 	// 避免在 Redis TTL 过期前仍使用旧状态（尤其是禁用后仍可发起请求的问题）。
