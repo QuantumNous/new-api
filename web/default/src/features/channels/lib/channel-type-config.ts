@@ -187,14 +187,28 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     name: CHANNEL_TYPES[62],
     icon: 'openai',
     defaultBaseUrl: 'https://sd2.83zi.com',
+    supportedModels: ['sd2fast', 'sd2', 'mingiz-sd2'],
     hints: {
       key: 'X-License-Key (83zi License Key)',
-      models: 'sd2fast (fast), sd2 (2.0)',
-      baseUrl: 'Default: https://sd2.83zi.com',
-      other: 'Async video: POST /api/generate-video, poll GET /api/task/{id}. Client models sd2fast/sd2 map to upstream fast/2.0. Supports JSON image_urls or multipart files=@image.png.',
+      models: 'sd2fast, sd2 (SD2), mingiz-sd2 (Xinghe 2.0)',
+      baseUrl: 'Presets: https://sd2.83zi.com or https://api.shishikeji.com',
+      other: 'Async video: POST /api/generate-video, poll GET /api/task/{id}. mingiz-sd2 uses api.shishikeji.com with upstream xinghe-2.0. Supports JSON image_urls or multipart files=@image.png.',
     },
   },
 }
+
+export const CHANNEL_83ZI_BASE_URL_PRESETS = [
+  {
+    value: 'https://sd2.83zi.com',
+    label: '83zi SD2 — sd2.83zi.com',
+  },
+  {
+    value: 'https://api.shishikeji.com',
+    label: 'Mingiz Xinghe — api.shishikeji.com',
+  },
+] as const
+
+export const CHANNEL_83ZI_CUSTOM_BASE_URL = '__custom__'
 
 /**
  * Get configuration for a channel type

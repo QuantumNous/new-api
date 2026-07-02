@@ -710,8 +710,8 @@ const EditChannelModal = (props) => {
             base_url: 'https://996k.cn/v1',
           }));
           break;
-        case 62: // 83zi SD2
-          localModels = ['sd2fast', 'sd2'];
+        case 62: // 83zi SD2 / Mingiz
+          localModels = ['sd2fast', 'sd2', 'mingiz-sd2'];
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://sd2.83zi.com',
@@ -3443,6 +3443,7 @@ const EditChannelModal = (props) => {
                         inputs.type !== 8 &&
                         inputs.type !== 22 &&
                         inputs.type !== 36 &&
+                        inputs.type !== 62 &&
                         (inputs.type !== 45 || doubaoApiEditUnlocked) && (
                           <div>
                             <Form.Input
@@ -3462,6 +3463,64 @@ const EditChannelModal = (props) => {
                             />
                           </div>
                         )}
+
+                      {inputs.type === 62 && (
+                        <>
+                          <div>
+                            <Form.Select
+                              label={t('API地址')}
+                              placeholder={t('请选择API地址')}
+                              onChange={(value) => {
+                                if (value === '__custom__') {
+                                  handleInputChange('base_url', '');
+                                  return;
+                                }
+                                handleInputChange('base_url', value);
+                              }}
+                              optionList={[
+                                {
+                                  value: 'https://sd2.83zi.com',
+                                  label: '83zi SD2 — sd2.83zi.com',
+                                },
+                                {
+                                  value: 'https://api.shishikeji.com',
+                                  label: 'Mingiz Xinghe — api.shishikeji.com',
+                                },
+                                {
+                                  value: '__custom__',
+                                  label: t('自定义'),
+                                },
+                              ]}
+                              value={
+                                [
+                                  'https://sd2.83zi.com',
+                                  'https://api.shishikeji.com',
+                                ].includes(inputs.base_url)
+                                  ? inputs.base_url
+                                  : '__custom__'
+                              }
+                              disabled={isIonetLocked}
+                            />
+                          </div>
+                          {![
+                            'https://sd2.83zi.com',
+                            'https://api.shishikeji.com',
+                          ].includes(inputs.base_url) && (
+                            <div>
+                              <Form.Input
+                                field='base_url'
+                                label={t('自定义 API 地址')}
+                                placeholder='https://your-upstream.example.com'
+                                onChange={(value) =>
+                                  handleInputChange('base_url', value)
+                                }
+                                showClear
+                                disabled={isIonetLocked}
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
 
                       {inputs.type === 22 && (
                         <div>

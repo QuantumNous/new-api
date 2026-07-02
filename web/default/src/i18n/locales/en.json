@@ -1036,6 +1036,8 @@
     "Current version": "Current version",
     "Current:": "Current:",
     "Custom": "Custom",
+    "Custom Base URL": "Custom Base URL",
+    "83zi SD2 uses sd2.83zi.com; Mingiz Xinghe uses api.shishikeji.com with model mingiz-sd2.": "83zi SD2 uses sd2.83zi.com; Mingiz Xinghe uses api.shishikeji.com with model mingiz-sd2.",
     "Custom (seconds)": "Custom (seconds)",
     "Custom Amount": "Custom Amount",
     "Custom API base URL. For official channels, New API has built-in addresses. Only fill this for third-party proxy sites or special endpoints. Do not add /v1 or trailing slash.": "Custom API base URL. For official channels, New API has built-in addresses. Only fill this for third-party proxy sites or special endpoints. Do not add /v1 or trailing slash.",

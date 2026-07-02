@@ -2314,7 +2314,7 @@
     "渠道的模型测试": "管道的模型測試",
     "渠道的高级配置选项": "管道的進階設定選項",
     "VyroSeedance 渠道说明": "Vyro Seedance（996k）：非同步影片生成。支援文字生影片與參考圖生影片（multipart 上傳 reference_images）。模型通常為 vyro-seedance-2-fast，Base URL 預設 https://996k.cn/v1，Key 為 Bearer token。",
-    "83zi 渠道说明": "83zi SD2：非同步影片生成。客戶端模型 sd2fast 對應上游 fast，sd2 對應上游 2.0。支援 JSON image_urls 或 multipart 上傳 files=@image.png。Base URL 預設 https://sd2.83zi.com，Key 為 X-License-Key。",
+    "83zi 渠道说明": "83zi 非同步影片生成：模型 sd2fast、sd2（SD2，預設 https://sd2.83zi.com）、mingiz-sd2（星河 2.0，預設 https://api.shishikeji.com）。支援 JSON image_urls 或 multipart files=@image.png。Key 為 X-License-Key。",
     "异步视频渠道通用说明": "非同步影片渠道（ApiWenhao / ApiMart / Agnes 等）：請參考對應平台文件設定 Base URL 與 Key。",
     "apiwenhao_key_prompt": "格式：sk-...（ApiWenhao 的 Bearer token）",
     "apimart_key_prompt": "格式：sk-...（ApiMart 的 Bearer token）",

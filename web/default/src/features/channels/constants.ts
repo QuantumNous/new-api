@@ -401,7 +401,7 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   59: 'Format: sk-... (Bearer token for ApiMart)',
   60: 'Format: Bearer token (Agnes API Key from platform.agnes-ai.com)',
   61: 'Format: Bearer token (Vyro Seedance / 996k API Key)',
-  62: 'Format: X-License-Key (83zi SD2 License Key)',
+  62: 'Format: X-License-Key (83zi / Mingiz License Key)',
 }
 
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {

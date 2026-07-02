@@ -144,6 +144,8 @@ import {
   hasModelConfigChanged,
   findMissingModelsInMapping,
   validateModelMappingJson,
+  CHANNEL_83ZI_BASE_URL_PRESETS,
+  CHANNEL_83ZI_CUSTOM_BASE_URL,
 } from '../../lib'
 import {
   collectInvalidStatusCodeEntries,
@@ -395,6 +397,9 @@ export function ChannelMutateDrawer({
   const currentGroups = form.watch('group')
   const currentType = form.watch('type')
   const currentBaseUrl = form.watch('base_url')
+  const [baseUrl83ziPreset, setBaseUrl83ziPreset] = useState(
+    CHANNEL_83ZI_CUSTOM_BASE_URL
+  )
   const currentModels = form.watch('models')
   const currentModelMapping = form.watch('model_mapping')
   const awsKeyType = form.watch('aws_key_type')
@@ -644,7 +649,30 @@ export function ChannelMutateDrawer({
         form.setValue('other', 'v2.1')
       }
     }
+
+    if (currentType === 62) {
+      const currentModels = form.getValues('models')
+      if (!currentModels || currentModels.trim() === '') {
+        form.setValue('models', 'sd2fast,sd2,mingiz-sd2')
+      }
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue || currentBaseUrlValue.trim() === '') {
+        form.setValue('base_url', 'https://sd2.83zi.com')
+        setBaseUrl83ziPreset('https://sd2.83zi.com')
+      }
+    }
   }, [currentType, isEditing, form])
+
+  useEffect(() => {
+    if (currentType !== 62) {
+      return
+    }
+    const base = (currentBaseUrl || '').trim()
+    const matched = CHANNEL_83ZI_BASE_URL_PRESETS.find(
+      (preset) => preset.value === base
+    )
+    setBaseUrl83ziPreset(matched ? matched.value : CHANNEL_83ZI_CUSTOM_BASE_URL)
+  }, [currentType, currentBaseUrl])
 
   // Validate base_url - warn if it ends with /v1
   useEffect(() => {
@@ -1860,8 +1888,76 @@ export function ChannelMutateDrawer({
                   />
                 )}
 
+                {currentType === 62 && (
+                  <>
+                    <FormItem>
+                      <FormLabel>{t('Base URL')}</FormLabel>
+                      <Select
+                        items={[
+                          ...CHANNEL_83ZI_BASE_URL_PRESETS.map((preset) => ({
+                            value: preset.value,
+                            label: preset.label,
+                          })),
+                          {
+                            value: CHANNEL_83ZI_CUSTOM_BASE_URL,
+                            label: t('Custom'),
+                          },
+                        ]}
+                        onValueChange={(value) => {
+                          setBaseUrl83ziPreset(value)
+                          if (value !== CHANNEL_83ZI_CUSTOM_BASE_URL) {
+                            form.setValue('base_url', value)
+                          }
+                        }}
+                        value={baseUrl83ziPreset}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {CHANNEL_83ZI_BASE_URL_PRESETS.map((preset) => (
+                              <SelectItem key={preset.value} value={preset.value}>
+                                {preset.label}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value={CHANNEL_83ZI_CUSTOM_BASE_URL}>
+                              {t('Custom')}
+                            </SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        {t(
+                          '83zi SD2 uses sd2.83zi.com; Mingiz Xinghe uses api.shishikeji.com with model mingiz-sd2.'
+                        )}
+                      </FormDescription>
+                    </FormItem>
+                    {baseUrl83ziPreset === CHANNEL_83ZI_CUSTOM_BASE_URL && (
+                      <FormField
+                        control={form.control}
+                        name='base_url'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Custom Base URL')}</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder='https://your-upstream.example.com'
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </>
+                )}
+
                 {/* General base_url for other types */}
-                {![3, 8, 22, 36, 45].includes(currentType) && (
+                {![3, 8, 22, 36, 45, 62].includes(currentType) && (
                   <FormField
                     control={form.control}
                     name='base_url'

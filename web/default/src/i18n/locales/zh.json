@@ -1036,6 +1036,8 @@
     "Current version": "当前版本",
     "Current:": "当前：",
     "Custom": "自定义",
+    "Custom Base URL": "自定义 API 地址",
+    "83zi SD2 uses sd2.83zi.com; Mingiz Xinghe uses api.shishikeji.com with model mingiz-sd2.": "83zi SD2 使用 sd2.83zi.com；Mingiz 星河使用 api.shishikeji.com，模型填 mingiz-sd2。",
     "Custom (seconds)": "自定义(秒)",
     "Custom Amount": "自定义金额",
     "Custom API base URL. For official channels, New API has built-in addresses. Only fill this for third-party proxy sites or special endpoints. Do not add /v1 or trailing slash.": "自定义 API 基础 URL。对于官方渠道，New API 具有内置地址。仅针对第三方代理站点或特殊端点填写此项。请勿添加 /v1 或尾部斜杠。",
