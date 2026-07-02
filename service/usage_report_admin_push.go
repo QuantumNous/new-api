@@ -68,8 +68,8 @@ func buildAdminGroupMessage(rp ReportPeriod) string {
 	if platform != nil {
 		sb.WriteString("━━━ 平台整体 ━━━\n")
 		sb.WriteString(fmt.Sprintf("总请求：%s 次\n", formatInt(platform.RequestCount)))
-		sb.WriteString(fmt.Sprintf("总 Tokens：%s\n", formatTokens(platform.TokenUsed)))
-		sb.WriteString(fmt.Sprintf("额度消耗：%.2f USD / %.2f CNY\n", platform.QuotaUSD, platform.QuotaCNY))
+		sb.WriteString(fmt.Sprintf("总 Tokens：%.2fM\n", float64(platform.TokenUsed)/1000000))
+		sb.WriteString(fmt.Sprintf("额度消耗：%.2f CNY\n", platform.QuotaCNY))
 		if platform.PreviousQuota > 0 {
 			sb.WriteString(fmt.Sprintf("较上周期：%.1f%%\n", platform.QuotaGrowthRate))
 		}
@@ -97,8 +97,8 @@ func buildAdminGroupMessage(rp ReportPeriod) string {
 			if it.AccountType != nil && *it.AccountType == 1 {
 				typeLabel = "[智能体] "
 			}
-			sb.WriteString(fmt.Sprintf("%d. %s%s：%s tokens，%.2f USD\n",
-				i+1, typeLabel, displayName(it), formatTokens(it.TokenUsed), it.QuotaUSD))
+			sb.WriteString(fmt.Sprintf("%d. %s%s：%.2fM tokens，%.2f CNY\n",
+				i+1, typeLabel, displayName(it), float64(it.TokenUsed)/1000000, it.QuotaCNY))
 		}
 		sb.WriteString("\n")
 	}
@@ -113,8 +113,8 @@ func buildAdminGroupMessage(rp ReportPeriod) string {
 		}
 		for i := 0; i < limit; i++ {
 			it := modelItems[i]
-			sb.WriteString(fmt.Sprintf("%d. %s：%.2f USD（占比 %.1f%%）\n",
-				i+1, it.ModelName, it.QuotaUSD, it.UsageShare))
+			sb.WriteString(fmt.Sprintf("%d. %s：%.2f CNY（占比 %.1f%%）\n",
+				i+1, it.ModelName, it.QuotaCNY, it.UsageShare))
 		}
 		sb.WriteString("\n")
 	}
@@ -181,16 +181,6 @@ func displayName(s *model.UsageReportSnapshot) string {
 func formatInt(n int) string {
 	if n >= 10000 {
 		return fmt.Sprintf("%.1f万", float64(n)/10000)
-	}
-	return fmt.Sprintf("%d", n)
-}
-
-func formatTokens(n int) string {
-	if n >= 1000000 {
-		return fmt.Sprintf("%.1fM", float64(n)/1000000)
-	}
-	if n >= 1000 {
-		return fmt.Sprintf("%.1fK", float64(n)/1000)
 	}
 	return fmt.Sprintf("%d", n)
 }

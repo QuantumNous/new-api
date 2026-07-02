@@ -161,44 +161,44 @@ func queryBoundFeishuCount(accountType int) int {
 
 func generateAccountSnapshots(rp ReportPeriod) error {
 	// 查询周期内有用量的所有用户（不区分 account_type，个人和组织都查）
-	items, _, err := model.GetUserModelStatsByUser(rp.StartTimestamp, rp.EndTimestamp, nil, nil, "", nil, 1, 10000)
+	items, _, err := model.GetUserModelStatsByUser(rp.StartTimestamp, rp.EndTimestamp, nil, nil, "", nil, 1, 100000)
 	if err != nil {
 		return err
 	}
 
 	// 上期数据（用于环比）
-	prevItems, _, _ := model.GetUserModelStatsByUser(rp.PrevStartTimestamp, rp.PrevEndTimestamp, nil, nil, "", nil, 1, 10000)
+	prevItems, _, _ := model.GetUserModelStatsByUser(rp.PrevStartTimestamp, rp.PrevEndTimestamp, nil, nil, "", nil, 1, 100000)
 	prevMap := make(map[int]*model.UserStatItem, len(prevItems))
 	for _, it := range prevItems {
 		prevMap[it.UserID] = it
 	}
 
-	// 查用户详情（飞书身份、组织信息、账号类型）
-	userIds := make([]int, 0, len(items))
+	// 当前用量 map
+	usageMap := make(map[int]*model.UserStatItem, len(items))
 	for _, it := range items {
-		userIds = append(userIds, it.UserID)
+		usageMap[it.UserID] = it
 	}
-	userMap := queryUsersByIds(userIds)
+
+	// 全量查询所有未删除用户（含0用量）
+	var allUsers []*model.User
+	model.DB.Where("deleted_at IS NULL").Find(&allUsers)
 
 	settings := system_setting.GetFeishuSettings()
 	var snapshots []*model.UsageReportSnapshot
-	for _, it := range items {
-		// 只写有用量数据
-		if it.Count == 0 && it.TokenUsed == 0 && it.Quota == 0 {
-			continue
+	for _, user := range allUsers {
+		it := usageMap[user.Id]
+		if it == nil {
+			// 0用量用户构造空数据
+			it = &model.UserStatItem{UserID: user.Id}
 		}
 
-		user, ok := userMap[it.UserID]
-		if !ok {
-			continue
-		}
-
-		prev := prevMap[it.UserID]
-
+		prev := prevMap[user.Id]
 		snap := buildAccountSnapshot(rp, it, user, prev)
 
-		// 异常检测
-		checkAccountAnomaly(snap, prev, settings)
+		// 异常检测（仅对有用量用户）
+		if it.Count > 0 || it.TokenUsed > 0 || it.Quota > 0 {
+			checkAccountAnomaly(snap, prev, settings)
+		}
 
 		snapshots = append(snapshots, snap)
 	}
@@ -474,8 +474,19 @@ func generateAnomalySnapshots(rp ReportPeriod) error {
 
 // --- 异常检测 ---
 
+// 异常检测的最低 token 基数门槛，避免小基数用户的微小波动被误报
+const (
+	accountAnomalyMinTokens = 10_000_000  // 用户：千万 token 以上
+	modelAnomalyMinTokens   = 100_000_000 // 模型：一亿 token 以上
+)
+
 func checkAccountAnomaly(snap *model.UsageReportSnapshot, prev *model.UserStatItem, settings *system_setting.FeishuSettings) {
 	if snap.Quota <= 0 {
+		return
+	}
+
+	// 基数门槛：用户日 token 量需达到千万级才参与异常检测
+	if snap.TokenUsed < accountAnomalyMinTokens {
 		return
 	}
 
@@ -529,6 +540,11 @@ func queryAccountRollingAvgQuota(userId, days int) float64 {
 }
 
 func checkModelPurchaseWarning(snap *model.UsageReportSnapshot, settings *system_setting.FeishuSettings) {
+	// 基数门槛：模型 token 量需达到一亿级才参与异常检测和采购预警
+	if snap.TokenUsed < modelAnomalyMinTokens {
+		return
+	}
+
 	// 采购预警: 占比
 	if settings.PurchaseWarningUsageShareThreshold > 0 && snap.UsageShare >= settings.PurchaseWarningUsageShareThreshold {
 		snap.IsPurchaseWarning = true
