@@ -27,6 +27,8 @@ type taskPollingFetchAdaptor struct {
 	blockStarted chan struct{}
 	releaseBlock chan struct{}
 	blockOnce    sync.Once
+	statusCode   int
+	body         io.ReadCloser
 }
 
 func (a *taskPollingFetchAdaptor) Init(_ *relaycommon.RelayInfo) {}
@@ -51,6 +53,16 @@ func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]
 		default:
 		}
 	}
+	statusCode := a.statusCode
+	if statusCode == 0 {
+		statusCode = http.StatusOK
+	}
+	if a.body != nil {
+		return &http.Response{
+			StatusCode: statusCode,
+			Body:       a.body,
+		}, nil
+	}
 
 	response := dto.TaskResponse[model.Task]{
 		Code: dto.TaskSuccessCode,
@@ -65,7 +77,7 @@ func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]
 		return nil, err
 	}
 	return &http.Response{
-		StatusCode: http.StatusOK,
+		StatusCode: statusCode,
 		Body:       io.NopCloser(bytes.NewReader(responseBody)),
 	}, nil
 }
@@ -90,14 +102,29 @@ func (a *taskPollingFetchAdaptor) fetchedTaskIDs() []string {
 	return append([]string(nil), a.taskIDs...)
 }
 
+type closeTrackingReadCloser struct {
+	closed bool
+}
+
+func (b *closeTrackingReadCloser) Read(_ []byte) (int, error) {
+	return 0, io.EOF
+}
+
+func (b *closeTrackingReadCloser) Close() error {
+	b.closed = true
+	return nil
+}
+
 func seedTaskPollingChannel(t *testing.T, id int, disableSleep bool) {
 	t.Helper()
+	baseURL := "http://example.test"
 	ch := &model.Channel{
-		Id:     id,
-		Type:   constant.ChannelTypeKling,
-		Name:   "polling_channel",
-		Key:    "sk-test",
-		Status: common.ChannelStatusEnabled,
+		Id:      id,
+		Type:    constant.ChannelTypeKling,
+		Name:    "polling_channel",
+		Key:     "sk-test",
+		Status:  common.ChannelStatusEnabled,
+		BaseURL: &baseURL,
 	}
 	if disableSleep {
 		ch.SetOtherSettings(dto.ChannelOtherSettings{DisableTaskPollingSleep: true})
@@ -123,6 +150,29 @@ func seedPollingTask(t *testing.T, channelID int, publicID string, upstreamID st
 	}
 	require.NoError(t, model.DB.Create(task).Error)
 	return task
+}
+
+func TestUpdateSunoTasksClosesNonOKResponseBody(t *testing.T) {
+	truncate(t)
+
+	const channelID = 1001
+	seedTaskPollingChannel(t, channelID, true)
+	task := seedPollingTask(t, channelID, "suno_public_non_ok", "suno_upstream_non_ok")
+	body := &closeTrackingReadCloser{}
+	adaptor := &taskPollingFetchAdaptor{
+		statusCode: http.StatusInternalServerError,
+		body:       body,
+	}
+	previousFactory := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return adaptor }
+	t.Cleanup(func() { GetTaskAdaptorFunc = previousFactory })
+
+	err := updateSunoTasks(context.Background(), channelID, []string{task.GetUpstreamTaskID()}, map[string]*model.Task{
+		task.GetUpstreamTaskID(): task,
+	})
+
+	require.Error(t, err)
+	assert.True(t, body.closed)
 }
 
 func TestUpdateVideoTasksDefaultSleepWaitsBetweenTasks(t *testing.T) {

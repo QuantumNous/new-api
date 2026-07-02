@@ -136,7 +136,7 @@ func GetClaudeAuthHeader(token string) http.Header {
 	return h
 }
 
-func GetResponseBody(method, url string, channel *model.Channel, headers http.Header) ([]byte, error) {
+func GetResponseBody(method, url string, channel *model.Channel, headers http.Header) (body []byte, err error) {
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		return nil, err
@@ -152,14 +152,15 @@ func GetResponseBody(method, url string, channel *model.Channel, headers http.He
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if closeErr := res.Body.Close(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status code: %d", res.StatusCode)
 	}
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-	err = res.Body.Close()
+	body, err = io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
