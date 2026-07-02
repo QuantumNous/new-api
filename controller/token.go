@@ -201,11 +201,14 @@ func AddToken(c *gin.Context) {
 		})
 		return
 	}
-	key, err := common.GenerateKey()
-	if err != nil {
-		common.ApiErrorI18n(c, i18n.MsgTokenGenerateFailed)
-		common.SysLog("failed to generate token key: " + err.Error())
-		return
+	key := strings.TrimPrefix(strings.TrimSpace(token.Key), "sk-")
+	if key == "" {
+		key, err = common.GenerateKey()
+		if err != nil {
+			common.ApiErrorI18n(c, i18n.MsgTokenGenerateFailed)
+			common.SysLog("failed to generate token key: " + err.Error())
+			return
+		}
 	}
 	cleanToken := model.Token{
 		UserId:             c.GetInt("id"),
