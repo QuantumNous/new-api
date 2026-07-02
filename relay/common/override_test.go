@@ -2035,6 +2035,27 @@ func TestRemoveDisabledFieldsSkipWhenGlobalPassThroughEnabled(t *testing.T) {
 	assertJSONEqual(t, input, string(out))
 }
 
+func TestRemoveDisabledFieldsWithPassThroughDecisionIgnoresGlobal(t *testing.T) {
+	original := model_setting.GetGlobalSettings().PassThroughRequestEnabled
+	model_setting.GetGlobalSettings().PassThroughRequestEnabled = true
+	t.Cleanup(func() {
+		model_setting.GetGlobalSettings().PassThroughRequestEnabled = original
+	})
+
+	input := `{
+		"service_tier":"flex",
+		"safety_identifier":"user-123",
+		"stream_options":{"include_obfuscation":false}
+	}`
+	settings := dto.ChannelOtherSettings{}
+
+	out, err := RemoveDisabledFieldsWithPassThroughDecision([]byte(input), settings, false)
+	if err != nil {
+		t.Fatalf("RemoveDisabledFieldsWithPassThroughDecision returned error: %v", err)
+	}
+	assertJSONEqual(t, `{}`, string(out))
+}
+
 func TestRemoveDisabledFieldsDefaultFiltering(t *testing.T) {
 	input := `{
 		"service_tier":"flex",

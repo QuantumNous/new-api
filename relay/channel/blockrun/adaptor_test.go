@@ -10,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/apicompat"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
@@ -164,6 +166,110 @@ func TestConvertOpenAIRequest_NilRejected(t *testing.T) {
 	info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatOpenAI}
 	if _, err := a.ConvertOpenAIRequest(c, info, nil); err == nil {
 		t.Fatalf("expected error for nil openai request, got nil")
+	}
+}
+
+// TestConvertOpenAIResponsesRequest_BridgesToChat asserts the inbound Responses
+// request is converted to Chat Completions because BlockRun does not expose a
+// native /v1/responses endpoint today.
+func TestConvertOpenAIResponsesRequest_BridgesToChat(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/responses", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeResponses,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+	}
+	stream := true
+	instructions, _ := common.Marshal("be brief")
+	input, _ := common.Marshal("hello")
+	in := dto.OpenAIResponsesRequest{
+		Model:         "openai/gpt-5.4",
+		Instructions:  instructions,
+		Input:         input,
+		Stream:        &stream,
+		StreamOptions: &dto.StreamOptions{IncludeUsage: true},
+	}
+
+	out, err := a.ConvertOpenAIResponsesRequest(c, info, in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := out.(*apicompat.ChatCompletionsRequest)
+	if !ok {
+		t.Fatalf("expected *apicompat.ChatCompletionsRequest, got %T", out)
+	}
+	if got.Model != in.Model {
+		t.Fatalf("model not preserved: got %q want %q", got.Model, in.Model)
+	}
+	if len(got.Messages) != 2 {
+		t.Fatalf("expected system + user messages, got %#v", got.Messages)
+	}
+	if !got.Stream {
+		t.Fatalf("stream flag not preserved")
+	}
+	if got.StreamOptions == nil || !got.StreamOptions.IncludeUsage {
+		t.Fatalf("stream_options.include_usage not preserved: %#v", got.StreamOptions)
+	}
+}
+
+func TestConvertOpenAIResponsesRequest_MissingModelRejected(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/responses", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeResponses,
+		RelayFormat: types.RelayFormatOpenAI,
+	}
+
+	if _, err := a.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{}); err == nil {
+		t.Fatalf("expected error for missing responses model, got nil")
+	}
+}
+
+func TestBlockRunChatJSONToResponses(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	body := `{
+		"id":"chatcmpl-test",
+		"object":"chat.completion",
+		"created":1782969000,
+		"model":"openai/gpt-5.4",
+		"choices":[{"index":0,"message":{"role":"assistant","content":"pong"},"finish_reason":"stop"}],
+		"usage":{"prompt_tokens":3,"completion_tokens":4,"total_tokens":7}
+	}`
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeResponses,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "openai/gpt-5.4",
+		},
+	}
+
+	usageAny, apiErr := blockRunChatJSONToResponses(c, resp, info)
+	if apiErr != nil {
+		t.Fatalf("unexpected api error: %v", apiErr)
+	}
+	usage := usageAny.(*dto.Usage)
+	if usage.TotalTokens != 7 {
+		t.Fatalf("usage not converted: %#v", usage)
+	}
+
+	var got apicompat.ResponsesResponse
+	if err := common.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("response body is not JSON: %v\n%s", err, rec.Body.String())
+	}
+	if got.ID != "chatcmpl-test" || got.Object != "response" || got.Status != "completed" {
+		t.Fatalf("unexpected responses envelope: %#v", got)
+	}
+	if len(got.Output) != 1 || len(got.Output[0].Content) != 1 || got.Output[0].Content[0].Text != "pong" {
+		t.Fatalf("unexpected responses output: %#v", got.Output)
 	}
 }
 

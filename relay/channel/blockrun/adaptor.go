@@ -47,12 +47,16 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/apicompat"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -89,9 +93,11 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 // GetRequestURL builds the upstream URL. Image relay modes are dispatched first
-// to BlockRun's dedicated image endpoints (independent of RelayFormat); the rest
-// is VIP native passthrough: Anthropic → /v1/messages, OpenAI → /v1/chat/completions,
-// Gemini rejected.
+// to their dedicated BlockRun endpoints (independent of RelayFormat). Responses
+// is bridged through BlockRun's chat-completions endpoint because BlockRun does
+// not currently expose a native /v1/responses route. The rest is VIP native
+// passthrough: Anthropic → /v1/messages, OpenAI → /v1/chat/completions, Gemini
+// rejected.
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesGenerations:
@@ -99,6 +105,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	case relayconstant.RelayModeImagesEdits:
 		// BlockRun img2img / multi-image fusion endpoint (JSON + base64).
 		return fmt.Sprintf("%s/v1/images/image2image", info.ChannelBaseUrl), nil
+	case relayconstant.RelayModeResponses:
+		return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
+	case relayconstant.RelayModeResponsesCompact:
+		return "", errors.New("blockrun: responses compact API not supported")
 	}
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
@@ -257,7 +267,31 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("blockrun: responses API not supported")
+	if request.Model == "" {
+		return nil, errors.New("blockrun: responses model is required")
+	}
+	return blockRunResponsesRequestToChat(request)
+}
+
+func blockRunResponsesRequestToChat(request dto.OpenAIResponsesRequest) (*apicompat.ChatCompletionsRequest, error) {
+	jsonData, err := common.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	var responsesReq apicompat.ResponsesRequest
+	if err := common.Unmarshal(jsonData, &responsesReq); err != nil {
+		return nil, err
+	}
+	chatReq, err := apicompat.ResponsesToChatCompletionsRequest(&responsesReq)
+	if err != nil {
+		return nil, err
+	}
+	if request.StreamOptions != nil {
+		chatReq.StreamOptions = &apicompat.ChatStreamOptions{
+			IncludeUsage: request.StreamOptions.IncludeUsage,
+		}
+	}
+	return chatReq, nil
 }
 
 // DoRequest performs the x402 two-trip dance. It is FORMAT-AGNOSTIC and works
@@ -354,10 +388,138 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	// Structure-aware (json for non-stream, first-id sniff for SSE) so it survives
 	// tool-call bodies; native passthrough and streaming SSE are unaffected.
 	captureUpstreamID(c, resp, info)
+	if info.RelayMode == relayconstant.RelayModeResponses {
+		return blockRunChatResponseToResponses(c, resp, info)
+	}
 	if info.RelayFormat == types.RelayFormatClaude {
 		return a.claudeAdaptor.DoResponse(c, resp, info)
 	}
 	return a.openaiAdaptor.DoResponse(c, resp, info)
+}
+
+func blockRunChatResponseToResponses(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
+	if info != nil && info.IsStream {
+		return blockRunChatStreamToResponses(c, resp, info)
+	}
+	return blockRunChatJSONToResponses(c, resp, info)
+}
+
+func blockRunChatJSONToResponses(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	defer service.CloseResponseBodyGracefully(resp)
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+
+	var chatResp apicompat.ChatCompletionsResponse
+	if err := common.Unmarshal(body, &chatResp); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	model := ""
+	if info != nil {
+		model = info.UpstreamModelName
+	}
+	responsesResp := apicompat.ChatCompletionsResponseToResponses(&chatResp, model)
+	responseBody, err := common.Marshal(responsesResp)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
+	}
+
+	service.IOCopyBytesGracefully(c, resp, responseBody)
+	return chatUsageToDTO(chatResp.Usage), nil
+}
+
+func blockRunChatStreamToResponses(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+
+	model := ""
+	if info != nil {
+		model = info.UpstreamModelName
+	}
+	state := apicompat.NewChatCompletionsToResponsesStreamState(model)
+	var streamErr *types.NewAPIError
+
+	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		var chunk apicompat.ChatCompletionsChunk
+		if err := common.UnmarshalJsonStr(data, &chunk); err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			sr.Error(err)
+			return
+		}
+		for _, evt := range apicompat.ChatCompletionsChunkToResponsesEvents(&chunk, state) {
+			if err := writeBlockRunResponsesEvent(c, evt); err != nil {
+				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+				sr.Error(err)
+				return
+			}
+		}
+	})
+	if streamErr != nil {
+		return nil, streamErr
+	}
+	for _, evt := range apicompat.FinalizeChatCompletionsResponsesStream(state) {
+		if err := writeBlockRunResponsesEvent(c, evt); err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		}
+	}
+	helper.Done(c)
+	return responsesUsageToDTO(state.Usage), nil
+}
+
+func writeBlockRunResponsesEvent(c *gin.Context, evt apicompat.ResponsesStreamEvent) error {
+	jsonData, err := common.Marshal(evt)
+	if err != nil {
+		return err
+	}
+	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", evt.Type)})
+	c.Render(-1, common.CustomEvent{Data: "data: " + string(jsonData)})
+	return helper.FlushWriter(c)
+}
+
+func chatUsageToDTO(usage *apicompat.ChatUsage) *dto.Usage {
+	if usage == nil {
+		return &dto.Usage{}
+	}
+	out := &dto.Usage{
+		PromptTokens:     usage.PromptTokens,
+		CompletionTokens: usage.CompletionTokens,
+		TotalTokens:      usage.TotalTokens,
+	}
+	if out.TotalTokens == 0 {
+		out.TotalTokens = out.PromptTokens + out.CompletionTokens
+	}
+	if usage.PromptTokensDetails != nil {
+		out.PromptTokensDetails.CachedTokens = usage.PromptTokensDetails.CachedTokens
+	}
+	return out
+}
+
+func responsesUsageToDTO(usage *apicompat.ResponsesUsage) *dto.Usage {
+	if usage == nil {
+		return &dto.Usage{}
+	}
+	out := &dto.Usage{
+		PromptTokens:     usage.InputTokens,
+		CompletionTokens: usage.OutputTokens,
+		TotalTokens:      usage.TotalTokens,
+	}
+	if out.TotalTokens == 0 {
+		out.TotalTokens = out.PromptTokens + out.CompletionTokens
+	}
+	if usage.InputTokensDetails != nil {
+		out.PromptTokensDetails.CachedTokens = usage.InputTokensDetails.CachedTokens
+	}
+	if usage.OutputTokensDetails != nil {
+		out.CompletionTokenDetails.ReasoningTokens = usage.OutputTokensDetails.ReasoningTokens
+	}
+	return out
 }
 
 func (a *Adaptor) GetModelList() []string {

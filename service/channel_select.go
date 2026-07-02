@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -115,7 +116,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
+			channel, _ = model.GetRandomSatisfiedChannelWithFilter(autoGroup, param.ModelName, priorityRetry, buildEndpointChannelFilter(param.Ctx, param.ModelName))
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -153,10 +154,110 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
+		channel, err = model.GetRandomSatisfiedChannelWithFilter(param.TokenGroup, param.ModelName, param.GetRetry(), buildEndpointChannelFilter(param.Ctx, param.ModelName))
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
 	}
 	return channel, selectGroup, nil
+}
+
+func buildEndpointChannelFilter(c *gin.Context, modelName string) model.ChannelFilter {
+	if requestedEndpointType(c) == "" {
+		return nil
+	}
+	return func(channel *model.Channel) bool {
+		return ChannelSupportsRequestEndpoint(c, channel, modelName)
+	}
+}
+
+func ChannelSupportsRequestEndpoint(c *gin.Context, channel *model.Channel, modelName string) bool {
+	endpointType := requestedEndpointType(c)
+	if endpointType == "" {
+		return true
+	}
+	return channelSupportsRequestedEndpoint(channel, modelName, endpointType)
+}
+
+func requestedEndpointType(c *gin.Context) constant.EndpointType {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return ""
+	}
+	path := c.Request.URL.Path
+	if strings.HasPrefix(path, "/pg/chat/completions") {
+		return constant.EndpointTypeOpenAI
+	}
+	if strings.HasPrefix(path, "/v1/responses/compact") {
+		return constant.EndpointTypeOpenAIResponseCompact
+	}
+	if strings.HasPrefix(path, "/v1/responses") {
+		return constant.EndpointTypeOpenAIResponse
+	}
+	if strings.HasPrefix(path, "/v1/messages") {
+		return constant.EndpointTypeAnthropic
+	}
+	if strings.HasPrefix(path, "/v1beta/models") || strings.HasPrefix(path, "/v1/models") {
+		return constant.EndpointTypeGemini
+	}
+	if strings.HasPrefix(path, "/v1/rerank") {
+		return constant.EndpointTypeJinaRerank
+	}
+	if strings.HasPrefix(path, "/v1/embeddings") {
+		return constant.EndpointTypeEmbeddings
+	}
+	if strings.HasPrefix(path, "/v1/images/") {
+		return constant.EndpointTypeImageGeneration
+	}
+	if strings.HasPrefix(path, "/v1/video/") {
+		return constant.EndpointTypeOpenAIVideo
+	}
+	return ""
+}
+
+func channelSupportsRequestedEndpoint(channel *model.Channel, modelName string, endpointType constant.EndpointType) bool {
+	if channel == nil {
+		return false
+	}
+	switch endpointType {
+	case constant.EndpointTypeOpenAIResponse:
+		return channelSupportsOpenAIResponses(channel.Type)
+	case constant.EndpointTypeOpenAIResponseCompact:
+		apiType, ok := common.ChannelType2APIType(channel.Type)
+		return ok && (apiType == constant.APITypeOpenAI || apiType == constant.APITypeCodex)
+	case constant.EndpointTypeAnthropic:
+		if channel.Type == constant.ChannelTypeBlockRun {
+			return true
+		}
+	}
+	endpoints := common.GetEndpointTypesByChannelType(channel.Type, modelName)
+	for _, endpoint := range endpoints {
+		if endpoint == endpointType {
+			return true
+		}
+	}
+	return false
+}
+
+func channelSupportsOpenAIResponses(channelType int) bool {
+	apiType, ok := common.ChannelType2APIType(channelType)
+	if !ok {
+		// Unknown legacy/OpenAI-compatible channel types fall back to the OpenAI
+		// adaptor in relay and therefore do not fail local Responses conversion.
+		return true
+	}
+	switch apiType {
+	case constant.APITypeOpenAI,
+		constant.APITypeAli,
+		constant.APITypeCloudflare,
+		constant.APITypeOpenRouter,
+		constant.APITypeXinference,
+		constant.APITypeXai,
+		constant.APITypePerplexity,
+		constant.APITypeVolcEngine,
+		constant.APITypeCodex,
+		constant.APITypeBlockRun:
+		return true
+	default:
+		return false
+	}
 }
