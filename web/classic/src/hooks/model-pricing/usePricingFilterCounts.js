@@ -37,6 +37,7 @@ export const usePricingFilterCounts = ({
   filterEndpointType = 'all',
   filterVendor = 'all',
   filterTag = 'all',
+  filterCapability = 'all',
   searchValue = '',
 }) => {
   // 均使用同一份模型列表，避免创建新引用
@@ -78,22 +79,35 @@ export const usePricingFilterCounts = ({
       }
     }
 
-    // 标签
+    // 标签（自定义标签）
     if (!ignore.includes('tag') && filterTag !== 'all') {
       const tagsArr = normalizeTags(model.tags);
       if (!tagsArr.includes(filterTag.toLowerCase())) return false;
+    }
+
+    // 能力（能力标签，独立维度）
+    if (!ignore.includes('capability') && filterCapability !== 'all') {
+      const capLower = filterCapability.toLowerCase();
+      const hit = (model.capability_tags || []).some(
+        (c) => String(c).trim().toLowerCase() === capLower,
+      );
+      if (!hit) return false;
     }
 
     // 搜索
     if (!ignore.includes('search') && searchValue) {
       const term = searchValue.toLowerCase();
       const tags = model.tags ? model.tags.toLowerCase() : '';
+      const capHit = (model.capability_tags || []).some((c) =>
+        String(c).toLowerCase().includes(term),
+      );
       if (
         !(
           model.model_name.toLowerCase().includes(term) ||
           (model.description &&
             model.description.toLowerCase().includes(term)) ||
           tags.includes(term) ||
+          capHit ||
           (model.vendor_name && model.vendor_name.toLowerCase().includes(term))
         )
       )
@@ -112,6 +126,7 @@ export const usePricingFilterCounts = ({
       filterEndpointType,
       filterVendor,
       filterTag,
+      filterCapability,
       searchValue,
     ],
   );
@@ -124,6 +139,7 @@ export const usePricingFilterCounts = ({
       filterQuotaType,
       filterVendor,
       filterTag,
+      filterCapability,
       searchValue,
     ],
   );
@@ -136,6 +152,7 @@ export const usePricingFilterCounts = ({
       filterQuotaType,
       filterEndpointType,
       filterTag,
+      filterCapability,
       searchValue,
     ],
   );
@@ -148,6 +165,20 @@ export const usePricingFilterCounts = ({
       filterQuotaType,
       filterEndpointType,
       filterVendor,
+      filterCapability,
+      searchValue,
+    ],
+  );
+
+  const capabilityModels = useMemo(
+    () => allModels.filter((m) => matchesFilters(m, ['capability'])),
+    [
+      allModels,
+      filterGroup,
+      filterQuotaType,
+      filterEndpointType,
+      filterVendor,
+      filterTag,
       searchValue,
     ],
   );
@@ -160,6 +191,7 @@ export const usePricingFilterCounts = ({
       filterEndpointType,
       filterVendor,
       filterTag,
+      filterCapability,
       searchValue,
     ],
   );
@@ -170,5 +202,6 @@ export const usePricingFilterCounts = ({
     vendorModels,
     groupCountModels,
     tagModels,
+    capabilityModels,
   };
 };

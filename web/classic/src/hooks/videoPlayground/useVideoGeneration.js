@@ -17,7 +17,7 @@ import {
 } from '../../helpers';
 import {
   VIDEO_API_ENDPOINTS,
-  VIDEO_ENDPOINT_TYPE,
+  VIDEO_PAGE_CAPABILITY,
   VIDEO_STATUS,
   VIDEO_HISTORY_LIMIT,
   VIDEO_CONV_TURN_LIMIT,
@@ -78,7 +78,7 @@ export const useVideoGeneration = () => {
   });
   const [groups, setGroups] = useState([]);
   const [models, setModels] = useState([]);
-  const [modelTypeMap, setModelTypeMap] = useState(new Map());
+  // 来自 /api/pricing：model -> enable_groups[]（用于分组过滤）
   const [modelGroupsMap, setModelGroupsMap] = useState(new Map());
 
   const [conversations, setConversations] = useState(() => loadConversations());
@@ -118,16 +118,16 @@ export const useVideoGeneration = () => {
     [videoConfig, inputs.model],
   );
 
-  // 视频模型集合 = 后端识别(openai-video) ∪ 管理员在「视频模型配置」声明的模型
+  // 视频模型集合 = 管理员在「视频模型配置」里声明、且能力含「文生视频」的模型。
+  // 只认运营设置里的能力声明，不再按后端端点类型识别。
   const videoModelSet = useMemo(() => {
-    const set = new Set(Object.keys(videoConfig.models || {}));
-    modelTypeMap.forEach((types, model) => {
-      if (Array.isArray(types) && types.includes(VIDEO_ENDPOINT_TYPE)) {
-        set.add(model);
-      }
+    const set = new Set();
+    Object.entries(videoConfig.models || {}).forEach(([model, cfg]) => {
+      const caps = Array.isArray(cfg?.capabilities) ? cfg.capabilities : [];
+      if (caps.includes(VIDEO_PAGE_CAPABILITY)) set.add(model);
     });
     return set;
-  }, [videoConfig, modelTypeMap]);
+  }, [videoConfig]);
 
   const videoGroups = useMemo(() => {
     const set = new Set();
@@ -163,17 +163,14 @@ export const useVideoGeneration = () => {
       });
       const { success, data } = res.data || {};
       if (!success || !Array.isArray(data)) return;
-      const typeMap = new Map();
       const groupsMap = new Map();
       data.forEach((item) => {
         if (!item || !item.model_name) return;
-        typeMap.set(item.model_name, item.supported_endpoint_types || []);
         groupsMap.set(item.model_name, item.enable_groups || []);
       });
-      setModelTypeMap(typeMap);
       setModelGroupsMap(groupsMap);
     } catch (e) {
-      // 留空：按管理员声明过滤
+      // 留空：分组不再按 enable_groups 收窄（模型仍按能力声明过滤）
     }
   }, []);
 

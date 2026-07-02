@@ -46,10 +46,25 @@ const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
   const getModelTags = () => {
     const tags = [];
 
+    // 能力标签（区别配色，翻译展示）
+    const capSet = new Set();
+    if (Array.isArray(modelData?.capability_tags)) {
+      modelData.capability_tags.forEach((cap) => {
+        const c = String(cap).trim();
+        if (c) {
+          capSet.add(c.toLowerCase());
+          tags.push({ text: t(c), color: 'light-blue' });
+        }
+      });
+    }
+
+    // 自定义标签：剔除已作为能力标签展示的词，避免同词重复。
     if (modelData?.tags) {
-      const customTags = modelData.tags.split(',').filter((tag) => tag.trim());
-      customTags.forEach((tag) => {
-        const tagText = tag.trim();
+      const customTags = modelData.tags
+        .split(/[,;|]+/)
+        .map((tag) => tag.trim())
+        .filter((tag) => tag && !capSet.has(tag.toLowerCase()));
+      customTags.forEach((tagText) => {
         tags.push({ text: tagText, color: stringToColor(tagText) });
       });
     }

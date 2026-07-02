@@ -174,10 +174,29 @@ const PricingCardView = ({
       );
     }
 
-    // 自定义标签（右边）
+    // 能力标签（模型广场）：区别配色，翻译展示
+    const capabilityTags = [];
+    const capSet = new Set();
+    if (Array.isArray(record.capability_tags)) {
+      record.capability_tags.forEach((cap, idx) => {
+        const c = String(cap).trim();
+        if (!c) return;
+        capSet.add(c.toLowerCase());
+        capabilityTags.push(
+          <Tag key={`cap-${idx}`} shape='circle' color='light-blue' size='small'>
+            {t(c)}
+          </Tag>,
+        );
+      });
+    }
+
+    // 自定义标签（右边）：剔除已作为能力标签展示的词，避免同词重复。
     const customTags = [];
     if (record.tags) {
-      const tagArr = record.tags.split(',').filter(Boolean);
+      const tagArr = record.tags
+        .split(/[,;|]+/)
+        .map((tg) => tg.trim())
+        .filter((tg) => tg && !capSet.has(tg.toLowerCase()));
       tagArr.forEach((tg, idx) => {
         customTags.push(
           <Tag
@@ -195,7 +214,8 @@ const PricingCardView = ({
     return (
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-2'>{billingTag}</div>
-        <div className='flex items-center gap-1'>
+        <div className='flex items-center gap-1 flex-wrap justify-end'>
+          {capabilityTags}
           {customTags.length > 0 &&
             renderLimitedItems({
               items: customTags.map((tag, idx) => ({

@@ -14,8 +14,10 @@ import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
 import {
   FALLBACK_IMAGE_SIZES,
+  IMAGE_CAPABILITIES,
   parseImageSizeConfig,
-  normalizeImageSize,
+  normalizeSizeList,
+  normalizeCapabilityList,
 } from '../../../constants/imagePlayground.constants';
 
 const { Text } = Typography;
@@ -39,15 +41,16 @@ export default function SettingsImageSizes(props) {
     const cfg = parseImageSizeConfig(raw);
     setDefaultSizes(cfg.default);
     setModelRows(
-      Object.entries(cfg.models || {}).map(([model, sizes]) => ({
+      Object.entries(cfg.models || {}).map(([model, c]) => ({
         model,
-        sizes: Array.isArray(sizes) ? sizes : [],
+        sizes: Array.isArray(c) ? c : c?.sizes || [],
+        capabilities: Array.isArray(c) ? [] : c?.capabilities || [],
       })),
     );
   }, [props.options]);
 
   const addRow = () =>
-    setModelRows((prev) => [...prev, { model: '', sizes: [] }]);
+    setModelRows((prev) => [...prev, { model: '', sizes: [], capabilities: [] }]);
 
   const updateRow = (idx, patch) =>
     setModelRows((prev) =>
@@ -60,20 +63,20 @@ export default function SettingsImageSizes(props) {
   const onSubmit = async () => {
     setLoading(true);
     try {
-      const normList = (list) =>
-        Array.from(
-          new Set((list || []).map(normalizeImageSize).filter(Boolean)),
-        );
       const models = {};
       modelRows.forEach((r) => {
         const name = (r.model || '').trim();
-        const sizes = normList(r.sizes);
-        if (name && sizes.length > 0) {
-          models[name] = sizes;
+        // 与视频配置一致：只要填了模型名就保留该行（空尺寸走默认尺寸，
+        // 且模型出现在配置里即可被文本体验区排除）。
+        if (name) {
+          models[name] = {
+            sizes: normalizeSizeList(r.sizes),
+            capabilities: normalizeCapabilityList(r.capabilities),
+          };
         }
       });
       const value = JSON.stringify({
-        default: normList(defaultSizes),
+        default: normalizeSizeList(defaultSizes),
         models,
       });
       const res = await API.put('/api/option/', {
@@ -105,7 +108,7 @@ export default function SettingsImageSizes(props) {
       <Form.Section
         text={t('图片模型尺寸配置')}
         extraText={t(
-          '为图片模型配置可选尺寸。未单独配置的模型使用默认尺寸；下拉支持输入自定义尺寸（如 1024x1024）。',
+          '为图片模型配置可选尺寸与支持能力。未单独配置的模型使用默认尺寸；仅勾选了「文生图」的模型会出现在文生图体验区，能力也会作为标签在模型广场展示。下拉支持输入自定义尺寸（如 1024x1024）。',
         )}
       >
         {/* 默认尺寸 */}
@@ -142,13 +145,14 @@ export default function SettingsImageSizes(props) {
                   gap: 8,
                   alignItems: 'flex-start',
                   marginBottom: 12,
+                  flexWrap: 'wrap',
                 }}
               >
                 <Input
                   value={row.model}
                   onChange={(v) => updateRow(idx, { model: v })}
                   placeholder={t('模型名称')}
-                  style={{ width: 240, flexShrink: 0 }}
+                  style={{ width: 200, flexShrink: 0 }}
                 />
                 <Select
                   multiple
@@ -158,7 +162,19 @@ export default function SettingsImageSizes(props) {
                   optionList={toSizeOptions(row.sizes)}
                   onChange={(v) => updateRow(idx, { sizes: v })}
                   placeholder={t('输入尺寸后回车，如 1024x1024')}
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minWidth: 160 }}
+                />
+                <Select
+                  multiple
+                  filter
+                  value={row.capabilities}
+                  optionList={IMAGE_CAPABILITIES.map((c) => ({
+                    label: t(c),
+                    value: c,
+                  }))}
+                  onChange={(v) => updateRow(idx, { capabilities: v })}
+                  placeholder={t('支持能力')}
+                  style={{ flex: 1, minWidth: 160 }}
                 />
                 <Button
                   type='danger'

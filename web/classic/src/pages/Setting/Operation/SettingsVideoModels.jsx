@@ -13,8 +13,10 @@ import { Plus, Trash2 } from 'lucide-react';
 import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
 import {
+  VIDEO_CAPABILITIES,
   parseVideoModelConfig,
-  normalizeVideoSize,
+  normalizeSizeList,
+  normalizeList,
 } from '../../../constants/videoPlayground.constants';
 
 const { Text } = Typography;
@@ -41,12 +43,16 @@ export default function SettingsVideoModels(props) {
         model,
         sizes: c.sizes || [],
         durations: c.durations || [],
+        capabilities: c.capabilities || [],
       })),
     );
   }, [props.options]);
 
   const addRow = () =>
-    setModelRows((prev) => [...prev, { model: '', sizes: [], durations: [] }]);
+    setModelRows((prev) => [
+      ...prev,
+      { model: '', sizes: [], durations: [], capabilities: [] },
+    ]);
   const updateRow = (idx, patch) =>
     setModelRows((prev) =>
       prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)),
@@ -57,25 +63,20 @@ export default function SettingsVideoModels(props) {
   const onSubmit = async () => {
     setLoading(true);
     try {
-      const normSizes = (l) =>
-        Array.from(new Set((l || []).map(normalizeVideoSize).filter(Boolean)));
-      const normDur = (l) =>
-        Array.from(
-          new Set((l || []).map((x) => String(x).trim()).filter(Boolean)),
-        );
       const models = {};
       modelRows.forEach((r) => {
         const name = (r.model || '').trim();
         if (!name) return;
         models[name] = {
-          sizes: normSizes(r.sizes),
-          durations: normDur(r.durations),
+          sizes: normalizeSizeList(r.sizes),
+          durations: normalizeList(r.durations),
+          capabilities: normalizeList(r.capabilities),
         };
       });
       const value = JSON.stringify({
         default: {
-          sizes: normSizes(defaultSizes),
-          durations: normDur(defaultDurations),
+          sizes: normalizeSizeList(defaultSizes),
+          durations: normalizeList(defaultDurations),
         },
         models,
       });
@@ -105,7 +106,7 @@ export default function SettingsVideoModels(props) {
       <Form.Section
         text={t('视频模型配置')}
         extraText={t(
-          '声明哪些是视频模型，并为其配置可选尺寸与时长。默认与按模型均留空时，按模型类别自动兜底：sora 类用像素尺寸(720x1280)+秒数，其余(MiniMax 等)用分辨率档位(720P)。下拉支持输入自定义值。',
+          '声明哪些是视频模型，并为其配置可选尺寸、时长与支持能力。仅勾选了「文生视频」的模型会出现在文生视频体验区，能力也会作为标签在模型广场展示。默认与按模型均留空时，按模型类别自动兜底：sora 类用像素尺寸(720x1280)+秒数，其余(MiniMax 等)用分辨率档位(720P)。下拉支持输入自定义值。',
         )}
       >
         <div
@@ -189,6 +190,18 @@ export default function SettingsVideoModels(props) {
                   optionList={toOptions(row.durations)}
                   onChange={(v) => updateRow(idx, { durations: v })}
                   placeholder={t('时长(秒)，如 5')}
+                  style={{ flex: 1, minWidth: 140 }}
+                />
+                <Select
+                  multiple
+                  filter
+                  value={row.capabilities}
+                  optionList={VIDEO_CAPABILITIES.map((c) => ({
+                    label: t(c),
+                    value: c,
+                  }))}
+                  onChange={(v) => updateRow(idx, { capabilities: v })}
+                  placeholder={t('支持能力')}
                   style={{ flex: 1, minWidth: 140 }}
                 />
                 <Button
