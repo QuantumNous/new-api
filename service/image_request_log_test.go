@@ -24,3 +24,41 @@ func TestBuildImageRequestDataForLog(t *testing.T) {
 	require.Equal(t, "2K", data["effective_resolution"])
 	require.InDelta(t, 4.0/3.0, data["resolution_price_ratio"].(float64), 0.001)
 }
+
+func TestBuildImageRequestDataForLogKeepsOnlyImageURLs(t *testing.T) {
+	t.Parallel()
+	req := &dto.ImageRequest{
+		Model:  "gpt-image-2",
+		Prompt: "edit this",
+		ImageUrls: []string{
+			"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA",
+			" https://example.com/input.png ",
+			"",
+			"data:image/jpeg;base64,/9j/4AAQSkZJRg",
+			"https://cdn.example.com/ref.webp",
+		},
+	}
+
+	data := BuildImageRequestDataForLog(req)
+
+	require.Equal(t, []string{
+		"https://example.com/input.png",
+		"https://cdn.example.com/ref.webp",
+	}, data["image_urls"])
+}
+
+func TestBuildImageRequestDataForLogOmitsOnlyInlineImages(t *testing.T) {
+	t.Parallel()
+	req := &dto.ImageRequest{
+		Model:  "gpt-image-2",
+		Prompt: "edit this",
+		ImageUrls: []string{
+			"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA",
+			"data:image/jpeg;base64,/9j/4AAQSkZJRg",
+		},
+	}
+
+	data := BuildImageRequestDataForLog(req)
+
+	require.NotContains(t, data, "image_urls")
+}

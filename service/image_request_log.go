@@ -65,10 +65,25 @@ func BuildImageRequestDataForLog(req *dto.ImageRequest) map[string]interface{} {
 	if quality := strings.TrimSpace(req.Quality); quality != "" {
 		data["quality"] = quality
 	}
-	if len(req.ImageUrls) > 0 {
-		data["image_urls"] = req.ImageUrls
+	if urls := imageURLsForLog(req.ImageUrls); len(urls) > 0 {
+		data["image_urls"] = urls
 	}
 	return data
+}
+
+func imageURLsForLog(urls []string) []string {
+	if len(urls) == 0 {
+		return nil
+	}
+	filtered := make([]string, 0, len(urls))
+	for _, raw := range urls {
+		u := strings.TrimSpace(raw)
+		if u == "" || strings.HasPrefix(strings.ToLower(u), "data:image") {
+			continue
+		}
+		filtered = append(filtered, u)
+	}
+	return filtered
 }
 
 func normalizeEffectiveResolution(resolution string) string {
