@@ -1,3 +1,8 @@
+locals {
+  alert_emails   = distinct(compact(concat(var.alert_email == "" ? [] : [var.alert_email], var.alert_emails)))
+  alerts_enabled = length(local.alert_emails) > 0
+}
+
 // Uptime check against the public Cloud Run URL — independent of Cloudflare/DNS.
 
 resource "google_monitoring_uptime_check_config" "api_status" {
@@ -25,18 +30,18 @@ resource "google_monitoring_uptime_check_config" "api_status" {
 
 // Email alert channel — operator can register more channels manually.
 resource "google_monitoring_notification_channel" "email" {
-  count = var.alert_email == "" ? 0 : 1
+  for_each = toset(local.alert_emails)
 
   project      = var.project_id
-  display_name = "new-api email alerts"
+  display_name = "new-api email alerts (${each.value})"
   type         = "email"
   labels = {
-    email_address = var.alert_email
+    email_address = each.value
   }
 }
 
 resource "google_monitoring_alert_policy" "uptime_failed" {
-  count = var.alert_email == "" ? 0 : 1
+  count = local.alerts_enabled ? 1 : 0
 
   project      = var.project_id
   display_name = "new-api uptime failed"
@@ -61,7 +66,160 @@ resource "google_monitoring_alert_policy" "uptime_failed" {
     }
   }
 
-  notification_channels = [google_monitoring_notification_channel.email[0].id]
+  notification_channels = values(google_monitoring_notification_channel.email)[*].id
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+resource "google_monitoring_alert_policy" "router_instances_near_max" {
+  count = local.alerts_enabled ? 1 : 0
+
+  project      = var.project_id
+  display_name = "new-api router instances near max"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Router instance count is near maxScale"
+    condition_threshold {
+      filter = join(" AND ", [
+        "metric.type=\"run.googleapis.com/container/instance_count\"",
+        "resource.type=\"cloud_run_revision\"",
+        "resource.label.service_name=\"${var.router_service_name}\"",
+        "resource.label.location=\"${var.region}\"",
+      ])
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = floor(var.router_max_instances * var.router_instance_saturation_ratio)
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_MAX"
+        cross_series_reducer = "REDUCE_MAX"
+        group_by_fields      = ["resource.label.service_name"]
+      }
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = values(google_monitoring_notification_channel.email)[*].id
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+resource "google_monitoring_alert_policy" "router_pending_requests" {
+  count = local.alerts_enabled ? 1 : 0
+
+  project      = var.project_id
+  display_name = "new-api router pending requests"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Router requests are waiting in Cloud Run pending queue"
+    condition_threshold {
+      filter = join(" AND ", [
+        "metric.type=\"run.googleapis.com/pending_queue/pending_requests\"",
+        "resource.type=\"cloud_run_revision\"",
+        "resource.label.service_name=\"${var.router_service_name}\"",
+        "resource.label.location=\"${var.region}\"",
+      ])
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.router_pending_requests_threshold
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_MAX"
+        cross_series_reducer = "REDUCE_MAX"
+        group_by_fields      = ["resource.label.service_name"]
+      }
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = values(google_monitoring_notification_channel.email)[*].id
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+resource "google_monitoring_alert_policy" "router_5xx" {
+  count = local.alerts_enabled ? 1 : 0
+
+  project      = var.project_id
+  display_name = "new-api router 5xx spike"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Router 5xx responses exceed threshold"
+    condition_threshold {
+      filter = join(" AND ", [
+        "metric.type=\"run.googleapis.com/request_count\"",
+        "resource.type=\"cloud_run_revision\"",
+        "resource.label.service_name=\"${var.router_service_name}\"",
+        "resource.label.location=\"${var.region}\"",
+        "metric.label.response_code_class=\"5xx\"",
+      ])
+      duration        = "0s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.router_5xx_per_5m_threshold
+      aggregations {
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_DELTA"
+        cross_series_reducer = "REDUCE_SUM"
+        group_by_fields      = ["resource.label.service_name"]
+      }
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = values(google_monitoring_notification_channel.email)[*].id
+
+  alert_strategy {
+    auto_close = "3600s"
+  }
+}
+
+resource "google_monitoring_alert_policy" "redis_cpu_high" {
+  count = local.alerts_enabled ? 1 : 0
+
+  project      = var.project_id
+  display_name = "new-api Redis CPU high"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Redis CPU utilization is high"
+    condition_threshold {
+      filter = join(" AND ", [
+        "metric.type=\"redis.googleapis.com/stats/cpu_utilization\"",
+        "resource.type=\"redis_instance\"",
+        "resource.label.instance_id=\"${var.redis_instance_id}\"",
+        "resource.label.region=\"${var.region}\"",
+      ])
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.redis_cpu_threshold
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_MAX"
+        cross_series_reducer = "REDUCE_MAX"
+        group_by_fields      = ["resource.label.instance_id"]
+      }
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  notification_channels = values(google_monitoring_notification_channel.email)[*].id
 
   alert_strategy {
     auto_close = "3600s"

@@ -9,7 +9,7 @@
 | 官网/SEO/公开页面 | `flatkey.ai`, `www.flatkey.ai` | `newapi-web` | `gcp-deploy-website.yml` | 独立 Next.js 项目 `website/` |
 | 控制台、后台 API、管理 UI | `console.flatkey.ai` | `newapi-console` | `gcp-deploy.yml` | Go app，`NODE_TYPE=master`，高频发布目标 |
 | 模型调用、relay、provider 适配 | `router.flatkey.ai` | `newapi-router` | `gcp-deploy.yml` | Go app，`NODE_TYPE=slave`，容量按模型调用配置 |
-| legacy fallback | default backend | `newapi` | 仅兜底/同步需要 | 未命中 host_rule 的请求进入这里 |
+| default fallback | default backend | `newapi-console` | 不单独发布 | 未命中 host_rule 的请求进入 console backend |
 
 Go app workflow 构建同一份 Go 镜像；生产部署必须经过 `production` Environment 审批。push 到 `main` 后会在同一个 run 里挂出 `deploy console` 和 `deploy router` 两个审批 job；有权限的人 approve 哪个，哪个才会真正部署。不要把 website 变更放到 Go workflow，也不要在 `web/default` 里恢复公开网站页面。
 
@@ -74,12 +74,12 @@ gcloud compute url-maps describe newapi-urlmap \
 - `flatkey.ai`, `www.flatkey.ai` -> `newapi-web-backend`
 - `console.flatkey.ai` -> `newapi-console-backend`
 - `router.flatkey.ai` -> `newapi-router-backend`
-- default -> `newapi-backend`
+- default -> `newapi-console-backend`
 
 ### 2. Cloud Run 当前流量
 
 ```bash
-for svc in newapi-console newapi-router newapi-web newapi; do
+for svc in newapi-console newapi-router newapi-web; do
   echo "== $svc =="
   gcloud run services describe "$svc" \
     --project=vocai-gemini-prod --region=us-west1 \
@@ -144,9 +144,9 @@ gcloud run services describe <service> \
   --format='value(status.traffic)'
 ```
 
-### 回滚 console host 分流到 legacy `newapi`
+### 回滚 console host 分流到 default backend
 
-风险：中。`console.flatkey.ai` 新请求会回到 legacy default backend；如果 legacy 镜像/env 与 console 当前状态不一致，可能出现行为差异。不会改 Cloudflare，不会触发 GCP managed cert rotation。
+风险：低到中。当前 default backend 也是 `newapi-console-backend`，所以删除 console host_rule 不会回到 legacy 服务；但仍需 review URL map diff。不会改 Cloudflare，不会触发 GCP managed cert rotation。
 
 步骤：
 
@@ -161,9 +161,9 @@ gcloud run services describe <service> \
 3. 仅确认 URL map 删除 console host_rule 时再 apply。
 4. 验证 `console.flatkey.ai/api/status` 和 LB 日志。
 
-### 回滚 router host 分流到 legacy `newapi`
+### 回滚 router host 分流到 default backend
 
-风险：高于 console。router 承载真实模型调用流量，回滚会把新请求切回 legacy default backend；要先确认 legacy revision 有相同模型调用代码和配置。
+风险：高。router 承载真实模型调用流量，当前 default backend 是 `newapi-console-backend` 而不是 legacy router 等价服务；不要把这当作常规 router 回滚。优先使用 Cloud Run revision rollback。
 
 步骤：
 
@@ -175,9 +175,9 @@ gcloud run services describe <service> \
 3. 低峰 apply。
 4. 重点观察 router 5xx、延迟和 provider 错误。
 
-### 回滚 website host 分流到 legacy `newapi`
+### 回滚 website host 分流到 default backend
 
-风险：中。`flatkey.ai` / `www.flatkey.ai` 会回到 default backend，公开官网会不可用或变成 Go app 行为；只适合 website 严重故障时短时兜底。
+风险：中。`flatkey.ai` / `www.flatkey.ai` 会回到 default backend（当前为 `newapi-console-backend`），公开官网会不可用或变成 Go app 行为；只适合 website 严重故障时短时兜底。
 
 ```hcl
 website_domains = []

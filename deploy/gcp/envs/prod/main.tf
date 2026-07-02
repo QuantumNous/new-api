@@ -238,6 +238,7 @@ module "cloud_run_router" {
   min_instances     = var.router_min_instances
   max_instances     = var.router_max_instances
   concurrency       = var.router_concurrency
+  memory            = var.router_memory
   node_type         = "slave"
 
   depends_on = [
@@ -385,10 +386,19 @@ locals {
 }
 
 module "monitoring" {
-  source      = "../../modules/monitoring"
-  project_id  = var.project_id
-  uptime_host = local.uptime_host
-  alert_email = var.alert_email
+  source               = "../../modules/monitoring"
+  project_id           = var.project_id
+  region               = var.region
+  uptime_host          = local.uptime_host
+  alert_email          = var.alert_email
+  alert_emails         = var.alert_emails
+  router_service_name  = var.router_service_name
+  router_max_instances = var.router_max_instances
+  redis_instance_id = format(
+    "projects/%s/locations/%s/instances/newapi-redis",
+    var.project_id,
+    var.region,
+  )
 
   depends_on = [module.cloud_run, module.cloud_run_console, module.cloud_run_router]
 }

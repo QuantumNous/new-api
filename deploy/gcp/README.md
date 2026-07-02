@@ -8,7 +8,7 @@ Terraform configuration that provisions a production environment for `new-api` o
 - **Artifact Registry** Docker repo
 - **Secret Manager** for DB password, session/crypto secrets, and operator-managed OAuth/Stripe placeholders
 - **Workload Identity Federation** so GitHub Actions can deploy without static keys
-- **Uptime check + alert policy** (optional, set `alert_email` in tfvars)
+- **Uptime check + alert policies** (optional, set `alert_emails` in tfvars)
 
 Cloud Run reaches Cloud SQL through the **Auth Proxy Unix socket** (no VPC connector needed) and Redis through **Direct VPC Egress** (private-ranges-only on a custom subnet).
 

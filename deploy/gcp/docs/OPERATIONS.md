@@ -186,9 +186,9 @@ The same rule applies to the split production services:
 | `newapi-console` | console/admin/API, `NODE_TYPE=master` | `console.flatkey.ai` |
 | `newapi-router` | model relay/API, `NODE_TYPE=slave` | `router.flatkey.ai` |
 | `newapi-web` | public website | `flatkey.ai`, `www.flatkey.ai` |
-| `newapi` | legacy default/fallback | URL map default backend |
+| `newapi-console` | fallback for unmatched hosts | URL map default backend |
 
-When rolling back or shifting traffic, target the specific service that serves the failing host. Do not assume a `newapi` rollback affects `console.flatkey.ai` or `router.flatkey.ai`; after the runtime split, those hosts route to their own Cloud Run services.
+When rolling back or shifting traffic, target the specific service that serves the failing host. The legacy `newapi` service is currently disabled (`enable_legacy_runtime=false`), so a `newapi` rollback is not available unless the legacy runtime is intentionally restored first.
 
 ---
 
@@ -201,7 +201,7 @@ Current production routing is host-based at the GCP LB:
 | `flatkey.ai`, `www.flatkey.ai` | `newapi-web-backend` | `newapi-web` | Next.js website |
 | `console.flatkey.ai` | `newapi-console-backend` | `newapi-console` | Go app, `NODE_TYPE=master`, `APP_ROLE=console` |
 | `router.flatkey.ai` | `newapi-router-backend` | `newapi-router` | Go app, `NODE_TYPE=slave`, `APP_ROLE=router` |
-| default | `newapi-backend` | `newapi` | legacy fallback |
+| default | `newapi-console-backend` | `newapi-console` | fallback for unmatched hosts |
 
 Verify the live URL map before and after any host-split change:
 
@@ -220,7 +220,7 @@ Rollback levers:
 - Bad router host split: set `router_domains = []`, plan, review URL map diff, apply
 - Bad website host split: set `website_domains = []`, plan, review URL map diff, apply
 
-Host-rule rollback sends new requests to the URL map default backend (`newapi-backend`). It does not stop in-flight requests on the previous Cloud Run revision, but it can change application behavior if the fallback service has different image/env. Check logs before choosing host-rule rollback over revision rollback.
+Host-rule rollback sends new requests to the URL map default backend (`newapi-console-backend`). It does not stop in-flight requests on the previous Cloud Run revision, but it can change application behavior if the fallback service has different image/env. Check logs before choosing host-rule rollback over revision rollback.
 
 ---
 

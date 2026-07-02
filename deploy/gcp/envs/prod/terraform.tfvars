@@ -33,8 +33,13 @@ cloud_run_ingress = "INGRESS_TRAFFIC_ALL"
 // console host rather than the retired new-api.app domain.
 frontend_base_url = "https://console.flatkey.ai"
 
-// Set this to receive uptime failure alerts. Leave empty to skip the alert policy.
+// Set alert_emails to receive uptime/capacity/error alerts. Leave empty to skip alert policies.
 alert_email = ""
+alert_emails = [
+  "shilong.zhong@shulex-tech.com",
+  "wei.zhou@shulex-tech.com",
+  "xingyu.liu@shulex-tech.com",
+]
 
 // Usage reconciliation token (BLOCKRUN_USAGE_SUMMARY_TOKEN) is wired into Cloud Run.
 // The secret value (newapi-blockrun-usage-summary-token) was added and the env was
@@ -67,8 +72,9 @@ console_domains_require_managed_cert = false
 // calls. Console starts smaller because it handles authenticated UI/API traffic
 // and is the high-frequency deploy target.
 router_min_instances  = 4
-router_max_instances  = 10
-router_concurrency    = 50
+router_max_instances  = 20
+router_concurrency    = 60
+router_memory         = "2Gi"
 console_min_instances = 1
 console_max_instances = 5
 console_concurrency   = 80

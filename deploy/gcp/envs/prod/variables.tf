@@ -50,6 +50,12 @@ variable "alert_email" {
   default     = ""
 }
 
+variable "alert_emails" {
+  type        = list(string)
+  description = "Email addresses to receive monitoring alerts. Empty disables alert policies unless alert_email is set."
+  default     = []
+}
+
 variable "enable_load_balancer" {
   type        = bool
   description = "Create a GCP HTTPS LB in front of Cloud Run (use this when domain mappings aren't available)."
@@ -139,6 +145,12 @@ variable "router_concurrency" {
   type        = number
   description = "Cloud Run request concurrency for the router service."
   default     = 50
+}
+
+variable "router_memory" {
+  type        = string
+  description = "Cloud Run memory limit for the router service."
+  default     = "1Gi"
 }
 
 variable "console_min_instances" {
