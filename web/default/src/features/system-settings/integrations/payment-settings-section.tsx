@@ -141,12 +141,14 @@ const paymentSchema = z.object({
       })
     }
   }),
+  StripeEnabled: z.boolean(),
   StripeApiSecret: z.string(),
   StripeWebhookSecret: z.string(),
   StripePriceId: z.string(),
   StripeUnitPrice: z.coerce.number().min(0),
   StripeMinTopUp: z.coerce.number().min(0),
   StripePromotionCodesEnabled: z.boolean(),
+  CreemEnabled: z.boolean(),
   CreemApiKey: z.string(),
   CreemWebhookSecret: z.string(),
   CreemTestMode: z.boolean(),
@@ -562,6 +564,93 @@ export function PaymentSettingsSection({
       })
     }
 
+    if (updates.length === 0) {
+      return
+    }
+
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
+  }
+
+  const saveEpaySettings = async () => {
+    const values = form.getValues()
+    const sanitized = {
+      PayAddress: removeTrailingSlash(values.PayAddress),
+      EpayId: values.EpayId.trim(),
+      EpayKey: values.EpayKey.trim(),
+      CustomCallbackAddress: removeTrailingSlash(values.CustomCallbackAddress),
+    }
+
+    const initial = {
+      PayAddress: removeTrailingSlash(initialRef.current.PayAddress),
+      EpayId: initialRef.current.EpayId.trim(),
+      EpayKey: initialRef.current.EpayKey.trim(),
+      CustomCallbackAddress: removeTrailingSlash(
+        initialRef.current.CustomCallbackAddress
+      ),
+    }
+
+    const updates: Array<{ key: string; value: string }> = []
+
+    if (sanitized.PayAddress !== initial.PayAddress) {
+      updates.push({ key: 'PayAddress', value: sanitized.PayAddress })
+    }
+
+    if (sanitized.EpayId !== initial.EpayId) {
+      updates.push({ key: 'EpayId', value: sanitized.EpayId })
+    }
+
+    if (sanitized.EpayKey && sanitized.EpayKey !== initial.EpayKey) {
+      updates.push({ key: 'EpayKey', value: sanitized.EpayKey })
+    }
+
+    if (sanitized.CustomCallbackAddress !== initial.CustomCallbackAddress) {
+      updates.push({
+        key: 'CustomCallbackAddress',
+        value: sanitized.CustomCallbackAddress,
+      })
+    }
+
+    if (updates.length === 0) {
+      return
+    }
+
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
+  }
+
+  const saveStripeSettings = async () => {
+    const values = form.getValues()
+    const sanitized = {
+      StripeEnabled: values.StripeEnabled as boolean,
+      StripeApiSecret: values.StripeApiSecret.trim(),
+      StripeWebhookSecret: values.StripeWebhookSecret.trim(),
+      StripePriceId: values.StripePriceId.trim(),
+      StripeUnitPrice: values.StripeUnitPrice as number,
+      StripeMinTopUp: values.StripeMinTopUp as number,
+      StripePromotionCodesEnabled:
+        values.StripePromotionCodesEnabled as boolean,
+    }
+
+    const initial = {
+      StripeEnabled: initialRef.current.StripeEnabled,
+      StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
+      StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
+      StripePriceId: initialRef.current.StripePriceId.trim(),
+      StripeUnitPrice: initialRef.current.StripeUnitPrice,
+      StripeMinTopUp: initialRef.current.StripeMinTopUp,
+      StripePromotionCodesEnabled:
+        initialRef.current.StripePromotionCodesEnabled,
+    }
+
+    const updates: Array<{ key: string; value: string | number | boolean }> = []
+
+    if (sanitized.StripeEnabled !== initial.StripeEnabled) {
+      updates.push({ key: 'StripeEnabled', value: sanitized.StripeEnabled })
+    }
+
     if (
       sanitized.StripeApiSecret &&
       sanitized.StripeApiSecret !== initial.StripeApiSecret
@@ -599,6 +688,39 @@ export function PaymentSettingsSection({
         key: 'StripePromotionCodesEnabled',
         value: sanitized.StripePromotionCodesEnabled,
       })
+    }
+
+    if (updates.length === 0) {
+      return
+    }
+
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
+  }
+
+  const saveCreemSettings = async () => {
+    const values = form.getValues()
+    const sanitized = {
+      CreemEnabled: values.CreemEnabled as boolean,
+      CreemApiKey: values.CreemApiKey.trim(),
+      CreemWebhookSecret: values.CreemWebhookSecret.trim(),
+      CreemTestMode: values.CreemTestMode as boolean,
+      CreemProducts: values.CreemProducts.trim(),
+    }
+
+    const initial = {
+      CreemEnabled: initialRef.current.CreemEnabled,
+      CreemApiKey: initialRef.current.CreemApiKey.trim(),
+      CreemWebhookSecret: initialRef.current.CreemWebhookSecret.trim(),
+      CreemTestMode: initialRef.current.CreemTestMode,
+      CreemProducts: initialRef.current.CreemProducts.trim(),
+    }
+
+    const updates: Array<{ key: string; value: string | boolean }> = []
+
+    if (sanitized.CreemEnabled !== initial.CreemEnabled) {
+      updates.push({ key: 'CreemEnabled', value: sanitized.CreemEnabled })
     }
 
     if (
@@ -1285,6 +1407,31 @@ export function PaymentSettingsSection({
                   </ul>
                 </div>
 
+                <FormField
+                  control={form.control}
+                  name='StripeEnabled'
+                  render={({ field }) => (
+                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-base'>
+                          {t('Enable Stripe gateway')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'When off, Stripe is hidden from the recharge page even if API keys are set'
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
                 <div className='grid gap-6 md:grid-cols-3'>
                   <FormField
                     control={form.control}
@@ -1456,6 +1603,31 @@ export function PaymentSettingsSection({
                     <li>{t('Configure in your Creem dashboard')}</li>
                   </ul>
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name='CreemEnabled'
+                  render={({ field }) => (
+                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-base'>
+                          {t('Enable Creem gateway')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'When off, Creem is hidden from the recharge page even if API keys are set'
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
 
                 <div className='grid gap-6 md:grid-cols-2'>
                   <FormField
