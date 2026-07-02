@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	dingTalkChannelAlertAISummaryTimeout       = 10 * time.Second
+	dingTalkChannelAlertAISummaryTimeout       = 5 * time.Second
 	dingTalkChannelAlertAIResponseMaxBytes     = int64(64 * 1024)
 	dingTalkChannelAlertAIContentMaxRunes      = 12000
 	dingTalkChannelAlertAISummaryMaxRunes      = 1000

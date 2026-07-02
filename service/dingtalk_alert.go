@@ -74,7 +74,7 @@ var (
 	dingTalkGoogleAPIKeyPattern        = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
 	dingTalkMaxResponseBodyBytes       = int64(64 * 1024)
 	dingTalkRequestTimeout             = 10 * time.Second
-	dingTalkAlertPendingReservationTTL = 2 * dingTalkRequestTimeout
+	dingTalkAlertPendingReservationTTL = dingTalkChannelAlertAISummaryTimeout + 2*dingTalkRequestTimeout
 )
 
 const maxDingTalkChannelAlertBatchSize = 5

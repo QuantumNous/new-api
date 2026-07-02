@@ -391,6 +391,15 @@ func TestDingTalkAlertCooldownAllowsDifferentChannels(t *testing.T) {
 	require.True(t, cooldown.Allow(8, now.Add(time.Minute), time.Hour))
 }
 
+func TestDingTalkChannelAlertAISummaryTimeoutIsShort(t *testing.T) {
+	require.Less(t, dingTalkChannelAlertAISummaryTimeout, dingTalkRequestTimeout)
+	require.Equal(t, 5*time.Second, dingTalkChannelAlertAISummaryTimeout)
+}
+
+func TestDingTalkAlertPendingReservationTTLCoversAISummaryAndSendWindow(t *testing.T) {
+	require.GreaterOrEqual(t, dingTalkAlertPendingReservationTTL, dingTalkChannelAlertAISummaryTimeout+2*dingTalkRequestTimeout)
+}
+
 func TestSendDingTalkTextReturnsErrorForDingTalkErrorCode(t *testing.T) {
 	allowDingTalkTestServer(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
