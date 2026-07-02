@@ -55,6 +55,16 @@ func TestGetRequestURL_NativePassthroughByFormat(t *testing.T) {
 			want: "https://blockrun.ai/api/v1/chat/completions",
 		},
 		{
+			name: "responses relay mode → /v1/responses",
+			info: &relaycommon.RelayInfo{
+				RequestURLPath: "/v1/responses",
+				RelayMode:      relayconstant.RelayModeResponses,
+				RelayFormat:    types.RelayFormatOpenAI,
+				ChannelMeta:    &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+			},
+			want: "https://blockrun.ai/api/v1/responses",
+		},
+		{
 			// Spec decision #2: an OpenAI-format request naming a Claude model
 			// (anthropic/claude-*) still hits /v1/chat/completions — the gateway
 			// routes by model name, response stays OpenAI-shaped. URL dispatch is

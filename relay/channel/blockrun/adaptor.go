@@ -88,10 +88,10 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.claudeAdaptor.Init(info)
 }
 
-// GetRequestURL builds the upstream URL. Image relay modes are dispatched first
-// to BlockRun's dedicated image endpoints (independent of RelayFormat); the rest
-// is VIP native passthrough: Anthropic → /v1/messages, OpenAI → /v1/chat/completions,
-// Gemini rejected.
+// GetRequestURL builds the upstream URL. Image and Responses relay modes are
+// dispatched first to their dedicated BlockRun endpoints (independent of
+// RelayFormat); the rest is VIP native passthrough: Anthropic → /v1/messages,
+// OpenAI → /v1/chat/completions, Gemini rejected.
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesGenerations:
@@ -99,6 +99,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	case relayconstant.RelayModeImagesEdits:
 		// BlockRun img2img / multi-image fusion endpoint (JSON + base64).
 		return fmt.Sprintf("%s/v1/images/image2image", info.ChannelBaseUrl), nil
+	case relayconstant.RelayModeResponses:
+		return fmt.Sprintf("%s/v1/responses", info.ChannelBaseUrl), nil
+	case relayconstant.RelayModeResponsesCompact:
+		return "", errors.New("blockrun: responses compact API not supported")
 	}
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
@@ -257,7 +261,10 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("blockrun: responses API not supported")
+	if request.Model == "" {
+		return nil, errors.New("blockrun: responses model is required")
+	}
+	return request, nil
 }
 
 // DoRequest performs the x402 two-trip dance. It is FORMAT-AGNOSTIC and works

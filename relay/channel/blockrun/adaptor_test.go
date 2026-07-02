@@ -167,6 +167,44 @@ func TestConvertOpenAIRequest_NilRejected(t *testing.T) {
 	}
 }
 
+// TestConvertOpenAIResponsesRequest_Passthrough asserts the inbound Responses
+// request is forwarded as-is to BlockRun's native /v1/responses endpoint.
+func TestConvertOpenAIResponsesRequest_Passthrough(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/responses", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeResponses,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://blockrun.ai/api"},
+	}
+	in := dto.OpenAIResponsesRequest{Model: "openai/gpt-5.4"}
+
+	out, err := a.ConvertOpenAIResponsesRequest(c, info, in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got, ok := out.(dto.OpenAIResponsesRequest)
+	if !ok {
+		t.Fatalf("expected dto.OpenAIResponsesRequest, got %T", out)
+	}
+	if got.Model != in.Model {
+		t.Fatalf("model not preserved: got %q want %q", got.Model, in.Model)
+	}
+}
+
+func TestConvertOpenAIResponsesRequest_MissingModelRejected(t *testing.T) {
+	a := &Adaptor{}
+	c := newTestContext(http.MethodPost, "/v1/responses", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeResponses,
+		RelayFormat: types.RelayFormatOpenAI,
+	}
+
+	if _, err := a.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{}); err == nil {
+		t.Fatalf("expected error for missing responses model, got nil")
+	}
+}
+
 // TestConvertGeminiRequest_Unsupported asserts Gemini inbound is rejected with a
 // non-nil error (VIP native passthrough supports only Anthropic and OpenAI).
 func TestConvertGeminiRequest_Unsupported(t *testing.T) {
