@@ -82,26 +82,6 @@ func runFeishuStatsPushIfNeeded() {
 		if day == 1 && hour == 4 && minute == 0 {
 			RunUsageReportFullPipeline(model.ReportPeriodMonthly)
 		}
-		return
-	}
-
-	// 兼容旧逻辑（未启用新快照体系时回退）
-	// 每天凌晨 3:00 推送前一天日报
-	if hour == 3 && minute == 0 {
-		req := BuildFeishuStatsPushRequest("daily", now)
-		pushStatsToFeishu(req.Period, req.Label, req.StartTimestamp, req.EndTimestamp)
-	}
-
-	// 周一凌晨 3:30 推送上周周报
-	if weekday == time.Monday && hour == 3 && minute == 30 {
-		req := BuildFeishuStatsPushRequest("weekly", now)
-		pushStatsToFeishu(req.Period, req.Label, req.StartTimestamp, req.EndTimestamp)
-	}
-
-	// 每月 1 号凌晨 4:00 推送上月月报
-	if day == 1 && hour == 4 && minute == 0 {
-		req := BuildFeishuStatsPushRequest("monthly", now)
-		pushStatsToFeishu(req.Period, req.Label, req.StartTimestamp, req.EndTimestamp)
 	}
 }
 
