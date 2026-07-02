@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	operation_setting "github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -51,6 +52,42 @@ func (topUp *TopUp) Insert() error {
 	var err error
 	err = DB.Create(topUp).Error
 	return err
+}
+
+// applyAffiliateCommission awards commission to the inviter after a successful payment.
+// quota is the quota amount credited to the paying user.
+func applyAffiliateCommission(userId int, quota int) {
+	enabled, commType, rate, fixedAmount := operation_setting.GetAffCommissionSetting()
+	if !enabled || quota <= 0 {
+		return
+	}
+
+	var user User
+	if err := DB.Select("inviter_id").Where("id = ?", userId).First(&user).Error; err != nil {
+		return
+	}
+	if user.InviterId == 0 {
+		return
+	}
+
+	var commission int
+	if commType == operation_setting.AffCommissionTypePercentage {
+		commission = int(float64(quota) * rate / 100.0)
+	} else {
+		commission = fixedAmount
+	}
+	if commission <= 0 {
+		return
+	}
+
+	if err := DB.Model(&User{}).Where("id = ?", user.InviterId).Updates(map[string]interface{}{
+		"aff_quota":   gorm.Expr("aff_quota + ?", commission),
+		"aff_history": gorm.Expr("aff_history + ?", commission),
+	}).Error; err != nil {
+		common.SysError(fmt.Sprintf("更新邀请人 %d 佣金失败: %v", user.InviterId, err))
+		return
+	}
+	RecordLog(user.InviterId, LogTypeSystem, fmt.Sprintf("下级用户充值佣金 %s", logger.LogQuota(commission)))
 }
 
 func (topUp *TopUp) Update() error {
@@ -155,6 +192,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+	applyAffiliateCommission(topUp.UserId, int(quota))
 
 	return nil
 }
@@ -387,6 +425,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 
 	// 事务外记录日志，避免阻塞
 	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+	applyAffiliateCommission(userId, quotaToAdd)
 	return nil
 }
 func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
@@ -460,6 +499,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+	applyAffiliateCommission(topUp.UserId, int(quota))
 
 	return nil
 }
@@ -522,6 +562,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
+		applyAffiliateCommission(topUp.UserId, quotaToAdd)
 	}
 
 	return nil
@@ -583,6 +624,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
+		applyAffiliateCommission(topUp.UserId, quotaToAdd)
 	}
 
 	return nil

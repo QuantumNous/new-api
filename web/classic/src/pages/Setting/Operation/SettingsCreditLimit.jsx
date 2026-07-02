@@ -37,6 +37,10 @@ export default function SettingsCreditLimit(props) {
     QuotaForInviter: '',
     QuotaForInvitee: '',
     'quota_setting.enable_free_model_pre_consume': true,
+    'payment_setting.aff_commission_enabled': false,
+    'payment_setting.aff_commission_type': 'percentage',
+    'payment_setting.aff_commission_rate': 0,
+    'payment_setting.aff_commission_fixed_amount': 0,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -201,6 +205,84 @@ export default function SettingsCreditLimit(props) {
                 />
               </Col>
             </Row>
+
+            <Row>
+              <Col>
+                <Form.Switch
+                  label={t('下级充值佣金')}
+                  field={'payment_setting.aff_commission_enabled'}
+                  extraText={t('开启后，被邀请用户付款时，邀请者将按配置获得佣金')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'payment_setting.aff_commission_enabled': value,
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+
+            {(inputs['payment_setting.aff_commission_enabled'] === true ||
+              inputs['payment_setting.aff_commission_enabled'] === 'true') && (
+              <>
+                <Row gutter={16}>
+                  <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                    <Form.Select
+                      label={t('佣金类型')}
+                      field={'payment_setting.aff_commission_type'}
+                      onChange={(value) =>
+                        setInputs({
+                          ...inputs,
+                          'payment_setting.aff_commission_type': value,
+                        })
+                      }
+                    >
+                      <Form.Select.Option value='percentage'>{t('按百分比')}</Form.Select.Option>
+                      <Form.Select.Option value='fixed'>{t('固定额度')}</Form.Select.Option>
+                    </Form.Select>
+                  </Col>
+
+                  {inputs['payment_setting.aff_commission_type'] === 'percentage' ? (
+                    <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                      <Form.InputNumber
+                        label={t('佣金比例 (%)')}
+                        field={'payment_setting.aff_commission_rate'}
+                        step={0.01}
+                        min={0}
+                        max={100}
+                        suffix={'%'}
+                        extraText={t('按下级用户充值额度的百分比奖励邀请者')}
+                        placeholder={'例如：10'}
+                        onChange={(value) =>
+                          setInputs({
+                            ...inputs,
+                            'payment_setting.aff_commission_rate': value,
+                          })
+                        }
+                      />
+                    </Col>
+                  ) : (
+                    <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                      <Form.InputNumber
+                        label={t('固定佣金额度')}
+                        field={'payment_setting.aff_commission_fixed_amount'}
+                        step={1}
+                        min={0}
+                        suffix={'Token'}
+                        extraText={t('每次下级用户付款后奖励邀请者的固定额度')}
+                        placeholder={'例如：10000'}
+                        onChange={(value) =>
+                          setInputs({
+                            ...inputs,
+                            'payment_setting.aff_commission_fixed_amount': value,
+                          })
+                        }
+                      />
+                    </Col>
+                  )}
+                </Row>
+              </>
+            )}
 
             <Row>
               <Button size='default' onClick={onSubmit}>
