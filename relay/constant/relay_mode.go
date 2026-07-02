@@ -52,6 +52,8 @@ const (
 	RelayModeGemini
 
 	RelayModeResponsesCompact
+
+	RelayModeClaudeCountTokens
 )
 
 func Path2RelayMode(path string) int {
@@ -86,6 +88,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeRerank
 	} else if strings.HasPrefix(path, "/v1/realtime") {
 		relayMode = RelayModeRealtime
+	} else if strings.HasPrefix(path, "/v1/messages/count_tokens") {
+		relayMode = RelayModeClaudeCountTokens
 	} else if strings.HasPrefix(path, "/v1beta/models") || strings.HasPrefix(path, "/v1/models") {
 		relayMode = RelayModeGemini
 	} else if strings.HasPrefix(path, "/mj") {

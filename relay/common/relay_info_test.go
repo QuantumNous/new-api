@@ -3,6 +3,7 @@ package common
 import (
 	"testing"
 
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
 )
@@ -37,4 +38,11 @@ func TestRelayInfoGetFinalRequestRelayFormatFallsBackToRelayFormat(t *testing.T)
 func TestRelayInfoGetFinalRequestRelayFormatNilReceiver(t *testing.T) {
 	var info *RelayInfo
 	require.Equal(t, types.RelayFormat(""), info.GetFinalRequestRelayFormat())
+}
+
+func TestIsClaudeCountTokensRequest(t *testing.T) {
+	require.True(t, IsClaudeCountTokensRequest(&RelayInfo{RequestURLPath: "/v1/messages/count_tokens"}))
+	require.True(t, IsClaudeCountTokensRequest(&RelayInfo{RequestURLPath: "/v1/messages/count_tokens?beta=true"}))
+	require.True(t, IsClaudeCountTokensRequest(&RelayInfo{RelayMode: relayconstant.RelayModeClaudeCountTokens}))
+	require.False(t, IsClaudeCountTokensRequest(&RelayInfo{RequestURLPath: "/v1/messages"}))
 }
