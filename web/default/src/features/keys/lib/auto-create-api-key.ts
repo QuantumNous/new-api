@@ -39,6 +39,7 @@ export type InitialApiKeyCreateResult =
 export type InitialApiKeyCreateDeps = {
   scopeKey: string
   ensureInitialKey: () => Promise<ApiResponse<EnsureInitialApiKeyResponse>>
+  onCreated?: () => void
 }
 
 let initialApiKeyCreateScopeKey: string | null = null
@@ -83,6 +84,8 @@ export async function runInitialApiKeyCreate(
       message: result.message,
     }
   }
+
+  deps.onCreated?.()
 
   return {
     status: 'created',

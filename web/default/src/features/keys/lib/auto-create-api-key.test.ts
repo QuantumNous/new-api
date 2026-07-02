@@ -47,8 +47,12 @@ describe('runInitialApiKeyCreate', () => {
   })
 
   test('creates a default key and returns the reveal key when no key exists', async () => {
+    let createdEvents = 0
     const result = await runInitialApiKeyCreate({
       scopeKey: 'user:1',
+      onCreated: () => {
+        createdEvents += 1
+      },
       ensureInitialKey: async () => ({
         success: true,
         data: { created: true, id: 7, key: 'raw-key' },
@@ -60,6 +64,7 @@ describe('runInitialApiKeyCreate', () => {
       consumeSearch: true,
       key: 'raw-key',
     })
+    expect(createdEvents).toBe(1)
   })
 
   test('keeps the create search param when the ensure request fails', async () => {

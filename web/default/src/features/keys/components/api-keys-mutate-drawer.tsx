@@ -23,6 +23,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from '@/lib/api'
+import { trackYahooApiKeyCreatedConversion } from '@/lib/analytics/yahoo'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { useCanUseGroups } from '@/hooks/use-enterprise'
 import { useStatus } from '@/hooks/use-status'
@@ -192,6 +193,7 @@ export function ApiKeysMutateDrawer({
         }
 
         if (successCount > 0) {
+          trackYahooApiKeyCreatedConversion()
           onOpenChange(false)
           triggerRefresh()
           // OpenRouter-style: reveal the newly created key once. For batch

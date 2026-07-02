@@ -26,20 +26,20 @@ export function EdmLandingPage(props: Props) {
     <>
       <SiteHeader locale={props.locale} pathname={props.pathname} />
       <main className="min-h-screen bg-background pt-20 text-foreground">
-      <section className="mx-auto grid max-w-6xl gap-10 px-5 py-12 md:grid-cols-[minmax(0,1.02fr)_minmax(340px,0.98fr)] md:px-6 md:py-14 lg:gap-14">
+      <section className="mx-auto grid max-w-6xl gap-8 px-5 py-9 md:grid-cols-[minmax(0,1.02fr)_minmax(340px,0.98fr)] md:px-6 md:py-14 lg:gap-14">
         <div className="flex flex-col justify-center">
           <p className="mb-3 text-xs font-bold tracking-[0.22em] text-violet-700 uppercase dark:text-violet-300">{props.campaign.eyebrow}</p>
-          <div className="mb-4 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+          <div className="mb-4 inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-sm leading-5 font-semibold text-emerald-800 dark:text-emerald-300">
             <Sparkles className="size-4" />
             {props.campaign.badge}
           </div>
-          <h1 className="max-w-3xl text-4xl leading-[1.06] font-bold tracking-tight text-balance md:text-5xl">
+          <h1 className="max-w-3xl text-[2.25rem] leading-[1.08] font-bold tracking-tight text-balance max-[420px]:text-[2rem] md:text-5xl md:leading-[1.06]">
             {props.campaign.hero.title}{" "}
             <span className="text-violet-700 dark:text-violet-300">{props.campaign.hero.accent}</span>
           </h1>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground md:text-lg">{props.campaign.hero.description}</p>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground md:mt-5 md:text-lg">{props.campaign.hero.description}</p>
           {props.campaign.hero.highlight ? (
-            <p className="mt-5 max-w-2xl border-l-4 border-violet-600 bg-card px-4 py-3 text-base leading-7 font-medium text-foreground shadow-[0_16px_50px_-40px_rgba(15,23,42,0.75)] dark:border-violet-300 dark:bg-white/[0.04]">
+            <p className="mt-4 max-w-2xl border-l-4 border-violet-600 bg-card px-4 py-3 text-sm leading-6 font-semibold text-foreground shadow-[0_16px_50px_-40px_rgba(15,23,42,0.75)] max-[420px]:leading-6 md:mt-5 md:text-base md:leading-7 md:font-medium dark:border-violet-300 dark:bg-white/[0.04]">
               {props.campaign.hero.highlight}
             </p>
           ) : null}
@@ -75,12 +75,12 @@ export function EdmLandingPage(props: Props) {
               </h2>
               <div className="mt-5 divide-y divide-border border-y border-border">
                 {props.campaign.heroPanel.rows.map((row) => (
-                  <div key={row.label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 py-3">
+                  <div key={row.label} className="grid grid-cols-1 gap-2 py-3 max-[420px]:grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4">
                     <div>
                       <h3 className="text-sm font-bold text-foreground">{row.label}</h3>
                       <p className="mt-1 text-sm leading-6 text-muted-foreground">{row.body}</p>
                     </div>
-                    <div className="text-right text-2xl font-bold tracking-tight text-violet-700 dark:text-violet-300">{row.value}</div>
+                    <div className="break-words text-left text-xl leading-tight font-bold tracking-tight text-violet-700 sm:text-right sm:text-2xl dark:text-violet-300">{row.value}</div>
                   </div>
                 ))}
               </div>

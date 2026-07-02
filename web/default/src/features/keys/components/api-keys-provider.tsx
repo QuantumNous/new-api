@@ -20,6 +20,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import useDialogState from '@/hooks/use-dialog'
+import { trackYahooApiKeyCreatedConversion } from '@/lib/analytics/yahoo'
 import { useAuthStore } from '@/stores/auth-store'
 import { ensureInitialApiKey, fetchTokenKey, fetchTokenKeysBatch } from '../api'
 import { ERROR_MESSAGES } from '../constants'
@@ -123,6 +124,7 @@ export function ApiKeysProvider(props: ApiKeysProviderProps) {
         const result = await ensureInitialApiKeyCreateOnce({
           scopeKey: `user:${authUserId}`,
           ensureInitialKey: () => ensureInitialApiKey(payload),
+          onCreated: trackYahooApiKeyCreatedConversion,
         })
 
         if (cancelled) return
