@@ -28,6 +28,7 @@ import {
   Tooltip,
   Collapsible,
   Modal,
+  Form,
 } from '@douyinfe/semi-ui';
 import {
   CalendarCheck,
@@ -36,14 +37,16 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import Turnstile from 'react-turnstile';
 import { API, showError, showSuccess, renderQuota } from '../../../../helpers';
+import CaptchaWidget from '../../../common/CaptchaWidget';
 
-const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
+const CheckinCalendar = ({ t, status }) => {
   const [loading, setLoading] = useState(false);
   const [checkinLoading, setCheckinLoading] = useState(false);
-  const [turnstileModalVisible, setTurnstileModalVisible] = useState(false);
-  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0);
+  const [captchaModalVisible, setCaptchaModalVisible] = useState(false);
+  const [captchaId, setCaptchaId] = useState('');
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [captchaRefresh, setCaptchaRefresh] = useState(0);
   const [checkinData, setCheckinData] = useState({
     enabled: false,
     stats: {
@@ -113,23 +116,41 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
     }
   };
 
-  const postCheckin = async (token) => {
-    const url = token
-      ? `/api/user/checkin?turnstile=${encodeURIComponent(token)}`
-      : '/api/user/checkin';
-    return API.post(url);
+  const postCheckin = async () => {
+    const query = new URLSearchParams({
+      captcha_id: captchaId,
+      captcha_answer: captchaAnswer,
+    });
+    return API.post(`/api/user/checkin?${query.toString()}`);
   };
 
-  const shouldTriggerTurnstile = (message) => {
-    if (!turnstileEnabled) return false;
-    if (typeof message !== 'string') return true;
-    return message.includes('Turnstile');
+  const handleCaptchaChange = ({ captchaId: id, captchaAnswer: answer }) => {
+    setCaptchaId(id);
+    setCaptchaAnswer(answer);
   };
 
-  const doCheckin = async (token) => {
+  const openCaptchaModal = () => {
+    setCaptchaId('');
+    setCaptchaAnswer('');
+    setCaptchaRefresh(0);
+    setCaptchaModalVisible(true);
+  };
+
+  const closeCaptchaModal = () => {
+    setCaptchaModalVisible(false);
+    setCaptchaId('');
+    setCaptchaAnswer('');
+    setCaptchaRefresh(0);
+  };
+
+  const doCheckin = async () => {
+    if (!captchaId || !captchaAnswer) {
+      showError(t('请输入图形验证码'));
+      return;
+    }
     setCheckinLoading(true);
     try {
-      const res = await postCheckin(token);
+      const res = await postCheckin();
       const { success, data, message } = res.data;
       if (success) {
         showSuccess(
@@ -137,23 +158,16 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
         );
         // 刷新签到状态
         fetchCheckinStatus(currentMonth);
-        setTurnstileModalVisible(false);
+        closeCaptchaModal();
       } else {
-        if (!token && shouldTriggerTurnstile(message)) {
-          if (!turnstileSiteKey) {
-            showError('Turnstile is enabled but site key is empty.');
-            return;
-          }
-          setTurnstileModalVisible(true);
-          return;
-        }
-        if (token && shouldTriggerTurnstile(message)) {
-          setTurnstileWidgetKey((v) => v + 1);
-        }
         showError(message || t('签到失败'));
+        setCaptchaAnswer('');
+        setCaptchaRefresh((v) => v + 1);
       }
     } catch (error) {
       showError(t('签到失败'));
+      setCaptchaAnswer('');
+      setCaptchaRefresh((v) => v + 1);
     } finally {
       setCheckinLoading(false);
     }
@@ -215,26 +229,25 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
   return (
     <Card className='!rounded-2xl'>
       <Modal
-        title='Security Check'
-        visible={turnstileModalVisible}
-        footer={null}
+        title={t('图形验证码')}
+        visible={captchaModalVisible}
+        okText={t('确认')}
+        cancelText={t('取消')}
+        confirmLoading={checkinLoading}
         centered
-        onCancel={() => {
-          setTurnstileModalVisible(false);
-          setTurnstileWidgetKey((v) => v + 1);
-        }}
+        onOk={doCheckin}
+        onCancel={closeCaptchaModal}
       >
-        <div className='flex justify-center py-2'>
-          <Turnstile
-            key={turnstileWidgetKey}
-            sitekey={turnstileSiteKey}
-            onVerify={(token) => {
-              doCheckin(token);
-            }}
-            onExpire={() => {
-              setTurnstileWidgetKey((v) => v + 1);
-            }}
-          />
+        <div className='py-2'>
+          {captchaModalVisible && (
+            <Form>
+              <CaptchaWidget
+                answer={captchaAnswer}
+                onChange={handleCaptchaChange}
+                refreshSignal={captchaRefresh}
+              />
+            </Form>
+          )}
         </div>
       </Modal>
 
@@ -273,7 +286,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
           type='primary'
           theme='solid'
           icon={<Gift size={16} />}
-          onClick={() => doCheckin()}
+          onClick={openCaptchaModal}
           loading={checkinLoading || !initialLoaded}
           disabled={!initialLoaded || checkinData.stats?.checked_in_today}
           className='!bg-green-600 hover:!bg-green-700'

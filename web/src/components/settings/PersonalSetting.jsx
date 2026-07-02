@@ -562,12 +562,7 @@ const PersonalSetting = () => {
         {/* 签到日历 - 仅在启用时显示 */}
         {status?.checkin_enabled && (
           <div className='mt-4 md:mt-6'>
-            <CheckinCalendar
-              t={t}
-              status={status}
-              turnstileEnabled={turnstileEnabled}
-              turnstileSiteKey={turnstileSiteKey}
-            />
+            <CheckinCalendar t={t} status={status} />
           </div>
         )}
 

@@ -50,6 +50,16 @@ func DoCheckin(c *gin.Context) {
 		common.ApiErrorMsg(c, "签到功能未启用")
 		return
 	}
+	captchaId := c.Query("captcha_id")
+	captchaAnswer := c.Query("captcha_answer")
+	if captchaId == "" || captchaAnswer == "" {
+		common.ApiErrorMsg(c, "请输入图形验证码")
+		return
+	}
+	if !common.VerifyCaptcha(captchaId, captchaAnswer) {
+		common.ApiErrorMsg(c, "图形验证码错误或已过期，请刷新重试")
+		return
+	}
 
 	userId := c.GetInt("id")
 

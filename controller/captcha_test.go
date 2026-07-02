@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -24,8 +25,13 @@ func doGetCaptcha(t *testing.T) *httptest.ResponseRecorder {
 
 func TestGetCaptchaDisabled(t *testing.T) {
 	prev := common.RegisterCaptchaEnabled
-	t.Cleanup(func() { common.RegisterCaptchaEnabled = prev })
+	prevCheckin := operation_setting.GetCheckinSetting().Enabled
+	t.Cleanup(func() {
+		common.RegisterCaptchaEnabled = prev
+		operation_setting.GetCheckinSetting().Enabled = prevCheckin
+	})
 	common.RegisterCaptchaEnabled = false
+	operation_setting.GetCheckinSetting().Enabled = false
 
 	w := doGetCaptcha(t)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -36,12 +42,36 @@ func TestGetCaptchaDisabled(t *testing.T) {
 func TestGetCaptchaEnabledReturnsImage(t *testing.T) {
 	prevCaptcha := common.RegisterCaptchaEnabled
 	prevRedis := common.RedisEnabled
+	prevCheckin := operation_setting.GetCheckinSetting().Enabled
 	t.Cleanup(func() {
 		common.RegisterCaptchaEnabled = prevCaptcha
 		common.RedisEnabled = prevRedis
+		operation_setting.GetCheckinSetting().Enabled = prevCheckin
 	})
 	common.RegisterCaptchaEnabled = true
 	common.RedisEnabled = false
+	operation_setting.GetCheckinSetting().Enabled = false
+
+	w := doGetCaptcha(t)
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+	require.Contains(t, body, `"success":true`)
+	require.Contains(t, body, "captcha_id")
+	require.True(t, strings.Contains(body, "data:image/png;base64"))
+}
+
+func TestGetCaptchaCheckinEnabledReturnsImage(t *testing.T) {
+	prevCaptcha := common.RegisterCaptchaEnabled
+	prevRedis := common.RedisEnabled
+	prevCheckin := operation_setting.GetCheckinSetting().Enabled
+	t.Cleanup(func() {
+		common.RegisterCaptchaEnabled = prevCaptcha
+		common.RedisEnabled = prevRedis
+		operation_setting.GetCheckinSetting().Enabled = prevCheckin
+	})
+	common.RegisterCaptchaEnabled = false
+	common.RedisEnabled = false
+	operation_setting.GetCheckinSetting().Enabled = true
 
 	w := doGetCaptcha(t)
 	require.Equal(t, http.StatusOK, w.Code)

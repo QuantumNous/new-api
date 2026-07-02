@@ -120,7 +120,7 @@ func SetApiRouter(router *gin.Engine) {
 
 				// Check-in routes
 				selfRoute.GET("/checkin", controller.GetCheckinStatus)
-				selfRoute.POST("/checkin", middleware.TurnstileCheck(), controller.DoCheckin)
+				selfRoute.POST("/checkin", controller.DoCheckin)
 
 				// Invoice routes
 				selfRoute.GET("/invoice", controller.GetUserInvoices)
