@@ -4354,7 +4354,7 @@
     "This page has not been created yet.": "このページはまだ作成されていません。",
     "This plan does not allow balance redemption": "このプランでは残高での交換は許可されていません",
     "This project must be used in compliance with the": "このプロジェクトは、以下を遵守して使用する必要があります",
-    "This record was written by a pre-upgrade instance and lacks audit info. Upgrade the instance to record server IP, callback IP, payment method and system version.": "古いバージョンのインスタンスがこの記録を書き込み、監査情報がありません。最新に更新し、サーバーIP・コールバックIP・支払方法・OSバージョンの記録を有効にしてください。",
+    "This historical record predates audit-info tracking and cannot be backfilled. The current instance already records server IP, callback IP, payment method, and system version for new top-ups going forward.": "このレコードは監査情報の記録に対応する前の履歴データのため、監査情報がありません。現在のバージョンではサーバーIP、コールバックIP、支払い方法、システムバージョンなどの監査情報を記録できますが、これらは今後新しく作成されるレコードにのみ適用され、過去のレコードを遡って補完することはできません。",
     "This removes {{count}} failed models from this channel. This action cannot be undone.": "この操作はこのチャンネルから失敗した {{count}} 個のモデルを削除します。元に戻せません。",
     "This site currently has {{count}} models enabled": "このサイトでは現在 {{count}} 個のモデルが有効です",
     "This tier catches any request that did not match earlier tiers.": "この段階は、前の段階に一致しなかったすべてのリクエストを受け取ります。",
