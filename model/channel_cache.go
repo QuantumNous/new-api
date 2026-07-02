@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -17,6 +18,9 @@ import (
 var group2model2channels map[string]map[string][]int // enabled channel
 var channelsIDM map[int]*Channel                     // all channels include disabled
 var channelSyncLock sync.RWMutex
+
+const channelCacheRedisKey = "channel_cache_routing"
+const channelUpdateChannel = "channel_updates"
 
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
@@ -83,13 +87,82 @@ func InitChannelCache() {
 	channelsIDM = newChannelId2channel
 	channelSyncLock.Unlock()
 	common.SysLog("channels synced from database")
+	syncChannelCacheToRedis()
+}
+
+func syncChannelCacheToRedis() {
+	if !common.RedisEnabled || common.RDB == nil {
+		return
+	}
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+	data, _ := common.Marshal(group2model2channels)
+	_ = common.RedisSet(channelCacheRedisKey, string(data), 5*time.Minute)
+}
+
+var (
+	syncChannelCacheStop     = make(chan struct{})
+	syncChannelCacheStopOnce sync.Once
+)
+
+func StopSyncChannelCache() {
+	syncChannelCacheStopOnce.Do(func() {
+		close(syncChannelCacheStop)
+	})
 }
 
 func SyncChannelCache(frequency int) {
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("SyncChannelCache panic recovered: %v", r))
+		}
+	}()
+	ticker := time.NewTicker(time.Duration(frequency) * time.Second)
+	defer ticker.Stop()
 	for {
-		time.Sleep(time.Duration(frequency) * time.Second)
-		common.SysLog("syncing channels from database")
-		InitChannelCache()
+		select {
+		case <-syncChannelCacheStop:
+			common.SysLog("SyncChannelCache stopped")
+			return
+		case <-ticker.C:
+			common.SysLog("syncing channels from database")
+			InitChannelCache()
+		}
+	}
+}
+
+// SubscribeChannelUpdates listens for Redis channel_updates pub/sub messages
+// and triggers a local InitChannelCache on each notification.
+func SubscribeChannelUpdates() {
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("SubscribeChannelUpdates panic recovered: %v", r))
+		}
+	}()
+	if !common.RedisEnabled {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		<-syncChannelCacheStop
+		cancel()
+	}()
+	sub := common.RDB.Subscribe(ctx, channelUpdateChannel)
+	defer func() { _ = sub.Close() }()
+	ch := sub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			common.SysLog("SubscribeChannelUpdates stopped")
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			common.SysLog("received channel update notification: " + msg.Payload)
+			InitChannelCache()
+		}
 	}
 }
 
@@ -242,7 +315,6 @@ func CacheUpdateChannelStatus(id int, status int) {
 		return
 	}
 	channelSyncLock.Lock()
-	defer channelSyncLock.Unlock()
 	if channel, ok := channelsIDM[id]; ok {
 		channel.Status = status
 	}
@@ -260,6 +332,8 @@ func CacheUpdateChannelStatus(id int, status int) {
 			}
 		}
 	}
+	channelSyncLock.Unlock()
+	publishChannelUpdate()
 }
 
 func CacheUpdateChannel(channel *Channel) {
@@ -267,14 +341,19 @@ func CacheUpdateChannel(channel *Channel) {
 		return
 	}
 	channelSyncLock.Lock()
-	defer channelSyncLock.Unlock()
 	if channel == nil {
+		channelSyncLock.Unlock()
 		return
 	}
-
-	println("CacheUpdateChannel:", channel.Id, channel.Name, channel.Status, channel.ChannelInfo.MultiKeyPollingIndex)
-
-	println("before:", channelsIDM[channel.Id].ChannelInfo.MultiKeyPollingIndex)
 	channelsIDM[channel.Id] = channel
-	println("after :", channelsIDM[channel.Id].ChannelInfo.MultiKeyPollingIndex)
+	channelSyncLock.Unlock()
+	publishChannelUpdate()
+}
+
+func publishChannelUpdate() {
+	if !common.RedisEnabled || common.RDB == nil {
+		return
+	}
+	ctx := context.Background()
+	_ = common.RDB.Publish(ctx, channelUpdateChannel, "update").Err()
 }

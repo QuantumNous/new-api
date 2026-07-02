@@ -53,6 +53,7 @@ const (
 )
 
 func formatUserLogs(logs []*Log, startIdx int) {
+	enrichSubscriptionDetails(logs)
 	for i := range logs {
 		logs[i].ChannelName = ""
 		var otherMap map[string]interface{}
@@ -65,6 +66,32 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		}
 		logs[i].Other = common.MapToJsonStr(otherMap)
 		logs[i].Id = startIdx + i + 1
+	}
+}
+
+func enrichSubscriptionDetails(logs []*Log) {
+	for _, log := range logs {
+		if log == nil || log.RequestId == "" || log.Other == "" {
+			continue
+		}
+		var other map[string]interface{}
+		if err := common.Unmarshal([]byte(log.Other), &other); err != nil || other == nil {
+			continue
+		}
+		if other["billing_source"] != "subscription" && other["billing_source"] != "hybrid" {
+			continue
+		}
+		if existing, ok := other["subscription_details"].([]interface{}); ok && len(existing) > 0 {
+			continue
+		}
+		details, err := GetSubscriptionPreConsumeLogDetails(log.RequestId)
+		if err != nil || len(details) == 0 {
+			continue
+		}
+		other["subscription_details"] = details
+		if data, err := common.Marshal(other); err == nil {
+			log.Other = string(data)
+		}
 	}
 }
 
@@ -376,6 +403,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 			logs[i].ChannelName = channelMap[logs[i].ChannelId]
 		}
 	}
+	enrichSubscriptionDetails(logs)
 
 	return logs, total, err
 }

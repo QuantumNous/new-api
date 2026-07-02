@@ -178,6 +178,8 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.GET("/plans", controller.GetSubscriptionPlans)
 			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
 			subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
+			subscriptionRoute.PUT("/self/priority", controller.UpdateSubscriptionPriority)
+			subscriptionRoute.POST("/self/toggle/:id", controller.ToggleSubscriptionDisabled)
 			subscriptionRoute.POST("/self/cancel/:id", controller.UserCancelSubscription)
 			// subscriptionRoute.DELETE("/self/:id", controller.UserDeleteSubscription)
 			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)

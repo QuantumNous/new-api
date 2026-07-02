@@ -84,7 +84,6 @@ func Distribute() func(c *gin.Context) {
 
 				// 检查订阅套餐分组限制（如果用户使用仅钱包计费则跳过）
 				userId := c.GetInt("id")
-				var cachedActivePlan *model.SubscriptionPlan
 				if userId > 0 {
 					var billingPreference string
 					if userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting); ok {
@@ -93,23 +92,12 @@ func Distribute() func(c *gin.Context) {
 					if billingPreference != "wallet_only" {
 						activePlan, err := model.GetUserActiveSubscriptionPlan(userId)
 						if err == nil && activePlan != nil {
-							cachedActivePlan = activePlan
 							// 缓存订阅检查结果到 context，避免 billing 阶段重复查 DB
 							common.SetContextKey(c, constant.ContextKeyHasActiveSubscription, 1)
-							allowedGroups := activePlan.GetAllowedGroupsList()
-							if len(allowedGroups) > 0 {
-								if usingGroup == "auto" {
-									// 对于 auto 分组，稍后在实际选择分组时再验证
-								} else if !activePlan.IsGroupAllowed(usingGroup) {
-									abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorSubscriptionGroupRestricted, map[string]any{
-										"AllowedGroups": strings.Join(allowedGroups, ", "),
-										"CurrentGroup":  usingGroup,
-									}))
-									return
-								}
-							}
+							// 分组检查已移至 PreConsumeUserSubscription，按优先级遍历所有套餐
+							// 不再在此处拦截，避免只检查第一个套餐导致误拒
 						} else {
-							// 无活跃订阅，也缓存结果
+							// GetUserActiveSubscriptionPlan now covers both active and pending_activation
 							common.SetContextKey(c, constant.ContextKeyHasActiveSubscription, 0)
 						}
 					}
@@ -198,17 +186,8 @@ func Distribute() func(c *gin.Context) {
 						return
 					}
 
-					// 验证自动选择分组的订阅套餐分组限制（如果用户使用仅钱包计费则跳过）
-					if usingGroup == "auto" && selectGroup != "" && cachedActivePlan != nil {
-						if !cachedActivePlan.IsGroupAllowed(selectGroup) {
-							allowedGroups := cachedActivePlan.GetAllowedGroupsList()
-							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorSubscriptionGroupRestricted, map[string]any{
-								"AllowedGroups": strings.Join(allowedGroups, ", "),
-								"CurrentGroup":  selectGroup,
-							}))
-							return
-						}
-					}
+					// 分组检查已移至 PreConsumeUserSubscription，按优先级遍历所有套餐
+					// 不再在此处拦截，避免只检查第一个套餐导致误拒
 				}
 
 				// 验证自动选择分组的调用路径限制

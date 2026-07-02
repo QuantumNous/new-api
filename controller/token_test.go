@@ -15,7 +15,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -42,27 +41,22 @@ type tokenKeyResponse struct {
 	Key string `json:"key"`
 }
 
-type sqliteColumnInfo struct {
-	Name string `gorm:"column:name"`
-	Type string `gorm:"column:type"`
-}
-
 type legacyToken struct {
-	Id                 int            `gorm:"primaryKey"`
-	UserId             int            `gorm:"index"`
-	Key                string         `gorm:"column:key;type:char(48);uniqueIndex"`
-	Status             int            `gorm:"default:1"`
-	Name               string         `gorm:"index"`
-	CreatedTime        int64          `gorm:"bigint"`
-	AccessedTime       int64          `gorm:"bigint"`
-	ExpiredTime        int64          `gorm:"bigint;default:-1"`
-	RemainQuota        int            `gorm:"default:0"`
+	Id                 int    `gorm:"primaryKey"`
+	UserId             int    `gorm:"index"`
+	Key                string `gorm:"column:key;type:char(48);uniqueIndex"`
+	Status             int    `gorm:"default:1"`
+	Name               string `gorm:"index"`
+	CreatedTime        int64  `gorm:"bigint"`
+	AccessedTime       int64  `gorm:"bigint"`
+	ExpiredTime        int64  `gorm:"bigint;default:-1"`
+	RemainQuota        int    `gorm:"default:0"`
 	UnlimitedQuota     bool
 	ModelLimitsEnabled bool
-	ModelLimits        string         `gorm:"type:text"`
-	AllowIps           *string        `gorm:"default:''"`
-	UsedQuota          int            `gorm:"default:0"`
-	Group              string         `gorm:"column:group;default:''"`
+	ModelLimits        string  `gorm:"type:text"`
+	AllowIps           *string `gorm:"default:''"`
+	UsedQuota          int     `gorm:"default:0"`
+	Group              string  `gorm:"column:group;default:''"`
 	CrossGroupRetry    bool
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
@@ -75,20 +69,27 @@ func openTokenControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
-	common.UsingSQLite = true
+	dsn := os.Getenv("TEST_SQL_DSN")
+	if dsn == "" {
+		t.Fatal("TEST_SQL_DSN is required for token controller tests; local SQLite fallback is disabled in this workspace")
+	}
+	common.IsMasterNode = false
+	common.UsingSQLite = false
 	common.UsingMySQL = false
 	common.UsingPostgreSQL = false
 	common.RedisEnabled = false
-
-	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("failed to open sqlite db: %v", err)
+	if err := os.Setenv("SQL_DSN", dsn); err != nil {
+		t.Fatalf("failed to set SQL_DSN: %v", err)
 	}
-	model.DB = db
-	model.LOG_DB = db
+	if err := model.InitDB(); err != nil {
+		t.Fatalf("failed to open test db: %v", err)
+	}
+	model.LOG_DB = model.DB
+	db := model.DB
+	cleanTokenControllerTestDB(db)
 
 	t.Cleanup(func() {
+		cleanTokenControllerTestDB(db)
 		sqlDB, err := db.DB()
 		if err == nil {
 			_ = sqlDB.Close()
@@ -96,6 +97,19 @@ func openTokenControllerTestDB(t *testing.T) *gorm.DB {
 	})
 
 	return db
+}
+
+func cleanTokenControllerTestDB(db *gorm.DB) {
+	db.Exec("DELETE FROM tokens")
+}
+
+func tokenControllerTestDialect(t *testing.T) string {
+	t.Helper()
+	dsn := os.Getenv("TEST_SQL_DSN")
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		return "postgres"
+	}
+	return "mysql"
 }
 
 func migrateTokenControllerTestDB(t *testing.T, db *gorm.DB) {
@@ -216,30 +230,10 @@ func decodeAPIResponse(t *testing.T, recorder *httptest.ResponseRecorder) tokenA
 	return response
 }
 
-func getSQLiteColumnType(t *testing.T, db *gorm.DB, tableName string, columnName string) string {
-	t.Helper()
-
-	var columns []sqliteColumnInfo
-	if err := db.Raw("PRAGMA table_info(" + tableName + ")").Scan(&columns).Error; err != nil {
-		t.Fatalf("failed to inspect %s schema: %v", tableName, err)
-	}
-
-	for _, column := range columns {
-		if column.Name == columnName {
-			return strings.ToLower(column.Type)
-		}
-	}
-
-	t.Fatalf("column %s not found in %s schema", columnName, tableName)
-	return ""
-}
-
 func getTokenKeyColumnType(t *testing.T, db *gorm.DB, dialect string) string {
 	t.Helper()
 
 	switch dialect {
-	case "sqlite":
-		return getSQLiteColumnType(t, db, "tokens", "key")
 	case "mysql":
 		var columnType string
 		if err := db.Raw(`SELECT COLUMN_TYPE FROM information_schema.columns
@@ -360,14 +354,19 @@ func runTokenMigrationCompatibilityTest(t *testing.T, db *gorm.DB, dialect strin
 func TestTokenAutoMigrateUsesVarchar128KeyColumn(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 
-	if got := getTokenKeyColumnType(t, db, "sqlite"); got != "varchar(128)" {
+	if got := getTokenKeyColumnType(t, db, tokenControllerTestDialect(t)); got != "varchar(128)" {
 		t.Fatalf("expected key column type varchar(128), got %q", got)
 	}
 }
 
 func TestTokenMigrationFromChar48ToVarchar128(t *testing.T) {
 	db := openTokenControllerTestDB(t)
-	runTokenMigrationCompatibilityTest(t, db, "sqlite", nil)
+	if db.Migrator().HasTable("tokens") {
+		if err := db.Migrator().DropTable("tokens"); err != nil {
+			t.Fatalf("failed to drop tokens table: %v", err)
+		}
+	}
+	runTokenMigrationCompatibilityTest(t, db, tokenControllerTestDialect(t), nil)
 }
 
 func TestTokenMigrationFromChar48ToVarchar128MySQL(t *testing.T) {

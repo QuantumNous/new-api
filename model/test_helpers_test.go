@@ -153,10 +153,6 @@ func getUserBaseLevel(t *testing.T, userId int) string {
 	return baseLevel
 }
 
-func TestMain(m *testing.M) {
-	os.Exit(m.Run())
-}
-
 // createTestRedemption creates a redemption with all fields properly saved (including false booleans)
 func createTestRedemption(t *testing.T, r *Redemption) {
 	t.Helper()

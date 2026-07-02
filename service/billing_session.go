@@ -72,7 +72,11 @@ func (s *BillingSession) Settle(actualQuota int) error {
 		}
 	}
 	// 3) 更新 relayInfo 上的订阅 PostDelta（用于日志）
-	if s.funding.Source() == BillingSourceSubscription {
+	if funding, ok := s.funding.(*HybridFunding); ok {
+		s.relayInfo.SubscriptionPostDelta += funding.lastSubscriptionDelta
+		s.relayInfo.WalletQuotaDeducted = funding.wallet.consumed
+		s.relayInfo.BillingSource = funding.Source()
+	} else if s.funding.Source() == BillingSourceSubscription {
 		s.relayInfo.SubscriptionPostDelta += int64(delta)
 	}
 	s.settled = true
@@ -140,6 +144,9 @@ func (s *BillingSession) needsRefundLocked() bool {
 	}
 	// 订阅可能在 tokenConsumed=0 时仍预扣了额度
 	if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.preConsumed > 0 {
+		return true
+	}
+	if hybrid, ok := s.funding.(*HybridFunding); ok && hybrid.subscription != nil && hybrid.subscription.preConsumed > 0 {
 		return true
 	}
 	return false
@@ -216,7 +223,10 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 		}
 		// TODO: model 层应定义哨兵错误（如 ErrNoActiveSubscription），用 errors.Is 替代字符串匹配
 		errMsg := err.Error()
-		if strings.Contains(errMsg, "no active subscription") || strings.Contains(errMsg, "subscription quota insufficient") {
+		if strings.Contains(errMsg, "no active subscription") ||
+			strings.Contains(errMsg, "subscription quota insufficient") ||
+			strings.Contains(errMsg, "用户额度不足") ||
+			strings.Contains(errMsg, "user quota is not enough") {
 			return types.NewErrorWithStatusCode(fmt.Errorf("订阅额度不足或未配置订阅: %s", errMsg), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
@@ -239,7 +249,7 @@ func (s *BillingSession) reserveFunding(delta int) error {
 		funding.consumed += delta
 		return nil
 	case *SubscriptionFunding:
-		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, int64(delta)); err != nil {
+		if err := model.AdjustSubscriptionPreConsume(funding.requestId, funding.userId, int64(delta), funding.group); err != nil {
 			return types.NewErrorWithStatusCode(
 				fmt.Errorf("订阅额度不足或未配置订阅: %s", err.Error()),
 				types.ErrorCodeInsufficientUserQuota,
@@ -249,6 +259,8 @@ func (s *BillingSession) reserveFunding(delta int) error {
 			)
 		}
 		return nil
+	case *HybridFunding:
+		return funding.Settle(delta)
 	default:
 		return types.NewError(fmt.Errorf("unsupported funding source: %s", s.funding.Source()), types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 	}
@@ -263,8 +275,12 @@ func (s *BillingSession) rollbackFundingReserve(delta int) {
 			funding.consumed -= delta
 		}
 	case *SubscriptionFunding:
-		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, -int64(delta)); err != nil {
+		if err := model.AdjustSubscriptionPreConsume(funding.requestId, funding.userId, -int64(delta), funding.group); err != nil {
 			common.SysLog("error rolling back subscription funding reserve: " + err.Error())
+		}
+	case *HybridFunding:
+		if err := funding.Settle(-delta); err != nil {
+			common.SysLog("error rolling back hybrid funding reserve: " + err.Error())
 		}
 	}
 }
@@ -300,6 +316,9 @@ func (s *BillingSession) shouldTrust(c *gin.Context) bool {
 	if !tokenTrusted {
 		return false
 	}
+	if _, ok := s.funding.(*HybridFunding); ok {
+		return false
+	}
 
 	switch s.funding.Source() {
 	case BillingSourceWallet:
@@ -329,6 +348,21 @@ func (s *BillingSession) syncRelayInfo() {
 		info.SubscriptionAmountUsedAfterPreConsume = sub.AmountUsedAfter + int64(s.extraReserved)
 		info.SubscriptionPlanId = sub.PlanId
 		info.SubscriptionPlanTitle = sub.PlanTitle
+	} else if hybrid, ok := s.funding.(*HybridFunding); ok {
+		sub := hybrid.subscription
+		info.WalletQuotaDeducted = hybrid.wallet.consumed
+		if sub != nil && sub.preConsumed > 0 {
+			info.SubscriptionId = sub.subscriptionId
+			info.SubscriptionPreConsumed = sub.preConsumed
+			info.SubscriptionPostDelta = 0
+			info.SubscriptionAmountTotal = sub.AmountTotal
+			info.SubscriptionAmountUsedAfterPreConsume = sub.AmountUsedAfter
+			info.SubscriptionPlanId = sub.PlanId
+			info.SubscriptionPlanTitle = sub.PlanTitle
+		} else {
+			info.SubscriptionId = 0
+			info.SubscriptionPreConsumed = 0
+		}
 	} else {
 		info.SubscriptionId = 0
 		info.SubscriptionPreConsumed = 0
@@ -388,6 +422,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 				requestId: relayInfo.RequestId,
 				userId:    relayInfo.UserId,
 				modelName: relayInfo.OriginModelName,
+				group:     relayInfo.UsingGroup,
 				amount:    subConsume,
 			},
 		}
@@ -431,7 +466,20 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		if !hasSub {
 			return tryWallet()
 		}
-		session, apiErr := trySubscription()
+		session := &BillingSession{
+			relayInfo: relayInfo,
+			funding: &HybridFunding{
+				subscription: &SubscriptionFunding{
+					requestId: relayInfo.RequestId,
+					userId:    relayInfo.UserId,
+					modelName: relayInfo.OriginModelName,
+					group:     relayInfo.UsingGroup,
+					amount:    int64(preConsumedQuota),
+				},
+				wallet: &WalletFunding{userId: relayInfo.UserId},
+			},
+		}
+		apiErr := session.preConsume(c, preConsumedQuota)
 		if apiErr != nil {
 			if apiErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
 				return tryWallet()

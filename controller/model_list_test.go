@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,7 +14,6 @@ import (
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -29,23 +27,26 @@ type listModelsResponse struct {
 func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	initModelListColumnNames(t)
-
 	gin.SetMode(gin.TestMode)
-	common.UsingSQLite = true
+	dsn := os.Getenv("TEST_SQL_DSN")
+	if dsn == "" {
+		t.Fatal("TEST_SQL_DSN is required for model list controller tests; local SQLite fallback is disabled in this workspace")
+	}
+	common.IsMasterNode = false
+	common.UsingSQLite = false
 	common.UsingMySQL = false
 	common.UsingPostgreSQL = false
 	common.RedisEnabled = false
-
-	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
-	require.NoError(t, err)
-	model.DB = db
-	model.LOG_DB = db
+	require.NoError(t, os.Setenv("SQL_DSN", dsn))
+	require.NoError(t, model.InitDB())
+	model.LOG_DB = model.DB
+	db := model.DB
 
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Channel{}, &model.Ability{}, &model.Model{}, &model.Vendor{}))
+	cleanModelListControllerTestDB(db)
 
 	t.Cleanup(func() {
+		cleanModelListControllerTestDB(db)
 		sqlDB, err := db.DB()
 		if err == nil {
 			_ = sqlDB.Close()
@@ -55,42 +56,12 @@ func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func initModelListColumnNames(t *testing.T) {
-	t.Helper()
-
-	originalIsMasterNode := common.IsMasterNode
-	originalSQLitePath := common.SQLitePath
-	originalUsingSQLite := common.UsingSQLite
-	originalUsingMySQL := common.UsingMySQL
-	originalUsingPostgreSQL := common.UsingPostgreSQL
-	originalSQLDSN, hadSQLDSN := os.LookupEnv("SQL_DSN")
-	defer func() {
-		common.IsMasterNode = originalIsMasterNode
-		common.SQLitePath = originalSQLitePath
-		common.UsingSQLite = originalUsingSQLite
-		common.UsingMySQL = originalUsingMySQL
-		common.UsingPostgreSQL = originalUsingPostgreSQL
-		if hadSQLDSN {
-			require.NoError(t, os.Setenv("SQL_DSN", originalSQLDSN))
-		} else {
-			require.NoError(t, os.Unsetenv("SQL_DSN"))
-		}
-	}()
-
-	common.IsMasterNode = false
-	common.SQLitePath = fmt.Sprintf("file:%s_init?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
-	common.UsingSQLite = false
-	common.UsingMySQL = false
-	common.UsingPostgreSQL = false
-	require.NoError(t, os.Setenv("SQL_DSN", "local"))
-
-	require.NoError(t, model.InitDB())
-	if model.DB != nil {
-		sqlDB, err := model.DB.DB()
-		if err == nil {
-			_ = sqlDB.Close()
-		}
-	}
+func cleanModelListControllerTestDB(db *gorm.DB) {
+	db.Exec("DELETE FROM abilities")
+	db.Exec("DELETE FROM channels")
+	db.Exec("DELETE FROM models")
+	db.Exec("DELETE FROM vendors")
+	db.Exec("DELETE FROM users")
 }
 
 func withTieredBillingConfig(t *testing.T, modes map[string]string, exprs map[string]string) {

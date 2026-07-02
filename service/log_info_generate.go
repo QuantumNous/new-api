@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
@@ -120,14 +121,17 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 	if relayInfo == nil || other == nil {
 		return
 	}
-	// billing_source: "wallet" or "subscription"
+	// billing_source: "wallet", "subscription", or "hybrid"
 	if relayInfo.BillingSource != "" {
 		other["billing_source"] = relayInfo.BillingSource
 	}
 	if relayInfo.UserSetting.BillingPreference != "" {
 		other["billing_preference"] = relayInfo.UserSetting.BillingPreference
 	}
-	if relayInfo.BillingSource == "subscription" {
+	if relayInfo.BillingSource == "subscription" || relayInfo.BillingSource == "hybrid" {
+		if details, err := model.GetSubscriptionPreConsumeLogDetails(relayInfo.RequestId); err == nil && len(details) > 0 {
+			other["subscription_details"] = details
+		}
 		if relayInfo.SubscriptionId != 0 {
 			other["subscription_id"] = relayInfo.SubscriptionId
 		}
@@ -165,8 +169,14 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 		if consumed > 0 {
 			other["subscription_consumed"] = consumed
 		}
-		// Wallet quota is not deducted when billed from subscription.
-		other["wallet_quota_deducted"] = 0
+		if relayInfo.BillingSource == "hybrid" {
+			other["wallet_quota_deducted"] = relayInfo.WalletQuotaDeducted
+		} else {
+			// Wallet quota is not deducted when billed entirely from subscription.
+			other["wallet_quota_deducted"] = 0
+		}
+	} else if relayInfo.BillingSource == "wallet" && relayInfo.WalletQuotaDeducted > 0 {
+		other["wallet_quota_deducted"] = relayInfo.WalletQuotaDeducted
 	}
 }
 

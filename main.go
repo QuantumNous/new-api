@@ -2,13 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -63,6 +67,11 @@ func main() {
 		if err != nil {
 			common.FatalLog("failed to close database: " + err.Error())
 		}
+		// Stop functions are idempotent (sync.Once); safe to call here as a
+		// final safety net even though the signal handler already triggers them.
+		model.StopSyncOptions()
+		model.StopSyncChannelCache()
+		model.StopUpdateQuotaData()
 	}()
 
 	if common.RedisEnabled {
@@ -89,10 +98,12 @@ func main() {
 		}()
 
 		go model.SyncChannelCache(common.SyncFrequency)
+		go model.SubscribeChannelUpdates()
 	}
 
 	// 热更新配置
 	go model.SyncOptions(common.SyncFrequency)
+	go model.SubscribeOptionUpdates()
 
 	// 数据看板
 	go model.UpdateQuotaData()
@@ -199,10 +210,46 @@ func main() {
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)
 
-	err = server.Run(":" + port)
-	if err != nil {
-		common.FatalLog("failed to start HTTP server: " + err.Error())
+	httpServer := &http.Server{
+		Addr:    ":" + port,
+		Handler: server,
 	}
+
+	// Graceful shutdown: wait for SIGINT/SIGTERM and shut down HTTP + background goroutines.
+	shutdownDone := make(chan struct{})
+	var shutdownOnce sync.Once
+	signalShutdown := func() {
+		shutdownOnce.Do(func() { close(shutdownDone) })
+	}
+	go func() {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-sigCh
+		common.SysLog(fmt.Sprintf("received signal %s, shutting down gracefully", sig))
+
+		// Stop background goroutines first so they don't race with DB close.
+		model.StopSyncOptions()
+		model.StopSyncChannelCache()
+		model.StopUpdateQuotaData()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(ctx); err != nil {
+			common.SysError(fmt.Sprintf("HTTP server shutdown error: %v", err))
+		}
+		signalShutdown()
+	}()
+
+	serveErr := httpServer.ListenAndServe()
+	if serveErr != nil && serveErr != http.ErrServerClosed {
+		// Server failed to start (e.g. port already in use). Unblock shutdown path
+		// so we don't hang waiting for a signal that may never arrive.
+		common.FatalLog("failed to start HTTP server: " + serveErr.Error())
+		signalShutdown()
+		return
+	}
+	<-shutdownDone
+	common.SysLog("HTTP server stopped")
 }
 
 func InjectUmamiAnalytics() {

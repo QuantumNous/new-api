@@ -43,22 +43,137 @@ func GetSubscriptionSelf(c *gin.Context) {
 	settingMap, _ := model.GetUserSetting(userId, false)
 	pref := common.NormalizeBillingPreference(settingMap.BillingPreference)
 
-	// Get all subscriptions (including expired)
-	allSubscriptions, err := model.GetAllUserSubscriptions(userId)
+	now := common.GetTimestamp()
+
+	// Get all subscriptions (including expired) with plan info
+	allSubs, err := model.GetAllUserSubscriptions(userId)
 	if err != nil {
-		allSubscriptions = []model.SubscriptionSummary{}
+		allSubs = []model.SubscriptionSummary{}
+	}
+
+	// Get usable subscriptions (active + pending_activation) with plan info
+	usableSubs, err := model.GetAllUsableUserSubscriptions(userId)
+	if err != nil {
+		usableSubs = []model.SubscriptionSummary{}
 	}
 
 	// Get active subscriptions for backward compatibility
-	activeSubscriptions, err := model.GetAllActiveUserSubscriptions(userId)
+	activeSubs, err := model.GetAllActiveUserSubscriptions(userId)
 	if err != nil {
-		activeSubscriptions = []model.SubscriptionSummary{}
+		activeSubs = []model.SubscriptionSummary{}
+	}
+
+	// Collect all plan IDs
+	planIds := make(map[int]struct{})
+	for _, s := range allSubs {
+		if s.Subscription != nil {
+			planIds[s.Subscription.PlanId] = struct{}{}
+		}
+	}
+
+	// Load plans in batch
+	planIdsSlice := make([]int, 0, len(planIds))
+	for pid := range planIds {
+		planIdsSlice = append(planIdsSlice, pid)
+	}
+	plans := make(map[int]*model.SubscriptionPlan, len(planIds))
+	if len(planIdsSlice) > 0 {
+		var planList []model.SubscriptionPlan
+		if err := model.DB.Where("id IN ?", planIdsSlice).Find(&planList).Error; err != nil {
+			common.SysError("failed to batch load subscription plans: " + err.Error())
+		} else {
+			for i := range planList {
+				plans[planList[i].Id] = &planList[i]
+			}
+		}
+	}
+
+	// Enrich subscriptions with plan and progress info
+	type ProgressInfo struct {
+		TimeElapsedSeconds   int64   `json:"time_elapsed_seconds"`
+		TimeTotalSeconds     int64   `json:"time_total_seconds"`
+		TimeRemainingSeconds int64   `json:"time_remaining_seconds"`
+		TimePercent          float64 `json:"time_percent"`
+		QuotaUsed            int64   `json:"quota_used"`
+		QuotaTotal           int64   `json:"quota_total"`
+		QuotaPercent         float64 `json:"quota_percent"`
+	}
+
+	type WindowUsageInfo struct {
+		Used              int64 `json:"used"`
+		Limit             int64 `json:"limit"`
+		Since             int64 `json:"since"`
+		WindowSeconds     int64 `json:"window_seconds"`
+		ResetAt           int64 `json:"reset_at"`
+		ResetAfterSeconds int64 `json:"reset_after_seconds"`
+	}
+
+	type EnrichedSubscription struct {
+		Subscription *model.UserSubscription    `json:"subscription"`
+		Plan         *model.SubscriptionPlan    `json:"plan,omitempty"`
+		Progress     *ProgressInfo              `json:"progress,omitempty"`
+		WindowUsage  map[string]WindowUsageInfo `json:"window_usage,omitempty"`
+	}
+
+	buildEnriched := func(summaries []model.SubscriptionSummary) []EnrichedSubscription {
+		result := make([]EnrichedSubscription, 0, len(summaries))
+		for _, s := range summaries {
+			if s.Subscription == nil {
+				continue
+			}
+			enriched := EnrichedSubscription{Subscription: s.Subscription}
+			if plan, ok := plans[s.Subscription.PlanId]; ok {
+				enriched.Plan = plan
+			}
+			if s.Subscription.Status == model.UserSubscriptionStatusActive {
+				progress := &ProgressInfo{}
+				if s.Subscription.AmountTotal > 0 {
+					progress.QuotaUsed = s.Subscription.AmountUsed
+					progress.QuotaTotal = s.Subscription.AmountTotal
+					if s.Subscription.AmountTotal > 0 {
+						progress.QuotaPercent = float64(s.Subscription.AmountUsed) / float64(s.Subscription.AmountTotal) * 100
+					}
+				}
+				if s.Subscription.EndTime > 0 {
+					startTime := s.Subscription.StartTime
+					if s.Subscription.ActivatedAt > 0 {
+						startTime = s.Subscription.ActivatedAt
+					}
+					totalDuration := s.Subscription.EndTime - startTime
+					if totalDuration > 0 {
+						progress.TimeTotalSeconds = totalDuration
+						elapsed := now - startTime
+						if elapsed < 0 {
+							elapsed = 0
+						}
+						progress.TimeElapsedSeconds = elapsed
+						progress.TimeRemainingSeconds = totalDuration - elapsed
+						if progress.TimeRemainingSeconds < 0 {
+							progress.TimeRemainingSeconds = 0
+						}
+						progress.TimePercent = float64(elapsed) / float64(totalDuration) * 100
+					}
+				}
+				enriched.Progress = progress
+
+				// Compute per-window usage (with cache)
+				if windowData, err := model.GetWindowUsageWithCache(s.Subscription.Id); err == nil {
+					enriched.WindowUsage = make(map[string]WindowUsageInfo, len(windowData))
+					for k, v := range windowData {
+						enriched.WindowUsage[k] = WindowUsageInfo{Used: v.Used, Limit: v.Limit, Since: v.Since, WindowSeconds: v.WindowSeconds, ResetAt: v.ResetAt, ResetAfterSeconds: v.ResetAfterSeconds}
+					}
+				}
+			}
+			result = append(result, enriched)
+		}
+		return result
 	}
 
 	common.ApiSuccess(c, gin.H{
-		"billing_preference": pref,
-		"subscriptions":      activeSubscriptions, // all active subscriptions
-		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
+		"billing_preference":   pref,
+		"subscriptions":        buildEnriched(activeSubs),
+		"usable_subscriptions": buildEnriched(usableSubs),
+		"all_subscriptions":    buildEnriched(allSubs),
 	})
 }
 
@@ -84,6 +199,66 @@ func UpdateSubscriptionPreference(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, gin.H{"billing_preference": pref})
+}
+
+type SubscriptionPriorityRequest struct {
+	SubscriptionIds []int `json:"subscription_ids"`
+}
+
+// UpdateSubscriptionPriority updates subscription priority ordering.
+// The request body contains subscription_ids in priority order (first = highest).
+func UpdateSubscriptionPriority(c *gin.Context) {
+	userId := c.GetInt("id")
+	var req SubscriptionPriorityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	if len(req.SubscriptionIds) == 0 {
+		common.ApiSuccess(c, nil)
+		return
+	}
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		for i, subId := range req.SubscriptionIds {
+			priority := len(req.SubscriptionIds) - i
+			if err := tx.Model(&model.UserSubscription{}).
+				Where("id = ? AND user_id = ?", subId, userId).
+				Update("priority", priority).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	model.InvalidateUserActiveSubPlanCache(userId)
+	common.ApiSuccess(c, nil)
+}
+
+type ToggleSubscriptionRequest struct {
+	Disabled *bool `json:"disabled"`
+}
+
+// ToggleSubscriptionDisabled enables or disables a subscription for billing.
+func ToggleSubscriptionDisabled(c *gin.Context) {
+	userId := c.GetInt("id")
+	subId, _ := strconv.Atoi(c.Param("id"))
+	if subId <= 0 {
+		common.ApiErrorMsg(c, "无效的订阅ID")
+		return
+	}
+	var req ToggleSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.Disabled == nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	if err := model.UserToggleSubscriptionDisabled(userId, subId, *req.Disabled); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"disabled": *req.Disabled})
 }
 
 func UserCancelSubscription(c *gin.Context) {
@@ -140,6 +315,28 @@ type AdminUpsertSubscriptionPlanRequest struct {
 	Plan model.SubscriptionPlan `json:"plan"`
 }
 
+func validateAdminSubscriptionPlan(plan *model.SubscriptionPlan) string {
+	if plan == nil {
+		return "参数错误"
+	}
+	switch plan.DurationUnit {
+	case model.SubscriptionDurationYear, model.SubscriptionDurationMonth, model.SubscriptionDurationDay, model.SubscriptionDurationHour:
+		if plan.DurationValue <= 0 {
+			plan.DurationValue = 1
+		}
+	case model.SubscriptionDurationCustom:
+		if plan.CustomSeconds <= 0 {
+			return "自定义套餐时长需大于0秒"
+		}
+	default:
+		return "无效的套餐时长单位"
+	}
+	if plan.WindowLimit5h < 0 || plan.WindowLimit7d < 0 || plan.WindowLimit30d < 0 {
+		return "窗口额度不能为负数"
+	}
+	return ""
+}
+
 func AdminCreateSubscriptionPlan(c *gin.Context) {
 	var req AdminUpsertSubscriptionPlanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -166,8 +363,9 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
 	}
-	if req.Plan.DurationValue <= 0 && req.Plan.DurationUnit != model.SubscriptionDurationCustom {
-		req.Plan.DurationValue = 1
+	if msg := validateAdminSubscriptionPlan(&req.Plan); msg != "" {
+		common.ApiErrorMsg(c, msg)
+		return
 	}
 	if req.Plan.MaxPurchasePerUser < 0 {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
@@ -203,6 +401,13 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
+	}
+	// Normalize activation mode
+	if req.Plan.ActivationMode != model.SubscriptionActivationOnFirstUse {
+		req.Plan.ActivationMode = model.SubscriptionActivationImmediate
+	}
+	if req.Plan.ActivationWindowSeconds < 0 {
+		req.Plan.ActivationWindowSeconds = 0
 	}
 	err := model.DB.Create(&req.Plan).Error
 	if err != nil {
@@ -244,8 +449,9 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
 	}
-	if req.Plan.DurationValue <= 0 && req.Plan.DurationUnit != model.SubscriptionDurationCustom {
-		req.Plan.DurationValue = 1
+	if msg := validateAdminSubscriptionPlan(&req.Plan); msg != "" {
+		common.ApiErrorMsg(c, msg)
+		return
 	}
 	if req.Plan.MaxPurchasePerUser < 0 {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
@@ -282,6 +488,13 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
+	// Normalize activation mode
+	if req.Plan.ActivationMode != model.SubscriptionActivationOnFirstUse {
+		req.Plan.ActivationMode = model.SubscriptionActivationImmediate
+	}
+	if req.Plan.ActivationWindowSeconds < 0 {
+		req.Plan.ActivationWindowSeconds = 0
+	}
 
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
@@ -303,6 +516,11 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"allowed_groups":             req.Plan.AllowedGroups,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
+			"activation_mode":            req.Plan.ActivationMode,
+			"activation_window_seconds":  req.Plan.ActivationWindowSeconds,
+			"window_limit5h":             req.Plan.WindowLimit5h,
+			"window_limit7d":             req.Plan.WindowLimit7d,
+			"window_limit30d":            req.Plan.WindowLimit30d,
 			"is_recommended":             req.Plan.IsRecommended,
 			"tags":                       req.Plan.Tags,
 			"updated_at":                 common.GetTimestamp(),

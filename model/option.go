@@ -1,9 +1,11 @@
 package model
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -196,6 +198,34 @@ func InitOptionMap() {
 
 	common.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
+	syncOptionMapToRedis()
+}
+
+func syncOptionMapToRedis() {
+	if !common.RedisEnabled || common.RDB == nil {
+		return
+	}
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	ctx := context.Background()
+	pipe := common.RDB.Pipeline()
+	for k, v := range common.OptionMap {
+		pipe.HSet(ctx, "global_options", k, v)
+	}
+	pipe.Expire(ctx, "global_options", 5*time.Minute)
+	_, _ = pipe.Exec(ctx)
+}
+
+func syncOptionToRedis(key, value string) {
+	if !common.RedisEnabled || common.RDB == nil {
+		return
+	}
+	ctx := context.Background()
+	pipe := common.RDB.Pipeline()
+	pipe.HSet(ctx, "global_options", key, value)
+	pipe.Expire(ctx, "global_options", 5*time.Minute)
+	pipe.Publish(ctx, "option_updates", key)
+	_, _ = pipe.Exec(ctx)
 }
 
 func loadOptionsFromDatabase() {
@@ -208,11 +238,69 @@ func loadOptionsFromDatabase() {
 	}
 }
 
+var (
+	syncOptionsStop     = make(chan struct{})
+	syncOptionsStopOnce sync.Once
+)
+
+func StopSyncOptions() {
+	syncOptionsStopOnce.Do(func() {
+		close(syncOptionsStop)
+	})
+}
+
 func SyncOptions(frequency int) {
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("SyncOptions panic recovered: %v", r))
+		}
+	}()
+	ticker := time.NewTicker(time.Duration(frequency) * time.Second)
+	defer ticker.Stop()
 	for {
-		time.Sleep(time.Duration(frequency) * time.Second)
-		common.SysLog("syncing options from database")
-		loadOptionsFromDatabase()
+		select {
+		case <-syncOptionsStop:
+			common.SysLog("SyncOptions stopped")
+			return
+		case <-ticker.C:
+			common.SysLog("syncing options from database")
+			loadOptionsFromDatabase()
+		}
+	}
+}
+
+// SubscribeOptionUpdates listens for Redis option_updates pub/sub messages
+// and triggers a local reload from DB on each notification.
+func SubscribeOptionUpdates() {
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("SubscribeOptionUpdates panic recovered: %v", r))
+		}
+	}()
+	if !common.RedisEnabled {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		<-syncOptionsStop
+		cancel()
+	}()
+	sub := common.RDB.Subscribe(ctx, "option_updates")
+	defer func() { _ = sub.Close() }()
+	ch := sub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			common.SysLog("SubscribeOptionUpdates stopped")
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			common.SysLog("received option update notification: " + msg.Payload)
+			loadOptionsFromDatabase()
+		}
 	}
 }
 
@@ -222,14 +310,22 @@ func UpdateOption(key string, value string) error {
 		Key: key,
 	}
 	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
+	if err := DB.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+		return err
+	}
 	option.Value = value
 	// Save is a combination function.
 	// If save value does not contain primary key, it will execute Create,
 	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
+	if err := DB.Save(&option).Error; err != nil {
+		return err
+	}
 	// Update OptionMap
-	return updateOptionMap(key, value)
+	if err := updateOptionMap(key, value); err != nil {
+		return err
+	}
+	syncOptionToRedis(key, value)
+	return nil
 }
 
 func updateOptionMap(key string, value string) (err error) {
@@ -585,34 +681,45 @@ func updateOptionMap(key string, value string) (err error) {
 // handleConfigUpdate 处理分层配置更新，返回是否已处理
 func handleConfigUpdate(key, value string) bool {
 	parts := strings.SplitN(key, ".", 2)
-	if len(parts) != 2 {
-		return false // 不是分层配置
+
+	// Case 1: 分层配置（如 group_ratio_setting.group_special_usable_group）
+	if len(parts) == 2 {
+		configName := parts[0]
+		configKey := parts[1]
+		cfg := config.GlobalConfig.Get(configName)
+		if cfg == nil {
+			return false
+		}
+		configMap := map[string]string{configKey: value}
+		config.UpdateConfigFromMap(cfg, configMap)
+		postConfigUpdate(configName)
+		return true
 	}
 
-	configName := parts[0]
-	configKey := parts[1]
-
-	// 获取配置对象
-	cfg := config.GlobalConfig.Get(configName)
-	if cfg == nil {
-		return false // 未注册的配置
+	// Case 2: 整个配置模块（如 group_ratio_setting）
+	cfg := config.GlobalConfig.Get(key)
+	if cfg != nil {
+		// 解析 JSON 并更新整个模块
+		var configMap map[string]string
+		if err := common.Unmarshal([]byte(value), &configMap); err == nil {
+			config.UpdateConfigFromMap(cfg, configMap)
+			postConfigUpdate(key)
+			return true
+		}
 	}
 
-	// 更新配置
-	configMap := map[string]string{
-		configKey: value,
-	}
-	config.UpdateConfigFromMap(cfg, configMap)
+	return false
+}
 
-	// 特定配置的后处理
-	if configName == "performance_setting" {
+// postConfigUpdate 处理特定配置的后处理
+func postConfigUpdate(configName string) {
+	switch configName {
+	case "performance_setting":
 		performance_setting.UpdateAndSync()
-	} else if configName == "tool_price_setting" {
+	case "tool_price_setting":
 		operation_setting.RebuildToolPriceIndex()
-	} else if configName == "billing_setting" {
+	case "billing_setting":
 		InvalidatePricingCache()
 		ratio_setting.InvalidateExposedDataCache()
 	}
-
-	return true // 已处理
 }

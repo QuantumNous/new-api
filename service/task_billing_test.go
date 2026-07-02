@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"testing"
@@ -11,39 +12,42 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 func TestMain(m *testing.M) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		panic("failed to open test db: " + err.Error())
+	dsn := os.Getenv("TEST_SQL_DSN")
+	if dsn == "" {
+		fmt.Fprintln(os.Stderr, "TEST_SQL_DSN is required for service tests; local SQLite fallback is disabled in this workspace")
+		os.Exit(1)
 	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		panic("failed to get sql.DB: " + err.Error())
-	}
-	sqlDB.SetMaxOpenConns(1)
-
-	model.DB = db
-	model.LOG_DB = db
-
-	common.UsingSQLite = true
+	common.IsMasterNode = false
+	common.UsingSQLite = false
+	common.UsingMySQL = false
+	common.UsingPostgreSQL = false
 	common.RedisEnabled = false
 	common.BatchUpdateEnabled = false
 	common.LogConsumeEnabled = true
+	if err := os.Setenv("SQL_DSN", dsn); err != nil {
+		panic("failed to set SQL_DSN: " + err.Error())
+	}
+	if err := model.InitDB(); err != nil {
+		panic("failed to open test db: " + err.Error())
+	}
+	model.LOG_DB = model.DB
 
-	if err := db.AutoMigrate(
+	if err := model.DB.AutoMigrate(
 		&model.Task{},
 		&model.User{},
 		&model.Token{},
 		&model.Log{},
 		&model.Channel{},
 		&model.TopUp{},
+		&model.SubscriptionPlan{},
 		&model.UserSubscription{},
+		&model.SubscriptionPreConsumeRecord{},
+		&model.SubscriptionPreConsumeDetail{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -57,14 +61,27 @@ func TestMain(m *testing.M) {
 
 func truncate(t *testing.T) {
 	t.Helper()
+	model.DB.Exec("DELETE FROM subscription_pre_consume_details")
+	model.DB.Exec("DELETE FROM subscription_pre_consume_records")
+	model.DB.Exec("DELETE FROM tasks")
+	model.DB.Exec("DELETE FROM logs")
+	model.DB.Exec("DELETE FROM tokens")
+	model.DB.Exec("DELETE FROM channels")
+	model.DB.Exec("DELETE FROM top_ups")
+	model.DB.Exec("DELETE FROM user_subscriptions")
+	model.DB.Exec("DELETE FROM subscription_plans")
+	model.DB.Exec("DELETE FROM users")
 	t.Cleanup(func() {
+		model.DB.Exec("DELETE FROM subscription_pre_consume_details")
+		model.DB.Exec("DELETE FROM subscription_pre_consume_records")
 		model.DB.Exec("DELETE FROM tasks")
-		model.DB.Exec("DELETE FROM users")
-		model.DB.Exec("DELETE FROM tokens")
 		model.DB.Exec("DELETE FROM logs")
+		model.DB.Exec("DELETE FROM tokens")
 		model.DB.Exec("DELETE FROM channels")
 		model.DB.Exec("DELETE FROM top_ups")
 		model.DB.Exec("DELETE FROM user_subscriptions")
+		model.DB.Exec("DELETE FROM subscription_plans")
+		model.DB.Exec("DELETE FROM users")
 	})
 }
 

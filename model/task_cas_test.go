@@ -2,36 +2,65 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 func TestMain(m *testing.M) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	dsn := os.Getenv("TEST_SQL_DSN")
+	if dsn == "" {
+		fmt.Fprintln(os.Stderr, "TEST_SQL_DSN is required for model tests; local SQLite fallback is disabled in this workspace")
+		os.Exit(1)
+	}
+
+	common.UsingSQLite = false
+	common.UsingMySQL = false
+	common.UsingPostgreSQL = false
+	common.RedisEnabled = false
+	common.BatchUpdateEnabled = false
+	common.LogConsumeEnabled = true
+
+	var (
+		db  *gorm.DB
+		err error
+	)
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		common.UsingPostgreSQL = true
+		db, err = gorm.Open(postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true}), &gorm.Config{})
+	} else {
+		common.UsingMySQL = true
+		if !strings.Contains(dsn, "parseTime") {
+			if strings.Contains(dsn, "?") {
+				dsn += "&parseTime=true"
+			} else {
+				dsn += "?parseTime=true"
+			}
+		}
+		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	}
 	if err != nil {
 		panic("failed to open test db: " + err.Error())
 	}
 	DB = db
 	LOG_DB = db
-
-	common.UsingSQLite = true
-	common.RedisEnabled = false
-	common.BatchUpdateEnabled = false
-	common.LogConsumeEnabled = true
+	initCol()
 
 	sqlDB, err := db.DB()
 	if err != nil {
 		panic("failed to get sql.DB: " + err.Error())
 	}
-	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxOpenConns(10)
 
 	if err := db.AutoMigrate(
 		&Task{},
@@ -43,6 +72,9 @@ func TestMain(m *testing.M) {
 		&SubscriptionPlan{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
+		&SubscriptionPreConsumeRecord{},
+		&SubscriptionPreConsumeDetail{},
+		&Redemption{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -52,16 +84,31 @@ func TestMain(m *testing.M) {
 
 func truncateTables(t *testing.T) {
 	t.Helper()
+	DB.Exec("DELETE FROM subscription_pre_consume_details")
+	DB.Exec("DELETE FROM subscription_pre_consume_records")
+	DB.Exec("DELETE FROM tasks")
+	DB.Exec("DELETE FROM logs")
+	DB.Exec("DELETE FROM tokens")
+	DB.Exec("DELETE FROM top_ups")
+	DB.Exec("DELETE FROM subscription_orders")
+	DB.Exec("DELETE FROM user_subscriptions")
+	DB.Exec("DELETE FROM redemptions")
+	DB.Exec("DELETE FROM subscription_plans")
+	DB.Exec("DELETE FROM channels")
+	DB.Exec("DELETE FROM users")
 	t.Cleanup(func() {
+		DB.Exec("DELETE FROM subscription_pre_consume_details")
+		DB.Exec("DELETE FROM subscription_pre_consume_records")
 		DB.Exec("DELETE FROM tasks")
-		DB.Exec("DELETE FROM users")
-		DB.Exec("DELETE FROM tokens")
 		DB.Exec("DELETE FROM logs")
-		DB.Exec("DELETE FROM channels")
+		DB.Exec("DELETE FROM tokens")
 		DB.Exec("DELETE FROM top_ups")
 		DB.Exec("DELETE FROM subscription_orders")
-		DB.Exec("DELETE FROM subscription_plans")
 		DB.Exec("DELETE FROM user_subscriptions")
+		DB.Exec("DELETE FROM redemptions")
+		DB.Exec("DELETE FROM subscription_plans")
+		DB.Exec("DELETE FROM channels")
+		DB.Exec("DELETE FROM users")
 	})
 }
 
