@@ -36,8 +36,8 @@ Internet
         +-- host router.flatkey.ai -> backend newapi-router-backend
         |      -> Cloud Run newapi-router (Go app, NODE_TYPE=slave, APP_ROLE=router)
         |
-        +-- default -> backend newapi-backend
-               -> Cloud Run newapi (legacy Go fallback)
+        +-- default -> backend newapi-console-backend
+               -> Cloud Run newapi-console (fallback for unmatched hosts)
 
 All Go services share Cloud SQL, Redis, Secret Manager, runtime SA, and VPC egress.
 ```
@@ -45,7 +45,7 @@ All Go services share Cloud SQL, Redis, Secret Manager, runtime SA, and VPC egre
 当前 URL map 应满足：
 
 ```yaml
-defaultService: .../backendServices/newapi-backend
+defaultService: .../backendServices/newapi-console-backend
 hostRules:
 - hosts: [flatkey.ai, www.flatkey.ai]
   pathMatcher: website
@@ -78,15 +78,14 @@ gcloud compute url-maps describe newapi-urlmap \
 |---|---|---|---|---|---|---|
 | `newapi-web` | 独立 Next.js 官网 | `flatkey.ai`, `www.flatkey.ai` | n/a | Terraform 管理 | 80 | 4000 |
 | `newapi-console` | 控制台、后台 API、高频发布目标 | `console.flatkey.ai` | `master` / `console` | 1 / 5 | 80 | 3000 |
-| `newapi-router` | 模型调用、relay、长流式请求 | `router.flatkey.ai` | `slave` / `router` | 4 / 10 | 50 | 3000 |
-| `newapi` | 旧 Go 服务、default/fallback backend | 未命中 host_rule 的 host | 旧配置，未显式设置 | 4 / 10 | 50 | 3000 |
+| `newapi-router` | 模型调用、relay、长流式请求 | `router.flatkey.ai` | `slave` / `router` | 4 / 20 | 60 | 3000 |
 
-共同配置：
+Go 服务共同配置：
 
 | 字段 | 值 |
 |---|---|
 | Region | `us-west1` |
-| CPU / Memory | 1 vCPU / 1 GiB |
+| CPU / Memory | console: 1 vCPU / 1 GiB；router: 1 vCPU / 2 GiB |
 | Request timeout | 3600s（兼容长流式响应） |
 | Runtime SA | `newapi-runtime@vocai-gemini-prod.iam.gserviceaccount.com` |
 | Cloud SQL 挂载 | `vocai-gemini-prod:us-west1:newapi-mysql` |
@@ -111,7 +110,7 @@ gcloud run services describe newapi-web     --project=vocai-gemini-prod --region
 |---|---|
 | Connection name | `vocai-gemini-prod:us-west1:newapi-mysql` |
 | MySQL 版本 | 8.0 |
-| 机型 | `db-custom-2-4096`（2 vCPU / 4 GiB） |
+| 机型 | `db-custom-4-16384`（4 vCPU / 16 GiB） |
 | 存储 | 100 GB SSD，自动扩容启用 |
 | Availability | `ZONAL`（单 zone，无 HA） |
 | SSL 模式 | `ENCRYPTED_ONLY` |
@@ -164,11 +163,9 @@ default_time_zone=+00:00
 | Backend service | `newapi-web-backend` | `newapi-web` |
 | Backend service | `newapi-console-backend` | `newapi-console` |
 | Backend service | `newapi-router-backend` | `newapi-router` |
-| Backend service | `newapi-backend` | legacy `newapi` default backend |
 | Serverless NEG | `newapi-web-cr-neg` | Cloud Run `newapi-web` |
 | Serverless NEG | `newapi-console-cr-neg` | Cloud Run `newapi-console` |
 | Serverless NEG | `newapi-router-cr-neg` | Cloud Run `newapi-router` |
-| Serverless NEG | `newapi-cr-neg` | Cloud Run `newapi` |
 
 ## TLS 与域名
 
@@ -203,9 +200,9 @@ gcloud compute ssl-certificates describe newapi-cert-4dc684 \
 | `www.flatkey.ai` | A/CNAME -> LB | Proxied | `newapi-web` |
 | `console.flatkey.ai` | A -> `34.54.128.101` | Proxied | `newapi-console` |
 | `router.flatkey.ai` | A -> `34.54.128.101` | DNS only | `newapi-router` |
-| `new-api.app.flatkey.ai` | A -> `34.54.128.101` | DNS only | legacy/default |
-| `new-api.api.flatkey.ai` | A -> `34.54.128.101` | DNS only | legacy/default |
-| `one.flatkey.ai` | A -> `34.54.128.101` | DNS only | legacy/default |
+| `new-api.app.flatkey.ai` | A -> `34.54.128.101` | DNS only | default -> `newapi-console` |
+| `new-api.api.flatkey.ai` | A -> `34.54.128.101` | DNS only | default -> `newapi-console` |
+| `one.flatkey.ai` | A -> `34.54.128.101` | DNS only | default -> `newapi-console` |
 
 Cloudflare 显示 “origin IP partially exposed” 是当前混合模式的预期现象：同一个 LB IP 同时有 Proxied 和 DNS-only 记录。
 
@@ -270,6 +267,35 @@ assertion.repository == 'SolveaCX/new-api'
 | LB logs | `resource.type="http_load_balancer"` |
 | Cloud SQL logs | `resource.type="cloudsql_database"` |
 
+Terraform creates the uptime check and alert policies only when `alert_emails`
+or legacy `alert_email` is set in `deploy/gcp/envs/prod/terraform.tfvars`.
+Covered alert families:
+uptime failure, router instances near maxScale, router pending queue, router
+5xx spikes, and Redis CPU.
+
+Alert thresholds in Terraform:
+
+| Alert | Metric | Default threshold |
+|---|---|---|
+| `new-api uptime failed` | `monitoring.googleapis.com/uptime_check/check_passed` | failed for 5 minutes |
+| `new-api router instances near max` | `run.googleapis.com/container/instance_count` | > 90% of `router_max_instances` for 5 minutes |
+| `new-api router pending requests` | `run.googleapis.com/pending_queue/pending_requests` | > 5 pending requests for 5 minutes |
+| `new-api router 5xx spike` | `run.googleapis.com/request_count` (`5xx`) | > 100 5xx responses per 5 minutes |
+| `new-api Redis CPU high` | `redis.googleapis.com/stats/cpu_utilization` | > 80% for 5 minutes |
+
+To enable email alerts, set:
+
+```hcl
+alert_emails = [
+  "ops@example.com",
+  "dev@example.com",
+]
+```
+
+Then run a local Owner-credentialed `terraform plan` and apply only after
+reviewing the Monitoring resources. The CI infra plan/apply workflow is not a
+trusted source of truth yet; see `OPERATIONS.md`.
+
 生产分流验证常用日志：
 
 ```bash
@@ -294,9 +320,9 @@ gcloud logging read \
 
 | 项 | 月费用 |
 |---|---|
-| Cloud Run Go services（router 4 min + console 1 min + legacy 4 min + 流量） | ~$120-180 |
+| Cloud Run Go services（router 4 min / 20 max, 2 GiB + console 1 min + 流量） | 随流量浮动，通常高于旧 1 GiB/10 max 配置 |
 | Cloud Run website | 按流量，低基线 |
-| Cloud SQL `db-custom-2-4096` + 100GB SSD | ~$99 |
+| Cloud SQL `db-custom-4-16384` + 100GB SSD | 高于旧 2 vCPU / 4 GiB 配置，按 GCP 实时报价核算 |
 | Memorystore Redis Basic 1GB | ~$35 |
 | HTTPS LB 转发规则 + 静态 IP | ~$22 |
 | Artifact Registry + 日志 + 监控 | ~$10+ |
@@ -309,7 +335,7 @@ gcloud logging read \
 2. **Cloud SQL 单区域**：节省成本但不是 HA。升级为 `REGIONAL` 需要单独规划。
 3. **Memorystore Basic 单实例**：Redis 不是 HA。
 4. **Cloud Run ingress 暂为 ALL**：`*.run.app` 直连仍可达。锁到 `INTERNAL_LOAD_BALANCER` 前要确认 CI/CD 健康检查路径和回滚路径。
-5. **legacy `newapi` 仍保留**：它是 URL map default backend 和快速回退兜底。移除前必须确认没有未知 host / 旧入口流量依赖它。
+5. **legacy `newapi` 已关闭**：`enable_legacy_runtime=false`，URL map default backend 当前指向 `newapi-console-backend`。回滚 host_rule 不再等价于回到 legacy 服务。
 6. **Cloudflare 混合模式**：`console`/website Proxied，`router` DNS-only。不要为了消除 Cloudflare warning 直接切换 proxy 模式；先评估 TLS 与证书覆盖。
 
 ## 升级路径
@@ -320,4 +346,4 @@ gcloud logging read \
 | Redis 加 HA | tier 改 `STANDARD_HA` | 需要规划重建/迁移 |
 | 开启 Cloud Armor WAF | 新 `google_compute_security_policy`，绑 backend service | 通常不停机，规则误伤风险 |
 | 锁 Cloud Run ingress 到 LB only | `cloud_run_ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"` | 通常不停机，但会影响 `*.run.app` 直连 |
-| 移除 legacy `newapi` | 改 URL map default 和 Terraform module | 高风险，必须先看 LB 日志 |
+| 恢复 legacy `newapi` | `enable_legacy_runtime=true` 并重新规划 default backend | 高风险，必须先看 LB 日志和镜像/env 一致性 |
