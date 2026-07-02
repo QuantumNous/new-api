@@ -296,7 +296,7 @@ function KeyGroupField({
     setFetching(true)
     setFetchError('')
     try {
-      const groups = await fetchUpstreamPricingGroups(baseUrl)
+      const groups = await fetchUpstreamPricingGroups(baseUrl, channelId)
       setPricingGroups(groups)
       fetchedForRef.current = baseUrl
     } catch {

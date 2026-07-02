@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,6 +18,17 @@ import (
 // Query param: base_url (required)
 func ProxyUpstreamPricing(c *gin.Context) {
 	baseURL := strings.TrimRight(c.Query("base_url"), "/")
+	apiKey := ""
+
+	if channelID, err := strconv.Atoi(strings.TrimSpace(c.Query("channel_id"))); err == nil && channelID > 0 {
+		if channel, err := model.GetChannelById(channelID, true); err == nil && channel != nil {
+			apiKey = firstChannelAPIKey(channel.Key)
+			if baseURL == "" && channel.BaseURL != nil {
+				baseURL = strings.TrimRight(*channel.BaseURL, "/")
+			}
+		}
+	}
+
 	if baseURL == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "base_url is required"})
 		return
@@ -29,7 +42,7 @@ func ProxyUpstreamPricing(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
-	groupRatio, err := fetchGroupRatio(ctx, client, rootURL)
+	groupRatio, err := fetchGroupRatio(ctx, client, rootURL, apiKey)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": err.Error()})
 		return
@@ -56,32 +69,63 @@ func resolvePricingRoot(baseURL string) string {
 
 // fetchGroupRatio tries {rootURL}/api/pricing and returns group_ratio map.
 // Returns (nil, nil) if the endpoint doesn't exist (404/403 without JSON).
-func fetchGroupRatio(ctx context.Context, client *http.Client, rootURL string) (map[string]float64, error) {
+func fetchGroupRatio(ctx context.Context, client *http.Client, rootURL string, apiKey string) (map[string]float64, error) {
 	url := rootURL + "/api/pricing"
+	groupRatio, status, err := fetchGroupRatioOnce(ctx, client, url, apiKey)
+	if err != nil {
+		return nil, err
+	}
+	if status == http.StatusUnauthorized && apiKey != "" {
+		// Some relays reject Bearer auth for public pricing; keep the old
+		// anonymous behavior as a fallback after the authenticated attempt.
+		groupRatio, status, err = fetchGroupRatioOnce(ctx, client, url, "")
+		if err != nil {
+			return nil, err
+		}
+	}
+	if status == http.StatusNotFound {
+		return nil, nil
+	}
+	if status != http.StatusOK {
+		return nil, fmt.Errorf("upstream returned HTTP %d", status)
+	}
+	return groupRatio, nil
+}
+
+func fetchGroupRatioOnce(ctx context.Context, client *http.Client, url string, apiKey string) (map[string]float64, int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("invalid url: %v", err)
+		return nil, 0, fmt.Errorf("invalid url: %v", err)
 	}
 	req.Header.Set("Accept", "application/json")
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("upstream request failed: %v", err)
+		return nil, 0, fmt.Errorf("upstream request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, nil
-	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("upstream returned HTTP %d", resp.StatusCode)
+		return nil, resp.StatusCode, nil
 	}
 
 	var parsed struct {
 		GroupRatio map[string]float64 `json:"group_ratio"`
 	}
 	if err := common.DecodeJson(resp.Body, &parsed); err != nil {
-		return nil, fmt.Errorf("decode failed: %v", err)
+		return nil, resp.StatusCode, fmt.Errorf("decode failed: %v", err)
 	}
-	return parsed.GroupRatio, nil
+	return parsed.GroupRatio, resp.StatusCode, nil
+}
+
+func firstChannelAPIKey(key string) string {
+	for _, part := range strings.Split(key, "\n") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

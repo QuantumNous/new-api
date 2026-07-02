@@ -556,10 +556,14 @@ export const getGroups = getUserGroups
  * Returns a map of group_name -> group_ratio.
  */
 export async function fetchUpstreamPricingGroups(
-  baseUrl: string
+  baseUrl: string,
+  channelId?: number | null
 ): Promise<Record<string, number>> {
   const res = await api.get('/api/channel/upstream_pricing', {
-    params: { base_url: baseUrl },
+    params: {
+      base_url: baseUrl,
+      ...(channelId ? { channel_id: channelId } : {}),
+    },
     timeout: 12000,
     // no_pricing_api is expected for many relays — not a user-facing error
     skipBusinessError: true,
