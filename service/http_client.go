@@ -74,7 +74,7 @@ func requireHttpClient() (*http.Client, error) {
 // GetHttpClientWithProxy returns the default client or a proxy-enabled one when proxyURL is provided.
 func GetHttpClientWithProxy(proxyURL string) (*http.Client, error) {
 	if proxyURL == "" {
-		return GetHttpClient(), nil
+		return NewProxyHttpClient("")
 	}
 	return NewProxyHttpClient(proxyURL)
 }

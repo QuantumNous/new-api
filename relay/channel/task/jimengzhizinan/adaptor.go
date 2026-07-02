@@ -24,6 +24,7 @@ import (
 )
 
 const maxInputImages = 2
+const videoGenerationsPath = "/v1/videos/generations"
 
 type generationPayload struct {
 	Model      string   `json:"model"`
@@ -35,20 +36,30 @@ type generationPayload struct {
 }
 
 type videoDataItem struct {
-	URL string `json:"url"`
+	URL         string `json:"url"`
+	VideoURL    string `json:"video_url,omitempty"`
+	DownloadURL string `json:"download_url,omitempty"`
 }
 
-type generationResponse struct {
-	Data    []videoDataItem `json:"data"`
-	Error   any             `json:"error,omitempty"`
-	Message string          `json:"message,omitempty"`
+type submitResponse struct {
+	ID       string          `json:"id"`
+	TaskID   string          `json:"task_id"`
+	SubmitID string          `json:"submit_id"`
+	Status   string          `json:"status"`
+	PollURL  string          `json:"poll_url"`
+	Data     []videoDataItem `json:"data,omitempty"`
+	Error    any             `json:"error,omitempty"`
+	Message  string          `json:"message,omitempty"`
 }
 
 type pollResponse struct {
-	Status  string          `json:"status"`
-	Data    []videoDataItem `json:"data"`
-	Error   any             `json:"error,omitempty"`
-	Message string          `json:"message,omitempty"`
+	ID      string               `json:"id"`
+	TaskID  string               `json:"task_id"`
+	Status  string               `json:"status"`
+	Data    []videoDataItem      `json:"data"`
+	Error   any                  `json:"error,omitempty"`
+	Message string               `json:"message,omitempty"`
+	Usage   dto.OpenAIVideoUsage `json:"usage,omitempty"`
 }
 
 type TaskAdaptor struct {
@@ -78,7 +89,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
-	return fmt.Sprintf("%s/v1/videos/generations", strings.TrimRight(a.baseURL, "/")), nil
+	return fmt.Sprintf("%s%s", strings.TrimRight(a.baseURL, "/"), videoGenerationsPath), nil
 }
 
 func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
@@ -127,7 +138,9 @@ func buildGenerationPayload(req *dto.SeedanceVideoRequest, images []string) *gen
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
-	return channel.DoTaskApiRequest(a, c, info, requestBody)
+	resp, err := channel.DoTaskApiRequest(a, c, info, requestBody)
+	normalizeAcceptedStatus(resp)
+	return resp, err
 }
 
 func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
@@ -138,20 +151,25 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	}
 	_ = resp.Body.Close()
 
-	var upstream generationResponse
+	var upstream submitResponse
 	if err := common.Unmarshal(responseBody, &upstream); err != nil {
-		taskErr = service.TaskErrorWrapper(errors.Wrap(err, "jimeng zhizinan generation response was invalid"), "unmarshal_response_body_failed", http.StatusBadGateway)
-		return
-	}
-	videoURL := firstURL(upstream.Data)
-	if videoURL == "" {
-		taskErr = service.TaskErrorWrapper(fmt.Errorf("jimeng zhizinan generation returned no video url"), "invalid_response", http.StatusBadGateway)
+		taskErr = service.TaskErrorWrapper(errors.Wrap(err, "jimeng zhizinan submit response was invalid"), "unmarshal_response_body_failed", http.StatusBadGateway)
 		return
 	}
 
-	taskData, err = completedPollBody(videoURL)
+	if isFailureStatus(upstream.Status) {
+		taskErr = service.TaskErrorWrapper(fmt.Errorf("jimeng zhizinan submit failed"), "upstream_error", http.StatusBadGateway)
+		return
+	}
+	if strings.TrimSpace(upstream.PollURL) == "" {
+		taskErr = service.TaskErrorWrapper(
+			fmt.Errorf("jimeng zhizinan async submit response missing poll_url; upstream must return {id,status,poll_url}"),
+			"invalid_response", http.StatusBadGateway)
+		return
+	}
+	pollURL, err := a.absolutePollURL(upstream.PollURL)
 	if err != nil {
-		taskErr = service.TaskErrorWrapper(err, "marshal_response_body_failed", http.StatusInternalServerError)
+		taskErr = service.TaskErrorWrapper(err, "invalid_response", http.StatusBadGateway)
 		return
 	}
 
@@ -161,31 +179,53 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	ov.CreatedAt = time.Now().Unix()
 	ov.Model = info.OriginModelName
 	c.JSON(http.StatusOK, ov)
-	return videoURL, taskData, nil
+	return pollURL, responseBody, nil
 }
 
-func (a *TaskAdaptor) FetchTask(_ string, _ string, body map[string]any, _ string) (*http.Response, error) {
-	videoURL, ok := body["task_id"].(string)
-	if !ok || strings.TrimSpace(videoURL) == "" {
-		return syntheticPollResponse(pollResponse{
-			Status:  string(model.TaskStatusFailure),
-			Message: "invalid generated video url",
-		})
+func normalizeAcceptedStatus(resp *http.Response) {
+	if resp != nil && resp.StatusCode == http.StatusAccepted {
+		resp.StatusCode = http.StatusOK
 	}
-	if err := validateVideoURL(videoURL); err != nil {
-		return syntheticPollResponse(pollResponse{
-			Status:  string(model.TaskStatusFailure),
-			Message: "invalid generated video url",
-		})
+}
+
+func (a *TaskAdaptor) absolutePollURL(pollURL string) (string, error) {
+	ref, err := url.Parse(strings.TrimSpace(pollURL))
+	if err != nil {
+		return "", fmt.Errorf("parse poll_url: %w", err)
 	}
-	bodyBytes, err := completedPollBody(videoURL)
+	if ref.Scheme != "" && ref.Scheme != "http" && ref.Scheme != "https" {
+		return "", fmt.Errorf("poll_url scheme %q is not supported", ref.Scheme)
+	}
+	base, err := url.Parse(a.baseURL)
+	if err != nil {
+		return "", fmt.Errorf("parse base url: %w", err)
+	}
+	resolved := base.ResolveReference(ref)
+	if resolved.Host != base.Host {
+		return "", fmt.Errorf("poll_url host %q does not match channel host %q", resolved.Host, base.Host)
+	}
+	return resolved.String(), nil
+}
+
+func (a *TaskAdaptor) FetchTask(_ string, key string, body map[string]any, proxy string) (*http.Response, error) {
+	pollURL, ok := body["task_id"].(string)
+	if !ok || strings.TrimSpace(pollURL) == "" {
+		return nil, fmt.Errorf("invalid task_id (poll_url)")
+	}
+	req, err := http.NewRequest(http.MethodGet, pollURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader(bodyBytes)),
-	}, nil
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+key)
+
+	client, err := service.GetHttpClientWithProxy(proxy)
+	if err != nil {
+		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	resp, err := client.Do(req)
+	normalizeAcceptedStatus(resp)
+	return resp, err
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
@@ -194,8 +234,8 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		return nil, errors.Wrap(err, "unmarshal task result failed")
 	}
 	info := &relaycommon.TaskInfo{Code: 0}
-	switch strings.ToLower(strings.TrimSpace(pr.Status)) {
-	case strings.ToLower(string(model.TaskStatusSuccess)), "completed", "succeeded":
+	switch normalizeTaskStatus(pr.Status) {
+	case "success":
 		url := firstURL(pr.Data)
 		if url == "" {
 			info.Status = model.TaskStatusFailure
@@ -206,47 +246,75 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		info.Status = model.TaskStatusSuccess
 		info.Progress = taskcommon.ProgressComplete
 		info.Url = url
-	case strings.ToLower(string(model.TaskStatusFailure)), "failed":
+		info.CompletionTokens = pr.Usage.CompletionTokens
+		info.TotalTokens = pr.Usage.TotalTokens
+	case "failure":
 		info.Status = model.TaskStatusFailure
 		info.Progress = taskcommon.ProgressComplete
 		info.Reason = failReason(pr)
+	case "queued":
+		info.Status = model.TaskStatusQueued
+		info.Progress = taskcommon.ProgressQueued
+	case "submitted":
+		info.Status = model.TaskStatusSubmitted
+		info.Progress = taskcommon.ProgressSubmitted
+	case "in_progress":
+		info.Status = model.TaskStatusInProgress
+		info.Progress = taskcommon.ProgressInProgress
 	default:
 		if url := firstURL(pr.Data); url != "" {
 			info.Status = model.TaskStatusSuccess
 			info.Progress = taskcommon.ProgressComplete
 			info.Url = url
+			info.CompletionTokens = pr.Usage.CompletionTokens
+			info.TotalTokens = pr.Usage.TotalTokens
 			break
 		}
-		info.Status = model.TaskStatusFailure
-		info.Progress = taskcommon.ProgressComplete
-		info.Reason = failReason(pr)
+		if pr.Error != nil || strings.TrimSpace(pr.Message) != "" {
+			info.Status = model.TaskStatusFailure
+			info.Progress = taskcommon.ProgressComplete
+			info.Reason = failReason(pr)
+			break
+		}
+		info.Status = model.TaskStatusInProgress
+		info.Progress = taskcommon.ProgressInProgress
 	}
 	return info, nil
-}
-
-func completedPollBody(videoURL string) ([]byte, error) {
-	return common.Marshal(pollResponse{
-		Status: string(model.TaskStatusSuccess),
-		Data:   []videoDataItem{{URL: videoURL}},
-	})
-}
-
-func syntheticPollResponse(pr pollResponse) (*http.Response, error) {
-	body, err := common.Marshal(pr)
-	if err != nil {
-		return nil, err
-	}
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader(body)),
-	}, nil
 }
 
 func firstURL(items []videoDataItem) string {
 	if len(items) == 0 {
 		return ""
 	}
-	return strings.TrimSpace(items[0].URL)
+	for _, item := range items {
+		for _, candidate := range []string{item.URL, item.VideoURL, item.DownloadURL} {
+			if strings.TrimSpace(candidate) != "" {
+				return strings.TrimSpace(candidate)
+			}
+		}
+	}
+	return ""
+}
+
+func normalizeTaskStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case strings.ToLower(string(model.TaskStatusSuccess)), "completed", "succeeded", "success":
+		return "success"
+	case strings.ToLower(string(model.TaskStatusFailure)), "failed", "failure":
+		return "failure"
+	case strings.ToLower(string(model.TaskStatusQueued)), "queued", "pending":
+		return "queued"
+	case strings.ToLower(string(model.TaskStatusSubmitted)), "submitted":
+		return "submitted"
+	case strings.ToLower(string(model.TaskStatusInProgress)), "processing", "running", "in_progress":
+		return "in_progress"
+	default:
+		return ""
+	}
+}
+
+func isFailureStatus(status string) bool {
+	return normalizeTaskStatus(status) == "failure"
 }
 
 func failReason(pr pollResponse) string {
@@ -319,17 +387,6 @@ func validateImageURL(raw string) error {
 	return nil
 }
 
-func validateVideoURL(raw string) error {
-	u, err := url.Parse(raw)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return fmt.Errorf("video url is invalid")
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("video url must use http or https")
-	}
-	return nil
-}
-
 func (a *TaskAdaptor) GetModelList() []string {
 	return ModelList
 }
@@ -353,7 +410,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	}
 	if originTask.Status == model.TaskStatusFailure {
 		ov.Error = &dto.OpenAIVideoError{
-			Message: originTask.FailReason,
+			Message: taskcommon.ScrubBrandedText(originTask.FailReason),
 		}
 	}
 	return common.Marshal(ov)
