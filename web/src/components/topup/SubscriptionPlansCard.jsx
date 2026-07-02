@@ -889,11 +889,20 @@ const SubscriptionPlansCard = ({
                               </div>
                             </div>
 
-                            <div className='mb-4 grid grid-cols-3 overflow-hidden rounded-2xl border border-slate-200'>
-                              {visibleQuotaItems.map((item) => (
+                            <div
+                              className='mb-4 grid overflow-hidden rounded-2xl border border-slate-200 bg-white'
+                              style={{
+                                gridTemplateColumns: `repeat(${visibleQuotaItems.length}, minmax(0, 1fr))`,
+                              }}
+                            >
+                              {visibleQuotaItems.map((item, itemIndex) => (
                                 <div
                                   key={item.key}
-                                  className='border-r border-slate-200 bg-white p-3 last:border-r-0'
+                                  className={`min-w-0 p-3 ${
+                                    itemIndex > 0
+                                      ? 'border-l border-slate-200'
+                                      : ''
+                                  }`}
                                 >
                                   <div className='text-[11px] font-semibold text-slate-400'>
                                     {item.label}
