@@ -194,7 +194,7 @@ func generateAccountSnapshots(rp ReportPeriod) error {
 
 		prev := prevMap[it.UserID]
 		snap := buildAccountSnapshot(rp, it, user, prev)
-		checkAccountAnomaly(snap, prev, settings)
+		checkAccountAnomaly(snap, prev, settings, rp)
 		snapshots = append(snapshots, snap)
 	}
 
@@ -242,16 +242,8 @@ func generateOrgSnapshots(rp ReportPeriod) error {
 		agg.Quota += it.Quota
 	}
 
-	// 读取上期 account 快照，聚合出上期组织用量（用 token）
-	prevOrgTokenMap := make(map[string]int) // key -> prevTokenUsed
-	prevItems, _ := model.GetReportSnapshots(rp.PeriodType, rp.PrevPeriodStart.Unix(), model.ReportScopeAccount)
-	for _, it := range prevItems {
-		if it.OrgLevel1Name == "" && it.OrgLevel2Name == "" {
-			continue
-		}
-		key := it.OrgLevel1Name + "|" + it.OrgLevel2Name
-		prevOrgTokenMap[key] += it.TokenUsed
-	}
+	// 从 quota_data 实时查询上期各组织 token（不依赖上期快照是否存在）
+	prevOrgTokenMap := queryOrgPrevPeriodTokens(rp)
 
 	var snapshots []*model.UsageReportSnapshot
 	for key, agg := range orgMap {
@@ -408,12 +400,69 @@ func generateModelSnapshots(rp ReportPeriod) error {
 		}
 
 		// 采购预警
-		checkModelPurchaseWarning(snap, settings)
+		checkModelPurchaseWarning(snap, settings, rp)
 
 		snapshots = append(snapshots, snap)
 	}
 
 	return model.BatchCreateReportSnapshots(snapshots)
+}
+
+// reportPeriodDays 返回周期天数
+func reportPeriodDays(periodType string) int {
+	switch periodType {
+	case model.ReportPeriodDaily:
+		return 1
+	case model.ReportPeriodWeekly:
+		return 7
+	case model.ReportPeriodMonthly:
+		return 30
+	}
+	return 1
+}
+
+// queryOrgPrevPeriodTokens 从 quota_data 实时查询上期各组织 token 总量
+func queryOrgPrevPeriodTokens(rp ReportPeriod) map[string]int {
+	type orgTokenRow struct {
+		OrgLevel1Name string `gorm:"column:org_level1_name"`
+		OrgLevel2Name string `gorm:"column:org_level2_name"`
+		TotalToken    int    `gorm:"column:total_token"`
+	}
+	var rows []orgTokenRow
+	model.DB.Table("quota_data q").
+		Select("u.org_level1_name as org_level1_name, u.org_level2_name as org_level2_name, COALESCE(SUM(q.token_used), 0) as total_token").
+		Joins("JOIN users u ON q.user_id = u.id").
+		Where("q.created_at >= ? AND q.created_at <= ?", rp.PrevStartTimestamp, rp.PrevEndTimestamp).
+		Where("u.status = 1 AND u.deleted_at IS NULL").
+		Group("u.org_level1_name, u.org_level2_name").
+		Scan(&rows)
+
+	result := make(map[string]int)
+	for _, r := range rows {
+		if r.OrgLevel1Name == "" && r.OrgLevel2Name == "" {
+			continue
+		}
+		key := r.OrgLevel1Name + "|" + r.OrgLevel2Name
+		result[key] = r.TotalToken
+	}
+	return result
+}
+
+// queryModelRollingTokenAvg 查模型近N日 token 日均
+func queryModelRollingTokenAvg(modelName string, days int) float64 {
+	now := time.Now()
+	start := now.AddDate(0, 0, -days)
+	var result struct {
+		Total int `gorm:"column:total"`
+	}
+	model.DB.Table("quota_data").
+		Select("COALESCE(sum(token_used), 0) as total").
+		Where("model_name = ? AND created_at >= ? AND created_at <= ?", modelName, start.Unix(), now.Unix()).
+		Scan(&result)
+	if days <= 0 {
+		return 0
+	}
+	return float64(result.Total) / float64(days)
 }
 
 func queryModelRollingAvg(modelName string, days int) float64 {
@@ -484,7 +533,7 @@ const (
 	modelAnomalyMinTokens   = 100_000_000 // 模型：一亿 token 以上
 )
 
-func checkAccountAnomaly(snap *model.UsageReportSnapshot, prev *model.UserStatItem, settings *system_setting.FeishuSettings) {
+func checkAccountAnomaly(snap *model.UsageReportSnapshot, prev *model.UserStatItem, settings *system_setting.FeishuSettings, rp ReportPeriod) {
 	if snap.Quota <= 0 {
 		return
 	}
@@ -505,25 +554,57 @@ func checkAccountAnomaly(snap *model.UsageReportSnapshot, prev *model.UserStatIt
 		}
 	}
 
-	// 规则2: Token环比增长（上周期无数据则跳过，避免新用户误报）
-	if settings.AccountGrowthRateThreshold > 0 && snap.PreviousTokenUsed > 0 && snap.TokenGrowthRate >= settings.AccountGrowthRateThreshold {
-		snap.IsAnomaly = true
-		snap.AnomalyType = "growth_rate"
-		snap.AnomalyReason = fmt.Sprintf("Token环比增长 %.1f%% 超过阈值 %.1f%%", snap.TokenGrowthRate, settings.AccountGrowthRateThreshold)
-		snap.WarningLevel = "warning"
-		return
-	}
+	// 规则2: 滚动均值倍数检测（比环比更稳定，避免单日波动误报）
+	if settings.AccountGrowthRateThreshold > 0 {
+		days := reportPeriodDays(rp.PeriodType)
+		if days <= 0 {
+			days = 1
+		}
+		currentAvg := float64(snap.TokenUsed) / float64(days)
 
-	// 规则3: 近7日均值倍数
-	if settings.AccountRollingAvgMultiplier > 0 && snap.PeriodType == model.ReportPeriodDaily {
-		rolling := queryAccountRollingAvgQuota(snap.UserId, 7)
-		if rolling > 0 && float64(snap.Quota) >= rolling*settings.AccountRollingAvgMultiplier {
-			snap.IsAnomaly = true
-			snap.AnomalyType = "rolling_avg_spike"
-			snap.AnomalyReason = fmt.Sprintf("日额度为近7日均值的 %.1f 倍", float64(snap.Quota)/rolling)
-			snap.WarningLevel = "warning"
+		// vs 近7日日均
+		rolling7d := queryAccountRollingTokenAvg(snap.UserId, 7)
+		if rolling7d > 0 {
+			growthVs7d := (currentAvg - rolling7d) / rolling7d * 100
+			if growthVs7d >= settings.AccountGrowthRateThreshold {
+				snap.IsAnomaly = true
+				snap.AnomalyType = "rolling_avg_spike"
+				snap.AnomalyReason = fmt.Sprintf("日均Token为近7日均值 %.0fM 的 %.1f%% 增长，超过阈值 %.1f%%", rolling7d/1e6, growthVs7d, settings.AccountGrowthRateThreshold)
+				snap.WarningLevel = "warning"
+				return
+			}
+		}
+
+		// vs 近30日日均
+		rolling30d := queryAccountRollingTokenAvg(snap.UserId, 30)
+		if rolling30d > 0 {
+			growthVs30d := (currentAvg - rolling30d) / rolling30d * 100
+			if growthVs30d >= settings.AccountGrowthRateThreshold {
+				snap.IsAnomaly = true
+				snap.AnomalyType = "rolling_avg_spike"
+				snap.AnomalyReason = fmt.Sprintf("日均Token为近30日均值 %.0fM 的 %.1f%% 增长，超过阈值 %.1f%%", rolling30d/1e6, growthVs30d, settings.AccountGrowthRateThreshold)
+				snap.WarningLevel = "warning"
+				return
+			}
 		}
 	}
+}
+
+// queryAccountRollingTokenAvg 查用户近N日 token 日均
+func queryAccountRollingTokenAvg(userId, days int) float64 {
+	now := time.Now()
+	start := now.AddDate(0, 0, -days)
+	var result struct {
+		Total int `gorm:"column:total"`
+	}
+	model.DB.Table("quota_data").
+		Select("COALESCE(sum(token_used), 0) as total").
+		Where("user_id = ? AND created_at >= ? AND created_at <= ?", userId, start.Unix(), now.Unix()).
+		Scan(&result)
+	if days <= 0 {
+		return 0
+	}
+	return float64(result.Total) / float64(days)
 }
 
 func queryAccountRollingAvgQuota(userId, days int) float64 {
@@ -543,7 +624,7 @@ func queryAccountRollingAvgQuota(userId, days int) float64 {
 	return float64(result.Total) / float64(days)
 }
 
-func checkModelPurchaseWarning(snap *model.UsageReportSnapshot, settings *system_setting.FeishuSettings) {
+func checkModelPurchaseWarning(snap *model.UsageReportSnapshot, settings *system_setting.FeishuSettings, rp ReportPeriod) {
 	// 基数门槛：模型 token 量需达到一亿级才参与异常检测和采购预警
 	if snap.TokenUsed < modelAnomalyMinTokens {
 		return
@@ -563,11 +644,37 @@ func checkModelPurchaseWarning(snap *model.UsageReportSnapshot, settings *system
 		snap.PurchaseWarningReason += fmt.Sprintf("周期额度 %.2f USD 超过阈值 %.2f USD", snap.QuotaUSD, settings.PurchaseWarningDailyQuotaThreshold)
 	}
 
-	// 模型异常: Token环比增长（上周期无数据则跳过，避免新模型误报）
-	if settings.ModelGrowthRateThreshold > 0 && snap.PreviousTokenUsed > 0 && snap.TokenGrowthRate >= settings.ModelGrowthRateThreshold {
-		snap.IsAnomaly = true
-		snap.AnomalyType = "model_growth_spike"
-		snap.AnomalyReason = fmt.Sprintf("模型Token环比增长 %.1f%% 超过阈值 %.1f%%", snap.TokenGrowthRate, settings.ModelGrowthRateThreshold)
+	// 模型异常: 滚动均值倍数检测（比环比更稳定）
+	if settings.ModelGrowthRateThreshold > 0 {
+		days := reportPeriodDays(rp.PeriodType)
+		if days <= 0 {
+			days = 1
+		}
+		currentAvg := float64(snap.TokenUsed) / float64(days)
+
+		// vs 近7日日均
+		rolling7d := queryModelRollingTokenAvg(snap.ModelName, 7)
+		if rolling7d > 0 {
+			growthVs7d := (currentAvg - rolling7d) / rolling7d * 100
+			if growthVs7d >= settings.ModelGrowthRateThreshold {
+				snap.IsAnomaly = true
+				snap.AnomalyType = "model_rolling_spike"
+				snap.AnomalyReason = fmt.Sprintf("模型日均Token为近7日均值 %.0fM 的 %.1f%% 增长，超过阈值 %.1f%%", rolling7d/1e6, growthVs7d, settings.ModelGrowthRateThreshold)
+			}
+		}
+
+		// vs 近30日日均（更严格）
+		if !snap.IsAnomaly {
+			rolling30d := queryModelRollingTokenAvg(snap.ModelName, 30)
+			if rolling30d > 0 {
+				growthVs30d := (currentAvg - rolling30d) / rolling30d * 100
+				if growthVs30d >= settings.ModelGrowthRateThreshold {
+					snap.IsAnomaly = true
+					snap.AnomalyType = "model_rolling_spike"
+					snap.AnomalyReason = fmt.Sprintf("模型日均Token为近30日均值 %.0fM 的 %.1f%% 增长，超过阈值 %.1f%%", rolling30d/1e6, growthVs30d, settings.ModelGrowthRateThreshold)
+				}
+			}
+		}
 	}
 }
 
