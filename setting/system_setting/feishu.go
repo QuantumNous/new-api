@@ -22,9 +22,8 @@ type FeishuSettings struct {
 	// 管理推送任务写入开关（写入多维表格，由 Base 自动化决定推送目标）
 	UsageReportAdminGroupPushEnabled bool `json:"usage_report_admin_group_push_enabled"`
 
-	// --- 多维表格表ID（6张统一表，日/周/月共用，通过字段区分） ---
+	// --- 多维表格表ID（5张统一表，日/周/月共用，通过字段区分） ---
 	ReportTableAccountID   string `json:"report_table_account_id"`
-	ReportTableTokenID     string `json:"report_table_token_id"`
 	ReportTablePlatformID  string `json:"report_table_platform_id"`
 	ReportTableModelID     string `json:"report_table_model_id"`
 	ReportTableAnomalyID   string `json:"report_table_anomaly_id"`
@@ -51,7 +50,6 @@ var defaultFeishuSettings = FeishuSettings{
 	UsageReportBaseSyncEnabled:       true,
 	UsageReportAdminGroupPushEnabled: true,
 	ReportTableAccountID:             "tblhdpVWfwSg4U2W",
-	ReportTableTokenID:               "tblD6TWhgh35Hvzd",
 	ReportTablePlatformID:            "tblmnSbza9Mf5tYH",
 	ReportTableModelID:               "tblYBU0ItrLbxA3t",
 	ReportTableAnomalyID:             "tblK7YrK0n97RkEg",

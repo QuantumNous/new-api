@@ -53,14 +53,9 @@ func SyncUsageReportPeriodToBaseWithDiagnostics(rp ReportPeriod) []string {
 
 	common.SysLog(fmt.Sprintf("usage report base sync: start syncing %s for %s", rp.PeriodType, rp.PeriodLabel))
 
-	// 同步5张表，收集各表的诊断信息
+	// 同步4张表，收集各表的诊断信息
 	tableMsgs := syncTableWithDiagnostics("account", settings.ReportTableAccountID, func() {
 		syncAccountTable(token, baseToken, settings.ReportTableAccountID, rp)
-	})
-	msgs = append(msgs, tableMsgs...)
-
-	tableMsgs = syncTableWithDiagnostics("token", settings.ReportTableTokenID, func() {
-		syncTokenTable(token, baseToken, settings.ReportTableTokenID, rp)
 	})
 	msgs = append(msgs, tableMsgs...)
 
@@ -165,56 +160,6 @@ func syncAccountTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 	for _, it := range items {
 		model.UpdateReportSnapshotSyncStatus(it.Id, model.SyncStatusSuccess, "")
 	}
-}
-
-// syncTokenTable 同步Token周期统计表
-func syncTokenTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
-	if tableID == "" {
-		return
-	}
-	deleteBaseRecordsByPeriod(tenantToken, baseToken, tableID, rp.PeriodLabel)
-
-	items, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeToken)
-	if err != nil || len(items) == 0 {
-		return
-	}
-
-	records := make([]map[string]any, 0, len(items))
-	for _, it := range items {
-		accountTypeLabel := "个人用户"
-		if it.AccountType != nil && *it.AccountType == 1 {
-			accountTypeLabel = "组织类智能体账号"
-		}
-
-		record := map[string]any{
-			"统计周期类型":    rp.PeriodType,
-			"统计周期":      rp.PeriodLabel,
-			"账号类型":      accountTypeLabel,
-			"用户ID":      it.UserId,
-			"用户名":       it.Username,
-			"模型名称":      it.ModelName,
-			"请求次数":      it.RequestCount,
-			"总Tokens":   it.TokenUsed,
-			"Tokens(M)": tokenToM(it.TokenUsed),
-			"额度消耗":      it.Quota,
-			"额度USD":     it.QuotaUSD,
-			"额度CNY":     it.QuotaCNY,
-			"上周期额度":     it.PreviousQuota,
-			"额度环比(%)":   it.QuotaGrowthRate,
-		}
-
-		if isValidFeishuOpenID(it.ReceiverFeishuOpenId) {
-			record["接收人员"] = []map[string]string{
-				{"id": it.ReceiverFeishuOpenId},
-			}
-		} else {
-			record["接收人员"] = nil
-		}
-
-		records = append(records, record)
-	}
-
-	batchCreateBaseRecords(tenantToken, baseToken, tableID, records)
 }
 
 // syncPlatformTable 同步平台总览表

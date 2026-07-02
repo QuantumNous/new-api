@@ -30,7 +30,6 @@ func GenerateUsageReportForPeriod(rp ReportPeriod) error {
 	for _, scope := range []string{
 		model.ReportScopePlatform,
 		model.ReportScopeAccount,
-		model.ReportScopeToken,
 		model.ReportScopeModel,
 		model.ReportScopeAnomaly,
 	} {
@@ -45,9 +44,6 @@ func GenerateUsageReportForPeriod(rp ReportPeriod) error {
 	}
 	if err := generateAccountSnapshots(rp); err != nil {
 		common.SysError(fmt.Sprintf("usage report: generate account snapshots failed: %s", err))
-	}
-	if err := generateTokenSnapshots(rp); err != nil {
-		common.SysError(fmt.Sprintf("usage report: generate token snapshots failed: %s", err))
 	}
 	if err := generateModelSnapshots(rp); err != nil {
 		common.SysError(fmt.Sprintf("usage report: generate model snapshots failed: %s", err))
@@ -160,46 +156,41 @@ func queryBoundFeishuCount(accountType int) int {
 // --- 账号快照 ---
 
 func generateAccountSnapshots(rp ReportPeriod) error {
-	// 查询周期内有用量的所有用户（不区分 account_type，个人和组织都查）
-	items, _, err := model.GetUserModelStatsByUser(rp.StartTimestamp, rp.EndTimestamp, nil, nil, "", nil, 1, 100000)
+	// 只查周期内有用量的用户（不区分 account_type，个人和组织都查）
+	items, _, err := model.GetUserModelStatsByUser(rp.StartTimestamp, rp.EndTimestamp, nil, nil, "", nil, 1, 10000)
 	if err != nil {
 		return err
 	}
 
 	// 上期数据（用于环比）
-	prevItems, _, _ := model.GetUserModelStatsByUser(rp.PrevStartTimestamp, rp.PrevEndTimestamp, nil, nil, "", nil, 1, 100000)
+	prevItems, _, _ := model.GetUserModelStatsByUser(rp.PrevStartTimestamp, rp.PrevEndTimestamp, nil, nil, "", nil, 1, 10000)
 	prevMap := make(map[int]*model.UserStatItem, len(prevItems))
 	for _, it := range prevItems {
 		prevMap[it.UserID] = it
 	}
 
-	// 当前用量 map
-	usageMap := make(map[int]*model.UserStatItem, len(items))
+	// 查用户详情（飞书身份、组织信息、账号类型）
+	userIds := make([]int, 0, len(items))
 	for _, it := range items {
-		usageMap[it.UserID] = it
+		userIds = append(userIds, it.UserID)
 	}
-
-	// 全量查询所有未删除用户（含0用量）
-	var allUsers []*model.User
-	model.DB.Where("deleted_at IS NULL").Find(&allUsers)
+	userMap := queryUsersByIds(userIds)
 
 	settings := system_setting.GetFeishuSettings()
 	var snapshots []*model.UsageReportSnapshot
-	for _, user := range allUsers {
-		it := usageMap[user.Id]
-		if it == nil {
-			// 0用量用户构造空数据
-			it = &model.UserStatItem{UserID: user.Id}
+	for _, it := range items {
+		if it.Count == 0 && it.TokenUsed == 0 && it.Quota == 0 {
+			continue
 		}
 
-		prev := prevMap[user.Id]
+		user, ok := userMap[it.UserID]
+		if !ok {
+			continue
+		}
+
+		prev := prevMap[it.UserID]
 		snap := buildAccountSnapshot(rp, it, user, prev)
-
-		// 异常检测（仅对有用量用户）
-		if it.Count > 0 || it.TokenUsed > 0 || it.Quota > 0 {
-			checkAccountAnomaly(snap, prev, settings)
-		}
-
+		checkAccountAnomaly(snap, prev, settings)
 		snapshots = append(snapshots, snap)
 	}
 
@@ -266,80 +257,6 @@ func buildAccountSnapshot(rp ReportPeriod, it *model.UserStatItem, user *model.U
 }
 
 // --- Token 快照 ---
-
-func generateTokenSnapshots(rp ReportPeriod) error {
-	items, _, err := model.GetUserModelStatsByDetail(rp.StartTimestamp, rp.EndTimestamp, nil, nil, "", nil, 1, 10000)
-	if err != nil {
-		return err
-	}
-
-	prevItems, _, _ := model.GetUserModelStatsByDetail(rp.PrevStartTimestamp, rp.PrevEndTimestamp, nil, nil, "", nil, 1, 10000)
-	prevMap := make(map[string]*model.UserModelStatItem, len(prevItems))
-	for _, it := range prevItems {
-		key := fmt.Sprintf("%d|%s", it.UserID, it.ModelName)
-		prevMap[key] = it
-	}
-
-	userIds := make([]int, 0, len(items))
-	for _, it := range items {
-		userIds = append(userIds, it.UserID)
-	}
-	userMap := queryUsersByIds(userIds)
-
-	var snapshots []*model.UsageReportSnapshot
-	for _, it := range items {
-		if it.Count == 0 && it.TokenUsed == 0 && it.Quota == 0 {
-			continue
-		}
-		user, ok := userMap[it.UserID]
-		if !ok {
-			continue
-		}
-
-		key := fmt.Sprintf("%d|%s", it.UserID, it.ModelName)
-		prev := prevMap[key]
-		prevQuota := 0
-		if prev != nil {
-			prevQuota = prev.Quota
-		}
-
-		accountType := user.AccountType
-		snap := &model.UsageReportSnapshot{
-			PeriodType:      rp.PeriodType,
-			PeriodStart:     rp.StartTimestamp,
-			PeriodEnd:       rp.EndTimestamp,
-			PeriodLabel:     rp.PeriodLabel,
-			ScopeType:       model.ReportScopeToken,
-			AccountType:     &accountType,
-			UserId:          user.Id,
-			Username:        user.Username,
-			DisplayName:     user.DisplayName,
-			UserGroup:       it.UserGroup,
-			ModelName:       it.ModelName,
-			RequestCount:    it.Count,
-			TokenUsed:       it.TokenUsed,
-			Quota:           it.Quota,
-			QuotaUSD:        quotaToUSD(it.Quota),
-			QuotaCNY:        quotaToCNY(it.Quota),
-			PreviousQuota:   prevQuota,
-			QuotaGrowthRate: model.GrowthRate(it.Quota, prevQuota),
-			OrgLevel1Name:   user.OrgLevel1Name,
-			OrgLevel2Name:   user.OrgLevel2Name,
-		}
-
-		if accountType == common.AccountTypePersonal {
-			snap.ReceiverType = model.ReceiverTypePersonalUser
-			snap.ReceiverFeishuOpenId = user.FeishuId
-		} else {
-			snap.ReceiverType = model.ReceiverTypeAgentOwner
-			snap.ReceiverFeishuOpenId = user.AgentOwnerFeishuOpenId
-		}
-
-		snapshots = append(snapshots, snap)
-	}
-
-	return model.BatchCreateReportSnapshots(snapshots)
-}
 
 // --- 模型趋势快照 ---
 
@@ -657,7 +574,6 @@ func RunUsageReportFullPipelineForPeriod(rp ReportPeriod, syncBase, adminPushTas
 		"base_sync_enabled":              settings.UsageReportBaseSyncEnabled,
 		"admin_push_enabled":             settings.UsageReportAdminGroupPushEnabled,
 		"report_table_account_id_set":    settings.ReportTableAccountID != "",
-		"report_table_token_id_set":      settings.ReportTableTokenID != "",
 		"report_table_platform_id_set":   settings.ReportTablePlatformID != "",
 		"report_table_model_id_set":      settings.ReportTableModelID != "",
 		"report_table_anomaly_id_set":    settings.ReportTableAnomalyID != "",
@@ -675,7 +591,7 @@ func ManualRunUsageReport(periodType string) error {
 
 func countUsageReportSnapshots(rp ReportPeriod) int {
 	count := 0
-	for _, scope := range []string{model.ReportScopePlatform, model.ReportScopeAccount, model.ReportScopeToken, model.ReportScopeModel, model.ReportScopeAnomaly} {
+	for _, scope := range []string{model.ReportScopePlatform, model.ReportScopeAccount, model.ReportScopeModel, model.ReportScopeAnomaly} {
 		items, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, scope)
 		if err == nil {
 			count += len(items)
