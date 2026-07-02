@@ -316,6 +316,7 @@ docker run --name new-api -d --restart always \
 | `CRYPTO_SECRET` | 加密密鑰（Redis 必須）                                               | - |
 | `SQL_DSN` | 資料庫連接字符串                                                     | - |
 | `REDIS_CONN_STRING` | Redis 連接字符串                                                  | - |
+| `SERVER_ADDRESS` | 伺服器地址的首次啟動種子；僅當資料庫中沒有 `ServerAddress` 設定項時寫入，既有管理員設定不會被覆蓋 | - |
 | `STREAMING_TIMEOUT` | 流式超時時間（秒）                                                    | `300` |
 | `STREAM_SCANNER_MAX_BUFFER_MB` | 流式掃描器單行最大緩衝（MB），圖像生成等超大 `data:` 片段（如 4K 圖片 base64）需適當調大 | `64` |
 | `MAX_REQUEST_BODY_MB` | 請求體最大大小（MB，**解壓縮後**計；防止超大請求/zip bomb 導致記憶體暴漲），超過將返回 `413` | `32` |
