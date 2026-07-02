@@ -25,6 +25,7 @@ export const supportedLanguages = [
   'ru',
   'ja',
   'vi',
+  'ko',
 ];
 
 export const normalizeLanguage = (language) => {
