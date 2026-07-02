@@ -245,6 +245,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			relayInfo.LastError = nil
 			service.RecordChannelSuccess(channel.Id)
 			notifyOfficialFallbackResult(c, relayInfo, nil)
+			service.MaybeEnqueueShadowBenchmark(c, relayInfo, relayFormat, nil)
 			return
 		}
 
@@ -266,6 +267,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		logger.LogInfo(c, retryLogStr)
 	}
 	if newAPIError != nil {
+		service.MaybeEnqueueShadowBenchmark(c, relayInfo, relayFormat, newAPIError)
 		notifyFinalRelayFailure(c, relayInfo, newAPIError)
 		gopool.Go(func() {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
