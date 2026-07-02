@@ -20,6 +20,7 @@ type Pricing struct {
 	Description            string                  `json:"description,omitempty"`
 	Icon                   string                  `json:"icon,omitempty"`
 	Tags                   string                  `json:"tags,omitempty"`
+	CapabilityTags         []string                `json:"capability_tags,omitempty"`
 	VendorID               int                     `json:"vendor_id,omitempty"`
 	QuotaType              int                     `json:"quota_type"`
 	ModelRatio             float64                 `json:"model_ratio"`
@@ -65,16 +66,28 @@ var (
 
 func GetPricing() []Pricing {
 	if time.Since(lastGetPricingTime) > time.Minute*1 || len(pricingMap) == 0 {
+		// 先在持锁之前快照运营配置，避免在持有 updatePricingLock 时再取
+		// OptionMapRWMutex，与 updateOptionMap(持 OptionMap 写锁)->InvalidatePricingCache
+		// 形成锁序反转死锁。
+		imgRaw, vidRaw := snapshotMediaConfigs()
 		updatePricingLock.Lock()
 		defer updatePricingLock.Unlock()
 		// Double check after acquiring the lock
 		if time.Since(lastGetPricingTime) > time.Minute*1 || len(pricingMap) == 0 {
 			modelSupportEndpointsLock.Lock()
 			defer modelSupportEndpointsLock.Unlock()
-			updatePricing()
+			updatePricing(imgRaw, vidRaw)
 		}
 	}
 	return pricingMap
+}
+
+// snapshotMediaConfigs 快照图片/视频模型配置的原始 JSON 串。
+// 必须在获取 updatePricingLock 之前调用，以避免锁序反转（见 GetPricing 注释）。
+func snapshotMediaConfigs() (imgRaw, vidRaw string) {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	return common.OptionMap["ImageModelSizeConfig"], common.OptionMap["VideoModelConfig"]
 }
 
 func InvalidatePricingCache() {
@@ -107,7 +120,52 @@ func GetModelSupportEndpointTypes(model string) []constant.EndpointType {
 	return make([]constant.EndpointType, 0)
 }
 
-func updatePricing() {
+// getConfiguredModelCapabilities 从运营设置的图片/视频模型配置解析
+// model -> 能力标签（中文）。配置形如：
+//
+//	{ "models": { "<model>": { "capabilities": ["文生图", ...] } } }
+//
+// 图片旧形态 models[name] 可能是尺寸数组（无 capabilities），解析失败即跳过。
+// 入参为两个配置的原始 JSON 串（由调用方在持 updatePricingLock 前快照，避免锁序反转）。
+func getConfiguredModelCapabilities(imgRaw, vidRaw string) map[string][]string {
+	result := make(map[string][]string)
+
+	parseOne := func(raw string) {
+		if strings.TrimSpace(raw) == "" {
+			return
+		}
+		var cfg struct {
+			Models map[string]json.RawMessage `json:"models"`
+		}
+		if err := common.UnmarshalJsonStr(raw, &cfg); err != nil {
+			return
+		}
+		for modelName, entry := range cfg.Models {
+			var m struct {
+				Capabilities []string `json:"capabilities"`
+			}
+			if err := common.Unmarshal(entry, &m); err != nil {
+				// 旧形态（尺寸数组）无法解析为对象，忽略
+				continue
+			}
+			for _, capName := range m.Capabilities {
+				capName = strings.TrimSpace(capName)
+				if capName == "" {
+					continue
+				}
+				if !common.StringsContains(result[modelName], capName) {
+					result[modelName] = append(result[modelName], capName)
+				}
+			}
+		}
+	}
+
+	parseOne(imgRaw)
+	parseOne(vidRaw)
+	return result
+}
+
+func updatePricing(imgRaw, vidRaw string) {
 	//modelRatios := common.GetModelRatios()
 	enableAbilities, err := GetAllEnableAbilityWithChannels()
 	if err != nil {
@@ -285,6 +343,9 @@ func updatePricing() {
 		}
 	}
 
+	// 运营设置里逐模型声明的能力标签（模型广场展示用）
+	configuredCaps := getConfiguredModelCapabilities(imgRaw, vidRaw)
+
 	pricingMap = make([]Pricing, 0)
 	for model, groups := range modelGroupsMap {
 		pricing := Pricing{
@@ -303,6 +364,34 @@ func updatePricing() {
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
+		}
+
+		// 能力标签（模型广场，classic 主题）：运营设置声明的能力 ∪ 手工标签中命中能力词表的词，
+		// 去重后叠加输出到 CapabilityTags。Tags 保持原样（default 主题、搜索、计数仍读 Tags）；
+		// classic 渲染层再按 CapabilityTags 去重，避免同词重复展示。
+		// 注意：仅读 /api/pricing 输出，model_meta.tags(DB) 不变。
+		{
+			capTags := make([]string, 0)
+			for _, c := range configuredCaps[model] {
+				if !common.StringsContains(capTags, c) {
+					capTags = append(capTags, c)
+				}
+			}
+			if strings.TrimSpace(pricing.Tags) != "" {
+				// 与前端一致按 , ; | 切分，避免分号/竖线分隔的能力词漏判。
+				for _, tg := range strings.FieldsFunc(pricing.Tags, func(r rune) bool {
+					return r == ',' || r == ';' || r == '|'
+				}) {
+					tg = strings.TrimSpace(tg)
+					if tg == "" {
+						continue
+					}
+					if constant.IsCapabilityTag(tg) && !common.StringsContains(capTags, tg) {
+						capTags = append(capTags, tg)
+					}
+				}
+			}
+			pricing.CapabilityTags = capTags
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {

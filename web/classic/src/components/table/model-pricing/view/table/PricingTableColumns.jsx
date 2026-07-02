@@ -67,23 +67,44 @@ const renderVendor = (vendorName, vendorIcon, t) => {
 };
 
 // Render tags list using RenderUtils
-const renderTags = (text) => {
-  if (!text) return '-';
-  const tagsArr = text.split(',').filter((tag) => tag.trim());
-  return renderLimitedItems({
-    items: tagsArr,
-    renderItem: (tag, idx) => (
-      <Tag
-        key={idx}
-        color={stringToColor(tag.trim())}
-        shape='circle'
-        size='small'
-      >
-        {tag.trim()}
-      </Tag>
-    ),
-    maxDisplay: 3,
-  });
+// capabilityTags：能力标签（区别配色，翻译展示）；t：i18n（缺省不翻译）
+const renderTags = (text, capabilityTags = [], t = (x) => x) => {
+  const capItems = (Array.isArray(capabilityTags) ? capabilityTags : [])
+    .map((c) => String(c).trim())
+    .filter(Boolean);
+  // Tags 现含能力词，剔除已作为能力标签展示的词，避免同词重复。
+  const capSet = new Set(capItems.map((c) => c.toLowerCase()));
+  const tagsArr = text
+    ? text
+        .split(/[,;|]+/)
+        .map((tag) => tag.trim())
+        .filter((tag) => tag && !capSet.has(tag.toLowerCase()))
+    : [];
+  if (capItems.length === 0 && tagsArr.length === 0) return '-';
+  return (
+    <div className='flex items-center gap-1 flex-wrap'>
+      {capItems.map((cap, idx) => (
+        <Tag key={`cap-${idx}`} color='light-blue' shape='circle' size='small'>
+          {t(cap)}
+        </Tag>
+      ))}
+      {tagsArr.length > 0 &&
+        renderLimitedItems({
+          items: tagsArr,
+          renderItem: (tag, idx) => (
+            <Tag
+              key={idx}
+              color={stringToColor(tag.trim())}
+              shape='circle'
+              size='small'
+            >
+              {tag.trim()}
+            </Tag>
+          ),
+          maxDisplay: 3,
+        })}
+    </div>
+  );
 };
 
 function renderSupportedEndpoints(endpoints) {
@@ -174,7 +195,7 @@ export const getPricingTableColumns = ({
   const tagsColumn = {
     title: t('标签'),
     dataIndex: 'tags',
-    render: renderTags,
+    render: (text, record) => renderTags(text, record.capability_tags, t),
   };
 
   const vendorColumn = {

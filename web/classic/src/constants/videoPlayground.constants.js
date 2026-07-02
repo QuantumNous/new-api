@@ -9,8 +9,19 @@ export const VIDEO_API_ENDPOINTS = {
   PRICING: '/api/pricing',
 };
 
-// 支持视频生成的端点类型标识（来自 /api/pricing 的 supported_endpoint_types）
-export const VIDEO_ENDPOINT_TYPE = 'openai-video';
+// 视频模型能力枚举（中文即值，也是体验区标签页名）。业内常用完整集。
+// 新增能力时同步维护后端 constant/model_capability.go 的 VideoCapabilities。
+export const VIDEO_CAPABILITIES = [
+  '文生视频',
+  '图生视频',
+  '首尾帧',
+  '参考生视频',
+  '音频驱动',
+  '视频转视频',
+];
+
+// 当前视频体验区页面代表的能力（= 标签页名）
+export const VIDEO_PAGE_CAPABILITY = '文生视频';
 
 // 视频模型「策略类别」：不同类上游对尺寸/时长参数的要求不同。
 // - sora 类（真·OpenAI Sora）：像素尺寸（后端 relay_utils 校验器要求 720x1280 等）+ seconds 字段；
@@ -74,12 +85,14 @@ export const normalizeVideoSize = (s) => {
   return /^\d+p$/.test(v) ? v.toUpperCase() : v;
 };
 
-const normalizeList = (list) =>
+// 通用列表规范化（时长/能力）：去空格、去空、去重（解析与设置页保存共用，避免两条路径分叉）
+export const normalizeList = (list) =>
   Array.isArray(list)
     ? Array.from(new Set(list.map((x) => String(x).trim()).filter(Boolean)))
     : [];
 
-const normalizeSizeList = (list) =>
+// 尺寸列表规范化（解析与设置页保存共用）
+export const normalizeSizeList = (list) =>
   Array.isArray(list)
     ? Array.from(new Set(list.map(normalizeVideoSize).filter(Boolean)))
     : [];
@@ -99,6 +112,7 @@ export const parseVideoModelConfig = (raw) => {
         models[name] = {
           sizes: normalizeSizeList(cfg?.sizes),
           durations: normalizeList(cfg?.durations),
+          capabilities: normalizeList(cfg?.capabilities),
         };
       });
     }

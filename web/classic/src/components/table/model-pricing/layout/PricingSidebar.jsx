@@ -50,6 +50,8 @@ const PricingSidebar = ({
   setFilterVendor,
   filterTag,
   setFilterTag,
+  filterCapability,
+  setFilterCapability,
   currentPage,
   setCurrentPage,
   tokenUnit,
@@ -63,6 +65,7 @@ const PricingSidebar = ({
     endpointTypeModels,
     vendorModels,
     tagModels,
+    capabilityModels,
     groupCountModels,
   } = usePricingFilterCounts({
     models: categoryProps.models,
@@ -71,6 +74,7 @@ const PricingSidebar = ({
     filterEndpointType,
     filterVendor,
     filterTag,
+    filterCapability,
     searchValue: categoryProps.searchValue,
   });
 
@@ -86,6 +90,7 @@ const PricingSidebar = ({
       setFilterEndpointType,
       setFilterVendor,
       setFilterTag,
+      setFilterCapability,
       setCurrentPage,
       setTokenUnit,
     });
@@ -134,7 +139,10 @@ const PricingSidebar = ({
       <PricingTags
         filterTag={filterTag}
         setFilterTag={setFilterTag}
+        filterCapability={filterCapability}
+        setFilterCapability={setFilterCapability}
         models={tagModels}
+        capabilityModels={capabilityModels}
         allModels={categoryProps.models}
         loading={loading}
         t={t}

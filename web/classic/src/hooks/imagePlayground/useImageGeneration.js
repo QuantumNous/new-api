@@ -17,7 +17,7 @@ import {
 } from '../../helpers';
 import {
   IMAGE_API_ENDPOINTS,
-  IMAGE_ENDPOINT_TYPE,
+  IMAGE_PAGE_CAPABILITY,
   IMAGE_GEN_STATUS,
   IMAGE_HISTORY_LIMIT,
   IMAGE_CONV_TURN_LIMIT,
@@ -80,9 +80,7 @@ export const useImageGeneration = () => {
   const [inputs, setInputs] = useState({ group: '', model: '', size: '' });
   const [groups, setGroups] = useState([]);
   const [models, setModels] = useState([]);
-  // 来自 /api/pricing：model -> supported_endpoint_types[]
-  const [modelTypeMap, setModelTypeMap] = useState(new Map());
-  // 来自 /api/pricing：model -> enable_groups[]
+  // 来自 /api/pricing：model -> enable_groups[]（用于分组过滤）
   const [modelGroupsMap, setModelGroupsMap] = useState(new Map());
 
   // 以「对话」为单位的历史；每个对话 = { id, group, model, size, title, createdAt, updatedAt, messages: [...] }
@@ -129,17 +127,16 @@ export const useImageGeneration = () => {
     [sizeConfig, inputs.model],
   );
 
-  // 图片模型集合 = 后端按名称识别的（supported_endpoint_types 含 image-generation）
-  //   ∪ 管理员在「图片模型尺寸配置」里声明的模型（sizeConfig.models 的键）
+  // 图片模型集合 = 管理员在「图片模型尺寸配置」里声明、且能力含「文生图」的模型。
+  // 只认运营设置里的能力声明，不再按后端端点类型识别。
   const imageModelSet = useMemo(() => {
-    const set = new Set(Object.keys(sizeConfig.models || {}));
-    modelTypeMap.forEach((types, model) => {
-      if (Array.isArray(types) && types.includes(IMAGE_ENDPOINT_TYPE)) {
-        set.add(model);
-      }
+    const set = new Set();
+    Object.entries(sizeConfig.models || {}).forEach(([model, cfg]) => {
+      const caps = Array.isArray(cfg?.capabilities) ? cfg.capabilities : [];
+      if (caps.includes(IMAGE_PAGE_CAPABILITY)) set.add(model);
     });
     return set;
-  }, [sizeConfig, modelTypeMap]);
+  }, [sizeConfig]);
 
   // 含图片模型的分组集合：对图片模型集合取其 enable_groups 的并集
   const imageGroups = useMemo(() => {
@@ -167,17 +164,14 @@ export const useImageGeneration = () => {
       });
       const { success, data } = res.data || {};
       if (!success || !Array.isArray(data)) return;
-      const typeMap = new Map();
       const groupsMap = new Map();
       data.forEach((item) => {
         if (!item || !item.model_name) return;
-        typeMap.set(item.model_name, item.supported_endpoint_types || []);
         groupsMap.set(item.model_name, item.enable_groups || []);
       });
-      setModelTypeMap(typeMap);
       setModelGroupsMap(groupsMap);
     } catch (e) {
-      // pricing 不可用时映射为空：模型/分组按「管理员声明」过滤（见 imageModelSet）
+      // pricing 不可用时映射为空：分组不再按 enable_groups 收窄（模型仍按能力声明过滤）
     }
   }, []);
 

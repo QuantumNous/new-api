@@ -8,8 +8,19 @@ export const IMAGE_API_ENDPOINTS = {
   PRICING: '/api/pricing',
 };
 
-// 支持图片生成的端点类型标识（来自 /api/pricing 的 supported_endpoint_types）
-export const IMAGE_ENDPOINT_TYPE = 'image-generation';
+// 图片模型能力枚举（中文即值，也是体验区标签页名）。业内常用完整集。
+// 新增能力时同步维护后端 constant/model_capability.go 的 ImageCapabilities。
+export const IMAGE_CAPABILITIES = [
+  '文生图',
+  '图生图',
+  '图像编辑',
+  '局部重绘',
+  '扩图',
+  '高清放大',
+];
+
+// 当前图片体验区页面代表的能力（= 标签页名）
+export const IMAGE_PAGE_CAPABILITY = '文生图';
 
 // 当管理员未配置时使用的兜底尺寸
 export const FALLBACK_IMAGE_SIZES = [
@@ -43,17 +54,26 @@ export const normalizeImageSize = (s) =>
     .replace(/\s+/g, '')
     .replace(/[×✕╳*]/g, 'x');
 
-const normalizeSizeList = (list) =>
+// 尺寸列表规范化（解析与设置页保存共用，避免两条路径分叉）
+export const normalizeSizeList = (list) =>
   Array.isArray(list)
     ? Array.from(new Set(list.map(normalizeImageSize).filter(Boolean)))
     : [];
 
+// 能力列表规范化：去空格、去空、去重（不改大小写，中文原样；解析与保存共用）
+export const normalizeCapabilityList = (list) =>
+  Array.isArray(list)
+    ? Array.from(new Set(list.map((x) => String(x).trim()).filter(Boolean)))
+    : [];
+
 // 解析管理员配置的「按模型尺寸」，返回指定模型的可选尺寸列表
-// config 形如 { default: [...], models: { modelName: [...] } }
+// config 形如 { default: [...], models: { modelName: { sizes:[], capabilities:[] } } }
 export const getSizesForModel = (config, model) => {
   const fallback = FALLBACK_IMAGE_SIZES;
   if (!config || typeof config !== 'object') return fallback;
-  const modelSizes = config.models && config.models[model];
+  const entry = config.models && config.models[model];
+  // 兼容旧形态（entry 为尺寸数组）与新形态（{ sizes, capabilities }）
+  const modelSizes = Array.isArray(entry) ? entry : entry?.sizes;
   if (Array.isArray(modelSizes) && modelSizes.length > 0) return modelSizes;
   if (Array.isArray(config.default) && config.default.length > 0) {
     return config.default;
@@ -62,6 +82,7 @@ export const getSizesForModel = (config, model) => {
 };
 
 // 解析 status 中的 ImageModelSizeConfig（字符串或对象）
+// models[name] 统一产出 { sizes:[], capabilities:[] }；兼容旧形态（值为尺寸数组）
 export const parseImageSizeConfig = (raw) => {
   if (!raw) return { default: FALLBACK_IMAGE_SIZES, models: {} };
   try {
@@ -69,8 +90,16 @@ export const parseImageSizeConfig = (raw) => {
     const defaults = normalizeSizeList(parsed.default);
     const models = {};
     if (parsed.models && typeof parsed.models === 'object') {
-      Object.entries(parsed.models).forEach(([model, sizes]) => {
-        models[model] = normalizeSizeList(sizes);
+      Object.entries(parsed.models).forEach(([model, cfg]) => {
+        if (Array.isArray(cfg)) {
+          // 旧形态：值为尺寸数组，无能力声明
+          models[model] = { sizes: normalizeSizeList(cfg), capabilities: [] };
+        } else {
+          models[model] = {
+            sizes: normalizeSizeList(cfg?.sizes),
+            capabilities: normalizeCapabilityList(cfg?.capabilities),
+          };
+        }
       });
     }
     return {

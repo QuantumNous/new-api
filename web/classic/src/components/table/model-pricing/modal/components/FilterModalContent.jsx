@@ -49,6 +49,8 @@ const FilterModalContent = ({ sidebarProps, t }) => {
     setFilterVendor,
     filterTag,
     setFilterTag,
+    filterCapability,
+    setFilterCapability,
     tokenUnit,
     setTokenUnit,
     loading,
@@ -60,6 +62,7 @@ const FilterModalContent = ({ sidebarProps, t }) => {
     endpointTypeModels,
     vendorModels,
     tagModels,
+    capabilityModels,
     groupCountModels,
   } = usePricingFilterCounts({
     models: categoryProps.models,
@@ -68,6 +71,7 @@ const FilterModalContent = ({ sidebarProps, t }) => {
     filterEndpointType,
     filterVendor,
     filterTag,
+    filterCapability,
     searchValue: sidebarProps.searchValue,
   });
 
@@ -119,7 +123,10 @@ const FilterModalContent = ({ sidebarProps, t }) => {
       <PricingTags
         filterTag={filterTag}
         setFilterTag={setFilterTag}
+        filterCapability={filterCapability}
+        setFilterCapability={setFilterCapability}
         models={tagModels}
+        capabilityModels={capabilityModels}
         allModels={categoryProps.models}
         loading={loading}
         t={t}

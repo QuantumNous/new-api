@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   API,
@@ -28,6 +35,9 @@ import {
 } from '../../helpers';
 import { isPlaygroundSupported } from '../../helpers/playground';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
+import { StatusContext } from '../../context/Status';
+import { parseImageSizeConfig } from '../../constants/imagePlayground.constants';
+import { parseVideoModelConfig } from '../../constants/videoPlayground.constants';
 
 export const useDataLoader = (
   userState,
@@ -38,9 +48,24 @@ export const useDataLoader = (
   setModelEndpointTypes,
 ) => {
   const { t } = useTranslation();
+  const [statusState] = useContext(StatusContext);
   // 本地保存 pricing 的 model->端点类型、model->分组 映射，用于"仅展示文本模型/分组"过滤。
   const pricingRef = useRef({ types: new Map(), groups: new Map() });
   const [pricingVersion, setPricingVersion] = useState(0);
+
+  // 运营设置里声明为图片/视频的模型集合：文本操练场需排除这些模型
+  // （即便后端未按端点类型识别为 image-generation/openai-video）。
+  const mediaModelSet = useMemo(() => {
+    const set = new Set();
+    const img = parseImageSizeConfig(statusState?.status?.ImageModelSizeConfig);
+    const vid = parseVideoModelConfig(statusState?.status?.VideoModelConfig);
+    Object.keys(img.models || {}).forEach((m) => set.add(m));
+    Object.keys(vid.models || {}).forEach((m) => set.add(m));
+    return set;
+  }, [
+    statusState?.status?.ImageModelSizeConfig,
+    statusState?.status?.VideoModelConfig,
+  ]);
 
   const loadModels = useCallback(async () => {
     try {
@@ -57,6 +82,10 @@ export const useDataLoader = (
         const types = pricingRef.current.types;
         if (types.size > 0) {
           list = list.filter((m) => isPlaygroundSupported(m, types));
+        }
+        // 再排除运营设置里声明为图片/视频的模型
+        if (mediaModelSet.size > 0) {
+          list = list.filter((m) => !mediaModelSet.has(m));
         }
         const { modelOptions, selectedModel } = processModelsData(
           list,
@@ -81,7 +110,14 @@ export const useDataLoader = (
     } catch (error) {
       showError(t('加载模型失败'));
     }
-  }, [inputs.model, inputs.group, handleInputChange, setModels, t]);
+  }, [
+    inputs.model,
+    inputs.group,
+    handleInputChange,
+    setModels,
+    mediaModelSet,
+    t,
+  ]);
 
   const loadGroups = useCallback(async () => {
     try {
@@ -99,7 +135,7 @@ export const useDataLoader = (
         if (types.size > 0) {
           const textGroupSet = new Set();
           types.forEach((_tp, model) => {
-            if (isPlaygroundSupported(model, types)) {
+            if (isPlaygroundSupported(model, types) && !mediaModelSet.has(model)) {
               (gmap.get(model) || []).forEach((g) => textGroupSet.add(g));
             }
           });
@@ -124,7 +160,7 @@ export const useDataLoader = (
     } catch (error) {
       showError(t('加载分组失败'));
     }
-  }, [userState, inputs.group, handleInputChange, setGroups, t]);
+  }, [userState, inputs.group, handleInputChange, setGroups, mediaModelSet, t]);
 
   // 拉一次 /api/pricing，构建 model -> endpoint_types[] 映射，
   // 用于提交前判断模型是否可在操练场调试（非 chat 模型会弹框提示）。

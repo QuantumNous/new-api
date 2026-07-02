@@ -39,6 +39,7 @@ export const useModelPricingData = () => {
   const [filterEndpointType, setFilterEndpointType] = useState('all'); // 端点类型筛选: 'all' | string
   const [filterVendor, setFilterVendor] = useState('all'); // 供应商筛选: 'all' | 'unknown' | string
   const [filterTag, setFilterTag] = useState('all'); // 模型标签筛选: 'all' | string
+  const [filterCapability, setFilterCapability] = useState('all'); // 模型能力筛选: 'all' | string
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
   const [currency, setCurrency] = useState('USD');
@@ -142,18 +143,26 @@ export const useModelPricingData = () => {
       }
     }
 
-    // 标签筛选
+    // 标签筛选（自定义标签，独立维度）
     if (filterTag !== 'all') {
       const tagLower = filterTag.toLowerCase();
-      result = result.filter((model) => {
-        if (!model.tags) return false;
-        const tagsArr = model.tags
+      result = result.filter((model) =>
+        (model.tags || '')
           .toLowerCase()
           .split(/[,;|]+/)
           .map((tag) => tag.trim())
-          .filter(Boolean);
-        return tagsArr.includes(tagLower);
-      });
+          .includes(tagLower),
+      );
+    }
+
+    // 能力筛选（能力标签，独立维度）
+    if (filterCapability !== 'all') {
+      const capLower = filterCapability.toLowerCase();
+      result = result.filter((model) =>
+        (model.capability_tags || []).some(
+          (c) => String(c).trim().toLowerCase() === capLower,
+        ),
+      );
     }
 
     // 搜索筛选
@@ -166,6 +175,9 @@ export const useModelPricingData = () => {
           (model.description &&
             model.description.toLowerCase().includes(searchTerm)) ||
           (model.tags && model.tags.toLowerCase().includes(searchTerm)) ||
+          (model.capability_tags || []).some((c) =>
+            String(c).toLowerCase().includes(searchTerm),
+          ) ||
           (model.vendor_name &&
             model.vendor_name.toLowerCase().includes(searchTerm)),
       );
@@ -180,6 +192,7 @@ export const useModelPricingData = () => {
     filterEndpointType,
     filterVendor,
     filterTag,
+    filterCapability,
   ]);
 
   const rowSelection = useMemo(
@@ -342,6 +355,7 @@ export const useModelPricingData = () => {
     filterEndpointType,
     filterVendor,
     filterTag,
+    filterCapability,
     searchValue,
   ]);
 
@@ -371,6 +385,8 @@ export const useModelPricingData = () => {
     setFilterVendor,
     filterTag,
     setFilterTag,
+    filterCapability,
+    setFilterCapability,
     pageSize,
     setPageSize,
     currentPage,
