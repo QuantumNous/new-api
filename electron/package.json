@@ -1,7 +1,7 @@
 {
   "name": "new-api-electron",
   "version": "1.0.0",
-  "description": "New API - AI Model Gateway Desktop Application",
+  "description": "大晟 AI - AI 模型网关桌面应用",
   "main": "main.js",
   "scripts": {
     "start-app": "electron .",
@@ -30,7 +30,7 @@
   },
   "build": {
     "appId": "com.newapi.desktop",
-    "productName": "New-API-App",
+    "productName": "大晟 AI",
     "publish": null,
     "directories": {
       "output": "dist"

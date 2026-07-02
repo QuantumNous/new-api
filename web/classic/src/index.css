@@ -1046,3 +1046,30 @@ html.dark .with-pastel-balls::before {
 }
 
 .ec-dbcd0a3c01b55203 { forced-color-adjust: auto; }
+
+
+/* ===== 大晟 AI 品牌色 (Semi) — appended for rebrand ===== */
+/* ============================================================
+ * 「数科 / 大晟」Semi 主题变量 — 用于 new-api web/classic
+ * 落位建议：web/classic/src/index.css:402-470 追加一个 .sbg-variant-dasheng，
+ * 并将默认变体的 --semi-color-primary 指向大晟品牌青
+ * ============================================================ */
+.sbg-variant-dasheng {
+  --semi-color-primary: #00CACE;
+  --semi-color-primary-hover: #0AEEF3;
+  --semi-color-primary-active: #00AFB2;
+  --semi-color-focus-border: rgba(0, 202, 206, 0.25);
+  --semi-color-primary-light-default: rgba(0, 202, 206, 0.08);
+  --semi-color-primary-light-hover: rgba(0, 202, 206, 0.16);
+  --semi-color-primary-light-active: rgba(0, 202, 206, 0.24);
+}
+
+body[theme-mode='dark'] .sbg-variant-dasheng {
+  --semi-color-primary: #15D6DA;
+  --semi-color-primary-hover: #3EEAEE;
+  --semi-color-primary-active: #2FD3D7;
+  --semi-color-focus-border: rgba(21, 214, 218, 0.34);
+  --semi-color-primary-light-default: rgba(21, 214, 218, 0.16);
+  --semi-color-primary-light-hover: rgba(21, 214, 218, 0.24);
+  --semi-color-primary-light-active: rgba(21, 214, 218, 0.32);
+}

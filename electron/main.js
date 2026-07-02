@@ -397,7 +397,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true
     },
-    title: 'New API',
+    title: '大晟 AI',
     icon: path.join(__dirname, 'icon.png')
   });
 

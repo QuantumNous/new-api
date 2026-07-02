@@ -731,3 +731,33 @@ For commercial licensing, please contact support@quantumnous.com
     width: 100%;
   }
 }
+
+
+/* ===== 大晟 AI 品牌主题预设 (dasheng) — appended for rebrand ===== */
+/* ============================================================
+ * 「数科 / 大晟」主题预设 — 用于 new-api web/default
+ * 落位建议：
+ *   1) theme-presets.css（:486-604 区段）新增本预设，不覆盖 default
+ *   2) 若直接改默认主题：theme.css:49 的 --primary 改为下方 OKLCH 值，
+ *      theme.css:143-144 骨架屏色一并替换
+ * ============================================================ */
+[data-theme-preset='dasheng'] {
+  --primary: oklch(76.1% 0.130 197.3);            /* #00CACE 大晟品牌青 */
+  --primary-hover: oklch(86.1% 0.146 197.5);      /* #0AEEF3 悬浮 */
+  --primary-active: oklch(68.4% 0.116 197.0);     /* #00AFB2 点击 */
+  --primary-foreground: oklch(100% 0 0);            /* 主色上的文字用白 */
+  --ring: oklch(76.1% 0.130 197.3);
+  /* 骨架屏（对应 theme.css:143-144） */
+  --skeleton-base: oklch(96.4% 0.003 264.5);      /* #F2F3F5 */
+  --skeleton-highlight: oklch(97.5% 0.003 228.8); /* #F5F7F8 */
+}
+
+[data-theme-preset='dasheng'].dark {
+  --primary: oklch(79.6% 0.133 197.2);            /* #15D6DA */
+  --primary-hover: oklch(85.6% 0.134 197.3);      /* #3EEAEE */
+  --primary-active: oklch(79.0% 0.126 197.5);     /* #2FD3D7 */
+  --primary-foreground: oklch(20.8% 0.011 260.7); /* 深底文字 */
+  --ring: oklch(79.6% 0.133 197.2);
+  --skeleton-base: oklch(30.4% 0.018 262.2);
+  --skeleton-highlight: oklch(35.4% 0.020 257.3);
+}
