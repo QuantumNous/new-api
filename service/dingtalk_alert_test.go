@@ -600,6 +600,244 @@ func TestNotifyDingTalkFailuresSendsOneBatchForMultipleChannels(t *testing.T) {
 	require.Contains(t, content, "Channel ID: 100")
 }
 
+func TestNotifyDingTalkFailuresLeavesContentUnchangedWithoutAIKey(t *testing.T) {
+	setting := setupDingTalkChannelAlertTestState(t)
+
+	var aiRequests int32
+	contents := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/responses" {
+			atomic.AddInt32(&aiRequests, 1)
+			http.Error(w, "ai should not be called", http.StatusInternalServerError)
+			return
+		}
+		contents <- readDingTalkTextContent(t, r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting.DingTalkAlertWebhookURL = server.URL + "/robot/send?access_token=dingtalk-token"
+	setting.AIAnalysisAPIKey = ""
+	setting.AIAnalysisBaseURL = server.URL + "/v1"
+	setting.AIAnalysisModel = "gpt-monitor"
+
+	alerts := []DingTalkChannelAlert{
+		{
+			ChannelID:       301,
+			ChannelName:     "codex-prod",
+			ChannelTypeName: "Codex",
+			Error:           types.NewErrorWithStatusCode(errors.New("401"), types.ErrorCodeBadResponse, http.StatusUnauthorized),
+			Now:             time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC),
+		},
+	}
+	rawContent := BuildDingTalkChannelAlertBatchContent(alerts)
+
+	require.NoError(t, NotifyDingTalkChannelTestFailures(alerts))
+
+	require.Equal(t, int32(0), atomic.LoadInt32(&aiRequests))
+	require.Equal(t, rawContent, <-contents)
+}
+
+func TestNotifyDingTalkFailuresPrependsAISummaryWhenConfigured(t *testing.T) {
+	setting := setupDingTalkChannelAlertTestState(t)
+
+	var aiRequests int32
+	contents := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/responses" {
+			atomic.AddInt32(&aiRequests, 1)
+			require.Equal(t, "Bearer sk-monitor", r.Header.Get("Authorization"))
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{
+				"output_text": "- 本批次 2 个渠道测试失败，集中在 Codex 和 Gemini。\n- 其中 1 个为 401 鉴权错误，建议优先检查密钥状态。",
+			}))
+			return
+		}
+		contents <- readDingTalkTextContent(t, r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting.DingTalkAlertWebhookURL = server.URL + "/robot/send?access_token=dingtalk-token"
+	setting.AIAnalysisAPIKey = "sk-monitor"
+	setting.AIAnalysisBaseURL = server.URL + "/v1"
+	setting.AIAnalysisModel = "gpt-monitor"
+
+	alerts := []DingTalkChannelAlert{
+		{
+			ChannelID:       302,
+			ChannelName:     "codex-prod",
+			ChannelTypeName: "Codex",
+			Error:           types.NewErrorWithStatusCode(errors.New("401"), types.ErrorCodeBadResponse, http.StatusUnauthorized),
+			Now:             time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC),
+		},
+		{
+			ChannelID:       303,
+			ChannelName:     "gemini-backup",
+			ChannelTypeName: "Gemini",
+			Error:           types.NewErrorWithStatusCode(errors.New("timeout"), types.ErrorCodeBadResponse, http.StatusGatewayTimeout),
+			AutoDisabled:    true,
+			Now:             time.Date(2026, 7, 2, 10, 0, 5, 0, time.UTC),
+		},
+	}
+
+	require.NoError(t, NotifyDingTalkChannelTestFailures(alerts))
+
+	require.Equal(t, int32(1), atomic.LoadInt32(&aiRequests))
+	content := <-contents
+	require.True(t, strings.HasPrefix(content, "AI 中文总结：\n- 本批次 2 个渠道测试失败"), content)
+	require.Contains(t, content, "\n\nNew API channel test failures")
+	require.Contains(t, content, "Total Failures: 2")
+	require.Contains(t, content, "Channel ID: 302")
+	require.Contains(t, content, "Channel ID: 303")
+	require.Contains(t, content, "Auto Disabled: yes")
+}
+
+func TestNotifyDingTalkFailuresFallsBackWhenAISummaryFails(t *testing.T) {
+	setting := setupDingTalkChannelAlertTestState(t)
+
+	var aiRequests int32
+	contents := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/responses" {
+			atomic.AddInt32(&aiRequests, 1)
+			http.Error(w, "ai unavailable", http.StatusBadGateway)
+			return
+		}
+		contents <- readDingTalkTextContent(t, r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting.DingTalkAlertWebhookURL = server.URL + "/robot/send?access_token=dingtalk-token"
+	setting.AIAnalysisAPIKey = "sk-monitor"
+	setting.AIAnalysisBaseURL = server.URL + "/v1"
+	setting.AIAnalysisModel = "gpt-monitor"
+
+	alerts := []DingTalkChannelAlert{
+		{
+			ChannelID:       304,
+			ChannelName:     "codex-prod",
+			ChannelTypeName: "Codex",
+			Error:           types.NewErrorWithStatusCode(errors.New("429"), types.ErrorCodeBadResponse, http.StatusTooManyRequests),
+			Now:             time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC),
+		},
+	}
+	rawContent := BuildDingTalkChannelAlertBatchContent(alerts)
+
+	require.NoError(t, NotifyDingTalkChannelTestFailures(alerts))
+
+	require.Equal(t, int32(1), atomic.LoadInt32(&aiRequests))
+	require.Equal(t, rawContent, <-contents)
+}
+
+func TestNotifyDingTalkFailuresSendsSanitizedAlertContentToAI(t *testing.T) {
+	setting := setupDingTalkChannelAlertTestState(t)
+
+	var aiRequests int32
+	aiBodies := make(chan string, 1)
+	contents := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/responses" {
+			atomic.AddInt32(&aiRequests, 1)
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			aiBodies <- string(body)
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{
+				"output_text": "- 已收到脱敏后的渠道测试失败信息。",
+			}))
+			return
+		}
+		contents <- readDingTalkTextContent(t, r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting.DingTalkAlertWebhookURL = server.URL + "/robot/send?access_token=dingtalk-token"
+	setting.AIAnalysisAPIKey = "sk-monitor"
+	setting.AIAnalysisBaseURL = server.URL + "/v1"
+	setting.AIAnalysisModel = "gpt-monitor"
+
+	alerts := []DingTalkChannelAlert{
+		{
+			ChannelID:       305,
+			ChannelName:     "bedrock AKIAIOSFODNN7EXAMPLE",
+			ChannelTypeName: "gemini AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70",
+			Error: types.NewErrorWithStatusCode(
+				errors.New("Authorization: Bearer ya29.secret-token access_token oauth-secret sk-sensitive-token"),
+				types.ErrorCodeBadResponse,
+				http.StatusUnauthorized,
+			),
+			Now: time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC),
+		},
+	}
+
+	require.NoError(t, NotifyDingTalkChannelTestFailures(alerts))
+
+	require.Equal(t, int32(1), atomic.LoadInt32(&aiRequests))
+	aiBody := <-aiBodies
+	require.Contains(t, aiBody, "Channel ID: 305")
+	require.NotContains(t, aiBody, "AKIAIOSFODNN7EXAMPLE")
+	require.NotContains(t, aiBody, "AIzaSyAAAaUooTUni8AdaOkSRMda30n_Q4vrV70")
+	require.NotContains(t, aiBody, "ya29.secret-token")
+	require.NotContains(t, aiBody, "oauth-secret")
+	require.NotContains(t, aiBody, "sk-sensitive-token")
+	require.NotEmpty(t, <-contents)
+}
+
+func TestNotifyDingTalkFailuresSanitizesAISummaryBeforeDingTalk(t *testing.T) {
+	setting := setupDingTalkChannelAlertTestState(t)
+
+	contents := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/responses" {
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{
+				"output_text": "- access_token leaked-secret sk-ai-secret should be redacted before DingTalk.",
+			}))
+			return
+		}
+		contents <- readDingTalkTextContent(t, r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting.DingTalkAlertWebhookURL = server.URL + "/robot/send?access_token=dingtalk-token"
+	setting.AIAnalysisAPIKey = "sk-monitor"
+	setting.AIAnalysisBaseURL = server.URL + "/v1"
+	setting.AIAnalysisModel = "gpt-monitor"
+
+	alerts := []DingTalkChannelAlert{
+		{
+			ChannelID:       306,
+			ChannelName:     "codex-prod",
+			ChannelTypeName: "Codex",
+			Error:           types.NewErrorWithStatusCode(errors.New("401"), types.ErrorCodeBadResponse, http.StatusUnauthorized),
+			Now:             time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC),
+		},
+	}
+
+	require.NoError(t, NotifyDingTalkChannelTestFailures(alerts))
+
+	content := <-contents
+	require.True(t, strings.HasPrefix(content, "AI 中文总结：\n- "), content)
+	require.NotContains(t, content, "leaked-secret")
+	require.NotContains(t, content, "sk-ai-secret")
+	require.Contains(t, content, "access_token ***")
+	require.Contains(t, content, "sk-***")
+}
+
 func TestNotifyDingTalkFailuresSplitsLargeBatches(t *testing.T) {
 	allowDingTalkTestServer(t)
 	originalSetting := *operation_setting.GetMonitorSetting()
@@ -896,4 +1134,44 @@ func allowDingTalkTestServer(t *testing.T) {
 
 	fetchSetting := system_setting.GetFetchSetting()
 	fetchSetting.EnableSSRFProtection = false
+}
+
+func setupDingTalkChannelAlertTestState(t *testing.T) *operation_setting.MonitorSetting {
+	t.Helper()
+
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalCooldown := dingTalkAlertCooldown
+	originalHTTPClient := httpClient
+	originalDB := model.DB
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		dingTalkAlertCooldown = originalCooldown
+		httpClient = originalHTTPClient
+		model.DB = originalDB
+	})
+	model.DB = nil
+	dingTalkAlertCooldown = NewDingTalkAlertCooldown()
+
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = ""
+	setting.DingTalkAlertSecret = ""
+	setting.DingTalkAlertCooldownMinutes = 60
+	setting.AIAnalysisAPIKey = ""
+	setting.AIAnalysisBaseURL = operation_setting.DefaultMonitorAIAnalysisBaseURL
+	setting.AIAnalysisModel = operation_setting.DefaultMonitorAIAnalysisModelName
+	return setting
+}
+
+func readDingTalkTextContent(t *testing.T, body io.Reader) string {
+	t.Helper()
+
+	var payload struct {
+		Text struct {
+			Content string `json:"content"`
+		} `json:"text"`
+	}
+	require.NoError(t, json.NewDecoder(body).Decode(&payload))
+	return payload.Text.Content
 }

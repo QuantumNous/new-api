@@ -568,10 +568,12 @@ func sendReservedDingTalkChannelAlertBatch(setting *operation_setting.MonitorSet
 	if len(alerts) == 0 {
 		return nil
 	}
+	rawContent := BuildDingTalkChannelAlertBatchContent(alerts)
+	content := buildDingTalkChannelAlertContentWithOptionalAISummary(alerts, rawContent)
 	if err := SendDingTalkText(
 		setting.DingTalkAlertWebhookURL,
 		setting.DingTalkAlertSecret,
-		BuildDingTalkChannelAlertBatchContent(alerts),
+		content,
 	); err != nil {
 		for _, reservation := range reservations {
 			reservation.Rollback()
