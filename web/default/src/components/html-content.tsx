@@ -142,11 +142,24 @@ function IsolatedHtmlContent(props: {
 
   useEffect(() => {
     const container = containerRef.current
-    if (!container) return
+    if (!container) {
+      return
+    }
 
     const shadowRoot =
       container.shadowRoot ?? container.attachShadow({ mode: 'open' })
-    shadowRoot.innerHTML = `${isolatedContentBaseStyles}${props.html}`
+    const applicationStyleNodes = [
+      ...document.head.querySelectorAll<HTMLLinkElement | HTMLStyleElement>(
+        'style, link[rel="stylesheet"]'
+      ),
+    ].map((node) => node.cloneNode(true))
+    const contentTemplate = document.createElement('template')
+    contentTemplate.innerHTML = `${isolatedContentBaseStyles}${props.html}`
+
+    shadowRoot.replaceChildren(
+      ...applicationStyleNodes,
+      contentTemplate.content
+    )
   }, [props.html])
 
   return (
