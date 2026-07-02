@@ -232,8 +232,17 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 		oaiUsage.ClaudeCacheCreation5mTokens,
 		oaiUsage.ClaudeCacheCreation1hTokens,
 	)
+	// Some providers return prompt_tokens as the full count (including
+	// cached). Anthropic's input_tokens should exclude the cached portion.
+	// Guard: only subtract when prompt_tokens >= cached_tokens to avoid
+	// double-counting for providers that already return non-cached amount.
+	inputTokens := oaiUsage.PromptTokens
+	cachedTokens := oaiUsage.PromptTokensDetails.CachedTokens
+	if cachedTokens > 0 && inputTokens >= cachedTokens {
+		inputTokens = inputTokens - cachedTokens
+	}
 	usage := &dto.ClaudeUsage{
-		InputTokens:              oaiUsage.PromptTokens,
+		InputTokens:              inputTokens,
 		OutputTokens:             oaiUsage.CompletionTokens,
 		CacheCreationInputTokens: oaiUsage.PromptTokensDetails.CachedCreationTokens,
 		CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
