@@ -34,12 +34,12 @@ import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { Combobox } from '@/components/ui/combobox'
 import {
   DISABLED_ROW_DESKTOP,
   DISABLED_ROW_MOBILE,
   DataTablePage,
 } from '@/components/data-table'
-import { Combobox } from '@/components/ui/combobox'
 import { getAssignableUserGroups, getUsers, searchUsers } from '../api'
 import {
   USER_STATUS,
@@ -176,6 +176,7 @@ export function UsersTable() {
     globalFilterFn: (row, _columnId, filterValue) => {
       const searchValue = String(filterValue).toLowerCase()
       const fields = [
+        row.getValue('id'),
         row.getValue('username'),
         row.original.display_name,
         row.original.email,
@@ -216,7 +217,7 @@ export function UsersTable() {
       )}
       skeletonKeyPrefix='users-skeleton'
       toolbarProps={{
-        searchPlaceholder: t('Filter by username, name or email...'),
+        searchPlaceholder: t('Filter by ID, username, name or email...'),
         additionalSearch: (
           <Combobox
             options={groupOptions}

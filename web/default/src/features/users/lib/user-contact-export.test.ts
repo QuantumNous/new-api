@@ -19,13 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { formatQuota } from '@/lib/format'
-import { formatUserQuotaDisplay } from './user-quota-display'
+import type { User } from '../types'
 import {
   buildUserContactsCsv,
   collectUserContactsForExport,
   createUserContactsFilename,
 } from './user-contact-export'
-import type { User } from '../types'
+import { formatUserQuotaDisplay } from './user-quota-display'
+
+const CSV_HEADER =
+  'ID,Username,Display Name,Email,Status,Quota,Request Count,Group,Role,Acquisition Source,Source / Medium,Campaign / Keyword,Landing Page,Invited,Revenue,Inviter,WeChat ID,Telegram ID,Created At,Last Login'
 
 function makeUser(overrides: Partial<User>): User {
   return {
@@ -50,6 +53,8 @@ describe('user contact export', () => {
         username: 'alice, admin',
         display_name: 'Alice "A"',
         quota: 500000,
+        request_count: 42,
+        group: 'plg',
         email: 'alice@example.com',
         wechat_id: 'wx\nline',
         telegram_id: '@alice',
@@ -58,8 +63,8 @@ describe('user contact export', () => {
 
     assert.equal(
       csv,
-      '\uFEFFID,Username,Display Name,Quota,Email,WeChat ID,Telegram ID\r\n' +
-        `7,"alice, admin","Alice ""A""",${formatQuota(500000)},alice@example.com,"wx\nline",'@alice\r\n`
+      `\uFEFF${CSV_HEADER}\r\n` +
+        `7,"alice, admin","Alice ""A""",alice@example.com,Enabled,${formatQuota(500000)},42,plg,User,No source,,,,0,${formatQuota(0)},,"wx\nline",'@alice,,\r\n`
     )
   })
 
@@ -74,8 +79,8 @@ describe('user contact export', () => {
 
     assert.equal(
       csv,
-      `\uFEFFID,Username,Display Name,Quota,Email,WeChat ID,Telegram ID\r\n` +
-        `8,bob,,${formatUserQuotaDisplay(makeUser({ quota: 0, used_quota: 0 }))},,,\r\n`
+      `\uFEFF${CSV_HEADER}\r\n` +
+        `8,bob,,,Enabled,${formatUserQuotaDisplay(makeUser({ quota: 0, used_quota: 0 }))},0,default,User,No source,,,,0,${formatQuota(0)},,,,,\r\n`
     )
   })
 
@@ -87,6 +92,15 @@ describe('user contact export', () => {
         display_name: '+SUM(1,1)',
         quota: 500000,
         email: '-10+20@example.com',
+        group: '@group',
+        ads_attribution: JSON.stringify({
+          source_type: 'paid',
+          source: 'adwords',
+          medium: 'cpc',
+          campaign: '=campaign',
+          keyword: '+keyword',
+          landing_path: '/signup',
+        }),
         wechat_id: '@wechat',
         telegram_id: '\t=cmd',
       }),
@@ -94,8 +108,8 @@ describe('user contact export', () => {
 
     assert.equal(
       csv,
-      '\uFEFFID,Username,Display Name,Quota,Email,WeChat ID,Telegram ID\r\n' +
-        `9,"'=HYPERLINK(""https://example.com"",""click"")","'+SUM(1,1)",${formatQuota(500000)},'-10+20@example.com,'@wechat,'\t=cmd\r\n`
+      `\uFEFF${CSV_HEADER}\r\n` +
+        `9,"'=HYPERLINK(""https://example.com"",""click"")","'+SUM(1,1)",'-10+20@example.com,Enabled,${formatQuota(500000)},0,'@group,User,Paid Ads,adwords / cpc,'=campaign / +keyword,/signup,0,${formatQuota(0)},,'@wechat,'\t=cmd,,\r\n`
     )
   })
 
@@ -178,17 +192,14 @@ describe('user contact export', () => {
   test('stops on an empty page when total overstates the row count', async () => {
     const calls: number[] = []
 
-    const users = await collectUserContactsForExport(
-      async ({ page }) => {
-        calls.push(page)
+    const users = await collectUserContactsForExport(async ({ page }) => {
+      calls.push(page)
 
-        return {
-          items: page === 1 ? [makeUser({ id: 1 })] : [],
-          total: 10,
-        }
-      },
-      1
-    )
+      return {
+        items: page === 1 ? [makeUser({ id: 1 })] : [],
+        total: 10,
+      }
+    }, 1)
 
     assert.deepEqual(
       users.map((user) => user.id),
