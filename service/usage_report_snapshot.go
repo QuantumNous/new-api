@@ -30,6 +30,7 @@ func GenerateUsageReportForPeriod(rp ReportPeriod) error {
 	for _, scope := range []string{
 		model.ReportScopePlatform,
 		model.ReportScopeAccount,
+		model.ReportScopeOrgDept,
 		model.ReportScopeModel,
 		model.ReportScopeAnomaly,
 	} {
@@ -44,6 +45,9 @@ func GenerateUsageReportForPeriod(rp ReportPeriod) error {
 	}
 	if err := generateAccountSnapshots(rp); err != nil {
 		common.SysError(fmt.Sprintf("usage report: generate account snapshots failed: %s", err))
+	}
+	if err := generateOrgSnapshots(rp); err != nil {
+		common.SysError(fmt.Sprintf("usage report: generate org snapshots failed: %s", err))
 	}
 	if err := generateModelSnapshots(rp); err != nil {
 		common.SysError(fmt.Sprintf("usage report: generate model snapshots failed: %s", err))
@@ -191,6 +195,85 @@ func generateAccountSnapshots(rp ReportPeriod) error {
 		prev := prevMap[it.UserID]
 		snap := buildAccountSnapshot(rp, it, user, prev)
 		checkAccountAnomaly(snap, prev, settings)
+		snapshots = append(snapshots, snap)
+	}
+
+	return model.BatchCreateReportSnapshots(snapshots)
+}
+
+// --- 组织用量快照（从 account 快照按一级/二级组织聚合） ---
+
+type orgAgg struct {
+	OrgLevel1Name string
+	OrgLevel2Name string
+	OrgPath       string
+	UserCount     int
+	RequestCount  int
+	TokenUsed     int
+	Quota         int
+}
+
+func generateOrgSnapshots(rp ReportPeriod) error {
+	// 读取本期 account 快照
+	accountItems, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeAccount)
+	if err != nil {
+		return err
+	}
+
+	// 按 (一级组织, 二级组织) 聚合
+	orgMap := make(map[string]*orgAgg)
+	for _, it := range accountItems {
+		if it.OrgLevel1Name == "" && it.OrgLevel2Name == "" {
+			continue
+		}
+		key := it.OrgLevel1Name + "|" + it.OrgLevel2Name
+		agg, ok := orgMap[key]
+		if !ok {
+			agg = &orgAgg{
+				OrgLevel1Name: it.OrgLevel1Name,
+				OrgLevel2Name: it.OrgLevel2Name,
+				OrgPath:       it.OrgPath,
+			}
+			orgMap[key] = agg
+		}
+		agg.UserCount++
+		agg.RequestCount += it.RequestCount
+		agg.TokenUsed += it.TokenUsed
+		agg.Quota += it.Quota
+	}
+
+	// 读取上期 account 快照，聚合出上期组织用量
+	prevOrgMap := make(map[string]int) // key -> prevQuota
+	prevItems, _ := model.GetReportSnapshots(rp.PeriodType, rp.PrevPeriodStart.Unix(), model.ReportScopeAccount)
+	for _, it := range prevItems {
+		if it.OrgLevel1Name == "" && it.OrgLevel2Name == "" {
+			continue
+		}
+		key := it.OrgLevel1Name + "|" + it.OrgLevel2Name
+		prevOrgMap[key] += it.Quota
+	}
+
+	var snapshots []*model.UsageReportSnapshot
+	for key, agg := range orgMap {
+		prevQuota := prevOrgMap[key]
+		snap := &model.UsageReportSnapshot{
+			PeriodType:      rp.PeriodType,
+			PeriodStart:     rp.StartTimestamp,
+			PeriodEnd:       rp.EndTimestamp,
+			PeriodLabel:     rp.PeriodLabel,
+			ScopeType:       model.ReportScopeOrgDept,
+			OrgLevel1Name:   agg.OrgLevel1Name,
+			OrgLevel2Name:   agg.OrgLevel2Name,
+			OrgPath:         agg.OrgPath,
+			TotalUsers:      agg.UserCount,
+			RequestCount:    agg.RequestCount,
+			TokenUsed:       agg.TokenUsed,
+			Quota:           agg.Quota,
+			QuotaUSD:        quotaToUSD(agg.Quota),
+			QuotaCNY:        quotaToCNY(agg.Quota),
+			PreviousQuota:   prevQuota,
+			QuotaGrowthRate: model.GrowthRate(agg.Quota, prevQuota),
+		}
 		snapshots = append(snapshots, snap)
 	}
 
@@ -574,6 +657,7 @@ func RunUsageReportFullPipelineForPeriod(rp ReportPeriod, syncBase, adminPushTas
 		"base_sync_enabled":              settings.UsageReportBaseSyncEnabled,
 		"admin_push_enabled":             settings.UsageReportAdminGroupPushEnabled,
 		"report_table_account_id_set":    settings.ReportTableAccountID != "",
+		"report_table_org_id_set":        settings.ReportTableOrgID != "",
 		"report_table_platform_id_set":   settings.ReportTablePlatformID != "",
 		"report_table_model_id_set":      settings.ReportTableModelID != "",
 		"report_table_anomaly_id_set":    settings.ReportTableAnomalyID != "",
@@ -591,7 +675,7 @@ func ManualRunUsageReport(periodType string) error {
 
 func countUsageReportSnapshots(rp ReportPeriod) int {
 	count := 0
-	for _, scope := range []string{model.ReportScopePlatform, model.ReportScopeAccount, model.ReportScopeModel, model.ReportScopeAnomaly} {
+	for _, scope := range []string{model.ReportScopePlatform, model.ReportScopeAccount, model.ReportScopeOrgDept, model.ReportScopeModel, model.ReportScopeAnomaly} {
 		items, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, scope)
 		if err == nil {
 			count += len(items)

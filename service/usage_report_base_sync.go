@@ -53,9 +53,14 @@ func SyncUsageReportPeriodToBaseWithDiagnostics(rp ReportPeriod) []string {
 
 	common.SysLog(fmt.Sprintf("usage report base sync: start syncing %s for %s", rp.PeriodType, rp.PeriodLabel))
 
-	// 同步4张表，收集各表的诊断信息
+	// 同步5张表，收集各表的诊断信息
 	tableMsgs := syncTableWithDiagnostics("account", settings.ReportTableAccountID, func() {
 		syncAccountTable(token, baseToken, settings.ReportTableAccountID, rp)
+	})
+	msgs = append(msgs, tableMsgs...)
+
+	tableMsgs = syncTableWithDiagnostics("org", settings.ReportTableOrgID, func() {
+		syncOrgTable(token, baseToken, settings.ReportTableOrgID, rp)
 	})
 	msgs = append(msgs, tableMsgs...)
 
@@ -160,6 +165,41 @@ func syncAccountTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 	for _, it := range items {
 		model.UpdateReportSnapshotSyncStatus(it.Id, model.SyncStatusSuccess, "")
 	}
+}
+
+// syncOrgTable 同步组织用量周期统计表
+func syncOrgTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
+	if tableID == "" {
+		return
+	}
+	deleteBaseRecordsByPeriod(tenantToken, baseToken, tableID, rp.PeriodLabel)
+
+	items, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeOrgDept)
+	if err != nil || len(items) == 0 {
+		return
+	}
+
+	records := make([]map[string]any, 0, len(items))
+	for _, it := range items {
+		record := map[string]any{
+			"统计周期类型":    rp.PeriodType,
+			"统计周期":      rp.PeriodLabel,
+			"一级组织":      it.OrgLevel1Name,
+			"二级组织":      it.OrgLevel2Name,
+			"完整组织路径":    it.OrgPath,
+			"组织内活跃用户数":  it.TotalUsers,
+			"请求次数":      it.RequestCount,
+			"总Tokens":   it.TokenUsed,
+			"Tokens(M)": tokenToM(it.TokenUsed),
+			"额度消耗":      it.Quota,
+			"额度CNY":     it.QuotaCNY,
+			"上周期额度":     it.PreviousQuota,
+			"额度环比(%)":   it.QuotaGrowthRate,
+		}
+		records = append(records, record)
+	}
+
+	batchCreateBaseRecords(tenantToken, baseToken, tableID, records)
 }
 
 // syncPlatformTable 同步平台总览表
