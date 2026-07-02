@@ -78,6 +78,7 @@ const SystemSetting = () => {
     WeChatServerToken: '',
     WeChatAccountQRCodeImageURL: '',
     TurnstileCheckEnabled: '',
+    RegisterPageWithCaptchaEnabled: '',
     TurnstileSiteKey: '',
     TurnstileSecretKey: '',
     RegisterEnabled: '',
@@ -181,6 +182,7 @@ const SystemSetting = () => {
           case 'TelegramOAuthEnabled':
           case 'RegisterEnabled':
           case 'TurnstileCheckEnabled':
+          case 'RegisterPageWithCaptchaEnabled':
           case 'EmailDomainRestrictionEnabled':
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
@@ -1069,6 +1071,15 @@ const SystemSetting = () => {
                         }
                       >
                         {t('允许 Turnstile 用户校验')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='RegisterPageWithCaptchaEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('RegisterPageWithCaptchaEnabled', e)
+                        }
+                      >
+                        {t('注册及发送邮箱验证码时需要 Turnstile 校验')}
                       </Form.Checkbox>
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
