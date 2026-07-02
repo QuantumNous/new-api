@@ -327,6 +327,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		if isGPT5Model {
 			request.Temperature = nil
 			request.TopP = nil
+			request.THINKING = nil
 			request.LogProbs = nil
 		}
 
