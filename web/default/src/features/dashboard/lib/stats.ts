@@ -41,7 +41,17 @@ export function calculateDashboardStats(data: QuotaDataItem[]) {
       totalQuota: acc.totalQuota + (Number(item.quota) || 0),
       totalCount: acc.totalCount + (Number(item.count) || 0),
       totalTokens: acc.totalTokens + (Number(item.token_used) || 0),
+      totalCacheReadTokens:
+        acc.totalCacheReadTokens + (Number(item.cache_read_tokens) || 0),
+      totalCacheWriteTokens:
+        acc.totalCacheWriteTokens + (Number(item.cache_write_tokens) || 0),
     }),
-    { totalQuota: 0, totalCount: 0, totalTokens: 0 }
+    {
+      totalQuota: 0,
+      totalCount: 0,
+      totalTokens: 0,
+      totalCacheReadTokens: 0,
+      totalCacheWriteTokens: 0,
+    }
   )
 }

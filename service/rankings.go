@@ -30,26 +30,30 @@ type RankingsResponse struct {
 }
 
 type RankedModel struct {
-	Rank         int     `json:"rank"`
-	PreviousRank *int    `json:"previous_rank,omitempty"`
-	ModelName    string  `json:"model_name"`
-	Vendor       string  `json:"vendor"`
-	VendorIcon   string  `json:"vendor_icon,omitempty"`
-	Category     string  `json:"category"`
-	TotalTokens  int64   `json:"total_tokens"`
-	Share        float64 `json:"share"`
-	GrowthPct    float64 `json:"growth_pct"`
+	Rank             int     `json:"rank"`
+	PreviousRank     *int    `json:"previous_rank,omitempty"`
+	ModelName        string  `json:"model_name"`
+	Vendor           string  `json:"vendor"`
+	VendorIcon       string  `json:"vendor_icon,omitempty"`
+	Category         string  `json:"category"`
+	TotalTokens      int64   `json:"total_tokens"`
+	CacheReadTokens  int64   `json:"cache_read_tokens"`
+	CacheWriteTokens int64   `json:"cache_write_tokens"`
+	Share            float64 `json:"share"`
+	GrowthPct        float64 `json:"growth_pct"`
 }
 
 type RankedVendor struct {
-	Rank        int     `json:"rank"`
-	Vendor      string  `json:"vendor"`
-	VendorIcon  string  `json:"vendor_icon,omitempty"`
-	TotalTokens int64   `json:"total_tokens"`
-	Share       float64 `json:"share"`
-	GrowthPct   float64 `json:"growth_pct"`
-	ModelsCount int     `json:"models_count"`
-	TopModel    string  `json:"top_model"`
+	Rank             int     `json:"rank"`
+	Vendor           string  `json:"vendor"`
+	VendorIcon       string  `json:"vendor_icon,omitempty"`
+	TotalTokens      int64   `json:"total_tokens"`
+	CacheReadTokens  int64   `json:"cache_read_tokens"`
+	CacheWriteTokens int64   `json:"cache_write_tokens"`
+	Share            float64 `json:"share"`
+	GrowthPct        float64 `json:"growth_pct"`
+	ModelsCount      int     `json:"models_count"`
+	TopModel         string  `json:"top_model"`
 }
 
 type RankingMover struct {
@@ -62,17 +66,21 @@ type RankingMover struct {
 }
 
 type ModelHistoryPoint struct {
-	Ts     string `json:"ts"`
-	Label  string `json:"label"`
-	Model  string `json:"model"`
-	Vendor string `json:"vendor"`
-	Tokens int64  `json:"tokens"`
+	Ts               string `json:"ts"`
+	Label            string `json:"label"`
+	Model            string `json:"model"`
+	Vendor           string `json:"vendor"`
+	Tokens           int64  `json:"tokens"`
+	CacheReadTokens  int64  `json:"cache_read_tokens"`
+	CacheWriteTokens int64  `json:"cache_write_tokens"`
 }
 
 type ModelHistoryModel struct {
-	Name   string `json:"name"`
-	Vendor string `json:"vendor"`
-	Total  int64  `json:"total"`
+	Name             string `json:"name"`
+	Vendor           string `json:"vendor"`
+	Total            int64  `json:"total"`
+	CacheReadTokens  int64  `json:"cache_read_tokens"`
+	CacheWriteTokens int64  `json:"cache_write_tokens"`
 }
 
 type ModelHistorySeries struct {
@@ -82,17 +90,21 @@ type ModelHistorySeries struct {
 }
 
 type VendorSharePoint struct {
-	Ts     string  `json:"ts"`
-	Label  string  `json:"label"`
-	Vendor string  `json:"vendor"`
-	Share  float64 `json:"share"`
-	Tokens int64   `json:"tokens"`
+	Ts               string  `json:"ts"`
+	Label            string  `json:"label"`
+	Vendor           string  `json:"vendor"`
+	Share            float64 `json:"share"`
+	Tokens           int64   `json:"tokens"`
+	CacheReadTokens  int64   `json:"cache_read_tokens"`
+	CacheWriteTokens int64   `json:"cache_write_tokens"`
 }
 
 type VendorShareVendor struct {
-	Name  string  `json:"name"`
-	Total int64   `json:"total"`
-	Share float64 `json:"share"`
+	Name             string  `json:"name"`
+	Total            int64   `json:"total"`
+	Share            float64 `json:"share"`
+	CacheReadTokens  int64   `json:"cache_read_tokens"`
+	CacheWriteTokens int64   `json:"cache_write_tokens"`
 }
 
 type VendorShareSeries struct {
@@ -120,13 +132,15 @@ type rankingModelMeta struct {
 }
 
 type vendorAggregate struct {
-	name           string
-	icon           string
-	totalTokens    int64
-	previousTokens int64
-	models         map[string]struct{}
-	topModel       string
-	topModelTokens int64
+	name             string
+	icon             string
+	totalTokens      int64
+	previousTokens   int64
+	models           map[string]struct{}
+	topModel         string
+	topModelTokens   int64
+	cacheReadTokens  int64
+	cacheWriteTokens int64
 }
 
 var (
@@ -274,15 +288,17 @@ func buildRankedModels(totals []model.RankingQuotaTotal, totalTokens int64, prev
 			growth = rankingGrowthPct(item.TotalTokens, previousTokens[item.ModelName])
 		}
 		rows = append(rows, RankedModel{
-			Rank:         idx + 1,
-			PreviousRank: previousRank,
-			ModelName:    item.ModelName,
-			Vendor:       modelMeta.vendor,
-			VendorIcon:   modelMeta.vendorIcon,
-			Category:     "all",
-			TotalTokens:  item.TotalTokens,
-			Share:        rankingShare(item.TotalTokens, totalTokens),
-			GrowthPct:    growth,
+			Rank:                idx + 1,
+			PreviousRank:        previousRank,
+			ModelName:           item.ModelName,
+			Vendor:              modelMeta.vendor,
+			VendorIcon:          modelMeta.vendorIcon,
+			Category:            "all",
+			TotalTokens:         item.TotalTokens,
+			CacheReadTokens:     item.CacheReadTokens,
+			CacheWriteTokens:    item.CacheWriteTokens,
+			Share:               rankingShare(item.TotalTokens, totalTokens),
+			GrowthPct:           growth,
 		})
 	}
 	return rows
@@ -294,6 +310,8 @@ func buildRankedVendors(currentTotals []model.RankingQuotaTotal, previousTotals 
 		modelMeta := modelMeta(item.ModelName, meta)
 		agg := ensureVendorAggregate(aggregates, modelMeta)
 		agg.totalTokens += item.TotalTokens
+		agg.cacheReadTokens += item.CacheReadTokens
+		agg.cacheWriteTokens += item.CacheWriteTokens
 		agg.models[item.ModelName] = struct{}{}
 		if item.TotalTokens > agg.topModelTokens {
 			agg.topModel = item.ModelName
@@ -316,13 +334,15 @@ func buildRankedVendors(currentTotals []model.RankingQuotaTotal, previousTotals 
 			growth = rankingGrowthPct(agg.totalTokens, agg.previousTokens)
 		}
 		rows = append(rows, RankedVendor{
-			Vendor:      agg.name,
-			VendorIcon:  agg.icon,
-			TotalTokens: agg.totalTokens,
-			Share:       rankingShare(agg.totalTokens, totalTokens),
-			GrowthPct:   growth,
-			ModelsCount: len(agg.models),
-			TopModel:    agg.topModel,
+			Vendor:              agg.name,
+			VendorIcon:          agg.icon,
+			TotalTokens:         agg.totalTokens,
+			CacheReadTokens:     agg.cacheReadTokens,
+			CacheWriteTokens:    agg.cacheWriteTokens,
+			Share:               rankingShare(agg.totalTokens, totalTokens),
+			GrowthPct:           growth,
+			ModelsCount:         len(agg.models),
+			TopModel:            agg.topModel,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool {
@@ -361,21 +381,39 @@ func buildModelHistory(buckets []model.RankingQuotaBucket, totals []model.Rankin
 	topModels := make(map[string]struct{})
 	models := make([]ModelHistoryModel, 0, minInt(len(totals), rankingHistoryLimit)+1)
 	otherTotal := int64(0)
+	otherCacheRead := int64(0)
+	otherCacheWrite := int64(0)
 	for idx, item := range totals {
 		if idx < rankingHistoryLimit {
 			topModels[item.ModelName] = struct{}{}
 			modelMeta := modelMeta(item.ModelName, meta)
-			models = append(models, ModelHistoryModel{Name: item.ModelName, Vendor: modelMeta.vendor, Total: item.TotalTokens})
+			models = append(models, ModelHistoryModel{
+				Name:                item.ModelName,
+				Vendor:              modelMeta.vendor,
+				Total:               item.TotalTokens,
+				CacheReadTokens:     item.CacheReadTokens,
+				CacheWriteTokens:    item.CacheWriteTokens,
+			})
 			continue
 		}
 		otherTotal += item.TotalTokens
+		otherCacheRead += item.CacheReadTokens
+		otherCacheWrite += item.CacheWriteTokens
 	}
 	if otherTotal > 0 {
-		models = append(models, ModelHistoryModel{Name: rankingOthersLabel, Vendor: "Various", Total: otherTotal})
+		models = append(models, ModelHistoryModel{
+			Name:                rankingOthersLabel,
+			Vendor:              "Various",
+			Total:               otherTotal,
+			CacheReadTokens:     otherCacheRead,
+			CacheWriteTokens:    otherCacheWrite,
+		})
 	}
 
 	bucketSet := make(map[int64]struct{})
 	tokensByBucketAndModel := make(map[int64]map[string]int64)
+	cacheReadByBucketAndModel := make(map[int64]map[string]int64)
+	cacheWriteByBucketAndModel := make(map[int64]map[string]int64)
 	for _, item := range buckets {
 		modelName := item.ModelName
 		if _, ok := topModels[modelName]; !ok {
@@ -384,8 +422,12 @@ func buildModelHistory(buckets []model.RankingQuotaBucket, totals []model.Rankin
 		bucketSet[item.Bucket] = struct{}{}
 		if _, ok := tokensByBucketAndModel[item.Bucket]; !ok {
 			tokensByBucketAndModel[item.Bucket] = make(map[string]int64)
+			cacheReadByBucketAndModel[item.Bucket] = make(map[string]int64)
+			cacheWriteByBucketAndModel[item.Bucket] = make(map[string]int64)
 		}
 		tokensByBucketAndModel[item.Bucket][modelName] += item.Tokens
+		cacheReadByBucketAndModel[item.Bucket][modelName] += item.CacheReadTokens
+		cacheWriteByBucketAndModel[item.Bucket][modelName] += item.CacheWriteTokens
 	}
 
 	sortedBuckets := sortedRankingBuckets(bucketSet)
@@ -397,11 +439,13 @@ func buildModelHistory(buckets []model.RankingQuotaBucket, totals []model.Rankin
 				continue
 			}
 			points = append(points, ModelHistoryPoint{
-				Ts:     rankingBucketTs(bucket),
-				Label:  rankingBucketLabel(bucket, config),
-				Model:  historyModel.Name,
-				Vendor: historyModel.Vendor,
-				Tokens: tokens,
+				Ts:                  rankingBucketTs(bucket),
+				Label:               rankingBucketLabel(bucket, config),
+				Model:               historyModel.Name,
+				Vendor:              historyModel.Vendor,
+				Tokens:              tokens,
+				CacheReadTokens:     cacheReadByBucketAndModel[bucket][historyModel.Name],
+				CacheWriteTokens:    cacheWriteByBucketAndModel[bucket][historyModel.Name],
 			})
 		}
 	}
@@ -417,20 +461,38 @@ func buildVendorShareHistory(buckets []model.RankingQuotaBucket, vendors []Ranke
 	topVendors := make(map[string]struct{})
 	vendorRows := make([]VendorShareVendor, 0, minInt(len(vendors), rankingVendorLimit)+1)
 	otherTotal := int64(0)
+	otherCacheRead := int64(0)
+	otherCacheWrite := int64(0)
 	for idx, vendor := range vendors {
 		if idx < rankingVendorLimit {
 			topVendors[vendor.Vendor] = struct{}{}
-			vendorRows = append(vendorRows, VendorShareVendor{Name: vendor.Vendor, Total: vendor.TotalTokens, Share: vendor.Share})
+			vendorRows = append(vendorRows, VendorShareVendor{
+				Name:                vendor.Vendor,
+				Total:               vendor.TotalTokens,
+				Share:               vendor.Share,
+				CacheReadTokens:     vendor.CacheReadTokens,
+				CacheWriteTokens:    vendor.CacheWriteTokens,
+			})
 			continue
 		}
 		otherTotal += vendor.TotalTokens
+		otherCacheRead += vendor.CacheReadTokens
+		otherCacheWrite += vendor.CacheWriteTokens
 	}
 	if otherTotal > 0 {
-		vendorRows = append(vendorRows, VendorShareVendor{Name: rankingOthersLabel, Total: otherTotal, Share: rankingShare(otherTotal, totalTokens)})
+		vendorRows = append(vendorRows, VendorShareVendor{
+			Name:                rankingOthersLabel,
+			Total:               otherTotal,
+			Share:               rankingShare(otherTotal, totalTokens),
+			CacheReadTokens:     otherCacheRead,
+			CacheWriteTokens:    otherCacheWrite,
+		})
 	}
 
 	bucketSet := make(map[int64]struct{})
 	tokensByBucketAndVendor := make(map[int64]map[string]int64)
+	cacheReadByBucketAndVendor := make(map[int64]map[string]int64)
+	cacheWriteByBucketAndVendor := make(map[int64]map[string]int64)
 	totalsByBucket := make(map[int64]int64)
 	for _, item := range buckets {
 		modelMeta := modelMeta(item.ModelName, meta)
@@ -441,8 +503,12 @@ func buildVendorShareHistory(buckets []model.RankingQuotaBucket, vendors []Ranke
 		bucketSet[item.Bucket] = struct{}{}
 		if _, ok := tokensByBucketAndVendor[item.Bucket]; !ok {
 			tokensByBucketAndVendor[item.Bucket] = make(map[string]int64)
+			cacheReadByBucketAndVendor[item.Bucket] = make(map[string]int64)
+			cacheWriteByBucketAndVendor[item.Bucket] = make(map[string]int64)
 		}
 		tokensByBucketAndVendor[item.Bucket][vendorName] += item.Tokens
+		cacheReadByBucketAndVendor[item.Bucket][vendorName] += item.CacheReadTokens
+		cacheWriteByBucketAndVendor[item.Bucket][vendorName] += item.CacheWriteTokens
 		totalsByBucket[item.Bucket] += item.Tokens
 	}
 
@@ -455,11 +521,13 @@ func buildVendorShareHistory(buckets []model.RankingQuotaBucket, vendors []Ranke
 				continue
 			}
 			points = append(points, VendorSharePoint{
-				Ts:     rankingBucketTs(bucket),
-				Label:  rankingBucketLabel(bucket, config),
-				Vendor: vendor.Name,
-				Share:  rankingShare(tokens, totalsByBucket[bucket]),
-				Tokens: tokens,
+				Ts:                  rankingBucketTs(bucket),
+				Label:               rankingBucketLabel(bucket, config),
+				Vendor:              vendor.Name,
+				Share:               rankingShare(tokens, totalsByBucket[bucket]),
+				Tokens:              tokens,
+				CacheReadTokens:     cacheReadByBucketAndVendor[bucket][vendor.Name],
+				CacheWriteTokens:    cacheWriteByBucketAndVendor[bucket][vendor.Name],
 			})
 		}
 	}

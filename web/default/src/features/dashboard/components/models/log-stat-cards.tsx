@@ -117,18 +117,28 @@ export function LogStatCards(props: LogStatCardsProps) {
     rpm: stats?.totalCount ?? 0,
     quota: stats?.totalQuota ?? 0,
     tpm: stats?.totalTokens ?? 0,
+    cacheReadTokens: stats?.totalCacheReadTokens ?? 0,
+    cacheWriteTokens: stats?.totalCacheWriteTokens ?? 0,
   }
 
   const items = statCardsConfig.map((config) => {
     const rawValue = config.getValue(adaptedStats, timeRangeMinutes)
     const locale = i18n.resolvedLanguage || i18n.language
-    const formatted =
-      config.key === 'quota'
-        ? {
-            displayValue: formatQuota(rawValue),
-            fullValue: formatQuota(rawValue),
-          }
-        : formatStatNumber(rawValue, locale)
+    let formatted: { displayValue: string; fullValue: string }
+    if (config.key === 'quota') {
+      formatted = {
+        displayValue: formatQuota(rawValue),
+        fullValue: formatQuota(rawValue),
+      }
+    } else if (config.key === 'cacheHitRate') {
+      const pct = Number.isFinite(rawValue) ? rawValue : 0
+      formatted = {
+        displayValue: `${pct.toFixed(1)}%`,
+        fullValue: `${pct.toFixed(2)}%`,
+      }
+    } else {
+      formatted = formatStatNumber(rawValue, locale)
+    }
 
     return {
       title: config.title,
@@ -141,18 +151,13 @@ export function LogStatCards(props: LogStatCardsProps) {
 
   return (
     <div className='overflow-hidden rounded-lg border'>
-      <div className='divide-border/60 grid min-w-0 grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
-        {items.map((it, idx) => {
+      <div className='divide-border/60 grid min-w-0 divide-x grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]'>
+        {items.map((it) => {
           const Icon = it.icon
           return (
             <div
               key={it.title}
-              className={cn(
-                'min-w-0 px-3 py-2.5 sm:px-5 sm:py-4',
-                idx === items.length - 1 &&
-                  items.length % 2 !== 0 &&
-                  'col-span-2 sm:col-span-1'
-              )}
+              className='min-w-0 px-3 py-2.5 sm:px-5 sm:py-4'
             >
               <div className='flex min-w-0 items-center gap-2'>
                 <Icon className='text-muted-foreground/60 size-3.5 shrink-0' />

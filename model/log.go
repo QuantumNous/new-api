@@ -341,6 +341,28 @@ type RecordConsumeLogParams struct {
 	Other            map[string]interface{} `json:"other"`
 }
 
+// toIntValue safely coerces int, int64, float64, or json.Number values from the
+// Other map into a plain int. Returns 0 for unknown or nil inputs.
+func toIntValue(v interface{}) int {
+	switch n := v.(type) {
+	case int:
+		return n
+	case int64:
+		return int(n)
+	case float64:
+		return int(n)
+	case float32:
+		return int(n)
+	case uint:
+		return int(n)
+	case uint64:
+		return int(n)
+	case nil:
+		return 0
+	}
+	return 0
+}
+
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
 	if !common.LogConsumeEnabled {
 		return
@@ -389,18 +411,25 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
 	if common.DataExportEnabled {
+		cacheReadTokens := toIntValue(params.Other["cache_tokens"])
+		cacheWriteTokens := toIntValue(params.Other["cache_write_tokens"])
+		if cacheWriteTokens == 0 {
+			cacheWriteTokens = toIntValue(params.Other["cache_creation_tokens"])
+		}
 		gopool.Go(func() {
 			LogQuotaData(QuotaDataLogParams{
-				UserID:    userId,
-				Username:  username,
-				ModelName: params.ModelName,
-				Quota:     params.Quota,
-				CreatedAt: createdAt,
-				TokenUsed: params.PromptTokens + params.CompletionTokens,
-				UseGroup:  params.Group,
-				TokenID:   params.TokenId,
-				ChannelID: params.ChannelId,
-				NodeName:  common.NodeName,
+				UserID:           userId,
+				Username:         username,
+				ModelName:        params.ModelName,
+				Quota:            params.Quota,
+				CreatedAt:        createdAt,
+				TokenUsed:        params.PromptTokens + params.CompletionTokens,
+				UseGroup:         params.Group,
+				TokenID:          params.TokenId,
+				ChannelID:        params.ChannelId,
+				NodeName:         common.NodeName,
+				CacheReadTokens:  cacheReadTokens,
+				CacheWriteTokens: cacheWriteTokens,
 			})
 		})
 	}

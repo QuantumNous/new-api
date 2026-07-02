@@ -8,20 +8,27 @@ import (
 )
 
 type RankingQuotaTotal struct {
-	ModelName   string `json:"model_name"`
-	TotalTokens int64  `json:"total_tokens"`
+	ModelName        string `json:"model_name"`
+	TotalTokens      int64  `json:"total_tokens"`
+	CacheReadTokens  int64  `json:"cache_read_tokens"`
+	CacheWriteTokens int64  `json:"cache_write_tokens"`
 }
 
 type RankingQuotaBucket struct {
-	ModelName string `json:"model_name"`
-	Bucket    int64  `json:"bucket"`
-	Tokens    int64  `json:"tokens"`
+	ModelName        string `json:"model_name"`
+	Bucket           int64  `json:"bucket"`
+	Tokens           int64  `json:"tokens"`
+	CacheReadTokens  int64  `json:"cache_read_tokens"`
+	CacheWriteTokens int64  `json:"cache_write_tokens"`
 }
 
 func GetRankingQuotaTotals(startTime int64, endTime int64) ([]RankingQuotaTotal, error) {
 	var rows []RankingQuotaTotal
 	query := DB.Table("quota_data").
-		Select("model_name, sum(token_used) as total_tokens").
+		Select("model_name, " +
+			"sum(token_used) as total_tokens, " +
+			"sum(cache_read_tokens) as cache_read_tokens, " +
+			"sum(cache_write_tokens) as cache_write_tokens").
 		Where("model_name <> ''").
 		Group("model_name").
 		Having("sum(token_used) > 0").
@@ -38,7 +45,9 @@ func GetRankingQuotaBuckets(startTime int64, endTime int64, bucketSize int64) ([
 	bucketExpr := rankingBucketExpr(bucketSize)
 	var rows []RankingQuotaBucket
 	query := DB.Table("quota_data").
-		Select(fmt.Sprintf("model_name, %s as bucket, sum(token_used) as tokens", bucketExpr)).
+		Select(fmt.Sprintf("model_name, %s as bucket, sum(token_used) as tokens, "+
+			"sum(cache_read_tokens) as cache_read_tokens, "+
+			"sum(cache_write_tokens) as cache_write_tokens", bucketExpr)).
 		Where("model_name <> ''").
 		Group(fmt.Sprintf("model_name, %s", bucketExpr)).
 		Having("sum(token_used) > 0").
