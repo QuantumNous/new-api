@@ -17,6 +17,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/tidwall/gjson"
 )
 
 type ThinkingContentInfo struct {
@@ -707,6 +708,8 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		Metadata      json.RawMessage `json:"metadata,omitempty"`
 		Duration      json.RawMessage `json:"duration,omitempty"`
 		Image         json.RawMessage `json:"image,omitempty"`
+		ImageURL      json.RawMessage `json:"image_url,omitempty"`
+		ImageURLs     json.RawMessage `json:"image_urls,omitempty"`
 		GenerateAudio json.RawMessage `json:"generate_audio,omitempty"`
 		Watermark     json.RawMessage `json:"watermark,omitempty"`
 		Draft         json.RawMessage `json:"draft,omitempty"`
@@ -719,9 +722,15 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	// images 保持标准 []string 解析；仅 image 可能是对象（兼容旧客户端）
+	// images 保持标准 []string 解析；image / image_url / image_urls 兼容多种客户端字段
 	if len(aux.Image) > 0 {
 		applyParsedImageURLs(t, parseFlexibleImageURLs(aux.Image))
+	}
+	if len(aux.ImageURL) > 0 {
+		applyParsedImageURLs(t, parseFlexibleImageURLs(aux.ImageURL))
+	}
+	if len(aux.ImageURLs) > 0 {
+		applyParsedImageURLs(t, appendURLsFromGJSON(nil, gjson.ParseBytes(aux.ImageURLs)))
 	}
 
 	unmarshalTaskSubmitDuration(aux.Duration, t)

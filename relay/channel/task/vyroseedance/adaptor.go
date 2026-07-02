@@ -421,19 +421,8 @@ func (a *TaskAdaptor) buildJSONRequestBody(c *gin.Context, info *relaycommon.Rel
 		payload["generate_audio"] = *b
 	}
 
-	if mode := strings.TrimSpace(req.Mode); mode != "" {
-		payload["mode"] = mode
-	} else if mode := getStringField(c, "mode"); mode != "" {
-		payload["mode"] = mode
-	}
-
 	applyJSONMedias(c, payload)
-
-	if _, hasMedias := payload["medias"]; !hasMedias {
-		if urls := collectReferenceImageURLs(c, &req); len(urls) > 0 {
-			payload["images"] = urls
-		}
-	}
+	applySeedance20ReferenceImages(c, payload, &req)
 
 	applyJSONMediaURLFields(c, payload)
 	applyJSONExtraFields(c, payload)
@@ -533,6 +522,69 @@ func (a *TaskAdaptor) buildSeedance20MultipartRequestBody(c *gin.Context, info *
 	return &buf, nil
 }
 
+func applySeedance20ReferenceImages(c *gin.Context, payload map[string]interface{}, req *relaycommon.TaskSubmitReq) {
+	if _, hasMedias := payload["medias"]; hasMedias {
+		return
+	}
+	if _, ok := payload["image_url"]; ok {
+		return
+	}
+	if _, ok := payload["image_urls"]; ok {
+		return
+	}
+
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return
+	}
+	raw, err := storage.Bytes()
+	if err != nil {
+		return
+	}
+
+	if s := strings.TrimSpace(gjson.GetBytes(raw, "image_url").String()); s != "" {
+		payload["image_url"] = s
+		return
+	}
+	if urls := gjsonURLsFromArray(gjson.GetBytes(raw, "image_urls")); len(urls) > 0 {
+		if len(urls) == 1 {
+			payload["image_url"] = urls[0]
+		} else {
+			payload["image_urls"] = urls
+		}
+		return
+	}
+
+	urls := collectReferenceImageURLs(c, req)
+	setSeedance20ReferenceImagePayload(payload, urls)
+}
+
+func gjsonURLsFromArray(arr gjson.Result) []string {
+	if !arr.IsArray() {
+		return nil
+	}
+	out := make([]string, 0, len(arr.Array()))
+	for _, it := range arr.Array() {
+		if it.Type == gjson.String {
+			if s := strings.TrimSpace(it.String()); s != "" {
+				out = append(out, s)
+			}
+		}
+	}
+	return dedupeStrings(out)
+}
+
+func setSeedance20ReferenceImagePayload(payload map[string]interface{}, urls []string) {
+	if len(urls) == 0 {
+		return
+	}
+	if len(urls) == 1 {
+		payload["image_url"] = urls[0]
+		return
+	}
+	payload["image_urls"] = urls
+}
+
 func applyJSONMedias(c *gin.Context, payload map[string]interface{}) {
 	if _, exists := payload["medias"]; exists {
 		return
@@ -591,7 +643,7 @@ func applyJSONExtraFields(c *gin.Context, payload map[string]interface{}) {
 	if err != nil {
 		return
 	}
-	for _, key := range []string{"seed", "watermark", "callback_url", "negative_prompt", "mode"} {
+	for _, key := range []string{"seed", "watermark", "callback_url", "negative_prompt"} {
 		if _, exists := payload[key]; exists {
 			continue
 		}
@@ -646,7 +698,7 @@ func collectReferenceImageURLs(c *gin.Context, req *relaycommon.TaskSubmitReq) [
 	if storage, err := common.GetBodyStorage(c); err == nil {
 		if raw, err := storage.Bytes(); err == nil {
 			// common keys used by drama and others
-			for _, key := range []string{"reference_image_urls", "reference_images", "referenceImageUrls", "refs", "images"} {
+			for _, key := range []string{"image_urls", "reference_image_urls", "reference_images", "referenceImageUrls", "refs", "images"} {
 				arr := gjson.GetBytes(raw, key)
 				if arr.IsArray() {
 					for _, it := range arr.Array() {
@@ -658,9 +710,10 @@ func collectReferenceImageURLs(c *gin.Context, req *relaycommon.TaskSubmitReq) [
 					}
 				}
 			}
-			// single reference_image_url
-			if s := gjson.GetBytes(raw, "reference_image_url").String(); strings.TrimSpace(s) != "" {
-				out = append(out, strings.TrimSpace(s))
+			for _, key := range []string{"image_url", "reference_image_url"} {
+				if s := strings.TrimSpace(gjson.GetBytes(raw, key).String()); s != "" {
+					out = append(out, s)
+				}
 			}
 		}
 	}
