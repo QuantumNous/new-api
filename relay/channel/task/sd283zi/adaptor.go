@@ -533,22 +533,12 @@ func buildQueryURL(baseUrl, taskID string) (string, error) {
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
 	raw := string(respBody)
-	status := strings.ToLower(strings.TrimSpace(gjson.Get(raw, "status").String()))
 	taskResult := relaycommon.TaskInfo{Code: 0}
 
-	switch status {
-	case "success", "completed", "succeeded":
-		if u := extractVideoURL(raw); u != "" {
-			taskResult.Status = model.TaskStatusSuccess
-			taskResult.Progress = "100%"
-			taskResult.Url = u
-			return &taskResult, nil
-		}
-		taskResult.Status = model.TaskStatusFailure
-		taskResult.Progress = "100%"
-		taskResult.Reason = "completed but video url is empty"
-		return &taskResult, nil
-	case "failed", "failure", "error", "cancelled", "canceled":
+	status := resolveUpstreamStatus(raw)
+	taskStatus := strings.ToLower(strings.TrimSpace(gjson.Get(raw, "task_status").String()))
+
+	if isFailureUpstreamStatus(status) || isFailureUpstreamStatus(taskStatus) {
 		taskResult.Status = model.TaskStatusFailure
 		taskResult.Progress = "100%"
 		taskResult.Reason = extractErrorMessage(raw)
@@ -556,21 +546,95 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 			taskResult.Reason = "task failed"
 		}
 		return &taskResult, nil
-	case "pending", "polling", "queued", "processing", "running", "in_progress", "submitted":
+	}
+
+	if u := extractVideoURL(raw); u != "" {
+		taskResult.Status = model.TaskStatusSuccess
+		taskResult.Progress = "100%"
+		taskResult.Url = u
+		return &taskResult, nil
+	}
+
+	if isInProgressUpstreamStatus(status) || isInProgressUpstreamStatus(taskStatus) {
 		taskResult.Status = model.TaskStatusInProgress
 		taskResult.Progress = formatProgress(raw)
 		return &taskResult, nil
-	default:
-		if u := extractVideoURL(raw); u != "" {
-			taskResult.Status = model.TaskStatusSuccess
+	}
+
+	if isSuccessLikeUpstreamStatus(status) || isSuccessLikeUpstreamStatus(taskStatus) {
+		if isUpstreamGenerationComplete(raw) {
+			taskResult.Status = model.TaskStatusFailure
 			taskResult.Progress = "100%"
-			taskResult.Url = u
+			taskResult.Reason = "completed but video url is empty"
 			return &taskResult, nil
 		}
 		taskResult.Status = model.TaskStatusInProgress
 		taskResult.Progress = formatProgress(raw)
 		return &taskResult, nil
 	}
+
+	taskResult.Status = model.TaskStatusInProgress
+	taskResult.Progress = formatProgress(raw)
+	return &taskResult, nil
+}
+
+// resolveUpstreamStatus reads job status from poll/create payloads.
+// Create ack uses status=success (API ok) + task_status=pending — must not treat as generation complete.
+func resolveUpstreamStatus(raw string) string {
+	for _, path := range []string{"data.status", "status", "task_status"} {
+		s := strings.ToLower(strings.TrimSpace(gjson.Get(raw, path).String()))
+		if s == "" {
+			continue
+		}
+		if path == "status" && isSuccessLikeUpstreamStatus(s) {
+			if ts := strings.ToLower(strings.TrimSpace(gjson.Get(raw, "task_status").String())); ts != "" && isInProgressUpstreamStatus(ts) {
+				return ts
+			}
+		}
+		return s
+	}
+	return ""
+}
+
+func isFailureUpstreamStatus(status string) bool {
+	switch status {
+	case "failed", "failure", "error", "cancelled", "canceled":
+		return true
+	default:
+		return false
+	}
+}
+
+func isInProgressUpstreamStatus(status string) bool {
+	switch status {
+	case "pending", "polling", "queued", "processing", "running", "in_progress", "submitted", "reserved":
+		return true
+	default:
+		return false
+	}
+}
+
+func isSuccessLikeUpstreamStatus(status string) bool {
+	switch status {
+	case "success", "completed", "succeeded":
+		return true
+	default:
+		return false
+	}
+}
+
+func isUpstreamGenerationComplete(raw string) bool {
+	if p := gjson.Get(raw, "progress").Int(); p > 0 && p < 100 {
+		return false
+	}
+	if completedAt := strings.TrimSpace(gjson.Get(raw, "completed_at").String()); completedAt == "" {
+		return false
+	}
+	if videoPath := strings.TrimSpace(gjson.Get(raw, "video_path").String()); videoPath == "" {
+		// completed_at set but still no playable url — treat as terminal failure
+		return true
+	}
+	return false
 }
 
 func formatProgress(raw string) string {
@@ -649,6 +713,9 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 			openAIVideo.Error = &dto.OpenAIVideoError{Message: ti.Reason}
 		case model.TaskStatusInProgress, model.TaskStatusQueued, model.TaskStatusSubmitted:
 			openAIVideo.Status = dto.VideoStatusInProgress
+			if ti.Progress != "" {
+				openAIVideo.SetProgressStr(ti.Progress)
+			}
 		}
 	}
 	return common.Marshal(openAIVideo)

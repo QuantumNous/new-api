@@ -67,6 +67,45 @@ func TestParseTaskResultPolling(t *testing.T) {
 	}
 }
 
+func TestParseTaskResultCreateAck(t *testing.T) {
+	a := &TaskAdaptor{}
+	body := []byte(`{"status":"success","task_id":"a77e1768-c022-43c6-a3c8-9756ee11037d","task_status":"pending","video_url":null}`)
+	ti, err := a.ParseTaskResult(body)
+	if err != nil {
+		t.Fatalf("ParseTaskResult failed: %v", err)
+	}
+	if ti.Status != model.TaskStatusInProgress {
+		t.Fatalf("status = %s, want in progress", ti.Status)
+	}
+}
+
+func TestParseTaskResultSubmitted(t *testing.T) {
+	a := &TaskAdaptor{}
+	body := []byte(`{"status":"submitted","progress":75,"stable_video_url":"/api/video/465783a0-2177-4891-80ae-c8d16040f493","completed_at":null}`)
+	ti, err := a.ParseTaskResult(body)
+	if err != nil {
+		t.Fatalf("ParseTaskResult failed: %v", err)
+	}
+	if ti.Status != model.TaskStatusInProgress {
+		t.Fatalf("status = %s, want in progress", ti.Status)
+	}
+	if ti.Progress != "75%" {
+		t.Fatalf("progress = %q", ti.Progress)
+	}
+}
+
+func TestParseTaskResultCompletedWithoutURL(t *testing.T) {
+	a := &TaskAdaptor{}
+	body := []byte(`{"status":"success","progress":100,"completed_at":"2026-07-02T21:30:00+08:00","video_url":null,"video_path":null}`)
+	ti, err := a.ParseTaskResult(body)
+	if err != nil {
+		t.Fatalf("ParseTaskResult failed: %v", err)
+	}
+	if ti.Status != model.TaskStatusFailure {
+		t.Fatalf("status = %s, want failure", ti.Status)
+	}
+}
+
 func TestUpstreamFileFieldName(t *testing.T) {
 	tests := map[string]string{
 		"files":             "files",
