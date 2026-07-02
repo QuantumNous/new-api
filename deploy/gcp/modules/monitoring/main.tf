@@ -52,8 +52,8 @@ resource "google_monitoring_alert_policy" "uptime_failed" {
     condition_threshold {
       filter          = "metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\" AND resource.type=\"uptime_url\" AND metric.label.check_id=\"${google_monitoring_uptime_check_config.api_status.uptime_check_id}\""
       duration        = "300s"
-      comparison      = "COMPARISON_LT"
-      threshold_value = 1
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
       aggregations {
         alignment_period     = "60s"
         per_series_aligner   = "ALIGN_NEXT_OLDER"
