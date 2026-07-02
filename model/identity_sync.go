@@ -540,8 +540,11 @@ func (s *identitySyncer) refreshCaches(result identitySyncResult) {
 	if !common.RedisEnabled {
 		return
 	}
-	for _, spec := range s.config.Tables {
-		switch spec.Table {
+	for _, tableResult := range result.Tables {
+		if tableResult.Upserted == 0 && tableResult.Deleted == 0 {
+			continue
+		}
+		switch tableResult.Table {
 		case "users":
 			var users []User
 			if err := s.localDB.Select("id").Find(&users).Error; err != nil {
@@ -569,7 +572,6 @@ func (s *identitySyncer) refreshCaches(result identitySyncResult) {
 			}
 		}
 	}
-	_ = result
 }
 
 func (s *identitySyncer) invalidateRowCache(spec identitySyncTableSpec, row map[string]interface{}) {
