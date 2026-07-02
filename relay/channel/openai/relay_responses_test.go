@@ -192,7 +192,7 @@ func TestResponsesStreamOpenAIErrorFallbackIncludesResponseStatus(t *testing.T) 
 		Response: &dto.OpenAIResponsesResponse{
 			Status: json.RawMessage(`"failed"`),
 			IncompleteDetails: &dto.IncompleteDetails{
-				Reasoning: "upstream stopped",
+				Reason: "upstream stopped",
 			},
 		},
 	})
