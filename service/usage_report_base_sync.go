@@ -147,13 +147,13 @@ func syncAccountTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 			"预警等级":       it.WarningLevel,
 		}
 
-		// 飞书人员字段（用 open_id 关联）
-		if it.ReceiverFeishuOpenId != "" {
+		// 飞书人员字段（仅当 open_id 合法时写入，避免 UserFieldConvFail）
+		if isValidFeishuOpenID(it.ReceiverFeishuOpenId) {
 			record["接收人员"] = []map[string]string{
 				{"id": it.ReceiverFeishuOpenId},
 			}
 		} else {
-			record["接收人员"] = ""
+			record["接收人员"] = nil
 		}
 
 		records = append(records, record)
@@ -203,12 +203,12 @@ func syncTokenTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 			"额度环比(%)":   it.QuotaGrowthRate,
 		}
 
-		if it.ReceiverFeishuOpenId != "" {
+		if isValidFeishuOpenID(it.ReceiverFeishuOpenId) {
 			record["接收人员"] = []map[string]string{
 				{"id": it.ReceiverFeishuOpenId},
 			}
 		} else {
-			record["接收人员"] = ""
+			record["接收人员"] = nil
 		}
 
 		records = append(records, record)
@@ -341,12 +341,12 @@ func syncAnomalyTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 		}
 
 		// 人员字段
-		if it.ReceiverFeishuOpenId != "" {
+		if isValidFeishuOpenID(it.ReceiverFeishuOpenId) {
 			record["人员"] = []map[string]string{
 				{"id": it.ReceiverFeishuOpenId},
 			}
 		} else {
-			record["人员"] = ""
+			record["人员"] = nil
 		}
 
 		records = append(records, record)
@@ -402,6 +402,11 @@ func anomalyObjectType(s *model.UsageReportSnapshot) string {
 	return "用户/账号"
 }
 
-func formatUnix(ts int64) string {
-	return time.Unix(ts, 0).Format("2006-01-02 15:04:05")
+// isValidFeishuOpenID 检查是否为合法的飞书 open_id（ou_ 开头）。
+func isValidFeishuOpenID(id string) bool {
+	return strings.HasPrefix(id, "ou_")
+}
+
+func formatUnix(ts int64) int64 {
+	return ts * 1000
 }

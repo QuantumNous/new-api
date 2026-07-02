@@ -208,7 +208,7 @@ func buildAdminPushTaskRecord(rp ReportPeriod, text, chatID string) map[string]a
 		"目标说明":      "由多维表格自动化决定推送目标",
 		"目标chat_id": strings.TrimSpace(chatID),
 		"是否启用":      true,
-		"生成时间":      time.Now().Format("2006-01-02 15:04:05"),
+		"生成时间":      formatUnix(time.Now().Unix()),
 		"错误信息":      "",
 	}
 }
