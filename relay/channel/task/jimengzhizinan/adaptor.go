@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -64,16 +65,16 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	if hasSeedanceContent(c) {
-		if _, err := taskcommon.BindSeedanceRequest(c, info, constant.TaskActionGenerate); err != nil {
-			return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
-		}
-		return validateAndStoreInputImages(c, info)
+	seedReq, err := taskcommon.BindSeedanceRequest(c, info, constant.TaskActionGenerate)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
 	}
-	if taskErr := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate); taskErr != nil {
-		return taskErr
+	images, err := validateSeedanceInput(seedReq)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
 	}
-	return validateAndStoreInputImages(c, info)
+	relaycommon.StoreTaskRequest(c, info, constant.TaskActionGenerate, taskSubmitReqFromSeedance(seedReq, images))
+	return nil
 }
 
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
@@ -88,35 +89,39 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	req, err := relaycommon.GetTaskRequest(c)
+	var seedReq dto.SeedanceVideoRequest
+	if err := common.UnmarshalBodyReusable(c, &seedReq); err != nil {
+		return nil, err
+	}
+	images, err := validateSeedanceInput(&seedReq)
 	if err != nil {
 		return nil, err
 	}
-	body := buildGenerationPayload(&req)
+	body := buildGenerationPayload(&seedReq, images)
 	if info.IsModelMapped {
 		body.Model = info.UpstreamModelName
 	} else {
 		info.UpstreamModelName = body.Model
 	}
-	data, err := common.Marshal(body)
+	data, err := common.MarshalNoHTMLEscape(body)
 	if err != nil {
 		return nil, err
 	}
 	return bytes.NewReader(data), nil
 }
 
-func buildGenerationPayload(req *relaycommon.TaskSubmitReq) *generationPayload {
+func buildGenerationPayload(req *dto.SeedanceVideoRequest, images []string) *generationPayload {
 	p := &generationPayload{
 		Model:      req.Model,
-		Prompt:     req.Prompt,
+		Prompt:     req.PromptText(),
 		Ratio:      req.Ratio,
 		Resolution: req.Resolution,
 	}
-	if req.Duration > 0 {
-		p.Duration = req.Duration
+	if req.Duration != nil && *req.Duration > 0 {
+		p.Duration = *req.Duration
 	}
-	if req.HasImage() {
-		p.FilePaths = req.Images
+	if len(images) > 0 {
+		p.FilePaths = images
 	}
 	return p
 }
@@ -251,44 +256,56 @@ func failReason(pr pollResponse) string {
 	return "jimeng zhizinan video generation failed"
 }
 
-func hasSeedanceContent(c *gin.Context) bool {
-	var raw map[string]any
-	if err := common.UnmarshalBodyReusable(c, &raw); err != nil {
-		return false
+// ExtractUpstreamVideoURL resolves the real video URL persisted in task.Data.
+// Customer-facing URLs for this channel point at /v1/videos/{task_id}/content.
+func ExtractUpstreamVideoURL(taskData []byte) string {
+	if len(taskData) == 0 {
+		return ""
 	}
-	_, ok := raw["content"]
-	return ok
+	var pr pollResponse
+	if err := common.Unmarshal(taskData, &pr); err != nil {
+		return ""
+	}
+	return firstURL(pr.Data)
 }
 
-func validateAndStoreInputImages(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	req, err := relaycommon.GetTaskRequest(c)
-	if err != nil {
-		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+func taskSubmitReqFromSeedance(req *dto.SeedanceVideoRequest, images []string) relaycommon.TaskSubmitReq {
+	taskReq := relaycommon.TaskSubmitReq{
+		Model:      req.Model,
+		Prompt:     req.PromptText(),
+		Resolution: req.Resolution,
+		Ratio:      req.Ratio,
 	}
-	if err := normalizeInputImages(&req); err != nil {
-		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	if req.Duration != nil && *req.Duration > 0 {
+		taskReq.Duration = *req.Duration
 	}
-	relaycommon.StoreTaskRequest(c, info, constant.TaskActionGenerate, req)
-	return nil
+	taskReq.Images = slices.Clone(images)
+	return taskReq
 }
 
-func normalizeInputImages(req *relaycommon.TaskSubmitReq) error {
-	if len(req.Images) > maxInputImages {
-		return fmt.Errorf("jimeng zhizinan supports at most %d input images", maxInputImages)
+func validateSeedanceInput(req *dto.SeedanceVideoRequest) ([]string, error) {
+	if len(req.Videos()) > 0 {
+		return nil, fmt.Errorf("jimeng zhizinan does not support video_url content")
 	}
-	images := make([]string, 0, len(req.Images))
-	for _, image := range req.Images {
-		trimmed := strings.TrimSpace(image)
+	if len(req.Audios()) > 0 {
+		return nil, fmt.Errorf("jimeng zhizinan does not support audio_url content")
+	}
+	images := req.Images()
+	if len(images) > maxInputImages {
+		return nil, fmt.Errorf("jimeng zhizinan supports at most %d input images", maxInputImages)
+	}
+	normalized := make([]string, 0, len(images))
+	for _, image := range images {
+		trimmed := strings.TrimSpace(image.URL)
 		if trimmed == "" {
-			return fmt.Errorf("image url must not be empty")
+			return nil, fmt.Errorf("image url must not be empty")
 		}
 		if err := validateImageURL(trimmed); err != nil {
-			return err
+			return nil, err
 		}
-		images = append(images, trimmed)
+		normalized = append(normalized, trimmed)
 	}
-	req.Images = images
-	return nil
+	return normalized, nil
 }
 
 func validateImageURL(raw string) error {

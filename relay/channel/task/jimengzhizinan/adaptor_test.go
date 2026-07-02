@@ -48,6 +48,82 @@ func TestBuildRequestURL_UsesSynchronousVideoGenerationsEndpoint(t *testing.T) {
 	}
 }
 
+func TestValidateRequestAndSetAction_RequiresSeedanceContent(t *testing.T) {
+	a := &TaskAdaptor{}
+	c := newJSONCtx(`{
+		"model":"jimeng-video-seedance-2.0-mini",
+		"prompt":"legacy prompt"
+	}`)
+
+	if taskErr := a.ValidateRequestAndSetAction(c, newRelayInfo()); taskErr == nil {
+		t.Fatal("expected legacy prompt/file_paths request to be rejected")
+	}
+}
+
+func TestValidateRequestAndSetAction_RejectsUnsupportedSeedanceMedia(t *testing.T) {
+	a := &TaskAdaptor{}
+	c := newJSONCtx(`{
+		"model":"jimeng-video-seedance-2.0-mini",
+		"content":[
+			{"type":"video_url","video_url":{"url":"https://cdn.example.com/input.mp4"}}
+		]
+	}`)
+
+	if taskErr := a.ValidateRequestAndSetAction(c, newRelayInfo()); taskErr == nil {
+		t.Fatal("expected video_url content to be rejected")
+	}
+}
+
+func TestBuildRequestBody_MapsSeedanceContentWithoutHTMLEscapingURL(t *testing.T) {
+	a := &TaskAdaptor{}
+	c := newJSONCtx(`{
+		"model":"jimeng-video-seedance-2.0-mini",
+		"content":[
+			{"type":"text","text":"a cat walking"},
+			{"type":"image_url","image_url":{"url":"https://cdn.example.com/cat.png?a=1&b=2"},"role":"first_frame"}
+		],
+		"resolution":"720p",
+		"ratio":"16:9",
+		"duration":5
+	}`)
+	info := newRelayInfo()
+	info.IsModelMapped = true
+	info.UpstreamModelName = "jimeng-video-seedance-2.0-fast"
+
+	if taskErr := a.ValidateRequestAndSetAction(c, info); taskErr != nil {
+		t.Fatalf("unexpected validation error: %+v", taskErr)
+	}
+
+	body, err := a.BuildRequestBody(c, info)
+	if err != nil {
+		t.Fatalf("BuildRequestBody error: %v", err)
+	}
+	data, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("read request body: %v", err)
+	}
+	if strings.Contains(string(data), `\u0026`) {
+		t.Fatalf("image URL query delimiter was HTML escaped: %s", string(data))
+	}
+
+	var payload generationPayload
+	if err := common.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("unmarshal generation payload: %v", err)
+	}
+	if payload.Model != "jimeng-video-seedance-2.0-fast" {
+		t.Fatalf("model = %q, want mapped jimeng-video-seedance-2.0-fast", payload.Model)
+	}
+	if payload.Prompt != "a cat walking" {
+		t.Fatalf("prompt = %q", payload.Prompt)
+	}
+	if len(payload.FilePaths) != 1 || payload.FilePaths[0] != "https://cdn.example.com/cat.png?a=1&b=2" {
+		t.Fatalf("file_paths = %+v", payload.FilePaths)
+	}
+	if payload.Duration != 5 || payload.Resolution != "720p" || payload.Ratio != "16:9" {
+		t.Fatalf("duration/resolution/ratio = %d/%q/%q", payload.Duration, payload.Resolution, payload.Ratio)
+	}
+}
+
 func TestDoResponse_SynchronousURLBecomesSyntheticCompletedPoll(t *testing.T) {
 	a := &TaskAdaptor{}
 	c := newJSONCtx(`{}`)
@@ -76,6 +152,14 @@ func TestDoResponse_SynchronousURLBecomesSyntheticCompletedPoll(t *testing.T) {
 	}
 	if poll.Url != "https://cdn.example.com/video.mp4" {
 		t.Fatalf("url = %q", poll.Url)
+	}
+}
+
+func TestExtractUpstreamVideoURL(t *testing.T) {
+	raw := []byte(`{"status":"SUCCESS","data":[{"url":"https://cdn.example.com/video.mp4"}]}`)
+
+	if got := ExtractUpstreamVideoURL(raw); got != "https://cdn.example.com/video.mp4" {
+		t.Fatalf("ExtractUpstreamVideoURL = %q", got)
 	}
 }
 

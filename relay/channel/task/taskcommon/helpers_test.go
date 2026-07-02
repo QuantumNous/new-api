@@ -14,6 +14,7 @@ func TestShouldWhitelabelPlatform(t *testing.T) {
 	}{
 		{"kuaizi (channel 58)", constant.TaskPlatform("58"), true},
 		{"blockrun-video (channel 101)", constant.TaskPlatform("101"), true},
+		{"jimeng zhizinan (channel 104)", constant.TaskPlatform("104"), true},
 		{"openai channel type number", constant.TaskPlatform("1"), false},
 		{"non-numeric platform suno", constant.TaskPlatformSuno, false},
 		{"empty platform", constant.TaskPlatform(""), false},
@@ -34,6 +35,9 @@ func TestShouldWhitelabelChannelType(t *testing.T) {
 	}
 	if !ShouldWhitelabelChannelType(constant.ChannelTypeBlockRunVideo) {
 		t.Errorf("expected blockrun-video channel type %d to be whitelabeled", constant.ChannelTypeBlockRunVideo)
+	}
+	if !ShouldWhitelabelChannelType(constant.ChannelTypeJimengZhizinan) {
+		t.Errorf("expected jimeng zhizinan channel type %d to be whitelabeled", constant.ChannelTypeJimengZhizinan)
 	}
 	if ShouldWhitelabelChannelType(0) {
 		t.Error("zero channel type should not be whitelabeled")
@@ -59,6 +63,8 @@ func TestScrubBrandedText(t *testing.T) {
 		{"contains kz-cgt id", "task id kz-cgt-178100 not found", generic},
 		{"contains blockrun host", "fetch https://blockrun.ai/api/media/x.mp4 failed", generic},
 		{"contains flatkey", "api2.flatkey.ai gateway error", generic},
+		{"contains jimeng host", "jimeng.jianying.com returned 500", generic},
+		{"contains dreamina model", "dreamina seedance failed", generic},
 		{"unrelated word with substring", "kuai noodles", "kuai noodles"},
 	}
 	for _, tt := range tests {
