@@ -382,8 +382,8 @@ function SortableCard({
 
   const windowMetrics = [
     getWindowMetric('5h', t('5小时'), plan?.window_limit_5h),
-    getWindowMetric('7d', t('本周'), plan?.window_limit_7d),
-    getWindowMetric('30d', t('本月'), plan?.window_limit_30d),
+    getWindowMetric('7d', t('7日'), plan?.window_limit_7d),
+    getWindowMetric('30d', t('30天'), plan?.window_limit_30d),
   ];
 
   return (

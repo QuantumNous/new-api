@@ -634,6 +634,10 @@ const SubscriptionPlansCard = ({
                       formatSubscriptionResetPeriod(plan, t) === t('不重置')
                         ? null
                         : `${t('额度重置')}: ${formatSubscriptionResetPeriod(plan, t)}`;
+                    const allowedGroups = String(plan?.allowed_groups || '')
+                      .split(',')
+                      .map((group) => group.trim())
+                      .filter(Boolean);
                     const windowQuotaItems = [
                       {
                         key: '5h',
@@ -642,12 +646,12 @@ const SubscriptionPlansCard = ({
                       },
                       {
                         key: '7d',
-                        label: t('本周'),
+                        label: t('7日'),
                         value: Number(plan?.window_limit_7d || 0),
                       },
                       {
                         key: '30d',
-                        label: t('本月'),
+                        label: t('30天'),
                         value: Number(plan?.window_limit_30d || 0),
                       },
                     ].filter((item) => item.value > 0);
@@ -657,7 +661,7 @@ const SubscriptionPlansCard = ({
                         : [
                             {
                               key: 'total',
-                              label: t('本月'),
+                              label: t('30天'),
                               value: totalAmount,
                             },
                           ];
@@ -674,7 +678,8 @@ const SubscriptionPlansCard = ({
                         : null,
                       {
                         label: t('支持分组'),
-                        value: plan?.allowed_groups || t('不限'),
+                        value:
+                          allowedGroups.length > 0 ? allowedGroups : t('不限'),
                       },
                       upgradeLabel
                         ? {
@@ -915,8 +920,16 @@ const SubscriptionPlansCard = ({
                                     />
                                     {item.label}
                                   </span>
-                                  <span className='truncate font-semibold text-slate-900'>
-                                    {item.value}
+                                  <span className='min-w-0 text-right font-semibold text-slate-900'>
+                                    {Array.isArray(item.value) ? (
+                                      <span className='flex flex-col items-end leading-5'>
+                                        {item.value.map((value) => (
+                                          <span key={value}>{value}</span>
+                                        ))}
+                                      </span>
+                                    ) : (
+                                      item.value
+                                    )}
                                   </span>
                                 </div>
                               ))}
