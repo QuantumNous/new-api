@@ -4354,7 +4354,7 @@
     "This page has not been created yet.": "This page has not been created yet.",
     "This plan does not allow balance redemption": "This plan does not allow balance redemption",
     "This project must be used in compliance with the": "This project must be used in compliance with the",
-    "This record was written by a pre-upgrade instance and lacks audit info. Upgrade the instance to record server IP, callback IP, payment method and system version.": "This record was written by a pre-upgrade instance and lacks audit info. Upgrade the instance to record server IP, callback IP, payment method and system version.",
+    "This historical record predates audit-info tracking and cannot be backfilled. The current instance already records server IP, callback IP, payment method, and system version for new top-ups going forward.": "This historical record predates audit-info tracking and cannot be backfilled. The current instance already records server IP, callback IP, payment method, and system version for new top-ups going forward.",
     "This removes {{count}} failed models from this channel. This action cannot be undone.": "This removes {{count}} failed models from this channel. This action cannot be undone.",
     "This site currently has {{count}} models enabled": "This site currently has {{count}} models enabled",
     "This tier catches any request that did not match earlier tiers.": "This tier catches any request that did not match earlier tiers.",

@@ -4354,7 +4354,7 @@
     "This page has not been created yet.": "Эта страница еще не создана.",
     "This plan does not allow balance redemption": "Этот план не разрешает оплату балансом",
     "This project must be used in compliance with the": "Этот проект должен использоваться в соответствии с",
-    "This record was written by a pre-upgrade instance and lacks audit info. Upgrade the instance to record server IP, callback IP, payment method and system version.": "Запись создана экземпляром до обновления и не содержит сведений аудита. Обновите экземпляр, чтобы фиксировать IP сервера, IP callback, способ оплаты и версию ОС.",
+    "This historical record predates audit-info tracking and cannot be backfilled. The current instance already records server IP, callback IP, payment method, and system version for new top-ups going forward.": "Эта историческая запись была создана до появления функции аудита и не содержит данных аудита. Текущая версия уже поддерживает запись IP-адреса сервера, IP обратного вызова, способа оплаты и версии системы, но эти поля будут заполняться только в новых записях — восполнить их в старых записях задним числом невозможно.",
     "This removes {{count}} failed models from this channel. This action cannot be undone.": "Это удалит {{count}} неуспешных моделей из этого канала. Действие необратимо.",
     "This site currently has {{count}} models enabled": "На этом сайте сейчас включено моделей: {{count}}",
     "This tier catches any request that did not match earlier tiers.": "Этот уровень обрабатывает все запросы, которые не совпали с предыдущими уровнями.",
