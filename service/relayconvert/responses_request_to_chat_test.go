@@ -1,6 +1,7 @@
 package relayconvert
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -53,6 +54,22 @@ func TestResponsesRequestToChatCompletionsRequestInstructionsAndScalarInput(t *t
 	assert.Equal(t, `"user-1"`, string(got.User))
 	assert.Equal(t, `false`, string(got.Store))
 	assert.Equal(t, "abc", gjson.GetBytes(got.Metadata, "trace").String())
+}
+
+func TestResponsesRequestToChatCompletionsRequestPreservesQwenThinkingBudget(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model:          "qwen-plus",
+		Input:          mustRawMessage(t, "hello"),
+		EnableThinking: json.RawMessage(`true`),
+		ThinkingBudget: json.RawMessage(`128`),
+	})
+	require.NoError(t, err)
+
+	encoded, err := common.Marshal(got)
+	require.NoError(t, err)
+
+	assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
+	assert.Equal(t, int64(128), gjson.GetBytes(encoded, "thinking_budget").Int())
 }
 
 func TestResponsesRequestToChatCompletionsRequestMultimodalInput(t *testing.T) {
