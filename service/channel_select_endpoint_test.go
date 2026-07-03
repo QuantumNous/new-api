@@ -235,6 +235,17 @@ func TestChannelSupportsRequestEndpointAllowsBlockRunForResponses(t *testing.T) 
 	}, "gpt-5.4"))
 }
 
+func TestChannelSupportsRequestEndpointAllowsGPTImage2ImageGeneration(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+
+	require.True(t, ChannelSupportsRequestEndpoint(ctx, &model.Channel{
+		Type: constant.ChannelTypeOpenAI,
+	}, "gpt-image-2"))
+}
+
 func TestChannelSupportsRequestEndpointRejectsUnsupportedResponsesAdaptors(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
