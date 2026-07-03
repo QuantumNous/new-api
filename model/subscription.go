@@ -754,7 +754,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", userId).First(&user).Error; err != nil {
 			return err
 		}
-		if requiredQuota > 0 && user.Quota < requiredQuota {
+		if requiredQuota > 0 && user.Quota < int64(requiredQuota) {
 			return errors.New("余额不足")
 		}
 		if requiredQuota > 0 {

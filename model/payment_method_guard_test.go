@@ -15,7 +15,7 @@ func insertUserForPaymentGuardTest(t *testing.T, id int, quota int) {
 		Id:       id,
 		Username: "payment_guard_user",
 		Status:   common.UserStatusEnabled,
-		Quota:    quota,
+		Quota:    int64(quota),
 	}
 	require.NoError(t, DB.Create(user).Error)
 }
@@ -84,7 +84,7 @@ func getUserQuotaForPaymentGuardTest(t *testing.T, userID int) int {
 	t.Helper()
 	var user User
 	require.NoError(t, DB.Select("quota").Where("id = ?", userID).First(&user).Error)
-	return user.Quota
+	return int(user.Quota)
 }
 
 func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
