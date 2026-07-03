@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -142,7 +141,7 @@ func RewriteImageResponseToOBS(ctx context.Context, userID int, modelName, respo
 		b64Str := jsonRawString(item["b64_json"])
 		switch {
 		case urlStr != "":
-			if isOwnOBSURL(urlStr) {
+			if mediastore.IsOwnOBSURL(urlStr) {
 				continue // 已是我方 OBS，跳过
 			}
 			signed, err := persistThirdPartyImage(ctx, userID, modelName, mediastore.PersistSource{UpstreamURL: urlStr}, extFromURL(urlStr))
@@ -221,33 +220,6 @@ func persistThirdPartyImage(ctx context.Context, userID int, modelName string, s
 		return "", err
 	}
 	return mediastore.Sign(ctx, key)
-}
-
-// isOwnOBSURL 判断 url 是否指向我方 OBS，用于跳过已落盘对象。
-// 精确匹配 host == endpoint 或 host == <bucket>.<endpoint>（virtual-hosted-style），
-// 不做子串匹配——否则 bucket 叫 "media" 时 media.evil.com 会被误判为我方。
-func isOwnOBSURL(rawURL string) bool {
-	s := system_setting.GetMediaStorageSettings()
-	host := hostOf(rawURL)
-	epHost := hostOf(s.Endpoint)
-	if host == "" || epHost == "" {
-		return false
-	}
-	if strings.EqualFold(host, epHost) {
-		return true
-	}
-	return s.Bucket != "" && strings.EqualFold(host, s.Bucket+"."+epHost)
-}
-
-func hostOf(rawURL string) string {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return ""
-	}
-	if u.Host != "" {
-		return u.Hostname()
-	}
-	return rawURL // Endpoint 可能只填了 host
 }
 
 func extFromURL(rawURL string) string {

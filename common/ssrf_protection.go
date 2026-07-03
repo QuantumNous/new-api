@@ -17,6 +17,20 @@ type SSRFProtection struct {
 	IpList                 []string // CIDR or single IP
 	AllowedPorts           []int    // 允许的端口范围
 	ApplyIPFilterForDomain bool     // 对域名启用IP过滤
+	// AllowPrivateHosts 精确 host 白名单（大小写不敏感）：这些域名解析到私网 IP 时放行，
+	// 只放松「私网」这一条——scheme / 端口 / 黑白名单仍照常强制。
+	// 用途：隔离环境下我方 OBS 内网 endpoint 解析到 100.64/10，需按 host 精确放行。
+	AllowPrivateHosts []string
+}
+
+// hostPrivateAllowed 判断域名是否在私网放行白名单内（精确、大小写不敏感）。
+func (p *SSRFProtection) hostPrivateAllowed(host string) bool {
+	for _, h := range p.AllowPrivateHosts {
+		if h != "" && strings.EqualFold(host, h) {
+			return true
+		}
+	}
+	return false
 }
 
 // DefaultSSRFProtection 默认SSRF防护配置
@@ -33,20 +47,20 @@ var DefaultSSRFProtection = &SSRFProtection{
 // 参考 IANA IPv4 Special-Purpose Address Registry
 // https://www.iana.org/assignments/iana-ipv4-special-registry/
 var privateIPv4Nets = []net.IPNet{
-	{IP: net.IPv4(0, 0, 0, 0), Mask: net.CIDRMask(8, 32)},       // 0.0.0.0/8 ("This network" / 未指定)
-	{IP: net.IPv4(10, 0, 0, 0), Mask: net.CIDRMask(8, 32)},      // 10.0.0.0/8 (私有)
-	{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)},   // 100.64.0.0/10 (运营商级 NAT / CGNAT)
-	{IP: net.IPv4(127, 0, 0, 0), Mask: net.CIDRMask(8, 32)},     // 127.0.0.0/8 (回环)
-	{IP: net.IPv4(169, 254, 0, 0), Mask: net.CIDRMask(16, 32)},  // 169.254.0.0/16 (链路本地)
-	{IP: net.IPv4(172, 16, 0, 0), Mask: net.CIDRMask(12, 32)},   // 172.16.0.0/12 (私有)
-	{IP: net.IPv4(192, 0, 0, 0), Mask: net.CIDRMask(24, 32)},    // 192.0.0.0/24 (IETF 协议分配)
-	{IP: net.IPv4(192, 0, 2, 0), Mask: net.CIDRMask(24, 32)},    // 192.0.2.0/24 (TEST-NET-1)
-	{IP: net.IPv4(192, 168, 0, 0), Mask: net.CIDRMask(16, 32)},  // 192.168.0.0/16 (私有)
-	{IP: net.IPv4(198, 18, 0, 0), Mask: net.CIDRMask(15, 32)},   // 198.18.0.0/15 (基准测试)
-	{IP: net.IPv4(198, 51, 100, 0), Mask: net.CIDRMask(24, 32)}, // 198.51.100.0/24 (TEST-NET-2)
-	{IP: net.IPv4(203, 0, 113, 0), Mask: net.CIDRMask(24, 32)},  // 203.0.113.0/24 (TEST-NET-3)
-	{IP: net.IPv4(224, 0, 0, 0), Mask: net.CIDRMask(4, 32)},     // 224.0.0.0/4 (组播)
-	{IP: net.IPv4(240, 0, 0, 0), Mask: net.CIDRMask(4, 32)},     // 240.0.0.0/4 (保留)
+	{IP: net.IPv4(0, 0, 0, 0), Mask: net.CIDRMask(8, 32)},          // 0.0.0.0/8 ("This network" / 未指定)
+	{IP: net.IPv4(10, 0, 0, 0), Mask: net.CIDRMask(8, 32)},         // 10.0.0.0/8 (私有)
+	{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)},      // 100.64.0.0/10 (运营商级 NAT / CGNAT)
+	{IP: net.IPv4(127, 0, 0, 0), Mask: net.CIDRMask(8, 32)},        // 127.0.0.0/8 (回环)
+	{IP: net.IPv4(169, 254, 0, 0), Mask: net.CIDRMask(16, 32)},     // 169.254.0.0/16 (链路本地)
+	{IP: net.IPv4(172, 16, 0, 0), Mask: net.CIDRMask(12, 32)},      // 172.16.0.0/12 (私有)
+	{IP: net.IPv4(192, 0, 0, 0), Mask: net.CIDRMask(24, 32)},       // 192.0.0.0/24 (IETF 协议分配)
+	{IP: net.IPv4(192, 0, 2, 0), Mask: net.CIDRMask(24, 32)},       // 192.0.2.0/24 (TEST-NET-1)
+	{IP: net.IPv4(192, 168, 0, 0), Mask: net.CIDRMask(16, 32)},     // 192.168.0.0/16 (私有)
+	{IP: net.IPv4(198, 18, 0, 0), Mask: net.CIDRMask(15, 32)},      // 198.18.0.0/15 (基准测试)
+	{IP: net.IPv4(198, 51, 100, 0), Mask: net.CIDRMask(24, 32)},    // 198.51.100.0/24 (TEST-NET-2)
+	{IP: net.IPv4(203, 0, 113, 0), Mask: net.CIDRMask(24, 32)},     // 203.0.113.0/24 (TEST-NET-3)
+	{IP: net.IPv4(224, 0, 0, 0), Mask: net.CIDRMask(4, 32)},        // 224.0.0.0/4 (组播)
+	{IP: net.IPv4(240, 0, 0, 0), Mask: net.CIDRMask(4, 32)},        // 240.0.0.0/4 (保留)
 	{IP: net.IPv4(255, 255, 255, 255), Mask: net.CIDRMask(32, 32)}, // 255.255.255.255/32 (受限广播)
 }
 
@@ -316,6 +330,11 @@ func (p *SSRFProtection) ValidateURL(urlStr string) error {
 		return fmt.Errorf("DNS resolution failed for %s: %v", host, err)
 	}
 	for _, ip := range ips {
+		// 私网放行白名单命中：仅当该域名解析到私网 IP 时放行此 IP。
+		// scheme 与端口在上方已强制校验；非私网 IP 仍走下方常规黑白名单判定。
+		if isPrivateIP(ip) && p.hostPrivateAllowed(host) {
+			continue
+		}
 		if !p.IsIPAccessAllowed(ip) {
 			if isPrivateIP(ip) && !p.AllowPrivateIp {
 				return fmt.Errorf("private IP address not allowed: %s resolves to %s", host, ip.String())
@@ -329,8 +348,10 @@ func (p *SSRFProtection) ValidateURL(urlStr string) error {
 	return nil
 }
 
-// ValidateURLWithFetchSetting 使用FetchSetting配置验证URL
-func ValidateURLWithFetchSetting(urlStr string, enableSSRFProtection, allowPrivateIp bool, domainFilterMode bool, ipFilterMode bool, domainList, ipList, allowedPorts []string, applyIPFilterForDomain bool) error {
+// ValidateURLWithFetchSetting 使用FetchSetting配置验证URL。
+// allowPrivateHosts 为可选的私网放行 host 白名单（精确 host）：仅放松这些域名解析到私网的校验，
+// scheme/端口/黑白名单仍强制。现有调用方无需改动；需放行我方 OBS 的路径传入 mediastore.OwnOBSHost()。
+func ValidateURLWithFetchSetting(urlStr string, enableSSRFProtection, allowPrivateIp bool, domainFilterMode bool, ipFilterMode bool, domainList, ipList, allowedPorts []string, applyIPFilterForDomain bool, allowPrivateHosts ...string) error {
 	// 如果SSRF防护被禁用，直接返回成功
 	if !enableSSRFProtection {
 		return nil
@@ -350,6 +371,7 @@ func ValidateURLWithFetchSetting(urlStr string, enableSSRFProtection, allowPriva
 		IpList:                 ipList,
 		AllowedPorts:           allowedPortInts,
 		ApplyIPFilterForDomain: applyIPFilterForDomain,
+		AllowPrivateHosts:      allowPrivateHosts,
 	}
 	return protection.ValidateURL(urlStr)
 }

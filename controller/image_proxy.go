@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/service/mediastore"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,17 +38,6 @@ var imageProxySSRF = &common.SSRFProtection{
 	ApplyIPFilterForDomain: true, // 域名解析后的 IP 也要过私网校验
 }
 
-// 每一跳重定向都重新过 SSRF 校验，防止公网 URL 302 跳转到内网/元数据地址绕过防护。
-var imageProxyClient = &http.Client{
-	Timeout: 30 * time.Second,
-	CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 5 {
-			return errors.New("too many redirects")
-		}
-		return imageProxySSRF.ValidateURL(req.URL.String())
-	},
-}
-
 // PlaygroundImageProxy 代理拉取远程图片，绕开浏览器对供应商 CDN 的 CORS 限制，
 // 供已登录用户在图片模型页复制/下载使用。仅做透传，不落盘。
 func PlaygroundImageProxy(c *gin.Context) {
@@ -56,9 +46,34 @@ func PlaygroundImageProxy(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing url"})
 		return
 	}
-	if err := imageProxySSRF.ValidateURL(raw); err != nil {
+
+	// 每请求只读一次我方 OBS 授信 host（媒体存储关闭时为空），初检与每一跳重定向复用同一份，
+	// 避免在共享 client 上按跳读取可变的设置单例。
+	// 校验只放松「我方 OBS host 解析到私网」这一条——scheme(http/https)、端口(80/443)、
+	// 私网拦截对其余 host 仍照常强制，故 302 跳到 <obs-host>:6379 之类会被端口白名单挡下。
+	trusted := mediastore.OwnOBSHost()
+	validate := func(u string) error {
+		v := *imageProxySSRF
+		if trusted != "" {
+			v.AllowPrivateHosts = []string{trusted}
+		}
+		return v.ValidateURL(u)
+	}
+
+	if err := validate(raw); err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
+	}
+
+	// 每一跳重定向都重新过校验，防止公网 URL 302 跳转到内网/元数据地址绕过防护。
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 5 {
+				return errors.New("too many redirects")
+			}
+			return validate(req.URL.String())
+		},
 	}
 
 	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, raw, nil)
@@ -67,7 +82,7 @@ func PlaygroundImageProxy(c *gin.Context) {
 		return
 	}
 
-	resp, err := imageProxyClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "fetch failed"})
 		return

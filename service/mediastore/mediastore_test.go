@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/QuantumNous/new-api/setting/system_setting"
 )
 
 func TestKeyFromNFSPath(t *testing.T) {
@@ -169,5 +171,56 @@ func TestValidateUpstreamHost(t *testing.T) {
 	}
 	if err := s2.validateUpstreamHost("http://192.168.1.1/x"); err == nil {
 		t.Error("private host must be blocked even without allowlist")
+	}
+}
+
+func TestNormalizeHost(t *testing.T) {
+	cases := map[string]string{
+		"https://obs.cn-central-221.ovaijisuan.com": "obs.cn-central-221.ovaijisuan.com",
+		"https://maas.obs.example.com/key?a=b":      "maas.obs.example.com",
+		"obs.internal:9000":                         "obs.internal",
+		"obs.example.com/":                          "obs.example.com",
+		"obs.example.com":                           "obs.example.com",
+		"":                                          "",
+	}
+	for in, want := range cases {
+		if got := normalizeHost(in); got != want {
+			t.Errorf("normalizeHost(%q)=%q want %q", in, got, want)
+		}
+	}
+}
+
+func TestOwnOBSHostAndIsOwnOBSURL(t *testing.T) {
+	s := system_setting.GetMediaStorageSettings()
+	origEnabled, origEndpoint, origBucket := s.Enabled, s.Endpoint, s.Bucket
+	defer func() { s.Enabled, s.Endpoint, s.Bucket = origEnabled, origEndpoint, origBucket }()
+
+	s.Endpoint = "https://obs.cn-central-221.ovaijisuan.com"
+	s.Bucket = "maas-obs-output"
+
+	// 未启用 → 授信 host 为空（关掉媒体存储即撤销豁免）
+	s.Enabled = false
+	if h := OwnOBSHost(); h != "" {
+		t.Errorf("OwnOBSHost disabled = %q, want empty", h)
+	}
+
+	// 启用 → 精确的 <bucket>.<endpointHost>
+	s.Enabled = true
+	want := "maas-obs-output.obs.cn-central-221.ovaijisuan.com"
+	if h := OwnOBSHost(); h != want {
+		t.Errorf("OwnOBSHost = %q, want %q", h, want)
+	}
+
+	// virtual-hosted 我方对象 URL 命中
+	if !IsOwnOBSURL("https://maas-obs-output.obs.cn-central-221.ovaijisuan.com/t2i/x.png?sig=1") {
+		t.Error("virtual-hosted own OBS url should match")
+	}
+	// 第三方 host 不命中
+	if IsOwnOBSURL("https://oaidalleapiprodscus.blob.core.windows.net/x") {
+		t.Error("third-party host must not match")
+	}
+	// 追加后缀的仿冒 host 不命中（精确匹配，非子串）
+	if IsOwnOBSURL("https://maas-obs-output.obs.cn-central-221.ovaijisuan.com.evil.com/x") {
+		t.Error("suffix-appended host must not match")
 	}
 }
