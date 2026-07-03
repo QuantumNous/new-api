@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { MIXPANEL_BROWSER_SCRIPT } from "@/lib/mixpanel";
 import type { Locale } from "@/lib/locales";
 
-const GTM_ID = "GTM-5T5LPLSZ";
+const GTM_IDS = ["GTM-NKH9LPX9", "GTM-5T5LPLSZ"] as const;
 
 // Solvea livechat 咨询挂件（公开站，访客售前咨询）。token 为客户端公开嵌入凭证，非密钥。
 const LIVECHAT_EMBED_SRC =
@@ -60,19 +60,31 @@ export function RootDocument({ bodyStart, children, lang }: RootDocumentProps) {
             new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
             j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-            })(window,document,'script','dataLayer','${GTM_ID}');
+            })(window,document,'script','dataLayer',${JSON.stringify(GTM_IDS[0])});
+            ${GTM_IDS.slice(1)
+              .map(
+                (id) => `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer',${JSON.stringify(id)});`,
+              )
+              .join("\n            ")}
           `}
         </Script>
         <Script id="mixpanel-consent-gated" strategy={ROOT_DOCUMENT_PERFORMANCE_POLICY.mixpanelStrategy}>
           {MIXPANEL_BROWSER_SCRIPT}
         </Script>
         <noscript>
-          <iframe
-            src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
-            height="0"
-            width="0"
-            style={{ display: "none", visibility: "hidden" }}
-          />
+          {GTM_IDS.map((id) => (
+            <iframe
+              key={id}
+              src={`https://www.googletagmanager.com/ns.html?id=${id}`}
+              height="0"
+              width="0"
+              style={{ display: "none", visibility: "hidden" }}
+            />
+          ))}
         </noscript>
         {children}
         <Script id="solvea-livechat-bootstrap" strategy={ROOT_DOCUMENT_PERFORMANCE_POLICY.livechatStrategy}>
