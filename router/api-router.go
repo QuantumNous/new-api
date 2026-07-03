@@ -40,6 +40,14 @@ func SetApiRouter(router *gin.Engine) {
 			skillHubRoute.GET("/skills/:id/download", controller.DownloadSkillHubSkill)
 			skillHubRoute.GET("/skills/:id", controller.GetSkillHubSkill)
 		}
+		clientReleaseRoute := apiRouter.Group("/client-releases")
+		{
+			clientReleaseRoute.GET("/", controller.ListClientReleases)
+			clientReleaseRoute.GET("/latest", controller.GetLatestClientRelease)
+			clientReleaseRoute.GET("/download/:id", controller.DownloadClientRelease)
+			clientReleaseRoute.GET("/updates/:platform/:arch/:channel/latest.yml", controller.GetClientReleaseLatestYAML)
+			clientReleaseRoute.GET("/updates/:platform/:arch/:channel/download/:id/:filename", controller.DownloadClientReleaseAsset)
+		}
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")
 		perfMetricsRoute.Use(middleware.TryUserAuth())
 		{
@@ -233,6 +241,18 @@ func SetApiRouter(router *gin.Engine) {
 			adminSkillHubRoute.DELETE("/skills/:id", controller.AdminDeleteSkillHubSkill)
 			adminSkillHubRoute.POST("/skills/:id/publish", controller.AdminPublishSkillHubSkill)
 			adminSkillHubRoute.POST("/skills/:id/unpublish", controller.AdminUnpublishSkillHubSkill)
+		}
+		adminClientReleaseRoute := apiRouter.Group("/admin/client-releases")
+		adminClientReleaseRoute.Use(middleware.AdminAuth())
+		{
+			adminClientReleaseRoute.POST("/upload", controller.AdminUploadClientRelease)
+			adminClientReleaseRoute.GET("/", controller.AdminListClientReleases)
+			adminClientReleaseRoute.POST("/", controller.AdminCreateClientRelease)
+			adminClientReleaseRoute.GET("/:id", controller.AdminGetClientRelease)
+			adminClientReleaseRoute.PUT("/:id", controller.AdminUpdateClientRelease)
+			adminClientReleaseRoute.DELETE("/:id", controller.AdminDeleteClientRelease)
+			adminClientReleaseRoute.POST("/:id/publish", controller.AdminPublishClientRelease)
+			adminClientReleaseRoute.POST("/:id/unpublish", controller.AdminUnpublishClientRelease)
 		}
 		performanceRoute := apiRouter.Group("/performance")
 		performanceRoute.Use(middleware.RootAuth())

@@ -54,6 +54,14 @@ web/             — Frontend themes container
 
 ## Rules
 
+### Rule 0: AI Development Workflow — Read Before Coding
+
+Before writing code, AI assistants MUST follow `docs/development/ai-development-checklist.md`.
+
+- Web code is split into two frontends: `web/classic` and `web/default`. Any Web feature, UI, interaction, API adaptation, state-management, i18n, style, build, or runtime-behavior change MUST check both frontends and update both when the behavior applies to both. If a change intentionally applies to only one frontend, document the reason in the related development notes or handoff summary.
+- After development, update the related development documentation. Changes to APIs, config, deployment, frontend behavior, billing, releases, channels, security-sensitive flows, or troubleshooting steps MUST be reflected in `README*`, `docs/`, `AGENTS.md`, or the relevant module document.
+- After development, review the implementation for security issues, concurrency issues, and other obvious defects before handing off. Cover secrets, auth, permissions, input validation, injection/path traversal, request races, duplicate tasks/listeners, cancellation, timeouts, cleanup, error paths, and cross-database/frontend consistency.
+
 ### Rule 1: JSON Package — Use `common/json.go`
 
 All JSON marshal/unmarshal operations MUST use the wrapper functions in `common/json.go`:

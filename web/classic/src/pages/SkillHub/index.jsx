@@ -90,10 +90,52 @@ const isAllowedZipUrl = (value) => {
     const url = new URL(String(value || '').trim());
     if (url.protocol === 'https:') return true;
     if (url.protocol !== 'http:') return false;
-    return ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    return isLocalHTTPHost(url.hostname);
   } catch {
     return false;
   }
+};
+
+const isLocalHTTPHost = (hostname) => {
+  const host = String(hostname || '')
+    .toLowerCase()
+    .replace(/^\[/, '')
+    .replace(/\]$/, '');
+  if (host === 'localhost') return true;
+  if (isPrivateIPv4Host(host)) return true;
+  if (!host.includes(':')) return false;
+  return (
+    host === '::1' ||
+    host.startsWith('fc') ||
+    host.startsWith('fd') ||
+    /^fe[89ab]/.test(host)
+  );
+};
+
+const isPrivateIPv4Host = (host) => {
+  const octets = host.split('.');
+  if (octets.length !== 4) return false;
+
+  const values = octets.map((part) => {
+    if (!/^\d+$/.test(part)) return Number.NaN;
+    return Number(part);
+  });
+  if (
+    values.some(
+      (value) => !Number.isInteger(value) || value < 0 || value > 255,
+    )
+  ) {
+    return false;
+  }
+
+  const [first, second] = values;
+  return (
+    first === 10 ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
+  );
 };
 
 const isAllowedIconFile = (file) => {
@@ -375,7 +417,9 @@ const SkillHub = () => {
       return;
     }
     if (!isAllowedZipUrl(form.sourceUrl)) {
-      showError('Zip 包地址必须使用 HTTPS，本地调试可使用 localhost HTTP');
+      showError(
+        'Zip 包地址必须使用 HTTPS，本地调试可使用 localhost 或局域网 HTTP',
+      );
       return;
     }
     setSaving(true);

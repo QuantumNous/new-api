@@ -52,6 +52,7 @@ const routerMap = {
   deployment: '/console/deployment',
   skillHubSkills: '/console/skill-hub',
   skillHubTags: '/console/skill-hub/tags',
+  clientRelease: '/console/client-releases',
   playground: '/console/playground',
   'image-playground': '/console/image-playground',
   'video-playground': '/console/video-playground',
@@ -212,6 +213,12 @@ const SiderBar = ({
             to: '/console/skill-hub/tags',
           },
         ],
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('客户端管理'),
+        itemKey: 'clientRelease',
+        to: '/console/client-releases',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

@@ -98,6 +98,7 @@ const NotificationSettings = ({
       models: true,
       deployment: true,
       subscription: true,
+      clientRelease: true,
       redemption: true,
       user: true,
       setting: true,
@@ -190,6 +191,7 @@ const NotificationSettings = ({
         models: true,
         deployment: true,
         subscription: true,
+        clientRelease: true,
         redemption: true,
         user: true,
         setting: true,
@@ -346,6 +348,11 @@ const NotificationSettings = ({
           key: 'subscription',
           title: t('订阅管理'),
           description: t('订阅套餐管理'),
+        },
+        {
+          key: 'clientRelease',
+          title: t('客户端管理'),
+          description: t('客户端版本与更新通道管理'),
         },
         {
           key: 'redemption',

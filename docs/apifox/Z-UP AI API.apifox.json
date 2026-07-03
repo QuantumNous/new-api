@@ -34496,6 +34496,2691 @@
           ]
         },
         {
+          "name": "客户端更新",
+          "id": 480639291,
+          "auth": {},
+          "securityScheme": {},
+          "parentId": 0,
+          "serverId": "",
+          "description": "客户端自动更新公开接口。安装包存储在私有 OSS，下载接口由 New API 生成短时签名并跳转，客户端无需直接访问 OSS。",
+          "identityPattern": {
+            "httpApi": {
+              "type": "inherit",
+              "bodyType": "",
+              "fields": []
+            }
+          },
+          "shareSettings": {},
+          "visibility": "INHERITED",
+          "moduleId": 8068398,
+          "preProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ],
+          "postProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ],
+          "inheritPostProcessors": {},
+          "inheritPreProcessors": {},
+          "items": [
+            {
+              "name": "获取客户端版本列表",
+              "api": {
+                "id": "480639301",
+                "method": "get",
+                "path": "/api/client-releases/",
+                "parameters": {
+                  "path": [],
+                  "query": [
+                    {
+                      "id": "clientReleasePublicList_keyword",
+                      "name": "keyword",
+                      "required": false,
+                      "enable": true,
+                      "description": "搜索关键字，匹配版本号、文件名、通道或更新说明；最多 128 个字符",
+                      "example": "",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "description": "搜索关键字，匹配版本号、文件名、通道或更新说明；最多 128 个字符"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleasePublicList_platform",
+                      "name": "platform",
+                      "required": false,
+                      "enable": true,
+                      "description": "按平台过滤",
+                      "example": "windows",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "windows",
+                          "darwin",
+                          "linux"
+                        ],
+                        "description": "按平台过滤"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleasePublicList_arch",
+                      "name": "arch",
+                      "required": false,
+                      "enable": true,
+                      "description": "按架构过滤",
+                      "example": "x64",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "x64",
+                          "arm64",
+                          "ia32",
+                          "universal"
+                        ],
+                        "description": "按架构过滤"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleasePublicList_channel",
+                      "name": "channel",
+                      "required": false,
+                      "enable": true,
+                      "description": "按通道过滤，仅 stable 或 beta",
+                      "example": "stable",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "stable",
+                          "beta"
+                        ],
+                        "description": "按通道过滤，仅 stable 或 beta"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleasePublicList_p",
+                      "name": "p",
+                      "required": false,
+                      "enable": true,
+                      "description": "页码",
+                      "example": "1",
+                      "type": "integer",
+                      "schema": {
+                        "type": "integer",
+                        "description": "页码"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleasePublicList_page_size",
+                      "name": "page_size",
+                      "required": false,
+                      "enable": true,
+                      "description": "每页数量",
+                      "example": "20",
+                      "type": "integer",
+                      "schema": {
+                        "type": "integer",
+                        "description": "每页数量"
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {},
+                "securityScheme": {},
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639401",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/289952106"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "无需鉴权；仅返回已发布版本。支持 keyword/platform/arch/channel 分页过滤。",
+                "tags": [
+                  "客户端更新"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 0,
+                "cases": [
+                  {
+                    "id": 480639501,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639401",
+                    "parameters": {
+                      "path": [],
+                      "query": [
+                        {
+                          "id": "case_480639301_query_clientReleasePublicList_keyword",
+                          "relatedId": "clientReleasePublicList_keyword",
+                          "relatedName": "keyword",
+                          "name": "keyword",
+                          "type": "string",
+                          "value": "",
+                          "enable": true,
+                          "description": "搜索关键字，匹配版本号、文件名、通道或更新说明；最多 128 个字符",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639301_query_clientReleasePublicList_platform",
+                          "relatedId": "clientReleasePublicList_platform",
+                          "relatedName": "platform",
+                          "name": "platform",
+                          "type": "string",
+                          "value": "windows",
+                          "enable": true,
+                          "description": "按平台过滤",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639301_query_clientReleasePublicList_arch",
+                          "relatedId": "clientReleasePublicList_arch",
+                          "relatedName": "arch",
+                          "name": "arch",
+                          "type": "string",
+                          "value": "x64",
+                          "enable": true,
+                          "description": "按架构过滤",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639301_query_clientReleasePublicList_channel",
+                          "relatedId": "clientReleasePublicList_channel",
+                          "relatedName": "channel",
+                          "name": "channel",
+                          "type": "string",
+                          "value": "stable",
+                          "enable": true,
+                          "description": "按通道过滤，仅 stable 或 beta",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639301_query_clientReleasePublicList_p",
+                          "relatedId": "clientReleasePublicList_p",
+                          "relatedName": "p",
+                          "name": "p",
+                          "type": "integer",
+                          "value": "1",
+                          "enable": true,
+                          "description": "页码",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639301_query_clientReleasePublicList_page_size",
+                          "relatedId": "clientReleasePublicList_page_size",
+                          "relatedName": "page_size",
+                          "name": "page_size",
+                          "type": "integer",
+                          "value": "20",
+                          "enable": true,
+                          "description": "每页数量",
+                          "isDelete": false
+                        }
+                      ],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "检查客户端最新版本",
+              "api": {
+                "id": "480639302",
+                "method": "get",
+                "path": "/api/client-releases/latest",
+                "parameters": {
+                  "path": [],
+                  "query": [
+                    {
+                      "id": "clientReleaseLatest_platform",
+                      "name": "platform",
+                      "required": true,
+                      "enable": true,
+                      "description": "目标平台，Windows 使用 windows",
+                      "example": "windows",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "windows",
+                          "darwin",
+                          "linux"
+                        ],
+                        "description": "目标平台，Windows 使用 windows"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseLatest_arch",
+                      "name": "arch",
+                      "required": true,
+                      "enable": true,
+                      "description": "目标架构",
+                      "example": "x64",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "x64",
+                          "arm64",
+                          "ia32",
+                          "universal"
+                        ],
+                        "description": "目标架构"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseLatest_channel",
+                      "name": "channel",
+                      "required": false,
+                      "enable": true,
+                      "description": "目标通道，仅 stable 或 beta；为空默认 stable",
+                      "example": "stable",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "stable",
+                          "beta"
+                        ],
+                        "description": "目标通道，仅 stable 或 beta；为空默认 stable"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseLatest_currentVersion",
+                      "name": "current_version",
+                      "required": false,
+                      "enable": true,
+                      "description": "客户端当前版本。后端会据此判断 updateAvailable/forceUpdate",
+                      "example": "1.0.0",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "description": "客户端当前版本。后端会据此判断 updateAvailable/forceUpdate"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseLatest_versionAlias",
+                      "name": "version",
+                      "required": false,
+                      "enable": true,
+                      "description": "current_version 的兼容别名",
+                      "example": "1.0.0",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "description": "current_version 的兼容别名"
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {},
+                "securityScheme": {},
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639402",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/289952108"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "无需鉴权；后端先按 platform/arch/channel/status=published 取 id 最大的发布记录，再根据 current_version/version 判断 updateAvailable/forceUpdate。客户端无需自行比较 latest 接口返回的版本。",
+                "tags": [
+                  "客户端更新"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 1,
+                "cases": [
+                  {
+                    "id": 480639502,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639402",
+                    "parameters": {
+                      "path": [],
+                      "query": [
+                        {
+                          "id": "case_480639302_query_clientReleaseLatest_platform",
+                          "relatedId": "clientReleaseLatest_platform",
+                          "relatedName": "platform",
+                          "name": "platform",
+                          "type": "string",
+                          "value": "windows",
+                          "enable": true,
+                          "description": "目标平台，Windows 使用 windows",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639302_query_clientReleaseLatest_arch",
+                          "relatedId": "clientReleaseLatest_arch",
+                          "relatedName": "arch",
+                          "name": "arch",
+                          "type": "string",
+                          "value": "x64",
+                          "enable": true,
+                          "description": "目标架构",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639302_query_clientReleaseLatest_channel",
+                          "relatedId": "clientReleaseLatest_channel",
+                          "relatedName": "channel",
+                          "name": "channel",
+                          "type": "string",
+                          "value": "stable",
+                          "enable": true,
+                          "description": "目标通道，仅 stable 或 beta；为空默认 stable",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639302_query_clientReleaseLatest_currentVersion",
+                          "relatedId": "clientReleaseLatest_currentVersion",
+                          "relatedName": "current_version",
+                          "name": "current_version",
+                          "type": "string",
+                          "value": "1.0.0",
+                          "enable": true,
+                          "description": "客户端当前版本。后端会据此判断 updateAvailable/forceUpdate",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639302_query_clientReleaseLatest_versionAlias",
+                          "relatedId": "clientReleaseLatest_versionAlias",
+                          "relatedName": "version",
+                          "name": "version",
+                          "type": "string",
+                          "value": "1.0.0",
+                          "enable": true,
+                          "description": "current_version 的兼容别名",
+                          "isDelete": false
+                        }
+                      ],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "下载客户端安装包",
+              "api": {
+                "id": "480639303",
+                "method": "get",
+                "path": "/api/client-releases/download/{id}",
+                "parameters": {
+                  "path": [
+                    {
+                      "id": "clientReleaseDownload_id",
+                      "name": "id",
+                      "required": true,
+                      "enable": true,
+                      "description": "客户端版本记录 ID",
+                      "example": "1",
+                      "type": "integer",
+                      "schema": {
+                        "type": "integer",
+                        "description": "客户端版本记录 ID"
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {},
+                "securityScheme": {},
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639403",
+                    "code": "302",
+                    "headers": [
+                      {
+                        "name": "Location",
+                        "type": "string",
+                        "description": "私有 OSS 短时签名下载地址",
+                        "schema": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "id": "header_480639403_location"
+                      }
+                    ],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {},
+                      "x-apifox-orders": []
+                    },
+                    "itemSchema": {},
+                    "description": "跳转到私有 OSS 签名下载地址",
+                    "contentType": "noContent",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "无需鉴权；成功时返回 302，Location 为私有 OSS 短时签名 URL。下载文件名由发布记录 fileName 控制。",
+                "tags": [
+                  "客户端更新"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 2,
+                "cases": [
+                  {
+                    "id": 480639503,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639403",
+                    "parameters": {
+                      "path": [
+                        {
+                          "id": "case_480639303_path_clientReleaseDownload_id",
+                          "relatedId": "clientReleaseDownload_id",
+                          "relatedName": "id",
+                          "name": "id",
+                          "type": "integer",
+                          "value": "1",
+                          "enable": true,
+                          "description": "客户端版本记录 ID",
+                          "isDelete": false
+                        }
+                      ],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "获取客户端 latest.yml",
+              "api": {
+                "id": "480639304",
+                "method": "get",
+                "path": "/api/client-releases/updates/{platform}/{arch}/{channel}/latest.yml",
+                "parameters": {
+                  "path": [
+                    {
+                      "id": "clientReleaseYml_platform",
+                      "name": "platform",
+                      "required": true,
+                      "enable": true,
+                      "description": "目标平台，Windows 使用 windows",
+                      "example": "windows",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "windows",
+                          "darwin",
+                          "linux"
+                        ],
+                        "description": "目标平台，Windows 使用 windows"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseYml_arch",
+                      "name": "arch",
+                      "required": true,
+                      "enable": true,
+                      "description": "目标架构",
+                      "example": "x64",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "x64",
+                          "arm64",
+                          "ia32",
+                          "universal"
+                        ],
+                        "description": "目标架构"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseYml_channel",
+                      "name": "channel",
+                      "required": true,
+                      "enable": true,
+                      "description": "目标通道，仅 stable 或 beta",
+                      "example": "stable",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "stable",
+                          "beta"
+                        ],
+                        "description": "目标通道，仅 stable 或 beta"
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {},
+                "securityScheme": {},
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639404",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "string",
+                      "examples": [
+                        "version: 1.2.3\nfiles:\n  - url: download/1/Z-UP-Setup-1.2.3-windows-x64-stable.exe\n    sha512: base64-sha512-value\n    size: 104857600\npath: download/1/Z-UP-Setup-1.2.3-windows-x64-stable.exe\nsha512: base64-sha512-value\nreleaseDate: 2026-07-02T01:00:00Z\n"
+                      ]
+                    },
+                    "itemSchema": {},
+                    "description": "成功返回 electron-updater latest.yml",
+                    "contentType": "raw",
+                    "mediaType": "text/yaml",
+                    "oasExtensions": ""
+                  },
+                  {
+                    "id": "480639405",
+                    "code": "404",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "string",
+                      "examples": [
+                        "client release not found"
+                      ]
+                    },
+                    "itemSchema": {},
+                    "description": "没有可用版本",
+                    "contentType": "raw",
+                    "mediaType": "text/plain",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "Electron updater 读取的 latest.yml；按 platform/arch/channel/status=published 返回 id 最大的发布记录，Content-Type 为 text/yaml。",
+                "tags": [
+                  "客户端更新"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 3,
+                "cases": [
+                  {
+                    "id": 480639504,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639404",
+                    "parameters": {
+                      "path": [
+                        {
+                          "id": "case_480639304_path_clientReleaseYml_platform",
+                          "relatedId": "clientReleaseYml_platform",
+                          "relatedName": "platform",
+                          "name": "platform",
+                          "type": "string",
+                          "value": "windows",
+                          "enable": true,
+                          "description": "目标平台，Windows 使用 windows",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639304_path_clientReleaseYml_arch",
+                          "relatedId": "clientReleaseYml_arch",
+                          "relatedName": "arch",
+                          "name": "arch",
+                          "type": "string",
+                          "value": "x64",
+                          "enable": true,
+                          "description": "目标架构",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639304_path_clientReleaseYml_channel",
+                          "relatedId": "clientReleaseYml_channel",
+                          "relatedName": "channel",
+                          "name": "channel",
+                          "type": "string",
+                          "value": "stable",
+                          "enable": true,
+                          "description": "目标通道，仅 stable 或 beta",
+                          "isDelete": false
+                        }
+                      ],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "下载 latest.yml 中的安装包资源",
+              "api": {
+                "id": "480639305",
+                "method": "get",
+                "path": "/api/client-releases/updates/{platform}/{arch}/{channel}/download/{id}/{filename}",
+                "parameters": {
+                  "path": [
+                    {
+                      "id": "clientReleaseAsset_platform",
+                      "name": "platform",
+                      "required": true,
+                      "enable": true,
+                      "description": "目标平台，Windows 使用 windows",
+                      "example": "windows",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "windows",
+                          "darwin",
+                          "linux"
+                        ],
+                        "description": "目标平台，Windows 使用 windows"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseAsset_arch",
+                      "name": "arch",
+                      "required": true,
+                      "enable": true,
+                      "description": "目标架构",
+                      "example": "x64",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "x64",
+                          "arm64",
+                          "ia32",
+                          "universal"
+                        ],
+                        "description": "目标架构"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseAsset_channel",
+                      "name": "channel",
+                      "required": true,
+                      "enable": true,
+                      "description": "目标通道，仅 stable 或 beta",
+                      "example": "stable",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "stable",
+                          "beta"
+                        ],
+                        "description": "目标通道，仅 stable 或 beta"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseAsset_id",
+                      "name": "id",
+                      "required": true,
+                      "enable": true,
+                      "description": "客户端版本记录 ID",
+                      "example": "1",
+                      "type": "integer",
+                      "schema": {
+                        "type": "integer",
+                        "description": "客户端版本记录 ID"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseAsset_filename",
+                      "name": "filename",
+                      "required": true,
+                      "enable": true,
+                      "description": "latest.yml 中的文件名；用于 electron-updater 下载路径兼容",
+                      "example": "Z-UP-Setup-1.2.3-windows-x64-stable.exe",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "description": "latest.yml 中的文件名；用于 electron-updater 下载路径兼容"
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {},
+                "securityScheme": {},
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639406",
+                    "code": "302",
+                    "headers": [
+                      {
+                        "name": "Location",
+                        "type": "string",
+                        "description": "私有 OSS 短时签名下载地址",
+                        "schema": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "id": "header_480639406_location"
+                      }
+                    ],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {},
+                      "x-apifox-orders": []
+                    },
+                    "itemSchema": {},
+                    "description": "跳转到私有 OSS 签名下载地址",
+                    "contentType": "noContent",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "Electron updater 使用的安装包下载路径；后端按 id 查找发布记录，成功时 302 跳转到私有 OSS 短时签名 URL。",
+                "tags": [
+                  "客户端更新"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 4,
+                "cases": [
+                  {
+                    "id": 480639505,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639406",
+                    "parameters": {
+                      "path": [
+                        {
+                          "id": "case_480639305_path_clientReleaseAsset_platform",
+                          "relatedId": "clientReleaseAsset_platform",
+                          "relatedName": "platform",
+                          "name": "platform",
+                          "type": "string",
+                          "value": "windows",
+                          "enable": true,
+                          "description": "目标平台，Windows 使用 windows",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639305_path_clientReleaseAsset_arch",
+                          "relatedId": "clientReleaseAsset_arch",
+                          "relatedName": "arch",
+                          "name": "arch",
+                          "type": "string",
+                          "value": "x64",
+                          "enable": true,
+                          "description": "目标架构",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639305_path_clientReleaseAsset_channel",
+                          "relatedId": "clientReleaseAsset_channel",
+                          "relatedName": "channel",
+                          "name": "channel",
+                          "type": "string",
+                          "value": "stable",
+                          "enable": true,
+                          "description": "目标通道，仅 stable 或 beta",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639305_path_clientReleaseAsset_id",
+                          "relatedId": "clientReleaseAsset_id",
+                          "relatedName": "id",
+                          "name": "id",
+                          "type": "integer",
+                          "value": "1",
+                          "enable": true,
+                          "description": "客户端版本记录 ID",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639305_path_clientReleaseAsset_filename",
+                          "relatedId": "clientReleaseAsset_filename",
+                          "relatedName": "filename",
+                          "name": "filename",
+                          "type": "string",
+                          "value": "Z-UP-Setup-1.2.3-windows-x64-stable.exe",
+                          "enable": true,
+                          "description": "latest.yml 中的文件名；用于 electron-updater 下载路径兼容",
+                          "isDelete": false
+                        }
+                      ],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            }
+          ]
+        },
+        {
+          "name": "客户端管理",
+          "id": 480639292,
+          "auth": {},
+          "securityScheme": {},
+          "parentId": 0,
+          "serverId": "",
+          "description": "客户端安装包与版本后台管理接口。上传后文件名由后端固定生成，OSS Object 由后台保存，前端不允许编辑上传名。列表按 id 倒序返回；公开 latest/latest.yml 也按目标范围内 id 最大的已发布记录作为最新记录。",
+          "identityPattern": {
+            "httpApi": {
+              "type": "inherit",
+              "bodyType": "",
+              "fields": []
+            }
+          },
+          "shareSettings": {},
+          "visibility": "INHERITED",
+          "moduleId": 8068398,
+          "preProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ],
+          "postProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ],
+          "inheritPostProcessors": {},
+          "inheritPreProcessors": {},
+          "items": [
+            {
+              "name": "后台获取客户端版本列表",
+              "api": {
+                "id": "480639311",
+                "method": "get",
+                "path": "/api/admin/client-releases/",
+                "parameters": {
+                  "path": [],
+                  "query": [
+                    {
+                      "id": "clientReleaseAdminList_keyword",
+                      "name": "keyword",
+                      "required": false,
+                      "enable": true,
+                      "description": "搜索关键字，匹配版本号、文件名、通道或更新说明；最多 128 个字符",
+                      "example": "",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "description": "搜索关键字，匹配版本号、文件名、通道或更新说明；最多 128 个字符"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseAdminList_platform",
+                      "name": "platform",
+                      "required": false,
+                      "enable": true,
+                      "description": "按平台过滤",
+                      "example": "windows",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "windows",
+                          "darwin",
+                          "linux"
+                        ],
+                        "description": "按平台过滤"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseAdminList_arch",
+                      "name": "arch",
+                      "required": false,
+                      "enable": true,
+                      "description": "按架构过滤",
+                      "example": "x64",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "x64",
+                          "arm64",
+                          "ia32",
+                          "universal"
+                        ],
+                        "description": "按架构过滤"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseAdminList_channel",
+                      "name": "channel",
+                      "required": false,
+                      "enable": true,
+                      "description": "按通道过滤，仅 stable 或 beta",
+                      "example": "stable",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "stable",
+                          "beta"
+                        ],
+                        "description": "按通道过滤，仅 stable 或 beta"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseAdminList_p",
+                      "name": "p",
+                      "required": false,
+                      "enable": true,
+                      "description": "页码",
+                      "example": "1",
+                      "type": "integer",
+                      "schema": {
+                        "type": "integer",
+                        "description": "页码"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseAdminList_page_size",
+                      "name": "page_size",
+                      "required": false,
+                      "enable": true,
+                      "description": "每页数量",
+                      "example": "20",
+                      "type": "integer",
+                      "schema": {
+                        "type": "integer",
+                        "description": "每页数量"
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {
+                  "type": "securityscheme"
+                },
+                "securityScheme": {
+                  "schemeGroups": [
+                    {
+                      "id": "clientReleaseAdminUser_480639311",
+                      "schemeIds": [
+                        1531752
+                      ]
+                    },
+                    {
+                      "id": "clientReleaseAdminApi_480639311",
+                      "schemeIds": [
+                        1531753
+                      ]
+                    }
+                  ],
+                  "required": true,
+                  "use": {
+                    "id": "clientReleaseAdminUser_480639311",
+                    "configs": {
+                      "1531752": {}
+                    }
+                  },
+                  "scopes": {
+                    "clientReleaseAdminApi_480639311": {}
+                  }
+                },
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639411",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/289952106"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "需要管理员权限；返回草稿和已发布版本，并包含 objectKey/status/published 等后台字段。",
+                "tags": [
+                  "客户端管理"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 0,
+                "cases": [
+                  {
+                    "id": 480639511,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639411",
+                    "parameters": {
+                      "path": [],
+                      "query": [
+                        {
+                          "id": "case_480639311_query_clientReleaseAdminList_keyword",
+                          "relatedId": "clientReleaseAdminList_keyword",
+                          "relatedName": "keyword",
+                          "name": "keyword",
+                          "type": "string",
+                          "value": "",
+                          "enable": true,
+                          "description": "搜索关键字，匹配版本号、文件名、通道或更新说明；最多 128 个字符",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639311_query_clientReleaseAdminList_platform",
+                          "relatedId": "clientReleaseAdminList_platform",
+                          "relatedName": "platform",
+                          "name": "platform",
+                          "type": "string",
+                          "value": "windows",
+                          "enable": true,
+                          "description": "按平台过滤",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639311_query_clientReleaseAdminList_arch",
+                          "relatedId": "clientReleaseAdminList_arch",
+                          "relatedName": "arch",
+                          "name": "arch",
+                          "type": "string",
+                          "value": "x64",
+                          "enable": true,
+                          "description": "按架构过滤",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639311_query_clientReleaseAdminList_channel",
+                          "relatedId": "clientReleaseAdminList_channel",
+                          "relatedName": "channel",
+                          "name": "channel",
+                          "type": "string",
+                          "value": "stable",
+                          "enable": true,
+                          "description": "按通道过滤，仅 stable 或 beta",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639311_query_clientReleaseAdminList_p",
+                          "relatedId": "clientReleaseAdminList_p",
+                          "relatedName": "p",
+                          "name": "p",
+                          "type": "integer",
+                          "value": "1",
+                          "enable": true,
+                          "description": "页码",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639311_query_clientReleaseAdminList_page_size",
+                          "relatedId": "clientReleaseAdminList_page_size",
+                          "relatedName": "page_size",
+                          "name": "page_size",
+                          "type": "integer",
+                          "value": "20",
+                          "enable": true,
+                          "description": "每页数量",
+                          "isDelete": false
+                        }
+                      ],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "后台上传客户端安装包",
+              "api": {
+                "id": "480639312",
+                "method": "post",
+                "path": "/api/admin/client-releases/upload",
+                "parameters": {
+                  "path": [],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {
+                  "type": "securityscheme"
+                },
+                "securityScheme": {
+                  "schemeGroups": [
+                    {
+                      "id": "clientReleaseAdminUser_480639312",
+                      "schemeIds": [
+                        1531752
+                      ]
+                    },
+                    {
+                      "id": "clientReleaseAdminApi_480639312",
+                      "schemeIds": [
+                        1531753
+                      ]
+                    }
+                  ],
+                  "required": true,
+                  "use": {
+                    "id": "clientReleaseAdminUser_480639312",
+                    "configs": {
+                      "1531752": {}
+                    }
+                  },
+                  "scopes": {
+                    "clientReleaseAdminApi_480639312": {}
+                  }
+                },
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639412",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/289952109"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "multipart/form-data",
+                  "parameters": [
+                    {
+                      "id": "clientReleaseUpload_file",
+                      "name": "file",
+                      "required": true,
+                      "enable": true,
+                      "description": "安装包文件。支持 exe、msi、dmg、pkg、zip、AppImage、deb、rpm、yml、yaml",
+                      "example": "",
+                      "type": "file",
+                      "schema": {
+                        "type": "string",
+                        "format": "binary",
+                        "description": "安装包文件。支持 exe、msi、dmg、pkg、zip、AppImage、deb、rpm、yml、yaml"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseUpload_version",
+                      "name": "version",
+                      "required": true,
+                      "enable": true,
+                      "description": "版本号，必须是 x.y.z 三段数字，例如 1.2.3",
+                      "example": "1.2.3",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                        "description": "版本号，必须是 x.y.z 三段数字，例如 1.2.3"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseUpload_platform",
+                      "name": "platform",
+                      "required": true,
+                      "enable": true,
+                      "description": "目标平台，Windows 使用 windows；上传前会校验并归一化，非法值不会写入 OSS",
+                      "example": "windows",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "windows",
+                          "darwin",
+                          "linux"
+                        ],
+                        "description": "目标平台，Windows 使用 windows；上传前会校验并归一化，非法值不会写入 OSS"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseUpload_arch",
+                      "name": "arch",
+                      "required": true,
+                      "enable": true,
+                      "description": "目标架构；上传前会校验并归一化，非法值不会写入 OSS",
+                      "example": "x64",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "x64",
+                          "arm64",
+                          "ia32",
+                          "universal"
+                        ],
+                        "description": "目标架构；上传前会校验并归一化，非法值不会写入 OSS"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "clientReleaseUpload_channel",
+                      "name": "channel",
+                      "required": true,
+                      "enable": true,
+                      "description": "目标通道，仅 stable 或 beta；上传前会校验，非法值不会写入 OSS",
+                      "example": "stable",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "enum": [
+                          "stable",
+                          "beta"
+                        ],
+                        "description": "目标通道，仅 stable 或 beta；上传前会校验，非法值不会写入 OSS"
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "oasExtensions": "",
+                  "required": true,
+                  "additionalContentTypes": []
+                },
+                "description": "需要管理员权限；multipart 上传安装包到私有 OSS。上传时后端先校验 version/platform/arch/channel 和文件扩展名，再强制生成文件名 Z-UP-Setup-{version}-{platform}-{arch}-{channel}.{ext}，不允许手动编辑上传名。默认最大 500MB，可通过 CLIENT_RELEASE_OSS_MAX_BYTES 调整。",
+                "tags": [
+                  "客户端管理"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 1,
+                "cases": [
+                  {
+                    "id": 480639512,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639412",
+                    "parameters": {
+                      "path": [],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [
+                        {
+                          "id": "case_480639312_body_clientReleaseUpload_file",
+                          "relatedId": "clientReleaseUpload_file",
+                          "relatedName": "file",
+                          "name": "file",
+                          "type": "file",
+                          "value": "",
+                          "enable": true,
+                          "description": "安装包文件。支持 exe、msi、dmg、pkg、zip、AppImage、deb、rpm、yml、yaml",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639312_body_clientReleaseUpload_version",
+                          "relatedId": "clientReleaseUpload_version",
+                          "relatedName": "version",
+                          "name": "version",
+                          "type": "string",
+                          "value": "1.2.3",
+                          "enable": true,
+                          "description": "版本号，必须是 x.y.z 三段数字，例如 1.2.3",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639312_body_clientReleaseUpload_platform",
+                          "relatedId": "clientReleaseUpload_platform",
+                          "relatedName": "platform",
+                          "name": "platform",
+                          "type": "string",
+                          "value": "windows",
+                          "enable": true,
+                          "description": "目标平台，Windows 使用 windows",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639312_body_clientReleaseUpload_arch",
+                          "relatedId": "clientReleaseUpload_arch",
+                          "relatedName": "arch",
+                          "name": "arch",
+                          "type": "string",
+                          "value": "x64",
+                          "enable": true,
+                          "description": "目标架构",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "case_480639312_body_clientReleaseUpload_channel",
+                          "relatedId": "clientReleaseUpload_channel",
+                          "relatedName": "channel",
+                          "name": "channel",
+                          "type": "string",
+                          "value": "stable",
+                          "enable": true,
+                          "description": "目标通道，仅 stable 或 beta",
+                          "isDelete": false
+                        }
+                      ],
+                      "type": "multipart/form-data",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "后台创建客户端版本",
+              "api": {
+                "id": "480639313",
+                "method": "post",
+                "path": "/api/admin/client-releases/",
+                "parameters": {
+                  "path": [],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {
+                  "type": "securityscheme"
+                },
+                "securityScheme": {
+                  "schemeGroups": [
+                    {
+                      "id": "clientReleaseAdminUser_480639313",
+                      "schemeIds": [
+                        1531752
+                      ]
+                    },
+                    {
+                      "id": "clientReleaseAdminApi_480639313",
+                      "schemeIds": [
+                        1531753
+                      ]
+                    }
+                  ],
+                  "required": true,
+                  "use": {
+                    "id": "clientReleaseAdminUser_480639313",
+                    "configs": {
+                      "1531752": {}
+                    }
+                  },
+                  "scopes": {
+                    "clientReleaseAdminApi_480639313": {}
+                  }
+                },
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639413",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/289952107"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "application/json",
+                  "parameters": [],
+                  "jsonSchema": {
+                    "$ref": "#/definitions/289952104"
+                  },
+                  "mediaType": "application/json",
+                  "oasExtensions": "",
+                  "required": true,
+                  "additionalContentTypes": []
+                },
+                "description": "需要管理员权限；创建版本记录。version 必须是 x.y.z；channel 仅 stable/beta；platform 建议使用 windows/darwin/linux。同 version/platform/arch/channel 存在唯一约束。",
+                "tags": [
+                  "客户端管理"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 2,
+                "cases": [
+                  {
+                    "id": 480639513,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639413",
+                    "parameters": {
+                      "path": [],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "data": "",
+                      "type": "application/json",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "后台获取客户端版本详情",
+              "api": {
+                "id": "480639314",
+                "method": "get",
+                "path": "/api/admin/client-releases/{id}",
+                "parameters": {
+                  "path": [
+                    {
+                      "id": "clientReleaseAdminGet_id",
+                      "name": "id",
+                      "required": true,
+                      "enable": true,
+                      "description": "客户端版本记录 ID",
+                      "example": "1",
+                      "type": "integer",
+                      "schema": {
+                        "type": "integer",
+                        "description": "客户端版本记录 ID"
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {
+                  "type": "securityscheme"
+                },
+                "securityScheme": {
+                  "schemeGroups": [
+                    {
+                      "id": "clientReleaseAdminUser_480639314",
+                      "schemeIds": [
+                        1531752
+                      ]
+                    },
+                    {
+                      "id": "clientReleaseAdminApi_480639314",
+                      "schemeIds": [
+                        1531753
+                      ]
+                    }
+                  ],
+                  "required": true,
+                  "use": {
+                    "id": "clientReleaseAdminUser_480639314",
+                    "configs": {
+                      "1531752": {}
+                    }
+                  },
+                  "scopes": {
+                    "clientReleaseAdminApi_480639314": {}
+                  }
+                },
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639414",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/289952107"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "需要管理员权限；按 ID 获取客户端版本详情。",
+                "tags": [
+                  "客户端管理"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 3,
+                "cases": [
+                  {
+                    "id": 480639514,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639414",
+                    "parameters": {
+                      "path": [
+                        {
+                          "id": "case_480639314_path_clientReleaseAdminGet_id",
+                          "relatedId": "clientReleaseAdminGet_id",
+                          "relatedName": "id",
+                          "name": "id",
+                          "type": "integer",
+                          "value": "1",
+                          "enable": true,
+                          "description": "客户端版本记录 ID",
+                          "isDelete": false
+                        }
+                      ],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "后台更新客户端版本",
+              "api": {
+                "id": "480639315",
+                "method": "put",
+                "path": "/api/admin/client-releases/{id}",
+                "parameters": {
+                  "path": [
+                    {
+                      "id": "clientReleaseAdminUpdate_id",
+                      "name": "id",
+                      "required": true,
+                      "enable": true,
+                      "description": "客户端版本记录 ID",
+                      "example": "1",
+                      "type": "integer",
+                      "schema": {
+                        "type": "integer",
+                        "description": "客户端版本记录 ID"
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {
+                  "type": "securityscheme"
+                },
+                "securityScheme": {
+                  "schemeGroups": [
+                    {
+                      "id": "clientReleaseAdminUser_480639315",
+                      "schemeIds": [
+                        1531752
+                      ]
+                    },
+                    {
+                      "id": "clientReleaseAdminApi_480639315",
+                      "schemeIds": [
+                        1531753
+                      ]
+                    }
+                  ],
+                  "required": true,
+                  "use": {
+                    "id": "clientReleaseAdminUser_480639315",
+                    "configs": {
+                      "1531752": {}
+                    }
+                  },
+                  "scopes": {
+                    "clientReleaseAdminApi_480639315": {}
+                  }
+                },
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639415",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/289952107"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "application/json",
+                  "parameters": [],
+                  "jsonSchema": {
+                    "$ref": "#/definitions/289952104"
+                  },
+                  "mediaType": "application/json",
+                  "oasExtensions": "",
+                  "required": true,
+                  "additionalContentTypes": []
+                },
+                "description": "需要管理员权限；更新版本记录。用于同版本冲突时覆盖既有记录，也可修改发布说明、强制更新策略和发布状态。",
+                "tags": [
+                  "客户端管理"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 4,
+                "cases": [
+                  {
+                    "id": 480639515,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639415",
+                    "parameters": {
+                      "path": [
+                        {
+                          "id": "case_480639315_path_clientReleaseAdminUpdate_id",
+                          "relatedId": "clientReleaseAdminUpdate_id",
+                          "relatedName": "id",
+                          "name": "id",
+                          "type": "integer",
+                          "value": "1",
+                          "enable": true,
+                          "description": "客户端版本记录 ID",
+                          "isDelete": false
+                        }
+                      ],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "data": "",
+                      "type": "application/json",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "后台删除客户端版本",
+              "api": {
+                "id": "480639316",
+                "method": "delete",
+                "path": "/api/admin/client-releases/{id}",
+                "parameters": {
+                  "path": [
+                    {
+                      "id": "clientReleaseAdminDelete_id",
+                      "name": "id",
+                      "required": true,
+                      "enable": true,
+                      "description": "客户端版本记录 ID",
+                      "example": "1",
+                      "type": "integer",
+                      "schema": {
+                        "type": "integer",
+                        "description": "客户端版本记录 ID"
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {
+                  "type": "securityscheme"
+                },
+                "securityScheme": {
+                  "schemeGroups": [
+                    {
+                      "id": "clientReleaseAdminUser_480639316",
+                      "schemeIds": [
+                        1531752
+                      ]
+                    },
+                    {
+                      "id": "clientReleaseAdminApi_480639316",
+                      "schemeIds": [
+                        1531753
+                      ]
+                    }
+                  ],
+                  "required": true,
+                  "use": {
+                    "id": "clientReleaseAdminUser_480639316",
+                    "configs": {
+                      "1531752": {}
+                    }
+                  },
+                  "scopes": {
+                    "clientReleaseAdminApi_480639316": {}
+                  }
+                },
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639416",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/289952110"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "需要管理员权限；删除客户端版本记录。",
+                "tags": [
+                  "客户端管理"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 5,
+                "cases": [
+                  {
+                    "id": 480639516,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639416",
+                    "parameters": {
+                      "path": [
+                        {
+                          "id": "case_480639316_path_clientReleaseAdminDelete_id",
+                          "relatedId": "clientReleaseAdminDelete_id",
+                          "relatedName": "id",
+                          "name": "id",
+                          "type": "integer",
+                          "value": "1",
+                          "enable": true,
+                          "description": "客户端版本记录 ID",
+                          "isDelete": false
+                        }
+                      ],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "后台发布客户端版本",
+              "api": {
+                "id": "480639317",
+                "method": "post",
+                "path": "/api/admin/client-releases/{id}/publish",
+                "parameters": {
+                  "path": [
+                    {
+                      "id": "clientReleaseAdminPublish_id",
+                      "name": "id",
+                      "required": true,
+                      "enable": true,
+                      "description": "客户端版本记录 ID",
+                      "example": "1",
+                      "type": "integer",
+                      "schema": {
+                        "type": "integer",
+                        "description": "客户端版本记录 ID"
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {
+                  "type": "securityscheme"
+                },
+                "securityScheme": {
+                  "schemeGroups": [
+                    {
+                      "id": "clientReleaseAdminUser_480639317",
+                      "schemeIds": [
+                        1531752
+                      ]
+                    },
+                    {
+                      "id": "clientReleaseAdminApi_480639317",
+                      "schemeIds": [
+                        1531753
+                      ]
+                    }
+                  ],
+                  "required": true,
+                  "use": {
+                    "id": "clientReleaseAdminUser_480639317",
+                    "configs": {
+                      "1531752": {}
+                    }
+                  },
+                  "scopes": {
+                    "clientReleaseAdminApi_480639317": {}
+                  }
+                },
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639417",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/289952107"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "需要管理员权限；将版本状态改为已发布。发布前必须已有 sha512，否则 latest.yml 无法供 electron-updater 校验。公开列表、latest 接口和 latest.yml 只会读取已发布版本。",
+                "tags": [
+                  "客户端管理"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 6,
+                "cases": [
+                  {
+                    "id": 480639517,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639417",
+                    "parameters": {
+                      "path": [
+                        {
+                          "id": "case_480639317_path_clientReleaseAdminPublish_id",
+                          "relatedId": "clientReleaseAdminPublish_id",
+                          "relatedName": "id",
+                          "name": "id",
+                          "type": "integer",
+                          "value": "1",
+                          "enable": true,
+                          "description": "客户端版本记录 ID",
+                          "isDelete": false
+                        }
+                      ],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "后台取消发布客户端版本",
+              "api": {
+                "id": "480639318",
+                "method": "post",
+                "path": "/api/admin/client-releases/{id}/unpublish",
+                "parameters": {
+                  "path": [
+                    {
+                      "id": "clientReleaseAdminUnpublish_id",
+                      "name": "id",
+                      "required": true,
+                      "enable": true,
+                      "description": "客户端版本记录 ID",
+                      "example": "1",
+                      "type": "integer",
+                      "schema": {
+                        "type": "integer",
+                        "description": "客户端版本记录 ID"
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {
+                  "type": "securityscheme"
+                },
+                "securityScheme": {
+                  "schemeGroups": [
+                    {
+                      "id": "clientReleaseAdminUser_480639318",
+                      "schemeIds": [
+                        1531752
+                      ]
+                    },
+                    {
+                      "id": "clientReleaseAdminApi_480639318",
+                      "schemeIds": [
+                        1531753
+                      ]
+                    }
+                  ],
+                  "required": true,
+                  "use": {
+                    "id": "clientReleaseAdminUser_480639318",
+                    "configs": {
+                      "1531752": {}
+                    }
+                  },
+                  "scopes": {
+                    "clientReleaseAdminApi_480639318": {}
+                  }
+                },
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639418",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/289952107"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "需要管理员权限；将版本状态改为草稿。取消发布后公开更新接口不再返回该版本。",
+                "tags": [
+                  "客户端管理"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 7,
+                "cases": [
+                  {
+                    "id": 480639518,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639418",
+                    "parameters": {
+                      "path": [
+                        {
+                          "id": "case_480639318_path_clientReleaseAdminUnpublish_id",
+                          "relatedId": "clientReleaseAdminUnpublish_id",
+                          "relatedName": "id",
+                          "name": "id",
+                          "type": "integer",
+                          "value": "1",
+                          "enable": true,
+                          "description": "客户端版本记录 ID",
+                          "isDelete": false
+                        }
+                      ],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            }
+          ]
+        },
+        {
           "name": "对话模型",
           "id": 89665939,
           "auth": {},
@@ -48230,6 +50915,722 @@
                   "x-apifox-orders": [
                     "billing_preference"
                   ]
+                }
+              },
+              "required": [
+                "success"
+              ],
+              "x-apifox-orders": [
+                "success",
+                "message",
+                "data"
+              ]
+            }
+          },
+          "visibility": "INHERITED",
+          "moduleId": 8068398
+        },
+        {
+          "name": "ClientRelease",
+          "displayName": "",
+          "id": "#/definitions/289952101",
+          "description": "客户端版本记录。公开接口不会返回 objectKey/status/published 等后台字段",
+          "schema": {
+            "jsonSchema": {
+              "type": "object",
+              "description": "",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "description": "版本记录 ID",
+                  "examples": [
+                    1
+                  ]
+                },
+                "version": {
+                  "type": "string",
+                  "description": "客户端版本号，必须是 x.y.z 三段数字，例如 1.2.3；不支持 v 前缀、预发布号或 build 后缀",
+                  "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                  "examples": [
+                    "1.2.3"
+                  ]
+                },
+                "platform": {
+                  "type": "string",
+                  "description": "目标平台。Windows 使用 windows；后端兼容 win32 别名，但新数据建议统一使用 windows",
+                  "enum": [
+                    "windows",
+                    "darwin",
+                    "linux"
+                  ],
+                  "examples": [
+                    "windows"
+                  ]
+                },
+                "arch": {
+                  "type": "string",
+                  "description": "目标 CPU 架构",
+                  "enum": [
+                    "x64",
+                    "arm64",
+                    "ia32",
+                    "universal"
+                  ],
+                  "examples": [
+                    "x64"
+                  ]
+                },
+                "channel": {
+                  "type": "string",
+                  "description": "发布通道，仅支持 stable 或 beta；为空时后端默认 stable",
+                  "enum": [
+                    "stable",
+                    "beta"
+                  ],
+                  "examples": [
+                    "stable"
+                  ]
+                },
+                "fileName": {
+                  "type": "string",
+                  "description": "下载文件名。上传时由后端强制生成：Z-UP-Setup-{version}-{platform}-{arch}-{channel}.{ext}",
+                  "examples": [
+                    "Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+                  ]
+                },
+                "objectKey": {
+                  "type": "string",
+                  "description": "私有 OSS Object Key；仅后台接口返回，公开接口不返回",
+                  "examples": [
+                    "client-releases/stable/windows/x64/1.2.3/20260702090000.000000000-Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+                  ]
+                },
+                "downloadUrl": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "New API 下载入口。调用后会 302 跳转到私有 OSS 的短时签名地址",
+                  "examples": [
+                    "https://api.example.com/api/client-releases/download/1"
+                  ]
+                },
+                "size": {
+                  "type": "integer",
+                  "description": "安装包大小，单位 byte",
+                  "examples": [
+                    104857600
+                  ]
+                },
+                "sha256": {
+                  "type": "string",
+                  "description": "SHA256 校验值，上传接口返回 sha256:<hex>",
+                  "examples": [
+                    "sha256:0123456789abcdef"
+                  ]
+                },
+                "sha512": {
+                  "type": "string",
+                  "description": "SHA512 base64 校验值，供 electron-updater latest.yml 使用；已发布版本必须存在",
+                  "examples": [
+                    "base64-sha512-value"
+                  ]
+                },
+                "releaseNotes": {
+                  "type": "string",
+                  "description": "更新说明",
+                  "examples": [
+                    "修复已知问题"
+                  ]
+                },
+                "minVersion": {
+                  "type": "string",
+                  "description": "最低允许版本。forced=true 且当前版本低于该值时，latest 接口返回 forceUpdate=true",
+                  "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                  "examples": [
+                    "1.0.0"
+                  ]
+                },
+                "forced": {
+                  "type": "boolean",
+                  "description": "是否启用强制更新策略",
+                  "examples": [
+                    false
+                  ]
+                },
+                "published": {
+                  "type": "boolean",
+                  "description": "是否已发布；后台接口返回",
+                  "examples": [
+                    true
+                  ]
+                },
+                "status": {
+                  "type": "integer",
+                  "description": "发布状态：0=草稿，1=已发布；后台接口返回",
+                  "enum": [
+                    0,
+                    1
+                  ],
+                  "examples": [
+                    1
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "创建时间，RFC3339",
+                  "examples": [
+                    "2026-07-02T01:00:00Z"
+                  ]
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "更新时间，RFC3339",
+                  "examples": [
+                    "2026-07-02T01:00:00Z"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "version",
+                "platform",
+                "arch",
+                "channel",
+                "fileName",
+                "size",
+                "forced"
+              ],
+              "x-apifox-orders": [
+                "id",
+                "version",
+                "platform",
+                "arch",
+                "channel",
+                "fileName",
+                "objectKey",
+                "downloadUrl",
+                "size",
+                "sha256",
+                "sha512",
+                "releaseNotes",
+                "minVersion",
+                "forced",
+                "published",
+                "status",
+                "createdAt",
+                "updatedAt"
+              ]
+            }
+          },
+          "visibility": "INHERITED",
+          "moduleId": 8068398
+        },
+        {
+          "name": "ClientReleaseListData",
+          "displayName": "",
+          "id": "#/definitions/289952102",
+          "description": "客户端版本列表数据",
+          "schema": {
+            "jsonSchema": {
+              "type": "object",
+              "description": "",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "description": "版本记录列表",
+                  "items": {
+                    "$ref": "#/definitions/289952101"
+                  }
+                },
+                "total": {
+                  "type": "integer",
+                  "description": "总数",
+                  "examples": [
+                    1
+                  ]
+                }
+              },
+              "required": [
+                "items",
+                "total"
+              ],
+              "x-apifox-orders": [
+                "items",
+                "total"
+              ]
+            }
+          },
+          "visibility": "INHERITED",
+          "moduleId": 8068398
+        },
+        {
+          "name": "ClientReleaseLatestData",
+          "displayName": "",
+          "id": "#/definitions/289952103",
+          "description": "客户端更新检查结果。后端负责判断是否有新版本，客户端只需按返回值处理",
+          "schema": {
+            "jsonSchema": {
+              "type": "object",
+              "description": "",
+              "properties": {
+                "updateAvailable": {
+                  "type": "boolean",
+                  "description": "是否有可用更新",
+                  "examples": [
+                    true
+                  ]
+                },
+                "forceUpdate": {
+                  "type": "boolean",
+                  "description": "是否需要强制更新；没有最新版本时该字段可能不存在",
+                  "examples": [
+                    false
+                  ]
+                },
+                "currentVersion": {
+                  "type": "string",
+                  "description": "请求传入的当前版本",
+                  "examples": [
+                    "1.0.0"
+                  ]
+                },
+                "latest": {
+                  "$ref": "#/definitions/289952101",
+                  "description": "最新已发布版本；没有可用版本时不存在"
+                }
+              },
+              "required": [
+                "updateAvailable",
+                "currentVersion"
+              ],
+              "x-apifox-orders": [
+                "updateAvailable",
+                "forceUpdate",
+                "currentVersion",
+                "latest"
+              ]
+            }
+          },
+          "visibility": "INHERITED",
+          "moduleId": 8068398
+        },
+        {
+          "name": "ClientReleaseRequest",
+          "displayName": "",
+          "id": "#/definitions/289952104",
+          "description": "创建或更新客户端版本记录的请求体。草稿可先保存，已发布版本必须带 sha512。",
+          "schema": {
+            "jsonSchema": {
+              "type": "object",
+              "description": "",
+              "properties": {
+                "version": {
+                  "type": "string",
+                  "description": "客户端版本号，必须是 x.y.z 三段数字，例如 1.2.3；不支持 v 前缀、预发布号或 build 后缀",
+                  "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                  "examples": [
+                    "1.2.3"
+                  ]
+                },
+                "platform": {
+                  "type": "string",
+                  "description": "目标平台。Windows 使用 windows；后端兼容 win32 别名，但新数据建议统一使用 windows",
+                  "enum": [
+                    "windows",
+                    "darwin",
+                    "linux"
+                  ],
+                  "examples": [
+                    "windows"
+                  ]
+                },
+                "arch": {
+                  "type": "string",
+                  "description": "目标 CPU 架构",
+                  "enum": [
+                    "x64",
+                    "arm64",
+                    "ia32",
+                    "universal"
+                  ],
+                  "examples": [
+                    "x64"
+                  ]
+                },
+                "channel": {
+                  "type": "string",
+                  "description": "发布通道，仅支持 stable 或 beta；为空时后端默认 stable",
+                  "enum": [
+                    "stable",
+                    "beta"
+                  ],
+                  "examples": [
+                    "stable"
+                  ]
+                },
+                "fileName": {
+                  "type": "string",
+                  "description": "上传接口返回的 fileName。前端不应手动编辑上传后的文件名",
+                  "examples": [
+                    "Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+                  ]
+                },
+                "objectKey": {
+                  "type": "string",
+                  "description": "上传接口返回的 object 字段，保存版本记录时传入 objectKey",
+                  "examples": [
+                    "client-releases/stable/windows/x64/1.2.3/20260702090000.000000000-Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+                  ]
+                },
+                "size": {
+                  "type": "integer",
+                  "description": "上传接口返回的 size，单位 byte",
+                  "examples": [
+                    104857600
+                  ]
+                },
+                "sha256": {
+                  "type": "string",
+                  "description": "上传接口返回的 sha256",
+                  "examples": [
+                    "sha256:0123456789abcdef"
+                  ]
+                },
+                "sha512": {
+                  "type": "string",
+                  "description": "上传接口返回的 sha512；已发布版本必须存在",
+                  "examples": [
+                    "base64-sha512-value"
+                  ]
+                },
+                "releaseNotes": {
+                  "type": "string",
+                  "description": "更新说明",
+                  "examples": [
+                    "修复已知问题"
+                  ]
+                },
+                "minVersion": {
+                  "type": "string",
+                  "description": "最低允许版本，必须是 x.y.z 三段数字；可为空",
+                  "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                  "examples": [
+                    "1.0.0"
+                  ]
+                },
+                "forced": {
+                  "type": "boolean",
+                  "description": "是否启用强制更新策略",
+                  "examples": [
+                    false
+                  ]
+                },
+                "published": {
+                  "type": "boolean",
+                  "description": "是否直接发布；status 为空时会按该值写入状态",
+                  "examples": [
+                    false
+                  ]
+                },
+                "status": {
+                  "type": "integer",
+                  "description": "发布状态：0=草稿，1=已发布；传入时优先于 published",
+                  "enum": [
+                    0,
+                    1
+                  ],
+                  "examples": [
+                    0
+                  ]
+                }
+              },
+              "required": [
+                "version",
+                "platform",
+                "arch",
+                "channel",
+                "fileName",
+                "objectKey",
+                "size"
+              ],
+              "x-apifox-orders": [
+                "version",
+                "platform",
+                "arch",
+                "channel",
+                "fileName",
+                "objectKey",
+                "size",
+                "sha256",
+                "sha512",
+                "releaseNotes",
+                "minVersion",
+                "forced",
+                "published",
+                "status"
+              ]
+            }
+          },
+          "visibility": "INHERITED",
+          "moduleId": 8068398
+        },
+        {
+          "name": "ClientReleaseUploadResult",
+          "displayName": "",
+          "id": "#/definitions/289952105",
+          "description": "安装包上传到私有 OSS 后的结果",
+          "schema": {
+            "jsonSchema": {
+              "type": "object",
+              "description": "",
+              "properties": {
+                "fileName": {
+                  "type": "string",
+                  "description": "后端强制生成的文件名，格式为 Z-UP-Setup-{version}-{platform}-{arch}-{channel}.{ext}",
+                  "examples": [
+                    "Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+                  ]
+                },
+                "object": {
+                  "type": "string",
+                  "description": "私有 OSS Object Key。保存版本记录时作为 objectKey 传入",
+                  "examples": [
+                    "client-releases/stable/windows/x64/1.2.3/20260702090000.000000000-Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+                  ]
+                },
+                "size": {
+                  "type": "integer",
+                  "description": "上传文件大小，单位 byte",
+                  "examples": [
+                    104857600
+                  ]
+                },
+                "sha256": {
+                  "type": "string",
+                  "description": "SHA256 校验值，格式 sha256:<hex>",
+                  "examples": [
+                    "sha256:0123456789abcdef"
+                  ]
+                },
+                "sha512": {
+                  "type": "string",
+                  "description": "SHA512 base64 校验值",
+                  "examples": [
+                    "base64-sha512-value"
+                  ]
+                }
+              },
+              "required": [
+                "fileName",
+                "object",
+                "size",
+                "sha256",
+                "sha512"
+              ],
+              "x-apifox-orders": [
+                "fileName",
+                "object",
+                "size",
+                "sha256",
+                "sha512"
+              ]
+            }
+          },
+          "visibility": "INHERITED",
+          "moduleId": 8068398
+        },
+        {
+          "name": "ClientReleaseListResponse",
+          "displayName": "",
+          "id": "#/definitions/289952106",
+          "description": "客户端版本列表响应",
+          "schema": {
+            "jsonSchema": {
+              "type": "object",
+              "description": "",
+              "properties": {
+                "success": {
+                  "type": "boolean",
+                  "description": "请求是否成功。业务错误通常也会返回 HTTP 200，并通过 success/message 表示结果",
+                  "examples": [
+                    true
+                  ]
+                },
+                "message": {
+                  "type": "string",
+                  "description": "响应消息",
+                  "examples": [
+                    ""
+                  ]
+                },
+                "data": {
+                  "$ref": "#/definitions/289952102"
+                }
+              },
+              "required": [
+                "success"
+              ],
+              "x-apifox-orders": [
+                "success",
+                "message",
+                "data"
+              ]
+            }
+          },
+          "visibility": "INHERITED",
+          "moduleId": 8068398
+        },
+        {
+          "name": "ClientReleaseResponse",
+          "displayName": "",
+          "id": "#/definitions/289952107",
+          "description": "单个客户端版本响应",
+          "schema": {
+            "jsonSchema": {
+              "type": "object",
+              "description": "",
+              "properties": {
+                "success": {
+                  "type": "boolean",
+                  "description": "请求是否成功。业务错误通常也会返回 HTTP 200，并通过 success/message 表示结果",
+                  "examples": [
+                    true
+                  ]
+                },
+                "message": {
+                  "type": "string",
+                  "description": "响应消息",
+                  "examples": [
+                    ""
+                  ]
+                },
+                "data": {
+                  "$ref": "#/definitions/289952101"
+                }
+              },
+              "required": [
+                "success"
+              ],
+              "x-apifox-orders": [
+                "success",
+                "message",
+                "data"
+              ]
+            }
+          },
+          "visibility": "INHERITED",
+          "moduleId": 8068398
+        },
+        {
+          "name": "ClientReleaseLatestResponse",
+          "displayName": "",
+          "id": "#/definitions/289952108",
+          "description": "客户端更新检查响应",
+          "schema": {
+            "jsonSchema": {
+              "type": "object",
+              "description": "",
+              "properties": {
+                "success": {
+                  "type": "boolean",
+                  "description": "请求是否成功。业务错误通常也会返回 HTTP 200，并通过 success/message 表示结果",
+                  "examples": [
+                    true
+                  ]
+                },
+                "message": {
+                  "type": "string",
+                  "description": "响应消息",
+                  "examples": [
+                    ""
+                  ]
+                },
+                "data": {
+                  "$ref": "#/definitions/289952103"
+                }
+              },
+              "required": [
+                "success"
+              ],
+              "x-apifox-orders": [
+                "success",
+                "message",
+                "data"
+              ]
+            }
+          },
+          "visibility": "INHERITED",
+          "moduleId": 8068398
+        },
+        {
+          "name": "ClientReleaseUploadResponse",
+          "displayName": "",
+          "id": "#/definitions/289952109",
+          "description": "客户端安装包上传响应",
+          "schema": {
+            "jsonSchema": {
+              "type": "object",
+              "description": "",
+              "properties": {
+                "success": {
+                  "type": "boolean",
+                  "description": "请求是否成功。业务错误通常也会返回 HTTP 200，并通过 success/message 表示结果",
+                  "examples": [
+                    true
+                  ]
+                },
+                "message": {
+                  "type": "string",
+                  "description": "响应消息",
+                  "examples": [
+                    ""
+                  ]
+                },
+                "data": {
+                  "$ref": "#/definitions/289952105"
+                }
+              },
+              "required": [
+                "success"
+              ],
+              "x-apifox-orders": [
+                "success",
+                "message",
+                "data"
+              ]
+            }
+          },
+          "visibility": "INHERITED",
+          "moduleId": 8068398
+        },
+        {
+          "name": "ClientReleaseEmptyResponse",
+          "displayName": "",
+          "id": "#/definitions/289952110",
+          "description": "无数据响应",
+          "schema": {
+            "jsonSchema": {
+              "type": "object",
+              "description": "",
+              "properties": {
+                "success": {
+                  "type": "boolean",
+                  "description": "请求是否成功。业务错误通常也会返回 HTTP 200，并通过 success/message 表示结果",
+                  "examples": [
+                    true
+                  ]
+                },
+                "message": {
+                  "type": "string",
+                  "description": "响应消息",
+                  "examples": [
+                    ""
+                  ]
+                },
+                "data": {
+                  "type": "null",
+                  "description": "无返回数据"
                 }
               },
               "required": [

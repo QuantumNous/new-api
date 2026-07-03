@@ -34,6 +34,7 @@ import {
   ListTodo,
   Settings,
   Puzzle,
+  Package,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
@@ -132,20 +133,25 @@ export function useSidebarData(): SidebarData {
             icon: Box,
           },
           {
-            title: '技能广场管理',
+            title: t('Skill Hub'),
             icon: Puzzle,
             activeUrls: ['/skill-hub'],
             configUrls: ['/skill-hub', '/skill-hub/tags'],
             items: [
               {
-                title: '技能管理',
+                title: t('Skills'),
                 url: '/skill-hub',
               },
               {
-                title: '标签管理',
+                title: t('Tags'),
                 url: '/skill-hub/tags',
               },
             ],
+          },
+          {
+            title: t('Client Management'),
+            url: '/client-releases',
+            icon: Package,
           },
           {
             title: t('Users'),

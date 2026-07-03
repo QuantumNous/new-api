@@ -53,6 +53,7 @@ import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import SkillHub from './pages/SkillHub';
 import SkillHubTags from './pages/SkillHubTags';
+import ClientReleases from './pages/ClientReleases';
 import Playground from './pages/Playground';
 import ImagePlayground from './pages/ImagePlayground';
 import VideoPlayground from './pages/VideoPlayground';
@@ -168,6 +169,14 @@ function App() {
           element={
             <AdminRoute>
               <SkillHubTags />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/client-releases'
+          element={
+            <AdminRoute>
+              <ClientReleases />
             </AdminRoute>
           }
         />

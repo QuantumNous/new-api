@@ -76,6 +76,14 @@
     },
     {
       "name": "系统设置"
+    },
+    {
+      "name": "客户端更新",
+      "description": "客户端自动更新公开接口"
+    },
+    {
+      "name": "客户端管理",
+      "description": "客户端安装包与版本后台管理接口"
     }
   ],
   "paths": {
@@ -6576,6 +6584,845 @@
           }
         ]
       }
+    },
+    "/api/client-releases/": {
+      "get": {
+        "summary": "获取客户端版本列表",
+        "deprecated": false,
+        "description": "无需鉴权；仅返回已发布版本。列表按 id 倒序返回。",
+        "tags": [
+          "客户端更新"
+        ],
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "description": "搜索关键字，匹配版本号、文件名或通道；最多 128 个字符",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "platform",
+            "in": "query",
+            "description": "目标平台，Windows 使用 windows；后端兼容 win32 别名",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "windows",
+                "darwin",
+                "linux"
+              ]
+            }
+          },
+          {
+            "name": "arch",
+            "in": "query",
+            "description": "目标 CPU 架构；后端兼容 amd64 别名",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "x64",
+                "arm64",
+                "ia32",
+                "universal"
+              ]
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "description": "发布通道，仅 stable 或 beta；为空时后端默认 stable",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "stable",
+                "beta"
+              ]
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "页码",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReleaseListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/client-releases/latest": {
+      "get": {
+        "summary": "检查客户端最新版本",
+        "deprecated": false,
+        "description": "无需鉴权；按 platform/arch/channel/status=published 返回 id 最大的发布记录，并根据 current_version 判断是否需要更新。该接口只用于客户端检查更新和展示弹窗信息；安装包实际下载由 electron-updater 读取 latest.yml 完成。",
+        "tags": [
+          "客户端更新"
+        ],
+        "parameters": [
+          {
+            "name": "platform",
+            "in": "query",
+            "description": "目标平台，Windows 使用 windows；后端兼容 win32 别名",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "windows",
+                "darwin",
+                "linux"
+              ]
+            }
+          },
+          {
+            "name": "arch",
+            "in": "query",
+            "description": "目标 CPU 架构；后端兼容 amd64 别名",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "x64",
+                "arm64",
+                "ia32",
+                "universal"
+              ]
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "description": "发布通道，仅 stable 或 beta；为空时后端默认 stable",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "stable",
+                "beta"
+              ]
+            }
+          },
+          {
+            "name": "current_version",
+            "in": "query",
+            "description": "客户端当前版本，必须是 x.y.z；缺省时会把最新发布记录视为可更新",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "description": "current_version 的兼容别名",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReleaseLatestResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/client-releases/download/{id}": {
+      "get": {
+        "summary": "下载客户端安装包",
+        "deprecated": false,
+        "description": "无需鉴权；成功时 302 跳转到私有 OSS 短时签名地址。下载文件名由发布记录 fileName 控制。",
+        "tags": [
+          "客户端更新"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "客户端版本记录 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "跳转到私有 OSS 签名下载地址",
+            "headers": {
+              "Location": {
+                "description": "私有 OSS 短时签名下载地址",
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/client-releases/updates/{platform}/{arch}/{channel}/latest.yml": {
+      "get": {
+        "summary": "获取客户端 latest.yml",
+        "deprecated": false,
+        "description": "Electron updater 在“下载更新”阶段读取的 latest.yml；按 platform/arch/channel/status=published 返回 id 最大且带 sha512 的发布记录。客户端下载完成后会等待用户点击“更新并重启程序”，再静默安装并重启。",
+        "tags": [
+          "客户端更新"
+        ],
+        "parameters": [
+          {
+            "name": "platform",
+            "in": "path",
+            "description": "目标平台，Windows 使用 windows",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "windows",
+                "darwin",
+                "linux"
+              ]
+            }
+          },
+          {
+            "name": "arch",
+            "in": "path",
+            "description": "目标 CPU 架构",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "x64",
+                "arm64",
+                "ia32",
+                "universal"
+              ]
+            }
+          },
+          {
+            "name": "channel",
+            "in": "path",
+            "description": "目标通道，仅 stable 或 beta",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "stable",
+                "beta"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功返回 electron-updater latest.yml",
+            "content": {
+              "text/yaml": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "version: 1.2.3\nfiles:\n  - url: download/1/Z-UP-Setup-1.2.3-windows-x64-stable.exe\n    sha512: base64-sha512-value\n    size: 104857600\npath: download/1/Z-UP-Setup-1.2.3-windows-x64-stable.exe\nsha512: base64-sha512-value\nreleaseDate: 2026-07-02T01:00:00Z\n"
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/client-releases/updates/{platform}/{arch}/{channel}/download/{id}/{filename}": {
+      "get": {
+        "summary": "下载 latest.yml 中的安装包资源",
+        "deprecated": false,
+        "description": "Electron updater 使用的安装包下载路径；后端按 id 查找发布记录，成功时 302 跳转到私有 OSS 短时签名地址。",
+        "tags": [
+          "客户端更新"
+        ],
+        "parameters": [
+          {
+            "name": "platform",
+            "in": "path",
+            "description": "目标平台，Windows 使用 windows",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "windows",
+                "darwin",
+                "linux"
+              ]
+            }
+          },
+          {
+            "name": "arch",
+            "in": "path",
+            "description": "目标 CPU 架构",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "x64",
+                "arm64",
+                "ia32",
+                "universal"
+              ]
+            }
+          },
+          {
+            "name": "channel",
+            "in": "path",
+            "description": "目标通道，仅 stable 或 beta",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "stable",
+                "beta"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "客户端版本记录 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "path",
+            "description": "latest.yml 中的文件名；用于 electron-updater 下载路径兼容",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "跳转到私有 OSS 签名下载地址",
+            "headers": {
+              "Location": {
+                "description": "私有 OSS 短时签名下载地址",
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/admin/client-releases/": {
+      "get": {
+        "summary": "后台获取客户端版本列表",
+        "deprecated": false,
+        "description": "需要管理员权限（Admin）；列表按 id 倒序返回。",
+        "tags": [
+          "客户端管理"
+        ],
+        "parameters": [
+          {
+            "name": "keyword",
+            "in": "query",
+            "description": "搜索关键字，匹配版本号、文件名或通道；最多 128 个字符",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "platform",
+            "in": "query",
+            "description": "目标平台，Windows 使用 windows；后端兼容 win32 别名",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "windows",
+                "darwin",
+                "linux"
+              ]
+            }
+          },
+          {
+            "name": "arch",
+            "in": "query",
+            "description": "目标 CPU 架构；后端兼容 amd64 别名",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "x64",
+                "arm64",
+                "ia32",
+                "universal"
+              ]
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "description": "发布通道，仅 stable 或 beta；为空时后端默认 stable",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "stable",
+                "beta"
+              ]
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "页码",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "每页数量",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReleaseListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "后台创建客户端版本",
+        "deprecated": false,
+        "description": "需要管理员权限（Admin）；同版本、平台、架构、通道存在冲突时后端会按唯一索引拒绝。已发布版本必须带 sha512。",
+        "tags": [
+          "客户端管理"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientReleaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReleaseResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/admin/client-releases/upload": {
+      "post": {
+        "summary": "后台上传客户端安装包",
+        "deprecated": false,
+        "description": "需要管理员权限（Admin）；multipart 上传安装包到私有 OSS。上传时后端先校验 version/platform/arch/channel 和文件扩展名，再强制生成文件名 Z-UP-Setup-{version}-{platform}-{arch}-{channel}.{ext}，不允许手动编辑上传名。默认最大 500MB，可通过 CLIENT_RELEASE_OSS_MAX_BYTES 调整。",
+        "tags": [
+          "客户端管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "version",
+                  "platform",
+                  "arch",
+                  "channel"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "安装包文件。支持 exe、msi、dmg、pkg、zip、AppImage、deb、rpm、yml、yaml"
+                  },
+                  "version": {
+                    "type": "string",
+                    "description": "版本号，必须是 x.y.z 三段数字，例如 1.2.3",
+                    "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                    "example": "1.2.3"
+                  },
+                  "platform": {
+                    "type": "string",
+                    "enum": [
+                      "windows",
+                      "darwin",
+                      "linux"
+                    ],
+                    "description": "目标平台，Windows 使用 windows；上传前会校验并归一化，非法值不会写入 OSS",
+                    "example": "windows"
+                  },
+                  "arch": {
+                    "type": "string",
+                    "enum": [
+                      "x64",
+                      "arm64",
+                      "ia32",
+                      "universal"
+                    ],
+                    "description": "目标架构；上传前会校验并归一化，非法值不会写入 OSS",
+                    "example": "x64"
+                  },
+                  "channel": {
+                    "type": "string",
+                    "enum": [
+                      "stable",
+                      "beta"
+                    ],
+                    "description": "目标通道，仅 stable 或 beta；上传前会校验，非法值不会写入 OSS",
+                    "example": "stable"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReleaseUploadResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/admin/client-releases/{id}": {
+      "get": {
+        "summary": "后台获取客户端版本详情",
+        "deprecated": false,
+        "description": "需要管理员权限（Admin）",
+        "tags": [
+          "客户端管理"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "客户端版本记录 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReleaseResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "后台更新客户端版本",
+        "deprecated": false,
+        "description": "需要管理员权限（Admin）；已发布版本必须带 sha512。",
+        "tags": [
+          "客户端管理"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "客户端版本记录 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientReleaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReleaseResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "后台删除客户端版本",
+        "deprecated": false,
+        "description": "需要管理员权限（Admin）；删除客户端版本记录。",
+        "tags": [
+          "客户端管理"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "客户端版本记录 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReleaseEmptyResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/admin/client-releases/{id}/publish": {
+      "post": {
+        "summary": "后台发布客户端版本",
+        "deprecated": false,
+        "description": "需要管理员权限（Admin）；发布前必须已有 sha512，否则 latest.yml 无法供 electron-updater 校验。公开列表、latest 接口和 latest.yml 只会读取已发布版本。",
+        "tags": [
+          "客户端管理"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "客户端版本记录 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReleaseResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/admin/client-releases/{id}/unpublish": {
+      "post": {
+        "summary": "后台取消发布客户端版本",
+        "deprecated": false,
+        "description": "需要管理员权限（Admin）；取消发布后公开列表、latest 和 latest.yml 不再返回该版本。",
+        "tags": [
+          "客户端管理"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "客户端版本记录 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReleaseResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -7640,6 +8487,379 @@
           "created_count",
           "skipped_count"
         ]
+      },
+      "ClientRelease": {
+        "type": "object",
+        "description": "客户端版本记录。公开接口不会返回 objectKey/status/published 等后台字段",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "版本记录 ID",
+            "example": 1
+          },
+          "version": {
+            "type": "string",
+            "description": "客户端版本号，必须是 x.y.z 三段数字，例如 1.2.3；不支持 v 前缀、预发布号或 build 后缀",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "example": "1.2.3"
+          },
+          "platform": {
+            "type": "string",
+            "description": "目标平台。Windows 使用 windows；后端兼容 win32 别名，但新数据建议统一使用 windows",
+            "enum": [
+              "windows",
+              "darwin",
+              "linux"
+            ],
+            "example": "windows"
+          },
+          "arch": {
+            "type": "string",
+            "description": "目标 CPU 架构",
+            "enum": [
+              "x64",
+              "arm64",
+              "ia32",
+              "universal"
+            ],
+            "example": "x64"
+          },
+          "channel": {
+            "type": "string",
+            "description": "发布通道，仅支持 stable 或 beta；为空时后端默认 stable",
+            "enum": [
+              "stable",
+              "beta"
+            ],
+            "example": "stable"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "下载文件名。上传时由后端强制生成：Z-UP-Setup-{version}-{platform}-{arch}-{channel}.{ext}",
+            "example": "Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+          },
+          "objectKey": {
+            "type": "string",
+            "description": "私有 OSS Object Key；仅后台接口返回，公开接口不返回",
+            "example": "client-releases/stable/windows/x64/1.2.3/20260702090000.000000000-Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+          },
+          "downloadUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "New API 下载入口。调用后会 302 跳转到私有 OSS 的短时签名地址",
+            "example": "https://api.example.com/api/client-releases/download/1"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "安装包大小，单位 byte",
+            "example": 104857600
+          },
+          "sha256": {
+            "type": "string",
+            "description": "SHA256 校验值，上传接口返回 sha256:<hex>",
+            "example": "sha256:0123456789abcdef"
+          },
+          "sha512": {
+            "type": "string",
+            "description": "SHA512 base64 校验值，供 electron-updater latest.yml 使用；已发布版本必须存在",
+            "example": "base64-sha512-value"
+          },
+          "releaseNotes": {
+            "type": "string",
+            "description": "更新说明",
+            "example": "修复已知问题"
+          },
+          "minVersion": {
+            "type": "string",
+            "description": "最低允许版本，必须是 x.y.z 三段数字；可为空",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "example": "1.0.0"
+          },
+          "forced": {
+            "type": "boolean",
+            "description": "是否启用强制更新策略",
+            "example": false
+          },
+          "published": {
+            "type": "boolean",
+            "description": "是否已发布；公开接口不返回有效值",
+            "example": true
+          },
+          "status": {
+            "type": "integer",
+            "description": "发布状态：0=草稿，1=已发布；公开接口不返回有效值",
+            "enum": [
+              0,
+              1
+            ],
+            "example": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "更新时间"
+          }
+        }
+      },
+      "ClientReleaseListData": {
+        "type": "object",
+        "description": "客户端版本列表数据",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClientRelease"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "总数"
+          }
+        }
+      },
+      "ClientReleaseLatestData": {
+        "type": "object",
+        "description": "客户端最新版本检查结果",
+        "properties": {
+          "updateAvailable": {
+            "type": "boolean",
+            "description": "是否有可用更新"
+          },
+          "forceUpdate": {
+            "type": "boolean",
+            "description": "是否需要强制更新；强制更新不提供“稍后”，客户端只能退出程序或按“下载更新 -> 更新并重启程序”完成更新"
+          },
+          "currentVersion": {
+            "type": "string",
+            "description": "客户端传入的当前版本"
+          },
+          "latest": {
+            "$ref": "#/components/schemas/ClientRelease"
+          }
+        }
+      },
+      "ClientReleaseRequest": {
+        "type": "object",
+        "description": "创建或更新客户端版本记录的请求体。草稿可先保存，已发布版本必须带 sha512。",
+        "required": [
+          "version",
+          "platform",
+          "arch",
+          "channel",
+          "fileName",
+          "objectKey",
+          "size"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "客户端版本号，必须是 x.y.z 三段数字，例如 1.2.3；不支持 v 前缀、预发布号或 build 后缀",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "example": "1.2.3"
+          },
+          "platform": {
+            "type": "string",
+            "description": "目标平台。Windows 使用 windows；后端兼容 win32 别名，但新数据建议统一使用 windows",
+            "enum": [
+              "windows",
+              "darwin",
+              "linux"
+            ],
+            "example": "windows"
+          },
+          "arch": {
+            "type": "string",
+            "description": "目标 CPU 架构",
+            "enum": [
+              "x64",
+              "arm64",
+              "ia32",
+              "universal"
+            ],
+            "example": "x64"
+          },
+          "channel": {
+            "type": "string",
+            "description": "发布通道，仅支持 stable 或 beta；为空时后端默认 stable",
+            "enum": [
+              "stable",
+              "beta"
+            ],
+            "example": "stable"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "上传接口返回的 fileName。前端不应手动编辑上传后的文件名",
+            "example": "Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+          },
+          "objectKey": {
+            "type": "string",
+            "description": "上传接口返回的 object 字段，保存版本记录时作为 objectKey 传入",
+            "example": "client-releases/stable/windows/x64/1.2.3/20260702090000.000000000-Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "上传接口返回的 size，单位 byte",
+            "example": 104857600
+          },
+          "sha256": {
+            "type": "string",
+            "description": "上传接口返回的 sha256",
+            "example": "sha256:0123456789abcdef"
+          },
+          "sha512": {
+            "type": "string",
+            "description": "上传接口返回的 sha512；已发布版本必须存在",
+            "example": "base64-sha512-value"
+          },
+          "releaseNotes": {
+            "type": "string",
+            "description": "更新说明",
+            "example": "修复已知问题"
+          },
+          "minVersion": {
+            "type": "string",
+            "description": "最低允许版本，必须是 x.y.z 三段数字；可为空",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "example": "1.0.0"
+          },
+          "forced": {
+            "type": "boolean",
+            "description": "是否启用强制更新策略",
+            "example": false
+          },
+          "published": {
+            "type": "boolean",
+            "description": "是否直接发布；status 为空时会按该值写入状态",
+            "example": false
+          },
+          "status": {
+            "type": "integer",
+            "description": "发布状态：0=草稿，1=已发布；传入时优先于 published",
+            "enum": [
+              0,
+              1
+            ],
+            "example": 0
+          }
+        }
+      },
+      "ClientReleaseUploadResult": {
+        "type": "object",
+        "description": "安装包上传到私有 OSS 后的结果",
+        "required": [
+          "fileName",
+          "object",
+          "size",
+          "sha256",
+          "sha512"
+        ],
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "description": "后端强制生成的文件名，格式为 Z-UP-Setup-{version}-{platform}-{arch}-{channel}.{ext}",
+            "example": "Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+          },
+          "object": {
+            "type": "string",
+            "description": "私有 OSS Object Key。保存版本记录时作为 objectKey 传入",
+            "example": "client-releases/stable/windows/x64/1.2.3/20260702090000.000000000-Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "上传文件大小，单位 byte",
+            "example": 104857600
+          },
+          "sha256": {
+            "type": "string",
+            "description": "SHA256 校验值，格式 sha256:<hex>",
+            "example": "sha256:0123456789abcdef"
+          },
+          "sha512": {
+            "type": "string",
+            "description": "SHA512 base64 校验值",
+            "example": "base64-sha512-value"
+          }
+        }
+      },
+      "ClientReleaseListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ClientReleaseListData"
+          }
+        }
+      },
+      "ClientReleaseResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ClientRelease"
+          }
+        }
+      },
+      "ClientReleaseLatestResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ClientReleaseLatestData"
+          }
+        }
+      },
+      "ClientReleaseUploadResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ClientReleaseUploadResult"
+          }
+        }
+      },
+      "ClientReleaseEmptyResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "nullable": true
+          }
+        }
       }
     },
     "responses": {},

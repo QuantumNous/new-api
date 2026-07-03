@@ -157,6 +157,7 @@ export function getLucideIcon(key, selected = false) {
     case 'deployment':
       return <Server {...commonProps} color={iconColor} />;
     case 'skillHub':
+    case 'clientRelease':
       return <Package {...commonProps} color={iconColor} />;
     case 'subscription':
       return <CalendarClock {...commonProps} color={iconColor} />;

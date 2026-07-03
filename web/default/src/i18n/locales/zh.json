@@ -4530,6 +4530,7 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Zip URL must use HTTPS, except localhost or private network hosts during development": "Zip 包地址必须使用 HTTPS，本地调试可使用 localhost 或局域网地址 HTTP"
   }
 }

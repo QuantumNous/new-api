@@ -4530,6 +4530,7 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Zip URL must use HTTPS, except localhost or private network hosts during development": "Zip URL must use HTTPS, except localhost or private network hosts during development"
   }
 }

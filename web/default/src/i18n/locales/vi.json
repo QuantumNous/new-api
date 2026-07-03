@@ -4530,6 +4530,7 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Zip URL must use HTTPS, except localhost or private network hosts during development": "URL Zip phải dùng HTTPS, ngoại trừ localhost hoặc máy chủ mạng riêng trong quá trình phát triển"
   }
 }

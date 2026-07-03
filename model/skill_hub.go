@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"net"
 	"net/url"
 	"os"
 	"regexp"
@@ -19,6 +20,11 @@ const (
 )
 
 var skillHubIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+
+const (
+	skillHubSkillOrder          = "CASE WHEN sort = 0 THEN 1 ELSE 0 END ASC, sort ASC, updated_time DESC, id DESC"
+	skillHubQualifiedSkillOrder = "CASE WHEN skill_hub_skills.sort = 0 THEN 1 ELSE 0 END ASC, skill_hub_skills.sort ASC, skill_hub_skills.updated_time DESC, skill_hub_skills.id DESC"
+)
 
 type SkillHubSkill struct {
 	Id                  int            `json:"-" gorm:"primaryKey"`
@@ -181,7 +187,7 @@ func ValidateSkillHubSkill(s *SkillHubSkill) error {
 		return errors.New("skill source url is required")
 	}
 	if !isAllowedSkillHubZipURL(s.SourceURL) {
-		return errors.New("skill zip url must use https, except localhost during development")
+		return errors.New("skill zip url must use https, except localhost or private network hosts during development")
 	}
 	if !isAllowedSkillHubIconURL(s.Icon) {
 		return errors.New("skill icon must be uploaded to the configured OSS icon bucket")
@@ -217,7 +223,18 @@ func isAllowedSkillHubZipURL(value string) bool {
 		return false
 	}
 	host := strings.ToLower(parsed.Hostname())
-	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+	return isLocalSkillHubHTTPHost(host)
+}
+
+func isLocalSkillHubHTTPHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
 }
 
 func isAllowedSkillHubIconURL(value string) bool {
@@ -339,7 +356,7 @@ func SearchSkillHubSkills(keyword string, admin bool, offset int, limit int, rec
 		return nil, 0, err
 	}
 	var skills []*SkillHubSkill
-	err = db.Order("sort DESC, updated_time DESC, id DESC").Offset(offset).Limit(limit).Find(&skills).Error
+	err = db.Order(skillHubSkillOrder).Offset(offset).Limit(limit).Find(&skills).Error
 	return skills, total, err
 }
 
@@ -413,7 +430,7 @@ func SearchSkillHubSkillsByTagIDs(tagIDs []int, keyword string, admin bool, offs
 	}
 	var skills []*SkillHubSkill
 	err = db.Distinct("skill_hub_skills.*").
-		Order("skill_hub_skills.sort DESC, skill_hub_skills.updated_time DESC, skill_hub_skills.id DESC").
+		Order(skillHubQualifiedSkillOrder).
 		Offset(offset).
 		Limit(limit).
 		Find(&skills).Error

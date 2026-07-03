@@ -113,6 +113,7 @@ export default function SettingsSidebarModulesUser() {
         models: isSidebarModuleAllowed('admin', 'models'),
         deployment: isSidebarModuleAllowed('admin', 'deployment'),
         skillHub: isSidebarModuleAllowed('admin', 'skillHub'),
+        clientRelease: isSidebarModuleAllowed('admin', 'clientRelease'),
         redemption: isSidebarModuleAllowed('admin', 'redemption'),
         user: isSidebarModuleAllowed('admin', 'user'),
         setting: isSidebarModuleAllowed('admin', 'setting'),
@@ -375,6 +376,11 @@ export default function SettingsSidebarModulesUser() {
           key: 'skillHub',
           title: '技能广场管理',
           description: '技能目录和标签库管理',
+        },
+        {
+          key: 'clientRelease',
+          title: t('客户端管理'),
+          description: t('客户端版本与更新通道管理'),
         },
         {
           key: 'redemption',

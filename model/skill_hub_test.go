@@ -41,7 +41,7 @@ func TestValidateSkillHubSkillRequiresHTTPSZipURL(t *testing.T) {
 		SourceType: "zip",
 		SourceURL:  "http://example.com/skill.zip",
 	}
-	if err := ValidateSkillHubSkill(skill); err == nil || err.Error() != "skill zip url must use https, except localhost during development" {
+	if err := ValidateSkillHubSkill(skill); err == nil || err.Error() != "skill zip url must use https, except localhost or private network hosts during development" {
 		t.Fatalf("ValidateSkillHubSkill() error = %v, want https error", err)
 	}
 }
@@ -57,6 +57,34 @@ func TestValidateSkillHubSkillAcceptsLocalhostHTTPZipURL(t *testing.T) {
 	}
 	if err := ValidateSkillHubSkill(skill); err != nil {
 		t.Fatalf("ValidateSkillHubSkill() error = %v", err)
+	}
+}
+
+func TestValidateSkillHubSkillAcceptsPrivateNetworkHTTPZipURL(t *testing.T) {
+	t.Setenv("SKILL_HUB_ALLOW_LOCAL_HTTP", "true")
+	skill := &SkillHubSkill{
+		SkillID:    "lan-skill",
+		Name:       "LAN Skill",
+		Version:    "1.0.0",
+		SourceType: "zip",
+		SourceURL:  "http://192.168.1.8:3000/api/skill-hub/skills/lan-skill/download",
+	}
+	if err := ValidateSkillHubSkill(skill); err != nil {
+		t.Fatalf("ValidateSkillHubSkill() error = %v", err)
+	}
+}
+
+func TestValidateSkillHubSkillRejectsPublicHTTPZipURLWhenLocalHTTPAllowed(t *testing.T) {
+	t.Setenv("SKILL_HUB_ALLOW_LOCAL_HTTP", "true")
+	skill := &SkillHubSkill{
+		SkillID:    "public-http-skill",
+		Name:       "Public HTTP Skill",
+		Version:    "1.0.0",
+		SourceType: "zip",
+		SourceURL:  "http://example.com/skill.zip",
+	}
+	if err := ValidateSkillHubSkill(skill); err == nil || err.Error() != "skill zip url must use https, except localhost or private network hosts during development" {
+		t.Fatalf("ValidateSkillHubSkill() error = %v, want public http error", err)
 	}
 }
 
@@ -230,6 +258,67 @@ func TestSearchRecommendedSkillHubSkillsOnlyReturnsPublishedRecommendedSkills(t 
 	}
 }
 
+func TestSearchSkillHubSkillsUsesConfiguredSortOrder(t *testing.T) {
+	setupSkillHubTestDB(t)
+
+	fixtures := []*SkillHubSkill{
+		{
+			SkillID:    "unsorted-skill",
+			Name:       "Unsorted Skill",
+			Version:    "1.0.0",
+			Tags:       StringListToJSON([]string{"ordered"}),
+			Sort:       0,
+			Status:     SkillHubStatusPublished,
+			SourceType: "zip",
+			SourceURL:  "https://cdn.example.com/unsorted.zip",
+		},
+		{
+			SkillID:    "second-skill",
+			Name:       "Second Skill",
+			Version:    "1.0.0",
+			Tags:       StringListToJSON([]string{"ordered"}),
+			Sort:       2,
+			Status:     SkillHubStatusPublished,
+			SourceType: "zip",
+			SourceURL:  "https://cdn.example.com/second.zip",
+		},
+		{
+			SkillID:    "first-skill",
+			Name:       "First Skill",
+			Version:    "1.0.0",
+			Tags:       StringListToJSON([]string{"ordered"}),
+			Sort:       1,
+			Status:     SkillHubStatusPublished,
+			SourceType: "zip",
+			SourceURL:  "https://cdn.example.com/first.zip",
+		},
+	}
+	for _, skill := range fixtures {
+		if err := skill.Insert(); err != nil {
+			t.Fatalf("insert %s: %v", skill.SkillID, err)
+		}
+	}
+
+	skills, total, err := SearchSkillHubSkills("", true, 0, 10)
+	if err != nil {
+		t.Fatalf("SearchSkillHubSkills() error = %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("total = %d, want 3", total)
+	}
+	assertSkillHubSkillIDs(t, skills, []string{"first-skill", "second-skill", "unsorted-skill"})
+
+	tag := mustGetSkillHubTagByName(t, "ordered")
+	taggedSkills, taggedTotal, err := SearchSkillHubSkillsByTagIDs([]int{tag.Id}, "", true, 0, 10)
+	if err != nil {
+		t.Fatalf("SearchSkillHubSkillsByTagIDs() error = %v", err)
+	}
+	if taggedTotal != 3 {
+		t.Fatalf("taggedTotal = %d, want 3", taggedTotal)
+	}
+	assertSkillHubSkillIDs(t, taggedSkills, []string{"first-skill", "second-skill", "unsorted-skill"})
+}
+
 func TestValidateSkillHubTag(t *testing.T) {
 	if err := ValidateSkillHubTag(&SkillHubTag{Name: "办公协同"}); err != nil {
 		t.Fatalf("ValidateSkillHubTag() error = %v", err)
@@ -400,6 +489,18 @@ func hasSkillHubTag(tags []*SkillHubTag, name string) bool {
 		}
 	}
 	return false
+}
+
+func assertSkillHubSkillIDs(t *testing.T, skills []*SkillHubSkill, want []string) {
+	t.Helper()
+	if len(skills) != len(want) {
+		t.Fatalf("skills length = %d, want %d; skills = %#v", len(skills), len(want), skills)
+	}
+	for i, skill := range skills {
+		if skill.SkillID != want[i] {
+			t.Fatalf("skills[%d].SkillID = %q, want %q; skills = %#v", i, skill.SkillID, want[i], skills)
+		}
+	}
 }
 
 func mustGetSkillHubTagByName(t *testing.T, name string) *SkillHubTag {

@@ -55,6 +55,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     models: true,
     deployment: true,
     skillHub: true,
+    clientRelease: true,
     redemption: true,
     user: true,
     subscription: true,

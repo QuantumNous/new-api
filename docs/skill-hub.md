@@ -26,6 +26,18 @@ SKILL_HUB_OSS_PREFIX=skill-hub/skills
 SKILL_HUB_OSS_SIGNED_URL_EXPIRES_SECONDS=600
 ```
 
+本地或局域网调试时，如果后台上传后自动回填的 Zip 包地址是
+`http://192.168.1.8:3000/api/skill-hub/skills/.../download` 这类私有网段
+HTTP 地址，可以设置：
+
+```env
+SKILL_HUB_ALLOW_LOCAL_HTTP=true
+```
+
+该开关仅用于开发调试，并且只允许 `localhost`、回环地址、私有网段地址和本地链路
+地址使用 HTTP；公网 HTTP Zip 包地址仍会被拒绝。生产环境仍建议配置 HTTPS
+外部访问地址。
+
 说明：
 
 - `SKILL_HUB_OSS_PREFIX` 为空时默认使用 `skill-hub/skills`。
@@ -103,6 +115,9 @@ oss:DeleteObject
 5. 上传成功后，系统自动回填图标 URL。
 6. 从已有标签里选择 Skill 标签。
 7. 保存 Skill，确认无误后发布。
+
+技能列表按 `sort` 字段指定顺序展示：非 `0` 的排序值越小越靠前，例如 `1、2、3`
+会按填写顺序排列；`sort=0` 视为未指定排序，排在已指定排序的 Skill 后面，再按更新时间倒序兜底。
 
 connector 会通过公开 Skill Hub 接口拿到 `icon` 字段，并在 Skill 列表和已安装列表中展示图标。没有图标时，connector 会回退显示首字母。
 
