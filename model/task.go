@@ -2,6 +2,7 @@ package model
 
 import (
 	"bytes"
+	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service/mediastore"
 	"gorm.io/gorm"
 )
 
@@ -43,26 +45,26 @@ const (
 )
 
 type Task struct {
-	ID         int64                 `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
-	CreatedAt  int64                 `json:"created_at" gorm:"index"`
-	UpdatedAt  int64                 `json:"updated_at"`
-	TaskID     string                `json:"task_id" gorm:"type:varchar(191);index"` // 第三方id，不一定有/ song id\ Task id
-	Platform   constant.TaskPlatform `json:"platform" gorm:"type:varchar(30);index"` // 平台
-	UserId     int                   `json:"user_id" gorm:"index"`
-	Group      string                `json:"group" gorm:"type:varchar(50)"` // 修正计费用
-	ChannelId  int                   `json:"channel_id" gorm:"index"`
+	ID        int64                 `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
+	CreatedAt int64                 `json:"created_at" gorm:"index"`
+	UpdatedAt int64                 `json:"updated_at"`
+	TaskID    string                `json:"task_id" gorm:"type:varchar(191);index"` // 第三方id，不一定有/ song id\ Task id
+	Platform  constant.TaskPlatform `json:"platform" gorm:"type:varchar(30);index"` // 平台
+	UserId    int                   `json:"user_id" gorm:"index"`
+	Group     string                `json:"group" gorm:"type:varchar(50)"` // 修正计费用
+	ChannelId int                   `json:"channel_id" gorm:"index"`
 	// TokenId 由 BeforeSave 钩子从 PrivateData.TokenId 镜像而来，作为真列用于企业子账户「仅看绑定 key 的任务」过滤（设计 §4.5）。
-	TokenId    int                   `json:"token_id" gorm:"index;column:token_id"`
-	Quota      int                   `json:"quota"`
-	Action     string                `json:"action" gorm:"type:varchar(40);index"` // 任务类型, song, lyrics, description-mode
-	Status     TaskStatus            `json:"status" gorm:"type:varchar(20);index"` // 任务状态
-	FailReason string                `json:"fail_reason"`
-	SubmitTime int64                 `json:"submit_time" gorm:"index"`
-	StartTime  int64                 `json:"start_time" gorm:"index"`
-	FinishTime int64                 `json:"finish_time" gorm:"index"`
-	Progress   string                `json:"progress" gorm:"type:varchar(20);index"`
-	Properties Properties            `json:"properties" gorm:"type:json"`
-	Username   string                `json:"username,omitempty" gorm:"-"`
+	TokenId    int        `json:"token_id" gorm:"index;column:token_id"`
+	Quota      int        `json:"quota"`
+	Action     string     `json:"action" gorm:"type:varchar(40);index"` // 任务类型, song, lyrics, description-mode
+	Status     TaskStatus `json:"status" gorm:"type:varchar(20);index"` // 任务状态
+	FailReason string     `json:"fail_reason"`
+	SubmitTime int64      `json:"submit_time" gorm:"index"`
+	StartTime  int64      `json:"start_time" gorm:"index"`
+	FinishTime int64      `json:"finish_time" gorm:"index"`
+	Progress   string     `json:"progress" gorm:"type:varchar(20);index"`
+	Properties Properties `json:"properties" gorm:"type:json"`
+	Username   string     `json:"username,omitempty" gorm:"-"`
 	// 禁止返回给用户，内部可能包含key等隐私信息
 	PrivateData TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
 	Data        json.RawMessage `json:"data" gorm:"type:json"`
@@ -119,6 +121,9 @@ type TaskPrivateData struct {
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
 	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
 	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	// PersistRetryCount 上游已完成但成品落 OBS 失败的重试次数（轮询阶段递增，
+	// 超限才判失败退款，避免瞬时 OBS 抖动丢弃已渲染成品）。见 task_polling.go。
+	PersistRetryCount int `json:"persist_retry_count,omitempty"`
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。
@@ -383,13 +388,14 @@ func (Task *Task) Insert() error {
 }
 
 type taskSnapshot struct {
-	Status     TaskStatus
-	Progress   string
-	StartTime  int64
-	FinishTime int64
-	FailReason string
-	ResultURL  string
-	Data       json.RawMessage
+	Status            TaskStatus
+	Progress          string
+	StartTime         int64
+	FinishTime        int64
+	FailReason        string
+	ResultURL         string
+	PersistRetryCount int
+	Data              json.RawMessage
 }
 
 func (s taskSnapshot) Equal(other taskSnapshot) bool {
@@ -399,18 +405,20 @@ func (s taskSnapshot) Equal(other taskSnapshot) bool {
 		s.FinishTime == other.FinishTime &&
 		s.FailReason == other.FailReason &&
 		s.ResultURL == other.ResultURL &&
+		s.PersistRetryCount == other.PersistRetryCount &&
 		bytes.Equal(s.Data, other.Data)
 }
 
 func (t *Task) Snapshot() taskSnapshot {
 	return taskSnapshot{
-		Status:     t.Status,
-		Progress:   t.Progress,
-		StartTime:  t.StartTime,
-		FinishTime: t.FinishTime,
-		FailReason: t.FailReason,
-		ResultURL:  t.PrivateData.ResultURL,
-		Data:       t.Data,
+		Status:            t.Status,
+		Progress:          t.Progress,
+		StartTime:         t.StartTime,
+		FinishTime:        t.FinishTime,
+		FailReason:        t.FailReason,
+		ResultURL:         t.PrivateData.ResultURL,
+		PersistRetryCount: t.PrivateData.PersistRetryCount,
+		Data:              t.Data,
 	}
 }
 
@@ -536,6 +544,7 @@ func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
 	openAIVideo.SetProgressStr(t.Progress)
 	openAIVideo.CreatedAt = t.CreatedAt
 	openAIVideo.CompletedAt = t.UpdatedAt
-	openAIVideo.SetMetadata("url", t.GetResultURL())
+	// obs:// 占位符 → 实时签名 URL（§5.4）；非 obs 引用原样返回。
+	openAIVideo.SetMetadata("url", mediastore.ResolveResultURL(context.Background(), t.GetResultURL()))
 	return openAIVideo
 }

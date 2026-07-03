@@ -756,11 +756,14 @@ func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
 }
 
 type TaskInfo struct {
-	Code             int    `json:"code"`
-	TaskID           string `json:"task_id"`
-	Status           string `json:"status"`
-	Reason           string `json:"reason,omitempty"`
-	Url              string `json:"url,omitempty"`
+	Code   int    `json:"code"`
+	TaskID string `json:"task_id"`
+	Status string `json:"status"`
+	Reason string `json:"reason,omitempty"`
+	Url    string `json:"url,omitempty"`
+	// NFSPath 自建模型（GPUStack/LightX2V）成品在共享 SFS 上的绝对路径（save_result_path）。
+	// 由 adaptor 的 ParseTaskResult 在任务完成时填入，落盘钩子据此显式落 OBS（无需 Url 前缀启发式）。
+	NFSPath          string `json:"nfs_path,omitempty"`
 	RemoteUrl        string `json:"remote_url,omitempty"`
 	Progress         string `json:"progress,omitempty"`
 	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费

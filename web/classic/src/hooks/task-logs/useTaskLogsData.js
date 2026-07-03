@@ -71,6 +71,7 @@ export const useTaskLogsData = () => {
   // 新增：视频预览弹窗状态
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
+  const [videoTaskId, setVideoTaskId] = useState('');
 
   // Audio preview modal state
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
@@ -275,9 +276,10 @@ export const useTaskLogsData = () => {
     setIsModalOpen(true);
   };
 
-  // 新增：打开视频预览弹窗
-  const openVideoModal = (url) => {
+  // 新增：打开视频预览弹窗（带 taskId 以支持「友好文件名下载」）
+  const openVideoModal = (url, taskId = '') => {
     setVideoUrl(url);
+    setVideoTaskId(taskId);
     setIsVideoModalOpen(true);
   };
 
@@ -327,6 +329,7 @@ export const useTaskLogsData = () => {
     isVideoModalOpen,
     setIsVideoModalOpen,
     videoUrl,
+    videoTaskId,
 
     // Audio preview modal
     isAudioModalOpen,

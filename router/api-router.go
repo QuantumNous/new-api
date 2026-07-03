@@ -322,6 +322,13 @@ func SetApiRouter(router *gin.Engine) {
 			systemRoute.POST("/update", middleware.CriticalRateLimit(), controller.PerformUpdate)
 		}
 
+		mediaStoreRoute := apiRouter.Group("/media-store")
+		mediaStoreRoute.Use(middleware.RootAuth())
+		{
+			mediaStoreRoute.GET("/stats", controller.GetMediaStoreStats)
+			mediaStoreRoute.POST("/snapshot", controller.RefreshMediaStoreStats)
+		}
+
 		ratioSyncRoute := apiRouter.Group("/ratio_sync")
 		ratioSyncRoute.Use(middleware.RootAuth())
 		{
@@ -451,7 +458,9 @@ func SetApiRouter(router *gin.Engine) {
 		taskRoute := apiRouter.Group("/task")
 		{
 			taskRoute.GET("/self", middleware.UserAuth(), controller.GetUserTask)
+			taskRoute.GET("/self/:id/download", middleware.UserAuth(), controller.GetSelfTaskDownloadURL)
 			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
+			taskRoute.GET("/:id/download", middleware.AdminAuth(), controller.GetTaskDownloadURL)
 		}
 
 		vendorRoute := apiRouter.Group("/vendors")

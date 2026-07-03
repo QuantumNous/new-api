@@ -75,6 +75,9 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeReplicate
 	case constant.ChannelTypeCodex:
 		apiType = constant.APITypeCodex
+	case constant.ChannelTypeGPUStackPlus:
+		// 同一渠道类型：视频走任务子系统（GetTaskAdaptor），图片走同步 relay（此 APIType）。
+		apiType = constant.APITypeGPUStackPlusImage
 	}
 	if apiType == -1 {
 		return constant.APITypeOpenAI, false

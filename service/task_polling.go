@@ -341,6 +341,10 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	return nil
 }
 
+// maxPersistRetries 上游已完成但成品落 OBS 失败时的最大重试轮数。
+// 轮询间隔 15s，20 轮 ≈ 5 分钟：足够扛过 OBS 瞬时抖动/管理员开启存储，超限判失败退款。
+const maxPersistRetries = 20
+
 func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *model.Channel, taskId string, taskM map[string]*model.Task) error {
 	baseURL := constant.ChannelBaseURLs[ch.Type]
 	if ch.GetBaseURL() != "" {
@@ -421,6 +425,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 	shouldRefund := false
 	shouldSettle := false
+	deferredPersist := false
 	quota := task.Quota
 
 	task.Status = model.TaskStatus(taskResult.Status)
@@ -439,17 +444,45 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		if task.FinishTime == 0 {
 			task.FinishTime = now
 		}
-		if strings.HasPrefix(taskResult.Url, "data:") {
+		if ref, ok := PersistTaskResultToOBS(ctx, task, taskResult.NFSPath, taskResult.Url); ok {
+			// 落盘成功：DB 只存内部占位符 obs://<key>，签名 URL 在序列化时实时生成（§5.2/§5.4）
+			task.PrivateData.ResultURL = ref
+			shouldSettle = true
+		} else if taskResult.NFSPath != "" {
+			// 自建成品只在 SFS 上（nfs_path），落 OBS 失败又无上游 URL → 对外没有可用 URL。
+			// 成品已渲染完、还在 SFS 上，瞬时 OBS 抖动/存储未开启不应立刻丢弃：先不落终态，
+			// 留在 InProgress 等下一轮轮询（上游状态仍是 completed，自然重试落盘）。
+			// 超过重试上限（约 maxPersistRetries × 15s 轮询间隔）才判失败并退款。
+			task.PrivateData.PersistRetryCount++
+			if task.PrivateData.PersistRetryCount <= maxPersistRetries {
+				task.Status = model.TaskStatusInProgress
+				task.Progress = taskcommon.ProgressInProgress
+				task.FinishTime = 0
+				deferredPersist = true
+				logger.LogWarn(ctx, fmt.Sprintf("Task %s: result persist to OBS failed, will retry next poll (%d/%d)",
+					task.TaskID, task.PrivateData.PersistRetryCount, maxPersistRetries))
+			} else {
+				task.Status = model.TaskStatusFailure
+				task.FailReason = "成品落盘 OBS 持续失败，无法对外提供访问 URL（请检查媒体存储配置/连通性）"
+				logger.LogError(ctx, fmt.Sprintf("Task %s: nfs-only result persist to OBS failed after %d retries, marking failure",
+					task.TaskID, maxPersistRetries))
+				if quota != 0 {
+					shouldRefund = true
+				}
+			}
+		} else if strings.HasPrefix(taskResult.Url, "data:") {
 			// data: URI (e.g. Vertex base64 encoded video) — keep in Data, not in ResultURL
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
+			shouldSettle = true
 		} else if taskResult.Url != "" {
 			// Direct upstream URL (e.g. Kling, Ali, Doubao, etc.)
 			task.PrivateData.ResultURL = taskResult.Url
+			shouldSettle = true
 		} else {
 			// No URL from adaptor — construct proxy URL using public task ID
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
+			shouldSettle = true
 		}
-		shouldSettle = true
 	case model.TaskStatusFailure:
 		logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)
 		task.Status = model.TaskStatusFailure
@@ -466,7 +499,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	default:
 		return fmt.Errorf("unknown task status %s for task %s", taskResult.Status, task.TaskID)
 	}
-	if taskResult.Progress != "" {
+	if taskResult.Progress != "" && !deferredPersist {
 		task.Progress = taskResult.Progress
 	}
 

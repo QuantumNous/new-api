@@ -194,6 +194,11 @@ export const CHANNEL_OPTIONS = [
     color: 'purple',
     label: 'paratera视频模型',
   },
+  {
+    value: 59,
+    color: 'orange',
+    label: 'GPUStackPlus (自建图片/视频)',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.

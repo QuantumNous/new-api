@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 
@@ -569,6 +570,17 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	err = common.Unmarshal(responseBody, &usageResp)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	// 图片响应统一落 OBS（§一）：把第三方图片 url/b64 换成我方 OBS 签名 URL，对外统一 OBS。
+	// 只有 OBS 不可用时才降级保留上游原始 url（RewriteImageResponseToOBS 内部逐项 best-effort）。
+	// 客户端显式要 response_format=b64_json 时不动 b64 项（换成 URL 会破坏其解析）。
+	if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {
+		responseFormat := ""
+		if imgReq, ok := info.Request.(*dto.ImageRequest); ok {
+			responseFormat = imgReq.ResponseFormat
+		}
+		responseBody = service.RewriteImageResponseToOBS(c.Request.Context(), info.UserId, info.OriginModelName, responseFormat, responseBody)
 	}
 
 	// 写入新的 response body

@@ -19,8 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Typography, Spin } from '@douyinfe/semi-ui';
-import { IconExternalOpen, IconCopy } from '@douyinfe/semi-icons';
+import { IconExternalOpen, IconCopy, IconDownload } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
+import { API, showError } from '../../../../helpers';
 
 const { Text } = Typography;
 
@@ -29,10 +30,38 @@ const ContentModal = ({
   setIsModalOpen,
   modalContent,
   isVideo,
+  taskId,
+  isAdmin,
 }) => {
   const { t } = useTranslation();
   const [videoError, setVideoError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  // 下载：优先走后端 /download 端点拿「带友好文件名」的签名 URL；无 taskId 时回退直下。
+  const handleDownload = async () => {
+    if (!taskId) {
+      window.open(modalContent, '_blank');
+      return;
+    }
+    setDownloading(true);
+    try {
+      // admin 在「全部任务」里看的可能是别人的任务，走 admin 端点（按 task_id 不限 user）。
+      const endpoint = isAdmin
+        ? `/api/task/${taskId}/download`
+        : `/api/task/self/${taskId}/download`;
+      const res = await API.get(endpoint);
+      if (res.data?.success && res.data?.data?.url) {
+        window.location.href = res.data.data.url;
+      } else {
+        showError(res.data?.message || t('获取下载链接失败'));
+      }
+    } catch (e) {
+      showError(t('下载失败'));
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   useEffect(() => {
     if (isModalOpen && isVideo) {
@@ -98,6 +127,14 @@ const ContentModal = ({
             <Button icon={<IconCopy />} onClick={handleCopyUrl}>
               {t('复制链接')}
             </Button>
+            <Button
+              icon={<IconDownload />}
+              loading={downloading}
+              onClick={handleDownload}
+              style={{ marginLeft: '8px' }}
+            >
+              {t('下载')}
+            </Button>
           </div>
 
           <div
@@ -121,6 +158,15 @@ const ContentModal = ({
 
     return (
       <div style={{ position: 'relative', height: '100%' }}>
+        <Button
+          icon={<IconDownload />}
+          loading={downloading}
+          onClick={handleDownload}
+          size='small'
+          style={{ position: 'absolute', top: 8, right: 8, zIndex: 11 }}
+        >
+          {t('下载')}
+        </Button>
         {isLoading && (
           <div
             style={{

@@ -56,6 +56,7 @@ const (
 	ChannelTypeReplicate      = 56
 	ChannelTypeCodex          = 57
 	ChannelTypeParatera       = 58
+	ChannelTypeGPUStackPlus   = 59
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -120,6 +121,7 @@ var ChannelBaseURLs = []string{
 	"https://api.replicate.com",                 //56
 	"https://chatgpt.com",                       //57
 	"https://llmapi.paratera.com",               //58
+	"",                                          //59 GPUStackPlus: 每渠道自填(GPUStack 网关/通用代理地址)
 }
 
 var ChannelTypeNames = map[int]string{
@@ -178,6 +180,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeReplicate:      "Replicate",
 	ChannelTypeCodex:          "Codex",
 	ChannelTypeParatera:       "Paratera",
+	ChannelTypeGPUStackPlus:   "GPUStackPlus",
 }
 
 func GetChannelTypeName(channelType int) string {
