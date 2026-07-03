@@ -60,8 +60,9 @@ func runDetectionSyncOnce() {
 	ctx := context.Background()
 	since := time.Now().Add(-detectionLookback)
 
-	// Query most recent detection per base_url within lookback window.
-	// Include all statuses (pass/suspicious/notcomplete) so we record failures too.
+	// Query most recent conclusive detection per base_url within lookback window.
+	// We intentionally do not sync notcomplete rows into frontend-facing channel
+	// state, so transient failures do not overwrite the last usable signal.
 	// DISTINCT ON is PostgreSQL-specific — safe here because APIMASTER_PG_DB is always PG.
 	var rows []apimasterDetectionRow
 	err := model.APIMASTER_PG_DB.Raw(`
@@ -79,6 +80,7 @@ func runDetectionSyncOnce() {
 		FROM detections
 		WHERE created_at > $1
 		  AND base_url IS NOT NULL
+		  AND status IN ('pass', 'suspicious')
 		ORDER BY base_url, created_at DESC
 	`, since).Scan(&rows).Error
 	if err != nil {

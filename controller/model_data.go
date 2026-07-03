@@ -33,6 +33,10 @@ type TopKItem struct {
 	Rank  int     `json:"rank,omitempty"`
 }
 
+func includeDetectHistoryStatus(status string) bool {
+	return status != "notcomplete"
+}
+
 type ModelDataItem struct {
 	ChannelID   int    `json:"channel_id"`
 	ChannelName string `json:"channel_name"`
@@ -206,6 +210,9 @@ func GetModelData(c *gin.Context) {
 	}
 	byChannel := map[int]*histories{}
 	for _, l := range logs {
+		if !includeDetectHistoryStatus(l.Status) {
+			continue
+		}
 		h, ok := byChannel[l.ChannelId]
 		if !ok {
 			h = &histories{}
@@ -688,6 +695,9 @@ func GetPublicMarketplace(c *gin.Context) {
 	}
 	byChannel := map[int]*histories{}
 	for _, l := range logs {
+		if !includeDetectHistoryStatus(l.Status) {
+			continue
+		}
 		h, ok := byChannel[l.ChannelId]
 		if !ok {
 			h = &histories{}
