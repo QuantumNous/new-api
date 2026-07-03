@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
-import { useAuthStore } from '@/stores/auth-store'
-import { useStatus } from '@/hooks/use-status'
+
 import type { NavGroup, NavItem } from '@/components/layout/types'
+import { useStatus } from '@/hooks/use-status'
+import { useAuthStore } from '@/stores/auth-store'
 
 type SidebarSectionConfig = {
   enabled: boolean

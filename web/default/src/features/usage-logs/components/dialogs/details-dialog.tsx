@@ -33,15 +33,17 @@ import {
 } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
+
+import { Dialog } from '@/components/dialog'
+import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
-import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
+
 import type { UsageLog } from '../../data/schema'
 import {
   parseLogOther,

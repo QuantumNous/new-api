@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as React from 'react'
 import { mergeProps } from '@base-ui/react/merge-props'
 import { useRender } from '@base-ui/react/use-render'
 import {
@@ -24,6 +23,8 @@ import {
   MoreHorizontalCircle01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import * as React from 'react'
+
 import { cn } from '@/lib/utils'
 
 function Breadcrumb({ className, ...props }: React.ComponentProps<'nav'>) {

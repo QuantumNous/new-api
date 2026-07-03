@@ -16,15 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, DollarSign } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { Dialog } from '@/components/dialog'
+import { Button } from '@/components/ui/button'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
-import { Button } from '@/components/ui/button'
-import { Dialog } from '@/components/dialog'
+
 import { getCodexUsage, updateChannelBalance } from '../../api'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
