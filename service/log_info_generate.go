@@ -154,10 +154,7 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 			usedFinal = 0
 		}
 		if relayInfo.SubscriptionAmountTotal > 0 {
-			remain := relayInfo.SubscriptionAmountTotal - usedFinal
-			if remain < 0 {
-				remain = 0
-			}
+			remain := max(relayInfo.SubscriptionAmountTotal-usedFinal, 0)
 			other["subscription_total"] = relayInfo.SubscriptionAmountTotal
 			other["subscription_used"] = usedFinal
 			other["subscription_remain"] = remain
