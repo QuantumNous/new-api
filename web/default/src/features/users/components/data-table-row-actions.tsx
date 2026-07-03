@@ -209,8 +209,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           </DropdownMenuItem>
 
           <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
+            onClick={() => {
               setSubscriptionsDialogOpen(true)
             }}
           >
