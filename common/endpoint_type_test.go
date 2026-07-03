@@ -38,3 +38,10 @@ func TestGetEndpointTypesByChannelType_VideoChannels(t *testing.T) {
 		})
 	}
 }
+
+func TestGetEndpointTypesByChannelType_GPTImage2(t *testing.T) {
+	got := GetEndpointTypesByChannelType(constant.ChannelTypeOpenAI, "gpt-image-2")
+	if !containsEndpointType(got, constant.EndpointTypeImageGeneration) {
+		t.Fatalf("expected endpoints to contain %q, got %v", constant.EndpointTypeImageGeneration, got)
+	}
+}
