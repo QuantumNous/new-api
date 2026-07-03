@@ -214,6 +214,14 @@ type ResponseTimeFilterOption = {
   label: string
 }
 
+function getResponseTimeThresholdMs(
+  filter: string,
+  customSec: string
+): number {
+  if (filter === 'custom') return Number(customSec) * 1000
+  return Number(filter)
+}
+
 const RESPONSE_TIME_FILTER_OPTIONS: ResponseTimeFilterOption[] = [
   { value: 'all', label: 'All' },
   { value: String(RESPONSE_TIME_THRESHOLDS.EXCELLENT), label: '<=0.5s (Excellent)' },
@@ -360,6 +368,7 @@ function ChannelTestDialogContent({
     pageSize: 30,
   })
   const [testTimeoutMs, setTestTimeoutMs] = useState(DEFAULT_TEST_TIMEOUT_MS)
+  const [timeoutInputValue, setTimeoutInputValue] = useState(String(DEFAULT_TEST_TIMEOUT_MS / 1000))
   const [responseTimeFilter, setResponseTimeFilter] = useState('all')
   const [customResponseTimeSec, setCustomResponseTimeSec] = useState('')
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -390,6 +399,7 @@ function ChannelTestDialogContent({
     setFailureDetails(null)
     setPagination({ pageIndex: 0, pageSize: 30 })
     setTestTimeoutMs(DEFAULT_TEST_TIMEOUT_MS)
+    setTimeoutInputValue(String(DEFAULT_TEST_TIMEOUT_MS / 1000))
     setResponseTimeFilter('all')
     setCustomResponseTimeSec('')
   }, [])
@@ -449,10 +459,7 @@ function ChannelTestDialogContent({
       result = result.filter((model) => model.toLowerCase().includes(keyword))
     }
     if (responseTimeFilter !== 'all') {
-      const maxMs =
-        responseTimeFilter === 'custom'
-          ? Number(customResponseTimeSec) * 1000
-          : Number(responseTimeFilter)
+      const maxMs = getResponseTimeThresholdMs(responseTimeFilter, customResponseTimeSec)
       if (maxMs > 0) {
         result = result.filter((model) => {
           const r = testResults[model]
@@ -772,10 +779,7 @@ function ChannelTestDialogContent({
       (model) => testResults[model]?.status === 'success'
     )
     if (responseTimeFilter === 'all') return success
-    const maxMs =
-      responseTimeFilter === 'custom'
-        ? Number(customResponseTimeSec) * 1000
-        : Number(responseTimeFilter)
+    const maxMs = getResponseTimeThresholdMs(responseTimeFilter, customResponseTimeSec)
     if (maxMs <= 0) return success
     return success.filter(
       (model) => (testResults[model]?.responseTime ?? Infinity) <= maxMs
@@ -1143,10 +1147,24 @@ function ChannelTestDialogContent({
                   type='number'
                   min={1}
                   step={1}
-                  value={testTimeoutMs / 1000}
+                  value={timeoutInputValue}
                   onChange={(e) => {
+                    const raw = e.target.value
+                    setTimeoutInputValue(raw)
+                    const sec = Number(raw)
+                    if (!Number.isNaN(sec) && sec >= 1) {
+                      setTestTimeoutMs(sec * 1000)
+                    }
+                  }}
+                  onBlur={(e) => {
                     const sec = Number(e.target.value)
-                    if (sec >= 1) setTestTimeoutMs(sec * 1000)
+                    if (Number.isNaN(sec) || sec < 1) {
+                      const resetVal = testTimeoutMs / 1000
+                      setTimeoutInputValue(String(resetVal))
+                    } else {
+                      setTestTimeoutMs(sec * 1000)
+                      setTimeoutInputValue(String(sec))
+                    }
                   }}
                   className='w-full'
                 />
@@ -1155,13 +1173,13 @@ function ChannelTestDialogContent({
                 </p>
               </div>
               <div className='grid gap-2'>
-                <Label>{t('Response time filter')}</Label>
+                <Label htmlFor='response-time-filter'>{t('Response time filter')}</Label>
                 <div className='flex items-center gap-2'>
                   <Select
                     value={responseTimeFilter}
                     onValueChange={(value: string | null) => { if (value !== null) setResponseTimeFilter(value) }}
                   >
-                    <SelectTrigger className='w-full min-w-0'>
+                    <SelectTrigger id='response-time-filter' className='w-full min-w-0'>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
