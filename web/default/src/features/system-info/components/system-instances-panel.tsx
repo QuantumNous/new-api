@@ -20,8 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, RefreshCw, ServerCog } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
-import { cn } from '@/lib/utils'
+
 import { ErrorState } from '@/components/error-state'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -48,6 +47,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
 import { listSystemInstances } from '../api'
 import type { SystemInstance, SystemInstanceStatus } from '../types'
 
@@ -225,7 +227,9 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
             </TableHead>
             <TableHead className='h-9 w-[100px] text-xs'>{t('Role')}</TableHead>
             <TableHead className='h-9 w-[96px] text-xs'>{t('CPU')}</TableHead>
-            <TableHead className='h-9 w-[96px] text-xs'>{t('Memory')}</TableHead>
+            <TableHead className='h-9 w-[96px] text-xs'>
+              {t('Memory')}
+            </TableHead>
             <TableHead className='h-9 w-[96px] text-xs'>
               {t('Storage')}
             </TableHead>
@@ -320,7 +324,10 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                 <TableCell className='py-2.5 align-middle'>
                   <Badge
                     variant='secondary'
-                    className={cn('gap-1.5', STATUS_CLASS_NAME[instance.status])}
+                    className={cn(
+                      'gap-1.5',
+                      STATUS_CLASS_NAME[instance.status]
+                    )}
                   >
                     <span
                       className={cn(
@@ -394,11 +401,11 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                     {runtimeLabel(instance)}
                   </div>
                 </TableCell>
-                <TableCell className='text-muted-foreground py-2.5 text-xs whitespace-nowrap align-middle'>
+                <TableCell className='text-muted-foreground py-2.5 align-middle text-xs whitespace-nowrap'>
                   {formatTimestampToDate(instance.started_at)}
                 </TableCell>
                 <TableCell
-                  className='text-muted-foreground py-2.5 pr-4 text-xs whitespace-nowrap align-middle'
+                  className='text-muted-foreground py-2.5 pr-4 align-middle text-xs whitespace-nowrap'
                   title={formatTimestampToDate(instance.last_seen_at)}
                 >
                   {formatTimestampRelative(

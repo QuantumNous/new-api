@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute } from '@tanstack/react-router'
+
 import { NotFoundError } from '@/features/errors/not-found-error'
 
 export const Route = createFileRoute('/(errors)/404')({

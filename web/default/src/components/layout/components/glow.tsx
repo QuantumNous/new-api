@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
+import React from 'react'
+
 import { cn } from '@/lib/utils'
 
 const glowVariants = cva('absolute w-full', {

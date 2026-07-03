@@ -1,4 +1,4 @@
-package openaicompat
+package relayconvert
 
 import (
 	"errors"
@@ -438,8 +438,7 @@ func (s *ResponsesToChatStreamState) toolArgumentsDelta(event *dto.ResponsesStre
 	if tool == nil {
 		if event.OutputIndex != nil {
 			s.pendingArgsByOutputIndex[*event.OutputIndex] += event.Delta
-		}
-		if itemID := strings.TrimSpace(event.ItemID); itemID != "" {
+		} else if itemID := strings.TrimSpace(event.ItemID); itemID != "" {
 			s.pendingArgsByItemID[itemID] += event.Delta
 		}
 		return nil
@@ -485,7 +484,7 @@ func (s *ResponsesToChatStreamState) ensureToolForEvent(event *dto.ResponsesStre
 			delete(s.pendingArgsByOutputIndex, *event.OutputIndex)
 		}
 	}
-	if itemID := strings.TrimSpace(event.Item.ID); itemID != "" {
+	if itemID := responseStreamEventItemID(event); itemID != "" {
 		tool.ItemID = itemID
 		s.itemIDToKey[itemID] = key
 		if pending := s.pendingArgsByItemID[itemID]; pending != "" {
@@ -558,7 +557,7 @@ func (s *ResponsesToChatStreamState) ensureFallbackToolForEvent(event *dto.Respo
 			delete(s.pendingArgsByOutputIndex, *event.OutputIndex)
 		}
 	}
-	if itemID := strings.TrimSpace(event.ItemID); itemID != "" {
+	if itemID := responseStreamEventItemID(event); itemID != "" {
 		tool.ItemID = itemID
 		s.itemIDToKey[itemID] = key
 		if pending := s.pendingArgsByItemID[itemID]; pending != "" {
@@ -789,8 +788,7 @@ func (a *ResponsesBufferedAccumulator) ProcessEvent(event *dto.ResponsesStreamRe
 		}
 		if event.OutputIndex != nil {
 			a.pendingByOutputIndex[*event.OutputIndex] += event.Delta
-		}
-		if itemID := strings.TrimSpace(event.ItemID); itemID != "" {
+		} else if itemID := strings.TrimSpace(event.ItemID); itemID != "" {
 			a.pendingByItemID[itemID] += event.Delta
 		}
 	}
@@ -926,6 +924,18 @@ func ensureIncompleteResponse(resp *dto.OpenAIResponsesResponse) *dto.OpenAIResp
 
 func isResponsesToolOutputType(outputType string) bool {
 	return outputType == responsesOutputTypeFunctionCall || outputType == responsesOutputTypeCustomToolCall
+}
+
+func responseStreamEventItemID(event *dto.ResponsesStreamResponse) string {
+	if event == nil {
+		return ""
+	}
+	if event.Item != nil {
+		if itemID := strings.TrimSpace(event.Item.ID); itemID != "" {
+			return itemID
+		}
+	}
+	return strings.TrimSpace(event.ItemID)
 }
 
 func fallbackToolKey(itemID string, callID string, outputIndex *int) string {
