@@ -186,6 +186,40 @@ func TestDoResponse_SubmitIDStartsAsyncTaskWithPublicEnvelope(t *testing.T) {
 	}
 }
 
+func TestDoResponse_GenerationTasksPathUsesDocsEnvelope(t *testing.T) {
+	a := &TaskAdaptor{}
+	a.Init(newRelayInfo())
+	c, w := newJSONCtx(`{}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/generation/tasks", strings.NewReader(`{}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	resp := &http.Response{
+		Body: io.NopCloser(strings.NewReader(`{"id":"task_upstream_123","status":"processing"}`)),
+	}
+
+	taskID, _, taskErr := a.DoResponse(c, resp, newRelayInfo())
+	if taskErr != nil {
+		t.Fatalf("DoResponse task error: %+v", taskErr)
+	}
+	if taskID != "task_upstream_123" {
+		t.Fatalf("taskID = %q, want upstream task id", taskID)
+	}
+
+	var got struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+		Object string `json:"object"`
+	}
+	if err := common.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal docs envelope: %v", err)
+	}
+	if got.ID != "task_public" || got.Status != "processing" {
+		t.Fatalf("docs envelope = %+v", got)
+	}
+	if got.Object != "" {
+		t.Fatalf("docs envelope should not include OpenAI object field: %+v", got)
+	}
+}
+
 func TestDoResponse_RejectsMissingIDAndFailedSubmit(t *testing.T) {
 	tests := []struct {
 		name string

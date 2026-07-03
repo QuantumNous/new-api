@@ -116,6 +116,14 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
+	if isGenerationTasksRequest(c) {
+		c.JSON(http.StatusOK, gin.H{
+			"id":     info.PublicTaskID,
+			"status": "processing",
+		})
+		return strings.TrimSpace(upstream.ID), responseBody, nil
+	}
+
 	ov := dto.NewOpenAIVideo()
 	ov.ID = info.PublicTaskID
 	ov.TaskID = info.PublicTaskID
@@ -123,6 +131,11 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	ov.Model = info.OriginModelName
 	c.JSON(http.StatusOK, ov)
 	return strings.TrimSpace(upstream.ID), responseBody, nil
+}
+
+func isGenerationTasksRequest(c *gin.Context) bool {
+	return c != nil && c.Request != nil && c.Request.URL != nil &&
+		strings.HasPrefix(c.Request.URL.Path, generationTasksPath)
 }
 
 func (a *TaskAdaptor) FetchTask(baseURL string, key string, body map[string]any, proxy string) (*http.Response, error) {
