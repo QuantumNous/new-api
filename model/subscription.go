@@ -252,6 +252,17 @@ func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
 	return &order
 }
 
+func GetSubscriptionOrderByTradeNoAndUserId(tradeNo string, userId int) *SubscriptionOrder {
+	if tradeNo == "" || userId <= 0 {
+		return nil
+	}
+	var order SubscriptionOrder
+	if err := DB.Where("trade_no = ? AND user_id = ?", tradeNo, userId).First(&order).Error; err != nil {
+		return nil
+	}
+	return &order
+}
+
 // User subscription instance
 type UserSubscription struct {
 	Id     int `json:"id"`
