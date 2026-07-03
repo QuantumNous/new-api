@@ -169,7 +169,7 @@ func sendBarkNotify(barkURL string, data dto.Notify) error {
 		req.Header.Set("User-Agent", "OneAPI-Bark-Notify/1.0")
 
 		// 发送请求
-		client := GetHttpClient()
+		client := GetHttpClient(WithTrustedRedirects())
 		resp, err = client.Do(req)
 		if err != nil {
 			return fmt.Errorf("failed to send bark request: %v", err)
@@ -264,7 +264,7 @@ func sendGotifyNotify(gotifyUrl string, gotifyToken string, priority int, data d
 		req.Header.Set("User-Agent", "NewAPI-Gotify-Notify/1.0")
 
 		// 发送请求
-		client := GetHttpClient()
+		client := GetHttpClient(WithTrustedRedirects())
 		resp, err = client.Do(req)
 		if err != nil {
 			return fmt.Errorf("failed to send gotify request: %v", err)
