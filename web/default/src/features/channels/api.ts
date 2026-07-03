@@ -216,7 +216,7 @@ export async function testChannel(
 ): Promise<ChannelTestResponse> {
   const res = await api.get(
     `/api/channel/test/${id}`,
-    channelActionConfig({ params, signal })
+    channelActionConfig({ params, signal, disableDuplicate: true })
   )
   return res.data
 }
