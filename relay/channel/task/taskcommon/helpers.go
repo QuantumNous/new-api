@@ -25,6 +25,7 @@ var whitelabelChannels = map[int]struct{}{
 	constant.ChannelTypeBlockRunSeedance: {},
 	constant.ChannelTypeJimengProxy:      {},
 	constant.ChannelTypeJimengZhizinan:   {},
+	constant.ChannelTypeTechMobiVideo:    {},
 }
 
 // ShouldWhitelabelPlatform reports whether tasks on the given platform must
@@ -58,6 +59,7 @@ var brandKeywords = []string{
 	"tos-cn-beijing",
 	"blockrun", "flatkey",
 	"jimeng", "jianying", "dreamina", "seedance",
+	"techmobi", "chatgpttech",
 }
 
 // ContainsBrandKeyword reports whether s contains any provider-identifying

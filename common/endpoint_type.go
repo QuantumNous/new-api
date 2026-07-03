@@ -33,6 +33,8 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 	case constant.ChannelTypeBlockRunVideo:
 		fallthrough
 	case constant.ChannelTypeBlockRunSeedance:
+		fallthrough
+	case constant.ChannelTypeTechMobiVideo:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
 	default:
 		if IsOpenAIResponseOnlyModel(modelName) {
