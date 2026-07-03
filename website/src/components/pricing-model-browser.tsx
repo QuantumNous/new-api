@@ -293,14 +293,14 @@ function ModelPriceCard(props: { model: PricingModel; locale: Locale; performanc
       className="group relative flex min-h-[188px] flex-col overflow-hidden rounded-3xl border border-violet-300/30 bg-white/58 p-4 text-left shadow-[0_22px_70px_rgba(91,33,182,0.09)] backdrop-blur-xl transition-all before:pointer-events-none before:absolute before:inset-x-6 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-violet-300/60 before:to-transparent hover:-translate-y-0.5 hover:border-violet-400/45 hover:bg-white/75 hover:shadow-[0_26px_80px_rgba(91,33,182,0.14)] focus-visible:ring-3 focus-visible:ring-violet-500/20 focus-visible:outline-none dark:border-white/10 dark:bg-white/[0.055] dark:shadow-[0_22px_70px_-50px_rgba(124,58,237,0.95)] dark:before:via-violet-200/25 dark:hover:border-violet-300/30 dark:hover:bg-white/[0.08] sm:p-5"
       aria-label={`View pricing details for ${model.model_name}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
+        <div className="row-span-2 flex min-w-0 items-start gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-violet-300/25 bg-violet-500/10 shadow-[0_0_26px_rgba(168,85,247,0.12)] dark:border-violet-300/20 dark:bg-violet-300/10">
             <ModelLogo iconKey={iconKey} fallback={initial} size={28} />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h3 className="truncate text-[15px] leading-tight font-black text-slate-950 dark:text-white">{model.model_name}</h3>
-            <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs">
+            <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs">
               {tokenBased ? (
                 <>
                   <span className="whitespace-nowrap text-slate-500 dark:text-slate-400">
@@ -322,7 +322,6 @@ function ModelPriceCard(props: { model: PricingModel; locale: Locale; performanc
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          {props.performance ? <HealthBadge summary={props.performance} /> : null}
           <span className="inline-flex items-center gap-1 rounded-full border border-violet-300/30 bg-white/55 px-2.5 py-1.5 text-xs font-bold text-slate-600 transition-colors group-hover:bg-violet-500/10 group-hover:text-slate-950 dark:border-violet-300/20 dark:bg-white/[0.055] dark:text-slate-300 dark:group-hover:bg-violet-300/10 dark:group-hover:text-white">
             Details
             <ChevronRight className="size-3.5" aria-hidden="true" />
@@ -347,6 +346,7 @@ function ModelPriceCard(props: { model: PricingModel; locale: Locale; performanc
             <Copy className="size-3.5" aria-hidden="true" />
           </button>
         </div>
+        {props.performance ? <div className="col-start-2 row-start-2 justify-self-end"><HealthBadge summary={props.performance} /></div> : null}
       </div>
       <p className="mt-4 line-clamp-2 min-h-[2.5rem] flex-1 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
         {model.description || "No description available."}
@@ -1030,7 +1030,7 @@ function HealthBadge(props: { summary: PerformanceSummary }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-1.5 text-xs font-bold",
+        "inline-flex max-w-full shrink-0 items-center gap-1 rounded-full border px-2 py-1.5 text-xs font-bold whitespace-nowrap",
         successRate >= 99.9
           ? "border-emerald-300/40 bg-emerald-500/10 text-emerald-700"
           : successRate >= 99

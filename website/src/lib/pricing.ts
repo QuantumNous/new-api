@@ -69,6 +69,12 @@ export type PricingSearch = {
 
 const QUOTA_TYPE_TOKEN = 0;
 const QUOTA_TYPE_REQUEST = 1;
+const VENDOR_SORT_PRIORITY: Record<string, number> = {
+  openai: 0,
+  anthropic: 1,
+  google: 2,
+  gemini: 2,
+};
 
 export function publicPricingUrl(apiBaseUrl = API_BASE_URL): string {
   return `${apiBaseUrl}/api/website/pricing`;
@@ -262,7 +268,9 @@ function isVisibleGroup(group: string): boolean {
 }
 
 function getVendorSortKey(model: PricingModel): string {
-  return (model.vendor_name || model.vendor_icon || "zz-provider").toLowerCase();
+  const vendor = (model.vendor_name || model.vendor_icon || "zz-provider").toLowerCase();
+  const priority = VENDOR_SORT_PRIORITY[vendor] ?? 50;
+  return `${priority}:${vendor}`;
 }
 
 function getModelFamilyKey(modelName: string): string {
