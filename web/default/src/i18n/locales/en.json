@@ -284,7 +284,7 @@
     "Plan Status": "套餐状态",
     "No plan bound": "未绑定套餐",
     "Full Sync": "全量同步",
-    "Syncing...": "同步中...",
+    "Syncing...": "Syncing...",
     "Group sync completed": "分组同步完成",
     "Group sync failed": "分组同步失败",
     "Failed to load groups": "加载分组失败",
@@ -2011,7 +2011,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Force a syntactically valid JSON response",
@@ -4269,7 +4269,6 @@
     "Synced upstream models": "Synced upstream models",
     "Synchronize models and vendors from an upstream source": "Synchronize models and vendors from an upstream source",
     "Syncing prices, please wait...": "Syncing prices, please wait...",
-    "Syncing...": "Syncing...",
     "System": "System",
     "System Administration": "System Administration",
     "System Announcements": "System Announcements",
@@ -5069,6 +5068,9 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "可按姓名查找；同名时需填写手机号、工号或邮箱": "Search by name; if there are duplicate names, enter a mobile number, employee ID, or email",
+    "请至少填写姓名、手机号、工号或邮箱之一": "Please enter at least one of name, mobile number, employee ID, or email",
+    "填写姓名/手机号/工号/邮箱后点击绑定，系统会通过飞书通讯录自动查询并回填飞书信息；姓名同名时请改用手机号、工号或邮箱。": "Enter a name, mobile number, employee ID, or email, then click Bind. The system will query Feishu Contacts and fill in the Feishu information automatically. If names are duplicated, use a mobile number, employee ID, or email."
   }
 }

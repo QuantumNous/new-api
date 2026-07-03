@@ -2011,7 +2011,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "强制返回语法合法的 JSON",
@@ -4275,7 +4275,6 @@
     "Synced upstream models": "同步上游模型",
     "Synchronize models and vendors from an upstream source": "从上游源同步模型和供应商",
     "Syncing prices, please wait...": "正在同步价格，请稍候...",
-    "Syncing...": "同步中...",
     "System": "系统",
     "System Administration": "系统管理",
     "System Announcements": "系统公告",
@@ -5075,6 +5074,9 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "可按姓名查找；同名时需填写手机号、工号或邮箱": "可按姓名查找；同名时需填写手机号、工号或邮箱",
+    "请至少填写姓名、手机号、工号或邮箱之一": "请至少填写姓名、手机号、工号或邮箱之一",
+    "填写姓名/手机号/工号/邮箱后点击绑定，系统会通过飞书通讯录自动查询并回填飞书信息；姓名同名时请改用手机号、工号或邮箱。": "填写姓名/手机号/工号/邮箱后点击绑定，系统会通过飞书通讯录自动查询并回填飞书信息；姓名同名时请改用手机号、工号或邮箱。"
   }
 }

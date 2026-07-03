@@ -284,7 +284,7 @@
     "Plan Status": "套餐状态",
     "No plan bound": "未绑定套餐",
     "Full Sync": "全量同步",
-    "Syncing...": "同步中...",
+    "Syncing...": "同期中...",
     "Group sync completed": "分组同步完成",
     "Group sync failed": "分组同步失败",
     "Failed to load groups": "加载分组失败",
@@ -2000,7 +2000,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For private deployments, format: https://fastgpt.run/api/openapi": "プライベートデプロイメントの場合、形式: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "構文的に有効な JSON 応答を強制",
@@ -4254,7 +4254,6 @@
     "Synced upstream models": "上流モデルを同期しました",
     "Synchronize models and vendors from an upstream source": "アップストリームソースからモデルとベンダーを同期",
     "Syncing prices, please wait...": "価格を同期中、しばらくお待ちください...",
-    "Syncing...": "同期中...",
     "System": "システム",
     "System Administration": "システム管理",
     "System Announcements": "システムのお知らせ",
@@ -5054,6 +5053,9 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "可按姓名查找；同名时需填写手机号、工号或邮箱": "氏名で検索できます。同姓同名の場合は携帯番号、社員番号、またはメールを入力してください",
+    "请至少填写姓名、手机号、工号或邮箱之一": "氏名、携帯番号、社員番号、メールのいずれかを入力してください",
+    "填写姓名/手机号/工号/邮箱后点击绑定，系统会通过飞书通讯录自动查询并回填飞书信息；姓名同名时请改用手机号、工号或邮箱。": "氏名、携帯番号、社員番号、メールのいずれかを入力して「バインド」をクリックすると、Feishu連絡先から自動検索して情報を補完します。同姓同名の場合は携帯番号、社員番号、またはメールを使用してください。"
   }
 }

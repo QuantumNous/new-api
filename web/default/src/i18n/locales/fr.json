@@ -284,7 +284,7 @@
     "Plan Status": "套餐状态",
     "No plan bound": "未绑定套餐",
     "Full Sync": "全量同步",
-    "Syncing...": "同步中...",
+    "Syncing...": "Synchronisation...",
     "Group sync completed": "分组同步完成",
     "Group sync failed": "分组同步失败",
     "Failed to load groups": "加载分组失败",
@@ -2000,7 +2000,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Projets liés",
     "footer.defaultCopyright": "Tous droits réservés.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
+    "footer.newapi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Pour les canaux ajoutés après le 10 mai 2025, pas besoin de supprimer \".\" des noms de modèles lors du déploiement",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Pour les déploiements privés, format : https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Imposer une réponse JSON syntaxiquement valide",
@@ -4254,7 +4254,6 @@
     "Synced upstream models": "Modèles en amont synchronisés",
     "Synchronize models and vendors from an upstream source": "Synchroniser les modèles et les fournisseurs à partir d'une source amont",
     "Syncing prices, please wait...": "Synchronisation des prix, veuillez patienter...",
-    "Syncing...": "Synchronisation...",
     "System": "Système",
     "System Administration": "Administration du système",
     "System Announcements": "Annonces système",
@@ -5054,6 +5053,9 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "可按姓名查找；同名时需填写手机号、工号或邮箱": "Recherche par nom ; en cas de doublon, saisissez un mobile, un matricule ou un e-mail",
+    "请至少填写姓名、手机号、工号或邮箱之一": "Saisissez au moins un nom, mobile, matricule ou e-mail",
+    "填写姓名/手机号/工号/邮箱后点击绑定，系统会通过飞书通讯录自动查询并回填飞书信息；姓名同名时请改用手机号、工号或邮箱。": "Saisissez un nom, mobile, matricule ou e-mail puis cliquez sur Lier. Le système interrogera les contacts Feishu et remplira les informations automatiquement. En cas de doublon, utilisez un mobile, un matricule ou un e-mail."
   }
 }

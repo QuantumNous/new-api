@@ -75,8 +75,8 @@ export function AgentOwnerDialog({ open, onOpenChange, user, onSuccess }: Props)
 
   async function handleBind() {
     if (!user) return
-    if (!mobile.trim() && !employeeNo.trim() && !email.trim()) {
-      toast.error(t('请至少填写手机号、工号或邮箱之一'))
+    if (!name.trim() && !mobile.trim() && !employeeNo.trim() && !email.trim()) {
+      toast.error(t('请至少填写姓名、手机号、工号或邮箱之一'))
       return
     }
     setLoading(true)
@@ -162,7 +162,7 @@ export function AgentOwnerDialog({ open, onOpenChange, user, onSuccess }: Props)
                 id="owner-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder={t('选填，绑定后会自动回填')}
+                placeholder={t('可按姓名查找；同名时需填写手机号、工号或邮箱')}
               />
             </div>
 
@@ -198,7 +198,7 @@ export function AgentOwnerDialog({ open, onOpenChange, user, onSuccess }: Props)
             </div>
 
             <p className="text-xs text-muted-foreground">
-              {t('填写手机号/工号/邮箱后点击绑定，系统会通过飞书通讯录自动查询并回填飞书信息。')}
+              {t('填写姓名/手机号/工号/邮箱后点击绑定，系统会通过飞书通讯录自动查询并回填飞书信息；姓名同名时请改用手机号、工号或邮箱。')}
             </p>
           </div>
         )}

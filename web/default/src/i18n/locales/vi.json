@@ -284,7 +284,7 @@
     "Plan Status": "套餐状态",
     "No plan bound": "未绑定套餐",
     "Full Sync": "全量同步",
-    "Syncing...": "同步中...",
+    "Syncing...": "Đang đồng bộ...",
     "Group sync completed": "分组同步完成",
     "Group sync failed": "分组同步失败",
     "Failed to load groups": "加载分组失败",
@@ -2000,7 +2000,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Đối với các triển khai riêng tư, định dạng: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Buộc phản hồi JSON hợp lệ về cú pháp",
@@ -4254,7 +4254,6 @@
     "Synced upstream models": "Đã đồng bộ mô hình thượng nguồn",
     "Synchronize models and vendors from an upstream source": "Đồng bộ hóa các mô hình và nhà cung cấp từ một nguồn thượng nguồn",
     "Syncing prices, please wait...": "Đang đồng bộ giá, vui lòng đợi...",
-    "Syncing...": "Đang đồng bộ...",
     "System": "Hệ thống",
     "System Administration": "Quản trị hệ thống",
     "System Announcements": "Thông báo hệ thống",
@@ -5054,6 +5053,9 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "可按姓名查找；同名时需填写手机号、工号或邮箱": "Có thể tìm theo tên; nếu trùng tên, hãy nhập số di động, mã nhân viên hoặc email",
+    "请至少填写姓名、手机号、工号或邮箱之一": "Vui lòng nhập ít nhất một trong các thông tin: tên, số di động, mã nhân viên hoặc email",
+    "填写姓名/手机号/工号/邮箱后点击绑定，系统会通过飞书通讯录自动查询并回填飞书信息；姓名同名时请改用手机号、工号或邮箱。": "Nhập tên, số di động, mã nhân viên hoặc email rồi bấm Liên kết. Hệ thống sẽ tự động tra cứu trong danh bạ Feishu và điền thông tin Feishu. Nếu trùng tên, hãy dùng số di động, mã nhân viên hoặc email."
   }
 }
