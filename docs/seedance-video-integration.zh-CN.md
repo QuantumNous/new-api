@@ -142,6 +142,42 @@ seedance-720p-4img-c18
 - 原始上游 Seedance 模型在模型广场元数据中应设置 `models.status = 0`。
 - Channel 17 的上游模型自动同步应保持关闭，否则原始上游模型可能重新出现，或者对外别名会被误判为上游已删除模型。
 
+## AistarsLab 配置同步
+
+可通过 AistarsLab 配置接口同步 Seedance 对外别名、价格、计费单位、模型广场元数据和 Channel 17 的 `models` / `model_mapping`。
+
+手动预览变更：
+
+```bash
+curl -sS 'https://token.mewinyou.shop/api/ratio_sync/aistarslab/sync' \
+  -H 'Authorization: Bearer <Root API Key>' \
+  -H 'Content-Type: application/json' \
+  -d '{"dry_run":true}'
+```
+
+确认后写入：
+
+```bash
+curl -sS 'https://token.mewinyou.shop/api/ratio_sync/aistarslab/sync' \
+  -H 'Authorization: Bearer <Root API Key>' \
+  -H 'Content-Type: application/json' \
+  -d '{"dry_run":false}'
+```
+
+默认配置：
+
+```text
+AISTARSLAB_CONFIG_URL=https://api.video.aistarslab.com/openapi/generation/config
+AISTARSLAB_CONFIG_SYNC_CHANNEL_ID=17
+AISTARSLAB_CREDIT_RATE=100
+AISTARSLAB_MARKUP_RATE=1.3
+AISTARSLAB_CONFIG_SYNC_ENABLED=false
+AISTARSLAB_CONFIG_SYNC_INTERVAL_MINUTES=30
+```
+
+接口密钥优先从 `AISTARSLAB_API_KEY` 读取；未设置时使用同步渠道的 API Key。
+自动同步默认关闭，设置 `AISTARSLAB_CONFIG_SYNC_ENABLED=true` 后仅主节点按间隔执行。
+
 ## 验证命令
 
 检查原始上游 Seedance 模型没有暴露：
@@ -182,4 +218,3 @@ curl -sS 'https://token.mewinyou.shop/v1/models' \
 ```
 
 期望结果：只出现 `seedance-...-cXX` 对外别名，不出现原始上游模型名。
-

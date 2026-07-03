@@ -103,6 +103,8 @@ export default function UpstreamRatioSync(props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [aistarsLabLoading, setAistarsLabLoading] = useState(false);
+  const [aistarsLabResult, setAistarsLabResult] = useState(null);
   const isMobile = useIsMobile();
 
   // 渠道选择相关
@@ -442,6 +444,234 @@ export default function UpstreamRatioSync(props) {
     const startIndex = (currentPage - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     return dataSource.slice(startIndex, endIndex);
+  };
+
+  const runAistarsLabSync = async (dryRun = true) => {
+    setAistarsLabLoading(true);
+    try {
+      const res = await API.post('/api/ratio_sync/aistarslab/sync', {
+        dry_run: dryRun,
+      });
+
+      if (!res.data.success) {
+        showError(res.data.message || t('AistarsLab 即梦同步失败'));
+        return;
+      }
+
+      const result = res.data.data;
+      setAistarsLabResult(result);
+
+      if (dryRun) {
+        showSuccess(t('AistarsLab 即梦同步预览完成'));
+      } else {
+        showSuccess(t('AistarsLab 即梦同步已应用'));
+        props.refresh();
+      }
+    } catch (error) {
+      showError(t('请求后端接口失败：') + error.message);
+    } finally {
+      setAistarsLabLoading(false);
+    }
+  };
+
+  const confirmAistarsLabSync = () => {
+    Modal.confirm({
+      title: t('确认应用 AistarsLab 即梦同步'),
+      content: t('将更新即梦模型、价格、计费单位和渠道映射。'),
+      okText: t('确认应用'),
+      cancelText: t('取消'),
+      onOk: () => runAistarsLabSync(false),
+    });
+  };
+
+  const formatAistarsLabValue = (value) => {
+    if (value === null || value === undefined || value === '') {
+      return t('未设置');
+    }
+    return String(value);
+  };
+
+  const renderAistarsLabHeader = () => (
+    <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-3 w-full'>
+      <div className='flex flex-col gap-1'>
+        <div className='font-medium'>{t('AistarsLab 即梦模型同步')}</div>
+        <div className='text-xs text-gray-500'>
+          {t('模型、价格、分辨率和能力配置')}
+        </div>
+      </div>
+      <div className='flex flex-col sm:flex-row gap-2 w-full md:w-auto'>
+        <Button
+          icon={<RefreshCcw size={14} />}
+          className='w-full md:w-auto'
+          loading={aistarsLabLoading}
+          onClick={() => runAistarsLabSync(true)}
+        >
+          {t('预览即梦同步')}
+        </Button>
+        <Button
+          icon={<CheckSquare size={14} />}
+          type='secondary'
+          className='w-full md:w-auto'
+          loading={aistarsLabLoading}
+          onClick={confirmAistarsLabSync}
+        >
+          {t('应用即梦同步')}
+        </Button>
+      </div>
+    </div>
+  );
+
+  const renderAistarsLabResult = () => {
+    if (!aistarsLabResult) {
+      return (
+        <Empty
+          image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
+          darkModeImage={
+            <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+          }
+          description={t('暂无 AistarsLab 即梦同步结果')}
+          style={{ padding: 30 }}
+        />
+      );
+    }
+
+    const rows = [];
+    const pushModelRows = (type, models, oldValue, newValue) => {
+      (models || []).forEach((model) => {
+        rows.push({
+          key: `${type}_${model}`,
+          type,
+          model,
+          old: oldValue,
+          new: newValue,
+        });
+      });
+    };
+
+    pushModelRows(
+      t('新增模型'),
+      aistarsLabResult.added_models,
+      t('未设置'),
+      t('加入'),
+    );
+    pushModelRows(
+      t('移除旧模型'),
+      aistarsLabResult.removed_models,
+      t('存在'),
+      t('移除'),
+    );
+
+    (aistarsLabResult.price_changes || []).forEach((item) => {
+      rows.push({
+        key: `price_${item.model}`,
+        type: t('固定价格'),
+        model: item.model,
+        old: formatAistarsLabValue(item.old),
+        new: formatAistarsLabValue(item.new),
+      });
+    });
+
+    (aistarsLabResult.task_unit_changes || []).forEach((item) => {
+      rows.push({
+        key: `task_unit_${item.model}`,
+        type: t('计费单位'),
+        model: item.model,
+        old: formatAistarsLabValue(item.old),
+        new: formatAistarsLabValue(item.new),
+      });
+    });
+
+    (aistarsLabResult.mapping_changes || []).forEach((item) => {
+      rows.push({
+        key: `mapping_${item.model}`,
+        type: t('渠道映射'),
+        model: item.model,
+        old: formatAistarsLabValue(item.old),
+        new: formatAistarsLabValue(item.new),
+      });
+    });
+
+    const columns = [
+      {
+        title: t('类型'),
+        dataIndex: 'type',
+        render: (text) => (
+          <Tag color={stringToColor(text)} shape='circle'>
+            {text}
+          </Tag>
+        ),
+      },
+      {
+        title: t('模型'),
+        dataIndex: 'model',
+        render: (text) => <span className='break-all'>{text}</span>,
+      },
+      {
+        title: t('当前值'),
+        dataIndex: 'old',
+        render: (text) => <span className='break-all'>{text}</span>,
+      },
+      {
+        title: t('同步后'),
+        dataIndex: 'new',
+        render: (text) => <span className='break-all'>{text}</span>,
+      },
+    ];
+
+    return (
+      <div className='flex flex-col gap-3'>
+        <div className='flex flex-wrap gap-2'>
+          <Tag color='blue' shape='circle'>
+            {t('模型总数')}: {aistarsLabResult.total_models || 0}
+          </Tag>
+          <Tag color='green' shape='circle'>
+            {t('新增')}: {aistarsLabResult.added_models?.length || 0}
+          </Tag>
+          <Tag color='red' shape='circle'>
+            {t('移除')}: {aistarsLabResult.removed_models?.length || 0}
+          </Tag>
+          <Tag color='orange' shape='circle'>
+            {t('价格')}: {aistarsLabResult.price_changes?.length || 0}
+          </Tag>
+          <Tag color='purple' shape='circle'>
+            {t('计费单位')}: {aistarsLabResult.task_unit_changes?.length || 0}
+          </Tag>
+          <Tag color='cyan' shape='circle'>
+            {t('映射')}: {aistarsLabResult.mapping_changes?.length || 0}
+          </Tag>
+          <Tag
+            color={aistarsLabResult.dry_run ? 'yellow' : 'green'}
+            shape='circle'
+          >
+            {aistarsLabResult.dry_run ? t('预览') : t('已应用')}
+          </Tag>
+        </div>
+        <Table
+          columns={columns}
+          dataSource={rows}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50'],
+          }}
+          scroll={{ x: 'max-content' }}
+          size='small'
+          loading={aistarsLabLoading}
+          empty={
+            <Empty
+              image={
+                <IllustrationNoResult style={{ width: 150, height: 150 }} />
+              }
+              darkModeImage={
+                <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+              }
+              description={t('没有需要变更的项目')}
+              style={{ padding: 30 }}
+            />
+          }
+        />
+      </div>
+    );
   };
 
   const renderHeader = () => (
@@ -853,6 +1083,10 @@ export default function UpstreamRatioSync(props) {
 
   return (
     <>
+      <Form.Section text={renderAistarsLabHeader()}>
+        {renderAistarsLabResult()}
+      </Form.Section>
+
       <Form.Section text={renderHeader()}>
         {renderDifferenceTable()}
       </Form.Section>

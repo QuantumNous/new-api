@@ -143,6 +143,42 @@ Important settings:
 - Keep raw upstream Seedance model metadata disabled with `models.status = 0`.
 - Upstream model auto-sync for channel 17 should remain disabled, otherwise raw upstream models may reappear or public aliases may be treated as removed upstream models.
 
+## AistarsLab Config Sync
+
+Use the AistarsLab config endpoint to sync Seedance public aliases, prices, billing units, model marketplace metadata, and Channel 17 `models` / `model_mapping`.
+
+Preview changes:
+
+```bash
+curl -sS 'https://token.mewinyou.shop/api/ratio_sync/aistarslab/sync' \
+  -H 'Authorization: Bearer <Root API Key>' \
+  -H 'Content-Type: application/json' \
+  -d '{"dry_run":true}'
+```
+
+Apply changes:
+
+```bash
+curl -sS 'https://token.mewinyou.shop/api/ratio_sync/aistarslab/sync' \
+  -H 'Authorization: Bearer <Root API Key>' \
+  -H 'Content-Type: application/json' \
+  -d '{"dry_run":false}'
+```
+
+Defaults:
+
+```text
+AISTARSLAB_CONFIG_URL=https://api.video.aistarslab.com/openapi/generation/config
+AISTARSLAB_CONFIG_SYNC_CHANNEL_ID=17
+AISTARSLAB_CREDIT_RATE=100
+AISTARSLAB_MARKUP_RATE=1.3
+AISTARSLAB_CONFIG_SYNC_ENABLED=false
+AISTARSLAB_CONFIG_SYNC_INTERVAL_MINUTES=30
+```
+
+The sync key is read from `AISTARSLAB_API_KEY` first; if unset, it uses the configured sync channel API key.
+Automatic sync is off by default and runs only on the master node when `AISTARSLAB_CONFIG_SYNC_ENABLED=true`.
+
 ## Verification Commands
 
 Check that raw upstream Seedance names are not exposed:
