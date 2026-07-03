@@ -199,6 +199,8 @@ func requestedEndpointType(c *gin.Context) constant.EndpointType {
 	if strings.HasPrefix(path, "/v1beta/models") || strings.HasPrefix(path, "/v1/models") {
 		return constant.EndpointTypeGemini
 	}
+	// Legacy endpoint modes still rely on model/group abilities here. Do not
+	// add them until endpoint metadata is complete for every compatible channel.
 	return ""
 }
 

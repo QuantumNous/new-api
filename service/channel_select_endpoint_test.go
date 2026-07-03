@@ -351,3 +351,26 @@ func TestRequestedEndpointTypeRecognizesV1Models(t *testing.T) {
 
 	require.Equal(t, constant.EndpointTypeGemini, requestedEndpointType(ctx))
 }
+
+func TestRequestedEndpointTypeDoesNotFilterLegacyEndpointModes(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+	}{
+		{"embeddings", "/v1/embeddings"},
+		{"image generation", "/v1/images/generations"},
+		{"rerank", "/v1/rerank"},
+		{"video", "/v1/video/generations"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, tc.path, nil)
+
+			require.Empty(t, requestedEndpointType(ctx))
+		})
+	}
+}
