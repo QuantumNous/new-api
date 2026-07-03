@@ -596,3 +596,30 @@ resolve_url_and_format()
 1. **CC CLI fallback 死分支**：`formats_to_try = [detected_format]` 只有一个元素，`ClaudeCliOnlyError` 后 `skip_to_cli=True` 但 "claude-cli" 从未在列表中 → 改为 `[detected_format, "claude-cli"]`，CC CLI 作为 fallback 追加
 2. **resolve_target_model 吞掉真实错误**：HTTP 401 / 余额不足 / Cloudflare 403 HTML 被当 model_not_found → 在 `except ProviderError` 里检测关键词，命中则立即 re-raise
 3. **Cloudflare HTML 检测**：`openai_compat.py` 新增对 `server: cloudflare` 响应头 + "just a moment" HTML 的识别，报 "Cloudflare Bot 防护" 而不是误报 model_not_found
+
+---
+
+## Fork 进展存档 — 账号统一 / 风控封禁邮件 / 模型广场指纹历史（2026-07-01~02）
+
+### 1. 账号按已验证邮箱统一（一邮箱一 UID → 一 new-api 镜像）
+
+**背景（与 new-api 强相关）**：3 种注册方式（Google / GitHub / 邮箱密码）同一邮箱会生成 **3 个 apimaster UID**，经 `syncConsoleSession` 镜像成 **3 个 new-api 账号，余额/充值被分散**。改为：新注册/登录按**已验证邮箱**归并到同一 UID（老的 5 个重复邮箱不动，靠 `(provider,provider_id)` 快路径原样命中）→ 今后**一邮箱 = 一 UID = 一个 new-api 镜像账号**，钱不再进错空号。
+
+**改动全在 apimaster-ai（不改 new-api 代码，仅影响 new-api 用户镜像口径）**：
+- `auth/google|github/callback`：`(provider,provider_id)` 未命中 → **已验证邮箱兜底**（`ORDER BY (password_hash IS NOT NULL) DESC, created_at ASC` 优先有密码/主号）登入，不建新号
+- `auth/register`：撞 OAuth-only 行（无密码）→ **UPDATE 设密码链接**（同 UID，验证码消费后才设）；已有密码账号才 409
+- `auth/login`：改为 `WHERE lower(email)=lower($1) AND password_hash IS NOT NULL`（不限 provider）
+- `auth/send-verification-code`：同口径（有密码才拒；OAuth-only 允许发码补密码）
+- OAuth-only 用户用「邮箱+密码」登 → 返回 `code=OAUTH_ONLY`+`provider`，前端 15 语言本地化提示引导用 Google/GitHub 或设密码
+- **twitter 排除**（占位邮箱 `@twitter.invalid` 绝不按邮箱归并）
+- **安全前提**：三方邮箱始终验证（验证码 / `verified_email` / `primary&&verified`），故按邮箱归并无账号劫持面。monorepo commit `0db7be5`。
+
+### 2. 禁用用户自动发封禁邮件（`controller/user.go::ManageUser`）
+
+风控在后台点「禁用」时自动给用户注册邮箱发英文封禁通知。实现：`disable` 分支在 **enabled→disabled 真实转换**且 `isRealEmail(user.Email)` 时，`go common.SendEmail(banEmailSubject, email, banEmailHTML)`（fire-and-forget，复用现成 SMTP = Resend，`SMTPFrom=support@apimaster.ai`）。去重（重复点禁用/已禁用不再发）、跳过空邮箱与 `@twitter.invalid` 占位、发信失败绝不影响禁用。submodule commit `a4abd94`。
+
+### 3. 模型广场"暂无检测数据"修复（`controller/model_data.go`）
+
+`GetModelData`(admin) 与 `GetPublicMarketplace`(public) 原来用**一条共享查询** `Where(claimed_model).Order("detect_time DESC").Limit(len(channelIDs)*(24+50*3))` 拉 `channel_detect_logs`，再在内存按 `source=="uptime"` 分桶。**uptime 记录又多又新（每渠道 ~880 条），把旧的指纹记录（`source=auto`，如 05-23）挤出 LIMIT 窗口** → `fingerprint_history` 返回空（前端"暂无检测数据"）。修复：**指纹与 uptime 分成两条独立查询**，各带自己的 Limit（`Where("source <> ?","uptime")` / `Where("source = ?","uptime")`），下游分桶不变。submodule commit `a522f8c`。
+
+> 正交问题：gpt-5.4 等渠道指纹数据停在 05-23 是因为**自动"模型检测"开关关闭**，无新指纹产出；查询修好后历史能正常显示，但要新鲜数据需在 Model Data 页开启对应渠道的定时检测（运营决定）。
