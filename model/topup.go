@@ -103,6 +103,17 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 	return topUp
 }
 
+func GetTopUpByTradeNoAndUserId(tradeNo string, userId int) *TopUp {
+	if tradeNo == "" || userId <= 0 {
+		return nil
+	}
+	var topUp *TopUp
+	if err := DB.Where("trade_no = ? AND user_id = ?", tradeNo, userId).First(&topUp).Error; err != nil {
+		return nil
+	}
+	return topUp
+}
+
 func GetPendingTopUpsByProvider(paymentProvider string, beforeCreateTime int64, limit int) ([]*TopUp, error) {
 	if limit <= 0 {
 		limit = 100
