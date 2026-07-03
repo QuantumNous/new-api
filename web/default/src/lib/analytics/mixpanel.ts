@@ -173,6 +173,8 @@ export function identifyMixpanelUser(user: AuthUser | null | undefined): void {
       window.mixpanel?.identify(String(user.id))
       window.mixpanel?.people?.set({
         user_id: user.id,
+        $email: user.email,
+        email: user.email,
         role: user.role,
         status: user.status,
         group: user.group,

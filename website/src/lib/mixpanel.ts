@@ -23,6 +23,8 @@ export const MIXPANEL_BROWSER_SCRIPT = `(function(){
       if(mixpanel.people&&mixpanel.people.set){
         mixpanel.people.set({
           user_id:user.id,
+          $email:user.email,
+          email:user.email,
           role:user.role,
           status:user.status,
           group:user.group,

@@ -250,7 +250,7 @@ const copies: Record<Locale, BaseCopy> = {
       },
     },
     footer: {
-      tagline: "Powerful API Management Platform",
+      tagline: "Secure, reliable, affordable",
       trustedVerifiedBy: "TRUSTED & VERIFIED BY",
       emailSupport: "Email: support@flatkey.ai",
       termsOfService: "Terms of Service",
@@ -404,7 +404,7 @@ const copies: Record<Locale, BaseCopy> = {
       },
     },
     footer: {
-      tagline: "强大的 API 管理平台",
+      tagline: "安全、可靠、便宜",
       trustedVerifiedBy: "可信与认证",
       emailSupport: "邮箱：support@flatkey.ai",
       termsOfService: "服务条款",
@@ -530,7 +530,7 @@ const copies: Record<Locale, BaseCopy> = {
       },
     },
     footer: {
-      tagline: "Potente plataforma de gestión de API",
+      tagline: "Seguro, fiable y asequible",
       trustedVerifiedBy: "DE CONFIANZA Y VERIFICADO POR",
       emailSupport: "Email: support@flatkey.ai",
       termsOfService: "Términos del servicio",
@@ -656,7 +656,7 @@ const copies: Record<Locale, BaseCopy> = {
       },
     },
     footer: {
-      tagline: "Plateforme puissante de gestion des API",
+      tagline: "Securise, fiable et abordable",
       trustedVerifiedBy: "FIABLE ET VERIFIE PAR",
       emailSupport: "E-mail : support@flatkey.ai",
       termsOfService: "Conditions d'utilisation",
@@ -782,7 +782,7 @@ const copies: Record<Locale, BaseCopy> = {
       },
     },
     footer: {
-      tagline: "Plataforma poderosa de gerenciamento de API",
+      tagline: "Seguro, confiavel e acessivel",
       trustedVerifiedBy: "CONFIAVEL E VERIFICADO POR",
       emailSupport: "Email: support@flatkey.ai",
       termsOfService: "Termos de serviço",
@@ -908,7 +908,7 @@ const copies: Record<Locale, BaseCopy> = {
       },
     },
     footer: {
-      tagline: "Мощная платформа управления API",
+      tagline: "Безопасно, надежно и доступно",
       trustedVerifiedBy: "НАДЕЖНОСТЬ И ПРОВЕРКА",
       emailSupport: "Email: support@flatkey.ai",
       termsOfService: "Условия использования",
@@ -1034,7 +1034,7 @@ const copies: Record<Locale, BaseCopy> = {
       },
     },
     footer: {
-      tagline: "強力な API 管理プラットフォーム",
+      tagline: "安全、信頼、低価格",
       trustedVerifiedBy: "信頼と認証",
       emailSupport: "メール: support@flatkey.ai",
       termsOfService: "利用規約",
@@ -1160,7 +1160,7 @@ const copies: Record<Locale, BaseCopy> = {
       },
     },
     footer: {
-      tagline: "Nền tảng quản lý API mạnh mẽ",
+      tagline: "An toàn, đáng tin cậy, giá tốt",
       trustedVerifiedBy: "ĐƯỢC TIN CẬY VÀ XÁC MINH BỞI",
       emailSupport: "Email: support@flatkey.ai",
       termsOfService: "Điều khoản dịch vụ",
@@ -1317,7 +1317,7 @@ const copies: Record<Locale, BaseCopy> = {
       },
     },
     footer: {
-      tagline: "Leistungsstarke API-Management-Plattform",
+      tagline: "Sicher, zuverlässig und günstig",
       trustedVerifiedBy: "VERTRAUT UND VERIFIZIERT VON",
       emailSupport: "E-Mail: support@flatkey.ai",
       termsOfService: "Nutzungsbedingungen",

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { getEdmCampaign } from "@/lib/edm-landing";
-import { EdmLandingPage } from "./edm-landing-page";
+import { EdmLandingPage, shouldRenderLandingOfferModal } from "./edm-landing-page";
 
 describe("EdmLandingPage", () => {
   test("keeps the Japanese personal AI landing hero compact on mobile", () => {
@@ -32,5 +32,11 @@ describe("EdmLandingPage", () => {
     expect(css).toContain("\"Noto Sans JP\"");
     expect(css).toContain("\"Hiragino Kaku Gothic ProN\"");
     expect(css).toContain("\"Yu Gothic\"");
+  });
+
+  test("hides the limited offer modal on Japanese landing pages only", () => {
+    expect(shouldRenderLandingOfferModal("ja")).toBe(false);
+    expect(shouldRenderLandingOfferModal("en")).toBe(true);
+    expect(shouldRenderLandingOfferModal("zh")).toBe(true);
   });
 });

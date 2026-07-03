@@ -32,6 +32,7 @@ import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
 import { trackAdsFunnelEvent, trackSignupConversion } from '@/lib/analytics/gtag'
 import { trackPixelsSignup } from '@/lib/analytics/pixels'
 import { identifyMixpanelUser, trackMixpanelEvent } from '@/lib/analytics/mixpanel'
+import { trackYahooSignupConversion } from '@/lib/analytics/yahoo'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 import {
@@ -303,6 +304,7 @@ function OAuthCallback() {
             // contract as password sign-up: land in Playground first-run once, before
             // any card-bind/top-up prompt can compete for attention.
             if (isNewUser) {
+              trackYahooSignupConversion()
               redirectAfterLogin('/playground?first=1')
               return
             }

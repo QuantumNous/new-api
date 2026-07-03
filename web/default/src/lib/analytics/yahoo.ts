@@ -24,6 +24,8 @@ type YahooTagFn = (payload: {
     yahoo_ydn_conv_label: string
     yahoo_ydn_conv_transaction_id: string
     yahoo_ydn_conv_value: string
+    yahoo_email?: string
+    yahoo_phone_number?: string
   }
 }) => void
 
@@ -50,5 +52,27 @@ export function trackYahooApiKeyCreatedConversion(): void {
     })
   } catch {
     /* tracking must never break key creation UX */
+  }
+}
+
+export function trackYahooSignupConversion(): void {
+  if (typeof window === 'undefined' || typeof window.ytag !== 'function') {
+    return
+  }
+
+  try {
+    window.ytag({
+      type: 'yjad_conversion',
+      config: {
+        yahoo_ydn_conv_io: 'Dz41bC3JfMG6OsI3rXzAdw..',
+        yahoo_ydn_conv_label: '90OT1DQUJF9RHTGO631360311',
+        yahoo_ydn_conv_transaction_id: '',
+        yahoo_ydn_conv_value: '0',
+        yahoo_email: '',
+        yahoo_phone_number: '',
+      },
+    })
+  } catch {
+    /* tracking must never break signup UX */
   }
 }

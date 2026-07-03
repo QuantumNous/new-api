@@ -19,6 +19,10 @@ const trustBadges = [
   { src: "/trust/iso-27001.png", alt: "ISO 27001 certification" },
 ];
 
+export function shouldRenderLandingOfferModal(locale: Locale) {
+  return locale !== "ja";
+}
+
 export function EdmLandingPage(props: Props) {
   const ctaUrl = getEdmCtaUrl();
   const mainClassName = ["min-h-screen bg-background pt-20 text-foreground", props.locale === "ja" ? "ja-gothic-landing" : ""]
@@ -250,7 +254,9 @@ export function EdmLandingPage(props: Props) {
         </div>
       </section>
       <SiteFooter locale={props.locale} />
-      <LpLimitedOfferModal ctaLabel={props.campaign.primaryCta} ctaUrl={ctaUrl} locale={props.locale} />
+      {shouldRenderLandingOfferModal(props.locale) ? (
+        <LpLimitedOfferModal ctaLabel={props.campaign.primaryCta} ctaUrl={ctaUrl} locale={props.locale} />
+      ) : null}
       </main>
     </>
   );

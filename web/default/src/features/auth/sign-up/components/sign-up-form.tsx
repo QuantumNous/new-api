@@ -30,6 +30,7 @@ import {
 } from '@/lib/analytics/gtag'
 import { trackMixpanelEvent } from '@/lib/analytics/mixpanel'
 import { trackPixelsSignup } from '@/lib/analytics/pixels'
+import { trackYahooSignupConversion } from '@/lib/analytics/yahoo'
 import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
@@ -183,6 +184,7 @@ export function SignUpForm({
         trackSignupConversion()
         // Fire TikTok / Meta / X signup conversions (no-op unless configured).
         trackPixelsSignup()
+        trackYahooSignupConversion()
         trackAdsFunnelEvent('flatkey_signup_success', {
           method: 'password',
         })

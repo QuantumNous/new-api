@@ -26,5 +26,7 @@ describe("Mixpanel browser script", () => {
     expect(MIXPANEL_BROWSER_SCRIPT).toContain("/api/mixpanel/current-user");
     expect(MIXPANEL_BROWSER_SCRIPT).toContain("mixpanel.identify(String(user.id))");
     expect(MIXPANEL_BROWSER_SCRIPT).toContain("mixpanel.people.set");
+    expect(MIXPANEL_BROWSER_SCRIPT).toContain("$email:user.email");
+    expect(MIXPANEL_BROWSER_SCRIPT).toContain("email:user.email");
   });
 });

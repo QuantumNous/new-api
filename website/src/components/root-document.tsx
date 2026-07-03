@@ -11,7 +11,7 @@ const LIVECHAT_EMBED_SRC =
   "https://app.solvea.cx/api_v2/gpt/bots/livechat/embed.js?pid=1773&token=9454e15203254694a03d75fadbf9a6d4";
 
 export const ROOT_DOCUMENT_PERFORMANCE_POLICY = {
-  gtmStrategy: "lazyOnload",
+  gtmStrategy: "afterInteractive",
   mixpanelStrategy: "lazyOnload",
   livechatStrategy: "lazyOnload",
 } as const;

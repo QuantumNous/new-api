@@ -18,7 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
 import { afterEach, describe, test } from 'node:test'
-import { trackYahooApiKeyCreatedConversion } from './yahoo'
+import {
+  trackYahooApiKeyCreatedConversion,
+  trackYahooSignupConversion,
+} from './yahoo'
 
 const originalWindow = globalThis.window
 
@@ -62,5 +65,34 @@ describe('trackYahooApiKeyCreatedConversion', () => {
     })
 
     assert.doesNotThrow(() => trackYahooApiKeyCreatedConversion())
+  })
+})
+
+describe('trackYahooSignupConversion', () => {
+  test('fires the Yahoo Display Ads signup conversion when ytag is available', () => {
+    const calls: unknown[] = []
+
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        ytag: (payload: unknown) => calls.push(payload),
+      },
+    })
+
+    trackYahooSignupConversion()
+
+    assert.deepEqual(calls, [
+      {
+        type: 'yjad_conversion',
+        config: {
+          yahoo_ydn_conv_io: 'Dz41bC3JfMG6OsI3rXzAdw..',
+          yahoo_ydn_conv_label: '90OT1DQUJF9RHTGO631360311',
+          yahoo_ydn_conv_transaction_id: '',
+          yahoo_ydn_conv_value: '0',
+          yahoo_email: '',
+          yahoo_phone_number: '',
+        },
+      },
+    ])
   })
 })

@@ -22,6 +22,7 @@ import {
   ensureMixpanelLoaded,
   getMixpanelConsentStatus,
   grantMixpanelConsent,
+  identifyMixpanelUser,
   shouldEnableMixpanel,
 } from './mixpanel'
 
@@ -124,5 +125,57 @@ describe('mixpanel consent gate', () => {
     assert.equal(await ensureMixpanelLoaded(), true)
     assert.equal(initConfig.autocapture, true)
     assert.equal(initConfig.record_sessions_percent, 100)
+  })
+
+  test('sets the user email on the Mixpanel profile after consent', async () => {
+    let saved = 'granted'
+    let peopleProperties: Record<
+      string,
+      string | number | boolean | undefined
+    > = {}
+
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: () => saved,
+          setItem: (_key: string, value: string) => {
+            saved = value
+          },
+        },
+        location: { protocol: 'https:' },
+        mixpanel: {
+          init: () => undefined,
+          identify: () => undefined,
+          people: {
+            set: (
+              properties: Record<
+                string,
+                string | number | boolean | undefined
+              >
+            ) => {
+              peopleProperties = properties
+            },
+          },
+        },
+      },
+    })
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: {
+        cookie: '',
+      },
+    })
+
+    identifyMixpanelUser({
+      id: 42,
+      username: 'alice',
+      email: 'alice@example.com',
+      role: 1,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    assert.equal(peopleProperties.$email, 'alice@example.com')
+    assert.equal(peopleProperties.email, 'alice@example.com')
   })
 })

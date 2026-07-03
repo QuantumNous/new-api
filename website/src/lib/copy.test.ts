@@ -60,3 +60,17 @@ describe("blog copy", () => {
     }
   });
 });
+
+describe("footer copy", () => {
+  test("uses the security reliability and price slogan in every locale", () => {
+    expect(getCopy("en").footer.tagline).toBe("Secure, reliable, affordable");
+    expect(getCopy("zh").footer.tagline).toBe("安全、可靠、便宜");
+    expect(getCopy("es").footer.tagline).toBe("Seguro, fiable y asequible");
+    expect(getCopy("fr").footer.tagline).toBe("Securise, fiable et abordable");
+    expect(getCopy("pt").footer.tagline).toBe("Seguro, confiavel e acessivel");
+    expect(getCopy("ru").footer.tagline).toBe("Безопасно, надежно и доступно");
+    expect(getCopy("ja").footer.tagline).toBe("安全、信頼、低価格");
+    expect(getCopy("vi").footer.tagline).toBe("An toàn, đáng tin cậy, giá tốt");
+    expect(getCopy("de").footer.tagline).toBe("Sicher, zuverlässig und günstig");
+  });
+});
