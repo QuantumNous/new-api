@@ -23,6 +23,11 @@ var channelCacheMissLastLogged = make(map[string]time.Time)
 
 type ChannelFilter func(*Channel) bool
 
+const (
+	channelCacheMissLogInterval = time.Minute
+	channelCacheMissLogMaxKeys  = 10000
+)
+
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
 		return
@@ -201,14 +206,24 @@ func GetRandomSatisfiedChannelWithFilter(group string, model string, retry int, 
 }
 
 func logChannelCacheMissLocked(group string, model string, retry int) {
-	const logInterval = time.Minute
 	now := time.Now()
 	cacheKey := group + "\x00" + model
 
 	channelCacheMissLogMu.Lock()
-	if last, ok := channelCacheMissLastLogged[cacheKey]; ok && now.Sub(last) < logInterval {
+	if last, ok := channelCacheMissLastLogged[cacheKey]; ok && now.Sub(last) < channelCacheMissLogInterval {
 		channelCacheMissLogMu.Unlock()
 		return
+	}
+	if len(channelCacheMissLastLogged) >= channelCacheMissLogMaxKeys {
+		for key, last := range channelCacheMissLastLogged {
+			if now.Sub(last) >= channelCacheMissLogInterval {
+				delete(channelCacheMissLastLogged, key)
+			}
+		}
+		if len(channelCacheMissLastLogged) >= channelCacheMissLogMaxKeys {
+			channelCacheMissLogMu.Unlock()
+			return
+		}
 	}
 	channelCacheMissLastLogged[cacheKey] = now
 	channelCacheMissLogMu.Unlock()
