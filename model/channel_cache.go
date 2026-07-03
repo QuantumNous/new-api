@@ -18,8 +18,15 @@ import (
 var group2model2channels map[string]map[string][]int // enabled channel
 var channelsIDM map[int]*Channel                     // all channels include disabled
 var channelSyncLock sync.RWMutex
+var channelCacheMissLogMu sync.Mutex
+var channelCacheMissLastLogged = make(map[string]time.Time)
 
 type ChannelFilter func(*Channel) bool
+
+const (
+	channelCacheMissLogInterval = time.Minute
+	channelCacheMissLogMaxKeys  = 10000
+)
 
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
@@ -115,6 +122,7 @@ func GetRandomSatisfiedChannelWithFilter(group string, model string, retry int, 
 	}
 
 	if len(channels) == 0 {
+		logChannelCacheMissLocked(group, model, retry)
 		return nil, nil
 	}
 
@@ -195,6 +203,54 @@ func GetRandomSatisfiedChannelWithFilter(group string, model string, retry int, 
 	}
 	// return null if no channel is not found
 	return nil, errors.New("channel not found")
+}
+
+func logChannelCacheMissLocked(group string, model string, retry int) {
+	now := time.Now()
+	cacheKey := group + "\x00" + model
+
+	channelCacheMissLogMu.Lock()
+	if last, ok := channelCacheMissLastLogged[cacheKey]; ok && now.Sub(last) < channelCacheMissLogInterval {
+		channelCacheMissLogMu.Unlock()
+		return
+	}
+	if len(channelCacheMissLastLogged) >= channelCacheMissLogMaxKeys {
+		for key, last := range channelCacheMissLastLogged {
+			if now.Sub(last) >= channelCacheMissLogInterval {
+				delete(channelCacheMissLastLogged, key)
+			}
+		}
+		if len(channelCacheMissLastLogged) >= channelCacheMissLogMaxKeys {
+			channelCacheMissLogMu.Unlock()
+			return
+		}
+	}
+	channelCacheMissLastLogged[cacheKey] = now
+	channelCacheMissLogMu.Unlock()
+
+	groupModels, groupExists := group2model2channels[group]
+	normalizedModel := ratio_setting.FormatMatchingModelName(model)
+	exactCount := 0
+	normalizedCount := 0
+	groupModelCount := 0
+	if groupExists {
+		exactCount = len(groupModels[model])
+		normalizedCount = len(groupModels[normalizedModel])
+		groupModelCount = len(groupModels)
+	}
+
+	common.SysLog(fmt.Sprintf(
+		"channel cache miss: group=%q model=%q retry=%d normalized_model=%q group_exists=%t exact_count=%d normalized_count=%d group_model_count=%d total_group_count=%d",
+		group,
+		model,
+		retry,
+		normalizedModel,
+		groupExists,
+		exactCount,
+		normalizedCount,
+		groupModelCount,
+		len(group2model2channels),
+	))
 }
 
 func CacheGetChannel(id int) (*Channel, error) {
