@@ -20,9 +20,9 @@ type QuotaData struct {
 	TokenID   int    `json:"token_id" gorm:"index;default:0"`
 	ChannelID int    `json:"channel_id" gorm:"index;default:0"`
 	NodeName  string `json:"node_name" gorm:"index;size:64;default:''"`
-	TokenUsed int    `json:"token_used" gorm:"default:0"`
-	Count     int    `json:"count" gorm:"default:0"`
-	Quota     int    `json:"quota" gorm:"default:0"`
+	TokenUsed int64  `json:"token_used" gorm:"type:bigint;default:0"`
+	Count     int64  `json:"count" gorm:"type:bigint;default:0"`
+	Quota     int64  `json:"quota" gorm:"type:bigint;default:0"`
 }
 
 type QuotaDataLogParams struct {
@@ -88,8 +88,8 @@ func LogQuotaData(params QuotaDataLogParams) {
 		ChannelID: params.ChannelID,
 		NodeName:  params.NodeName,
 		Count:     1,
-		Quota:     params.Quota,
-		TokenUsed: params.TokenUsed,
+		Quota:     int64(params.Quota),
+		TokenUsed: int64(params.TokenUsed),
 	}
 
 	CacheQuotaDataLock.Lock()
