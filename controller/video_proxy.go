@@ -184,9 +184,7 @@ func VideoProxy(c *gin.Context) {
 	}
 
 	for key, values := range resp.Header {
-		// Never forward upstream cookies to the public/anonymous client.
-		switch http.CanonicalHeaderKey(key) {
-		case "Set-Cookie", "Set-Cookie2":
+		if !shouldProxyVideoHeader(key) {
 			continue
 		}
 		for _, value := range values {
@@ -198,6 +196,21 @@ func VideoProxy(c *gin.Context) {
 	c.Writer.WriteHeader(resp.StatusCode)
 	if _, err = io.Copy(c.Writer, resp.Body); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to stream video content: %s", err.Error()))
+	}
+}
+
+func shouldProxyVideoHeader(key string) bool {
+	switch http.CanonicalHeaderKey(key) {
+	case "Accept-Ranges",
+		"Content-Disposition",
+		"Content-Length",
+		"Content-Range",
+		"Content-Type",
+		"Etag",
+		"Last-Modified":
+		return true
+	default:
+		return false
 	}
 }
 

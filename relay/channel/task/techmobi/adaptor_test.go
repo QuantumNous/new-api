@@ -296,6 +296,40 @@ func TestParseTaskResult_MapsStatusesAndUsage(t *testing.T) {
 	}
 }
 
+func TestParseTaskResult_AcceptsTechMobiContentObject(t *testing.T) {
+	a := &TaskAdaptor{}
+
+	info, err := a.ParseTaskResult([]byte(`{
+		"id":"task_upstream_123",
+		"model":"doubao-seedance-2-0-260128",
+		"status":"running",
+		"content":{"video_url":""},
+		"usage":{"completion_tokens":0,"total_tokens":0}
+	}`))
+	if err != nil {
+		t.Fatalf("running content object: %v", err)
+	}
+	if info.Status != model.TaskStatusInProgress || info.Progress != "30%" {
+		t.Fatalf("running status/progress = %q/%q", info.Status, info.Progress)
+	}
+
+	info, err = a.ParseTaskResult([]byte(`{
+		"id":"task_upstream_123",
+		"status":"succeeded",
+		"content":{"video_url":"https://cdn.example.com/output.mp4"},
+		"usage":{"completion_tokens":108000,"total_tokens":120000}
+	}`))
+	if err != nil {
+		t.Fatalf("succeeded content object: %v", err)
+	}
+	if info.Status != model.TaskStatusSuccess || info.Url != "https://cdn.example.com/output.mp4" {
+		t.Fatalf("success status/url = %q/%q", info.Status, info.Url)
+	}
+	if info.CompletionTokens != 108000 || info.TotalTokens != 120000 {
+		t.Fatalf("usage = %d/%d", info.CompletionTokens, info.TotalTokens)
+	}
+}
+
 func TestExtractUpstreamVideoURL(t *testing.T) {
 	raw := []byte(`{"status":"succeeded","content":[{"type":"video_url","video_url":{"url":"https://cdn.example.com/output.mp4"}}]}`)
 

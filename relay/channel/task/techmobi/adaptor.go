@@ -2,6 +2,7 @@ package techmobi
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -151,12 +152,14 @@ func (a *TaskAdaptor) FetchTask(baseURL string, key string, body map[string]any,
 type pollResponse struct {
 	ID       string               `json:"id"`
 	Status   string               `json:"status"`
-	Content  []contentItem        `json:"content,omitempty"`
+	Content  pollContent          `json:"content,omitempty"`
 	Error    any                  `json:"error,omitempty"`
 	Message  string               `json:"message,omitempty"`
 	Usage    dto.OpenAIVideoUsage `json:"usage,omitempty"`
 	Progress string               `json:"progress,omitempty"`
 }
+
+type pollContent []contentItem
 
 type contentItem struct {
 	Type     string          `json:"type"`
@@ -165,6 +168,59 @@ type contentItem struct {
 
 type videoURLObject struct {
 	URL string `json:"url,omitempty"`
+}
+
+func (c *pollContent) UnmarshalJSON(data []byte) error {
+	if len(bytes.TrimSpace(data)) == 0 || string(bytes.TrimSpace(data)) == "null" {
+		*c = nil
+		return nil
+	}
+
+	var items []contentItem
+	if err := json.Unmarshal(data, &items); err == nil {
+		*c = items
+		return nil
+	}
+
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+
+	var out []contentItem
+	item := contentItem{Type: "video_url"}
+	if raw, ok := obj["type"]; ok {
+		_ = json.Unmarshal(raw, &item.Type)
+	}
+	if raw, ok := obj["video_url"]; ok && string(bytes.TrimSpace(raw)) != "null" {
+		var videoURL videoURLObject
+		if err := json.Unmarshal(raw, &videoURL); err != nil {
+			return err
+		}
+		item.VideoURL = &videoURL
+		out = append(out, item)
+	}
+	*c = out
+	return nil
+}
+
+func (v *videoURLObject) UnmarshalJSON(data []byte) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || string(trimmed) == "null" {
+		return nil
+	}
+	var url string
+	if err := json.Unmarshal(trimmed, &url); err == nil {
+		v.URL = url
+		return nil
+	}
+	type alias videoURLObject
+	var obj alias
+	if err := json.Unmarshal(trimmed, &obj); err != nil {
+		return err
+	}
+	v.URL = obj.URL
+	return nil
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
