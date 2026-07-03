@@ -98,8 +98,8 @@ func syncAccountTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 		return
 	}
 
-	// 按周期覆盖：先删除同 period_type + period_label 的旧记录
-	deleteBaseRecordsByPeriod(tenantToken, baseToken, tableID, rp.PeriodLabel)
+	// 按周期类型覆盖：先删除同 period_type 的所有旧记录
+	deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType)
 
 	items, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeAccount)
 	if err != nil {
@@ -165,7 +165,7 @@ func syncOrgTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 	if tableID == "" {
 		return
 	}
-	deleteBaseRecordsByPeriod(tenantToken, baseToken, tableID, rp.PeriodLabel)
+	deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType)
 
 	items, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeOrgDept)
 	if err != nil || len(items) == 0 {
@@ -200,7 +200,7 @@ func syncPlatformTable(tenantToken, baseToken, tableID string, rp ReportPeriod) 
 	if tableID == "" {
 		return
 	}
-	deleteBaseRecordsByPeriod(tenantToken, baseToken, tableID, rp.PeriodLabel)
+	deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType)
 
 	item, err := model.GetPlatformSnapshot(rp.PeriodType, rp.StartTimestamp)
 	if err != nil || item == nil {
@@ -240,7 +240,7 @@ func syncModelTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 	if tableID == "" {
 		return
 	}
-	deleteBaseRecordsByPeriod(tenantToken, baseToken, tableID, rp.PeriodLabel)
+	deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType)
 
 	items, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeModel)
 	if err != nil || len(items) == 0 {
@@ -280,7 +280,7 @@ func syncAnomalyTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 	if tableID == "" {
 		return
 	}
-	deleteBaseRecordsByPeriod(tenantToken, baseToken, tableID, rp.PeriodLabel)
+	deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, rp.PeriodType)
 
 	items, err := model.GetReportSnapshots(rp.PeriodType, rp.StartTimestamp, model.ReportScopeAnomaly)
 	if err != nil || len(items) == 0 {
@@ -332,8 +332,8 @@ func syncAnomalyTable(tenantToken, baseToken, tableID string, rp ReportPeriod) {
 	batchCreateBaseRecords(tenantToken, baseToken, tableID, records)
 }
 
-// deleteBaseRecordsByPeriod 按周期标签删除多维表格旧记录（覆盖式写入）
-func deleteBaseRecordsByPeriod(tenantToken, baseToken, tableID, periodLabel string) {
+// deleteBaseRecordsByPeriodType 按周期类型删除多维表格旧记录（每个周期类型只保留最新一份）
+func deleteBaseRecordsByPeriodType(tenantToken, baseToken, tableID, periodType string) {
 	records, err := listAllBaseRecords(tenantToken, baseToken, tableID)
 	if err != nil {
 		common.SysError(fmt.Sprintf("usage report base sync: list records for cleanup failed: %s", err))
@@ -346,8 +346,8 @@ func deleteBaseRecordsByPeriod(tenantToken, baseToken, tableID, periodLabel stri
 		if !ok {
 			continue
 		}
-		val, _ := fields["统计周期"].(string)
-		if val == periodLabel {
+		val, _ := fields["统计周期类型"].(string)
+		if val == periodType {
 			if id, ok := r["record_id"].(string); ok {
 				idsToDelete = append(idsToDelete, id)
 			}
