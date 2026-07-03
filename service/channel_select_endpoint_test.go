@@ -152,6 +152,48 @@ func TestCacheGetRandomSatisfiedChannelSkipsUnsupportedNonBlockRunForResponsesEn
 	require.Equal(t, 111, channel.Id)
 }
 
+func TestCacheGetRandomSatisfiedChannelDoesNotFilterEmbeddingsEndpoint(t *testing.T) {
+	setupChannelSelectEndpointTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	priority := int64(100)
+	weight := uint(1000)
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:       115,
+		Type:     constant.ChannelTypeOpenAI,
+		Key:      "openai-key",
+		Name:     "openai",
+		Status:   common.ChannelStatusEnabled,
+		Priority: &priority,
+		Weight:   &weight,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group:     "standard",
+		Model:     "text-embedding-3-small",
+		ChannelId: 115,
+		Enabled:   true,
+		Priority:  &priority,
+		Weight:    weight,
+	}).Error)
+	model.InitChannelCache()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/embeddings", nil)
+
+	channel, selectedGroup, err := CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx:        ctx,
+		TokenGroup: "standard",
+		ModelName:  "text-embedding-3-small",
+		Retry:      common.GetPointer(0),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "standard", selectedGroup)
+	require.NotNil(t, channel)
+	require.Equal(t, 115, channel.Id)
+}
+
 func TestDBGetRandomSatisfiedChannelFiltersBeforeRetryPriority(t *testing.T) {
 	setupChannelSelectEndpointTestDB(t)
 	common.MemoryCacheEnabled = false
@@ -244,6 +286,32 @@ func TestChannelSupportsRequestEndpointAllowsGPTImage2ImageGeneration(t *testing
 	require.True(t, ChannelSupportsRequestEndpoint(ctx, &model.Channel{
 		Type: constant.ChannelTypeOpenAI,
 	}, "gpt-image-2"))
+}
+
+func TestChannelSupportsRequestEndpointDoesNotFilterLegacyEndpointModes(t *testing.T) {
+	cases := []struct {
+		name  string
+		path  string
+		model string
+	}{
+		{"embeddings", "/v1/embeddings", "text-embedding-3-small"},
+		{"image generation", "/v1/images/generations", "gpt-image-2"},
+		{"rerank", "/v1/rerank", "jina-reranker-v2-base-multilingual"},
+		{"video", "/v1/video/generations", "sora-2"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, tc.path, nil)
+
+			require.True(t, ChannelSupportsRequestEndpoint(ctx, &model.Channel{
+				Type: constant.ChannelTypeOpenAI,
+			}, tc.model))
+		})
+	}
 }
 
 func TestChannelSupportsRequestEndpointRejectsUnsupportedResponsesAdaptors(t *testing.T) {
