@@ -77,6 +77,11 @@ const ModelTestModal = ({
     }
   }, [streamToggleDisabled, isStreamTest, setIsStreamTest]);
 
+  const getResponseTimeThresholdMs = (filter, customSec) => {
+    if (filter === 'custom') return Number(customSec) * 1000;
+    return Number(filter);
+  };
+
   const filteredModels = (() => {
     if (!hasChannel) return [];
     let models = currentTestChannel.models
@@ -85,9 +90,7 @@ const ModelTestModal = ({
         model.toLowerCase().includes(modelSearchKeyword.toLowerCase()),
       );
     if (responseTimeFilter !== 'all') {
-      const maxMs = responseTimeFilter === 'custom'
-        ? Number(customResponseTimeSec) * 1000
-        : Number(responseTimeFilter);
+      const maxMs = getResponseTimeThresholdMs(responseTimeFilter, customResponseTimeSec);
       if (maxMs > 0) {
         models = models.filter((model) => {
           const r = modelTestResults[`${currentTestChannel.id}-${model}`];
@@ -151,25 +154,13 @@ const ModelTestModal = ({
 
   const fittingModels = (() => {
     if (!hasChannel) return [];
-    let models = currentTestChannel.models
-      .split(',')
-      .filter((m) => m.toLowerCase().includes(modelSearchKeyword.toLowerCase()))
-      .filter((m) => {
+    if (responseTimeFilter === 'all') {
+      return filteredModels.filter((m) => {
         const result = modelTestResults[`${currentTestChannel.id}-${m}`];
         return result && result.success;
       });
-    if (responseTimeFilter !== 'all') {
-      const maxMs = responseTimeFilter === 'custom'
-        ? Number(customResponseTimeSec) * 1000
-        : Number(responseTimeFilter);
-      if (maxMs > 0) {
-        models = models.filter((model) => {
-          const r = modelTestResults[`${currentTestChannel.id}-${model}`];
-          return ((r.time || 0) * 1000) <= maxMs;
-        });
-      }
     }
-    return models;
+    return filteredModels;
   })();
 
   const handleSelectSuccess = () => {
