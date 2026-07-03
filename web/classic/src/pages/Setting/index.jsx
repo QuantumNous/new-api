@@ -34,6 +34,7 @@ import {
   CreditCard,
   Server,
   Activity,
+  HardDrive,
 } from 'lucide-react';
 
 import SystemSetting from '../../components/settings/SystemSetting';
@@ -49,6 +50,7 @@ import DrawingSetting from '../../components/settings/DrawingSetting';
 import PaymentSetting from '../../components/settings/PaymentSetting';
 import ModelDeploymentSetting from '../../components/settings/ModelDeploymentSetting';
 import PerformanceSetting from '../../components/settings/PerformanceSetting';
+import MediaStorageSetting from '../../components/settings/MediaStorageSetting';
 
 const Setting = () => {
   const { t } = useTranslation();
@@ -167,6 +169,16 @@ const Setting = () => {
       ),
       content: <SystemSetting />,
       itemKey: 'system',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <HardDrive size={18} />
+          {t('媒体存储(OBS)')}
+        </span>
+      ),
+      content: <MediaStorageSetting />,
+      itemKey: 'media-storage',
     });
     panes.push({
       tab: (

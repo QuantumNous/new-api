@@ -45,6 +45,8 @@ const TaskLogsPage = () => {
         setIsModalOpen={taskLogsData.setIsVideoModalOpen}
         modalContent={taskLogsData.videoUrl}
         isVideo={true}
+        taskId={taskLogsData.videoTaskId}
+        isAdmin={taskLogsData.isAdminUser}
       />
       <AudioPreviewModal
         isModalOpen={taskLogsData.isAudioModalOpen}

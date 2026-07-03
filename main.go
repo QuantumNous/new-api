@@ -60,6 +60,8 @@ func main() {
 
 	// Surface KYC key (mis)configuration warnings at startup rather than first use.
 	common.InitKYCKeys()
+	// Surface OBS media-store key (mis)configuration warnings at startup too.
+	common.InitOBSKeys()
 
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)
@@ -125,6 +127,9 @@ func main() {
 
 	// Direct payment (Alipay/WeChat Pay) expired order cleanup
 	service.StartDirectPaymentExpiryScan()
+
+	// Media storage (OBS) bucket usage snapshot + threshold alert cron
+	service.StartMediaStorageStatsTask()
 
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {

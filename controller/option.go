@@ -1,12 +1,14 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service/mediastore"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -80,7 +82,11 @@ func GetOptions(c *gin.Context) {
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||
 			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key")
+			strings.HasSuffix(k, "api_key") ||
+			// media_storage.* 凭证：json tag 为下划线小写（access_key_id / secret_access_key），
+			// 不命中上面的大写后缀，需显式排除，避免 GET /api/option/ 泄露 OBS AK/SK。
+			strings.HasSuffix(k, "access_key_id") ||
+			strings.HasSuffix(k, "secret_access_key")
 		if isSensitiveKey && !isVisiblePublicKeyOption(k) {
 			continue
 		}
@@ -314,6 +320,30 @@ func UpdateOption(c *gin.Context) {
 				"message": err.Error(),
 			})
 			return
+		}
+	case "media_storage.access_key_id", "media_storage.secret_access_key":
+		// OBS 凭证加密后入库（GET 已过滤不回显）。空值表示「保持不变」，直接返回不覆盖。
+		plain := option.Value.(string)
+		if plain == "" {
+			c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+			return
+		}
+		enc, encErr := common.EncryptOBSSecret(plain)
+		if encErr != nil {
+			common.ApiError(c, encErr)
+			return
+		}
+		option.Value = enc
+	case "media_storage.enabled":
+		// 启用媒体存储前用当前已保存的配置跑一次连通性校验（PutObject+DeleteObject）。
+		if option.Value == "true" {
+			if hcErr := mediastore.Healthcheck(context.Background()); hcErr != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "OBS 连接校验失败，请检查 Endpoint / Bucket / AK/SK：" + hcErr.Error(),
+				})
+				return
+			}
 		}
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))

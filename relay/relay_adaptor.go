@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/deepseek"
 	"github.com/QuantumNous/new-api/relay/channel/dify"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	gpustackplusimg "github.com/QuantumNous/new-api/relay/channel/gpustackplus"
 	"github.com/QuantumNous/new-api/relay/channel/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/jina"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
@@ -33,6 +34,7 @@ import (
 	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
 	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
 	taskGemini "github.com/QuantumNous/new-api/relay/channel/task/gemini"
+	taskgpustackplus "github.com/QuantumNous/new-api/relay/channel/task/gpustackplus"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
 	taskjimeng "github.com/QuantumNous/new-api/relay/channel/task/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/task/kling"
@@ -121,6 +123,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &replicate.Adaptor{}
 	case constant.APITypeCodex:
 		return &codex.Adaptor{}
+	case constant.APITypeGPUStackPlusImage:
+		return &gpustackplusimg.Adaptor{}
 	}
 	return nil
 }
@@ -162,6 +166,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &hailuo.TaskAdaptor{}
 		case constant.ChannelTypeParatera:
 			return &paratera.TaskAdaptor{}
+		case constant.ChannelTypeGPUStackPlus:
+			return &taskgpustackplus.TaskAdaptor{}
 		}
 	}
 	return nil

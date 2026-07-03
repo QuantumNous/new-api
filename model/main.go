@@ -293,6 +293,7 @@ func migrateDB() error {
 		&FeedbackMessage{},
 		&FeedbackImage{},
 		&PerfMetric{},
+		&MediaStorageStats{},
 	)
 	if err != nil {
 		return err

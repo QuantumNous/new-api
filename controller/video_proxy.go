@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/mediastore"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
@@ -118,6 +119,20 @@ func VideoProxy(c *gin.Context) {
 	if videoURL == "" {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Video URL is empty for task %s", taskID))
 		videoProxyError(c, http.StatusBadGateway, "server_error", "Failed to fetch video content")
+		return
+	}
+
+	// OBS 落盘对象：实时签名后 302 重定向，客户端直连 OBS，流量不经我方带宽（§5.4）。
+	// 签名失败时显式报错——若放行 fallthrough，obs:// 会被当普通 URL 去 fetch，
+	// 产生一个掩盖真因的通用 502。
+	if mediastore.IsOBSRef(videoURL) {
+		signed := service.ResolveResultURL(c.Request.Context(), videoURL)
+		if signed == videoURL {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to sign OBS result for task %s (url %s)", taskID, videoURL))
+			videoProxyError(c, http.StatusBadGateway, "server_error", "媒体存储签名失败，请检查媒体存储（OBS）配置/连通性")
+			return
+		}
+		c.Redirect(http.StatusFound, signed)
 		return
 	}
 
