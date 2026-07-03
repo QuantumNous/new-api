@@ -443,17 +443,20 @@ export const useChannelsData = () => {
   const manageChannel = async (id, action, record, value) => {
     let data = { id };
     let res;
+    // POST /api/channel/:id/status 返回 {data: changed bool}，不再是 channel 对象，
+    // enable/disable 后用本地推断的目标状态更新 record.status
+    let statusAfter;
     switch (action) {
       case 'delete':
         res = await API.delete(`/api/channel/${id}/`);
         break;
       case 'enable':
-        data.status = 1;
-        res = await API.put('/api/channel/', data);
+        statusAfter = 1;
+        res = await API.post(`/api/channel/${id}/status`, { status: 1 });
         break;
       case 'disable':
-        data.status = 2;
-        res = await API.put('/api/channel/', data);
+        statusAfter = 2;
+        res = await API.post(`/api/channel/${id}/status`, { status: 2 });
         break;
       case 'priority':
         if (value === '') return;
@@ -475,10 +478,13 @@ export const useChannelsData = () => {
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('操作成功完成！'));
-      let channel = res.data.data;
       let newChannels = [...channels];
-      if (action !== 'delete') {
-        record.status = channel.status;
+      if (action === 'enable' || action === 'disable') {
+        // POST /api/channel/:id/status -> {success, data: changed bool}
+        record.status = statusAfter;
+      } else if (action !== 'delete') {
+        // PUT /api/channel/ -> {success, data: channel object}
+        record.status = res.data.data.status;
       }
       setChannels(newChannels);
     } else {
