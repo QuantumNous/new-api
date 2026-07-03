@@ -39,7 +39,7 @@ func PushUsageReportAdminTaskToBase(rp ReportPeriod) {
 	if text == "" {
 		return
 	}
-	deleteBaseRecordsByPeriod(token, baseToken, tableID, rp.PeriodLabel)
+	deleteBaseRecordsByPeriodType(token, baseToken, tableID, rp.PeriodType)
 	batchCreateBaseRecords(token, baseToken, tableID, []map[string]any{buildAdminPushTaskRecord(rp, text, settings.StatsAdminChatID)})
 	if plat, _ := model.GetPlatformSnapshot(rp.PeriodType, rp.StartTimestamp); plat != nil {
 		model.UpdateReportSnapshotAdminPushStatus(plat.Id, model.SyncStatusSuccess, "")
