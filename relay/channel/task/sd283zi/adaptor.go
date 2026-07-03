@@ -20,6 +20,7 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -46,7 +47,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 
 func apiOrigin(raw string) string {
 	b := strings.TrimRight(strings.TrimSpace(raw), "/")
-	for _, suf := range []string{createPath, "/api/generate-video", "/api/task"} {
+	for _, suf := range []string{createPath, "/api/generate-video", "/api/task", "/api/video"} {
 		b = trimSuffixFold(b, suf)
 	}
 	return strings.TrimRight(b, "/")
@@ -120,7 +121,7 @@ func (a *TaskAdaptor) buildMultipartRequestBody(c *gin.Context, info *relaycommo
 	}
 	modelName = resolveUpstreamModel(modelName)
 	if modelName == "" {
-		return nil, fmt.Errorf("upstream model is empty; use sd2fast or sd2")
+		return nil, fmt.Errorf("upstream model is empty; use sd2fast, sd2, or mingiz-sd2")
 	}
 
 	var buf bytes.Buffer
@@ -196,7 +197,7 @@ func (a *TaskAdaptor) buildMultipartRequestBody(c *gin.Context, info *relaycommo
 
 func isTextMultipartField(fieldName string) bool {
 	switch strings.ToLower(strings.TrimSpace(fieldName)) {
-	case "prompt", "model", "mode", "size", "seconds", "duration", "aspect_ratio", "resolution", "image":
+	case "prompt", "model", "mode", "size", "seconds", "duration", "aspect_ratio", "resolution", "image", "protect_stripe":
 		return true
 	default:
 		return false
@@ -254,13 +255,15 @@ func (a *TaskAdaptor) convertCreatePayload(c *gin.Context, req *relaycommon.Task
 	}
 	modelName = resolveUpstreamModel(modelName)
 	if modelName == "" {
-		return nil, fmt.Errorf("upstream model is empty; use sd2fast or sd2")
+		return nil, fmt.Errorf("upstream model is empty; use sd2fast, sd2, or mingiz-sd2")
 	}
 
 	payload := map[string]interface{}{
-		"model":               modelName,
-		"prompt":              strings.TrimSpace(req.Prompt),
-		"remote_media_source": "cos",
+		"model":  modelName,
+		"prompt": strings.TrimSpace(req.Prompt),
+	}
+	if isSD2UpstreamModel(modelName) {
+		payload["remote_media_source"] = "cos"
 	}
 	if info.PublicTaskID != "" {
 		payload["client_task_id"] = info.PublicTaskID
@@ -504,6 +507,29 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
+	resp, err := a.fetchTaskHTTP(baseUrl, key, taskID, proxy)
+	if err != nil {
+		return nil, err
+	}
+	pollBody, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	origin := apiOrigin(baseUrl)
+	enhanced, err := a.maybeEnhancePollBody(origin, key, taskID, pollBody, proxy)
+	if err != nil {
+		return nil, err
+	}
+
+	resp.Body = io.NopCloser(bytes.NewReader(enhanced))
+	resp.ContentLength = int64(len(enhanced))
+	resp.Header.Set("Content-Type", "application/json")
+	return resp, nil
+}
+
+func (a *TaskAdaptor) fetchTaskHTTP(baseUrl, key, taskID, proxy string) (*http.Response, error) {
 	queryURL, err := buildQueryURL(baseUrl, taskID)
 	if err != nil {
 		return nil, err
@@ -521,6 +547,127 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
 	return client.Do(req)
+}
+
+func (a *TaskAdaptor) maybeEnhancePollBody(baseURL, key, taskID string, pollBody []byte, proxy string) ([]byte, error) {
+	raw := string(pollBody)
+	if extractVideoURL(raw) != "" {
+		return pollBody, nil
+	}
+	if !shouldFetchVideoLink(raw) {
+		return pollBody, nil
+	}
+	if u := absolutizeUpstreamMediaURL(baseURL, extractRelativeVideoURL(raw)); u != "" {
+		return mergeVideoURL(pollBody, u)
+	}
+
+	linkBody, err := a.fetchVideoLinkHTTP(baseURL, key, taskID, proxy)
+	if err != nil {
+		return pollBody, nil
+	}
+	if u := extractVideoURL(string(linkBody)); u != "" {
+		return mergeVideoURL(pollBody, u)
+	}
+	if u := buildLicenseVideoURL(baseURL, taskID, key); u != "" {
+		return mergeVideoURL(pollBody, u)
+	}
+	return pollBody, nil
+}
+
+func (a *TaskAdaptor) fetchVideoLinkHTTP(baseURL, key, taskID, proxy string) ([]byte, error) {
+	linkURL := strings.TrimRight(baseURL, "/") + "/api/task/" + url.PathEscape(taskID) + "/video-link?refresh=1"
+	req, err := http.NewRequest(http.MethodGet, linkURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-License-Key", key)
+
+	client, err := service.GetHttpClientWithProxy(proxy)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("video-link status %d", resp.StatusCode)
+	}
+	return io.ReadAll(resp.Body)
+}
+
+func shouldFetchVideoLink(raw string) bool {
+	if isUpstreamGenerationComplete(raw) {
+		return true
+	}
+	status := resolveUpstreamStatus(raw)
+	if isSuccessLikeUpstreamStatus(status) && gjson.Get(raw, "progress").Int() >= 100 {
+		return true
+	}
+	if strings.TrimSpace(gjson.Get(raw, "video_path").String()) != "" {
+		return true
+	}
+	return false
+}
+
+func mergeVideoURL(pollBody []byte, videoURL string) ([]byte, error) {
+	var payload map[string]interface{}
+	if err := common.Unmarshal(pollBody, &payload); err != nil {
+		return pollBody, nil
+	}
+	payload["video_url"] = videoURL
+	out, err := common.Marshal(payload)
+	if err != nil {
+		return pollBody, nil
+	}
+	return out, nil
+}
+
+func buildLicenseVideoURL(baseURL, taskID, key string) string {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	taskID = strings.TrimSpace(taskID)
+	key = strings.TrimSpace(key)
+	if baseURL == "" || taskID == "" || key == "" {
+		return ""
+	}
+	u, err := url.Parse(baseURL + "/api/video/" + url.PathEscape(taskID))
+	if err != nil {
+		return ""
+	}
+	q := u.Query()
+	q.Set("license_key", key)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func extractRelativeVideoURL(raw string) string {
+	for _, path := range []string{
+		"stable_video_url",
+		"video_path",
+		"data.stable_video_url",
+		"data.video_path",
+	} {
+		if u := strings.TrimSpace(gjson.Get(raw, path).String()); u != "" && strings.HasPrefix(u, "/") {
+			return u
+		}
+	}
+	return ""
+}
+
+func absolutizeUpstreamMediaURL(baseURL, mediaPath string) string {
+	mediaPath = strings.TrimSpace(mediaPath)
+	if mediaPath == "" {
+		return ""
+	}
+	if strings.HasPrefix(mediaPath, "http") {
+		return mediaPath
+	}
+	if strings.HasPrefix(mediaPath, "/") {
+		return strings.TrimRight(strings.TrimSpace(baseURL), "/") + mediaPath
+	}
+	return ""
 }
 
 func buildQueryURL(baseUrl, taskID string) (string, error) {
@@ -649,9 +796,12 @@ func extractVideoURL(raw string) string {
 		"video_url",
 		"mp4_url",
 		"official_video_url",
-		"stable_video_url",
+		"video_link",
+		"url",
 		"task.video_url",
 		"data.video_url",
+		"data.video_link",
+		"data.url",
 	} {
 		val := gjson.Get(raw, path)
 		if !val.Exists() {
@@ -680,6 +830,10 @@ func extractErrorMessage(raw string) string {
 }
 
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	// 按次固定价格时不返回 seconds 倍率；仅在 billing_mode=per_second 时按秒计费。
+	if !billing_setting.IsPerSecondModel(info.OriginModelName) {
+		return nil
+	}
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return nil

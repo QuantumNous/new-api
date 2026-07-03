@@ -60,6 +60,7 @@ const (
 	ChannelTypeAgnes          = 60
 	ChannelTypeVyroSeedance   = 61
 	ChannelType83zi           = 62
+	ChannelType7tai           = 63
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -128,6 +129,7 @@ var ChannelBaseURLs = []string{
 	"https://apihub.agnes-ai.com",               //60 Agnes
 	"https://996k.cn/v1",                        //61 VyroSeedance (996k vyro-seedance-2)
 	"https://sd2.83zi.com",                      //62 83zi SD2 video
+	"https://api.7tai.cc/v1",                    //63 7tai (炳火) video
 }
 
 var ChannelTypeNames = map[int]string{
@@ -190,6 +192,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeAgnes:          "Agnes",
 	ChannelTypeVyroSeedance:  "VyroSeedance",
 	ChannelType83zi:          "83zi",
+	ChannelType7tai:          "7tai",
 }
 
 func GetChannelTypeName(channelType int) string {

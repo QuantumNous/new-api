@@ -195,6 +195,27 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       other: 'Async video: POST /api/generate-video, poll GET /api/task/{id}. mingiz-sd2 uses api.shishikeji.com with upstream xinghe-2.0. Supports JSON image_urls or multipart files=@image.png.',
     },
   },
+  63: {
+    id: 63,
+    name: CHANNEL_TYPES[63],
+    icon: 'openai',
+    defaultBaseUrl: 'https://api.7tai.cc/v1',
+    supportedModels: [
+      'sd2-fast福利',
+      'sd2-福利',
+      'SD2.0-720p',
+      'SD2.0-480p-fast',
+      'SD2.0-480p',
+    ],
+    hints: {
+      key: 'Bearer token (7tai API Key)',
+      models:
+        'sd2-fast福利, sd2-福利 (per-call); SD2.0-720p, SD2.0-480p-fast, SD2.0-480p (per-second)',
+      baseUrl: 'Default: https://api.7tai.cc/v1',
+      other:
+        'Async video: POST /v1/video/generations, poll GET /v1/video/generations/{task_id}. Reference images must be public http(s) URLs in images[].',
+    },
+  },
 }
 
 export const CHANNEL_83ZI_BASE_URL_PRESETS = [

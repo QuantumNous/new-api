@@ -165,6 +165,8 @@ function type2secretPrompt(type) {
       return 'vyro_key_prompt';
     case 62:
       return '83zi_key_prompt';
+    case 63:
+      return '7tai_key_prompt';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -715,6 +717,19 @@ const EditChannelModal = (props) => {
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://sd2.83zi.com',
+          }));
+          break;
+        case 63: // 7tai (炳火 API)
+          localModels = [
+            'sd2-fast福利',
+            'sd2-福利',
+            'SD2.0-720p',
+            'SD2.0-480p-fast',
+            'SD2.0-480p',
+          ];
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://api.7tai.cc/v1',
           }));
           break;
         default:
@@ -2708,7 +2723,7 @@ const EditChannelModal = (props) => {
                       />
                     )}
 
-                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62) && (
+                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62 || inputs.type === 63) && (
                       <Banner
                         type='info'
                         closeIcon={null}
@@ -2718,7 +2733,9 @@ const EditChannelModal = (props) => {
                             ? 'VyroSeedance 渠道说明'
                             : inputs.type === 62
                               ? '83zi 渠道说明'
-                              : '异步视频渠道通用说明',
+                              : inputs.type === 63
+                                ? '7tai 渠道说明'
+                                : '异步视频渠道通用说明',
                         )}
                       />
                     )}
