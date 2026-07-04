@@ -498,18 +498,21 @@ func AdminSettleCommission(c *gin.Context) {
 		UserIDs []int `json:"user_ids"` // 可选，空=全部
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		// 解析失败时默认结算所有
-		req.UserIDs = nil
+		// 解析失败返回400（资金操作必须明确入参）
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
 	}
 
-	// 分批处理（每批 500 条，避免全量载入）
+	// 分批处理（每批 500 条，游标分页避免死循环）
 	batchSize := 500
 	totalSettled := 0
+	lastId := int64(0)
 
 	for {
-		// 查找待结算的返佣记录（分批）
+		// 游标分页：查找待结算的返佣记录
 		query := model.DB.Model(&model.CommissionLog{}).
-			Where("status = ?", "pending").
+			Where("status = ? AND id > ?", "pending", lastId).
+			Order("id ASC").
 			Limit(batchSize)
 
 		if len(req.UserIDs) > 0 {
@@ -528,6 +531,7 @@ func AdminSettleCommission(c *gin.Context) {
 
 		// 事务内批量结算
 		batchSettled := 0
+		affectedInviterIds := make(map[int]struct{})
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
 			for _, log := range pendingLogs {
 				// 1. 行锁串行化邀请人
@@ -564,6 +568,8 @@ func AdminSettleCommission(c *gin.Context) {
 					return err
 				}
 
+				// 记录需要失效缓存的用户
+				affectedInviterIds[log.InviterID] = struct{}{}
 				batchSettled++
 			}
 
@@ -575,7 +581,15 @@ func AdminSettleCommission(c *gin.Context) {
 			return
 		}
 
+		// 事务成功后，失效受影响用户的缓存
+		for inviterId := range affectedInviterIds {
+			_ = model.InvalidateUserCache(inviterId)
+		}
+
 		totalSettled += batchSettled
+
+		// 更新游标位置（最后一条记录的ID）
+		lastId = pendingLogs[len(pendingLogs)-1].Id
 
 		// 如果这批不足 batchSize，说明已经处理完
 		if len(pendingLogs) < batchSize {

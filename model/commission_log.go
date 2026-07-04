@@ -11,7 +11,7 @@ import (
 type CommissionLog struct {
 	Id               int64          `json:"id" gorm:"primaryKey;autoIncrement"`
 	UserID           int            `json:"user_id" gorm:"index;not null"`           // 被邀请人（消费者）
-	InviterID        int            `json:"inviter_id" gorm:"index;not null"`        // 邀请人（获得返佣）
+	InviterID        int            `json:"inviter_id" gorm:"index;not null;uniqueIndex:uk_source_inviter,priority:2"` // 邀请人（获得返佣）
 	Level            int            `json:"level" gorm:"not null;default:1"`         // 返佣层级（1=直接邀请，2=二级，3=三级）
 
 	// 来源键：保证幂等（消费日志 "log:{logId}" 或订单 "order:{orderId}"）

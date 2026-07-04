@@ -175,6 +175,12 @@ func Logout(c *gin.Context) {
 	})
 }
 
+// registerRequest wraps model.User to accept both "aff" and "aff_code" as invite code fields.
+type registerRequest struct {
+	model.User
+	Aff string `json:"aff"`
+}
+
 func Register(c *gin.Context) {
 	if !common.RegisterEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
@@ -184,11 +190,16 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
-	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	var req registerRequest
+	err := json.NewDecoder(c.Request.Body).Decode(&req)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
+	}
+	user := req.User
+	// Accept invite code from either "aff" (frontend) or "aff_code" (model) field
+	if user.AffCode == "" && req.Aff != "" {
+		user.AffCode = req.Aff
 	}
 	if err := common.Validate.Struct(&user); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})

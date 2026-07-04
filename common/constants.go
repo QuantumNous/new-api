@@ -148,7 +148,7 @@ var QuotaForInviter = 0
 var QuotaForInvitee = 0
 
 // 返佣系统配置
-var CommissionEnabled = true        // 是否启用返佣系统
+var CommissionEnabled = false       // 是否启用返佣系统（默认关闭，由管理员显式开启）
 var CommissionRealTimeSettle = true // 是否实时结算
 var CommissionMaxLevel = 3          // 最大返佣层级
 

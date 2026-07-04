@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>返佣系统测试</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { color: #333; margin-bottom: 20px; }
+        .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .status { padding: 10px; border-radius: 4px; margin-bottom: 10px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        input, textarea { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        .result { background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+        .row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .col { flex: 1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 返佣系统本地测试</h1>
+
+        <div class="card">
+            <h2>📊 服务状态</h2>
+            <div id="status" class="status info">检查中...</div>
+            <button onclick="checkStatus()">刷新状态</button>
+        </div>
+
+        <div class="card">
+            <h2>👤 用户认证</h2>
+            <div class="row">
+                <div class="col">
+                    <input type="text" id="username" placeholder="用户名" value="test_user">
+                </div>
+                <div class="col">
+                    <input type="password" id="password" placeholder="密码" value="Test123456">
+                </div>
+            </div>
+            <button onclick="registerUser()">注册</button>
+            <button onclick="loginUser()">登录</button>
+            <div id="authResult" class="result"></div>
+        </div>
+
+        <div class="card">
+            <h2>🎫 API Token</h2>
+            <input type="text" id="tokenInput" placeholder="API Token（登录后自动填充）">
+            <input type="text" id="userIdInput" placeholder="用户ID（登录后自动填充）">
+            <button onclick="createToken()">创建 Token</button>
+            <div id="tokenResult" class="result"></div>
+        </div>
+
+        <div class="card">
+            <h2>💰 返佣系统测试</h2>
+            <button onclick="testCommissionInfo()">获取返佣信息</button>
+            <button onclick="testCommissionLogs()">获取返佣日志</button>
+            <button onclick="testCommissionStats()">获取返佣统计</button>
+            <div id="commissionResult" class="result"></div>
+        </div>
+
+        <div class="card">
+            <h2>📝 测试说明</h2>
+            <p>服务地址: <code>http://localhost:3001</code></p>
+            <p>认证方式: API Token (Bearer)</p>
+            <p>测试流程: 注册 → 登录 → 创建 Token → 测试返佣 API</p>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:3001';
+        let currentUser = null;
+
+        function log(elementId, message, type = 'info') {
+            const el = document.getElementById(elementId);
+            el.innerHTML += `\n[${new Date().toLocaleTimeString()}] ${message}`;
+            el.scrollTop = el.scrollHeight;
+        }
+
+        async function checkStatus() {
+            const statusEl = document.getElementById('status');
+            try {
+                const response = await fetch(`${BASE_URL}/api/status`);
+                const data = await response.json();
+                statusEl.className = 'status success';
+                statusEl.textContent = '✅ 服务运行正常';
+                log('commissionResult', '服务状态: 正常');
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = '❌ 服务无法访问';
+                log('commissionResult', '服务状态: 异常 - ' + error.message, 'error');
+            }
+        }
+
+        async function registerUser() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/user/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, email: `${username}@test.com` })
+                });
+                const data = await response.json();
+                log('authResult', `注册结果: ${JSON.stringify(data)}`, data.success ? 'success' : 'error');
+            } catch (error) {
+                log('authResult', `注册失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function loginUser() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/user/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    currentUser = data.data;
+                    document.getElementById('userIdInput').value = currentUser.id;
+                    log('authResult', `✅ 登录成功！用户ID: ${currentUser.id}`, 'success');
+                    createToken(); // 自动创建 token
+                } else {
+                    log('authResult', `登录失败: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log('authResult', `登录失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function createToken() {
+            if (!currentUser) {
+                log('tokenResult', '请先登录', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/token/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'New-Api-User': currentUser.id.toString()
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        name: 'test_token_' + Date.now(),
+                        remain_quota: 1000000,
+                        expired_time: -1,
+                        unlimited_quota: true
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    log('tokenResult', `✅ Token 创建成功`, 'success');
+
+                    // 获取 token 列表
+                    const listResponse = await fetch(`${BASE_URL}/api/token/?p=0&size=10`, {
+                        headers: { 'New-Api-User': currentUser.id.toString() },
+                        credentials: 'include'
+                    });
+                    const listData = await listResponse.json();
+                    if (listData.data && listData.data.items && listData.data.items.length > 0) {
+                        const tokenKey = listData.data.items[0].key;
+                        document.getElementById('tokenInput').value = tokenKey;
+                        log('tokenResult', `Token (masked): ${tokenKey}`);
+                    }
+                } else {
+                    log('tokenResult', `创建失败: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log('tokenResult', `创建失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCommissionInfo() {
+            await testCommissionEndpoint('info', 'GET');
+        }
+
+        async function testCommissionLogs() {
+            await testCommissionEndpoint('logs', 'GET');
+        }
+
+        async function testCommissionStats() {
+            await testCommissionEndpoint('stats', 'GET');
+        }
+
+        async function testCommissionEndpoint(endpoint, method) {
+            const token = document.getElementById('tokenInput').value;
+            const userId = document.getElementById('userIdInput').value;
+
+            if (!token || !userId) {
+                log('commissionResult', '请先获取 Token 和用户ID', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/user/commission/${endpoint}`, {
+                    method: method,
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'New-Api-User': userId,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                log('commissionResult', `\n=== ${endpoint} ===\n${JSON.stringify(data, null, 2)}`);
+            } catch (error) {
+                log('commissionResult', `请求失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 初始化
+        checkStatus();
+    </script>
+</body>
+</html>
