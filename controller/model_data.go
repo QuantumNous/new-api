@@ -553,6 +553,7 @@ type PublicMarketplaceItem struct {
 	ChannelID             int           `json:"channel_id"`
 	ChannelName           string        `json:"channel_name"`
 	KeyGroup              string        `json:"key_group"`
+	ClientExclusive       string        `json:"client_exclusive"` // "" | "codex" | "claude_code"
 	InputPrice            *float64      `json:"input_price"`
 	ActualPrice           *float64      `json:"actual_price"` // 采购价（内部参考），保留供折扣计算
 	UserPrice             *float64      `json:"user_price"`   // 用户最终价格 = actual_price × apimaster_price_ratio
@@ -788,6 +789,7 @@ func GetPublicMarketplace(c *gin.Context) {
 			ChannelID:             r.ChannelID,
 			ChannelName:           r.ChannelName,
 			KeyGroup:              modelDataExtractKeyGroup(r.Setting),
+			ClientExclusive:       modelDataExtractClientExclusive(r.Setting),
 			InputPrice:            inputPricePtr,
 			ActualPrice:           actualPricePtr,
 			UserPrice:             userPricePtr,
