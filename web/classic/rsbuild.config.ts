@@ -10,10 +10,9 @@ const semiUiDir = path.resolve(
   path.dirname(require.resolve('@douyinfe/semi-ui')),
   '../..',
 )
-const semiDateFnsDir = path.resolve(
-  semiUiDir,
-  '../semi-foundation/node_modules/date-fns',
-)
+const semiFoundationEntry = require.resolve('@douyinfe/semi-foundation')
+const semiFoundationRequire = createRequire(semiFoundationEntry)
+const semiDateFnsDir = path.dirname(semiFoundationRequire.resolve('date-fns'))
 
 export default defineConfig(({ envMode }) => {
   const env = loadEnv({ mode: envMode, prefixes: ['VITE_'] })
