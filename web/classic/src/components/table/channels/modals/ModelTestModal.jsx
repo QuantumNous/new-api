@@ -94,7 +94,9 @@ const ModelTestModal = ({
       if (maxMs > 0) {
         models = models.filter((model) => {
           const r = modelTestResults[`${currentTestChannel.id}-${model}`];
-          if (!r || !r.success) return false;
+          if (!r) return true;
+          if (testingModels.has(model)) return true;
+          if (!r.success) return false;
           return ((r.time || 0) * 1000) <= maxMs;
         });
       }
@@ -154,13 +156,10 @@ const ModelTestModal = ({
 
   const fittingModels = (() => {
     if (!hasChannel) return [];
-    if (responseTimeFilter === 'all') {
-      return filteredModels.filter((m) => {
-        const result = modelTestResults[`${currentTestChannel.id}-${m}`];
-        return result && result.success;
-      });
-    }
-    return filteredModels;
+    return filteredModels.filter((m) => {
+      const result = modelTestResults[`${currentTestChannel.id}-${m}`];
+      return result && result.success;
+    });
   })();
 
   const handleSelectSuccess = () => {
