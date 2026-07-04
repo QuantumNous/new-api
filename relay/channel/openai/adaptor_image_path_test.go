@@ -30,3 +30,15 @@ func TestNormalizeImageGenerationsRequestPathOtherUpstream(t *testing.T) {
 	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model)
 	require.Equal(t, "/v1/images/generations/async", got)
 }
+
+func TestNormalizeImageGenerationsRequestPathPacky(t *testing.T) {
+	base := "https://www.packyapi.com"
+	model := "gpt-image-2"
+	mode := relayconstant.RelayModeImagesGenerations
+
+	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model)
+	require.Equal(t, "/v1/images/generations", got)
+
+	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model)
+	require.Equal(t, "/v1/images/generations", got)
+}

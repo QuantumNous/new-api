@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"mime/multipart"
 	"strconv"
 	"strings"
 
@@ -13,11 +14,11 @@ import (
 )
 
 const (
-	gptImage2CanonicalModel      = "gpt-image-2"
-	gptImage2OfficialAliasModel  = "gpt-image-2-official"
-	contextKeyGptImage2Profile   = "gpt_image2_profile"
-	contextKeyGptImage2OfficialFB = "gpt_image2_official_fallback"
-	contextKeyGptImage2RaceHedge = "gpt_image2_for_race_hedge"
+	gptImage2CanonicalModel         = "gpt-image-2"
+	gptImage2OfficialAliasModel     = "gpt-image-2-official"
+	contextKeyGptImage2Profile      = "gpt_image2_profile"
+	contextKeyGptImage2OfficialFB   = "gpt_image2_official_fallback"
+	contextKeyGptImage2RaceHedge    = "gpt_image2_for_race_hedge"
 	contextKeyGptImage2RoutingRetry = "gpt_image2_routing_retry"
 )
 
@@ -28,6 +29,7 @@ type GptImage2Profile string
 
 const (
 	GptImage2ProfileStandard GptImage2Profile = "standard"
+	GptImage2ProfilePacky    GptImage2Profile = "packy"
 	GptImage2ProfileOfficial GptImage2Profile = "official"
 )
 
@@ -36,6 +38,7 @@ type GptImage2ChannelTier string
 
 const (
 	GptImage2TierStandard GptImage2ChannelTier = "standard"
+	GptImage2TierPacky    GptImage2ChannelTier = "packy"
 	GptImage2TierOfficial GptImage2ChannelTier = "official"
 )
 
@@ -82,6 +85,8 @@ func GptImage2ProfileFromContext(c *gin.Context) GptImage2Profile {
 	switch GptImage2Profile(s) {
 	case GptImage2ProfileOfficial:
 		return GptImage2ProfileOfficial
+	case GptImage2ProfilePacky:
+		return GptImage2ProfilePacky
 	default:
 		return GptImage2ProfileStandard
 	}
@@ -131,6 +136,13 @@ func gptImage2ForRaceHedgeFromContext(c *gin.Context) bool {
 	return b
 }
 
+func gptImage2ClientAsyncPath(c *gin.Context) bool {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	return strings.HasSuffix(c.Request.URL.Path, "/images/generations/async")
+}
+
 // SetGptImage2RoutingRetry stores relay retry index for channel-pick filters.
 func SetGptImage2RoutingRetry(c *gin.Context, retry int) {
 	if c != nil && retry >= 0 {
@@ -150,19 +162,16 @@ func ClassifyGptImage2Profile(c *gin.Context, modelName string) GptImage2Profile
 	if strings.EqualFold(strings.TrimSpace(modelName), gptImage2OfficialAliasModel) {
 		return GptImage2ProfileOfficial
 	}
-	if c != nil && strings.HasSuffix(c.Request.URL.Path, "/images/edits") {
-		if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
-			if form, err := common.ParseMultipartFormReusable(c); err == nil && form != nil {
-				if len(form.File["mask"]) > 0 {
-					return GptImage2ProfileOfficial
-				}
-			}
-		}
-	}
 	if c != nil && strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
 		if form, err := common.ParseMultipartFormReusable(c); err == nil && form != nil {
-			if len(form.File["mask"]) > 0 {
+			if strings.HasSuffix(c.Request.URL.Path, "/images/edits") {
+				return classifyGptImage2ProfileFromMultipartForm(form, true)
+			}
+			if multipartFormHasImageFiles(form) {
 				return GptImage2ProfileOfficial
+			}
+			if profile, ok := classifyGptImage2ProfileFromFormValues(form.Value); ok {
+				return profile
 			}
 		}
 	}
@@ -172,6 +181,81 @@ func ClassifyGptImage2Profile(c *gin.Context, modelName string) GptImage2Profile
 		}
 	}
 	return GptImage2ProfileStandard
+}
+
+func classifyGptImage2ProfileFromMultipartForm(form *multipart.Form, isEdit bool) GptImage2Profile {
+	if form == nil {
+		return GptImage2ProfileStandard
+	}
+	if n := strings.TrimSpace(firstGptImage2FormValue(form.Value, "n")); n != "" {
+		if f, err := strconv.ParseFloat(n, 64); err == nil && int(f) > 1 {
+			return GptImage2ProfileOfficial
+		}
+	}
+	if jsonFieldStringEqualsString(firstGptImage2FormValue(form.Value, "background"), "transparent") ||
+		jsonFieldStringEqualsString(firstGptImage2FormValue(form.Value, "output_format"), "webp") ||
+		formValuePresent(form.Value, "stream") ||
+		formValuePresent(form.Value, "partial_images") ||
+		formValuePresent(form.Value, "mask_url") {
+		return GptImage2ProfileOfficial
+	}
+	if isEdit {
+		return GptImage2ProfilePacky
+	}
+	if profile, ok := classifyGptImage2ProfileFromFormValues(form.Value); ok {
+		return profile
+	}
+	return GptImage2ProfileStandard
+}
+
+func classifyGptImage2ProfileFromFormValues(values map[string][]string) (GptImage2Profile, bool) {
+	if len(values) == 0 {
+		return GptImage2ProfileStandard, false
+	}
+	if jsonFieldStringEqualsString(firstGptImage2FormValue(values, "background"), "transparent") ||
+		jsonFieldStringEqualsString(firstGptImage2FormValue(values, "output_format"), "webp") ||
+		formValuePresent(values, "stream") ||
+		formValuePresent(values, "partial_images") ||
+		formValuePresent(values, "mask_url") {
+		return GptImage2ProfileOfficial, true
+	}
+	for _, key := range []string{"quality", "background", "moderation", "output_format", "output_compression", "input_fidelity"} {
+		if formValuePresent(values, key) {
+			return GptImage2ProfilePacky, true
+		}
+	}
+	return GptImage2ProfileStandard, false
+}
+
+func multipartFormHasImageFiles(form *multipart.Form) bool {
+	if form == nil || form.File == nil {
+		return false
+	}
+	for _, key := range []string{"images", "image", "image[]"} {
+		if files, ok := form.File[key]; ok && len(files) > 0 {
+			return true
+		}
+	}
+	for key, files := range form.File {
+		if strings.HasPrefix(key, "image[") && len(files) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func firstGptImage2FormValue(values map[string][]string, key string) string {
+	if values == nil {
+		return ""
+	}
+	if vals, ok := values[key]; ok && len(vals) > 0 {
+		return strings.TrimSpace(vals[0])
+	}
+	return ""
+}
+
+func formValuePresent(values map[string][]string, key string) bool {
+	return firstGptImage2FormValue(values, key) != ""
 }
 
 func readGptImage2RequestJSON(c *gin.Context) ([]byte, error) {
@@ -216,12 +300,28 @@ func classifyGptImage2ProfileFromJSON(raw []byte) (GptImage2Profile, bool) {
 	if rawN, ok := fields["n"]; ok && jsonFieldIntGreaterThan(rawN, 1) {
 		return GptImage2ProfileOfficial, true
 	}
-	for _, key := range []string{
-		"quality", "mask_url", "mask", "background", "moderation",
-		"output_format", "output_compression", "partial_images",
-	} {
+	for _, key := range []string{"stream", "partial_images", "mask_url", "mask", "image_urls", "images", "image"} {
 		if v, ok := fields[key]; ok && jsonFieldPresent(v) {
 			return GptImage2ProfileOfficial, true
+		}
+	}
+	if v, ok := fields["background"]; ok && jsonFieldPresent(v) {
+		if jsonFieldStringEquals(v, "transparent") {
+			return GptImage2ProfileOfficial, true
+		}
+		return GptImage2ProfilePacky, true
+	}
+	if v, ok := fields["output_format"]; ok && jsonFieldPresent(v) {
+		if jsonFieldStringEquals(v, "webp") {
+			return GptImage2ProfileOfficial, true
+		}
+		return GptImage2ProfilePacky, true
+	}
+	for _, key := range []string{
+		"quality", "moderation", "output_compression", "input_fidelity",
+	} {
+		if v, ok := fields[key]; ok && jsonFieldPresent(v) {
+			return GptImage2ProfilePacky, true
 		}
 	}
 	return GptImage2ProfileStandard, true
@@ -230,6 +330,24 @@ func classifyGptImage2ProfileFromJSON(raw []byte) (GptImage2Profile, bool) {
 func jsonFieldPresent(v json.RawMessage) bool {
 	s := strings.TrimSpace(string(v))
 	return s != "" && s != "null" && s != `""` && s != "0"
+}
+
+func jsonFieldStringEquals(v json.RawMessage, want string) bool {
+	s := strings.TrimSpace(string(v))
+	if s == "" || s == "null" {
+		return false
+	}
+	var decoded string
+	if err := common.Unmarshal(v, &decoded); err == nil {
+		s = decoded
+	} else {
+		s = strings.Trim(s, `"`)
+	}
+	return strings.EqualFold(strings.TrimSpace(s), want)
+}
+
+func jsonFieldStringEqualsString(v string, want string) bool {
+	return strings.EqualFold(strings.TrimSpace(strings.Trim(v, `"`)), want)
 }
 
 func jsonFieldIntGreaterThan(v json.RawMessage, min int) bool {
@@ -256,13 +374,37 @@ func ChannelGptImage2Tier(ch *model.Channel) GptImage2ChannelTier {
 	switch strings.ToLower(strings.TrimSpace(settings.GptImage2Tier)) {
 	case string(GptImage2TierOfficial):
 		return GptImage2TierOfficial
+	case string(GptImage2TierPacky):
+		return GptImage2TierPacky
 	case string(GptImage2TierStandard):
 		return GptImage2TierStandard
 	}
 	if channelMapsGptImage2ToOfficial(ch) {
 		return GptImage2TierOfficial
 	}
+	if channelLooksLikePacky(ch) {
+		return GptImage2TierPacky
+	}
 	return GptImage2TierStandard
+}
+
+func channelLooksLikePacky(ch *model.Channel) bool {
+	if ch == nil {
+		return false
+	}
+	parts := []string{ch.Name, ch.GetBaseURL(), ch.OtherInfo}
+	if ch.Tag != nil {
+		parts = append(parts, *ch.Tag)
+	}
+	if ch.Remark != nil {
+		parts = append(parts, *ch.Remark)
+	}
+	for _, part := range parts {
+		if strings.Contains(strings.ToLower(part), "packy") {
+			return true
+		}
+	}
+	return false
 }
 
 func channelMapsGptImage2ToOfficial(ch *model.Channel) bool {
@@ -312,10 +454,12 @@ func gptImage2ChannelMatchesPick(
 	switch profile {
 	case GptImage2ProfileOfficial:
 		return tier == GptImage2TierOfficial
+	case GptImage2ProfilePacky:
+		return tier == GptImage2TierPacky || tier == GptImage2TierOfficial
 	case GptImage2ProfileStandard:
 		// Standard requests compete on user price across all enabled gpt-image-2 channels
 		// (e.g. roma-image #33 and Apimart-image #59), not only standard-tier upstreams.
-		return tier == GptImage2TierStandard || tier == GptImage2TierOfficial
+		return tier == GptImage2TierStandard || tier == GptImage2TierPacky || tier == GptImage2TierOfficial
 	default:
 		return true
 	}
@@ -334,8 +478,12 @@ func GptImage2ChannelPickFilter(c *gin.Context, modelName string) model.ChannelP
 		if ch == nil {
 			return false
 		}
+		tier := ChannelGptImage2Tier(ch)
+		if tier == GptImage2TierPacky && gptImage2ClientAsyncPath(c) {
+			return false
+		}
 		return gptImage2ChannelMatchesPick(
-			ChannelGptImage2Tier(ch),
+			tier,
 			profile,
 			officialFallback,
 			routingRetry,
@@ -347,8 +495,11 @@ func GptImage2ChannelPickFilter(c *gin.Context, modelName string) model.ChannelP
 // GptImage2ChannelPickFilterForTask builds a filter for async race hedge using task metadata.
 func GptImage2ChannelPickFilterForTask(profile, officialFallback string) model.ChannelPickFilter {
 	p := GptImage2ProfileStandard
-	if GptImage2Profile(profile) == GptImage2ProfileOfficial {
+	switch GptImage2Profile(profile) {
+	case GptImage2ProfileOfficial:
 		p = GptImage2ProfileOfficial
+	case GptImage2ProfilePacky:
+		p = GptImage2ProfilePacky
 	}
 	fallback := strings.EqualFold(strings.TrimSpace(officialFallback), "true") || officialFallback == "1"
 	return func(ch *model.Channel) bool {
@@ -426,19 +577,37 @@ func ClassifyGptImage2ProfileFromImageRequest(req *dto.ImageRequest) GptImage2Pr
 	if req.N != nil && *req.N > 1 {
 		return GptImage2ProfileOfficial
 	}
-	if strings.TrimSpace(req.Quality) != "" {
+	if len(req.ImageUrls) > 0 || strings.TrimSpace(req.MaskUrl) != "" {
 		return GptImage2ProfileOfficial
 	}
-	if jsonFieldPresent(req.Mask) || jsonFieldPresent(req.Background) || jsonFieldPresent(req.Moderation) ||
-		jsonFieldPresent(req.OutputFormat) || jsonFieldPresent(req.OutputCompression) ||
+	if jsonFieldPresent(req.Mask) || jsonFieldPresent(req.Images) || jsonFieldPresent(req.Image) ||
 		jsonFieldPresent(req.PartialImages) {
 		return GptImage2ProfileOfficial
 	}
-	if strings.TrimSpace(req.MaskUrl) != "" {
-		return GptImage2ProfileOfficial
+	if jsonFieldPresent(req.Background) {
+		if jsonFieldStringEquals(req.Background, "transparent") {
+			return GptImage2ProfileOfficial
+		}
+		return GptImage2ProfilePacky
+	}
+	if jsonFieldPresent(req.OutputFormat) {
+		if jsonFieldStringEquals(req.OutputFormat, "webp") {
+			return GptImage2ProfileOfficial
+		}
+		return GptImage2ProfilePacky
+	}
+	if strings.TrimSpace(req.Quality) != "" {
+		return GptImage2ProfilePacky
+	}
+	if jsonFieldPresent(req.Moderation) || jsonFieldPresent(req.OutputCompression) ||
+		jsonFieldPresent(req.InputFidelity) {
+		return GptImage2ProfilePacky
 	}
 	if req.Extra != nil {
 		if v, ok := req.Extra["mask_url"]; ok && jsonFieldPresent(v) {
+			return GptImage2ProfileOfficial
+		}
+		if v, ok := req.Extra["image_urls"]; ok && jsonFieldPresent(v) {
 			return GptImage2ProfileOfficial
 		}
 	}

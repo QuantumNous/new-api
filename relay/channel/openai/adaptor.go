@@ -180,18 +180,21 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 // normalizeImageGenerationsRequestPath maps client async/sync paths to upstream capabilities.
 // APIMart serves task_id from POST /v1/images/generations only; /async returns 404.
+// Packy serves gpt-image-2 synchronously from /v1/images/generations and has no /async task API.
 func normalizeImageGenerationsRequestPath(requestPath, channelBaseURL string, relayMode int, modelName string) string {
 	if relayMode != relayconstant.RelayModeImagesGenerations || !common.UsesAsyncImageTaskUpstream(modelName) {
 		return requestPath
 	}
-	isApimart := strings.Contains(strings.ToLower(channelBaseURL), "apimart.ai")
+	baseLower := strings.ToLower(channelBaseURL)
+	isApimart := strings.Contains(baseLower, "apimart.ai")
+	isPacky := strings.Contains(baseLower, "packyapi.com")
 	if strings.HasSuffix(requestPath, "/images/generations/async") {
-		if isApimart {
+		if isApimart || isPacky {
 			return strings.TrimSuffix(requestPath, "/async")
 		}
 		return requestPath
 	}
-	if strings.HasSuffix(requestPath, "/images/generations") && !isApimart {
+	if strings.HasSuffix(requestPath, "/images/generations") && !isApimart && !isPacky {
 		return requestPath + "/async"
 	}
 	return requestPath

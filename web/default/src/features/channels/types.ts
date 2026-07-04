@@ -107,6 +107,7 @@ export interface ChannelOtherSettings {
   upstream_model_update_ignored_models?: string[]
   upstream_model_update_last_check_time?: number
   upstream_model_update_last_detected_models?: string[]
+  gpt_image2_tier?: 'standard' | 'packy' | 'official'
 }
 
 // ============================================================================

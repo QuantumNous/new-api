@@ -1,6 +1,8 @@
 package service
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,13 +21,29 @@ func TestClassifyGptImage2ProfileFromJSON(t *testing.T) {
 
 	profile, ok = classifyGptImage2ProfileFromJSON([]byte(`{"model":"gpt-image-2","prompt":"x","quality":"high"}`))
 	require.True(t, ok)
-	require.Equal(t, GptImage2ProfileOfficial, profile)
+	require.Equal(t, GptImage2ProfilePacky, profile)
 
 	profile, ok = classifyGptImage2ProfileFromJSON([]byte(`{"model":"gpt-image-2","prompt":"x","n":2}`))
 	require.True(t, ok)
 	require.Equal(t, GptImage2ProfileOfficial, profile)
 
 	profile, ok = classifyGptImage2ProfileFromJSON([]byte(`{"model":"gpt-image-2","prompt":"x","mask_url":"https://x/m.png"}`))
+	require.True(t, ok)
+	require.Equal(t, GptImage2ProfileOfficial, profile)
+
+	profile, ok = classifyGptImage2ProfileFromJSON([]byte(`{"model":"gpt-image-2","prompt":"x","output_format":"png","background":"opaque"}`))
+	require.True(t, ok)
+	require.Equal(t, GptImage2ProfilePacky, profile)
+
+	profile, ok = classifyGptImage2ProfileFromJSON([]byte(`{"model":"gpt-image-2","prompt":"x","output_format":"webp"}`))
+	require.True(t, ok)
+	require.Equal(t, GptImage2ProfileOfficial, profile)
+
+	profile, ok = classifyGptImage2ProfileFromJSON([]byte(`{"model":"gpt-image-2","prompt":"x","background":"transparent"}`))
+	require.True(t, ok)
+	require.Equal(t, GptImage2ProfileOfficial, profile)
+
+	profile, ok = classifyGptImage2ProfileFromJSON([]byte(`{"model":"gpt-image-2","prompt":"x","image_urls":["https://x/a.png"]}`))
 	require.True(t, ok)
 	require.Equal(t, GptImage2ProfileOfficial, profile)
 }
@@ -37,6 +55,49 @@ func TestClassifyGptImage2ProfileFromImageRequest(t *testing.T) {
 	require.Equal(t, GptImage2ProfileOfficial, ClassifyGptImage2ProfileFromImageRequest(req))
 }
 
+func TestClassifyGptImage2MultipartEditsForPacky(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
+	require.NoError(t, writer.WriteField("prompt", "edit this image"))
+	require.NoError(t, writer.WriteField("quality", "high"))
+	part, err := writer.CreateFormFile("image", "input.png")
+	require.NoError(t, err)
+	_, err = part.Write([]byte("png"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+
+	require.Equal(t, GptImage2ProfilePacky, ClassifyGptImage2Profile(c, "gpt-image-2"))
+}
+
+func TestClassifyGptImage2MultipartGenerationsWithImageRequiresOfficial(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
+	require.NoError(t, writer.WriteField("prompt", "use reference"))
+	part, err := writer.CreateFormFile("images", "input.png")
+	require.NoError(t, err)
+	_, err = part.Write([]byte("png"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", &body)
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+
+	require.Equal(t, GptImage2ProfileOfficial, ClassifyGptImage2Profile(c, "gpt-image-2"))
+}
+
 func TestChannelGptImage2Tier(t *testing.T) {
 	t.Parallel()
 	officialMapping := `{"gpt-image-2":"gpt-image-2-official"}`
@@ -45,6 +106,14 @@ func TestChannelGptImage2Tier(t *testing.T) {
 
 	chStandard := &model.Channel{}
 	require.Equal(t, GptImage2TierStandard, ChannelGptImage2Tier(chStandard))
+
+	packySettings := `{"gpt_image2_tier":"packy"}`
+	chPackySettings := &model.Channel{OtherSettings: packySettings}
+	require.Equal(t, GptImage2TierPacky, ChannelGptImage2Tier(chPackySettings))
+
+	packyBase := "https://www.packyapi.com"
+	chPackyName := &model.Channel{Name: "packyapi-image", BaseURL: &packyBase}
+	require.Equal(t, GptImage2TierPacky, ChannelGptImage2Tier(chPackyName))
 }
 
 func TestGptImage2ChannelPickFilter(t *testing.T) {
@@ -64,6 +133,39 @@ func TestGptImage2ChannelPickFilter(t *testing.T) {
 
 	require.True(t, filter(official))
 	require.False(t, filter(standard))
+}
+
+func TestGptImage2PackyProfileAllowsPackyAndOfficial(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	c.Set(contextKeyGptImage2Profile, string(GptImage2ProfilePacky))
+
+	packy := &model.Channel{OtherSettings: `{"gpt_image2_tier":"packy"}`}
+	officialMapping := `{"gpt-image-2":"gpt-image-2-official"}`
+	official := &model.Channel{ModelMapping: &officialMapping}
+	standard := &model.Channel{}
+
+	filter := GptImage2ChannelPickFilter(c, "gpt-image-2")
+	require.True(t, filter(packy))
+	require.True(t, filter(official))
+	require.False(t, filter(standard))
+}
+
+func TestGptImage2AsyncPathExcludesPacky(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations/async", nil)
+	c.Set(contextKeyGptImage2Profile, string(GptImage2ProfileStandard))
+
+	packy := &model.Channel{OtherSettings: `{"gpt_image2_tier":"packy"}`}
+	standard := &model.Channel{}
+
+	filter := GptImage2ChannelPickFilter(c, "gpt-image-2")
+	require.False(t, filter(packy))
+	require.True(t, filter(standard))
 }
 
 func TestGptImage2StandardOfficialFallbackRetry(t *testing.T) {
