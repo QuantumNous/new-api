@@ -1,0 +1,536 @@
+package controller
+
+import (
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
+
+	"github.com/gin-gonic/gin"
+)
+
+// commissionService 全局返佣服务实例（使用单例）
+var commissionService = service.GetCommissionService()
+
+// ==================== 用户端 API ====================
+
+// GetUserCommissionInfo 获取用户返佣信息
+func GetUserCommissionInfo(c *gin.Context) {
+	id := c.GetInt("id")
+	user, err := model.GetUserById(id, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 获取返佣统计
+	summary, err := model.GetUserCommissionSummary(id)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": map[string]interface{}{
+			"total_commission":    summary["total_commission"],
+			"settled_commission":  summary["settled_commission"],
+			"pending_commission":  summary["pending_commission"],
+			"refunded_commission": summary["refunded_commission"],
+			"aff_code":            user.AffCode,
+			"aff_count":           user.AffCount,
+			"aff_quota":           user.AffQuota,
+			"aff_history_quota":   user.AffHistoryQuota,
+		},
+	})
+}
+
+// GetUserCommissionLogs 获取用户返佣明细
+func GetUserCommissionLogs(c *gin.Context) {
+	id := c.GetInt("id")
+	status := c.Query("status")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	// 获取返佣记录（作为邀请人）
+	logs, total, err := model.GetUserCommissionLogs(id, status, page, pageSize)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+
+	// 格式化输出（隐藏敏感信息）
+	items := make([]map[string]interface{}, 0, len(logs))
+	for _, log := range logs {
+		// 获取消费用户信息（脱敏）
+		var username string
+		user, err := model.GetUserById(log.UserID, false)
+		if err == nil {
+			username = maskUsername(user.Username)
+		}
+
+		items = append(items, map[string]interface{}{
+			"id":                log.Id,
+			"user_id":           log.UserID,
+			"username":          username,
+			"level":             log.Level,
+			"model_name":        log.ModelName,
+			"consumption_quota": log.ConsumptionQuota,
+			"commission_rate":   log.CommissionRate,
+			"commission_quota":  log.CommissionQuota,
+			"status":            log.Status,
+			"created_at":        log.CreatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": map[string]interface{}{
+			"items": items,
+			"total": total,
+			"page":  page,
+			"limit": pageSize,
+		},
+	})
+}
+
+// GetUserCommissionStats 获取用户返佣统计
+func GetUserCommissionStats(c *gin.Context) {
+	id := c.GetInt("id")
+	period := c.DefaultQuery("period", "all") // daily/weekly/monthly/all
+
+	stats, err := model.GetUserCommissionStats(id, period)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": map[string]interface{}{
+			"period": period,
+			"stats":  stats,
+		},
+	})
+}
+
+// TransferCommissionToQuota 转移邀请额度到余额
+func TransferCommissionToQuota(c *gin.Context) {
+	id := c.GetInt("id")
+
+	var req struct {
+		Quota int `json:"quota" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	if req.Quota <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	// 执行转移
+	err := commissionService.TransferAffQuotaToQuota(id, req.Quota)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgOperationFailed, map[string]any{"Error": err.Error()})
+		return
+	}
+
+	// 获取更新后的用户信息
+	user, err := model.GetUserById(id, true)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": i18n.T(c, i18n.MsgOperationSuccess),
+		"data": map[string]interface{}{
+			"transferred":         req.Quota,
+			"remaining_aff_quota": user.AffQuota,
+			"new_balance":         user.Quota,
+		},
+	})
+}
+
+// GetUserConsumptionLogs 获取用户消费返佣记录（作为被邀请人）
+func GetUserConsumptionLogs(c *gin.Context) {
+	id := c.GetInt("id")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	// 获取消费记录
+	logs, total, err := model.GetUserConsumptionLogs(id, page, pageSize)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+
+	// 格式化输出
+	items := make([]map[string]interface{}, 0, len(logs))
+	for _, log := range logs {
+		items = append(items, map[string]interface{}{
+			"id":                log.Id,
+			"inviter_id":        log.InviterID,
+			"level":             log.Level,
+			"model_name":        log.ModelName,
+			"consumption_quota": log.ConsumptionQuota,
+			"commission_rate":   log.CommissionRate,
+			"commission_quota":  log.CommissionQuota,
+			"status":            log.Status,
+			"created_at":        log.CreatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": map[string]interface{}{
+			"items": items,
+			"total": total,
+			"page":  page,
+			"limit": pageSize,
+		},
+	})
+}
+
+// ==================== 管理员 API ====================
+
+// AdminGetCommissionRules 获取所有返佣规则
+func AdminGetCommissionRules(c *gin.Context) {
+	rules, err := model.GetAllCommissionRules(false)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    rules,
+	})
+}
+
+// AdminCreateCommissionRule 创建返佣规则
+func AdminCreateCommissionRule(c *gin.Context) {
+	var rule model.CommissionRule
+	if err := c.ShouldBindJSON(&rule); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	// 验证必填字段
+	if rule.RuleName == "" || rule.RuleCode == "" || rule.RuleType == "" {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	// 检查代码是否重复
+	existing, _ := model.GetCommissionRuleByCode(rule.RuleCode)
+	if existing != nil && existing.Id > 0 {
+		common.ApiErrorI18n(c, i18n.MsgOperationFailed, map[string]any{"Error": "规则代码已存在"})
+		return
+	}
+
+	if err := model.CreateCommissionRule(&rule); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": i18n.T(c, i18n.MsgOperationSuccess),
+		"data":    rule,
+	})
+}
+
+// AdminUpdateCommissionRule 更新返佣规则
+func AdminUpdateCommissionRule(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	// 获取现有规则
+	rule, err := model.GetCommissionRuleById(id)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgOperationFailed, map[string]any{"Error": "规则不存在"})
+		return
+	}
+
+	// 绑定新数据
+	if err := c.ShouldBindJSON(rule); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	if err := model.UpdateCommissionRule(rule); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": i18n.T(c, i18n.MsgOperationSuccess),
+		"data":    rule,
+	})
+}
+
+// AdminDeleteCommissionRule 删除返佣规则
+func AdminDeleteCommissionRule(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	if err := model.DeleteCommissionRule(id); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": i18n.T(c, i18n.MsgOperationSuccess),
+	})
+}
+
+// AdminToggleCommissionRule 切换返佣规则状态
+func AdminToggleCommissionRule(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	var req struct {
+		IsActive bool `json:"is_active"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	if err := model.ToggleCommissionRule(id, req.IsActive); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": i18n.T(c, i18n.MsgOperationSuccess),
+	})
+}
+
+// AdminGetCommissionStatistics 获取返佣统计报表
+func AdminGetCommissionStatistics(c *gin.Context) {
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+
+	// 默认查询最近30天
+	if startDate == "" {
+		startDate = time.Now().AddDate(0, 0, -30).Format("2006-01-02")
+	}
+	if endDate == "" {
+		endDate = time.Now().Format("2006-01-02")
+	}
+
+	// 解析日期
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	end, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	end = end.Add(24*time.Hour - time.Second) // 包含结束日期全天
+
+	// 查询统计数据
+	var summary struct {
+		TotalCommission   int64   `json:"total_commission"`
+		TotalUsers        int64   `json:"total_users"`
+		ActiveInviters    int64   `json:"active_inviters"`
+		AvgCommissionRate float64 `json:"avg_commission_rate"`
+	}
+
+	// 总返佣金额
+	model.DB.Model(&model.CommissionLog{}).
+		Where("status = ? AND created_at BETWEEN ? AND ?", "settled", start, end).
+		Select("COALESCE(SUM(commission_quota), 0)").
+		Scan(&summary.TotalCommission)
+
+	// 参与用户数
+	model.DB.Model(&model.CommissionLog{}).
+		Where("created_at BETWEEN ? AND ?", start, end).
+		Distinct("inviter_id").
+		Count(&summary.TotalUsers)
+
+	// 活跃邀请人数
+	model.DB.Model(&model.CommissionLog{}).
+		Where("status = ? AND created_at BETWEEN ? AND ?", "settled", start, end).
+		Distinct("inviter_id").
+		Count(&summary.ActiveInviters)
+
+	// 平均返佣比例
+	model.DB.Model(&model.CommissionLog{}).
+		Where("created_at BETWEEN ? AND ?", start, end).
+		Select("COALESCE(AVG(commission_rate), 0)").
+		Scan(&summary.AvgCommissionRate)
+
+	// 查询每日统计
+	type DailyStats struct {
+		Date         string `json:"date"`
+		Commission   int64  `json:"commission"`
+		Transactions int64  `json:"transactions"`
+	}
+	var dailyStats []DailyStats
+	model.DB.Model(&model.CommissionLog{}).
+		Where("status = ? AND created_at BETWEEN ? AND ?", "settled", start, end).
+		Select("DATE(created_at) as date, SUM(commission_quota) as commission, COUNT(*) as transactions").
+		Group("DATE(created_at)").
+		Order("date ASC").
+		Scan(&dailyStats)
+
+	// 查询TOP邀请人
+	type TopInviter struct {
+		UserID          int    `json:"user_id"`
+		Username        string `json:"username"`
+		TotalCommission int64  `json:"total_commission"`
+		InviteCount     int64  `json:"invite_count"`
+	}
+	var topInviters []TopInviter
+	model.DB.Table("commission_logs cl").
+		Select("cl.inviter_id as user_id, u.username, SUM(cl.commission_quota) as total_commission, COUNT(DISTINCT cl.user_id) as invite_count").
+		Joins("LEFT JOIN users u ON cl.inviter_id = u.id").
+		Where("cl.status = ? AND cl.created_at BETWEEN ? AND ?", "settled", start, end).
+		Group("cl.inviter_id, u.username").
+		Order("total_commission DESC").
+		Limit(10).
+		Scan(&topInviters)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": map[string]interface{}{
+			"summary":       summary,
+			"daily_stats":   dailyStats,
+			"top_inviters":  topInviters,
+			"start_date":    startDate,
+			"end_date":      endDate,
+		},
+	})
+}
+
+// AdminGetCommissionLogs 获取所有返佣日志（管理员）
+func AdminGetCommissionLogs(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	userID, _ := strconv.Atoi(c.Query("user_id"))
+	status := c.Query("status")
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	// 构建查询
+	query := model.DB.Model(&model.CommissionLog{})
+	if userID > 0 {
+		query = query.Where("inviter_id = ?", userID)
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	// 统计总数
+	var total int64
+	query.Count(&total)
+
+	// 分页查询
+	var logs []model.CommissionLog
+	offset := (page - 1) * pageSize
+	query.Order("created_at DESC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&logs)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": map[string]interface{}{
+			"items": logs,
+			"total": total,
+			"page":  page,
+			"limit": pageSize,
+		},
+	})
+}
+
+// AdminSettleCommission 手动结算返佣
+func AdminSettleCommission(c *gin.Context) {
+	var req struct {
+		UserIDs []int `json:"user_ids"` // 可选，空=全部
+		Period  string `json:"period"`   // daily/weekly/monthly
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	// 查找待结算的返佣记录
+	query := model.DB.Model(&model.CommissionLog{}).Where("status = ?", "pending")
+	if len(req.UserIDs) > 0 {
+		query = query.Where("inviter_id IN ?", req.UserIDs)
+	}
+
+	var pendingLogs []model.CommissionLog
+	query.Find(&pendingLogs)
+
+	settledCount := 0
+	for _, log := range pendingLogs {
+		if err := model.SettleCommissionLog(log.Id); err == nil {
+			settledCount++
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": i18n.T(c, i18n.MsgOperationSuccess),
+		"data": map[string]interface{}{
+			"settled_count": settledCount,
+		},
+	})
+}
+
+// ==================== 辅助函数 ====================
+
+// maskUsername 用户名脱敏
+func maskUsername(username string) string {
+	if len(username) <= 2 {
+		return username + "***"
+	}
+	return username[:2] + "***"
+}

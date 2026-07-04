@@ -299,10 +299,16 @@ func migrateDB() error {
 		&SystemTaskLock{},
 		&CasbinRule{},
 		&AuthzRole{},
+		&CommissionLog{},
+		&CommissionRule{},
 	)
 	if err != nil {
 		return err
 	}
+
+	// 初始化默认返佣规则
+	SeedCommissionRules()
+
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err

@@ -146,6 +146,16 @@ var TelegramBotName = ""
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
+
+// 返佣系统配置
+var CommissionEnabled = true        // 是否启用返佣系统
+var CommissionRealTimeSettle = true // 是否实时结算
+var CommissionMaxLevel = 3          // 最大返佣层级
+
+// 防刷配置
+var AntiSpamEnabled = true          // 是否启用防刷
+var MaxDailyInvites = 50            // 每日邀请上限
+
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false

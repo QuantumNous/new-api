@@ -194,6 +194,9 @@ func main() {
 	InjectUmamiAnalytics()
 	InjectGoogleAnalytics()
 
+	// 初始化返佣系统
+	service.InitCommission()
+
 	// 设置路由
 	router.SetRouter(server, router.ThemeAssets{
 		DefaultBuildFS:   buildFS,

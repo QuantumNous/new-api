@@ -387,6 +387,8 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	err := createLog(log)
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
+	} else if OnConsumeLogRecorded != nil {
+		OnConsumeLogRecorded(int64(log.Id), userId, params.ModelName, params.Quota)
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {
