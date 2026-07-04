@@ -155,6 +155,7 @@ var CommissionMaxLevel = 3          // 最大返佣层级
 // 防刷配置
 var AntiSpamEnabled = true          // 是否启用防刷
 var MaxDailyInvites = 50            // 每日邀请上限
+var CommissionSameIPLimit = 5       // 同IP注册用户上限（超过则拒绝返佣）
 
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false

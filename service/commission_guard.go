@@ -151,8 +151,8 @@ func (g *CommissionGuard) checkSameIPDevice(userID int, inviterID int) error {
 		return nil // 查询失败，放行
 	}
 
-	// 同IP下已有 ≥5 个用户与邀请人关联时拒绝
-	if count >= 5 {
+	// 同IP下已有 ≥N 个用户与邀请人关联时拒绝（N由 CommissionSameIPLimit 配置）
+	if count >= int64(common.CommissionSameIPLimit) {
 		return fmt.Errorf("同IP注册用户数过多(%d)，疑似刷单", count)
 	}
 

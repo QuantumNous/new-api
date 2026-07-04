@@ -233,6 +233,7 @@ func Register(c *gin.Context) {
 		DisplayName: user.Username,
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
+		RegisterIP:  c.ClientIP(),          // 记录注册IP（用于防刷检测）
 	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
