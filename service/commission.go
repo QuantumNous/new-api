@@ -361,6 +361,55 @@ func (s *CommissionService) checkMonthlyLimit(inviterID int, newCommission int, 
 	return int(totalMonth)+newCommission <= monthlyLimit
 }
 
+// checkDailyLimitTx 事务内检查每日限额（使用 tx 查询，Unix 秒范围）
+func (s *CommissionService) checkDailyLimitTx(tx *gorm.DB, inviterID int, newCommission int, dailyLimit int) bool {
+	if dailyLimit <= 0 {
+		return true // 不限制
+	}
+
+	// 计算今日已返佣总额（Unix 秒范围）
+	now := time.Now()
+	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
+	dayEnd := dayStart + 86400
+
+	var totalToday int64
+	err := tx.Model(&model.CommissionLog{}).
+		Where("inviter_id = ? AND status = ? AND created_at >= ? AND created_at < ?", inviterID, "settled", dayStart, dayEnd).
+		Select("COALESCE(SUM(commission_quota), 0)").
+		Scan(&totalToday).Error
+
+	if err != nil {
+		common.SysLog(fmt.Sprintf("检查每日限额失败: %v", err))
+		return false // 查询失败，拒绝返佣
+	}
+
+	return int(totalToday)+newCommission <= dailyLimit
+}
+
+// checkMonthlyLimitTx 事务内检查每月限额（使用 tx 查询，Unix 秒范围）
+func (s *CommissionService) checkMonthlyLimitTx(tx *gorm.DB, inviterID int, newCommission int, monthlyLimit int) bool {
+	if monthlyLimit <= 0 {
+		return true // 不限制
+	}
+
+	// 计算本月已返佣总额（Unix 秒范围）
+	now := time.Now()
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Unix()
+
+	var totalMonth int64
+	err := tx.Model(&model.CommissionLog{}).
+		Where("inviter_id = ? AND status = ? AND created_at >= ?", inviterID, "settled", monthStart).
+		Select("COALESCE(SUM(commission_quota), 0)").
+		Scan(&totalMonth).Error
+
+	if err != nil {
+		common.SysLog(fmt.Sprintf("检查每月限额失败: %v", err))
+		return false // 查询失败，拒绝返佣
+	}
+
+	return int(totalMonth)+newCommission <= monthlyLimit
+}
+
 // TransferAffQuotaToQuota 转移邀请额度到余额
 func (s *CommissionService) TransferAffQuotaToQuota(userID int, quota int) error {
 	// 检查quota是否小于最小额度
