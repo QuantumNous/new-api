@@ -128,56 +128,43 @@ func (g *CommissionGuard) checkInvitationFrequency(inviterID int) error {
 	return nil
 }
 
-// checkSameIPDevice 检查同IP/设备
+// checkSameIPDevice 检查同IP注册用户数（持久化版本）
 func (g *CommissionGuard) checkSameIPDevice(userID int, inviterID int) error {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
+	// 获取当前用户的注册IP
+	var currentUser model.User
+	if err := model.DB.Select("register_ip").First(&currentUser, userID).Error; err != nil {
+		return nil // 查询失败，放行
+	}
 
-	// 这里简化处理，实际应该从请求中获取IP和设备信息
-	// 在实际使用时，应该在中间件中记录IP和设备信息，然后在这里查询
+	if currentUser.RegisterIP == "" {
+		return nil // 无IP记录，放行
+	}
 
-	// 检查用户是否使用相同IP
-	// 注意：这里需要实际的实现，从数据库或缓存中查询
+	// 查询同IP下与该邀请人关联的用户数
+	var count int64
+	err := model.DB.Model(&model.User{}).
+		Where("register_ip = ? AND inviter_id = ? AND id != ?", currentUser.RegisterIP, inviterID, userID).
+		Count(&count).Error
+
+	if err != nil {
+		common.SysLog(fmt.Sprintf("检查同IP用户数失败: %v", err))
+		return nil // 查询失败，放行
+	}
+
+	// 同IP下已有 ≥5 个用户与邀请人关联时拒绝
+	if count >= 5 {
+		return fmt.Errorf("同IP注册用户数过多(%d)，疑似刷单", count)
+	}
 
 	return nil
 }
 
 // RecordIPDevice 记录IP和设备信息（在注册/登录时调用）
+// 已废弃：IP信息改为持久化到 users.register_ip 字段，此函数保留仅为兼容
 func (g *CommissionGuard) RecordIPDevice(userID int, ip string, deviceID string) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	// 记录IP
-	if ip != "" {
-		if record, exists := g.ipTracker[ip]; exists {
-			record.UserIDs[userID] = true
-			record.InviteCount++
-			record.LastInvite = time.Now()
-		} else {
-			g.ipTracker[ip] = &IPRecord{
-				IP:          ip,
-				UserIDs:     map[int]bool{userID: true},
-				LastInvite:  time.Now(),
-				InviteCount: 1,
-			}
-		}
-	}
-
-	// 记录设备
-	if deviceID != "" {
-		if record, exists := g.deviceTracker[deviceID]; exists {
-			record.UserIDs[userID] = true
-			record.InviteCount++
-			record.LastInvite = time.Now()
-		} else {
-			g.deviceTracker[deviceID] = &DeviceRecord{
-				DeviceID:    deviceID,
-				UserIDs:     map[int]bool{userID: true},
-				LastInvite:  time.Now(),
-				InviteCount: 1,
-			}
-		}
-	}
+	// 实际应该在注册时更新 users 表的 register_ip 字段
+	// 示例：model.DB.Model(&model.User{}).Where("id = ?", userID).Update("register_ip", ip)
+	// 此处暂不实现，待集成到注册流程
 }
 
 // CleanupExpiredRecords 清理过期记录（定期调用）

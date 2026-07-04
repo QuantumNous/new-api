@@ -51,6 +51,7 @@ type User struct {
 	Setting          string                     `json:"setting" gorm:"type:text;column:setting"`
 	Remark           string                     `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer   string                     `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	RegisterIP       string                     `json:"register_ip" gorm:"type:varchar(45);column:register_ip;index"` // 注册IP，用于防刷检测
 	CreatedAt        int64                      `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt      int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	AdminPermissions map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
