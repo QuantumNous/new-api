@@ -338,6 +338,10 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 			taskResult.Reason = "task failed"
 		}
 	default:
+		if resTask.Error != nil && resTask.Error.Message != "" {
+			taskResult.Status = model.TaskStatusFailure
+			taskResult.Reason = resTask.Error.Message
+		}
 	}
 	if resTask.Progress > 0 && resTask.Progress < 100 {
 		taskResult.Progress = fmt.Sprintf("%d%%", resTask.Progress)

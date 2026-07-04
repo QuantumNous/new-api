@@ -37,3 +37,20 @@ func TestParseTaskResultFailedWithObjectError(t *testing.T) {
 	assert.Equal(t, model.TaskStatusFailure, taskInfo.Status)
 	assert.Equal(t, "invalid prompt", taskInfo.Reason)
 }
+
+func TestParseTaskResultErrorWithoutStatus(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+
+	taskInfo, err := adaptor.ParseTaskResult([]byte(`{
+		"code": "Client specified an invalid argument",
+		"error": "Generated video rejected by content moderation.",
+		"id": "task_upstream",
+		"task_id": "task_upstream",
+		"model": "grok-image-video"
+	}`))
+
+	require.NoError(t, err)
+	require.NotNil(t, taskInfo)
+	assert.Equal(t, model.TaskStatusFailure, taskInfo.Status)
+	assert.Equal(t, "Generated video rejected by content moderation.", taskInfo.Reason)
+}
