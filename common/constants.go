@@ -18,6 +18,9 @@ var SystemName = "New API"
 var Footer = ""
 var Logo = ""
 var TopUpLink = ""
+var UsingSQLite = false
+var UsingMySQL = false
+var UsingPostgreSQL = false
 
 var themeValue atomic.Value // stores string; safe for concurrent read/write
 
@@ -66,11 +69,11 @@ var DisplayTokenStatEnabled = true
 var DrawingEnabled = true
 var TaskEnabled = true
 var DataExportEnabled = true
-var DataExportInterval = 5         // unit: minute
-var DataExportDefaultTime = "hour" // unit: minute
-var DefaultCollapseSidebar = false // default value of collapse sidebar
+var DataExportInterval = 5            // unit: minute
+var DataExportDefaultTime = "hour"    // unit: minute
+var DefaultCollapseSidebar = false    // default value of collapse sidebar
 var UpstreamWarmupEnabled atomic.Bool // default true, set in init.go
-var UpstreamTraceEnabled atomic.Bool   // default false, set in init.go (segmented upstream httptrace)
+var UpstreamTraceEnabled atomic.Bool  // default false, set in init.go (segmented upstream httptrace)
 
 // Channel pool status: periodically fetch an upstream new-api pool-preview
 // endpoint and inject it as a virtual Uptime Kuma category on the dashboard.
@@ -80,9 +83,9 @@ var UpstreamTraceEnabled atomic.Bool   // default false, set in init.go (segment
 // never reach any browser. Defaults are empty so nothing leaks from source.
 var PoolStatusEnabled atomic.Bool   // default false, set in init.go
 var PoolStatusUpstreamURL = ""      // env-only; never registered in OptionMap
-var PoolStatusAuthHeader = ""        // env-only credential ("Header: value"); never registered in OptionMap
-var PoolStatusUserID = ""            // env-only; sent as "New-Api-User" header for upstream new-api auth
-var PoolStatusIntervalSeconds = 60   // how often to refresh the cached snapshot
+var PoolStatusAuthHeader = ""       // env-only credential ("Header: value"); never registered in OptionMap
+var PoolStatusUserID = ""           // env-only; sent as "New-Api-User" header for upstream new-api auth
+var PoolStatusIntervalSeconds = 60  // how often to refresh the cached snapshot
 var PoolStatusCategoryName = "号池状态" // category label shown in the Uptime panel
 
 // Any options with "Secret", "Token" in its key won't be return by GetOptions

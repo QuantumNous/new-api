@@ -25,7 +25,34 @@ func ResponseText2Usage(c *gin.Context, responseText string, modeName string, pr
 	usage.PromptTokens = promptTokens
 	usage.CompletionTokens = EstimateTokenByModel(modeName, responseText)
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	ApplyLocalCountCacheControlFallback(c, usage)
 	return usage
+}
+
+func ApplyLocalCountCacheControlFallback(c *gin.Context, usage *dto.Usage) {
+	if c == nil || usage == nil {
+		return
+	}
+	if !common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens) ||
+		!common.GetContextKeyBool(c, constant.ContextKeyRequestHasCacheControl) {
+		return
+	}
+	if usage.PromptTokens <= 0 ||
+		usage.PromptTokensDetails.CachedCreationTokens > 0 ||
+		usage.PromptTokensDetails.CachedTokens > 0 ||
+		usage.ClaudeCacheCreation5mTokens > 0 ||
+		usage.ClaudeCacheCreation1hTokens > 0 {
+		return
+	}
+
+	cacheControlCount := common.GetContextKeyInt(c, constant.ContextKeyRequestCacheControlCount)
+	if cacheControlCount < 1 {
+		cacheControlCount = 1
+	}
+	usage.PromptTokensDetails.CachedCreationTokens = usage.PromptTokens * cacheControlCount
+	common.SetContextKey(c, constant.ContextKeyUsageFallback, "local_cache_control_estimate")
+	common.SetContextKey(c, constant.ContextKeyUsageFallbackReason, "upstream_usage_missing_with_cache_control")
+	common.SetContextKey(c, constant.ContextKeyUsageReliability, "estimated_conservative")
 }
 
 func ValidUsage(usage *dto.Usage) bool {

@@ -72,6 +72,18 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	if isLocalCountTokens {
 		adminInfo["local_count_tokens"] = isLocalCountTokens
 	}
+	if cacheControlCount := common.GetContextKeyInt(ctx, constant.ContextKeyRequestCacheControlCount); cacheControlCount > 0 {
+		adminInfo["request_cache_control_count"] = cacheControlCount
+	}
+	if usageFallback := common.GetContextKeyString(ctx, constant.ContextKeyUsageFallback); usageFallback != "" {
+		adminInfo["usage_fallback"] = usageFallback
+	}
+	if usageFallbackReason := common.GetContextKeyString(ctx, constant.ContextKeyUsageFallbackReason); usageFallbackReason != "" {
+		adminInfo["usage_fallback_reason"] = usageFallbackReason
+	}
+	if usageReliability := common.GetContextKeyString(ctx, constant.ContextKeyUsageReliability); usageReliability != "" {
+		adminInfo["usage_reliability"] = usageReliability
+	}
 
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
 

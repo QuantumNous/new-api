@@ -57,14 +57,14 @@ func calculateAudioQuota(info QuotaInfo) int {
 			if quota.IsZero() && *info.Override.ModelPrice > 0 {
 				return 1
 			}
-			return int(quota.Round(0).IntPart())
+			return quotaDecimalToInt(quota)
 		}
 		modelPrice := decimal.NewFromFloat(info.ModelPrice)
 		quotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 		groupRatio := decimal.NewFromFloat(info.GroupRatio)
 
 		quota := modelPrice.Mul(quotaPerUnit).Mul(groupRatio)
-		return int(quota.IntPart())
+		return quotaDecimalToInt(quota)
 	}
 
 	completionRatio := decimal.NewFromFloat(ratio_setting.GetCompletionRatio(info.ModelName))
@@ -97,7 +97,7 @@ func calculateAudioQuota(info QuotaInfo) int {
 		if totalTokens := inputTextTokens.Add(outputTextTokens).Add(inputAudioTokens).Add(outputAudioTokens); !totalTokens.IsZero() && quota.LessThanOrEqual(decimal.Zero) {
 			quota = decimal.NewFromInt(1)
 		}
-		return int(quota.Round(0).IntPart())
+		return quotaDecimalToInt(quota)
 	}
 
 	quota = quota.Add(inputTextTokens)
@@ -111,7 +111,7 @@ func calculateAudioQuota(info QuotaInfo) int {
 		quota = decimal.NewFromInt(1)
 	}
 
-	return int(quota.Round(0).IntPart())
+	return quotaDecimalToInt(quota)
 }
 
 func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage) error {

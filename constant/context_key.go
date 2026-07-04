@@ -54,6 +54,12 @@ const (
 
 	ContextKeyLocalCountTokens ContextKey = "local_count_tokens"
 
+	ContextKeyRequestHasCacheControl   ContextKey = "request_has_cache_control"
+	ContextKeyRequestCacheControlCount ContextKey = "request_cache_control_count"
+	ContextKeyUsageFallback            ContextKey = "usage_fallback"
+	ContextKeyUsageFallbackReason      ContextKey = "usage_fallback_reason"
+	ContextKeyUsageReliability         ContextKey = "usage_reliability"
+
 	ContextKeySystemPromptOverride ContextKey = "system_prompt_override"
 
 	// ContextKeyFileSourcesToCleanup stores file sources that need cleanup when request ends

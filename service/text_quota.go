@@ -67,6 +67,16 @@ func priceOverrideToQuota(price *float64, tokens decimal.Decimal) (decimal.Decim
 		Mul(decimal.NewFromFloat(common.QuotaPerUnit)), true
 }
 
+func quotaDecimalToInt(quota decimal.Decimal) int {
+	if quota.IsZero() {
+		return 0
+	}
+	if quota.IsPositive() {
+		return int(quota.Ceil().IntPart())
+	}
+	return int(quota.Floor().IntPart())
+}
+
 func applyTextGroupPriceOverride(relayInfo *relaycommon.RelayInfo, summary *textQuotaSummary, components map[string]decimal.Decimal) (decimal.Decimal, bool) {
 	if relayInfo == nil || summary == nil || relayInfo.PriceData.GroupPriceOverride == nil {
 		return decimal.Zero, false
@@ -380,7 +390,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		if (!ratio.IsZero() || (relayInfo.PriceData.GroupPriceOverride != nil && relayInfo.PriceData.GroupPriceOverride.HasPriceOverride())) && quotaCalculateDecimal.LessThanOrEqual(decimal.Zero) {
 			quotaCalculateDecimal = decimal.NewFromInt(1)
 		}
-		summary.Quota = int(quotaCalculateDecimal.Round(0).IntPart())
+		summary.Quota = quotaDecimalToInt(quotaCalculateDecimal)
 	} else {
 		// 结算兜底：按次计费但 ModelPrice 为 -1 哨兵（未配置按次价）时当 0（免费），
 		// 避免 -1 直接乘 QuotaPerUnit 产生负 quota（资损）。源头已在 ModelPriceHelper 归零，此处防御。
@@ -399,7 +409,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 				quotaCalculateDecimal = quotaCalculateDecimal.Mul(decimal.NewFromFloat(otherRatio))
 			}
 		}
-		summary.Quota = int(quotaCalculateDecimal.Round(0).IntPart())
+		summary.Quota = quotaDecimalToInt(quotaCalculateDecimal)
 	}
 
 	if summary.TotalTokens == 0 {

@@ -849,6 +849,8 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 		if claudeInfo.Usage.PromptTokens == 0 {
 			claudeInfo.Usage.PromptTokens = fallback.PromptTokens
 		}
+		common.SetContextKey(c, constant.ContextKeyLocalCountTokens, true)
+		service.ApplyLocalCountCacheControlFallback(c, claudeInfo.Usage)
 		claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 	}
 	if claudeInfo.Usage != nil {

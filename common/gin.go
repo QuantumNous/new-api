@@ -21,6 +21,7 @@ const KeyRequestBody = "key_request_body"
 const KeyBodyStorage = "key_body_storage"
 
 var ErrRequestBodyTooLarge = errors.New("request body too large")
+var cacheControlMarker = []byte(`"cache_control"`)
 
 func IsRequestBodyTooLargeError(err error) bool {
 	if err == nil {
@@ -40,6 +41,7 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 			if _, err := bs.Seek(0, io.SeekStart); err != nil {
 				return nil, fmt.Errorf("failed to seek body storage: %w", err)
 			}
+			markRequestCacheControlIfPresent(c, bs)
 			return bs, nil
 		}
 	}
@@ -53,6 +55,7 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 				return nil, err
 			}
 			c.Set(KeyBodyStorage, bs)
+			markRequestCacheControlIfPresent(c, bs)
 			return bs, nil
 		}
 	}
@@ -78,6 +81,7 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 
 	// 缓存存储对象
 	c.Set(KeyBodyStorage, storage)
+	markRequestCacheControlIfPresent(c, storage)
 
 	return storage, nil
 }
@@ -194,6 +198,73 @@ func GetContextKeyType[T any](c *gin.Context, key constant.ContextKey) (T, bool)
 	}
 	var t T
 	return t, false
+}
+
+func markRequestCacheControlIfPresent(c *gin.Context, storage BodyStorage) {
+	if c == nil || storage == nil || GetContextKeyBool(c, constant.ContextKeyRequestHasCacheControl) {
+		return
+	}
+	if count := storageCacheControlMarkerCount(storage); count > 0 {
+		SetContextKey(c, constant.ContextKeyRequestHasCacheControl, true)
+		SetContextKey(c, constant.ContextKeyRequestCacheControlCount, count)
+	}
+}
+
+func storageCacheControlMarkerCount(storage BodyStorage) int {
+	if storage == nil {
+		return 0
+	}
+	if !storage.IsDisk() {
+		data, err := storage.Bytes()
+		if err != nil {
+			return 0
+		}
+		return bytes.Count(data, cacheControlMarker)
+	}
+
+	current, err := storage.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return 0
+	}
+	defer func() {
+		_, _ = storage.Seek(current, io.SeekStart)
+	}()
+	if _, err = storage.Seek(0, io.SeekStart); err != nil {
+		return 0
+	}
+
+	count := 0
+	overlap := make([]byte, 0, len(cacheControlMarker)-1)
+	buf := make([]byte, 64*1024)
+	for {
+		n, readErr := storage.Read(buf)
+		if n > 0 {
+			chunk := buf[:n]
+			if len(overlap) > 0 {
+				window := make([]byte, 0, len(overlap)+len(chunk))
+				window = append(window, overlap...)
+				window = append(window, chunk...)
+				count += bytes.Count(window, cacheControlMarker)
+			} else {
+				count += bytes.Count(chunk, cacheControlMarker)
+			}
+			if keep := len(cacheControlMarker) - 1; len(chunk) >= keep {
+				overlap = append(overlap[:0], chunk[len(chunk)-keep:]...)
+			} else {
+				overlap = append(overlap, chunk...)
+				if keep := len(cacheControlMarker) - 1; len(overlap) > keep {
+					overlap = overlap[len(overlap)-keep:]
+				}
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return 0
+		}
+	}
+	return count
 }
 
 func ApiError(c *gin.Context, err error) {

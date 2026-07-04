@@ -99,7 +99,7 @@ func minFeeToQuota(fee float64, groupRatio float64) int {
 	return int(decimal.NewFromFloat(fee).
 		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
 		Mul(decimal.NewFromFloat(groupRatio)).
-		Round(0).
+		Ceil().
 		IntPart())
 }
 
@@ -126,7 +126,10 @@ func applyTokenPriceOverrides(priceData *types.PriceData, promptTokens int) {
 	if preConsumedTokens <= 0 {
 		return
 	}
-	priceData.QuotaToPreConsume = int(preConsumedTokens * priceToQuotaPerToken(*override.PromptPrice))
+	priceData.QuotaToPreConsume = int(decimal.NewFromFloat(preConsumedTokens).
+		Mul(decimal.NewFromFloat(priceToQuotaPerToken(*override.PromptPrice))).
+		Ceil().
+		IntPart())
 	if priceData.QuotaToPreConsume == 0 && *override.PromptPrice > 0 {
 		priceData.QuotaToPreConsume = 1
 	}

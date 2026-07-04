@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -12,11 +13,33 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
 
 func testFloat64Ptr(value float64) *float64 {
 	return &value
+}
+
+func TestResponseText2UsageCacheControlFallbackUsesConservativeCacheCreation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	common.SetContextKey(ctx, constant.ContextKeyRequestHasCacheControl, true)
+	common.SetContextKey(ctx, constant.ContextKeyRequestCacheControlCount, 2)
+
+	usage := ResponseText2Usage(ctx, "", "claude-3-7-sonnet", 100)
+
+	require.Equal(t, 100, usage.PromptTokens)
+	require.Equal(t, 200, usage.PromptTokensDetails.CachedCreationTokens)
+	require.True(t, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens))
+	require.Equal(t, "local_cache_control_estimate", common.GetContextKeyString(ctx, constant.ContextKeyUsageFallback))
+}
+
+func TestQuotaDecimalToIntCeilsPositiveConsumption(t *testing.T) {
+	require.Equal(t, 1, quotaDecimalToInt(decimal.RequireFromString("0.01")))
+	require.Equal(t, 65, quotaDecimalToInt(decimal.RequireFromString("64.01")))
+	require.Equal(t, 65, quotaDecimalToInt(decimal.RequireFromString("65")))
 }
 
 func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
@@ -243,9 +266,9 @@ func TestCalculateTextQuotaSummarySeparatesOpenRouterCacheReadFromPromptBilling(
 
 	// OpenRouter OpenAI-format display keeps prompt_tokens as total input,
 	// but billing still separates normal input from cache read tokens.
-	// quota = (2604 - 2432) + 2432*0.1 + 383 = 798.2 => 798
+	// quota = (2604 - 2432) + 2432*0.1 + 383 = 798.2 => 799
 	require.Equal(t, 2604, summary.PromptTokens)
-	require.Equal(t, 798, summary.Quota)
+	require.Equal(t, 799, summary.Quota)
 }
 
 func TestCalculateTextQuotaSummarySeparatesOpenRouterCacheCreationFromPromptBilling(t *testing.T) {
@@ -316,10 +339,10 @@ func TestCalculateTextQuotaSummaryKeepsPrePRClaudeOpenRouterBilling(t *testing.T
 
 	// Pre-PR PostClaudeConsumeQuota behavior for OpenRouter:
 	// prompt = 2604 - 2432 = 172
-	// quota = 172 + 2432*0.1 + 383 = 798.2 => 798
+	// quota = 172 + 2432*0.1 + 383 = 798.2 => 799
 	require.True(t, summary.IsClaudeUsageSemantic)
 	require.Equal(t, 172, summary.PromptTokens)
-	require.Equal(t, 798, summary.Quota)
+	require.Equal(t, 799, summary.Quota)
 }
 
 func TestCalculateTextQuotaSummaryUsesModelGroupPriceOverrides(t *testing.T) {
