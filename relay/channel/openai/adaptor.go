@@ -578,8 +578,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		return &requestBody, nil
 
 	default:
-		if common.UsesAsyncImageTaskUpstream(info.OriginModelName) &&
-			isAPIMartCompatibleBase(info.ChannelBaseUrl) &&
+		if isAPIMartCompatibleBase(info.ChannelBaseUrl) &&
 			strings.TrimSpace(request.Webhook) == "" {
 			request.Webhook = service.MediaTaskWebhookBase()
 		}

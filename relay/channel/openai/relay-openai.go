@@ -936,6 +936,56 @@ func isClientAsyncImageGenerationsPath(c *gin.Context) bool {
 	return strings.HasSuffix(c.Request.URL.Path, "/images/generations/async")
 }
 
+func apimartWebhookEnabled(c *gin.Context) bool {
+	baseURL := strings.ToLower(strings.TrimSpace(common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl)))
+	return strings.Contains(baseURL, "apimart.ai") && service.MediaTaskWebhookBase() != ""
+}
+
+func trackSubmittedImageTask(c *gin.Context, info *relaycommon.RelayInfo, responseBody []byte, upstreamTaskID string) ([]byte, string) {
+	upstreamTaskID = strings.TrimSpace(upstreamTaskID)
+	if info == nil || upstreamTaskID == "" {
+		return responseBody, upstreamTaskID
+	}
+	publicTaskID := model.GenerateTaskID()
+	task := &model.Task{
+		TaskID:     publicTaskID,
+		Platform:   constant.TaskPlatformOpenAIImage,
+		UserId:     info.UserId,
+		ChannelId:  info.ChannelId,
+		Status:     model.TaskStatusSubmitted,
+		Progress:   "0%",
+		SubmitTime: time.Now().Unix(),
+		Properties: model.Properties{OriginModelName: info.OriginModelName},
+		PrivateData: model.TaskPrivateData{
+			UpstreamTaskID:      upstreamTaskID,
+			GptImage2Profile:    string(service.GptImage2ProfileFromContext(c)),
+			GptImage2OfficialFB: service.GptImage2OfficialFallbackContextValue(c),
+		},
+	}
+	if rd := service.ImageRequestDataFromContext(c); len(rd) > 0 {
+		if encoded, merr := common.Marshal(rd); merr == nil {
+			task.PrivateData.RequestData = string(encoded)
+		}
+	}
+	if err := task.Insert(); err != nil {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("image task insert failed, exposing upstream task_id directly: %v", err))
+		return responseBody, upstreamTaskID
+	}
+
+	var rootMap map[string]interface{}
+	if common.Unmarshal(responseBody, &rootMap) == nil {
+		if dataArr, ok := rootMap["data"].([]interface{}); ok && len(dataArr) > 0 {
+			if first, ok := dataArr[0].(map[string]interface{}); ok {
+				first["task_id"] = publicTaskID
+				if rewritten, merr := common.Marshal(rootMap); merr == nil {
+					responseBody = rewritten
+				}
+			}
+		}
+	}
+	return responseBody, publicTaskID
+}
+
 func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -959,49 +1009,10 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 			len(asyncCheck.Data) > 0 &&
 			strings.TrimSpace(asyncCheck.Data[0].TaskID) != "" {
 			upstreamTaskID := strings.TrimSpace(asyncCheck.Data[0].TaskID)
-			publicTaskID := model.GenerateTaskID()
-
-			task := &model.Task{
-				TaskID:     publicTaskID,
-				Platform:   constant.TaskPlatformOpenAIImage,
-				UserId:     info.UserId,
-				ChannelId:  info.ChannelId,
-				Status:     model.TaskStatusSubmitted,
-				Progress:   "0%",
-				SubmitTime: time.Now().Unix(),
-				Properties: model.Properties{OriginModelName: info.OriginModelName},
-				PrivateData: model.TaskPrivateData{
-					UpstreamTaskID:      upstreamTaskID,
-					GptImage2Profile:    string(service.GptImage2ProfileFromContext(c)),
-					GptImage2OfficialFB: service.GptImage2OfficialFallbackContextValue(c),
-				},
-			}
-			if rd := service.ImageRequestDataFromContext(c); len(rd) > 0 {
-				if encoded, merr := common.Marshal(rd); merr == nil {
-					task.PrivateData.RequestData = string(encoded)
-				}
-			}
-			if err := task.Insert(); err != nil {
-				// Fall back to the pre-existing behavior (expose the upstream task_id
-				// directly) rather than failing the request over a tracking-table write.
-				logger.LogWarn(c.Request.Context(), fmt.Sprintf("image task insert failed, exposing upstream task_id directly: %v", err))
-				c.Set(imagePollTaskIDContextKey, upstreamTaskID)
-			} else {
-				c.Set(imagePollTaskIDContextKey, publicTaskID)
-				// Mutate just the task_id in place rather than rebuilding the body,
-				// so any other fields the upstream returned (e.g. usage) survive —
-				// OpenaiHandlerWithUsage still needs to parse usage from this body below.
-				var rootMap map[string]interface{}
-				if common.Unmarshal(responseBody, &rootMap) == nil {
-					if dataArr, ok := rootMap["data"].([]interface{}); ok && len(dataArr) > 0 {
-						if first, ok := dataArr[0].(map[string]interface{}); ok {
-							first["task_id"] = publicTaskID
-							if rewritten, merr := common.Marshal(rootMap); merr == nil {
-								responseBody = rewritten
-							}
-						}
-					}
-				}
+			var publicTaskID string
+			responseBody, publicTaskID = trackSubmittedImageTask(c, info, responseBody, upstreamTaskID)
+			c.Set(imagePollTaskIDContextKey, publicTaskID)
+			if publicTaskID != upstreamTaskID {
 				if rawBody, exists := c.Get(imageRequestBodyContextKey); exists {
 					if bodyBytes, ok := rawBody.([]byte); ok && len(bodyBytes) > 0 {
 						scheduleAsyncImageRaceHedge(publicTaskID, info.OriginModelName, bodyBytes, imageRaceTriggerFromContext(c))
@@ -1024,33 +1035,40 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 			asyncCheck.Data[0].TaskID != "" &&
 			asyncCheck.Data[0].Status == "submitted" {
 			taskID := asyncCheck.Data[0].TaskID
-			logger.LogInfo(c.Request.Context(), fmt.Sprintf("image task async detected, polling task_id=%s", taskID))
-			pollOutcome := pollAsyncImageTask(c, info, taskID)
-			if pollOutcome.body != nil {
-				responseBody = pollOutcome.body
-			} else if pollOutcome.upstreamFailed {
-				c.Set(imagePollTaskIDContextKey, taskID)
-				failCode := pollOutcome.failCode
-				if failCode == "" {
-					failCode = "image_generation_failed"
-				}
-				return nil, types.WithOpenAIError(types.OpenAIError{
-					Message: pollOutcome.failReason,
-					Type:    "server_error",
-					Code:    failCode,
-				}, http.StatusBadGateway)
+			if apimartWebhookEnabled(c) {
+				var publicTaskID string
+				responseBody, publicTaskID = trackSubmittedImageTask(c, info, responseBody, taskID)
+				c.Set(imagePollTaskIDContextKey, publicTaskID)
+				logger.LogInfo(c.Request.Context(), fmt.Sprintf("image task async detected, using webhook task_id=%s public_task_id=%s", taskID, publicTaskID))
 			} else {
-				c.Set(imagePollTaskIDContextKey, taskID)
-				service.ScheduleImageTaskReconcile(c, info, taskID)
-				deadlineSec := int(imagePollDeadlineFromContext(c).Seconds())
-				return nil, types.WithOpenAIError(types.OpenAIError{
-					Message: fmt.Sprintf(
-						"Image generation timed out after %d seconds. Retry with lower resolution or quality.",
-						deadlineSec,
-					),
-					Type: "server_error",
-					Code: "image_generation_timeout",
-				}, http.StatusRequestTimeout, types.ErrOptionWithNoRecordErrorLog(), types.ErrOptionWithSkipRetry())
+				logger.LogInfo(c.Request.Context(), fmt.Sprintf("image task async detected, polling task_id=%s", taskID))
+				pollOutcome := pollAsyncImageTask(c, info, taskID)
+				if pollOutcome.body != nil {
+					responseBody = pollOutcome.body
+				} else if pollOutcome.upstreamFailed {
+					c.Set(imagePollTaskIDContextKey, taskID)
+					failCode := pollOutcome.failCode
+					if failCode == "" {
+						failCode = "image_generation_failed"
+					}
+					return nil, types.WithOpenAIError(types.OpenAIError{
+						Message: pollOutcome.failReason,
+						Type:    "server_error",
+						Code:    failCode,
+					}, http.StatusBadGateway)
+				} else {
+					c.Set(imagePollTaskIDContextKey, taskID)
+					service.ScheduleImageTaskReconcile(c, info, taskID)
+					deadlineSec := int(imagePollDeadlineFromContext(c).Seconds())
+					return nil, types.WithOpenAIError(types.OpenAIError{
+						Message: fmt.Sprintf(
+							"Image generation timed out after %d seconds. Retry with lower resolution or quality.",
+							deadlineSec,
+						),
+						Type: "server_error",
+						Code: "image_generation_timeout",
+					}, http.StatusRequestTimeout, types.ErrOptionWithNoRecordErrorLog(), types.ErrOptionWithSkipRetry())
+				}
 			}
 		}
 	}
