@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -296,6 +297,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	} else {
 		logger.LogError(c, fmt.Sprintf("stream ended: %s, received=%d", info.StreamStatus.Summary(), info.ReceivedResponseCount))
 		if info.StreamStatus.EndReason == relaycommon.StreamEndReasonClientGone {
+			service.SaveClientGoneRequestSnapshot(c, info)
 			notifyClientGoneStream(c, info)
 		}
 	}
@@ -325,10 +327,15 @@ func notifyClientGoneStream(c *gin.Context, info *relaycommon.RelayInfo) {
 	}
 	receivedCount := info.ReceivedResponseCount
 	elapsed := time.Since(info.StartTime).Round(time.Millisecond).String()
+	userEmail := strings.TrimSpace(info.UserEmail)
+	if userEmail == "" {
+		userEmail = "-"
+	}
 
 	lines := []string{
 		fmt.Sprintf("- request_id：`%s`", requestID),
 		fmt.Sprintf("- model：`%s`", model),
+		fmt.Sprintf("- 邮箱：`%s`", userEmail),
 		fmt.Sprintf("- 渠道：`%s`", channel),
 		fmt.Sprintf("- 是否收到首字：`%s`", firstByteReceived),
 		fmt.Sprintf("- 收到 chunk 数：`%d`", receivedCount),

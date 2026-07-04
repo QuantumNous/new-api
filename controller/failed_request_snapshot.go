@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -69,27 +68,17 @@ func ReplayFailedRequestSnapshot(c *gin.Context) {
 	if method == "" {
 		method = http.MethodPost
 	}
-	req, err := http.NewRequest(method, replayURL, bytes.NewBufferString(snapshot.Body))
+	req, err := service.BuildReplayRequest(snapshot, payload.ChannelId, token)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer sk-%s-%d", token, payload.ChannelId))
-	req.Header.Set("X-NewAPI-Replay-Source-Request-Id", snapshot.RequestId)
-	req.Header.Set("X-NewAPI-Replay", "true")
-	if snapshot.ContentType != "" {
-		req.Header.Set("Content-Type", snapshot.ContentType)
+	req.URL, err = url.Parse(replayURL)
+	if err != nil {
+		common.ApiError(c, err)
+		return
 	}
-	for key, values := range parseSnapshotHeaders(snapshot.Headers) {
-		if strings.EqualFold(key, "Authorization") {
-			continue
-		}
-		for _, value := range values {
-			if value != "" {
-				req.Header.Add(key, value)
-			}
-		}
-	}
+	req.Method = method
 
 	client := &http.Client{Timeout: 5 * time.Minute}
 	resp, err := client.Do(req)
@@ -145,13 +134,4 @@ func buildReplayURL(c *gin.Context, requestPath string) (string, error) {
 		}
 	}
 	return fmt.Sprintf("%s://%s%s", scheme, host, requestPath), nil
-}
-
-func parseSnapshotHeaders(raw string) map[string][]string {
-	headers := make(map[string][]string)
-	if strings.TrimSpace(raw) == "" {
-		return headers
-	}
-	_ = json.Unmarshal([]byte(raw), &headers)
-	return headers
 }

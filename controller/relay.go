@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/textproto"
 	"strings"
 	"time"
 
@@ -270,36 +269,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 }
 
-func captureReplayHeaders(c *gin.Context) map[string][]string {
-	headers := make(map[string][]string)
-	if c == nil || c.Request == nil {
-		return headers
-	}
-	allow := map[string]bool{
-		"Accept":           true,
-		"Content-Type":     true,
-		"OpenAI-Beta":      true,
-		"OpenAI-Intent":    true,
-		"OpenAI-Project":   true,
-		"OpenAI-Org":       true,
-		"User-Agent":       true,
-		"X-Client-Name":    true,
-		"X-Client-Version": true,
-	}
-	for key, values := range c.Request.Header {
-		canonical := textproto.CanonicalMIMEHeaderKey(key)
-		if !allow[canonical] {
-			continue
-		}
-		copied := make([]string, 0, len(values))
-		for _, value := range values {
-			copied = append(copied, value)
-		}
-		headers[canonical] = copied
-	}
-	return headers
-}
-
 func notifyOfficialFallbackResult(c *gin.Context, relayInfo *relaycommon.RelayInfo, finalErr *types.NewAPIError) {
 	if c == nil || relayInfo == nil || !c.GetBool("official_fallback_triggered") {
 		return
@@ -374,9 +343,14 @@ func notifyFinalRelayFailure(c *gin.Context, relayInfo *relaycommon.RelayInfo, f
 			finalChannel = finalChannel + " / " + channelName
 		}
 	}
+	userEmail := strings.TrimSpace(relayInfo.UserEmail)
+	if userEmail == "" {
+		userEmail = "-"
+	}
 	lines := []string{
 		fmt.Sprintf("- request_id：`%s`", requestID),
 		fmt.Sprintf("- model：`%s`", relayInfo.OriginModelName),
+		fmt.Sprintf("- 邮箱：`%s`", userEmail),
 		fmt.Sprintf("- path：`%s`", requestPath),
 		fmt.Sprintf("- 链路：`%s`", useChannel),
 		fmt.Sprintf("- 最终渠道：`%s`", finalChannel),
@@ -446,65 +420,11 @@ func recordFailedRequestSnapshot(c *gin.Context, relayInfo *relaycommon.RelayInf
 	if c == nil || relayInfo == nil || newAPIError == nil {
 		return
 	}
-	if strings.EqualFold(strings.TrimSpace(c.GetHeader("X-NewAPI-Replay")), "true") {
-		return
-	}
-	requestId := c.GetString(common.RequestIdKey)
-	if strings.TrimSpace(requestId) == "" {
-		return
-	}
-	bodyStorage, err := common.GetBodyStorage(c)
-	if err != nil {
-		logger.LogError(c, fmt.Sprintf("failed to capture failed request body: %s", err.Error()))
-		return
-	}
-	body, err := bodyStorage.Bytes()
-	if err != nil {
-		logger.LogError(c, fmt.Sprintf("failed to read failed request body: %s", err.Error()))
-		return
-	}
-	headersJSON := common.GetJsonString(captureReplayHeaders(c))
-	useChannelJSON := common.GetJsonString(c.GetStringSlice("use_channel"))
 	retryDecisionJSON := ""
 	if decision, ok := getRetryDecision(c); ok {
 		retryDecisionJSON = common.MapToJsonStr(decision)
 	}
-	requestPath := relayInfo.RequestURLPath
-	if c.Request != nil && c.Request.URL != nil && c.Request.URL.Path != "" {
-		requestPath = c.Request.URL.Path
-	}
-	method := http.MethodPost
-	contentType := ""
-	if c.Request != nil {
-		method = c.Request.Method
-		contentType = c.Request.Header.Get("Content-Type")
-	}
-	snapshot := &model.FailedRequestSnapshot{
-		RequestId:       requestId,
-		UserId:          relayInfo.UserId,
-		TokenId:         relayInfo.TokenId,
-		ModelName:       relayInfo.OriginModelName,
-		RequestPath:     requestPath,
-		Method:          method,
-		ContentType:     contentType,
-		Headers:         headersJSON,
-		Body:            string(body),
-		BodySize:        int64(len(body)),
-		UseChannel:      useChannelJSON,
-		ErrorCode:       string(newAPIError.GetErrorCode()),
-		ErrorType:       string(newAPIError.GetErrorType()),
-		StatusCode:      newAPIError.StatusCode,
-		ErrorMessage:    newAPIError.MaskSensitiveErrorWithStatusCode(),
-		RetryDecision:   retryDecisionJSON,
-		RequestFormat:   string(relayInfo.RelayFormat),
-		RelayMode:       int(relayInfo.RelayMode),
-		RelayFormat:     string(relayFormat),
-		LastChannelId:   c.GetInt("channel_id"),
-		LastChannelName: c.GetString("channel_name"),
-	}
-	if err := model.SaveFailedRequestSnapshot(snapshot); err != nil {
-		logger.LogError(c, fmt.Sprintf("failed to save failed request snapshot: %s", err.Error()))
-	}
+	service.SaveFinalFailedRequestSnapshot(c, relayInfo, newAPIError, retryDecisionJSON)
 }
 
 var upgrader = websocket.Upgrader{

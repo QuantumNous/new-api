@@ -11,6 +11,7 @@ import (
 type FailedRequestSnapshot struct {
 	Id              int    `json:"id" gorm:"primaryKey"`
 	RequestId       string `json:"request_id" gorm:"type:varchar(64);uniqueIndex;not null"`
+	SnapshotType    string `json:"snapshot_type" gorm:"type:varchar(32);index"`
 	CreatedAt       int64  `json:"created_at" gorm:"bigint;index"`
 	UserId          int    `json:"user_id" gorm:"index"`
 	TokenId         int    `json:"token_id" gorm:"index"`
@@ -34,6 +35,11 @@ type FailedRequestSnapshot struct {
 	LastChannelName string `json:"last_channel_name"`
 }
 
+const (
+	FailedRequestSnapshotTypeFinalFailed = "final_failed"
+	FailedRequestSnapshotTypeClientGone  = "client_gone"
+)
+
 func (FailedRequestSnapshot) TableName() string {
 	return "failed_request_snapshots"
 }
@@ -45,6 +51,9 @@ func SaveFailedRequestSnapshot(snapshot *FailedRequestSnapshot) error {
 	snapshot.RequestId = strings.TrimSpace(snapshot.RequestId)
 	if snapshot.RequestId == "" {
 		return errors.New("request_id is empty")
+	}
+	if strings.TrimSpace(snapshot.SnapshotType) == "" {
+		snapshot.SnapshotType = FailedRequestSnapshotTypeFinalFailed
 	}
 	if snapshot.CreatedAt == 0 {
 		snapshot.CreatedAt = common.GetTimestamp()
