@@ -333,11 +333,13 @@ func (s *CommissionService) getInviterChain(userID int, maxLevel int) ([]int, er
 		// 检查邀请人是否存在且有效
 		var inviter model.User
 		if err := model.DB.Select("id, status").First(&inviter, user.InviterId).Error; err != nil {
-			break
+			currentID = user.InviterId // 邀请人不存在，但继续上溯
+			continue
 		}
 
 		if inviter.Status != common.UserStatusEnabled {
-			break // 邀请人已禁用
+			currentID = user.InviterId // 邀请人已禁用，跳过该级但继续上溯
+			continue
 		}
 
 		chain = append(chain, user.InviterId)
