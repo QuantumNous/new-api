@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -29,6 +30,11 @@ type listModelsResponse struct {
 type userModelsResponse struct {
 	Success bool     `json:"success"`
 	Data    []string `json:"data"`
+}
+
+type geminiListModelsResponse struct {
+	Models        []dto.GeminiModel `json:"models"`
+	NextPageToken string            `json:"nextPageToken"`
 }
 
 func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
@@ -128,6 +134,16 @@ func withSelfUseModeDisabled(t *testing.T) {
 	})
 }
 
+func withSelfUseModeEnabled(t *testing.T) {
+	t.Helper()
+
+	original := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() {
+		operation_setting.SelfUseModeEnabled = original
+	})
+}
+
 func decodeListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) map[string]struct{} {
 	t.Helper()
 
@@ -160,6 +176,15 @@ func decodeUserModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder)
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
 	require.True(t, payload.Success)
 	return payload.Data
+}
+
+func decodeGeminiListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) geminiListModelsResponse {
+	t.Helper()
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload geminiListModelsResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	return payload
 }
 
 func TestGetUserModelsFiltersByRequestedGroup(t *testing.T) {
@@ -283,4 +308,45 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	require.NotContains(t, ids, "zz-token-tiered-empty-expr-model")
 	require.NotContains(t, ids, "zz-token-tiered-missing-expr-model")
 	require.NotContains(t, ids, "zz-token-unpriced-model")
+}
+
+func TestListModelsGeminiReturnsNativeModelListShape(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "gemini-2.5-flash", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "gemini-embedding-001", ChannelId: 1, Enabled: true},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1beta/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+
+	ListModels(ctx, constant.ChannelTypeGemini)
+
+	payload := decodeGeminiListModelsResponse(t, recorder)
+	assert.Equal(t, "", payload.NextPageToken)
+	require.Len(t, payload.Models, 2)
+
+	modelsByID := make(map[string]dto.GeminiModel, len(payload.Models))
+	for _, item := range payload.Models {
+		modelsByID[item.BaseModelId] = item
+	}
+
+	flash, ok := modelsByID["gemini-2.5-flash"]
+	require.True(t, ok)
+	assert.Equal(t, "models/gemini-2.5-flash", flash.Name)
+	assert.Equal(t, "gemini-2.5-flash", flash.DisplayName)
+	assert.Equal(t, []string{"generateContent", "countTokens"}, flash.SupportedGenerationMethods)
+
+	embedding, ok := modelsByID["gemini-embedding-001"]
+	require.True(t, ok)
+	assert.Equal(t, "models/gemini-embedding-001", embedding.Name)
+	assert.Equal(t, []string{"embedContent", "batchEmbedContents"}, embedding.SupportedGenerationMethods)
+
+	body := recorder.Body.String()
+	assert.NotContains(t, body, `"name":"gemini-2.5-flash"`)
+	assert.NotContains(t, body, `"supportedGenerationMethods":null`)
+	assert.NotContains(t, body, `"nextPageToken":null`)
 }

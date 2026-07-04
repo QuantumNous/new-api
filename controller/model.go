@@ -169,6 +169,25 @@ func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.Open
 	return oaiModel
 }
 
+func buildGeminiModel(model dto.OpenAIModels) dto.GeminiModel {
+	modelName := strings.TrimPrefix(model.Id, "models/")
+	methods := []string{"generateContent", "countTokens"}
+	if strings.HasPrefix(modelName, "text-embedding") ||
+		strings.HasPrefix(modelName, "embedding") ||
+		strings.HasPrefix(modelName, "gemini-embedding") {
+		methods = []string{"embedContent", "batchEmbedContents"}
+	} else if strings.HasPrefix(modelName, "imagen") {
+		methods = []string{"predict"}
+	}
+
+	return dto.GeminiModel{
+		Name:                       "models/" + modelName,
+		BaseModelId:                modelName,
+		DisplayName:                modelName,
+		SupportedGenerationMethods: methods,
+	}
+}
+
 type modelListGroups struct {
 	userGroup   string
 	tokenGroup  string
@@ -297,14 +316,11 @@ func ListModels(c *gin.Context, modelType int) {
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))
 		for i, model := range userOpenAiModels {
-			userGeminiModels[i] = dto.GeminiModel{
-				Name:        model.Id,
-				DisplayName: model.Id,
-			}
+			userGeminiModels[i] = buildGeminiModel(model)
 		}
 		c.JSON(200, gin.H{
 			"models":        userGeminiModels,
-			"nextPageToken": nil,
+			"nextPageToken": "",
 		})
 	default:
 		c.JSON(200, gin.H{
