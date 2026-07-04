@@ -870,6 +870,13 @@ func TestChannel(c *gin.Context) {
 
 var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
+var commonAutoReenableLock sync.Mutex
+var commonAutoReenableRunning bool = false
+
+const (
+	commonAutoReenableOptionKey = "model_data_common_auto_reenable_enabled"
+	commonAutoReenableInterval  = 10 * time.Minute
+)
 
 func testAllChannels(notify bool) error {
 
@@ -981,4 +988,123 @@ func AutomaticallyTestChannels() {
 			}
 		}
 	})
+}
+
+func commonAutoReenableEnabled() bool {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	return common.OptionMap[commonAutoReenableOptionKey] == "true"
+}
+
+func channelHasCommonAutoDisableReason(channel *model.Channel) bool {
+	if channel == nil || strings.TrimSpace(channel.OtherInfo) == "" {
+		return false
+	}
+	var info map[string]interface{}
+	if err := common.Unmarshal([]byte(channel.OtherInfo), &info); err != nil {
+		return false
+	}
+	reason, _ := info["status_reason"].(string)
+	return strings.TrimSpace(reason) != ""
+}
+
+func commonAutoReenableCandidates() ([]*model.Channel, error) {
+	var channels []*model.Channel
+	if err := model.DB.Where("status = ?", common.ChannelStatusAutoDisabled).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	out := make([]*model.Channel, 0, len(channels))
+	for _, channel := range channels {
+		if !channelHasCommonAutoDisableReason(channel) {
+			continue
+		}
+		out = append(out, channel)
+	}
+	return out, nil
+}
+
+func testCommonAutoDisabledChannels() error {
+	commonAutoReenableLock.Lock()
+	if commonAutoReenableRunning {
+		commonAutoReenableLock.Unlock()
+		return errors.New("通用自动恢复测试已在运行中")
+	}
+	commonAutoReenableRunning = true
+	commonAutoReenableLock.Unlock()
+
+	channels, err := commonAutoReenableCandidates()
+	if err != nil {
+		commonAutoReenableLock.Lock()
+		commonAutoReenableRunning = false
+		commonAutoReenableLock.Unlock()
+		return err
+	}
+
+	gopool.Go(func() {
+		defer func() {
+			commonAutoReenableLock.Lock()
+			commonAutoReenableRunning = false
+			commonAutoReenableLock.Unlock()
+		}()
+
+		for _, channel := range channels {
+			tik := time.Now()
+			result := testChannel(channel, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+			milliseconds := time.Since(tik).Milliseconds()
+			if result.newAPIError == nil && result.localErr == nil {
+				usingKey := ""
+				if result.context != nil {
+					usingKey = common.GetContextKeyString(result.context, constant.ContextKeyChannelKey)
+				}
+				service.EnableChannel(channel.Id, usingKey, channel.Name)
+			}
+			channel.UpdateResponseTime(milliseconds)
+			time.Sleep(common.RequestInterval)
+		}
+	})
+	return nil
+}
+
+func AutomaticallyReenableCommonAutoDisabledChannels() {
+	if !common.IsMasterNode {
+		return
+	}
+	gopool.Go(func() {
+		for {
+			if !commonAutoReenableEnabled() {
+				time.Sleep(1 * time.Minute)
+				continue
+			}
+			common.SysLog("testing common auto-disabled channels for re-enable")
+			_ = testCommonAutoDisabledChannels()
+			time.Sleep(commonAutoReenableInterval)
+		}
+	})
+}
+
+func GetCommonAutoReenableConfig(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"enabled": commonAutoReenableEnabled(),
+		},
+	})
+}
+
+func SaveCommonAutoReenableConfig(c *gin.Context) {
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
+		return
+	}
+	if err := model.UpdateOption(commonAutoReenableOptionKey, fmt.Sprintf("%t", req.Enabled)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	if req.Enabled {
+		_ = testCommonAutoDisabledChannels()
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }

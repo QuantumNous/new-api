@@ -418,6 +418,8 @@ export function ModelDataPage() {
     uptime_interval_minutes: 30,
   })
   const [configLoading, setConfigLoading] = useState(false)
+  const [commonAutoReenableEnabled, setCommonAutoReenableEnabled] = useState(false)
+  const [commonAutoReenableLoading, setCommonAutoReenableLoading] = useState(false)
   // True during the initial config fetch for the active model tab.
   // Keeps the toggles visually disabled so users don't see a misleading "OFF" flash.
   const [configFetching, setConfigFetching] = useState(true)
@@ -518,6 +520,19 @@ export function ModelDataPage() {
     const t = setInterval(fetchCfg, 30_000)
     return () => { cancelled = true; clearInterval(t) }
   }, [activeModel])
+
+  useEffect(() => {
+    api
+      .get('/api/admin/model-data/common-auto-reenable', {
+        skipErrorHandler: true,
+      } as Parameters<typeof api.get>[1])
+      .then((res) => {
+        if (res.data?.success) {
+          setCommonAutoReenableEnabled(!!res.data.data?.enabled)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // Trigger upstream /api/pricing re-fetch for every channel that serves the
   // current model tab. Fire-and-forget on the backend — wait ~6s then reload
@@ -651,6 +666,15 @@ export function ModelDataPage() {
     },
     [config, activeModel],
   )
+
+  const saveCommonAutoReenable = useCallback((enabled: boolean) => {
+    setCommonAutoReenableEnabled(enabled)
+    setCommonAutoReenableLoading(true)
+    api
+      .post('/api/admin/model-data/common-auto-reenable', { enabled })
+      .catch(() => setCommonAutoReenableEnabled(!enabled))
+      .finally(() => setCommonAutoReenableLoading(false))
+  }, [])
 
   const handleAnalyze = useCallback(async (item: ModelDataItem) => {
     if (!item.base_url) return
@@ -822,6 +846,19 @@ export function ModelDataPage() {
               </button>
               <span className='text-[11px] text-gray-400 min-w-[80px]'>
                 {!configFetching && config.uptime_enabled ? fmtNextDetect(config.next_uptime_at) : ''}
+              </span>
+            </div>
+            {/* 通用自动禁用恢复 */}
+            <div className='flex items-center gap-2'>
+              <span className='text-xs text-gray-400 w-16 text-right'>封禁恢复</span>
+              <Switch
+                id='common-auto-reenable'
+                checked={commonAutoReenableEnabled}
+                disabled={commonAutoReenableLoading}
+                onCheckedChange={(v) => saveCommonAutoReenable(!!v)}
+              />
+              <span className='text-[11px] text-gray-400 min-w-[188px]'>
+                只探测通用自动禁用渠道
               </span>
             </div>
           </div>
