@@ -263,6 +263,9 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			responseBody, _ = common.Marshal(bodyMap)
 		}
 		if forceFormat {
+			for i := range simpleResponse.Choices {
+				simpleResponse.Choices[i].Message.Name = nil
+			}
 			responseBody, err = common.Marshal(simpleResponse)
 			if err != nil {
 				return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
