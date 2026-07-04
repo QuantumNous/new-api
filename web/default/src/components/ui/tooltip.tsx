@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip'
+
 import { cn } from '@/lib/utils'
 
 function TooltipProvider({

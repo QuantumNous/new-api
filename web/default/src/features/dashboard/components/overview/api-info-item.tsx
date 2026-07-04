@@ -18,16 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Zap, ExternalLink, Gauge } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getBgColorClass } from '@/lib/colors'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+
 import { CopyButton } from '@/components/copy-button'
 import { StatusBadge } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
 import {
   getLatencyColorClass,
   openExternalSpeedTest,
 } from '@/features/dashboard/lib/api-info'
 import type { ApiInfoItem, PingStatus } from '@/features/dashboard/types'
+import { getBgColorClass } from '@/lib/colors'
+import { cn } from '@/lib/utils'
 
 interface ApiInfoItemProps {
   item: ApiInfoItem
