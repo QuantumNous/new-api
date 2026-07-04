@@ -106,16 +106,19 @@ func (g *CommissionGuard) checkInvitationFrequency(inviterID int) error {
 		return nil
 	}
 
-	// 统计今日邀请数
-	today := time.Now().Format("2006-01-02")
+	// 统计今日邀请数（使用 Unix 秒范围，兼容 int64 时间戳）
+	now := time.Now()
+	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
+	dayEnd := dayStart + 86400
+
 	var count int64
 	err := model.DB.Model(&model.User{}).
-		Where("inviter_id = ? AND DATE(created_at) = ?", inviterID, today).
+		Where("inviter_id = ? AND created_at >= ? AND created_at < ?", inviterID, dayStart, dayEnd).
 		Count(&count).Error
 
 	if err != nil {
 		common.SysLog(fmt.Sprintf("检查邀请频率失败: %v", err))
-		return nil // 查询失败，不阻止
+		return fmt.Errorf("检查邀请频率失败: %v", err) // fail-closed
 	}
 
 	if int(count) >= dailyLimit {
@@ -234,9 +237,9 @@ func (g *CommissionGuard) GetUserIPStats(userID int) map[string]interface{} {
 func (g *CommissionGuard) DetectSuspiciousActivity(userID int) (bool, []string) {
 	reasons := make([]string, 0)
 
-	// 1. 检查短时间内大量邀请
+	// 1. 检查短时间内大量邀请（使用 Unix 秒，兼容 int64 时间戳）
 	var recentInvites int64
-	oneHourAgo := time.Now().Add(-1 * time.Hour)
+	oneHourAgo := time.Now().Add(-1 * time.Hour).Unix()
 	err := model.DB.Model(&model.User{}).
 		Where("inviter_id = ? AND created_at >= ?", userID, oneHourAgo).
 		Count(&recentInvites).Error
