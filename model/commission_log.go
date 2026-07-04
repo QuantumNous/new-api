@@ -14,6 +14,9 @@ type CommissionLog struct {
 	InviterID        int            `json:"inviter_id" gorm:"index;not null"`        // 邀请人（获得返佣）
 	Level            int            `json:"level" gorm:"not null;default:1"`         // 返佣层级（1=直接邀请，2=二级，3=三级）
 
+	// 来源键：保证幂等（消费日志 "log:{logId}" 或订单 "order:{orderId}"）
+	SourceKey        string         `json:"source_key" gorm:"size:80;not null;uniqueIndex:uk_source_inviter,priority:1"`
+
 	// 订单信息
 	OrderId          string         `json:"order_id" gorm:"index;size:64"`           // 关联订单ID
 	LogId            int64          `json:"log_id" gorm:"index"`                     // 关联消费日志ID

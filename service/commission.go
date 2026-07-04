@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CommissionService 返佣服务
@@ -143,11 +144,17 @@ func (s *CommissionService) ProcessCommission(req CommissionRequest) (*Commissio
 	// 开始事务
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		for i, detail := range result.Details {
-			// 1. 创建返佣记录
+			// 1. 创建返佣记录（幂等：使用 SourceKey 去重）
+			sourceKey := fmt.Sprintf("log:%d", req.LogID)
+			if req.OrderID != "" {
+				sourceKey = fmt.Sprintf("order:%s", req.OrderID)
+			}
+
 			log := &model.CommissionLog{
 				UserID:           req.UserID,
 				InviterID:        detail.InviterID,
 				Level:            detail.Level,
+				SourceKey:        sourceKey,
 				OrderId:          req.OrderID,
 				LogId:            req.LogID,
 				ModelName:        req.ModelName,
@@ -159,17 +166,24 @@ func (s *CommissionService) ProcessCommission(req CommissionRequest) (*Commissio
 			}
 			*log.SettledAt = time.Now()
 
-			if err := tx.Create(log).Error; err != nil {
-				return err
+			// 使用 OnConflict DoNothing，RowsAffected=0 表示已存在（重复触发）
+			res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(log)
+			if res.Error != nil {
+				return res.Error
+			}
+			if res.RowsAffected == 0 {
+				// 已存在（重复触发），跳过该级，绝不加钱
+				result.Details[i].Status = "skipped"
+				continue
 			}
 
 			// 2. 实时结算到邀请人余额
 			if err := tx.Model(&model.User{}).
 				Where("id = ?", detail.InviterID).
 				Updates(map[string]interface{}{
-					"quota":              gorm.Expr("quota + ?", detail.CommissionQuota),
-					"aff_quota":          gorm.Expr("aff_quota + ?", detail.CommissionQuota),
-					"aff_history_quota":  gorm.Expr("aff_history_quota + ?", detail.CommissionQuota),
+					"quota":       gorm.Expr("quota + ?", detail.CommissionQuota),
+					"aff_quota":   gorm.Expr("aff_quota + ?", detail.CommissionQuota),
+					"aff_history": gorm.Expr("aff_history + ?", detail.CommissionQuota),
 				}).Error; err != nil {
 				return err
 			}
