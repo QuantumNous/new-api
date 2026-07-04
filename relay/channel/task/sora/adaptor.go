@@ -39,22 +39,47 @@ type ImageURL struct {
 }
 
 type responseTask struct {
-	ID                 string `json:"id"`
-	TaskID             string `json:"task_id,omitempty"` //兼容旧接口
-	Object             string `json:"object"`
-	Model              string `json:"model"`
-	Status             string `json:"status"`
-	Progress           int    `json:"progress"`
-	CreatedAt          int64  `json:"created_at"`
-	CompletedAt        int64  `json:"completed_at,omitempty"`
-	ExpiresAt          int64  `json:"expires_at,omitempty"`
-	Seconds            string `json:"seconds,omitempty"`
-	Size               string `json:"size,omitempty"`
-	RemixedFromVideoID string `json:"remixed_from_video_id,omitempty"`
-	Error              *struct {
-		Message string `json:"message"`
-		Code    string `json:"code"`
-	} `json:"error,omitempty"`
+	ID                 string             `json:"id"`
+	TaskID             string             `json:"task_id,omitempty"` //兼容旧接口
+	Object             string             `json:"object"`
+	Model              string             `json:"model"`
+	Status             string             `json:"status"`
+	Progress           int                `json:"progress"`
+	CreatedAt          int64              `json:"created_at"`
+	CompletedAt        int64              `json:"completed_at,omitempty"`
+	ExpiresAt          int64              `json:"expires_at,omitempty"`
+	Seconds            string             `json:"seconds,omitempty"`
+	Size               string             `json:"size,omitempty"`
+	RemixedFromVideoID string             `json:"remixed_from_video_id,omitempty"`
+	Error              *responseTaskError `json:"error,omitempty"`
+}
+
+type responseTaskError struct {
+	Message string `json:"message"`
+	Code    string `json:"code"`
+}
+
+func (e *responseTaskError) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		return nil
+	}
+	if strings.HasPrefix(trimmed, `"`) {
+		var message string
+		if err := common.Unmarshal(data, &message); err != nil {
+			return err
+		}
+		e.Message = message
+		return nil
+	}
+
+	type alias responseTaskError
+	var parsed alias
+	if err := common.Unmarshal(data, &parsed); err != nil {
+		return err
+	}
+	*e = responseTaskError(parsed)
+	return nil
 }
 
 // ============================
@@ -307,7 +332,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
 	case "failed", "cancelled":
 		taskResult.Status = model.TaskStatusFailure
-		if resTask.Error != nil {
+		if resTask.Error != nil && resTask.Error.Message != "" {
 			taskResult.Reason = resTask.Error.Message
 		} else {
 			taskResult.Reason = "task failed"
