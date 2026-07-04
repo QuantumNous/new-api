@@ -875,7 +875,7 @@ var commonAutoReenableRunning bool = false
 
 const (
 	commonAutoReenableOptionKey = "model_data_common_auto_reenable_enabled"
-	commonAutoReenableInterval  = 10 * time.Minute
+	commonAutoReenableInterval  = 1 * time.Minute
 )
 
 func testAllChannels(notify bool) error {
@@ -1008,6 +1008,121 @@ func channelHasCommonAutoDisableReason(channel *model.Channel) bool {
 	return strings.TrimSpace(reason) != ""
 }
 
+func commonAutoReenableInfo(channel *model.Channel) map[string]interface{} {
+	if channel == nil {
+		return map[string]interface{}{}
+	}
+	return channel.GetOtherInfo()
+}
+
+func commonAutoReenableInt64(info map[string]interface{}, key string) int64 {
+	switch v := info[key].(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case float64:
+		return int64(v)
+	case json.Number:
+		n, _ := v.Int64()
+		return n
+	case string:
+		n, _ := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		return n
+	default:
+		return 0
+	}
+}
+
+func commonAutoReenableHardFailure(reason string) bool {
+	lower := strings.ToLower(reason)
+	markers := []string{
+		"401",
+		"403",
+		"invalid key",
+		"invalid api key",
+		"unauthorized",
+		"authentication",
+		"无权访问",
+		"余额不足",
+		"insufficient balance",
+		"insufficient_balance",
+		"out of credits",
+		"no credits",
+	}
+	for _, marker := range markers {
+		if strings.Contains(lower, strings.ToLower(marker)) {
+			return true
+		}
+	}
+	return false
+}
+
+func commonAutoReenableProbeInterval(disabledAt int64, lastReason string) time.Duration {
+	if commonAutoReenableHardFailure(lastReason) {
+		return 60 * time.Minute
+	}
+	if disabledAt <= 0 {
+		return 5 * time.Minute
+	}
+	disabledFor := time.Since(time.Unix(disabledAt, 0))
+	switch {
+	case disabledFor < 30*time.Minute:
+		return 5 * time.Minute
+	case disabledFor < 2*time.Hour:
+		return 10 * time.Minute
+	case disabledFor < 12*time.Hour:
+		return 30 * time.Minute
+	default:
+		return 60 * time.Minute
+	}
+}
+
+func commonAutoReenableShouldProbe(channel *model.Channel) bool {
+	info := commonAutoReenableInfo(channel)
+	now := common.GetTimestamp()
+	disabledAt := commonAutoReenableInt64(info, "status_time")
+	if disabledAt <= 0 {
+		disabledAt = commonAutoReenableInt64(info, "auto_disabled_at")
+	}
+	if disabledAt <= 0 {
+		disabledAt = now
+		info["auto_disabled_at"] = disabledAt
+		info["status_time"] = disabledAt
+		channel.SetOtherInfo(info)
+		_ = model.DB.Model(channel).Update("other_info", channel.OtherInfo).Error
+	}
+	lastProbeAt := commonAutoReenableInt64(info, "last_reenable_probe_at")
+	if lastProbeAt <= 0 {
+		return true
+	}
+	lastReason, _ := info["last_reenable_probe_reason"].(string)
+	interval := commonAutoReenableProbeInterval(disabledAt, lastReason)
+	return time.Since(time.Unix(lastProbeAt, 0)) >= interval
+}
+
+func recordCommonAutoReenableProbe(channel *model.Channel, result testResult, latencyMs int64) {
+	if channel == nil {
+		return
+	}
+	info := commonAutoReenableInfo(channel)
+	info["last_reenable_probe_at"] = common.GetTimestamp()
+	info["last_reenable_probe_latency_ms"] = latencyMs
+	if result.newAPIError == nil && result.localErr == nil {
+		info["last_reenable_probe_result"] = "success"
+		delete(info, "last_reenable_probe_reason")
+	} else {
+		info["last_reenable_probe_result"] = "failed"
+		if result.newAPIError != nil {
+			info["last_reenable_probe_reason"] = result.newAPIError.ErrorWithStatusCode()
+		} else if result.localErr != nil {
+			info["last_reenable_probe_reason"] = result.localErr.Error()
+		}
+	}
+	channel.SetOtherInfo(info)
+	_ = model.DB.Model(channel).Update("other_info", channel.OtherInfo).Error
+}
+
 func commonAutoReenableCandidates() ([]*model.Channel, error) {
 	var channels []*model.Channel
 	if err := model.DB.Where("status = ?", common.ChannelStatusAutoDisabled).Find(&channels).Error; err != nil {
@@ -1048,9 +1163,13 @@ func testCommonAutoDisabledChannels() error {
 		}()
 
 		for _, channel := range channels {
+			if !commonAutoReenableShouldProbe(channel) {
+				continue
+			}
 			tik := time.Now()
 			result := testChannel(channel, "", "", shouldUseStreamForAutomaticChannelTest(channel))
 			milliseconds := time.Since(tik).Milliseconds()
+			recordCommonAutoReenableProbe(channel, result, milliseconds)
 			if result.newAPIError == nil && result.localErr == nil {
 				usingKey := ""
 				if result.context != nil {
