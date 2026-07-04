@@ -47,11 +47,21 @@ export function Home() {
     if (isUrl) {
       return (
         <PublicLayout showMainContainer={false}>
+          {/*
+            The custom home page URL is admin-configured (trusted).
+            - allow-same-origin: keep the embedded page's real origin so its own
+              same-origin resources (notably @font-face fonts) are not treated as
+              cross-origin and blocked by CORS.
+            - allow-top-navigation-by-user-activation: let the embedded page's
+              target="_top" links navigate the top-level window on user click
+              (e.g. nav/menu links), which the default sandbox otherwise blocks.
+            This mirrors the existing trusted-iframe usage in web-preview.tsx.
+          */}
           <iframe
             src={content}
             className='h-screen w-full border-none'
             title={t('Custom Home Page')}
-            sandbox='allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts'
+            sandbox='allow-same-origin allow-top-navigation-by-user-activation allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts'
           />
         </PublicLayout>
       )
