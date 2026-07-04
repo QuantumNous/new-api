@@ -107,6 +107,19 @@
 
 ## 🚀 快速開始
 
+### 目前 Fork
+
+```bash
+# 複製目前 fork
+git clone https://github.com/zhaibingye/shuanghua-api.git
+cd shuanghua-api
+
+# 使用 docker-compose.yml 中設定的 fork 鏡像啟動
+docker compose up -d
+```
+
+目前 Fork Docker 鏡像：`yeranshuanghua/shuanghua-api:latest`
+
 ### 使用 Docker Compose（推薦）
 
 ```bash
@@ -460,6 +473,10 @@ docker run --name new-api -d --restart always \
 ## 🌟 Star History
 
 <div align="center">
+
+[![Fork Star History Chart](https://api.star-history.com/svg?repos=zhaibingye/shuanghua-api&type=Date)](https://star-history.com/#zhaibingye/shuanghua-api&Date)
+
+<sub>目前 Fork 倉庫：zhaibingye/shuanghua-api</sub>
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Calcium-Ion/new-api&type=Date)](https://star-history.com/#Calcium-Ion/new-api&Date)
 

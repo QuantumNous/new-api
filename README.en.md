@@ -102,6 +102,19 @@
 
 ## 🚀 Quick Start
 
+### This Fork
+
+```bash
+# Clone this fork
+git clone https://github.com/zhaibingye/shuanghua-api.git
+cd shuanghua-api
+
+# Start with the fork image configured in docker-compose.yml
+docker compose up -d
+```
+
+Fork Docker image: `yeranshuanghua/shuanghua-api:latest`
+
 ### Using Docker Compose (Recommended)
 
 ```bash
@@ -443,6 +456,10 @@ Welcome all forms of contribution!
 ## 🌟 Star History
 
 <div align="center">
+
+[![Fork Star History Chart](https://api.star-history.com/svg?repos=zhaibingye/shuanghua-api&type=Date)](https://star-history.com/#zhaibingye/shuanghua-api&Date)
+
+<sub>Fork repository: zhaibingye/shuanghua-api</sub>
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Calcium-Ion/new-api&type=Date)](https://star-history.com/#Calcium-Ion/new-api&Date)
 
