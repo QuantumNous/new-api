@@ -28,7 +28,7 @@ func TestGetUserByIdSupportsLargeQuotaValue(t *testing.T) {
 
 	quota, err := GetUserQuota(userID, true)
 	require.NoError(t, err)
-	require.True(t, quota > 0)
+	require.Equal(t, common.SafeInt64ToInt(largeQuota), quota)
 }
 
 func TestGetTokenByIdSupportsLargeQuotaValue(t *testing.T) {
