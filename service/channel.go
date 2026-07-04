@@ -6,21 +6,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/bytedance/gopkg/util/gopool"
 )
 
 const (
 	feishuDisableDedupeWindow  = 30 * time.Minute
+	feishuEnableDedupeWindow   = 30 * time.Minute
 	feishuRechargeDedupeWindow = 10 * time.Minute
 )
 
 var (
 	feishuDisableDedupe  sync.Map // channelId -> time.Time
+	feishuEnableDedupe   sync.Map // channelId -> time.Time
 	feishuRechargeDedupe sync.Map // channelId -> time.Time
 )
 
@@ -74,6 +76,33 @@ func notifyFeishuChannelDisabled(channelError types.ChannelError, reason string)
 	gopool.Go(func() {
 		if err := common.SendFeishuCard(chatID, "⚠️ 渠道已自动禁用", lines); err != nil {
 			common.SysLog(fmt.Sprintf("飞书禁用通知失败 channel #%d: %v", channelError.ChannelId, err))
+		}
+	})
+}
+
+func notifyFeishuChannelEnabled(channelID int, channelName string) {
+	chatID := common.FeishuOpsChatID()
+	if chatID == "" {
+		return
+	}
+	if !channelFeishuDedupe(&feishuEnableDedupe, channelID, feishuEnableDedupeWindow) {
+		return
+	}
+	tag, _ := channelNotifyMeta(channelID)
+	lines := []string{
+		fmt.Sprintf("渠道：%s (#%d)", channelName, channelID),
+	}
+	if tag != "" {
+		lines = append(lines, fmt.Sprintf("标签：%s", tag))
+	}
+	lines = append(lines,
+		"原因：自动恢复探针测试通过",
+		fmt.Sprintf("时间：%s", time.Now().Format("2006-01-02 15:04:05")),
+		"已重新启用渠道",
+	)
+	gopool.Go(func() {
+		if err := common.SendFeishuCard(chatID, "✅ 渠道已自动启用", lines); err != nil {
+			common.SysLog(fmt.Sprintf("飞书启用通知失败 channel #%d: %v", channelID, err))
 		}
 	})
 }
@@ -145,6 +174,7 @@ func EnableChannel(channelId int, usingKey string, channelName string) {
 		subject := fmt.Sprintf("通道「%s」（#%d）已被启用", channelName, channelId)
 		content := fmt.Sprintf("通道「%s」（#%d）已被启用", channelName, channelId)
 		NotifyRootUser(formatNotifyType(channelId, common.ChannelStatusEnabled), subject, content)
+		notifyFeishuChannelEnabled(channelId, channelName)
 	}
 }
 
