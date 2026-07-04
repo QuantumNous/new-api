@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	channelHealthWindow       = 10 * time.Minute
-	channelMinSamples         = 10
+	channelHealthWindow        = 10 * time.Minute
+	channelMinSamples          = 10
 	channelFaultCountThreshold = 5
 	channelFaultRateThreshold  = 0.30
 	channelConsecutiveFault    = 5
@@ -28,6 +28,7 @@ const (
 	HealthNotifyRecharge
 	HealthDisableImmediate
 	HealthDisableWindow
+	HealthProbeBeforeDisable
 )
 
 type healthEvent struct {
@@ -37,10 +38,10 @@ type healthEvent struct {
 }
 
 type channelHealthState struct {
-	mu         sync.Mutex
-	successes  []time.Time
-	events     []healthEvent
-	rechargeN  int // recharge-class errors in window (for fuzzy notify threshold)
+	mu        sync.Mutex
+	successes []time.Time
+	events    []healthEvent
+	rechargeN int // recharge-class errors in window (for fuzzy notify threshold)
 }
 
 var channelHealth sync.Map // int channelId -> *channelHealthState
@@ -131,12 +132,12 @@ func EvaluateChannelHealth(channelError types.ChannelError, err *types.NewAPIErr
 		return HealthDisableImmediate, err.ErrorWithStatusCode()
 	case CategoryRateLimitWindow:
 		if shouldDisableRateLimitWindow(channelError.ChannelId) {
-			return HealthDisableWindow, summarizeWindowReason(channelError.ChannelId, "429 rate-limit/cooldown")
+			return HealthProbeBeforeDisable, summarizeWindowReason(channelError.ChannelId, "429 rate-limit/cooldown")
 		}
 		return HealthSkip, ""
 	case CategoryDisableWindow:
 		if shouldDisableFaultWindow(channelError.ChannelId, err.StatusCode) {
-			return HealthDisableWindow, summarizeWindowReason(channelError.ChannelId, fmt.Sprintf("HTTP %d", err.StatusCode))
+			return HealthProbeBeforeDisable, summarizeWindowReason(channelError.ChannelId, fmt.Sprintf("HTTP %d", err.StatusCode))
 		}
 		return HealthSkip, ""
 	default:
@@ -245,6 +246,13 @@ func RechargeErrorCountInWindow(channelID int) int {
 	defer st.mu.Unlock()
 	st.prune(time.Now())
 	return st.rechargeN
+}
+
+func ClearChannelHealth(channelID int) {
+	if channelID <= 0 {
+		return
+	}
+	channelHealth.Delete(channelID)
 }
 
 // resetChannelHealthForTest clears in-memory health state (tests only).

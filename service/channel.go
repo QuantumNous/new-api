@@ -15,15 +15,17 @@ import (
 )
 
 const (
-	feishuDisableDedupeWindow  = 30 * time.Minute
-	feishuEnableDedupeWindow   = 30 * time.Minute
-	feishuRechargeDedupeWindow = 10 * time.Minute
+	feishuDisableDedupeWindow   = 30 * time.Minute
+	feishuEnableDedupeWindow    = 30 * time.Minute
+	feishuProbePassDedupeWindow = 30 * time.Minute
+	feishuRechargeDedupeWindow  = 10 * time.Minute
 )
 
 var (
-	feishuDisableDedupe  sync.Map // channelId -> time.Time
-	feishuEnableDedupe   sync.Map // channelId -> time.Time
-	feishuRechargeDedupe sync.Map // channelId -> time.Time
+	feishuDisableDedupe   sync.Map // channelId -> time.Time
+	feishuEnableDedupe    sync.Map // channelId -> time.Time
+	feishuProbePassDedupe sync.Map // channelId -> time.Time
+	feishuRechargeDedupe  sync.Map // channelId -> time.Time
 )
 
 func formatNotifyType(channelId int, status int) string {
@@ -103,6 +105,36 @@ func notifyFeishuChannelEnabled(channelID int, channelName string) {
 	gopool.Go(func() {
 		if err := common.SendFeishuCard(chatID, "✅ 渠道已自动启用", lines); err != nil {
 			common.SysLog(fmt.Sprintf("飞书启用通知失败 channel #%d: %v", channelID, err))
+		}
+	})
+}
+
+func NotifyChannelDisableProbePassed(channelError types.ChannelError, reason string, latencyMs int64) {
+	chatID := common.FeishuOpsChatID()
+	if chatID == "" {
+		return
+	}
+	if !channelFeishuDedupe(&feishuProbePassDedupe, channelError.ChannelId, feishuProbePassDedupeWindow) {
+		return
+	}
+	tag, _ := channelNotifyMeta(channelError.ChannelId)
+	lines := []string{
+		fmt.Sprintf("渠道：%s (#%d)", channelError.ChannelName, channelError.ChannelId),
+	}
+	if tag != "" {
+		lines = append(lines, fmt.Sprintf("标签：%s", tag))
+	}
+	if reason != "" {
+		lines = append(lines, fmt.Sprintf("原封禁触发：%s", reason))
+	}
+	lines = append(lines,
+		fmt.Sprintf("探针耗时：%.2fs", float64(latencyMs)/1000.0),
+		fmt.Sprintf("时间：%s", time.Now().Format("2006-01-02 15:04:05")),
+		"探针测试通过，已跳过本次自动封禁",
+	)
+	gopool.Go(func() {
+		if err := common.SendFeishuCard(chatID, "渠道自动封禁探针通过", lines); err != nil {
+			common.SysLog(fmt.Sprintf("飞书探针通过通知失败 channel #%d: %v", channelError.ChannelId, err))
 		}
 	})
 }

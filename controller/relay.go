@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -33,6 +34,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
+
+var channelDisableProbeRunning sync.Map // channelId -> struct{}
 
 func markOfficialFallbackChannel(c *gin.Context, channel *model.Channel) {
 	if c == nil || channel == nil {
@@ -835,6 +838,8 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 				service.DisableChannel(channelError, reason)
 			case service.HealthDisableImmediate, service.HealthDisableWindow:
 				service.DisableChannel(channelError, reason)
+			case service.HealthProbeBeforeDisable:
+				probeBeforeDisablingChannel(channelError, err, reason)
 			}
 		})
 	}
@@ -881,6 +886,58 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 
+}
+
+func probeBeforeDisablingChannel(channelError types.ChannelError, originalErr *types.NewAPIError, originalReason string) {
+	if _, loaded := channelDisableProbeRunning.LoadOrStore(channelError.ChannelId, struct{}{}); loaded {
+		common.SysLog(fmt.Sprintf("channel #%d disable probe already running, skip duplicate trigger", channelError.ChannelId))
+		return
+	}
+	defer channelDisableProbeRunning.Delete(channelError.ChannelId)
+
+	channel, getErr := model.GetChannelById(channelError.ChannelId, true)
+	if getErr != nil {
+		common.SysError(fmt.Sprintf("channel #%d disable probe failed to load channel: %v", channelError.ChannelId, getErr))
+		return
+	}
+	if channel.Status != common.ChannelStatusEnabled {
+		common.SysLog(fmt.Sprintf("channel #%d disable probe skipped because status=%d", channel.Id, channel.Status))
+		return
+	}
+
+	tik := time.Now()
+	result := testChannel(channel, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+	latencyMs := time.Since(tik).Milliseconds()
+	channel.UpdateResponseTime(latencyMs)
+
+	if result.newAPIError == nil && result.localErr == nil {
+		service.ClearChannelHealth(channelError.ChannelId)
+		service.RecordChannelSuccess(channelError.ChannelId)
+		service.NotifyChannelDisableProbePassed(channelError, originalReason, latencyMs)
+		common.SysLog(fmt.Sprintf("channel #%d disable probe passed in %.2fs; skip auto disable", channelError.ChannelId, float64(latencyMs)/1000.0))
+		return
+	}
+
+	probeErr := result.newAPIError
+	if probeErr == nil {
+		common.SysError(fmt.Sprintf("channel #%d disable probe failed locally but produced no channel error: %v", channelError.ChannelId, result.localErr))
+		return
+	}
+
+	reason := fmt.Sprintf("探针确认失败：原始错误 %s；探针错误 %s", originalReason, probeErr.ErrorWithStatusCode())
+	switch service.ClassifyChannelError(probeErr) {
+	case service.CategorySkip:
+		common.SysLog(fmt.Sprintf("channel #%d disable probe failed with non-disable error: %s", channelError.ChannelId, probeErr.ErrorWithStatusCode()))
+	case service.CategoryUpstreamRecharge:
+		service.NotifyUpstreamRecharge(channelError, probeErr)
+		service.DisableChannel(channelError, reason)
+	case service.CategoryDisableImmediate, service.CategoryDisableWindow, service.CategoryRateLimitWindow:
+		service.DisableChannel(channelError, reason)
+	}
+
+	if originalErr != nil {
+		common.SysLog(fmt.Sprintf("channel #%d disable probe original error: %s", channelError.ChannelId, originalErr.ErrorWithStatusCode()))
+	}
 }
 
 func appendOfficialFallbackErrorAdminInfo(c *gin.Context, adminInfo map[string]interface{}, err *types.NewAPIError) {
