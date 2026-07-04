@@ -108,14 +108,14 @@ func (s *CommissionService) CalculateCommission(req CommissionRequest) (*Commiss
 			commissionQuota = rule.MaxCommission
 		}
 
-		// 检查每日限额
-		if !s.checkDailyLimit(inviterID, commissionQuota, rule.DailyLimit) {
+		// 检查每日限额（使用 Tx 版本，Unix 秒范围）
+		if !s.checkDailyLimitTx(model.DB, inviterID, commissionQuota, rule.DailyLimit) {
 			common.SysLog(fmt.Sprintf("返佣每日限额: inviter=%d, commission=%d, limit=%d", inviterID, commissionQuota, rule.DailyLimit))
 			continue
 		}
 
-		// 检查每月限额
-		if !s.checkMonthlyLimit(inviterID, commissionQuota, rule.MonthlyLimit) {
+		// 检查每月限额（使用 Tx 版本，Unix 秒范围）
+		if !s.checkMonthlyLimitTx(model.DB, inviterID, commissionQuota, rule.MonthlyLimit) {
 			common.SysLog(fmt.Sprintf("返佣每月限额: inviter=%d, commission=%d, limit=%d", inviterID, commissionQuota, rule.MonthlyLimit))
 			continue
 		}
@@ -355,52 +355,6 @@ func (s *CommissionService) getInviterChain(userID int, maxLevel int) ([]int, er
 	}
 
 	return chain, nil
-}
-
-// checkDailyLimit 检查每日限额
-func (s *CommissionService) checkDailyLimit(inviterID int, newCommission int, dailyLimit int) bool {
-	if dailyLimit <= 0 {
-		return true // 不限制
-	}
-
-	// 计算今日已返佣总额
-	today := time.Now().Format("2006-01-02")
-	var totalToday int64
-	err := model.DB.Model(&model.CommissionLog{}).
-		Where("inviter_id = ? AND status = ? AND DATE(created_at) = ?", inviterID, "settled", today).
-		Select("COALESCE(SUM(commission_quota), 0)").
-		Scan(&totalToday).Error
-
-	if err != nil {
-		common.SysLog(fmt.Sprintf("检查每日限额失败: %v", err))
-		return false // 查询失败，拒绝返佣
-	}
-
-	return int(totalToday)+newCommission <= dailyLimit
-}
-
-// checkMonthlyLimit 检查每月限额
-func (s *CommissionService) checkMonthlyLimit(inviterID int, newCommission int, monthlyLimit int) bool {
-	if monthlyLimit <= 0 {
-		return true // 不限制
-	}
-
-	// 计算本月已返佣总额
-	now := time.Now()
-	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-
-	var totalMonth int64
-	err := model.DB.Model(&model.CommissionLog{}).
-		Where("inviter_id = ? AND status = ? AND created_at >= ?", inviterID, "settled", monthStart).
-		Select("COALESCE(SUM(commission_quota), 0)").
-		Scan(&totalMonth).Error
-
-	if err != nil {
-		common.SysLog(fmt.Sprintf("检查每月限额失败: %v", err))
-		return false // 查询失败，拒绝返佣
-	}
-
-	return int(totalMonth)+newCommission <= monthlyLimit
 }
 
 // checkDailyLimitTx 事务内检查每日限额（使用 tx 查询，Unix 秒范围）
