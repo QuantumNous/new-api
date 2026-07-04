@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
@@ -10,7 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
-const (
+var (
 	imageCacheDir        = "/opt/imgs"
 	imageCachePublicBase = "https://apimaster.ai/imgs/"
 )
@@ -27,6 +28,43 @@ func CacheImageLocally(imageURL string) string {
 
 func CacheImageLocallyWithHeaders(imageURL string, headers map[string]string) string {
 	return cacheImageLocallyImpl(imageURL, imageCacheHeaders(headers))
+}
+
+func CacheImageBase64Locally(b64 string) string {
+	b64 = strings.TrimSpace(b64)
+	if b64 == "" {
+		return ""
+	}
+	ext := ".png"
+	if strings.HasPrefix(b64, "data:") {
+		header, body, ok := strings.Cut(b64, ",")
+		if !ok {
+			return ""
+		}
+		switch {
+		case strings.Contains(header, "image/jpeg"), strings.Contains(header, "image/jpg"):
+			ext = ".jpg"
+		case strings.Contains(header, "image/webp"):
+			ext = ".webp"
+		}
+		b64 = strings.TrimSpace(body)
+	}
+	data, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return ""
+	}
+	if len(data) == 0 {
+		return ""
+	}
+	if err := os.MkdirAll(imageCacheDir, 0o755); err != nil {
+		return ""
+	}
+	filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
+	fpath := imageCacheDir + "/" + filename
+	if err := os.WriteFile(fpath, data, 0o644); err != nil {
+		return ""
+	}
+	return imageCachePublicBase + filename
 }
 
 func defaultCacheImageLocally(imageURL string, headers imageCacheHeaders) string {
@@ -186,6 +224,13 @@ func rewriteImageURLsInMap(m map[string]interface{}, headers map[string]string) 
 	if urlVal, ok := m["url"]; ok {
 		m["url"] = rewriteURLValue(urlVal, headers)
 	}
+	if _, hasURL := m["url"]; !hasURL {
+		if b64, ok := m["b64_json"].(string); ok {
+			if cachedURL := CacheImageBase64Locally(b64); cachedURL != "" {
+				m["url"] = cachedURL
+			}
+		}
+	}
 	result, ok := m["result"].(map[string]interface{})
 	if !ok {
 		return
@@ -201,6 +246,13 @@ func rewriteImageURLsInMap(m map[string]interface{}, headers map[string]string) 
 		}
 		if urlVal, ok := im["url"]; ok {
 			im["url"] = rewriteURLValue(urlVal, headers)
+		}
+		if _, hasURL := im["url"]; !hasURL {
+			if b64, ok := im["b64_json"].(string); ok {
+				if cachedURL := CacheImageBase64Locally(b64); cachedURL != "" {
+					im["url"] = cachedURL
+				}
+			}
 		}
 	}
 }

@@ -1,6 +1,10 @@
 package service
 
-import "testing"
+import (
+	"os"
+	"strings"
+	"testing"
+)
 
 func TestExtractFirstImageURLFromResponse_syncData(t *testing.T) {
 	body := []byte(`{"created":1,"data":[{"url":"https://apimaster.ai/imgs/abc.png"}]}`)
@@ -33,6 +37,35 @@ func TestRewriteImageResponseBodyWithHeaders(t *testing.T) {
 	}
 	if gotHeaders["Authorization"] != "Bearer test" {
 		t.Fatalf("Authorization header not passed through: %#v", gotHeaders)
+	}
+}
+
+func TestRewriteImageResponseBodyCachesB64JSON(t *testing.T) {
+	oldDir := imageCacheDir
+	oldBase := imageCachePublicBase
+	tmp := t.TempDir()
+	imageCacheDir = tmp
+	imageCachePublicBase = "https://apimaster.ai/imgs/"
+	defer func() {
+		imageCacheDir = oldDir
+		imageCachePublicBase = oldBase
+	}()
+
+	body := []byte(`{"created":1,"data":[{"b64_json":"aGVsbG8="}]}`)
+	out := RewriteImageResponseBody(body)
+	got := ExtractFirstImageURLFromResponse(out)
+	if !strings.HasPrefix(got, imageCachePublicBase) {
+		t.Fatalf("got %q", got)
+	}
+	entries, err := os.ReadDir(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("cached file count = %d, want 1", len(entries))
+	}
+	if !strings.Contains(string(out), `"b64_json":"aGVsbG8="`) {
+		t.Fatalf("b64_json should be preserved: %s", out)
 	}
 }
 
