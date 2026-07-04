@@ -209,7 +209,7 @@ func TestDoResponseForOpenAIStreamStripsMiniMaxFieldsAndMessage(t *testing.T) {
 	streamBody := strings.Join([]string{
 		`data: {"id":"chatcmpl-minimax","object":"chat.completion.chunk","created":1710000000,"model":"MiniMax-M3","choices":[{"index":0,"delta":{"role":"assistant","name":"MiniMax AI","audio_content":""},"finish_reason":null}]}`,
 		`data: {"id":"chatcmpl-minimax","object":"chat.completion.chunk","created":1710000000,"model":"MiniMax-M3","choices":[{"index":0,"delta":{"content":"hello","reasoning_content":"thinking"},"finish_reason":null}]}`,
-		`data: {"id":"chatcmpl-minimax","object":"chat.completion.chunk","created":1710000000,"model":"MiniMax-M3","choices":[{"index":0,"delta":{},"message":{"role":"assistant","content":"hello","name":"MiniMax AI","audio_content":""},"finish_reason":"stop"}]}`,
+		`data: {"id":"chatcmpl-minimax","object":"chat.completion.chunk","created":1710000000,"model":"MiniMax-M3","choices":[{"index":0,"delta":{},"message":{"role":"assistant","content":"hello","name":"MiniMax AI","audio_content":""},"finish_reason":"stop"}],"input_sensitive":false,"output_sensitive":false,"service_tier":"standard","base_resp":{"status_code":0,"status_msg":""}}`,
 		`data: [DONE]`,
 		``,
 	}, "\n")
@@ -233,6 +233,10 @@ func TestDoResponseForOpenAIStreamStripsMiniMaxFieldsAndMessage(t *testing.T) {
 	assert.NotContains(t, body, `"message"`)
 	assert.NotContains(t, body, `"name"`)
 	assert.NotContains(t, body, `"audio_content"`)
+	assert.NotContains(t, body, `"input_sensitive"`)
+	assert.NotContains(t, body, `"output_sensitive"`)
+	assert.NotContains(t, body, `"service_tier"`)
+	assert.NotContains(t, body, `"base_resp"`)
 }
 
 type nopReadCloser struct {

@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Non-Streaming Regression Test
+## Task 1: Non-Streaming Regression Test
 
 **Files:**
 - Modify: `relay/channel/minimax/adaptor_test.go`
@@ -25,7 +25,7 @@ Run: `go test ./relay/channel/minimax -run TestDoResponseForOpenAITextStripsMini
 
 Expected before implementation: FAIL because `input_sensitive`, `base_resp`, `name`, or `audio_content` appears in the response body.
 
-### Task 2: Streaming Regression Test
+## Task 2: Streaming Regression Test
 
 **Files:**
 - Modify: `relay/channel/minimax/adaptor_test.go`
@@ -40,7 +40,7 @@ Run: `go test ./relay/channel/minimax -run TestDoResponseForOpenAIStreamStripsMi
 
 Expected before implementation: FAIL because raw SSE chunks are forwarded with `name`, `audio_content`, or `message`.
 
-### Task 3: Minimal Implementation
+## Task 3: Minimal Implementation
 
 **Files:**
 - Modify: `relay/channel/minimax/adaptor.go`
@@ -63,7 +63,7 @@ Run: `go test ./relay/channel/minimax -count=1`
 
 Expected after implementation: PASS.
 
-### Task 4: Related Verification
+## Task 4: Related Verification
 
 **Files:**
 - No production edits expected.
