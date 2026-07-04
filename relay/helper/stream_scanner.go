@@ -295,5 +295,49 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		logger.LogInfo(c, fmt.Sprintf("stream ended: %s", info.StreamStatus.Summary()))
 	} else {
 		logger.LogError(c, fmt.Sprintf("stream ended: %s, received=%d", info.StreamStatus.Summary(), info.ReceivedResponseCount))
+		if info.StreamStatus.EndReason == relaycommon.StreamEndReasonClientGone {
+			notifyClientGoneStream(c, info)
+		}
 	}
+}
+
+// notifyClientGoneStream 在流式请求因客户端断开(client_gone)而中止时，
+// 推送一条飞书消息带上排查所需的关键信息。开销较大的网络调用放到 gopool 里异步执行，
+// 避免拖慢当前请求收尾（billing/日志）。
+func notifyClientGoneStream(c *gin.Context, info *relaycommon.RelayInfo) {
+	chatID := common.FeishuNewAPILogChatID()
+	if chatID == "" {
+		return
+	}
+
+	requestID := c.GetString(common.RequestIdKey)
+	model := info.OriginModelName
+	channel := "-"
+	if channelID := c.GetInt("channel_id"); channelID > 0 {
+		channel = fmt.Sprintf("%d", channelID)
+		if channelName := strings.TrimSpace(c.GetString("channel_name")); channelName != "" {
+			channel = channel + " / " + channelName
+		}
+	}
+	firstByteReceived := "否"
+	if info.HasSendResponse() {
+		firstByteReceived = "是"
+	}
+	receivedCount := info.ReceivedResponseCount
+	elapsed := time.Since(info.StartTime).Round(time.Millisecond).String()
+
+	lines := []string{
+		fmt.Sprintf("- request_id：`%s`", requestID),
+		fmt.Sprintf("- model：`%s`", model),
+		fmt.Sprintf("- 渠道：`%s`", channel),
+		fmt.Sprintf("- 是否收到首字：`%s`", firstByteReceived),
+		fmt.Sprintf("- 收到 chunk 数：`%d`", receivedCount),
+		fmt.Sprintf("- 耗时：`%s`", elapsed),
+	}
+
+	gopool.Go(func() {
+		if err := common.SendFeishuCard(chatID, "NewAPI 客户端断开（client_gone）", lines); err != nil {
+			logger.LogError(context.Background(), fmt.Sprintf("failed to send client_gone feishu notification: %s", err.Error()))
+		}
+	})
 }

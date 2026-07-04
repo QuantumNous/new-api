@@ -28,7 +28,6 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -36,6 +35,8 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { Combobox } from '@/components/ui/combobox'
+import { MODEL_TABS } from '@/features/model-data/constants'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -177,6 +178,14 @@ export function OfficialFallbackSettingsSection({
 }) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const modelOptions = useMemo(
+    () =>
+      MODEL_TABS.map((tab) => ({
+        value: tab.modelId,
+        label: tab.label,
+      })),
+    []
+  )
 
   const parsedResult = useMemo(
     () => parseOfficialFallbackSettings(defaultValue),
@@ -262,30 +271,41 @@ export function OfficialFallbackSettingsSection({
                 </div>
               ) : null}
 
+              {fields.length > 0 ? (
+                <div className="hidden grid-cols-[120px_minmax(0,1.5fr)_160px_180px_44px] items-center gap-3 px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase lg:grid">
+                  <span>{t('Enabled')}</span>
+                  <span>{t('Model ID')}</span>
+                  <span>{t('Fallback After')}</span>
+                  <span>{t('Official Channel ID')}</span>
+                  <span className="text-right">{t('Remove')}</span>
+                </div>
+              ) : null}
+
               {fields.map((field, index) => (
                 <div
                   key={field.id}
-                  className="grid gap-4 rounded-lg border p-4 md:grid-cols-[minmax(0,1.4fr)_140px_160px_auto] md:items-start"
+                  className="rounded-xl border border-border/70 bg-background/60 p-3 shadow-sm transition-colors hover:border-border hover:bg-background"
                 >
-                  <div className="space-y-4">
+                  <div className="grid gap-3 lg:grid-cols-[120px_minmax(0,1.5fr)_160px_180px_44px] lg:items-start">
                     <FormField
                       control={form.control}
                       name={`policies.${index}.enabled`}
                       render={({ field: enabledField }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border px-3 py-2">
-                          <div className="space-y-0.5">
-                            <FormLabel>{t('Enabled')}</FormLabel>
-                            <FormDescription>
-                              {t('Turn this fallback rule on or off')}
-                            </FormDescription>
-                          </div>
-                          <FormControl>
+                        <FormItem className="space-y-2">
+                          <FormLabel className="text-xs text-muted-foreground lg:sr-only">
+                            {t('Enabled')}
+                          </FormLabel>
+                          <div className="flex min-h-10 items-center justify-between rounded-lg border border-border/70 bg-muted/20 px-3 lg:justify-start lg:gap-3">
                             <Switch
                               checked={enabledField.value}
                               onCheckedChange={enabledField.onChange}
                               disabled={updateOption.isPending || isSubmitting}
                             />
-                          </FormControl>
+                            <span className="text-sm font-medium">
+                              {enabledField.value ? t('Enabled') : t('Disabled')}
+                            </span>
+                          </div>
+                          <FormMessage />
                         </FormItem>
                       )}
                     />
@@ -294,91 +314,104 @@ export function OfficialFallbackSettingsSection({
                       control={form.control}
                       name={`policies.${index}.model_id`}
                       render={({ field: modelField }) => (
-                        <FormItem>
-                          <FormLabel>{t('Model ID')}</FormLabel>
+                        <FormItem className="space-y-2">
+                          <FormLabel className="text-xs text-muted-foreground lg:sr-only">
+                            {t('Model ID')}
+                          </FormLabel>
                           <FormControl>
-                            <Input
-                              placeholder="gpt-5.4"
-                              {...modelField}
+                            <Combobox
+                              options={modelOptions}
                               value={modelField.value ?? ''}
-                              disabled={updateOption.isPending || isSubmitting}
+                              onValueChange={(value) =>
+                                modelField.onChange(value ?? '')
+                              }
+                              placeholder={t('Select model from Model Data')}
+                              searchPlaceholder={t('Search model')}
+                              emptyText={t('No model found')}
+                              className="w-full"
+                              allowCustomValue
                             />
                           </FormControl>
+                          <p className="text-[11px] text-muted-foreground">
+                            {t(
+                              'Choose from Model Data, or type a custom request model ID if needed.'
+                            )}
+                          </p>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  </div>
 
-                  <FormField
-                    control={form.control}
-                    name={`policies.${index}.fallback_after`}
-                    render={({ field: fallbackField }) => (
-                      <FormItem>
-                        <FormLabel>{t('Fallback After')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min={0}
-                            step={1}
-                            {...fallbackField}
-                            value={fallbackField.value ?? 0}
-                            onChange={(event) =>
-                              fallbackField.onChange(event.target.value)
-                            }
-                            disabled={updateOption.isPending || isSubmitting}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t(
-                            'How many normal retries should happen before switching to the official fallback channel.'
-                          )}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                    <FormField
+                      control={form.control}
+                      name={`policies.${index}.fallback_after`}
+                      render={({ field: fallbackField }) => (
+                        <FormItem className="space-y-2">
+                          <FormLabel className="text-xs text-muted-foreground lg:sr-only">
+                            {t('Fallback After')}
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              {...fallbackField}
+                              value={fallbackField.value ?? 0}
+                              onChange={(event) =>
+                                fallbackField.onChange(event.target.value)
+                              }
+                              disabled={updateOption.isPending || isSubmitting}
+                            />
+                          </FormControl>
+                          <p className="text-[11px] text-muted-foreground">
+                            {t('Normal fallback attempts before switching.')}
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  <FormField
-                    control={form.control}
-                    name={`policies.${index}.official_channel_id`}
-                    render={({ field: channelField }) => (
-                      <FormItem>
-                        <FormLabel>{t('Official Channel ID')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min={1}
-                            step={1}
-                            {...channelField}
-                            value={channelField.value ?? ''}
-                            onChange={(event) =>
-                              channelField.onChange(event.target.value)
-                            }
-                            disabled={updateOption.isPending || isSubmitting}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t(
-                            'Use the numeric channel ID from the Model Data list'
-                          )}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                    <FormField
+                      control={form.control}
+                      name={`policies.${index}.official_channel_id`}
+                      render={({ field: channelField }) => (
+                        <FormItem className="space-y-2">
+                          <FormLabel className="text-xs text-muted-foreground lg:sr-only">
+                            {t('Official Channel ID')}
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={1}
+                              step={1}
+                              {...channelField}
+                              value={channelField.value ?? ''}
+                              onChange={(event) =>
+                                channelField.onChange(event.target.value)
+                              }
+                              disabled={updateOption.isPending || isSubmitting}
+                            />
+                          </FormControl>
+                          <p className="text-[11px] text-muted-foreground">
+                            {t('Use the numeric channel ID shown in Model Data.')}
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  <div className="flex items-start justify-end md:pt-7">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon-sm"
-                      aria-label={t('Remove fallback rule')}
-                      onClick={() => remove(index)}
-                      disabled={updateOption.isPending || isSubmitting}
-                    >
-                      <Trash2 className="text-destructive h-4 w-4" />
-                    </Button>
+                    <div className="flex items-start justify-end lg:pt-0">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label={t('Remove fallback rule')}
+                        onClick={() => remove(index)}
+                        disabled={updateOption.isPending || isSubmitting}
+                      >
+                        <Trash2 className="text-destructive h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
