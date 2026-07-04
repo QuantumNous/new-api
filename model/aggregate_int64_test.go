@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,9 +34,9 @@ func TestQuotaDataAggregatesSupportInt64Totals(t *testing.T) {
 	rows, err := GetAllQuotaDates(900, 2000, "")
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
-	require.Equal(t, int64(2300000000), rows[0].Count)
-	require.Equal(t, int64(2900000000), rows[0].Quota)
-	require.Equal(t, int64(2300000000), rows[0].TokenUsed)
+	assert.Equal(t, int64(2300000000), rows[0].Count)
+	assert.Equal(t, int64(2900000000), rows[0].Quota)
+	assert.Equal(t, int64(2300000000), rows[0].TokenUsed)
 }
 
 func TestFlowQuotaDataAggregatesSupportInt64Totals(t *testing.T) {
@@ -65,9 +66,9 @@ func TestFlowQuotaDataAggregatesSupportInt64Totals(t *testing.T) {
 	rows, err := GetFlowQuotaData(900, 2000, "", 1, common.RoleCommonUser)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
-	require.Equal(t, int64(2400000000), rows[0].Count)
-	require.Equal(t, int64(2900000000), rows[0].Quota)
-	require.Equal(t, int64(2300000000), rows[0].TokenUsed)
+	assert.Equal(t, int64(2400000000), rows[0].Count)
+	assert.Equal(t, int64(2900000000), rows[0].Quota)
+	assert.Equal(t, int64(2300000000), rows[0].TokenUsed)
 }
 
 func TestLogStatAggregatesSupportInt64Totals(t *testing.T) {
@@ -106,10 +107,10 @@ func TestLogStatAggregatesSupportInt64Totals(t *testing.T) {
 
 	stat, err := SumUsedQuota(LogTypeConsume, now-60, now+1, "gpt-a", "alice", "token-a", 7, "vip")
 	require.NoError(t, err)
-	require.Equal(t, int64(2900000000), stat.Quota)
-	require.Equal(t, int64(2), stat.Rpm)
-	require.Equal(t, int64(2600000000), stat.Tpm)
+	assert.Equal(t, int64(2900000000), stat.Quota)
+	assert.Equal(t, int64(2), stat.Rpm)
+	assert.Equal(t, int64(2600000000), stat.Tpm)
 
 	tokenTotal := SumUsedToken(LogTypeConsume, now-60, now+1, "gpt-a", "alice", "token-a")
-	require.Equal(t, int64(2600000000), tokenTotal)
+	assert.Equal(t, int64(2600000000), tokenTotal)
 }
