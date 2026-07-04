@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -95,8 +96,11 @@ func (s *CommissionService) CalculateCommission(req CommissionRequest) (*Commiss
 			continue
 		}
 
-		// 计算返佣金额
-		commissionQuota := int(float64(req.QuotaUsed) * rate)
+		// 计算返佣金额（四舍五入，避免小额消费返佣恒为0）
+		commissionQuota := int(math.Round(float64(req.QuotaUsed) * rate))
+		if commissionQuota <= 0 {
+			continue
+		}
 
 		// 检查单次上限
 		if rule.MaxCommission > 0 && commissionQuota > rule.MaxCommission {
@@ -142,6 +146,7 @@ func (s *CommissionService) ProcessCommission(req CommissionRequest) (*Commissio
 	}
 
 	// 开始事务
+	affectedInviterIds := make(map[int]struct{})
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		for i, detail := range result.Details {
 			// 1. 创建返佣记录（幂等：使用 SourceKey 去重）
@@ -188,6 +193,9 @@ func (s *CommissionService) ProcessCommission(req CommissionRequest) (*Commissio
 				return err
 			}
 
+			// 记录需要失效缓存的用户ID
+			affectedInviterIds[detail.InviterID] = struct{}{}
+
 			// 更新详情状态
 			result.Details[i].Status = "settled"
 
@@ -200,6 +208,11 @@ func (s *CommissionService) ProcessCommission(req CommissionRequest) (*Commissio
 
 	if err != nil {
 		return nil, err
+	}
+
+	// 事务成功后，失效受影响用户的缓存
+	for inviterId := range affectedInviterIds {
+		_ = model.InvalidateUserCache(inviterId)
 	}
 
 	return result, nil
@@ -218,7 +231,8 @@ func (s *CommissionService) RefundCommission(logID int64) error {
 	}
 
 	// 2. 开始事务
-	return model.DB.Transaction(func(tx *gorm.DB) error {
+	affectedInviterIds := make(map[int]struct{})
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		for _, log := range logs {
 			if log.Status != "settled" {
 				continue // 只扣回已结算的
@@ -241,12 +255,26 @@ func (s *CommissionService) RefundCommission(logID int64) error {
 				return err
 			}
 
+			// 记录需要失效缓存的用户ID
+			affectedInviterIds[log.InviterID] = struct{}{}
+
 			common.SysLog(fmt.Sprintf("返佣扣回: log_id=%d, inviter=%d, quota=%d",
 				log.Id, log.InviterID, log.CommissionQuota))
 		}
 
 		return nil
 	})
+
+	if err != nil {
+		return err
+	}
+
+	// 事务成功后，失效受影响用户的缓存
+	for inviterId := range affectedInviterIds {
+		_ = model.InvalidateUserCache(inviterId)
+	}
+
+	return nil
 }
 
 // getInviterChain 获取邀请链
@@ -347,27 +375,28 @@ func (s *CommissionService) TransferAffQuotaToQuota(userID int, quota int) error
 	}
 	defer tx.Rollback()
 
-	// 加锁查询用户以确保数据一致性
-	var user model.User
-	err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, userID).Error
-	if err != nil {
-		return err
-	}
+	// 原子更新：aff_quota >= quota 时才扣减（避免并发超扣）
+	result := tx.Model(&model.User{}).
+		Where("id = ? AND aff_quota >= ?", userID, quota).
+		Updates(map[string]interface{}{
+			"aff_quota": gorm.Expr("aff_quota - ?", quota),
+			"quota":     gorm.Expr("quota + ?", quota),
+		})
 
-	// 检查用户的AffQuota是否足够
-	if user.AffQuota < quota {
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
 		return errors.New("邀请额度不足！")
 	}
 
-	// 更新用户额度
-	user.AffQuota -= quota
-	user.Quota += quota
-
-	// 保存用户状态
-	if err := tx.Save(&user).Error; err != nil {
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
-	// 提交事务
-	return tx.Commit().Error
+	// 事务成功后，失效用户缓存
+	_ = model.InvalidateUserCache(userID)
+
+	return nil
 }
