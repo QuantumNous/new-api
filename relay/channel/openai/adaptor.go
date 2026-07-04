@@ -583,8 +583,89 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			strings.TrimSpace(request.Webhook) == "" {
 			request.Webhook = service.MediaTaskWebhookBase()
 		}
+		if isPackyBaseURL(info.ChannelBaseUrl) {
+			normalizePackyGptImage2ImageRequest(&request)
+		}
 		return request, nil
 	}
+}
+
+func isPackyBaseURL(baseURL string) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(baseURL)), "packyapi.com")
+}
+
+func normalizePackyGptImage2ImageRequest(request *dto.ImageRequest) {
+	if request == nil || !service.IsGptImage2Family(request.Model) {
+		return
+	}
+	resolution := strings.ToLower(strings.TrimSpace(request.Resolution))
+	if resolution == "" {
+		if raw, ok := request.Extra["resolution"]; ok {
+			var s string
+			if err := common.Unmarshal(raw, &s); err == nil {
+				resolution = strings.ToLower(strings.TrimSpace(s))
+			}
+		}
+	}
+	if resolution == "" {
+		return
+	}
+	if size := packyGptImage2SizeForResolution(request.Size, resolution); size != "" {
+		request.Size = size
+	}
+	request.Resolution = ""
+	if request.Extra != nil {
+		delete(request.Extra, "resolution")
+	}
+}
+
+func packyGptImage2SizeForResolution(size, resolution string) string {
+	res := strings.ToLower(strings.TrimSpace(resolution))
+	if res == "" || res == "auto" {
+		return ""
+	}
+	ratio := strings.ToLower(strings.TrimSpace(size))
+	if ratio == "" || ratio == "auto" {
+		ratio = "1:1"
+	}
+	if strings.Contains(ratio, "x") {
+		return ratio
+	}
+	table := map[string]map[string]string{
+		"1k": {
+			"1:1":  "1024x1024",
+			"3:2":  "1536x1024",
+			"2:3":  "1024x1536",
+			"16:9": "1536x864",
+			"9:16": "864x1536",
+			"4:3":  "1360x1024",
+			"3:4":  "1024x1360",
+		},
+		"2k": {
+			"1:1":  "2048x2048",
+			"3:2":  "2048x1360",
+			"2:3":  "1360x2048",
+			"16:9": "2048x1152",
+			"9:16": "1152x2048",
+			"4:3":  "2048x1536",
+			"3:4":  "1536x2048",
+		},
+		"4k": {
+			"1:1":  "2880x2880",
+			"3:2":  "3520x2352",
+			"2:3":  "2352x3520",
+			"16:9": "3840x2160",
+			"9:16": "2160x3840",
+			"4:3":  "3312x2480",
+			"3:4":  "2480x3312",
+		},
+	}
+	if byRatio, ok := table[res]; ok {
+		if mapped, ok := byRatio[ratio]; ok {
+			return mapped
+		}
+	}
+	return ""
 }
 
 func isAPIMartCompatibleBase(baseURL string) bool {
