@@ -24,6 +24,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	model_setting "github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -33,12 +34,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
-
-const officialFallbackChannelID = 38
-
-func isOfficialFallbackModel(modelName string) bool {
-	return modelName == "gpt-5.4" || modelName == "gpt-5.5"
-}
 
 func markOfficialFallbackChannel(c *gin.Context, channel *model.Channel) {
 	if c == nil || channel == nil {
@@ -569,16 +564,16 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		}, nil
 	}
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
-	if shouldUseOfficialFallback(c, info, retryParam) {
-		channel, err := model.GetChannelById(officialFallbackChannelID, true)
+	if policy, ok := shouldUseOfficialFallback(c, info, retryParam); ok {
+		channel, err := model.GetChannelById(policy.OfficialChannelID, true)
 		if err != nil {
-			return nil, types.NewError(fmt.Errorf("获取官方兜底渠道 #%d 失败: %s", officialFallbackChannelID, err.Error()), types.ErrorCodeGetChannelFailed)
+			return nil, types.NewError(fmt.Errorf("获取官方兜底渠道 #%d 失败: %s", policy.OfficialChannelID, err.Error()), types.ErrorCodeGetChannelFailed)
 		}
 		if channel.Status != common.ChannelStatusEnabled {
-			return nil, types.NewError(fmt.Errorf("官方兜底渠道 #%d 未启用", officialFallbackChannelID), types.ErrorCodeGetChannelFailed)
+			return nil, types.NewError(fmt.Errorf("官方兜底渠道 #%d 未启用", policy.OfficialChannelID), types.ErrorCodeGetChannelFailed)
 		}
 		if !common.StringsContains(channel.GetModels(), info.OriginModelName) {
-			return nil, types.NewError(fmt.Errorf("官方兜底渠道 #%d 不支持模型 %s", officialFallbackChannelID, info.OriginModelName), types.ErrorCodeGetChannelFailed)
+			return nil, types.NewError(fmt.Errorf("官方兜底渠道 #%d 不支持模型 %s", policy.OfficialChannelID, info.OriginModelName), types.ErrorCodeGetChannelFailed)
 		}
 		markOfficialFallbackChannel(c, channel)
 		newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
@@ -600,31 +595,33 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	if newAPIError != nil {
 		return nil, newAPIError
 	}
-	if isOfficialFallbackModel(info.OriginModelName) && retryParam.GetRetry() > 0 && channel.Id == officialFallbackChannelID {
+	if policy, ok := model_setting.FindOfficialFallbackPolicy(info.OriginModelName); ok &&
+		retryParam.GetRetry() > 0 && channel.Id == policy.OfficialChannelID {
 		markOfficialFallbackChannel(c, channel)
 	}
 	return channel, nil
 }
 
-func shouldUseOfficialFallback(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) bool {
+func shouldUseOfficialFallback(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (model_setting.OfficialFallbackPolicy, bool) {
 	if c == nil || info == nil || retryParam == nil {
-		return false
+		return model_setting.OfficialFallbackPolicy{}, false
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
-		return false
+		return model_setting.OfficialFallbackPolicy{}, false
 	}
-	if !isOfficialFallbackModel(info.OriginModelName) {
-		return false
+	policy, ok := model_setting.FindOfficialFallbackPolicy(info.OriginModelName)
+	if !ok {
+		return model_setting.OfficialFallbackPolicy{}, false
 	}
-	if retryParam.GetRetry() < 2 {
-		return false
+	if retryParam.GetRetry() < policy.FallbackAfter+1 {
+		return model_setting.OfficialFallbackPolicy{}, false
 	}
 	for _, channelID := range c.GetStringSlice("use_channel") {
-		if channelID == fmt.Sprintf("%d", officialFallbackChannelID) {
-			return false
+		if channelID == fmt.Sprintf("%d", policy.OfficialChannelID) {
+			return model_setting.OfficialFallbackPolicy{}, false
 		}
 	}
-	return true
+	return policy, true
 }
 
 type retryDecision struct {
@@ -758,15 +755,15 @@ func shouldRetryForOfficialFallback(c *gin.Context, retryIndex int) bool {
 	if c == nil || c.GetBool("official_fallback_triggered") {
 		return false
 	}
-	modelName := c.GetString("original_model")
-	if !isOfficialFallbackModel(modelName) {
+	policy, ok := model_setting.FindOfficialFallbackPolicy(c.GetString("original_model"))
+	if !ok {
 		return false
 	}
-	if retryIndex < 1 {
+	if retryIndex < policy.FallbackAfter {
 		return false
 	}
 	for _, channelID := range c.GetStringSlice("use_channel") {
-		if channelID == fmt.Sprintf("%d", officialFallbackChannelID) {
+		if channelID == fmt.Sprintf("%d", policy.OfficialChannelID) {
 			return false
 		}
 	}
@@ -777,7 +774,7 @@ func shouldRetryForOfficialFallbackModel(c *gin.Context, retryIndex int) bool {
 	if c == nil || c.GetBool("official_fallback_triggered") {
 		return false
 	}
-	if !isOfficialFallbackModel(c.GetString("original_model")) {
+	if _, ok := model_setting.FindOfficialFallbackPolicy(c.GetString("original_model")); !ok {
 		return false
 	}
 	if retryIndex != 0 {
