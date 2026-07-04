@@ -106,3 +106,45 @@ func GetUsage(c *gin.Context) {
 	c.JSON(200, usage)
 	return
 }
+
+func GetCredits(c *gin.Context) {
+	var quota int
+	var err error
+	var token *model.Token
+	if common.DisplayTokenStatEnabled {
+		tokenId := c.GetInt("token_id")
+		token, err = model.GetTokenById(tokenId)
+		if err == nil {
+			quota = token.RemainQuota
+		}
+	} else {
+		userId := c.GetInt("id")
+		quota, err = model.GetUserQuota(userId, false)
+	}
+	if err != nil {
+		openAIError := types.OpenAIError{
+			Message: err.Error(),
+			Type:    "new_api_error",
+		}
+		c.JSON(200, gin.H{
+			"error": openAIError,
+		})
+		return
+	}
+	amount := float64(quota)
+	switch operation_setting.GetQuotaDisplayType() {
+	case operation_setting.QuotaDisplayTypeCNY:
+		amount = amount / common.QuotaPerUnit * operation_setting.USDExchangeRate
+	case operation_setting.QuotaDisplayTypeTokens:
+		// tokens 保持原值
+	default:
+		amount = amount / common.QuotaPerUnit
+	}
+	if token != nil && token.UnlimitedQuota {
+		amount = 100000000
+	}
+	credits := OpenAICreditsResponse{}
+	credits.Data.TotalUsage = amount
+	c.JSON(200, credits)
+	return
+}

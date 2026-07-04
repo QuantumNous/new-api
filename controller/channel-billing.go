@@ -53,6 +53,14 @@ type OpenAIUsageResponse struct {
 	TotalUsage float64 `json:"total_usage"` // unit: 0.01 dollar
 }
 
+type OpenAICreditsResponse struct {
+	Data OpenAICreditsData `json:"data"`
+}
+
+type OpenAICreditsData struct {
+	TotalUsage float64 `json:"total_usage"` // unit: dollar
+}
+
 type OpenAISBUsageResponse struct {
 	Msg  string `json:"msg"`
 	Data *struct {
