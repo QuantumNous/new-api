@@ -135,7 +135,11 @@ func serveTrackedImageTask(c *gin.Context, taskID string) bool {
 
 	switch task.Status {
 	case model.TaskStatusSuccess:
-		c.JSON(http.StatusOK, buildImageTaskStatusResponse("succeeded", task.GetResultURL()))
+		resultURL := task.GetResultURL()
+		if cachedURL := service.EnsureCachedTaskImageResultURL(task); cachedURL != "" {
+			resultURL = cachedURL
+		}
+		c.JSON(http.StatusOK, buildImageTaskStatusResponse("succeeded", resultURL))
 		return true
 	case model.TaskStatusFailure:
 		service.RefundImageAsyncTaskQuota(c.Request.Context(), task, task.FailReason)
@@ -163,11 +167,13 @@ func serveTrackedImageTask(c *gin.Context, taskID string) bool {
 		APIKey:    primaryKey,
 		TaskID:    task.GetUpstreamTaskID(),
 	}}
+	targetKeys := map[int]string{primaryChannel.Id: primaryKey}
 	var hedgeChannel *model.Channel
 	if task.PrivateData.HedgeChannelId != 0 && task.PrivateData.HedgeUpstreamTaskID != "" {
 		if ch, herr := model.GetChannelById(task.PrivateData.HedgeChannelId, true); herr == nil && ch != nil {
 			if hedgeKey, _, kerr := ch.GetNextEnabledKey(); kerr == nil {
 				hedgeChannel = ch
+				targetKeys[ch.Id] = hedgeKey
 				targets = append(targets, service.ImageTaskTarget{
 					ChannelID: ch.Id,
 					BaseURL:   ch.GetBaseURL(),
@@ -182,7 +188,11 @@ func serveTrackedImageTask(c *gin.Context, taskID string) bool {
 	fromStatus := task.Status
 	switch status {
 	case "succeeded", "success", "completed":
-		cachedURL := service.CacheImageLocally(imageURL)
+		cacheHeaders := map[string]string(nil)
+		if key := strings.TrimSpace(targetKeys[winner.ChannelID]); key != "" {
+			cacheHeaders = map[string]string{"Authorization": "Bearer " + key}
+		}
+		cachedURL := service.CacheImageLocallyWithHeaders(imageURL, cacheHeaders)
 		task.PrivateData.ResultURL = cachedURL
 		if winner.ChannelID != task.ChannelId {
 			task.ChannelId = winner.ChannelID

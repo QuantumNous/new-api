@@ -874,7 +874,7 @@ func pollAsyncImageTask(c *gin.Context, info *relaycommon.RelayInfo, taskID stri
 	}
 
 	if ok && imageURL != "" {
-		cachedURL := service.CacheImageLocally(imageURL)
+		cachedURL := service.CacheImageLocallyWithHeaders(imageURL, imageCacheAuthHeaders(c))
 		if cachedURL != "" {
 			c.Set("image_result_url", cachedURL)
 		}
@@ -919,6 +919,17 @@ func addImageRaceHedgeChannel(c *gin.Context, channelID int) {
 	c.Set("use_channel", append(useChannel, id))
 }
 
+func imageCacheAuthHeaders(c *gin.Context) map[string]string {
+	if c == nil {
+		return nil
+	}
+	apiKey := strings.TrimSpace(common.GetContextKeyString(c, constant.ContextKeyChannelKey))
+	if apiKey == "" {
+		return nil
+	}
+	return map[string]string{"Authorization": "Bearer " + apiKey}
+}
+
 // isClientAsyncImageGenerationsPath reports POST /v1/images/generations/async:
 // return upstream task_id immediately without server-side polling.
 func isClientAsyncImageGenerationsPath(c *gin.Context) bool {
@@ -961,7 +972,7 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 				Properties: model.Properties{OriginModelName: info.OriginModelName},
 				PrivateData: model.TaskPrivateData{
 					UpstreamTaskID:      upstreamTaskID,
-					GptImage2Profile:      string(service.GptImage2ProfileFromContext(c)),
+					GptImage2Profile:    string(service.GptImage2ProfileFromContext(c)),
 					GptImage2OfficialFB: service.GptImage2OfficialFallbackContextValue(c),
 				},
 			}
@@ -1052,7 +1063,7 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 
 	// Rewrite upstream image URLs before returning to client (sync responses).
 	if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {
-		responseBody = service.RewriteImageResponseBody(responseBody)
+		responseBody = service.RewriteImageResponseBodyWithHeaders(responseBody, imageCacheAuthHeaders(c))
 		if resultURL := service.ExtractFirstImageURLFromResponse(responseBody); resultURL != "" {
 			c.Set("image_result_url", resultURL)
 		}

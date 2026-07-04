@@ -40,6 +40,12 @@ func EnrichLogMediaURL(log *model.Log) {
 		delete(otherMap, "result_url")
 		changed = true
 	}
+	if url, ok := otherMap["result_url"].(string); ok && shouldRecacheStoredImageURL(url) {
+		if cached := EnsureCachedTaskImageResultURLByID(fmtTaskID(otherMap["task_id"])); cached != "" && cached != url {
+			otherMap["result_url"] = cached
+			changed = true
+		}
+	}
 	if url, ok := otherMap["result_url"].(string); !ok || strings.TrimSpace(url) == "" {
 		if url := resolveLogMediaURL(log, otherMap); url != "" && IsValidMediaResultURL(url) {
 			otherMap["result_url"] = url
@@ -231,6 +237,9 @@ func resolveLogMediaURL(log *model.Log, other map[string]interface{}) string {
 	taskID := strings.TrimSpace(fmtTaskID(other["task_id"]))
 	if taskID != "" {
 		if task, exist, err := model.GetByOnlyTaskId(taskID); err == nil && exist {
+			if u := EnsureCachedTaskImageResultURL(task); u != "" {
+				return u
+			}
 			if u := strings.TrimSpace(task.PrivateData.ResultURL); IsValidMediaResultURL(u) {
 				return u
 			}
@@ -241,6 +250,68 @@ func resolveLogMediaURL(log *model.Log, other map[string]interface{}) string {
 		return findCachedImageURLInDir(imageCacheDir, log.CreatedAt, log.UseTime)
 	}
 	return ""
+}
+
+func EnsureCachedTaskImageResultURLByID(taskID string) string {
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return ""
+	}
+	task, exist, err := model.GetByOnlyTaskId(taskID)
+	if err != nil || !exist {
+		return ""
+	}
+	return EnsureCachedTaskImageResultURL(task)
+}
+
+func EnsureCachedTaskImageResultURL(task *model.Task) string {
+	if task == nil {
+		return ""
+	}
+	resultURL := strings.TrimSpace(task.PrivateData.ResultURL)
+	if resultURL == "" || !IsValidMediaResultURL(resultURL) {
+		return ""
+	}
+	if !shouldRecacheStoredImageURL(resultURL) {
+		return resultURL
+	}
+	headers := imageTaskAuthHeaders(task.ChannelId)
+	if len(headers) == 0 {
+		return resultURL
+	}
+	cachedURL := CacheImageLocallyWithHeaders(resultURL, headers)
+	if cachedURL == "" || cachedURL == resultURL {
+		return resultURL
+	}
+	task.PrivateData.ResultURL = cachedURL
+	if err := task.Update(); err != nil {
+		common.SysError(fmt.Sprintf("failed to update cached image result for task %s: %v", task.TaskID, err))
+	}
+	return cachedURL
+}
+
+func shouldRecacheStoredImageURL(u string) bool {
+	u = strings.TrimSpace(u)
+	if u == "" || !shouldCacheImageURL(u) {
+		return false
+	}
+	lower := strings.ToLower(u)
+	return strings.Contains(lower, "/v1/images/") && strings.Contains(lower, "/content")
+}
+
+func imageTaskAuthHeaders(channelID int) map[string]string {
+	if channelID <= 0 {
+		return nil
+	}
+	channel, err := model.GetChannelById(channelID, true)
+	if err != nil || channel == nil {
+		return nil
+	}
+	key, _, apiErr := channel.GetNextEnabledKey()
+	if apiErr != nil || strings.TrimSpace(key) == "" {
+		return nil
+	}
+	return map[string]string{"Authorization": "Bearer " + strings.TrimSpace(key)}
 }
 
 func findCachedImageURLInDir(dir string, createdAt int64, useTime int) string {

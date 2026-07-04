@@ -15,21 +15,27 @@ const (
 	imageCachePublicBase = "https://apimaster.ai/imgs/"
 )
 
+type imageCacheHeaders map[string]string
+
 var cacheImageLocallyImpl = defaultCacheImageLocally
 
 // CacheImageLocally downloads an image URL and stores it under /opt/imgs/, returning an apimaster.ai URL.
 // Falls back to the original URL on any error so callers always get a usable URL.
 func CacheImageLocally(imageURL string) string {
-	return cacheImageLocallyImpl(imageURL)
+	return cacheImageLocallyImpl(imageURL, nil)
 }
 
-func defaultCacheImageLocally(imageURL string) string {
+func CacheImageLocallyWithHeaders(imageURL string, headers map[string]string) string {
+	return cacheImageLocallyImpl(imageURL, imageCacheHeaders(headers))
+}
+
+func defaultCacheImageLocally(imageURL string, headers imageCacheHeaders) string {
 	imageURL = strings.TrimSpace(imageURL)
 	if imageURL == "" || !shouldCacheImageURL(imageURL) {
 		return imageURL
 	}
 
-	resp, err := DoDownloadRequest(imageURL, "image_cache")
+	resp, err := DoDownloadRequestWithHeaders(imageURL, map[string]string(headers), "image_cache")
 	if err != nil {
 		return imageURL
 	}
@@ -70,6 +76,10 @@ func defaultCacheImageLocally(imageURL string) string {
 // RewriteImageResponseBody replaces upstream image URLs in OpenAI-style image responses
 // (sync data[].url or async task poll data.result.images[].url) with apimaster.ai cached URLs.
 func RewriteImageResponseBody(body []byte) []byte {
+	return RewriteImageResponseBodyWithHeaders(body, nil)
+}
+
+func RewriteImageResponseBodyWithHeaders(body []byte, headers map[string]string) []byte {
 	if len(body) == 0 {
 		return body
 	}
@@ -89,11 +99,11 @@ func RewriteImageResponseBody(body []byte) []byte {
 		if !shouldRewriteTaskPollData(typed) {
 			return body
 		}
-		rewriteImageURLsInMap(typed)
+		rewriteImageURLsInMap(typed, headers)
 	case []interface{}:
 		for _, item := range typed {
 			if m, ok := item.(map[string]interface{}); ok {
-				rewriteImageURLsInMap(m)
+				rewriteImageURLsInMap(m, headers)
 			}
 		}
 	default:
@@ -172,9 +182,9 @@ func shouldRewriteTaskPollData(data map[string]interface{}) bool {
 	}
 }
 
-func rewriteImageURLsInMap(m map[string]interface{}) {
+func rewriteImageURLsInMap(m map[string]interface{}, headers map[string]string) {
 	if urlVal, ok := m["url"]; ok {
-		m["url"] = rewriteURLValue(urlVal)
+		m["url"] = rewriteURLValue(urlVal, headers)
 	}
 	result, ok := m["result"].(map[string]interface{})
 	if !ok {
@@ -190,20 +200,20 @@ func rewriteImageURLsInMap(m map[string]interface{}) {
 			continue
 		}
 		if urlVal, ok := im["url"]; ok {
-			im["url"] = rewriteURLValue(urlVal)
+			im["url"] = rewriteURLValue(urlVal, headers)
 		}
 	}
 }
 
-func rewriteURLValue(v interface{}) interface{} {
+func rewriteURLValue(v interface{}, headers map[string]string) interface{} {
 	switch u := v.(type) {
 	case string:
-		return CacheImageLocally(u)
+		return CacheImageLocallyWithHeaders(u, headers)
 	case []interface{}:
 		out := make([]interface{}, len(u))
 		for i, item := range u {
 			if s, ok := item.(string); ok {
-				out[i] = CacheImageLocally(s)
+				out[i] = CacheImageLocallyWithHeaders(s, headers)
 			} else {
 				out[i] = item
 			}
