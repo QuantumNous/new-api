@@ -11,6 +11,8 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // commissionService 全局返佣服务实例（使用单例）
@@ -490,29 +492,94 @@ func AdminGetCommissionLogs(c *gin.Context) {
 }
 
 // AdminSettleCommission 手动结算返佣
+// AdminSettleCommission 手动结算（管理员）- 事务内 pending → settled 并加钱
 func AdminSettleCommission(c *gin.Context) {
 	var req struct {
 		UserIDs []int `json:"user_ids"` // 可选，空=全部
-		Period  string `json:"period"`   // daily/weekly/monthly
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
-		return
+		// 解析失败时默认结算所有
+		req.UserIDs = nil
 	}
 
-	// 查找待结算的返佣记录
-	query := model.DB.Model(&model.CommissionLog{}).Where("status = ?", "pending")
-	if len(req.UserIDs) > 0 {
-		query = query.Where("inviter_id IN ?", req.UserIDs)
-	}
+	// 分批处理（每批 500 条，避免全量载入）
+	batchSize := 500
+	totalSettled := 0
 
-	var pendingLogs []model.CommissionLog
-	query.Find(&pendingLogs)
+	for {
+		// 查找待结算的返佣记录（分批）
+		query := model.DB.Model(&model.CommissionLog{}).
+			Where("status = ?", "pending").
+			Limit(batchSize)
 
-	settledCount := 0
-	for _, log := range pendingLogs {
-		if err := model.SettleCommissionLog(log.Id); err == nil {
-			settledCount++
+		if len(req.UserIDs) > 0 {
+			query = query.Where("inviter_id IN ?", req.UserIDs)
+		}
+
+		var pendingLogs []model.CommissionLog
+		if err := query.Find(&pendingLogs).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+
+		if len(pendingLogs) == 0 {
+			break // 没有待结算记录了
+		}
+
+		// 事务内批量结算
+		batchSettled := 0
+		err := model.DB.Transaction(func(tx *gorm.DB) error {
+			for _, log := range pendingLogs {
+				// 1. 行锁串行化邀请人
+				var inviter model.User
+				if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+					Select("id").First(&inviter, log.InviterID).Error; err != nil {
+					continue
+				}
+
+				// 2. 更新状态 pending → settled（条件保护）
+				now := time.Now()
+				res := tx.Model(&model.CommissionLog{}).
+					Where("id = ? AND status = ?", log.Id, "pending").
+					Updates(map[string]interface{}{
+						"status":     "settled",
+						"settled_at": now,
+					})
+
+				if res.Error != nil {
+					return res.Error
+				}
+				if res.RowsAffected == 0 {
+					continue // 已被其他进程结算
+				}
+
+				// 3. 加钱（quota/aff_quota/aff_history 三列）
+				if err := tx.Model(&model.User{}).
+					Where("id = ?", log.InviterID).
+					Updates(map[string]interface{}{
+						"quota":       gorm.Expr("quota + ?", log.CommissionQuota),
+						"aff_quota":   gorm.Expr("aff_quota + ?", log.CommissionQuota),
+						"aff_history": gorm.Expr("aff_history + ?", log.CommissionQuota),
+					}).Error; err != nil {
+					return err
+				}
+
+				batchSettled++
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+
+		totalSettled += batchSettled
+
+		// 如果这批不足 batchSize，说明已经处理完
+		if len(pendingLogs) < batchSize {
+			break
 		}
 	}
 
@@ -520,7 +587,7 @@ func AdminSettleCommission(c *gin.Context) {
 		"success": true,
 		"message": i18n.T(c, i18n.MsgOperationSuccess),
 		"data": map[string]interface{}{
-			"settled_count": settledCount,
+			"settled_count": totalSettled,
 		},
 	})
 }

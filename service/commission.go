@@ -177,6 +177,15 @@ func (s *CommissionService) ProcessCommission(req CommissionRequest) (*Commissio
 				sourceKey = fmt.Sprintf("order:%s", req.OrderID)
 			}
 
+			// 根据配置决定状态：实时结算或待结算
+			status := "pending"
+			var settledAt *time.Time
+			if common.CommissionRealTimeSettle {
+				status = "settled"
+				now := time.Now()
+				settledAt = &now
+			}
+
 			log := &model.CommissionLog{
 				UserID:           req.UserID,
 				InviterID:        detail.InviterID,
@@ -188,10 +197,9 @@ func (s *CommissionService) ProcessCommission(req CommissionRequest) (*Commissio
 				ConsumptionQuota: req.QuotaUsed,
 				CommissionRate:   detail.CommissionRate,
 				CommissionQuota:  detail.CommissionQuota,
-				Status:           "settled",
-				SettledAt:        &time.Time{},
+				Status:           status,
+				SettledAt:        settledAt,
 			}
-			*log.SettledAt = time.Now()
 
 			// 使用 OnConflict DoNothing，RowsAffected=0 表示已存在（重复触发）
 			res := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(log)
@@ -204,25 +212,27 @@ func (s *CommissionService) ProcessCommission(req CommissionRequest) (*Commissio
 				continue
 			}
 
-			// 4. 实时结算到邀请人余额
-			if err := tx.Model(&model.User{}).
-				Where("id = ?", detail.InviterID).
-				Updates(map[string]interface{}{
-					"quota":       gorm.Expr("quota + ?", detail.CommissionQuota),
-					"aff_quota":   gorm.Expr("aff_quota + ?", detail.CommissionQuota),
-					"aff_history": gorm.Expr("aff_history + ?", detail.CommissionQuota),
-				}).Error; err != nil {
-				return err
+			// 4. 实时结算时才加钱（pending 记录不加钱，等待结算）
+			if common.CommissionRealTimeSettle {
+				if err := tx.Model(&model.User{}).
+					Where("id = ?", detail.InviterID).
+					Updates(map[string]interface{}{
+						"quota":       gorm.Expr("quota + ?", detail.CommissionQuota),
+						"aff_quota":   gorm.Expr("aff_quota + ?", detail.CommissionQuota),
+						"aff_history": gorm.Expr("aff_history + ?", detail.CommissionQuota),
+					}).Error; err != nil {
+					return err
+				}
+
+				// 记录需要失效缓存的用户ID
+				affectedInviterIds[detail.InviterID] = struct{}{}
 			}
 
-			// 记录需要失效缓存的用户ID
-			affectedInviterIds[detail.InviterID] = struct{}{}
-
 			// 更新详情状态
-			result.Details[i].Status = "settled"
+			result.Details[i].Status = status
 
-			common.SysLog(fmt.Sprintf("返佣成功: consumer=%d, inviter=%d, level=%d, rate=%.2f%%, quota=%d",
-				req.UserID, detail.InviterID, detail.Level, detail.CommissionRate*100, detail.CommissionQuota))
+			common.SysLog(fmt.Sprintf("返佣%s: consumer=%d, inviter=%d, level=%d, rate=%.2f%%, quota=%d",
+				status, req.UserID, detail.InviterID, detail.Level, detail.CommissionRate*100, detail.CommissionQuota))
 		}
 
 		return nil
