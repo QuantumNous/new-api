@@ -24,6 +24,7 @@ import { ClaudeSettingsCard } from './claude-settings-card'
 import { GeminiSettingsCard } from './gemini-settings-card'
 import { GlobalSettingsCard } from './global-settings-card'
 import { GrokSettingsCard } from './grok-settings-card'
+import { OfficialFallbackSettingsSection } from './official-fallback-settings-section'
 
 function formatJsonForEditor(value: string, fallback: string) {
   const raw = (value ?? '').toString().trim()
@@ -142,6 +143,17 @@ const MODELS_SECTIONS = [
           'channel_affinity_setting.rules':
             settings['channel_affinity_setting.rules'],
         }}
+      />
+    ),
+  },
+  {
+    id: 'official-fallback',
+    titleKey: 'Official Fallback',
+    descriptionKey:
+      'Configure which request model IDs switch to an official fallback channel after a number of failed attempts.',
+    build: (settings: ModelSettings) => (
+      <OfficialFallbackSettingsSection
+        defaultValue={settings['model_fallback_setting']}
       />
     ),
   },

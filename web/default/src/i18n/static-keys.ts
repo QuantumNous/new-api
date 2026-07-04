@@ -198,6 +198,7 @@ export const STATIC_I18N_KEYS = [
 
   // Models section-registry nav (dynamic titleKey)
   'Grok',
+  'Official Fallback',
 
   // Channel Affinity section
   'Channel Affinity',

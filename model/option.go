@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	model_setting "github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -210,6 +211,7 @@ func InitOptionMap() {
 	for k, v := range modelConfigs {
 		common.OptionMap[k] = v
 	}
+	common.OptionMap["model_fallback_setting"] = model_setting.GetModelFallbackSettingsJSONString()
 
 	common.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
@@ -217,9 +219,32 @@ func InitOptionMap() {
 
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
+	var modelFallbackRaw *string
+	var modelFallbackLegacy *string
 	for _, option := range options {
+		switch option.Key {
+		case "model_fallback_setting":
+			value := option.Value
+			modelFallbackRaw = &value
+			continue
+		case "model_fallback_setting.policies":
+			value := option.Value
+			modelFallbackLegacy = &value
+			continue
+		}
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
+			common.SysLog("failed to update option map: " + err.Error())
+		}
+	}
+	if modelFallbackRaw != nil {
+		if err := updateOptionMap("model_fallback_setting", *modelFallbackRaw); err != nil {
+			common.SysLog("failed to update option map: " + err.Error())
+		}
+		return
+	}
+	if modelFallbackLegacy != nil {
+		if err := updateOptionMap("model_fallback_setting.policies", *modelFallbackLegacy); err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
 	}
@@ -234,6 +259,13 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == "model_fallback_setting" {
+		normalizedValue, err := model_setting.NormalizeModelFallbackSettingsJSONString(value)
+		if err != nil {
+			return err
+		}
+		value = normalizedValue
+	}
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -252,6 +284,16 @@ func UpdateOption(key string, value string) error {
 func updateOptionMap(key string, value string) (err error) {
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
+
+	if key == "model_fallback_setting" || key == "model_fallback_setting.policies" {
+		normalizedValue, applyErr := model_setting.ApplyModelFallbackSettings(value)
+		if applyErr != nil {
+			return applyErr
+		}
+		common.OptionMap["model_fallback_setting"] = normalizedValue
+		delete(common.OptionMap, "model_fallback_setting.policies")
+		return nil
+	}
 	common.OptionMap[key] = value
 
 	// 检查是否是模型配置 - 使用更规范的方式处理
