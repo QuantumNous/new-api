@@ -149,7 +149,29 @@ func (s *CommissionService) ProcessCommission(req CommissionRequest) (*Commissio
 	affectedInviterIds := make(map[int]struct{})
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		for i, detail := range result.Details {
-			// 1. 创建返佣记录（幂等：使用 SourceKey 去重）
+			// 1. 行锁串行化同一邀请人（按 InviterID 升序处理避免死锁）
+			var inviter model.User
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Select("id").First(&inviter, detail.InviterID).Error; err != nil {
+				common.SysLog(fmt.Sprintf("行锁邀请人失败: inviter=%d, err=%v", detail.InviterID, err))
+				continue
+			}
+
+			// 2. 事务内复核限额（使用 tx 而非 model.DB）
+			// 从规则获取限额配置（需要从 Calculate 传递或重新获取）
+			rule, err := model.GetApplicableRule(req.ModelName, req.QuotaUsed)
+			if err == nil {
+				if !s.checkDailyLimitTx(tx, detail.InviterID, detail.CommissionQuota, rule.DailyLimit) {
+					common.SysLog(fmt.Sprintf("返佣每日限额(事务内): inviter=%d, commission=%d, limit=%d", detail.InviterID, detail.CommissionQuota, rule.DailyLimit))
+					continue
+				}
+				if !s.checkMonthlyLimitTx(tx, detail.InviterID, detail.CommissionQuota, rule.MonthlyLimit) {
+					common.SysLog(fmt.Sprintf("返佣每月限额(事务内): inviter=%d, commission=%d, limit=%d", detail.InviterID, detail.CommissionQuota, rule.MonthlyLimit))
+					continue
+				}
+			}
+
+			// 3. 创建返佣记录（幂等：使用 SourceKey 去重）
 			sourceKey := fmt.Sprintf("log:%d", req.LogID)
 			if req.OrderID != "" {
 				sourceKey = fmt.Sprintf("order:%s", req.OrderID)
@@ -182,7 +204,7 @@ func (s *CommissionService) ProcessCommission(req CommissionRequest) (*Commissio
 				continue
 			}
 
-			// 2. 实时结算到邀请人余额
+			// 4. 实时结算到邀请人余额
 			if err := tx.Model(&model.User{}).
 				Where("id = ?", detail.InviterID).
 				Updates(map[string]interface{}{
