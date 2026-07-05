@@ -340,6 +340,26 @@ type RecordConsumeLogParams struct {
 	Other            map[string]interface{} `json:"other"`
 }
 
+func logInfoIntValue(other map[string]interface{}, keys ...string) int {
+	for _, key := range keys {
+		value, ok := other[key]
+		if !ok {
+			continue
+		}
+		switch typedValue := value.(type) {
+		case int:
+			return typedValue
+		case int64:
+			return int(typedValue)
+		case float64:
+			return int(typedValue)
+		case float32:
+			return int(typedValue)
+		}
+	}
+	return 0
+}
+
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
 	if !common.LogConsumeEnabled {
 		return
@@ -388,17 +408,27 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
 	if common.DataExportEnabled {
+		cacheCreationTokens := logInfoIntValue(params.Other, "cache_write_tokens")
+		if cacheCreationTokens == 0 {
+			cacheCreationTokens = logInfoIntValue(params.Other, "cache_creation_tokens") +
+				logInfoIntValue(params.Other, "cache_creation_tokens_5m") +
+				logInfoIntValue(params.Other, "cache_creation_tokens_1h")
+		}
 		LogQuotaData(QuotaDataLogParams{
-			UserID:    userId,
-			Username:  username,
-			ModelName: params.ModelName,
-			Quota:     params.Quota,
-			CreatedAt: createdAt,
-			TokenUsed: params.PromptTokens + params.CompletionTokens,
-			UseGroup:  params.Group,
-			TokenID:   params.TokenId,
-			ChannelID: params.ChannelId,
-			NodeName:  common.NodeName,
+			UserID:              userId,
+			Username:            username,
+			ModelName:           params.ModelName,
+			Quota:               params.Quota,
+			CreatedAt:           createdAt,
+			TokenUsed:           params.PromptTokens + params.CompletionTokens,
+			UseGroup:            params.Group,
+			TokenID:             params.TokenId,
+			ChannelID:           params.ChannelId,
+			NodeName:            common.NodeName,
+			PromptTokens:        params.PromptTokens,
+			CompletionTokens:    params.CompletionTokens,
+			CacheTokens:         logInfoIntValue(params.Other, "cache_tokens"),
+			CacheCreationTokens: cacheCreationTokens,
 		})
 	}
 }
