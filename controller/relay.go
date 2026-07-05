@@ -290,6 +290,10 @@ func notifyOfficialFallbackResult(c *gin.Context, relayInfo *relaycommon.RelayIn
 	if c.Request != nil && c.Request.URL != nil {
 		requestPath = c.Request.URL.Path
 	}
+	userEmail := strings.TrimSpace(relayInfo.UserEmail)
+	if userEmail == "" {
+		userEmail = "-"
+	}
 	officialChannel := fmt.Sprintf("%d", c.GetInt("official_fallback_channel_id"))
 	if name := strings.TrimSpace(c.GetString("official_fallback_channel_name")); name != "" {
 		officialChannel = officialChannel + " / " + name
@@ -299,6 +303,7 @@ func notifyOfficialFallbackResult(c *gin.Context, relayInfo *relaycommon.RelayIn
 	lines := []string{
 		fmt.Sprintf("- request_id：`%s`", requestID),
 		fmt.Sprintf("- model：`%s`", relayInfo.OriginModelName),
+		fmt.Sprintf("- 邮箱：`%s`", userEmail),
 		fmt.Sprintf("- path：`%s`", requestPath),
 		fmt.Sprintf("- 链路：`%s`", useChannel),
 		fmt.Sprintf("- 官方兜底渠道：`%s`", officialChannel),
