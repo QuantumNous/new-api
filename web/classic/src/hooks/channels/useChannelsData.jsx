@@ -997,11 +997,29 @@ export const useChannelsData = () => {
       return;
     }
 
-    const models = currentTestChannel.models
+    let models = currentTestChannel.models
       .split(',')
       .filter((model) =>
         model.toLowerCase().includes(modelSearchKeyword.toLowerCase()),
       );
+
+    // 响应时间筛选
+    if (responseTimeFilter !== 'all') {
+      const getThreshold = (filter, customSec) => {
+        if (filter === 'custom') return Number(customSec) * 1000;
+        return Number(filter);
+      };
+      const maxMs = getThreshold(responseTimeFilter, customResponseTimeSec);
+      if (maxMs > 0) {
+        models = models.filter((model) => {
+          const r = modelTestResults[`${currentTestChannel.id}-${model}`];
+          if (!r) return true;
+          if (testingModels.has(model)) return true;
+          if (!r.success) return false;
+          return ((r.time || 0) * 1000) <= maxMs;
+        });
+      }
+    }
 
     if (models.length === 0) {
       showError(t('没有找到匹配的模型'));

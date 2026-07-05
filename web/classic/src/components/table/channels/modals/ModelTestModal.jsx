@@ -425,7 +425,12 @@ const ModelTestModal = ({
               </Typography.Text>
               <Select
                 value={responseTimeFilter}
-                onChange={(v) => { if (v !== null) setResponseTimeFilter(v); }}
+                onChange={(v) => {
+                  if (v !== null) {
+                    setResponseTimeFilter(v);
+                    setModelTablePage(1);
+                  }
+                }}
                 optionList={RESPONSE_TIME_FILTER_OPTIONS}
                 className='!w-44'
                 placeholder={t('全部')}
