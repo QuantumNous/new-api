@@ -27,7 +27,7 @@ import {
   BILLING_VAR_REGEX,
 } from '../constants';
 import { visit } from 'unist-util-visit';
-import * as LobeIcons from '@lobehub/icons';
+import * as LobeIcons from '@lobehub/icons/es/icons.js';
 import {
   OpenAI,
   Claude,
@@ -61,7 +61,7 @@ import {
   Jimeng,
   Perplexity,
   Replicate,
-} from '@lobehub/icons';
+} from '@lobehub/icons/es/icons.js';
 
 import {
   LayoutDashboard,
