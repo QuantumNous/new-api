@@ -396,7 +396,18 @@ func (user *User) Insert(inviterId int) error {
 	}
 	user.Quota = common.QuotaForNewUser
 	//user.SetAccessToken(common.GetUUID())
-	user.AffCode = common.GetRandomString(4)
+
+	// D4: 6位邀请码 + 重试查重（防碰撞）
+	for i := 0; i < 5; i++ {
+		code := common.GetRandomString(6)
+		if id, _ := GetUserIdByAffCode(code); id == 0 {
+			user.AffCode = code
+			break
+		}
+	}
+	if user.AffCode == "" {
+		user.AffCode = common.GetRandomString(6) // fallback
+	}
 
 	// 初始化用户设置，包括默认的边栏配置
 	if user.Setting == "" {
@@ -462,7 +473,18 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
-	user.AffCode = common.GetRandomString(4)
+
+	// D4: 6位邀请码 + 重试查重（防碰撞）
+	for i := 0; i < 5; i++ {
+		code := common.GetRandomString(6)
+		if id, _ := GetUserIdByAffCode(code); id == 0 {
+			user.AffCode = code
+			break
+		}
+	}
+	if user.AffCode == "" {
+		user.AffCode = common.GetRandomString(6) // fallback
+	}
 
 	// 初始化用户设置
 	if user.Setting == "" {

@@ -82,9 +82,9 @@ func GetUserCommissionLogs(c *gin.Context) {
 			username = maskUsername(user.Username)
 		}
 
+		// D3: 去掉消费者数字ID，防止枚举用户
 		items = append(items, map[string]interface{}{
 			"id":                log.Id,
-			"user_id":           log.UserID,
 			"username":          username,
 			"level":             log.Level,
 			"model_name":        log.ModelName,
@@ -267,30 +267,118 @@ func AdminCreateCommissionRule(c *gin.Context) {
 
 // AdminUpdateCommissionRule 更新返佣规则
 func AdminUpdateCommissionRule(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+	urlID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 
-	// 获取现有规则
-	rule, err := model.GetCommissionRuleById(id)
-	if err != nil {
-		common.ApiErrorI18n(c, i18n.MsgOperationFailed, map[string]any{"Error": "规则不存在"})
-		return
+	// D1: DTO 白名单，防止篡改 id/rule_code
+	var in struct {
+		RuleName         *string  `json:"rule_name"`
+		RuleType         *string  `json:"rule_type"`
+		Level1Rate       *float64 `json:"level1_rate"`
+		Level2Rate       *float64 `json:"level2_rate"`
+		Level3Rate       *float64 `json:"level3_rate"`
+		FixedAmount      *int     `json:"fixed_amount"`
+		MinConsumption   *int     `json:"min_consumption"`
+		MaxCommission    *int     `json:"max_commission"`
+		DailyLimit       *int     `json:"daily_limit"`
+		MonthlyLimit     *int     `json:"monthly_limit"`
+		ApplicableModels *string  `json:"applicable_models"`
+		ExcludedModels   *string  `json:"excluded_models"`
+		IsActive         *bool    `json:"is_active"`
+		Priority         *int     `json:"priority"`
 	}
 
-	// 绑定新数据
-	if err := c.ShouldBindJSON(rule); err != nil {
+	if err := c.ShouldBindJSON(&in); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 
-	if err := model.UpdateCommissionRule(rule); err != nil {
+	// 数值校验
+	if in.Level1Rate != nil && (*in.Level1Rate < 0 || *in.Level1Rate > 1) {
+		common.ApiErrorMsg(c, "level1_rate 必须在 [0, 1] 范围内")
+		return
+	}
+	if in.Level2Rate != nil && (*in.Level2Rate < 0 || *in.Level2Rate > 1) {
+		common.ApiErrorMsg(c, "level2_rate 必须在 [0, 1] 范围内")
+		return
+	}
+	if in.Level3Rate != nil && (*in.Level3Rate < 0 || *in.Level3Rate > 1) {
+		common.ApiErrorMsg(c, "level3_rate 必须在 [0, 1] 范围内")
+		return
+	}
+	if in.FixedAmount != nil && *in.FixedAmount < 0 {
+		common.ApiErrorMsg(c, "fixed_amount 必须 >= 0")
+		return
+	}
+	if in.DailyLimit != nil && *in.DailyLimit < 0 {
+		common.ApiErrorMsg(c, "daily_limit 必须 >= 0")
+		return
+	}
+	if in.MonthlyLimit != nil && *in.MonthlyLimit < 0 {
+		common.ApiErrorMsg(c, "monthly_limit 必须 >= 0")
+		return
+	}
+	if in.RuleType != nil && (*in.RuleType != "percentage" && *in.RuleType != "fixed" && *in.RuleType != "hybrid") {
+		common.ApiErrorMsg(c, "rule_type 必须为 percentage/fixed/hybrid")
+		return
+	}
+
+	// 组装 map，只放非 nil 字段
+	updates := make(map[string]interface{})
+	if in.RuleName != nil {
+		updates["rule_name"] = *in.RuleName
+	}
+	if in.RuleType != nil {
+		updates["rule_type"] = *in.RuleType
+	}
+	if in.Level1Rate != nil {
+		updates["level1_rate"] = *in.Level1Rate
+	}
+	if in.Level2Rate != nil {
+		updates["level2_rate"] = *in.Level2Rate
+	}
+	if in.Level3Rate != nil {
+		updates["level3_rate"] = *in.Level3Rate
+	}
+	if in.FixedAmount != nil {
+		updates["fixed_amount"] = *in.FixedAmount
+	}
+	if in.MinConsumption != nil {
+		updates["min_consumption"] = *in.MinConsumption
+	}
+	if in.MaxCommission != nil {
+		updates["max_commission"] = *in.MaxCommission
+	}
+	if in.DailyLimit != nil {
+		updates["daily_limit"] = *in.DailyLimit
+	}
+	if in.MonthlyLimit != nil {
+		updates["monthly_limit"] = *in.MonthlyLimit
+	}
+	if in.ApplicableModels != nil {
+		updates["applicable_models"] = *in.ApplicableModels
+	}
+	if in.ExcludedModels != nil {
+		updates["excluded_models"] = *in.ExcludedModels
+	}
+	if in.IsActive != nil {
+		updates["is_active"] = *in.IsActive
+	}
+	if in.Priority != nil {
+		updates["priority"] = *in.Priority
+	}
+
+	if err := model.DB.Model(&model.CommissionRule{}).
+		Where("id = ?", urlID).
+		Updates(updates).Error; err != nil {
 		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		return
 	}
 
+	rule, _ := model.GetCommissionRuleById(urlID)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": i18n.T(c, i18n.MsgOperationSuccess),
@@ -608,10 +696,31 @@ func AdminSettleCommission(c *gin.Context) {
 
 // ==================== 辅助函数 ====================
 
-// maskUsername 用户名脱敏
+// maskUsername 用户名脱敏（E2: rune安全，支持中文等多字节字符）
 func maskUsername(username string) string {
-	if len(username) <= 2 {
+	r := []rune(username)
+	if len(r) <= 2 {
 		return username + "***"
 	}
-	return username[:2] + "***"
+	return string(r[:2]) + "***"
+}
+
+// AdminDetectSuspicious 管理员检测用户可疑活动（B4）
+func AdminDetectSuspicious(c *gin.Context) {
+	userIDStr := c.Param("user_id")
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		common.ApiErrorMsg(c, "无效的用户ID")
+		return
+	}
+
+	suspicious, reasons := commissionService.Guard().DetectSuspiciousActivity(userID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": map[string]interface{}{
+			"suspicious": suspicious,
+			"reasons":    reasons,
+		},
+	})
 }

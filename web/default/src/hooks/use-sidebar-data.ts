@@ -33,10 +33,12 @@ import {
   User,
   Users,
   Wallet,
+  DollarSign,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ROLE } from '@/lib/roles'
 import { type SidebarData } from '@/components/layout/types'
+import { useCommissionConfig } from './use-commission-config'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -46,6 +48,29 @@ import { type SidebarData } from '@/components/layout/types'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const { enabled: commissionEnabled, loading: commissionLoading } = useCommissionConfig()
+
+  const personalItems = [
+    {
+      title: t('Wallet'),
+      url: '/wallet',
+      icon: Wallet,
+    },
+    {
+      title: t('Profile'),
+      url: '/profile',
+      icon: User,
+    },
+  ]
+
+  // D1: 只在返佣功能启用时显示返佣中心入口
+  if (commissionEnabled && !commissionLoading) {
+    personalItems.splice(1, 0, {
+      title: t('返佣中心'),
+      url: '/commission',
+      icon: DollarSign,
+    })
+  }
 
   return {
     navGroups: [
@@ -101,18 +126,7 @@ export function useSidebarData(): SidebarData {
       {
         id: 'personal',
         title: t('Personal'),
-        items: [
-          {
-            title: t('Wallet'),
-            url: '/wallet',
-            icon: Wallet,
-          },
-          {
-            title: t('Profile'),
-            url: '/profile',
-            icon: User,
-          },
-        ],
+        items: personalItems,
       },
       {
         id: 'admin',

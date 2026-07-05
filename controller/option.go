@@ -331,6 +331,21 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	// 返佣系统配置校验
+	case "CommissionMaxDailyInvites", "CommissionSameIPLimit":
+		// 必须是非负整数
+		if v, err := strconv.Atoi(option.Value.(string)); err != nil || v < 0 {
+			common.ApiErrorMsg(c, "该配置必须为非负整数")
+			return
+		}
+	case "CommissionEnabled":
+		// 开启返佣前必须存在至少一条启用的规则，否则开了也不生效，易造成误判
+		if option.Value == "true" {
+			if rules, err := model.GetAllCommissionRules(true); err != nil || len(rules) == 0 {
+				common.ApiErrorMsg(c, "无法启用返佣：请先在返佣规则中创建并启用至少一条规则")
+				return
+			}
+		}
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {

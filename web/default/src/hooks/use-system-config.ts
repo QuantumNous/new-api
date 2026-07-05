@@ -46,6 +46,8 @@ interface StatusApiResponse {
     usd_exchange_rate?: number
     custom_currency_symbol?: string
     custom_currency_exchange_rate?: number
+    commission_enabled?: boolean
+    commission_max_level?: number
   }
 }
 

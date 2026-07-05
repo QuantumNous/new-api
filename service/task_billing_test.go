@@ -46,9 +46,13 @@ func TestMain(m *testing.M) {
 		&model.UserSubscription{},
 		&model.SystemTask{},
 		&model.SystemTaskLock{},
+		&model.CommissionRule{},
+		&model.CommissionLog{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
+
+	common.CommissionEnabled = true
 
 	os.Exit(m.Run())
 }

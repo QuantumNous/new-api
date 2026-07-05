@@ -147,15 +147,17 @@ var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
 
-// 返佣系统配置
+// 返佣系统配置 —— 以下为代码默认值；运行时实际值由 Option 系统管理
+// (后台 PUT /api/option/ 或系统设置页修改，持久化于 options 表，重启不丢)
 var CommissionEnabled = false       // 是否启用返佣系统（默认关闭，由管理员显式开启）
 var CommissionRealTimeSettle = true // 是否实时结算
-var CommissionMaxLevel = 3          // 最大返佣层级
+var CommissionMaxLevel = 3          // 最大返佣层级（E1: 已接入 Option）
 
-// 防刷配置
+// 防刷配置 —— 以下为代码默认值；运行时实际值由 Option 系统管理
 var AntiSpamEnabled = true          // 是否启用防刷
 var MaxDailyInvites = 50            // 每日邀请上限
-var CommissionSameIPLimit = 5       // 同IP注册用户上限（超过则拒绝返佣）
+var CommissionSameIPLimit = 5       // 同IP+同邀请人注册用户上限（超过则拒绝返佣）
+var CommissionGlobalIPLimit = 10    // 同IP注册账号总数上限（不分邀请人，堵环形绕过）
 
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false

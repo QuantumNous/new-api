@@ -133,6 +133,14 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
+	// 返佣系统配置
+	common.OptionMap["CommissionEnabled"] = strconv.FormatBool(common.CommissionEnabled)
+	common.OptionMap["CommissionRealTimeSettleEnabled"] = strconv.FormatBool(common.CommissionRealTimeSettle)
+	common.OptionMap["CommissionMaxLevel"] = strconv.Itoa(common.CommissionMaxLevel)
+	common.OptionMap["CommissionAntiSpamEnabled"] = strconv.FormatBool(common.AntiSpamEnabled)
+	common.OptionMap["CommissionMaxDailyInvites"] = strconv.Itoa(common.MaxDailyInvites)
+	common.OptionMap["CommissionSameIPLimit"] = strconv.Itoa(common.CommissionSameIPLimit)
+	common.OptionMap["CommissionGlobalIPLimit"] = strconv.Itoa(common.CommissionGlobalIPLimit)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -364,6 +372,13 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
 			ratio_setting.SetExposeRatioEnabled(boolValue)
+		// 返佣系统配置（布尔）
+		case "CommissionEnabled":
+			common.CommissionEnabled = boolValue
+		case "CommissionRealTimeSettleEnabled":
+			common.CommissionRealTimeSettle = boolValue
+		case "CommissionAntiSpamEnabled":
+			common.AntiSpamEnabled = boolValue
 		}
 	}
 	switch key {
@@ -506,6 +521,15 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
+	// 返佣系统配置（整型）
+	case "CommissionMaxLevel":
+		common.CommissionMaxLevel, _ = strconv.Atoi(value)
+	case "CommissionMaxDailyInvites":
+		common.MaxDailyInvites, _ = strconv.Atoi(value)
+	case "CommissionSameIPLimit":
+		common.CommissionSameIPLimit, _ = strconv.Atoi(value)
+	case "CommissionGlobalIPLimit":
+		common.CommissionGlobalIPLimit, _ = strconv.Atoi(value)
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":

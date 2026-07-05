@@ -120,6 +120,10 @@ func GetStatus(c *gin.Context) {
 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+
+		// 返佣系统公开标志
+		"commission_enabled":    common.CommissionEnabled,
+		"commission_max_level":  common.CommissionMaxLevel,
 	}
 
 	// 根据启用状态注入可选内容

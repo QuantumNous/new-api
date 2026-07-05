@@ -40,3 +40,7 @@ skills-lock.json
 # Local-only live probes and scratch test workspaces.
 .local-tests/
 service/openaicompat/chat_responses_live_local_test.go
+
+# E7: 防止提交二进制和压缩包
+new-api-custom
+*.tar.gz

@@ -27,6 +27,11 @@ func NewCommissionService() *CommissionService {
 	}
 }
 
+// Guard 获取防刷守卫实例（B4: 暴露给controller使用）
+func (s *CommissionService) Guard() *CommissionGuard {
+	return s.guard
+}
+
 // CommissionRequest 返佣请求
 type CommissionRequest struct {
 	UserID    int    `json:"user_id"`    // 消费用户ID
@@ -53,8 +58,8 @@ type CommissionDetail struct {
 
 // CalculateCommission 计算返佣（不执行，仅计算）
 func (s *CommissionService) CalculateCommission(req CommissionRequest) (*CommissionResult, error) {
-	// 1. 查找用户的邀请链（最多3级）
-	inviterChain, err := s.getInviterChain(req.UserID, 3)
+	// E1: 使用可配置的最大返佣层级
+	inviterChain, err := s.getInviterChain(req.UserID, common.CommissionMaxLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -278,20 +283,46 @@ func (s *CommissionService) RefundCommission(logID int64) error {
 				continue // 只扣回已结算的
 			}
 
-			// 3. 扣除返佣金额（使用GREATEST防止负数）
-			if err := tx.Model(&model.User{}).
-				Where("id = ?", log.InviterID).
-				Updates(map[string]interface{}{
-					"quota":     gorm.Expr("GREATEST(0, quota - ?)", log.CommissionQuota),
-					"aff_quota": gorm.Expr("GREATEST(0, aff_quota - ?)", log.CommissionQuota),
-				}).Error; err != nil {
+			// 3. 先抢状态：条件更新 settled → refunded（并发安全）
+			res := tx.Model(&model.CommissionLog{}).
+				Where("id = ? AND status = ?", log.Id, "settled").
+				Update("status", "refunded")
+			if res.Error != nil {
+				return res.Error
+			}
+			if res.RowsAffected == 0 {
+				continue // 已被并发退款处理，跳过扣钱
+			}
+
+			// 4. 扣除返佣金额（行锁读取 → Go侧min → 普通UPDATE，SQLite兼容）
+			// C1: 同时扣减 aff_history（报表口径修正）
+			var inviter model.User
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Select("quota, aff_quota, aff_history").First(&inviter, log.InviterID).Error; err != nil {
 				return err
 			}
 
-			// 4. 更新返佣记录状态
-			if err := tx.Model(&model.CommissionLog{}).
-				Where("id = ?", log.Id).
-				Update("status", "refunded").Error; err != nil {
+			// 计算新余额（防止负数）
+			newQuota := inviter.Quota - log.CommissionQuota
+			if newQuota < 0 {
+				newQuota = 0
+			}
+			newAffQuota := inviter.AffQuota - log.CommissionQuota
+			if newAffQuota < 0 {
+				newAffQuota = 0
+			}
+			newAffHistory := inviter.AffHistoryQuota - log.CommissionQuota
+			if newAffHistory < 0 {
+				newAffHistory = 0
+			}
+
+			if err := tx.Model(&model.User{}).
+				Where("id = ?", log.InviterID).
+				Updates(map[string]interface{}{
+					"quota":          newQuota,
+					"aff_quota":      newAffQuota,
+					"aff_history":    newAffHistory,
+				}).Error; err != nil {
 				return err
 			}
 
@@ -357,16 +388,18 @@ func (s *CommissionService) getInviterChain(userID int, maxLevel int) ([]int, er
 	return chain, nil
 }
 
-// checkDailyLimitTx 事务内检查每日限额（使用 tx 查询，Unix 秒范围）
+// checkDailyLimitTx 事务内检查每日限额（使用 tx 查询，time.Time 范围）
+// 注意：commission_logs.created_at 是 time.Time 类型，必须用 time.Time 参数比较
+// （users.created_at 才是 Unix 秒，两者不可混淆）
 func (s *CommissionService) checkDailyLimitTx(tx *gorm.DB, inviterID int, newCommission int, dailyLimit int) bool {
 	if dailyLimit <= 0 {
 		return true // 不限制
 	}
 
-	// 计算今日已返佣总额（Unix 秒范围）
+	// 计算今日已返佣总额（time.Time 范围，适配 datetime 列）
 	now := time.Now()
-	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix()
-	dayEnd := dayStart + 86400
+	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()) // 不要 .Unix()
+	dayEnd := dayStart.Add(24 * time.Hour)                                                 // 替代 dayStart + 86400
 
 	var totalToday int64
 	err := tx.Model(&model.CommissionLog{}).
@@ -382,15 +415,16 @@ func (s *CommissionService) checkDailyLimitTx(tx *gorm.DB, inviterID int, newCom
 	return int(totalToday)+newCommission <= dailyLimit
 }
 
-// checkMonthlyLimitTx 事务内检查每月限额（使用 tx 查询，Unix 秒范围）
+// checkMonthlyLimitTx 事务内检查每月限额（使用 tx 查询，time.Time 范围）
+// 注意：commission_logs.created_at 是 time.Time 类型，必须用 time.Time 参数比较
 func (s *CommissionService) checkMonthlyLimitTx(tx *gorm.DB, inviterID int, newCommission int, monthlyLimit int) bool {
 	if monthlyLimit <= 0 {
 		return true // 不限制
 	}
 
-	// 计算本月已返佣总额（Unix 秒范围）
+	// 计算本月已返佣总额（time.Time 范围，适配 datetime 列）
 	now := time.Now()
-	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Unix()
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()) // 不要 .Unix()
 
 	var totalMonth int64
 	err := tx.Model(&model.CommissionLog{}).

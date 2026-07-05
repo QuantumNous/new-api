@@ -3,7 +3,6 @@ package service
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -12,34 +11,12 @@ import (
 
 // CommissionGuard 返佣防刷守卫
 type CommissionGuard struct {
-	// IP和设备追踪
-	ipTracker     map[string]*IPRecord
-	deviceTracker map[string]*DeviceRecord
-	mu            sync.RWMutex
-}
-
-// IPRecord IP记录
-type IPRecord struct {
-	IP          string
-	UserIDs     map[int]bool
-	LastInvite  time.Time
-	InviteCount int
-}
-
-// DeviceRecord 设备记录
-type DeviceRecord struct {
-	DeviceID    string
-	UserIDs     map[int]bool
-	LastInvite  time.Time
-	InviteCount int
+	// B3: 死掉的内存追踪器已删除，改为直接查库
 }
 
 // NewCommissionGuard 创建防刷守卫实例
 func NewCommissionGuard() *CommissionGuard {
-	return &CommissionGuard{
-		ipTracker:     make(map[string]*IPRecord),
-		deviceTracker: make(map[string]*DeviceRecord),
-	}
+	return &CommissionGuard{}
 }
 
 // PreCheck 返佣前检查
@@ -156,67 +133,45 @@ func (g *CommissionGuard) checkSameIPDevice(userID int, inviterID int) error {
 		return fmt.Errorf("同IP注册用户数过多(%d)，疑似刷单", count)
 	}
 
+	// 全局:同 IP 注册的账号总数(不分邀请人，堵环形绕过)
+	var globalCount int64
+	if err := model.DB.Model(&model.User{}).
+		Where("register_ip = ? AND register_ip != ''", currentUser.RegisterIP).
+		Count(&globalCount).Error; err == nil {
+		if globalCount > int64(common.CommissionGlobalIPLimit) {
+			return fmt.Errorf("同IP注册账号总数过多(%d)，疑似刷单", globalCount)
+		}
+	}
+
 	return nil
 }
 
-// RecordIPDevice 记录IP和设备信息（在注册/登录时调用）
-// 已废弃：IP信息改为持久化到 users.register_ip 字段，此函数保留仅为兼容
-func (g *CommissionGuard) RecordIPDevice(userID int, ip string, deviceID string) {
-	// 实际应该在注册时更新 users 表的 register_ip 字段
-	// 示例：model.DB.Model(&model.User{}).Where("id = ?", userID).Update("register_ip", ip)
-	// 此处暂不实现，待集成到注册流程
-}
-
-// CleanupExpiredRecords 清理过期记录（定期调用）
-func (g *CommissionGuard) CleanupExpiredRecords() {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	expireTime := time.Now().Add(-24 * time.Hour) // 保留24小时
-
-	// 清理IP记录
-	for key, record := range g.ipTracker {
-		if record.LastInvite.Before(expireTime) {
-			delete(g.ipTracker, key)
-		}
-	}
-
-	// 清理设备记录
-	for key, record := range g.deviceTracker {
-		if record.LastInvite.Before(expireTime) {
-			delete(g.deviceTracker, key)
-		}
-	}
-}
-
-// GetUserIPStats 获取用户IP统计（用于管理后台）
+// GetUserIPStats 获取用户IP统计（B3: 改为查库实现）
 func (g *CommissionGuard) GetUserIPStats(userID int) map[string]interface{} {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-
 	stats := make(map[string]interface{})
 
-	// 查找用户关联的IP
-	ips := make([]string, 0)
-	for _, record := range g.ipTracker {
-		if record.UserIDs[userID] {
-			ips = append(ips, record.IP)
-		}
+	// 查询用户的 register_ip
+	var user model.User
+	if err := model.DB.Select("register_ip").First(&user, userID).Error; err != nil {
+		stats["register_ip"] = ""
+		stats["same_ip_count"] = 0
+		return stats
 	}
 
-	// 查找用户关联的设备
-	devices := make([]string, 0)
-	for _, record := range g.deviceTracker {
-		if record.UserIDs[userID] {
-			devices = append(devices, record.DeviceID)
-		}
+	stats["register_ip"] = user.RegisterIP
+
+	if user.RegisterIP == "" {
+		stats["same_ip_count"] = 0
+		return stats
 	}
 
-	stats["ips"] = ips
-	stats["devices"] = devices
-	stats["ip_count"] = len(ips)
-	stats["device_count"] = len(devices)
+	// 查询同IP用户数
+	var count int64
+	model.DB.Model(&model.User{}).
+		Where("register_ip = ?", user.RegisterIP).
+		Count(&count)
 
+	stats["same_ip_count"] = count
 	return stats
 }
 
@@ -253,13 +208,16 @@ func (g *CommissionGuard) DetectSuspiciousActivity(userID int) (bool, []string) 
 		}
 	}
 
-	// 3. 检查IP聚集
-	g.mu.RLock()
-	defer g.mu.RUnlock()
+	// 3. 检查IP聚集（B3: 改为查库实现）
+	var user model.User
+	if err := model.DB.Select("register_ip").First(&user, userID).Error; err == nil && user.RegisterIP != "" {
+		var ipCount int64
+		model.DB.Model(&model.User{}).
+			Where("register_ip = ?", user.RegisterIP).
+			Count(&ipCount)
 
-	for _, record := range g.ipTracker {
-		if record.UserIDs[userID] && len(record.UserIDs) > 5 {
-			reasons = append(reasons, fmt.Sprintf("IP %s 关联%d个用户", record.IP, len(record.UserIDs)))
+		if ipCount > 5 {
+			reasons = append(reasons, fmt.Sprintf("IP %s 关联%d个用户", user.RegisterIP, ipCount))
 		}
 	}
 

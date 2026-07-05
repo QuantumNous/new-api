@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Share2 } from 'lucide-react'
+import { Share2, DollarSign } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CopyButton } from '@/components/copy-button'
+import { useCommissionConfig } from '@/hooks/use-commission-config'
 import type { UserWalletData } from '../types'
 
 interface AffiliateRewardsCardProps {
@@ -42,7 +43,9 @@ export function AffiliateRewardsCard({
   loading,
 }: AffiliateRewardsCardProps) {
   const { t } = useTranslation()
-  if (loading) {
+  const { enabled: commissionEnabled, loading: configLoading } = useCommissionConfig()
+
+  if (loading || configLoading) {
     return (
       <Card data-card-hover='false' className='bg-muted/20 py-0'>
         <CardContent className='grid gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,0.72fr)_minmax(320px,1.15fr)] lg:items-center'>
@@ -59,6 +62,70 @@ export function AffiliateRewardsCard({
 
   const hasRewards = (user?.aff_quota ?? 0) > 0
 
+  // D3: 返佣功能开启时显示返佣数据模式，否则显示经典模式
+  if (commissionEnabled) {
+    return (
+      <Card data-card-hover='false' className='bg-muted/20 py-0'>
+        <CardContent className='grid gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-[minmax(200px,1fr)_minmax(180px,0.65fr)_minmax(280px,1fr)] lg:items-center'>
+          <div className='flex min-w-0 items-center gap-2.5'>
+            <div className='bg-background flex size-8 shrink-0 items-center justify-center rounded-lg border'>
+              <DollarSign className='text-muted-foreground size-4' />
+            </div>
+            <div className='min-w-0'>
+              <h3 className='truncate text-sm font-semibold'>
+                {t('消费返佣')}
+              </h3>
+              <p className='text-muted-foreground line-clamp-1 text-xs'>
+                {t('邀请好友消费，获取返佣收益。前往返佣中心查看详情。')}
+              </p>
+            </div>
+          </div>
+
+          <div className='grid grid-cols-2 gap-1.5 text-center'>
+            {[
+              [t('待结算'), formatQuota(user?.aff_quota ?? 0)],
+              [t('累计收益'), formatQuota(user?.aff_history_quota ?? 0)],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <div className='text-muted-foreground truncate text-[10px] font-medium tracking-wider uppercase'>
+                  {label}
+                </div>
+                <div className='mt-0.5 truncate text-sm font-semibold tabular-nums'>
+                  {value}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className='flex items-center gap-2'>
+            <Input
+              value={affiliateLink}
+              readOnly
+              className='border-muted bg-background/70 h-9 min-w-0 flex-1 font-mono text-xs'
+            />
+            <CopyButton
+              value={affiliateLink}
+              variant='outline'
+              className='bg-background size-9 shrink-0'
+              iconClassName='size-4'
+              tooltip={t('Copy referral link')}
+              aria-label={t('Copy referral link')}
+            />
+            <Button
+              variant="outline"
+              className='h-9 shrink-0 px-3'
+              size='sm'
+              onClick={() => window.location.href = '/commission'}
+            >
+              {t('返佣中心')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // 经典模式：邀请链接 + 邀请额度 + 划转按钮
   return (
     <Card data-card-hover='false' className='bg-muted/20 py-0'>
       <CardContent className='grid gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-[minmax(200px,1fr)_minmax(180px,0.65fr)_minmax(280px,1fr)] lg:items-center'>

@@ -36,9 +36,9 @@ type CommissionLog struct {
 	UpdatedAt        time.Time      `json:"updated_at"`
 	DeletedAt        gorm.DeletedAt `json:"-" gorm:"index"`
 
-	// 关联
-	User             User           `json:"user,omitempty" gorm:"foreignKey:UserID"`
-	Inviter          User           `json:"inviter,omitempty" gorm:"foreignKey:InviterID"`
+	// D2: 关联字段不序列化，防止泄露敏感信息
+	User             User           `json:"-" gorm:"foreignKey:UserID"`
+	Inviter          User           `json:"-" gorm:"foreignKey:InviterID"`
 }
 
 func (CommissionLog) TableName() string {
