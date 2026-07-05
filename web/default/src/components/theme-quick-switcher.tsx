@@ -19,9 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { Monitor, Sun, MoonStar } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
-import { useTheme } from '@/context/theme-provider'
+
 import { Button } from '@/components/ui/button'
+import { useTheme } from '@/context/theme-provider'
+import { cn } from '@/lib/utils'
 
 export function ThemeQuickSwitcher() {
   const { t } = useTranslation()

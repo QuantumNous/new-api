@@ -20,6 +20,7 @@ import { NavigationMenu as NavigationMenuPrimitive } from '@base-ui/react/naviga
 import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { cva } from 'class-variance-authority'
+
 import { cn } from '@/lib/utils'
 
 function NavigationMenu({
