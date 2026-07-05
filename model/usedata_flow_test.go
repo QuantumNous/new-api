@@ -1,10 +1,12 @@
 package model
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func seedFlowQuotaData(t *testing.T, quotaData QuotaData) {
@@ -132,6 +134,30 @@ func TestGetFlowQuotaDataUsesQuotaDataRoleSpecificDimensions(t *testing.T) {
 	require.Equal(t, int64(175), selfRows[0].Quota)
 }
 
+func TestQuotaDataIdentityQueryOnlyScansID(t *testing.T) {
+	sql := DB.ToSQL(func(tx *gorm.DB) *gorm.DB {
+		var row struct {
+			Id int `gorm:"column:id"`
+		}
+		return quotaDataIdentityQuery(tx, &QuotaData{
+			UserID:    1,
+			Username:  "alice",
+			ModelName: "gpt-a",
+			CreatedAt: 3600,
+			UseGroup:  "vip",
+			TokenID:   11,
+			ChannelID: 1,
+			NodeName:  "node-a",
+		}).First(&row)
+	})
+
+	normalizedSQL := strings.ToLower(sql)
+	require.Contains(t, normalizedSQL, "select `id`")
+	require.NotContains(t, normalizedSQL, "`quota`")
+	require.NotContains(t, normalizedSQL, "`count`")
+	require.NotContains(t, normalizedSQL, "`token_used`")
+}
+
 func TestLogQuotaDataSplitsRowsByUseGroupTokenChannelAndNode(t *testing.T) {
 	truncateTables(t)
 	CacheQuotaDataLock.Lock()
@@ -185,9 +211,9 @@ func TestLogQuotaDataSplitsRowsByUseGroupTokenChannelAndNode(t *testing.T) {
 	require.Equal(t, 11, rows[0].TokenID)
 	require.Equal(t, 1, rows[0].ChannelID)
 	require.Equal(t, "node-a", rows[0].NodeName)
-	require.Equal(t, int64(2), rows[0].Count)
-	require.Equal(t, int64(150), rows[0].Quota)
-	require.Equal(t, int64(60), rows[0].TokenUsed)
+	require.Equal(t, 2, rows[0].Count)
+	require.Equal(t, 150, rows[0].Quota)
+	require.Equal(t, 60, rows[0].TokenUsed)
 	require.Equal(t, "default", rows[1].UseGroup)
-	require.Equal(t, int64(25), rows[1].Quota)
+	require.Equal(t, 25, rows[1].Quota)
 }
