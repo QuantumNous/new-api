@@ -606,6 +606,11 @@ func evaluateRetry(c *gin.Context, openaiErr *types.NewAPIError, retryIndex int,
 	}
 	decision.StatusCode = openaiErr.StatusCode
 	decision.ErrorCode = string(openaiErr.GetErrorCode())
+	if c != nil && c.Request != nil && c.Request.Context().Err() != nil {
+		// 客户端已断开：重试的结果无人接收，直接放弃
+		decision.Reason = "client_canceled"
+		return decision
+	}
 	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		decision.Reason = "channel_affinity_skip_retry"
 		return decision
@@ -826,6 +831,11 @@ func taskRetryDecisionToMap(decision taskRetryDecision) map[string]interface{} {
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
+	if c.Request != nil && c.Request.Context().Err() != nil {
+		// 客户端已断开导致的上游请求取消不是渠道故障：不计健康统计、不触发禁用、不记错误日志
+		logger.LogError(c, fmt.Sprintf("skip channel error accounting, client gone (channel #%d): %s", channelError.ChannelId, err.Error()))
+		return
+	}
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, err.Error()))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
