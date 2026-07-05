@@ -62,6 +62,23 @@ func SearchTokens(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+// SearchAllTokens 管理员全局搜索所有用户的 API KEY。
+func SearchAllTokens(c *gin.Context) {
+	keyword := c.Query("keyword")
+	token := c.Query("token")
+
+	pageInfo := common.GetPageQuery(c)
+
+	tokens, total, err := model.SearchAllTokens(keyword, token, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
+	common.ApiSuccess(c, pageInfo)
+}
+
 func GetToken(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	userId := c.GetInt("id")
