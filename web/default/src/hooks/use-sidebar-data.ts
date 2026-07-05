@@ -1,78 +1,40 @@
-/*
-Copyright (C) 2023-2026 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
 import {
-  Activity,
-  Box,
-  CreditCard,
-  FileText,
-  FlaskConical,
-  Key,
   LayoutDashboard,
-  ListTodo,
-  MessageSquare,
-  Radio,
-  ServerCog,
-  Settings,
+  Activity,
+  Key,
+  FileText,
+  Share2,
+  Wallet,
+  Box,
+  Users,
   Ticket,
   User,
-  Users,
-  Wallet,
-  DollarSign,
+  Command,
+  Radio,
+  FlaskConical,
+  MessageSquare,
+  CreditCard,
+  ListTodo,
+  Settings,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { ROLE } from '@/lib/roles'
+import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
-import { useCommissionConfig } from './use-commission-config'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
-/**
- * Root navigation groups for the application sidebar.
- *
- * These are shown when the URL does not match any nested sidebar view
- * registered in `layout/lib/sidebar-view-registry.ts`.
- */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
-  const { enabled: commissionEnabled, loading: commissionLoading } = useCommissionConfig()
-
-  const personalItems = [
-    {
-      title: t('Wallet'),
-      url: '/wallet',
-      icon: Wallet,
-    },
-    {
-      title: t('Profile'),
-      url: '/profile',
-      icon: User,
-    },
-  ]
-
-  // D1: 只在返佣功能启用时显示返佣中心入口
-  if (commissionEnabled && !commissionLoading) {
-    personalItems.splice(1, 0, {
-      title: t('返佣中心'),
-      url: '/commission',
-      icon: DollarSign,
-    })
-  }
+  const commissionEnabled = useSystemConfigStore((state) => state.config.commissionEnabled)
 
   return {
+    workspaces: [
+      {
+        id: WORKSPACE_IDS.DEFAULT,
+        name: '', // Dynamically fetches system name
+        logo: Command,
+        plan: '', // Dynamically fetches system version
+      },
+    ],
     navGroups: [
       {
         id: 'chat',
@@ -126,7 +88,21 @@ export function useSidebarData(): SidebarData {
       {
         id: 'personal',
         title: t('Personal'),
-        items: personalItems,
+        items: [
+          {
+            title: t('Wallet'),
+            url: '/wallet',
+            icon: Wallet,
+          },
+          ...(commissionEnabled
+            ? [{ title: t('返佣中心'), url: '/commission', icon: Share2 }]
+            : []),
+          {
+            title: t('Profile'),
+            url: '/profile',
+            icon: User,
+          },
+        ],
       },
       {
         id: 'admin',
@@ -153,15 +129,9 @@ export function useSidebarData(): SidebarData {
             icon: Ticket,
           },
           {
-            title: t('Subscriptions'),
+            title: t('Subscription Management'),
             url: '/subscriptions',
             icon: CreditCard,
-          },
-          {
-            title: t('System Info'),
-            url: '/system-info',
-            icon: ServerCog,
-            requiredRole: ROLE.SUPER_ADMIN,
           },
           {
             title: t('System Settings'),

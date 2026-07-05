@@ -1,105 +1,71 @@
-/*
-Copyright (C) 2023-2026 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useCommissionConfig } from '@/hooks/use-commission-config'
-import { DollarSign, Users, TrendingUp } from 'lucide-react'
+import { toast } from 'sonner'
+import { getSelf } from '@/lib/api'
+import { SectionPageLayout } from '@/components/layout'
+import { useSystemConfigStore } from '@/stores/system-config-store'
+import { CommissionOverviewCard } from './components/commission-overview-card'
+import { CommissionLogsTable } from './components/commission-logs-table'
+import { CommissionStatsPanel } from './components/commission-stats-panel'
+import { CommissionTransferDialog } from './components/commission-transfer-dialog'
+import { getCommissionInfo, transferCommission } from './api'
+import { generateAffiliateLink } from '../wallet/lib'
+import type { CommissionInfo } from './types'
 
-export function CommissionPage() {
+export function Commission() {
   const { t } = useTranslation()
-  const { enabled, maxLevel, loading } = useCommissionConfig()
+  const maxLevel = useSystemConfigStore((state) => state.config.commissionMaxLevel ?? 3)
+  const [info, setInfo] = useState<CommissionInfo | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [transferring, setTransferring] = useState(false)
+  const [affiliateLink, setAffiliateLink] = useState('')
 
-  if (loading) {
-    return <div>Loading...</div>
-  }
+  const fetchInfo = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await getCommissionInfo()
+      if (res.success && res.data) {
+        setInfo(res.data)
+        if (res.data.aff_code) setAffiliateLink(generateAffiliateLink(res.data.aff_code))
+      }
+    } catch { /* handled */ } finally { setLoading(false) }
+  }, [])
 
-  if (!enabled) {
-    return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground">{t('返佣功能未开启')}</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
+  useEffect(() => { fetchInfo() }, [fetchInfo])
+
+  const handleTransfer = async (amount: number): Promise<boolean> => {
+    try {
+      setTransferring(true)
+      const res = await transferCommission({ quota: amount })
+      if (res.success) {
+        toast.success(res.message || t('转入成功'))
+        await getSelf()
+        await fetchInfo()
+        return true
+      }
+      toast.error(res.message || t('转入失败'))
+      return false
+    } catch { toast.error(t('转入失败')); return false }
+    finally { setTransferring(false) }
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <h1 className="text-3xl font-bold">{t('返佣中心')}</h1>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              {t('返佣层级')}
-            </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{maxLevel}级</div>
-            <p className="text-xs text-muted-foreground">
-              {t('最多支持多级返佣')}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              {t('待结算')}
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">--</div>
-            <p className="text-xs text-muted-foreground">
-              {t('待管理员结算')}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              {t('累计收益')}
-            </CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">--</div>
-            <p className="text-xs text-muted-foreground">
-              {t('历史总收益')}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('返佣明细')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">{t('暂无数据')}</p>
-        </CardContent>
-      </Card>
-    </div>
+    <>
+      <SectionPageLayout>
+        <SectionPageLayout.Title>{t('返佣中心')}</SectionPageLayout.Title>
+        <SectionPageLayout.Description>{t('查看返佣收益、邀请明细与统计数据')}</SectionPageLayout.Description>
+        <SectionPageLayout.Content>
+          <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
+            <CommissionOverviewCard info={info} affiliateLink={affiliateLink} loading={loading} />
+            <div className='grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)] xl:items-start'>
+              <CommissionLogsTable />
+              <CommissionStatsPanel maxLevel={maxLevel} />
+            </div>
+          </div>
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
+      <CommissionTransferDialog open={transferOpen} onOpenChange={setTransferOpen} onConfirm={handleTransfer} availableQuota={info?.aff_quota ?? 0} transferring={transferring} />
+    </>
   )
 }
