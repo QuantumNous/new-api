@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 
 import type {
+  ChannelQuotaReportItem,
   FlowQuotaDataItem,
   QuotaDataItem,
   UptimeGroupResult,
@@ -63,6 +64,17 @@ export async function getUserQuotaDataByUsers(params: {
     '/api/data/users',
     { params }
   )
+  return res.data
+}
+
+export async function getChannelQuotaReportData(params: {
+  start_timestamp: number
+  end_timestamp: number
+}) {
+  const res = await api.get<{
+    success: boolean
+    data: ChannelQuotaReportItem[]
+  }>('/api/data/channels', { params })
   return res.data
 }
 

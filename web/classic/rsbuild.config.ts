@@ -1,6 +1,7 @@
 import path from 'path'
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
+import fs from 'fs'
 import { defineConfig, loadEnv } from '@rsbuild/core'
 import { pluginReact } from '@rsbuild/plugin-react'
 
@@ -10,9 +11,25 @@ const semiUiDir = path.resolve(
   path.dirname(require.resolve('@douyinfe/semi-ui')),
   '../..',
 )
-const semiDateFnsDir = path.resolve(
-  semiUiDir,
-  '../semi-foundation/node_modules/date-fns',
+function findPackageDir(entryFile: string): string {
+  let current = path.dirname(entryFile)
+  while (current !== path.dirname(current)) {
+    if (fs.existsSync(path.join(current, 'package.json'))) return current
+    current = path.dirname(current)
+  }
+  return path.dirname(entryFile)
+}
+
+const semiFoundationDir = findPackageDir(
+  require.resolve('@douyinfe/semi-foundation'),
+)
+const dateFnsAliasCandidates = [
+  path.resolve(semiUiDir, 'node_modules/date-fns'),
+  path.resolve(semiFoundationDir, 'node_modules/date-fns'),
+  path.resolve(semiUiDir, '../semi-foundation/node_modules/date-fns'),
+]
+const semiDateFnsDir = dateFnsAliasCandidates.find((candidate) =>
+  fs.existsSync(candidate),
 )
 
 export default defineConfig(({ envMode }) => {
@@ -51,7 +68,7 @@ export default defineConfig(({ envMode }) => {
           semiUiDir,
           'dist/css/semi.css',
         ),
-        'date-fns': semiDateFnsDir,
+        ...(semiDateFnsDir ? { 'date-fns': semiDateFnsDir } : {}),
       },
     },
     html: {
