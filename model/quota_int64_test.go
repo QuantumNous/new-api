@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,11 +25,11 @@ func TestGetUserByIdSupportsLargeQuotaValue(t *testing.T) {
 
 	readBack, err := GetUserById(userID, false)
 	require.NoError(t, err)
-	require.Equal(t, largeQuota, readBack.Quota)
+	assert.Equal(t, largeQuota, readBack.Quota)
 
 	quota, err := GetUserQuota(userID, true)
 	require.NoError(t, err)
-	require.Equal(t, common.SafeInt64ToInt(largeQuota), quota)
+	assert.Equal(t, common.SafeInt64ToInt(largeQuota), quota)
 }
 
 func TestGetTokenByIdSupportsLargeQuotaValue(t *testing.T) {
@@ -61,6 +62,6 @@ func TestGetTokenByIdSupportsLargeQuotaValue(t *testing.T) {
 
 	readBack, err := GetTokenById(tokenID)
 	require.NoError(t, err)
-	require.Equal(t, largeQuota, readBack.RemainQuota)
-	require.Equal(t, largeQuota, readBack.UsedQuota)
+	assert.Equal(t, largeQuota, readBack.RemainQuota)
+	assert.Equal(t, largeQuota, readBack.UsedQuota)
 }
