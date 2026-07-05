@@ -144,6 +144,16 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models exposed by this channel',
     },
   },
+  59: {
+    id: 59,
+    name: CHANNEL_TYPES[59],
+    icon: 'openai',
+    hints: {
+      baseUrl: 'vLLM instance base URL (e.g. http://host:8000)',
+      key: 'API key (use any string if auth disabled)',
+      models: 'Models served by this vLLM instance',
+    },
+  },
 }
 
 /**
