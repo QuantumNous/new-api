@@ -21,6 +21,9 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/setup", controller.GetSetup)
 		apiRouter.POST("/setup", controller.PostSetup)
 		apiRouter.GET("/status", controller.GetStatus)
+		// 渠道定价只读导出（下游 Roma 部署定时拉取；X-Pricing-Export-Secret 认证，
+		// 未配置 PRICING_EXPORT_SECRET 时返回 404）
+		apiRouter.GET("/internal/pricing-export", controller.PricingExport)
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)

@@ -22,6 +22,17 @@ location ^~ /_panel/ {
 
 ---
 
+## 定价导出 API（2026-07-05，供 Roma 部署同步）
+
+`GET /api/internal/pricing-export`（`controller/pricing_export.go`）：只读导出全部渠道的
+`recharge_rate`/`apimaster_price_ratio` 与 `channel_model_pricings` 全量数据，Roma 部署
+（romaapi.com，与本部署共用同一批上游渠道账号）每分钟拉取一次做 auto-cheapest 选路。
+认证：请求头 `X-Pricing-Export-Secret` == 环境变量 `PRICING_EXPORT_SECRET`；未配置该
+env 时接口返回 404（视为关闭）。渠道 key 不外发原文，只导出 SHA-256 哈希，Roma 侧用
+哈希把 Master channel_id 映射为它本库的渠道 ID。
+
+---
+
 ## 多渠道 Fallback 策略（2026-06-27）
 
 APIMaster 是多渠道路由架构，单渠道失败应尽量 fallback 到下一个，与上游 new-api 默认行为有差异。
