@@ -322,6 +322,9 @@ func notifyFinalRelayFailure(c *gin.Context, relayInfo *relaycommon.RelayInfo, f
 	if c == nil || relayInfo == nil || finalErr == nil {
 		return
 	}
+	if shouldSuppressFinalFailureNotification(relayInfo.OriginModelName) {
+		return
+	}
 	if c.GetBool("final_failure_notified") {
 		return
 	}
@@ -375,6 +378,10 @@ func notifyFinalRelayFailure(c *gin.Context, relayInfo *relaycommon.RelayInfo, f
 			logger.LogError(context.Background(), fmt.Sprintf("failed to send final failure feishu notification: %s", err.Error()))
 		}
 	})
+}
+
+func shouldSuppressFinalFailureNotification(modelName string) bool {
+	return strings.EqualFold(strings.TrimSpace(modelName), "gpt-5.4-mini")
 }
 
 func explainRelayFailure(err *types.NewAPIError) string {
