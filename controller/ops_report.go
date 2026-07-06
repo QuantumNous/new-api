@@ -175,6 +175,7 @@ type opsUserAgg struct {
 	keyword    string
 	lng        string
 	landing    string
+	referrer   string
 	matchType  string
 	paidOrders []*model.OpsTopUp
 	hasIntent  bool
@@ -308,6 +309,7 @@ func parseOpsAttribution(a *opsUserAgg) {
 	}
 	a.lng = str("lng")
 	a.landing = str("landing_path")
+	a.referrer = str("referrer")
 	a.matchType = str("hsa_mt")
 }
 

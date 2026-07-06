@@ -420,6 +420,10 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
             <TableHead>{t('Billing Country')}</TableHead>
             <TableHead>{t('Payment Methods Shown')}</TableHead>
             <TableHead>{t('Campaign')}</TableHead>
+            <TableHead>{t('Languages')}</TableHead>
+            <TableHead>{t('Region')}</TableHead>
+            <TableHead>{t('Landing Pages')}</TableHead>
+            <TableHead className='text-right'>{t('Balance')}</TableHead>
             <TableHead className='text-right'>{t('Requests')}</TableHead>
             <TableHead className='text-right'>{t('Consumed')}</TableHead>
           </TableRow>
@@ -431,10 +435,22 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
                 {formatTimestamp(row.last_at)}
               </TableCell>
               <TableCell className='whitespace-nowrap'>
-                {row.email}{' '}
-                <span className='text-muted-foreground text-xs'>
-                  #{row.user_id}
-                </span>
+                <div>
+                  {row.email}{' '}
+                  <span className='text-muted-foreground text-xs'>
+                    #{row.user_id}
+                  </span>
+                </div>
+                <div className='text-muted-foreground text-xs'>
+                  {[
+                    row.display_name,
+                    ...(row.billing_names ?? []),
+                    row.signup_method,
+                    formatTimestamp(row.registered_at).split(',')[0],
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
               </TableCell>
               <TableCell className='whitespace-nowrap'>
                 <StripePersonStatus status={row.status} />
@@ -491,6 +507,41 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
                     {row.keyword}
                   </span>
                 )}
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {[...(row.locales ?? []), row.lng]
+                  .filter(Boolean)
+                  .filter((v, i, arr) => arr.indexOf(v) === i)
+                  .join(', ') || '-'}
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {row.last_ip ? (
+                  <>
+                    {countryLabel(row.ip_country, i18n.language)}{' '}
+                    <a
+                      href={`https://ipinfo.io/${row.last_ip}`}
+                      target='_blank'
+                      rel='noreferrer'
+                      className='text-muted-foreground font-mono text-xs underline decoration-dotted'
+                    >
+                      {row.last_ip}
+                    </a>
+                  </>
+                ) : (
+                  '-'
+                )}
+              </TableCell>
+              <TableCell className='max-w-40 truncate'>
+                {row.landing || '-'}
+                {row.referrer && (
+                  <span className='text-muted-foreground text-xs'>
+                    {' '}
+                    {row.referrer.replace(/^https?:\/\//, '')}
+                  </span>
+                )}
+              </TableCell>
+              <TableCell className='text-right'>
+                {usd(row.balance_usd)}
               </TableCell>
               <TableCell className='text-right'>{row.requests}</TableCell>
               <TableCell className='text-right'>

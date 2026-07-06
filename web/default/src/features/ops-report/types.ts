@@ -111,6 +111,15 @@ export type OpsStripePersonStatus = 'paid' | 'failed' | 'no_action' | 'setup'
 export interface OpsStripePersonRow {
   user_id: number
   email: string
+  display_name: string
+  billing_names: string[] | null
+  locales: string[] | null
+  landing: string
+  referrer: string
+  registered_at: number
+  balance_usd: number
+  last_ip: string
+  ip_country: string
   campaign: string
   keyword: string
   lng: string

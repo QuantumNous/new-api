@@ -14,6 +14,8 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/charge"
 	checkoutsession "github.com/stripe/stripe-go/v81/checkout/session"
@@ -42,10 +44,19 @@ const (
 type opsStripePersonRow struct {
 	UserId       int            `json:"user_id"`
 	Email        string         `json:"email"`
+	DisplayName  string         `json:"display_name"`
+	BillingNames []string       `json:"billing_names"` // cardholder names from charge billing details
+	Locales      []string       `json:"locales"`       // Checkout UI locales — browser-language proxy
 	Campaign     string         `json:"campaign"`
 	Keyword      string         `json:"keyword"`
 	Lng          string         `json:"lng"`
+	Landing      string         `json:"landing"`
+	Referrer     string         `json:"referrer"`
 	SignupMethod string         `json:"signup_method"`
+	RegisteredAt int64          `json:"registered_at"`
+	BalanceUSD   float64        `json:"balance_usd"`
+	LastIP       string         `json:"last_ip"`
+	IPCountry    string         `json:"ip_country"`
 	Requests     int            `json:"requests"`
 	ConsumedUSD  float64        `json:"consumed_usd"`
 	FirstAt      int64          `json:"first_at"`
@@ -137,6 +148,8 @@ type opsStripePersonAcc struct {
 	cardCC     map[string]bool
 	cardBrands map[string]bool
 	billingCC  map[string]bool
+	names      map[string]bool
+	locales    map[string]bool
 	fails      map[string]int
 	nonZero    int // sessions with amount > 0
 }
@@ -179,18 +192,27 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 				amounts: map[string]int{}, methods: map[string]bool{},
 				cardCC: map[string]bool{}, cardBrands: map[string]bool{},
 				billingCC: map[string]bool{}, fails: map[string]int{},
+				names: map[string]bool{}, locales: map[string]bool{},
 			}
 			u := byEmail[email]
 			a.row.UserId = u.Id
 			a.row.Email = email
+			a.row.DisplayName = u.DisplayName
+			if a.row.DisplayName == "" {
+				a.row.DisplayName = u.Username
+			}
 			a.row.Requests = u.RequestCount
 			a.row.ConsumedUSD = float64(u.UsedQuota) / common.QuotaPerUnit
+			a.row.BalanceUSD = float64(u.Quota) / common.QuotaPerUnit
 			a.row.SignupMethod = u.OauthKind
+			a.row.RegisteredAt = u.CreatedAt
 			agg := &opsUserAgg{user: u}
 			parseOpsAttribution(agg)
 			a.row.Campaign = agg.campaign
 			a.row.Keyword = agg.keyword
 			a.row.Lng = agg.lng
+			a.row.Landing = agg.landing
+			a.row.Referrer = agg.referrer
 			persons[email] = a
 		}
 		return a
@@ -204,20 +226,60 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 		}
 	}
 
-	// --- checkout sessions ---
-	sessionParams := &stripe.CheckoutSessionListParams{
-		CreatedRange: &stripe.RangeQueryParams{GreaterThanOrEqual: startTs},
-	}
-	sessionParams.Limit = stripe.Int64(100)
-	count := 0
-	it := checkoutsession.List(sessionParams)
-	for it.Next() {
-		s := it.CheckoutSession()
-		count++
-		if count > opsStripeMaxObjects {
-			report.Capped = true
-			break
+	// --- fetch sessions and charges concurrently (API pagination dominates
+	// wall time), then fold sequentially into the persons map ---
+	var (
+		sessions     []*stripe.CheckoutSession
+		charges      []*stripe.Charge
+		sessErr      error
+		chargeErr    error
+		sessCapped   bool
+		chargeCapped bool
+		fetchGroup   errgroup.Group
+	)
+	fetchGroup.Go(func() error {
+		sessionParams := &stripe.CheckoutSessionListParams{
+			CreatedRange: &stripe.RangeQueryParams{GreaterThanOrEqual: startTs},
 		}
+		sessionParams.Limit = stripe.Int64(100)
+		it := checkoutsession.List(sessionParams)
+		for it.Next() {
+			if len(sessions) >= opsStripeMaxObjects {
+				sessCapped = true
+				break
+			}
+			sessions = append(sessions, it.CheckoutSession())
+		}
+		sessErr = it.Err()
+		return nil
+	})
+	fetchGroup.Go(func() error {
+		chargeParams := &stripe.ChargeListParams{
+			CreatedRange: &stripe.RangeQueryParams{GreaterThanOrEqual: startTs},
+		}
+		chargeParams.Limit = stripe.Int64(100)
+		cit := charge.List(chargeParams)
+		for cit.Next() {
+			if len(charges) >= opsStripeMaxObjects {
+				chargeCapped = true
+				break
+			}
+			charges = append(charges, cit.Charge())
+		}
+		chargeErr = cit.Err()
+		return nil
+	})
+	_ = fetchGroup.Wait()
+	report.Capped = sessCapped || chargeCapped
+	if sessErr != nil {
+		return nil, sessErr
+	}
+	if chargeErr != nil {
+		return nil, chargeErr
+	}
+
+	// --- checkout sessions ---
+	for _, s := range sessions {
 		report.SessionsCreated++
 		switch s.Status {
 		case stripe.CheckoutSessionStatusComplete:
@@ -251,25 +313,13 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 		for _, t := range s.PaymentMethodTypes {
 			a.methods[t] = true
 		}
-	}
-	if err := it.Err(); err != nil {
-		return nil, err
+		if s.Locale != "" && s.Locale != "auto" {
+			a.locales[string(s.Locale)] = true
+		}
 	}
 
 	// --- charges: real card attempts ---
-	chargeParams := &stripe.ChargeListParams{
-		CreatedRange: &stripe.RangeQueryParams{GreaterThanOrEqual: startTs},
-	}
-	chargeParams.Limit = stripe.Int64(100)
-	count = 0
-	cit := charge.List(chargeParams)
-	for cit.Next() {
-		ch := cit.Charge()
-		count++
-		if count > opsStripeMaxObjects {
-			report.Capped = true
-			break
-		}
+	for _, ch := range charges {
 		blocked := ch.Outcome != nil && ch.Outcome.Reason == "highest_risk_level"
 		if ch.Paid {
 			report.ChargesSucceeded++
@@ -303,9 +353,13 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 			}
 			a.fails[reason]++
 		}
-		if ch.BillingDetails != nil && ch.BillingDetails.Address != nil &&
-			ch.BillingDetails.Address.Country != "" {
-			a.billingCC[ch.BillingDetails.Address.Country] = true
+		if ch.BillingDetails != nil {
+			if ch.BillingDetails.Name != "" {
+				a.names[ch.BillingDetails.Name] = true
+			}
+			if ch.BillingDetails.Address != nil && ch.BillingDetails.Address.Country != "" {
+				a.billingCC[ch.BillingDetails.Address.Country] = true
+			}
 		}
 		if ch.PaymentMethodDetails != nil && ch.PaymentMethodDetails.Card != nil {
 			card := ch.PaymentMethodDetails.Card
@@ -321,9 +375,6 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 			}
 		}
 	}
-	if err := cit.Err(); err != nil {
-		return nil, err
-	}
 
 	keys := func(m map[string]bool) []string {
 		out := make([]string, 0, len(m))
@@ -333,6 +384,17 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 		sort.Strings(out)
 		return out
 	}
+	// last request IP (any log row, playground included) as an identity hint
+	personIds := make([]int, 0, len(persons))
+	for _, a := range persons {
+		personIds = append(personIds, a.row.UserId)
+	}
+	ipByUser := map[int]string{}
+	if ips, err := model.GetOpsUsersLastIP(personIds); err == nil {
+		for _, r := range ips {
+			ipByUser[r.UserId] = r.Ip
+		}
+	}
 	for _, a := range persons {
 		a.row.Amounts = opsSortedCounts(a.amounts, 6)
 		a.row.FailReasons = opsSortedCounts(a.fails, 6)
@@ -340,6 +402,10 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 		a.row.CardCountry = keys(a.cardCC)
 		a.row.CardBrands = keys(a.cardBrands)
 		a.row.BillingCC = keys(a.billingCC)
+		a.row.BillingNames = keys(a.names)
+		a.row.Locales = keys(a.locales)
+		a.row.LastIP = ipByUser[a.row.UserId]
+		a.row.IPCountry = opsIPCountry(a.row.LastIP)
 		a.row.Status = opsStripeStatus(a)
 		report.Persons = append(report.Persons, a.row)
 	}
