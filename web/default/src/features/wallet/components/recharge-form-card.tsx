@@ -31,6 +31,10 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
 import { FlatkeyTallyEmbed } from '@/features/pricing/components/flatkey-tally-embed'
+import {
+  STRIPE_CHECKOUT_CURRENCY_OPTIONS,
+  type StripeCheckoutCurrency,
+} from '../lib/stripe-currency'
 import type { PresetAmount, TopupInfo } from '../types'
 
 interface RechargeFormCardProps {
@@ -41,6 +45,17 @@ interface RechargeFormCardProps {
   onStripeTopUp: (preset: PresetAmount) => void
   paymentLoadingAmount?: number | null
   loading?: boolean
+  checkoutCurrency: StripeCheckoutCurrency
+  onCheckoutCurrencyChange: (currency: StripeCheckoutCurrency) => void
+}
+
+// local currencies unlock local payment methods at Stripe checkout
+// (Pix needs BRL, UPI needs INR); symbols are display-only hints.
+const CURRENCY_SYMBOLS: Record<StripeCheckoutCurrency, string> = {
+  USD: '$',
+  INR: '₹',
+  BRL: 'R$',
+  JPY: '¥',
 }
 
 type CheckoutPlanCopy = {
@@ -242,6 +257,25 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
       icon={<WalletCards className='h-4 w-4' />}
       contentClassName='space-y-4 sm:space-y-6'
     >
+      {stripeEnabled && checkoutPresetAmounts.length > 0 ? (
+        <div className='flex flex-wrap items-center gap-2'>
+          <span className='text-muted-foreground text-xs'>
+            {t('Checkout currency')}
+          </span>
+          {STRIPE_CHECKOUT_CURRENCY_OPTIONS.map((currency) => (
+            <Button
+              key={currency}
+              size='sm'
+              variant={
+                currency === props.checkoutCurrency ? 'default' : 'outline'
+              }
+              onClick={() => props.onCheckoutCurrencyChange(currency)}
+            >
+              {CURRENCY_SYMBOLS[currency]} {currency}
+            </Button>
+          ))}
+        </div>
+      ) : null}
       {stripeEnabled && checkoutPresetAmounts.length > 0 ? (
         <div className='grid gap-3 lg:grid-cols-4'>
           {planCards.map((planCard) => {

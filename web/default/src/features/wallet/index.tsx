@@ -58,6 +58,7 @@ import {
   isPresetTopupAmount,
   normalizeStripeCheckoutCurrency,
   shouldConsumeWalletCheckoutSearchParams,
+  type StripeCheckoutCurrency,
   type WalletCheckoutSearch,
 } from './lib'
 import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
@@ -123,6 +124,15 @@ export function Wallet(props: WalletProps) {
   const [userLoading, setUserLoading] = useState(true)
   const [topupAmount, setTopupAmount] = useState(0)
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null)
+  // settlement currency for Stripe checkout; local currencies unlock local
+  // payment methods (Pix needs BRL, UPI needs INR)
+  const [checkoutCurrency, setCheckoutCurrency] =
+    useState<StripeCheckoutCurrency>(
+      () =>
+        normalizeStripeCheckoutCurrency(
+          props.initialCheckoutSearch?.currency
+        ) ?? 'USD'
+    )
   const [paymentLoadingAmount, setPaymentLoadingAmount] = useState<
     number | null
   >(null)
@@ -618,14 +628,9 @@ export function Wallet(props: WalletProps) {
         return
       }
 
-      const checkoutCurrency = normalizeStripeCheckoutCurrency(
-        props.initialCheckoutSearch?.currency
-      )
-      const success = await processPayment(
-        preset.value,
-        'stripe',
-        checkoutCurrency ? { stripeCurrency: checkoutCurrency } : undefined
-      )
+      const success = await processPayment(preset.value, 'stripe', {
+        stripeCurrency: checkoutCurrency,
+      })
       if (success) {
         await fetchUser()
       }
@@ -686,6 +691,8 @@ export function Wallet(props: WalletProps) {
                     processing ? paymentLoadingAmount : null
                   }
                   loading={topupLoading}
+                  checkoutCurrency={checkoutCurrency}
+                  onCheckoutCurrencyChange={setCheckoutCurrency}
                 />
               </div>
 

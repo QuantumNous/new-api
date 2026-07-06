@@ -83,6 +83,8 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 			return 20000, nil
 		case "price_multi_currency_200:BRL":
 			return 99000, nil
+		case "price_multi_currency_10:INR":
+			return 89900, nil
 		default:
 			return 0, errors.New("unexpected price lookup")
 		}
@@ -135,6 +137,17 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 	require.Equal(t, "BRL", checkout.PaymentCurrency)
 	require.Equal(t, int64(99000), checkout.AmountMinor)
 	require.Equal(t, 200.0, checkout.Money)
+
+	checkout, err = resolveStripeTopUpCheckout(&StripePayRequest{
+		Amount:         10,
+		StripeCurrency: "INR",
+	}, 10, "default")
+	require.NoError(t, err)
+	require.Equal(t, "price_multi_currency_10", checkout.PriceId)
+	require.Equal(t, int64(1), checkout.Quantity)
+	require.Equal(t, "INR", checkout.PaymentCurrency)
+	require.Equal(t, int64(89900), checkout.AmountMinor)
+	require.Equal(t, 10.0, checkout.Money)
 }
 
 func TestResolveStripeTopUpCheckoutRejectsPriceAmountNotMatchingPackage(t *testing.T) {

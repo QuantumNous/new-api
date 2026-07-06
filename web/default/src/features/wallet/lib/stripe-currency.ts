@@ -16,13 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type StripeCheckoutCurrency = 'USD' | 'JPY' | 'BRL'
+export type StripeCheckoutCurrency = 'USD' | 'JPY' | 'BRL' | 'INR'
 
 const STRIPE_CHECKOUT_CURRENCIES = new Set<StripeCheckoutCurrency>([
   'USD',
   'JPY',
   'BRL',
+  'INR',
 ])
+
+export const STRIPE_CHECKOUT_CURRENCY_OPTIONS: StripeCheckoutCurrency[] = [
+  'USD',
+  'INR',
+  'BRL',
+  'JPY',
+]
 
 export function normalizeStripeCheckoutCurrency(
   currency: string | undefined
