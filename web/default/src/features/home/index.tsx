@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 import { api } from '@/lib/api'
-import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import { getCurrencyDisplay } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -85,13 +85,53 @@ function hasNumber(value: number | null | undefined): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
+function truncateDecimal(value: number, digits: number): number {
+  const sign = value < 0 ? '-' : ''
+  const normalized = Math.abs(value).toFixed(digits + 8)
+  const [integerPart, fractionPart = ''] = normalized.split('.')
+  const truncatedFraction = fractionPart.slice(0, digits).replace(/0+$/, '')
+  return Number(
+    `${sign}${integerPart}${truncatedFraction ? `.${truncatedFraction}` : ''}`
+  )
+}
+
+function formatTruncatedCurrency(
+  value: number,
+  symbol: string,
+  currencyCode?: string
+): string {
+  const truncatedValue = truncateDecimal(value, 4)
+  if (currencyCode) {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currencyCode,
+      currencyDisplay: 'narrowSymbol',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 4,
+    }).format(truncatedValue)
+  }
+
+  const formattedNumber = new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+  }).format(truncatedValue)
+  return `${symbol}${formattedNumber}`
+}
+
 function formatPrice(value: number | null | undefined): string {
   if (!hasNumber(value) || value <= 0) return '-'
-  return formatBillingCurrencyFromUSD(value, {
-    digitsLarge: 4,
-    digitsSmall: 4,
-    abbreviate: false,
-  })
+  const { meta } = getCurrencyDisplay()
+  if (meta.kind === 'custom') {
+    return formatTruncatedCurrency(value * meta.exchangeRate, meta.symbol)
+  }
+  if (meta.kind === 'currency') {
+    return formatTruncatedCurrency(
+      value * meta.exchangeRate,
+      meta.symbol,
+      meta.currencyCode
+    )
+  }
+  return formatTruncatedCurrency(value, '$', 'USD')
 }
 
 function getModelUsableGroupRatios(
