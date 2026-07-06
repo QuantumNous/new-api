@@ -330,6 +330,37 @@ func TestParseTaskResult_MapsStatusesAndUsage(t *testing.T) {
 	}
 }
 
+func TestParseTaskResult_MapsTerminalFailureStatuses(t *testing.T) {
+	a := &TaskAdaptor{}
+
+	for _, status := range []string{"cancelled", "canceled", "expired", "timeout", "timed_out", "rejected"} {
+		t.Run(status, func(t *testing.T) {
+			info, err := a.ParseTaskResult([]byte(`{"id":"task_upstream_123","status":"` + status + `"}`))
+			if err != nil {
+				t.Fatalf("%s: %v", status, err)
+			}
+			if info.Status != model.TaskStatusFailure || info.Progress != "100%" {
+				t.Fatalf("%s status/progress = %q/%q", status, info.Status, info.Progress)
+			}
+		})
+	}
+}
+
+func TestParseTaskResult_FailsUnknownNonEmptyStatus(t *testing.T) {
+	a := &TaskAdaptor{}
+
+	info, err := a.ParseTaskResult([]byte(`{"id":"task_upstream_123","status":"stalled"}`))
+	if err != nil {
+		t.Fatalf("stalled: %v", err)
+	}
+	if info.Status != model.TaskStatusFailure || info.Progress != "100%" {
+		t.Fatalf("unknown status/progress = %q/%q", info.Status, info.Progress)
+	}
+	if info.Reason != "unrecognized upstream task status: stalled" {
+		t.Fatalf("unknown reason = %q", info.Reason)
+	}
+}
+
 func TestParseTaskResult_AcceptsTechMobiContentObject(t *testing.T) {
 	a := &TaskAdaptor{}
 

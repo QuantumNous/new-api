@@ -285,6 +285,12 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 			info.Reason = failReason(pr)
 			break
 		}
+		if status := strings.TrimSpace(pr.Status); status != "" {
+			info.Status = model.TaskStatusFailure
+			info.Progress = defaultProgress(info.Progress, taskcommon.ProgressComplete)
+			info.Reason = "unrecognized upstream task status: " + taskcommon.ScrubBrandedText(status)
+			break
+		}
 		info.Status = model.TaskStatusInProgress
 		info.Progress = defaultProgress(info.Progress, taskcommon.ProgressInProgress)
 	}
@@ -324,7 +330,7 @@ func normalizeTaskStatus(status string) string {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "succeeded", "success", "completed", strings.ToLower(string(model.TaskStatusSuccess)):
 		return "success"
-	case "failed", "failure", strings.ToLower(string(model.TaskStatusFailure)):
+	case "failed", "failure", "cancelled", "canceled", "expired", "timeout", "timed_out", "rejected", strings.ToLower(string(model.TaskStatusFailure)):
 		return "failure"
 	case "queued", "pending", strings.ToLower(string(model.TaskStatusQueued)):
 		return "queued"
