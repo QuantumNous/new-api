@@ -34,10 +34,21 @@ export interface OpsFunnelRow {
   paid_usd: number
 }
 
+export interface OpsNameCount {
+  name: string
+  count: number
+}
+
 export interface OpsCampaignRow extends OpsFunnelRow {
   keywords: string[] | null
   languages: string[] | null
-  landing_paths: string[] | null
+  landing_pages: OpsNameCount[] | null
+  match_types: OpsNameCount[] | null
+  trend: number[] | null
+}
+
+export interface OpsKeywordRow extends OpsFunnelRow {
+  campaigns: string[] | null
 }
 
 export interface OpsDauRow {
@@ -73,6 +84,7 @@ export interface OpsReportData {
   daily: OpsFunnelRow[]
   weekly_funnel: OpsFunnelRow[]
   campaign_funnel: OpsCampaignRow[]
+  keyword_funnel: OpsKeywordRow[] | null
   payment_weekly: OpsPaymentRow[]
   dau: OpsDauRow[]
   total_paid_users: number

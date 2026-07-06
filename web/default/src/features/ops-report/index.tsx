@@ -35,16 +35,37 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
+import { officialWebsiteUrl } from '@/lib/origins'
 import { getOpsReport, opsReportQueryKeys, type OpsDauScope } from './api'
 import type {
   OpsCampaignRow,
   OpsDauRow,
   OpsFunnelRow,
+  OpsKeywordRow,
+  OpsNameCount,
   OpsPayerRow,
   OpsPaymentRow,
 } from './types'
 
 const DAY_OPTIONS = [7, 30, 60, 90]
+
+// keep the active tab in the URL hash so a refresh stays on the same tab
+const TAB_VALUES = [
+  'registrations',
+  'campaigns',
+  'funnel',
+  'payment',
+  'active',
+  'payers',
+] as const
+type TabValue = (typeof TAB_VALUES)[number]
+
+const initialTab = (): TabValue => {
+  const hash = window.location.hash.slice(1)
+  return (TAB_VALUES as readonly string[]).includes(hash)
+    ? (hash as TabValue)
+    : 'registrations'
+}
 
 // vertical + horizontal grid lines so wide tables stay scannable
 const TABLE_GRID =
@@ -116,6 +137,56 @@ const usd = (v: number): string => `$${v.toFixed(v >= 100 ? 0 : 2)}`
 const formatTimestamp = (timestamp: number): string => {
   if (!timestamp) return '-'
   return new Date(timestamp * 1000).toLocaleString()
+}
+
+// Landing paths are captured on both the public website (flatkey.ai, always
+// locale-prefixed or "/") and the console SPA (everything else).
+const landingUrl = (path: string): string =>
+  path === '/' || /^\/[a-z]{2}(\/|$)/.test(path)
+    ? officialWebsiteUrl(path)
+    : `${window.location.origin}${path}`
+
+const MATCH_TYPE_LABELS: Record<string, string> = {
+  e: 'Exact',
+  p: 'Phrase',
+  b: 'Broad',
+}
+
+function LandingLinks({ pages }: { pages: OpsNameCount[] | null }) {
+  if (!pages?.length) return <>-</>
+  return (
+    <div className='flex flex-col gap-0.5'>
+      {pages.map((p) => (
+        <a
+          key={p.name}
+          href={landingUrl(p.name)}
+          target='_blank'
+          rel='noreferrer'
+          className='text-primary whitespace-nowrap hover:underline'
+        >
+          {p.name}{' '}
+          <span className='text-muted-foreground text-xs'>({p.count})</span>
+        </a>
+      ))}
+    </div>
+  )
+}
+
+function TrendSparkline({ trend }: { trend: number[] | null }) {
+  if (!trend?.length) return <>-</>
+  const max = Math.max(...trend)
+  if (max === 0) return <>-</>
+  return (
+    <div className='flex h-8 items-end gap-px' title={trend.join(', ')}>
+      {trend.map((v, i) => (
+        <div
+          key={i}
+          className='bg-primary/70 w-1 rounded-t-xs'
+          style={{ height: `${v > 0 ? Math.max((v / max) * 100, 8) : 2}%` }}
+        />
+      ))}
+    </div>
+  )
 }
 
 function FunnelCells({ row }: { row: OpsFunnelRow }) {
@@ -195,6 +266,8 @@ function CampaignTable({ rows }: { rows: OpsCampaignRow[] }) {
             <TableHead className='text-right'>{t('Paid Users')}</TableHead>
             <TableHead className='text-right'>{t('Paid Amount')}</TableHead>
             <TableHead>{t('Top Keywords')}</TableHead>
+            <TableHead>{t('Match Types')}</TableHead>
+            <TableHead>{t('Registration Trend')}</TableHead>
             <TableHead>{t('Languages')}</TableHead>
             <TableHead>{t('Landing Pages')}</TableHead>
           </TableRow>
@@ -228,10 +301,47 @@ function CampaignTable({ rows }: { rows: OpsCampaignRow[] }) {
                   ))}
                 </div>
               </TableCell>
-              <TableCell>{(row.languages ?? []).join(', ') || '-'}</TableCell>
-              <TableCell className='max-w-48 truncate'>
-                {(row.landing_paths ?? []).join(', ') || '-'}
+              <TableCell>
+                <div className='flex flex-wrap gap-1'>
+                  {(row.match_types ?? []).map((m) => (
+                    <Badge key={m.name} variant='outline'>
+                      {t(MATCH_TYPE_LABELS[m.name] ?? m.name)} {m.count}
+                    </Badge>
+                  ))}
+                  {!row.match_types?.length && '-'}
+                </div>
               </TableCell>
+              <TableCell>
+                <TrendSparkline trend={row.trend} />
+              </TableCell>
+              <TableCell>{(row.languages ?? []).join(', ') || '-'}</TableCell>
+              <TableCell>
+                <LandingLinks pages={row.landing_pages} />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function KeywordTable({ rows }: { rows: OpsKeywordRow[] }) {
+  const { t } = useTranslation()
+  return (
+    <div className='overflow-x-auto'>
+      <Table className={TABLE_GRID}>
+        <FunnelHeader firstColumn={t('Keyword')} />
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.key}>
+              <TableCell className='whitespace-nowrap'>
+                {row.key}{' '}
+                <span className='text-muted-foreground text-xs'>
+                  {(row.campaigns ?? []).join(', ')}
+                </span>
+              </TableCell>
+              <FunnelCells row={row} />
             </TableRow>
           ))}
         </TableBody>
@@ -358,6 +468,12 @@ export function OpsReport() {
   const { t } = useTranslation()
   const [days, setDays] = useState(30)
   const [dauScope, setDauScope] = useState<OpsDauScope>('plg')
+  const [tab, setTab] = useState<TabValue>(initialTab)
+
+  const handleTabChange = (value: string) => {
+    setTab(value as TabValue)
+    window.history.replaceState(null, '', `#${value}`)
+  }
 
   const reportQuery = useQuery({
     queryKey: opsReportQueryKeys.report(days, dauScope),
@@ -399,7 +515,7 @@ export function OpsReport() {
               {t('Generated at')}: {formatTimestamp(report.generated_at)}
             </p>
 
-            <Tabs defaultValue='registrations'>
+            <Tabs value={tab} onValueChange={handleTabChange}>
               <TabsList>
                 <TabsTrigger value='registrations'>
                   {t('Daily Registrations')}
@@ -439,13 +555,21 @@ export function OpsReport() {
                 </Card>
               </TabsContent>
 
-              <TabsContent value='campaigns'>
+              <TabsContent value='campaigns' className='space-y-4'>
                 <Card>
                   <CardHeader>
                     <CardTitle>{t('Ad Campaigns')}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <CampaignTable rows={report.campaign_funnel} />
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>{t('Keyword Funnel (Top 50)')}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <KeywordTable rows={report.keyword_funnel ?? []} />
                   </CardContent>
                 </Card>
               </TabsContent>

@@ -248,6 +248,10 @@ export const STATIC_I18N_KEYS = [
   'Prefix',
   'Contains',
   'Suffix',
+  // Ops report ad match types (MATCH_TYPE_LABELS)
+  'Phrase',
+  'Broad',
+
   'Match model name exactly',
   'Match models starting with this name',
   'Match models containing this name',

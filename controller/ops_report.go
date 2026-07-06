@@ -50,11 +50,23 @@ type opsFunnelRow struct {
 	PaidUSD       float64 `json:"paid_usd"`
 }
 
+type opsNameCount struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
 type opsCampaignRow struct {
 	opsFunnelRow
-	Keywords     []string `json:"keywords"`
-	Languages    []string `json:"languages"`
-	LandingPaths []string `json:"landing_paths"`
+	Keywords     []string       `json:"keywords"`
+	Languages    []string       `json:"languages"`
+	LandingPages []opsNameCount `json:"landing_pages"`
+	MatchTypes   []opsNameCount `json:"match_types"`
+	Trend        []int          `json:"trend"`
+}
+
+type opsKeywordRow struct {
+	opsFunnelRow
+	Campaigns []string `json:"campaigns"`
 }
 
 type opsDauRow struct {
@@ -91,6 +103,7 @@ type opsReportData struct {
 	Daily          []opsFunnelRow   `json:"daily"`
 	WeeklyFunnel   []opsFunnelRow   `json:"weekly_funnel"`
 	CampaignFunnel []opsCampaignRow `json:"campaign_funnel"`
+	KeywordFunnel  []opsKeywordRow  `json:"keyword_funnel"`
 	PaymentWeekly  []opsPaymentRow  `json:"payment_weekly"`
 	Dau            []opsDauRow      `json:"dau"`
 	TotalPaidUsers int              `json:"total_paid_users"`
@@ -145,6 +158,7 @@ type opsUserAgg struct {
 	keyword    string
 	lng        string
 	landing    string
+	matchType  string
 	paidOrders []*model.OpsTopUp
 	hasIntent  bool
 }
@@ -227,7 +241,8 @@ func buildOpsReport(days int, dauScope string) (*opsReportData, error) {
 	campaignRows := opsRollupFunnel(aggs, func(a *opsUserAgg) string {
 		return a.campaign
 	}, false)
-	report.CampaignFunnel = opsEnrichCampaigns(campaignRows, aggs)
+	report.CampaignFunnel = opsEnrichCampaigns(campaignRows, aggs, startTs, days)
+	report.KeywordFunnel = opsRollupKeywords(aggs, 50)
 	report.PaymentWeekly = opsRollupPayment(aggs)
 	report.TopPayers, report.TotalPaidUsers, report.TotalPaidUSD = opsTopPayers(aggs)
 	return report, nil
@@ -259,6 +274,7 @@ func parseOpsAttribution(a *opsUserAgg) {
 	}
 	a.lng = str("lng")
 	a.landing = str("landing_path")
+	a.matchType = str("hsa_mt")
 }
 
 func (a *opsUserAgg) realBrowse() bool {
@@ -339,15 +355,46 @@ func opsRollupFunnel(aggs map[int]*opsUserAgg, keyFn func(*opsUserAgg) string, s
 	return rows
 }
 
-func opsEnrichCampaigns(rows []opsFunnelRow, aggs map[int]*opsUserAgg) []opsCampaignRow {
+func opsSortedCounts(m map[string]int, n int) []opsNameCount {
+	list := make([]opsNameCount, 0, len(m))
+	for k, v := range m {
+		list = append(list, opsNameCount{Name: k, Count: v})
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Count != list[j].Count {
+			return list[i].Count > list[j].Count
+		}
+		return list[i].Name < list[j].Name
+	})
+	if len(list) > n {
+		list = list[:n]
+	}
+	return list
+}
+
+func opsTopNames(m map[string]int, n int) []string {
+	counts := opsSortedCounts(m, n)
+	out := make([]string, len(counts))
+	for i, item := range counts {
+		out[i] = item.Name
+	}
+	return out
+}
+
+func opsEnrichCampaigns(rows []opsFunnelRow, aggs map[int]*opsUserAgg, startTs int64, days int) []opsCampaignRow {
 	type extras struct {
-		keywords, languages, landings map[string]int
+		keywords, languages, landings, matchTypes map[string]int
+		trend                                     []int
 	}
 	byCampaign := map[string]*extras{}
 	for _, a := range aggs {
 		e, ok := byCampaign[a.campaign]
 		if !ok {
-			e = &extras{map[string]int{}, map[string]int{}, map[string]int{}}
+			e = &extras{
+				keywords: map[string]int{}, languages: map[string]int{},
+				landings: map[string]int{}, matchTypes: map[string]int{},
+				trend: make([]int, days),
+			}
 			byCampaign[a.campaign] = e
 		}
 		if a.keyword != "" {
@@ -359,33 +406,22 @@ func opsEnrichCampaigns(rows []opsFunnelRow, aggs map[int]*opsUserAgg) []opsCamp
 		if a.landing != "" {
 			e.landings[a.landing]++
 		}
-	}
-	topN := func(m map[string]int, n int) []string {
-		type kv struct {
-			k string
-			v int
+		if a.matchType != "" {
+			e.matchTypes[a.matchType]++
 		}
-		list := make([]kv, 0, len(m))
-		for k, v := range m {
-			list = append(list, kv{k, v})
+		if idx := (a.user.CreatedAt - startTs) / 86400; idx >= 0 && idx < int64(days) {
+			e.trend[idx]++
 		}
-		sort.Slice(list, func(i, j int) bool { return list[i].v > list[j].v })
-		if len(list) > n {
-			list = list[:n]
-		}
-		out := make([]string, len(list))
-		for i, item := range list {
-			out[i] = item.k
-		}
-		return out
 	}
 	result := make([]opsCampaignRow, 0, len(rows))
 	for _, row := range rows {
 		cr := opsCampaignRow{opsFunnelRow: row}
 		if e, ok := byCampaign[row.Key]; ok {
-			cr.Keywords = topN(e.keywords, 5)
-			cr.Languages = topN(e.languages, 3)
-			cr.LandingPaths = topN(e.landings, 3)
+			cr.Keywords = opsTopNames(e.keywords, 5)
+			cr.Languages = opsTopNames(e.languages, 3)
+			cr.LandingPages = opsSortedCounts(e.landings, 3)
+			cr.MatchTypes = opsSortedCounts(e.matchTypes, 3)
+			cr.Trend = e.trend
 		}
 		result = append(result, cr)
 	}
@@ -393,6 +429,61 @@ func opsEnrichCampaigns(rows []opsFunnelRow, aggs map[int]*opsUserAgg) []opsCamp
 		return result[i].Registrations > result[j].Registrations
 	})
 	return result
+}
+
+// opsRollupKeywords builds a per-search-term funnel (keyword = hsa_kw or
+// utm_term) across all campaigns, sorted by registrations.
+func opsRollupKeywords(aggs map[int]*opsUserAgg, limit int) []opsKeywordRow {
+	type kwAcc struct {
+		row       opsFunnelRow
+		campaigns map[string]int
+	}
+	groups := map[string]*kwAcc{}
+	for _, a := range aggs {
+		if a.keyword == "" {
+			continue
+		}
+		acc, ok := groups[a.keyword]
+		if !ok {
+			acc = &kwAcc{row: opsFunnelRow{Key: a.keyword}, campaigns: map[string]int{}}
+			groups[a.keyword] = acc
+		}
+		acc.campaigns[a.campaign]++
+		acc.row.Registrations++
+		if a.realBrowse() {
+			acc.row.RealBrowse++
+		}
+		if a.manualKey() {
+			acc.row.ManualKeys++
+		}
+		if a.usedKey() {
+			acc.row.KeyUsers++
+		}
+		if a.hasIntent {
+			acc.row.PayIntent++
+		}
+		if len(a.paidOrders) > 0 {
+			acc.row.Paid++
+			acc.row.PaidUSD += a.paidUSD()
+		}
+	}
+	rows := make([]opsKeywordRow, 0, len(groups))
+	for _, acc := range groups {
+		rows = append(rows, opsKeywordRow{
+			opsFunnelRow: acc.row,
+			Campaigns:    opsTopNames(acc.campaigns, 3),
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Registrations != rows[j].Registrations {
+			return rows[i].Registrations > rows[j].Registrations
+		}
+		return rows[i].Key < rows[j].Key
+	})
+	if len(rows) > limit {
+		rows = rows[:limit]
+	}
+	return rows
 }
 
 func opsRollupPayment(aggs map[int]*opsUserAgg) []opsPaymentRow {
