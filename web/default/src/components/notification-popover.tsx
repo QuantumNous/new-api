@@ -21,6 +21,7 @@ import { Bell, Megaphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { RichContent } from '@/components/rich-content'
+import { isLikelyHtml } from '@/lib/content-format'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -205,7 +206,11 @@ function NoticeContent({
 
   return (
     <ScrollArea className='h-[min(52vh,28rem)] pr-3'>
-      <RichContent breaks content={notice} />
+      <RichContent
+        breaks
+        content={notice}
+        mode={isLikelyHtml(notice) ? 'html' : 'markdown'}
+      />
     </ScrollArea>
   )
 }
