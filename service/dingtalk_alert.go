@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -94,20 +95,24 @@ type dingTalkSendResponse struct {
 }
 
 var (
-	dingTalkAlertCooldown              = NewDingTalkAlertCooldown()
-	codexGovernanceAlertCooldown       = NewDingTalkModelAlertCooldown()
-	dingTalkPaymentAlertCooldown       = NewDingTalkPaymentAlertCooldown()
-	dingTalkCredentialPattern          = regexp.MustCompile(`(?i)(\b(?:access_token|refresh_token|id_token|api[_-]?key|authorization)\b\s*(?::|=)?\s*)(?:"[^"]*"|'[^']*'|bearer\s+[^\s,;}]+|[^\s,;}]+)`)
-	dingTalkQuotedCredentialPattern    = regexp.MustCompile(`(?i)(["'](?:access_token|refresh_token|id_token|api[_-]?key|authorization)["']\s*:\s*)(?:"[^"]*"|'[^']*'|[^,\s}]+)`)
-	dingTalkSKPattern                  = regexp.MustCompile(`sk-[A-Za-z0-9_-]+`)
-	dingTalkAWSKeyPattern              = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
-	dingTalkGoogleAPIKeyPattern        = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
-	dingTalkMaxResponseBodyBytes       = int64(64 * 1024)
-	dingTalkRequestTimeout             = 10 * time.Second
-	dingTalkAlertPendingReservationTTL = dingTalkChannelAlertAISummaryTimeout + 2*dingTalkRequestTimeout
+	dingTalkAlertCooldown                = NewDingTalkAlertCooldown()
+	codexGovernanceAlertCooldown         = NewDingTalkModelAlertCooldown()
+	dingTalkPaymentAlertCooldown         = NewDingTalkPaymentAlertCooldown()
+	dingTalkCredentialPattern            = regexp.MustCompile(`(?i)(\b(?:access_token|refresh_token|id_token|api[_-]?key|authorization)\b\s*(?::|=)?\s*)(?:"[^"]*"|'[^']*'|bearer\s+[^\s,;}]+|[^\s,;}]+)`)
+	dingTalkQuotedCredentialPattern      = regexp.MustCompile(`(?i)(["'](?:access_token|refresh_token|id_token|api[_-]?key|authorization)["']\s*:\s*)(?:"[^"]*"|'[^']*'|[^,\s}]+)`)
+	dingTalkSKPattern                    = regexp.MustCompile(`sk-[A-Za-z0-9_-]+`)
+	dingTalkAWSKeyPattern                = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
+	dingTalkGoogleAPIKeyPattern          = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
+	dingTalkMaxResponseBodyBytes         = int64(64 * 1024)
+	dingTalkRequestTimeout               = 10 * time.Second
+	dingTalkAlertPendingReservationTTL   = dingTalkChannelAlertAISummaryTimeout + 2*dingTalkRequestTimeout
+	generateDingTalkPaymentCooldownToken = common.GenerateRandomCharsKey
 )
 
-const maxDingTalkChannelAlertBatchSize = 5
+const (
+	maxDingTalkChannelAlertBatchSize       = 5
+	maxDingTalkPaymentAlertCooldownEntries = 2048
+)
 
 func NewDingTalkAlertCooldown() *DingTalkAlertCooldown {
 	return &DingTalkAlertCooldown{lastAt: make(map[int]time.Time)}
@@ -184,14 +189,19 @@ func (c *DingTalkPaymentAlertCooldown) reserve(key string, now time.Time, cooldo
 	if c == nil || cooldown <= 0 || key == "" {
 		return nil, true
 	}
+	if now.IsZero() {
+		now = time.Now()
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	c.pruneExpired(now, cooldown)
 	last, ok := c.lastAt[key]
 	if ok && now.Sub(last) < cooldown {
 		return nil, false
 	}
 	c.lastAt[key] = now
+	c.evictIfNeeded(key)
 	return &dingTalkPaymentAlertCooldownReservation{
 		c:           c,
 		key:         key,
@@ -199,6 +209,40 @@ func (c *DingTalkPaymentAlertCooldown) reserve(key string, now time.Time, cooldo
 		previousAt:  last,
 		hadPrevious: ok,
 	}, true
+}
+
+func (c *DingTalkPaymentAlertCooldown) pruneExpired(now time.Time, cooldown time.Duration) {
+	if c == nil || cooldown <= 0 {
+		return
+	}
+	for key, last := range c.lastAt {
+		if !last.IsZero() && now.Sub(last) >= cooldown {
+			delete(c.lastAt, key)
+		}
+	}
+}
+
+func (c *DingTalkPaymentAlertCooldown) evictIfNeeded(reservedKey string) {
+	if c == nil || len(c.lastAt) <= maxDingTalkPaymentAlertCooldownEntries {
+		return
+	}
+	for len(c.lastAt) > maxDingTalkPaymentAlertCooldownEntries {
+		var oldestKey string
+		var oldestAt time.Time
+		for key, last := range c.lastAt {
+			if key == reservedKey {
+				continue
+			}
+			if oldestKey == "" || last.Before(oldestAt) {
+				oldestKey = key
+				oldestAt = last
+			}
+		}
+		if oldestKey == "" {
+			return
+		}
+		delete(c.lastAt, oldestKey)
+	}
 }
 
 func (r *dingTalkAlertCooldownReservation) Rollback() {
@@ -356,10 +400,10 @@ func reserveDingTalkPaymentProcessingAlertCooldown(alert DingTalkPaymentProcessi
 		return nil, true
 	}
 	if common.RedisEnabled && common.RDB != nil {
-		token, err := common.GenerateRandomCharsKey(32)
+		token, err := generateDingTalkPaymentCooldownToken(32)
 		if err != nil {
 			common.SysError("failed to generate dingtalk payment alert cooldown reservation token: " + err.Error())
-			return nil, false
+			return dingTalkPaymentAlertCooldown.reserve(key, now, cooldown)
 		}
 		redisKey := "dingtalk:payment_processing_alert:" + key
 		allowed, err := common.RDB.SetNX(context.Background(), redisKey, token, cooldown).Result()
@@ -380,11 +424,22 @@ func dingTalkPaymentProcessingAlertCooldownKey(alert DingTalkPaymentProcessingAl
 	tradeNo := strings.TrimSpace(alert.TradeNo)
 	eventType := strings.TrimSpace(alert.EventType)
 	customerID := strings.TrimSpace(alert.CustomerID)
-	if provider == "" && tradeNo == "" && eventType == "" && customerID == "" {
+	errorClass := dingTalkPaymentProcessingAlertErrorClass(alert.Error)
+	expectedCurrency := strings.ToUpper(strings.TrimSpace(alert.ExpectedCurrency))
+	actualCurrency := strings.ToUpper(strings.TrimSpace(alert.ActualCurrency))
+	if provider == "" && tradeNo == "" && eventType == "" && customerID == "" && errorClass == "" && expectedCurrency == "" && actualCurrency == "" && alert.ExpectedAmountMinor == 0 && alert.ActualAmountMinor == 0 {
 		return ""
 	}
-	sum := sha256.Sum256([]byte(provider + "\x00" + tradeNo + "\x00" + eventType + "\x00" + customerID))
+	sum := sha256.Sum256([]byte(provider + "\x00" + tradeNo + "\x00" + eventType + "\x00" + customerID + "\x00" + errorClass + "\x00" + expectedCurrency + "\x00" + actualCurrency + "\x00" + strconv.FormatInt(alert.ExpectedAmountMinor, 10) + "\x00" + strconv.FormatInt(alert.ActualAmountMinor, 10)))
 	return fmt.Sprintf("%x", sum[:])
+}
+
+func dingTalkPaymentProcessingAlertErrorClass(message string) string {
+	message = strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(message)), " "))
+	if len(message) > 256 {
+		return message[:256]
+	}
+	return message
 }
 
 func codexGovernanceAlertCooldownKey(record *model.CodexModelGovernanceRecord) string {

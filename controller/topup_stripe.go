@@ -945,9 +945,12 @@ func stripeEventObjectValue(event stripe.Event, keys ...string) string {
 }
 
 func validateStripeTopUpPaymentContract(event stripe.Event, referenceId string) error {
-	topUp := model.GetTopUpByTradeNo(referenceId)
-	if topUp == nil {
-		return permanentStripeWebhookProcessingError(model.ErrTopUpNotFound)
+	topUp, err := model.GetTopUpByTradeNoWithError(referenceId)
+	if err != nil {
+		if errors.Is(err, model.ErrTopUpNotFound) {
+			return permanentStripeWebhookProcessingError(model.ErrTopUpNotFound)
+		}
+		return err
 	}
 	if topUp.PaymentProvider != model.PaymentProviderStripe {
 		return permanentStripeWebhookProcessingError(model.ErrPaymentMethodMismatch)

@@ -753,6 +753,26 @@ func TestStripeWebhookAcknowledgesPermanentPaymentContractFailure(t *testing.T) 
 	require.Equal(t, int32(1), atomic.LoadInt32(&alerts))
 }
 
+func TestValidateStripeTopUpPaymentContractTreatsDatabaseErrorsAsRetryable(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	db, err := model.DB.DB()
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	event := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_db_error",
+			"client_reference_id": "ref_db_error",
+		}},
+	}
+
+	err = validateStripeTopUpPaymentContract(event, "ref_db_error")
+
+	require.Error(t, err)
+	require.True(t, isRetryableStripeWebhookProcessingError(err))
+}
+
 func TestFulfillOrderAcceptsAdaptivePresentmentCurrency(t *testing.T) {
 	setupStripeFulfillmentTestDB(t)
 	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent
