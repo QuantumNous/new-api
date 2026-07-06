@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { SystemBehaviorSection } from '../general/system-behavior-section'
+import { ImageAwareRoutingSection } from '../operations/image-aware-routing-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
 import { MonitoringSettingsSection } from '../integrations/monitoring-settings-section'
 import { WorkerSettingsSection } from '../integrations/worker-settings-section'
@@ -88,6 +89,18 @@ const OPERATIONS_SECTIONS = [
           WorkerValidKey: settings.WorkerValidKey,
           WorkerAllowHttpImageRequestEnabled:
             settings.WorkerAllowHttpImageRequestEnabled,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'image-aware-routing',
+    titleKey: 'Image-Aware Model Routing',
+    build: (settings: OperationsSettings) => (
+      <ImageAwareRoutingSection
+        defaultValues={{
+          ImageAwareModelRouting:
+            settings.ImageAwareModelRouting ?? '{}',
         }}
       />
     ),

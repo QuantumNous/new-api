@@ -221,6 +221,7 @@ func AddToken(c *gin.Context) {
 		AllowIps:           token.AllowIps,
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
+		ModelRouteNotify:   token.ModelRouteNotify,
 	}
 	err = cleanToken.Insert()
 	if err != nil {
@@ -299,6 +300,7 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		cleanToken.ModelRouteNotify = token.ModelRouteNotify
 	}
 	err = cleanToken.Update()
 	if err != nil {

@@ -1,0 +1,71 @@
+# Deployment compose - pulls the dev image published to the GitHub Container
+# Registry by CI (.github/workflows/docker-image-dev.yml). The image is built
+# from Dockerfile.dev (backend-only, frontend served by the image placeholder).
+#
+# If the GHCR package is private, log in first:
+#   echo $GITHUB_TOKEN | docker login ghcr.io -u <owner> --password-stdin
+#
+# Usage:
+#   1. docker compose -f docker-compose.deploy.yml up -d
+#   2. Open http://localhost:3000
+#
+# Stop:
+#   docker compose -f docker-compose.deploy.yml down
+#
+# Reset data:
+#   docker compose -f docker-compose.deploy.yml down -v
+
+services:
+  new-api:
+    image: ghcr.io/gentle-lijie/new-api:dev
+    container_name: new-api-deploy
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - deploy_data:/data
+    environment:
+      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
+      - REDIS_CONN_STRING=redis://redis
+      - TZ=Asia/Shanghai
+      - BATCH_UPDATE_ENABLED=true
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks:
+      - deploy-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: new-api-deploy-redis
+    restart: unless-stopped
+    networks:
+      - deploy-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: new-api-deploy-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: new-api
+    volumes:
+      - deploy_pg_data:/var/lib/postgresql/data
+    networks:
+      - deploy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d new-api"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  deploy_data:
+  deploy_pg_data:
+
+networks:
+  deploy-network:
+    driver: bridge

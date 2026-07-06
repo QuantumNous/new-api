@@ -251,6 +251,16 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 
 	applyUsagePostProcessing(info, &simpleResponse.Usage, responseBody)
 
+	if info.RelayFormat == types.RelayFormatOpenAI {
+		if hint := helper.RouteHint(c, info); hint != "" && len(simpleResponse.Choices) > 0 {
+			message := &simpleResponse.Choices[0].Message
+			if message.IsStringContent() {
+				message.SetStringContent(hint + message.StringContent())
+				responseBody, _ = common.Marshal(simpleResponse)
+			}
+		}
+	}
+
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
 		if usageModified {

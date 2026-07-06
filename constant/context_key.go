@@ -19,6 +19,7 @@ const (
 	ContextKeyTokenModelLimitEnabled ContextKey = "token_model_limit_enabled"
 	ContextKeyTokenModelLimit        ContextKey = "token_model_limit"
 	ContextKeyTokenCrossGroupRetry   ContextKey = "token_cross_group_retry"
+	ContextKeyTokenModelRouteNotify  ContextKey = "token_model_route_notify"
 
 	/* channel related keys */
 	ContextKeyChannelId                ContextKey = "channel_id"
@@ -41,6 +42,10 @@ const (
 	ContextKeyAutoGroup           ContextKey = "auto_group"
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"
 	ContextKeyAutoGroupRetryIndex ContextKey = "auto_group_retry_index"
+
+	/* image-aware routing keys */
+	ContextKeyImageAwareEntryModel ContextKey = "image_aware_entry_model"
+	ContextKeyImageAwareHasImage   ContextKey = "image_aware_has_image"
 
 	/* user related keys */
 	ContextKeyUserId      ContextKey = "id"
