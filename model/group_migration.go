@@ -8,6 +8,16 @@ import (
 )
 
 func MigrateGroupsFromOptions() {
+	groupCount, err := GetGroupCount()
+	if err != nil {
+		common.SysLog("failed to count groups before migration: " + err.Error())
+		return
+	}
+	if groupCount > 0 {
+		common.SysLog("groups table already populated, skipping group migration")
+		return
+	}
+
 	common.OptionMapRWMutex.RLock()
 	groupRatioStr := common.OptionMap["GroupRatio"]
 	userUsableGroupsStr := common.OptionMap["UserUsableGroups"]

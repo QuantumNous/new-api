@@ -115,6 +115,7 @@ func GetGroupRatio(name string) float64 {
 // LoadGroupRatioToMemory loads group ratios into the in-memory map.
 // Used when Redis is disabled so the map is populated from DB on startup.
 func LoadGroupRatioToMemory(ratios map[string]float64) {
+	groupRatioMap.Clear()
 	for name, ratio := range ratios {
 		groupRatioMap.Set(name, ratio)
 	}
