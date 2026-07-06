@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Activity,
   Box,
+  CalendarRange,
   CreditCard,
   FileText,
   FlaskConical,
@@ -136,6 +137,11 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('Ops Daily Report'),
+            url: '/ops-report',
+            icon: CalendarRange,
           },
           {
             title: t('Redemption Codes'),
