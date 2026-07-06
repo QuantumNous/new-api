@@ -492,7 +492,7 @@ function ModelBackendProviderSection(props: { model: PricingModel }) {
   if (model.function_tags) {
     cells.push(
       <CatalogInfoCell key='function_tags' label={t('Function Tags')}>
-        <CatalogPillList items={model.function_tags.split(',').map((t) => t.trim()).filter(Boolean)} />
+        <CatalogPillList items={model.function_tags.split(',').map((tag) => tag.trim()).filter(Boolean)} />
       </CatalogInfoCell>
     )
   }
