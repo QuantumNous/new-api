@@ -274,6 +274,17 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 			return
 		}
 
+		// TokenAuthReadOnly must keep allowing other token states to query read-only
+		// data, such as token usage logs; only explicitly disabled tokens are denied.
+		if token.Status == common.TokenStatusDisabled {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": common.TranslateMessage(c, i18n.MsgTokenStatusUnavailable),
+			})
+			c.Abort()
+			return
+		}
+
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
 			common.SysLog(fmt.Sprintf("TokenAuthReadOnly GetUserCache error for user %d: %v", token.UserId, err))
