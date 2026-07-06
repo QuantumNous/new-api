@@ -14,10 +14,15 @@ const PlatformUSDPerModelRatio = 2.0
 // canonical model name and ModelNameCandidates aliases (e.g. minimax-m3 ↔ MiniMax-M3).
 func GlobalModelPricingUSD(canonical string) (input, output, cache, cacheCreation float64, ok bool) {
 	for _, name := range ModelPricingLookupNames(canonical) {
+		// Price-based (quota_type=1: per-request/per-second/per-image, e.g.
+		// sora/kling/gpt-image) has no "output token" axis at all — don't run
+		// completion_ratio derivation here. GetCompletionRatio falls back to
+		// newapi's stock hardcoded per-model-family default when nothing is
+		// configured, which fabricates a bogus non-zero "output price" for
+		// these models (completion_ratio is a token-billing concept).
 		if price, usePrice := ratio_setting.GetModelPrice(name, false); usePrice && price > 0 {
 			input = price
-			fillGlobalDerivedPrices(name, input, &output, &cache, &cacheCreation)
-			return input, output, cache, cacheCreation, true
+			return input, 0, 0, 0, true
 		}
 		if ratio, success, _ := ratio_setting.GetModelRatio(name); success && ratio > 0 {
 			input = ratio * PlatformUSDPerModelRatio
