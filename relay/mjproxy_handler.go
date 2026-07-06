@@ -36,8 +36,9 @@ func RelayMidjourneyImage(c *gin.Context) {
 		return
 	}
 	var httpClient *http.Client
+	var proxy string
 	if channel, err := model.CacheGetChannel(midjourneyTask.ChannelId); err == nil {
-		proxy := channel.GetSetting().Proxy
+		proxy = channel.GetSetting().Proxy
 		if proxy != "" {
 			if httpClient, err = service.NewProxyHttpClient(proxy); err != nil {
 				c.JSON(400, gin.H{
@@ -48,12 +49,20 @@ func RelayMidjourneyImage(c *gin.Context) {
 		}
 	}
 	if httpClient == nil {
-		httpClient = service.GetHttpClient()
+		httpClient = service.GetSSRFProtectedHTTPClient()
 	}
-	fetchSetting := system_setting.GetFetchSetting()
-	if err := common.ValidateURLWithFetchSetting(midjourneyTask.ImageUrl, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
+	var validateErr error
+	if proxy == "" {
+		validateErr = service.ValidateSSRFProtectedFetchURL(midjourneyTask.ImageUrl)
+	} else {
+		// 渠道代理路径的连接由代理侧建立，无法做拨号时逐 IP 校验，
+		// 因此保留请求前的一次性 SSRF 校验。
+		fetchSetting := system_setting.GetFetchSetting()
+		validateErr = common.ValidateURLWithFetchSetting(midjourneyTask.ImageUrl, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain)
+	}
+	if validateErr != nil {
 		c.JSON(http.StatusForbidden, gin.H{
-			"error": fmt.Sprintf("request blocked: %v", err),
+			"error": fmt.Sprintf("request blocked: %v", validateErr),
 		})
 		return
 	}
