@@ -75,6 +75,7 @@ const UserInfoHeader = ({ t, userState, passkeyStatus, onRefresh }) => {
 
   const isVIP =
     userState?.user?.group === 'vip' || userState?.user?.group === 'svip';
+  const canUpgradeVIP = userState?.user?.group === 'default';
   const roleLabel = isRoot()
     ? t('超级管理员')
     : isAdmin()
@@ -242,7 +243,7 @@ const UserInfoHeader = ({ t, userState, passkeyStatus, onRefresh }) => {
             <Tag color='grey' shape='circle' size='large'>
               ID: {userState?.user?.id}
             </Tag>
-            {!isVIP && (
+            {canUpgradeVIP && (
               <Button
                 theme='solid'
                 type='warning'

@@ -52,9 +52,9 @@ type User struct {
 	RegisterIP       string         `json:"register_ip" gorm:"type:varchar(64);column:register_ip"`
 	RegisterUA       string         `json:"register_ua" gorm:"type:varchar(512);column:register_ua"`
 	InviterUsername  string         `json:"inviter_username" gorm:"-"`
-	InviteCount     int            `json:"invite_count" gorm:"-"`
-	ActiveIPs       []string       `json:"active_ips,omitempty" gorm:"-"`
-	CreatedAt       int64          `json:"created_at" gorm:"bigint;autoCreateTime"`
+	InviteCount      int            `json:"invite_count" gorm:"-"`
+	ActiveIPs        []string       `json:"active_ips,omitempty" gorm:"-"`
+	CreatedAt        int64          `json:"created_at" gorm:"bigint;autoCreateTime"`
 	DeletedAt        gorm.DeletedAt `gorm:"index"`
 	LinuxDOId        string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
@@ -1024,6 +1024,25 @@ func UpgradeUserGroup(userId int, group string) error {
 		return err
 	}
 	return UpdateUserGroupCache(userId, group)
+}
+
+func UpgradeUserGroupIfCurrentGroup(userId int, currentGroup string, targetGroup string) (bool, error) {
+	result := DB.Model(&User{}).
+		Where("id = ? AND "+commonGroupCol+" = ?", userId, currentGroup).
+		Updates(map[string]interface{}{
+			"group":      targetGroup,
+			"base_level": targetGroup,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return false, nil
+	}
+	if err := UpdateUserGroupCache(userId, targetGroup); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func GetUserInvitees(userId int) ([]User, error) {

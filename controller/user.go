@@ -1360,9 +1360,9 @@ func GetUserInvitees(c *gin.Context) {
 }
 
 const (
-	vipGroup              = "vip"
-	vipMinRecentTopUp     = 20.0        // $20
-	vipRecentTopUpDays    = 7
+	vipGroup           = "vip"
+	vipMinRecentTopUp  = 20.0 // $20
+	vipRecentTopUpDays = 7
 )
 
 func UpgradeVIP(c *gin.Context) {
@@ -1374,8 +1374,8 @@ func UpgradeVIP(c *gin.Context) {
 		return
 	}
 
-	// 已经是 VIP
-	if user.Group == vipGroup {
+	// 只允许 default 用户自助升级，避免把更高或自定义分组降到 vip。
+	if user.Group != "default" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": i18n.T(c, i18n.MsgUserAlreadyVIP),
@@ -1398,9 +1398,16 @@ func UpgradeVIP(c *gin.Context) {
 	}
 
 	// 升级
-	err = model.UpgradeUserGroup(userId, vipGroup)
+	upgraded, err := model.UpgradeUserGroupIfCurrentGroup(userId, "default", vipGroup)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if !upgraded {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": i18n.T(c, i18n.MsgUserAlreadyVIP),
+		})
 		return
 	}
 

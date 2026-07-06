@@ -9,6 +9,50 @@ import (
 	"github.com/QuantumNous/new-api/model"
 )
 
+const (
+	autoVIPSourceGroup     = "default"
+	autoVIPTargetGroup     = "vip"
+	autoVIPMinRecentTopUp  = 20.0
+	autoVIPRecentTopUpDays = 7
+)
+
+// ProcessTopUpSuccess handles all asynchronous side effects after a top-up succeeds.
+func ProcessTopUpSuccess(userId int, topUpId int, topUpMoney float64) {
+	ProcessTopUpCommission(userId, topUpId, topUpMoney)
+	ProcessAutoVIPUpgrade(userId)
+}
+
+// ProcessAutoVIPUpgrade upgrades default users to vip once recent successful top-ups reach the threshold.
+func ProcessAutoVIPUpgrade(userId int) {
+	user, err := model.GetUserById(userId, false)
+	if err != nil || user == nil {
+		return
+	}
+
+	recentMoney, err := model.GetUserRecentTopUpMoney(userId, autoVIPRecentTopUpDays)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to calculate recent top-up money for auto vip upgrade: user_id=%d error=%s", userId, err.Error()))
+		return
+	}
+	if !shouldAutoVIPUpgrade(user.Group, recentMoney) {
+		return
+	}
+
+	upgraded, err := model.UpgradeUserGroupIfCurrentGroup(userId, autoVIPSourceGroup, autoVIPTargetGroup)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to auto upgrade user to vip: user_id=%d recent_money=%.2f error=%s", userId, recentMoney, err.Error()))
+		return
+	}
+	if !upgraded {
+		return
+	}
+	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("充值满 %.2f 元，自动升级到 %s 分组", recentMoney, autoVIPTargetGroup))
+}
+
+func shouldAutoVIPUpgrade(group string, recentMoney float64) bool {
+	return group == autoVIPSourceGroup && recentMoney >= autoVIPMinRecentTopUp
+}
+
 // ProcessTopUpCommission 充值成功后处理返佣逻辑
 // userId: 充值用户（被邀请人A）
 // topUpId: 充值记录ID

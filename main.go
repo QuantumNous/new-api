@@ -127,8 +127,8 @@ func main() {
 	// Image cleanup task (remove expired saved images daily)
 	service.StartImageCleanupTask()
 
-	// Register commission hook for top-up success
-	model.OnTopUpSuccessHook = service.ProcessTopUpCommission
+	// Register top-up success hook for commission and automatic group upgrades.
+	model.OnTopUpSuccessHook = service.ProcessTopUpSuccess
 
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
