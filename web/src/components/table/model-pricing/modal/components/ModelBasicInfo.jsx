@@ -58,22 +58,22 @@ const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
   };
 
   return (
-    <div>
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='blue' className='mr-2 shadow-md'>
+    <div className='pricing-detail-block'>
+      <div className='pricing-detail-block-header'>
+        <Avatar size='small' color='blue' className='pricing-detail-block-icon'>
           <IconInfoCircle size={16} />
         </Avatar>
         <div>
-          <Text className='text-lg font-medium'>{t('基本信息')}</Text>
-          <div className='text-xs text-gray-600'>
+          <Text className='pricing-detail-block-title'>{t('基本信息')}</Text>
+          <div className='pricing-detail-block-desc'>
             {t('模型的详细描述和基本特性')}
           </div>
         </div>
       </div>
-      <div className='text-gray-600'>
-        <p className='mb-4'>{getModelDescription()}</p>
+      <div className='pricing-detail-description'>
+        <p>{getModelDescription()}</p>
         {getModelTags().length > 0 && (
-          <Space wrap>
+          <Space wrap className='pricing-detail-tags'>
             {getModelTags().map((tag, index) => (
               <Tag key={index} color={tag.color} shape='circle' size='small'>
                 {tag.text}

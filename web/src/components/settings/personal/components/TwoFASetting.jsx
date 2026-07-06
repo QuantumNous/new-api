@@ -240,7 +240,7 @@ const TwoFASetting = ({ t }) => {
             theme='solid'
             icon={<IconCopy />}
             onClick={onCopy}
-            className='!rounded-lg !bg-slate-600 hover:!bg-slate-700 w-full'
+            className='console-primary-action !rounded-2xl w-full'
           >
             {t('复制所有代码')}
           </Button>
@@ -256,7 +256,7 @@ const TwoFASetting = ({ t }) => {
         {currentStep > 0 && (
           <Button
             onClick={() => setCurrentStep(currentStep - 1)}
-            className='!rounded-lg'
+            className='!rounded-2xl'
           >
             {t('上一步')}
           </Button>
@@ -266,7 +266,7 @@ const TwoFASetting = ({ t }) => {
             type='primary'
             theme='solid'
             onClick={() => setCurrentStep(currentStep + 1)}
-            className='!rounded-lg !bg-slate-600 hover:!bg-slate-700'
+            className='console-primary-action !rounded-2xl'
           >
             {t('下一步')}
           </Button>
@@ -282,7 +282,7 @@ const TwoFASetting = ({ t }) => {
               }
               handleEnable2FA();
             }}
-            className='!rounded-lg !bg-slate-600 hover:!bg-slate-700'
+            className='console-primary-action !rounded-2xl'
           >
             {t('完成设置并启用两步验证')}
           </Button>
@@ -301,7 +301,7 @@ const TwoFASetting = ({ t }) => {
             setVerificationCode('');
             setConfirmDisable(false);
           }}
-          className='!rounded-lg'
+          className='!rounded-2xl'
         >
           {t('取消')}
         </Button>
@@ -311,7 +311,7 @@ const TwoFASetting = ({ t }) => {
           loading={loading}
           disabled={!confirmDisable || !verificationCode}
           onClick={handleDisable2FA}
-          className='!rounded-lg !bg-slate-500 hover:!bg-slate-600'
+          className='console-danger-action !rounded-2xl'
         >
           {t('确认禁用')}
         </Button>
@@ -331,7 +331,7 @@ const TwoFASetting = ({ t }) => {
             setVerificationCode('');
             setBackupCodes([]);
           }}
-          className='!rounded-lg !bg-slate-600 hover:!bg-slate-700'
+          className='console-primary-action !rounded-2xl'
         >
           {t('完成')}
         </Button>
@@ -346,7 +346,7 @@ const TwoFASetting = ({ t }) => {
             setVerificationCode('');
             setBackupCodes([]);
           }}
-          className='!rounded-lg'
+          className='!rounded-2xl'
         >
           {t('取消')}
         </Button>
@@ -356,7 +356,7 @@ const TwoFASetting = ({ t }) => {
           loading={loading}
           disabled={!verificationCode}
           onClick={handleRegenerateBackupCodes}
-          className='!rounded-lg !bg-slate-600 hover:!bg-slate-700'
+          className='console-primary-action !rounded-2xl'
         >
           {t('生成新的备用码')}
         </Button>
@@ -419,7 +419,7 @@ const TwoFASetting = ({ t }) => {
                 size='default'
                 onClick={handleSetup2FA}
                 loading={loading}
-                className='!rounded-lg !bg-slate-600 hover:!bg-slate-700'
+                className='console-primary-action !rounded-2xl'
                 icon={<IconShield />}
               >
                 {t('启用验证')}
@@ -431,7 +431,7 @@ const TwoFASetting = ({ t }) => {
                   theme='solid'
                   size='default'
                   onClick={() => setDisableModalVisible(true)}
-                  className='!rounded-lg !bg-slate-500 hover:!bg-slate-600'
+                  className='console-danger-action !rounded-2xl'
                   icon={<IconAlertTriangle />}
                 >
                   {t('禁用两步验证')}
@@ -441,7 +441,7 @@ const TwoFASetting = ({ t }) => {
                   theme='solid'
                   size='default'
                   onClick={() => setBackupModalVisible(true)}
-                  className='!rounded-lg'
+                  className='console-primary-action !rounded-2xl'
                   icon={<IconRefresh />}
                 >
                   {t('重新生成备用码')}
@@ -499,7 +499,7 @@ const TwoFASetting = ({ t }) => {
                     )}
                   </Paragraph>
                   <div className='flex justify-center mb-4'>
-                    <div className='bg-white p-4 rounded-lg shadow-sm'>
+                    <div className='bg-white p-4 rounded-lg shadow-sm dark:bg-white'>
                       <QRCodeSVG value={setupData.qr_code_data} size={180} />
                     </div>
                   </div>

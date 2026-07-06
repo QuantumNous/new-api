@@ -74,7 +74,9 @@ const AccountManagement = ({
 }) => {
   const renderAccountInfo = (accountId, label) => {
     if (!accountId || accountId === '') {
-      return <span className='text-gray-500'>{t('未绑定')}</span>;
+      return (
+        <span className='text-gray-500 dark:text-gray-400'>{t('未绑定')}</span>
+      );
     }
 
     const popContent = (
@@ -83,14 +85,16 @@ const AccountManagement = ({
           {accountId}
         </Typography.Paragraph>
         {label ? (
-          <div className='mt-1 text-[11px] text-gray-500'>{label}</div>
+          <div className='mt-1 text-[11px] text-gray-500 dark:text-gray-400'>
+            {label}
+          </div>
         ) : null}
       </div>
     );
 
     return (
       <Popover content={popContent} position='top' trigger='hover'>
-        <span className='block max-w-full truncate text-gray-600 hover:text-blue-600 cursor-pointer'>
+        <span className='block max-w-full truncate text-gray-600 hover:text-blue-600 cursor-pointer dark:text-gray-300 dark:hover:text-blue-400'>
           {accountId}
         </span>
       </Popover>
@@ -112,7 +116,9 @@ const AccountManagement = ({
         showError(res.data.message || t('获取绑定信息失败'));
       }
     } catch (error) {
-      showError(error.response?.data?.message || error.message || t('获取绑定信息失败'));
+      showError(
+        error.response?.data?.message || error.message || t('获取绑定信息失败'),
+      );
     }
   };
 
@@ -126,7 +132,9 @@ const AccountManagement = ({
       onOk: async () => {
         setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: true }));
         try {
-          const res = await API.delete(`/api/user/oauth/bindings/${providerId}`);
+          const res = await API.delete(
+            `/api/user/oauth/bindings/${providerId}`,
+          );
           if (res.data.success) {
             showSuccess(t('解绑成功'));
             await loadCustomOAuthBindings();
@@ -134,7 +142,9 @@ const AccountManagement = ({
             showError(res.data.message);
           }
         } catch (error) {
-          showError(error.response?.data?.message || error.message || t('操作失败'));
+          showError(
+            error.response?.data?.message || error.message || t('操作失败'),
+          );
         } finally {
           setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: false }));
         }
@@ -150,13 +160,17 @@ const AccountManagement = ({
   // Check if custom OAuth provider is bound
   const isCustomOAuthBound = (providerId) => {
     const normalizedId = Number(providerId);
-    return customOAuthBindings.some((b) => Number(b.provider_id) === normalizedId);
+    return customOAuthBindings.some(
+      (b) => Number(b.provider_id) === normalizedId,
+    );
   };
 
   // Get binding info for a provider
   const getCustomOAuthBinding = (providerId) => {
     const normalizedId = Number(providerId);
-    return customOAuthBindings.find((b) => Number(b.provider_id) === normalizedId);
+    return customOAuthBindings.find(
+      (b) => Number(b.provider_id) === normalizedId,
+    );
   };
 
   React.useEffect(() => {
@@ -179,7 +193,7 @@ const AccountManagement = ({
           <Typography.Text className='text-lg font-medium'>
             {t('账户管理')}
           </Typography.Text>
-          <div className='text-xs text-gray-600'>
+          <div className='text-xs text-gray-600 dark:text-gray-400'>
             {t('账户绑定、安全设置和身份验证')}
           </div>
         </div>
@@ -209,10 +223,10 @@ const AccountManagement = ({
                       />
                     </div>
                     <div className='flex-1 min-w-0'>
-                      <div className='font-medium text-gray-900'>
+                      <div className='font-medium text-gray-900 dark:text-gray-100'>
                         {t('邮箱')}
                       </div>
-                      <div className='text-sm text-gray-500 truncate'>
+                      <div className='text-sm text-gray-500 truncate dark:text-gray-400'>
                         {renderAccountInfo(
                           userState.user?.email,
                           t('邮箱地址'),
@@ -225,6 +239,7 @@ const AccountManagement = ({
                       type='primary'
                       theme='outline'
                       size='small'
+                      className='console-outline-action !rounded-xl'
                       onClick={() => setShowEmailBindModal(true)}
                     >
                       {isBound(userState.user?.email)
@@ -246,10 +261,10 @@ const AccountManagement = ({
                       />
                     </div>
                     <div className='flex-1 min-w-0'>
-                      <div className='font-medium text-gray-900'>
+                      <div className='font-medium text-gray-900 dark:text-gray-100'>
                         {t('微信')}
                       </div>
-                      <div className='text-sm text-gray-500 truncate'>
+                      <div className='text-sm text-gray-500 truncate dark:text-gray-400'>
                         {!status.wechat_login
                           ? t('未启用')
                           : isBound(userState.user?.wechat_id)
@@ -264,6 +279,7 @@ const AccountManagement = ({
                       theme='outline'
                       size='small'
                       disabled={!status.wechat_login}
+                      className='console-outline-action !rounded-xl'
                       onClick={() => setShowWeChatBindModal(true)}
                     >
                       {isBound(userState.user?.wechat_id)
@@ -287,10 +303,10 @@ const AccountManagement = ({
                       />
                     </div>
                     <div className='flex-1 min-w-0'>
-                      <div className='font-medium text-gray-900'>
+                      <div className='font-medium text-gray-900 dark:text-gray-100'>
                         {t('GitHub')}
                       </div>
-                      <div className='text-sm text-gray-500 truncate'>
+                      <div className='text-sm text-gray-500 truncate dark:text-gray-400'>
                         {renderAccountInfo(
                           userState.user?.github_id,
                           t('GitHub ID'),
@@ -303,6 +319,7 @@ const AccountManagement = ({
                       type='primary'
                       theme='outline'
                       size='small'
+                      className='console-outline-action !rounded-xl'
                       onClick={() =>
                         onGitHubOAuthClicked(status.github_client_id)
                       }
@@ -328,10 +345,10 @@ const AccountManagement = ({
                       />
                     </div>
                     <div className='flex-1 min-w-0'>
-                      <div className='font-medium text-gray-900'>
+                      <div className='font-medium text-gray-900 dark:text-gray-100'>
                         {t('Discord')}
                       </div>
-                      <div className='text-sm text-gray-500 truncate'>
+                      <div className='text-sm text-gray-500 truncate dark:text-gray-400'>
                         {renderAccountInfo(
                           userState.user?.discord_id,
                           t('Discord ID'),
@@ -344,6 +361,7 @@ const AccountManagement = ({
                       type='primary'
                       theme='outline'
                       size='small'
+                      className='console-outline-action !rounded-xl'
                       onClick={() =>
                         onDiscordOAuthClicked(status.discord_client_id)
                       }
@@ -369,10 +387,10 @@ const AccountManagement = ({
                       />
                     </div>
                     <div className='flex-1 min-w-0'>
-                      <div className='font-medium text-gray-900'>
+                      <div className='font-medium text-gray-900 dark:text-gray-100'>
                         {t('OIDC')}
                       </div>
-                      <div className='text-sm text-gray-500 truncate'>
+                      <div className='text-sm text-gray-500 truncate dark:text-gray-400'>
                         {renderAccountInfo(
                           userState.user?.oidc_id,
                           t('OIDC ID'),
@@ -385,6 +403,7 @@ const AccountManagement = ({
                       type='primary'
                       theme='outline'
                       size='small'
+                      className='console-outline-action !rounded-xl'
                       onClick={() =>
                         onOIDCClicked(
                           status.oidc_authorization_endpoint,
@@ -412,10 +431,10 @@ const AccountManagement = ({
                       />
                     </div>
                     <div className='flex-1 min-w-0'>
-                      <div className='font-medium text-gray-900'>
+                      <div className='font-medium text-gray-900 dark:text-gray-100'>
                         {t('Telegram')}
                       </div>
-                      <div className='text-sm text-gray-500 truncate'>
+                      <div className='text-sm text-gray-500 truncate dark:text-gray-400'>
                         {renderAccountInfo(
                           userState.user?.telegram_id,
                           t('Telegram ID'),
@@ -431,6 +450,7 @@ const AccountManagement = ({
                           size='small'
                           type='primary'
                           theme='outline'
+                          className='console-outline-action !rounded-xl'
                         >
                           {t('已绑定')}
                         </Button>
@@ -439,6 +459,7 @@ const AccountManagement = ({
                           type='primary'
                           theme='outline'
                           size='small'
+                          className='console-outline-action !rounded-xl'
                           onClick={() => setShowTelegramBindModal(true)}
                         >
                           {t('绑定')}
@@ -450,6 +471,7 @@ const AccountManagement = ({
                         size='small'
                         type='primary'
                         theme='outline'
+                        className='console-outline-action !rounded-xl'
                       >
                         {t('未启用')}
                       </Button>
@@ -463,7 +485,7 @@ const AccountManagement = ({
                 onCancel={() => setShowTelegramBindModal(false)}
                 footer={null}
               >
-                <div className='my-3 text-sm text-gray-600'>
+                <div className='my-3 text-sm text-gray-600 dark:text-gray-300'>
                   {t('点击下方按钮通过 Telegram 完成绑定')}
                 </div>
                 <div className='flex justify-center'>
@@ -487,10 +509,10 @@ const AccountManagement = ({
                       />
                     </div>
                     <div className='flex-1 min-w-0'>
-                      <div className='font-medium text-gray-900'>
+                      <div className='font-medium text-gray-900 dark:text-gray-100'>
                         {t('LinuxDO')}
                       </div>
-                      <div className='text-sm text-gray-500 truncate'>
+                      <div className='text-sm text-gray-500 truncate dark:text-gray-400'>
                         {renderAccountInfo(
                           userState.user?.linux_do_id,
                           t('LinuxDO ID'),
@@ -503,6 +525,7 @@ const AccountManagement = ({
                       type='primary'
                       theme='outline'
                       size='small'
+                      className='console-outline-action !rounded-xl'
                       onClick={() =>
                         onLinuxDOOAuthClicked(status.linuxdo_client_id)
                       }
@@ -533,10 +556,10 @@ const AccountManagement = ({
                             )}
                           </div>
                           <div className='flex-1 min-w-0'>
-                            <div className='font-medium text-gray-900'>
+                            <div className='font-medium text-gray-900 dark:text-gray-100'>
                               {provider.name}
                             </div>
-                            <div className='text-sm text-gray-500 truncate'>
+                            <div className='text-sm text-gray-500 truncate dark:text-gray-400'>
                               {bound
                                 ? renderAccountInfo(
                                     binding?.provider_user_id,
@@ -552,9 +575,13 @@ const AccountManagement = ({
                               type='danger'
                               theme='outline'
                               size='small'
+                              className='console-danger-outline-action !rounded-xl'
                               loading={customOAuthLoading[provider.id]}
                               onClick={() =>
-                                handleUnbindCustomOAuth(provider.id, provider.name)
+                                handleUnbindCustomOAuth(
+                                  provider.id,
+                                  provider.name,
+                                )
                               }
                             >
                               {t('解绑')}
@@ -564,6 +591,7 @@ const AccountManagement = ({
                               type='primary'
                               theme='outline'
                               size='small'
+                              className='console-outline-action !rounded-xl'
                               onClick={() => handleBindCustomOAuth(provider)}
                             >
                               {t('绑定')}
@@ -622,7 +650,7 @@ const AccountManagement = ({
                       type='primary'
                       theme='solid'
                       onClick={generateAccessToken}
-                      className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
+                      className='console-primary-action !rounded-2xl w-full sm:w-auto'
                       icon={<IconKey />}
                     >
                       {systemToken ? t('重新生成') : t('生成令牌')}
@@ -650,7 +678,7 @@ const AccountManagement = ({
                       type='primary'
                       theme='solid'
                       onClick={() => setShowChangePasswordModal(true)}
-                      className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
+                      className='console-primary-action !rounded-2xl w-full sm:w-auto'
                       icon={<IconLock />}
                     >
                       {t('修改密码')}
@@ -674,7 +702,7 @@ const AccountManagement = ({
                             ? t('已启用 Passkey，无需密码即可登录')
                             : t('使用 Passkey 实现免密且更安全的登录体验')}
                         </Typography.Text>
-                        <div className='mt-2 text-xs text-gray-500 space-y-1'>
+                        <div className='mt-2 text-xs text-gray-500 space-y-1 dark:text-gray-400'>
                           <div>
                             {t('最后使用时间')}：{lastUsedLabel}
                           </div>
@@ -715,7 +743,7 @@ const AccountManagement = ({
                             }
                           : onPasskeyRegister
                       }
-                      className={`w-full sm:w-auto ${passkeyEnabled ? '!bg-slate-500 hover:!bg-slate-600' : ''}`}
+                      className={`!rounded-2xl w-full sm:w-auto ${passkeyEnabled ? 'console-danger-action' : 'console-primary-action'}`}
                       icon={<IconKey />}
                       disabled={!passkeySupported && !passkeyEnabled}
                       loading={
@@ -755,7 +783,7 @@ const AccountManagement = ({
                       type='danger'
                       theme='solid'
                       onClick={() => setShowAccountDeleteModal(true)}
-                      className='w-full sm:w-auto !bg-slate-500 hover:!bg-slate-600'
+                      className='console-danger-action !rounded-2xl w-full sm:w-auto'
                       icon={<IconDelete />}
                     >
                       {t('删除账户')}

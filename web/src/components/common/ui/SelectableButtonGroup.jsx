@@ -45,6 +45,7 @@ import { IconChevronDown, IconChevronUp } from '@douyinfe/semi-icons';
  * @param {number} collapseHeight 折叠时的高度，默认200
  * @param {boolean} withCheckbox 是否启用前缀 Checkbox 来控制激活状态
  * @param {boolean} loading 是否处于加载状态
+ * @param {number} skeletonCount 加载状态下展示的按钮骨架数量
  * @param {string} variant 颜色变体: 'violet' | 'teal' | 'amber' | 'rose' | 'green'，不传则使用默认蓝色
  */
 const SelectableButtonGroup = ({
@@ -58,10 +59,10 @@ const SelectableButtonGroup = ({
   collapseHeight = 200,
   withCheckbox = false,
   loading = false,
+  skeletonCount: skeletonCountProp,
   variant,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [skeletonCount] = useState(12);
   const [containerRef, containerWidth] = useContainerWidth();
 
   const ConditionalTooltipText = ({ text }) => {
@@ -96,6 +97,8 @@ const SelectableButtonGroup = ({
   };
 
   const { columns: perRow, showTags: shouldShowTags } = getResponsiveConfig();
+  const skeletonCount =
+    skeletonCountProp ?? Math.min(Math.max(items.length, 1), 6);
   const maxVisibleRows = Math.max(1, Math.floor(collapseHeight / 32)); // Approx row height 32
   const needCollapse = collapsible && items.length > perRow * maxVisibleRows;
   const showSkeleton = useMinimumLoadingTime(loading);
@@ -137,10 +140,15 @@ const SelectableButtonGroup = ({
 
   const renderSkeletonButtons = () => {
     const placeholder = (
-      <Row gutter={gutterSize} style={{ lineHeight: '32px', ...style }}>
+      <Row
+        className='sbg-skeleton-grid'
+        gutter={gutterSize}
+        style={{ lineHeight: '32px', ...style }}
+      >
         {Array.from({ length: skeletonCount }).map((_, index) => (
           <Col span={getColSpan()} key={index}>
             <div
+              className='sbg-skeleton-button'
               style={{
                 width: '100%',
                 height: '32px',
@@ -154,10 +162,15 @@ const SelectableButtonGroup = ({
               }}
             >
               {withCheckbox && (
-                <Skeleton.Title active style={{ width: 14, height: 14 }} />
+                <Skeleton.Title
+                  active
+                  className='sbg-skeleton-checkbox'
+                  style={{ width: 14, height: 14 }}
+                />
               )}
               <Skeleton.Title
                 active
+                className='sbg-skeleton-label'
                 style={{
                   width: `${60 + (index % 3) * 20}px`,
                   height: 14,
@@ -206,7 +219,9 @@ const SelectableButtonGroup = ({
                   {item.icon && <span className='sbg-icon'>{item.icon}</span>}
                   <ConditionalTooltipText text={item.label} />
                   {item.tagCount !== undefined && shouldShowTags && (
-                    <span className={`sbg-badge ${isActive ? 'sbg-badge-active' : ''}`}>
+                    <span
+                      className={`sbg-badge ${isActive ? 'sbg-badge-active' : ''}`}
+                    >
                       {item.tagCount}
                     </span>
                   )}
@@ -228,11 +243,15 @@ const SelectableButtonGroup = ({
               <div className='sbg-content'>
                 {item.icon && <span className='sbg-icon'>{item.icon}</span>}
                 <ConditionalTooltipText text={item.label} />
-                {item.tagCount !== undefined && shouldShowTags && item.tagCount !== '' && (
-                  <span className={`sbg-badge ${isActive ? 'sbg-badge-active' : ''}`}>
-                    {item.tagCount}
-                  </span>
-                )}
+                {item.tagCount !== undefined &&
+                  shouldShowTags &&
+                  item.tagCount !== '' && (
+                    <span
+                      className={`sbg-badge ${isActive ? 'sbg-badge-active' : ''}`}
+                    >
+                      {item.tagCount}
+                    </span>
+                  )}
               </div>
             </Button>
           </Col>

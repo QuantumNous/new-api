@@ -20,7 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Avatar, Typography, Table, Tag } from '@douyinfe/semi-ui';
 import { IconCoinMoneyStroked } from '@douyinfe/semi-icons';
-import { calculateModelPrice, getModelPriceItems } from '../../../../../helpers';
+import {
+  calculateModelPrice,
+  getModelPriceItems,
+} from '../../../../../helpers';
 
 const { Text } = Typography;
 
@@ -88,7 +91,12 @@ const ModelPricingTable = ({
         title: t('分组'),
         dataIndex: 'group',
         render: (text) => (
-          <Tag color='white' size='small' shape='circle'>
+          <Tag
+            color='white'
+            size='small'
+            shape='circle'
+            className='pricing-detail-group-tag'
+          >
             {text}
             {t('分组')}
           </Tag>
@@ -104,7 +112,12 @@ const ModelPricingTable = ({
         title: t('分组倍率'),
         dataIndex: 'ratio',
         render: (text) => (
-          <Tag color='blue' size='small' shape='circle'>
+          <Tag
+            color='blue'
+            size='small'
+            shape='circle'
+            className='pricing-detail-ratio-tag'
+          >
             {text}x
           </Tag>
         ),
@@ -141,11 +154,12 @@ const ModelPricingTable = ({
         return (
           <div className='space-y-1'>
             {items.map((item) => (
-              <div key={item.key}>
-                <div className='font-semibold text-orange-600'>
-                  {item.label} {item.value}
+              <div key={item.key} className='pricing-detail-price-line'>
+                <div className='pricing-detail-price-main'>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
                 </div>
-                <div className='text-xs text-gray-500'>{item.suffix}</div>
+                <div className='pricing-detail-price-suffix'>{item.suffix}</div>
               </div>
             ))}
           </div>
@@ -160,35 +174,44 @@ const ModelPricingTable = ({
         pagination={false}
         size='small'
         bordered={false}
-        className='!rounded-lg'
+        className='pricing-detail-price-table !rounded-lg'
       />
     );
   };
 
   return (
-    <div>
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='orange' className='mr-2 shadow-md'>
+    <div className='pricing-detail-block'>
+      <div className='pricing-detail-block-header'>
+        <Avatar
+          size='small'
+          color='orange'
+          className='pricing-detail-block-icon'
+        >
           <IconCoinMoneyStroked size={16} />
         </Avatar>
         <div>
-          <Text className='text-lg font-medium'>{t('分组价格')}</Text>
-          <div className='text-xs text-gray-600'>
+          <Text className='pricing-detail-block-title'>{t('分组价格')}</Text>
+          <div className='pricing-detail-block-desc'>
             {t('不同用户分组的价格信息')}
           </div>
         </div>
       </div>
       {autoChain.length > 0 && (
-        <div className='flex flex-wrap items-center gap-1 mb-4'>
-          <span className='text-sm text-gray-600'>{t('auto分组调用链路')}</span>
-          <span className='text-sm'>→</span>
+        <div className='pricing-detail-auto-chain'>
+          <span>{t('auto分组调用链路')}</span>
+          <span>→</span>
           {autoChain.map((g, idx) => (
             <React.Fragment key={g}>
-              <Tag color='white' size='small' shape='circle'>
+              <Tag
+                color='white'
+                size='small'
+                shape='circle'
+                className='pricing-detail-group-tag'
+              >
                 {g}
                 {t('分组')}
               </Tag>
-              {idx < autoChain.length - 1 && <span className='text-sm'>→</span>}
+              {idx < autoChain.length - 1 && <span>→</span>}
             </React.Fragment>
           ))}
         </div>

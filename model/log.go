@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -55,6 +56,12 @@ const (
 func formatUserLogs(logs []*Log, startIdx int) {
 	enrichSubscriptionDetails(logs)
 	for i := range logs {
+		if logs[i].Type == LogTypeSystem && strings.HasPrefix(logs[i].Content, "用户签到") {
+			logs[i].Ip = ""
+			logs[i].PromptTokens = 0
+			logs[i].CompletionTokens = 0
+			logs[i].UseTime = 0
+		}
 		logs[i].ChannelName = ""
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
@@ -116,6 +123,42 @@ func RecordLog(userId int, logType int, content string) {
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		common.SysLog("failed to record log: " + err.Error())
+	}
+}
+
+func RecordCheckinLog(userId int, content string, callerIp string, durationMs int64, captchaDisplayCount int, captchaAnswer string, captchaFirstSeenAt int64, captchaSubmittedAt int64) {
+	username, _ := GetUsernameById(userId, false)
+	if durationMs < 0 {
+		durationMs = 0
+	}
+	if captchaDisplayCount < 0 {
+		captchaDisplayCount = 0
+	}
+	useTimeSeconds := int((durationMs + 999) / 1000)
+	adminInfo := map[string]interface{}{
+		"checkin":               true,
+		"caller_ip":             callerIp,
+		"duration_ms":           durationMs,
+		"captcha_display_count": captchaDisplayCount,
+		"captcha_answer":        captchaAnswer,
+		"captcha_first_seen_at": captchaFirstSeenAt,
+		"captcha_submitted_at":  captchaSubmittedAt,
+	}
+	log := &Log{
+		UserId:       userId,
+		Username:     username,
+		CreatedAt:    common.GetTimestamp(),
+		Type:         LogTypeSystem,
+		Content:      content,
+		PromptTokens: captchaDisplayCount,
+		UseTime:      useTimeSeconds,
+		Ip:           callerIp,
+		Other: common.MapToJsonStr(map[string]interface{}{
+			"admin_info": adminInfo,
+		}),
+	}
+	if err := LOG_DB.Create(log).Error; err != nil {
+		common.SysLog("failed to record checkin log: " + err.Error())
 	}
 }
 

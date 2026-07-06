@@ -33,33 +33,46 @@ const StatsCards = ({
   const navigate = useNavigate();
   const { t } = useTranslation();
   return (
-    <div className='mb-4'>
-      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
+    <div className='console-stats-section mb-4'>
+      <div className='console-stats-header'>
+        <span>{t('核心指标')}</span>
+        <small>{t('账户、调用与性能状态总览')}</small>
+      </div>
+      <div className='console-stats-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
         {groupedStatsData.map((group, idx) => (
           <Card
             key={idx}
             {...CARD_PROPS}
-            className={`${group.color} border-0 !rounded-2xl w-full`}
-            title={group.title}
+            className={`${group.color} console-stat-group-card border-0 !rounded-2xl w-full`}
+            title={
+              <div className='console-stat-group-title'>
+                <span className='console-stat-group-index'>
+                  {String(idx + 1).padStart(2, '0')}
+                </span>
+                <span className='console-stat-group-name'>{group.title}</span>
+              </div>
+            }
           >
             <div className='space-y-4'>
               {group.items.map((item, itemIdx) => (
                 <div
                   key={itemIdx}
-                  className='flex items-center justify-between cursor-pointer'
+                  className='console-stat-item flex items-center justify-between cursor-pointer'
                   onClick={item.onClick}
                 >
                   <div className='flex items-center'>
                     <Avatar
-                      className='mr-3'
+                      className='console-stat-avatar mr-3'
                       size='small'
                       color={item.avatarColor}
                     >
                       {item.icon}
                     </Avatar>
                     <div>
-                      <div className='text-xs text-gray-500'>{item.title}</div>
-                      <div className='text-lg font-semibold'>
+                      <div className='console-stat-label text-xs'>
+                        {item.title}
+                      </div>
+                      <div className='console-stat-value text-lg font-semibold'>
                         <Skeleton
                           loading={loading}
                           active
@@ -85,6 +98,7 @@ const StatsCards = ({
                       color='white'
                       shape='circle'
                       size='large'
+                      className='console-stat-topup-tag'
                       onClick={(e) => {
                         e.stopPropagation();
                         navigate('/console/topup');
@@ -95,7 +109,7 @@ const StatsCards = ({
                   ) : (
                     (loading ||
                       (item.trendData && item.trendData.length > 0)) && (
-                      <div className='w-24 h-10'>
+                      <div className='console-stat-sparkline w-24 h-10'>
                         <VChart
                           spec={getTrendSpec(item.trendData, item.trendColor)}
                           option={CHART_CONFIG}

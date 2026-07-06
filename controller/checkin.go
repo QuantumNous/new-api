@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -52,6 +53,16 @@ func DoCheckin(c *gin.Context) {
 	}
 	captchaId := c.Query("captcha_id")
 	captchaAnswer := c.Query("captcha_answer")
+	captchaDisplayCount, _ := strconv.Atoi(c.Query("captcha_display_count"))
+	captchaFirstSeenAt, _ := strconv.ParseInt(c.Query("captcha_first_seen_at"), 10, 64)
+	captchaSubmittedAt := time.Now().UnixMilli()
+	durationMs := int64(0)
+	if captchaFirstSeenAt > 0 {
+		durationMs = captchaSubmittedAt - captchaFirstSeenAt
+		if durationMs < 0 {
+			durationMs = 0
+		}
+	}
 	if captchaId == "" || captchaAnswer == "" {
 		common.ApiErrorMsg(c, "请输入图形验证码")
 		return
@@ -71,7 +82,7 @@ func DoCheckin(c *gin.Context) {
 		})
 		return
 	}
-	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("用户签到，获得额度 %s", logger.LogQuota(checkin.QuotaAwarded)))
+	model.RecordCheckinLog(userId, fmt.Sprintf("用户签到，获得额度 %s", logger.LogQuota(checkin.QuotaAwarded)), c.ClientIP(), durationMs, captchaDisplayCount, captchaAnswer, captchaFirstSeenAt, captchaSubmittedAt)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "签到成功",

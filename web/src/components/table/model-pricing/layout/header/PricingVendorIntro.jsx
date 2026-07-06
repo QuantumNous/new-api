@@ -56,9 +56,7 @@ const COMPONENT_STYLES = {
     fontWeight: '500',
   },
   avatarContainer:
-    'w-16 h-16 rounded-2xl bg-white/90 shadow-md backdrop-blur-sm flex items-center justify-center',
-  titleText: { color: 'white' },
-  descriptionText: { color: 'rgba(255,255,255,0.9)' },
+    'pricing-vendor-avatar w-16 h-16 rounded-2xl shadow-md backdrop-blur-sm flex items-center justify-center',
 };
 
 const CONTENT_TEXTS = {
@@ -150,6 +148,7 @@ const PricingVendorIntro = memo(
     setShowWithRecharge,
     currency,
     setCurrency,
+    siteDisplayType,
     showRatio,
     setShowRatio,
     viewMode,
@@ -259,17 +258,6 @@ const PricingVendorIntro = memo(
       [vendorInfo, t],
     );
 
-    const createCoverStyle = useCallback(
-      (primaryColor) => ({
-        '--palette-primary-darkerChannel': primaryColor,
-        backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-      }),
-      [],
-    );
-
     const renderSearchActions = useCallback(
       () => (
         <SearchActions
@@ -285,6 +273,7 @@ const PricingVendorIntro = memo(
           setShowWithRecharge={setShowWithRecharge}
           currency={currency}
           setCurrency={setCurrency}
+          siteDisplayType={siteDisplayType}
           showRatio={showRatio}
           setShowRatio={setShowRatio}
           viewMode={viewMode}
@@ -307,6 +296,7 @@ const PricingVendorIntro = memo(
         setShowWithRecharge,
         currency,
         setCurrency,
+        siteDisplayType,
         showRatio,
         setShowRatio,
         viewMode,
@@ -320,49 +310,50 @@ const PricingVendorIntro = memo(
     const renderHeaderCard = useCallback(
       ({ title, count, description, rightContent, primaryDarkerChannel }) => (
         <Card
-          className='!rounded-2xl shadow-sm border-0'
-          cover={
-            <div
-              className='relative h-full'
-              style={createCoverStyle(primaryDarkerChannel)}
-            >
-              <div className='relative z-10 h-full flex items-center justify-between p-4'>
-                <div className='flex-1 min-w-0 mr-4'>
-                  <div className='flex flex-row flex-wrap items-center gap-2 sm:gap-3 mb-2'>
-                    <h2
-                      className='text-lg sm:text-xl font-bold truncate'
-                      style={COMPONENT_STYLES.titleText}
-                    >
-                      {title}
-                    </h2>
-                    <Tag
-                      style={COMPONENT_STYLES.tag}
-                      shape='circle'
-                      size='small'
-                      className='self-center'
-                    >
-                      {t('共 {{count}} 个模型', { count })}
-                    </Tag>
-                  </div>
-                  <Paragraph
-                    className='text-xs sm:text-sm leading-relaxed !mb-0 cursor-pointer'
-                    style={COMPONENT_STYLES.descriptionText}
-                    ellipsis={{ rows: 2 }}
-                    onClick={() => handleOpenDescModal(description)}
-                  >
-                    {description}
-                  </Paragraph>
-                </div>
-
-                <div className='flex-shrink-0'>{rightContent}</div>
-              </div>
-            </div>
-          }
+          className='pricing-hero-card'
+          bodyStyle={{ padding: 0 }}
+          style={{ '--pricing-hero-accent-channel': primaryDarkerChannel }}
         >
-          {renderSearchActions()}
+          <div className='pricing-hero-main'>
+            <div className='pricing-hero-copy'>
+              <div className='pricing-hero-eyebrow'>{t('模型价格雷达')}</div>
+              <div className='pricing-hero-title-row'>
+                <h1>{title}</h1>
+                <Tag
+                  style={COMPONENT_STYLES.tag}
+                  shape='circle'
+                  size='small'
+                  className='pricing-hero-count-tag'
+                >
+                  {t('共 {{count}} 个模型', { count })}
+                </Tag>
+              </div>
+              <Paragraph
+                className='pricing-hero-description'
+                ellipsis={{ rows: 2 }}
+                onClick={() => handleOpenDescModal(description)}
+              >
+                {description}
+              </Paragraph>
+            </div>
+
+            <div className='pricing-hero-metrics'>
+              <div className='pricing-hero-metric'>
+                <span>{count}</span>
+                <small>{t('可用模型')}</small>
+              </div>
+              <div className='pricing-hero-metric'>
+                <span>{vendorInfo.length || 1}</span>
+                <small>{t('供应商')}</small>
+              </div>
+              <div className='pricing-hero-avatar-wrap'>{rightContent}</div>
+            </div>
+          </div>
+
+          <div className='pricing-hero-toolbar'>{renderSearchActions()}</div>
         </Card>
       ),
-      [renderSearchActions, createCoverStyle, handleOpenDescModal, t],
+      [renderSearchActions, handleOpenDescModal, vendorInfo.length, t],
     );
 
     const renderAllVendorsAvatar = useCallback(() => {

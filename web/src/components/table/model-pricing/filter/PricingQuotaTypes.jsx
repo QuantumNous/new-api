@@ -52,6 +52,7 @@ const PricingQuotaTypes = ({
       activeValue={filterQuotaType}
       onChange={setFilterQuotaType}
       loading={loading}
+      skeletonCount={3}
       variant='amber'
       t={t}
     />

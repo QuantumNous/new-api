@@ -45,9 +45,12 @@ const AccountDeleteModal = ({
       visible={showAccountDeleteModal}
       onCancel={() => setShowAccountDeleteModal(false)}
       onOk={deleteAccount}
+      okType='danger'
       size={'small'}
       centered={true}
       className='modern-modal'
+      okButtonProps={{ className: 'console-danger-action !rounded-2xl' }}
+      cancelButtonProps={{ className: '!rounded-2xl' }}
     >
       <div className='space-y-4 py-4'>
         <Banner

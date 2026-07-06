@@ -1,6 +1,15 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Typography, Button, Avatar, Select, Toast, Checkbox, Tooltip } from '@douyinfe/semi-ui';
+import {
+  Card,
+  Typography,
+  Button,
+  Avatar,
+  Select,
+  Toast,
+  Checkbox,
+  Tooltip,
+} from '@douyinfe/semi-ui';
 import { Image, HelpCircle } from 'lucide-react';
 import { UserContext } from '../../../../context/User';
 import { API } from '../../../../helpers';
@@ -22,7 +31,9 @@ const ImageStudioCard = ({ t }) => {
       try {
         const settings = JSON.parse(userState.user.setting);
         setSaveImageToServer(settings.save_image_to_server === true);
-      } catch { /* silent */ }
+      } catch {
+        /* silent */
+      }
     }
   }, [userState?.user?.setting]);
 
@@ -31,10 +42,14 @@ const ImageStudioCard = ({ t }) => {
       try {
         const res = await API.get('/api/token/?p=0&size=100');
         if (res.data.success) {
-          const active = (res.data.data?.items || res.data.data || []).filter(t => t.status === 1);
+          const active = (res.data.data?.items || res.data.data || []).filter(
+            (t) => t.status === 1,
+          );
           setTokens(active);
         }
-      } catch { /* silent */ }
+      } catch {
+        /* silent */
+      }
     };
     fetchTokens();
   }, []);
@@ -118,12 +133,19 @@ const ImageStudioCard = ({ t }) => {
                 </Typography.Text>
               </div>
             </div>
-            <Button theme='solid' type='primary' onClick={openImageStudio}>
+            <Button
+              theme='solid'
+              type='primary'
+              onClick={openImageStudio}
+              className='console-primary-action !rounded-2xl'
+            >
               {t('打开')}
             </Button>
           </div>
           <div>
-            <Typography.Text size='small' strong>{t('选择令牌')}</Typography.Text>
+            <Typography.Text size='small' strong>
+              {t('选择令牌')}
+            </Typography.Text>
             <Select
               className='mt-1'
               style={{ width: '100%' }}
@@ -131,7 +153,7 @@ const ImageStudioCard = ({ t }) => {
               value={selectedTokenId}
               onChange={handleTokenSelect}
               loading={loading}
-              optionList={tokens.map(t => ({ label: t.name, value: t.id }))}
+              optionList={tokens.map((t) => ({ label: t.name, value: t.id }))}
               filter
             />
           </div>
@@ -143,7 +165,11 @@ const ImageStudioCard = ({ t }) => {
             >
               {t('服务端保存图片')}
             </Checkbox>
-            <Tooltip content={t('开启后生成的图片将保存在服务端，可跨设备查看，最多保留7天，可通过请求ID查询。费用：每次成功调用加收 0.05元/张，计入消费记录。')}>
+            <Tooltip
+              content={t(
+                '开启后生成的图片将保存在服务端，可跨设备查看，最多保留7天，可通过请求ID查询。费用：每次成功调用加收 0.05元/张，计入消费记录。',
+              )}
+            >
               <HelpCircle size={14} className='text-gray-400 cursor-help' />
             </Tooltip>
           </div>

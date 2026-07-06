@@ -18,12 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Avatar, Tag, Divider, Empty } from '@douyinfe/semi-ui';
+import { Card, Avatar, Tag, Empty } from '@douyinfe/semi-ui';
 import { Server, Gauge, ExternalLink, Copy } from 'lucide-react';
-import {
-  IllustrationConstruction,
-  IllustrationConstructionDark,
-} from '@douyinfe/semi-illustrations';
 import ScrollableContainer from '../common/ui/ScrollableContainer';
 
 const ApiInfoPanel = ({
@@ -32,44 +28,47 @@ const ApiInfoPanel = ({
   handleSpeedTest,
   CARD_PROPS,
   FLEX_CENTER_GAP2,
-  ILLUSTRATION_SIZE,
   t,
 }) => {
   return (
     <Card
       {...CARD_PROPS}
-      className='bg-gray-50 border-0 !rounded-2xl'
+      className='console-dashboard-card console-api-card bg-gray-50 border-0 !rounded-2xl lg:col-span-4 xl:col-span-3'
       title={
-        <div className={FLEX_CENTER_GAP2}>
-          <Server size={16} />
-          {t('API信息')}
+        <div className={`console-panel-title ${FLEX_CENTER_GAP2}`}>
+          <span className='console-panel-icon'>
+            <Server size={16} />
+          </span>
+          <span>{t('API信息')}</span>
         </div>
       }
       bodyStyle={{ padding: 0 }}
     >
       <ScrollableContainer maxHeight='24rem'>
         {apiInfoData.length > 0 ? (
-          apiInfoData.map((api) => (
-            <React.Fragment key={api.id}>
-              <div className='flex p-2 hover:bg-white rounded-lg transition-colors cursor-pointer'>
-                <div className='flex-shrink-0 mr-3'>
-                  <Avatar size='extra-small' color={api.color}>
+          <div className='console-api-list'>
+            {apiInfoData.map((api) => (
+              <div key={api.id || api.route} className='console-api-item'>
+                <div className='console-api-avatar-wrap'>
+                  <Avatar
+                    size='extra-small'
+                    color={api.color}
+                    className='console-api-avatar'
+                  >
                     {api.route.substring(0, 2)}
                   </Avatar>
                 </div>
-                <div className='flex-1'>
-                  <div className='flex flex-wrap items-center justify-between mb-1 w-full gap-2'>
-                    <span className='text-sm font-medium text-gray-900 !font-bold break-all'>
-                      {api.route}
-                    </span>
-                    <div className='flex items-center gap-1 mt-1 lg:mt-0'>
+                <div className='console-api-main'>
+                  <div className='console-api-head'>
+                    <span className='console-api-route'>{api.route}</span>
+                    <div className='console-api-actions'>
                       <Tag
                         prefixIcon={<Gauge size={12} />}
                         size='small'
                         color='white'
                         shape='circle'
                         onClick={() => handleSpeedTest(api.url)}
-                        className='cursor-pointer hover:opacity-80 text-xs'
+                        className='console-api-action-tag'
                       >
                         {t('测速')}
                       </Tag>
@@ -81,38 +80,35 @@ const ApiInfoPanel = ({
                         onClick={() =>
                           window.open(api.url, '_blank', 'noopener,noreferrer')
                         }
-                        className='cursor-pointer hover:opacity-80 text-xs'
+                        className='console-api-action-tag'
                       >
                         {t('跳转')}
                       </Tag>
                     </div>
                   </div>
-                  <div className='flex items-center gap-1 mb-1'>
+                  <div className='console-api-url-row'>
                     <span
-                      className='!text-semi-color-primary break-all cursor-pointer hover:underline'
+                      className='console-api-url'
                       onClick={() => handleCopyUrl(api.url)}
                     >
                       {api.url}
                     </span>
                     <Copy
                       size={14}
-                      className='flex-shrink-0 text-gray-400 hover:text-semi-color-primary cursor-pointer transition-colors'
+                      className='console-api-copy flex-shrink-0 cursor-pointer transition-colors'
                       onClick={() => handleCopyUrl(api.url)}
                     />
                   </div>
-                  <div className='text-gray-500'>{api.description}</div>
+                  <div className='console-api-desc'>{api.description}</div>
                 </div>
               </div>
-              <Divider />
-            </React.Fragment>
-          ))
+            ))}
+          </div>
         ) : (
-          <div className='flex justify-center items-center min-h-[20rem] w-full'>
+          <div className='console-empty-state min-h-[20rem]'>
             <Empty
-              image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-              darkModeImage={
-                <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
-              }
+              image={null}
+              imageStyle={{ display: 'none' }}
               title={t('暂无API信息')}
               description={t('请联系管理员在系统设置中配置API信息')}
             />

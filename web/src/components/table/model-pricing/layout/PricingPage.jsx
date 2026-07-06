@@ -40,7 +40,10 @@ const PricingPage = () => {
   };
 
   return (
-    <div className='bg-white'>
+    <div className='pricing-page-shell'>
+      <div className='pricing-orb pricing-orb-cyan' />
+      <div className='pricing-orb pricing-orb-amber' />
+      <div className='pricing-grid-field' />
       <Layout className='pricing-layout'>
         {!isMobile && (
           <Sider className='pricing-scroll-hide pricing-sidebar'>

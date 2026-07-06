@@ -38,9 +38,90 @@ import {
 } from '../../helpers/dashboard';
 
 const USER_COLORS = [
-  '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
-  '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6',
+  '#0f766e',
+  '#2563eb',
+  '#a16207',
+  '#7c3aed',
+  '#be123c',
+  '#475569',
+  '#0e7490',
+  '#b45309',
+  '#4f46e5',
+  '#15803d',
 ];
+
+const COMMAND_CHART_STYLE = {
+  background: 'transparent',
+  title: {
+    textStyle: {
+      fill: '#19130c',
+      fontSize: 16,
+      fontWeight: 900,
+    },
+    subtextStyle: {
+      fill: '#6f675b',
+      fontSize: 12,
+    },
+  },
+  axes: [
+    {
+      orient: 'bottom',
+      label: { style: { fill: '#6f675b' } },
+      domainLine: { style: { stroke: 'rgba(76, 65, 49, 0.12)' } },
+      grid: { style: { stroke: 'rgba(76, 65, 49, 0.055)' } },
+    },
+    {
+      orient: 'left',
+      label: { style: { fill: '#6f675b' } },
+      domainLine: { style: { stroke: 'rgba(76, 65, 49, 0.1)' } },
+      grid: { style: { stroke: 'rgba(76, 65, 49, 0.06)' } },
+    },
+  ],
+  legends: {
+    item: {
+      label: {
+        style: { fill: '#5f574c' },
+      },
+    },
+  },
+};
+
+const withCommandChartStyle = (spec) => ({
+  ...COMMAND_CHART_STYLE,
+  ...spec,
+  title: {
+    ...COMMAND_CHART_STYLE.title,
+    ...spec.title,
+    textStyle: {
+      ...COMMAND_CHART_STYLE.title.textStyle,
+      ...spec.title?.textStyle,
+    },
+    subtextStyle: {
+      ...COMMAND_CHART_STYLE.title.subtextStyle,
+      ...spec.title?.subtextStyle,
+    },
+  },
+  axes: spec.axes || COMMAND_CHART_STYLE.axes,
+  legends:
+    spec.legends === false
+      ? false
+      : {
+          ...COMMAND_CHART_STYLE.legends,
+          ...spec.legends,
+          item: {
+            ...COMMAND_CHART_STYLE.legends.item,
+            ...spec.legends?.item,
+            label: {
+              ...COMMAND_CHART_STYLE.legends.item.label,
+              ...spec.legends?.item?.label,
+              style: {
+                ...COMMAND_CHART_STYLE.legends.item.label.style,
+                ...spec.legends?.item?.label?.style,
+              },
+            },
+          },
+        },
+});
 
 export const useDashboardCharts = (
   dataExportDefaultTime,
@@ -54,334 +135,360 @@ export const useDashboardCharts = (
   t,
 ) => {
   // ========== 图表规格状态 ==========
-  const [spec_pie, setSpecPie] = useState({
-    type: 'pie',
-    data: [
-      {
-        id: 'id0',
-        values: [{ type: 'null', value: '0' }],
-      },
-    ],
-    outerRadius: 0.8,
-    innerRadius: 0.5,
-    padAngle: 0.6,
-    valueField: 'value',
-    categoryField: 'type',
-    pie: {
-      style: {
-        cornerRadius: 10,
-      },
-      state: {
-        hover: {
-          outerRadius: 0.85,
-          stroke: '#000',
-          lineWidth: 1,
+  const [spec_pie, setSpecPie] = useState(
+    withCommandChartStyle({
+      type: 'pie',
+      data: [
+        {
+          id: 'id0',
+          values: [{ type: 'null', value: '0' }],
         },
-        selected: {
-          outerRadius: 0.85,
-          stroke: '#000',
-          lineWidth: 1,
+      ],
+      outerRadius: 0.8,
+      innerRadius: 0.5,
+      padAngle: 0.6,
+      valueField: 'value',
+      categoryField: 'type',
+      pie: {
+        style: {
+          cornerRadius: 10,
         },
-      },
-    },
-    title: {
-      visible: true,
-      text: t('模型调用次数占比'),
-      subtext: `${t('总计')}：${renderNumber(0)}`,
-    },
-    legends: {
-      visible: true,
-      orient: 'left',
-    },
-    label: {
-      visible: true,
-    },
-    tooltip: {
-      mark: {
-        content: [
-          {
-            key: (datum) => datum['type'],
-            value: (datum) => renderNumber(datum['value']),
+        state: {
+          hover: {
+            outerRadius: 0.85,
+            stroke: '#000',
+            lineWidth: 1,
           },
-        ],
+          selected: {
+            outerRadius: 0.85,
+            stroke: '#000',
+            lineWidth: 1,
+          },
+        },
       },
-    },
-    color: {
-      specified: modelColorMap,
-    },
-  });
+      title: {
+        visible: true,
+        text: t('模型调用次数占比'),
+        subtext: `${t('总计')}：${renderNumber(0)}`,
+      },
+      legends: {
+        visible: true,
+        orient: 'left',
+      },
+      label: {
+        visible: true,
+      },
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum) => datum['type'],
+              value: (datum) => renderNumber(datum['value']),
+            },
+          ],
+        },
+      },
+      color: {
+        specified: modelColorMap,
+      },
+    }),
+  );
 
-  const [spec_line, setSpecLine] = useState({
-    type: 'bar',
-    data: [
-      {
-        id: 'barData',
-        values: [],
+  const [spec_line, setSpecLine] = useState(
+    withCommandChartStyle({
+      type: 'bar',
+      data: [
+        {
+          id: 'barData',
+          values: [],
+        },
+      ],
+      xField: 'Time',
+      yField: 'Usage',
+      seriesField: 'Model',
+      stack: true,
+      legends: {
+        visible: true,
+        selectMode: 'single',
       },
-    ],
-    xField: 'Time',
-    yField: 'Usage',
-    seriesField: 'Model',
-    stack: true,
-    legends: {
-      visible: true,
-      selectMode: 'single',
-    },
-    title: {
-      visible: true,
-      text: t('模型消耗分布'),
-      subtext: `${t('总计')}：${renderQuota(0, 2)}`,
-    },
-    bar: {
-      state: {
-        hover: {
-          stroke: '#000',
-          lineWidth: 1,
+      title: {
+        visible: true,
+        text: t('模型消耗分布'),
+        subtext: `${t('总计')}：${renderQuota(0, 2)}`,
+      },
+      bar: {
+        state: {
+          hover: {
+            stroke: '#000',
+            lineWidth: 1,
+          },
         },
       },
-    },
-    tooltip: {
-      mark: {
-        content: [
-          {
-            key: (datum) => datum['Model'],
-            value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum) => datum['Model'],
+              value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
+            },
+          ],
+        },
+        dimension: {
+          content: [
+            {
+              key: (datum) => datum['Model'],
+              value: (datum) => datum['rawQuota'] || 0,
+            },
+          ],
+          updateContent: (array) => {
+            array.sort((a, b) => b.value - a.value);
+            let sum = 0;
+            for (let i = 0; i < array.length; i++) {
+              if (array[i].key == '其他') {
+                continue;
+              }
+              let value = parseFloat(array[i].value);
+              if (isNaN(value)) {
+                value = 0;
+              }
+              if (array[i].datum && array[i].datum.TimeSum) {
+                sum = array[i].datum.TimeSum;
+              }
+              array[i].value = renderQuota(value, 4);
+            }
+            array.unshift({
+              key: t('总计'),
+              value: renderQuota(sum, 4),
+            });
+            return array;
           },
-        ],
-      },
-      dimension: {
-        content: [
-          {
-            key: (datum) => datum['Model'],
-            value: (datum) => datum['rawQuota'] || 0,
-          },
-        ],
-        updateContent: (array) => {
-          array.sort((a, b) => b.value - a.value);
-          let sum = 0;
-          for (let i = 0; i < array.length; i++) {
-            if (array[i].key == '其他') {
-              continue;
-            }
-            let value = parseFloat(array[i].value);
-            if (isNaN(value)) {
-              value = 0;
-            }
-            if (array[i].datum && array[i].datum.TimeSum) {
-              sum = array[i].datum.TimeSum;
-            }
-            array[i].value = renderQuota(value, 4);
-          }
-          array.unshift({
-            key: t('总计'),
-            value: renderQuota(sum, 4),
-          });
-          return array;
         },
       },
-    },
-    color: {
-      specified: modelColorMap,
-    },
-  });
+      color: {
+        specified: modelColorMap,
+      },
+    }),
+  );
 
-  const [spec_model_line, setSpecModelLine] = useState({
-    type: 'line',
-    data: [
-      {
-        id: 'lineData',
-        values: [],
+  const [spec_model_line, setSpecModelLine] = useState(
+    withCommandChartStyle({
+      type: 'line',
+      data: [
+        {
+          id: 'lineData',
+          values: [],
+        },
+      ],
+      xField: 'Time',
+      yField: 'Count',
+      seriesField: 'Model',
+      legends: {
+        visible: true,
+        selectMode: 'single',
       },
-    ],
-    xField: 'Time',
-    yField: 'Count',
-    seriesField: 'Model',
-    legends: {
-      visible: true,
-      selectMode: 'single',
-    },
-    title: {
-      visible: true,
-      text: t('调用趋势'),
-      subtext: '',
-    },
-    tooltip: {
-      mark: {
-        content: [
-          {
-            key: (datum) => datum['Model'],
-            value: (datum) => renderNumber(datum['Count']),
-          },
-        ],
+      title: {
+        visible: true,
+        text: t('调用趋势'),
+        subtext: '',
       },
-      dimension: {
-        content: [
-          {
-            key: (datum) => datum['Model'],
-            value: (datum) => datum['Count'] || 0,
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum) => datum['Model'],
+              value: (datum) => renderNumber(datum['Count']),
+            },
+          ],
+        },
+        dimension: {
+          content: [
+            {
+              key: (datum) => datum['Model'],
+              value: (datum) => datum['Count'] || 0,
+            },
+          ],
+          updateContent: (array) => {
+            array.sort((a, b) => b.value - a.value);
+            let sum = 0;
+            for (let i = 0; i < array.length; i++) {
+              let value = parseFloat(array[i].value);
+              if (isNaN(value)) value = 0;
+              sum += value;
+              array[i].value = renderNumber(value);
+            }
+            array.unshift({
+              key: t('总计'),
+              value: renderNumber(sum),
+            });
+            return array;
           },
-        ],
-        updateContent: (array) => {
-          array.sort((a, b) => b.value - a.value);
-          let sum = 0;
-          for (let i = 0; i < array.length; i++) {
-            let value = parseFloat(array[i].value);
-            if (isNaN(value)) value = 0;
-            sum += value;
-            array[i].value = renderNumber(value);
-          }
-          array.unshift({
-            key: t('总计'),
-            value: renderNumber(sum),
-          });
-          return array;
         },
       },
-    },
-    color: {
-      specified: modelColorMap,
-    },
-  });
+      color: {
+        specified: modelColorMap,
+      },
+    }),
+  );
 
-  const [spec_rank_bar, setSpecRankBar] = useState({
-    type: 'bar',
-    data: [
-      {
-        id: 'rankData',
-        values: [],
+  const [spec_rank_bar, setSpecRankBar] = useState(
+    withCommandChartStyle({
+      type: 'bar',
+      data: [
+        {
+          id: 'rankData',
+          values: [],
+        },
+      ],
+      xField: 'Model',
+      yField: 'Count',
+      seriesField: 'Model',
+      legends: {
+        visible: true,
+        selectMode: 'single',
       },
-    ],
-    xField: 'Model',
-    yField: 'Count',
-    seriesField: 'Model',
-    legends: {
-      visible: true,
-      selectMode: 'single',
-    },
-    title: {
-      visible: true,
-      text: t('模型调用次数排行'),
-      subtext: '',
-    },
-    bar: {
-      state: {
-        hover: {
-          stroke: '#000',
-          lineWidth: 1,
+      title: {
+        visible: true,
+        text: t('模型调用次数排行'),
+        subtext: '',
+      },
+      bar: {
+        state: {
+          hover: {
+            stroke: '#000',
+            lineWidth: 1,
+          },
         },
       },
-    },
-    tooltip: {
-      mark: {
-        content: [
-          {
-            key: (datum) => datum['Model'],
-            value: (datum) => renderNumber(datum['Count']),
-          },
-        ],
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum) => datum['Model'],
+              value: (datum) => renderNumber(datum['Count']),
+            },
+          ],
+        },
       },
-    },
-    color: {
-      specified: modelColorMap,
-    },
-  });
+      color: {
+        specified: modelColorMap,
+      },
+    }),
+  );
 
   // ========== Admin: 用户消耗排行 ==========
-  const [spec_user_rank, setSpecUserRank] = useState({
-    type: 'bar',
-    data: [{ id: 'userRankData', values: [] }],
-    xField: 'rawQuota',
-    yField: 'User',
-    seriesField: 'User',
-    direction: 'horizontal',
-    legends: { visible: false },
-    title: {
-      visible: true,
-      text: t('用户消耗排行'),
-      subtext: '',
-    },
-    bar: {
-      state: { hover: { stroke: '#000', lineWidth: 1 } },
-    },
-    label: {
-      visible: true,
-      position: 'outside',
-      formatMethod: (value, datum) => renderQuota(datum['rawQuota'] || 0, 2),
-    },
-    axes: [{
-      orient: 'left',
-      type: 'band',
-      label: { visible: true },
-    }, {
-      orient: 'bottom',
-      type: 'linear',
-      visible: false,
-    }],
-    tooltip: {
-      mark: {
-        content: [{
-          key: (datum) => datum['User'],
-          value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
-        }],
+  const [spec_user_rank, setSpecUserRank] = useState(
+    withCommandChartStyle({
+      type: 'bar',
+      data: [{ id: 'userRankData', values: [] }],
+      xField: 'rawQuota',
+      yField: 'User',
+      seriesField: 'User',
+      direction: 'horizontal',
+      legends: { visible: false },
+      title: {
+        visible: true,
+        text: t('用户消耗排行'),
+        subtext: '',
       },
-    },
-    color: { type: 'ordinal', range: USER_COLORS },
-  });
-
-  // ========== Admin: 用户消耗趋势 ==========
-  const [spec_user_trend, setSpecUserTrend] = useState({
-    type: 'area',
-    data: [{ id: 'userTrendData', values: [] }],
-    xField: 'Time',
-    yField: 'rawQuota',
-    seriesField: 'User',
-    stack: false,
-    legends: { visible: true, selectMode: 'single' },
-    title: {
-      visible: true,
-      text: t('用户消耗趋势'),
-      subtext: '',
-    },
-    axes: [{
-      orient: 'left',
+      bar: {
+        state: { hover: { stroke: '#000', lineWidth: 1 } },
+      },
       label: {
-        formatMethod: (value) => renderQuota(value, 2),
+        visible: true,
+        position: 'outside',
+        formatMethod: (value, datum) => renderQuota(datum['rawQuota'] || 0, 2),
       },
-    }],
-    area: { style: { fillOpacity: 0.15 } },
-    line: { style: { lineWidth: 2 } },
-    point: { visible: false },
-    tooltip: {
-      mark: {
-        content: [{
-          key: (datum) => datum['User'],
-          value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
-        }],
-      },
-      dimension: {
-        content: [{
-          key: (datum) => datum['User'],
-          value: (datum) => datum['rawQuota'] || 0,
-        }],
-        updateContent: (array) => {
-          array.sort((a, b) => b.value - a.value);
-          let sum = 0;
-          for (let i = 0; i < array.length; i++) {
-            let value = parseFloat(array[i].value);
-            if (isNaN(value)) value = 0;
-            sum += value;
-            array[i].value = renderQuota(value, 4);
-          }
-          array.unshift({
-            key: t('总计'),
-            value: renderQuota(sum, 4),
-          });
-          return array;
+      axes: [
+        {
+          orient: 'left',
+          type: 'band',
+          label: { visible: true, style: { fill: '#6f675b' } },
+        },
+        {
+          orient: 'bottom',
+          type: 'linear',
+          visible: false,
+        },
+      ],
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum) => datum['User'],
+              value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
+            },
+          ],
         },
       },
-    },
-    color: { type: 'ordinal', range: USER_COLORS },
-  });
+      color: { type: 'ordinal', range: USER_COLORS },
+    }),
+  );
+
+  // ========== Admin: 用户消耗趋势 ==========
+  const [spec_user_trend, setSpecUserTrend] = useState(
+    withCommandChartStyle({
+      type: 'area',
+      data: [{ id: 'userTrendData', values: [] }],
+      xField: 'Time',
+      yField: 'rawQuota',
+      seriesField: 'User',
+      stack: false,
+      legends: { visible: true, selectMode: 'single' },
+      title: {
+        visible: true,
+        text: t('用户消耗趋势'),
+        subtext: '',
+      },
+      axes: [
+        {
+          orient: 'left',
+          label: {
+            style: { fill: '#6f675b' },
+            formatMethod: (value) => renderQuota(value, 2),
+          },
+          domainLine: { style: { stroke: 'rgba(76, 65, 49, 0.1)' } },
+          grid: { style: { stroke: 'rgba(76, 65, 49, 0.06)' } },
+        },
+      ],
+      area: { style: { fillOpacity: 0.15 } },
+      line: { style: { lineWidth: 2 } },
+      point: { visible: false },
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum) => datum['User'],
+              value: (datum) => renderQuota(datum['rawQuota'] || 0, 4),
+            },
+          ],
+        },
+        dimension: {
+          content: [
+            {
+              key: (datum) => datum['User'],
+              value: (datum) => datum['rawQuota'] || 0,
+            },
+          ],
+          updateContent: (array) => {
+            array.sort((a, b) => b.value - a.value);
+            let sum = 0;
+            for (let i = 0; i < array.length; i++) {
+              let value = parseFloat(array[i].value);
+              if (isNaN(value)) value = 0;
+              sum += value;
+              array[i].value = renderQuota(value, 4);
+            }
+            array.unshift({
+              key: t('总计'),
+              value: renderQuota(sum, 4),
+            });
+            return array;
+          },
+        },
+      },
+      color: { type: 'ordinal', range: USER_COLORS },
+    }),
+  );
 
   // ========== 数据处理函数 ==========
   const generateModelColors = useCallback((uniqueModels, modelColors) => {
@@ -571,11 +678,13 @@ export const useDashboardCharts = (
         10,
       );
 
-      const userRankValues = rankingData.map((item) => ({
-        User: item.User,
-        rawQuota: item.Quota,
-        Quota: getQuotaWithUnit(item.Quota, 4),
-      })).sort((a, b) => b.rawQuota - a.rawQuota);
+      const userRankValues = rankingData
+        .map((item) => ({
+          User: item.User,
+          rawQuota: item.Quota,
+          Quota: getQuotaWithUnit(item.Quota, 4),
+        }))
+        .sort((a, b) => b.rawQuota - a.rawQuota);
 
       const totalUserQuota = rankingData.reduce((s, i) => s + i.Quota, 0);
 

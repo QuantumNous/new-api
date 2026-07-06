@@ -29,6 +29,7 @@ import ParamOverrideModal from './modals/ParamOverrideModal';
 import { useLogsData } from '../../../hooks/usage-logs/useUsageLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import { Activity, DatabaseZap } from 'lucide-react';
 
 const LogsPage = () => {
   const logsData = useLogsData();
@@ -43,8 +44,25 @@ const LogsPage = () => {
       <ParamOverrideModal {...logsData} />
 
       {/* Main Content */}
+      <div className='usage-logs-compact-header'>
+        <div className='usage-logs-compact-copy'>
+          <div className='usage-logs-compact-eyebrow'>
+            <Activity size={14} />
+            {logsData.t('API 调用记录')}
+          </div>
+          <div>
+            <h1>{logsData.t('使用日志')}</h1>
+            <p>{logsData.t('筛选、审计并定位每一次模型请求。')}</p>
+          </div>
+        </div>
+        <div className='usage-logs-compact-icon'>
+          <DatabaseZap size={22} />
+        </div>
+      </div>
+
       <CardPro
         type='type2'
+        className='usage-logs-command-card'
         statsArea={<LogsActions {...logsData} />}
         searchArea={<LogsFilters {...logsData} />}
         paginationArea={createCardProPagination({

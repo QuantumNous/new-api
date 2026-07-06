@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
+import { SlidersHorizontal } from 'lucide-react';
 import PricingGroups from '../filter/PricingGroups';
 import PricingQuotaTypes from '../filter/PricingQuotaTypes';
 import PricingEndpointTypes from '../filter/PricingEndpointTypes';
@@ -91,14 +92,20 @@ const PricingSidebar = ({
     });
 
   return (
-    <div className='p-2'>
-      <div className='flex items-center justify-between mb-6'>
-        <div className='text-lg font-semibold text-gray-800'>{t('筛选')}</div>
+    <div className='pricing-filter-panel'>
+      <div className='pricing-filter-header'>
+        <div>
+          <div className='pricing-filter-kicker'>{t('模型雷达')}</div>
+          <div className='pricing-filter-title'>
+            <SlidersHorizontal size={18} />
+            {t('筛选')}
+          </div>
+        </div>
         <Button
           theme='outline'
           type='tertiary'
           onClick={handleResetFilters}
-          className='text-gray-500 hover:text-gray-700'
+          className='pricing-reset-button'
         >
           {t('重置')}
         </Button>

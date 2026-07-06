@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { memo, useCallback } from 'react';
-import { Input, Button, Switch, Select, Divider } from '@douyinfe/semi-ui';
+import { Input, Button, Switch, Select } from '@douyinfe/semi-ui';
 import { IconSearch, IconCopy, IconFilter } from '@douyinfe/semi-icons';
 
 const SearchActions = memo(
@@ -65,8 +65,8 @@ const SearchActions = memo(
     }, [tokenUnit, setTokenUnit]);
 
     return (
-      <div className='flex items-center gap-2 w-full'>
-        <div className='flex-1'>
+      <div className='pricing-action-bar'>
+        <div className='pricing-search-box'>
           <Input
             prefix={<IconSearch />}
             placeholder={t('模糊搜索模型名称')}
@@ -75,6 +75,7 @@ const SearchActions = memo(
             onCompositionEnd={handleCompositionEnd}
             onChange={handleChange}
             showClear
+            className='pricing-search-input'
           />
         </div>
 
@@ -84,19 +85,17 @@ const SearchActions = memo(
           icon={<IconCopy />}
           onClick={handleCopyClick}
           disabled={selectedRowKeys.length === 0}
-          className='!bg-blue-500 hover:!bg-blue-600 !text-white disabled:!bg-gray-300 disabled:!text-gray-500'
+          className='pricing-copy-button'
         >
           {t('复制')}
         </Button>
 
         {!isMobile && (
           <>
-            <Divider layout='vertical' margin='8px' />
-
             {/* 充值价格显示开关 */}
             {supportsCurrencyDisplay && (
-              <div className='flex items-center gap-2'>
-                <span className='text-sm text-gray-600'>{t('充值价格显示')}</span>
+              <div className='pricing-control-chip'>
+                <span>{t('充值价格显示')}</span>
                 <Switch
                   checked={showWithRecharge}
                   onChange={setShowWithRecharge}
@@ -109,6 +108,7 @@ const SearchActions = memo(
               <Select
                 value={currency}
                 onChange={setCurrency}
+                className='pricing-currency-select'
                 optionList={[
                   { value: 'USD', label: 'USD' },
                   { value: 'CNY', label: 'CNY' },
@@ -118,8 +118,8 @@ const SearchActions = memo(
             )}
 
             {/* 显示倍率开关 */}
-            <div className='flex items-center gap-2'>
-              <span className='text-sm text-gray-600'>{t('倍率')}</span>
+            <div className='pricing-control-chip'>
+              <span>{t('倍率')}</span>
               <Switch checked={showRatio} onChange={setShowRatio} />
             </div>
 
@@ -128,6 +128,7 @@ const SearchActions = memo(
               theme={viewMode === 'table' ? 'solid' : 'outline'}
               type={viewMode === 'table' ? 'primary' : 'tertiary'}
               onClick={handleViewModeToggle}
+              className='pricing-view-button'
             >
               {t('表格视图')}
             </Button>
@@ -137,6 +138,7 @@ const SearchActions = memo(
               theme={tokenUnit === 'K' ? 'solid' : 'outline'}
               type={tokenUnit === 'K' ? 'primary' : 'tertiary'}
               onClick={handleTokenUnitToggle}
+              className='pricing-unit-button'
             >
               {tokenUnit}
             </Button>
@@ -149,6 +151,7 @@ const SearchActions = memo(
             type='tertiary'
             icon={<IconFilter />}
             onClick={handleFilterClick}
+            className='pricing-filter-mobile-button'
           >
             {t('筛选')}
           </Button>

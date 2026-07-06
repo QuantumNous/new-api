@@ -28,7 +28,13 @@ import { API, showError } from '../../helpers';
  * 拉取 /api/captcha，展示图片与输入框，点击图片可刷新。
  * 通过 onChange({ captchaId, captchaAnswer }) 将状态回传父组件。
  */
-const CaptchaWidget = ({ answer, onChange, refreshSignal }) => {
+const CaptchaWidget = ({
+  answer,
+  className = '',
+  onChange,
+  onRefreshSuccess,
+  refreshSignal,
+}) => {
   const { t } = useTranslation();
   const [captchaId, setCaptchaId] = useState('');
   const [captchaImage, setCaptchaImage] = useState('');
@@ -43,6 +49,7 @@ const CaptchaWidget = ({ answer, onChange, refreshSignal }) => {
         setCaptchaId(data.captcha_id);
         setCaptchaImage(data.captcha_image);
         onChange && onChange({ captchaId: data.captcha_id, captchaAnswer: '' });
+        onRefreshSuccess && onRefreshSuccess(data);
       } else {
         showError(message);
       }
@@ -51,7 +58,7 @@ const CaptchaWidget = ({ answer, onChange, refreshSignal }) => {
     } finally {
       setLoading(false);
     }
-  }, [onChange, t]);
+  }, [onChange, onRefreshSuccess, t]);
 
   useEffect(() => {
     refresh();
@@ -69,42 +76,48 @@ const CaptchaWidget = ({ answer, onChange, refreshSignal }) => {
     onChange && onChange({ captchaId, captchaAnswer: value });
   };
 
+  const rootClassName = ['captcha-widget', className].filter(Boolean).join(' ');
+
   return (
-    <Form.Input
-      field='captcha_answer'
-      label={t('图形验证码')}
-      placeholder={t('请输入图中数字')}
-      name='captcha_answer'
-      value={answer}
-      onChange={handleAnswerChange}
-      prefix={<IconShield />}
-      suffix={
-        <div
-          onClick={loading ? undefined : refresh}
-          title={t('点击刷新')}
-          style={{
-            cursor: loading ? 'default' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            height: 32,
-            minWidth: 100,
-            justifyContent: 'center',
-          }}
-        >
-          {loading ? (
-            <Spin size='small' />
-          ) : captchaImage ? (
-            <img
-              src={captchaImage}
-              alt={t('图形验证码')}
-              style={{ height: 32, borderRadius: 4, display: 'block' }}
-            />
-          ) : (
-            <IconRefresh />
-          )}
-        </div>
-      }
-    />
+    <div className={rootClassName}>
+      <Form.Input
+        field='captcha_answer'
+        label={t('图形验证码')}
+        placeholder={t('请输入图中数字')}
+        name='captcha_answer'
+        value={answer}
+        onChange={handleAnswerChange}
+        prefix={<IconShield />}
+        suffix={
+          <div
+            className='captcha-widget-refresh'
+            onClick={loading ? undefined : refresh}
+            title={t('点击刷新')}
+            style={{
+              cursor: loading ? 'default' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              height: 32,
+              minWidth: 100,
+              justifyContent: 'center',
+            }}
+          >
+            {loading ? (
+              <Spin size='small' />
+            ) : captchaImage ? (
+              <img
+                className='captcha-widget-image'
+                src={captchaImage}
+                alt={t('图形验证码')}
+                style={{ height: 32, borderRadius: 4, display: 'block' }}
+              />
+            ) : (
+              <IconRefresh />
+            )}
+          </div>
+        }
+      />
+    </div>
   );
 };
 

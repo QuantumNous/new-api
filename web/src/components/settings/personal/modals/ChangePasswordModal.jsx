@@ -47,6 +47,8 @@ const ChangePasswordModal = ({
       size={'small'}
       centered={true}
       className='modern-modal'
+      okButtonProps={{ className: 'console-primary-action !rounded-2xl' }}
+      cancelButtonProps={{ className: '!rounded-2xl' }}
     >
       <div className='space-y-4 py-4'>
         <div>

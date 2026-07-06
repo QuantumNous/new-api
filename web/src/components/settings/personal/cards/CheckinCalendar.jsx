@@ -40,6 +40,24 @@ import {
 import { API, showError, showSuccess, renderQuota } from '../../../../helpers';
 import CaptchaWidget from '../../../common/CaptchaWidget';
 
+const CHECKIN_CAPTCHA_COUNT_COOKIE = 'checkin_captcha_display_count';
+const CHECKIN_CAPTCHA_COOKIE_MAX_AGE = 180;
+
+const getCookieValue = (name) => {
+  const cookie = document.cookie
+    .split('; ')
+    .find((item) => item.startsWith(`${name}=`));
+  return cookie ? decodeURIComponent(cookie.slice(name.length + 1)) : '';
+};
+
+const setCookieValue = (name, value, maxAgeSeconds) => {
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
+};
+
+const deleteCookieValue = (name) => {
+  document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+};
+
 const CheckinCalendar = ({ t, status }) => {
   const [loading, setLoading] = useState(false);
   const [checkinLoading, setCheckinLoading] = useState(false);
@@ -47,6 +65,8 @@ const CheckinCalendar = ({ t, status }) => {
   const [captchaId, setCaptchaId] = useState('');
   const [captchaAnswer, setCaptchaAnswer] = useState('');
   const [captchaRefresh, setCaptchaRefresh] = useState(0);
+  const [captchaDisplayCount, setCaptchaDisplayCount] = useState(0);
+  const [captchaFirstSeenAt, setCaptchaFirstSeenAt] = useState(0);
   const [checkinData, setCheckinData] = useState({
     enabled: false,
     stats: {
@@ -120,8 +140,25 @@ const CheckinCalendar = ({ t, status }) => {
     const query = new URLSearchParams({
       captcha_id: captchaId,
       captcha_answer: captchaAnswer,
+      captcha_display_count: String(captchaDisplayCount),
+      captcha_first_seen_at: String(captchaFirstSeenAt),
     });
     return API.post(`/api/user/checkin?${query.toString()}`);
+  };
+
+  const handleCaptchaRefreshSuccess = () => {
+    const cookieCount = parseInt(
+      getCookieValue(CHECKIN_CAPTCHA_COUNT_COOKIE) || '0',
+      10,
+    );
+    const nextCount = Number.isFinite(cookieCount) ? cookieCount + 1 : 1;
+    setCookieValue(
+      CHECKIN_CAPTCHA_COUNT_COOKIE,
+      String(nextCount),
+      CHECKIN_CAPTCHA_COOKIE_MAX_AGE,
+    );
+    setCaptchaDisplayCount(nextCount);
+    setCaptchaFirstSeenAt((prev) => prev || Date.now());
   };
 
   const handleCaptchaChange = ({ captchaId: id, captchaAnswer: answer }) => {
@@ -133,6 +170,8 @@ const CheckinCalendar = ({ t, status }) => {
     setCaptchaId('');
     setCaptchaAnswer('');
     setCaptchaRefresh(0);
+    setCaptchaDisplayCount(0);
+    setCaptchaFirstSeenAt(0);
     setCaptchaModalVisible(true);
   };
 
@@ -141,6 +180,8 @@ const CheckinCalendar = ({ t, status }) => {
     setCaptchaId('');
     setCaptchaAnswer('');
     setCaptchaRefresh(0);
+    setCaptchaDisplayCount(0);
+    setCaptchaFirstSeenAt(0);
   };
 
   const doCheckin = async () => {
@@ -158,6 +199,7 @@ const CheckinCalendar = ({ t, status }) => {
         );
         // 刷新签到状态
         fetchCheckinStatus(currentMonth);
+        deleteCookieValue(CHECKIN_CAPTCHA_COUNT_COOKIE);
         closeCaptchaModal();
       } else {
         showError(message || t('签到失败'));
@@ -229,6 +271,7 @@ const CheckinCalendar = ({ t, status }) => {
   return (
     <Card className='!rounded-2xl'>
       <Modal
+        className='checkin-captcha-modal'
         title={t('图形验证码')}
         visible={captchaModalVisible}
         okText={t('确认')}
@@ -238,12 +281,14 @@ const CheckinCalendar = ({ t, status }) => {
         onOk={doCheckin}
         onCancel={closeCaptchaModal}
       >
-        <div className='py-2'>
+        <div className='checkin-captcha-body py-2'>
           {captchaModalVisible && (
             <Form>
               <CaptchaWidget
                 answer={captchaAnswer}
+                className='checkin-captcha-widget'
                 onChange={handleCaptchaChange}
+                onRefreshSuccess={handleCaptchaRefreshSuccess}
                 refreshSignal={captchaRefresh}
               />
             </Form>
@@ -289,7 +334,7 @@ const CheckinCalendar = ({ t, status }) => {
           onClick={openCaptchaModal}
           loading={checkinLoading || !initialLoaded}
           disabled={!initialLoaded || checkinData.stats?.checked_in_today}
-          className='!bg-green-600 hover:!bg-green-700'
+          className='console-primary-action !rounded-2xl'
         >
           {!initialLoaded
             ? t('加载中...')
@@ -307,19 +352,25 @@ const CheckinCalendar = ({ t, status }) => {
             <div className='text-xl font-bold text-green-600'>
               {checkinData.stats?.total_checkins || 0}
             </div>
-            <div className='text-xs text-gray-500'>{t('累计签到')}</div>
+            <div className='text-xs text-gray-500 dark:text-gray-400'>
+              {t('累计签到')}
+            </div>
           </div>
           <div className='text-center p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg'>
             <div className='text-xl font-bold text-orange-600'>
               {renderQuota(monthlyQuota, 6)}
             </div>
-            <div className='text-xs text-gray-500'>{t('本月获得')}</div>
+            <div className='text-xs text-gray-500 dark:text-gray-400'>
+              {t('本月获得')}
+            </div>
           </div>
           <div className='text-center p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg'>
             <div className='text-xl font-bold text-blue-600'>
               {renderQuota(checkinData.stats?.total_quota || 0, 6)}
             </div>
-            <div className='text-xs text-gray-500'>{t('累计获得')}</div>
+            <div className='text-xs text-gray-500 dark:text-gray-400'>
+              {t('累计获得')}
+            </div>
           </div>
         </div>
 

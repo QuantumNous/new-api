@@ -22,25 +22,15 @@ import { Card, Collapse, Empty } from '@douyinfe/semi-ui';
 import { HelpCircle } from 'lucide-react';
 import { IconPlus, IconMinus } from '@douyinfe/semi-icons';
 import { marked } from 'marked';
-import {
-  IllustrationConstruction,
-  IllustrationConstructionDark,
-} from '@douyinfe/semi-illustrations';
 import ScrollableContainer from '../common/ui/ScrollableContainer';
 
-const FaqPanel = ({
-  faqData,
-  CARD_PROPS,
-  FLEX_CENTER_GAP2,
-  ILLUSTRATION_SIZE,
-  t,
-}) => {
+const FaqPanel = ({ faqData, CARD_PROPS, FLEX_CENTER_GAP2, t }) => {
   return (
     <Card
       {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-1'
+      className='console-dashboard-card console-faq-card shadow-sm !rounded-2xl lg:col-span-3'
       title={
-        <div className={FLEX_CENTER_GAP2}>
+        <div className={`console-panel-title ${FLEX_CENTER_GAP2}`}>
           <HelpCircle size={16} />
           {t('常见问答')}
         </div>
@@ -53,14 +43,18 @@ const FaqPanel = ({
             accordion
             expandIcon={<IconPlus />}
             collapseIcon={<IconMinus />}
+            className='console-faq-list'
           >
             {faqData.map((item, index) => (
               <Collapse.Panel
                 key={index}
-                header={item.question}
+                header={
+                  <span className='console-faq-question'>{item.question}</span>
+                }
                 itemKey={index.toString()}
               >
                 <div
+                  className='console-faq-answer'
                   dangerouslySetInnerHTML={{
                     __html: marked.parse(item.answer || ''),
                   }}
@@ -69,12 +63,10 @@ const FaqPanel = ({
             ))}
           </Collapse>
         ) : (
-          <div className='flex justify-center items-center py-8'>
+          <div className='console-empty-state py-8'>
             <Empty
-              image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-              darkModeImage={
-                <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
-              }
+              image={null}
+              imageStyle={{ display: 'none' }}
               title={t('暂无常见问答')}
               description={t('请联系管理员在系统设置中配置常见问答')}
             />

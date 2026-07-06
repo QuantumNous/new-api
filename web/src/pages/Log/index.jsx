@@ -21,8 +21,13 @@ import React from 'react';
 import UsageLogsTable from '../../components/table/usage-logs';
 
 const Token = () => (
-  <div className='mt-[60px] px-2'>
-    <UsageLogsTable />
+  <div className='console-dashboard-page console-command-center usage-logs-page-shell mt-[60px]'>
+    <div className='console-dashboard-orb console-dashboard-orb-teal' />
+    <div className='console-dashboard-orb console-dashboard-orb-blue' />
+    <div className='console-dashboard-orb console-dashboard-orb-amber' />
+    <div className='console-dashboard-content usage-logs-command-content'>
+      <UsageLogsTable />
+    </div>
   </div>
 );
 

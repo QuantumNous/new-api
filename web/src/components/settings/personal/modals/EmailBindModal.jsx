@@ -52,6 +52,8 @@ const EmailBindModal = ({
       centered={true}
       maskClosable={false}
       className='modern-modal'
+      okButtonProps={{ className: 'console-primary-action !rounded-2xl' }}
+      cancelButtonProps={{ className: '!rounded-2xl' }}
     >
       <div className='space-y-4 py-4'>
         <div className='flex gap-3'>
@@ -67,7 +69,7 @@ const EmailBindModal = ({
           <Button
             onClick={sendVerificationCode}
             disabled={disableButton || loading}
-            className='!rounded-lg'
+            className='console-outline-action !rounded-2xl'
             type='primary'
             theme='outline'
             size='large'

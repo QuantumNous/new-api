@@ -100,6 +100,7 @@ const PricingTags = ({
       activeValue={filterTag}
       onChange={setFilterTag}
       loading={loading}
+      skeletonCount={1}
       variant='rose'
       t={t}
     />

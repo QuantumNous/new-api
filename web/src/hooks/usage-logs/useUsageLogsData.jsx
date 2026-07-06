@@ -798,6 +798,35 @@ export const useLogsData = () => {
           });
         }
       }
+      if (isAdminUser && logs[i].type === 4 && other?.admin_info?.checkin) {
+        const adminInfo = other.admin_info;
+        expandDataLocal.push(
+          {
+            key: t('签到IP'),
+            value: adminInfo.caller_ip || logs[i].ip || '-',
+          },
+          {
+            key: t('验证码展示次数'),
+            value: adminInfo.captcha_display_count || 0,
+          },
+          {
+            key: t('输入的验证码'),
+            value: adminInfo.captcha_answer || '-',
+          },
+          {
+            key: t('签到过程消耗时长'),
+            value: `${((Number(adminInfo.duration_ms) || 0) / 1000).toFixed(1)} s`,
+          },
+        );
+        if (adminInfo.captcha_first_seen_at) {
+          expandDataLocal.push({
+            key: t('验证码首见时间'),
+            value: timestamp2string(
+              Number(adminInfo.captcha_first_seen_at) / 1000,
+            ),
+          });
+        }
+      }
       expandDatesLocal[logs[i].key] = expandDataLocal;
     }
 

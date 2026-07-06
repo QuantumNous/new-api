@@ -30,12 +30,25 @@ const CARD_STYLES = {
 };
 
 const ModelHeader = ({ modelData, vendorsMap = {}, t }) => {
+  const vendorName =
+    modelData?.vendor_name ||
+    (modelData?.vendor_id && vendorsMap[modelData.vendor_id]?.name) ||
+    t('未知供应商');
+  const billingLabel =
+    modelData?.billing_mode === 'tiered_expr'
+      ? t('动态计费')
+      : modelData?.quota_type === 0
+        ? t('按量计费')
+        : modelData?.quota_type === 1
+          ? t('按次计费')
+          : t('未知计费');
+
   // 获取模型图标（优先模型图标，其次供应商图标）
   const getModelIcon = () => {
     // 1) 优先使用模型自定义图标
     if (modelData?.icon) {
       return (
-        <div className={CARD_STYLES.container}>
+        <div className={`${CARD_STYLES.container} pricing-detail-model-icon`}>
           <div className={CARD_STYLES.icon}>
             {getLobeHubIcon(modelData.icon, 32)}
           </div>
@@ -45,7 +58,7 @@ const ModelHeader = ({ modelData, vendorsMap = {}, t }) => {
     // 2) 退化为供应商图标
     if (modelData?.vendor_icon) {
       return (
-        <div className={CARD_STYLES.container}>
+        <div className={`${CARD_STYLES.container} pricing-detail-model-icon`}>
           <div className={CARD_STYLES.icon}>
             {getLobeHubIcon(modelData.vendor_icon, 32)}
           </div>
@@ -56,7 +69,7 @@ const ModelHeader = ({ modelData, vendorsMap = {}, t }) => {
     // 如果没有供应商图标，使用模型名称的前两个字符
     const avatarText = modelData?.model_name?.slice(0, 2).toUpperCase() || 'AI';
     return (
-      <div className={CARD_STYLES.container}>
+      <div className={`${CARD_STYLES.container} pricing-detail-model-icon`}>
         <Avatar
           size='large'
           style={{
@@ -74,20 +87,23 @@ const ModelHeader = ({ modelData, vendorsMap = {}, t }) => {
   };
 
   return (
-    <div className='flex items-center'>
+    <div className='pricing-detail-header'>
       {getModelIcon()}
-      <div className='ml-3 font-normal'>
+      <div className='pricing-detail-header-copy'>
         <Paragraph
-          className='!mb-0 !text-lg !font-medium'
+          className='pricing-detail-title !mb-0'
           copyable={{
             content: modelData?.model_name || '',
             onCopy: () => Toast.success({ content: t('已复制模型名称') }),
           }}
         >
-          <span className='truncate max-w-60 font-bold'>
-            {modelData?.model_name || t('未知模型')}
-          </span>
+          <span>{modelData?.model_name || t('未知模型')}</span>
         </Paragraph>
+        <div className='pricing-detail-subtitle'>
+          <span>{vendorName}</span>
+          <span className='pricing-detail-dot' />
+          <span>{billingLabel}</span>
+        </div>
       </div>
     </div>
   );

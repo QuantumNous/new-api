@@ -20,10 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Progress, Divider, Empty } from '@douyinfe/semi-ui';
 import {
-  IllustrationConstruction,
-  IllustrationConstructionDark,
-} from '@douyinfe/semi-illustrations';
-import {
   timestamp2string,
   timestamp2string1,
   isDataCrossYear,
@@ -34,7 +30,6 @@ import {
   STORAGE_KEYS,
   DEFAULT_TIME_INTERVALS,
   DEFAULTS,
-  ILLUSTRATION_SIZE,
 } from '../constants/dashboard.constants';
 
 // ========== 时间相关工具函数 ==========
@@ -130,9 +125,7 @@ export const getTrendSpec = (data, color) => ({
   point: {
     visible: false,
   },
-  background: {
-    fill: 'transparent',
-  },
+  background: 'transparent',
 });
 
 // ========== UI 工具函数 ==========
@@ -178,10 +171,8 @@ export const renderMonitorList = (
     return (
       <div className='flex justify-center items-center py-4'>
         <Empty
-          image={<IllustrationConstruction style={ILLUSTRATION_SIZE} />}
-          darkModeImage={
-            <IllustrationConstructionDark style={ILLUSTRATION_SIZE} />
-          }
+          image={null}
+          imageStyle={{ display: 'none' }}
           title={t('暂无监控数据')}
         />
       </div>

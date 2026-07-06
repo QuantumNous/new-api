@@ -250,6 +250,15 @@ function renderFirstUseTime(type, t) {
   }
 }
 
+function getCheckinAdminInfo(record) {
+  if (record?.type !== 4 || !record?.content?.startsWith('用户签到')) {
+    return null;
+  }
+  const other = getLogOther(record.other);
+  const adminInfo = other?.admin_info;
+  return adminInfo?.checkin ? adminInfo : null;
+}
+
 function renderBillingTag(record, t) {
   const other = getLogOther(record.other);
   if (other?.billing_source === 'hybrid') {
@@ -716,6 +725,10 @@ export const getLogsColumns = ({
       title: t('用时/首字'),
       dataIndex: 'use_time',
       render: (text, record, index) => {
+        const checkinInfo = isAdminUser ? getCheckinAdminInfo(record) : null;
+        if (checkinInfo) {
+          return <>{renderFirstUseTime(checkinInfo.duration_ms || 0, t)}</>;
+        }
         if (!(record.type === 2 || record.type === 5)) {
           return <></>;
         }
@@ -758,6 +771,10 @@ export const getLogsColumns = ({
       ),
       dataIndex: 'prompt_tokens',
       render: (text, record, index) => {
+        const checkinInfo = isAdminUser ? getCheckinAdminInfo(record) : null;
+        if (checkinInfo) {
+          return <>{checkinInfo.captcha_display_count || 0}</>;
+        }
         const other = getLogOther(record.other);
         const cacheSummary = getPromptCacheSummary(other);
         const hasCacheRead = (cacheSummary?.cacheReadTokens || 0) > 0;
@@ -807,6 +824,10 @@ export const getLogsColumns = ({
       title: t('输出'),
       dataIndex: 'completion_tokens',
       render: (text, record, index) => {
+        const checkinInfo = isAdminUser ? getCheckinAdminInfo(record) : null;
+        if (checkinInfo) {
+          return <>{checkinInfo.captcha_answer || ''}</>;
+        }
         return parseInt(text) > 0 &&
           (record.type === 0 ||
             record.type === 2 ||
@@ -859,7 +880,7 @@ export const getLogsColumns = ({
           {t('IP')}
           <Tooltip
             content={t(
-              '只有当用户设置开启IP记录时，才会进行请求和错误类型日志的IP记录',
+              '请求和错误类型日志仅在用户开启IP记录时记录；签到成功会记录本次签到IP。',
             )}
           >
             <IconHelpCircle className='text-gray-400 cursor-help' />
@@ -868,10 +889,12 @@ export const getLogsColumns = ({
       ),
       dataIndex: 'ip',
       render: (text, record, index) => {
+        const checkinInfo = isAdminUser ? getCheckinAdminInfo(record) : null;
         const showIp =
           (record.type === 2 ||
             record.type === 5 ||
-            (isAdminUser && record.type === 1)) &&
+            (isAdminUser && record.type === 1) ||
+            checkinInfo) &&
           text;
         return showIp ? (
           <Tooltip content={text}>

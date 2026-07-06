@@ -75,6 +75,7 @@ const PricingGroups = ({
       activeValue={filterGroup}
       onChange={setFilterGroup}
       loading={loading}
+      skeletonCount={7}
       variant='teal'
       t={t}
     />
