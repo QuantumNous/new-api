@@ -166,17 +166,26 @@ export function formatPrice(
   tokenUnit: TokenUnit,
   showWithRecharge = false,
   priceRate = 1,
-  usdExchangeRate = 1
+  usdExchangeRate = 1,
+  ratioOverride?: number
 ): string {
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
   }
 
-  const enableGroups = Array.isArray(model.enable_groups)
-    ? model.enable_groups
-    : []
-  const groupRatio = model.group_ratio || {}
-  const minRatio = getMinGroupRatio(enableGroups, groupRatio)
+  let minRatio: number
+  if (ratioOverride !== undefined) {
+    // Bypass group markup entirely — used for the primary card/table price,
+    // which is meant to read as the official/list price (no group_ratio
+    // baked in), matching the "Base Price" section's `_base`/ratio=1 pattern.
+    minRatio = ratioOverride
+  } else {
+    const enableGroups = Array.isArray(model.enable_groups)
+      ? model.enable_groups
+      : []
+    const groupRatio = model.group_ratio || {}
+    minRatio = getMinGroupRatio(enableGroups, groupRatio)
+  }
 
   let priceInUSD = calculateTokenPrice(model, type, minRatio)
   priceInUSD = applyRechargeRate(
@@ -268,17 +277,23 @@ export function formatRequestPrice(
   model: PricingModel,
   showWithRecharge = false,
   priceRate = 1,
-  usdExchangeRate = 1
+  usdExchangeRate = 1,
+  ratioOverride?: number
 ): string {
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
   }
 
-  const enableGroups = Array.isArray(model.enable_groups)
-    ? model.enable_groups
-    : []
-  const groupRatio = model.group_ratio || {}
-  const minRatio = getMinGroupRatio(enableGroups, groupRatio)
+  let minRatio: number
+  if (ratioOverride !== undefined) {
+    minRatio = ratioOverride
+  } else {
+    const enableGroups = Array.isArray(model.enable_groups)
+      ? model.enable_groups
+      : []
+    const groupRatio = model.group_ratio || {}
+    minRatio = getMinGroupRatio(enableGroups, groupRatio)
+  }
 
   let priceInUSD = (model.model_price || 0) * minRatio
 
