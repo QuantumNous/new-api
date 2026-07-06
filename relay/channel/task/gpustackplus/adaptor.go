@@ -1,16 +1,22 @@
-// Package gpustackplus 实现「GPUStackPlus」任务渠道：对接经二次改造的 GPUStack
-// （自定义 LightX2V 引擎，增强图片/视频、后续可扩展音频）异步任务 API。
+// Package gpustackplus 实现「GPUStackPlus」任务渠道:对接二次开发 GPUStack 的
+// LightX2V 内置后端异步门面(/v1/videos,2026-07-06 上线,见 gpustack 仓
+// docs/lightx2v-backend-design.md §6.0 与 docs/lightx2v-m4-m5-handover.md)。
 //
-// 与原生 GPUStack 的区别：成品统一落共享 SFS（不返回临时外链），任务完成时上游
-// 回传 save_result_path（成品在 SFS 上的绝对路径）。本渠道在提交时由 new-api 拼出
-// 含 user_id 的 save_result_path（并 mkdir 建目录，new-api 对该 SFS 有写权限），
-// 上游据此写文件；轮询完成后把该路径填入 TaskInfo.NFSPath，交由落盘钩子搬 OBS。
+// 门面契约(GPUStack server,非直连引擎):
 //
-// 上游契约（LightX2V server）：
+//	POST {base}/v1/videos        body: {model(必填), task_type, prompt, user_id,
+//	                                    image(URL 或 base64/data-uri), ...引擎可选参数}
+//	                             → {task_id, status, model, task_type, nfs_path, error, error_type}
+//	GET  {base}/v1/videos/{id}   → 同上;status ∈ queued/assigned/running/done/failed/canceled;
+//	                               done 时 nfs_path 为成品在共享 SFS 上的绝对路径
 //
-//	POST {base}/v1/tasks/video/          → {task_id, task_status, save_result_path}
-//	GET  {base}/v1/tasks/{id}/status     → {task_id, status, error, error_type, save_result_path}
-//	status ∈ pending / processing / completed / failed / cancelled
+// 关键约定:
+//   - save_result_path / image_path 等引擎原生路径字段是门面的 engine-owned 字段,
+//     外部传入会被剥掉——路径由门面统一 dictates 并自建父目录,new-api 不再拼路径
+//     也不再 mkdir,完成后从状态响应读 nfs_path 交给落盘钩子搬 OBS;
+//   - 图片输入走 "image" 字段(URL 直透 / base64 由门面持久化到 SFS inputs/ 再喂引擎);
+//   - 除保留字段外的请求参数(negative_prompt/seed/target_video_length 等)原样透传,
+//     门面转交引擎,校验归上游(new-api 侧 metadata 即此通道)。
 package gpustackplus
 
 import (
@@ -18,8 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,26 +37,24 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/mediastore"
-	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 )
 
-// submitResponse LightX2V 提交接口返回。
+// submitResponse 门面提交接口返回(_public 形态,提交时 nfs_path 恒为 null)。
 type submitResponse struct {
-	TaskID         string `json:"task_id"`
-	TaskStatus     string `json:"task_status"`
-	SaveResultPath string `json:"save_result_path"`
+	TaskID string `json:"task_id"`
+	Status string `json:"status"`
 }
 
-// statusResponse LightX2V 状态接口返回。
+// statusResponse 门面状态接口返回(_public 形态)。
 type statusResponse struct {
-	TaskID         string `json:"task_id"`
-	Status         string `json:"status"`
-	Error          string `json:"error"`
-	ErrorType      string `json:"error_type"`
-	SaveResultPath string `json:"save_result_path"`
+	TaskID    string `json:"task_id"`
+	Status    string `json:"status"`
+	NFSPath   string `json:"nfs_path"`
+	Error     string `json:"error"`
+	ErrorType string `json:"error_type"`
 }
 
 type TaskAdaptor struct {
@@ -68,19 +71,19 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	// 成品只落 SFS（nfs_path），必须经 OBS 才能对外提供 URL——存储关闭时提前拒绝，
+	// 成品只落 SFS(nfs_path),必须经 OBS 才能对外提供 URL——存储关闭时提前拒绝,
 	// 不占用 GPU 渲染一个交付不出去的成品。
 	if !mediastore.Enabled() {
 		return service.TaskErrorWrapper(
-			fmt.Errorf("媒体存储（OBS）未启用，gpustackplus 渠道无法对外提供成品 URL，请先在系统设置启用"),
+			fmt.Errorf("媒体存储(OBS)未启用,gpustackplus 渠道无法对外提供成品 URL,请先在系统设置启用"),
 			"media_storage_disabled", http.StatusServiceUnavailable)
 	}
 	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionGenerate)
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	// 目前经任务子系统进入的是视频路径（/v1/videos）。图片走同步 relay，另行接入。
-	return fmt.Sprintf("%s/v1/tasks/video/", a.baseURL), nil
+	// 视频经任务子系统走异步门面;图片走同步 relay,另行接入。
+	return fmt.Sprintf("%s/v1/videos", a.baseURL), nil
 }
 
 func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
@@ -97,29 +100,55 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, errors.Wrap(err, "get_task_request_failed")
 	}
 
-	// 由 new-api 拼出含 user_id 的成品绝对路径（§4.2 路径约定），并建好父目录。
-	// new-api 对该 SFS 有写权限（成品写仍归上游，new-api 仅建目录）。
-	savePath, err := a.buildSaveResultPath(info, &req)
-	if err != nil {
-		return nil, err
-	}
-	if err := os.MkdirAll(filepath.Dir(savePath), 0o755); err != nil {
-		return nil, errors.Wrapf(err, "mkdir save_result_path dir failed (new-api 是否已读写挂载 SFS?): %s", filepath.Dir(savePath))
+	modelName := firstNonEmpty(info.UpstreamModelName, req.Model, info.OriginModelName)
+	if modelName == "" {
+		return nil, fmt.Errorf("model is required (渠道模型映射与请求 model 均为空)")
 	}
 
-	body := map[string]any{
-		"prompt":           req.Prompt,
-		"save_result_path": savePath,
+	// OpenAI /v1/videos 风格用 input_reference 传条件图;公共校验只归一化了
+	// image→Images,这里补上,否则合法的 i2v 请求会被下方防呆误拒。
+	if !req.HasImage() && strings.TrimSpace(req.InputReference) != "" {
+		req.Images = []string{req.InputReference}
+	}
+
+	// 引擎可识别的可选参数(negative_prompt / seed / target_video_length /
+	// aspect_ratio 等)经 metadata 整体透传;门面会剥掉 engine-owned 字段,
+	// 下面的保留字段随后覆盖同名键,防止篡改核心语义。
+	body := make(map[string]any, len(req.Metadata)+6)
+	for k, v := range req.Metadata {
+		body[k] = v
+	}
+	body["model"] = modelName
+	body["prompt"] = req.Prompt
+	body["user_id"] = info.UserId
+	if _, ok := body["task_type"]; !ok {
+		body["task_type"] = inferTaskType(modelName)
 	}
 	if req.HasImage() {
-		body["image_path"] = req.Images[0]
+		// URL 直透 / base64(data-uri)由门面持久化到 SFS 再喂引擎(方案 B)。
+		body["image"] = req.Images[0]
 	}
-	// 透传上游引擎可识别的可选参数（负向提示词、种子等）放在 metadata 里。
-	if neg, ok := req.Metadata["negative_prompt"].(string); ok && neg != "" {
-		body["negative_prompt"] = neg
+	// OpenAI 风格 duration/seconds → wan 帧数约定(4n+1,16fps:5s → 81 帧)。
+	durationSec := req.Duration
+	if durationSec == 0 && strings.TrimSpace(req.Seconds) != "" {
+		if v, convErr := strconv.Atoi(strings.TrimSpace(req.Seconds)); convErr == nil {
+			durationSec = v
+		}
 	}
-	if seed, ok := req.Metadata["seed"]; ok {
-		body["seed"] = seed
+	if durationSec > 0 {
+		if _, ok := body["target_video_length"]; !ok {
+			body["target_video_length"] = durationSec*16 + 1
+		}
+	}
+
+	// 提交前防呆:任务类型与图片输入必须匹配,否则引擎侧要么缺条件要么静默忽略,
+	// 都比不上在这里给出明确报错。
+	taskType, _ := body["task_type"].(string)
+	if imageRequiredTaskTypes[taskType] && !req.HasImage() {
+		return nil, fmt.Errorf("模型 %s 的任务类型 %s 需要图片输入,必须提供 image/input_reference", modelName, taskType)
+	}
+	if textOnlyTaskTypes[taskType] && req.HasImage() {
+		return nil, fmt.Errorf("模型 %s 的任务类型 %s 不接受图片输入;图生视频请改用 i2v 模型(如 wan2.2-i2v)", modelName, taskType)
 	}
 
 	data, err := common.Marshal(body)
@@ -129,28 +158,25 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	return bytes.NewReader(data), nil
 }
 
-// buildSaveResultPath 拼 <root>/<功能>-<模型>/YYYY/MM/DD/<user_id>/<public_task_id>.mp4。
-func (a *TaskAdaptor) buildSaveResultPath(info *relaycommon.RelayInfo, req *relaycommon.TaskSubmitReq) (string, error) {
-	root := system_setting.GetMediaStorageSettings().NFSRoot()
-	feature := "t2v"
-	if req.HasImage() {
-		feature = "i2v"
+// 门面 task_type 的输入约束(与 gpustack routes/videos.py 的 _VALID_TASK_TYPES 对应)。
+var imageRequiredTaskTypes = map[string]bool{"i2v": true, "flf2v": true, "i2i": true, "s2v": true}
+var textOnlyTaskTypes = map[string]bool{"t2v": true, "t2i": true}
+
+// inferTaskType 按模型名推断门面 task_type;显式 metadata.task_type 优先于此推断。
+func inferTaskType(modelName string) string {
+	m := strings.ToLower(modelName)
+	switch {
+	case strings.Contains(m, "flf2v"):
+		return "flf2v"
+	case strings.Contains(m, "i2v"):
+		return "i2v"
+	case strings.Contains(m, "edit") || strings.Contains(m, "i2i"):
+		return "i2i"
+	case strings.Contains(m, "t2i"):
+		return "t2i"
+	default:
+		return "t2v"
 	}
-	modelSeg := sanitizeSeg(firstNonEmpty(info.OriginModelName, info.UpstreamModelName, "model"))
-	taskID := info.PublicTaskID
-	if taskID == "" {
-		return "", fmt.Errorf("public task id is empty")
-	}
-	now := time.Now().UTC()
-	return filepath.Join(
-		root,
-		feature+"-"+modelSeg,
-		fmt.Sprintf("%04d", now.Year()),
-		fmt.Sprintf("%02d", int(now.Month())),
-		fmt.Sprintf("%02d", now.Day()),
-		fmt.Sprintf("%d", info.UserId),
-		taskID+".mp4",
-	), nil
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
@@ -175,7 +201,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
-	// 返回给客户端 OpenAI 兼容 video 对象（用公开 task_xxxx ID）。
+	// 返回给客户端 OpenAI 兼容 video 对象(用公开 task_xxxx ID)。
 	ov := dto.NewOpenAIVideo()
 	ov.ID = info.PublicTaskID
 	ov.TaskID = info.PublicTaskID
@@ -191,7 +217,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	if !ok || taskID == "" {
 		return nil, fmt.Errorf("invalid task_id")
 	}
-	uri := fmt.Sprintf("%s/v1/tasks/%s/status", strings.TrimRight(baseUrl, "/"), taskID)
+	uri := fmt.Sprintf("%s/v1/videos/%s", strings.TrimRight(baseUrl, "/"), taskID)
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
 		return nil, err
@@ -213,20 +239,22 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	}
 	ti := &relaycommon.TaskInfo{Code: 0, TaskID: sr.TaskID}
 
+	// 门面状态机:queued(排队/等重派)→ assigned(已派发实例)→ running → done;
+	// failed/canceled 终态。旧引擎态(pending/processing/completed)保留兼容。
 	switch strings.ToLower(strings.TrimSpace(sr.Status)) {
-	case "pending", "queued", "submitted":
+	case "queued", "assigned", "pending", "submitted":
 		ti.Status = model.TaskStatusQueued
-	case "processing", "running", "in_progress":
+	case "running", "processing", "in_progress":
 		ti.Status = model.TaskStatusInProgress
-	case "completed", "succeed", "success":
+	case "done", "completed", "succeed", "success":
 		ti.Status = model.TaskStatusSuccess
-		// 关键：把成品在 SFS 上的绝对路径交给落盘钩子（显式 nfs_path，非启发式）。
-		ti.NFSPath = sr.SaveResultPath
+		// 关键:把成品在 SFS 上的绝对路径交给落盘钩子(显式 nfs_path,非启发式)。
+		ti.NFSPath = sr.NFSPath
 	case "failed", "cancelled", "canceled", "error":
 		ti.Status = model.TaskStatusFailure
 		ti.Reason = firstNonEmpty(sr.Error, sr.ErrorType, "task failed")
 	default:
-		// 未知/空状态：保持排队，交后续轮询与超时兜底，避免误杀刚提交的任务。
+		// 未知/空状态:保持排队,交后续轮询与超时兜底,避免误杀刚提交的任务。
 		if strings.TrimSpace(sr.Status) != "" {
 			common.SysLog(fmt.Sprintf("[gpustackplus] unrecognized task status %q, body: %s", sr.Status, string(respBody)))
 		}
@@ -235,7 +263,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	return ti, nil
 }
 
-// ConvertToOpenAIVideo 供 /v1/videos/:id 查询走 OpenAI 兼容格式；url metadata 里的
+// ConvertToOpenAIVideo 供 /v1/videos/:id 查询走 OpenAI 兼容格式;url metadata 里的
 // 结果链接由 model.Task.ToOpenAIVideo 经 ResolveResultURL 实时签成 OBS URL。
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	ov := task.ToOpenAIVideo()
@@ -252,17 +280,6 @@ func (a *TaskAdaptor) GetModelList() []string {
 
 func (a *TaskAdaptor) GetChannelName() string {
 	return ChannelName
-}
-
-func sanitizeSeg(s string) string {
-	s = strings.TrimSpace(s)
-	s = strings.ReplaceAll(s, "/", "_")
-	s = strings.ReplaceAll(s, "\\", "_")
-	s = strings.ReplaceAll(s, " ", "_")
-	if s == "" {
-		return "model"
-	}
-	return s
 }
 
 func firstNonEmpty(vals ...string) string {
