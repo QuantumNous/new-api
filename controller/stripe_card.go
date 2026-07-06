@@ -139,15 +139,17 @@ func fetchDefaultCard(customerId string) (brand string, last4 string) {
 	return "", ""
 }
 
-// fetchCardFingerprint returns the Stripe fingerprint of the customer's first card. The
-// fingerprint is stable for the same physical card across customers/accounts, so it is used
-// for anti-abuse dedup of the one-time bonus. Best-effort: ensures the key, swallows errors.
-func fetchCardFingerprint(customerId string) string {
+// fetchCardFingerprint returns the Stripe fingerprint of the customer's first card, or ""
+// with a nil error when the customer genuinely has no saved card. A non-nil error means the
+// lookup itself failed (key/network/API) and says nothing about whether a card exists —
+// callers deciding card_bound must not treat the two the same. The fingerprint is stable for
+// the same physical card across customers/accounts, so it is used for anti-abuse dedup.
+func fetchCardFingerprint(customerId string) (string, error) {
 	if customerId == "" {
-		return ""
+		return "", nil
 	}
 	if err := ensureStripeKey(); err != nil {
-		return ""
+		return "", err
 	}
 	listParams := &stripe.PaymentMethodListParams{
 		Customer: stripe.String(customerId),
@@ -158,10 +160,13 @@ func fetchCardFingerprint(customerId string) string {
 	for iter.Next() {
 		pm := iter.PaymentMethod()
 		if pm != nil && pm.Card != nil {
-			return strings.TrimSpace(pm.Card.Fingerprint)
+			return strings.TrimSpace(pm.Card.Fingerprint), nil
 		}
 	}
-	return ""
+	if err := iter.Err(); err != nil {
+		return "", err
+	}
+	return "", nil
 }
 
 // RemoveStripeCard detaches the user's saved card(s) and clears the bound flag.

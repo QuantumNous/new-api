@@ -804,8 +804,17 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		// For save-card (onboarding promo) top-ups this performs the actual card binding:
 		// it verifies via the Stripe API that the customer really has a saved card before
 		// setting card_bound (local-method payments finish without saving one), and records
-		// the card fingerprint for anti-abuse dedup. Only on first fulfillment (recharged==true).
+		// the card fingerprint for anti-abuse dedup.
 		backfillCardFingerprintFromTopUp(ctx, topUp, customerId, callerIp)
+	} else if topUp := model.GetTopUpByTradeNo(referenceId); topUp != nil && topUp.SaveCard &&
+		topUp.Status == common.TopUpStatusSuccess {
+		// Webhook redelivery/replay of an already-fulfilled save-card order doubles as the
+		// retry lever for card binding: if the first fulfillment's Stripe card lookup failed
+		// transiently, replaying the event from the Stripe dashboard re-attempts the bind.
+		// Skip once bound — backfill is idempotent but costs a Stripe API call.
+		if user, uerr := model.GetUserById(topUp.UserId, false); uerr == nil && user != nil && !user.StripeCardBound {
+			backfillCardFingerprintFromTopUp(ctx, topUp, customerId, callerIp)
+		}
 	}
 
 	syncStripePaymentInvoice(ctx, event, referenceId, customerId)
@@ -951,10 +960,26 @@ func backfillCardFingerprintFromTopUp(ctx context.Context, topUp *model.TopUp, c
 		logger.LogWarn(ctx, fmt.Sprintf("Stripe 充值绑卡：缺少 customer，跳过绑卡 user_id=%d trade_no=%s", topUp.UserId, topUp.TradeNo))
 		return
 	}
-	fingerprint := fetchCardFingerprint(customerId)
+	// "No saved card" (skip is correct: local-method payment saved nothing) must not be
+	// conflated with "lookup failed": a swallowed transient failure would leave a genuinely
+	// saved card permanently unbound. Bounded retry rides out blips; if all attempts fail,
+	// log at error level — replaying the webhook event re-runs the bind (see fulfillOrder).
+	var fingerprint string
+	var lookupErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+		}
+		fingerprint, lookupErr = fetchCardFingerprint(customerId)
+		if lookupErr == nil {
+			break
+		}
+	}
+	if lookupErr != nil {
+		logger.LogError(ctx, fmt.Sprintf("Stripe 充值绑卡：查询已存卡失败，本次放弃绑卡（可从 Stripe 后台重放该 webhook 事件补绑）user_id=%d trade_no=%s customer=%s error=%q", topUp.UserId, topUp.TradeNo, customerId, lookupErr.Error()))
+		return
+	}
 	if strings.TrimSpace(fingerprint) == "" {
-		// Either the user paid with a local method (nothing saved — correct to skip) or the
-		// Stripe lookup failed; log so genuinely-saved cards missing a binding are visible.
 		logger.LogInfo(ctx, fmt.Sprintf("Stripe 充值绑卡：customer 无已存卡，跳过绑卡 user_id=%d trade_no=%s customer=%s", topUp.UserId, topUp.TradeNo, customerId))
 		return
 	}

@@ -252,9 +252,15 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 		chargeCapped bool
 		fetchGroup   errgroup.Group
 	)
+	// Checkout sessions live at most 24h (we set no custom expires_at, Stripe's default
+	// and maximum), so a charge inside the report window can belong to a session created
+	// up to a day before it. Fetch sessions with that lookback so the payment_intent → user
+	// map covers every in-window charge; lookback-only sessions feed the map but are
+	// excluded from session-level stats below.
+	sessionFetchStart := startTs - 86400
 	fetchGroup.Go(func() error {
 		sessionParams := &stripe.CheckoutSessionListParams{
-			CreatedRange: &stripe.RangeQueryParams{GreaterThanOrEqual: startTs},
+			CreatedRange: &stripe.RangeQueryParams{GreaterThanOrEqual: sessionFetchStart},
 		}
 		sessionParams.Limit = stripe.Int64(100)
 		it := checkoutsession.List(sessionParams)
@@ -338,20 +344,29 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 	// payment_intent → user, so charges can be scoped to our checkouts below.
 	userByPaymentIntent := map[string]*model.OpsPlgUser{}
 	for _, s := range sessions {
-		report.SessionsCreated++
-		switch s.Status {
-		case stripe.CheckoutSessionStatusComplete:
-			report.SessionsCompleted++
-		case stripe.CheckoutSessionStatusExpired:
-			report.SessionsExpired++
+		inWindow := s.Created >= startTs
+		if inWindow {
+			report.SessionsCreated++
+			switch s.Status {
+			case stripe.CheckoutSessionStatusComplete:
+				report.SessionsCompleted++
+			case stripe.CheckoutSessionStatusExpired:
+				report.SessionsExpired++
+			}
 		}
 		u := sessionUser(s)
 		if u == nil {
-			report.UnmatchedSessions++
+			if inWindow {
+				report.UnmatchedSessions++
+			}
 			continue
 		}
 		if s.PaymentIntent != nil && s.PaymentIntent.ID != "" {
 			userByPaymentIntent[s.PaymentIntent.ID] = u
+		}
+		// Lookback sessions exist only to resolve charges; keep them out of the stats.
+		if !inWindow {
+			continue
 		}
 		a := acc(u)
 		seen(a, s.Created)
