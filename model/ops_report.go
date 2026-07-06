@@ -24,6 +24,10 @@ type OpsPlgUser struct {
 	CreatedAt      int64  `json:"created_at"`
 	AdsAttribution string `json:"ads_attribution"`
 	OauthKind      string `json:"oauth_kind"`
+	Quota          int64  `json:"quota"`
+	UsedQuota      int64  `json:"used_quota"`
+	RequestCount   int    `json:"request_count"`
+	LastLoginAt    int64  `json:"last_login_at"`
 }
 
 type OpsUserLogStats struct {
@@ -32,6 +36,7 @@ type OpsUserLogStats struct {
 	PlaygroundCount   int   `json:"playground_count"`
 	FirstApiKeyAt     int64 `json:"first_apikey_at"`
 	ApiKeyCount       int   `json:"apikey_count"`
+	LastRequestAt     int64 `json:"last_request_at"`
 }
 
 type OpsUserTokenStats struct {
@@ -60,6 +65,7 @@ func GetOpsPlgUsers() ([]*OpsPlgUser, error) {
 	var users []*OpsPlgUser
 	err := DB.Table("users").
 		Select(`id, username, display_name, email, created_at, ads_attribution,
+			quota, used_quota, request_count, last_login_at,
 			CASE WHEN google_id IS NOT NULL AND google_id <> '' THEN 'google'
 			     WHEN github_id IS NOT NULL AND github_id <> '' THEN 'github'
 			     ELSE 'email' END AS oauth_kind`).
@@ -99,7 +105,8 @@ func GetOpsUserLogStats(userIds []int) ([]*OpsUserLogStats, error) {
 			       COALESCE(MIN(CASE WHEN token_name LIKE 'playground%%' THEN created_at END), 0) AS first_playground_at,
 			       COALESCE(SUM(CASE WHEN token_name LIKE 'playground%%' THEN 1 ELSE 0 END), 0) AS playground_count,
 			       COALESCE(MIN(CASE WHEN token_id > 0 THEN created_at END), 0) AS first_api_key_at,
-			       COALESCE(SUM(CASE WHEN token_id > 0 THEN 1 ELSE 0 END), 0) AS api_key_count
+			       COALESCE(SUM(CASE WHEN token_id > 0 THEN 1 ELSE 0 END), 0) AS api_key_count,
+			       COALESCE(MAX(created_at), 0) AS last_request_at
 			FROM logs%s
 			WHERE type = ? AND user_id IN ?
 			GROUP BY user_id`, logsForceIndexHint())
@@ -217,5 +224,26 @@ func GetOpsUsersLastIP(userIds []int) ([]*OpsUserLastIP, error) {
 	}
 	var rows []*OpsUserLastIP
 	err := LOG_DB.Raw(`SELECT user_id, ip FROM logs WHERE id IN ?`, maxIds).Scan(&rows).Error
+	return rows, err
+}
+
+type OpsUserModelUsage struct {
+	UserId    int    `json:"user_id"`
+	ModelName string `json:"model_name"`
+	Count     int    `json:"count"`
+}
+
+// GetOpsUsersModelUsage returns per-model request counts for a small user set
+// (top payers, <=~20 ids), aggregated from quota_data rollups.
+func GetOpsUsersModelUsage(userIds []int) ([]*OpsUserModelUsage, error) {
+	if len(userIds) == 0 {
+		return nil, nil
+	}
+	var rows []*OpsUserModelUsage
+	err := DB.Raw(`
+		SELECT user_id, model_name, COALESCE(SUM(count), 0) AS count
+		FROM quota_data
+		WHERE user_id IN ?
+		GROUP BY user_id, model_name`, userIds).Scan(&rows).Error
 	return rows, err
 }

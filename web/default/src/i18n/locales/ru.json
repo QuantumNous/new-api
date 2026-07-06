@@ -5235,6 +5235,7 @@
     "Payment Currency": "Валюта оплаты",
     "Signup Method": "Способ регистрации",
     "Last IP": "Последний IP",
-    "Registered At": "Дата регистрации"
+    "Registered At": "Дата регистрации",
+    "Last Active": "Последняя активность"
   }
 }

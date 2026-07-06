@@ -445,6 +445,11 @@ function PayersTable({ rows }: { rows: OpsPayerRow[] }) {
             <TableHead>{t('Landing Pages')}</TableHead>
             <TableHead>{t('Signup Method')}</TableHead>
             <TableHead>{t('Last IP')}</TableHead>
+            <TableHead className='text-right'>{t('Balance')}</TableHead>
+            <TableHead className='text-right'>{t('Consumed')}</TableHead>
+            <TableHead className='text-right'>{t('Requests')}</TableHead>
+            <TableHead>{t('Top Models')}</TableHead>
+            <TableHead>{t('Last Active')}</TableHead>
             <TableHead>{t('Registered At')}</TableHead>
             <TableHead>{t('First Paid At')}</TableHead>
           </TableRow>
@@ -480,7 +485,37 @@ function PayersTable({ rows }: { rows: OpsPayerRow[] }) {
               </TableCell>
               <TableCell>{row.signup_method || '-'}</TableCell>
               <TableCell className='whitespace-nowrap font-mono text-xs'>
-                {row.last_ip || '-'}
+                {row.last_ip ? (
+                  <a
+                    href={`https://ipinfo.io/${row.last_ip}`}
+                    target='_blank'
+                    rel='noreferrer'
+                    className='underline decoration-dotted'
+                  >
+                    {row.last_ip}
+                  </a>
+                ) : (
+                  '-'
+                )}
+              </TableCell>
+              <TableCell className='text-right'>
+                {usd(row.balance_usd)}
+              </TableCell>
+              <TableCell className='text-right'>
+                {usd(row.consumed_usd)}
+              </TableCell>
+              <TableCell className='text-right'>{row.requests}</TableCell>
+              <TableCell className='max-w-56'>
+                <div className='flex flex-wrap gap-1'>
+                  {(row.top_models ?? []).map((m) => (
+                    <Badge key={m} variant='secondary'>
+                      {m}
+                    </Badge>
+                  ))}
+                </div>
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {formatTimestamp(row.last_active_at)}
               </TableCell>
               <TableCell className='whitespace-nowrap'>
                 {formatTimestamp(row.registered_at)}

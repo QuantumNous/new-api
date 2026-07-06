@@ -74,6 +74,11 @@ export interface OpsPayerRow {
   signup_method: string
   currencies: string[] | null
   last_ip: string
+  balance_usd: number
+  consumed_usd: number
+  requests: number
+  last_active_at: number
+  top_models: string[] | null
 }
 
 export interface OpsPaymentRow {

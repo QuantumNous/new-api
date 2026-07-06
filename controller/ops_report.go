@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"net/netip"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
+	"github.com/phuslu/iploc"
 )
 
 // Ops daily report: PLG registration / activation / payment funnel for the
@@ -93,6 +95,12 @@ type opsPayerRow struct {
 	SignupMethod string   `json:"signup_method"`
 	Currencies   []string `json:"currencies"`
 	LastIP       string   `json:"last_ip"`
+	IPCountry    string   `json:"ip_country"`
+	BalanceUSD   float64  `json:"balance_usd"`
+	ConsumedUSD  float64  `json:"consumed_usd"`
+	Requests     int      `json:"requests"`
+	LastActiveAt int64    `json:"last_active_at"`
+	TopModels    []string `json:"top_models"`
 }
 
 type opsPaymentRow struct {
@@ -113,6 +121,7 @@ type opsReportData struct {
 	WeeklyFunnel   []opsFunnelRow   `json:"weekly_funnel"`
 	CampaignFunnel []opsCampaignRow `json:"campaign_funnel"`
 	KeywordFunnel  []opsKeywordRow  `json:"keyword_funnel"`
+	RegionFunnel   []opsFunnelRow   `json:"region_funnel"`
 	PaymentWeekly  []opsPaymentRow  `json:"payment_weekly"`
 	Dau            []opsDauRow      `json:"dau"`
 	TotalPaidUsers int              `json:"total_paid_users"`
@@ -600,6 +609,10 @@ func opsTopPayers(aggs map[int]*opsUserAgg) ([]opsPayerRow, int, float64) {
 				currencies = append(currencies, ccy)
 			}
 		}
+		lastActive := a.user.LastLoginAt
+		if a.logStats != nil && a.logStats.LastRequestAt > lastActive {
+			lastActive = a.logStats.LastRequestAt
+		}
 		payers = append(payers, opsPayerRow{
 			UserId:       a.user.Id,
 			Username:     a.user.Username,
@@ -615,6 +628,10 @@ func opsTopPayers(aggs map[int]*opsUserAgg) ([]opsPayerRow, int, float64) {
 			Landing:      a.landing,
 			SignupMethod: a.user.OauthKind,
 			Currencies:   currencies,
+			BalanceUSD:   float64(a.user.Quota) / common.QuotaPerUnit,
+			ConsumedUSD:  float64(a.user.UsedQuota) / common.QuotaPerUnit,
+			Requests:     a.user.RequestCount,
+			LastActiveAt: lastActive,
 		})
 	}
 	count := len(payers)
@@ -634,6 +651,28 @@ func opsTopPayers(aggs map[int]*opsUserAgg) ([]opsPayerRow, int, float64) {
 		}
 		for i := range payers {
 			payers[i].LastIP = byUser[payers[i].UserId]
+		}
+	}
+	if usage, err := model.GetOpsUsersModelUsage(ids); err == nil {
+		type mc struct {
+			name  string
+			count int
+		}
+		byUser := map[int][]mc{}
+		for _, r := range usage {
+			byUser[r.UserId] = append(byUser[r.UserId], mc{r.ModelName, r.Count})
+		}
+		for i := range payers {
+			models := byUser[payers[i].UserId]
+			sort.Slice(models, func(x, y int) bool { return models[x].count > models[y].count })
+			if len(models) > 3 {
+				models = models[:3]
+			}
+			names := make([]string, len(models))
+			for j, m := range models {
+				names[j] = m.name
+			}
+			payers[i].TopModels = names
 		}
 	}
 	return payers, count, total

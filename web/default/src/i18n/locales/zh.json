@@ -5235,6 +5235,7 @@
     "Payment Currency": "支付币种",
     "Signup Method": "注册方式",
     "Last IP": "最后 IP",
-    "Registered At": "注册时间"
+    "Registered At": "注册时间",
+    "Last Active": "最近活跃"
   }
 }
