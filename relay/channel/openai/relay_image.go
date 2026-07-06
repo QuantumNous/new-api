@@ -136,10 +136,10 @@ func writeOpenaiImageStreamChunk(c *gin.Context, data []byte) {
 	}
 	_ = common.Unmarshal(data, &payload)
 	if eventName := strings.TrimSpace(payload.Type); eventName != "" {
-		c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", eventName)})
+		_ = helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: eventName}, string(data))
+		return
 	}
-	c.Render(-1, common.CustomEvent{Data: "data: " + string(data)})
-	_ = helper.FlushWriter(c)
+	_ = helper.StringData(c, string(data))
 }
 
 // isOpenAIImageStreamErrorEvent detects upstream error chunks by JSON content
@@ -269,19 +269,11 @@ func writeOpenaiImageStreamPayload(c *gin.Context, eventName string, payload any
 		return err
 	}
 	if eventName != "" {
-		if _, err := fmt.Fprintf(c.Writer, "event: %s\n", eventName); err != nil {
-			return err
-		}
+		return helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: eventName}, string(data))
 	}
-	if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", data); err != nil {
-		return err
-	}
-	return helper.FlushWriter(c)
+	return helper.StringData(c, string(data))
 }
 
 func writeOpenaiImageStreamDone(c *gin.Context) error {
-	if _, err := fmt.Fprint(c.Writer, "data: [DONE]\n\n"); err != nil {
-		return err
-	}
-	return helper.FlushWriter(c)
+	return helper.StringData(c, "[DONE]")
 }

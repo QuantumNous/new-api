@@ -16,12 +16,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { Row } from '@tanstack/react-table'
+import type { Cell, Row } from '@tanstack/react-table'
 import * as React from 'react'
 
 import { StatusBadgeTypeContext } from '@/components/status-badge'
 
 import { getCellLabel, renderCellContent } from './card-cell-utils'
+
+function orderCardCells<TData>(
+  cells: Cell<TData, unknown>[]
+): Cell<TData, unknown>[] {
+  return [...cells].sort((a, b) => {
+    const aOrder = a.column.columnDef.meta?.mobileOrder
+    const bOrder = b.column.columnDef.meta?.mobileOrder
+
+    if (aOrder == null && bOrder == null) return 0
+    if (aOrder == null) return 1
+    if (bOrder == null) return -1
+    return aOrder - bOrder
+  })
+}
 
 /**
  * Shared, column-meta-driven card content rendering for TanStack rows.
@@ -62,12 +76,14 @@ function CompactContent<TData>({ row }: { row: Row<TData> }) {
   const titleCell = allCells.find((_, i) => cellMetas[i]?.mobileTitle)
   const badgeCell = allCells.find((_, i) => cellMetas[i]?.mobileBadge)
   const actionsCell = allCells.find((c) => c.column.id === 'actions')
-  const fieldCells = allCells.filter(
-    (c, i) =>
-      c !== titleCell &&
-      c !== badgeCell &&
-      c !== actionsCell &&
-      !cellMetas[i]?.mobileHidden
+  const fieldCells = orderCardCells(
+    allCells.filter(
+      (c, i) =>
+        c !== titleCell &&
+        c !== badgeCell &&
+        c !== actionsCell &&
+        !cellMetas[i]?.mobileHidden
+    )
   )
 
   return (
@@ -135,8 +151,10 @@ function FallbackContent<TData>({ row }: { row: Row<TData> }) {
   )
 
   const actionsCell = allCells.find((c) => c.column.id === 'actions')
-  const contentCells = allCells.filter(
-    (c, i) => c.column.id !== 'actions' && !cellMetas[i]?.mobileHidden
+  const contentCells = orderCardCells(
+    allCells.filter(
+      (c, i) => c.column.id !== 'actions' && !cellMetas[i]?.mobileHidden
+    )
   )
 
   return (

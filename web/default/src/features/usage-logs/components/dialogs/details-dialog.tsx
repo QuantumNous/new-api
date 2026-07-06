@@ -774,7 +774,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 <Info className='mt-0.5 size-3.5 shrink-0' aria-hidden='true' />
                 <span>
                   {t(
-                    'This record was written by a pre-upgrade instance and lacks audit info. Upgrade the instance to record server IP, callback IP, payment method and system version.'
+                    'This historical record predates audit-info tracking and cannot be backfilled. The current instance already records server IP, callback IP, payment method, and system version for new top-ups going forward.'
                   )}
                 </span>
               </div>
@@ -966,13 +966,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
         {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}
         {isTieredBilling && other?.expr_b64 && (
-          <div className='bg-muted/30 min-w-0 overflow-hidden rounded-md border px-3 max-sm:px-2'>
+          <DetailSection label={t('Dynamic Pricing')}>
             <DynamicPricingBreakdown
+              compact
               billingExpr={decodeBillingExprB64(other.expr_b64)}
               matchedTierLabel={other.matched_tier}
               hideCacheColumns={!hasAnyCacheTokens(other)}
             />
-          </div>
+          </DetailSection>
         )}
 
         {/* Admin billing mode indicator for non-consume */}

@@ -39,13 +39,18 @@ export const Route = createFileRoute('/_authenticated')({
 
     // 本地有用户信息，但需要验证 session 是否有效（每个会话只验证一次）
     if (!sessionVerified) {
-      const res = await getSelf().catch(() => null)
+      // 仅 401 视为 session 失效；网络错误/超时/5xx 返回 null 放行，下次导航重验
+      const res = await getSelf().catch((err: unknown) =>
+        (err as { response?: { status?: number } })?.response?.status === 401
+          ? { success: false }
+          : null
+      )
       if (res?.success && res.data) {
         // 验证成功，更新用户信息（可能有变化）
         auth.setUser(res.data)
         sessionVerified = true
-      } else {
-        // 验证失败或 API 调用失败，清除本地缓存并跳转登录页
+      } else if (res) {
+        // 验证失败，清除本地缓存并跳转登录页
         auth.reset()
         throw redirect({
           to: '/sign-in',

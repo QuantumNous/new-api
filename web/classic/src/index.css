@@ -25,8 +25,8 @@ body.sidebar-collapsed {
 }
 
 body {
-  font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei',
-    sans-serif;
+  font-family:
+    Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei', sans-serif;
   color: var(--semi-color-text-0);
   background-color: var(--semi-color-bg-0);
 }
@@ -44,6 +44,50 @@ body {
 .public-page-content {
   display: flex;
   flex-direction: column;
+}
+
+.classic-frontend-deprecation-banner {
+  flex: 0 0 auto;
+  margin-top: 64px;
+  padding: 8px 12px 0;
+}
+
+.classic-frontend-deprecation-banner-inner {
+  position: relative;
+}
+
+.classic-frontend-deprecation-banner .semi-banner {
+  border-radius: 8px;
+}
+
+.classic-frontend-deprecation-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 32px;
+}
+
+.classic-frontend-deprecation-body > span {
+  min-width: 0;
+}
+
+.classic-frontend-deprecation-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+@media (max-width: 767px) {
+  .classic-frontend-deprecation-banner {
+    padding: 8px 8px 0;
+  }
+
+  .classic-frontend-deprecation-body {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-right: 24px;
+  }
 }
 
 .classic-page-fill {
@@ -71,8 +115,8 @@ body {
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
 /* ==================== 布局相关样式 ==================== */
@@ -389,7 +433,9 @@ code {
   line-height: 1;
   background-color: var(--semi-color-fill-0);
   color: var(--semi-color-text-2);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .sbg-badge-active {
@@ -829,11 +875,8 @@ html:not(.dark) .blur-ball-teal {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background: radial-gradient(
-      circle at -5% -10%,
-      var(--pb1) 0%,
-      transparent 60%
-    ),
+  background:
+    radial-gradient(circle at -5% -10%, var(--pb1) 0%, transparent 60%),
     radial-gradient(circle at 105% -10%, var(--pb2) 0%, transparent 55%),
     radial-gradient(circle at 5% 110%, var(--pb3) 0%, transparent 55%),
     radial-gradient(circle at 105% 110%, var(--pb4) 0%, transparent 50%);
@@ -907,7 +950,8 @@ html.dark .with-pastel-balls::before {
     max-width: 80px;
   }
 
-  .semi-input-prefix-text, .semi-input-suffix-text {
+  .semi-input-prefix-text,
+  .semi-input-suffix-text {
     margin: 0;
   }
 
@@ -1045,4 +1089,6 @@ html.dark .with-pastel-balls::before {
   }
 }
 
-.ec-dbcd0a3c01b55203 { forced-color-adjust: auto; }
+.ec-dbcd0a3c01b55203 {
+  forced-color-adjust: auto;
+}

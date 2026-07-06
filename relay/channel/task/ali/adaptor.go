@@ -415,7 +415,8 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 		} else {
 			aliReq.Parameters.Duration = seconds
 		}
-	} else {
+	}
+	if aliReq.Parameters.Duration <= 0 {
 		aliReq.Parameters.Duration = 5 // 默认5秒
 	}
 

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 
 import { BadgeCell } from '@/components/data-table'
@@ -40,7 +40,7 @@ import {
   USER_ROLES,
   isUserDeleted,
 } from '../constants'
-import { type User } from '../types'
+import type { User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
 function getQuotaProgressColor(percentage: number): string {
@@ -83,11 +83,14 @@ export function useUsersColumns({
       header: t('ID'),
       cell: ({ row }) => {
         return (
-          <TableId value={row.getValue('id') as number} className='w-[60px]' />
+          <TableId
+            value={row.getValue('id') as number}
+            className='w-[60px] text-sm'
+          />
         )
       },
       size: 80,
-      meta: { mobileHidden: true },
+      meta: { mobileOrder: 10 },
     },
     {
       accessorKey: 'username',
@@ -251,6 +254,7 @@ export function useUsersColumns({
         )
       },
       size: 170,
+      meta: { mobileOrder: 40 },
     },
     {
       accessorKey: 'group',
@@ -269,6 +273,7 @@ export function useUsersColumns({
         return group.includes(searchValue)
       },
       size: 140,
+      meta: { mobileOrder: 30 },
     },
     {
       accessorKey: 'role',
@@ -295,6 +300,7 @@ export function useUsersColumns({
       },
       enableSorting: false,
       size: 120,
+      meta: { mobileOrder: 20 },
     },
     {
       id: 'invite_info',
