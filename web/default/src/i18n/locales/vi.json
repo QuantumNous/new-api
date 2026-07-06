@@ -5203,6 +5203,7 @@
     "Top Keywords": "Từ khóa hàng đầu",
     "Languages": "Ngôn ngữ",
     "Landing Pages": "Trang đích",
+    "Checkout currency": "Tiền tệ thanh toán",
     "Last Attempt": "Lần thử cuối",
     "Attempted Amounts": "Số tiền đã thử",
     "Sessions Opened": "Số phiên đã mở",
@@ -5265,6 +5266,11 @@
     "Signup Method": "Cách đăng ký",
     "Last IP": "IP gần nhất",
     "Registered At": "Đăng ký lúc",
-    "Last Active": "Hoạt động gần nhất"
+    "Last Active": "Hoạt động gần nhất",
+    "Attempts": "Lần thử",
+    "Card / Billing": "Thẻ / Thanh toán",
+    "Cardholder": "Chủ thẻ",
+    "opened": "mở",
+    "tried": "thử"
   }
 }

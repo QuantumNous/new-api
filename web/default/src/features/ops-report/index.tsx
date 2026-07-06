@@ -402,37 +402,40 @@ function StripePersonStatus({ status }: { status: string }) {
   return <Badge variant={variant}>{t(label)}</Badge>
 }
 
+const shortTime = (timestamp: number): string => {
+  if (!timestamp) return '-'
+  const d = new Date(timestamp * 1000)
+  return `${d.getMonth() + 1}-${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
   const { t, i18n } = useTranslation()
+  const names = (row: OpsStripePersonRow): string => {
+    const list = row.billing_names ?? []
+    const shown = list.slice(0, 2).join(', ')
+    return list.length > 2 ? `${shown} +${list.length - 2}` : shown
+  }
   return (
     <div className='overflow-x-auto'>
-      <Table className={TABLE_GRID}>
+      <Table
+        className={`${TABLE_GRID} text-xs [&_td]:px-2 [&_td]:py-1.5 [&_th]:px-2`}
+      >
         <TableHeader>
           <TableRow>
             <TableHead>{t('Last Attempt')}</TableHead>
             <TableHead>{t('User')}</TableHead>
             <TableHead>{t('Stuck At')}</TableHead>
-            <TableHead>{t('Attempted Amounts')}</TableHead>
-            <TableHead className='text-right'>{t('Sessions Opened')}</TableHead>
-            <TableHead className='text-right'>{t('Card Attempts')}</TableHead>
-            <TableHead>{t('Failure Reasons')}</TableHead>
-            <TableHead>{t('Card')}</TableHead>
-            <TableHead>{t('Billing Country')}</TableHead>
-            <TableHead>{t('Payment Methods Shown')}</TableHead>
-            <TableHead>{t('Campaign')}</TableHead>
-            <TableHead>{t('Languages')}</TableHead>
-            <TableHead>{t('Region')}</TableHead>
-            <TableHead>{t('Landing Pages')}</TableHead>
-            <TableHead className='text-right'>{t('Balance')}</TableHead>
-            <TableHead className='text-right'>{t('Requests')}</TableHead>
-            <TableHead className='text-right'>{t('Consumed')}</TableHead>
+            <TableHead>{t('Attempts')}</TableHead>
+            <TableHead>{t('Card / Billing')}</TableHead>
+            <TableHead>{t('Source')}</TableHead>
+            <TableHead className='text-right'>{t('Usage')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
             <TableRow key={row.email}>
               <TableCell className='whitespace-nowrap'>
-                {formatTimestamp(row.last_at)}
+                {shortTime(row.last_at)}
               </TableCell>
               <TableCell className='whitespace-nowrap'>
                 <div>
@@ -442,110 +445,92 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
                   </span>
                 </div>
                 <div className='text-muted-foreground text-xs'>
+                  {[row.display_name, row.signup_method]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
+                {(row.billing_names ?? []).length > 0 && (
+                  <div
+                    className={
+                      (row.billing_names ?? []).length > 1
+                        ? 'text-destructive text-xs'
+                        : 'text-muted-foreground text-xs'
+                    }
+                  >
+                    {t('Cardholder')}: {names(row)}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className='max-w-36'>
+                <StripePersonStatus status={row.status} />
+                {(row.fail_reasons ?? []).length > 0 && (
+                  <div className='mt-1 flex flex-wrap gap-1'>
+                    {(row.fail_reasons ?? []).map((f) => (
+                      <Badge key={f.name} variant='outline'>
+                        {f.name} {f.count}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className='max-w-36'>
+                <div>
+                  {(row.amounts ?? [])
+                    .map((a) => `${a.name}\u00d7${a.count}`)
+                    .join(', ') || '-'}
+                </div>
+                <div className='text-muted-foreground text-xs'>
+                  {row.sessions} {t('opened')} / {row.attempts} {t('tried')}
+                  {row.succeeded > 0 && ` / ${row.succeeded} OK`}
+                </div>
+              </TableCell>
+              <TableCell className='max-w-40'>
+                <div>
+                  {(row.card_country ?? [])
+                    .map((cc) => countryLabel(cc, i18n.language))
+                    .join(' ') || '-'}
+                  {(row.billing_cc ?? []).length > 0 && (
+                    <span className='text-muted-foreground text-xs'>
+                      {' '}
+                      / {(row.billing_cc ?? []).join(',')}
+                    </span>
+                  )}
+                </div>
+                <div className='text-muted-foreground text-xs'>
+                  {[...(row.card_brands ?? []), (row.methods ?? []).join('+')]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
+              </TableCell>
+              <TableCell className='max-w-44'>
+                <div className='truncate'>
+                  {row.campaign}
+                  {row.keyword && (
+                    <span className='text-muted-foreground text-xs'>
+                      {' '}
+                      {row.keyword}
+                    </span>
+                  )}
+                </div>
+                <div className='text-muted-foreground truncate text-xs'>
                   {[
-                    row.display_name,
-                    ...(row.billing_names ?? []),
-                    row.signup_method,
-                    formatTimestamp(row.registered_at).split(',')[0],
+                    [...(row.locales ?? []), row.lng]
+                      .filter(Boolean)
+                      .filter((v, i, arr) => arr.indexOf(v) === i)
+                      .join(','),
+                    row.landing,
+                    row.last_ip &&
+                      `${row.ip_country !== '?' ? row.ip_country + ' ' : ''}${row.last_ip}`,
                   ]
                     .filter(Boolean)
                     .join(' · ')}
                 </div>
               </TableCell>
-              <TableCell className='whitespace-nowrap'>
-                <StripePersonStatus status={row.status} />
-              </TableCell>
-              <TableCell className='whitespace-nowrap'>
-                {(row.amounts ?? [])
-                  .map((a) => `${a.name}\u00d7${a.count}`)
-                  .join(', ') || '-'}
-              </TableCell>
-              <TableCell className='text-right'>{row.sessions}</TableCell>
-              <TableCell className='text-right'>
-                {row.attempts}
-                {row.succeeded > 0 && (
-                  <span className='text-muted-foreground text-xs'>
-                    {' '}
-                    ({row.succeeded} OK)
-                  </span>
-                )}
-              </TableCell>
-              <TableCell className='max-w-52'>
-                <div className='flex flex-wrap gap-1'>
-                  {(row.fail_reasons ?? []).map((f) => (
-                    <Badge key={f.name} variant='outline'>
-                      {f.name} {f.count}
-                    </Badge>
-                  ))}
+              <TableCell className='text-right whitespace-nowrap'>
+                <div>{usd(row.balance_usd)}</div>
+                <div className='text-muted-foreground text-xs'>
+                  {row.requests} req · {usd(row.consumed_usd)}
                 </div>
-              </TableCell>
-              <TableCell className='whitespace-nowrap'>
-                {(row.card_country ?? [])
-                  .map((cc) => countryLabel(cc, i18n.language))
-                  .join(' ') || '-'}
-                {(row.card_brands ?? []).length > 0 && (
-                  <span className='text-muted-foreground ml-1 text-xs'>
-                    {(row.card_brands ?? []).join(', ')}
-                  </span>
-                )}
-              </TableCell>
-              <TableCell className='whitespace-nowrap'>
-                {(row.billing_cc ?? [])
-                  .map((cc) => countryLabel(cc, i18n.language))
-                  .join(' ') || '-'}
-              </TableCell>
-              <TableCell className='max-w-44'>
-                <span className='text-muted-foreground text-xs'>
-                  {(row.methods ?? []).join('+') || '-'}
-                </span>
-              </TableCell>
-              <TableCell className='max-w-44 truncate whitespace-nowrap'>
-                {row.campaign}
-                {row.keyword && (
-                  <span className='text-muted-foreground text-xs'>
-                    {' '}
-                    {row.keyword}
-                  </span>
-                )}
-              </TableCell>
-              <TableCell className='whitespace-nowrap'>
-                {[...(row.locales ?? []), row.lng]
-                  .filter(Boolean)
-                  .filter((v, i, arr) => arr.indexOf(v) === i)
-                  .join(', ') || '-'}
-              </TableCell>
-              <TableCell className='whitespace-nowrap'>
-                {row.last_ip ? (
-                  <>
-                    {countryLabel(row.ip_country, i18n.language)}{' '}
-                    <a
-                      href={`https://ipinfo.io/${row.last_ip}`}
-                      target='_blank'
-                      rel='noreferrer'
-                      className='text-muted-foreground font-mono text-xs underline decoration-dotted'
-                    >
-                      {row.last_ip}
-                    </a>
-                  </>
-                ) : (
-                  '-'
-                )}
-              </TableCell>
-              <TableCell className='max-w-40 truncate'>
-                {row.landing || '-'}
-                {row.referrer && (
-                  <span className='text-muted-foreground text-xs'>
-                    {' '}
-                    {row.referrer.replace(/^https?:\/\//, '')}
-                  </span>
-                )}
-              </TableCell>
-              <TableCell className='text-right'>
-                {usd(row.balance_usd)}
-              </TableCell>
-              <TableCell className='text-right'>{row.requests}</TableCell>
-              <TableCell className='text-right'>
-                {usd(row.consumed_usd)}
               </TableCell>
             </TableRow>
           ))}

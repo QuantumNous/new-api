@@ -5203,6 +5203,7 @@
     "Top Keywords": "Топ ключевых слов",
     "Languages": "Языки",
     "Landing Pages": "Целевые страницы",
+    "Checkout currency": "Валюта оплаты",
     "Last Attempt": "Последняя попытка",
     "Attempted Amounts": "Суммы попыток",
     "Sessions Opened": "Открыто сессий",
@@ -5265,6 +5266,11 @@
     "Signup Method": "Способ регистрации",
     "Last IP": "Последний IP",
     "Registered At": "Дата регистрации",
-    "Last Active": "Последняя активность"
+    "Last Active": "Последняя активность",
+    "Attempts": "Попытки",
+    "Card / Billing": "Карта / Платёж",
+    "Cardholder": "Держатель карты",
+    "opened": "открыто",
+    "tried": "попыток"
   }
 }

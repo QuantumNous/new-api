@@ -5203,6 +5203,7 @@
     "Top Keywords": "上位キーワード",
     "Languages": "言語",
     "Landing Pages": "ランディングページ",
+    "Checkout currency": "決済通貨",
     "Last Attempt": "最終試行",
     "Attempted Amounts": "試行金額",
     "Sessions Opened": "セッション開始数",
@@ -5265,6 +5266,11 @@
     "Signup Method": "登録方法",
     "Last IP": "最終IP",
     "Registered At": "登録日時",
-    "Last Active": "最終アクティブ"
+    "Last Active": "最終アクティブ",
+    "Attempts": "試行",
+    "Card / Billing": "カード / 請求",
+    "Cardholder": "カード名義",
+    "opened": "開設",
+    "tried": "試行"
   }
 }

@@ -5203,6 +5203,7 @@
     "Top Keywords": "Meilleurs mots-clés",
     "Languages": "Langues",
     "Landing Pages": "Pages d'atterrissage",
+    "Checkout currency": "Devise de paiement",
     "Last Attempt": "Dernière tentative",
     "Attempted Amounts": "Montants tentés",
     "Sessions Opened": "Sessions ouvertes",
@@ -5265,6 +5266,11 @@
     "Signup Method": "Méthode d'inscription",
     "Last IP": "Dernière IP",
     "Registered At": "Inscrit le",
-    "Last Active": "Dernière activité"
+    "Last Active": "Dernière activité",
+    "Attempts": "Tentatives",
+    "Card / Billing": "Carte / Facturation",
+    "Cardholder": "Titulaire",
+    "opened": "ouvertes",
+    "tried": "essais"
   }
 }
