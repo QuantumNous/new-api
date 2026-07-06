@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
 )
@@ -51,4 +52,23 @@ func TestValidatePongTestResponseBody(t *testing.T) {
 	require.NoError(t, validatePongTestResponseBody([]byte(`{"output_text":"PONG!"}`)))
 	require.NoError(t, validatePongTestResponseBody([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"pong\"},\"message\":{\"content\":\"pong\"}}]}\n\n")))
 	require.Error(t, validatePongTestResponseBody([]byte(`{"choices":[{"message":{"content":"hello"}}]}`)))
+}
+
+func TestModelAvailabilityProbeConfigUsesImageEndpointForImageModels(t *testing.T) {
+	endpointType, options := modelAvailabilityProbeConfig("gpt-image-2")
+
+	require.Equal(t, string(constant.EndpointTypeImageGeneration), endpointType)
+	require.False(t, options.ExpectPong)
+	require.Equal(t, "模型可用性检测", options.TokenName)
+	require.Equal(t, "模型可用性检测", options.LogContent)
+	require.True(t, options.SkipLog)
+}
+
+func TestModelAvailabilityProbeConfigKeepsPingPongForTextModels(t *testing.T) {
+	endpointType, options := modelAvailabilityProbeConfig("gpt-5.4")
+
+	require.Empty(t, endpointType)
+	require.True(t, options.ExpectPong)
+	require.Equal(t, modelAvailabilityProbePrompt, options.Prompt)
+	require.Equal(t, uint(8), options.MaxTokens)
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/types"
 
@@ -162,6 +163,22 @@ func classifyModelProbeError(err error, apiErr *types.NewAPIError) modelProbeOut
 	}
 }
 
+func modelAvailabilityProbeConfig(modelName string) (string, channelTestOptions) {
+	options := channelTestOptions{
+		Prompt:     modelAvailabilityProbePrompt,
+		ExpectPong: true,
+		TokenName:  "模型可用性检测",
+		LogContent: "模型可用性检测",
+		MaxTokens:  8,
+		SkipLog:    true,
+	}
+	if common.IsImageGenerationModel(modelName) {
+		options.ExpectPong = false
+		return string(constant.EndpointTypeImageGeneration), options
+	}
+	return "", options
+}
+
 func saveModelAvailabilityProbeResult(modelName string, outcome modelProbeOutcome) error {
 	now := common.GetTimestamp()
 	state := &model.ModelAvailabilityState{
@@ -249,14 +266,8 @@ func probeOneModelAvailability(modelName string, testUserID int) {
 			})
 			continue
 		}
-		result := testChannelWithOptions(channel, testUserID, modelName, "", false, channelTestOptions{
-			Prompt:     modelAvailabilityProbePrompt,
-			ExpectPong: true,
-			TokenName:  "模型可用性检测",
-			LogContent: "模型可用性检测",
-			MaxTokens:  8,
-			SkipLog:    true,
-		})
+		endpointType, options := modelAvailabilityProbeConfig(modelName)
+		result := testChannelWithOptions(channel, testUserID, modelName, endpointType, false, options)
 		if result.localErr == nil && result.newAPIError == nil {
 			_ = saveModelAvailabilityProbeResult(modelName, modelProbeOutcome{
 				Class: modelProbeAvailable,
