@@ -159,6 +159,7 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
   hasAdvancedSettingsErrors,
+  transformFormDataToFetchModelsPayload,
 } from '../../lib'
 import {
   collectInvalidStatusCodeEntries,
@@ -1352,15 +1353,13 @@ export function ChannelMutateDrawer({
     setFetchModelsDialogOpen(true)
   }, [isEditing, canEditSensitive, form, t])
 
-  const createModeFetcher = useCallback(async (): Promise<string[]> => {
+  const formModeFetcher = useCallback(async (): Promise<string[]> => {
     if (!canEditSensitive) {
       throw new Error(t("You don't have necessary permission"))
     }
-    const response = await fetchModels({
-      type: form.getValues('type'),
-      key: form.getValues('key'),
-      base_url: form.getValues('base_url') || '',
-    })
+    const response = await fetchModels(
+      transformFormDataToFetchModelsPayload(form.getValues())
+    )
     if (response.success && response.data) {
       return response.data
     }
@@ -4552,7 +4551,9 @@ export function ChannelMutateDrawer({
         }}
         redirectModels={redirectModelList}
         redirectSourceModels={redirectModelKeyList}
-        customFetcher={!isEditing ? createModeFetcher : undefined}
+        customFetcher={
+          !isEditing || currentKey?.trim() ? formModeFetcher : undefined
+        }
         channelName={!isEditing ? currentName?.trim() : undefined}
         existingModelsOverride={
           !isEditing
