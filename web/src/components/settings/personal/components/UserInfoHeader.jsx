@@ -85,23 +85,27 @@ const UserInfoHeader = ({ t, userState, passkeyStatus, onRefresh }) => {
 
   const renderMetricRow = (Icon, label, value, options = {}) => (
     <div
+      className='console-finance-hero-metric-row'
       style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 18,
         padding: '22px 24px',
-        borderBottom: options.last ? 0 : '1px solid rgba(15, 23, 42, 0.12)',
+        borderBottom: options.last
+          ? 0
+          : '1px solid var(--console-border-strong)',
       }}
     >
       <div>
         <div
+          className='console-finance-hero-metric-label'
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 9,
             marginBottom: 8,
-            color: '#475569',
+            color: 'var(--console-text)',
             fontSize: 14,
             fontWeight: 800,
           }}
@@ -110,8 +114,11 @@ const UserInfoHeader = ({ t, userState, passkeyStatus, onRefresh }) => {
           {label}
         </div>
         <div
+          className='console-finance-hero-metric-value'
           style={{
-            color: options.accent ? '#0f766e' : '#0f172a',
+            color: options.accent
+              ? 'var(--semi-color-success)'
+              : 'var(--console-text-strong)',
             fontSize: 31,
             lineHeight: 1,
             fontWeight: 900,
@@ -127,17 +134,19 @@ const UserInfoHeader = ({ t, userState, passkeyStatus, onRefresh }) => {
 
   return (
     <Card
+      className='console-finance-hero-card'
       bodyStyle={{ padding: 0 }}
       style={{
         marginBottom: 26,
         borderRadius: 30,
         overflow: 'hidden',
-        border: '1px solid rgba(15, 23, 42, 0.08)',
-        background: '#ffffff',
-        boxShadow: '0 18px 45px rgba(15, 23, 42, 0.06)',
+        border: '1px solid var(--console-border)',
+        background: 'var(--console-card-bg)',
+        boxShadow: 'var(--console-shadow)',
       }}
     >
       <div
+        className='console-finance-hero-grid'
         style={{
           display: 'grid',
           gridTemplateColumns:
@@ -146,13 +155,15 @@ const UserInfoHeader = ({ t, userState, passkeyStatus, onRefresh }) => {
         }}
       >
         <div
+          className='console-finance-hero-main'
           style={{
             padding: '34px 36px 32px',
-            borderRight: '1px solid rgba(15, 23, 42, 0.08)',
-            background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+            borderRight: '1px solid var(--console-border)',
+            background: 'var(--console-card-gradient)',
           }}
         >
           <div
+            className='console-finance-hero-head'
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -163,12 +174,13 @@ const UserInfoHeader = ({ t, userState, passkeyStatus, onRefresh }) => {
           >
             <div>
               <div
+                className='console-finance-hero-eyebrow'
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
                   marginBottom: 14,
-                  color: '#0f172a',
+                  color: 'var(--console-text-strong)',
                   fontSize: 15,
                   fontWeight: 800,
                   letterSpacing: '-0.02em',
@@ -178,8 +190,9 @@ const UserInfoHeader = ({ t, userState, passkeyStatus, onRefresh }) => {
                 {t('账号身份总览')}
               </div>
               <div
+                className='console-finance-hero-title'
                 style={{
-                  color: '#0f172a',
+                  color: 'var(--console-text-strong)',
                   fontSize: 44,
                   lineHeight: 1.05,
                   letterSpacing: '-0.07em',
@@ -190,20 +203,23 @@ const UserInfoHeader = ({ t, userState, passkeyStatus, onRefresh }) => {
                 {getUsername()}
               </div>
             </div>
-            <Avatar
-              size='extra-large'
-              color={stringToColor(getUsername())}
-              style={{ flexShrink: 0 }}
-            >
-              {getAvatarText()}
-            </Avatar>
+            <div className='console-finance-hero-icon console-finance-hero-avatar'>
+              <Avatar
+                size='small'
+                color={stringToColor(getUsername())}
+                style={{ flexShrink: 0 }}
+              >
+                {getAvatarText()}
+              </Avatar>
+            </div>
           </div>
 
           <Typography.Text
+            className='console-finance-hero-desc'
             style={{
               display: 'block',
               maxWidth: 540,
-              color: '#475569',
+              color: 'var(--console-text)',
               fontSize: 16,
               lineHeight: 1.7,
               letterSpacing: '-0.02em',
@@ -234,7 +250,7 @@ const UserInfoHeader = ({ t, userState, passkeyStatus, onRefresh }) => {
                 icon={<Crown size={14} />}
                 loading={upgrading}
                 onClick={handleUpgradeVIP}
-                style={{ borderRadius: 999, fontWeight: 800 }}
+                className='console-primary-action !rounded-full !font-bold'
               >
                 {t('升级VIP')}
               </Button>
@@ -242,12 +258,19 @@ const UserInfoHeader = ({ t, userState, passkeyStatus, onRefresh }) => {
           </div>
         </div>
 
-        <div style={{ display: 'grid', background: '#f8fafc', padding: 12 }}>
+        <div
+          className='console-finance-hero-metrics'
+          style={{
+            display: 'grid',
+            background: 'var(--console-card-muted-bg)',
+            padding: 12,
+          }}
+        >
           <div
             style={{
               display: 'grid',
               gridTemplateRows: '1fr 1fr 1fr',
-              background: '#ffffff',
+              background: 'var(--console-card-bg)',
             }}
           >
             {renderMetricRow(ShieldCheck, t('账号角色'), roleLabel, {

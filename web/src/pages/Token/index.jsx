@@ -22,7 +22,10 @@ import TokensTable from '../../components/table/tokens';
 
 const Token = () => {
   return (
-    <div className='mt-[60px] px-2'>
+    <div className='console-dashboard-page console-command-center token-page-shell mt-[60px]'>
+      <div className='console-dashboard-orb console-dashboard-orb-teal' />
+      <div className='console-dashboard-orb console-dashboard-orb-blue' />
+      <div className='console-dashboard-orb console-dashboard-orb-amber' />
       <TokensTable />
     </div>
   );

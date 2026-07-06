@@ -81,7 +81,7 @@ const PaymentConfirmModal = ({
         className='rounded-3xl p-5'
         style={{
           background:
-            'radial-gradient(circle at 10% 0%, rgba(20,184,166,0.14), transparent 36%), linear-gradient(180deg, #f8fafc 0%, #ffffff 58%)',
+            'radial-gradient(circle at 10% 0%, rgba(20,184,166,0.14), transparent 36%), var(--console-card-gradient-soft)',
         }}
       >
         <div className='mb-4 rounded-3xl bg-slate-950 p-5 text-white shadow-2xl shadow-slate-950/15'>
@@ -103,7 +103,7 @@ const PaymentConfirmModal = ({
             </div>
           </div>
         </div>
-        <Card className='!rounded-3xl !border-0 bg-white/85 shadow-sm ring-1 ring-slate-200/80'>
+        <Card className='!rounded-3xl !border-0 bg-white/85 shadow-sm ring-1 ring-slate-200/80 dark:!bg-slate-900/80 dark:ring-slate-700/80'>
           <div className='space-y-3'>
             <div className='flex justify-between items-center'>
               <Text strong className='text-slate-700 dark:text-slate-200'>

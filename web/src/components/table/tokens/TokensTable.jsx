@@ -127,7 +127,7 @@ const TokensTable = (tokensData) => {
           style={{ padding: 30 }}
         />
       }
-      className='rounded-xl overflow-hidden'
+      className='tokens-data-table rounded-xl overflow-hidden'
       size='middle'
     />
   );

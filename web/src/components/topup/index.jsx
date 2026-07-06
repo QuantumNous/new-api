@@ -668,12 +668,10 @@ const TopUp = () => {
   };
 
   return (
-    <div
-      className='w-full max-w-7xl mx-auto relative min-h-screen lg:min-h-0 mt-[72px] px-3 sm:px-4 pb-10'
-      style={{
-        background: '#f8fafc',
-      }}
-    >
+    <div className='wallet-page console-finance-command-page console-command-center topup-command-center w-full relative min-h-screen lg:min-h-0 mt-[60px]'>
+      <div className='console-dashboard-orb console-dashboard-orb-teal' />
+      <div className='console-dashboard-orb console-dashboard-orb-blue' />
+      <div className='console-dashboard-orb console-dashboard-orb-amber' />
       {/* 大陆地区访问提醒 */}
       <Modal
         visible={geoWarnVisible}
@@ -938,7 +936,7 @@ const TopUp = () => {
       </Modal>
 
       {/* 主布局区域 */}
-      <div>
+      <div className='console-finance-command-content'>
         <RechargeCard
           t={t}
           enableOnlineTopUp={enableOnlineTopUp}

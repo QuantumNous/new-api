@@ -72,17 +72,25 @@ function StatusBadge({ status, disabled }) {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 5,
-    height: 28,
-    padding: '0 10px',
+    height: 24,
+    padding: '0 9px',
     borderRadius: 999,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 700,
     lineHeight: 1,
     whiteSpace: 'nowrap',
+    border: '1px solid transparent',
   };
   if (disabled) {
     return (
-      <span style={{ ...pillStyle, color: '#64748b', background: '#f1f5f9' }}>
+      <span
+        style={{
+          ...pillStyle,
+          color: 'var(--console-text-muted)',
+          background: 'var(--semi-color-fill-0)',
+          borderColor: 'var(--console-border)',
+        }}
+      >
         <Ban size={12} />
         {t('已禁用')}
       </span>
@@ -91,34 +99,69 @@ function StatusBadge({ status, disabled }) {
   switch (status) {
     case 'pending_activation':
       return (
-        <span style={{ ...pillStyle, color: '#1d4ed8', background: '#dbeafe' }}>
+        <span
+          style={{
+            ...pillStyle,
+            color: '#1d4ed8',
+            background: 'rgba(219, 234, 254, 0.72)',
+            borderColor: 'rgba(59, 130, 246, 0.18)',
+          }}
+        >
           <Zap size={12} />
           {t('待激活')}
         </span>
       );
     case 'active':
       return (
-        <span style={{ ...pillStyle, color: '#047857', background: '#d1fae5' }}>
+        <span
+          style={{
+            ...pillStyle,
+            color: '#047857',
+            background: 'rgba(209, 250, 229, 0.72)',
+            borderColor: 'rgba(16, 185, 129, 0.18)',
+          }}
+        >
           <CheckCircle2 size={12} />
           {t('使用中')}
         </span>
       );
     case 'expired':
       return (
-        <span style={{ ...pillStyle, color: '#64748b', background: '#f1f5f9' }}>
+        <span
+          style={{
+            ...pillStyle,
+            color: 'var(--console-text-muted)',
+            background: 'var(--semi-color-fill-0)',
+            borderColor: 'var(--console-border)',
+          }}
+        >
           <AlertCircle size={12} />
           {t('已过期')}
         </span>
       );
     case 'cancelled':
       return (
-        <span style={{ ...pillStyle, color: '#64748b', background: '#f1f5f9' }}>
+        <span
+          style={{
+            ...pillStyle,
+            color: 'var(--console-text-muted)',
+            background: 'var(--semi-color-fill-0)',
+            borderColor: 'var(--console-border)',
+          }}
+        >
           {t('已取消')}
         </span>
       );
     default:
       return (
-        <span style={{ ...pillStyle, color: '#64748b', background: '#f1f5f9' }}>
+        <span
+          style={{
+            ...pillStyle,
+            color: 'var(--console-text-muted)',
+            background: 'var(--semi-color-fill-0)',
+            borderColor: 'var(--console-border)',
+          }}
+        >
           {status}
         </span>
       );
@@ -323,7 +366,7 @@ function SortableCard({
         ink: '#64748b',
         soft: '#f1f5f9',
         tint: '#f8fafc',
-        glow: 'rgba(100, 116, 139, 0.14)',
+        glow: 'rgba(100, 116, 139, 0.10)',
         border: 'rgba(148, 163, 184, 0.26)',
       };
     }
@@ -332,7 +375,7 @@ function SortableCard({
         ink: '#2563eb',
         soft: '#dbeafe',
         tint: '#eff6ff',
-        glow: 'rgba(37, 99, 235, 0.16)',
+        glow: 'rgba(37, 99, 235, 0.10)',
         border: 'rgba(59, 130, 246, 0.24)',
       };
     }
@@ -341,7 +384,7 @@ function SortableCard({
         ink: '#94a3b8',
         soft: '#f1f5f9',
         tint: '#f8fafc',
-        glow: 'rgba(148, 163, 184, 0.12)',
+        glow: 'rgba(148, 163, 184, 0.08)',
         border: 'rgba(203, 213, 225, 0.36)',
       };
     }
@@ -349,7 +392,7 @@ function SortableCard({
       ink: '#0f766e',
       soft: '#ccfbf1',
       tint: '#f0fdfa',
-      glow: 'rgba(20, 184, 166, 0.16)',
+      glow: 'rgba(20, 184, 166, 0.10)',
       border: 'rgba(20, 184, 166, 0.24)',
     };
   })();
@@ -387,18 +430,19 @@ function SortableCard({
   return (
     <div ref={setNodeRef} style={{ ...style }}>
       <Card
+        className='subscription-self-card'
         style={{
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          borderRadius: 28,
+          borderRadius: 24,
           border: `1px solid ${accent.border}`,
-          background: `radial-gradient(circle at 12% -10%, ${accent.soft} 0, transparent 34%), radial-gradient(circle at 92% 6%, rgba(255, 255, 255, 0.95) 0, transparent 30%), linear-gradient(145deg, ${accent.tint} 0%, #ffffff 50%, #f8fbff 100%)`,
+          background: 'var(--console-card-bg)',
           overflow: 'hidden',
           position: 'relative',
           boxShadow: isDragging
-            ? `0 22px 54px ${accent.glow}`
-            : `0 22px 54px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.78) inset`,
+            ? `0 18px 44px ${accent.glow}`
+            : 'var(--console-shadow-card)',
         }}
         bodyStyle={{
           padding: 0,
@@ -411,38 +455,12 @@ function SortableCard({
           style={{
             position: 'absolute',
             top: 0,
-            left: 30,
-            right: 30,
-            height: 7,
+            left: 0,
+            right: 0,
+            height: 3,
             borderRadius: '0 0 999px 999px',
-            background: `linear-gradient(90deg, ${accent.ink}, rgba(20, 184, 166, 0.55))`,
-            boxShadow: `0 10px 26px ${accent.glow}`,
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            top: -48,
-            right: -30,
-            width: 190,
-            height: 190,
-            borderRadius: '50%',
-            background: accent.glow,
-            filter: 'blur(8px)',
-            pointerEvents: 'none',
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            bottom: -82,
-            left: -42,
-            width: 190,
-            height: 190,
-            borderRadius: '50%',
-            background: 'rgba(14, 165, 233, 0.07)',
-            filter: 'blur(6px)',
-            pointerEvents: 'none',
+            background: accent.ink,
+            opacity: 0.72,
           }}
         />
         {/* Header */}
@@ -452,8 +470,8 @@ function SortableCard({
             gridTemplateColumns: 'auto minmax(0, 1fr) auto',
             alignItems: 'center',
             gap: 14,
-            padding: '26px 26px 18px',
-            borderBottom: '1px solid rgba(148, 163, 184, 0.16)',
+            padding: '24px 24px 18px',
+            borderBottom: '1px solid var(--console-border)',
             position: 'relative',
           }}
         >
@@ -463,15 +481,14 @@ function SortableCard({
             style={{
               cursor: 'grab',
               color: accent.ink,
-              width: 44,
-              height: 54,
-              borderRadius: 20,
+              width: 34,
+              height: 34,
+              borderRadius: 12,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'rgba(255, 255, 255, 0.78)',
-              border: '1px solid rgba(255, 255, 255, 0.92)',
-              boxShadow: '0 14px 32px rgba(15, 23, 42, 0.10)',
+              background: 'var(--console-card-muted-bg)',
+              border: '1px solid var(--console-border)',
             }}
             title={t('拖拽调整消耗顺序')}
           >
@@ -484,7 +501,7 @@ function SortableCard({
                 display: 'block',
                 marginBottom: 10,
                 fontSize: 21,
-                color: '#0f172a',
+                color: 'var(--console-text-strong)',
                 letterSpacing: '-0.035em',
                 lineHeight: 1.2,
                 overflow: 'hidden',
@@ -543,13 +560,8 @@ function SortableCard({
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 10,
+              gap: 8,
               flexShrink: 0,
-              padding: 6,
-              borderRadius: 999,
-              background: 'rgba(255, 255, 255, 0.58)',
-              border: '1px solid rgba(255, 255, 255, 0.78)',
-              boxShadow: '0 12px 30px rgba(15, 23, 42, 0.06)',
             }}
           >
             <StatusBadge status={sub.status} disabled={sub.disabled} />
@@ -581,12 +593,12 @@ function SortableCard({
             <div
               style={{
                 background:
-                  'linear-gradient(135deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.76))',
+                  'linear-gradient(135deg, rgba(59, 130, 246, 0.14), var(--console-glass-bg))',
                 border: '1px solid rgba(37, 99, 235, 0.16)',
                 borderRadius: 20,
                 padding: '14px 16px',
                 marginBottom: 16,
-                boxShadow: '0 14px 30px rgba(37, 99, 235, 0.06)',
+                boxShadow: 'var(--console-shadow-card)',
               }}
             >
               <Text style={{ fontSize: 13 }}>
@@ -621,9 +633,9 @@ function SortableCard({
                     minWidth: 0,
                     borderRadius: 20,
                     padding: '14px 14px 13px',
-                    background: 'rgba(255, 255, 255, 0.82)',
-                    border: '1px solid rgba(148, 163, 184, 0.14)',
-                    boxShadow: '0 16px 30px rgba(15, 23, 42, 0.05)',
+                    background: 'var(--console-glass-bg)',
+                    border: '1px solid var(--console-border)',
+                    boxShadow: 'var(--console-shadow-card)',
                   }}
                 >
                   <div style={{ marginBottom: 11 }}>
@@ -633,7 +645,7 @@ function SortableCard({
                         marginBottom: 6,
                         fontSize: 13,
                         fontWeight: 800,
-                        color: '#0f172a',
+                        color: 'var(--console-text-strong)',
                         whiteSpace: 'nowrap',
                       }}
                     >
@@ -643,7 +655,7 @@ function SortableCard({
                       style={{
                         display: 'block',
                         fontSize: 12,
-                        color: '#64748b',
+                        color: 'var(--console-text-muted)',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -663,7 +675,9 @@ function SortableCard({
                         fontSize: 11,
                         fontWeight: 700,
                         color:
-                          metric.resetAfterSeconds > 0 ? '#0f766e' : '#94a3b8',
+                          metric.resetAfterSeconds > 0
+                            ? 'var(--semi-color-success)'
+                            : 'var(--console-text-muted)',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -695,9 +709,9 @@ function SortableCard({
                 marginBottom: 22,
                 borderRadius: 20,
                 padding: 16,
-                background: 'rgba(255, 255, 255, 0.82)',
-                border: '1px solid rgba(148, 163, 184, 0.14)',
-                boxShadow: '0 16px 30px rgba(15, 23, 42, 0.05)',
+                background: 'var(--console-glass-bg)',
+                border: '1px solid var(--console-border)',
+                boxShadow: 'var(--console-shadow-card)',
               }}
             >
               <div
@@ -713,7 +727,7 @@ function SortableCard({
                   style={{
                     fontSize: 13,
                     fontWeight: 800,
-                    color: '#0f172a',
+                    color: 'var(--console-text-strong)',
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -722,7 +736,7 @@ function SortableCard({
                 <span
                   style={{
                     fontSize: 13,
-                    color: '#64748b',
+                    color: 'var(--console-text-muted)',
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -753,7 +767,7 @@ function SortableCard({
                   style={{
                     marginBottom: 4,
                     fontSize: 12,
-                    color: '#64748b',
+                    color: 'var(--console-text-muted)',
                     fontWeight: 700,
                   }}
                 >
@@ -775,7 +789,7 @@ function SortableCard({
                 style={{
                   marginBottom: 4,
                   fontSize: 12,
-                  color: '#64748b',
+                  color: 'var(--console-text-muted)',
                   fontWeight: 700,
                 }}
               >
@@ -788,11 +802,13 @@ function SortableCard({
                   height: 28,
                   padding: '0 12px',
                   borderRadius: 999,
-                  color: consumptionOrder ? accent.ink : '#94a3b8',
+                  color: consumptionOrder
+                    ? accent.ink
+                    : 'var(--console-text-muted)',
                   background: consumptionOrder
-                    ? 'rgba(255, 255, 255, 0.72)'
-                    : 'rgba(241, 245, 249, 0.78)',
-                  border: `1px solid ${consumptionOrder ? accent.border : 'rgba(203, 213, 225, 0.55)'}`,
+                    ? 'var(--console-glass-bg)'
+                    : 'var(--semi-color-fill-0)',
+                  border: `1px solid ${consumptionOrder ? accent.border : 'var(--console-border)'}`,
                   fontSize: 12,
                   fontWeight: 800,
                 }}
@@ -965,293 +981,320 @@ export default function SubscriptionManagement() {
   }
 
   return (
-    <div
-      style={{ maxWidth: 1280, margin: '0 auto', padding: '82px 24px 32px' }}
-    >
-      <Card
-        bodyStyle={{ padding: 0 }}
-        style={{
-          marginBottom: 26,
-          borderRadius: 30,
-          overflow: 'hidden',
-          border: '1px solid rgba(15, 23, 42, 0.08)',
-          background: '#ffffff',
-          boxShadow: '0 18px 45px rgba(15, 23, 42, 0.06)',
-        }}
-      >
-        <div
+    <div className='wallet-page console-finance-command-page console-command-center topup-command-center w-full relative min-h-screen lg:min-h-0 mt-[60px]'>
+      <div className='console-dashboard-orb console-dashboard-orb-teal' />
+      <div className='console-dashboard-orb console-dashboard-orb-blue' />
+      <div className='console-dashboard-orb console-dashboard-orb-amber' />
+      <div className='console-finance-command-content'>
+        <Card
+          bodyStyle={{ padding: 0 }}
+          className='console-finance-hero-card'
           style={{
-            display: 'grid',
-            gridTemplateColumns:
-              'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
-            minHeight: 236,
+            marginBottom: 26,
+            borderRadius: 30,
+            overflow: 'hidden',
+            border: '1px solid var(--console-border)',
+            background: 'var(--console-card-bg)',
+            boxShadow: 'var(--console-shadow)',
           }}
         >
           <div
+            className='console-finance-hero-grid'
             style={{
-              padding: '34px 36px 32px',
-              borderRight: '1px solid rgba(15, 23, 42, 0.08)',
-              background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
+              minHeight: 236,
             }}
           >
             <div
+              className='console-finance-hero-main'
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 18,
-                marginBottom: 30,
+                padding: '34px 36px 32px',
+                borderRight: '1px solid var(--console-border)',
+                background: 'var(--console-card-gradient)',
               }}
             >
-              <div>
+              <div
+                className='console-finance-hero-head'
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 18,
+                  marginBottom: 30,
+                }}
+              >
+                <div>
+                  <div
+                    className='console-finance-hero-eyebrow'
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      marginBottom: 14,
+                      color: 'var(--console-text-strong)',
+                      fontSize: 15,
+                      fontWeight: 800,
+                      letterSpacing: '-0.02em',
+                    }}
+                  >
+                    <Layers3 size={18} />
+                    {t('订阅资产总览')}
+                  </div>
+                  <Title
+                    className='console-finance-hero-title'
+                    heading={2}
+                    style={{
+                      margin: 0,
+                      color: 'var(--console-text-strong)',
+                      fontSize: 44,
+                      lineHeight: 1.05,
+                      letterSpacing: '-0.07em',
+                      fontWeight: 900,
+                    }}
+                  >
+                    {t('订阅管理')}
+                  </Title>
+                </div>
                 <div
+                  className='console-finance-hero-icon'
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--console-text-strong)',
+                    background: 'var(--console-icon-bg)',
+                    border: '1px solid var(--console-border)',
+                  }}
+                >
+                  <SlidersHorizontal size={21} />
+                </div>
+              </div>
+
+              <Text
+                className='console-finance-hero-desc'
+                style={{
+                  display: 'block',
+                  maxWidth: 520,
+                  color: 'var(--console-text)',
+                  fontSize: 16,
+                  lineHeight: 1.7,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {t(
+                  '管理可用订阅套餐、额度窗口与扣费顺序，优先使用上方套餐完成请求抵扣。',
+                )}
+              </Text>
+            </div>
+
+            <div
+              className='console-finance-hero-metrics'
+              style={{
+                display: 'grid',
+                background: 'var(--console-card-muted-bg)',
+                padding: 12,
+              }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateRows: '1fr 1fr 1fr',
+                  background: 'var(--console-card-bg)',
+                }}
+              >
+                <div
+                  className='console-finance-hero-metric-row'
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 10,
-                    marginBottom: 14,
-                    color: '#0f172a',
-                    fontSize: 15,
-                    fontWeight: 800,
-                    letterSpacing: '-0.02em',
+                    justifyContent: 'space-between',
+                    gap: 18,
+                    padding: '22px 24px',
+                    borderBottom: '1px solid var(--console-border-strong)',
                   }}
                 >
-                  <Layers3 size={18} />
-                  {t('订阅资产总览')}
+                  <div>
+                    <div
+                      className='console-finance-hero-metric-label'
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 9,
+                        marginBottom: 8,
+                        color: 'var(--console-text)',
+                        fontSize: 14,
+                        fontWeight: 800,
+                      }}
+                    >
+                      <CheckCircle2 size={16} />
+                      {t('可用订阅')}
+                    </div>
+                    <div
+                      className='console-finance-hero-metric-value'
+                      style={{
+                        color: 'var(--console-text-strong)',
+                        fontSize: 31,
+                        lineHeight: 1,
+                        fontWeight: 900,
+                        letterSpacing: '-0.055em',
+                      }}
+                    >
+                      {subscriptionSummary.active}/{subscriptionSummary.total}
+                    </div>
+                  </div>
+                  <ArrowUpRight size={18} style={{ color: '#cbd5e1' }} />
                 </div>
-                <Title
-                  heading={2}
+
+                <div
+                  className='console-finance-hero-metric-row'
                   style={{
-                    margin: 0,
-                    color: '#0f172a',
-                    fontSize: 44,
-                    lineHeight: 1.05,
-                    letterSpacing: '-0.07em',
-                    fontWeight: 900,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 18,
+                    padding: '22px 24px',
+                    borderBottom: '1px solid var(--console-border-strong)',
                   }}
                 >
-                  {t('订阅管理')}
-                </Title>
-              </div>
-              <div
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 16,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#0f172a',
-                  background: '#f8fafc',
-                  border: '1px solid rgba(15, 23, 42, 0.08)',
-                }}
-              >
-                <SlidersHorizontal size={21} />
-              </div>
-            </div>
-
-            <Text
-              style={{
-                display: 'block',
-                maxWidth: 520,
-                color: '#475569',
-                fontSize: 16,
-                lineHeight: 1.7,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              {t(
-                '管理可用订阅套餐、额度窗口与扣费顺序，优先使用上方套餐完成请求抵扣。',
-              )}
-            </Text>
-          </div>
-
-          <div style={{ display: 'grid', background: '#f8fafc', padding: 12 }}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateRows: '1fr 1fr 1fr',
-                background: '#ffffff',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 18,
-                  padding: '22px 24px',
-                  borderBottom: '1px solid rgba(15, 23, 42, 0.12)',
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 9,
-                      marginBottom: 8,
-                      color: '#475569',
-                      fontSize: 14,
-                      fontWeight: 800,
-                    }}
-                  >
-                    <CheckCircle2 size={16} />
-                    {t('可用订阅')}
+                  <div>
+                    <div
+                      className='console-finance-hero-metric-label'
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 9,
+                        marginBottom: 8,
+                        color: 'var(--console-text)',
+                        fontSize: 14,
+                        fontWeight: 800,
+                      }}
+                    >
+                      <Zap size={16} />
+                      {t('剩余额度')}
+                    </div>
+                    <div
+                      className='console-finance-hero-metric-value'
+                      style={{
+                        color: 'var(--console-text-strong)',
+                        fontSize: 31,
+                        lineHeight: 1,
+                        fontWeight: 900,
+                        letterSpacing: '-0.055em',
+                      }}
+                    >
+                      {renderQuota(subscriptionSummary.remainingQuota)}
+                    </div>
                   </div>
-                  <div
-                    style={{
-                      color: '#0f172a',
-                      fontSize: 31,
-                      lineHeight: 1,
-                      fontWeight: 900,
-                      letterSpacing: '-0.055em',
-                    }}
-                  >
-                    {subscriptionSummary.active}/{subscriptionSummary.total}
-                  </div>
+                  <ArrowUpRight size={18} style={{ color: '#cbd5e1' }} />
                 </div>
-                <ArrowUpRight size={18} style={{ color: '#cbd5e1' }} />
-              </div>
 
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 18,
-                  padding: '22px 24px',
-                  borderBottom: '1px solid rgba(15, 23, 42, 0.12)',
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 9,
-                      marginBottom: 8,
-                      color: '#475569',
-                      fontSize: 14,
-                      fontWeight: 800,
-                    }}
-                  >
-                    <Zap size={16} />
-                    {t('剩余额度')}
+                <div
+                  className='console-finance-hero-metric-row'
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 16,
+                    padding: '22px 24px',
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      className='console-finance-hero-metric-label'
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 9,
+                        marginBottom: 8,
+                        color: 'var(--console-text)',
+                        fontSize: 14,
+                        fontWeight: 800,
+                      }}
+                    >
+                      <SlidersHorizontal size={16} />
+                      {t('计费偏好')}
+                    </div>
+                    <Text
+                      style={{
+                        color: 'var(--console-text-muted)',
+                        fontSize: 13,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {t('控制套餐与钱包余额的扣费顺序')}
+                    </Text>
                   </div>
-                  <div
-                    style={{
-                      color: '#0f172a',
-                      fontSize: 31,
-                      lineHeight: 1,
-                      fontWeight: 900,
-                      letterSpacing: '-0.055em',
-                    }}
-                  >
-                    {renderQuota(subscriptionSummary.remainingQuota)}
-                  </div>
+                  <Select
+                    className='subscription-billing-preference-select'
+                    value={billingPreference}
+                    onChange={handleChangePreference}
+                    size='default'
+                    style={{ width: 230 }}
+                    optionList={preferenceOptions}
+                  />
                 </div>
-                <ArrowUpRight size={18} style={{ color: '#cbd5e1' }} />
-              </div>
-
-              <div
-                style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 16,
-                  padding: '22px 24px',
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 9,
-                      marginBottom: 8,
-                      color: '#475569',
-                      fontSize: 14,
-                      fontWeight: 800,
-                    }}
-                  >
-                    <SlidersHorizontal size={16} />
-                    {t('计费偏好')}
-                  </div>
-                  <Text
-                    style={{
-                      color: '#64748b',
-                      fontSize: 13,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {t('控制套餐与钱包余额的扣费顺序')}
-                  </Text>
-                </div>
-                <Select
-                  value={billingPreference}
-                  onChange={handleChangePreference}
-                  size='small'
-                  style={{ width: 190 }}
-                  optionList={preferenceOptions}
-                />
               </div>
             </div>
           </div>
-        </div>
-      </Card>
-
-      {subscriptions.length === 0 ? (
-        <Card bodyStyle={{ padding: 40, textAlign: 'center' }}>
-          <GripVertical
-            size={32}
-            style={{ color: 'var(--semi-color-text-3)', marginBottom: 8 }}
-          />
-          <Text type='tertiary'>{t('暂无订阅套餐')}</Text>
         </Card>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={sortableIds}
-            strategy={verticalListSortingStrategy}
+
+        {subscriptions.length === 0 ? (
+          <Card bodyStyle={{ padding: 40, textAlign: 'center' }}>
+            <GripVertical
+              size={32}
+              style={{ color: 'var(--semi-color-text-3)', marginBottom: 8 }}
+            />
+            <Text type='tertiary'>{t('暂无订阅套餐')}</Text>
+          </Card>
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
           >
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns:
-                  'repeat(auto-fit, minmax(min(100%, 420px), 1fr))',
-                gap: 22,
-                alignItems: 'stretch',
-              }}
+            <SortableContext
+              items={sortableIds}
+              strategy={verticalListSortingStrategy}
             >
-              {subscriptions
-                .filter((item) => item.subscription)
-                .map((item) => {
-                  const sub = item.subscription;
-                  const plan = item.plan;
-                  const progress = item.progress;
-                  const windowUsage = item.window_usage;
-                  return (
-                    <SortableCard
-                      key={sub?.id}
-                      subscription={sub}
-                      plan={plan}
-                      progress={progress}
-                      windowUsage={windowUsage}
-                      onToggle={handleToggle}
-                      consumptionOrder={consumptionOrderById.get(sub?.id)}
-                    />
-                  );
-                })}
-            </div>
-          </SortableContext>
-        </DndContext>
-      )}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns:
+                    'repeat(auto-fit, minmax(min(100%, 420px), 1fr))',
+                  gap: 22,
+                  alignItems: 'stretch',
+                }}
+              >
+                {subscriptions
+                  .filter((item) => item.subscription)
+                  .map((item) => {
+                    const sub = item.subscription;
+                    const plan = item.plan;
+                    const progress = item.progress;
+                    const windowUsage = item.window_usage;
+                    return (
+                      <SortableCard
+                        key={sub?.id}
+                        subscription={sub}
+                        plan={plan}
+                        progress={progress}
+                        windowUsage={windowUsage}
+                        onToggle={handleToggle}
+                        consumptionOrder={consumptionOrderById.get(sub?.id)}
+                      />
+                    );
+                  })}
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
+      </div>
     </div>
   );
 }

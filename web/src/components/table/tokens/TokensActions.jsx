@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Button, Space } from '@douyinfe/semi-ui';
+import { Button } from '@douyinfe/semi-ui';
 import { showError } from '../../../helpers';
 import CopyTokensModal from './modals/CopyTokensModal';
 import DeleteTokensModal from './modals/DeleteTokensModal';
@@ -61,10 +61,10 @@ const TokensActions = ({
 
   return (
     <>
-      <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
+      <div className='tokens-actions flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
         <Button
           type='primary'
-          className='flex-1 md:flex-initial'
+          className='tokens-action-primary flex-1 md:flex-initial'
           onClick={() => {
             setEditingToken({
               id: undefined,
@@ -78,7 +78,7 @@ const TokensActions = ({
 
         <Button
           type='tertiary'
-          className='flex-1 md:flex-initial'
+          className='tokens-action-secondary flex-1 md:flex-initial'
           onClick={handleCopySelectedTokens}
           size='small'
         >
@@ -87,7 +87,7 @@ const TokensActions = ({
 
         <Button
           type='danger'
-          className='w-full md:w-auto'
+          className='tokens-action-danger w-full md:w-auto'
           onClick={handleDeleteSelectedTokens}
           size='small'
         >

@@ -53,10 +53,10 @@ const TokensFilters = ({
       layout='horizontal'
       trigger='change'
       stopValidateWithError={false}
-      className='w-full md:w-auto order-1 md:order-2'
+      className='tokens-filters w-full md:w-auto order-1 md:order-2'
     >
-      <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto'>
-        <div className='relative w-full md:w-56'>
+      <div className='tokens-filter-row flex flex-col md:flex-row items-center gap-2 w-full md:w-auto'>
+        <div className='tokens-filter-field relative w-full md:w-56'>
           <Form.Input
             field='searchKeyword'
             prefix={<IconSearch />}
@@ -67,7 +67,7 @@ const TokensFilters = ({
           />
         </div>
 
-        <div className='relative w-full md:w-56'>
+        <div className='tokens-filter-field relative w-full md:w-56'>
           <Form.Input
             field='searchToken'
             prefix={<IconSearch />}
@@ -78,12 +78,12 @@ const TokensFilters = ({
           />
         </div>
 
-        <div className='flex gap-2 w-full md:w-auto'>
+        <div className='tokens-filter-buttons flex gap-2 w-full md:w-auto'>
           <Button
             type='tertiary'
             htmlType='submit'
             loading={loading || searching}
-            className='flex-1 md:flex-initial md:w-auto'
+            className='tokens-query-button flex-1 md:flex-initial md:w-auto'
             size='small'
           >
             {t('查询')}
@@ -92,7 +92,7 @@ const TokensFilters = ({
           <Button
             type='tertiary'
             onClick={handleReset}
-            className='flex-1 md:flex-initial md:w-auto'
+            className='tokens-reset-button flex-1 md:flex-initial md:w-auto'
             size='small'
           >
             {t('重置')}

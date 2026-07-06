@@ -26,14 +26,16 @@ const Invoice = () => {
 
   return (
     <div
+      className='wallet-page console-finance-command-page console-command-center topup-command-center w-full relative min-h-screen lg:min-h-0 mt-[60px]'
       style={{
         width: '100%',
         minHeight: '100vh',
-        background: '#f8fafc',
-        padding: '82px 24px 36px',
       }}
     >
-      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+      <div className='console-dashboard-orb console-dashboard-orb-teal' />
+      <div className='console-dashboard-orb console-dashboard-orb-blue' />
+      <div className='console-dashboard-orb console-dashboard-orb-amber' />
+      <div className='console-finance-command-content'>
         <TopupHistoryModal asPage t={t} />
       </div>
     </div>

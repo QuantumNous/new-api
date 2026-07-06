@@ -609,7 +609,7 @@ const SubscriptionPlansCard = ({
           {showPlansList && (
             <>
               {sortedPlans.length > 0 ? (
-                <div className='grid grid-cols-1 items-stretch gap-5 px-1 md:grid-cols-2 xl:grid-cols-3'>
+                <div className='subscription-plans-grid-panel grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3'>
                   {sortedPlans.map((p, index) => {
                     const plan = p?.plan;
                     const totalAmount = Number(plan?.total_amount || 0);
@@ -733,16 +733,15 @@ const SubscriptionPlansCard = ({
                         className={`group relative h-full w-full overflow-hidden !rounded-[26px] border transition-all duration-300 hover:-translate-y-0.5 ${
                           isPopular
                             ? 'shadow-2xl shadow-slate-950/15'
-                            : 'border-slate-200 bg-white shadow-sm hover:shadow-xl'
+                            : 'border-slate-200 bg-white shadow-sm hover:shadow-xl dark:border-slate-700 dark:bg-slate-900/80'
                         }`}
                         style={
                           isPopular
                             ? {
-                                borderColor: '#111827',
+                                borderColor: 'var(--console-border-strong)',
                                 background:
-                                  'linear-gradient(145deg, #fffdf8 0%, #fbf2df 46%, #eef3f8 100%)',
-                                boxShadow:
-                                  '0 24px 70px rgba(15, 23, 42, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.86)',
+                                  'var(--console-card-gradient-amber)',
+                                boxShadow: 'var(--console-shadow-soft)',
                               }
                             : undefined
                         }
@@ -778,7 +777,7 @@ const SubscriptionPlansCard = ({
                             ) : (
                               <span />
                             )}
-                            <span className='rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] text-slate-400 ring-1 ring-slate-200'>
+                            <span className='rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] text-slate-400 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700'>
                               #{plan?.id || '-'}
                             </span>
                           </div>
@@ -788,14 +787,14 @@ const SubscriptionPlansCard = ({
                               <div className='min-w-0 flex-1'>
                                 <div className='mb-2 flex flex-wrap items-center gap-2'>
                                   {limitLabel && (
-                                    <span className='rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500'>
+                                    <span className='rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300'>
                                       {limitLabel}
                                     </span>
                                   )}
                                 </div>
                                 <Typography.Title
                                   heading={5}
-                                  className='line-clamp-2 !text-[19px] !font-black !leading-tight !tracking-[-0.03em] !text-slate-950'
+                                  className='line-clamp-2 !text-[19px] !font-black !leading-tight !tracking-[-0.03em] !text-slate-950 dark:!text-slate-50'
                                   style={{ margin: 0 }}
                                 >
                                   {plan?.title || t('订阅套餐')}
@@ -817,8 +816,8 @@ const SubscriptionPlansCard = ({
                                         key={idx}
                                         className={`inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none ring-1 ${
                                           isPopular
-                                            ? 'bg-white/70 text-slate-800 ring-amber-200/70'
-                                            : 'bg-slate-50 text-slate-600 ring-slate-200'
+                                            ? 'bg-white/70 text-slate-800 ring-amber-200/70 dark:bg-amber-300/10 dark:text-amber-100 dark:ring-amber-200/20'
+                                            : 'bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700'
                                         }`}
                                       >
                                         <span
@@ -837,7 +836,7 @@ const SubscriptionPlansCard = ({
                                 className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
                                   isPopular
                                     ? 'bg-slate-950 text-amber-100 shadow-lg shadow-slate-950/15'
-                                    : 'bg-slate-100 text-slate-700'
+                                    : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
                                 }`}
                                 style={{
                                   border: `1px solid ${accent.ring}`,
@@ -865,11 +864,11 @@ const SubscriptionPlansCard = ({
                                   {displayPrice}
                                 </div>
                               )}
-                              <div className='mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3'>
+                              <div className='mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/80'>
                                 <span className='text-xs font-semibold uppercase tracking-[0.18em] text-slate-400'>
                                   {t('总额度')}
                                 </span>
-                                <span className='max-w-[52%] truncate text-sm font-black text-slate-950'>
+                                <span className='max-w-[52%] truncate text-sm font-black text-slate-950 dark:text-slate-50'>
                                   {totalAmount > 0
                                     ? renderQuota(totalAmount)
                                     : t('不限')}
@@ -878,7 +877,7 @@ const SubscriptionPlansCard = ({
                             </div>
 
                             <div
-                              className='mb-4 grid overflow-hidden rounded-2xl border border-slate-200 bg-white'
+                              className='mb-4 grid overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'
                               style={{
                                 gridTemplateColumns: `repeat(${visibleQuotaItems.length}, minmax(0, 1fr))`,
                               }}
@@ -888,14 +887,14 @@ const SubscriptionPlansCard = ({
                                   key={item.key}
                                   className={`min-w-0 p-3 ${
                                     itemIndex > 0
-                                      ? 'border-l border-slate-200'
+                                      ? 'border-l border-slate-200 dark:border-slate-700'
                                       : ''
                                   }`}
                                 >
                                   <div className='text-[11px] font-semibold text-slate-400'>
                                     {item.label}
                                   </div>
-                                  <div className='mt-1 truncate text-sm font-black text-slate-950'>
+                                  <div className='mt-1 truncate text-sm font-black text-slate-950 dark:text-slate-50'>
                                     {item.value > 0
                                       ? renderQuota(item.value)
                                       : t('不限')}
@@ -910,14 +909,14 @@ const SubscriptionPlansCard = ({
                                   key={`${item.label}-${item.value}`}
                                   className='flex min-w-0 max-w-full items-center justify-between gap-3 text-sm'
                                 >
-                                  <span className='inline-flex items-center gap-2 text-slate-500'>
+                                  <span className='inline-flex items-center gap-2 text-slate-500 dark:text-slate-300'>
                                     <CheckCircle2
                                       size={14}
                                       className='shrink-0'
                                     />
                                     {item.label}
                                   </span>
-                                  <span className='min-w-0 text-right font-semibold text-slate-900'>
+                                  <span className='min-w-0 text-right font-semibold text-slate-900 dark:text-slate-100'>
                                     {Array.isArray(item.value) ? (
                                       <span className='flex flex-col items-end leading-5'>
                                         {item.value.map((value) => (
@@ -945,13 +944,13 @@ const SubscriptionPlansCard = ({
                                     type='primary'
                                     block
                                     disabled={reached}
-                                    className='!h-10 !rounded-xl !font-semibold'
+                                    className='subscription-plan-cta !h-10 !rounded-xl !font-semibold'
                                     style={
                                       reached
                                         ? undefined
                                         : {
-                                            backgroundColor: accent.ink,
-                                            borderColor: accent.ink,
+                                            '--plan-cta-bg': accent.ink,
+                                            '--plan-cta-border': accent.ink,
                                           }
                                     }
                                     onClick={() => {

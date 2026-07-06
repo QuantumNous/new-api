@@ -542,16 +542,18 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
     return (
       <>
         <div
+          className='console-finance-hero-card'
           style={{
             marginBottom: 26,
             borderRadius: 30,
             overflow: 'hidden',
-            border: '1px solid rgba(15, 23, 42, 0.08)',
-            background: '#ffffff',
-            boxShadow: '0 18px 45px rgba(15, 23, 42, 0.06)',
+            border: '1px solid var(--console-border)',
+            background: 'var(--console-card-bg)',
+            boxShadow: 'var(--console-shadow)',
           }}
         >
           <div
+            className='console-finance-hero-grid'
             style={{
               display: 'grid',
               gridTemplateColumns:
@@ -560,13 +562,15 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
             }}
           >
             <div
+              className='console-finance-hero-main'
               style={{
                 padding: '34px 36px 32px',
-                borderRight: '1px solid rgba(15, 23, 42, 0.08)',
-                background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+                borderRight: '1px solid var(--console-border)',
+                background: 'var(--console-card-gradient)',
               }}
             >
               <div
+                className='console-finance-hero-head'
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -577,12 +581,13 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
               >
                 <div>
                   <div
+                    className='console-finance-hero-eyebrow'
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: 10,
                       marginBottom: 14,
-                      color: '#0f172a',
+                      color: 'var(--console-text-strong)',
                       fontSize: 15,
                       fontWeight: 800,
                       letterSpacing: '-0.02em',
@@ -592,8 +597,9 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
                     {t('充值资金流水')}
                   </div>
                   <div
+                    className='console-finance-hero-title'
                     style={{
-                      color: '#0f172a',
+                      color: 'var(--console-text-strong)',
                       fontSize: 44,
                       lineHeight: 1.05,
                       letterSpacing: '-0.07em',
@@ -604,6 +610,7 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
                   </div>
                 </div>
                 <div
+                  className='console-finance-hero-icon'
                   style={{
                     width: 48,
                     height: 48,
@@ -611,9 +618,9 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#0f172a',
-                    background: '#f8fafc',
-                    border: '1px solid rgba(15, 23, 42, 0.08)',
+                    color: 'var(--console-text-strong)',
+                    background: 'var(--console-icon-bg)',
+                    border: '1px solid var(--console-border)',
                   }}
                 >
                   <FileText size={21} />
@@ -621,10 +628,11 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
               </div>
 
               <Text
+                className='console-finance-hero-desc'
                 style={{
                   display: 'block',
                   maxWidth: 520,
-                  color: '#475569',
+                  color: 'var(--console-text)',
                   fontSize: 16,
                   lineHeight: 1.7,
                   letterSpacing: '-0.02em',
@@ -637,33 +645,40 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
             </div>
 
             <div
-              style={{ display: 'grid', background: '#f8fafc', padding: 12 }}
+              className='console-finance-hero-metrics'
+              style={{
+                display: 'grid',
+                background: 'var(--console-card-muted-bg)',
+                padding: 12,
+              }}
             >
               <div
                 style={{
                   display: 'grid',
                   gridTemplateRows: '1fr 1fr 1fr',
-                  background: '#ffffff',
+                  background: 'var(--console-card-bg)',
                 }}
               >
                 <div
+                  className='console-finance-hero-metric-row'
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: 18,
                     padding: '22px 24px',
-                    borderBottom: '1px solid rgba(15, 23, 42, 0.12)',
+                    borderBottom: '1px solid var(--console-border-strong)',
                   }}
                 >
                   <div>
                     <div
+                      className='console-finance-hero-metric-label'
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: 9,
                         marginBottom: 8,
-                        color: '#475569',
+                        color: 'var(--console-text)',
                         fontSize: 14,
                         fontWeight: 800,
                       }}
@@ -672,8 +687,9 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
                       {t('账单记录')}
                     </div>
                     <div
+                      className='console-finance-hero-metric-value'
                       style={{
-                        color: '#0f172a',
+                        color: 'var(--console-text-strong)',
                         fontSize: 31,
                         lineHeight: 1,
                         fontWeight: 900,
@@ -687,23 +703,25 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
                 </div>
 
                 <div
+                  className='console-finance-hero-metric-row'
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: 18,
                     padding: '22px 24px',
-                    borderBottom: '1px solid rgba(15, 23, 42, 0.12)',
+                    borderBottom: '1px solid var(--console-border-strong)',
                   }}
                 >
                   <div>
                     <div
+                      className='console-finance-hero-metric-label'
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: 9,
                         marginBottom: 8,
-                        color: '#475569',
+                        color: 'var(--console-text)',
                         fontSize: 14,
                         fontWeight: 800,
                       }}
@@ -712,8 +730,9 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
                       {t('当前页成功金额')}
                     </div>
                     <div
+                      className='console-finance-hero-metric-value'
                       style={{
-                        color: '#0f172a',
+                        color: 'var(--console-text-strong)',
                         fontSize: 31,
                         lineHeight: 1,
                         fontWeight: 900,
@@ -727,6 +746,7 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
                 </div>
 
                 <div
+                  className='console-finance-hero-metric-row'
                   style={{
                     display: 'flex',
                     flexWrap: 'wrap',
@@ -738,12 +758,13 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
                 >
                   <div>
                     <div
+                      className='console-finance-hero-metric-label'
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: 9,
                         marginBottom: 8,
-                        color: '#475569',
+                        color: 'var(--console-text)',
                         fontSize: 14,
                         fontWeight: 800,
                       }}
@@ -752,8 +773,9 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
                       {t('当前页可开票')}
                     </div>
                     <div
+                      className='console-finance-hero-metric-value'
                       style={{
-                        color: '#0f172a',
+                        color: 'var(--console-text-strong)',
                         fontSize: 31,
                         lineHeight: 1,
                         fontWeight: 900,
@@ -773,9 +795,9 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
         <div
           style={{
             borderRadius: 28,
-            border: '1px solid rgba(15, 23, 42, 0.08)',
-            background: '#ffffff',
-            boxShadow: '0 18px 45px rgba(15, 23, 42, 0.05)',
+            border: '1px solid var(--console-border)',
+            background: 'var(--console-card-bg)',
+            boxShadow: 'var(--console-shadow)',
             overflow: 'hidden',
           }}
         >
@@ -787,8 +809,8 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
               flexWrap: 'wrap',
               gap: 16,
               padding: '18px 20px',
-              borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
-              background: '#ffffff',
+              borderBottom: '1px solid var(--console-border)',
+              background: 'var(--console-card-bg)',
             }}
           >
             <div>
@@ -796,14 +818,16 @@ const TopupHistoryModal = ({ visible, onCancel, t, asPage = false }) => {
                 strong
                 style={{
                   display: 'block',
-                  color: '#0f172a',
+                  color: 'var(--console-text-strong)',
                   fontSize: 16,
                   letterSpacing: '-0.02em',
                 }}
               >
                 {t('账单明细')}
               </Text>
-              <Text style={{ color: '#64748b', fontSize: 13 }}>
+              <Text
+                style={{ color: 'var(--console-text-muted)', fontSize: 13 }}
+              >
                 {t('按订单号搜索充值和开票记录')}
               </Text>
             </div>

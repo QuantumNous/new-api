@@ -19,6 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Activity,
+  ArrowUpRight,
+  KeyRound,
+  Search,
+  SlidersHorizontal,
+  WalletCards,
+} from 'lucide-react';
+import {
   Notification,
   Button,
   Space,
@@ -32,16 +40,16 @@ import {
   getModelCategories,
   selectFilter,
 } from '../../../helpers';
-import CardPro from '../../common/ui/CardPro';
 import TokensTable from './TokensTable';
 import TokensActions from './TokensActions';
 import TokensFilters from './TokensFilters';
-import TokensDescription from './TokensDescription';
 import EditTokenModal from './modals/EditTokenModal';
 import CCSwitchModal from './modals/CCSwitchModal';
 import { useTokensData } from '../../../hooks/tokens/useTokensData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+
+const { Text } = Typography;
 
 function TokensPage() {
   // Define the function first, then pass it into the hook to avoid TDZ errors
@@ -375,6 +383,19 @@ function TokensPage() {
     t,
   } = tokensData;
 
+  const selectedCount = selectedKeys?.length || 0;
+  const currentPageCount = tokensData.tokens?.length || 0;
+  const tokenCount = tokensData.tokenCount || 0;
+  const paginationArea = createCardProPagination({
+    currentPage: tokensData.activePage,
+    pageSize: tokensData.pageSize,
+    total: tokenCount,
+    onPageChange: tokensData.handlePageChange,
+    onPageSizeChange: tokensData.handlePageSizeChange,
+    isMobile: isMobile,
+    t: tokensData.t,
+  });
+
   return (
     <>
       <EditTokenModal
@@ -391,51 +412,135 @@ function TokensPage() {
         modelOptions={modelOptions}
       />
 
-      <CardPro
-        type='type1'
-        descriptionArea={
-          <TokensDescription
-            compactMode={compactMode}
-            setCompactMode={setCompactMode}
-            t={t}
-          />
-        }
-        actionsArea={
-          <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
-            <TokensActions
-              selectedKeys={selectedKeys}
-              setEditingToken={setEditingToken}
-              setShowEdit={setShowEdit}
-              batchCopyTokens={batchCopyTokens}
-              batchDeleteTokens={batchDeleteTokens}
-              t={t}
-            />
+      <div className='tokens-wallet-layout console-dashboard-content h-full'>
+        <div className='tokens-wallet-hero mb-8 overflow-hidden rounded-[28px] border'>
+          <div className='grid gap-0'>
+            <div className='tokens-hero-main bg-white p-6 sm:p-8'>
+              <div className='tokens-hero-head flex items-start justify-between gap-4'>
+                <div>
+                  <div className='tokens-hero-eyebrow mb-4 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600'>
+                    <Activity size={14} />
+                    {t('接口凭证总览')}
+                  </div>
+                  <Typography.Title
+                    className='tokens-hero-title'
+                    heading={2}
+                    style={{
+                      margin: 0,
+                      color: 'var(--console-text-strong)',
+                      fontSize: 32,
+                      lineHeight: 1.08,
+                      letterSpacing: '-0.04em',
+                    }}
+                  >
+                    {t('令牌管理')}
+                  </Typography.Title>
+                  <div className='tokens-hero-desc mt-2 max-w-md text-sm leading-6 text-slate-500'>
+                    {t('设置令牌的基本信息')}
+                  </div>
+                </div>
+                <div className='tokens-hero-icon hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white sm:flex'>
+                  <KeyRound size={22} />
+                </div>
+              </div>
 
-            <div className='w-full md:w-full lg:w-auto order-1 md:order-2'>
-              <TokensFilters
-                formInitValues={formInitValues}
-                setFormApi={setFormApi}
-                searchTokens={searchTokens}
-                loading={loading}
-                searching={searching}
+              <div className='mt-10 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between'>
+                <div>
+                  <div className='tokens-hero-stat-label text-xs font-semibold uppercase tracking-[0.22em] text-slate-400'>
+                    {t('当前令牌')}
+                  </div>
+                  <div className='tokens-hero-stat-value mt-3 text-5xl font-black tracking-[-0.07em] text-slate-950 sm:text-6xl'>
+                    {tokenCount}
+                  </div>
+                </div>
+                <div className='tokens-compact-toggle'>
+                  <Button
+                    type='tertiary'
+                    icon={<SlidersHorizontal size={15} />}
+                    onClick={() => setCompactMode(!compactMode)}
+                  >
+                    {compactMode ? t('紧凑模式') : t('标准模式')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className='tokens-workspace-grid grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]'>
+          <div className='tokens-table-card overflow-hidden rounded-[28px] border'>
+            <div className='tokens-table-card-header flex flex-col gap-4 border-b border-slate-200/80 bg-white p-5 sm:flex-row sm:items-center sm:justify-between'>
+              <div className='flex items-center gap-3'>
+                <div className='tokens-table-card-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white'>
+                  <WalletCards size={18} />
+                </div>
+                <div>
+                  <Text
+                    strong
+                    style={{
+                      display: 'block',
+                      color: 'var(--console-text-strong)',
+                      fontSize: 16,
+                    }}
+                  >
+                    {t('令牌列表')}
+                  </Text>
+                  <Text
+                    size='small'
+                    style={{ color: 'var(--semi-color-text-2)' }}
+                  >
+                    {loading || searching
+                      ? t('正在加载数据')
+                      : `${t('显示第')} ${currentPageCount} ${t('条，共')} ${tokenCount} ${t('条')}`}
+                  </Text>
+                </div>
+              </div>
+              <TokensActions
+                selectedKeys={selectedKeys}
+                setEditingToken={setEditingToken}
+                setShowEdit={setShowEdit}
+                batchCopyTokens={batchCopyTokens}
+                batchDeleteTokens={batchDeleteTokens}
                 t={t}
               />
             </div>
+
+            <div className='tokens-table-wrap bg-white p-3 sm:p-4'>
+              <TokensTable {...tokensData} />
+            </div>
+
+            {paginationArea && (
+              <div className='tokens-pagination-bar flex flex-col gap-3 border-t border-slate-200/80 bg-white p-4 sm:flex-row sm:items-center sm:justify-between'>
+                {paginationArea}
+              </div>
+            )}
           </div>
-        }
-        paginationArea={createCardProPagination({
-          currentPage: tokensData.activePage,
-          pageSize: tokensData.pageSize,
-          total: tokensData.tokenCount,
-          onPageChange: tokensData.handlePageChange,
-          onPageSizeChange: tokensData.handlePageSizeChange,
-          isMobile: isMobile,
-          t: tokensData.t,
-        })}
-        t={tokensData.t}
-      >
-        <TokensTable {...tokensData} />
-      </CardPro>
+
+          <div className='tokens-tools-card rounded-[28px] border p-5'>
+            <div className='mb-5 flex items-center justify-between gap-4'>
+              <div>
+                <div className='flex items-center gap-2 text-sm font-semibold text-slate-500'>
+                  <Search size={16} />
+                  {t('筛选令牌')}
+                </div>
+                <div className='mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950'>
+                  {searching ? t('搜索中') : t('快速查询')}
+                </div>
+              </div>
+              <ArrowUpRight size={18} className='text-slate-300' />
+            </div>
+
+            <TokensFilters
+              formInitValues={formInitValues}
+              setFormApi={setFormApi}
+              searchTokens={searchTokens}
+              loading={loading}
+              searching={searching}
+              t={t}
+            />
+          </div>
+        </div>
+      </div>
     </>
   );
 }

@@ -19,24 +19,31 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Typography } from '@douyinfe/semi-ui';
-import { Key } from 'lucide-react';
+import { KeyRound } from 'lucide-react';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 
 const { Text } = Typography;
 
 const TokensDescription = ({ compactMode, setCompactMode, t }) => {
   return (
-    <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
-      <div className='flex items-center text-blue-500'>
-        <Key size={16} className='mr-2' />
-        <Text>{t('令牌管理')}</Text>
+    <div className='tokens-header flex flex-col md:flex-row justify-between items-start md:items-center gap-3 w-full'>
+      <div className='tokens-title-wrap flex items-center min-w-0'>
+        <span className='tokens-title-icon'>
+          <KeyRound size={18} />
+        </span>
+        <span className='min-w-0'>
+          <Text className='tokens-title'>{t('令牌管理')}</Text>
+          <Text className='tokens-subtitle'>{t('设置令牌的基本信息')}</Text>
+        </span>
       </div>
 
-      <CompactModeToggle
-        compactMode={compactMode}
-        setCompactMode={setCompactMode}
-        t={t}
-      />
+      <div className='tokens-compact-toggle'>
+        <CompactModeToggle
+          compactMode={compactMode}
+          setCompactMode={setCompactMode}
+          t={t}
+        />
+      </div>
     </div>
   );
 };

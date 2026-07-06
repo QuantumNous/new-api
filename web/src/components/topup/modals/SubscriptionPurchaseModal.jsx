@@ -101,12 +101,12 @@ const SubscriptionPurchaseModal = ({
           className='overflow-hidden rounded-3xl'
           style={{
             background:
-              'radial-gradient(circle at 12% 0%, rgba(14, 165, 233, 0.14), transparent 35%), linear-gradient(180deg, #f8fafc 0%, #ffffff 46%)',
+              'radial-gradient(circle at 12% 0%, rgba(14, 165, 233, 0.14), transparent 35%), var(--console-card-gradient-soft)',
           }}
         >
           <div className='px-6 pb-6 pt-5'>
-            <div className='mb-5 rounded-3xl bg-slate-950 p-5 text-white shadow-2xl shadow-slate-950/15'>
-              <div className='text-xs font-bold uppercase tracking-[0.22em] text-cyan-200/80'>
+            <div className='subscription-purchase-section subscription-purchase-summary mb-4 p-5'>
+              <div className='text-xs font-bold uppercase tracking-[0.18em]'>
                 {t('订阅套餐')}
               </div>
               <div className='mt-2 flex items-end justify-between gap-4'>
@@ -114,14 +114,14 @@ const SubscriptionPurchaseModal = ({
                   <div className='truncate text-2xl font-black tracking-tight'>
                     {plan.title}
                   </div>
-                  <div className='mt-2 flex items-center gap-2 text-sm text-slate-300'>
+                  <div className='mt-2 flex items-center gap-2 text-sm'>
                     <CalendarClock size={15} />
                     {formatSubscriptionDuration(plan, t)}
                   </div>
                 </div>
                 <div className='text-right'>
-                  <div className='text-xs text-slate-400'>{t('应付金额')}</div>
-                  <div className='text-3xl font-black text-cyan-200'>
+                  <div className='text-xs'>{t('应付金额')}</div>
+                  <div className='text-3xl font-black'>
                     {symbol}
                     {displayPrice}
                   </div>
@@ -130,7 +130,7 @@ const SubscriptionPurchaseModal = ({
             </div>
 
             {/* 套餐信息 */}
-            <Card className='!rounded-3xl !border-0 bg-white/80 shadow-sm ring-1 ring-slate-200/80 backdrop-blur'>
+            <Card className='subscription-purchase-section !border-0'>
               <div className='space-y-3'>
                 <div className='flex justify-between items-center'>
                   <Text strong className='text-slate-700 dark:text-slate-200'>
@@ -224,39 +224,53 @@ const SubscriptionPurchaseModal = ({
             </Card>
 
             {/* 税费类型 */}
-            <div
-              className='mt-4 rounded-2xl px-4 py-3 ring-1 ring-slate-200/80'
-              style={{ background: 'rgba(255,255,255,0.78)' }}
-            >
+            <div className='subscription-purchase-section mt-4 px-4 py-3'>
               <div className='flex items-center justify-between'>
                 <Text strong size='small'>
                   {t('税费类型')}
                 </Text>
-                <div className='flex rounded-full overflow-hidden bg-slate-100 p-1'>
+                <div
+                  className='grid grid-cols-2 gap-1.5 rounded-2xl bg-white p-1.5 shadow-sm dark:bg-slate-800'
+                  style={{ border: '1px solid var(--console-border-strong)' }}
+                >
                   {[
                     { value: false, label: t('不含税') },
                     { value: true, label: t('含税') },
-                  ].map((opt) => (
-                    <div
-                      key={String(opt.value)}
-                      className='cursor-pointer select-none transition-all'
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: 999,
-                        fontSize: 12,
-                        fontWeight: includeTax === opt.value ? 600 : 400,
-                        backgroundColor:
-                          includeTax === opt.value ? '#0f172a' : 'transparent',
-                        color:
-                          includeTax === opt.value
-                            ? '#fff'
-                            : 'var(--semi-color-text-0)',
-                      }}
-                      onClick={() => setIncludeTax(opt.value)}
-                    >
-                      {opt.label}
-                    </div>
-                  ))}
+                  ].map((opt) => {
+                    const active = includeTax === opt.value;
+                    return (
+                      <div
+                        key={String(opt.value)}
+                        className='min-w-[92px] cursor-pointer select-none rounded-xl px-4 py-2.5 text-center text-sm font-bold transition-all duration-200'
+                        style={{
+                          background: active ? '#0f766e' : 'transparent',
+                          color: active ? '#fff' : 'var(--console-text-muted)',
+                          boxShadow: active
+                            ? '0 8px 20px rgba(15, 118, 110, 0.22)'
+                            : 'none',
+                        }}
+                        onClick={() => setIncludeTax(opt.value)}
+                        onMouseEnter={(event) => {
+                          if (!active) {
+                            event.currentTarget.style.backgroundColor =
+                              'rgba(20, 184, 166, 0.12)';
+                            event.currentTarget.style.color =
+                              'var(--semi-color-success)';
+                          }
+                        }}
+                        onMouseLeave={(event) => {
+                          if (!active) {
+                            event.currentTarget.style.backgroundColor =
+                              'transparent';
+                            event.currentTarget.style.color =
+                              'var(--console-text-muted)';
+                          }
+                        }}
+                      >
+                        {opt.label}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -272,9 +286,13 @@ const SubscriptionPurchaseModal = ({
             )}
 
             {hasAnyPayment ? (
-              <div className='mt-4 space-y-3'>
-                <Text size='small' type='tertiary'>
-                  {t('选择支付方式')}：
+              <div className='subscription-purchase-section mt-4 space-y-3 p-4'>
+                <Text
+                  size='small'
+                  type='tertiary'
+                  style={{ display: 'block', fontWeight: 700 }}
+                >
+                  {t('选择支付方式')}
                 </Text>
 
                 {/* Stripe / Creem */}
@@ -309,10 +327,11 @@ const SubscriptionPurchaseModal = ({
 
                 {/* 易支付 */}
                 {hasEpay && (
-                  <div className='flex gap-2'>
+                  <div className='flex flex-col gap-3 sm:flex-row sm:items-center'>
                     <Select
                       value={selectedEpayMethod}
                       onChange={setSelectedEpayMethod}
+                      className='subscription-purchase-pay-select'
                       style={{ flex: 1 }}
                       size='default'
                       placeholder={t('选择支付方式')}
@@ -325,7 +344,11 @@ const SubscriptionPurchaseModal = ({
                     <Button
                       theme='solid'
                       type='primary'
-                      className='!rounded-2xl'
+                      className='subscription-purchase-pay-button !font-semibold'
+                      style={{
+                        background: '#0f766e',
+                        borderColor: '#0f766e',
+                      }}
                       onClick={onPayEpay}
                       loading={paying}
                       disabled={!selectedEpayMethod || purchaseLimitReached}

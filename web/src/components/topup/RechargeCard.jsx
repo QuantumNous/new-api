@@ -239,82 +239,256 @@ const RechargeCard = ({
 
   // ─── Account Statistics Bar ────────────────────────────────────
   const statsBar = (
-    <div
-      className='mb-8 overflow-hidden rounded-[28px] border'
+    <Card
+      bodyStyle={{ padding: 0 }}
+      className='console-finance-hero-card wallet-finance-hero-card'
       style={{
-        background: '#f8fafc',
-        borderColor: 'rgba(15, 23, 42, 0.08)',
-        boxShadow: '0 20px 50px rgba(15, 23, 42, 0.08)',
+        marginBottom: 26,
+        borderRadius: 30,
+        overflow: 'hidden',
+        border: '1px solid var(--console-border)',
+        background: 'var(--console-card-bg)',
+        boxShadow: 'var(--console-shadow)',
       }}
     >
-      <div className='grid gap-0 lg:grid-cols-[1.2fr_1fr]'>
-        <div className='border-b border-slate-200/80 bg-white p-6 sm:p-8 lg:border-b-0 lg:border-r'>
-          <div className='flex items-start justify-between gap-4'>
+      <div
+        className='console-finance-hero-grid'
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
+          minHeight: 236,
+        }}
+      >
+        <div
+          className='console-finance-hero-main'
+          style={{
+            padding: '34px 36px 32px',
+            borderRight: '1px solid var(--console-border)',
+            background: 'var(--console-card-gradient)',
+          }}
+        >
+          <div
+            className='console-finance-hero-head'
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 18,
+              marginBottom: 30,
+            }}
+          >
             <div>
-              <div className='mb-4 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600'>
-                <Activity size={14} />
+              <div
+                className='console-finance-hero-eyebrow'
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  marginBottom: 14,
+                  color: 'var(--console-text-strong)',
+                  fontSize: 15,
+                  fontWeight: 800,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                <Activity size={18} />
                 {t('账户资金总览')}
               </div>
               <Typography.Title
+                className='console-finance-hero-title'
                 heading={2}
                 style={{
                   margin: 0,
-                  color: '#020617',
-                  fontSize: 32,
-                  lineHeight: 1.08,
-                  letterSpacing: '-0.04em',
+                  color: 'var(--console-text-strong)',
+                  fontSize: 44,
+                  lineHeight: 1.05,
+                  letterSpacing: '-0.07em',
+                  fontWeight: 900,
                 }}
               >
                 {t('钱包管理')}
               </Typography.Title>
-              <div className='mt-2 max-w-md text-sm leading-6 text-slate-500'>
-                {t('管理余额充值、兑换码与订阅套餐')}
-              </div>
             </div>
-            <div className='hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white sm:flex'>
-              <Wallet size={22} />
+            <div
+              className='console-finance-hero-icon'
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 16,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--console-text-strong)',
+                background: 'var(--console-icon-bg)',
+                border: '1px solid var(--console-border)',
+              }}
+            >
+              <Wallet size={21} />
             </div>
           </div>
 
-          <div className='mt-10'>
-            <div className='text-xs font-semibold uppercase tracking-[0.22em] text-slate-400'>
-              {t('当前余额')}
-            </div>
-            <div className='mt-3 text-5xl font-black tracking-[-0.07em] text-slate-950 sm:text-6xl'>
-              {renderQuota(userState?.user?.quota)}
-            </div>
-          </div>
+          <Text
+            className='console-finance-hero-desc'
+            style={{
+              display: 'block',
+              maxWidth: 520,
+              color: 'var(--console-text)',
+              fontSize: 16,
+              lineHeight: 1.7,
+              letterSpacing: '-0.02em',
+            }}
+          >
+            {t('管理余额充值、兑换码与订阅套餐')}
+          </Text>
         </div>
 
-        <div className='grid bg-slate-50 p-3 sm:grid-cols-2 lg:grid-cols-1'>
-          <div className='flex items-center justify-between gap-4 border-b border-slate-200 bg-white p-5 last:border-b-0 sm:border-b-0 sm:border-r lg:border-b lg:border-r-0'>
-            <div>
-              <div className='flex items-center gap-2 text-sm font-semibold text-slate-500'>
-                <TrendingUp size={16} />
-                {t('历史消耗')}
+        <div
+          className='console-finance-hero-metrics'
+          style={{
+            display: 'grid',
+            background: 'var(--console-card-muted-bg)',
+            padding: 12,
+          }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateRows: '1fr 1fr 1fr',
+              background: 'var(--console-card-bg)',
+            }}
+          >
+            <div
+              className='console-finance-hero-metric-row'
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 18,
+                padding: '22px 24px',
+                borderBottom: '1px solid var(--console-border-strong)',
+              }}
+            >
+              <div>
+                <div
+                  className='console-finance-hero-metric-label'
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 9,
+                    marginBottom: 8,
+                    color: 'var(--console-text)',
+                    fontSize: 14,
+                    fontWeight: 800,
+                  }}
+                >
+                  <Coins size={16} />
+                  {t('当前余额')}
+                </div>
+                <div
+                  className='console-finance-hero-metric-value'
+                  style={{
+                    color: 'var(--console-text-strong)',
+                    fontSize: 31,
+                    lineHeight: 1,
+                    fontWeight: 900,
+                    letterSpacing: '-0.055em',
+                  }}
+                >
+                  {renderQuota(userState?.user?.quota)}
+                </div>
               </div>
-              <div className='mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950'>
-                {renderQuota(userState?.user?.used_quota)}
-              </div>
+              <ArrowUpRight size={18} style={{ color: '#cbd5e1' }} />
             </div>
-            <ArrowUpRight size={18} className='text-slate-300' />
-          </div>
 
-          <div className='flex items-center justify-between gap-4 border-b border-slate-200 bg-white p-5 last:border-b-0 sm:border-b-0 sm:border-r lg:border-b lg:border-r-0'>
-            <div>
-              <div className='flex items-center gap-2 text-sm font-semibold text-slate-500'>
-                <BarChart2 size={16} />
-                {t('请求次数')}
+            <div
+              className='console-finance-hero-metric-row'
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 18,
+                padding: '22px 24px',
+                borderBottom: '1px solid var(--console-border-strong)',
+              }}
+            >
+              <div>
+                <div
+                  className='console-finance-hero-metric-label'
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 9,
+                    marginBottom: 8,
+                    color: 'var(--console-text)',
+                    fontSize: 14,
+                    fontWeight: 800,
+                  }}
+                >
+                  <TrendingUp size={16} />
+                  {t('历史消耗')}
+                </div>
+                <div
+                  className='console-finance-hero-metric-value'
+                  style={{
+                    color: 'var(--console-text-strong)',
+                    fontSize: 31,
+                    lineHeight: 1,
+                    fontWeight: 900,
+                    letterSpacing: '-0.055em',
+                  }}
+                >
+                  {renderQuota(userState?.user?.used_quota)}
+                </div>
               </div>
-              <div className='mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950'>
-                {userState?.user?.request_count || 0}
-              </div>
+              <ArrowUpRight size={18} style={{ color: '#cbd5e1' }} />
             </div>
-            <ArrowUpRight size={18} className='text-slate-300' />
+
+            <div
+              className='console-finance-hero-metric-row'
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 18,
+                padding: '22px 24px',
+              }}
+            >
+              <div>
+                <div
+                  className='console-finance-hero-metric-label'
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 9,
+                    marginBottom: 8,
+                    color: 'var(--console-text)',
+                    fontSize: 14,
+                    fontWeight: 800,
+                  }}
+                >
+                  <BarChart2 size={16} />
+                  {t('请求次数')}
+                </div>
+                <div
+                  className='console-finance-hero-metric-value'
+                  style={{
+                    color: 'var(--console-text-strong)',
+                    fontSize: 31,
+                    lineHeight: 1,
+                    fontWeight: 900,
+                    letterSpacing: '-0.055em',
+                  }}
+                >
+                  {userState?.user?.request_count || 0}
+                </div>
+              </div>
+              <ArrowUpRight size={18} style={{ color: '#cbd5e1' }} />
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 
   // ─── Payment Method Card ───────────────────────────────────────
@@ -383,13 +557,13 @@ const RechargeCard = ({
             ? { opacity: 0.5, cursor: 'not-allowed' }
             : isSelected
               ? {
-                  borderColor: '#0f766e',
+                  borderColor: 'var(--semi-color-success)',
                   backgroundColor: 'rgba(20, 184, 166, 0.10)',
-                  boxShadow: '0 12px 30px rgba(15, 118, 110, 0.12)',
+                  boxShadow: '0 12px 30px rgba(20, 184, 166, 0.14)',
                 }
               : {
-                  borderColor: 'rgba(148, 163, 184, 0.22)',
-                  backgroundColor: 'rgba(255, 255, 255, 0.72)',
+                  borderColor: 'var(--console-border)',
+                  backgroundColor: 'var(--console-glass-bg)',
                 }),
         }}
       >
@@ -401,7 +575,7 @@ const RechargeCard = ({
                 width: 22,
                 height: 22,
                 borderRadius: '50%',
-                backgroundColor: '#0f766e',
+                backgroundColor: 'var(--semi-color-success)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -433,7 +607,9 @@ const RechargeCard = ({
           <span
             className='font-medium text-sm'
             style={{
-              color: isSelected ? '#0f766e' : 'var(--semi-color-text-0)',
+              color: isSelected
+                ? 'var(--semi-color-success)'
+                : 'var(--semi-color-text-0)',
               fontWeight: isSelected ? 600 : 500,
             }}
           >
@@ -463,10 +639,9 @@ const RechargeCard = ({
       <div
         className='rounded-[28px] p-6 lg:sticky lg:top-24'
         style={{
-          background:
-            'linear-gradient(180deg, rgba(255,255,255,0.96), rgba(240,253,250,0.86))',
-          border: '1px solid rgba(20, 184, 166, 0.18)',
-          boxShadow: '0 22px 58px rgba(15, 23, 42, 0.08)',
+          background: 'var(--console-card-gradient-teal)',
+          border: '1px solid var(--console-border-strong)',
+          boxShadow: 'var(--console-shadow-soft)',
         }}
       >
         <div className='space-y-4'>
@@ -565,10 +740,9 @@ const RechargeCard = ({
       className='!rounded-[28px] !border-0 shadow-sm'
       bodyStyle={{ padding: '26px' }}
       style={{
-        background:
-          'linear-gradient(145deg, rgba(255,255,255,0.98), rgba(248,250,252,0.92))',
-        border: '1px solid rgba(148, 163, 184, 0.16)',
-        boxShadow: '0 22px 54px rgba(15, 23, 42, 0.06)',
+        background: 'var(--console-card-gradient-soft)',
+        border: '1px solid var(--console-border)',
+        boxShadow: 'var(--console-shadow-soft)',
       }}
     >
       <Typography.Title heading={4} style={{ marginBottom: 20 }}>
@@ -605,10 +779,9 @@ const RechargeCard = ({
             <div
               className='rounded-[20px] p-4'
               style={{
-                background:
-                  'linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.92))',
-                border: '1px solid rgba(203, 213, 225, 0.72)',
-                boxShadow: '0 12px 30px rgba(15, 23, 42, 0.06)',
+                background: 'var(--console-card-gradient-soft)',
+                border: '1px solid var(--console-border)',
+                boxShadow: 'var(--console-shadow-card)',
               }}
             >
               <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
@@ -621,7 +794,7 @@ const RechargeCard = ({
                       strong
                       style={{
                         display: 'block',
-                        color: '#0f172a',
+                        color: 'var(--console-text-strong)',
                         fontSize: 15,
                       }}
                     >
@@ -638,7 +811,7 @@ const RechargeCard = ({
 
                 <div
                   className='grid grid-cols-2 gap-1.5 rounded-2xl bg-white p-1.5 shadow-sm'
-                  style={{ border: '1px solid rgba(20, 184, 166, 0.22)' }}
+                  style={{ border: '1px solid var(--console-border-strong)' }}
                 >
                   {[
                     { value: false, label: t('不含税') },
@@ -660,22 +833,24 @@ const RechargeCard = ({
                               }
                             : {
                                 backgroundColor: 'transparent',
-                                color: '#64748b',
+                                color: 'var(--console-text-muted)',
                               }
                         }
                         onClick={() => setIncludeTax(opt.value)}
                         onMouseEnter={(event) => {
                           if (!active) {
                             event.currentTarget.style.backgroundColor =
-                              '#ecfdf5';
-                            event.currentTarget.style.color = '#115e59';
+                              'rgba(20, 184, 166, 0.12)';
+                            event.currentTarget.style.color =
+                              'var(--semi-color-success)';
                           }
                         }}
                         onMouseLeave={(event) => {
                           if (!active) {
                             event.currentTarget.style.backgroundColor =
                               'transparent';
-                            event.currentTarget.style.color = '#64748b';
+                            event.currentTarget.style.color =
+                              'var(--console-text-muted)';
                           }
                         }}
                       >
@@ -689,8 +864,8 @@ const RechargeCard = ({
                 className='mt-4 rounded-2xl px-4 py-3'
                 style={{
                   backgroundColor: includeTax
-                    ? 'rgba(236, 253, 245, 0.78)'
-                    : 'rgba(255, 251, 235, 0.78)',
+                    ? 'rgba(20, 184, 166, 0.12)'
+                    : 'rgba(245, 158, 11, 0.12)',
                   border: includeTax
                     ? '1px solid rgba(110, 231, 183, 0.45)'
                     : '1px solid rgba(253, 230, 138, 0.72)',
@@ -826,13 +1001,14 @@ const RechargeCard = ({
                           style={
                             selectedPreset === preset.value
                               ? {
-                                  borderColor: '#0f766e',
+                                  borderColor: 'var(--semi-color-success)',
                                   backgroundColor: 'rgba(20, 184, 166, 0.10)',
                                   boxShadow:
-                                    '0 12px 30px rgba(15, 118, 110, 0.12)',
+                                    '0 12px 30px rgba(20, 184, 166, 0.14)',
                                 }
                               : {
                                   borderColor: 'var(--semi-color-border)',
+                                  backgroundColor: 'var(--console-glass-bg)',
                                 }
                           }
                           onClick={() => {
@@ -935,10 +1111,10 @@ const RechargeCard = ({
       className='!rounded-[28px] !border-0 shadow-sm'
       bodyStyle={{ padding: '26px' }}
       style={{
-        background:
-          'linear-gradient(145deg, rgba(255,255,255,0.98), rgba(255,251,235,0.70))',
-        border: '1px solid rgba(245, 158, 11, 0.18)',
-        boxShadow: '0 22px 54px rgba(15, 23, 42, 0.05)',
+        marginTop: 36,
+        background: 'var(--console-card-gradient-amber)',
+        border: '1px solid var(--console-border)',
+        boxShadow: 'var(--console-shadow-soft)',
       }}
     >
       <Typography.Title heading={4} style={{ marginBottom: 16 }}>
