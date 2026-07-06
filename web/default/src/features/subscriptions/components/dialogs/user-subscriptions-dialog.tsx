@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Plus } from 'lucide-react'
+import { Plus, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -46,6 +46,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { formatQuota } from '@/lib/format'
 
 import {
@@ -54,6 +55,7 @@ import {
   createUserSubscription,
   invalidateUserSubscription,
   deleteUserSubscription,
+  resetUserSubscriptionsByPlan,
 } from '../../api'
 import { formatTimestamp } from '../../lib'
 import type { PlanRecord, UserSubscriptionRecord } from '../../types'
@@ -73,7 +75,7 @@ function SubscriptionStatusBadge(props: {
   const now = Date.now() / 1000
   const isExpired = (props.sub.end_time || 0) > 0 && props.sub.end_time < now
   const isActive = props.sub.status === 'active' && !isExpired
-  if (isActive)
+  if (isActive) {
     return (
       <StatusBadge
         label={props.t('Active')}
@@ -81,7 +83,8 @@ function SubscriptionStatusBadge(props: {
         copyable={false}
       />
     )
-  if (props.sub.status === 'cancelled')
+  }
+  if (props.sub.status === 'cancelled') {
     return (
       <StatusBadge
         label={props.t('Invalidated')}
@@ -89,6 +92,7 @@ function SubscriptionStatusBadge(props: {
         copyable={false}
       />
     )
+  }
   return (
     <StatusBadge
       label={props.t('Expired')}
@@ -105,6 +109,12 @@ export function UserSubscriptionsDialog(props: Props) {
   const [plans, setPlans] = useState<PlanRecord[]>([])
   const [subs, setSubs] = useState<UserSubscriptionRecord[]>([])
   const [selectedPlanId, setSelectedPlanId] = useState<string>('')
+  const [resetPlanId, setResetPlanId] = useState<string>('')
+  const [advanceResetTime, setAdvanceResetTime] = useState(true)
+  const [resetting, setResetting] = useState(false)
+  const [resetConfirmPlanId, setResetConfirmPlanId] = useState<number | null>(
+    null
+  )
   const [confirmAction, setConfirmAction] = useState<{
     type: 'invalidate' | 'delete'
     subId: number
@@ -117,6 +127,23 @@ export function UserSubscriptionsDialog(props: Props) {
     })
     return map
   }, [plans])
+
+  const activePlanOptions = useMemo(() => {
+    const now = Date.now() / 1000
+    const seen = new Set<number>()
+    return subs.flatMap((record) => {
+      const sub = record.subscription
+      if (sub.status !== 'active' || (sub.end_time || 0) <= now) return []
+      if (seen.has(sub.plan_id)) return []
+      seen.add(sub.plan_id)
+      return [
+        {
+          id: sub.plan_id,
+          title: planTitleMap.get(sub.plan_id) || `#${sub.plan_id}`,
+        },
+      ]
+    })
+  }, [planTitleMap, subs])
 
   const loadData = useCallback(async () => {
     if (!props.user?.id) return
@@ -138,6 +165,8 @@ export function UserSubscriptionsDialog(props: Props) {
   useEffect(() => {
     if (props.open && props.user?.id) {
       setSelectedPlanId('')
+      setResetPlanId('')
+      setAdvanceResetTime(true)
       loadData()
     }
   }, [props.open, props.user?.id, loadData])
@@ -162,6 +191,32 @@ export function UserSubscriptionsDialog(props: Props) {
       toast.error(t('Request failed'))
     } finally {
       setCreating(false)
+    }
+  }
+
+  const handleResetConfirm = async () => {
+    if (!props.user?.id || !resetConfirmPlanId) return
+    setResetting(true)
+    try {
+      const res = await resetUserSubscriptionsByPlan(props.user.id, {
+        plan_id: resetConfirmPlanId,
+        advance_reset_time: advanceResetTime,
+      })
+      if (res.success) {
+        toast.success(
+          t('Reset {{count}} active subscriptions', {
+            count: res.data?.reset_count || 0,
+          })
+        )
+        setResetPlanId('')
+        await loadData()
+        props.onSuccess?.()
+      }
+    } catch {
+      toast.error(t('Operation failed'))
+    } finally {
+      setResetting(false)
+      setResetConfirmPlanId(null)
     }
   }
 
@@ -190,6 +245,10 @@ export function UserSubscriptionsDialog(props: Props) {
     }
   }
 
+  const resetConfirmPlanTitle =
+    activePlanOptions.find((p) => p.id === resetConfirmPlanId)?.title ||
+    (resetConfirmPlanId ? `#${resetConfirmPlanId}` : '-')
+
   return (
     <>
       <Sheet open={props.open} onOpenChange={props.onOpenChange}>
@@ -204,17 +263,15 @@ export function UserSubscriptionsDialog(props: Props) {
           <div className={sideDrawerFormClassName()}>
             <div className='flex gap-2'>
               <Select
-                items={[
-                  ...plans.map((p) => ({
-                    value: String(p.plan.id),
-                    label: (
-                      <>
-                        {p.plan.title}($
-                        {Number(p.plan.price_amount || 0).toFixed(2)})
-                      </>
-                    ),
-                  })),
-                ]}
+                items={plans.map((p) => ({
+                  value: String(p.plan.id),
+                  label: (
+                    <>
+                      {p.plan.title}($
+                      {Number(p.plan.price_amount || 0).toFixed(2)})
+                    </>
+                  ),
+                }))}
                 value={selectedPlanId}
                 onValueChange={(v) => v !== null && setSelectedPlanId(v)}
               >
@@ -239,6 +296,56 @@ export function UserSubscriptionsDialog(props: Props) {
                 <Plus className='mr-1 h-4 w-4' />
                 {t('Add subscription')}
               </Button>
+            </div>
+
+            <div className='border-t pt-4'>
+              <div className='flex flex-col gap-2 sm:flex-row sm:items-center'>
+                <Select
+                  items={activePlanOptions.map((p) => ({
+                    value: String(p.id),
+                    label: p.title,
+                  }))}
+                  value={resetPlanId}
+                  onValueChange={(v) => v !== null && setResetPlanId(v)}
+                >
+                  <SelectTrigger
+                    className='flex-1'
+                    disabled={activePlanOptions.length === 0}
+                  >
+                    <SelectValue
+                      placeholder={t('Select active subscription plan')}
+                    />
+                  </SelectTrigger>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {activePlanOptions.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.title}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <label className='flex min-h-9 items-center justify-between gap-3 rounded-md border px-3 text-sm sm:min-w-52'>
+                  <span>{t('Advance next reset time')}</span>
+                  <Switch
+                    size='sm'
+                    checked={advanceResetTime}
+                    onCheckedChange={(checked) =>
+                      setAdvanceResetTime(!!checked)
+                    }
+                    aria-label={t('Advance next reset time')}
+                  />
+                </label>
+                <Button
+                  variant='outline'
+                  onClick={() => setResetConfirmPlanId(Number(resetPlanId))}
+                  disabled={resetting || !resetPlanId}
+                >
+                  <RotateCcw className='mr-1 h-4 w-4' />
+                  {t('Reset quota')}
+                </Button>
+              </div>
             </div>
 
             <StaticDataTable
@@ -378,6 +485,20 @@ export function UserSubscriptionsDialog(props: Props) {
           }
           handleConfirm={handleConfirmAction}
           destructive={confirmAction.type === 'delete'}
+        />
+      )}
+
+      {resetConfirmPlanId && (
+        <ConfirmDialog
+          open
+          onOpenChange={(v) => !v && setResetConfirmPlanId(null)}
+          title={t('Reset subscription quota')}
+          desc={t('Reset active {{plan}} subscriptions for this user?', {
+            plan: resetConfirmPlanTitle,
+          })}
+          confirmText={t('Reset quota')}
+          handleConfirm={handleResetConfirm}
+          isLoading={resetting}
         />
       )}
     </>
