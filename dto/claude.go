@@ -559,6 +559,7 @@ type ClaudeUsage struct {
 	CacheCreationInputTokens int                       `json:"cache_creation_input_tokens"`
 	CacheReadInputTokens     int                       `json:"cache_read_input_tokens"`
 	OutputTokens             int                       `json:"output_tokens"`
+	OutputTokensDetails      *ClaudeOutputTokenDetails `json:"output_tokens_details,omitempty"`
 	CacheCreation            *ClaudeCacheCreationUsage `json:"cache_creation,omitempty"`
 	// claude cache 1h
 	ClaudeCacheCreation5mTokens int                  `json:"claude_cache_creation_5_m_tokens"`
@@ -566,9 +567,20 @@ type ClaudeUsage struct {
 	ServerToolUse               *ClaudeServerToolUse `json:"server_tool_use,omitempty"`
 }
 
+type ClaudeOutputTokenDetails struct {
+	ThinkingTokens int `json:"thinking_tokens,omitempty"`
+}
+
 type ClaudeCacheCreationUsage struct {
 	Ephemeral5mInputTokens int `json:"ephemeral_5m_input_tokens,omitempty"`
 	Ephemeral1hInputTokens int `json:"ephemeral_1h_input_tokens,omitempty"`
+}
+
+func (u *ClaudeUsage) GetThinkingTokens() int {
+	if u == nil || u.OutputTokensDetails == nil {
+		return 0
+	}
+	return u.OutputTokensDetails.ThinkingTokens
 }
 
 func (u *ClaudeUsage) GetCacheCreation5mTokens() int {
