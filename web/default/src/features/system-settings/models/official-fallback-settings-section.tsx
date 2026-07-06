@@ -36,7 +36,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Combobox } from '@/components/ui/combobox'
-import { MODEL_TABS } from '@/features/model-data/constants'
+import { MODEL_TABS } from '@/features/channel-data/constants'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -257,7 +257,7 @@ export function OfficialFallbackSettingsSection({
               </p>
               <p className="text-muted-foreground mt-1 text-sm">
                 {t(
-                  'Use request model IDs such as gpt-5.4. Official channel ID is the numeric ID shown in the Model Data channel list.'
+                  'Use request model IDs such as gpt-5.4. Official channel ID is the numeric ID shown in the Channel Data channel list.'
                 )}
               </p>
             </div>
@@ -393,7 +393,7 @@ export function OfficialFallbackSettingsSection({
                             />
                           </FormControl>
                           <p className="text-[11px] text-muted-foreground">
-                            {t('Use the numeric channel ID shown in Model Data.')}
+                            {t('Use the numeric channel ID shown in Channel Data.')}
                           </p>
                           <FormMessage />
                         </FormItem>

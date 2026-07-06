@@ -44,7 +44,11 @@ type ModelDataItem struct {
 	ClientExclusive string `json:"client_exclusive"` // "" | codex | claude_code
 	// Pricing fields: nil = no pricing row (upstream 401/404 / cookie-only auth / no endpoint).
 	// Frontend renders nil as "—".
-	ModelPrice                 *float64      `json:"model_price"`                  // base model price = input_price / group_ratio ($/1M); nil = unknown
+	ModelPrice                 *float64      `json:"model_price"`                  // 渠道原价 = input_price / group_ratio ($/1M) — the base price the channel claims; nil = unknown
+	OfficialInputPrice         *float64      `json:"official_input_price"`         // 官方原价 (unified official list price, 系统设置→模型定价); nil = not configured
+	OfficialOutputPrice        *float64      `json:"official_output_price"`        // 官方原价 output side; nil = not configured
+	BasePriceMismatchPct       *float64      `json:"base_price_mismatch_pct"`      // |渠道原价 − 官方原价| / 官方原价 × 100; nil when either side unknown
+	SuggestedGroupRatio        *float64      `json:"suggested_group_ratio"`        // input_price ÷ 官方原价 — gratio that reconciles 渠道原价 to 官方原价
 	GroupRatio                 *float64      `json:"group_ratio"`                  // upstream group multiplier (e.g. 1.05 for CC); nil = unknown
 	RechargeRate               float64       `json:"recharge_rate"`                // platform recharge multiplier
 	InputPrice                 *float64      `json:"input_price"`                  // model_price × group_ratio ($/1M); nil = unknown
@@ -247,6 +251,10 @@ func GetModelData(c *gin.Context) {
 	// Best-effort: if the hub is unreachable, hub_price stays nil for every row.
 	hubPricing, _ := service.GetHubPricing(c.Request.Context())
 
+	// 官方原价 (unified official list price, 系统设置→模型定价). Feeds the 官方原价
+	// column and the tampered-base-price alert only — never 采购价/计费.
+	officialIn, officialOut, _, _, officialOK := service.GlobalModelPricingUSD(modelName)
+
 	items := make([]ModelDataItem, 0, len(rows))
 	for _, r := range rows {
 		rechargeRate := 1.0
@@ -294,8 +302,26 @@ func GetModelData(c *gin.Context) {
 				gr = *r.GroupRatio
 			}
 			groupRatioPtr = &gr
-			mp := in / gr // base model price before group markup
+			mp := in / gr // 渠道原价: base price the channel claims, before group markup
 			modelPricePtr = &mp
+		}
+		// 官方原价 + tampered-base-price alert (渠道原价 vs 官方原价). Display-only.
+		var officialInPtr, officialOutPtr, mismatchPtr, suggestedPtr *float64
+		if officialOK && officialIn > 0 {
+			oi := officialIn
+			officialInPtr = &oi
+			if officialOut > 0 {
+				oo := officialOut
+				officialOutPtr = &oo
+			}
+			if modelPricePtr != nil && *modelPricePtr > 0 {
+				mm := math.Abs(*modelPricePtr-officialIn) / officialIn * 100
+				mismatchPtr = &mm
+				if inputPricePtr != nil && *inputPricePtr > 0 {
+					sg := *inputPricePtr / officialIn
+					suggestedPtr = &sg
+				}
+			}
 		}
 		if r.OutputPrice != nil {
 			out := *r.OutputPrice
@@ -360,6 +386,10 @@ func GetModelData(c *gin.Context) {
 			KeyGroup:                   keyGroup,
 			ClientExclusive:            clientExclusive,
 			ModelPrice:                 modelPricePtr,
+			OfficialInputPrice:         officialInPtr,
+			OfficialOutputPrice:        officialOutPtr,
+			BasePriceMismatchPct:       mismatchPtr,
+			SuggestedGroupRatio:        suggestedPtr,
 			GroupRatio:                 groupRatioPtr,
 			InputPrice:                 inputPricePtr,
 			ActualPrice:                actualPricePtr,
@@ -420,7 +450,15 @@ func GetModelData(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": items})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    items,
+		"official": gin.H{
+			"input_price":  officialIn,
+			"output_price": officialOut,
+			"ok":           officialOK,
+		},
+	})
 }
 
 func modelDataExtractKeyGroup(setting *string) string {
@@ -728,15 +766,17 @@ func GetPublicMarketplace(c *gin.Context) {
 		}
 	}
 
-	// Fetch official reference price from public_model_prices (populated by refresh-public-prices).
+	// 官方原价 from the unified official price store (系统设置→模型定价, global
+	// ratio settings) — the same source as /api/pricing. Replaces the old
+	// public_model_prices (romaapi snapshot) lookup.
 	var officialInPtr, officialOutPtr *float64
-	if pubPrice, err := model.GetPublicModelPriceByNames(candidates); err == nil && pubPrice != nil {
-		if pubPrice.InputPrice > 0 {
-			v := pubPrice.InputPrice
+	if in, out, _, _, ok := service.GlobalModelPricingUSD(modelName); ok {
+		if in > 0 {
+			v := in
 			officialInPtr = &v
 		}
-		if pubPrice.OutputPrice > 0 {
-			v := pubPrice.OutputPrice
+		if out > 0 {
+			v := out
 			officialOutPtr = &v
 		}
 	}
@@ -985,22 +1025,98 @@ func RefreshModelPricing(c *gin.Context) {
 	})
 }
 
-// RefreshPublicModelPrices fetches the reference model prices from romaapi and
-// upserts them into the public_model_prices DB table (used as fallback when a
-// channel has model_price_ratio set but no upstream /api/pricing endpoint).
+// FixGroupRatio rewrites channel_model_pricings.group_ratio for one channel+model
+// so 渠道原价 (input_price ÷ group_ratio) matches the unified 官方原价. Display-only:
+// input_price / 采购价 / billing are untouched (billing never reads group_ratio).
+// Rows refreshed from the upstream's own /api/pricing ("刷新价格") get group_ratio
+// re-written from the upstream's group_ratio map, so the alert reappearing after a
+// refresh means the upstream genuinely alters its base price.
 //
-// POST /api/admin/model-data/refresh-public-prices
-func RefreshPublicModelPrices(c *gin.Context) {
-	if err := service.RefreshPublicModelPrices(); err != nil {
+// Only the single row the Channel Data table actually displays is updated —
+// resolved exactly like GetModelData: cheapest positive-priced row among the
+// global name candidates first, then the channel's model_mapping target as
+// fallback. Updating every candidate row and returning a single scalar would
+// desync the response from the visible row when a channel has multiple variant
+// pricing rows (e.g. -thinking variants).
+//
+// POST /api/admin/channel-data/fix-group-ratio  body: {"channel_id": int, "model": string}
+func FixGroupRatio(c *gin.Context) {
+	var req struct {
+		ChannelID int    `json:"channel_id"`
+		Model     string `json:"model"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil || req.ChannelID == 0 || strings.TrimSpace(req.Model) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "channel_id and model are required"})
+		return
+	}
+	officialIn, _, _, _, ok := service.GlobalModelPricingUSD(req.Model)
+	if !ok || officialIn <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "该模型未配置官方原价（系统设置 → 模型定价）"})
+		return
+	}
+
+	// Same name resolution as the read path: global aliases first, and only
+	// when they have no priced row, the channel's model_mapping target
+	// (mirrors applyModelMappingPricingToRow's fill-if-missing behavior).
+	var ch struct {
+		ModelMapping *string
+	}
+	if err := model.DB.Table("channels").
+		Select("model_mapping").
+		Where("id = ?", req.ChannelID).
+		Scan(&ch).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	count, _ := model.CountPublicModelPrices()
+	displayed, ok := findDisplayedPricingRow(req.ChannelID, req.Model, ch.ModelMapping)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "该渠道没有可修正的价格行"})
+		return
+	}
+
+	suggested := displayed.InputPrice / officialIn
+	if err := model.DB.Model(&model.ChannelModelPricing{}).
+		Where("id = ?", displayed.Id).Update("group_ratio", suggested).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"count":   count,
-		"message": "public model prices refreshed",
+		"success":     true,
+		"updated":     1,
+		"model_name":  displayed.ModelName,
+		"group_ratio": suggested,
 	})
+}
+
+// findDisplayedPricingRow returns the channel_model_pricings row the Channel Data
+// table shows for (channel, canonical model): the cheapest positive-priced row
+// among the global name candidates, falling back to the channel's model_mapping
+// target — the same ladder GetModelData uses (SQL JOIN dedup keeps the cheapest
+// per channel; applyModelMappingPricingToRow only fills when that found nothing).
+func findDisplayedPricingRow(channelID int, canonical string, modelMapping *string) (*model.ChannelModelPricing, bool) {
+	lookup := func(names []string) (*model.ChannelModelPricing, bool) {
+		if len(names) == 0 {
+			return nil, false
+		}
+		var row model.ChannelModelPricing
+		err := model.DB.
+			Where("channel_id = ? AND model_name IN ?", channelID, names).
+			Where("input_price > 0").
+			Order("input_price ASC").
+			Limit(1).
+			Find(&row).Error
+		if err != nil || row.Id == 0 {
+			return nil, false
+		}
+		return &row, true
+	}
+	if row, ok := lookup(service.ModelNameCandidates(canonical)); ok {
+		return row, true
+	}
+	if target := service.ModelMappingTarget(modelMapping, canonical); target != "" {
+		return lookup([]string{target})
+	}
+	return nil, false
 }
 
 // RefreshHubPrice clears the hub.romaapi.com pricing TTL cache and re-fetches

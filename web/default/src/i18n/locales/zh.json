@@ -4068,7 +4068,6 @@
     "Registration Channel": "渠道",
     "Registration Method": "注册于",
     "Registration Channels": "推广渠道数据",
-    "Auto": "自动",
     "Auto-detected": "自动识别",
     "Organic traffic": "自然流量",
     "Registered Users": "注册用户数",
@@ -4170,8 +4169,8 @@
     "Unit price (USD)": "单价 (USD)",
     "Unit price must be greater than 0": "单价必须大于 0",
     "Units per USD": "每 USD 单位数",
-    "Use request model IDs such as gpt-5.4. Official channel ID is the numeric ID shown in the Model Data channel list.": "这里填写请求使用的模型 ID，例如 gpt-5.4；官方渠道 ID 填 Model Data 列表里显示的数字 ID。",
-    "Use the numeric channel ID from the Model Data list": "填写 Model Data 列表中的数字渠道 ID",
+    "Use request model IDs such as gpt-5.4. Official channel ID is the numeric ID shown in the Channel Data channel list.": "这里填写请求使用的模型 ID，例如 gpt-5.4；官方渠道 ID 填 Channel Data 列表里显示的数字 ID。",
+    "Use the numeric channel ID shown in Channel Data.": "填写 Channel Data 列表中的数字渠道 ID",
     "Turn this fallback rule on or off": "开启或关闭这条兜底规则",
     "Configure which request model IDs switch to an official fallback channel after a number of failed attempts.": "配置哪些请求模型 ID 会在若干次失败后切换到官方兜底渠道。",
     "Unknown": "未知",
@@ -4566,6 +4565,8 @@
     "| Based on": "| 基于",
     "© 2025 Your Company. All rights reserved.": "© 2025 您的公司。保留所有权利。",
     "≈ ${{amount}} USD": "≈ ${{amount}} USD",
-    "🎁 New user exclusive · {{pct}}% off first top-up": "🎁 新用户专享 · 首充 {{pct}}% 优惠"
+    "🎁 New user exclusive · {{pct}}% off first top-up": "🎁 新用户专享 · 首充 {{pct}}% 优惠",
+    "Channel Data": "渠道数据",
+    "Channel pricing and detection stats by model": "按模型查看渠道价格与检测数据"
   }
 }

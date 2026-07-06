@@ -146,8 +146,8 @@ export function useSidebarData(): SidebarData {
             icon: Box,
           },
           {
-            title: t('Model Data'),
-            url: '/model-data',
+            title: t('Channel Data'),
+            url: '/channel-data',
             icon: BarChart2,
           },
           {

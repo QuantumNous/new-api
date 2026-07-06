@@ -4157,8 +4157,8 @@
     "Unit price (USD)": "Unit price (USD)",
     "Unit price must be greater than 0": "Unit price must be greater than 0",
     "Units per USD": "Units per USD",
-    "Use request model IDs such as gpt-5.4. Official channel ID is the numeric ID shown in the Model Data channel list.": "Use request model IDs such as gpt-5.4. Official channel ID is the numeric ID shown in the Model Data channel list.",
-    "Use the numeric channel ID from the Model Data list": "Use the numeric channel ID from the Model Data list",
+    "Use request model IDs such as gpt-5.4. Official channel ID is the numeric ID shown in the Channel Data channel list.": "Use request model IDs such as gpt-5.4. Official channel ID is the numeric ID shown in the Channel Data channel list.",
+    "Use the numeric channel ID shown in Channel Data.": "Use the numeric channel ID shown in Channel Data.",
     "Turn this fallback rule on or off": "Turn this fallback rule on or off",
     "Configure which request model IDs switch to an official fallback channel after a number of failed attempts.": "Configure which request model IDs switch to an official fallback channel after a number of failed attempts.",
     "Unknown": "Unknown",
@@ -4551,7 +4551,9 @@
     "| Based on": "| Based on",
     "© 2025 Your Company. All rights reserved.": "© 2025 Your Company. All rights reserved.",
     "≈ ${{amount}} USD": "≈ ${{amount}} USD",
-    "🎁 New user exclusive · {{pct}}% off first top-up": "🎁 New user exclusive · {{pct}}% off first top-up"
+    "🎁 New user exclusive · {{pct}}% off first top-up": "🎁 New user exclusive · {{pct}}% off first top-up",
+    "Channel Data": "Channel Data",
+    "Channel pricing and detection stats by model": "Channel pricing and detection stats by model"
   },
   "在线使用": "Playground",
   "推广有礼": "Affiliate",

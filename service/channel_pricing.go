@@ -159,7 +159,7 @@ func FetchChannelPricing(channel *model.Channel) {
 
 	if len(rows) == 0 {
 		logger.LogInfo(ctx, fmt.Sprintf("channel-pricing [%d]: no pricing rows in response", channel.Id))
-		// Fallback: if model_price_ratio is set, derive pricing from romaapi public prices.
+		// Fallback: if model_price_ratio is set, derive pricing from the unified 官方原价.
 		fetchModelPriceRatioFallback(ctx, channel)
 		return
 	}
@@ -172,90 +172,14 @@ func FetchChannelPricing(channel *model.Channel) {
 		channel.Id, keyGroup, groupMul, len(rows)))
 }
 
-// RefreshPublicModelPrices fetches the reference model prices from romaapi and
-// upserts them into the public_model_prices table. Call this once at startup (if
-// the table is empty) or via the admin "刷新公开价格" button.
-func RefreshPublicModelPrices() error {
-	ctx := context.Background()
-	const romaURL = "https://api.romaapi.com/api/pricing"
-	body, status, err := doPricingGet(ctx, romaURL, "")
-	if err != nil || status != http.StatusOK {
-		return fmt.Errorf("romaapi fetch failed (status=%d): %w", status, err)
-	}
-
-	type pricingItem struct {
-		ModelName        string  `json:"model_name"`
-		QuotaType        int     `json:"quota_type"`
-		ModelRatio       float64 `json:"model_ratio"`
-		ModelPrice       float64 `json:"model_price"`
-		CompletionRatio  float64 `json:"completion_ratio"`
-		CacheRatio       float64 `json:"cache_ratio"`
-		CreateCacheRatio float64 `json:"create_cache_ratio"`
-	}
-	type pricingResp struct {
-		Success *bool         `json:"success"`
-		Data    []pricingItem `json:"data"`
-	}
-	var parsed pricingResp
-	if err := common.Unmarshal(body, &parsed); err != nil {
-		return fmt.Errorf("decode: %w", err)
-	}
-	if parsed.Success != nil && !*parsed.Success {
-		return fmt.Errorf("romaapi returned success=false")
-	}
-
-	now := time.Now().Unix()
-	rows := make([]model.PublicModelPrice, 0, len(parsed.Data))
-	for _, item := range parsed.Data {
-		if item.ModelName == "" {
-			continue
-		}
-		var inputPrice, outputPrice, cachePrice, cacheCreationPrice float64
-		if item.QuotaType == 1 {
-			inputPrice = item.ModelPrice
-		} else {
-			inputPrice = item.ModelRatio * 2
-			outputPrice = item.ModelRatio * item.CompletionRatio * 2
-			if item.CacheRatio > 0 {
-				cachePrice = item.ModelRatio * item.CacheRatio * 2
-			}
-			if item.CreateCacheRatio > 0 {
-				cacheCreationPrice = item.ModelRatio * item.CreateCacheRatio * 2
-			}
-		}
-		rows = append(rows, model.PublicModelPrice{
-			ModelName:          item.ModelName,
-			ModelRatio:         item.ModelRatio,
-			CompletionRatio:    item.CompletionRatio,
-			CacheRatio:         item.CacheRatio,
-			CreateCacheRatio:   item.CreateCacheRatio,
-			QuotaType:          item.QuotaType,
-			ModelPrice:         item.ModelPrice,
-			InputPrice:         inputPrice,
-			OutputPrice:        outputPrice,
-			CachePrice:         cachePrice,
-			CacheCreationPrice: cacheCreationPrice,
-			FetchedAt:          now,
-		})
-	}
-	if len(rows) == 0 {
-		return fmt.Errorf("no pricing rows in response")
-	}
-	if err := model.UpsertPublicModelPrices(rows); err != nil {
-		return fmt.Errorf("upsert: %w", err)
-	}
-	logger.LogInfo(context.Background(), fmt.Sprintf("public-model-prices: refreshed %d rows from romaapi", len(rows)))
-	return nil
-}
-
 // fetchModelPriceRatioFallback uses the operator-set model_price_ratio to derive
-// pricing from the cached public_model_prices table (populated by RefreshPublicModelPrices).
+// pricing from the unified 官方原价 (global ratio settings, 系统设置 → 模型定价).
 //
 // Formula:
-//   input_price  = public_input  × model_price_ratio × groupMul
-//   output_price = public_output × model_price_ratio × groupMul
+//   input_price  = official_input  × model_price_ratio × groupMul
+//   output_price = official_output × model_price_ratio × groupMul
 //   group_ratio  = groupMul  (shown in GRATIO column)
-//   model_price  = input_price / group_ratio = public_input × model_price_ratio
+//   渠道原价      = input_price / group_ratio = official_input × model_price_ratio
 //
 // groupMul priority: manual_group_ratio > 1.0 default
 func fetchModelPriceRatioFallback(ctx context.Context, channel *model.Channel) {
@@ -265,47 +189,24 @@ func fetchModelPriceRatioFallback(ctx context.Context, channel *model.Channel) {
 	}
 	ratio := effectiveModelPriceRatio(channel.Setting, groupMul)
 
-	// Read from DB cache; if empty try a one-time live fetch.
-	pubPrices, err := model.GetAllPublicModelPrices()
-	if err != nil {
-		logger.LogWarn(ctx, fmt.Sprintf("channel-pricing [%d]: model_price_ratio fallback: DB read: %v", channel.Id, err))
-		return
-	}
-	if len(pubPrices) == 0 {
-		logger.LogInfo(ctx, "channel-pricing: public_model_prices table empty, attempting one-time refresh from romaapi")
-		if rerr := RefreshPublicModelPrices(); rerr != nil {
-			logger.LogWarn(ctx, fmt.Sprintf("channel-pricing [%d]: model_price_ratio fallback: refresh failed: %v", channel.Id, rerr))
-			return
-		}
-		pubPrices, err = model.GetAllPublicModelPrices()
-		if err != nil || len(pubPrices) == 0 {
-			return
-		}
-	}
-
-	// Only store pricing for models this channel actually serves.
-	channelModels := make(map[string]bool)
-	if channel.Models != "" {
-		for _, m := range strings.Split(channel.Models, ",") {
-			if t := strings.TrimSpace(m); t != "" {
-				channelModels[t] = true
-			}
-		}
-	}
-
 	now := time.Now().Unix()
 	rows := make([]model.ChannelModelPricing, 0)
-	for _, pub := range pubPrices {
-		if len(channelModels) > 0 && !channelModels[pub.ModelName] {
+	for _, raw := range strings.Split(channel.Models, ",") {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			continue
+		}
+		official, ok := lookupOfficialModelPrice(name)
+		if !ok {
 			continue
 		}
 		rows = append(rows, model.ChannelModelPricing{
 			ChannelId:          channel.Id,
-			ModelName:          pub.ModelName,
-			InputPrice:         pub.InputPrice * ratio * groupMul,
-			OutputPrice:        pub.OutputPrice * ratio * groupMul,
-			CachePrice:         pub.CachePrice * ratio * groupMul,
-			CacheCreationPrice: pub.CacheCreationPrice * ratio * groupMul,
+			ModelName:          name,
+			InputPrice:         official.InputPrice * ratio * groupMul,
+			OutputPrice:        official.OutputPrice * ratio * groupMul,
+			CachePrice:         official.CachePrice * ratio * groupMul,
+			CacheCreationPrice: official.CacheCreationPrice * ratio * groupMul,
 			GroupRatio:         groupMul,
 			Currency:           "USD",
 			PricingSource:      "manual",
@@ -548,8 +449,9 @@ func effectiveModelPriceRatio(setting *string, manualGroupRatio float64) float64
 	return ratio
 }
 
-// PublicManualPricing holds USD/1M prices derived from public_model_prices ×
-// model_price_ratio × manual_group_ratio (used when upstream /api/pricing is unavailable).
+// PublicManualPricing holds USD/1M prices derived from 官方原价 (global ratio
+// settings) × model_price_ratio × manual_group_ratio (used when upstream
+// /api/pricing is unavailable).
 type PublicManualPricing struct {
 	InputPrice         float64
 	OutputPrice        float64
@@ -559,7 +461,7 @@ type PublicManualPricing struct {
 	ModelPriceRatio    float64
 }
 
-// LookupPublicManualPricing resolves pricing for one model from romaapi public prices
+// LookupPublicManualPricing resolves pricing for one model from the unified 官方原价
 // and the channel's manual_group_ratio (+ optional model_price_ratio) settings.
 func LookupPublicManualPricing(setting *string, modelName string) (PublicManualPricing, bool) {
 	groupMul := ExtractManualGroupRatio(setting)
@@ -568,31 +470,45 @@ func LookupPublicManualPricing(setting *string, modelName string) (PublicManualP
 	}
 	ratio := effectiveModelPriceRatio(setting, groupMul)
 
-	pub, ok := lookupPublicModelPrice(modelName)
+	official, ok := lookupOfficialModelPrice(modelName)
 	if !ok {
 		return PublicManualPricing{}, false
 	}
 	return PublicManualPricing{
-		InputPrice:         pub.InputPrice * ratio * groupMul,
-		OutputPrice:        pub.OutputPrice * ratio * groupMul,
-		CachePrice:         pub.CachePrice * ratio * groupMul,
-		CacheCreationPrice: pub.CacheCreationPrice * ratio * groupMul,
+		InputPrice:         official.InputPrice * ratio * groupMul,
+		OutputPrice:        official.OutputPrice * ratio * groupMul,
+		CachePrice:         official.CachePrice * ratio * groupMul,
+		CacheCreationPrice: official.CacheCreationPrice * ratio * groupMul,
 		GroupRatio:         groupMul,
 		ModelPriceRatio:    ratio,
 	}, true
 }
 
-func lookupPublicModelPrice(modelName string) (model.PublicModelPrice, bool) {
-	names := ModelPricingLookupNames(modelName)
-	pub, err := model.GetPublicModelPriceByNames(names)
-	if err != nil || pub == nil || pub.InputPrice <= 0 {
-		return model.PublicModelPrice{}, false
+// officialModelPrice holds the unified 官方原价 in USD/1M for one model.
+type officialModelPrice struct {
+	InputPrice         float64
+	OutputPrice        float64
+	CachePrice         float64
+	CacheCreationPrice float64
+}
+
+// lookupOfficialModelPrice resolves the unified 官方原价 from the global ratio
+// settings (系统设置 → 模型定价) — the same store /api/pricing serves.
+func lookupOfficialModelPrice(modelName string) (officialModelPrice, bool) {
+	in, out, cache, cacheCreation, ok := GlobalModelPricingUSD(modelName)
+	if !ok || in <= 0 {
+		return officialModelPrice{}, false
 	}
-	return *pub, true
+	return officialModelPrice{
+		InputPrice:         in,
+		OutputPrice:        out,
+		CachePrice:         cache,
+		CacheCreationPrice: cacheCreation,
+	}, true
 }
 
 // ExtractModelPriceRatio reads the model_price_ratio fallback from channel.Setting JSON.
-// When > 0 and upstream has no /api/pricing, romaapi public prices × this ratio are used.
+// When > 0 and upstream has no /api/pricing, 官方原价 × this ratio is used.
 // Returns 0 when absent — use effectiveModelPriceRatio when manual_group_ratio is set.
 func ExtractModelPriceRatio(setting *string) float64 {
 	if setting == nil || *setting == "" {

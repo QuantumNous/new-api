@@ -51,7 +51,11 @@ interface ModelDataItem {
   client_exclusive?: string  // '' | codex | claude_code
   // null when upstream /api/pricing returned 401/404 or cookie-only auth —
   // we have no idea how much this channel costs. UI renders these as "—".
-  model_price: number | null       // base price before group markup
+  model_price: number | null       // 渠道原价 = input_price / group_ratio (base price the channel claims)
+  official_input_price?: number | null   // 官方原价 (unified official list price); null = not configured
+  official_output_price?: number | null
+  base_price_mismatch_pct?: number | null  // |渠道原价 − 官方原价| / 官方原价 × 100
+  suggested_group_ratio?: number | null    // input_price ÷ 官方原价
   group_ratio: number | null       // upstream group multiplier
   recharge_rate: number            // platform recharge multiplier
   input_price: number | null       // model_price × group_ratio
@@ -406,11 +410,14 @@ function AnalysisModal({ state, onClose }: { state: AnalysisState; onClose: () =
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-export function ModelDataPage() {
+export function ChannelDataPage() {
   const { t } = useTranslation()
   const [activeModel, setActiveModel] = useState(MODEL_TABS[0].modelId)
   const [data, setData] = useState<ModelDataItem[]>([])
   const [loading, setLoading] = useState(false)
+  // Unified 官方原价 for the active model tab (系统设置 → 模型定价).
+  const [official, setOfficial] = useState<{ input_price: number; output_price: number; ok: boolean } | null>(null)
+  const [fixingRatio, setFixingRatio] = useState<Record<number, boolean>>({})
   const [config, setConfig] = useState<DetectConfig>({
     fingerprint_enabled: false,
     fingerprint_interval_minutes: 360,
@@ -429,8 +436,6 @@ export function ModelDataPage() {
   const [pricingRefreshMsg, setPricingRefreshMsg] = useState<string>('')
   const [hubRefreshing, setHubRefreshing] = useState(false)
   const [hubRefreshMsg, setHubRefreshMsg] = useState<string>('')
-  const [publicRefreshing, setPublicRefreshing] = useState(false)
-  const [publicRefreshMsg, setPublicRefreshMsg] = useState<string>('')
   // modelId → true if fingerprint_enabled OR uptime_enabled (for tab dot style)
   const [tabDetectEnabled, setTabDetectEnabled] = useState<Record<string, boolean>>({})
 
@@ -471,8 +476,9 @@ export function ModelDataPage() {
   useEffect(() => {
     setLoading(true)
     setData([])
+    setOfficial(null)
     api
-      .get('/api/admin/model-data', { params: { model: activeModel } })
+      .get('/api/admin/channel-data', { params: { model: activeModel } })
       .then((res) => {
         if (res.data?.success) {
           const raw: ModelDataItem[] = res.data.data ?? []
@@ -489,6 +495,7 @@ export function ModelDataPage() {
             return (a.user_price ?? Infinity) - (b.user_price ?? Infinity)
           })
           setData(sorted)
+          if (res.data.official) setOfficial(res.data.official)
         }
       })
       .finally(() => setLoading(false))
@@ -523,7 +530,7 @@ export function ModelDataPage() {
 
   useEffect(() => {
     api
-      .get('/api/admin/model-data/common-auto-reenable', {
+      .get('/api/admin/channel-data/common-auto-reenable', {
         skipErrorHandler: true,
       } as Parameters<typeof api.get>[1])
       .then((res) => {
@@ -542,7 +549,7 @@ export function ModelDataPage() {
     setPricingRefreshing(true)
     setPricingRefreshMsg('')
     api
-      .post('/api/admin/model-data/refresh-pricing', {})
+      .post('/api/admin/channel-data/refresh-pricing', {})
       .then((res) => {
         const n = res.data?.count ?? 0
         setPricingRefreshMsg(`已触发 ${n} 个渠道刷新…`)
@@ -552,7 +559,7 @@ export function ModelDataPage() {
         // wait for background goroutines to land in DB, then reload table
         setTimeout(() => {
           api
-            .get('/api/admin/model-data', { params: { model: activeModel } })
+            .get('/api/admin/channel-data', { params: { model: activeModel } })
             .then((res) => { if (res.data?.success) setData(res.data.data ?? []) })
             .finally(() => {
               setPricingRefreshing(false)
@@ -569,7 +576,7 @@ export function ModelDataPage() {
     setHubRefreshing(true)
     setHubRefreshMsg('')
     api
-      .post('/api/admin/model-data/refresh-hub-price')
+      .post('/api/admin/channel-data/refresh-hub-price')
       .then((res) => {
         const n = res.data?.count ?? 0
         setHubRefreshMsg(`已刷新 ${n} 个站点`)
@@ -577,7 +584,7 @@ export function ModelDataPage() {
       .catch(() => setHubRefreshMsg('刷新失败'))
       .finally(() => {
         api
-          .get('/api/admin/model-data', { params: { model: activeModel } })
+          .get('/api/admin/channel-data', { params: { model: activeModel } })
           .then((res) => { if (res.data?.success) setData(res.data.data ?? []) })
           .finally(() => {
             setHubRefreshing(false)
@@ -586,41 +593,36 @@ export function ModelDataPage() {
       })
   }, [activeModel, hubRefreshing])
 
-  // Sync romaapi reference prices into public_model_prices (manual_group_ratio fallback).
-  const refreshPublicPrices = useCallback(() => {
-    if (publicRefreshing) return
-    setPublicRefreshing(true)
-    setPublicRefreshMsg('')
+  // Rewrite channel_model_pricings.group_ratio so 渠道原价 matches 官方原价 for this
+  // row. Display-only — input_price / 采购价 / billing are untouched. Rows sourced
+  // from the upstream's own /api/pricing get group_ratio re-written on the next
+  // "刷新价格", so the alert reappearing means the upstream genuinely changed its
+  // base price.
+  const fixGroupRatio = useCallback((channelId: number) => {
+    if (fixingRatio[channelId]) return
+    setFixingRatio((prev) => ({ ...prev, [channelId]: true }))
     api
-      .post('/api/admin/model-data/refresh-public-prices')
-      .then((res) => {
-        const n = res.data?.count ?? 0
-        setPublicRefreshMsg(`已同步 ${n} 条`)
-      })
-      .catch(() => setPublicRefreshMsg('同步失败'))
-      .finally(() => {
+      .post('/api/admin/channel-data/fix-group-ratio', { channel_id: channelId, model: activeModel })
+      .then(() => {
         api
-          .get('/api/admin/model-data', { params: { model: activeModel } })
+          .get('/api/admin/channel-data', { params: { model: activeModel } })
           .then((res) => { if (res.data?.success) setData(res.data.data ?? []) })
-          .finally(() => {
-            setPublicRefreshing(false)
-            setPublicRefreshMsg('')
-          })
       })
-  }, [activeModel, publicRefreshing])
+      .finally(() => setFixingRatio((prev) => ({ ...prev, [channelId]: false })))
+  }, [activeModel, fixingRatio])
 
   const detectNow = useCallback((channelId: number) => {
     const key = `${channelId}-${activeModel}`
     if (detectingChannels[key]) return
     setDetectingChannels((prev) => ({ ...prev, [key]: true }))
     api
-      .post('/api/admin/model-data/detect-now', { channel_id: channelId, model: activeModel })
+      .post('/api/admin/channel-data/detect-now', { channel_id: channelId, model: activeModel })
       .catch(() => {/* fire-and-forget; failure is visible in dot-grid */})
       .finally(() => {
         // Detection takes ~5-15s on Flask side; reload after 18s to catch result
         setTimeout(() => {
           api
-            .get('/api/admin/model-data', { params: { model: activeModel } })
+            .get('/api/admin/channel-data', { params: { model: activeModel } })
             .then((res) => { if (res.data?.success) setData(res.data.data ?? []) })
             .finally(() => setDetectingChannels((prev) => ({ ...prev, [key]: false })))
         }, 18000)
@@ -632,13 +634,13 @@ export function ModelDataPage() {
     if (pingingChannels[key]) return
     setPingingChannels((prev) => ({ ...prev, [key]: true }))
     api
-      .post('/api/admin/model-data/ping-now', { channel_id: channelId, model: activeModel })
+      .post('/api/admin/channel-data/ping-now', { channel_id: channelId, model: activeModel })
       .catch(() => {/* fire-and-forget; failure is visible in uptime dot-grid */})
       .finally(() => {
         // Uptime probe takes a few seconds; reload after 8s to catch result
         setTimeout(() => {
           api
-            .get('/api/admin/model-data', { params: { model: activeModel } })
+            .get('/api/admin/channel-data', { params: { model: activeModel } })
             .then((res) => { if (res.data?.success) setData(res.data.data ?? []) })
             .finally(() => setPingingChannels((prev) => ({ ...prev, [key]: false })))
         }, 8000)
@@ -671,7 +673,7 @@ export function ModelDataPage() {
     setCommonAutoReenableEnabled(enabled)
     setCommonAutoReenableLoading(true)
     api
-      .post('/api/admin/model-data/common-auto-reenable', { enabled })
+      .post('/api/admin/channel-data/common-auto-reenable', { enabled })
       .catch(() => setCommonAutoReenableEnabled(!enabled))
       .finally(() => setCommonAutoReenableLoading(false))
   }, [])
@@ -720,11 +722,11 @@ export function ModelDataPage() {
     (channelId: number, modelEnabled: boolean) => {
       const action = modelEnabled ? 'disable' : 'enable'
       api
-        .post('/api/admin/model-data/toggle', { channel_id: channelId, model: activeModel, action })
+        .post('/api/admin/channel-data/toggle', { channel_id: channelId, model: activeModel, action })
         .then(() => {
           // Refresh table
           api
-            .get('/api/admin/model-data', { params: { model: activeModel } })
+            .get('/api/admin/channel-data', { params: { model: activeModel } })
             .then((res) => { if (res.data?.success) setData(res.data.data ?? []) })
         })
     },
@@ -733,7 +735,7 @@ export function ModelDataPage() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>{t('Model Data')}</SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t('Channel Data')}</SectionPageLayout.Title>
       <SectionPageLayout.Description>
         {t('Channel pricing and detection stats by model')}
       </SectionPageLayout.Description>
@@ -785,15 +787,6 @@ export function ModelDataPage() {
               {pricingRefreshing ? (pricingRefreshMsg || '刷新中…') : '刷新价格'}
             </button>
             <button
-              onClick={refreshPublicPrices}
-              disabled={publicRefreshing}
-              className='inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50'
-              title='api.romaapi.com 公开参考价 → public_model_prices（manual_group_ratio 兜底）'
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${publicRefreshing ? 'animate-spin' : ''}`} />
-              {publicRefreshing ? (publicRefreshMsg || '同步中…') : '刷新公开价'}
-            </button>
-            <button
               onClick={refreshHubPrice}
               disabled={hubRefreshing}
               className='inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-500 transition-colors hover:border-gray-300 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50'
@@ -802,6 +795,20 @@ export function ModelDataPage() {
               <RefreshCw className={`w-3.5 h-3.5 ${hubRefreshing ? 'animate-spin' : ''}`} />
               {hubRefreshing ? (hubRefreshMsg || '刷新中…') : '刷新 Hub 价格'}
             </button>
+            {official?.ok && (
+              <span
+                className='inline-flex items-center gap-1 rounded-full bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-600'
+                title='系统设置 → 模型定价（统一官方原价）'
+              >
+                官方原价
+                <span className='font-semibold text-gray-900 tabular-nums'>
+                  ${official.input_price.toFixed(4)}
+                </span>
+                {official.output_price > 0 && (
+                  <span className='text-gray-400 tabular-nums'>/ ${official.output_price.toFixed(4)}</span>
+                )}
+              </span>
+            )}
             </div>
 
           {/* Auto-detect controls: two rows */}
@@ -892,7 +899,12 @@ export function ModelDataPage() {
                 <th className='text-right px-2 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide'>gratio</th>
                 <th className='text-right px-2 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide w-16'>
                   <div className='flex flex-col items-end leading-tight gap-0.5'>
-                    <span>模型价格</span><span className='normal-case font-normal'>$/1M</span>
+                    <span>渠道原价</span><span className='normal-case font-normal'>$/1M</span>
+                  </div>
+                </th>
+                <th className='text-right px-2 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide w-16'>
+                  <div className='flex flex-col items-end leading-tight gap-0.5'>
+                    <span>官方原价</span><span className='normal-case font-normal'>$/1M</span>
                   </div>
                 </th>
                 <th className='text-right px-2 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide w-20'>
@@ -921,12 +933,12 @@ export function ModelDataPage() {
             <tbody className='divide-y divide-gray-50'>
               {loading && (
                 <tr>
-                  <td colSpan={16} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
+                  <td colSpan={17} className='px-5 py-12 text-center text-sm text-gray-400'>加载中…</td>
                 </tr>
               )}
               {!loading && data.length === 0 && (
                 <tr>
-                  <td colSpan={16} className='px-5 py-12 text-center text-sm text-gray-400'>
+                  <td colSpan={17} className='px-5 py-12 text-center text-sm text-gray-400'>
                     暂无数据 — 请在渠道管理中录入支持该模型的渠道
                   </td>
                 </tr>
@@ -946,6 +958,9 @@ export function ModelDataPage() {
                   ? Math.abs(item.actual_price! - item.hub_price!) / item.hub_price! * 100
                   : 0
                 const priceDivergent = priceDivergePct > 10
+                // Tampered-base-price alert: 渠道原价 vs 统一官方原价, computed server-side.
+                const baseMismatchPct = item.base_price_mismatch_pct ?? null
+                const baseMismatched = baseMismatchPct != null && baseMismatchPct > 5
                 return (
                   <tr key={item.channel_id} className='hover:bg-gray-50/60 transition-colors'>
                     <td className={`px-3 py-2.5 text-gray-400 tabular-nums text-xs ${dim}`}>{item.channel_id}</td>
@@ -990,7 +1005,54 @@ export function ModelDataPage() {
                     <td className={`px-2 py-3.5 text-right text-gray-500 tabular-nums text-xs ${dim}`}>
                       {item.group_ratio != null ? item.group_ratio.toFixed(3) : <span className='text-gray-300'>—</span>}
                     </td>
-                    <td className={`px-2 py-2.5 text-right text-gray-600 tabular-nums ${dim}`}>{fmtPrice(item.model_price)}</td>
+                    <td className={`px-2 py-2.5 text-right tabular-nums ${baseMismatched ? 'text-red-600 font-semibold' : 'text-gray-600'} ${dim}`}>
+                      <TooltipProvider delay={0}>
+                        <Tooltip>
+                          <TooltipTrigger render={
+                            <div className='inline-flex items-center gap-1 justify-end cursor-default'>
+                              {baseMismatched && (
+                                <span className='text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600 leading-none'>
+                                  !{Math.round(baseMismatchPct!)}%
+                                </span>
+                              )}
+                              {fmtPrice(item.model_price)}
+                            </div>
+                          } />
+                          <TooltipContent>
+                            {baseMismatched ? (
+                              <div className='flex flex-col gap-1.5 text-[12px] min-w-[200px]'>
+                                <div className='text-red-300 font-medium'>该渠道自改原厂价</div>
+                                <div className='flex justify-between gap-4'>
+                                  <span className='opacity-70'>官方原价</span>
+                                  <span className='font-mono'>{fmtPrice(item.official_input_price)}</span>
+                                </div>
+                                <div className='flex justify-between gap-4'>
+                                  <span className='opacity-70'>渠道原价</span>
+                                  <span className='font-mono'>{fmtPrice(item.model_price)}</span>
+                                </div>
+                                <div className='flex justify-between gap-4'>
+                                  <span className='opacity-70'>建议 gratio</span>
+                                  <span className='font-mono'>{item.suggested_group_ratio?.toFixed(3) ?? '—'}</span>
+                                </div>
+                                <button
+                                  onClick={() => fixGroupRatio(item.channel_id)}
+                                  disabled={!!fixingRatio[item.channel_id]}
+                                  className='mt-1 w-full border-t border-white/10 pt-1.5 text-left text-[11px] text-sky-400 hover:text-sky-300 transition-colors disabled:opacity-50'
+                                >
+                                  {fixingRatio[item.channel_id] ? '修正中…' : '按官方价反推 gratio →'}
+                                </button>
+                                {item.pricing_source === 'api' && (
+                                  <div className='text-[10px] opacity-50'>下次"刷新价格"若上游底价未变会还原此报警</div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className='opacity-70'>与官方原价一致</span>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </td>
+                    <td className={`px-2 py-2.5 text-right text-gray-500 tabular-nums ${dim}`}>{fmtPrice(item.official_input_price)}</td>
                     <td className={`px-2 py-2.5 text-right font-semibold tabular-nums ${priceDivergent ? 'text-red-600' : 'text-gray-800'} ${dim}`}>
                       <TooltipProvider delay={0}>
                       <Tooltip>
