@@ -121,7 +121,6 @@ type opsReportData struct {
 	WeeklyFunnel   []opsFunnelRow   `json:"weekly_funnel"`
 	CampaignFunnel []opsCampaignRow `json:"campaign_funnel"`
 	KeywordFunnel  []opsKeywordRow  `json:"keyword_funnel"`
-	RegionFunnel   []opsFunnelRow   `json:"region_funnel"`
 	PaymentWeekly  []opsPaymentRow  `json:"payment_weekly"`
 	Dau            []opsDauRow      `json:"dau"`
 	TotalPaidUsers int              `json:"total_paid_users"`
@@ -179,6 +178,23 @@ type opsUserAgg struct {
 	matchType  string
 	paidOrders []*model.OpsTopUp
 	hasIntent  bool
+}
+
+// opsIPCountry resolves an IP to an ISO country code via the embedded iploc
+// database; private/unparseable addresses map to "?".
+func opsIPCountry(ip string) string {
+	if ip == "" {
+		return "?"
+	}
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return "?"
+	}
+	country := iploc.IPCountry(addr)
+	if country == "" || country == "ZZ" {
+		return "?"
+	}
+	return country
 }
 
 func buildOpsReport(days int, dauScope string) (*opsReportData, error) {
@@ -639,7 +655,7 @@ func opsTopPayers(aggs map[int]*opsUserAgg) ([]opsPayerRow, int, float64) {
 	if len(payers) > opsReportTopPayers {
 		payers = payers[:opsReportTopPayers]
 	}
-	// last request IP as a region hint — resolved only for the shown payers
+	// last IP / country resolved only for the displayed payers (<= 20 ids)
 	ids := make([]int, len(payers))
 	for i := range payers {
 		ids[i] = payers[i].UserId
@@ -651,6 +667,7 @@ func opsTopPayers(aggs map[int]*opsUserAgg) ([]opsPayerRow, int, float64) {
 		}
 		for i := range payers {
 			payers[i].LastIP = byUser[payers[i].UserId]
+			payers[i].IPCountry = opsIPCountry(payers[i].LastIP)
 		}
 	}
 	if usage, err := model.GetOpsUsersModelUsage(ids); err == nil {

@@ -205,8 +205,8 @@ type OpsUserLastIP struct {
 }
 
 // GetOpsUsersLastIP returns the most recent non-empty request IP per user.
-// Intended for small id sets (top payers, <=~20) — one indexed MAX(id) pass
-// plus one primary-key lookup.
+// One indexed MAX(id) pass plus one primary-key lookup; used for the full plg
+// user set (~thousands) by the ops report region funnel.
 func GetOpsUsersLastIP(userIds []int) ([]*OpsUserLastIP, error) {
 	if len(userIds) == 0 {
 		return nil, nil

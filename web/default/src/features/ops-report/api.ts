@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
-import type { ApiResponse, OpsReportData } from './types'
+import type { ApiResponse, OpsReportData, OpsStripeReport } from './types'
 
 export type OpsDauScope = 'plg' | 'all'
 
@@ -25,6 +25,7 @@ export const opsReportQueryKeys = {
   all: ['ops-report'] as const,
   report: (days: number, dauScope: OpsDauScope) =>
     [...opsReportQueryKeys.all, days, dauScope] as const,
+  stripe: (days: number) => [...opsReportQueryKeys.all, 'stripe', days] as const,
 }
 
 export async function getOpsReport(
@@ -33,6 +34,15 @@ export async function getOpsReport(
 ): Promise<ApiResponse<OpsReportData>> {
   const res = await api.get('/api/data/ops_report', {
     params: { days, dau_scope: dauScope },
+  })
+  return res.data
+}
+
+export async function getOpsStripeReport(
+  days: number
+): Promise<ApiResponse<OpsStripeReport>> {
+  const res = await api.get('/api/data/ops_report_stripe', {
+    params: { days },
   })
   return res.data
 }

@@ -252,6 +252,12 @@ export const STATIC_I18N_KEYS = [
   'Phrase',
   'Broad',
 
+  // Ops report stripe person statuses (STRIPE_STATUS_LABELS)
+  'Paid OK',
+  'Card Failed',
+  'Opened, No Action',
+  'Card Binding',
+
   'Match model name exactly',
   'Match models starting with this name',
   'Match models containing this name',

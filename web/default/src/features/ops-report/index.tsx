@@ -36,7 +36,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
 import { officialWebsiteUrl } from '@/lib/origins'
-import { getOpsReport, opsReportQueryKeys, type OpsDauScope } from './api'
+import {
+  getOpsReport,
+  getOpsStripeReport,
+  opsReportQueryKeys,
+  type OpsDauScope,
+} from './api'
 import type {
   OpsCampaignRow,
   OpsDauRow,
@@ -45,6 +50,8 @@ import type {
   OpsNameCount,
   OpsPayerRow,
   OpsPaymentRow,
+  OpsStripePersonRow,
+  OpsStripeReport,
 } from './types'
 
 const DAY_OPTIONS = [7, 30, 60, 90]
@@ -53,8 +60,10 @@ const DAY_OPTIONS = [7, 30, 60, 90]
 const TAB_VALUES = [
   'registrations',
   'campaigns',
+  'regions',
   'funnel',
   'payment',
+  'stripe',
   'active',
   'payers',
 ] as const
@@ -134,6 +143,21 @@ const pct = (part: number, total: number): string =>
 
 const usd = (v: number): string => `$${v.toFixed(v >= 100 ? 0 : 2)}`
 
+function countryLabel(code: string, locale: string): string {
+  if (!code || code.length !== 2) return ''
+  const cc = code.toUpperCase()
+  const flag = String.fromCodePoint(
+    ...[...cc].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65)
+  )
+  let name = cc
+  try {
+    name = new Intl.DisplayNames([locale], { type: 'region' }).of(cc) ?? cc
+  } catch {
+    // fall back to the bare code
+  }
+  return `${flag} ${name}`
+}
+
 const formatTimestamp = (timestamp: number): string => {
   if (!timestamp) return '-'
   return new Date(timestamp * 1000).toLocaleString()
@@ -150,6 +174,13 @@ const MATCH_TYPE_LABELS: Record<string, string> = {
   e: 'Exact',
   p: 'Phrase',
   b: 'Broad',
+}
+
+const STRIPE_STATUS_LABELS: Record<string, string> = {
+  paid: 'Paid OK',
+  failed: 'Card Failed',
+  no_action: 'Opened, No Action',
+  setup: 'Card Binding',
 }
 
 function LandingLinks({ pages }: { pages: OpsNameCount[] | null }) {
@@ -350,6 +381,169 @@ function KeywordTable({ rows }: { rows: OpsKeywordRow[] }) {
   )
 }
 
+function StripeStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className='bg-muted/40 rounded-md px-3 py-2'>
+      <div className='text-muted-foreground text-xs'>{label}</div>
+      <div className='text-lg font-semibold'>{value}</div>
+    </div>
+  )
+}
+
+function StripePersonStatus({ status }: { status: string }) {
+  const { t } = useTranslation()
+  const label = STRIPE_STATUS_LABELS[status] ?? status
+  const variant =
+    status === 'paid'
+      ? 'default'
+      : status === 'failed'
+        ? 'destructive'
+        : 'secondary'
+  return <Badge variant={variant}>{t(label)}</Badge>
+}
+
+function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
+  const { t, i18n } = useTranslation()
+  return (
+    <div className='overflow-x-auto'>
+      <Table className={TABLE_GRID}>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('Last Attempt')}</TableHead>
+            <TableHead>{t('User')}</TableHead>
+            <TableHead>{t('Stuck At')}</TableHead>
+            <TableHead>{t('Attempted Amounts')}</TableHead>
+            <TableHead className='text-right'>{t('Sessions Opened')}</TableHead>
+            <TableHead className='text-right'>{t('Card Attempts')}</TableHead>
+            <TableHead>{t('Failure Reasons')}</TableHead>
+            <TableHead>{t('Card')}</TableHead>
+            <TableHead>{t('Billing Country')}</TableHead>
+            <TableHead>{t('Payment Methods Shown')}</TableHead>
+            <TableHead>{t('Campaign')}</TableHead>
+            <TableHead className='text-right'>{t('Requests')}</TableHead>
+            <TableHead className='text-right'>{t('Consumed')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.email}>
+              <TableCell className='whitespace-nowrap'>
+                {formatTimestamp(row.last_at)}
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {row.email}{' '}
+                <span className='text-muted-foreground text-xs'>
+                  #{row.user_id}
+                </span>
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                <StripePersonStatus status={row.status} />
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {(row.amounts ?? [])
+                  .map((a) => `${a.name}\u00d7${a.count}`)
+                  .join(', ') || '-'}
+              </TableCell>
+              <TableCell className='text-right'>{row.sessions}</TableCell>
+              <TableCell className='text-right'>
+                {row.attempts}
+                {row.succeeded > 0 && (
+                  <span className='text-muted-foreground text-xs'>
+                    {' '}
+                    ({row.succeeded} OK)
+                  </span>
+                )}
+              </TableCell>
+              <TableCell className='max-w-52'>
+                <div className='flex flex-wrap gap-1'>
+                  {(row.fail_reasons ?? []).map((f) => (
+                    <Badge key={f.name} variant='outline'>
+                      {f.name} {f.count}
+                    </Badge>
+                  ))}
+                </div>
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {(row.card_country ?? [])
+                  .map((cc) => countryLabel(cc, i18n.language))
+                  .join(' ') || '-'}
+                {(row.card_brands ?? []).length > 0 && (
+                  <span className='text-muted-foreground ml-1 text-xs'>
+                    {(row.card_brands ?? []).join(', ')}
+                  </span>
+                )}
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {(row.billing_cc ?? [])
+                  .map((cc) => countryLabel(cc, i18n.language))
+                  .join(' ') || '-'}
+              </TableCell>
+              <TableCell className='max-w-44'>
+                <span className='text-muted-foreground text-xs'>
+                  {(row.methods ?? []).join('+') || '-'}
+                </span>
+              </TableCell>
+              <TableCell className='max-w-44 truncate whitespace-nowrap'>
+                {row.campaign}
+                {row.keyword && (
+                  <span className='text-muted-foreground text-xs'>
+                    {' '}
+                    {row.keyword}
+                  </span>
+                )}
+              </TableCell>
+              <TableCell className='text-right'>{row.requests}</TableCell>
+              <TableCell className='text-right'>
+                {usd(row.consumed_usd)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function StripeTab({ report }: { report: OpsStripeReport }) {
+  const { t } = useTranslation()
+  return (
+    <div className='space-y-4'>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('Payment Conversion (Stripe)')}</CardTitle>
+        </CardHeader>
+        <CardContent className='space-y-4'>
+          <div className='grid grid-cols-2 gap-2 md:grid-cols-4'>
+            <StripeStat
+              label={t('Sessions Created')}
+              value={String(report.sessions_created)}
+            />
+            <StripeStat
+              label={t('Completed')}
+              value={`${report.sessions_completed} (${pct(report.sessions_completed, report.sessions_created)})`}
+            />
+            <StripeStat
+              label={t('Charges')}
+              value={`${report.charges_succeeded} / ${report.charges_succeeded + report.charges_failed}`}
+            />
+            <StripeStat
+              label={t('Blocked by Radar')}
+              value={String(report.charges_blocked)}
+            />
+          </div>
+          <p className='text-muted-foreground text-sm'>
+            {t(
+              'One row per PLG user who reached Stripe checkout in the window, newest first. Non-PLG or unmatched-email sessions are excluded.'
+            )}{' '}
+            ({t('Unmatched sessions')}: {report.unmatched_sessions})
+          </p>
+          <StripePersonsTable rows={report.persons ?? []} />
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 function PaymentTable({ rows }: { rows: OpsPaymentRow[] }) {
   const { t } = useTranslation()
   return (
@@ -428,7 +622,7 @@ function DauTable({ rows }: { rows: OpsDauRow[] }) {
 }
 
 function PayersTable({ rows }: { rows: OpsPayerRow[] }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   return (
     <div className='overflow-x-auto'>
       <Table className={TABLE_GRID}>
@@ -444,6 +638,7 @@ function PayersTable({ rows }: { rows: OpsPayerRow[] }) {
             <TableHead>{t('Languages')}</TableHead>
             <TableHead>{t('Landing Pages')}</TableHead>
             <TableHead>{t('Signup Method')}</TableHead>
+            <TableHead>{t('Region')}</TableHead>
             <TableHead>{t('Last IP')}</TableHead>
             <TableHead className='text-right'>{t('Balance')}</TableHead>
             <TableHead className='text-right'>{t('Consumed')}</TableHead>
@@ -484,16 +679,26 @@ function PayersTable({ rows }: { rows: OpsPayerRow[] }) {
                 {row.landing || '-'}
               </TableCell>
               <TableCell>{row.signup_method || '-'}</TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {countryLabel(row.ip_country, i18n.language) || '-'}
+              </TableCell>
               <TableCell className='whitespace-nowrap font-mono text-xs'>
                 {row.last_ip ? (
-                  <a
-                    href={`https://ipinfo.io/${row.last_ip}`}
-                    target='_blank'
-                    rel='noreferrer'
-                    className='underline decoration-dotted'
-                  >
-                    {row.last_ip}
-                  </a>
+                  <>
+                    <a
+                      href={`https://ipinfo.io/${row.last_ip}`}
+                      target='_blank'
+                      rel='noreferrer'
+                      className='underline decoration-dotted'
+                    >
+                      {row.last_ip}
+                    </a>
+                    {row.ip_country && row.ip_country !== '?' && (
+                      <span className='text-muted-foreground ml-1'>
+                        {row.ip_country}
+                      </span>
+                    )}
+                  </>
                 ) : (
                   '-'
                 )}
@@ -548,6 +753,16 @@ export function OpsReport() {
   })
   const report = reportQuery.data?.data
 
+  // Stripe data comes from the Stripe API server-side; fetch lazily so the
+  // main report is never blocked by it.
+  const stripeQuery = useQuery({
+    queryKey: opsReportQueryKeys.stripe(days),
+    queryFn: () => getOpsStripeReport(days),
+    enabled: tab === 'stripe',
+    retry: false,
+  })
+  const stripeReport = stripeQuery.data?.data
+
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>
@@ -593,6 +808,9 @@ export function OpsReport() {
                 </TabsTrigger>
                 <TabsTrigger value='payment'>
                   {t('Payment Funnel (Weekly)')}
+                </TabsTrigger>
+                <TabsTrigger value='stripe'>
+                  {t('Payment Conversion (Stripe)')}
                 </TabsTrigger>
                 <TabsTrigger value='active'>
                   {t('Active Users (Key Usage)')}
@@ -664,6 +882,22 @@ export function OpsReport() {
                     <PaymentTable rows={report.payment_weekly} />
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              <TabsContent value='stripe'>
+                {stripeQuery.isLoading ? (
+                  <Skeleton className='h-40 w-full' />
+                ) : stripeReport ? (
+                  <StripeTab report={stripeReport} />
+                ) : (
+                  <Card>
+                    <CardContent className='text-muted-foreground py-8 text-center text-sm'>
+                      {stripeQuery.error instanceof Error
+                        ? stripeQuery.error.message
+                        : t('Stripe data unavailable')}
+                    </CardContent>
+                  </Card>
+                )}
               </TabsContent>
 
               <TabsContent value='active'>

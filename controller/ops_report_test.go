@@ -75,3 +75,31 @@ func TestOpsRollupKeywords(t *testing.T) {
 		t.Errorf("limit=1 should keep top registrations row, got %v", limited)
 	}
 }
+
+func TestOpsIPCountry(t *testing.T) {
+	cases := map[string]string{
+		"8.8.8.8":      "US",
+		"":             "?",
+		"not-an-ip":    "?",
+		"192.168.1.1":  "?",  // private
+		"2400:3200::1": "CN", // Alibaba DNS
+		"127.0.0.1":    "?",
+	}
+	for ip, want := range cases {
+		if got := opsIPCountry(ip); got != want {
+			t.Errorf("opsIPCountry(%q) = %q, want %q", ip, got, want)
+		}
+	}
+}
+
+func TestOpsStripeMajorAmount(t *testing.T) {
+	if got := opsStripeMajorAmount("usd", 1050); got != 10.5 {
+		t.Errorf("usd 1050 minor = %v, want 10.5", got)
+	}
+	if got := opsStripeMajorAmount("jpy", 3000); got != 3000 {
+		t.Errorf("jpy 3000 = %v, want 3000 (zero-decimal)", got)
+	}
+	if got := opsStripeMajorAmount("KRW", 5000); got != 5000 {
+		t.Errorf("KRW should be case-insensitive zero-decimal, got %v", got)
+	}
+}
