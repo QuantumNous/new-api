@@ -117,6 +117,7 @@ func GetTopUpInfo(c *gin.Context) {
 type EpayRequest struct {
 	Amount        int64  `json:"amount"`
 	PaymentMethod string `json:"payment_method"`
+	ReturnUrl     string `json:"return_url,omitempty"`
 }
 
 type AmountRequest struct {
@@ -218,7 +219,15 @@ func RequestEpay(c *gin.Context) {
 	}
 
 	callBackAddress := service.GetCallbackAddress()
-	returnUrl, _ := url.Parse(system_setting.ServerAddress + "/console/log")
+	returnUrlValue := system_setting.ServerAddress + "/console/log"
+	if req.ReturnUrl != "" {
+		if err := common.ValidateRedirectURL(req.ReturnUrl); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "支付完成重定向URL不在可信任域名列表中", "data": ""})
+			return
+		}
+		returnUrlValue = req.ReturnUrl
+	}
+	returnUrl, _ := url.Parse(returnUrlValue)
 	notifyUrl, _ := url.Parse(callBackAddress + "/api/user/epay/notify")
 	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
 	tradeNo = fmt.Sprintf("USR%dNO%s", id, tradeNo)
