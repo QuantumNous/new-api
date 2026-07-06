@@ -16,14 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, Edit, Trash2, Save } from 'lucide-react'
+import { Plus, Trash2, Save } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import dayjs from '@/lib/dayjs'
+import * as z from 'zod'
+
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
+import { DateTimePicker } from '@/components/datetime-picker'
+import { Dialog } from '@/components/dialog'
+import { StatusBadge } from '@/components/status-badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,10 +60,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { StaticDataTable } from '@/components/data-table'
-import { DateTimePicker } from '@/components/datetime-picker'
-import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
+import dayjs from '@/lib/dayjs'
+
 import { SettingsSwitchField } from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -419,24 +422,14 @@ export function AnnouncementsSection({
             {
               id: 'actions',
               header: t('Actions'),
-              className: 'w-32',
               cell: (announcement) => (
-                <div className='flex gap-2'>
-                  <Button
-                    onClick={() => handleEdit(announcement)}
-                    size='sm'
-                    variant='ghost'
-                  >
-                    <Edit className='h-4 w-4' />
-                  </Button>
-                  <Button
-                    onClick={() => handleDelete(announcement)}
-                    size='sm'
-                    variant='ghost'
-                  >
-                    <Trash2 className='h-4 w-4' />
-                  </Button>
-                </div>
+                <StaticRowActions
+                  editLabel={t('Edit')}
+                  deleteLabel={t('Delete')}
+                  menuLabel={t('Open menu')}
+                  onEdit={() => handleEdit(announcement)}
+                  onDelete={() => handleDelete(announcement)}
+                />
               ),
             },
           ]}
@@ -530,16 +523,16 @@ export function AnnouncementsSection({
                   <FormLabel>{t('Type')}</FormLabel>
                   <Select
                     items={typeOptions.map((option) => ({
-                        value: option.value,
-                        label: (
-                          <div className='flex items-center gap-2'>
-                            <div
-                              className={`h-3 w-3 rounded-full ${option.color}`}
-                            />
-                            {option.label}
-                          </div>
-                        ),
-                      }))}
+                      value: option.value,
+                      label: (
+                        <div className='flex items-center gap-2'>
+                          <div
+                            className={`h-3 w-3 rounded-full ${option.color}`}
+                          />
+                          {option.label}
+                        </div>
+                      ),
+                    }))}
                     onValueChange={field.onChange}
                     value={field.value}
                   >
@@ -600,13 +593,15 @@ export function AnnouncementsSection({
             <AlertDialogTitle>{t('Are you sure?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget === 'single'
-                ? 'This announcement will be removed from the list.'
-                : `${selectedIds.length} announcements will be removed from the list.`}
+                ? t('This announcement will be removed from the list.')
+                : t('{{count}} announcements will be removed from the list.', {
+                    count: selectedIds.length,
+                  })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>
+            <AlertDialogAction variant='destructive' onClick={confirmDelete}>
               {t('Delete')}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -100,6 +100,12 @@ export type SystemTaskResponse<TTask = SystemTask | null> = {
   data?: TTask
 }
 
+export type SystemTaskListResponse = {
+  success: boolean
+  message: string
+  data?: SystemTask[]
+}
+
 export type SiteSettings = {
   'theme.frontend': string
   Notice: string
@@ -334,6 +340,8 @@ export type OperationsSettings = {
   SMTPFrom: string
   SMTPToken: string
   SMTPSSLEnabled: boolean
+  SMTPStartTLSEnabled: boolean
+  SMTPInsecureSkipVerify: boolean
   SMTPForceAuthLogin: boolean
   WorkerUrl: string
   WorkerValidKey: string
@@ -370,6 +378,7 @@ export type SecuritySettings = {
   'fetch_setting.ip_list': string[]
   'fetch_setting.allowed_ports': number[]
   'fetch_setting.apply_ip_filter_for_domain': boolean
+  'token_setting.max_user_tokens': number
 }
 
 export type UpstreamChannel = {

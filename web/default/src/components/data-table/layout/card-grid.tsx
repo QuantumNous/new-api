@@ -41,6 +41,10 @@ export type DataTableCardHelpers = {
    * Provided so custom renderers can match the default layout decision.
    */
   compact: boolean
+  /**
+   * Row selection state captured before entering memoized custom card renderers.
+   */
+  isSelected: boolean
 }
 
 export interface DataTableCardGridProps<TData> {
@@ -80,7 +84,7 @@ function CardGridSkeleton(props: {
       {[1, 2, 3, 4, 5, 6].map((i) => (
         <div
           key={`${prefix}-${i}`}
-          className='space-y-3 rounded-lg border [background-color:var(--table-row)] p-3'
+          className='space-y-3 rounded-lg border bg-(--table-row) p-3'
         >
           <div className='flex items-center justify-between gap-2'>
             <Skeleton className='h-4 w-32' />
@@ -108,8 +112,8 @@ function CardGridSkeleton(props: {
  * the card view reusable across any table with zero per-feature work while
  * still allowing a bespoke card design when desired.
  *
- * Selection (the `select` column) is intentionally not rendered in card mode;
- * bulk selection remains a table-mode capability.
+ * The default generic card omits the `select` column. Custom `renderCard`
+ * implementations can use `helpers.isSelected` to keep selection UI in sync.
  */
 export function DataTableCardGrid<TData>(props: DataTableCardGridProps<TData>) {
   const { t } = useTranslation()
@@ -156,17 +160,19 @@ export function DataTableCardGrid<TData>(props: DataTableCardGridProps<TData>) {
     <div className={props.gridClassName ?? DEFAULT_GRID_CLASSNAME}>
       {rows.map((row) => {
         const key = props.getRowKey ? props.getRowKey(row) : row.id
+        const isSelected = row.getIsSelected()
         return (
           <div
             key={key}
             data-slot='data-table-card'
+            data-state={isSelected ? 'selected' : undefined}
             className={cn(
-              'rounded-lg border [background-color:var(--data-table-card-bg,var(--table-row))] px-3 py-2.5',
+              'rounded-lg border bg-(--data-table-card-bg,var(--table-row)) px-3 py-2.5 transition-[background-color,border-color] duration-150 data-[state=selected]:[--data-table-card-bg:color-mix(in_oklch,var(--primary)_7%,var(--table-row))] data-[state=selected]:border-primary/40',
               props.getRowClassName?.(row)
             )}
           >
             {props.renderCard ? (
-              props.renderCard(row, { compact })
+              props.renderCard(row, { compact, isSelected })
             ) : (
               <CardRowContent row={row} compact={compact} />
             )}
