@@ -143,6 +143,11 @@ export function useSidebarData(): SidebarData {
             icon: Building2,
           },
           {
+            title: t('Auto Group Rules'),
+            url: '/auto-group-rules',
+            icon: Shield,
+          },
+          {
             title: t('Redemption Codes'),
             url: '/redemption-codes',
             icon: Ticket,
