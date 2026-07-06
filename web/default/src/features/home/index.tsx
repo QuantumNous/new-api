@@ -89,7 +89,7 @@ function formatPrice(value: number | null | undefined): string {
   if (!hasNumber(value) || value <= 0) return '-'
   return formatBillingCurrencyFromUSD(value, {
     digitsLarge: 4,
-    digitsSmall: 6,
+    digitsSmall: 4,
     abbreviate: false,
   })
 }
@@ -429,7 +429,7 @@ export function Home() {
                     {t('直连官方的')}
                     <br />
                     <span className='shine-text from-primary to-primary/70 bg-gradient-to-r bg-clip-text text-transparent'>
-                      {t('极致性价比接口网关')}
+                      {t('企业级接口网关')}
                     </span>
                   </h1>
                   <p className='text-muted-foreground mt-4 max-w-xl text-base md:mt-6 md:text-lg lg:text-xl'>
