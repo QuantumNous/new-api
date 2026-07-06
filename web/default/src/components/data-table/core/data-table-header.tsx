@@ -21,8 +21,11 @@ import {
   type Header,
   type Table as TanstackTable,
 } from '@tanstack/react-table'
+
 import { TableHead, TableHeader, TableRow } from '@/components/ui/table'
+
 import { DataTableColumnHeader } from './column-header'
+import { isContentSizedColumn } from './content-sized-columns'
 import type { DataTableColumnClassName } from './types'
 
 type DataTableHeaderProps<TData> = {
@@ -49,7 +52,7 @@ export function DataTableHeader<TData>({
               key={header.id}
               colSpan={header.colSpan}
               className={getColumnClassName?.(header.column.id, 'header')}
-              style={applyHeaderSize ? { width: header.getSize() } : undefined}
+              style={getHeaderSizeStyle(header, applyHeaderSize)}
             >
               {renderHeaderContent(header)}
             </TableHead>
@@ -58,6 +61,17 @@ export function DataTableHeader<TData>({
       ))}
     </TableHeader>
   )
+}
+
+function getHeaderSizeStyle<TData>(
+  header: Header<TData, unknown>,
+  applyHeaderSize: boolean | undefined
+) {
+  if (!applyHeaderSize || isContentSizedColumn(header.column.id)) {
+    return undefined
+  }
+
+  return { width: header.getSize() }
 }
 
 function renderHeaderContent<TData>(header: Header<TData, unknown>) {

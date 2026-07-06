@@ -23,7 +23,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
 
-import { PageFooterPortal } from '@/components/layout'
+import { PageFooterPortal } from '@/components/layout/components/page-footer'
 import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
 

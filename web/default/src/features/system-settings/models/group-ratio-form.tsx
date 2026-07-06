@@ -16,10 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { memo, useCallback, useState } from 'react'
-import { type UseFormReturn } from 'react-hook-form'
 import { Code2, Eye, HelpCircle } from 'lucide-react'
+import { memo, useCallback, useMemo, useState, type ReactNode } from 'react'
+import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+
+import {
+  sideDrawerContentClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import {
   Accordion,
   AccordionContent,
@@ -45,17 +51,14 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  sideDrawerContentClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-} from '@/components/drawer-layout'
+
 import {
   SettingsForm,
   SettingsSwitchContent,
   SettingsSwitchItem,
 } from '../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../components/settings-page-context'
+import { safeJsonParse } from '../utils/json-parser'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
 
@@ -97,6 +100,31 @@ export const GroupRatioForm = memo(function GroupRatioForm({
   const toggleEditMode = useCallback(() => {
     setEditMode((prev) => (prev === 'visual' ? 'json' : 'visual'))
   }, [])
+
+  const watchedGroupRatio = form.watch('GroupRatio')
+  const watchedUserUsableGroups = form.watch('UserUsableGroups')
+  const watchedTopupGroupRatio = form.watch('TopupGroupRatio')
+  const groupNames = useMemo(() => {
+    const ratioMap = safeJsonParse<Record<string, number>>(watchedGroupRatio, {
+      fallback: {},
+      silent: true,
+    })
+    const usableMap = safeJsonParse<Record<string, string>>(
+      watchedUserUsableGroups,
+      { fallback: {}, silent: true }
+    )
+    const topupMap = safeJsonParse<Record<string, number>>(
+      watchedTopupGroupRatio,
+      { fallback: {}, silent: true }
+    )
+    return [
+      ...new Set([
+        ...Object.keys(ratioMap),
+        ...Object.keys(usableMap),
+        ...Object.keys(topupMap),
+      ]),
+    ]
+  }, [watchedGroupRatio, watchedUserUsableGroups, watchedTopupGroupRatio])
 
   return (
     <div className='space-y-6'>
@@ -141,6 +169,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               userUsableGroups={form.watch('UserUsableGroups')}
               groupGroupRatio={form.watch('GroupGroupRatio')}
               autoGroups={form.watch('AutoGroups')}
+              groupSpecialUsableGroup={form.watch('GroupSpecialUsableGroup')}
               onChange={(field, value) =>
                 handleFieldChange(field as keyof GroupFormValues, value)
               }
@@ -148,6 +177,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
 
             <GroupSpecialUsableRulesEditor
               value={form.watch('GroupSpecialUsableGroup')}
+              groupOptions={groupNames}
               onChange={(value) =>
                 handleFieldChange('GroupSpecialUsableGroup', value)
               }
@@ -337,6 +367,23 @@ function GuideCodeBlock({ children }: { children: string }) {
   )
 }
 
+function GuideStepRow({
+  chip,
+  children,
+}: {
+  chip: string
+  children: ReactNode
+}) {
+  return (
+    <div className='flex items-start gap-2.5 text-sm leading-6'>
+      <span className='bg-muted text-muted-foreground mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-medium'>
+        {chip}
+      </span>
+      <span className='text-muted-foreground min-w-0'>{children}</span>
+    </div>
+  )
+}
+
 function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
   const { t } = useTranslation()
 
@@ -357,15 +404,11 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
 
         <div className={sideDrawerFormClassName('gap-5')}>
           <section className='space-y-2'>
-            <h3 className='text-sm font-semibold'>{t('Core concepts')}</h3>
+            <h3 className='text-sm font-semibold'>{t('The two roles of a group')}</h3>
             <div className='text-muted-foreground space-y-2 text-sm leading-6'>
               <p>
-                <span className='text-foreground font-medium'>
-                  {t('User group')}
-                </span>
-                {': '}
                 {t(
-                  'Assigned by administrators and used to represent a user level, such as default or vip.'
+                  'Every group name in the pricing table can be used in two places: on a user (the user group, assigned by admins) and on a token (the token group, chosen when creating the token). Same name pool, two different jobs.'
                 )}
               </p>
               <p>
@@ -373,28 +416,177 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
                   {t('Token group')}
                 </span>
                 {': '}
-                {t(
-                  'Selected when creating a token and used as the default billing group for API calls.'
-                )}
+                {t('decides which channels are used and which base ratio applies.')}
               </p>
               <p>
                 <span className='text-foreground font-medium'>
-                  {t('Ratio')}
+                  {t('User group')}
                 </span>
                 {': '}
                 {t(
-                  'A billing multiplier. Lower ratios mean lower API call costs.'
+                  'decides the top-up ratio, which groups the user can pick for tokens, and whether an override ratio applies.'
                 )}
               </p>
-              <p>
+            </div>
+          </section>
+
+          <section className='space-y-2'>
+            <h3 className='text-sm font-semibold'>{t('How a call is priced')}</h3>
+            <ol className='text-muted-foreground list-decimal space-y-2 pl-5 text-sm leading-6'>
+              <li>
                 <span className='text-foreground font-medium'>
-                  {t('User selectable')}
-                </span>
-                {': '}
+                  {t('Find the billing group.')}
+                </span>{' '}
                 {t(
-                  'When enabled, users can pick this group when creating tokens.'
+                  'Use the group set on the token. If the token has no group, use the user group. The auto group tries the auto assignment order from top to bottom.'
                 )}
-              </p>
+              </li>
+              <li>
+                <span className='text-foreground font-medium'>
+                  {t('Find the ratio.')}
+                </span>{' '}
+                {t(
+                  'Look for a special ratio rule matching this user group and this billing group. If one exists, use its ratio. Otherwise use the billing group base ratio from the pricing table.'
+                )}
+              </li>
+              <li>
+                <span className='text-foreground font-medium'>
+                  {t('Charge.')}
+                </span>{' '}
+                {t('Cost = model price × that one ratio. Nothing else from the group settings enters the formula.')}
+              </li>
+            </ol>
+            <p className='text-muted-foreground text-sm leading-6'>
+              {t(
+                'Common pitfall: the user group base ratio is NOT a personal discount. It only applies when the user group itself is the billing group.'
+              )}
+            </p>
+          </section>
+
+          <section className='space-y-3'>
+            <h3 className='text-sm font-semibold'>{t('Worked example')}</h3>
+            <p className='text-muted-foreground text-sm leading-6'>
+              {t('The admin configured three groups and one special ratio rule:')}
+            </p>
+
+            <div className='overflow-hidden rounded-lg border'>
+              <div className='bg-muted/40 border-b px-3 py-1.5 text-xs font-medium'>
+                {t('Pricing groups')}
+              </div>
+              <table className='w-full text-sm'>
+                <thead>
+                  <tr className='text-muted-foreground border-b text-xs'>
+                    <th className='px-3 py-1.5 text-left font-medium'>
+                      {t('Group name')}
+                    </th>
+                    <th className='px-3 py-1.5 text-right font-medium'>
+                      {t('Ratio')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className='border-b'>
+                    <td className='px-3 py-1.5'>default</td>
+                    <td className='px-3 py-1.5 text-right'>1.0</td>
+                  </tr>
+                  <tr className='border-b'>
+                    <td className='px-3 py-1.5'>premium</td>
+                    <td className='px-3 py-1.5 text-right'>0.5</td>
+                  </tr>
+                  <tr>
+                    <td className='px-3 py-1.5'>vip</td>
+                    <td className='px-3 py-1.5 text-right'>0.8</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className='overflow-hidden rounded-lg border'>
+              <div className='bg-muted/40 border-b px-3 py-1.5 text-xs font-medium'>
+                {t('Special ratio rules')}
+              </div>
+              <div className='p-3 text-sm leading-6'>
+                {t('Users of vip, when billed as premium, pay ratio')}{' '}
+                <span className='bg-primary/10 ring-primary/40 rounded px-1.5 py-0.5 font-semibold ring-1'>
+                  0.3
+                </span>{' '}
+                <span className='text-muted-foreground text-xs'>
+                  {t('(instead of {{ratio}})', { ratio: 0.5 })}
+                </span>
+              </div>
+            </div>
+
+            <p className='text-muted-foreground text-sm leading-6'>
+              {t(
+                'Three calls made by the same vip user. Assume the base price of one call is 10.'
+              )}
+            </p>
+
+            <div className='space-y-3'>
+              <div className='overflow-hidden rounded-lg border'>
+                <div className='bg-muted/40 border-b px-3 py-2 text-sm font-medium'>
+                  {t('Call 1: the token group is premium')}
+                </div>
+                <div className='space-y-2 p-3'>
+                  <GuideStepRow chip='1'>
+                    {t('Billing group = premium (the token has a group, so use it)')}
+                  </GuideStepRow>
+                  <GuideStepRow chip='2'>
+                    {t(
+                      'There is a rule for vip billed as premium → use its ratio 0.3'
+                    )}
+                  </GuideStepRow>
+                  <GuideStepRow chip='='>
+                    <span className='text-foreground font-medium'>
+                      {t('Cost = 10 × 0.3 = 3')}
+                    </span>
+                  </GuideStepRow>
+                </div>
+              </div>
+
+              <div className='overflow-hidden rounded-lg border'>
+                <div className='bg-muted/40 border-b px-3 py-2 text-sm font-medium'>
+                  {t('Call 2: the token group is default')}
+                </div>
+                <div className='space-y-2 p-3'>
+                  <GuideStepRow chip='1'>
+                    {t('Billing group = default (the token has a group, so use it)')}
+                  </GuideStepRow>
+                  <GuideStepRow chip='2'>
+                    {t(
+                      'No rule for vip billed as default → use the base ratio of default, 1.0 (the 0.8 of vip is not used)'
+                    )}
+                  </GuideStepRow>
+                  <GuideStepRow chip='='>
+                    <span className='text-foreground font-medium'>
+                      {t('Cost = 10 × 1.0 = 10')}
+                    </span>
+                  </GuideStepRow>
+                </div>
+              </div>
+
+              <div className='overflow-hidden rounded-lg border'>
+                <div className='bg-muted/40 border-b px-3 py-2 text-sm font-medium'>
+                  {t('Call 3: the token has no group')}
+                </div>
+                <div className='space-y-2 p-3'>
+                  <GuideStepRow chip='1'>
+                    {t(
+                      'Billing group = vip (the token has no group, so use the user group)'
+                    )}
+                  </GuideStepRow>
+                  <GuideStepRow chip='2'>
+                    {t(
+                      'No rule for vip billed as vip → use the base ratio of vip, 0.8'
+                    )}
+                  </GuideStepRow>
+                  <GuideStepRow chip='='>
+                    <span className='text-foreground font-medium'>
+                      {t('Cost = 10 × 0.8 = 8')}
+                    </span>
+                  </GuideStepRow>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -443,7 +635,7 @@ vip          0.5     ${t('No')}                ${t('Assigned by administrator on
               <AccordionContent className='space-y-3'>
                 <p className='text-muted-foreground text-sm leading-6'>
                   {t(
-                    'Special ratios override the token group ratio for specific user group and token group combinations.'
+                    'In JSON, the user group is the outer key and the billing group is the inner key. The example below means: vip users pay 0.8 when billed as standard, and 0.3 when billed as premium.'
                   )}
                 </p>
                 <GuideCodeBlock>{`{
@@ -454,7 +646,7 @@ vip          0.5     ${t('No')}                ${t('Assigned by administrator on
 }`}</GuideCodeBlock>
                 <p className='text-muted-foreground text-sm leading-6'>
                   {t(
-                    'Only configured combinations are overridden. All other calls keep the token group base ratio.'
+                    'Only configured combinations are overridden. All other calls keep the billing group base ratio.'
                   )}
                 </p>
               </AccordionContent>
@@ -467,7 +659,7 @@ vip          0.5     ${t('No')}                ${t('Assigned by administrator on
               <AccordionContent className='space-y-3'>
                 <p className='text-muted-foreground text-sm leading-6'>
                   {t(
-                    'Special usable group rules can add, remove, or append selectable token groups for a specific user group.'
+                    'Special usable group rules make extra token groups visible to, or hide default ones from, users of a specific user group.'
                   )}
                 </p>
                 <GuideCodeBlock>{`{
@@ -479,7 +671,7 @@ vip          0.5     ${t('No')}                ${t('Assigned by administrator on
 }`}</GuideCodeBlock>
                 <p className='text-muted-foreground text-sm leading-6'>
                   {t(
-                    'Use +: to add a group, -: to remove a default selectable group, or no prefix to append a group.'
+                    'In the visual editor these appear as Extra visible and Hidden. In JSON, +: (or no prefix) adds a group and -: removes one.'
                   )}
                 </p>
               </AccordionContent>

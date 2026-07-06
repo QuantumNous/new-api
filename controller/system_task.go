@@ -65,6 +65,27 @@ func GetCurrentSystemTask(c *gin.Context) {
 	})
 }
 
+func ListSystemTasks(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.Query("limit"))
+
+	tasks, err := model.ListSystemTasks(limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	responses := make([]model.SystemTaskResponse, 0, len(tasks))
+	for _, task := range tasks {
+		responses = append(responses, task.ToResponse())
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    responses,
+	})
+}
+
 func GetSystemTask(c *gin.Context) {
 	taskID := c.Param("task_id")
 	if taskID == "" {

@@ -16,29 +16,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
-import { getUserModels, getUserGroups } from './api'
-import { PlaygroundChat } from './components/playground-chat'
-import { PlaygroundInput } from './components/playground-input'
-import { usePlaygroundState, useChatHandler } from './hooks'
-import { createUserMessage, createLoadingAssistantMessage } from './lib'
-import type { Message as MessageType } from './types'
+import { PlaygroundChat } from './components/chat/playground-chat'
+import { PlaygroundInput } from './components/input/playground-input'
+import {
+  useChatHandler,
+  usePlaygroundConversation,
+  usePlaygroundOptions,
+  usePlaygroundState,
+} from './hooks'
 
 export function Playground() {
-  const { t } = useTranslation()
   const {
     config,
     parameterEnabled,
     messages,
+    isLoadingMessages,
     models,
     groups,
     updateMessages,
     setModels,
     setGroups,
     updateConfig,
+    clearMessages,
   } = usePlaygroundState()
 
   const { sendChat, stopGeneration, isGenerating } = useChatHandler({
@@ -47,157 +46,44 @@ export function Playground() {
     onMessageUpdate: updateMessages,
   })
 
-  // Edit dialog state
-  const [editingMessageKey, setEditingMessageKey] = useState<string | null>(
-    null
-  )
-
-  // Load models
-  const { data: modelsData, isLoading: isLoadingModels } = useQuery({
-    queryKey: ['playground-models'],
-    queryFn: async () => {
-      try {
-        return await getUserModels()
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : t('Failed to load playground models')
-        )
-        return []
-      }
-    },
+  const {
+    editingMessageKey,
+    handleSendMessage,
+    handleRegenerateMessage,
+    handleEditMessage,
+    handleEditOpenChange,
+    applyEdit,
+    handleDeleteMessage,
+  } = usePlaygroundConversation({
+    messages,
+    updateMessages,
+    sendChat,
   })
 
-  // Load groups
-  const { data: groupsData } = useQuery({
-    queryKey: ['playground-groups'],
-    queryFn: async () => {
-      try {
-        return await getUserGroups()
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : t('Failed to load playground groups')
-        )
-        return []
-      }
-    },
+  const handleClearMessages = () => {
+    handleEditOpenChange(false)
+    clearMessages()
+  }
+
+  const { isLoadingModels } = usePlaygroundOptions({
+    currentGroup: config.group,
+    currentModel: config.model,
+    setGroups,
+    setModels,
+    updateConfig,
   })
-
-  // Update models when data changes
-  useEffect(() => {
-    if (!modelsData) return
-
-    setModels(modelsData)
-
-    // Set default model if current model is not available
-    const isCurrentModelValid = modelsData.some((m) => m.value === config.model)
-    if (modelsData.length > 0 && !isCurrentModelValid) {
-      updateConfig('model', modelsData[0].value)
-    }
-  }, [modelsData, config.model, setModels, updateConfig])
-
-  // Update groups when data changes
-  useEffect(() => {
-    if (!groupsData) return
-
-    setGroups(groupsData)
-
-    const hasCurrentGroup = groupsData.some((g) => g.value === config.group)
-    if (!hasCurrentGroup && groupsData.length > 0) {
-      const fallback =
-        groupsData.find((g) => g.value === 'default')?.value ??
-        groupsData[0].value
-      updateConfig('group', fallback)
-    }
-  }, [groupsData, setGroups, config.group, updateConfig])
-
-  const handleSendMessage = (text: string) => {
-    const userMessage = createUserMessage(text)
-    const assistantMessage = createLoadingAssistantMessage()
-
-    const newMessages = [...messages, userMessage, assistantMessage]
-    updateMessages(newMessages)
-
-    // Send chat request
-    sendChat(newMessages)
-  }
-
-  const handleCopyMessage = (message: MessageType) => {
-    // Copy is handled in MessageActions component
-    // eslint-disable-next-line no-console
-    console.log('Message copied:', message.key)
-  }
-
-  const handleRegenerateMessage = (message: MessageType) => {
-    // Find the message index and regenerate from there
-    const messageIndex = messages.findIndex((m) => m.key === message.key)
-    if (messageIndex === -1) return
-
-    // Remove messages after this one and regenerate
-    const messagesUpToHere = messages.slice(0, messageIndex)
-    const loadingMessage = createLoadingAssistantMessage()
-    const newMessages = [...messagesUpToHere, loadingMessage]
-
-    updateMessages(newMessages)
-    sendChat(newMessages)
-  }
-
-  const handleEditMessage = useCallback((message: MessageType) => {
-    setEditingMessageKey(message.key)
-  }, [])
-
-  const handleEditOpenChange = useCallback((open: boolean) => {
-    if (!open) setEditingMessageKey(null)
-  }, [])
-
-  // Apply edit and optionally re-submit from the edited user message
-  const applyEdit = useCallback(
-    (newContent: string, submit: boolean) => {
-      if (!editingMessageKey) return
-      const index = messages.findIndex((m) => m.key === editingMessageKey)
-      if (index === -1) return
-
-      const updated = messages.map((m) =>
-        m.key === editingMessageKey
-          ? { ...m, versions: [{ ...m.versions[0], content: newContent }] }
-          : m
-      )
-
-      setEditingMessageKey(null)
-
-      if (!submit || updated[index].from !== 'user') {
-        updateMessages(updated)
-        return
-      }
-
-      const toSubmit = [
-        ...updated.slice(0, index + 1),
-        createLoadingAssistantMessage(),
-      ]
-      updateMessages(toSubmit)
-      sendChat(toSubmit)
-    },
-    [editingMessageKey, messages, updateMessages, sendChat]
-  )
-
-  const handleDeleteMessage = (message: MessageType) => {
-    const newMessages = messages.filter((m) => m.key !== message.key)
-    updateMessages(newMessages)
-  }
 
   return (
-    <div className='relative flex size-full flex-col overflow-hidden'>
+    <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>
       {/* Full-width scroll container: scrolling works even over side whitespace */}
-      <div className='flex flex-1 flex-col overflow-hidden'>
+      <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
         <PlaygroundChat
           messages={messages}
-          onCopyMessage={handleCopyMessage}
+          isLoadingMessages={isLoadingMessages}
           onRegenerateMessage={handleRegenerateMessage}
           onEditMessage={handleEditMessage}
           onDeleteMessage={handleDeleteMessage}
+          onSelectPrompt={handleSendMessage}
           isGenerating={isGenerating}
           editingKey={editingMessageKey}
           onCancelEdit={handleEditOpenChange}
@@ -217,9 +103,11 @@ export function Playground() {
           modelValue={config.model}
           models={models}
           onGroupChange={(value) => updateConfig('group', value)}
+          onClearMessages={handleClearMessages}
           onModelChange={(value) => updateConfig('model', value)}
           onStop={stopGeneration}
           onSubmit={handleSendMessage}
+          hasMessages={messages.length > 0}
         />
       </div>
     </div>

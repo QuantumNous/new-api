@@ -17,11 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import React, { useState } from 'react'
-import useDialogState from '@/hooks/use-dialog'
+
 import {
   getOptionValue,
   useSystemOptions,
 } from '@/features/system-settings/hooks/use-system-options'
+import useDialogState from '@/hooks/use-dialog'
+
 import { type PlanRecord, type SubscriptionsDialogType } from '../types'
 
 const CURRENT_COMPLIANCE_TERMS_VERSION = 'v1'

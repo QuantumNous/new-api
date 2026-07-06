@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useStatus } from '@/hooks/use-status'
+
 import { SettingsPage } from '../components/settings-page'
 import type { OperationsSettings } from '../types'
 import {

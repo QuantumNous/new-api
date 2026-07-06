@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -195,6 +196,22 @@ func RootAuth() func(c *gin.Context) {
 	}
 }
 
+func RequirePermission(permission authz.Permission) func(c *gin.Context) {
+	return func(c *gin.Context) {
+		role := c.GetInt("role")
+		userID := c.GetInt("id")
+		if authz.Can(userID, role, permission) {
+			c.Next()
+			return
+		}
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege),
+		})
+		c.Abort()
+	}
+}
+
 func WssAuth(c *gin.Context) {
 
 }
@@ -253,6 +270,17 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 					"message": common.TranslateMessage(c, i18n.MsgDatabaseError),
 				})
 			}
+			c.Abort()
+			return
+		}
+
+		// TokenAuthReadOnly must keep allowing other token states to query read-only
+		// data, such as token usage logs; only explicitly disabled tokens are denied.
+		if token.Status == common.TokenStatusDisabled {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": common.TranslateMessage(c, i18n.MsgTokenStatusUnavailable),
+			})
 			c.Abort()
 			return
 		}

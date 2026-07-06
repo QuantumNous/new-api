@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
+
 import {
   CHANNEL_STATUS,
   ERROR_MESSAGES,
@@ -203,6 +204,7 @@ export const channelFormSchema = z
     allow_inference_geo: z.boolean().optional(), // OpenAI/Anthropic: inference geography
     allow_speed: z.boolean().optional(), // Anthropic: speed mode control
     claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
+    disable_task_polling_sleep: z.boolean().optional(),
     // Upstream model update settings (stored in settings JSON)
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -342,6 +344,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_inference_geo: false,
   allow_speed: false,
   claude_beta_query: false,
+  disable_task_polling_sleep: false,
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -397,6 +400,7 @@ export function transformChannelToFormDefaults(
   let allowInferenceGeo = false
   let allowSpeed = false
   let claudeBetaQuery = false
+  let disableTaskPollingSleep = false
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -416,6 +420,7 @@ export function transformChannelToFormDefaults(
       allowInferenceGeo = parsed.allow_inference_geo === true
       allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
+      disableTaskPollingSleep = parsed.disable_task_polling_sleep === true
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -473,6 +478,7 @@ export function transformChannelToFormDefaults(
     allow_inference_geo: allowInferenceGeo,
     allow_speed: allowSpeed,
     claude_beta_query: claudeBetaQuery,
+    disable_task_polling_sleep: disableTaskPollingSleep,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
@@ -543,13 +549,13 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   // Field passthrough controls:
   // - OpenAI (type 1) and Anthropic (type 14): allow_service_tier
   // - OpenAI only: disable_store, allow_safety_identifier
-  if (formData.type === 1 || formData.type === 14) {
+  if (formData.type === 1 || formData.type === 14 || formData.type === 57) {
     settingsObj.allow_service_tier = formData.allow_service_tier === true
   } else if ('allow_service_tier' in settingsObj) {
     delete settingsObj.allow_service_tier
   }
 
-  if (formData.type === 1) {
+  if (formData.type === 1 || formData.type === 57) {
     settingsObj.disable_store = formData.disable_store === true
     settingsObj.allow_safety_identifier =
       formData.allow_safety_identifier === true
@@ -575,6 +581,9 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     if ('allow_speed' in settingsObj) delete settingsObj.allow_speed
     if ('claude_beta_query' in settingsObj) delete settingsObj.claude_beta_query
   }
+
+  settingsObj.disable_task_polling_sleep =
+    formData.disable_task_polling_sleep === true
 
   // Upstream model update settings (for model-fetchable channel types)
   if (MODEL_FETCHABLE_TYPES.has(formData.type)) {
@@ -694,7 +703,6 @@ export function transformFormDataToUpdatePayload(
     weight: formData.weight ?? 0,
     test_model: formData.test_model || null,
     auto_ban: formData.auto_ban ?? 1,
-    status: formData.status,
     status_code_mapping: formData.status_code_mapping || null,
     tag: formData.tag || null,
     remark: formData.remark || '',
