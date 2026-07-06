@@ -597,6 +597,7 @@ func TestFulfillOrderAlertsOnStripePaymentContractFailure(t *testing.T) {
 	assert.Equal(t, int64(2000), alerts[0].ExpectedAmountMinor)
 	assert.Equal(t, "USD", alerts[0].ActualCurrency)
 	assert.Equal(t, int64(1999), alerts[0].ActualAmountMinor)
+	assert.Equal(t, "contract_mismatch", alerts[0].ErrorClass)
 	assert.Contains(t, alerts[0].Error, "price mismatch")
 
 	reloaded := model.GetTopUpByTradeNo("ref_stripe_contract_alert")

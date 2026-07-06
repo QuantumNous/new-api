@@ -902,8 +902,47 @@ func buildStripePaymentProcessingAlert(event stripe.Event, referenceId string, c
 		ExpectedAmountMinor: expectedAmountMinor,
 		ActualCurrency:      actualCurrency,
 		ActualAmountMinor:   actualAmountMinor,
+		ErrorClass:          stripePaymentProcessingErrorClass(processingErr),
 		Error:               processingErr.Error(),
 		Now:                 time.Now(),
+	}
+}
+
+func stripePaymentProcessingErrorClass(err error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(err, model.ErrTopUpNotFound) {
+		return "topup_not_found"
+	}
+	if errors.Is(err, model.ErrPaymentMethodMismatch) {
+		return "payment_method_mismatch"
+	}
+	if errors.Is(err, model.ErrTopUpStatusInvalid) {
+		return "topup_status_invalid"
+	}
+	if errors.Is(err, model.ErrSubscriptionOrderNotFound) {
+		return "subscription_order_not_found"
+	}
+
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "without local order reference"):
+		return "missing_order_reference"
+	case strings.Contains(message, "expected payment contract is missing"),
+		strings.Contains(message, "checkout session mismatch"),
+		strings.Contains(message, "checkout price mismatch"),
+		strings.Contains(message, "checkout quantity mismatch"),
+		strings.Contains(message, "checkout currency is missing"),
+		strings.Contains(message, "checkout session id is missing"),
+		strings.Contains(message, "checkout contains multiple line items"),
+		strings.Contains(message, "checkout line item price is missing"),
+		strings.Contains(message, "checkout line item is missing"):
+		return "contract_mismatch"
+	case isRetryableStripeWebhookProcessingError(err):
+		return "dependency_error"
+	default:
+		return "payment_processing_error"
 	}
 }
 

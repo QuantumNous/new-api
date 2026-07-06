@@ -42,6 +42,7 @@ type DingTalkPaymentProcessingAlert struct {
 	ExpectedAmountMinor int64
 	ActualCurrency      string
 	ActualAmountMinor   int64
+	ErrorClass          string
 	Error               string
 	Now                 time.Time
 }
@@ -200,8 +201,10 @@ func (c *DingTalkPaymentAlertCooldown) reserve(key string, now time.Time, cooldo
 	if ok && now.Sub(last) < cooldown {
 		return nil, false
 	}
+	if !ok && len(c.lastAt) >= maxDingTalkPaymentAlertCooldownEntries {
+		return nil, false
+	}
 	c.lastAt[key] = now
-	c.evictIfNeeded(key)
 	return &dingTalkPaymentAlertCooldownReservation{
 		c:           c,
 		key:         key,
@@ -219,29 +222,6 @@ func (c *DingTalkPaymentAlertCooldown) pruneExpired(now time.Time, cooldown time
 		if !last.IsZero() && now.Sub(last) >= cooldown {
 			delete(c.lastAt, key)
 		}
-	}
-}
-
-func (c *DingTalkPaymentAlertCooldown) evictIfNeeded(reservedKey string) {
-	if c == nil || len(c.lastAt) <= maxDingTalkPaymentAlertCooldownEntries {
-		return
-	}
-	for len(c.lastAt) > maxDingTalkPaymentAlertCooldownEntries {
-		var oldestKey string
-		var oldestAt time.Time
-		for key, last := range c.lastAt {
-			if key == reservedKey {
-				continue
-			}
-			if oldestKey == "" || last.Before(oldestAt) {
-				oldestKey = key
-				oldestAt = last
-			}
-		}
-		if oldestKey == "" {
-			return
-		}
-		delete(c.lastAt, oldestKey)
 	}
 }
 
@@ -424,7 +404,7 @@ func dingTalkPaymentProcessingAlertCooldownKey(alert DingTalkPaymentProcessingAl
 	tradeNo := strings.TrimSpace(alert.TradeNo)
 	eventType := strings.TrimSpace(alert.EventType)
 	customerID := strings.TrimSpace(alert.CustomerID)
-	errorClass := dingTalkPaymentProcessingAlertErrorClass(alert.Error)
+	errorClass := dingTalkPaymentProcessingAlertErrorClass(alert)
 	expectedCurrency := strings.ToUpper(strings.TrimSpace(alert.ExpectedCurrency))
 	actualCurrency := strings.ToUpper(strings.TrimSpace(alert.ActualCurrency))
 	if provider == "" && tradeNo == "" && eventType == "" && customerID == "" && errorClass == "" && expectedCurrency == "" && actualCurrency == "" && alert.ExpectedAmountMinor == 0 && alert.ActualAmountMinor == 0 {
@@ -434,12 +414,15 @@ func dingTalkPaymentProcessingAlertCooldownKey(alert DingTalkPaymentProcessingAl
 	return fmt.Sprintf("%x", sum[:])
 }
 
-func dingTalkPaymentProcessingAlertErrorClass(message string) string {
-	message = strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(message)), " "))
-	if len(message) > 256 {
-		return message[:256]
+func dingTalkPaymentProcessingAlertErrorClass(alert DingTalkPaymentProcessingAlert) string {
+	errorClass := strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(alert.ErrorClass)), "_"))
+	if errorClass != "" {
+		return errorClass
 	}
-	return message
+	if strings.TrimSpace(alert.Error) != "" {
+		return "uncategorized"
+	}
+	return ""
 }
 
 func codexGovernanceAlertCooldownKey(record *model.CodexModelGovernanceRecord) string {
