@@ -37,9 +37,72 @@ import {
   ILLUSTRATION_SIZE,
 } from '../constants/dashboard.constants';
 
+const VALID_DEFAULT_TIMES = new Set(['hour', 'day', 'week']);
+const FALLBACK_DEFAULT_TIME = 'hour';
+
+const readDefaultTime = (key) => {
+  try {
+    const value = localStorage.getItem(key);
+    return VALID_DEFAULT_TIMES.has(value) ? value : '';
+  } catch {
+    return '';
+  }
+};
+
+const writeDefaultTime = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // localStorage may be unavailable in private browsing or restricted modes.
+  }
+};
+
+const getDefaultTimeStorageKey = (userKey) =>
+  userKey
+    ? `${STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME}:v2:${userKey}`
+    : STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME;
+
+export const getDashboardStorageUserKey = (user) => {
+  const userId = user?.id;
+  if (userId !== undefined && userId !== null && userId !== '') {
+    return `user:${userId}`;
+  }
+
+  if (user?.username) return `name:${user.username}`;
+
+  try {
+    const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
+    if (storedUser?.id !== undefined && storedUser?.id !== null) {
+      return `user:${storedUser.id}`;
+    }
+    if (storedUser?.username) return `name:${storedUser.username}`;
+  } catch {
+    // Ignore malformed auth cache and fall back to global preferences.
+  }
+
+  return '';
+};
+
 // ========== 时间相关工具函数 ==========
-export const getDefaultTime = () => {
-  return localStorage.getItem(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME) || 'hour';
+export const getDefaultTime = (userKey = '') => {
+  if (userKey) {
+    const scopedKey = getDefaultTimeStorageKey(userKey);
+    const scopedValue = readDefaultTime(scopedKey);
+    if (scopedValue) return scopedValue;
+
+    const legacyValue = readDefaultTime(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME);
+    if (legacyValue) return legacyValue;
+  }
+
+  return (
+    readDefaultTime(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME) ||
+    FALLBACK_DEFAULT_TIME
+  );
+};
+
+export const saveDefaultTime = (value, userKey = '') => {
+  if (!VALID_DEFAULT_TIMES.has(value)) return;
+  writeDefaultTime(getDefaultTimeStorageKey(userKey), value);
 };
 
 export const getTimeInterval = (timeType, isSeconds = false) => {
@@ -48,8 +111,8 @@ export const getTimeInterval = (timeType, isSeconds = false) => {
   return isSeconds ? intervals.seconds : intervals.minutes;
 };
 
-export const getInitialTimestamp = () => {
-  const defaultTime = getDefaultTime();
+export const getInitialTimestamp = (userKey = '') => {
+  const defaultTime = getDefaultTime(userKey);
   const now = new Date().getTime() / 1000;
 
   switch (defaultTime) {

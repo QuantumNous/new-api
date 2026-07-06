@@ -396,10 +396,10 @@ export const useDashboardCharts = (
   }, []);
 
   const updateChartData = useCallback(
-    (data) => {
+    (data, defaultTime = dataExportDefaultTime) => {
       const processedData = processRawData(
         data,
-        dataExportDefaultTime,
+        defaultTime,
         initializeMaps,
         updateMapValue,
       );
@@ -420,7 +420,7 @@ export const useDashboardCharts = (
         timeQuotaMap,
         timeTokensMap,
         timeCountMap,
-        dataExportDefaultTime,
+        defaultTime,
       );
       setTrendData(trendDataResult);
 
@@ -429,7 +429,7 @@ export const useDashboardCharts = (
 
       const aggregatedData = aggregateDataByTimeAndModel(
         data,
-        dataExportDefaultTime,
+        defaultTime,
       );
 
       const modelTotals = new Map();
@@ -447,7 +447,7 @@ export const useDashboardCharts = (
       const chartTimePoints = generateChartTimePoints(
         aggregatedData,
         data,
-        dataExportDefaultTime,
+        defaultTime,
       );
 
       let newLineData = [];
@@ -564,10 +564,10 @@ export const useDashboardCharts = (
 
   // ========== 用户维度图表数据处理 ==========
   const updateUserChartData = useCallback(
-    (data) => {
+    (data, defaultTime = dataExportDefaultTime) => {
       const { rankingData, trendData: userTrend } = processUserData(
         data,
-        dataExportDefaultTime,
+        defaultTime,
         10,
       );
 

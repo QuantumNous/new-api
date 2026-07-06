@@ -86,11 +86,13 @@ const Dashboard = () => {
   );
 
   // ========== 数据处理 ==========
-  const loadUserData = async () => {
+  const loadUserData = async (
+    defaultTime = dashboardData.dataExportDefaultTime
+  ) => {
     if (dashboardData.isAdminUser) {
       const userData = await dashboardData.loadUserQuotaData();
       if (userData && userData.length > 0) {
-        dashboardCharts.updateUserChartData(userData);
+        dashboardCharts.updateUserChartData(userData, defaultTime);
       }
     }
   };
@@ -106,16 +108,30 @@ const Dashboard = () => {
   };
 
   const handleRefresh = async () => {
-    const data = await dashboardData.refresh();
+    const defaultTime = dashboardData.dataExportDefaultTime;
+    const data = await dashboardData.refresh(defaultTime);
     if (data && data.length > 0) {
-      dashboardCharts.updateChartData(data);
+      dashboardCharts.updateChartData(data, defaultTime);
     }
-    await loadUserData();
+    await loadUserData(defaultTime);
   };
 
   const handleSearchConfirm = async () => {
-    await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
-    await loadUserData();
+    const defaultTime = dashboardData.dataExportDefaultTime;
+    await dashboardData.handleSearchConfirm(
+      (data) => dashboardCharts.updateChartData(data, defaultTime),
+      defaultTime,
+    );
+    await loadUserData(defaultTime);
+  };
+
+  const handleQuickGranularityChange = async (defaultTime) => {
+    dashboardData.handleGranularityChange(defaultTime);
+    const data = await dashboardData.refresh(defaultTime);
+    if (data && data.length > 0) {
+      dashboardCharts.updateChartData(data, defaultTime);
+    }
+    await loadUserData(defaultTime);
   };
 
   // ========== 数据准备 ==========
@@ -158,6 +174,9 @@ const Dashboard = () => {
         showSearchModal={dashboardData.showSearchModal}
         refresh={handleRefresh}
         loading={dashboardData.loading}
+        timeOptions={dashboardData.timeOptions}
+        dataExportDefaultTime={dashboardData.dataExportDefaultTime}
+        onGranularityChange={handleQuickGranularityChange}
         t={dashboardData.t}
       />
 

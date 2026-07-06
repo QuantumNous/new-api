@@ -27,9 +27,13 @@ const DashboardHeader = ({
   showSearchModal,
   refresh,
   loading,
+  timeOptions,
+  dataExportDefaultTime,
+  onGranularityChange,
   t,
 }) => {
   const ICON_BUTTON_CLASS = 'text-white hover:bg-opacity-80 !rounded-full';
+  const visibleTimeOptions = timeOptions || [];
 
   return (
     <div className='flex items-center justify-between mb-4'>
@@ -39,7 +43,32 @@ const DashboardHeader = ({
       >
         {getGreeting}
       </h2>
-      <div className='flex gap-3'>
+      <div className='flex flex-wrap items-center justify-end gap-2 sm:gap-3'>
+        <div
+          className='flex h-9 items-center overflow-hidden rounded-full border border-gray-200 bg-white p-1 shadow-sm'
+          role='group'
+          aria-label={t('时间粒度')}
+        >
+          {visibleTimeOptions.map((option) => {
+            const selected = option.value === dataExportDefaultTime;
+            return (
+              <button
+                key={option.value}
+                type='button'
+                aria-pressed={selected}
+                disabled={loading}
+                onClick={() => onGranularityChange?.(option.value)}
+                className={`h-7 min-w-[3.5rem] rounded-full px-3 text-sm font-medium transition-colors ${
+                  selected
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                } ${loading ? 'cursor-not-allowed opacity-70' : ''}`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
         <Button
           type='tertiary'
           icon={<Search size={16} />}

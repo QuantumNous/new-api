@@ -21,7 +21,12 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API, isAdmin, showError, timestamp2string } from '../../helpers';
-import { getDefaultTime, getInitialTimestamp } from '../../helpers/dashboard';
+import {
+  getDashboardStorageUserKey,
+  getDefaultTime,
+  getInitialTimestamp,
+  saveDefaultTime,
+} from '../../helpers/dashboard';
 import { TIME_OPTIONS } from '../../constants/dashboard.constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useMinimumLoadingTime } from '../common/useMinimumLoadingTime';
@@ -31,6 +36,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const initialized = useRef(false);
+  const dashboardStorageUserKey = useMemo(
+    () => getDashboardStorageUserKey(userState?.user),
+    [userState?.user?.id, userState?.user?.username],
+  );
+  const syncedStorageUserKey = useRef(dashboardStorageUserKey);
 
   // ========== 基础状态 ==========
   const [loading, setLoading] = useState(false);
@@ -39,18 +49,18 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const showLoading = useMinimumLoadingTime(loading);
 
   // ========== 输入状态 ==========
-  const [inputs, setInputs] = useState({
+  const [inputs, setInputs] = useState(() => ({
     username: '',
     token_name: '',
     model_name: '',
-    start_timestamp: getInitialTimestamp(),
+    start_timestamp: getInitialTimestamp(dashboardStorageUserKey),
     end_timestamp: timestamp2string(new Date().getTime() / 1000 + 3600),
     channel: '',
     data_export_default_time: '',
-  });
+  }));
 
   const [dataExportDefaultTime, setDataExportDefaultTime] =
-    useState(getDefaultTime());
+    useState(() => getDefaultTime(dashboardStorageUserKey));
 
   // ========== 数据状态 ==========
   const [quotaData, setQuotaData] = useState([]);
@@ -138,14 +148,24 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, [t, userState?.user?.username]);
 
   // ========== 回调函数 ==========
-  const handleInputChange = useCallback((value, name) => {
-    if (name === 'data_export_default_time') {
+  const handleGranularityChange = useCallback(
+    (value) => {
       setDataExportDefaultTime(value);
-      localStorage.setItem('data_export_default_time', value);
-      return;
-    }
-    setInputs((inputs) => ({ ...inputs, [name]: value }));
-  }, []);
+      saveDefaultTime(value, dashboardStorageUserKey);
+    },
+    [dashboardStorageUserKey],
+  );
+
+  const handleInputChange = useCallback(
+    (value, name) => {
+      if (name === 'data_export_default_time') {
+        handleGranularityChange(value);
+        return;
+      }
+      setInputs((inputs) => ({ ...inputs, [name]: value }));
+    },
+    [handleGranularityChange],
+  );
 
   const showSearchModal = useCallback(() => {
     setSearchModalVisible(true);
@@ -156,18 +176,19 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, []);
 
   // ========== API 调用函数 ==========
-  const loadQuotaData = useCallback(async () => {
+  const loadQuotaData = useCallback(async (defaultTime) => {
     setLoading(true);
     try {
+      const nextDefaultTime = defaultTime || dataExportDefaultTime;
       let url = '';
       const { start_timestamp, end_timestamp, username } = inputs;
       let localStartTimestamp = Date.parse(start_timestamp) / 1000;
       let localEndTimestamp = Date.parse(end_timestamp) / 1000;
 
       if (isAdminUser) {
-        url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+        url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${nextDefaultTime}`;
       } else {
-        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${nextDefaultTime}`;
       }
 
       const res = await API.get(url);
@@ -244,15 +265,15 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [userDispatch]);
 
-  const refresh = useCallback(async () => {
-    const data = await loadQuotaData();
+  const refresh = useCallback(async (defaultTime) => {
+    const data = await loadQuotaData(defaultTime);
     await loadUptimeData();
     return data;
   }, [loadQuotaData, loadUptimeData]);
 
   const handleSearchConfirm = useCallback(
-    async (updateChartDataCallback) => {
-      const data = await refresh();
+    async (updateChartDataCallback, defaultTime) => {
+      const data = await refresh(defaultTime);
       if (data && data.length > 0 && updateChartDataCallback) {
         updateChartDataCallback(data);
       }
@@ -275,6 +296,19 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       initialized.current = true;
     }
   }, [getUserData]);
+
+  useEffect(() => {
+    if (syncedStorageUserKey.current === dashboardStorageUserKey) return;
+    syncedStorageUserKey.current = dashboardStorageUserKey;
+
+    const nextDefaultTime = getDefaultTime(dashboardStorageUserKey);
+    setDataExportDefaultTime(nextDefaultTime);
+    setInputs((inputs) => ({
+      ...inputs,
+      start_timestamp: getInitialTimestamp(dashboardStorageUserKey),
+      end_timestamp: timestamp2string(new Date().getTime() / 1000 + 3600),
+    }));
+  }, [dashboardStorageUserKey]);
 
   return {
     // 基础状态
@@ -329,6 +363,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
     // 函数
     handleInputChange,
+    handleGranularityChange,
     showSearchModal,
     handleCloseModal,
     loadQuotaData,
