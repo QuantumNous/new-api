@@ -25,12 +25,12 @@ import fr from './locales/fr.json'
 import ja from './locales/ja.json'
 import ru from './locales/ru.json'
 import vi from './locales/vi.json'
-import zh from './locales/zh.json'
-import zhTW from './locales/zh.json'
+import zhCN from './locales/zh.json'
+import zhTW from './locales/zh-TW.json'
 
 export const resources = {
   en,
-  zh,
+  zhCN,
   fr,
   ru,
   ja,
@@ -44,8 +44,8 @@ i18n
   .init({
     resources,
     fallbackLng: 'en',
-    supportedLngs: ['en', 'zh', 'fr', 'ru', 'ja', 'vi','zh-TW'],
-    load: 'languageOnly', // Convert zh-CN -> zh
+    supportedLngs: ['en', 'zhCN', 'fr', 'ru', 'ja', 'vi','zhTW'],
+    load: 'currentOnly', // Convert zh-CN -> zh
     nsSeparator: false, // Allow literal colons in keys (e.g., URLs, labels)
     debug: import.meta.env.DEV,
     interpolation: {
