@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,12 +32,32 @@ type DingTalkChannelAlert struct {
 	Now             time.Time
 }
 
+type DingTalkPaymentProcessingAlert struct {
+	Provider            string
+	TradeNo             string
+	EventType           string
+	CustomerID          string
+	CustomerEmail       string
+	ExpectedCurrency    string
+	ExpectedAmountMinor int64
+	ActualCurrency      string
+	ActualAmountMinor   int64
+	ErrorClass          string
+	Error               string
+	Now                 time.Time
+}
+
 type DingTalkAlertCooldown struct {
 	mu     sync.Mutex
 	lastAt map[int]time.Time
 }
 
 type DingTalkModelAlertCooldown struct {
+	mu     sync.Mutex
+	lastAt map[string]time.Time
+}
+
+type DingTalkPaymentAlertCooldown struct {
 	mu     sync.Mutex
 	lastAt map[string]time.Time
 }
@@ -59,25 +80,40 @@ type dingTalkModelAlertCooldownReservation struct {
 	dbReservation *model.CodexModelGovernanceAlertCooldownReservation
 }
 
+type dingTalkPaymentAlertCooldownReservation struct {
+	c           *DingTalkPaymentAlertCooldown
+	key         string
+	reservedAt  time.Time
+	previousAt  time.Time
+	hadPrevious bool
+	redisKey    string
+	redisToken  string
+}
+
 type dingTalkSendResponse struct {
 	ErrCode *int   `json:"errcode"`
 	ErrMsg  string `json:"errmsg"`
 }
 
 var (
-	dingTalkAlertCooldown              = NewDingTalkAlertCooldown()
-	codexGovernanceAlertCooldown       = NewDingTalkModelAlertCooldown()
-	dingTalkCredentialPattern          = regexp.MustCompile(`(?i)(\b(?:access_token|refresh_token|id_token|api[_-]?key|authorization)\b\s*(?::|=)?\s*)(?:"[^"]*"|'[^']*'|bearer\s+[^\s,;}]+|[^\s,;}]+)`)
-	dingTalkQuotedCredentialPattern    = regexp.MustCompile(`(?i)(["'](?:access_token|refresh_token|id_token|api[_-]?key|authorization)["']\s*:\s*)(?:"[^"]*"|'[^']*'|[^,\s}]+)`)
-	dingTalkSKPattern                  = regexp.MustCompile(`sk-[A-Za-z0-9_-]+`)
-	dingTalkAWSKeyPattern              = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
-	dingTalkGoogleAPIKeyPattern        = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
-	dingTalkMaxResponseBodyBytes       = int64(64 * 1024)
-	dingTalkRequestTimeout             = 10 * time.Second
-	dingTalkAlertPendingReservationTTL = dingTalkChannelAlertAISummaryTimeout + 2*dingTalkRequestTimeout
+	dingTalkAlertCooldown                = NewDingTalkAlertCooldown()
+	codexGovernanceAlertCooldown         = NewDingTalkModelAlertCooldown()
+	dingTalkPaymentAlertCooldown         = NewDingTalkPaymentAlertCooldown()
+	dingTalkCredentialPattern            = regexp.MustCompile(`(?i)(\b(?:access_token|refresh_token|id_token|api[_-]?key|authorization)\b\s*(?::|=)?\s*)(?:"[^"]*"|'[^']*'|bearer\s+[^\s,;}]+|[^\s,;}]+)`)
+	dingTalkQuotedCredentialPattern      = regexp.MustCompile(`(?i)(["'](?:access_token|refresh_token|id_token|api[_-]?key|authorization)["']\s*:\s*)(?:"[^"]*"|'[^']*'|[^,\s}]+)`)
+	dingTalkSKPattern                    = regexp.MustCompile(`sk-[A-Za-z0-9_-]+`)
+	dingTalkAWSKeyPattern                = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
+	dingTalkGoogleAPIKeyPattern          = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
+	dingTalkMaxResponseBodyBytes         = int64(64 * 1024)
+	dingTalkRequestTimeout               = 10 * time.Second
+	dingTalkAlertPendingReservationTTL   = dingTalkChannelAlertAISummaryTimeout + 2*dingTalkRequestTimeout
+	generateDingTalkPaymentCooldownToken = common.GenerateRandomCharsKey
 )
 
-const maxDingTalkChannelAlertBatchSize = 5
+const (
+	maxDingTalkChannelAlertBatchSize       = 5
+	maxDingTalkPaymentAlertCooldownEntries = 2048
+)
 
 func NewDingTalkAlertCooldown() *DingTalkAlertCooldown {
 	return &DingTalkAlertCooldown{lastAt: make(map[int]time.Time)}
@@ -85,6 +121,10 @@ func NewDingTalkAlertCooldown() *DingTalkAlertCooldown {
 
 func NewDingTalkModelAlertCooldown() *DingTalkModelAlertCooldown {
 	return &DingTalkModelAlertCooldown{lastAt: make(map[string]time.Time)}
+}
+
+func NewDingTalkPaymentAlertCooldown() *DingTalkPaymentAlertCooldown {
+	return &DingTalkPaymentAlertCooldown{lastAt: make(map[string]time.Time)}
 }
 
 func (c *DingTalkAlertCooldown) Allow(channelID int, now time.Time, cooldown time.Duration) bool {
@@ -143,6 +183,46 @@ func (c *DingTalkModelAlertCooldown) reserve(modelName string, now time.Time, co
 		previousAt:  last,
 		hadPrevious: ok,
 	}, true
+}
+
+func (c *DingTalkPaymentAlertCooldown) reserve(key string, now time.Time, cooldown time.Duration) (*dingTalkPaymentAlertCooldownReservation, bool) {
+	key = strings.TrimSpace(key)
+	if c == nil || cooldown <= 0 || key == "" {
+		return nil, true
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.pruneExpired(now, cooldown)
+	last, ok := c.lastAt[key]
+	if ok && now.Sub(last) < cooldown {
+		return nil, false
+	}
+	if !ok && len(c.lastAt) >= maxDingTalkPaymentAlertCooldownEntries {
+		return nil, false
+	}
+	c.lastAt[key] = now
+	return &dingTalkPaymentAlertCooldownReservation{
+		c:           c,
+		key:         key,
+		reservedAt:  now,
+		previousAt:  last,
+		hadPrevious: ok,
+	}, true
+}
+
+func (c *DingTalkPaymentAlertCooldown) pruneExpired(now time.Time, cooldown time.Duration) {
+	if c == nil || cooldown <= 0 {
+		return
+	}
+	for key, last := range c.lastAt {
+		if !last.IsZero() && now.Sub(last) >= cooldown {
+			delete(c.lastAt, key)
+		}
+	}
 }
 
 func (r *dingTalkAlertCooldownReservation) Rollback() {
@@ -213,6 +293,37 @@ func (r *dingTalkModelAlertCooldownReservation) Commit() error {
 	return model.CommitCodexModelGovernanceAlertCooldown(r.dbReservation)
 }
 
+func (r *dingTalkPaymentAlertCooldownReservation) Rollback() {
+	if r == nil {
+		return
+	}
+	if r.redisKey != "" && r.redisToken != "" && common.RDB != nil {
+		ctx := context.Background()
+		value, err := common.RDB.Get(ctx, r.redisKey).Result()
+		if err == nil && value == r.redisToken {
+			if err := common.RDB.Del(ctx, r.redisKey).Err(); err != nil {
+				common.SysError("failed to rollback dingtalk payment alert cooldown reservation: " + err.Error())
+			}
+		}
+		return
+	}
+	if r.c == nil {
+		return
+	}
+	r.c.mu.Lock()
+	defer r.c.mu.Unlock()
+
+	current, ok := r.c.lastAt[r.key]
+	if !ok || !current.Equal(r.reservedAt) {
+		return
+	}
+	if r.hadPrevious {
+		r.c.lastAt[r.key] = r.previousAt
+		return
+	}
+	delete(r.c.lastAt, r.key)
+}
+
 func reserveDingTalkAlertCooldown(channelID int, now time.Time, cooldown time.Duration) (*dingTalkAlertCooldownReservation, bool) {
 	if model.DB == nil {
 		return dingTalkAlertCooldown.reserve(channelID, now, cooldown)
@@ -261,6 +372,57 @@ func reserveCodexGovernanceAlertCooldown(modelName string, now time.Time, cooldo
 		modelName:     modelName,
 		dbReservation: dbReservation,
 	}, true
+}
+
+func reserveDingTalkPaymentProcessingAlertCooldown(alert DingTalkPaymentProcessingAlert, now time.Time, cooldown time.Duration) (*dingTalkPaymentAlertCooldownReservation, bool) {
+	key := dingTalkPaymentProcessingAlertCooldownKey(alert)
+	if key == "" || cooldown <= 0 {
+		return nil, true
+	}
+	if common.RedisEnabled && common.RDB != nil {
+		token, err := generateDingTalkPaymentCooldownToken(32)
+		if err != nil {
+			common.SysError("failed to generate dingtalk payment alert cooldown reservation token: " + err.Error())
+			return dingTalkPaymentAlertCooldown.reserve(key, now, cooldown)
+		}
+		redisKey := "dingtalk:payment_processing_alert:" + key
+		allowed, err := common.RDB.SetNX(context.Background(), redisKey, token, cooldown).Result()
+		if err != nil {
+			common.SysError("failed to reserve dingtalk payment alert cooldown in redis: " + err.Error())
+			return dingTalkPaymentAlertCooldown.reserve(key, now, cooldown)
+		}
+		if !allowed {
+			return nil, false
+		}
+		return &dingTalkPaymentAlertCooldownReservation{redisKey: redisKey, redisToken: token}, true
+	}
+	return dingTalkPaymentAlertCooldown.reserve(key, now, cooldown)
+}
+
+func dingTalkPaymentProcessingAlertCooldownKey(alert DingTalkPaymentProcessingAlert) string {
+	provider := strings.TrimSpace(alert.Provider)
+	tradeNo := strings.TrimSpace(alert.TradeNo)
+	eventType := strings.TrimSpace(alert.EventType)
+	customerID := strings.TrimSpace(alert.CustomerID)
+	errorClass := dingTalkPaymentProcessingAlertErrorClass(alert)
+	expectedCurrency := strings.ToUpper(strings.TrimSpace(alert.ExpectedCurrency))
+	actualCurrency := strings.ToUpper(strings.TrimSpace(alert.ActualCurrency))
+	if provider == "" && tradeNo == "" && eventType == "" && customerID == "" && errorClass == "" && expectedCurrency == "" && actualCurrency == "" && alert.ExpectedAmountMinor == 0 && alert.ActualAmountMinor == 0 {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(provider + "\x00" + tradeNo + "\x00" + eventType + "\x00" + customerID + "\x00" + errorClass + "\x00" + expectedCurrency + "\x00" + actualCurrency + "\x00" + strconv.FormatInt(alert.ExpectedAmountMinor, 10) + "\x00" + strconv.FormatInt(alert.ActualAmountMinor, 10)))
+	return fmt.Sprintf("%x", sum[:])
+}
+
+func dingTalkPaymentProcessingAlertErrorClass(alert DingTalkPaymentProcessingAlert) string {
+	errorClass := strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(alert.ErrorClass)), "_"))
+	if errorClass != "" {
+		return errorClass
+	}
+	if strings.TrimSpace(alert.Error) != "" {
+		return "uncategorized"
+	}
+	return ""
 }
 
 func codexGovernanceAlertCooldownKey(record *model.CodexModelGovernanceRecord) string {
@@ -312,6 +474,30 @@ func BuildDingTalkChannelAlertContent(alert DingTalkChannelAlert) string {
 		fmt.Sprintf("Status Code: %d", statusCode),
 		fmt.Sprintf("Error Code: %s", errorCode),
 		fmt.Sprintf("Auto Disabled: %s", autoDisabled),
+		fmt.Sprintf("Time: %s", now.Format("2006-01-02 15:04:05")),
+	}, "\n")
+}
+
+func BuildDingTalkPaymentProcessingAlertContent(alert DingTalkPaymentProcessingAlert) string {
+	now := alert.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
+	message := sanitizeDingTalkAlertText(alert.Error)
+	if message == "" {
+		message = "unknown error"
+	}
+
+	return strings.Join([]string{
+		"New API payment processing failed",
+		fmt.Sprintf("Provider: %s", sanitizeDingTalkAlertText(alert.Provider)),
+		fmt.Sprintf("Trade No: %s", sanitizeDingTalkAlertText(alert.TradeNo)),
+		fmt.Sprintf("Event Type: %s", sanitizeDingTalkAlertText(alert.EventType)),
+		fmt.Sprintf("Customer ID: %s", sanitizeDingTalkAlertText(alert.CustomerID)),
+		fmt.Sprintf("Customer Email: %s", sanitizeDingTalkAlertText(common.MaskEmail(alert.CustomerEmail))),
+		fmt.Sprintf("Expected Amount: %d %s", alert.ExpectedAmountMinor, sanitizeDingTalkAlertText(alert.ExpectedCurrency)),
+		fmt.Sprintf("Actual Amount: %d %s", alert.ActualAmountMinor, sanitizeDingTalkAlertText(alert.ActualCurrency)),
+		fmt.Sprintf("Error: %s", message),
 		fmt.Sprintf("Time: %s", now.Format("2006-01-02 15:04:05")),
 	}, "\n")
 }
@@ -477,6 +663,34 @@ func SendDingTalkText(webhookURL string, secret string, content string) error {
 
 func NotifyDingTalkChannelTestFailure(alert DingTalkChannelAlert) error {
 	return NotifyDingTalkChannelTestFailures([]DingTalkChannelAlert{alert})
+}
+
+func NotifyDingTalkPaymentProcessingFailure(alert DingTalkPaymentProcessingAlert) error {
+	setting := operation_setting.GetMonitorSetting()
+	if setting == nil || !setting.DingTalkAlertEnabled {
+		return nil
+	}
+	if strings.TrimSpace(setting.DingTalkAlertWebhookURL) == "" {
+		return fmt.Errorf("dingtalk alert webhook url is empty")
+	}
+	cooldownMinutes := setting.DingTalkAlertCooldownMinutes
+	if cooldownMinutes <= 0 {
+		cooldownMinutes = 60
+	}
+	reservation, allowed := reserveDingTalkPaymentProcessingAlertCooldown(alert, time.Now(), time.Duration(cooldownMinutes)*time.Minute)
+	if !allowed {
+		return nil
+	}
+	err := SendDingTalkText(
+		setting.DingTalkAlertWebhookURL,
+		setting.DingTalkAlertSecret,
+		BuildDingTalkPaymentProcessingAlertContent(alert),
+	)
+	if err != nil {
+		reservation.Rollback()
+		return err
+	}
+	return nil
 }
 
 func NotifyDingTalkCodexModelGovernance(record *model.CodexModelGovernanceRecord) error {

@@ -14,11 +14,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/glebarez/sqlite"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -54,6 +56,298 @@ func TestBuildDingTalkChannelAlertContentMasksSensitiveFields(t *testing.T) {
 	require.Contains(t, content, "Auto Disabled: yes")
 	require.NotContains(t, content, "sk-secret")
 	require.NotContains(t, content, "refresh_token abc")
+}
+
+func TestBuildDingTalkPaymentProcessingAlertContentMasksSensitiveFields(t *testing.T) {
+	content := BuildDingTalkPaymentProcessingAlertContent(DingTalkPaymentProcessingAlert{
+		Provider:            "stripe",
+		TradeNo:             "ref_payment_alert",
+		EventType:           "checkout.session.completed",
+		CustomerID:          "cus_alert",
+		CustomerEmail:       "kurebarr.h@gmail.com",
+		ExpectedCurrency:    "JPY",
+		ExpectedAmountMinor: 3000,
+		ActualCurrency:      "JPY",
+		ActualAmountMinor:   2999,
+		Error:               "amount mismatch access_token secret-token sk-sensitive",
+		Now:                 time.Date(2026, 7, 2, 21, 40, 28, 0, time.Local),
+	})
+
+	require.Contains(t, content, "New API payment processing failed")
+	require.Contains(t, content, "Provider: stripe")
+	require.Contains(t, content, "Trade No: ref_payment_alert")
+	require.Contains(t, content, "Event Type: checkout.session.completed")
+	require.Contains(t, content, "Customer ID: cus_alert")
+	require.Contains(t, content, "Customer Email: ***@***.com")
+	require.Contains(t, content, "Expected Amount: 3000 JPY")
+	require.Contains(t, content, "Actual Amount: 2999 JPY")
+	require.NotContains(t, content, "secret-token")
+	require.NotContains(t, content, "sk-sensitive")
+	require.NotContains(t, content, "kurebarr.h@gmail.com")
+	require.NotContains(t, content, "kurebarr.h")
+}
+
+func TestNotifyDingTalkPaymentProcessingFailureUsesMonitorDingTalk(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalHTTPClient := httpClient
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		httpClient = originalHTTPClient
+	})
+
+	var requests int32
+	var requestBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		requestBody = string(body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+
+	err := NotifyDingTalkPaymentProcessingFailure(DingTalkPaymentProcessingAlert{
+		Provider:            "stripe",
+		TradeNo:             "ref_payment_alert",
+		EventType:           "checkout.session.completed",
+		ExpectedCurrency:    "JPY",
+		ExpectedAmountMinor: 3000,
+		ActualCurrency:      "JPY",
+		ActualAmountMinor:   2999,
+		Error:               "amount mismatch",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
+	require.Contains(t, requestBody, "ref_payment_alert")
+}
+
+func TestNotifyDingTalkPaymentProcessingFailureSuppressesDuplicateAlerts(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalHTTPClient := httpClient
+	originalDB := model.DB
+	originalPaymentCooldown := dingTalkPaymentAlertCooldown
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		httpClient = originalHTTPClient
+		model.DB = originalDB
+		dingTalkPaymentAlertCooldown = originalPaymentCooldown
+	})
+	model.DB = nil
+	dingTalkPaymentAlertCooldown = NewDingTalkPaymentAlertCooldown()
+
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+	setting.DingTalkAlertCooldownMinutes = 60
+
+	alert := DingTalkPaymentProcessingAlert{
+		Provider:  "stripe",
+		TradeNo:   "ref_payment_duplicate",
+		EventType: "checkout.session.completed",
+		Error:     "price mismatch",
+	}
+
+	require.NoError(t, NotifyDingTalkPaymentProcessingFailure(alert))
+	require.NoError(t, NotifyDingTalkPaymentProcessingFailure(alert))
+	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
+}
+
+func TestNotifyDingTalkPaymentProcessingFailureAllowsDistinctFailureContext(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalHTTPClient := httpClient
+	originalDB := model.DB
+	originalRedisEnabled := common.RedisEnabled
+	originalRDB := common.RDB
+	originalPaymentCooldown := dingTalkPaymentAlertCooldown
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		httpClient = originalHTTPClient
+		model.DB = originalDB
+		common.RedisEnabled = originalRedisEnabled
+		common.RDB = originalRDB
+		dingTalkPaymentAlertCooldown = originalPaymentCooldown
+	})
+	model.DB = nil
+	common.RedisEnabled = false
+	common.RDB = nil
+	dingTalkPaymentAlertCooldown = NewDingTalkPaymentAlertCooldown()
+
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+	setting.DingTalkAlertCooldownMinutes = 60
+
+	alert := DingTalkPaymentProcessingAlert{
+		Provider:            "stripe",
+		TradeNo:             "ref_payment_distinct_error",
+		EventType:           "checkout.session.completed",
+		ExpectedCurrency:    "USD",
+		ExpectedAmountMinor: 2000,
+		ActualCurrency:      "USD",
+		ActualAmountMinor:   2000,
+		ErrorClass:          "dependency_error",
+		Error:               "database timeout",
+	}
+
+	require.NoError(t, NotifyDingTalkPaymentProcessingFailure(alert))
+	alert.ErrorClass = "contract_mismatch"
+	alert.Error = "price mismatch"
+	alert.ActualAmountMinor = 1999
+	require.NoError(t, NotifyDingTalkPaymentProcessingFailure(alert))
+	require.Equal(t, int32(2), atomic.LoadInt32(&requests))
+}
+
+func TestDingTalkPaymentAlertCooldownPrunesExpiredLocalEntries(t *testing.T) {
+	cooldown := NewDingTalkPaymentAlertCooldown()
+	now := time.Date(2026, 7, 6, 10, 0, 0, 0, time.UTC)
+	cooldown.lastAt["expired"] = now.Add(-2 * time.Hour)
+	cooldown.lastAt["fresh"] = now.Add(-5 * time.Minute)
+
+	reservation, allowed := cooldown.reserve("new", now, time.Hour)
+
+	require.True(t, allowed)
+	require.NotNil(t, reservation)
+	require.NotContains(t, cooldown.lastAt, "expired")
+	require.Contains(t, cooldown.lastAt, "fresh")
+	require.Contains(t, cooldown.lastAt, "new")
+}
+
+func TestNotifyDingTalkPaymentProcessingFailureSuppressesDynamicErrorsWithSameClass(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalHTTPClient := httpClient
+	originalDB := model.DB
+	originalRedisEnabled := common.RedisEnabled
+	originalRDB := common.RDB
+	originalPaymentCooldown := dingTalkPaymentAlertCooldown
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		httpClient = originalHTTPClient
+		model.DB = originalDB
+		common.RedisEnabled = originalRedisEnabled
+		common.RDB = originalRDB
+		dingTalkPaymentAlertCooldown = originalPaymentCooldown
+	})
+	model.DB = nil
+	common.RedisEnabled = false
+	common.RDB = nil
+	dingTalkPaymentAlertCooldown = NewDingTalkPaymentAlertCooldown()
+
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+	setting.DingTalkAlertCooldownMinutes = 60
+
+	alert := DingTalkPaymentProcessingAlert{
+		Provider:            "stripe",
+		TradeNo:             "ref_payment_dynamic_error",
+		EventType:           "checkout.session.completed",
+		ExpectedCurrency:    "USD",
+		ExpectedAmountMinor: 2000,
+		ActualCurrency:      "USD",
+		ActualAmountMinor:   2000,
+		ErrorClass:          "contract_mismatch",
+		Error:               "Stripe checkout price mismatch: expected price_20 got price_old",
+	}
+
+	require.NoError(t, NotifyDingTalkPaymentProcessingFailure(alert))
+	alert.Error = "Stripe checkout price mismatch: expected price_20 got price_new"
+	require.NoError(t, NotifyDingTalkPaymentProcessingFailure(alert))
+	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
+}
+
+func TestDingTalkPaymentAlertCooldownRejectsNewEntriesAtCapacity(t *testing.T) {
+	cooldown := NewDingTalkPaymentAlertCooldown()
+	now := time.Date(2026, 7, 6, 10, 0, 0, 0, time.UTC)
+
+	for i := 0; i < maxDingTalkPaymentAlertCooldownEntries; i++ {
+		_, allowed := cooldown.reserve(fmt.Sprintf("payment-%04d", i), now.Add(time.Duration(i)*time.Second), time.Hour)
+		require.True(t, allowed)
+	}
+
+	reservation, allowed := cooldown.reserve("payment-over-capacity", now.Add(30*time.Minute), time.Hour)
+
+	require.False(t, allowed)
+	require.Nil(t, reservation)
+	require.Len(t, cooldown.lastAt, maxDingTalkPaymentAlertCooldownEntries)
+	require.Contains(t, cooldown.lastAt, "payment-0000")
+	require.NotContains(t, cooldown.lastAt, "payment-over-capacity")
+}
+
+func TestReserveDingTalkPaymentProcessingAlertCooldownFallsBackWhenTokenGenerationFails(t *testing.T) {
+	originalRedisEnabled := common.RedisEnabled
+	originalRDB := common.RDB
+	originalTokenGenerator := generateDingTalkPaymentCooldownToken
+	originalPaymentCooldown := dingTalkPaymentAlertCooldown
+	t.Cleanup(func() {
+		common.RedisEnabled = originalRedisEnabled
+		common.RDB = originalRDB
+		generateDingTalkPaymentCooldownToken = originalTokenGenerator
+		dingTalkPaymentAlertCooldown = originalPaymentCooldown
+	})
+
+	common.RedisEnabled = true
+	testRedis := redis.NewClient(&redis.Options{Addr: "127.0.0.1:0"})
+	defer testRedis.Close()
+	common.RDB = testRedis
+	dingTalkPaymentAlertCooldown = NewDingTalkPaymentAlertCooldown()
+	generateDingTalkPaymentCooldownToken = func(length int) (string, error) {
+		return "", errors.New("entropy unavailable")
+	}
+
+	reservation, allowed := reserveDingTalkPaymentProcessingAlertCooldown(DingTalkPaymentProcessingAlert{
+		Provider:  "stripe",
+		TradeNo:   "ref_payment_entropy",
+		EventType: "checkout.session.completed",
+		Error:     "price mismatch",
+	}, time.Date(2026, 7, 6, 10, 0, 0, 0, time.UTC), time.Hour)
+
+	require.True(t, allowed)
+	require.NotNil(t, reservation)
+	require.Empty(t, reservation.redisKey)
+	require.NotEmpty(t, reservation.key)
+	require.Len(t, dingTalkPaymentAlertCooldown.lastAt, 1)
 }
 
 func TestBuildDingTalkCodexModelGovernanceAlertContentSanitizesError(t *testing.T) {
