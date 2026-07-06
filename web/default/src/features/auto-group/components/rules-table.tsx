@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
+import type { ColumnFiltersState } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -32,6 +33,7 @@ export function RulesTable() {
 
   // The API returns all rules at once — no server-side pagination needed.
   const [globalFilter, setGlobalFilter] = useState('')
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: QUERY_KEYS.RULES,
@@ -46,6 +48,8 @@ export function RulesTable() {
   const { table } = useDataTable({
     data: rules,
     columns,
+    columnFilters,
+    onColumnFiltersChange: setColumnFilters,
     globalFilter,
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: (row, _columnId, filterValue) => {
