@@ -55,6 +55,12 @@ type responseTask struct {
 		Message string `json:"message"`
 		Code    string `json:"code"`
 	} `json:"error,omitempty"`
+	// xAI grok-imagine-video returns the video URL directly in video.url,
+	// without a separate /content endpoint like OpenAI Sora.
+	Video *struct {
+		URL      string `json:"url"`
+		Duration int    `json:"duration,omitempty"`
+	} `json:"video,omitempty"`
 }
 
 // ============================
@@ -302,10 +308,14 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Status = model.TaskStatusQueued
 	case "processing", "in_progress":
 		taskResult.Status = model.TaskStatusInProgress
-	case "completed":
+	case "completed", "done":
+		// "done" is the terminal success status returned by xAI grok-imagine-video.
 		taskResult.Status = model.TaskStatusSuccess
-		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
-	case "failed", "cancelled":
+		// xAI returns the video URL directly in video.url (no separate content endpoint).
+		if resTask.Video != nil && resTask.Video.URL != "" {
+			taskResult.Url = resTask.Video.URL
+		}
+	case "failed", "cancelled", "error":
 		taskResult.Status = model.TaskStatusFailure
 		if resTask.Error != nil {
 			taskResult.Reason = resTask.Error.Message
