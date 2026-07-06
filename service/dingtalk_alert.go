@@ -31,6 +31,20 @@ type DingTalkChannelAlert struct {
 	Now             time.Time
 }
 
+type DingTalkPaymentProcessingAlert struct {
+	Provider            string
+	TradeNo             string
+	EventType           string
+	CustomerID          string
+	CustomerEmail       string
+	ExpectedCurrency    string
+	ExpectedAmountMinor int64
+	ActualCurrency      string
+	ActualAmountMinor   int64
+	Error               string
+	Now                 time.Time
+}
+
 type DingTalkAlertCooldown struct {
 	mu     sync.Mutex
 	lastAt map[int]time.Time
@@ -316,6 +330,30 @@ func BuildDingTalkChannelAlertContent(alert DingTalkChannelAlert) string {
 	}, "\n")
 }
 
+func BuildDingTalkPaymentProcessingAlertContent(alert DingTalkPaymentProcessingAlert) string {
+	now := alert.Now
+	if now.IsZero() {
+		now = time.Now()
+	}
+	message := sanitizeDingTalkAlertText(alert.Error)
+	if message == "" {
+		message = "unknown error"
+	}
+
+	return strings.Join([]string{
+		"New API payment processing failed",
+		fmt.Sprintf("Provider: %s", sanitizeDingTalkAlertText(alert.Provider)),
+		fmt.Sprintf("Trade No: %s", sanitizeDingTalkAlertText(alert.TradeNo)),
+		fmt.Sprintf("Event Type: %s", sanitizeDingTalkAlertText(alert.EventType)),
+		fmt.Sprintf("Customer ID: %s", sanitizeDingTalkAlertText(alert.CustomerID)),
+		fmt.Sprintf("Customer Email: %s", sanitizeDingTalkAlertText(alert.CustomerEmail)),
+		fmt.Sprintf("Expected Amount: %d %s", alert.ExpectedAmountMinor, sanitizeDingTalkAlertText(alert.ExpectedCurrency)),
+		fmt.Sprintf("Actual Amount: %d %s", alert.ActualAmountMinor, sanitizeDingTalkAlertText(alert.ActualCurrency)),
+		fmt.Sprintf("Error: %s", message),
+		fmt.Sprintf("Time: %s", now.Format("2006-01-02 15:04:05")),
+	}, "\n")
+}
+
 func BuildDingTalkChannelAlertBatchContent(alerts []DingTalkChannelAlert) string {
 	if len(alerts) == 1 {
 		return BuildDingTalkChannelAlertContent(alerts[0])
@@ -477,6 +515,21 @@ func SendDingTalkText(webhookURL string, secret string, content string) error {
 
 func NotifyDingTalkChannelTestFailure(alert DingTalkChannelAlert) error {
 	return NotifyDingTalkChannelTestFailures([]DingTalkChannelAlert{alert})
+}
+
+func NotifyDingTalkPaymentProcessingFailure(alert DingTalkPaymentProcessingAlert) error {
+	setting := operation_setting.GetMonitorSetting()
+	if setting == nil || !setting.DingTalkAlertEnabled {
+		return nil
+	}
+	if strings.TrimSpace(setting.DingTalkAlertWebhookURL) == "" {
+		return fmt.Errorf("dingtalk alert webhook url is empty")
+	}
+	return SendDingTalkText(
+		setting.DingTalkAlertWebhookURL,
+		setting.DingTalkAlertSecret,
+		BuildDingTalkPaymentProcessingAlertContent(alert),
+	)
 }
 
 func NotifyDingTalkCodexModelGovernance(record *model.CodexModelGovernanceRecord) error {

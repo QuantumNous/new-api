@@ -56,6 +56,77 @@ func TestBuildDingTalkChannelAlertContentMasksSensitiveFields(t *testing.T) {
 	require.NotContains(t, content, "refresh_token abc")
 }
 
+func TestBuildDingTalkPaymentProcessingAlertContentMasksSensitiveFields(t *testing.T) {
+	content := BuildDingTalkPaymentProcessingAlertContent(DingTalkPaymentProcessingAlert{
+		Provider:            "stripe",
+		TradeNo:             "ref_payment_alert",
+		EventType:           "checkout.session.completed",
+		CustomerID:          "cus_alert",
+		CustomerEmail:       "kurebarr.h@gmail.com",
+		ExpectedCurrency:    "JPY",
+		ExpectedAmountMinor: 3000,
+		ActualCurrency:      "JPY",
+		ActualAmountMinor:   2999,
+		Error:               "amount mismatch access_token secret-token sk-sensitive",
+		Now:                 time.Date(2026, 7, 2, 21, 40, 28, 0, time.Local),
+	})
+
+	require.Contains(t, content, "New API payment processing failed")
+	require.Contains(t, content, "Provider: stripe")
+	require.Contains(t, content, "Trade No: ref_payment_alert")
+	require.Contains(t, content, "Event Type: checkout.session.completed")
+	require.Contains(t, content, "Customer ID: cus_alert")
+	require.Contains(t, content, "Customer Email: kurebarr.h@***.com")
+	require.Contains(t, content, "Expected Amount: 3000 JPY")
+	require.Contains(t, content, "Actual Amount: 2999 JPY")
+	require.NotContains(t, content, "secret-token")
+	require.NotContains(t, content, "sk-sensitive")
+	require.NotContains(t, content, "kurebarr.h@gmail.com")
+}
+
+func TestNotifyDingTalkPaymentProcessingFailureUsesMonitorDingTalk(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalHTTPClient := httpClient
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		httpClient = originalHTTPClient
+	})
+
+	var requests int32
+	var requestBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		requestBody = string(body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+
+	err := NotifyDingTalkPaymentProcessingFailure(DingTalkPaymentProcessingAlert{
+		Provider:            "stripe",
+		TradeNo:             "ref_payment_alert",
+		EventType:           "checkout.session.completed",
+		ExpectedCurrency:    "JPY",
+		ExpectedAmountMinor: 3000,
+		ActualCurrency:      "JPY",
+		ActualAmountMinor:   2999,
+		Error:               "amount mismatch",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
+	require.Contains(t, requestBody, "ref_payment_alert")
+}
+
 func TestBuildDingTalkCodexModelGovernanceAlertContentSanitizesError(t *testing.T) {
 	record := &model.CodexModelGovernanceRecord{
 		ModelName:          "gpt-5.3-codex",

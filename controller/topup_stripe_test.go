@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -410,7 +411,7 @@ func TestFulfillOrderRejectsMismatchedStripePaymentContract(t *testing.T) {
 		"currency":            "usd",
 		"client_reference_id": "ref_stripe_contract_mismatch",
 	}}}
-	fulfillOrder(context.Background(), event, "ref_stripe_contract_mismatch", "cus_contract", "127.0.0.1")
+	require.Error(t, fulfillOrder(context.Background(), event, "ref_stripe_contract_mismatch", "cus_contract", "127.0.0.1"))
 
 	reloaded := model.GetTopUpByTradeNo("ref_stripe_contract_mismatch")
 	require.NotNil(t, reloaded)
@@ -458,12 +459,259 @@ func TestFulfillOrderAcceptsDiscountedStripePaymentContract(t *testing.T) {
 		"currency":            "usd",
 		"client_reference_id": "ref_stripe_contract_discount",
 	}}}
-	fulfillOrder(context.Background(), event, "ref_stripe_contract_discount", "cus_contract", "127.0.0.1")
+	require.NoError(t, fulfillOrder(context.Background(), event, "ref_stripe_contract_discount", "cus_contract", "127.0.0.1"))
 
 	reloaded := model.GetTopUpByTradeNo("ref_stripe_contract_discount")
 	require.NotNil(t, reloaded)
 	assert.Equal(t, common.TopUpStatusSuccess, reloaded.Status)
 	assert.Equal(t, int(200*common.QuotaPerUnit), stripeFulfillmentUserQuota(t, 902))
+}
+
+func TestFulfillOrderAcceptsStripeLineItemAmountDriftWhenPriceMatches(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent
+	originalNotifier := notifyStripePaymentProcessingFailure
+	t.Cleanup(func() {
+		stripeCheckoutPaymentContractFromEvent = originalContractFromEvent
+		notifyStripePaymentProcessingFailure = originalNotifier
+	})
+	notifyStripePaymentProcessingFailure = func(alert service.DingTalkPaymentProcessingAlert) error {
+		t.Fatalf("unexpected payment processing alert: %+v", alert)
+		return nil
+	}
+
+	insertStripeFulfillmentUser(t, 905)
+	topUp := &model.TopUp{
+		UserId:             905,
+		Amount:             20,
+		Money:              20,
+		PaymentCurrency:    "USD",
+		PaymentPriceId:     "price_20",
+		PaymentAmountMinor: 2000,
+		TradeNo:            "ref_stripe_amount_drift",
+		GatewayTradeNo:     "cs_amount_drift",
+		PaymentMethod:      model.PaymentMethodStripe,
+		PaymentProvider:    model.PaymentProviderStripe,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+	}
+	require.NoError(t, topUp.Insert())
+	stripeCheckoutPaymentContractFromEvent = func(event stripe.Event) (stripeCheckoutPaymentContract, error) {
+		return stripeCheckoutPaymentContract{
+			SessionId:           "cs_amount_drift",
+			PriceId:             "price_20",
+			Quantity:            1,
+			AmountSubtotalMinor: 1999,
+			AmountTotalMinor:    999,
+			Currency:            "USD",
+		}, nil
+	}
+
+	event := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_amount_drift",
+			"amount_total":        float64(999),
+			"currency":            "usd",
+			"client_reference_id": "ref_stripe_amount_drift",
+		}},
+	}
+	require.NoError(t, fulfillOrder(context.Background(), event, "ref_stripe_amount_drift", "cus_amount_drift", "127.0.0.1"))
+
+	reloaded := model.GetTopUpByTradeNo("ref_stripe_amount_drift")
+	require.NotNil(t, reloaded)
+	assert.Equal(t, common.TopUpStatusSuccess, reloaded.Status)
+	assert.Equal(t, 9.99, reloaded.Money)
+	assert.Equal(t, "USD", reloaded.PaymentCurrency)
+	assert.Equal(t, int(20*common.QuotaPerUnit), stripeFulfillmentUserQuota(t, 905))
+}
+
+func TestFulfillOrderAlertsOnStripePaymentContractFailure(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent
+	originalNotifier := notifyStripePaymentProcessingFailure
+	t.Cleanup(func() {
+		stripeCheckoutPaymentContractFromEvent = originalContractFromEvent
+		notifyStripePaymentProcessingFailure = originalNotifier
+	})
+
+	var alerts []service.DingTalkPaymentProcessingAlert
+	notifyStripePaymentProcessingFailure = func(alert service.DingTalkPaymentProcessingAlert) error {
+		alerts = append(alerts, alert)
+		return nil
+	}
+
+	insertStripeFulfillmentUser(t, 903)
+	topUp := &model.TopUp{
+		UserId:             903,
+		Amount:             20,
+		Money:              20,
+		PaymentCurrency:    "USD",
+		PaymentPriceId:     "price_20",
+		PaymentAmountMinor: 2000,
+		TradeNo:            "ref_stripe_contract_alert",
+		GatewayTradeNo:     "cs_contract_alert",
+		PaymentMethod:      model.PaymentMethodStripe,
+		PaymentProvider:    model.PaymentProviderStripe,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+	}
+	require.NoError(t, topUp.Insert())
+	stripeCheckoutPaymentContractFromEvent = func(event stripe.Event) (stripeCheckoutPaymentContract, error) {
+		return stripeCheckoutPaymentContract{
+			SessionId:           "cs_contract_alert",
+			PriceId:             "price_other",
+			Quantity:            1,
+			AmountSubtotalMinor: 1999,
+			AmountTotalMinor:    1999,
+			Currency:            "USD",
+		}, nil
+	}
+
+	event := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_contract_alert",
+			"amount_total":        float64(1999),
+			"currency":            "usd",
+			"client_reference_id": "ref_stripe_contract_alert",
+			"customer":            "cus_contract_alert",
+			"customer_details": map[string]interface{}{
+				"email": "kurebarr.h@gmail.com",
+			},
+		}},
+	}
+	err := fulfillOrder(context.Background(), event, "ref_stripe_contract_alert", "cus_contract_alert", "127.0.0.1")
+
+	require.Error(t, err)
+	require.Len(t, alerts, 1)
+	assert.Equal(t, model.PaymentProviderStripe, alerts[0].Provider)
+	assert.Equal(t, "ref_stripe_contract_alert", alerts[0].TradeNo)
+	assert.Equal(t, string(stripe.EventTypeCheckoutSessionCompleted), alerts[0].EventType)
+	assert.Equal(t, "cus_contract_alert", alerts[0].CustomerID)
+	assert.Equal(t, "kurebarr.h@gmail.com", alerts[0].CustomerEmail)
+	assert.Equal(t, "USD", alerts[0].ExpectedCurrency)
+	assert.Equal(t, int64(2000), alerts[0].ExpectedAmountMinor)
+	assert.Equal(t, "USD", alerts[0].ActualCurrency)
+	assert.Equal(t, int64(1999), alerts[0].ActualAmountMinor)
+	assert.Contains(t, alerts[0].Error, "price mismatch")
+
+	reloaded := model.GetTopUpByTradeNo("ref_stripe_contract_alert")
+	require.NotNil(t, reloaded)
+	assert.Equal(t, common.TopUpStatusPending, reloaded.Status)
+	assert.Equal(t, 0, stripeFulfillmentUserQuota(t, 903))
+}
+
+func TestFulfillOrderAcceptsAdaptivePresentmentCurrency(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent
+	t.Cleanup(func() {
+		stripeCheckoutPaymentContractFromEvent = originalContractFromEvent
+	})
+
+	insertStripeFulfillmentUser(t, 902)
+	topUp := &model.TopUp{
+		UserId:             902,
+		Amount:             20,
+		Money:              20,
+		PaymentCurrency:    "USD",
+		PaymentPriceId:     "price_20",
+		PaymentAmountMinor: 2000,
+		TradeNo:            "ref_stripe_adaptive_jpy",
+		GatewayTradeNo:     "cs_adaptive_jpy",
+		PaymentMethod:      model.PaymentMethodStripe,
+		PaymentProvider:    model.PaymentProviderStripe,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+	}
+	require.NoError(t, topUp.Insert())
+	stripeCheckoutPaymentContractFromEvent = func(event stripe.Event) (stripeCheckoutPaymentContract, error) {
+		return stripeCheckoutPaymentContract{
+			SessionId:           "cs_adaptive_jpy",
+			PriceId:             "price_20",
+			Quantity:            1,
+			AmountSubtotalMinor: 2999,
+			AmountTotalMinor:    2999,
+			Currency:            "JPY",
+		}, nil
+	}
+
+	event := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_adaptive_jpy",
+			"amount_total":        float64(2999),
+			"currency":            "jpy",
+			"client_reference_id": "ref_stripe_adaptive_jpy",
+		}},
+	}
+	require.NoError(t, fulfillOrder(context.Background(), event, "ref_stripe_adaptive_jpy", "cus_adaptive", "127.0.0.1"))
+
+	reloaded := model.GetTopUpByTradeNo("ref_stripe_adaptive_jpy")
+	require.NotNil(t, reloaded)
+	assert.Equal(t, common.TopUpStatusSuccess, reloaded.Status)
+	assert.Equal(t, 2999.0, reloaded.Money)
+	assert.Equal(t, "JPY", reloaded.PaymentCurrency)
+	assert.Equal(t, int(20*common.QuotaPerUnit), stripeFulfillmentUserQuota(t, 902))
+}
+
+func TestFulfillOrderAcceptsGlobalAdaptivePresentmentCurrency(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent
+	originalNotifier := notifyStripePaymentProcessingFailure
+	t.Cleanup(func() {
+		stripeCheckoutPaymentContractFromEvent = originalContractFromEvent
+		notifyStripePaymentProcessingFailure = originalNotifier
+	})
+	notifyStripePaymentProcessingFailure = func(alert service.DingTalkPaymentProcessingAlert) error {
+		t.Fatalf("unexpected payment processing alert: %+v", alert)
+		return nil
+	}
+
+	insertStripeFulfillmentUser(t, 904)
+	topUp := &model.TopUp{
+		UserId:             904,
+		Amount:             20,
+		Money:              20,
+		PaymentCurrency:    "USD",
+		PaymentPriceId:     "price_20",
+		PaymentAmountMinor: 2000,
+		TradeNo:            "ref_stripe_adaptive_eur",
+		GatewayTradeNo:     "cs_adaptive_eur",
+		PaymentMethod:      model.PaymentMethodStripe,
+		PaymentProvider:    model.PaymentProviderStripe,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+	}
+	require.NoError(t, topUp.Insert())
+	stripeCheckoutPaymentContractFromEvent = func(event stripe.Event) (stripeCheckoutPaymentContract, error) {
+		return stripeCheckoutPaymentContract{
+			SessionId:           "cs_adaptive_eur",
+			PriceId:             "price_20",
+			Quantity:            1,
+			AmountSubtotalMinor: 1850,
+			AmountTotalMinor:    1850,
+			Currency:            "EUR",
+		}, nil
+	}
+
+	event := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_adaptive_eur",
+			"amount_total":        float64(1850),
+			"currency":            "eur",
+			"client_reference_id": "ref_stripe_adaptive_eur",
+		}},
+	}
+	require.NoError(t, fulfillOrder(context.Background(), event, "ref_stripe_adaptive_eur", "cus_adaptive", "127.0.0.1"))
+
+	reloaded := model.GetTopUpByTradeNo("ref_stripe_adaptive_eur")
+	require.NotNil(t, reloaded)
+	assert.Equal(t, common.TopUpStatusSuccess, reloaded.Status)
+	assert.Equal(t, 18.5, reloaded.Money)
+	assert.Equal(t, "EUR", reloaded.PaymentCurrency)
+	assert.Equal(t, int(20*common.QuotaPerUnit), stripeFulfillmentUserQuota(t, 904))
 }
 
 func setupStripeFulfillmentTestDB(t *testing.T) {
