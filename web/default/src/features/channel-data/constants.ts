@@ -8,6 +8,7 @@ export const MODEL_TABS: ModelTab[] = [
   { label: 'Fable 5', modelId: 'claude-fable-5', accent: '#a855f7' },
   { label: 'Sonnet 5', modelId: 'claude-sonnet-5', accent: '#a855f7' },
   { label: 'GPT 5.4', modelId: 'gpt-5.4', accent: '#22d3ee' },
+  { label: 'GPT 5.4 Mini', modelId: 'gpt-5.4-mini', accent: '#22d3ee' },
   { label: 'GPT 5.5', modelId: 'gpt-5.5', accent: '#22d3ee' },
   { label: 'Sonnet 4.6', modelId: 'claude-sonnet-4-6', accent: '#a855f7' },
   { label: 'Opus 4.7', modelId: 'claude-opus-4-7', accent: '#a855f7' },
