@@ -393,3 +393,27 @@ func TestResponsesRequestToChatCompletionsRequestMcpServerInnerToolNilParameters
 	require.True(t, ok)
 	assert.Equal(t, "object", params["type"])
 }
+
+func TestResponsesRequestToChatCompletionsRequestMcpServerInnerToolEmptyNameSkipped(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, "hello"),
+		Tools: mustRawMessage(t, []map[string]any{
+			{
+				"type": "mcp_server",
+				"name": "github",
+				"tools": []map[string]any{
+					{"name": "list_issues", "parameters": map[string]any{"type": "object"}},
+					{"description": "no name"},
+					{"name": "  ", "parameters": map[string]any{"type": "object"}},
+					{"name": "create_pr", "parameters": map[string]any{"type": "object"}},
+				},
+			},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Tools, 2)
+	assert.Equal(t, "list_issues", got.Tools[0].Function.Name)
+	assert.Equal(t, "create_pr", got.Tools[1].Function.Name)
+}

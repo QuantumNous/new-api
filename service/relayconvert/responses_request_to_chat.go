@@ -359,30 +359,29 @@ func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, er
 // mcp_server or namespace tool into individual function tool entries.
 // Fields specific to the Responses API (e.g. defer_loading) are stripped.
 func responsesFlattenInnerTools(raw any) []dto.ToolCallRequest {
-	var inner []map[string]any
-	switch v := raw.(type) {
-	case []any:
-		for _, item := range v {
-			if m, ok := item.(map[string]any); ok {
-				inner = append(inner, m)
-			}
-		}
-	case []map[string]any:
-		inner = v
-	default:
+	innerTools, ok := raw.([]any)
+	if !ok {
 		return nil
 	}
 
-	out := make([]dto.ToolCallRequest, 0, len(inner))
-	for _, tool := range inner {
-		params := tool["parameters"]
-		if params == nil {
+	out := make([]dto.ToolCallRequest, 0, len(innerTools))
+	for _, item := range innerTools {
+		tool, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		name := strings.TrimSpace(common.Interface2String(tool["name"]))
+		if name == "" {
+			continue
+		}
+		params, ok := tool["parameters"].(map[string]any)
+		if !ok || params == nil {
 			params = map[string]any{"type": "object", "properties": map[string]any{}}
 		}
 		out = append(out, dto.ToolCallRequest{
 			Type: "function",
 			Function: dto.FunctionRequest{
-				Name:        strings.TrimSpace(common.Interface2String(tool["name"])),
+				Name:        name,
 				Description: common.Interface2String(tool["description"]),
 				Parameters:  params,
 			},
