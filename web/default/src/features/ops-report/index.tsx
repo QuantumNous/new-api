@@ -60,7 +60,6 @@ const DAY_OPTIONS = [7, 30, 60, 90]
 const TAB_VALUES = [
   'registrations',
   'campaigns',
-  'regions',
   'funnel',
   'payment',
   'stripe',

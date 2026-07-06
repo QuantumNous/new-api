@@ -330,10 +330,29 @@ func (a *opsUserAgg) manualKey() bool {
 	return a.tokenStats != nil && a.tokenStats.ManualTokenCount > 0
 }
 
+// opsTopUpUSD converts a top-up's recorded amount to USD. Stripe webhooks write
+// the settled original-currency amount back to top_ups.money (INR 899, JPY 1500…),
+// so non-USD rows are valued at the USD package chosen at order time (bonus_tier).
+// Rows with no derivable USD value report ok=false and are skipped by callers.
+func opsTopUpUSD(t *model.OpsTopUp) (float64, bool) {
+	ccy := strings.ToUpper(strings.TrimSpace(t.PaymentCurrency))
+	if ccy == "" || ccy == "USD" {
+		return t.Money, true
+	}
+	if t.BonusTier > 0 {
+		return float64(t.BonusTier), true
+	}
+	return 0, false
+}
+
 func (a *opsUserAgg) paidUSD() float64 {
 	total := 0.0
 	for _, t := range a.paidOrders {
-		total += t.Money
+		usd, ok := opsTopUpUSD(t)
+		if !ok {
+			continue
+		}
+		total += usd
 	}
 	return total
 }
@@ -540,11 +559,15 @@ func opsRollupPayment(aggs map[int]*opsUserAgg) []opsPaymentRow {
 			continue
 		}
 		row.First++
-		row.FirstUSD += a.paidOrders[0].Money
+		if usd, ok := opsTopUpUSD(a.paidOrders[0]); ok {
+			row.FirstUSD += usd
+		}
 		if len(a.paidOrders) > 1 {
 			row.Repeat++
 			for _, t := range a.paidOrders[1:] {
-				row.RepeatUSD += t.Money
+				if usd, ok := opsTopUpUSD(t); ok {
+					row.RepeatUSD += usd
+				}
 			}
 		}
 	}

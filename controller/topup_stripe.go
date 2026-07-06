@@ -801,10 +801,10 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 	if recharged {
 		topUp := model.GetTopUpByTradeNo(referenceId)
 		sendPaymentSuccessGA(ctx, topUp)
-		// For save-card (onboarding promo) top-ups the card is already marked bound atomically
-		// inside model.Recharge's transaction. Here we only best-effort backfill the card's
-		// fingerprint (a Stripe API call, too slow/failure-prone for the credit transaction),
-		// used for anti-abuse dedup. Only on first fulfillment (recharged==true).
+		// For save-card (onboarding promo) top-ups this performs the actual card binding:
+		// it verifies via the Stripe API that the customer really has a saved card before
+		// setting card_bound (local-method payments finish without saving one), and records
+		// the card fingerprint for anti-abuse dedup. Only on first fulfillment (recharged==true).
 		backfillCardFingerprintFromTopUp(ctx, topUp, customerId, callerIp)
 	}
 
@@ -924,11 +924,12 @@ func stripePaymentSnapshotFromEvent(event stripe.Event) model.PaymentSnapshot {
 	return model.PaymentSnapshot{Money: total / 100, Currency: currency}
 }
 
-// backfillCardFingerprintFromTopUp best-effort records the saved card's Stripe fingerprint
-// (used for anti-abuse dedup) after a save-card top-up. The card is already marked bound
-// atomically inside model.Recharge; this only adds the fingerprint, which requires a slow
-// Stripe API call unsuitable for the credit transaction. No-op for ordinary wallet top-ups.
-// Failures are logged, not fatal. Call only on first fulfillment.
+// backfillCardFingerprintFromTopUp binds the card after a save-card top-up. Save-card
+// Checkouts keep local payment methods available (setup_future_usage is card-scoped), so a
+// completed top-up does not by itself prove a card was saved; this queries the Stripe API for
+// a card actually attached to the customer and only then sets card_bound plus the fingerprint
+// (anti-abuse dedup). No-op for ordinary wallet top-ups and when no card was saved. Failures
+// are logged, not fatal. Call only on first fulfillment.
 func backfillCardFingerprintFromTopUp(ctx context.Context, topUp *model.TopUp, customerId string, callerIp string) {
 	if topUp == nil || topUp.UserId <= 0 {
 		return
@@ -946,14 +947,18 @@ func backfillCardFingerprintFromTopUp(ctx context.Context, topUp *model.TopUp, c
 		}
 	}
 	if customerId == "" {
-		// No customer to query: binding (if any) was handled in the transaction; nothing to add.
+		// No customer to query means no off-session charge is possible anyway; leave unbound.
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe 充值绑卡：缺少 customer，跳过绑卡 user_id=%d trade_no=%s", topUp.UserId, topUp.TradeNo))
 		return
 	}
 	fingerprint := fetchCardFingerprint(customerId)
 	if strings.TrimSpace(fingerprint) == "" {
+		// Either the user paid with a local method (nothing saved — correct to skip) or the
+		// Stripe lookup failed; log so genuinely-saved cards missing a binding are visible.
+		logger.LogInfo(ctx, fmt.Sprintf("Stripe 充值绑卡：customer 无已存卡，跳过绑卡 user_id=%d trade_no=%s customer=%s", topUp.UserId, topUp.TradeNo, customerId))
 		return
 	}
-	// Idempotently persist customer + fingerprint (and ensure card_bound) — safe to repeat.
+	// Idempotently persist customer + fingerprint (and set card_bound) — safe to repeat.
 	if err := model.SetStripeCardBound(topUp.UserId, customerId, fingerprint); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("Stripe 充值绑卡：记录卡指纹失败 user_id=%d trade_no=%s error=%q", topUp.UserId, topUp.TradeNo, err.Error()))
 		return

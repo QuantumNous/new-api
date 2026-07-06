@@ -31,9 +31,11 @@ type TopUp struct {
 	CreateTime         int64   `json:"create_time"`
 	CompleteTime       int64   `json:"complete_time"`
 	Status             string  `json:"status"`
-	// SaveCard records that this top-up's Checkout was created with setup_future_usage
-	// (onboarding promo flow), so the webhook should mark the user card-bound on fulfillment.
-	// This is persisted because Stripe payment-mode sessions don't expose setup_intent on the
+	// SaveCard records that this top-up's Checkout was created with card-scoped
+	// setup_future_usage (onboarding promo flow). It marks intent only: local payment
+	// methods stay available on such sessions, so on fulfillment the webhook must verify
+	// via the Stripe API that a card was actually saved before marking the user card-bound.
+	// Persisted because Stripe payment-mode sessions don't expose setup_intent on the
 	// checkout.session.completed event, so the event alone can't tell us a card was saved.
 	SaveCard bool            `json:"save_card" gorm:"default:false"`
 	Invoice  *PaymentInvoice `json:"invoice,omitempty" gorm:"foreignKey:TradeNo;references:TradeNo"`
@@ -252,17 +254,13 @@ func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp
 		if strings.TrimSpace(customerId) != "" {
 			updateFields["stripe_customer"] = strings.TrimSpace(customerId)
 		}
-		// Bind the card atomically with the credit when this was a save-card (onboarding promo)
-		// top-up: setting stripe_card_bound here — inside the same status-gated transaction that
-		// credits quota — makes binding exactly as idempotent as the credit. It runs only on the
-		// pending→success transition (redelivery hits the Status==Success early return above), so
-		// a webhook replay cannot re-bind a card the user has since removed, and a binding can
-		// never be "lost" relative to a successful credit. Requires a customer to charge later;
-		// without one we skip binding rather than record an unchargeable card_bound=true. The
-		// fingerprint is fetched best-effort outside this tx (Stripe API call) by the caller.
-		if topUp.SaveCard && strings.TrimSpace(customerId) != "" {
-			updateFields["stripe_card_bound"] = true
-		}
+		// stripe_card_bound is deliberately NOT set here. SaveCard only means the Checkout
+		// was created with card-scoped setup_future_usage; since local payment methods
+		// (Alipay/Pix/UPI…) stay available on such sessions, the user may have completed
+		// this top-up without any card being saved. Marking card_bound on SaveCard alone
+		// would flag those users as offline-chargeable and break postpaid auto-charge.
+		// Binding happens in backfillCardFingerprintFromTopUp, which first verifies via
+		// the Stripe API that the customer actually has a saved card.
 		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(updateFields).Error
 		if err != nil {
 			return err

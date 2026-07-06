@@ -2,8 +2,6 @@ package model
 
 import (
 	"fmt"
-
-	"github.com/QuantumNous/new-api/common"
 )
 
 // Ops daily report data layer. All queries are read-only aggregates over the
@@ -58,6 +56,10 @@ type OpsTopUp struct {
 	Status          string  `json:"status"`
 	CreateTime      int64   `json:"create_time"`
 	PaymentCurrency string  `json:"payment_currency"`
+	// BonusTier is the USD package amount chosen at order time; Stripe webhooks
+	// overwrite Money with the settled original-currency amount (e.g. INR 899),
+	// so USD aggregation must go through this field for non-USD rows.
+	BonusTier int `json:"bonus_tier"`
 }
 
 // GetOpsPlgUsers returns every plg-group user (the self-serve population).
@@ -76,8 +78,10 @@ func GetOpsPlgUsers() ([]*OpsPlgUser, error) {
 
 // logsForceIndexHint keeps the optimizer on the user_id index; with large IN
 // lists MySQL has been observed to fall back to a full scan of the logs table.
+// Decided by LOG_DB's own dialect, not the main DB's: with LOG_SQL_DSN the two
+// can differ, and this MySQL-only hint is a syntax error elsewhere.
 func logsForceIndexHint() string {
-	if common.UsingMySQL {
+	if LOG_DB != nil && LOG_DB.Dialector.Name() == "mysql" {
 		return " FORCE INDEX (idx_logs_user_id)"
 	}
 	return ""
@@ -190,13 +194,41 @@ func GetOpsUserTokenStats(autoWindowSec int64) ([]*OpsUserTokenStats, error) {
 func GetOpsTopUps() ([]*OpsTopUp, error) {
 	var topUps []*OpsTopUp
 	sql := fmt.Sprintf(`
-		SELECT t.user_id, t.money, t.status, t.create_time, t.payment_currency
+		SELECT t.user_id, t.money, t.status, t.create_time, t.payment_currency, t.bonus_tier
 		FROM top_ups t
 		INNER JOIN users u ON u.id = t.user_id
 		WHERE u.%s = ?
 		ORDER BY t.create_time`, commonGroupCol)
 	err := DB.Raw(sql, "plg").Scan(&topUps).Error
 	return topUps, err
+}
+
+type OpsTopUpTradeUser struct {
+	TradeNo string `json:"trade_no"`
+	UserId  int    `json:"user_id"`
+}
+
+// GetOpsTopUpUsersByTradeNos maps checkout trade_nos back to local user ids, so the
+// Stripe conversion report can attribute sessions via client_reference_id instead of
+// relying on the (often missing) checkout email.
+func GetOpsTopUpUsersByTradeNos(tradeNos []string) ([]*OpsTopUpTradeUser, error) {
+	var all []*OpsTopUpTradeUser
+	for i := 0; i < len(tradeNos); i += opsReportChunkSize {
+		end := i + opsReportChunkSize
+		if end > len(tradeNos) {
+			end = len(tradeNos)
+		}
+		var batch []*OpsTopUpTradeUser
+		err := DB.Table("top_ups").
+			Select("trade_no, user_id").
+			Where("trade_no IN ?", tradeNos[i:end]).
+			Scan(&batch).Error
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, batch...)
+	}
+	return all, nil
 }
 
 type OpsUserLastIP struct {

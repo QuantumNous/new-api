@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/charge"
@@ -92,6 +93,9 @@ var (
 	opsStripeCache   *opsStripeReport
 	opsStripeCacheAt time.Time
 	opsStripeMutex   sync.Mutex
+	// collapses concurrent cache misses into one Stripe fetch; the mutex only guards
+	// the cache fields and is never held across the (slow, remote) report build.
+	opsStripeGroup singleflight.Group
 )
 
 // GetOpsStripeReport handles GET /api/data/ops_report_stripe?days=N (admin only).
@@ -109,21 +113,31 @@ func GetOpsStripeReport(c *gin.Context) {
 	}
 
 	opsStripeMutex.Lock()
-	defer opsStripeMutex.Unlock()
 	if opsStripeCache != nil && opsStripeCache.Days == days &&
 		time.Since(opsStripeCacheAt) < opsReportCacheTTL {
-		c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": opsStripeCache})
+		report := opsStripeCache
+		opsStripeMutex.Unlock()
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": report})
 		return
 	}
+	opsStripeMutex.Unlock()
 
-	report, err := buildOpsStripeReport(days)
+	v, err, _ := opsStripeGroup.Do(strconv.Itoa(days), func() (interface{}, error) {
+		report, err := buildOpsStripeReport(days)
+		if err != nil {
+			return nil, err
+		}
+		opsStripeMutex.Lock()
+		opsStripeCache = report
+		opsStripeCacheAt = time.Now()
+		opsStripeMutex.Unlock()
+		return report, nil
+	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	opsStripeCache = report
-	opsStripeCacheAt = time.Now()
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": report})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": v.(*opsStripeReport)})
 }
 
 // zero-decimal currencies per Stripe docs: amounts arrive in whole units.
@@ -178,15 +192,17 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 		return nil, err
 	}
 	byEmail := map[string]*model.OpsPlgUser{}
+	byId := map[int]*model.OpsPlgUser{}
 	for _, u := range users {
+		byId[u.Id] = u
 		if u.Email != "" {
-			byEmail[strings.ToLower(u.Email)] = u
+			byEmail[strings.ToLower(strings.TrimSpace(u.Email))] = u
 		}
 	}
 
-	persons := map[string]*opsStripePersonAcc{}
-	acc := func(email string) *opsStripePersonAcc {
-		a, ok := persons[email]
+	persons := map[int]*opsStripePersonAcc{}
+	acc := func(u *model.OpsPlgUser) *opsStripePersonAcc {
+		a, ok := persons[u.Id]
 		if !ok {
 			a = &opsStripePersonAcc{
 				amounts: map[string]int{}, methods: map[string]bool{},
@@ -194,9 +210,8 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 				billingCC: map[string]bool{}, fails: map[string]int{},
 				names: map[string]bool{}, locales: map[string]bool{},
 			}
-			u := byEmail[email]
 			a.row.UserId = u.Id
-			a.row.Email = email
+			a.row.Email = strings.ToLower(strings.TrimSpace(u.Email))
 			a.row.DisplayName = u.DisplayName
 			if a.row.DisplayName == "" {
 				a.row.DisplayName = u.Username
@@ -213,7 +228,7 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 			a.row.Lng = agg.lng
 			a.row.Landing = agg.landing
 			a.row.Referrer = agg.referrer
-			persons[email] = a
+			persons[u.Id] = a
 		}
 		return a
 	}
@@ -278,7 +293,50 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 		return nil, chargeErr
 	}
 
+	// --- attribute sessions via client_reference_id (our trade_no) first ---
+	// Abandoned checkouts usually have no CustomerDetails, and sessions created for an
+	// existing Stripe Customer can lack CustomerEmail, so email-only matching drops the
+	// exact no_action/abandoned population this report exists to surface. The trade_no
+	// was written by us at session creation and resolves through top_ups regardless of
+	// whether the checkout was ever submitted. Email stays as fallback (e.g. setup-mode
+	// card-bind sessions, which carry no client_reference_id).
+	tradeNos := make([]string, 0, len(sessions))
+	seenTradeNos := map[string]bool{}
+	for _, s := range sessions {
+		crid := strings.TrimSpace(s.ClientReferenceID)
+		if crid != "" && !seenTradeNos[crid] {
+			seenTradeNos[crid] = true
+			tradeNos = append(tradeNos, crid)
+		}
+	}
+	userIdByTradeNo := map[string]int{}
+	if len(tradeNos) > 0 {
+		tradeUsers, err := model.GetOpsTopUpUsersByTradeNos(tradeNos)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range tradeUsers {
+			userIdByTradeNo[r.TradeNo] = r.UserId
+		}
+	}
+	sessionUser := func(s *stripe.CheckoutSession) *model.OpsPlgUser {
+		if uid, ok := userIdByTradeNo[strings.TrimSpace(s.ClientReferenceID)]; ok {
+			if u := byId[uid]; u != nil {
+				return u
+			}
+		}
+		email := ""
+		if s.CustomerDetails != nil && s.CustomerDetails.Email != "" {
+			email = s.CustomerDetails.Email
+		} else {
+			email = s.CustomerEmail
+		}
+		return byEmail[strings.ToLower(strings.TrimSpace(email))]
+	}
+
 	// --- checkout sessions ---
+	// payment_intent → user, so charges can be scoped to our checkouts below.
+	userByPaymentIntent := map[string]*model.OpsPlgUser{}
 	for _, s := range sessions {
 		report.SessionsCreated++
 		switch s.Status {
@@ -287,18 +345,15 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 		case stripe.CheckoutSessionStatusExpired:
 			report.SessionsExpired++
 		}
-		email := ""
-		if s.CustomerDetails != nil && s.CustomerDetails.Email != "" {
-			email = s.CustomerDetails.Email
-		} else {
-			email = s.CustomerEmail
-		}
-		email = strings.ToLower(email)
-		if _, ok := byEmail[email]; !ok {
+		u := sessionUser(s)
+		if u == nil {
 			report.UnmatchedSessions++
 			continue
 		}
-		a := acc(email)
+		if s.PaymentIntent != nil && s.PaymentIntent.ID != "" {
+			userByPaymentIntent[s.PaymentIntent.ID] = u
+		}
+		a := acc(u)
 		seen(a, s.Created)
 		a.row.Sessions++
 		if s.Status == stripe.CheckoutSessionStatusComplete {
@@ -318,8 +373,19 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 		}
 	}
 
-	// --- charges: real card attempts ---
+	// --- charges: real payment attempts, scoped to OUR checkout sessions ---
+	// The Stripe account may also carry subscriptions, manual charges, or other
+	// products; matching by billing email alone would count those as top-up attempts.
+	// Only charges whose payment_intent came from a session attributed above are
+	// counted — including in the report-level charge totals.
 	for _, ch := range charges {
+		var u *model.OpsPlgUser
+		if ch.PaymentIntent != nil && ch.PaymentIntent.ID != "" {
+			u = userByPaymentIntent[ch.PaymentIntent.ID]
+		}
+		if u == nil {
+			continue
+		}
 		blocked := ch.Outcome != nil && ch.Outcome.Reason == "highest_risk_level"
 		if ch.Paid {
 			report.ChargesSucceeded++
@@ -329,17 +395,7 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 				report.ChargesBlocked++
 			}
 		}
-		email := ""
-		if ch.BillingDetails != nil && ch.BillingDetails.Email != "" {
-			email = ch.BillingDetails.Email
-		} else {
-			email = ch.ReceiptEmail
-		}
-		email = strings.ToLower(email)
-		if _, ok := byEmail[email]; !ok {
-			continue
-		}
-		a := acc(email)
+		a := acc(u)
 		seen(a, ch.Created)
 		a.row.Attempts++
 		if ch.Paid {

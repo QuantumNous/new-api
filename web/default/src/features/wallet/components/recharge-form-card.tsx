@@ -45,9 +45,11 @@ interface RechargeFormCardProps {
   onStripeTopUp: (preset: PresetAmount) => void
   paymentLoadingAmount?: number | null
   loading?: boolean
-  checkoutCurrency: StripeCheckoutCurrency
-  onCheckoutCurrencyChange: (currency: StripeCheckoutCurrency) => void
-  showCurrencySelector: boolean
+  // Optional: only the wallet page wires these up; other renders (and tests)
+  // fall back to a hidden selector with USD checkout.
+  checkoutCurrency?: StripeCheckoutCurrency
+  onCheckoutCurrencyChange?: (currency: StripeCheckoutCurrency) => void
+  showCurrencySelector?: boolean
 }
 
 // local currencies unlock local payment methods at Stripe checkout
@@ -270,9 +272,11 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
               key={currency}
               size='sm'
               variant={
-                currency === props.checkoutCurrency ? 'default' : 'outline'
+                currency === (props.checkoutCurrency ?? 'USD')
+                  ? 'default'
+                  : 'outline'
               }
-              onClick={() => props.onCheckoutCurrencyChange(currency)}
+              onClick={() => props.onCheckoutCurrencyChange?.(currency)}
             >
               {CURRENCY_SYMBOLS[currency]} {currency}
             </Button>
