@@ -27,6 +27,7 @@ describe("ATTRIBUTION_COOKIE_SCRIPT", () => {
   test("stores campaign parameters in a shared flatkey cookie", () => {
     expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("flatkey_ads_attribution");
     expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("utm_");
+    expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("yclid");
     expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("domain=.flatkey.ai");
     expect(ATTRIBUTION_COOKIE_SCRIPT).toContain("SameSite=Lax");
   });

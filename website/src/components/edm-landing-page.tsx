@@ -1,11 +1,15 @@
 import { ArrowRight, CheckCircle2, ExternalLink, ShieldCheck, Sparkles } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
+import { FlatkeyBrandLogo } from "@/components/flatkey-brand-logo";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { PersonalAiQuickStartTabs } from "@/components/personal-ai-quickstart-tabs";
+import { QuickStartJumpButton } from "@/components/quickstart-jump-button";
 import { SiteFooter } from "@/components/site-footer";
-import { SiteHeader } from "@/components/site-header";
 import { LpLimitedOfferModal } from "@/components/lp-limited-offer-modal";
 import type { EdmCampaignCopy } from "@/lib/edm-landing";
 import { getEdmCtaUrl } from "@/lib/edm-landing";
-import type { Locale } from "@/lib/locales";
+import { type Locale, localizePath } from "@/lib/locales";
 
 type Props = {
   campaign: EdmCampaignCopy;
@@ -25,13 +29,13 @@ export function shouldRenderLandingOfferModal(locale: Locale) {
 
 export function EdmLandingPage(props: Props) {
   const ctaUrl = getEdmCtaUrl();
-  const mainClassName = ["min-h-screen bg-background pt-20 text-foreground", props.locale === "ja" ? "ja-gothic-landing" : ""]
+  const mainClassName = ["min-h-screen bg-background pt-20 pb-20 text-foreground sm:pb-0", props.locale === "ja" ? "ja-gothic-landing" : ""]
     .filter(Boolean)
     .join(" ");
 
   return (
     <>
-      <SiteHeader locale={props.locale} pathname={props.pathname} />
+      <LandingHeader campaign={props.campaign} ctaUrl={ctaUrl} locale={props.locale} pathname={props.pathname} />
       <main className={mainClassName}>
       <section className="mx-auto grid max-w-6xl gap-8 px-5 py-9 md:grid-cols-[minmax(0,1.02fr)_minmax(340px,0.98fr)] md:px-6 md:py-14 lg:gap-14">
         <div className="flex flex-col justify-center">
@@ -71,6 +75,7 @@ export function EdmLandingPage(props: Props) {
               </a>
             ) : null}
           </div>
+          <p className="mt-3 text-xs leading-5 font-medium text-muted-foreground">{props.campaign.ctaNote}</p>
         </div>
 
         <aside className="relative">
@@ -92,6 +97,26 @@ export function EdmLandingPage(props: Props) {
                 ))}
               </div>
               <p className="mt-4 text-sm leading-6 text-muted-foreground">{props.campaign.heroPanel.footnote}</p>
+              {props.campaign.quickStart ? (
+                <div className="mt-5 rounded-lg border border-border bg-background p-4">
+                  <h3 className="text-sm font-bold text-foreground">{props.campaign.quickStart.title}</h3>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">{props.campaign.quickStart.body}</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <QuickStartJumpButton
+                      mode="agent"
+                      className="inline-flex h-10 items-center justify-center rounded-lg border border-border px-3 text-sm font-bold text-foreground transition hover:bg-muted"
+                    >
+                      {props.campaign.quickStart.agentAction}
+                    </QuickStartJumpButton>
+                    <QuickStartJumpButton
+                      mode="sdk"
+                      className="inline-flex h-10 items-center justify-center rounded-lg border border-border px-3 text-sm font-bold text-foreground transition hover:bg-muted"
+                    >
+                      {props.campaign.quickStart.sdkAction}
+                    </QuickStartJumpButton>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : props.campaign.showcase ? (
             <div className="grid gap-3">
@@ -201,11 +226,29 @@ export function EdmLandingPage(props: Props) {
                 {index === 0 ? (
                   <a
                     href={ctaUrl}
-                    className="mt-3 inline-flex items-center gap-1.5 text-sm font-bold text-violet-700 transition hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-200"
+                    className="mt-3 inline-flex items-center gap-1.5 text-sm font-bold text-violet-700 underline decoration-violet-300 underline-offset-4 transition hover:text-violet-900 hover:decoration-violet-700 dark:text-violet-300 dark:decoration-violet-500/70 dark:hover:text-violet-200"
                   >
                     {props.campaign.primaryCta}
                     <ArrowRight className="size-3.5" />
                   </a>
+                ) : null}
+                {index === 1 && props.campaign.quickStart ? (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <QuickStartJumpButton
+                      mode="agent"
+                      className="inline-flex items-center gap-1.5 text-sm font-bold text-violet-700 underline decoration-violet-300 underline-offset-4 transition hover:text-violet-900 hover:decoration-violet-700 dark:text-violet-300 dark:decoration-violet-500/70 dark:hover:text-violet-200"
+                    >
+                      {props.campaign.quickStart.agentAction}
+                      <ArrowRight className="size-3.5" />
+                    </QuickStartJumpButton>
+                    <QuickStartJumpButton
+                      mode="sdk"
+                      className="inline-flex items-center gap-1.5 text-sm font-bold text-violet-700 underline decoration-violet-300 underline-offset-4 transition hover:text-violet-900 hover:decoration-violet-700 dark:text-violet-300 dark:decoration-violet-500/70 dark:hover:text-violet-200"
+                    >
+                      {props.campaign.quickStart.sdkAction}
+                      <ArrowRight className="size-3.5" />
+                    </QuickStartJumpButton>
+                  </div>
                 ) : null}
               </div>
             </article>
@@ -240,6 +283,8 @@ export function EdmLandingPage(props: Props) {
         </div>
       </section>
 
+      {props.campaign.quickStart ? <PersonalAiQuickStartTabs locale={props.locale} /> : null}
+
       <section className="bg-card/70 px-5 py-14 md:px-6 md:py-18">
         <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
           <h2 className="text-3xl font-bold tracking-tight md:text-4xl">{props.campaign.finalTitle}</h2>
@@ -251,6 +296,7 @@ export function EdmLandingPage(props: Props) {
             {props.campaign.primaryCta}
             <ArrowRight className="size-4" />
           </a>
+          <p className="mt-3 text-xs leading-5 font-medium text-muted-foreground">{props.campaign.ctaNote}</p>
         </div>
       </section>
       <SiteFooter locale={props.locale} />
@@ -258,6 +304,40 @@ export function EdmLandingPage(props: Props) {
         <LpLimitedOfferModal ctaLabel={props.campaign.primaryCta} ctaUrl={ctaUrl} locale={props.locale} />
       ) : null}
       </main>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-4 py-3 shadow-[0_-18px_55px_-35px_rgba(15,23,42,0.45)] backdrop-blur-xl sm:hidden">
+        <a
+          href={ctaUrl}
+          className="flatkey-primary-cta flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-bold"
+        >
+          {props.campaign.primaryCta}
+          <ArrowRight className="size-4" />
+        </a>
+        <p className="mt-1 text-center text-[11px] leading-4 text-muted-foreground">{props.campaign.ctaNote}</p>
+      </div>
     </>
+  );
+}
+
+function LandingHeader(props: { campaign: EdmCampaignCopy; ctaUrl: string; locale: Locale; pathname: string }) {
+  return (
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-border/60 bg-background/90 backdrop-blur-xl">
+      <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 md:px-6">
+        <Link className="group flex shrink-0 items-center gap-2.5" href={localizePath("/", props.locale)}>
+          <span className="flex h-11 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-[1.02]">
+            <FlatkeyBrandLogo className="h-11" />
+          </span>
+          <span className="sr-only">flatkey.ai</span>
+        </Link>
+        <div className="flex min-w-0 items-center gap-2">
+          <LanguageSwitcher locale={props.locale} pathname={props.pathname} />
+          <a
+            href={props.ctaUrl}
+            className="flatkey-primary-cta hidden h-9 items-center justify-center rounded-lg px-4 text-xs font-bold transition-opacity hover:opacity-90 sm:inline-flex"
+          >
+            {props.campaign.primaryCta}
+          </a>
+        </div>
+      </nav>
+    </header>
   );
 }

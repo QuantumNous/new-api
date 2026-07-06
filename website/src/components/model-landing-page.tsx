@@ -26,6 +26,7 @@ export function ModelLandingPage({ config, locale, liveModels = [] }: Props) {
   const [prompt, setPrompt] = useState(config.examplePrompt);
   const signInHref = consoleUrl("/sign-up");
   const t = (key: ModelLandingKey, vars?: Record<string, string>) => modelLandingCopy(locale, key, vars);
+  const sdkExampleModelId = getSdkExampleModelId(config.modelId);
   const primaryLiveModel =
     liveModels.find((model) => normalizeModelId(model.model_name) === normalizeModelId(config.modelId)) ??
     liveModels[0] ??
@@ -259,7 +260,7 @@ export function ModelLandingPage({ config, locale, liveModels = [] }: Props) {
               {"\n"}{"  "}api_key=<span className="text-emerald-600">&quot;sk-flatkey-...&quot;</span>,
               {"\n"})
               {"\n"}client.chat.completions.create(model=
-              <span className="text-emerald-600">&quot;{config.modelId}&quot;</span>, ...)
+              <span className="text-emerald-600">&quot;{sdkExampleModelId}&quot;</span>, ...)
             </pre>
           </div>
 
@@ -312,6 +313,10 @@ export function ModelLandingPage({ config, locale, liveModels = [] }: Props) {
       </div>
     </SiteShell>
   );
+}
+
+function getSdkExampleModelId(modelId: string) {
+  return modelId === "gpt-5" ? "gpt-5.5" : modelId;
 }
 
 function LiveMetric(props: { label: string; value: string }) {

@@ -71,11 +71,32 @@ describe("EDM landing campaigns", () => {
     ].join("\n");
 
     expect(campaign.eyebrow).toBe("個人向けAI利用コスト削減");
-    expect(campaign.badge).toBe("20ドルチャージで5ドルボーナス付与");
-    expect(campaign.heroPanel?.rows[1]?.value).toBe("20ドルチャージで5ドルボーナス");
+    expect(campaign.badge).toBe("登録無料・まずAPIキーを発行");
+    expect(campaign.hero.title).toBe("個人開発者向け、AI APIコストを40%削減");
+    expect(campaign.hero.description).toContain("CodexやClaude Code");
+    expect(campaign.hero.description).toContain("自分のソフトウェアにもAI機能");
+    expect(campaign.hero.description).toContain("テキスト・音声・動画・画像モデル");
+    expect(campaign.hero.highlight).toBe("登録無料。APIキー作成後、チャージは実際に使う段階で可能です。");
+    expect(campaign.primaryCta).toBe("無料でAPIキーを作成");
+    expect(campaign.ctaNote).toBe("登録後、そのままAPIキーページへ移動します。");
+    expect(campaign.quickStart?.body).toContain("base_urlとAPIキー");
+    expect(campaign.quickStart?.agentAction).toBe("Codex / Claude Code を設定");
+    expect(campaign.quickStart?.sdkAction).toBe("SDK サンプルをコピー");
+    expect(campaign.offer?.title).toBe("接続方法を選んで、すぐ試す");
+    expect(campaign.offer?.body).toContain("一行コマンド");
+    expect(campaign.offer?.body).toContain("base_url");
+    expect(campaign.heroPanel?.kicker).toBe("次にやること");
+    expect(campaign.heroPanel?.title).toBe("接続方法を選んで、すぐ試す");
+    expect(campaign.heroPanel?.footnote).toBe("Codex / Claude Codeなら一行コマンド、SDKならbase_urlを差し替えるだけです。");
+    expect(campaign.sectionLabels.startTitle).toBe("3ステップで利用開始");
+    expect(campaign.steps[0]?.title).toBe("無料登録");
+    expect(campaign.steps[1]?.title).toBe("接続方法を選択");
+    expect(campaign.steps[1]?.body).not.toContain("APIキーを作成");
+    expect(campaign.steps[2]?.title).toBe("AIモデルを利用開始");
+    expect(campaign.heroPanel?.rows[1]?.value).toBe("無料APIキー");
     expect(campaign.heroPanel?.rows[2]?.value).toBe("1つのAPIキーで一括利用");
     expect(campaign.proof.body).toContain("100億トークンの利用実績");
-    expect(campaign.faqs[1]?.answer).toContain("各社公式の上流トークン");
+    expect(campaign.faqs[1]?.answer).toContain("自分のプロダクト");
 
     expect(copy).not.toMatch(/\b(?:token|tokens|upstream|routing|provider|workflow|prompt|key)\b/i);
     expect(copy).not.toContain("3x");

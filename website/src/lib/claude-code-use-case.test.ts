@@ -32,10 +32,14 @@ describe("Claude Code use-case install scripts", () => {
     expect(CLAUDE_CODE_POSIX_INSTALL_SCRIPT).toContain("@anthropic-ai/claude-code");
     expect(CLAUDE_CODE_POSIX_INSTALL_SCRIPT).toContain("@openai/codex");
     expect(CLAUDE_CODE_POSIX_INSTALL_SCRIPT).toContain("https://router.flatkey.ai/v1");
+    expect(CLAUDE_CODE_POSIX_INSTALL_SCRIPT).toContain('model = "gpt-5.5"');
+    expect(CLAUDE_CODE_POSIX_INSTALL_SCRIPT).not.toContain('model = "gpt-5"');
     expect(CLAUDE_CODE_WINDOWS_INSTALL_SCRIPT).toContain("Which coding agent do you want to install?");
     expect(CLAUDE_CODE_WINDOWS_INSTALL_SCRIPT).toContain("@anthropic-ai/claude-code");
     expect(CLAUDE_CODE_WINDOWS_INSTALL_SCRIPT).toContain("@openai/codex");
     expect(CLAUDE_CODE_WINDOWS_INSTALL_SCRIPT).toContain("https://router.flatkey.ai/v1");
+    expect(CLAUDE_CODE_WINDOWS_INSTALL_SCRIPT).toContain('model = ""gpt-5.5""');
+    expect(CLAUDE_CODE_WINDOWS_INSTALL_SCRIPT).not.toContain('model = ""gpt-5""');
   });
 
   test("uses generic public installer names", () => {

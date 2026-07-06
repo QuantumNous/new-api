@@ -1539,21 +1539,26 @@ export function buildCodeSampleForTest(lang: ApiLang, model: PricingModel, endpo
   const baseUrl = ROUTER_ORIGIN;
   const url = `${baseUrl}${endpointPath}`;
   const userMessage = "Explain quantum entanglement in one paragraph.";
+  const exampleModelName = getExampleModelName(model.model_name);
   const body = endpointType === "openai-response"
-    ? { model: model.model_name, input: userMessage }
-    : { model: model.model_name, messages: [{ role: "user", content: userMessage }], temperature: 0.7 };
+    ? { model: exampleModelName, input: userMessage }
+    : { model: exampleModelName, messages: [{ role: "user", content: userMessage }], temperature: 0.7 };
 
   if (endpointType === "anthropic") {
-    const anthropicBody = { model: model.model_name, max_tokens: 1024, messages: [{ role: "user", content: userMessage }] };
-    if (lang === "python") return `import anthropic\n\nclient = anthropic.Anthropic(\n    base_url="${baseUrl}",\n    api_key="<YOUR_API_KEY>",\n)\n\nmessage = client.messages.create(\n    model="${model.model_name}",\n    max_tokens=1024,\n    messages=[{"role": "user", "content": "${userMessage}"}],\n)\n\nprint(message.content[0].text)`;
+    const anthropicBody = { model: exampleModelName, max_tokens: 1024, messages: [{ role: "user", content: userMessage }] };
+    if (lang === "python") return `import anthropic\n\nclient = anthropic.Anthropic(\n    base_url="${baseUrl}",\n    api_key="<YOUR_API_KEY>",\n)\n\nmessage = client.messages.create(\n    model="${exampleModelName}",\n    max_tokens=1024,\n    messages=[{"role": "user", "content": "${userMessage}"}],\n)\n\nprint(message.content[0].text)`;
     if (lang === "typescript" || lang === "javascript") return `const response = await fetch('${url}', {\n  method: 'POST',\n  headers: {\n    'x-api-key': process.env.NEW_API_KEY,\n    'anthropic-version': '2023-06-01',\n    'Content-Type': 'application/json',\n  },\n  body: JSON.stringify(${JSON.stringify(anthropicBody, null, 2)}),\n})\n\nconst data = await response.json()\nconsole.log(data.content[0].text)`;
     return buildCurl(url, anthropicBody, "x-api-key: $NEW_API_KEY", "anthropic-version: 2023-06-01");
   }
 
-  if (lang === "python") return `from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${baseUrl}/v1",\n    api_key="<YOUR_API_KEY>",\n)\n\ncompletion = client.chat.completions.create(\n    model="${model.model_name}",\n    messages=[{"role": "user", "content": "${userMessage}"}],\n)\n\nprint(completion.choices[0].message.content)`;
-  if (lang === "typescript") return `import OpenAI from 'openai'\n\nconst client = new OpenAI({\n  baseURL: '${baseUrl}/v1',\n  apiKey: process.env.NEW_API_KEY,\n})\n\nconst completion = await client.chat.completions.create({\n  model: '${model.model_name}',\n  messages: [{ role: 'user', content: '${userMessage}' }],\n})\n\nconsole.log(completion.choices[0].message.content)`;
+  if (lang === "python") return `from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${baseUrl}/v1",\n    api_key="<YOUR_API_KEY>",\n)\n\ncompletion = client.chat.completions.create(\n    model="${exampleModelName}",\n    messages=[{"role": "user", "content": "${userMessage}"}],\n)\n\nprint(completion.choices[0].message.content)`;
+  if (lang === "typescript") return `import OpenAI from 'openai'\n\nconst client = new OpenAI({\n  baseURL: '${baseUrl}/v1',\n  apiKey: process.env.NEW_API_KEY,\n})\n\nconst completion = await client.chat.completions.create({\n  model: '${exampleModelName}',\n  messages: [{ role: 'user', content: '${userMessage}' }],\n})\n\nconsole.log(completion.choices[0].message.content)`;
   if (lang === "javascript") return `const response = await fetch('${url}', {\n  method: 'POST',\n  headers: {\n    Authorization: \`Bearer \${process.env.NEW_API_KEY}\`,\n    'Content-Type': 'application/json',\n  },\n  body: JSON.stringify(${JSON.stringify(body, null, 2)}),\n})\n\nconst data = await response.json()\nconsole.log(data)`;
   return buildCurl(url, body, "Authorization: Bearer $NEW_API_KEY");
+}
+
+function getExampleModelName(modelName: string) {
+  return modelName === "gpt-5" ? "gpt-5.5" : modelName;
 }
 
 function buildCurl(url: string, body: unknown, ...headers: string[]): string {

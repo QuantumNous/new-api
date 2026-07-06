@@ -29,4 +29,13 @@ describe("ModelLandingPage", () => {
 
     expect(html.indexOf("Primary Vendor")).toBeLessThan(html.indexOf("Mini Vendor"));
   });
+
+  test("uses gpt-5.5 in the GPT SDK parameter example", () => {
+    const html = renderToStaticMarkup(
+      <ModelLandingPage config={GPT_CONFIG} locale="en" liveModels={[]} />
+    );
+
+    expect(html).toContain("&quot;gpt-5.5&quot;");
+    expect(html).not.toContain("model=<span class=\"text-emerald-600\">&quot;gpt-5&quot;</span>");
+  });
 });

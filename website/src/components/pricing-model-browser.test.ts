@@ -16,4 +16,12 @@ describe("pricing model API samples", () => {
     expect(sample).toContain("https://router.flatkey.ai/v1/chat/completions");
     expect(sample).not.toContain("https://console.flatkey.ai");
   });
+
+  test("show gpt-5.5 instead of gpt-5 in model parameters", () => {
+    const gptModel = { ...model, model_name: "gpt-5" };
+    const sample = buildCodeSampleForTest("curl", gptModel, "openai-chat", "/v1/chat/completions");
+
+    expect(sample).toContain('"model": "gpt-5.5"');
+    expect(sample).not.toContain('"model": "gpt-5"');
+  });
 });

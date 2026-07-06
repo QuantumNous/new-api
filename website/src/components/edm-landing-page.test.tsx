@@ -39,4 +39,28 @@ describe("EdmLandingPage", () => {
     expect(shouldRenderLandingOfferModal("en")).toBe(true);
     expect(shouldRenderLandingOfferModal("zh")).toBe(true);
   });
+
+  test("renders two quick-start paths for the personal AI landing page", () => {
+    const html = renderToStaticMarkup(
+      <EdmLandingPage campaign={getEdmCampaign("personal-ai", "ja")} locale="ja" pathname="/lp/personal-ai" />
+    );
+
+    expect(html).not.toContain("href=\"#agent-quickstart\"");
+    expect(html).not.toContain("href=\"#sdk-quickstart\"");
+    expect(html).not.toContain("id=\"agent-quickstart\"");
+    expect(html).not.toContain("id=\"sdk-quickstart\"");
+    expect(html).toContain("data-quickstart-target=\"agent\"");
+    expect(html).toContain("data-quickstart-target=\"sdk\"");
+    expect(html).toContain("underline decoration-violet-300 underline-offset-4");
+    expect(html).toContain("!grid");
+    expect(html).toContain("Codex / Claude Code を設定");
+    expect(html).toContain("SDK サンプルをコピー");
+    expect(html).toContain("30秒でセットアップ完了");
+    expect(html).not.toContain("Quick Start");
+    expect(html).toContain("使い方");
+    expect(html).not.toContain("Tutorial");
+    expect(html).toContain("curl");
+    expect(html).toContain("Python");
+    expect(html).toContain("Node.js");
+  });
 });
