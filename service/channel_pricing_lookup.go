@@ -25,18 +25,32 @@ type ChannelModelPriceRatios struct {
 func ChannelModelPriceData(channelID int, modelName string) (ChannelModelPriceRatios, bool) {
 	var ch struct {
 		ModelMapping        *string
+		Setting             *string
 		RechargeRate        float64
 		ApimasterPriceRatio float64
 	}
 	_ = model.DB.Table("channels").
-		Select("model_mapping, COALESCE(recharge_rate, 1.0) AS recharge_rate, COALESCE(apimaster_price_ratio, 1.0) AS apimaster_price_ratio").
+		Select("model_mapping, setting, COALESCE(recharge_rate, 1.0) AS recharge_rate, COALESCE(apimaster_price_ratio, 1.0) AS apimaster_price_ratio").
 		Where("id = ?", channelID).
 		Scan(&ch).Error
 
 	candidates := PricingNameCandidates(modelName, ch.ModelMapping)
 	pricing, ok := LookupChannelPricingRow(channelID, candidates)
-	if !ok {
-		return ChannelModelPriceRatios{}, false
+	var inputPrice, outputPrice, cachePrice, cacheCreationPrice float64
+	if ok {
+		inputPrice, outputPrice, cachePrice, cacheCreationPrice =
+			pricing.InputPrice, pricing.OutputPrice, pricing.CachePrice, pricing.CacheCreationPrice
+	} else {
+		// No stored row — resolve live for manual-priced channels (see
+		// fetchModelPriceRatioFallback: manual channels never store a
+		// snapshot, precisely so a 官方原价 edit takes effect on the very
+		// next request instead of waiting for "刷新价格").
+		manual, manualOk := LookupPublicManualPricing(ch.Setting, modelName)
+		if !manualOk || manual.InputPrice <= 0 {
+			return ChannelModelPriceRatios{}, false
+		}
+		inputPrice, outputPrice, cachePrice, cacheCreationPrice =
+			manual.InputPrice, manual.OutputPrice, manual.CachePrice, manual.CacheCreationPrice
 	}
 	row := struct {
 		InputPrice         float64
@@ -45,10 +59,10 @@ func ChannelModelPriceData(channelID int, modelName string) (ChannelModelPriceRa
 		CacheCreationPrice float64
 		RechargeRate       float64
 	}{
-		InputPrice:         pricing.InputPrice,
-		OutputPrice:        pricing.OutputPrice,
-		CachePrice:         pricing.CachePrice,
-		CacheCreationPrice: pricing.CacheCreationPrice,
+		InputPrice:         inputPrice,
+		OutputPrice:        outputPrice,
+		CachePrice:         cachePrice,
+		CacheCreationPrice: cacheCreationPrice,
 		RechargeRate:       ch.RechargeRate,
 	}
 	if row.RechargeRate <= 0 {

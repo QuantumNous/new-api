@@ -172,58 +172,29 @@ func FetchChannelPricing(channel *model.Channel) {
 		channel.Id, keyGroup, groupMul, len(rows)))
 }
 
-// fetchModelPriceRatioFallback uses the operator-set model_price_ratio to derive
-// pricing from the unified 官方原价 (global ratio settings, 系统设置 → 模型定价).
+// fetchModelPriceRatioFallback handles channels priced via the operator-set
+// model_price_ratio + manual_group_ratio (no upstream /api/pricing). It does
+// NOT write a channel_model_pricings snapshot — that would freeze
+// 渠道原价/采购价 at whatever 官方原价 was at write time, going stale the moment
+// an admin edits 系统设置 → 模型定价 (silently under- or over-charging manual
+// channels until someone remembers to click "刷新价格" again).
 //
-// Formula:
-//   input_price  = official_input  × model_price_ratio × groupMul
-//   output_price = official_output × model_price_ratio × groupMul
-//   group_ratio  = groupMul  (shown in GRATIO column)
-//   渠道原价      = input_price / group_ratio = official_input × model_price_ratio
-//
-// groupMul priority: manual_group_ratio > 1.0 default
+// Instead, any existing pricing_source='manual' row for this channel is
+// deleted. Both display (controller.applyPublicManualPricingToRow) and
+// billing (service.ChannelModelPriceData) treat a missing row as "resolve
+// live" via LookupPublicManualPricing, which reads the current 官方原价 ×
+// model_price_ratio × manual_group_ratio on every request — so manual
+// channels track 官方原价 changes immediately, with no snapshot to go stale.
 func fetchModelPriceRatioFallback(ctx context.Context, channel *model.Channel) {
-	groupMul := ExtractManualGroupRatio(channel.Setting)
-	if groupMul <= 0 {
+	if ExtractManualGroupRatio(channel.Setting) <= 0 {
 		return
 	}
-	ratio := effectiveModelPriceRatio(channel.Setting, groupMul)
-
-	now := time.Now().Unix()
-	rows := make([]model.ChannelModelPricing, 0)
-	for _, raw := range strings.Split(channel.Models, ",") {
-		name := strings.TrimSpace(raw)
-		if name == "" {
-			continue
-		}
-		official, ok := lookupOfficialModelPrice(name)
-		if !ok {
-			continue
-		}
-		rows = append(rows, model.ChannelModelPricing{
-			ChannelId:          channel.Id,
-			ModelName:          name,
-			InputPrice:         official.InputPrice * ratio * groupMul,
-			OutputPrice:        official.OutputPrice * ratio * groupMul,
-			CachePrice:         official.CachePrice * ratio * groupMul,
-			CacheCreationPrice: official.CacheCreationPrice * ratio * groupMul,
-			GroupRatio:         groupMul,
-			Currency:           "USD",
-			PricingSource:      "manual",
-			FetchedAt:          now,
-		})
-	}
-
-	if len(rows) == 0 {
-		logger.LogInfo(ctx, fmt.Sprintf("channel-pricing [%d]: model_price_ratio fallback: no matching models", channel.Id))
+	if err := model.DB.Where("channel_id = ? AND pricing_source = ?", channel.Id, "manual").
+		Delete(&model.ChannelModelPricing{}).Error; err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("channel-pricing [%d]: clearing stale manual rows: %v", channel.Id, err))
 		return
 	}
-	if err := model.UpsertChannelModelPricings(rows); err != nil {
-		logger.LogWarn(ctx, fmt.Sprintf("channel-pricing [%d]: model_price_ratio fallback upsert: %v", channel.Id, err))
-		return
-	}
-	logger.LogInfo(ctx, fmt.Sprintf("channel-pricing [%d]: model_price_ratio=%.3f groupMul=%.3f fallback: stored %d model prices from DB cache",
-		channel.Id, ratio, groupMul, len(rows)))
+	logger.LogInfo(ctx, fmt.Sprintf("channel-pricing [%d]: manual pricing now resolved live from 官方原价, cleared any stale snapshot rows", channel.Id))
 }
 
 // ── hub.romaapi.com pricing fallback ───────────────────────────────────────
