@@ -5271,6 +5271,7 @@
     "Card / Billing": "カード / 請求",
     "Cardholder": "カード名義",
     "opened": "開設",
-    "tried": "試行"
+    "tried": "試行",
+    "Shown": "表示された支払方法"
   }
 }

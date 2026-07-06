@@ -5271,6 +5271,7 @@
     "Card / Billing": "Tarjeta / Facturación",
     "Cardholder": "Titular",
     "opened": "abiertas",
-    "tried": "intentos"
+    "tried": "intentos",
+    "Shown": "Métodos mostrados"
   }
 }

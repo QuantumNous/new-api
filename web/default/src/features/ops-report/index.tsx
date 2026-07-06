@@ -485,21 +485,28 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
                 </div>
               </TableCell>
               <TableCell className='max-w-40'>
-                <div>
-                  {(row.card_country ?? [])
-                    .map((cc) => countryLabel(cc, i18n.language))
-                    .join(' ') || '-'}
-                  {(row.billing_cc ?? []).length > 0 && (
-                    <span className='text-muted-foreground text-xs'>
-                      {' '}
-                      / {(row.billing_cc ?? []).join(',')}
-                    </span>
-                  )}
-                </div>
+                {row.attempts > 0 ? (
+                  <div>
+                    {(row.card_country ?? [])
+                      .map((cc) => countryLabel(cc, i18n.language))
+                      .join(' ') || '-'}
+                    {(row.billing_cc ?? []).length > 0 && (
+                      <span className='text-muted-foreground text-xs'>
+                        {' '}
+                        / {(row.billing_cc ?? []).join(',')}
+                      </span>
+                    )}
+                    {(row.card_brands ?? []).length > 0 && (
+                      <span className='text-muted-foreground text-xs'>
+                        {' '}
+                        {(row.card_brands ?? []).join(' ')}
+                      </span>
+                    )}
+                  </div>
+                ) : null}
                 <div className='text-muted-foreground text-xs'>
-                  {[...(row.card_brands ?? []), (row.methods ?? []).join('+')]
-                    .filter(Boolean)
-                    .join(' · ')}
+                  {(row.methods ?? []).length > 0 &&
+                    `${t('Shown')}: ${(row.methods ?? []).join('+')}`}
                 </div>
               </TableCell>
               <TableCell className='max-w-44'>
