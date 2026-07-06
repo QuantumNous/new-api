@@ -231,6 +231,15 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+	// 归一化 stop 字段：某些严格的 OpenAI 兼容上游（基于 Java/Jackson，将 stop 声明为
+	// ArrayList 且未启用 ACCEPT_SINGLE_VALUE_AS_ARRAY）收到单字符串会返回 400。
+	// 转成数组形式，OpenAI 官方/Azure 等主流上游同样接受。
+	if s, ok := request.Stop.(string); ok && s != "" {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf(
+			"stop field normalized from string to array for channel %d (model: %s)",
+			info.ChannelId, info.UpstreamModelName))
+		request.Stop = []string{s}
+	}
 	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
 		request.StreamOptions = nil
 	}
