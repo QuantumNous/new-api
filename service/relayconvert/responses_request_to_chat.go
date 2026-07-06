@@ -331,6 +331,18 @@ func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, er
 			continue
 		}
 
+		if toolType == "mcp_server" || toolType == "namespace" {
+			innerTools := responsesFlattenInnerTools(tool["tools"])
+			out = append(out, innerTools...)
+			continue
+		}
+
+		// tool_search and other Responses-only tool types have no Chat
+		// Completions equivalent; skip them entirely.
+		if toolType == "tool_search" {
+			continue
+		}
+
 		rawTool, err := common.Marshal(tool)
 		if err != nil {
 			return nil, err
@@ -341,6 +353,42 @@ func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, er
 		})
 	}
 	return out, nil
+}
+
+// responsesFlattenInnerTools converts the inner tools array of an
+// mcp_server or namespace tool into individual function tool entries.
+// Fields specific to the Responses API (e.g. defer_loading) are stripped.
+func responsesFlattenInnerTools(raw any) []dto.ToolCallRequest {
+	var inner []map[string]any
+	switch v := raw.(type) {
+	case []any:
+		for _, item := range v {
+			if m, ok := item.(map[string]any); ok {
+				inner = append(inner, m)
+			}
+		}
+	case []map[string]any:
+		inner = v
+	default:
+		return nil
+	}
+
+	out := make([]dto.ToolCallRequest, 0, len(inner))
+	for _, tool := range inner {
+		params := tool["parameters"]
+		if params == nil {
+			params = map[string]any{"type": "object", "properties": map[string]any{}}
+		}
+		out = append(out, dto.ToolCallRequest{
+			Type: "function",
+			Function: dto.FunctionRequest{
+				Name:        strings.TrimSpace(common.Interface2String(tool["name"])),
+				Description: common.Interface2String(tool["description"]),
+				Parameters:  params,
+			},
+		})
+	}
+	return out
 }
 
 func responsesRequestToolChoiceToChat(raw json.RawMessage) (any, error) {
