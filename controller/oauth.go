@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -536,6 +537,10 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		if provider.GetName() == "Feishu" {
 			model.RecordLog(user.Id, model.LogTypeSystem,
 				fmt.Sprintf("飞书OAuth创建用户，分组=%s，额度=0", oauth.GetFeishuDefaultGroup()))
+			// 创建后尝试按岗位自动分组（拉飞书 job_title -> 决策 -> 应用）
+			if user.FeishuId != "" {
+				user.Group = service.TryAutoGroupOnUserCreate(user.Id, user.Group, user.FeishuId)
+			}
 		}
 	}
 

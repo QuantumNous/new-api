@@ -86,7 +86,7 @@ func SyncUsageReportPeriodToBaseWithDiagnostics(rp ReportPeriod) []string {
 // syncTableWithDiagnostics 执行单表同步并返回诊断消息。
 func syncTableWithDiagnostics(tableName, tableID string, fn func()) []string {
 	if tableID == "" {
-		return []string{fmt.Sprintf("table %s: skipped (table_id is empty)")}
+		return []string{fmt.Sprintf("table %s: skipped (table_id is empty)", tableName)}
 	}
 	fn()
 	return []string{fmt.Sprintf("table %s: synced (table_id=%s)", tableName, tableID)}

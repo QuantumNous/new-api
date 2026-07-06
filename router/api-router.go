@@ -369,6 +369,21 @@ func SetApiRouter(router *gin.Engine) {
 			groupRoute.GET("/", controller.GetGroups)
 		}
 
+		// Auto group by job_title (按岗位自动分组)
+		autoGroupRoute := apiRouter.Group("/auto-group")
+		autoGroupRoute.Use(middleware.AdminAuth())
+		{
+			autoGroupRoute.GET("/rules", controller.GetAutoGroupRules)
+			autoGroupRoute.POST("/rules", controller.CreateAutoGroupRule)
+			autoGroupRoute.PUT("/rules/:id", controller.UpdateAutoGroupRule)
+			autoGroupRoute.DELETE("/rules/:id", controller.DeleteAutoGroupRule)
+			autoGroupRoute.GET("/resolve", controller.ResolveAutoGroup)
+			autoGroupRoute.GET("/config", controller.GetAutoGroupConfig)
+			autoGroupRoute.PUT("/config", controller.UpdateAutoGroupConfig)
+			autoGroupRoute.POST("/initialize/preview", controller.InitializeAutoGroupPreview)
+			autoGroupRoute.POST("/initialize/apply", controller.InitializeAutoGroupApply)
+		}
+
 		prefillGroupRoute := apiRouter.Group("/prefill_group")
 		prefillGroupRoute.Use(middleware.AdminAuth())
 		{

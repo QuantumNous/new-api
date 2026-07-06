@@ -28,6 +28,10 @@ var logKeyCol string
 var logGroupCol string
 
 func CommonGroupColumnName() string {
+	if commonGroupCol == "" {
+		// 兜底：在 InitDB 尚未调用 initCol 时（如测试场景）按非 PG 方言初始化
+		commonGroupCol = "`group`"
+	}
 	return commonGroupCol
 }
 
@@ -308,6 +312,7 @@ func migrateDB() error {
 		&CasbinRule{},
 		&AuthzRole{},
 		&UsageReportSnapshot{},
+		&GroupMappingRule{},
 	)
 	if err != nil {
 		return err
@@ -361,6 +366,7 @@ func migrateDBFast() error {
 		{&SystemTask{}, "SystemTask"},
 		{&SystemTaskLock{}, "SystemTaskLock"},
 		{&UsageReportSnapshot{}, "UsageReportSnapshot"},
+		{&GroupMappingRule{}, "GroupMappingRule"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

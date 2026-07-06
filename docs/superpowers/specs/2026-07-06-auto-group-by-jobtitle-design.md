@@ -174,7 +174,7 @@ func IsProtectedGroup(group string) bool {
     if group == "" {
         return false
     }
-    raw := model.OptionMap["auto_group.protected_groups"] // 内存缓存，注册到 OptionMap
+    raw := optionMap["auto_group.protected_groups"] // 已在内存缓存
     for _, g := range strings.Split(raw, ",") {
         if strings.TrimSpace(g) == group {
             return true
@@ -241,7 +241,7 @@ func FetchFeishuJobTitle(feishuUserId string) (string, error) { ... }
 | 飞书批量创建 | `controller/feishu_admin_api.go:692-695` | 若 `item.Group` 显式指定则用它（管理员意图优先）；否则拉飞书 + 自动决策；再否则 `default` |
 | 管理员手动创建 | `controller/user.go:1052` `FinishInsert` 之后 | 仅当该用户有 `FeishuId` 时尝试；普通注册用户跳过 |
 
-**失败容忍**：拉飞书失败 → `common.SysLog` warn → 保持现有默认分组，不向调用方报错。
+**失败容忍**：拉飞书失败 → `common.SysLog` warn → 保持现有默认分组，不向调用方报错。调用处需 `defer recover()` 防止飞书 SDK panic 导致创建请求失败（飞书 SDK 在网络异常时偶发 panic）。
 
 ### 触发点 2：定时同步任务重算
 

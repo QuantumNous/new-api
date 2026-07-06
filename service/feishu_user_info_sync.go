@@ -187,6 +187,14 @@ func syncOneFeishuUserInfo(ctx context.Context, client *lark.Client, user *model
 		return err
 	}
 
+	// 拉到 JobTitle 后重算 group（用户调岗的兜底）
+	if jobTitle, ok := updates["job_title"].(string); ok && strings.TrimSpace(jobTitle) != "" {
+		oldGroup := user.Group
+		if newGroup, changed := TryAutoGroupOnJobTitle(user.Id, oldGroup, jobTitle); changed {
+			user.Group = newGroup
+		}
+	}
+
 	// 状态变更后刷新缓存
 	if _, ok := updates["status"]; ok {
 		_ = model.InvalidateUserCache(user.Id)

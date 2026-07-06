@@ -666,6 +666,16 @@ export function UsersMutateDrawer({
                   <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
                     <div>
                       <Label className='text-muted-foreground text-xs'>
+                        {t('Job Title')}
+                      </Label>
+                      <Input
+                        value={displayUser?.job_title || '-'}
+                        disabled
+                        className='mt-1'
+                      />
+                    </div>
+                    <div>
+                      <Label className='text-muted-foreground text-xs'>
                         {t('Department')}
                       </Label>
                       <Input

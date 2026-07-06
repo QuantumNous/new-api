@@ -60,6 +60,7 @@ export const userSchema = z.object({
   feishu_parent_department_id: z.string().optional(),
   feishu_parent_department_name: z.string().optional(),
   feishu_employment_status: z.string().optional(),
+  job_title: z.string().optional(),
   feishu_synced_at: z.number().optional(),
   org_path: z.string().optional(),
   org_level1_name: z.string().optional(),

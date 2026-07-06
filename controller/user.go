@@ -1051,6 +1051,11 @@ func CreateUser(c *gin.Context) {
 	}
 	cleanUser.FinishInsert(0)
 
+	// 若新建用户绑定飞书身份，尝试按岗位自动分组（拉 job_title -> 决策 -> 应用）
+	if cleanUser.FeishuId != "" {
+		cleanUser.Group = service.TryAutoGroupOnUserCreate(cleanUser.Id, cleanUser.Group, cleanUser.FeishuId)
+	}
+
 	recordManageAuditFor(c, cleanUser.Id, "user.create", map[string]interface{}{
 		"username": cleanUser.Username,
 		"role":     cleanUser.Role,
