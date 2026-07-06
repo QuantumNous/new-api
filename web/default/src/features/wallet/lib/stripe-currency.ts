@@ -32,6 +32,30 @@ export const STRIPE_CHECKOUT_CURRENCY_OPTIONS: StripeCheckoutCurrency[] = [
   'JPY',
 ]
 
+// Regions where the selector is worth showing: a local currency unlocks a
+// local payment method (INR→UPI, BRL→Pix, JPY→local pricing), plus CN where
+// users look for non-card options. Everyone else pays USD by card without
+// friction, so the selector stays hidden for them.
+const CURRENCY_SELECTOR_REGIONS = new Set(['IN', 'BR', 'JP', 'CN'])
+
+export function shouldShowCurrencySelector(
+  region: string | undefined
+): boolean {
+  return !!region && CURRENCY_SELECTOR_REGIONS.has(region.toUpperCase())
+}
+
+const REGION_DEFAULT_CURRENCY: Record<string, StripeCheckoutCurrency> = {
+  IN: 'INR',
+  BR: 'BRL',
+  JP: 'JPY',
+}
+
+export function defaultCurrencyForRegion(
+  region: string | undefined
+): StripeCheckoutCurrency {
+  return REGION_DEFAULT_CURRENCY[region?.toUpperCase() ?? ''] ?? 'USD'
+}
+
 export function normalizeStripeCheckoutCurrency(
   currency: string | undefined
 ): StripeCheckoutCurrency | undefined {

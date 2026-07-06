@@ -199,6 +199,8 @@ export interface TopupInfo {
   bonus_remaining?: Record<number, number>
   /** Optional topup link for purchasing codes */
   topup_link?: string
+  /** ISO country of the caller IP ("?" when unknown); gates the checkout-currency selector */
+  client_region?: string
   /** Whether Creem topup is enabled */
   enable_creem_topup?: boolean
   /** Available Creem products */

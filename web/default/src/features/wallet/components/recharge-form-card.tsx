@@ -47,6 +47,7 @@ interface RechargeFormCardProps {
   loading?: boolean
   checkoutCurrency: StripeCheckoutCurrency
   onCheckoutCurrencyChange: (currency: StripeCheckoutCurrency) => void
+  showCurrencySelector: boolean
 }
 
 // local currencies unlock local payment methods at Stripe checkout
@@ -257,7 +258,9 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
       icon={<WalletCards className='h-4 w-4' />}
       contentClassName='space-y-4 sm:space-y-6'
     >
-      {stripeEnabled && checkoutPresetAmounts.length > 0 ? (
+      {props.showCurrencySelector &&
+      stripeEnabled &&
+      checkoutPresetAmounts.length > 0 ? (
         <div className='flex flex-wrap items-center gap-2'>
           <span className='text-muted-foreground text-xs'>
             {t('Checkout currency')}

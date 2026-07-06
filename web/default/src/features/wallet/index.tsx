@@ -56,8 +56,10 @@ import {
   getPaddleCheckoutUrlFallback,
   getWalletCheckoutInitialTopupAmount,
   isPresetTopupAmount,
+  defaultCurrencyForRegion,
   normalizeStripeCheckoutCurrency,
   shouldConsumeWalletCheckoutSearchParams,
+  shouldShowCurrencySelector,
   type StripeCheckoutCurrency,
   type WalletCheckoutSearch,
 } from './lib'
@@ -133,6 +135,16 @@ export function Wallet(props: WalletProps) {
           props.initialCheckoutSearch?.currency
         ) ?? 'USD'
     )
+  const currencyTouchedRef = useRef(
+    normalizeStripeCheckoutCurrency(props.initialCheckoutSearch?.currency) !=
+      null
+  )
+
+  const handleCheckoutCurrencyChange = (currency: StripeCheckoutCurrency) => {
+    currencyTouchedRef.current = true
+    setCheckoutCurrency(currency)
+  }
+
   const [paymentLoadingAmount, setPaymentLoadingAmount] = useState<
     number | null
   >(null)
@@ -148,6 +160,12 @@ export function Wallet(props: WalletProps) {
   const [cardBoundDialogOpen, setCardBoundDialogOpen] = useState(false)
 
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
+  // default the settlement currency by caller region (IN→INR, BR→BRL, JP→JPY)
+  // unless the URL or the user already picked one
+  useEffect(() => {
+    if (currencyTouchedRef.current || !topupInfo?.client_region) return
+    setCheckoutCurrency(defaultCurrencyForRegion(topupInfo.client_region))
+  }, [topupInfo?.client_region])
 
   const { processing, processPayment } = usePayment()
   const {
@@ -692,7 +710,13 @@ export function Wallet(props: WalletProps) {
                   }
                   loading={topupLoading}
                   checkoutCurrency={checkoutCurrency}
-                  onCheckoutCurrencyChange={setCheckoutCurrency}
+                  onCheckoutCurrencyChange={handleCheckoutCurrencyChange}
+                  showCurrencySelector={
+                    shouldShowCurrencySelector(topupInfo?.client_region) ||
+                    normalizeStripeCheckoutCurrency(
+                      props.initialCheckoutSearch?.currency
+                    ) != null
+                  }
                 />
               </div>
 
