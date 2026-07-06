@@ -1,20 +1,27 @@
-// Package gpustackplus（普通 Adaptor）实现 GPUStackPlus 的**同步生图**链路：
-// /v1/images/generations → 提交 LightX2V /v1/tasks/image/（异步）→ 阻塞轮询 status →
-// 拿 save_result_path（成品在 SFS 上的绝对路径）→ 落 OBS → 返回 OpenAI 图片响应（OBS 签名 URL）。
+// Package gpustackplus(普通 Adaptor)实现 GPUStackPlus 的**同步图片**链路:
+// /v1/images/generations(t2i)与 /v1/images/edits(i2i,qwen-image-edit)→
+// 提交 GPUStack 异步门面 POST /v1/videos → 服务端阻塞轮询 GET /v1/videos/{id} →
+// done 后拿 nfs_path(成品在共享 SFS 上的绝对路径)→ 落 OBS → 返回 OpenAI 图片
+// 响应(OBS 签名 URL)。
 //
-// 与同名的 relay/channel/task/gpustackplus（任务 Adaptor，负责视频）区分：
-// 同一渠道类型 ChannelTypeGPUStackPlus 的两条链路——视频走任务子系统（异步、客户端轮询），
-// 图片走这里的同步 relay（服务端阻塞轮询，一次返回 URL）。
+// 与同名的 relay/channel/task/gpustackplus(任务 Adaptor,负责视频)区分:
+// 同一渠道类型 ChannelTypeGPUStackPlus 的两条链路——视频走任务子系统(异步、
+// 客户端轮询),图片走这里的同步 relay(服务端阻塞轮询,一次返回 URL)。
+//
+// 门面契约(2026-07-06 上线,gpustack 仓 docs/lightx2v-m4-m5-handover.md):
+// 提交 body {model(必填), task_type: t2i|i2i, prompt, user_id, image(URL/base64)};
+// save_result_path / image_path 等引擎原生路径字段由门面 dictates,外部传入会被
+// 剥掉——new-api 不再拼路径/mkdir;状态 queued/assigned/running/done/failed/canceled。
 package gpustackplus
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,31 +32,32 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/mediastore"
-	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
 
-// 轮询参数：生图（如 Z-Image 9 步 ~8s）远快于视频，5s 起轮、每 3s 一次、上限 ~5 分钟。
+// 轮询参数:生图(z-image ~8s / qwen-edit 热态 ~22-38s、冷启含加载可达分钟级)
+// 远快于视频,3s 起轮、每 3s 一次、上限 ~5 分钟。
 const (
 	pollInitialDelay = 3 * time.Second
 	pollInterval     = 3 * time.Second
 	pollMaxSteps     = 100
 )
 
+// submitResponse 门面提交接口返回(_public 形态)。
 type submitResponse struct {
-	TaskID         string `json:"task_id"`
-	TaskStatus     string `json:"task_status"`
-	SaveResultPath string `json:"save_result_path"`
+	TaskID string `json:"task_id"`
+	Status string `json:"status"`
 }
 
+// statusResponse 门面状态接口返回;done 时 nfs_path 为成品绝对路径。
 type statusResponse struct {
-	TaskID         string `json:"task_id"`
-	Status         string `json:"status"`
-	Error          string `json:"error"`
-	ErrorType      string `json:"error_type"`
-	SaveResultPath string `json:"save_result_path"`
+	TaskID    string `json:"task_id"`
+	Status    string `json:"status"`
+	NFSPath   string `json:"nfs_path"`
+	Error     string `json:"error"`
+	ErrorType string `json:"error_type"`
 }
 
 type Adaptor struct {
@@ -63,7 +71,7 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	return fmt.Sprintf("%s/v1/tasks/image/", strings.TrimRight(info.ChannelBaseUrl, "/")), nil
+	return fmt.Sprintf("%s/v1/videos", strings.TrimRight(info.ChannelBaseUrl, "/")), nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
@@ -75,50 +83,110 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	return nil
 }
 
-// ConvertImageRequest 构造 LightX2V 生图提交体，并由 new-api 拼含 user_id 的 save_result_path
-// + 建好父目录（new-api 对该 SFS 有写权限）。
+// ConvertImageRequest 构造门面生图提交体:generations → t2i;edits → i2i(带底图,
+// URL / base64 直透,multipart 文件读字节转 data-uri;门面负责持久化到 SFS 再喂引擎)。
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	// 目前只支持文生图。图片编辑（/v1/images/edits）需要转发底图/蒙版并改走 i2i 端点，
-	// 尚未实现——提前拒绝，避免把底图丢弃后静默退化成一次纯文生图（给错结果）。
-	if info.RelayMode == relayconstant.RelayModeImagesEdits {
-		return nil, errors.New("gpustackplus 暂不支持图片编辑（/v1/images/edits），请使用 /v1/images/generations")
-	}
-	// 成品只落 SFS，必须经 OBS 才能对外提供 URL——存储关闭时提前拒绝，不占用 GPU。
+	// 成品只落 SFS,必须经 OBS 才能对外提供 URL——存储关闭时提前拒绝,不占用 GPU。
 	if !mediastore.Enabled() {
-		return nil, errors.New("媒体存储（OBS）未启用，gpustackplus 渠道无法对外提供成品 URL，请先在系统设置启用")
+		return nil, errors.New("媒体存储(OBS)未启用,gpustackplus 渠道无法对外提供成品 URL,请先在系统设置启用")
 	}
 	if strings.TrimSpace(request.Prompt) == "" {
 		return nil, errors.New("prompt is required")
 	}
-	savePath, err := buildSaveResultPath(info, request)
-	if err != nil {
-		return nil, err
+	modelName := firstNonEmpty(info.UpstreamModelName, request.Model, info.OriginModelName)
+	if modelName == "" {
+		return nil, errors.New("model is required(渠道模型映射与请求 model 均为空)")
 	}
-	if err := os.MkdirAll(filepath.Dir(savePath), 0o755); err != nil {
-		return nil, fmt.Errorf("mkdir save_result_path dir failed (new-api 是否已读写挂载 SFS?): %w", err)
-	}
+
 	body := map[string]any{
-		"prompt":           request.Prompt,
-		"save_result_path": savePath,
+		"model":   modelName,
+		"prompt":  request.Prompt,
+		"user_id": info.UserId,
+	}
+
+	switch info.RelayMode {
+	case relayconstant.RelayModeImagesGenerations:
+		body["task_type"] = "t2i"
+		if ar := aspectRatioFromSize(request.Size); ar != "" {
+			body["aspect_ratio"] = ar
+		}
+	case relayconstant.RelayModeImagesEdits:
+		body["task_type"] = "i2i"
+		img, err := extractEditImage(c, request)
+		if err != nil {
+			return nil, err
+		}
+		body["image"] = img
+	default:
+		return nil, errors.New("gpustackplus 图片链路仅支持 /v1/images/generations 与 /v1/images/edits")
 	}
 	return body, nil
 }
 
-// buildSaveResultPath 拼 <root>/t2i-<模型>/YYYY/MM/DD/<user_id>/<rand>.png。
-func buildSaveResultPath(info *relaycommon.RelayInfo, request dto.ImageRequest) (string, error) {
-	root := system_setting.GetMediaStorageSettings().NFSRoot()
-	modelSeg := sanitizeSeg(firstNonEmpty(info.OriginModelName, info.UpstreamModelName, request.Model, "model"))
-	now := time.Now().UTC()
-	name := "img_" + common.GetRandomString(16) + ".png"
-	return filepath.Join(
-		root,
-		"t2i-"+modelSeg,
-		fmt.Sprintf("%04d", now.Year()),
-		fmt.Sprintf("%02d", int(now.Month())),
-		fmt.Sprintf("%02d", now.Day()),
-		fmt.Sprintf("%d", info.UserId),
-		name,
-	), nil
+// extractEditImage 从 edits 请求取底图:JSON 的 image 字段(字符串或数组首元素,
+// URL / data-uri / 裸 base64 门面都认)或 multipart 的 image 文件(读字节转 data-uri)。
+func extractEditImage(c *gin.Context, request dto.ImageRequest) (string, error) {
+	// JSON 请求:image 字段直透。
+	if len(request.Image) > 0 {
+		var s string
+		if err := common.Unmarshal(request.Image, &s); err == nil && strings.TrimSpace(s) != "" {
+			return s, nil
+		}
+		var arr []string
+		if err := common.Unmarshal(request.Image, &arr); err == nil && len(arr) > 0 && strings.TrimSpace(arr[0]) != "" {
+			return arr[0], nil
+		}
+	}
+	// multipart 请求:读第一个 image 文件。
+	mf := c.Request.MultipartForm
+	if mf == nil {
+		if _, err := c.MultipartForm(); err == nil {
+			mf = c.Request.MultipartForm
+		}
+	}
+	if mf != nil && mf.File != nil {
+		files := mf.File["image"]
+		if len(files) == 0 {
+			files = mf.File["image[]"]
+		}
+		if len(files) > 0 {
+			f, err := files[0].Open()
+			if err != nil {
+				return "", fmt.Errorf("打开上传底图失败: %w", err)
+			}
+			defer f.Close()
+			data, err := io.ReadAll(f)
+			if err != nil {
+				return "", fmt.Errorf("读取上传底图失败: %w", err)
+			}
+			mime := http.DetectContentType(data)
+			return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+		}
+	}
+	return "", errors.New("图片编辑(i2i)必须提供底图:JSON 的 image 字段或 multipart 的 image 文件")
+}
+
+// aspectRatioFromSize 把 OpenAI 风格 "WxH" 化简为引擎的 aspect_ratio "W:H";
+// 解析不了则省略(引擎用配置默认值)。
+func aspectRatioFromSize(size string) string {
+	parts := strings.SplitN(strings.ToLower(strings.TrimSpace(size)), "x", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+	w, err1 := strconv.Atoi(parts[0])
+	h, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil || w <= 0 || h <= 0 {
+		return ""
+	}
+	g := gcd(w, h)
+	return fmt.Sprintf("%d:%d", w/g, h/g)
+}
+
+func gcd(a, b int) int {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	return a
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -126,12 +194,12 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.RelayMode != relayconstant.RelayModeImagesGenerations {
-		// 只认文生图；edits 已在 ConvertImageRequest 提前拒绝，这里是防御性收紧。
-		return nil, types.NewError(errors.New("gpustackplus 渠道仅支持生图 /v1/images/generations"), types.ErrorCodeInvalidRequest)
+	if info.RelayMode != relayconstant.RelayModeImagesGenerations &&
+		info.RelayMode != relayconstant.RelayModeImagesEdits {
+		return nil, types.NewError(errors.New("gpustackplus 图片链路仅支持 /v1/images/generations 与 /v1/images/edits"), types.ErrorCodeInvalidRequest)
 	}
 
-	// 1) 读提交响应，取 upstream task_id。
+	// 1) 读提交响应,取 upstream task_id。
 	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
 		return nil, types.NewOpenAIError(readErr, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
@@ -150,13 +218,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	if pErr != nil {
 		return nil, types.NewError(pErr, types.ErrorCodeBadResponse)
 	}
-	nfsPath := firstNonEmpty(st.SaveResultPath, sr.SaveResultPath)
-	if nfsPath == "" {
-		return nil, types.NewError(errors.New("生图完成但未返回 save_result_path"), types.ErrorCodeBadResponse)
+	if st.NFSPath == "" {
+		return nil, types.NewError(errors.New("生图完成但门面未返回 nfs_path"), types.ErrorCodeBadResponse)
 	}
 
-	// 3) 落 OBS，拿签名 URL。
-	signed, sErr := service.PersistImageNFSToOBS(c.Request.Context(), info.UserId, nfsPath)
+	// 3) 落 OBS,拿签名 URL。
+	signed, sErr := service.PersistImageNFSToOBS(c.Request.Context(), info.UserId, st.NFSPath)
 	if sErr != nil {
 		return nil, types.NewError(sErr, types.ErrorCodeBadResponse)
 	}
@@ -172,14 +239,14 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 	service.IOCopyBytesGracefully(c, resp, jsonBytes)
 
-	// 按次计费：占位 usage（真实扣费由模型价 × n 决定）。
+	// 按次计费:占位 usage(真实扣费由模型价 × n 决定)。
 	return &dto.Usage{PromptTokens: 1, TotalTokens: 1}, nil
 }
 
-// pollUntilDone 轮询 /v1/tasks/{id}/status 直到 completed/failed/cancelled 或超时。
+// pollUntilDone 轮询门面 GET /v1/videos/{id} 直到 done/failed/canceled 或超时。
 func (a *Adaptor) pollUntilDone(c *gin.Context, taskID string) (*statusResponse, error) {
 	client := service.GetHttpClient()
-	uri := fmt.Sprintf("%s/v1/tasks/%s/status", a.baseURL, taskID)
+	uri := fmt.Sprintf("%s/v1/videos/%s", a.baseURL, taskID)
 	time.Sleep(pollInitialDelay)
 	for step := 0; step < pollMaxSteps; step++ {
 		st, err := a.fetchStatus(c.Request.Context(), client, uri)
@@ -188,7 +255,7 @@ func (a *Adaptor) pollUntilDone(c *gin.Context, taskID string) (*statusResponse,
 			continue
 		}
 		switch strings.ToLower(strings.TrimSpace(st.Status)) {
-		case "completed", "succeed", "success":
+		case "done", "completed", "succeed", "success":
 			return st, nil
 		case "failed", "cancelled", "canceled", "error":
 			return nil, fmt.Errorf("生图失败: %s", firstNonEmpty(st.Error, st.ErrorType, "task failed"))
@@ -228,7 +295,7 @@ func (a *Adaptor) fetchStatus(ctx context.Context, client *http.Client, uri stri
 func (a *Adaptor) GetModelList() []string { return ModelList }
 func (a *Adaptor) GetChannelName() string { return ChannelName }
 
-// ————— 以下模式不适用于本渠道，返回 not available —————
+// ————— 以下模式不适用于本渠道,返回 not available —————
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	return nil, errors.New("not available")
@@ -250,17 +317,6 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	return nil, errors.New("not available")
-}
-
-func sanitizeSeg(s string) string {
-	s = strings.TrimSpace(s)
-	s = strings.ReplaceAll(s, "/", "_")
-	s = strings.ReplaceAll(s, "\\", "_")
-	s = strings.ReplaceAll(s, " ", "_")
-	if s == "" {
-		return "model"
-	}
-	return s
 }
 
 func firstNonEmpty(vals ...string) string {
