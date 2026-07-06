@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -77,13 +78,21 @@ type opsDauRow struct {
 }
 
 type opsPayerRow struct {
-	UserId      int     `json:"user_id"`
-	Username    string  `json:"username"`
-	DisplayName string  `json:"display_name"`
-	Email       string  `json:"email"`
-	PaidUSD     float64 `json:"paid_usd"`
-	Orders      int     `json:"orders"`
-	FirstPaidAt int64   `json:"first_paid_at"`
+	UserId       int      `json:"user_id"`
+	Username     string   `json:"username"`
+	DisplayName  string   `json:"display_name"`
+	Email        string   `json:"email"`
+	PaidUSD      float64  `json:"paid_usd"`
+	Orders       int      `json:"orders"`
+	FirstPaidAt  int64    `json:"first_paid_at"`
+	RegisteredAt int64    `json:"registered_at"`
+	Campaign     string   `json:"campaign"`
+	Keyword      string   `json:"keyword"`
+	Lng          string   `json:"lng"`
+	Landing      string   `json:"landing"`
+	SignupMethod string   `json:"signup_method"`
+	Currencies   []string `json:"currencies"`
+	LastIP       string   `json:"last_ip"`
 }
 
 type opsPaymentRow struct {
@@ -579,20 +588,53 @@ func opsTopPayers(aggs map[int]*opsUserAgg) ([]opsPayerRow, int, float64) {
 		}
 		paid := a.paidUSD()
 		total += paid
+		currencySet := map[string]bool{}
+		var currencies []string
+		for _, t := range a.paidOrders {
+			ccy := strings.ToUpper(t.PaymentCurrency)
+			if ccy == "" {
+				ccy = "USD"
+			}
+			if !currencySet[ccy] {
+				currencySet[ccy] = true
+				currencies = append(currencies, ccy)
+			}
+		}
 		payers = append(payers, opsPayerRow{
-			UserId:      a.user.Id,
-			Username:    a.user.Username,
-			DisplayName: a.user.DisplayName,
-			Email:       a.user.Email,
-			PaidUSD:     paid,
-			Orders:      len(a.paidOrders),
-			FirstPaidAt: a.paidOrders[0].CreateTime,
+			UserId:       a.user.Id,
+			Username:     a.user.Username,
+			DisplayName:  a.user.DisplayName,
+			Email:        a.user.Email,
+			PaidUSD:      paid,
+			Orders:       len(a.paidOrders),
+			FirstPaidAt:  a.paidOrders[0].CreateTime,
+			RegisteredAt: a.user.CreatedAt,
+			Campaign:     a.campaign,
+			Keyword:      a.keyword,
+			Lng:          a.lng,
+			Landing:      a.landing,
+			SignupMethod: a.user.OauthKind,
+			Currencies:   currencies,
 		})
 	}
 	count := len(payers)
 	sort.Slice(payers, func(i, j int) bool { return payers[i].PaidUSD > payers[j].PaidUSD })
 	if len(payers) > opsReportTopPayers {
 		payers = payers[:opsReportTopPayers]
+	}
+	// last request IP as a region hint — resolved only for the shown payers
+	ids := make([]int, len(payers))
+	for i := range payers {
+		ids[i] = payers[i].UserId
+	}
+	if ips, err := model.GetOpsUsersLastIP(ids); err == nil {
+		byUser := map[int]string{}
+		for _, r := range ips {
+			byUser[r.UserId] = r.Ip
+		}
+		for i := range payers {
+			payers[i].LastIP = byUser[payers[i].UserId]
+		}
 	}
 	return payers, count, total
 }

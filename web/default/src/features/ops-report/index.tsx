@@ -438,6 +438,14 @@ function PayersTable({ rows }: { rows: OpsPayerRow[] }) {
             <TableHead>{t('Email')}</TableHead>
             <TableHead className='text-right'>{t('Paid Amount')}</TableHead>
             <TableHead className='text-right'>{t('Orders')}</TableHead>
+            <TableHead>{t('Payment Currency')}</TableHead>
+            <TableHead>{t('Campaign')}</TableHead>
+            <TableHead>{t('Keyword')}</TableHead>
+            <TableHead>{t('Languages')}</TableHead>
+            <TableHead>{t('Landing Pages')}</TableHead>
+            <TableHead>{t('Signup Method')}</TableHead>
+            <TableHead>{t('Last IP')}</TableHead>
+            <TableHead>{t('Registered At')}</TableHead>
             <TableHead>{t('First Paid At')}</TableHead>
           </TableRow>
         </TableHeader>
@@ -453,6 +461,30 @@ function PayersTable({ rows }: { rows: OpsPayerRow[] }) {
               <TableCell>{row.email || '-'}</TableCell>
               <TableCell className='text-right'>{usd(row.paid_usd)}</TableCell>
               <TableCell className='text-right'>{row.orders}</TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {(row.currencies ?? []).map((c) => (
+                  <Badge key={c} variant={c === 'USD' ? 'secondary' : 'default'}>
+                    {c}
+                  </Badge>
+                ))}
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {row.campaign || '-'}
+              </TableCell>
+              <TableCell className='max-w-40 truncate'>
+                {row.keyword || '-'}
+              </TableCell>
+              <TableCell>{row.lng || '-'}</TableCell>
+              <TableCell className='max-w-40 truncate'>
+                {row.landing || '-'}
+              </TableCell>
+              <TableCell>{row.signup_method || '-'}</TableCell>
+              <TableCell className='whitespace-nowrap font-mono text-xs'>
+                {row.last_ip || '-'}
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {formatTimestamp(row.registered_at)}
+              </TableCell>
               <TableCell className='whitespace-nowrap'>
                 {formatTimestamp(row.first_paid_at)}
               </TableCell>

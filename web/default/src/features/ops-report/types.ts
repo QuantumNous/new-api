@@ -66,6 +66,14 @@ export interface OpsPayerRow {
   paid_usd: number
   orders: number
   first_paid_at: number
+  registered_at: number
+  campaign: string
+  keyword: string
+  lng: string
+  landing: string
+  signup_method: string
+  currencies: string[] | null
+  last_ip: string
 }
 
 export interface OpsPaymentRow {

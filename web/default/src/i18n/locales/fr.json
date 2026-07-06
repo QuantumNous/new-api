@@ -5231,6 +5231,10 @@
     "{{count}} paying users, {{amount}} total": "{{count}} utilisateurs payants, {{amount}} au total",
     "PLG Only": "PLG uniquement",
     "All Users": "Tous les utilisateurs",
-    "PLG users only (group=plg, internal and enterprise accounts excluded). All dates are UTC. Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.": "Utilisateurs PLG uniquement (group=plg, comptes internes et entreprise exclus). Toutes les dates sont en UTC. Navigation réelle = conversations playground hors requête automatique d'inscription ; clés manuelles = clés API créées 2 minutes ou plus après l'inscription ; utilisateurs de clés = toute requête via clé API, y compris les clés auto-provisionnées."
+    "PLG users only (group=plg, internal and enterprise accounts excluded). All dates are UTC. Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.": "Utilisateurs PLG uniquement (group=plg, comptes internes et entreprise exclus). Toutes les dates sont en UTC. Navigation réelle = conversations playground hors requête automatique d'inscription ; clés manuelles = clés API créées 2 minutes ou plus après l'inscription ; utilisateurs de clés = toute requête via clé API, y compris les clés auto-provisionnées.",
+    "Payment Currency": "Devise de paiement",
+    "Signup Method": "Méthode d'inscription",
+    "Last IP": "Dernière IP",
+    "Registered At": "Inscrit le"
   }
 }

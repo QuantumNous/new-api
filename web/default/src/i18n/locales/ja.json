@@ -5231,6 +5231,10 @@
     "{{count}} paying users, {{amount}} total": "課金ユーザー{{count}}名、合計{{amount}}",
     "PLG Only": "PLGのみ",
     "All Users": "全ユーザー",
-    "PLG users only (group=plg, internal and enterprise accounts excluded). All dates are UTC. Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.": "PLGユーザーのみ（group=plg、内部・エンタープライズアカウントは除外）。日付はすべてUTC。実ブラウズ＝登録時の自動リクエストを除くplaygroundチャット。手動キー作成＝登録2分以降に作成されたAPIキー。キー利用ユーザー＝自動発行キーを含む任意のAPIキーリクエスト。"
+    "PLG users only (group=plg, internal and enterprise accounts excluded). All dates are UTC. Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.": "PLGユーザーのみ（group=plg、内部・エンタープライズアカウントは除外）。日付はすべてUTC。実ブラウズ＝登録時の自動リクエストを除くplaygroundチャット。手動キー作成＝登録2分以降に作成されたAPIキー。キー利用ユーザー＝自動発行キーを含む任意のAPIキーリクエスト。",
+    "Payment Currency": "支払通貨",
+    "Signup Method": "登録方法",
+    "Last IP": "最終IP",
+    "Registered At": "登録日時"
   }
 }

@@ -23,6 +23,7 @@ type OpsPlgUser struct {
 	Email          string `json:"email"`
 	CreatedAt      int64  `json:"created_at"`
 	AdsAttribution string `json:"ads_attribution"`
+	OauthKind      string `json:"oauth_kind"`
 }
 
 type OpsUserLogStats struct {
@@ -47,17 +48,21 @@ type OpsKeyDaily struct {
 }
 
 type OpsTopUp struct {
-	UserId     int     `json:"user_id"`
-	Money      float64 `json:"money"`
-	Status     string  `json:"status"`
-	CreateTime int64   `json:"create_time"`
+	UserId          int     `json:"user_id"`
+	Money           float64 `json:"money"`
+	Status          string  `json:"status"`
+	CreateTime      int64   `json:"create_time"`
+	PaymentCurrency string  `json:"payment_currency"`
 }
 
 // GetOpsPlgUsers returns every plg-group user (the self-serve population).
 func GetOpsPlgUsers() ([]*OpsPlgUser, error) {
 	var users []*OpsPlgUser
 	err := DB.Table("users").
-		Select("id, username, display_name, email, created_at, ads_attribution").
+		Select(`id, username, display_name, email, created_at, ads_attribution,
+			CASE WHEN google_id IS NOT NULL AND google_id <> '' THEN 'google'
+			     WHEN github_id IS NOT NULL AND github_id <> '' THEN 'github'
+			     ELSE 'email' END AS oauth_kind`).
 		Where(commonGroupCol+" = ?", "plg").
 		Find(&users).Error
 	return users, err
@@ -178,11 +183,39 @@ func GetOpsUserTokenStats(autoWindowSec int64) ([]*OpsUserTokenStats, error) {
 func GetOpsTopUps() ([]*OpsTopUp, error) {
 	var topUps []*OpsTopUp
 	sql := fmt.Sprintf(`
-		SELECT t.user_id, t.money, t.status, t.create_time
+		SELECT t.user_id, t.money, t.status, t.create_time, t.payment_currency
 		FROM top_ups t
 		INNER JOIN users u ON u.id = t.user_id
 		WHERE u.%s = ?
 		ORDER BY t.create_time`, commonGroupCol)
 	err := DB.Raw(sql, "plg").Scan(&topUps).Error
 	return topUps, err
+}
+
+type OpsUserLastIP struct {
+	UserId int    `json:"user_id"`
+	Ip     string `json:"ip"`
+}
+
+// GetOpsUsersLastIP returns the most recent non-empty request IP per user.
+// Intended for small id sets (top payers, <=~20) — one indexed MAX(id) pass
+// plus one primary-key lookup.
+func GetOpsUsersLastIP(userIds []int) ([]*OpsUserLastIP, error) {
+	if len(userIds) == 0 {
+		return nil, nil
+	}
+	var maxIds []int64
+	sql := fmt.Sprintf(`
+		SELECT MAX(id) FROM logs%s
+		WHERE user_id IN ? AND ip <> ''
+		GROUP BY user_id`, logsForceIndexHint())
+	if err := LOG_DB.Raw(sql, userIds).Scan(&maxIds).Error; err != nil {
+		return nil, err
+	}
+	if len(maxIds) == 0 {
+		return nil, nil
+	}
+	var rows []*OpsUserLastIP
+	err := LOG_DB.Raw(`SELECT user_id, ip FROM logs WHERE id IN ?`, maxIds).Scan(&rows).Error
+	return rows, err
 }

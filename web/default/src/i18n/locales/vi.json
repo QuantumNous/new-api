@@ -5231,6 +5231,10 @@
     "{{count}} paying users, {{amount}} total": "{{count}} người dùng trả phí, tổng {{amount}}",
     "PLG Only": "Chỉ PLG",
     "All Users": "Tất cả người dùng",
-    "PLG users only (group=plg, internal and enterprise accounts excluded). All dates are UTC. Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.": "Chỉ người dùng PLG (group=plg, đã loại trừ tài khoản nội bộ và doanh nghiệp). Mọi ngày đều theo UTC. Duyệt thực = trò chuyện playground trừ yêu cầu tự động khi đăng ký; khóa tạo thủ công = khóa API tạo sau đăng ký 2 phút trở lên; người dùng khóa = mọi yêu cầu qua khóa API, kể cả khóa tự cấp."
+    "PLG users only (group=plg, internal and enterprise accounts excluded). All dates are UTC. Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.": "Chỉ người dùng PLG (group=plg, đã loại trừ tài khoản nội bộ và doanh nghiệp). Mọi ngày đều theo UTC. Duyệt thực = trò chuyện playground trừ yêu cầu tự động khi đăng ký; khóa tạo thủ công = khóa API tạo sau đăng ký 2 phút trở lên; người dùng khóa = mọi yêu cầu qua khóa API, kể cả khóa tự cấp.",
+    "Payment Currency": "Tiền tệ thanh toán",
+    "Signup Method": "Cách đăng ký",
+    "Last IP": "IP gần nhất",
+    "Registered At": "Đăng ký lúc"
   }
 }

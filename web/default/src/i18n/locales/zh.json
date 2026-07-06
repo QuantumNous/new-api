@@ -5231,6 +5231,10 @@
     "{{count}} paying users, {{amount}} total": "共 {{count}} 个付费用户，合计 {{amount}}",
     "PLG Only": "仅 PLG",
     "All Users": "全部用户",
-    "PLG users only (group=plg, internal and enterprise accounts excluded). All dates are UTC. Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.": "仅统计 PLG 用户（group=plg，已排除内部与企业账号）。日期均为 UTC。真实浏览 = playground 问话（排除注册时自动触发的请求）；手动建Key = 注册 2 分钟后创建的 API key；用Key = 任意 API key 调用（含自动生成的 key）。"
+    "PLG users only (group=plg, internal and enterprise accounts excluded). All dates are UTC. Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.": "仅统计 PLG 用户（group=plg，已排除内部与企业账号）。日期均为 UTC。真实浏览 = playground 问话（排除注册时自动触发的请求）；手动建Key = 注册 2 分钟后创建的 API key；用Key = 任意 API key 调用（含自动生成的 key）。",
+    "Payment Currency": "支付币种",
+    "Signup Method": "注册方式",
+    "Last IP": "最后 IP",
+    "Registered At": "注册时间"
   }
 }
