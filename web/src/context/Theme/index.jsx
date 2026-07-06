@@ -47,9 +47,9 @@ const getSystemTheme = () => {
 export const ThemeProvider = ({ children }) => {
   const [theme, _setTheme] = useState(() => {
     try {
-      return localStorage.getItem('theme-mode') || 'light';
+      return localStorage.getItem('theme-mode') || 'auto';
     } catch {
-      return 'light';
+      return 'auto';
     }
   });
 
