@@ -90,6 +90,7 @@ export function RulesTable() {
       applyHeaderSize
       toolbarProps={{
         searchPlaceholder: t('Filter by job title, group or remark...'),
+        hideViewOptions: true,
         filters: [
           {
             columnId: 'enabled',

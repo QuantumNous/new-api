@@ -21,7 +21,6 @@ import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
 
 import { ProtectedGroupsConfig } from './components/protected-groups-config'
-import { ResolveTest } from './components/resolve-test'
 import { RulesDialogs } from './components/rules-dialogs'
 import { RulesPrimaryButtons } from './components/rules-primary-buttons'
 import { RulesProvider } from './components/rules-provider'
@@ -39,12 +38,9 @@ export function AutoGroupRules() {
           <RulesPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <div className='flex h-full min-h-0 flex-col gap-3'>
-            <div className='grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-2'>
-              <ProtectedGroupsConfig />
-              <ResolveTest />
-            </div>
-            <div className='min-h-0 flex-1'>
+          <div className='flex h-full min-h-0 flex-col gap-4'>
+            <ProtectedGroupsConfig />
+            <div className='min-h-0 flex-1 rounded-xl border bg-card'>
               <RulesTable />
             </div>
           </div>

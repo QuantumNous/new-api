@@ -23,66 +23,83 @@ import { useTranslation } from 'react-i18next'
 
 import { StatusBadge } from '@/components/status-badge'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 
 import { resolveAutoGroup } from '../api'
 
-export function ResolveTest() {
+type ResolveTestDialogProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+export function ResolveTestDialog({
+  open,
+  onOpenChange,
+}: ResolveTestDialogProps) {
   const { t } = useTranslation()
   const [jobTitle, setJobTitle] = useState('')
 
-  // Only query when there is a non-empty job title.
   const { data, isFetching } = useQuery({
     queryKey: ['auto-group-resolve', jobTitle],
     queryFn: () => resolveAutoGroup(jobTitle),
-    enabled: jobTitle.trim().length > 0,
+    enabled: open && jobTitle.trim().length > 0,
     staleTime: 10_000,
   })
 
   const result = data?.data
 
   return (
-    <Card size='sm' className='shrink-0'>
-      <CardHeader>
-        <CardTitle className='flex items-center gap-1.5'>
-          <Search className='size-4' />
-          {t('Test Matcher')}
-        </CardTitle>
-        <CardDescription>
-          {t('Enter a job title to preview which group it maps to.')}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className='flex flex-col gap-2'>
-        <Input
-          value={jobTitle}
-          onChange={(e) => setJobTitle(e.target.value)}
-          placeholder={t('Enter a job title to test...')}
-        />
-        {jobTitle.trim() && result && !isFetching && (
-          <div className='flex items-center gap-2 text-sm'>
-            {result.matched ? (
-              <>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className='sm:max-w-[480px]'>
+        <DialogHeader>
+          <DialogTitle className='flex items-center gap-2'>
+            <Search className='size-4' />
+            {t('Test Matcher')}
+          </DialogTitle>
+          <DialogDescription>
+            {t(
+              'Enter a job title to preview which group it maps to. This only checks the rule result and does not change any user.'
+            )}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className='grid gap-3'>
+          <Input
+            value={jobTitle}
+            onChange={(e) => setJobTitle(e.target.value)}
+            placeholder={t('Enter a job title to test...')}
+          />
+
+          <div className='bg-muted/40 min-h-12 rounded-lg border px-3 py-2 text-sm'>
+            {!jobTitle.trim() ? (
+              <span className='text-muted-foreground'>
+                {t('Type a job title to see the matching group.')}
+              </span>
+            ) : isFetching ? (
+              <span className='text-muted-foreground'>{t('Checking...')}</span>
+            ) : result?.matched ? (
+              <div className='flex items-center gap-2'>
                 <span className='text-muted-foreground'>{t('Matched:')}</span>
                 <StatusBadge
                   label={result.target_group}
                   variant='success'
                   copyable={false}
                 />
-              </>
+              </div>
             ) : (
               <span className='text-muted-foreground'>
                 {t('No matching rule found')}
               </span>
             )}
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

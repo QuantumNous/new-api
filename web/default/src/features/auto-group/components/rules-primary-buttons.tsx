@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Plus, Sparkles } from 'lucide-react'
+import { Plus, Sparkles, Wrench } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,15 +24,25 @@ import { Button } from '@/components/ui/button'
 
 import { useRulesDialog } from './rules-provider'
 import { InitializeDialog } from './initialize-dialog'
+import { ResolveTestDialog } from './resolve-test'
 
 export function RulesPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen } = useRulesDialog()
   const [initializeOpen, setInitializeOpen] = useState(false)
+  const [testOpen, setTestOpen] = useState(false)
 
   return (
     <>
-      <div className='flex gap-2'>
+      <div className='flex flex-wrap justify-end gap-2'>
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={() => setTestOpen(true)}
+        >
+          <Wrench className='h-4 w-4' />
+          {t('Test Matcher')}
+        </Button>
         <Button
           variant='outline'
           size='sm'
@@ -51,6 +61,7 @@ export function RulesPrimaryButtons() {
         open={initializeOpen}
         onOpenChange={setInitializeOpen}
       />
+      <ResolveTestDialog open={testOpen} onOpenChange={setTestOpen} />
     </>
   )
 }

@@ -17,11 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle } from 'lucide-react'
+import { Shield } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -31,7 +32,6 @@ import {
 } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
 
 import { getAutoGroupConfig, updateAutoGroupConfig } from '../api'
 import { QUERY_KEYS, SUCCESS_MESSAGES } from '../constants'
@@ -50,7 +50,6 @@ export function ProtectedGroupsConfig() {
 
   const [selected, setSelected] = useState<string[]>([])
 
-  // Sync local selection when config loads.
   useEffect(() => {
     if (configQuery.data?.data) {
       setSelected(configQuery.data.data.protected_groups ?? [])
@@ -84,17 +83,25 @@ export function ProtectedGroupsConfig() {
   }
 
   return (
-    <Card size='sm' className='shrink-0'>
-      <CardHeader>
-        <CardTitle className='flex items-center gap-1.5'>
-          <AlertTriangle className='size-4 text-warning' />
-          {t('Protected Groups')}
-        </CardTitle>
-        <CardDescription>
-          {t(
-            'Users in protected groups will not be auto-reassigned. Select groups to protect.'
-          )}
-        </CardDescription>
+    <Card size='sm' className='shrink-0 border-dashed bg-muted/20'>
+      <CardHeader className='flex flex-row items-start justify-between gap-4 pb-3'>
+        <div className='space-y-1'>
+          <CardTitle className='flex items-center gap-1.5 text-sm'>
+            <Shield className='size-4 text-muted-foreground' />
+            {t('Protected Groups')}
+          </CardTitle>
+          <CardDescription>
+            {t('Auto rules skip users already in these groups.')}
+          </CardDescription>
+        </div>
+        <Button
+          size='sm'
+          variant='outline'
+          onClick={handleSave}
+          disabled={!dirty || updateMutation.isPending}
+        >
+          {updateMutation.isPending ? t('Saving...') : t('Save')}
+        </Button>
       </CardHeader>
       <CardContent>
         {groups.length === 0 ? (
@@ -102,19 +109,17 @@ export function ProtectedGroupsConfig() {
             {t('No groups available')}
           </p>
         ) : (
-          <div className='flex flex-wrap gap-x-4 gap-y-2'>
+          <div className='flex flex-wrap gap-2'>
             {groups.map((group) => {
               const checked = selected.includes(group)
               return (
                 <Label
                   key={group}
-                  className='cursor-pointer'
+                  className='hover:bg-muted flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors'
                 >
                   <Checkbox
                     checked={checked}
-                    onCheckedChange={(value) =>
-                      toggleGroup(group, !!value)
-                    }
+                    onCheckedChange={(value) => toggleGroup(group, !!value)}
                   />
                   {group}
                 </Label>
@@ -122,16 +127,6 @@ export function ProtectedGroupsConfig() {
             })}
           </div>
         )}
-        <div className='mt-3 flex justify-end'>
-          <Button
-            size='sm'
-            variant='outline'
-            onClick={handleSave}
-            disabled={!dirty || updateMutation.isPending}
-          >
-            {updateMutation.isPending ? t('Saving...') : t('Save')}
-          </Button>
-        </div>
       </CardContent>
     </Card>
   )
