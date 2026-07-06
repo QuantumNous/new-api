@@ -886,3 +886,48 @@ CRYPTO_RPC_BASE=https://mainnet.base.org
 - **Epay 安全漏洞**：Issue #4279 签名绕过，上线前核查
 - **CoinGecko 限流**：50 req/min，高并发可加 30s 内存缓存
 - **Crypto 重启丢状态**：`sync.Map` 不持久化，重启后 pending 记录丢失，用户需重新提交 txHash
+
+## 官方原价统一改造存档（2026-07-06）
+
+### 背景
+
+之前"模型官方原价"没有统一存储：Model Data 页每渠道用 `input_price ÷ group_ratio` 反推、公开 marketplace 从抓 roma 的 `public_model_prices` 表取、apimaster-ai 前端还有一份硬编码表兜底，三处经常对不上。目标：与标准 newapi 一致——**全局模型倍率（系统设置→模型定价）作为官方原价唯一来源**，自己维护，不再抓 roma。
+
+### 改动
+
+**`service/global_model_pricing.go`**（既有文件，此次修复一个 bug）
+- `GlobalModelPricingUSD` 原来对 quota_type=1（按次计费，如 sora/kling/gpt-image）也会调用 `fillGlobalDerivedPrices` 算"输出价"，但 `GetCompletionRatio` 对未配置模型会兜底成 newapi 内置的通用值，导致按次计费模型被算出一个不该存在的输出价（例：gpt-image-2 显示 output=0.5）。修复：价格型分支直接返回 `output=0`，跳过 completion_ratio 推导
+
+**`controller/pricing_backfill.go`**（新文件）
+- `POST /api/admin/channel-data/backfill-global-ratios`：一次性/增量回填全局倍率
+- body `{"overwrite": bool, "prices": {model: {input, output}}}`，逐 key 合并（不是整模型跳过）：已有 `model_ratio` 的模型，缺失的 `completion_ratio`/`cache_ratio` 仍会补上
+- **⚠️ 踩坑记录**：`overwrite:true` 是全局开关，不是"只覆盖 body 里这几个模型"——body 之外的模型仍会走 source #2（`public_model_prices` 旧 roma 快照表）重新合并，且 `overwrite:true` 时一样会覆盖。上线当天曾因为后续小范围修正调用（只带 1-3 个模型 + overwrite:true）把 `minimax-m3` 从已修正的 0.3 打回旧快照的 0.15。**教训：任何 overwrite:true 调用都要带完整的模型清单，不能只传"这次要改的几个"**
+
+**`controller/model_data.go`**
+- `GetModelData` 新增 `official_input_price`/`official_output_price`/`base_price_mismatch_pct`/`suggested_group_ratio`，>5% 偏差标红报警（"该渠道自改原厂价"），提供"按官方价反推 gratio"操作（`FixGroupRatio`，只精确修正 Channel Data 页实际展示的那一行，用跟 `GetModelData` 完全一致的选行逻辑，避免多 variant 渠道改错行）
+- `GetPublicMarketplace` 官方价源从 `public_model_prices`（roma 快照）切到 `GlobalModelPricingUSD`（全局倍率）
+
+**`service/channel_pricing.go` / `service/channel_pricing_lookup.go`**
+- 删除"刷新公开价"整条抓 roma 链路（`RefreshPublicModelPrices` 及路由）
+- **手动渠道（`model_price_ratio`+`manual_group_ratio`，无 `/api/pricing` 接口）不再写价格快照**：之前 `fetchModelPriceRatioFallback` 会把 `官方价×比例` 算好写进 `channel_model_pricings`，官方价改了这行就冻结不动，除非再点"刷新价格"。现在改成官方价×比例**实时计算**（显示 `applyPublicManualPricingToRow`、计费 `ChannelModelPriceData` 都读现在的官方价），`fetchModelPriceRatioFallback` 只负责清理旧快照行
+
+**Web SPA**：`features/model-data/` → `features/channel-data/` 改名（Model Data → Channel Data），表格新增"渠道原价"/"官方原价"双列 + 报警，路由/侧边栏/i18n 同步改名，旧 `/model-data` 路径保留 redirect
+
+### 数据核实记录（人工+官网信源交叉验证，2026-07-06）
+
+| 模型 | 值 | 来源 |
+|---|---|---|
+| Claude 全系列 | 官网标价 | apimaster-ai 硬编码表，用 packyapi.com `/api/pricing` 独立验证 Claude/GPT/Gemini 8/8 完全匹配 |
+| Claude 缓存 | 读×0.1，5分钟写×1.25（全系列通用） | Anthropic 官方文档 `platform.claude.com/.../prompt-caching` |
+| DeepSeek v4-flash/pro | 输入/输出/缓存命中价 | DeepSeek 官方文档 `api-docs.deepseek.com` |
+| Gemini 3.1 Flash Image | $0.0672/张（1024px） | Google 官方 `ai.google.dev/gemini-api/docs/pricing`（$0.067/1K image 标准档，硬编码表旧值 $0.03 才是错的） |
+| GPT 缓存输入折扣 | ×0.1（90% off，非 50%） | OpenAI 官方 `developers.openai.com/api/docs/pricing` |
+| sora-2 / sora-2-pro | $0.1/秒、$0.3/秒 | 人工确认；回填前 `ModelPrice` 里存的 $0.08/$0.24 是历史遗留错误值，与本次改造无关但顺带修正 |
+| OpenRouter 渠道价格分歧 | 非 bug | OpenRouter 定价接口硬编码 `group_ratio=1`，不吃渠道 `manual_group_ratio`；`deepseek/deepseek-v4-flash` 在 OpenRouter 上就是比官方参考价低 36%（$0.09 vs $0.14），已用 OpenRouter 官方 `/v1/models` 实时核实原始字符串 `"0.00000009"` 无误 |
+
+### 已知遗留
+
+- `claude-haiku-4-5`（不带日期后缀的规范名）缺 `cache_ratio`/`create_cache_ratio`，其带日期变体 `claude-haiku-4-5-20251001` 已有
+- 系统里 `abilities` 表出现的模型名一律要有自己的倍率条目（`/api/pricing` 不做别名换算），新增渠道用了新的日期变体名时记得同步在"模型定价"里配一份，否则会吃 newapi 内置默认兜底比例 37.5（曾在 haiku 变体上出现过）
+- `/console/pricing` 页面默认按"default"分组的 1.05（5%）加价展示，用户反馈这个页面不该带这个加价，尚未处理（不影响实际计费，只是这个展示页面本身要不要单独去掉分组倍率）
+- **Crypto 重启丢状态**：`sync.Map` 不持久化，重启后 pending 记录丢失，用户需重新提交 txHash
