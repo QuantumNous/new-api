@@ -43,7 +43,11 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 		}
 	case constant.ChannelTypeOpenAI:
 		if usage.PromptTokensDetails.CachedTokens == 0 {
-			if cachedTokens, ok := extractLlamaCachedTokensFromBody(responseBody); ok {
+			// Standard OpenAI format: usage.prompt_tokens_details.cached_tokens
+			if cachedTokens, ok := extractCachedTokensFromBody(responseBody); ok {
+				usage.PromptTokensDetails.CachedTokens = cachedTokens
+			} else if cachedTokens, ok := extractLlamaCachedTokensFromBody(responseBody); ok {
+				// Fallback: llama.cpp format (timings.cache_n)
 				usage.PromptTokensDetails.CachedTokens = cachedTokens
 			}
 		}
