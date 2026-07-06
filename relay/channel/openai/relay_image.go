@@ -136,7 +136,7 @@ func writeOpenaiImageStreamChunk(c *gin.Context, data []byte) {
 	}
 	_ = common.Unmarshal(data, &payload)
 	if eventName := strings.TrimSpace(payload.Type); eventName != "" {
-		helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: eventName}, string(data))
+		_ = helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: eventName}, string(data))
 		return
 	}
 	_ = helper.StringData(c, string(data))
@@ -269,8 +269,7 @@ func writeOpenaiImageStreamPayload(c *gin.Context, eventName string, payload any
 		return err
 	}
 	if eventName != "" {
-		helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: eventName}, string(data))
-		return nil
+		return helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: eventName}, string(data))
 	}
 	return helper.StringData(c, string(data))
 }

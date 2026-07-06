@@ -25,6 +25,11 @@ const (
 	InitialScannerBufferSize    = 64 << 10  // 64KB (64*1024)
 	DefaultMaxScannerBufferSize = 128 << 20 // 64MB (64*1024*1024) default SSE buffer size
 	DefaultPingInterval         = 10 * time.Second
+	// streamWriteTimeout bounds a single blocked write to a slow client so the
+	// unconditional wg.Wait() in cleanup can always finish. Without it, a slow
+	// but connected client (full TCP buffer, no server WriteTimeout) could hang
+	// the handler forever.
+	streamWriteTimeout = 30 * time.Second
 )
 
 func getScannerBufferSize() int {
@@ -38,6 +43,16 @@ func NewStreamScanner(reader io.Reader) *bufio.Scanner {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, InitialScannerBufferSize), getScannerBufferSize())
 	return scanner
+}
+
+// ExtendWriteDeadline pushes the connection write deadline forward before each
+// stream write. Best-effort: writers that don't support deadlines (e.g.
+// httptest recorders) are silently ignored.
+func ExtendWriteDeadline(c *gin.Context) {
+	if c == nil || c.Writer == nil {
+		return
+	}
+	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(streamWriteTimeout))
 }
 
 func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string, sr *StreamResult)) {
@@ -137,6 +152,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 					func() {
 						writeMutex.Lock()
 						defer writeMutex.Unlock()
+						ExtendWriteDeadline(c)
 						err = PingData(c)
 					}()
 					if err != nil {
@@ -178,6 +194,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			func() {
 				writeMutex.Lock()
 				defer writeMutex.Unlock()
+				ExtendWriteDeadline(c)
 				dataHandler(data, sr)
 			}()
 			if sr.IsStopped() {
@@ -253,22 +270,17 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	})
 
 	// 主循环等待完成或超时
-	requestDone := c.Request.Context().Done()
-	for {
-		select {
-		case <-ticker.C:
-			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
-			goto done
-		case <-stopChan:
-			// EndReason already set by the goroutine that triggered stopChan
-			goto done
-		case <-requestDone:
-			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
-			requestDone = nil
-		}
+	select {
+	case <-ticker.C:
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
+	case <-stopChan:
+		// EndReason already set by the goroutine that triggered stopChan
+	case <-c.Request.Context().Done():
+		// 客户端断开：立即 cleanup 关闭上游 resp.Body，解除 scanner 阻塞并让上游停止生成，
+		// 避免为已放弃的请求继续消费上游 token。
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
 	}
 
-done:
 	cleanup()
 	if info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors() {
 		logger.LogInfo(c, fmt.Sprintf("stream ended: %s", info.StreamStatus.Summary()))

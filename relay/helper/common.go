@@ -26,7 +26,7 @@ func FlushWriter(c *gin.Context) (err error) {
 	}
 
 	if requestContextDone(c) {
-		return nil
+		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
 	}
 
 	flusher, ok := c.Writer.(http.Flusher)
@@ -84,14 +84,14 @@ func ClaudeChunkData(c *gin.Context, resp dto.ClaudeResponse, data string) {
 	_ = FlushWriter(c)
 }
 
-func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data string) {
+func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data string) error {
 	if requestContextDone(c) {
-		return
+		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
 	}
 
 	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)})
 	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("data: %s", data)})
-	_ = FlushWriter(c)
+	return FlushWriter(c)
 }
 
 func StringData(c *gin.Context, str string) error {
@@ -100,7 +100,7 @@ func StringData(c *gin.Context, str string) error {
 	}
 
 	if requestContextDone(c) {
-		return nil
+		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
 	}
 
 	c.Render(-1, common.CustomEvent{Data: "data: " + str})
@@ -113,7 +113,7 @@ func PingData(c *gin.Context) error {
 	}
 
 	if requestContextDone(c) {
-		return nil
+		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
 	}
 
 	if _, err := c.Writer.Write([]byte(": PING\n\n")); err != nil {

@@ -211,7 +211,12 @@ func TestStreamScannerHandler_DataWithExtraSpaces(t *testing.T) {
 	assert.Equal(t, "{\"trimmed\":true}", got)
 }
 
-func TestStreamScannerHandler_ClientCancelDoesNotStopUpstreamProcessingOrWrite(t *testing.T) {
+// TestStreamScannerHandler_ClientCancelAbortsUpstreamAndReturns pins the
+// disconnect contract: when the client goes away, the handler must return
+// promptly (all goroutines joined, so the gin.Context can never leak into a
+// pooled reuse), the upstream body must be closed to stop token generation,
+// and no data received after the disconnect may be processed or written.
+func TestStreamScannerHandler_ClientCancelAbortsUpstreamAndReturns(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -233,17 +238,13 @@ func TestStreamScannerHandler_ClientCancelDoesNotStopUpstreamProcessingOrWrite(t
 
 	var count atomic.Int64
 	firstHandled := make(chan struct{})
-	secondHandled := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
 		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
 			count.Add(1)
 			_ = StringData(c, data)
-			switch data {
-			case "first":
+			if data == "first" {
 				close(firstHandled)
-			case "second":
-				close(secondHandled)
 			}
 		})
 		close(done)
@@ -260,26 +261,20 @@ func TestStreamScannerHandler_ClientCancelDoesNotStopUpstreamProcessingOrWrite(t
 
 	cancel()
 
-	_, err = fmt.Fprint(pw, "data: second\n")
-	require.NoError(t, err)
-
-	select {
-	case <-secondHandled:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for second chunk")
-	}
-
-	_, err = fmt.Fprint(pw, "data: [DONE]\n")
-	require.NoError(t, err)
-	require.NoError(t, pw.Close())
-
+	// The handler must return without any further upstream input: cleanup
+	// closes resp.Body, which unblocks the scanner goroutine.
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for stream to finish")
+		t.Fatal("handler did not return after client disconnect")
 	}
 
-	assert.Equal(t, int64(2), count.Load())
+	// Upstream read side must be closed so the provider stops generating
+	// (and billing) for a request nobody is listening to.
+	_, err = fmt.Fprint(pw, "data: second\n")
+	require.ErrorIs(t, err, io.ErrClosedPipe, "upstream body should be closed after client disconnect")
+
+	assert.Equal(t, int64(1), count.Load(), "no chunk after disconnect should be processed")
 	require.NotNil(t, info.StreamStatus)
 	assert.Equal(t, relaycommon.StreamEndReasonClientGone, info.StreamStatus.EndReason)
 
