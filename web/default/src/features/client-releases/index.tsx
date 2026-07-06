@@ -54,6 +54,7 @@ import {
   clientReleaseToForm,
   createClientRelease,
   deleteClientRelease,
+  discardClientReleaseUpload,
   listAdminClientReleases,
   setClientReleasePublished,
   updateClientRelease,
@@ -86,6 +87,9 @@ export function ClientReleases() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const pendingUploadRef = useRef<{ ticket: string; object: string } | null>(
+    null
+  )
 
   const selected = useMemo(
     () => releases.find((release) => release.id === selectedId),
@@ -125,12 +129,23 @@ export function ClientReleases() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    return () => {
+      const pending = pendingUploadRef.current
+      if (pending?.ticket) {
+        void discardClientReleaseUpload(pending.ticket).catch(() => undefined)
+      }
+    }
+  }, [])
+
   function createDraft() {
+    discardPendingUpload()
     setSelectedId(null)
     setForm(clientReleaseToForm())
   }
 
   function selectRelease(release: ClientRelease) {
+    discardPendingUpload()
     setSelectedId(release.id)
     setForm(clientReleaseToForm(release))
   }
@@ -140,6 +155,38 @@ export function ClientReleases() {
     value: ClientReleaseForm[K]
   ) {
     setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  function discardPendingUpload() {
+    const pending = pendingUploadRef.current
+    pendingUploadRef.current = null
+    if (pending?.ticket) {
+      void discardClientReleaseUpload(pending.ticket).catch(() => undefined)
+    }
+  }
+
+  function replacePendingUpload(uploadTicket?: string, objectKey?: string) {
+    const previous = pendingUploadRef.current
+    pendingUploadRef.current =
+      uploadTicket && objectKey
+        ? { ticket: uploadTicket, object: objectKey }
+        : null
+    if (previous?.ticket && previous.ticket !== uploadTicket) {
+      void discardClientReleaseUpload(previous.ticket).catch(() => undefined)
+    }
+  }
+
+  function settlePendingUpload(savedObjectKey?: string) {
+    const pending = pendingUploadRef.current
+    pendingUploadRef.current = null
+    if (
+      pending?.ticket &&
+      pending.object &&
+      savedObjectKey &&
+      pending.object !== savedObjectKey
+    ) {
+      void discardClientReleaseUpload(pending.ticket).catch(() => undefined)
+    }
   }
 
   async function findConflictingRelease(nextForm: ClientReleaseForm) {
@@ -183,6 +230,7 @@ export function ClientReleases() {
       if (!payload.success || !payload.data) {
         throw new Error(payload.message || t('Failed to upload package'))
       }
+      replacePendingUpload(payload.data.uploadTicket, payload.data.object)
       update('fileName', payload.data.fileName)
       update('objectKey', payload.data.object)
       update('size', payload.data.size)
@@ -190,8 +238,12 @@ export function ClientReleases() {
       update('sha512', payload.data.sha512)
       toast.success(t('Package uploaded'))
     } catch (error) {
-      toast.error(
+      const message =
         error instanceof Error ? error.message : t('Failed to upload package')
+      toast.error(
+        message === 'Failed to upload package'
+          ? t('Failed to upload package')
+          : message
       )
     } finally {
       setUploading(false)
@@ -246,6 +298,7 @@ export function ClientReleases() {
         throw new Error(payload.message || t('Failed to save release'))
       }
       toast.success(t('Client release saved'))
+      settlePendingUpload(payload.data.objectKey)
       setSelectedId(payload.data.id)
       setForm(clientReleaseToForm(payload.data))
       await loadReleases()
@@ -288,7 +341,11 @@ export function ClientReleases() {
         throw new Error(payload.message || t('Failed to delete release'))
       }
       toast.success(t('Client release deleted'))
-      if (selectedId === release.id) createDraft()
+      if (selectedId === release.id) {
+        discardPendingUpload()
+        setSelectedId(null)
+        setForm(clientReleaseToForm())
+      }
       await loadReleases()
     } catch (error) {
       toast.error(
@@ -319,15 +376,15 @@ export function ClientReleases() {
         </Button>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
-        <div className='grid gap-4 lg:grid-cols-[minmax(300px,420px)_minmax(0,1fr)]'>
-          <Card className='min-h-[520px]'>
+        <div className='grid items-start gap-4 lg:grid-cols-[minmax(300px,420px)_minmax(0,1fr)]'>
+          <Card className='min-h-[520px] lg:max-h-[calc(100vh-8rem)]'>
             <CardHeader>
               <CardTitle>{t('Release list')}</CardTitle>
               <CardDescription>
                 {t('Desktop installer packages stored in OSS.')}
               </CardDescription>
             </CardHeader>
-            <CardContent className='space-y-3'>
+            <CardContent className='flex min-h-0 flex-1 flex-col gap-3'>
               <div className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]'>
                 <Input
                   value={keyword}
@@ -385,7 +442,7 @@ export function ClientReleases() {
                   ))}
                 </NativeSelect>
               </div>
-              <div className='space-y-2'>
+              <div className='flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1 pb-2'>
                 {releases.map((release) => {
                   const published = release.published || release.status === 1
                   const forcedLabel = release.minVersion

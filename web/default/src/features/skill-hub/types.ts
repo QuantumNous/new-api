@@ -77,6 +77,35 @@ export type SkillHubTagResponse = {
   data?: SkillHubTag
 }
 
+export type SkillHubDirectUploadInitResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    kind: 'zip' | 'icon'
+    fileName: string
+    object: string
+    size: number
+    contentType: string
+    uploadUrl: string
+    uploadMethod: 'PUT'
+    uploadHeaders: Record<string, string>
+    uploadTicket: string
+    expiresAt: number
+  }
+}
+
+export type SkillHubUploadResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    url: string
+    object: string
+    size: number
+    checksum: string
+    uploadTicket?: string
+  }
+}
+
 export type SkillHubForm = {
   id: string
   name: string

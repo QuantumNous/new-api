@@ -2,12 +2,13 @@ package service
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/url"
 	"os"
 	"path"
@@ -16,11 +17,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 )
 
 const SkillHubZipMaxBytes = 50 << 20
 const SkillHubIconMaxBytes = 1 << 20
+const defaultSkillHubUploadURLExpiresSeconds int64 = 3600
+const skillHubTempDir = "_tmp"
+
+const (
+	SkillHubUploadKindZip  = "zip"
+	SkillHubUploadKindIcon = "icon"
+)
 
 var skillHubObjectSafePattern = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
@@ -29,6 +39,42 @@ type SkillHubUploadResult struct {
 	Object   string `json:"object"`
 	Size     int64  `json:"size"`
 	Checksum string `json:"checksum"`
+}
+
+type SkillHubDirectUploadInput struct {
+	Kind     string
+	SkillID  string
+	Version  string
+	FileName string
+	Size     int64
+}
+
+type SkillHubDirectUploadInitResult struct {
+	Kind          string            `json:"kind"`
+	FileName      string            `json:"fileName"`
+	Object        string            `json:"object"`
+	Size          int64             `json:"size"`
+	ContentType   string            `json:"contentType"`
+	UploadURL     string            `json:"uploadUrl"`
+	UploadMethod  string            `json:"uploadMethod"`
+	UploadHeaders map[string]string `json:"uploadHeaders"`
+	UploadTicket  string            `json:"uploadTicket"`
+	ExpiresAt     int64             `json:"expiresAt"`
+}
+
+type SkillHubDirectUploadCompleteResult struct {
+	Kind    string
+	SkillID string
+	Upload  *SkillHubUploadResult
+}
+
+type SkillHubPromoteResult struct {
+	ZipPromoted     bool
+	IconPromoted    bool
+	TempSourceRef   string
+	FinalSourceRef  string
+	TempIconObject  string
+	FinalIconObject string
 }
 
 type skillHubOSSConfig struct {
@@ -44,100 +90,308 @@ type skillHubIconOSSConfig struct {
 	PublicBaseURL string
 }
 
-func UploadSkillHubZip(file multipart.File, header *multipart.FileHeader, skillID string, version string) (*SkillHubUploadResult, error) {
-	cfg := loadSkillHubOSSConfig()
-	if err := cfg.validate(); err != nil {
-		return nil, err
+type skillHubUploadTicket struct {
+	Kind        string `json:"kind"`
+	SkillID     string `json:"skillId"`
+	FileName    string `json:"fileName"`
+	Object      string `json:"object"`
+	Size        int64  `json:"size"`
+	ContentType string `json:"contentType"`
+	ExpiresAt   int64  `json:"expiresAt"`
+}
+
+func InitSkillHubDirectUpload(input SkillHubDirectUploadInput) (*SkillHubDirectUploadInitResult, error) {
+	input.Kind = normalizeSkillHubUploadKind(input.Kind)
+	if input.Kind == "" {
+		return nil, errors.New("skill hub upload kind must be zip or icon")
 	}
-	if header == nil {
-		return nil, errors.New("upload file is required")
+	if strings.TrimSpace(input.SkillID) == "" {
+		return nil, errors.New("skill id is required before upload")
 	}
-	if header.Size <= 0 {
+	if strings.TrimSpace(input.FileName) == "" {
+		return nil, errors.New("upload file name is required")
+	}
+	if input.Size <= 0 {
 		return nil, errors.New("upload file is empty")
 	}
-	if header.Size > SkillHubZipMaxBytes {
-		return nil, fmt.Errorf("zip file must be <= %d MB", SkillHubZipMaxBytes>>20)
-	}
-	if !strings.HasSuffix(strings.ToLower(header.Filename), ".zip") {
-		return nil, errors.New("only .zip files are supported")
-	}
-	if err := validateZipMagic(file); err != nil {
-		return nil, err
-	}
 
-	client, err := oss.New(cfg.Endpoint, cfg.AccessKeyID, cfg.AccessKeySecret)
+	cfg, publicBaseURL, contentType, objectKey, err := skillHubDirectUploadConfig(input)
 	if err != nil {
 		return nil, err
 	}
-	bucket, err := client.Bucket(cfg.Bucket)
+	bucket, err := cfg.bucket()
 	if err != nil {
 		return nil, err
 	}
 
-	objectKey := cfg.objectKey(skillID, version, header.Filename)
-	hasher := sha256.New()
-	reader := io.TeeReader(file, hasher)
-	if err := bucket.PutObject(objectKey, reader, oss.ContentType("application/zip")); err != nil {
+	expires := skillHubUploadURLExpires()
+	uploadURL, err := bucket.SignURL(objectKey, oss.HTTPPut, expires, oss.ContentType(contentType))
+	if err != nil {
+		return nil, err
+	}
+	ticket := skillHubUploadTicket{
+		Kind:        input.Kind,
+		SkillID:     strings.TrimSpace(input.SkillID),
+		FileName:    cleanSkillHubUploadFileName(input.FileName),
+		Object:      objectKey,
+		Size:        input.Size,
+		ContentType: contentType,
+		ExpiresAt:   time.Now().Unix() + expires,
+	}
+	if input.Kind == SkillHubUploadKindIcon {
+		if strings.TrimSpace(publicBaseURL) == "" {
+			return nil, errors.New("skill hub icon public base url is not configured")
+		}
+		if err := validateSkillHubIconPublicBaseURL(publicBaseURL); err != nil {
+			return nil, err
+		}
+	}
+	uploadTicket, err := signSkillHubUploadTicket(ticket, cfg)
+	if err != nil {
 		return nil, err
 	}
 
-	checksum := "sha256:" + hex.EncodeToString(hasher.Sum(nil))
-	return &SkillHubUploadResult{
-		URL:      "",
-		Object:   objectKey,
-		Size:     header.Size,
-		Checksum: checksum,
+	return &SkillHubDirectUploadInitResult{
+		Kind:         input.Kind,
+		FileName:     ticket.FileName,
+		Object:       objectKey,
+		Size:         input.Size,
+		ContentType:  contentType,
+		UploadURL:    uploadURL,
+		UploadMethod: string(oss.HTTPPut),
+		UploadHeaders: map[string]string{
+			"Content-Type": contentType,
+		},
+		UploadTicket: uploadTicket,
+		ExpiresAt:    ticket.ExpiresAt,
 	}, nil
 }
 
-func UploadSkillHubIcon(file multipart.File, header *multipart.FileHeader, skillID string) (*SkillHubUploadResult, error) {
-	cfg := loadSkillHubIconOSSConfig()
-	if err := cfg.validate(); err != nil {
+func CompleteSkillHubDirectUpload(uploadTicket string) (*SkillHubDirectUploadCompleteResult, error) {
+	ticket, cfg, err := parseSkillHubUploadTicket(uploadTicket)
+	if err != nil {
 		return nil, err
+	}
+	if ticket.ExpiresAt <= time.Now().Unix() {
+		return nil, errors.New("skill hub upload ticket has expired")
+	}
+	if ticket.Object == "" || ticket.SkillID == "" || ticket.Size <= 0 {
+		return nil, errors.New("skill hub upload ticket is invalid")
+	}
+	if !cfg.isTempObjectKey(ticket.Object) {
+		return nil, errors.New("skill hub upload ticket object is not temporary")
+	}
+	bucket, err := cfg.bucket()
+	if err != nil {
+		return nil, err
+	}
+	meta, err := bucket.GetObjectDetailedMeta(ticket.Object)
+	if err != nil {
+		return nil, err
+	}
+	if size, err := strconv.ParseInt(meta.Get("Content-Length"), 10, 64); err != nil || size != ticket.Size {
+		_ = bucket.DeleteObject(ticket.Object)
+		return nil, errors.New("skill hub uploaded object size does not match")
+	}
+	if ticket.Size > skillHubUploadMaxBytes(ticket.Kind) {
+		_ = bucket.DeleteObject(ticket.Object)
+		return nil, fmt.Errorf("skill hub upload must be <= %d MB", skillHubUploadMaxBytes(ticket.Kind)>>20)
+	}
+
+	size, checksum, header, err := hashSkillHubObject(bucket, ticket.Object, skillHubUploadMaxBytes(ticket.Kind))
+	if err != nil {
+		return nil, err
+	}
+	if size != ticket.Size {
+		_ = bucket.DeleteObject(ticket.Object)
+		return nil, errors.New("skill hub uploaded object size does not match")
+	}
+	if err := validateSkillHubUploadedHeader(ticket, header); err != nil {
+		_ = bucket.DeleteObject(ticket.Object)
+		return nil, err
+	}
+
+	result := &SkillHubUploadResult{
+		Object:   ticket.Object,
+		Size:     size,
+		Checksum: checksum,
+	}
+	if ticket.Kind == SkillHubUploadKindIcon {
+		cfg := loadSkillHubIconOSSConfig()
+		if strings.TrimSpace(cfg.PublicBaseURL) == "" {
+			return nil, errors.New("skill hub icon public base url is not configured")
+		}
+		if err := validateSkillHubIconPublicBaseURL(cfg.PublicBaseURL); err != nil {
+			return nil, err
+		}
+		result.URL = objectPublicURL(cfg.PublicBaseURL, ticket.Object)
+	}
+	return &SkillHubDirectUploadCompleteResult{
+		Kind:    ticket.Kind,
+		SkillID: ticket.SkillID,
+		Upload:  result,
+	}, nil
+}
+
+func DiscardSkillHubDirectUpload(uploadTicket string) error {
+	ticket, cfg, err := parseSkillHubUploadTicket(uploadTicket)
+	if err != nil {
+		return err
+	}
+	objectKey, ok := cfg.managedObjectKey(ticket.Object)
+	if !ok {
+		return nil
+	}
+	if !cfg.isTempObjectKey(objectKey) {
+		return errors.New("skill hub upload ticket object is not temporary")
+	}
+	bucket, err := cfg.bucket()
+	if err != nil {
+		return err
+	}
+	return bucket.DeleteObject(objectKey)
+}
+
+func DeleteSkillHubZipObject(objectKey string) error {
+	cfg := loadSkillHubOSSConfig()
+	objectKey, ok := cfg.managedObjectKey(objectKey)
+	if !ok {
+		return nil
+	}
+	if err := cfg.validate(); err != nil {
+		return err
+	}
+	bucket, err := cfg.bucket()
+	if err != nil {
+		return err
+	}
+	return bucket.DeleteObject(objectKey)
+}
+
+func DeleteSkillHubIconByURL(value string) error {
+	cfg := loadSkillHubIconOSSConfig()
+	if strings.TrimSpace(cfg.PublicBaseURL) == "" {
+		return nil
+	}
+	objectKey, ok := cfg.objectKeyFromPublicURL(value)
+	if !ok {
+		return nil
+	}
+	if err := cfg.validate(); err != nil {
+		return err
+	}
+	bucket, err := cfg.bucket()
+	if err != nil {
+		return err
+	}
+	return bucket.DeleteObject(objectKey)
+}
+
+func DeleteSkillHubIconObject(objectKey string) error {
+	cfg := loadSkillHubIconOSSConfig()
+	objectKey, ok := cfg.managedObjectKey(objectKey)
+	if !ok {
+		return nil
+	}
+	if err := cfg.validate(); err != nil {
+		return err
+	}
+	bucket, err := cfg.bucket()
+	if err != nil {
+		return err
+	}
+	return bucket.DeleteObject(objectKey)
+}
+
+func PromoteSkillHubObjects(skill *model.SkillHubSkill) (*SkillHubPromoteResult, error) {
+	result := &SkillHubPromoteResult{}
+	if err := promoteSkillHubZipObject(skill, result); err != nil {
+		return nil, err
+	}
+	if err := promoteSkillHubIconObject(skill, result); err != nil {
+		if result.ZipPromoted {
+			_ = DeleteSkillHubZipObject(result.FinalSourceRef)
+		}
+		return nil, err
+	}
+	return result, nil
+}
+
+func promoteSkillHubZipObject(skill *model.SkillHubSkill, result *SkillHubPromoteResult) error {
+	cfg := loadSkillHubOSSConfig()
+	objectKey, ok := cfg.managedObjectKey(skill.SourceRef)
+	if strings.TrimSpace(skill.SourceRef) == "" {
+		return nil
+	}
+	if !ok {
+		return errors.New("skill hub source object is outside the managed prefix")
+	}
+	skill.SourceRef = objectKey
+	if !cfg.isTempObjectKey(objectKey) {
+		return nil
+	}
+	if err := cfg.validate(); err != nil {
+		return err
+	}
+	finalObject := cfg.objectKey(skill.SkillID, skill.Version, path.Base(objectKey))
+	if cfg.isTempObjectKey(finalObject) || finalObject == objectKey {
+		return errors.New("skill hub final source object is invalid")
+	}
+	bucket, err := cfg.bucket()
+	if err != nil {
+		return err
+	}
+	if _, err := bucket.CopyObject(objectKey, finalObject, oss.ForbidOverWrite(true)); err != nil {
+		return err
+	}
+	skill.SourceRef = finalObject
+	result.ZipPromoted = true
+	result.TempSourceRef = objectKey
+	result.FinalSourceRef = finalObject
+	return nil
+}
+
+func promoteSkillHubIconObject(skill *model.SkillHubSkill, result *SkillHubPromoteResult) error {
+	cfg := loadSkillHubIconOSSConfig()
+	if strings.TrimSpace(skill.Icon) == "" {
+		return nil
+	}
+	objectKey, ok := cfg.objectKeyFromPublicURL(skill.Icon)
+	if !ok {
+		return nil
+	}
+	if !cfg.isTempObjectKey(objectKey) {
+		return nil
+	}
+	if err := cfg.validate(); err != nil {
+		return err
 	}
 	if strings.TrimSpace(cfg.PublicBaseURL) == "" {
-		return nil, errors.New("skill hub icon public base url is not configured")
+		return errors.New("skill hub icon public base url is not configured")
 	}
-	if err := validateSkillHubIconPublicBaseURL(cfg.PublicBaseURL); err != nil {
-		return nil, err
+	ext := strings.ToLower(path.Ext(objectKey))
+	if ext == ".jpeg" {
+		ext = ".jpg"
 	}
-	if header == nil {
-		return nil, errors.New("upload file is required")
+	if ext != ".png" && ext != ".jpg" && ext != ".webp" {
+		return errors.New("skill hub icon object extension is invalid")
 	}
-	if header.Size <= 0 {
-		return nil, errors.New("upload file is empty")
+	finalObject := cfg.iconObjectKey(skill.SkillID, path.Base(objectKey), ext)
+	if cfg.isTempObjectKey(finalObject) || finalObject == objectKey {
+		return errors.New("skill hub final icon object is invalid")
 	}
-	if header.Size > SkillHubIconMaxBytes {
-		return nil, fmt.Errorf("icon file must be <= %d MB", SkillHubIconMaxBytes>>20)
-	}
-	contentType, ext, err := detectSkillHubIcon(file)
+	bucket, err := cfg.bucket()
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	client, err := oss.New(cfg.Endpoint, cfg.AccessKeyID, cfg.AccessKeySecret)
-	if err != nil {
-		return nil, err
+	if _, err := bucket.CopyObject(objectKey, finalObject, oss.ForbidOverWrite(true)); err != nil {
+		return err
 	}
-	bucket, err := client.Bucket(cfg.Bucket)
-	if err != nil {
-		return nil, err
-	}
-
-	objectKey := cfg.iconObjectKey(skillID, header.Filename, ext)
-	hasher := sha256.New()
-	reader := io.TeeReader(file, hasher)
-	if err := bucket.PutObject(objectKey, reader, oss.ContentType(contentType)); err != nil {
-		return nil, err
-	}
-
-	checksum := "sha256:" + hex.EncodeToString(hasher.Sum(nil))
-	return &SkillHubUploadResult{
-		URL:      objectPublicURL(cfg.PublicBaseURL, objectKey),
-		Object:   objectKey,
-		Size:     header.Size,
-		Checksum: checksum,
-	}, nil
+	skill.Icon = objectPublicURL(cfg.PublicBaseURL, finalObject)
+	result.IconPromoted = true
+	result.TempIconObject = objectKey
+	result.FinalIconObject = finalObject
+	return nil
 }
 
 func loadSkillHubOSSConfig() skillHubOSSConfig {
@@ -179,11 +433,15 @@ func (c skillHubOSSConfig) validate() error {
 	return nil
 }
 
-func (c skillHubOSSConfig) objectKey(skillID string, version string, filename string) string {
-	prefix := strings.Trim(strings.TrimSpace(c.Prefix), "/")
-	if prefix == "" {
-		prefix = "skill-hub/skills"
+func (c skillHubOSSConfig) bucket() (*oss.Bucket, error) {
+	client, err := oss.New(c.Endpoint, c.AccessKeyID, c.AccessKeySecret)
+	if err != nil {
+		return nil, err
 	}
+	return client.Bucket(c.Bucket)
+}
+
+func (c skillHubOSSConfig) objectKey(skillID string, version string, filename string) string {
 	id := cleanObjectPart(skillID)
 	if id == "" {
 		id = "draft"
@@ -196,14 +454,27 @@ func (c skillHubOSSConfig) objectKey(skillID string, version string, filename st
 	if name == "" {
 		name = id
 	}
-	return path.Join(prefix, id, fmt.Sprintf("%s-%s.zip", name, ver))
+	stamp := time.Now().UTC().Format("20060102150405.000000000")
+	return path.Join(c.basePrefix(), id, fmt.Sprintf("%s-%s-%s.zip", name, ver, stamp))
+}
+
+func (c skillHubOSSConfig) tempObjectKey(kind string, skillID string, filename string) (string, error) {
+	id := cleanObjectPart(skillID)
+	if id == "" {
+		id = "draft"
+	}
+	objectID, err := randomOSSObjectID()
+	if err != nil {
+		return "", err
+	}
+	name := cleanSkillHubUploadFileName(filename)
+	if name == "" {
+		name = "upload"
+	}
+	return path.Join(c.basePrefix(), skillHubTempDir, kind, id, objectID, name), nil
 }
 
 func (c skillHubIconOSSConfig) iconObjectKey(skillID string, filename string, ext string) string {
-	prefix := strings.Trim(strings.TrimSpace(c.Prefix), "/")
-	if prefix == "" {
-		prefix = "skill-hub/icons"
-	}
 	id := cleanObjectPart(skillID)
 	if id == "" {
 		id = "draft"
@@ -213,7 +484,63 @@ func (c skillHubIconOSSConfig) iconObjectKey(skillID string, filename string, ex
 		name = "icon"
 	}
 	stamp := time.Now().UTC().Format("20060102150405.000000000")
-	return path.Join(prefix, id, fmt.Sprintf("%s-%s%s", name, stamp, ext))
+	return path.Join(c.basePrefix(), id, fmt.Sprintf("%s-%s%s", name, stamp, ext))
+}
+
+func (c skillHubOSSConfig) managedObjectKey(objectKey string) (string, bool) {
+	objectKey = strings.TrimLeft(strings.TrimSpace(objectKey), "/")
+	if objectKey == "" {
+		return "", false
+	}
+	prefix := c.basePrefix()
+	return objectKey, objectKey == prefix || strings.HasPrefix(objectKey, prefix+"/")
+}
+
+func (c skillHubOSSConfig) isTempObjectKey(objectKey string) bool {
+	objectKey = strings.TrimLeft(strings.TrimSpace(objectKey), "/")
+	tempPrefix := path.Join(c.basePrefix(), skillHubTempDir)
+	return objectKey == tempPrefix || strings.HasPrefix(objectKey, tempPrefix+"/")
+}
+
+func (c skillHubOSSConfig) basePrefix() string {
+	prefix := strings.Trim(strings.TrimSpace(c.Prefix), "/")
+	if prefix == "" {
+		prefix = "skill-hub/skills"
+	}
+	return prefix
+}
+
+func (c skillHubIconOSSConfig) objectKeyFromPublicURL(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.TrimSpace(c.PublicBaseURL) == "" {
+		return "", false
+	}
+	base, err := url.Parse(strings.TrimRight(strings.TrimSpace(c.PublicBaseURL), "/"))
+	if err != nil || base.Scheme != "https" || base.Host == "" || base.User != nil {
+		return "", false
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
+		return "", false
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" || !strings.EqualFold(parsed.Host, base.Host) {
+		return "", false
+	}
+	basePath := strings.TrimRight(base.EscapedPath(), "/")
+	targetPath := parsed.EscapedPath()
+	if basePath != "" {
+		if targetPath == basePath || !strings.HasPrefix(targetPath, basePath+"/") {
+			return "", false
+		}
+		targetPath = strings.TrimPrefix(targetPath, basePath+"/")
+	} else {
+		targetPath = strings.TrimLeft(targetPath, "/")
+	}
+	objectKey, err := url.PathUnescape(targetPath)
+	if err != nil {
+		return "", false
+	}
+	return c.managedObjectKey(objectKey)
 }
 
 func objectPublicURL(baseURL string, objectKey string) string {
@@ -245,9 +572,13 @@ func SignSkillHubZipURL(objectKey string, filename string) (string, error) {
 	if err := cfg.validate(); err != nil {
 		return "", err
 	}
-	objectKey = strings.TrimLeft(strings.TrimSpace(objectKey), "/")
-	if objectKey == "" {
+	var ok bool
+	objectKey, ok = cfg.managedObjectKey(objectKey)
+	if !ok {
 		return "", errors.New("skill hub oss object is required")
+	}
+	if cfg.isTempObjectKey(objectKey) {
+		return "", errors.New("skill hub oss object is not finalized")
 	}
 	client, err := oss.New(cfg.Endpoint, cfg.AccessKeyID, cfg.AccessKeySecret)
 	if err != nil {
@@ -292,43 +623,245 @@ func cleanObjectPart(value string) string {
 	return value
 }
 
-func validateZipMagic(file multipart.File) error {
-	seeker, ok := file.(io.Seeker)
-	if !ok {
-		return errors.New("uploaded file stream is not seekable")
+func normalizeSkillHubUploadKind(kind string) string {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case SkillHubUploadKindZip:
+		return SkillHubUploadKindZip
+	case SkillHubUploadKindIcon:
+		return SkillHubUploadKindIcon
+	default:
+		return ""
 	}
-	if _, err := seeker.Seek(0, io.SeekStart); err != nil {
-		return err
-	}
-	defer seeker.Seek(0, io.SeekStart)
-	header := make([]byte, 4)
-	n, err := io.ReadFull(file, header)
-	if err != nil && err != io.ErrUnexpectedEOF {
-		return err
-	}
-	if n < 4 || string(header[:2]) != "PK" {
-		return errors.New("uploaded file is not a zip archive")
-	}
-	_, err = seeker.Seek(0, io.SeekStart)
-	return err
 }
 
-func detectSkillHubIcon(file multipart.File) (string, string, error) {
-	seeker, ok := file.(io.Seeker)
-	if !ok {
-		return "", "", errors.New("uploaded file stream is not seekable")
+func skillHubDirectUploadConfig(input SkillHubDirectUploadInput) (skillHubOSSConfig, string, string, string, error) {
+	switch input.Kind {
+	case SkillHubUploadKindZip:
+		if input.Size > SkillHubZipMaxBytes {
+			return skillHubOSSConfig{}, "", "", "", fmt.Errorf("zip file must be <= %d MB", SkillHubZipMaxBytes>>20)
+		}
+		contentType, err := skillHubZipContentType(input.FileName)
+		if err != nil {
+			return skillHubOSSConfig{}, "", "", "", err
+		}
+		cfg := loadSkillHubOSSConfig()
+		if err := cfg.validate(); err != nil {
+			return skillHubOSSConfig{}, "", "", "", err
+		}
+		objectKey, err := cfg.tempObjectKey("packages", input.SkillID, input.FileName)
+		if err != nil {
+			return skillHubOSSConfig{}, "", "", "", err
+		}
+		return cfg, "", contentType, objectKey, nil
+	case SkillHubUploadKindIcon:
+		if input.Size > SkillHubIconMaxBytes {
+			return skillHubOSSConfig{}, "", "", "", fmt.Errorf("icon file must be <= %d MB", SkillHubIconMaxBytes>>20)
+		}
+		contentType, _, err := skillHubIconContentType(input.FileName)
+		if err != nil {
+			return skillHubOSSConfig{}, "", "", "", err
+		}
+		cfg := loadSkillHubIconOSSConfig()
+		if err := cfg.validate(); err != nil {
+			return skillHubOSSConfig{}, "", "", "", err
+		}
+		objectKey, err := cfg.tempObjectKey("icons", input.SkillID, input.FileName)
+		if err != nil {
+			return skillHubOSSConfig{}, "", "", "", err
+		}
+		return cfg.skillHubOSSConfig, cfg.PublicBaseURL, contentType, objectKey, nil
+	default:
+		return skillHubOSSConfig{}, "", "", "", errors.New("skill hub upload kind must be zip or icon")
 	}
-	if _, err := seeker.Seek(0, io.SeekStart); err != nil {
-		return "", "", err
-	}
-	defer seeker.Seek(0, io.SeekStart)
+}
 
-	header := make([]byte, 512)
-	n, err := file.Read(header)
-	if err != nil && err != io.EOF {
-		return "", "", err
+func skillHubZipContentType(filename string) (string, error) {
+	if strings.ToLower(path.Ext(strings.ReplaceAll(filename, "\\", "/"))) != ".zip" {
+		return "", errors.New("only .zip files are supported")
 	}
-	header = header[:n]
+	return "application/zip", nil
+}
+
+func skillHubIconContentType(filename string) (string, string, error) {
+	switch strings.ToLower(path.Ext(strings.ReplaceAll(filename, "\\", "/"))) {
+	case ".png":
+		return "image/png", ".png", nil
+	case ".jpg", ".jpeg":
+		return "image/jpeg", ".jpg", nil
+	case ".webp":
+		return "image/webp", ".webp", nil
+	default:
+		return "", "", errors.New("only png, jpg, jpeg, and webp icons are supported")
+	}
+}
+
+func cleanSkillHubUploadFileName(value string) string {
+	value = strings.TrimSpace(value)
+	value = strings.ReplaceAll(value, "\\", "/")
+	value = path.Base(value)
+	value = strings.Trim(value, ". ")
+	if value == "." || value == "/" {
+		return ""
+	}
+	if len(value) > 255 {
+		return value[len(value)-255:]
+	}
+	return value
+}
+
+func skillHubUploadMaxBytes(kind string) int64 {
+	if kind == SkillHubUploadKindIcon {
+		return SkillHubIconMaxBytes
+	}
+	return SkillHubZipMaxBytes
+}
+
+func skillHubUploadURLExpires() int64 {
+	value := strings.TrimSpace(os.Getenv("SKILL_HUB_OSS_UPLOAD_URL_EXPIRES_SECONDS"))
+	if value == "" {
+		return defaultSkillHubUploadURLExpiresSeconds
+	}
+	seconds, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || seconds <= 0 {
+		return defaultSkillHubUploadURLExpiresSeconds
+	}
+	if seconds > 86400 {
+		return 86400
+	}
+	return seconds
+}
+
+func signSkillHubUploadTicket(ticket skillHubUploadTicket, cfg skillHubOSSConfig) (string, error) {
+	payload, err := common.Marshal(ticket)
+	if err != nil {
+		return "", err
+	}
+	encodedPayload := base64.RawURLEncoding.EncodeToString(payload)
+	signature := signSkillHubUploadPayload(encodedPayload, cfg)
+	return encodedPayload + "." + signature, nil
+}
+
+func parseSkillHubUploadTicket(value string) (*skillHubUploadTicket, skillHubOSSConfig, error) {
+	payload, signature, ok := strings.Cut(strings.TrimSpace(value), ".")
+	if !ok || payload == "" || signature == "" {
+		return nil, skillHubOSSConfig{}, errors.New("skill hub upload ticket is invalid")
+	}
+	data, err := base64.RawURLEncoding.DecodeString(payload)
+	if err != nil {
+		return nil, skillHubOSSConfig{}, errors.New("skill hub upload ticket is invalid")
+	}
+	var ticket skillHubUploadTicket
+	if err := common.Unmarshal(data, &ticket); err != nil {
+		return nil, skillHubOSSConfig{}, errors.New("skill hub upload ticket is invalid")
+	}
+	ticket.Kind = normalizeSkillHubUploadKind(ticket.Kind)
+	cfg, err := skillHubUploadConfigForKind(ticket.Kind)
+	if err != nil {
+		return nil, skillHubOSSConfig{}, err
+	}
+	expected := signSkillHubUploadPayload(payload, cfg)
+	if !hmac.Equal([]byte(signature), []byte(expected)) {
+		return nil, skillHubOSSConfig{}, errors.New("skill hub upload ticket is invalid")
+	}
+	ticket.SkillID = strings.TrimSpace(ticket.SkillID)
+	ticket.FileName = cleanSkillHubUploadFileName(ticket.FileName)
+	ticket.ContentType = strings.TrimSpace(ticket.ContentType)
+	objectKey, ok := cfg.managedObjectKey(ticket.Object)
+	if !ok || ticket.SkillID == "" || ticket.FileName == "" || ticket.ContentType == "" {
+		return nil, skillHubOSSConfig{}, errors.New("skill hub upload ticket is invalid")
+	}
+	ticket.Object = objectKey
+	return &ticket, cfg, nil
+}
+
+func skillHubUploadConfigForKind(kind string) (skillHubOSSConfig, error) {
+	switch normalizeSkillHubUploadKind(kind) {
+	case SkillHubUploadKindZip:
+		cfg := loadSkillHubOSSConfig()
+		return cfg, cfg.validate()
+	case SkillHubUploadKindIcon:
+		cfg := loadSkillHubIconOSSConfig()
+		return cfg.skillHubOSSConfig, cfg.validate()
+	default:
+		return skillHubOSSConfig{}, errors.New("skill hub upload ticket is invalid")
+	}
+}
+
+func signSkillHubUploadPayload(payload string, cfg skillHubOSSConfig) string {
+	secret := strings.TrimSpace(os.Getenv("SKILL_HUB_OSS_UPLOAD_TICKET_SECRET"))
+	if secret == "" {
+		secret = cfg.AccessKeySecret
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(payload))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func hashSkillHubObject(bucket *oss.Bucket, objectKey string, maxBytes int64) (int64, string, []byte, error) {
+	reader, err := bucket.GetObject(objectKey)
+	if err != nil {
+		return 0, "", nil, err
+	}
+	defer reader.Close()
+
+	hasher := sha256.New()
+	header := make([]byte, 0, 512)
+	buffer := make([]byte, 32*1024)
+	var size int64
+	for {
+		n, readErr := reader.Read(buffer)
+		if n > 0 {
+			chunk := buffer[:n]
+			size += int64(n)
+			if size > maxBytes {
+				return 0, "", nil, fmt.Errorf("skill hub upload must be <= %d MB", maxBytes>>20)
+			}
+			if len(header) < 512 {
+				remaining := 512 - len(header)
+				if n < remaining {
+					remaining = n
+				}
+				header = append(header, chunk[:remaining]...)
+			}
+			if _, err := hasher.Write(chunk); err != nil {
+				return 0, "", nil, err
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return 0, "", nil, readErr
+		}
+	}
+	return size, "sha256:" + hex.EncodeToString(hasher.Sum(nil)), header, nil
+}
+
+func validateSkillHubUploadedHeader(ticket *skillHubUploadTicket, header []byte) error {
+	switch ticket.Kind {
+	case SkillHubUploadKindZip:
+		if !isZipHeader(header) {
+			return errors.New("uploaded file is not a zip archive")
+		}
+	case SkillHubUploadKindIcon:
+		contentType, _, err := detectSkillHubIconHeader(header)
+		if err != nil {
+			return err
+		}
+		if contentType != ticket.ContentType {
+			return errors.New("uploaded icon content does not match the file extension")
+		}
+	default:
+		return errors.New("skill hub upload ticket is invalid")
+	}
+	return nil
+}
+
+func isZipHeader(header []byte) bool {
+	return len(header) >= 4 && string(header[:2]) == "PK"
+}
+
+func detectSkillHubIconHeader(header []byte) (string, string, error) {
 	switch {
 	case bytes.HasPrefix(header, []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}):
 		return "image/png", ".png", nil

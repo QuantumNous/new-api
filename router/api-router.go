@@ -228,8 +228,9 @@ func SetApiRouter(router *gin.Engine) {
 		adminSkillHubRoute := apiRouter.Group("/admin/skill-hub")
 		adminSkillHubRoute.Use(middleware.AdminAuth())
 		{
-			adminSkillHubRoute.POST("/upload", controller.AdminUploadSkillHubZip)
-			adminSkillHubRoute.POST("/upload-icon", controller.AdminUploadSkillHubIcon)
+			adminSkillHubRoute.POST("/direct-upload/init", controller.AdminInitSkillHubDirectUpload)
+			adminSkillHubRoute.POST("/direct-upload/complete", controller.AdminCompleteSkillHubDirectUpload)
+			adminSkillHubRoute.POST("/direct-upload/discard", controller.AdminDiscardSkillHubDirectUpload)
 			adminSkillHubRoute.GET("/tags", controller.AdminListSkillHubTags)
 			adminSkillHubRoute.GET("/tags/skills", controller.AdminListSkillHubSkillsByTags)
 			adminSkillHubRoute.POST("/tags", controller.AdminCreateSkillHubTag)
@@ -245,7 +246,9 @@ func SetApiRouter(router *gin.Engine) {
 		adminClientReleaseRoute := apiRouter.Group("/admin/client-releases")
 		adminClientReleaseRoute.Use(middleware.AdminAuth())
 		{
-			adminClientReleaseRoute.POST("/upload", controller.AdminUploadClientRelease)
+			adminClientReleaseRoute.POST("/direct-upload/init", controller.AdminInitClientReleaseDirectUpload)
+			adminClientReleaseRoute.POST("/direct-upload/complete", controller.AdminCompleteClientReleaseDirectUpload)
+			adminClientReleaseRoute.POST("/direct-upload/discard", controller.AdminDiscardClientReleaseDirectUpload)
 			adminClientReleaseRoute.GET("/", controller.AdminListClientReleases)
 			adminClientReleaseRoute.POST("/", controller.AdminCreateClientRelease)
 			adminClientReleaseRoute.GET("/:id", controller.AdminGetClientRelease)

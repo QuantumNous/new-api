@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -221,6 +222,24 @@ func (r *ClientRelease) Insert() error {
 
 func (r *ClientRelease) Update() error {
 	return DB.Save(r).Error
+}
+
+func (r *ClientRelease) UpdateReturningPreviousObjectKey() (string, error) {
+	var previousObjectKey string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var current ClientRelease
+		query := tx
+		if !common.UsingSQLite {
+			query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+		}
+		if err := query.Where("id = ?", r.Id).First(&current).Error; err != nil {
+			return err
+		}
+		previousObjectKey = current.ObjectKey
+		r.CreatedTime = current.CreatedTime
+		return tx.Save(r).Error
+	})
+	return previousObjectKey, err
 }
 
 func DeleteClientRelease(release *ClientRelease) error {

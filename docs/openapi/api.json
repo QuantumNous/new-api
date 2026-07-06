@@ -4893,128 +4893,6 @@
         "security": []
       }
     },
-    "/api/admin/skill-hub/upload": {
-      "post": {
-        "summary": "上传技能包",
-        "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）；仅支持 zip 文件，最大 50MB",
-        "tags": [
-          "技能广场管理"
-        ],
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "file",
-                  "skill_id"
-                ],
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "zip 技能包文件"
-                  },
-                  "skill_id": {
-                    "type": "string",
-                    "description": "技能 ID"
-                  },
-                  "version": {
-                    "type": "string",
-                    "description": "技能版本"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "成功",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SkillHubUploadApiResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "SessionAuth": [],
-            "NewApiUser": []
-          },
-          {
-            "AccessToken": [],
-            "NewApiUser": []
-          }
-        ]
-      }
-    },
-    "/api/admin/skill-hub/upload-icon": {
-      "post": {
-        "summary": "上传技能图标",
-        "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）；支持 png、jpg、jpeg、webp，最大 1MB",
-        "tags": [
-          "技能广场管理"
-        ],
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "file",
-                  "skill_id"
-                ],
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "技能图标文件"
-                  },
-                  "skill_id": {
-                    "type": "string",
-                    "description": "技能 ID"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "成功",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SkillHubUploadApiResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "SessionAuth": [],
-            "NewApiUser": []
-          },
-          {
-            "AccessToken": [],
-            "NewApiUser": []
-          }
-        ]
-      }
-    },
     "/api/admin/skill-hub/tags": {
       "get": {
         "summary": "管理员获取标签列表",
@@ -5316,7 +5194,7 @@
       "post": {
         "summary": "管理员创建技能",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 需要管理员权限（Admin）；保存成功后上传对象才会成为正式 Skill 资产。",
         "tags": [
           "技能广场管理"
         ],
@@ -5402,7 +5280,7 @@
       "put": {
         "summary": "管理员更新技能",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 需要管理员权限（Admin）；如果 source.ref 或 icon 被新上传对象替换，保存成功后会 best-effort 删除旧 OSS 对象。",
         "tags": [
           "技能广场管理"
         ],
@@ -5454,7 +5332,7 @@
       "delete": {
         "summary": "管理员删除技能",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 需要管理员权限（Admin）；删除记录成功后会 best-effort 删除关联的 Skill zip 和图标 OSS 对象。",
         "tags": [
           "技能广场管理"
         ],
@@ -7104,11 +6982,11 @@
         ]
       }
     },
-    "/api/admin/client-releases/upload": {
+    "/api/admin/client-releases/direct-upload/init": {
       "post": {
-        "summary": "后台上传客户端安装包",
+        "summary": "初始化客户端安装包直传",
         "deprecated": false,
-        "description": "需要管理员权限（Admin）；multipart 上传安装包到私有 OSS。上传时后端先校验 version/platform/arch/channel 和文件扩展名，再强制生成文件名 Z-UP-Setup-{version}-{platform}-{arch}-{channel}.{ext}，不允许手动编辑上传名。默认最大 500MB，可通过 CLIENT_RELEASE_OSS_MAX_BYTES 调整。",
+        "description": "需要管理员权限（Admin）；根据安装包文件名、大小和目标版本信息生成 OSS PUT signed URL。后端会先校验 version/platform/arch/channel、文件扩展名和大小，再强制生成文件名 Z-UP-Setup-{version}-{platform}-{arch}-{channel}.{ext} 与 _tmp 临时 OSS Object Key。安装包文件本体由浏览器直接 PUT 到 OSS，不经过 New API。",
         "tags": [
           "客户端管理"
         ],
@@ -7116,59 +6994,53 @@
         "requestBody": {
           "required": true,
           "content": {
-            "multipart/form-data": {
+            "application/json": {
               "schema": {
-                "type": "object",
-                "required": [
-                  "file",
-                  "version",
-                  "platform",
-                  "arch",
-                  "channel"
-                ],
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "安装包文件。支持 exe、msi、dmg、pkg、zip、AppImage、deb、rpm、yml、yaml"
-                  },
-                  "version": {
-                    "type": "string",
-                    "description": "版本号，必须是 x.y.z 三段数字，例如 1.2.3",
-                    "pattern": "^\\d+\\.\\d+\\.\\d+$",
-                    "example": "1.2.3"
-                  },
-                  "platform": {
-                    "type": "string",
-                    "enum": [
-                      "windows",
-                      "darwin",
-                      "linux"
-                    ],
-                    "description": "目标平台，Windows 使用 windows；上传前会校验并归一化，非法值不会写入 OSS",
-                    "example": "windows"
-                  },
-                  "arch": {
-                    "type": "string",
-                    "enum": [
-                      "x64",
-                      "arm64",
-                      "ia32",
-                      "universal"
-                    ],
-                    "description": "目标架构；上传前会校验并归一化，非法值不会写入 OSS",
-                    "example": "x64"
-                  },
-                  "channel": {
-                    "type": "string",
-                    "enum": [
-                      "stable",
-                      "beta"
-                    ],
-                    "description": "目标通道，仅 stable 或 beta；上传前会校验，非法值不会写入 OSS",
-                    "example": "stable"
-                  }
+                "$ref": "#/components/schemas/ClientReleaseDirectUploadInitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReleaseDirectUploadInitResponse"
                 }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/admin/client-releases/direct-upload/complete": {
+      "post": {
+        "summary": "完成客户端安装包直传",
+        "deprecated": false,
+        "description": "需要管理员权限（Admin）；浏览器完成 OSS PUT 后调用该接口。后端校验上传票据、检查 _tmp 临时 OSS 对象大小，并从 OSS 读取对象重新计算 sha256 和 sha512，返回保存版本记录所需的文件信息；保存版本记录时后端会将临时对象复制到正式目录。",
+        "tags": [
+          "客户端管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientReleaseDirectUploadCompleteRequest"
               }
             }
           }
@@ -7244,7 +7116,7 @@
       "put": {
         "summary": "后台更新客户端版本",
         "deprecated": false,
-        "description": "需要管理员权限（Admin）；已发布版本必须带 sha512。",
+        "description": "👨‍💼 需要管理员权限（Admin）；如果 objectKey 是 _tmp 临时上传对象，保存时会先 CopyObject 到正式目录。保存成功后会 best-effort 删除临时对象和被替换的旧安装包 OSS 对象。",
         "tags": [
           "客户端管理"
         ],
@@ -7296,7 +7168,7 @@
       "delete": {
         "summary": "后台删除客户端版本",
         "deprecated": false,
-        "description": "需要管理员权限（Admin）；删除客户端版本记录。",
+        "description": "👨‍💼 需要管理员权限（Admin）；删除记录成功后会 best-effort 删除关联的安装包 OSS 对象。",
         "tags": [
           "客户端管理"
         ],
@@ -7407,6 +7279,182 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ClientReleaseResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/admin/skill-hub/direct-upload/init": {
+      "post": {
+        "summary": "初始化 Skill Hub 文件直传",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）；根据 kind、文件名、大小、技能 ID 和版本生成 _tmp 临时 OSS PUT signed URL。zip 最大 50MB，icon 最大 1MB；文件本体由浏览器直接 PUT 到 OSS，不经过 New API。",
+        "tags": [
+          "技能广场管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillHubDirectUploadInitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubDirectUploadInitApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/admin/skill-hub/direct-upload/complete": {
+      "post": {
+        "summary": "完成 Skill Hub 文件直传",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）；浏览器完成 OSS PUT 后调用。后端校验上传票据、检查 _tmp 临时 OSS 对象大小、读取对象重新计算 sha256，并验证 zip 或图片文件头，返回保存 Skill 所需的 URL、object 和 checksum；保存 Skill 时后端会将临时对象复制到正式目录。",
+        "tags": [
+          "技能广场管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillHubDirectUploadCompleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubUploadApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/admin/skill-hub/direct-upload/discard": {
+      "post": {
+        "summary": "丢弃 Skill Hub 未保存上传",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）；用于清理已经 PUT 到 OSS 但尚未保存到 Skill 记录的 _tmp 临时 zip 或 icon 对象。前端在替换上传、切换记录、新建草稿或离开页面时 best-effort 调用。",
+        "tags": [
+          "技能广场管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillHubDirectUploadCompleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubEmptyApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/admin/client-releases/direct-upload/discard": {
+      "post": {
+        "summary": "丢弃客户端安装包未保存上传",
+        "deprecated": false,
+        "description": "需要管理员权限（Admin）；用于清理已经 PUT 到 OSS 但尚未保存到客户端版本记录的 _tmp 临时安装包对象。前端在替换上传、切换记录、新建草稿或离开页面时 best-effort 调用。",
+        "tags": [
+          "客户端管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientReleaseDirectUploadCompleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientReleaseEmptyResponse"
                 }
               }
             }
@@ -8557,7 +8605,7 @@
           },
           "sha256": {
             "type": "string",
-            "description": "SHA256 校验值，上传接口返回 sha256:<hex>",
+            "description": "SHA256 校验值，直传完成确认接口返回 sha256:<hex>",
             "example": "sha256:0123456789abcdef"
           },
           "sha512": {
@@ -8696,28 +8744,28 @@
           },
           "fileName": {
             "type": "string",
-            "description": "上传接口返回的 fileName。前端不应手动编辑上传后的文件名",
+            "description": "直传完成确认接口返回的 fileName。前端不应手动编辑上传后的文件名",
             "example": "Z-UP-Setup-1.2.3-windows-x64-stable.exe"
           },
           "objectKey": {
             "type": "string",
-            "description": "上传接口返回的 object 字段，保存版本记录时作为 objectKey 传入",
-            "example": "client-releases/stable/windows/x64/1.2.3/20260702090000.000000000-Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+            "description": "直传完成确认接口返回的 _tmp 临时 object 字段，保存版本记录时作为 objectKey 传入；保存成功后响应会返回正式 objectKey",
+            "example": "client-releases/_tmp/8f3c6e9d2a1b4c5d9e0f123456789abc/Z-UP-Setup-1.2.3-windows-x64-stable.exe"
           },
           "size": {
             "type": "integer",
             "format": "int64",
-            "description": "上传接口返回的 size，单位 byte",
+            "description": "直传完成确认接口返回的 size，单位 byte",
             "example": 104857600
           },
           "sha256": {
             "type": "string",
-            "description": "上传接口返回的 sha256",
+            "description": "直传完成确认接口返回的 sha256",
             "example": "sha256:0123456789abcdef"
           },
           "sha512": {
             "type": "string",
-            "description": "上传接口返回的 sha512；已发布版本必须存在",
+            "description": "直传完成确认接口返回的 sha512；已发布版本必须存在",
             "example": "base64-sha512-value"
           },
           "releaseNotes": {
@@ -8752,9 +8800,157 @@
           }
         }
       },
+      "ClientReleaseDirectUploadInitRequest": {
+        "type": "object",
+        "description": "初始化客户端安装包 OSS 直传的请求体",
+        "required": [
+          "fileName",
+          "size",
+          "version",
+          "platform",
+          "arch",
+          "channel"
+        ],
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "description": "本地选择的安装包原始文件名，仅用于识别扩展名；最终保存名由后端强制生成",
+            "example": "Z-UP Setup 1.2.3.exe"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "安装包大小，单位 byte；默认最大 500MB，可通过 CLIENT_RELEASE_OSS_MAX_BYTES 调整",
+            "example": 104857600
+          },
+          "version": {
+            "type": "string",
+            "description": "版本号，必须是 x.y.z 三段数字，例如 1.2.3",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "example": "1.2.3"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "windows",
+              "darwin",
+              "linux"
+            ],
+            "description": "目标平台，Windows 使用 windows；初始化前会校验并归一化",
+            "example": "windows"
+          },
+          "arch": {
+            "type": "string",
+            "enum": [
+              "x64",
+              "arm64",
+              "ia32",
+              "universal"
+            ],
+            "description": "目标架构；初始化前会校验并归一化",
+            "example": "x64"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "stable",
+              "beta"
+            ],
+            "description": "目标通道，仅 stable 或 beta；初始化前会校验",
+            "example": "stable"
+          }
+        }
+      },
+      "ClientReleaseDirectUploadCompleteRequest": {
+        "type": "object",
+        "description": "完成客户端安装包 OSS 直传的请求体",
+        "required": [
+          "uploadTicket"
+        ],
+        "properties": {
+          "uploadTicket": {
+            "type": "string",
+            "description": "初始化接口返回的短时上传票据；后端用它确认 object、大小和过期时间",
+            "example": "base64url-payload.base64url-signature"
+          }
+        }
+      },
+      "ClientReleaseDirectUploadInitResult": {
+        "type": "object",
+        "description": "客户端安装包 OSS 直传初始化结果",
+        "required": [
+          "fileName",
+          "object",
+          "size",
+          "contentType",
+          "uploadUrl",
+          "uploadMethod",
+          "uploadHeaders",
+          "uploadTicket",
+          "expiresAt"
+        ],
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "description": "后端强制生成的文件名，格式为 Z-UP-Setup-{version}-{platform}-{arch}-{channel}.{ext}",
+            "example": "Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+          },
+          "object": {
+            "type": "string",
+            "description": "_tmp 临时私有 OSS Object Key。完成确认后保存版本记录时作为 objectKey 传入，保存成功后后端会转正为正式 Object Key",
+            "example": "client-releases/_tmp/8f3c6e9d2a1b4c5d9e0f123456789abc/Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "安装包大小，单位 byte",
+            "example": 104857600
+          },
+          "contentType": {
+            "type": "string",
+            "description": "PUT 到 OSS 时必须使用的 Content-Type",
+            "example": "application/vnd.microsoft.portable-executable"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "短时 OSS PUT signed URL；浏览器直接向该地址上传安装包文件",
+            "example": "https://bucket.oss-cn-hangzhou.aliyuncs.com/client-releases/..."
+          },
+          "uploadMethod": {
+            "type": "string",
+            "description": "上传 HTTP 方法，固定为 PUT",
+            "enum": [
+              "PUT"
+            ],
+            "example": "PUT"
+          },
+          "uploadHeaders": {
+            "type": "object",
+            "description": "PUT 到 OSS 时必须携带的请求头",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "Content-Type": "application/vnd.microsoft.portable-executable"
+            }
+          },
+          "uploadTicket": {
+            "type": "string",
+            "description": "短时上传票据；浏览器 PUT 完成后传给完成确认接口",
+            "example": "base64url-payload.base64url-signature"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "signed URL 和上传票据过期时间，Unix 秒",
+            "example": 1780000000
+          }
+        }
+      },
       "ClientReleaseUploadResult": {
         "type": "object",
-        "description": "安装包上传到私有 OSS 后的结果",
+        "description": "安装包上传到私有 OSS 并完成确认后的结果",
         "required": [
           "fileName",
           "object",
@@ -8770,8 +8966,8 @@
           },
           "object": {
             "type": "string",
-            "description": "私有 OSS Object Key。保存版本记录时作为 objectKey 传入",
-            "example": "client-releases/stable/windows/x64/1.2.3/20260702090000.000000000-Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+            "description": "_tmp 临时私有 OSS Object Key。保存版本记录时作为 objectKey 传入，保存成功后后端会转正为正式 Object Key",
+            "example": "client-releases/_tmp/8f3c6e9d2a1b4c5d9e0f123456789abc/Z-UP-Setup-1.2.3-windows-x64-stable.exe"
           },
           "size": {
             "type": "integer",
@@ -8833,6 +9029,20 @@
           }
         }
       },
+      "ClientReleaseDirectUploadInitResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ClientReleaseDirectUploadInitResult"
+          }
+        }
+      },
       "ClientReleaseUploadResponse": {
         "type": "object",
         "properties": {
@@ -8858,6 +9068,160 @@
           },
           "data": {
             "nullable": true
+          }
+        }
+      },
+      "SkillHubDirectUploadInitRequest": {
+        "type": "object",
+        "description": "初始化 Skill Hub OSS 直传的请求体",
+        "required": [
+          "kind",
+          "skillId",
+          "fileName",
+          "size"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "zip",
+              "icon"
+            ],
+            "description": "上传类型：zip 表示技能压缩包，icon 表示技能图标",
+            "example": "zip"
+          },
+          "skillId": {
+            "type": "string",
+            "description": "技能 ID；用于生成 OSS Object Key 路径",
+            "example": "demo.skill"
+          },
+          "version": {
+            "type": "string",
+            "description": "技能版本；zip 上传时用于生成 OSS Object Key，icon 上传可为空",
+            "example": "1.0.0"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "本地选择的原始文件名，仅用于识别扩展名和生成对象名",
+            "example": "demo-skill.zip"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "文件大小，单位 byte；zip 最大 50MB，icon 最大 1MB",
+            "example": 1048576
+          }
+        }
+      },
+      "SkillHubDirectUploadInitResult": {
+        "type": "object",
+        "description": "Skill Hub OSS 直传初始化结果",
+        "required": [
+          "kind",
+          "fileName",
+          "object",
+          "size",
+          "contentType",
+          "uploadUrl",
+          "uploadMethod",
+          "uploadHeaders",
+          "uploadTicket",
+          "expiresAt"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "zip",
+              "icon"
+            ],
+            "description": "上传类型",
+            "example": "zip"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "规范化后的文件名",
+            "example": "demo-skill.zip"
+          },
+          "object": {
+            "type": "string",
+            "description": "_tmp 临时 OSS Object Key；complete 成功后作为 source.ref 或图标对象来源使用，保存 Skill 成功后后端会转正为正式 Object Key",
+            "example": "skill-hub/skills/_tmp/packages/demo.skill/8f3c6e9d2a1b4c5d9e0f123456789abc/demo-skill.zip"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "文件大小，单位 byte",
+            "example": 1048576
+          },
+          "contentType": {
+            "type": "string",
+            "description": "PUT 到 OSS 时必须使用的 Content-Type",
+            "example": "application/zip"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "短时 OSS PUT signed URL；浏览器直接向该地址上传文件",
+            "example": "https://bucket.oss-cn-hangzhou.aliyuncs.com/skill-hub/skills/..."
+          },
+          "uploadMethod": {
+            "type": "string",
+            "enum": [
+              "PUT"
+            ],
+            "description": "上传 HTTP 方法，固定为 PUT",
+            "example": "PUT"
+          },
+          "uploadHeaders": {
+            "type": "object",
+            "description": "PUT 到 OSS 时必须携带的请求头",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "Content-Type": "application/zip"
+            }
+          },
+          "uploadTicket": {
+            "type": "string",
+            "description": "短时上传票据；PUT 完成后传给 complete，未保存或替换草稿时可传给 discard 清理 OSS 对象",
+            "example": "base64url-payload.base64url-signature"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "signed URL 和上传票据过期时间，Unix 秒",
+            "example": 1780000000
+          }
+        }
+      },
+      "SkillHubDirectUploadCompleteRequest": {
+        "type": "object",
+        "description": "完成或丢弃 Skill Hub OSS 直传的请求体",
+        "required": [
+          "uploadTicket"
+        ],
+        "properties": {
+          "uploadTicket": {
+            "type": "string",
+            "description": "初始化接口返回的短时上传票据",
+            "example": "base64url-payload.base64url-signature"
+          }
+        }
+      },
+      "SkillHubDirectUploadInitApiResponse": {
+        "type": "object",
+        "description": "Skill Hub OSS 直传初始化响应",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SkillHubDirectUploadInitResult"
           }
         }
       }

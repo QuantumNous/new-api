@@ -74,6 +74,22 @@ export type ClientReleaseResponse = {
   data?: ClientRelease
 }
 
+export type ClientReleaseDirectUploadInitResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    fileName: string
+    object: string
+    size: number
+    contentType: string
+    uploadUrl: string
+    uploadMethod: 'PUT'
+    uploadHeaders: Record<string, string>
+    uploadTicket: string
+    expiresAt: number
+  }
+}
+
 export type ClientReleaseUploadResponse = {
   success: boolean
   message?: string
@@ -83,5 +99,6 @@ export type ClientReleaseUploadResponse = {
     size: number
     sha256: string
     sha512: string
+    uploadTicket?: string
   }
 }

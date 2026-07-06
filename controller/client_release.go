@@ -32,6 +32,19 @@ type clientReleaseRequest struct {
 	Status       *int   `json:"status"`
 }
 
+type clientReleaseDirectUploadInitRequest struct {
+	Version  string `json:"version"`
+	Platform string `json:"platform"`
+	Arch     string `json:"arch"`
+	Channel  string `json:"channel"`
+	FileName string `json:"fileName"`
+	Size     int64  `json:"size"`
+}
+
+type clientReleaseDirectUploadCompleteRequest struct {
+	UploadTicket string `json:"uploadTicket"`
+}
+
 type electronLatestYAML struct {
 	Version     string                   `yaml:"version"`
 	Files       []electronLatestYAMLFile `yaml:"files"`
@@ -191,25 +204,52 @@ func AdminGetClientRelease(c *gin.Context) {
 	common.ApiSuccess(c, release.ToResponse(true, clientReleaseDownloadURL(c, release)))
 }
 
-func AdminUploadClientRelease(c *gin.Context) {
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, service.ClientReleaseMaxBytes()+(1<<20))
-	file, header, err := c.Request.FormFile("file")
-	if err != nil {
+func AdminInitClientReleaseDirectUpload(c *gin.Context) {
+	var request clientReleaseDirectUploadInitRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	defer file.Close()
-	result, err := service.UploadClientReleaseInstaller(file, header, service.ClientReleaseUploadInput{
-		Version:  c.PostForm("version"),
-		Platform: c.PostForm("platform"),
-		Arch:     c.PostForm("arch"),
-		Channel:  c.PostForm("channel"),
+	result, err := service.InitClientReleaseDirectUpload(service.ClientReleaseDirectUploadInput{
+		Version:  request.Version,
+		Platform: request.Platform,
+		Arch:     request.Arch,
+		Channel:  request.Channel,
+		FileName: request.FileName,
+		Size:     request.Size,
 	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	common.ApiSuccess(c, result)
+}
+
+func AdminCompleteClientReleaseDirectUpload(c *gin.Context) {
+	var request clientReleaseDirectUploadCompleteRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	result, err := service.CompleteClientReleaseDirectUpload(request.UploadTicket)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, result)
+}
+
+func AdminDiscardClientReleaseDirectUpload(c *gin.Context) {
+	var request clientReleaseDirectUploadCompleteRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := service.DiscardClientReleaseDirectUpload(request.UploadTicket); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
 }
 
 func AdminCreateClientRelease(c *gin.Context) {
@@ -219,10 +259,17 @@ func AdminCreateClientRelease(c *gin.Context) {
 		return
 	}
 	release := clientReleaseRequestToModel(request, nil)
-	if err := release.Insert(); err != nil {
+	promotion, err := service.PromoteClientReleaseObject(release)
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	if err := release.Insert(); err != nil {
+		cleanupPromotedClientReleaseFinal(promotion)
+		common.ApiError(c, err)
+		return
+	}
+	cleanupPromotedClientReleaseTemp(promotion)
 	common.ApiSuccess(c, release.ToResponse(true, clientReleaseDownloadURL(c, release)))
 }
 
@@ -238,10 +285,19 @@ func AdminUpdateClientRelease(c *gin.Context) {
 		return
 	}
 	release = clientReleaseRequestToModel(request, release)
-	if err := release.Update(); err != nil {
+	promotion, err := service.PromoteClientReleaseObject(release)
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	oldObjectKey, err := release.UpdateReturningPreviousObjectKey()
+	if err != nil {
+		cleanupPromotedClientReleaseFinal(promotion)
+		common.ApiError(c, err)
+		return
+	}
+	cleanupPromotedClientReleaseTemp(promotion)
+	cleanupClientReleaseObjectIfChanged(oldObjectKey, release.ObjectKey)
 	common.ApiSuccess(c, release.ToResponse(true, clientReleaseDownloadURL(c, release)))
 }
 
@@ -255,6 +311,7 @@ func AdminDeleteClientRelease(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	cleanupClientReleaseObject(release.ObjectKey)
 	common.ApiSuccess(c, nil)
 }
 
@@ -347,4 +404,34 @@ func clientReleaseTime(release *model.ClientRelease) time.Time {
 		return time.Unix(release.CreatedTime, 0).UTC()
 	}
 	return time.Now().UTC()
+}
+
+func cleanupClientReleaseObjectIfChanged(oldObjectKey string, newObjectKey string) {
+	if strings.TrimSpace(oldObjectKey) == "" || strings.TrimSpace(oldObjectKey) == strings.TrimSpace(newObjectKey) {
+		return
+	}
+	cleanupClientReleaseObject(oldObjectKey)
+}
+
+func cleanupClientReleaseObject(objectKey string) {
+	if strings.TrimSpace(objectKey) == "" {
+		return
+	}
+	if err := service.DeleteClientReleaseObject(objectKey); err != nil {
+		common.SysLog(fmt.Sprintf("client release OSS object cleanup failed for %s: %v", objectKey, err))
+	}
+}
+
+func cleanupPromotedClientReleaseFinal(result *service.ClientReleasePromoteResult) {
+	if result == nil || !result.Promoted {
+		return
+	}
+	cleanupClientReleaseObject(result.FinalObject)
+}
+
+func cleanupPromotedClientReleaseTemp(result *service.ClientReleasePromoteResult) {
+	if result == nil || !result.Promoted {
+		return
+	}
+	cleanupClientReleaseObject(result.TempObject)
 }

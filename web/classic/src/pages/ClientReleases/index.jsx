@@ -135,6 +135,69 @@ const formatBytes = (bytes) => {
   return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 };
 
+const uploadClientReleasePackage = async (file, form) => {
+  const initRes = await API.post(
+    '/api/admin/client-releases/direct-upload/init',
+    {
+      fileName: file.name,
+      size: file.size,
+      version: form.version,
+      platform: form.platform,
+      arch: form.arch,
+      channel: form.channel,
+    },
+  );
+  const initPayload = initRes.data;
+  if (!initPayload.success || !initPayload.data) {
+    throw new Error(initPayload.message || '安装包上传初始化失败');
+  }
+  try {
+    await putClientReleaseObject(initPayload.data, file);
+    const completeRes = await API.post(
+      '/api/admin/client-releases/direct-upload/complete',
+      {
+        uploadTicket: initPayload.data.uploadTicket,
+      },
+    );
+    const payload = completeRes.data;
+    if (payload.success && payload.data) {
+      payload.data.uploadTicket = initPayload.data.uploadTicket;
+    }
+    return payload;
+  } catch (error) {
+    await discardClientReleaseUpload(initPayload.data.uploadTicket).catch(
+      () => undefined,
+    );
+    throw error;
+  }
+};
+
+const discardClientReleaseUpload = async (uploadTicket) => {
+  if (!uploadTicket) return;
+  await API.post('/api/admin/client-releases/direct-upload/discard', {
+    uploadTicket,
+  });
+};
+
+const putClientReleaseObject = (upload, file) =>
+  new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(upload.uploadMethod || 'PUT', upload.uploadUrl);
+    Object.entries(upload.uploadHeaders || {}).forEach(([key, value]) => {
+      if (value) xhr.setRequestHeader(key, value);
+    });
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+        return;
+      }
+      reject(new Error(`OSS 上传失败（${xhr.status || '网络错误'}）`));
+    };
+    xhr.onerror = () => reject(new Error('OSS 上传失败'));
+    xhr.onabort = () => reject(new Error('OSS 上传已取消'));
+    xhr.send(file);
+  });
+
 const buildLatestYmlUrl = (form) =>
   `/api/client-releases/updates/${encodeURIComponent(form.platform)}/${encodeURIComponent(form.arch)}/${encodeURIComponent(form.channel || 'stable')}/latest.yml`;
 
@@ -246,6 +309,7 @@ const ClientReleases = () => {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const pendingUploadRef = useRef(null);
 
   const selectedRelease = useMemo(
     () => releases.find((release) => release.id === selectedId),
@@ -314,17 +378,60 @@ const ClientReleases = () => {
   }, []);
 
   useEffect(() => {
+    return () => {
+      const pending = pendingUploadRef.current;
+      if (pending?.ticket) {
+        discardClientReleaseUpload(pending.ticket).catch(() => undefined);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (selectedRelease) {
       setForm(releaseToForm(selectedRelease));
     }
   }, [selectedRelease]);
 
+  const discardPendingUpload = () => {
+    const pending = pendingUploadRef.current;
+    pendingUploadRef.current = null;
+    if (pending?.ticket) {
+      discardClientReleaseUpload(pending.ticket).catch(() => undefined);
+    }
+  };
+
+  const replacePendingUpload = (uploadTicket, objectKey) => {
+    const previous = pendingUploadRef.current;
+    pendingUploadRef.current =
+      uploadTicket && objectKey
+        ? { ticket: uploadTicket, object: objectKey }
+        : null;
+    if (previous?.ticket && previous.ticket !== uploadTicket) {
+      discardClientReleaseUpload(previous.ticket).catch(() => undefined);
+    }
+  };
+
+  const settlePendingUpload = (savedObjectKey) => {
+    const pending = pendingUploadRef.current;
+    pendingUploadRef.current = null;
+    if (
+      pending?.ticket &&
+      pending.object &&
+      savedObjectKey &&
+      pending.object !== savedObjectKey
+    ) {
+      discardClientReleaseUpload(pending.ticket).catch(() => undefined);
+    }
+  };
+
   const handleNew = () => {
+    discardPendingUpload();
     setSelectedId('');
     setForm(createDefaultForm());
   };
 
   const selectRelease = (release) => {
+    discardPendingUpload();
     setSelectedId(release.id);
     setForm(releaseToForm(release));
   };
@@ -345,18 +452,18 @@ const ClientReleases = () => {
     }
     setUploading(true);
     try {
-      const body = new FormData();
-      body.append('file', file);
-      body.append('version', version);
-      body.append('platform', form.platform);
-      body.append('arch', form.arch);
-      body.append('channel', form.channel);
-      const res = await API.post('/api/admin/client-releases/upload', body);
-      const { success, data, message } = res.data;
+      const { success, data, message } = await uploadClientReleasePackage(
+        file,
+        {
+          ...form,
+          version,
+        },
+      );
       if (!success || !data) {
         showError(message || '安装包上传失败');
         return;
       }
+      replacePendingUpload(data.uploadTicket, data.object);
       updateForm('fileName', data.fileName);
       updateForm('objectKey', data.object);
       updateForm('size', data.size);
@@ -428,6 +535,7 @@ const ClientReleases = () => {
         return;
       }
       showSuccess('保存成功');
+      settlePendingUpload(data.objectKey);
       setSelectedId(data.id);
       setForm(releaseToForm(data));
       await loadReleases();
@@ -572,7 +680,7 @@ const ClientReleases = () => {
             </div>
 
             <Spin spinning={loading}>
-              <div className='flex max-h-[70vh] flex-col gap-2 overflow-auto pr-1'>
+              <div className='flex max-h-[70vh] flex-col gap-2 overflow-auto pr-1 pb-2'>
                 {releases.map((release) => {
                   const published = isPublishedRelease(release);
                   const forcedLabel = release.minVersion

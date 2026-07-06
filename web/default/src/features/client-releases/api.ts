@@ -20,6 +20,7 @@ import { api } from '@/lib/api'
 import type {
   ClientRelease,
   ClientReleaseChannel,
+  ClientReleaseDirectUploadInitResponse,
   ClientReleaseForm,
   ClientReleaseListResponse,
   ClientReleaseResponse,
@@ -80,14 +81,77 @@ export async function uploadClientRelease(
   file: File,
   form: Pick<ClientReleaseForm, 'version' | 'platform' | 'arch' | 'channel'>
 ): Promise<ClientReleaseUploadResponse> {
-  const body = new FormData()
-  body.append('file', file)
-  body.append('version', form.version)
-  body.append('platform', form.platform)
-  body.append('arch', form.arch)
-  body.append('channel', form.channel)
-  const res = await api.post('/api/admin/client-releases/upload', body)
+  const initPayload = await initClientReleaseDirectUpload(file, form)
+  if (!initPayload.success || !initPayload.data) {
+    return {
+      success: false,
+      message: initPayload.message || 'Failed to upload package',
+    }
+  }
+  try {
+    await putClientReleaseObject(initPayload.data, file)
+    const res = await api.post(
+      '/api/admin/client-releases/direct-upload/complete',
+      {
+        uploadTicket: initPayload.data.uploadTicket,
+      }
+    )
+    const payload = res.data as ClientReleaseUploadResponse
+    if (payload.success && payload.data) {
+      payload.data.uploadTicket = initPayload.data.uploadTicket
+    }
+    return payload
+  } catch (error) {
+    await discardClientReleaseUpload(initPayload.data.uploadTicket).catch(
+      () => undefined
+    )
+    throw error
+  }
+}
+
+export async function discardClientReleaseUpload(uploadTicket: string) {
+  if (!uploadTicket) return
+  await api.post('/api/admin/client-releases/direct-upload/discard', {
+    uploadTicket,
+  })
+}
+
+async function initClientReleaseDirectUpload(
+  file: File,
+  form: Pick<ClientReleaseForm, 'version' | 'platform' | 'arch' | 'channel'>
+): Promise<ClientReleaseDirectUploadInitResponse> {
+  const res = await api.post('/api/admin/client-releases/direct-upload/init', {
+    fileName: file.name,
+    size: file.size,
+    version: form.version,
+    platform: form.platform,
+    arch: form.arch,
+    channel: form.channel,
+  })
   return res.data
+}
+
+function putClientReleaseObject(
+  upload: NonNullable<ClientReleaseDirectUploadInitResponse['data']>,
+  file: File
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open(upload.uploadMethod || 'PUT', upload.uploadUrl)
+    Object.entries(upload.uploadHeaders || {}).forEach(([key, value]) => {
+      if (value) xhr.setRequestHeader(key, value)
+    })
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve()
+        return
+      }
+      reject(new Error('Failed to upload package'))
+    }
+    xhr.onerror = () => reject(new Error('Failed to upload package'))
+    xhr.onabort = () => reject(new Error('Failed to upload package'))
+    xhr.send(file)
+  })
 }
 
 export function clientReleaseToForm(

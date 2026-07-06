@@ -52,6 +52,7 @@ import { SectionPageLayout } from '@/components/layout'
 import {
   createSkillHubSkill,
   deleteSkillHubSkill,
+  discardSkillHubUpload,
   listAdminSkillHubSkillsByTags,
   listAdminSkillHubTags,
   listAdminSkillHubSkills,
@@ -78,6 +79,14 @@ export function SkillHub() {
   const [recommendedOnly, setRecommendedOnly] = useState(false)
   const zipInputRef = useRef<HTMLInputElement | null>(null)
   const iconInputRef = useRef<HTMLInputElement | null>(null)
+  const pendingZipUploadRef = useRef<{
+    ticket: string
+    object: string
+  } | null>(null)
+  const pendingIconUploadRef = useRef<{
+    ticket: string
+    url: string
+  } | null>(null)
 
   const selected = useMemo(
     () => skills.find((skill) => skill.id === selectedId),
@@ -141,12 +150,27 @@ export function SkillHub() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    return () => {
+      const pendingZip = pendingZipUploadRef.current
+      const pendingIcon = pendingIconUploadRef.current
+      if (pendingZip?.ticket) {
+        void discardSkillHubUpload(pendingZip.ticket).catch(() => undefined)
+      }
+      if (pendingIcon?.ticket) {
+        void discardSkillHubUpload(pendingIcon.ticket).catch(() => undefined)
+      }
+    }
+  }, [])
+
   function selectSkill(skill: SkillHubSkill) {
+    discardPendingUploads()
     setSelectedId(skill.id)
     setForm(skillToForm(skill))
   }
 
   function createDraft() {
+    discardPendingUploads()
     setSelectedId('')
     setForm(skillToForm())
   }
@@ -191,6 +215,7 @@ export function SkillHub() {
         throw new Error(payload.message || t('Failed to save skill'))
       }
       toast.success(t('Skill saved'))
+      settlePendingUploads(payload.data)
       setSelectedId(payload.data.id)
       setForm(skillToForm(payload.data))
       await loadSkills()
@@ -223,6 +248,7 @@ export function SkillHub() {
       if (!payload.success || !payload.data) {
         throw new Error(payload.message || t('Failed to upload zip'))
       }
+      replacePendingZip(payload.data.uploadTicket, payload.data.object)
       update('sourceUrl', payload.data.url)
       update('sourceRef', payload.data.object)
       update('sourceChecksum', payload.data.checksum)
@@ -255,6 +281,7 @@ export function SkillHub() {
       if (!payload.success || !payload.data) {
         throw new Error(payload.message || t('Failed to upload icon'))
       }
+      replacePendingIcon(payload.data.uploadTicket, payload.data.url)
       update('icon', payload.data.url)
       toast.success(t('Icon uploaded'))
     } catch (error) {
@@ -317,6 +344,60 @@ export function SkillHub() {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  function discardPendingUploads() {
+    const pendingZip = pendingZipUploadRef.current
+    const pendingIcon = pendingIconUploadRef.current
+    pendingZipUploadRef.current = null
+    pendingIconUploadRef.current = null
+    if (pendingZip?.ticket) {
+      void discardSkillHubUpload(pendingZip.ticket).catch(() => undefined)
+    }
+    if (pendingIcon?.ticket) {
+      void discardSkillHubUpload(pendingIcon.ticket).catch(() => undefined)
+    }
+  }
+
+  function replacePendingZip(uploadTicket?: string, objectKey?: string) {
+    const previous = pendingZipUploadRef.current
+    pendingZipUploadRef.current =
+      uploadTicket && objectKey
+        ? { ticket: uploadTicket, object: objectKey }
+        : null
+    if (previous?.ticket && previous.ticket !== uploadTicket) {
+      void discardSkillHubUpload(previous.ticket).catch(() => undefined)
+    }
+  }
+
+  function replacePendingIcon(uploadTicket?: string, url?: string) {
+    const previous = pendingIconUploadRef.current
+    pendingIconUploadRef.current =
+      uploadTicket && url ? { ticket: uploadTicket, url } : null
+    if (previous?.ticket && previous.ticket !== uploadTicket) {
+      void discardSkillHubUpload(previous.ticket).catch(() => undefined)
+    }
+  }
+
+  function settlePendingUploads(savedSkill: SkillHubSkill) {
+    const pendingZip = pendingZipUploadRef.current
+    const pendingIcon = pendingIconUploadRef.current
+    pendingZipUploadRef.current = null
+    pendingIconUploadRef.current = null
+    if (
+      pendingZip?.ticket &&
+      pendingZip.object &&
+      pendingZip.object !== savedSkill.source?.ref
+    ) {
+      void discardSkillHubUpload(pendingZip.ticket).catch(() => undefined)
+    }
+    if (
+      pendingIcon?.ticket &&
+      pendingIcon.url &&
+      pendingIcon.url !== savedSkill.icon
+    ) {
+      void discardSkillHubUpload(pendingIcon.ticket).catch(() => undefined)
+    }
+  }
+
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>技能管理</SectionPageLayout.Title>
@@ -335,15 +416,15 @@ export function SkillHub() {
         </Button>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
-        <div className='grid gap-4 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]'>
-          <Card className='min-h-[520px]'>
+        <div className='grid items-start gap-4 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]'>
+          <Card className='min-h-[520px] lg:max-h-[calc(100vh-8rem)]'>
             <CardHeader>
               <CardTitle>{t('Catalog')}</CardTitle>
               <CardDescription>
                 {t('Skills returned to local connectors.')}
               </CardDescription>
             </CardHeader>
-            <CardContent className='space-y-3'>
+            <CardContent className='flex min-h-0 flex-1 flex-col gap-3'>
               <div className='flex gap-2'>
                 <Input
                   value={keyword}
@@ -398,9 +479,10 @@ export function SkillHub() {
                   })}
                 </div>
               )}
-              <div className='space-y-2'>
+              <div className='min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 pb-2'>
                 {skills.map((skill) => {
                   const published = skill.published || skill.status === 1
+                  const tags = normalizeSkillTags(skill.tags)
                   return (
                     <button
                       key={skill.id}
@@ -432,6 +514,20 @@ export function SkillHub() {
                             {published ? t('Published') : t('Draft')}
                           </Badge>
                         </div>
+                      </div>
+                      <div className='text-foreground/90 mt-2 line-clamp-2 min-h-10 text-sm'>
+                        {skill.description?.trim() ||
+                          t('No description available.')}
+                      </div>
+                      <div className='mt-2 flex max-h-7 min-h-7 flex-wrap gap-1 overflow-hidden'>
+                        {tags.slice(0, 4).map((tag) => (
+                          <span
+                            key={tag}
+                            className='bg-muted text-muted-foreground rounded-md px-2 py-0.5 text-xs'
+                          >
+                            {tag}
+                          </span>
+                        ))}
                       </div>
                     </button>
                   )
@@ -496,7 +592,7 @@ export function SkillHub() {
                       />
                     </Field>
                     <Field label={t('Icon')}>
-                      <div className='flex gap-2'>
+                      <div className='flex items-start gap-2'>
                         <div className='bg-muted flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border text-sm'>
                           {isImageIcon(form.icon) ? (
                             <img
@@ -509,11 +605,13 @@ export function SkillHub() {
                             <ImageIcon className='text-muted-foreground h-4 w-4' />
                           )}
                         </div>
-                        <div className='bg-muted text-muted-foreground flex min-w-0 flex-1 items-center truncate rounded-md border px-3 text-xs'>
-                          {form.icon.trim()
-                            ? form.icon.trim()
-                            : t('No icon uploaded')}
-                        </div>
+                        <ReadonlyValue
+                          value={
+                            form.icon.trim()
+                              ? form.icon.trim()
+                              : t('No icon uploaded')
+                          }
+                        />
                         <input
                           ref={iconInputRef}
                           type='file'
@@ -850,6 +948,11 @@ function splitTagText(value: string) {
     .filter(Boolean)
 }
 
+function normalizeSkillTags(value?: string[]) {
+  if (!Array.isArray(value)) return []
+  return value.map((item) => item.trim()).filter(Boolean)
+}
+
 function mergeTags(current: string[], incoming: string[]) {
   const seen = new Set<string>()
   const next: string[] = []
@@ -867,10 +970,18 @@ function mergeTags(current: string[], incoming: string[]) {
 
 function Field(props: { label: string; children: ReactNode }) {
   return (
-    <label className='grid gap-1.5 text-sm font-medium'>
+    <label className='grid min-w-0 gap-1.5 text-sm font-medium'>
       <span>{props.label}</span>
       {props.children}
     </label>
+  )
+}
+
+function ReadonlyValue(props: { value: string }) {
+  return (
+    <div className='bg-muted text-muted-foreground min-h-9 min-w-0 flex-1 overflow-hidden rounded-md border px-3 py-2 text-xs leading-relaxed break-all'>
+      {props.value || '-'}
+    </div>
   )
 }
 

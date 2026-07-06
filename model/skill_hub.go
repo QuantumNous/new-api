@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -304,6 +305,33 @@ func (s *SkillHubSkill) Update() error {
 		}
 		return replaceSkillHubSkillTagsTx(tx, s.Id, tags)
 	})
+}
+
+func (s *SkillHubSkill) UpdateReturningPreviousObjects() (string, string, error) {
+	var oldSourceRef string
+	var oldIcon string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var current SkillHubSkill
+		query := tx
+		if !common.UsingSQLite {
+			query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+		}
+		if err := query.Where("id = ?", s.Id).First(&current).Error; err != nil {
+			return err
+		}
+		oldSourceRef = current.SourceRef
+		oldIcon = current.Icon
+		s.CreatedTime = current.CreatedTime
+		if err := tx.Save(s).Error; err != nil {
+			return err
+		}
+		tags := stringListFromJSON(s.Tags)
+		if err := upsertSkillHubTagsTx(tx, tags); err != nil {
+			return err
+		}
+		return replaceSkillHubSkillTagsTx(tx, s.Id, tags)
+	})
+	return oldSourceRef, oldIcon, err
 }
 
 func DeleteSkillHubSkill(skill *SkillHubSkill) error {

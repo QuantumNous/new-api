@@ -35,6 +35,18 @@ type skillHubTagRequest struct {
 	Sort int    `json:"sort"`
 }
 
+type skillHubDirectUploadInitRequest struct {
+	Kind     string `json:"kind"`
+	SkillID  string `json:"skillId"`
+	Version  string `json:"version"`
+	FileName string `json:"fileName"`
+	Size     int64  `json:"size"`
+}
+
+type skillHubDirectUploadCompleteRequest struct {
+	UploadTicket string `json:"uploadTicket"`
+}
+
 func ListSkillHubSkills(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	skills, total, err := model.SearchSkillHubSkills(c.Query("keyword"), false, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), parseSkillHubRecommendedOnly(c))
@@ -126,47 +138,54 @@ func AdminGetSkillHubSkill(c *gin.Context) {
 	common.ApiSuccess(c, skill.ToResponse(true))
 }
 
-func AdminUploadSkillHubZip(c *gin.Context) {
-	skillID := strings.TrimSpace(c.PostForm("skill_id"))
-	if skillID == "" {
-		common.ApiErrorMsg(c, "skill id is required before upload")
+func AdminInitSkillHubDirectUpload(c *gin.Context) {
+	var request skillHubDirectUploadInitRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
 		return
 	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, service.SkillHubZipMaxBytes+(1<<20))
-	file, header, err := c.Request.FormFile("file")
+	result, err := service.InitSkillHubDirectUpload(service.SkillHubDirectUploadInput{
+		Kind:     request.Kind,
+		SkillID:  request.SkillID,
+		Version:  request.Version,
+		FileName: request.FileName,
+		Size:     request.Size,
+	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	defer file.Close()
-	result, err := service.UploadSkillHubZip(file, header, skillID, c.PostForm("version"))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	result.URL = skillHubDownloadURL(c, skillID)
 	common.ApiSuccess(c, result)
 }
 
-func AdminUploadSkillHubIcon(c *gin.Context) {
-	skillID := strings.TrimSpace(c.PostForm("skill_id"))
-	if skillID == "" {
-		common.ApiErrorMsg(c, "skill id is required before upload")
+func AdminCompleteSkillHubDirectUpload(c *gin.Context) {
+	var request skillHubDirectUploadCompleteRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
 		return
 	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, service.SkillHubIconMaxBytes+(1<<20))
-	file, header, err := c.Request.FormFile("file")
+	result, err := service.CompleteSkillHubDirectUpload(request.UploadTicket)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	defer file.Close()
-	result, err := service.UploadSkillHubIcon(file, header, skillID)
-	if err != nil {
+	if result.Kind == service.SkillHubUploadKindZip {
+		result.Upload.URL = skillHubDownloadURL(c, result.SkillID)
+	}
+	common.ApiSuccess(c, result.Upload)
+}
+
+func AdminDiscardSkillHubDirectUpload(c *gin.Context) {
+	var request skillHubDirectUploadCompleteRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, result)
+	if err := service.DiscardSkillHubDirectUpload(request.UploadTicket); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
 }
 
 func AdminCreateSkillHubSkill(c *gin.Context) {
@@ -185,10 +204,17 @@ func AdminCreateSkillHubSkill(c *gin.Context) {
 		common.ApiErrorMsg(c, "skill id already exists")
 		return
 	}
-	if err := skill.Insert(); err != nil {
+	promotion, err := service.PromoteSkillHubObjects(skill)
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	if err := skill.Insert(); err != nil {
+		cleanupPromotedSkillHubFinalObjects(promotion)
+		common.ApiError(c, err)
+		return
+	}
+	cleanupPromotedSkillHubTempObjects(promotion)
 	common.ApiSuccess(c, skill.ToResponse(true))
 }
 
@@ -216,10 +242,19 @@ func AdminUpdateSkillHubSkill(c *gin.Context) {
 		common.ApiErrorMsg(c, "skill id already exists")
 		return
 	}
-	if err := skill.Update(); err != nil {
+	promotion, err := service.PromoteSkillHubObjects(skill)
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	oldSourceRef, oldIcon, err := skill.UpdateReturningPreviousObjects()
+	if err != nil {
+		cleanupPromotedSkillHubFinalObjects(promotion)
+		common.ApiError(c, err)
+		return
+	}
+	cleanupPromotedSkillHubTempObjects(promotion)
+	cleanupSkillHubObjectsIfChanged(oldSourceRef, oldIcon, skill.SourceRef, skill.Icon)
 	common.ApiSuccess(c, skill.ToResponse(true))
 }
 
@@ -233,6 +268,7 @@ func AdminDeleteSkillHubSkill(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	cleanupSkillHubObjects(skill.SourceRef, skill.Icon)
 	common.ApiSuccess(c, nil)
 }
 
@@ -433,6 +469,71 @@ func skillHubRequestToModel(request skillHubSkillRequest, existing *model.SkillH
 
 func skillHubDownloadURL(c *gin.Context, skillID string) string {
 	return fmt.Sprintf("%s/api/skill-hub/skills/%s/download", requestBaseURL(c), url.PathEscape(skillID))
+}
+
+func cleanupSkillHubObjectsIfChanged(oldSourceRef string, oldIcon string, newSourceRef string, newIcon string) {
+	if strings.TrimSpace(oldSourceRef) != "" && strings.TrimSpace(oldSourceRef) != strings.TrimSpace(newSourceRef) {
+		cleanupSkillHubZipObject(oldSourceRef)
+	}
+	if strings.TrimSpace(oldIcon) != "" && strings.TrimSpace(oldIcon) != strings.TrimSpace(newIcon) {
+		cleanupSkillHubIconObject(oldIcon)
+	}
+}
+
+func cleanupSkillHubObjects(sourceRef string, icon string) {
+	cleanupSkillHubZipObject(sourceRef)
+	cleanupSkillHubIconObject(icon)
+}
+
+func cleanupSkillHubZipObject(objectKey string) {
+	if strings.TrimSpace(objectKey) == "" {
+		return
+	}
+	if err := service.DeleteSkillHubZipObject(objectKey); err != nil {
+		common.SysLog(fmt.Sprintf("skill hub zip OSS object cleanup failed for %s: %v", objectKey, err))
+	}
+}
+
+func cleanupSkillHubIconObject(iconURL string) {
+	if strings.TrimSpace(iconURL) == "" {
+		return
+	}
+	if err := service.DeleteSkillHubIconByURL(iconURL); err != nil {
+		common.SysLog(fmt.Sprintf("skill hub icon OSS object cleanup failed for %s: %v", iconURL, err))
+	}
+}
+
+func cleanupPromotedSkillHubFinalObjects(result *service.SkillHubPromoteResult) {
+	if result == nil {
+		return
+	}
+	if result.ZipPromoted {
+		cleanupSkillHubZipObject(result.FinalSourceRef)
+	}
+	if result.IconPromoted {
+		cleanupSkillHubIconObjectByKey(result.FinalIconObject)
+	}
+}
+
+func cleanupPromotedSkillHubTempObjects(result *service.SkillHubPromoteResult) {
+	if result == nil {
+		return
+	}
+	if result.ZipPromoted {
+		cleanupSkillHubZipObject(result.TempSourceRef)
+	}
+	if result.IconPromoted {
+		cleanupSkillHubIconObjectByKey(result.TempIconObject)
+	}
+}
+
+func cleanupSkillHubIconObjectByKey(objectKey string) {
+	if strings.TrimSpace(objectKey) == "" {
+		return
+	}
+	if err := service.DeleteSkillHubIconObject(objectKey); err != nil {
+		common.SysLog(fmt.Sprintf("skill hub icon OSS object cleanup failed for %s: %v", objectKey, err))
+	}
 }
 
 func requestBaseURL(c *gin.Context) string {

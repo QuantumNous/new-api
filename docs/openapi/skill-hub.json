@@ -21,7 +21,9 @@
         "summary": "获取技能广场技能列表",
         "deprecated": false,
         "description": "🔓 无需鉴权；仅返回已发布技能",
-        "tags": ["技能广场"],
+        "tags": [
+          "技能广场"
+        ],
         "parameters": [
           {
             "name": "keyword",
@@ -80,7 +82,9 @@
         "summary": "随机获取推荐技能",
         "deprecated": false,
         "description": "🔓 无需鉴权；从已发布且标记推荐的技能中随机返回一组，用于前台“换一换”",
-        "tags": ["技能广场"],
+        "tags": [
+          "技能广场"
+        ],
         "parameters": [
           {
             "name": "page_size",
@@ -115,7 +119,9 @@
         "summary": "获取技能广场标签列表",
         "deprecated": false,
         "description": "🔓 无需鉴权；仅返回已发布技能正在使用的标签。公开读取不会触发标签同步写入",
-        "tags": ["技能广场"],
+        "tags": [
+          "技能广场"
+        ],
         "parameters": [
           {
             "name": "keyword",
@@ -165,7 +171,9 @@
         "summary": "按标签获取技能广场技能列表",
         "deprecated": false,
         "description": "🔓 无需鉴权；按一个或多个标签 ID 返回已发布技能；未传 tag_ids 时返回全部已发布技能",
-        "tags": ["技能广场"],
+        "tags": [
+          "技能广场"
+        ],
         "parameters": [
           {
             "name": "tag_ids",
@@ -233,7 +241,9 @@
         "summary": "获取技能广场技能详情",
         "deprecated": false,
         "description": "🔓 无需鉴权；仅可获取已发布技能",
-        "tags": ["技能广场"],
+        "tags": [
+          "技能广场"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -265,7 +275,9 @@
         "summary": "下载技能包",
         "deprecated": false,
         "description": "🔓 无需鉴权；成功时 302 跳转到技能包源地址或签名下载地址",
-        "tags": ["技能广场"],
+        "tags": [
+          "技能广场"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -304,124 +316,14 @@
         }
       }
     },
-    "/api/admin/skill-hub/upload": {
-      "post": {
-        "summary": "上传技能包",
-        "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）；仅支持 zip 文件，最大 50MB",
-        "tags": ["技能广场管理"],
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "required": ["file", "skill_id"],
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "zip 技能包文件"
-                  },
-                  "skill_id": {
-                    "type": "string",
-                    "description": "技能 ID"
-                  },
-                  "version": {
-                    "type": "string",
-                    "description": "技能版本"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "成功",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SkillHubUploadApiResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "SessionAuth": [],
-            "NewApiUser": []
-          },
-          {
-            "AccessToken": [],
-            "NewApiUser": []
-          }
-        ]
-      }
-    },
-    "/api/admin/skill-hub/upload-icon": {
-      "post": {
-        "summary": "上传技能图标",
-        "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）；支持 png、jpg、jpeg、webp，最大 1MB",
-        "tags": ["技能广场管理"],
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "required": ["file", "skill_id"],
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "技能图标文件"
-                  },
-                  "skill_id": {
-                    "type": "string",
-                    "description": "技能 ID"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "成功",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SkillHubUploadApiResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "SessionAuth": [],
-            "NewApiUser": []
-          },
-          {
-            "AccessToken": [],
-            "NewApiUser": []
-          }
-        ]
-      }
-    },
     "/api/admin/skill-hub/tags": {
       "get": {
         "summary": "管理员获取标签列表",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）；返回标签库并统计每个标签被 Skill 使用的数量；会在查询前同步一次 Skill 标签关联",
-        "tags": ["技能广场管理"],
+        "tags": [
+          "技能广场管理"
+        ],
         "parameters": [
           {
             "name": "keyword",
@@ -479,7 +381,9 @@
         "summary": "管理员创建标签",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）；标签名称不可重复，不能包含斜杠",
-        "tags": ["技能广场管理"],
+        "tags": [
+          "技能广场管理"
+        ],
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -521,7 +425,9 @@
         "summary": "管理员按标签获取技能列表",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）；按一个或多个标签 ID 返回全部状态技能；未传 tag_ids 时返回全部技能",
-        "tags": ["技能广场管理"],
+        "tags": [
+          "技能广场管理"
+        ],
         "parameters": [
           {
             "name": "tag_ids",
@@ -599,7 +505,9 @@
         "summary": "管理员删除标签",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）；只能删除未被任何 Skill 使用的标签",
-        "tags": ["技能广场管理"],
+        "tags": [
+          "技能广场管理"
+        ],
         "parameters": [
           {
             "name": "name",
@@ -641,7 +549,9 @@
         "summary": "管理员获取技能列表",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）；返回全部状态技能",
-        "tags": ["技能广场管理"],
+        "tags": [
+          "技能广场管理"
+        ],
         "parameters": [
           {
             "name": "keyword",
@@ -707,8 +617,10 @@
       "post": {
         "summary": "管理员创建技能",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": ["技能广场管理"],
+        "description": "👨‍💼 需要管理员权限（Admin）；保存成功后上传对象才会成为正式 Skill 资产。",
+        "tags": [
+          "技能广场管理"
+        ],
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -750,7 +662,9 @@
         "summary": "管理员获取技能详情",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": ["技能广场管理"],
+        "tags": [
+          "技能广场管理"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -789,8 +703,10 @@
       "put": {
         "summary": "管理员更新技能",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": ["技能广场管理"],
+        "description": "👨‍💼 需要管理员权限（Admin）；如果 source.ref 或 icon 被新上传对象替换，保存成功后会 best-effort 删除旧 OSS 对象。",
+        "tags": [
+          "技能广场管理"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -839,8 +755,10 @@
       "delete": {
         "summary": "管理员删除技能",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": ["技能广场管理"],
+        "description": "👨‍💼 需要管理员权限（Admin）；删除记录成功后会 best-effort 删除关联的 Skill zip 和图标 OSS 对象。",
+        "tags": [
+          "技能广场管理"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -882,7 +800,9 @@
         "summary": "管理员发布技能",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": ["技能广场管理"],
+        "tags": [
+          "技能广场管理"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -924,7 +844,9 @@
         "summary": "管理员下架技能",
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）",
-        "tags": ["技能广场管理"],
+        "tags": [
+          "技能广场管理"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -960,6 +882,138 @@
           }
         ]
       }
+    },
+    "/api/admin/skill-hub/direct-upload/init": {
+      "post": {
+        "summary": "初始化 Skill Hub 文件直传",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）；根据 kind、文件名、大小、技能 ID 和版本生成 _tmp 临时 OSS PUT signed URL。zip 最大 50MB，icon 最大 1MB；文件本体由浏览器直接 PUT 到 OSS，不经过 New API。",
+        "tags": [
+          "技能广场管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillHubDirectUploadInitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubDirectUploadInitApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/admin/skill-hub/direct-upload/complete": {
+      "post": {
+        "summary": "完成 Skill Hub 文件直传",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）；浏览器完成 OSS PUT 后调用。后端校验上传票据、检查 _tmp 临时 OSS 对象大小、读取对象重新计算 sha256，并验证 zip 或图片文件头，返回保存 Skill 所需的 URL、object 和 checksum；保存 Skill 时后端会将临时对象复制到正式目录。",
+        "tags": [
+          "技能广场管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillHubDirectUploadCompleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubUploadApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
+    },
+    "/api/admin/skill-hub/direct-upload/discard": {
+      "post": {
+        "summary": "丢弃 Skill Hub 未保存上传",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）；用于清理已经 PUT 到 OSS 但尚未保存到 Skill 记录的 _tmp 临时 zip 或 icon 对象。前端在替换上传、切换记录、新建草稿或离开页面时 best-effort 调用。",
+        "tags": [
+          "技能广场管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillHubDirectUploadCompleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHubEmptyApiResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionAuth": [],
+            "NewApiUser": []
+          },
+          {
+            "AccessToken": [],
+            "NewApiUser": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -978,12 +1032,17 @@
       },
       "SkillHubSource": {
         "type": "object",
-        "required": ["type", "url"],
+        "required": [
+          "type",
+          "url"
+        ],
         "properties": {
           "type": {
             "type": "string",
             "description": "技能来源类型，目前仅支持 zip",
-            "enum": ["zip"]
+            "enum": [
+              "zip"
+            ]
           },
           "url": {
             "type": "string",
@@ -1046,7 +1105,10 @@
           "status": {
             "type": "integer",
             "description": "发布状态：0 草稿，1 已发布；公开接口不返回有效值",
-            "enum": [0, 1]
+            "enum": [
+              0,
+              1
+            ]
           },
           "sort": {
             "type": "integer",
@@ -1129,7 +1191,9 @@
       },
       "SkillHubTagRequest": {
         "type": "object",
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -1144,7 +1208,12 @@
       },
       "SkillHubSkillRequest": {
         "type": "object",
-        "required": ["id", "name", "version", "source"],
+        "required": [
+          "id",
+          "name",
+          "version",
+          "source"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -1189,7 +1258,10 @@
           "status": {
             "type": "integer",
             "description": "发布状态：0 草稿，1 已发布；优先级高于 published",
-            "enum": [0, 1]
+            "enum": [
+              0,
+              1
+            ]
           },
           "sort": {
             "type": "integer",
@@ -1304,6 +1376,160 @@
           },
           "data": {
             "nullable": true
+          }
+        }
+      },
+      "SkillHubDirectUploadInitRequest": {
+        "type": "object",
+        "description": "初始化 Skill Hub OSS 直传的请求体",
+        "required": [
+          "kind",
+          "skillId",
+          "fileName",
+          "size"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "zip",
+              "icon"
+            ],
+            "description": "上传类型：zip 表示技能压缩包，icon 表示技能图标",
+            "example": "zip"
+          },
+          "skillId": {
+            "type": "string",
+            "description": "技能 ID；用于生成 OSS Object Key 路径",
+            "example": "demo.skill"
+          },
+          "version": {
+            "type": "string",
+            "description": "技能版本；zip 上传时用于生成 OSS Object Key，icon 上传可为空",
+            "example": "1.0.0"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "本地选择的原始文件名，仅用于识别扩展名和生成对象名",
+            "example": "demo-skill.zip"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "文件大小，单位 byte；zip 最大 50MB，icon 最大 1MB",
+            "example": 1048576
+          }
+        }
+      },
+      "SkillHubDirectUploadInitResult": {
+        "type": "object",
+        "description": "Skill Hub OSS 直传初始化结果",
+        "required": [
+          "kind",
+          "fileName",
+          "object",
+          "size",
+          "contentType",
+          "uploadUrl",
+          "uploadMethod",
+          "uploadHeaders",
+          "uploadTicket",
+          "expiresAt"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "zip",
+              "icon"
+            ],
+            "description": "上传类型",
+            "example": "zip"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "规范化后的文件名",
+            "example": "demo-skill.zip"
+          },
+          "object": {
+            "type": "string",
+            "description": "_tmp 临时 OSS Object Key；complete 成功后作为 source.ref 或图标对象来源使用，保存 Skill 成功后后端会转正为正式 Object Key",
+            "example": "skill-hub/skills/_tmp/packages/demo.skill/8f3c6e9d2a1b4c5d9e0f123456789abc/demo-skill.zip"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "文件大小，单位 byte",
+            "example": 1048576
+          },
+          "contentType": {
+            "type": "string",
+            "description": "PUT 到 OSS 时必须使用的 Content-Type",
+            "example": "application/zip"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "短时 OSS PUT signed URL；浏览器直接向该地址上传文件",
+            "example": "https://bucket.oss-cn-hangzhou.aliyuncs.com/skill-hub/skills/..."
+          },
+          "uploadMethod": {
+            "type": "string",
+            "enum": [
+              "PUT"
+            ],
+            "description": "上传 HTTP 方法，固定为 PUT",
+            "example": "PUT"
+          },
+          "uploadHeaders": {
+            "type": "object",
+            "description": "PUT 到 OSS 时必须携带的请求头",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "Content-Type": "application/zip"
+            }
+          },
+          "uploadTicket": {
+            "type": "string",
+            "description": "短时上传票据；PUT 完成后传给 complete，未保存或替换草稿时可传给 discard 清理 OSS 对象",
+            "example": "base64url-payload.base64url-signature"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "signed URL 和上传票据过期时间，Unix 秒",
+            "example": 1780000000
+          }
+        }
+      },
+      "SkillHubDirectUploadCompleteRequest": {
+        "type": "object",
+        "description": "完成或丢弃 Skill Hub OSS 直传的请求体",
+        "required": [
+          "uploadTicket"
+        ],
+        "properties": {
+          "uploadTicket": {
+            "type": "string",
+            "description": "初始化接口返回的短时上传票据",
+            "example": "base64url-payload.base64url-signature"
+          }
+        }
+      },
+      "SkillHubDirectUploadInitApiResponse": {
+        "type": "object",
+        "description": "Skill Hub OSS 直传初始化响应",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SkillHubDirectUploadInitResult"
           }
         }
       }

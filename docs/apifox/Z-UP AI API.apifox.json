@@ -32239,11 +32239,11 @@
           "inheritPreProcessors": {},
           "items": [
             {
-              "name": "上传技能包",
+              "name": "初始化 Skill Hub 文件直传",
               "api": {
-                "id": "479716167",
+                "id": "490100101",
                 "method": "post",
-                "path": "/api/admin/skill-hub/upload",
+                "path": "/api/admin/skill-hub/direct-upload/init",
                 "parameters": {
                   "path": [],
                   "query": [],
@@ -32256,13 +32256,13 @@
                 "securityScheme": {
                   "schemeGroups": [
                     {
-                      "id": "uaLAzW7xHG7HHS5dQscBu",
+                      "id": "skillHubAdminUser_490100101",
                       "schemeIds": [
                         1531752
                       ]
                     },
                     {
-                      "id": "Fc3kQ_J9YagwhgFsZId7x",
+                      "id": "skillHubAdminApi_490100101",
                       "schemeIds": [
                         1531753
                       ]
@@ -32270,23 +32270,76 @@
                   ],
                   "required": true,
                   "use": {
-                    "id": "uaLAzW7xHG7HHS5dQscBu",
+                    "id": "skillHubAdminUser_490100101",
                     "configs": {
                       "1531752": {}
                     }
                   },
                   "scopes": {
-                    "Fc3kQ_J9YagwhgFsZId7x": {}
+                    "skillHubAdminApi_490100101": {}
                   }
                 },
                 "commonParameters": {},
                 "responses": [
                   {
-                    "id": "187766008",
+                    "id": "490101101",
                     "code": "200",
                     "headers": [],
                     "jsonSchema": {
-                      "$ref": "#/definitions/288594281"
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "zip",
+                                "icon"
+                              ]
+                            },
+                            "fileName": {
+                              "type": "string"
+                            },
+                            "object": {
+                              "type": "string"
+                            },
+                            "size": {
+                              "type": "integer"
+                            },
+                            "contentType": {
+                              "type": "string"
+                            },
+                            "uploadUrl": {
+                              "type": "string"
+                            },
+                            "uploadMethod": {
+                              "type": "string",
+                              "enum": [
+                                "PUT"
+                              ]
+                            },
+                            "uploadHeaders": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            },
+                            "uploadTicket": {
+                              "type": "string"
+                            },
+                            "expiresAt": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
                     },
                     "itemSchema": {},
                     "description": "成功",
@@ -32297,57 +32350,54 @@
                 ],
                 "responseExamples": [],
                 "requestBody": {
-                  "type": "multipart/form-data",
-                  "parameters": [
-                    {
-                      "id": "t5Br72PdQ4",
-                      "name": "file",
-                      "required": true,
-                      "enable": true,
-                      "description": "zip 技能包文件",
-                      "example": "",
-                      "type": "file",
-                      "schema": {
+                  "type": "application/json",
+                  "parameters": [],
+                  "jsonSchema": {
+                    "type": "object",
+                    "required": [
+                      "kind",
+                      "skillId",
+                      "fileName",
+                      "size"
+                    ],
+                    "properties": {
+                      "kind": {
                         "type": "string",
-                        "format": "binary",
-                        "description": "zip 技能包文件"
+                        "enum": [
+                          "zip",
+                          "icon"
+                        ],
+                        "description": "上传类型：zip 或 icon",
+                        "example": "zip"
                       },
-                      "omitGeneratedExample": false
-                    },
-                    {
-                      "id": "iYunAfY0jn",
-                      "name": "skill_id",
-                      "required": true,
-                      "enable": true,
-                      "description": "技能 ID",
-                      "example": "",
-                      "type": "string",
-                      "schema": {
+                      "skillId": {
                         "type": "string",
-                        "description": "技能 ID"
+                        "description": "技能 ID",
+                        "example": "demo.skill"
                       },
-                      "omitGeneratedExample": false
-                    },
-                    {
-                      "id": "l1BmPZO2fw",
-                      "name": "version",
-                      "required": false,
-                      "enable": true,
-                      "description": "技能版本",
-                      "example": "",
-                      "type": "string",
-                      "schema": {
+                      "version": {
                         "type": "string",
-                        "description": "技能版本"
+                        "description": "技能版本；zip 上传时用于生成对象名",
+                        "example": "1.0.0"
                       },
-                      "omitGeneratedExample": false
+                      "fileName": {
+                        "type": "string",
+                        "description": "本地选择的原始文件名",
+                        "example": "demo-skill.zip"
+                      },
+                      "size": {
+                        "type": "integer",
+                        "description": "文件大小，单位 byte；zip 最大 50MB，icon 最大 1MB",
+                        "example": 1048576
+                      }
                     }
-                  ],
+                  },
+                  "mediaType": "application/json",
                   "oasExtensions": "",
                   "required": true,
                   "additionalContentTypes": []
                 },
-                "description": "👨‍💼 需要管理员权限（Admin）；仅支持 zip 文件，最大 50MB",
+                "description": "👨‍💼 需要管理员权限（Admin）；生成 _tmp 临时 OSS PUT signed URL，文件本体由浏览器直接上传到 OSS。",
                 "tags": [
                   "技能广场管理"
                 ],
@@ -32356,76 +32406,7 @@
                 "operationId": "",
                 "sourceUrl": "",
                 "ordering": 0,
-                "cases": [
-                  {
-                    "id": 388984257,
-                    "type": "DEBUG_CASE",
-                    "path": null,
-                    "name": "成功",
-                    "responseId": "187766008",
-                    "parameters": {
-                      "path": [],
-                      "query": [],
-                      "cookie": [],
-                      "header": []
-                    },
-                    "commonParameters": {},
-                    "requestBody": {
-                      "parameters": [
-                        {
-                          "id": "u83R6jFU6h",
-                          "relatedId": "t5Br72PdQ4",
-                          "relatedName": "file",
-                          "name": "file",
-                          "type": "file",
-                          "value": "",
-                          "enable": true,
-                          "description": "zip 技能包文件",
-                          "isDelete": false
-                        },
-                        {
-                          "id": "qDyle4FrqC",
-                          "relatedId": "iYunAfY0jn",
-                          "relatedName": "skill_id",
-                          "name": "skill_id",
-                          "type": "string",
-                          "value": "",
-                          "enable": true,
-                          "description": "技能 ID",
-                          "isDelete": false
-                        },
-                        {
-                          "id": "MD705dBHDp",
-                          "relatedId": "l1BmPZO2fw",
-                          "relatedName": "version",
-                          "name": "version",
-                          "type": "string",
-                          "value": "",
-                          "enable": true,
-                          "description": "技能版本",
-                          "isDelete": false
-                        }
-                      ],
-                      "type": "multipart/form-data",
-                      "generateMode": "normal"
-                    },
-                    "auth": {},
-                    "securityScheme": {},
-                    "advancedSettings": {
-                      "disabledSystemHeaders": {}
-                    },
-                    "requestResult": null,
-                    "visibility": "INHERITED",
-                    "moduleId": 8068398,
-                    "categoryId": 0,
-                    "tagIds": [],
-                    "apiTestDataList": [],
-                    "preProcessors": [],
-                    "postProcessors": [],
-                    "inheritPostProcessors": {},
-                    "inheritPreProcessors": {}
-                  }
-                ],
+                "cases": [],
                 "mocks": [],
                 "customApiFields": "{}",
                 "advancedSettings": {
@@ -32446,11 +32427,11 @@
               }
             },
             {
-              "name": "上传技能图标",
+              "name": "完成 Skill Hub 文件直传",
               "api": {
-                "id": "479716168",
+                "id": "490100102",
                 "method": "post",
-                "path": "/api/admin/skill-hub/upload-icon",
+                "path": "/api/admin/skill-hub/direct-upload/complete",
                 "parameters": {
                   "path": [],
                   "query": [],
@@ -32463,13 +32444,13 @@
                 "securityScheme": {
                   "schemeGroups": [
                     {
-                      "id": "8zf3VphuxUvnhf-GG9GgJ",
+                      "id": "skillHubAdminUser_490100102",
                       "schemeIds": [
                         1531752
                       ]
                     },
                     {
-                      "id": "7rEYhTGP8-hR0FkuWRW6W",
+                      "id": "skillHubAdminApi_490100102",
                       "schemeIds": [
                         1531753
                       ]
@@ -32477,19 +32458,19 @@
                   ],
                   "required": true,
                   "use": {
-                    "id": "8zf3VphuxUvnhf-GG9GgJ",
+                    "id": "skillHubAdminUser_490100102",
                     "configs": {
                       "1531752": {}
                     }
                   },
                   "scopes": {
-                    "7rEYhTGP8-hR0FkuWRW6W": {}
+                    "skillHubAdminApi_490100102": {}
                   }
                 },
                 "commonParameters": {},
                 "responses": [
                   {
-                    "id": "127488515",
+                    "id": "490101102",
                     "code": "200",
                     "headers": [],
                     "jsonSchema": {
@@ -32504,43 +32485,27 @@
                 ],
                 "responseExamples": [],
                 "requestBody": {
-                  "type": "multipart/form-data",
-                  "parameters": [
-                    {
-                      "id": "TBHyuymvFi",
-                      "name": "file",
-                      "required": true,
-                      "enable": true,
-                      "description": "技能图标文件",
-                      "example": "",
-                      "type": "file",
-                      "schema": {
+                  "type": "application/json",
+                  "parameters": [],
+                  "jsonSchema": {
+                    "type": "object",
+                    "required": [
+                      "uploadTicket"
+                    ],
+                    "properties": {
+                      "uploadTicket": {
                         "type": "string",
-                        "format": "binary",
-                        "description": "技能图标文件"
-                      },
-                      "omitGeneratedExample": false
-                    },
-                    {
-                      "id": "Z1jfwjXBEF",
-                      "name": "skill_id",
-                      "required": true,
-                      "enable": true,
-                      "description": "技能 ID",
-                      "example": "",
-                      "type": "string",
-                      "schema": {
-                        "type": "string",
-                        "description": "技能 ID"
-                      },
-                      "omitGeneratedExample": false
+                        "description": "初始化接口返回的短时上传票据",
+                        "example": "base64url-payload.base64url-signature"
+                      }
                     }
-                  ],
+                  },
+                  "mediaType": "application/json",
                   "oasExtensions": "",
                   "required": true,
                   "additionalContentTypes": []
                 },
-                "description": "👨‍💼 需要管理员权限（Admin）；支持 png、jpg、jpeg、webp，最大 1MB",
+                "description": "👨‍💼 需要管理员权限（Admin）；校验上传票据、_tmp 临时 OSS 对象大小和文件头，并返回保存 Skill 所需的 URL、object 和 checksum；保存 Skill 时后端会将临时对象复制到正式目录。",
                 "tags": [
                   "技能广场管理"
                 ],
@@ -32548,66 +32513,116 @@
                 "serverId": "",
                 "operationId": "",
                 "sourceUrl": "",
-                "ordering": 6,
-                "cases": [
+                "ordering": 0,
+                "cases": [],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "丢弃 Skill Hub 未保存上传",
+              "api": {
+                "id": "490100103",
+                "method": "post",
+                "path": "/api/admin/skill-hub/direct-upload/discard",
+                "parameters": {
+                  "path": [],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {
+                  "type": "securityscheme"
+                },
+                "securityScheme": {
+                  "schemeGroups": [
+                    {
+                      "id": "skillHubAdminUser_490100103",
+                      "schemeIds": [
+                        1531752
+                      ]
+                    },
+                    {
+                      "id": "skillHubAdminApi_490100103",
+                      "schemeIds": [
+                        1531753
+                      ]
+                    }
+                  ],
+                  "required": true,
+                  "use": {
+                    "id": "skillHubAdminUser_490100103",
+                    "configs": {
+                      "1531752": {}
+                    }
+                  },
+                  "scopes": {
+                    "skillHubAdminApi_490100103": {}
+                  }
+                },
+                "commonParameters": {},
+                "responses": [
                   {
-                    "id": 388984258,
-                    "type": "DEBUG_CASE",
-                    "path": null,
-                    "name": "成功",
-                    "responseId": "127488515",
-                    "parameters": {
-                      "path": [],
-                      "query": [],
-                      "cookie": [],
-                      "header": []
+                    "id": "490101103",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/288594282"
                     },
-                    "commonParameters": {},
-                    "requestBody": {
-                      "parameters": [
-                        {
-                          "id": "I8x0snxVx6",
-                          "relatedId": "TBHyuymvFi",
-                          "relatedName": "file",
-                          "name": "file",
-                          "type": "file",
-                          "value": "",
-                          "enable": true,
-                          "description": "技能图标文件",
-                          "isDelete": false
-                        },
-                        {
-                          "id": "aU4EhbWyuG",
-                          "relatedId": "Z1jfwjXBEF",
-                          "relatedName": "skill_id",
-                          "name": "skill_id",
-                          "type": "string",
-                          "value": "",
-                          "enable": true,
-                          "description": "技能 ID",
-                          "isDelete": false
-                        }
-                      ],
-                      "type": "multipart/form-data",
-                      "generateMode": "normal"
-                    },
-                    "auth": {},
-                    "securityScheme": {},
-                    "advancedSettings": {
-                      "disabledSystemHeaders": {}
-                    },
-                    "requestResult": null,
-                    "visibility": "INHERITED",
-                    "moduleId": 8068398,
-                    "categoryId": 0,
-                    "tagIds": [],
-                    "apiTestDataList": [],
-                    "preProcessors": [],
-                    "postProcessors": [],
-                    "inheritPostProcessors": {},
-                    "inheritPreProcessors": {}
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
                   }
                 ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "application/json",
+                  "parameters": [],
+                  "jsonSchema": {
+                    "type": "object",
+                    "required": [
+                      "uploadTicket"
+                    ],
+                    "properties": {
+                      "uploadTicket": {
+                        "type": "string",
+                        "description": "初始化接口返回的短时上传票据",
+                        "example": "base64url-payload.base64url-signature"
+                      }
+                    }
+                  },
+                  "mediaType": "application/json",
+                  "oasExtensions": "",
+                  "required": true,
+                  "additionalContentTypes": []
+                },
+                "description": "👨‍💼 需要管理员权限（Admin）；清理已经 PUT 到 OSS 但尚未保存到 Skill 记录的 _tmp 临时 zip 或 icon 对象。",
+                "tags": [
+                  "技能广场管理"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 0,
+                "cases": [],
                 "mocks": [],
                 "customApiFields": "{}",
                 "advancedSettings": {
@@ -35987,11 +36002,11 @@
               }
             },
             {
-              "name": "后台上传客户端安装包",
+              "name": "初始化客户端安装包直传",
               "api": {
                 "id": "480639312",
                 "method": "post",
-                "path": "/api/admin/client-releases/upload",
+                "path": "/api/admin/client-releases/direct-upload/init",
                 "parameters": {
                   "path": [],
                   "query": [],
@@ -36045,66 +36060,46 @@
                 ],
                 "responseExamples": [],
                 "requestBody": {
-                  "type": "multipart/form-data",
-                  "parameters": [
-                    {
-                      "id": "clientReleaseUpload_file",
-                      "name": "file",
-                      "required": true,
-                      "enable": true,
-                      "description": "安装包文件。支持 exe、msi、dmg、pkg、zip、AppImage、deb、rpm、yml、yaml",
-                      "example": "",
-                      "type": "file",
-                      "schema": {
+                  "type": "application/json",
+                  "parameters": [],
+                  "jsonSchema": {
+                    "type": "object",
+                    "required": [
+                      "fileName",
+                      "size",
+                      "version",
+                      "platform",
+                      "arch",
+                      "channel"
+                    ],
+                    "properties": {
+                      "fileName": {
                         "type": "string",
-                        "format": "binary",
-                        "description": "安装包文件。支持 exe、msi、dmg、pkg、zip、AppImage、deb、rpm、yml、yaml"
+                        "description": "本地选择的安装包原始文件名，仅用于识别扩展名；最终保存名由后端强制生成",
+                        "example": "Z-UP Setup 1.2.3.exe"
                       },
-                      "omitGeneratedExample": false
-                    },
-                    {
-                      "id": "clientReleaseUpload_version",
-                      "name": "version",
-                      "required": true,
-                      "enable": true,
-                      "description": "版本号，必须是 x.y.z 三段数字，例如 1.2.3",
-                      "example": "1.2.3",
-                      "type": "string",
-                      "schema": {
+                      "size": {
+                        "type": "integer",
+                        "description": "安装包大小，单位 byte",
+                        "example": 104857600
+                      },
+                      "version": {
                         "type": "string",
                         "pattern": "^\\d+\\.\\d+\\.\\d+$",
-                        "description": "版本号，必须是 x.y.z 三段数字，例如 1.2.3"
+                        "description": "版本号，必须是 x.y.z 三段数字，例如 1.2.3",
+                        "example": "1.2.3"
                       },
-                      "omitGeneratedExample": false
-                    },
-                    {
-                      "id": "clientReleaseUpload_platform",
-                      "name": "platform",
-                      "required": true,
-                      "enable": true,
-                      "description": "目标平台，Windows 使用 windows；上传前会校验并归一化，非法值不会写入 OSS",
-                      "example": "windows",
-                      "type": "string",
-                      "schema": {
+                      "platform": {
                         "type": "string",
                         "enum": [
                           "windows",
                           "darwin",
                           "linux"
                         ],
-                        "description": "目标平台，Windows 使用 windows；上传前会校验并归一化，非法值不会写入 OSS"
+                        "description": "目标平台，Windows 使用 windows；初始化前会校验并归一化",
+                        "example": "windows"
                       },
-                      "omitGeneratedExample": false
-                    },
-                    {
-                      "id": "clientReleaseUpload_arch",
-                      "name": "arch",
-                      "required": true,
-                      "enable": true,
-                      "description": "目标架构；上传前会校验并归一化，非法值不会写入 OSS",
-                      "example": "x64",
-                      "type": "string",
-                      "schema": {
+                      "arch": {
                         "type": "string",
                         "enum": [
                           "x64",
@@ -36112,34 +36107,26 @@
                           "ia32",
                           "universal"
                         ],
-                        "description": "目标架构；上传前会校验并归一化，非法值不会写入 OSS"
+                        "description": "目标架构；初始化前会校验并归一化",
+                        "example": "x64"
                       },
-                      "omitGeneratedExample": false
-                    },
-                    {
-                      "id": "clientReleaseUpload_channel",
-                      "name": "channel",
-                      "required": true,
-                      "enable": true,
-                      "description": "目标通道，仅 stable 或 beta；上传前会校验，非法值不会写入 OSS",
-                      "example": "stable",
-                      "type": "string",
-                      "schema": {
+                      "channel": {
                         "type": "string",
                         "enum": [
                           "stable",
                           "beta"
                         ],
-                        "description": "目标通道，仅 stable 或 beta；上传前会校验，非法值不会写入 OSS"
-                      },
-                      "omitGeneratedExample": false
+                        "description": "目标通道，仅 stable 或 beta；初始化前会校验",
+                        "example": "stable"
+                      }
                     }
-                  ],
+                  },
+                  "mediaType": "application/json",
                   "oasExtensions": "",
                   "required": true,
                   "additionalContentTypes": []
                 },
-                "description": "需要管理员权限；multipart 上传安装包到私有 OSS。上传时后端先校验 version/platform/arch/channel 和文件扩展名，再强制生成文件名 Z-UP-Setup-{version}-{platform}-{arch}-{channel}.{ext}，不允许手动编辑上传名。默认最大 500MB，可通过 CLIENT_RELEASE_OSS_MAX_BYTES 调整。",
+                "description": "需要管理员权限；根据安装包文件名、大小和目标版本信息生成 _tmp 临时 OSS PUT signed URL。后端会先校验 version/platform/arch/channel、文件扩展名和大小，再强制生成文件名 Z-UP-Setup-{version}-{platform}-{arch}-{channel}.{ext} 与临时 OSS Object Key。安装包文件本体由浏览器直接 PUT 到 OSS，不经过 New API。",
                 "tags": [
                   "客户端管理"
                 ],
@@ -36163,64 +36150,37 @@
                     },
                     "commonParameters": {},
                     "requestBody": {
-                      "parameters": [
-                        {
-                          "id": "case_480639312_body_clientReleaseUpload_file",
-                          "relatedId": "clientReleaseUpload_file",
-                          "relatedName": "file",
-                          "name": "file",
-                          "type": "file",
-                          "value": "",
-                          "enable": true,
-                          "description": "安装包文件。支持 exe、msi、dmg、pkg、zip、AppImage、deb、rpm、yml、yaml",
-                          "isDelete": false
-                        },
-                        {
-                          "id": "case_480639312_body_clientReleaseUpload_version",
-                          "relatedId": "clientReleaseUpload_version",
-                          "relatedName": "version",
-                          "name": "version",
-                          "type": "string",
-                          "value": "1.2.3",
-                          "enable": true,
-                          "description": "版本号，必须是 x.y.z 三段数字，例如 1.2.3",
-                          "isDelete": false
-                        },
-                        {
-                          "id": "case_480639312_body_clientReleaseUpload_platform",
-                          "relatedId": "clientReleaseUpload_platform",
-                          "relatedName": "platform",
-                          "name": "platform",
-                          "type": "string",
-                          "value": "windows",
-                          "enable": true,
-                          "description": "目标平台，Windows 使用 windows",
-                          "isDelete": false
-                        },
-                        {
-                          "id": "case_480639312_body_clientReleaseUpload_arch",
-                          "relatedId": "clientReleaseUpload_arch",
-                          "relatedName": "arch",
-                          "name": "arch",
-                          "type": "string",
-                          "value": "x64",
-                          "enable": true,
-                          "description": "目标架构",
-                          "isDelete": false
-                        },
-                        {
-                          "id": "case_480639312_body_clientReleaseUpload_channel",
-                          "relatedId": "clientReleaseUpload_channel",
-                          "relatedName": "channel",
-                          "name": "channel",
-                          "type": "string",
-                          "value": "stable",
-                          "enable": true,
-                          "description": "目标通道，仅 stable 或 beta",
-                          "isDelete": false
+                      "parameters": [],
+                      "type": "application/json",
+                      "jsonSchema": {
+                        "type": "object",
+                        "properties": {
+                          "fileName": {
+                            "type": "string",
+                            "example": "Z-UP Setup 1.2.3.exe"
+                          },
+                          "size": {
+                            "type": "integer",
+                            "example": 104857600
+                          },
+                          "version": {
+                            "type": "string",
+                            "example": "1.2.3"
+                          },
+                          "platform": {
+                            "type": "string",
+                            "example": "windows"
+                          },
+                          "arch": {
+                            "type": "string",
+                            "example": "x64"
+                          },
+                          "channel": {
+                            "type": "string",
+                            "example": "stable"
+                          }
                         }
-                      ],
-                      "type": "multipart/form-data",
+                      },
                       "generateMode": "normal"
                     },
                     "auth": {},
@@ -36240,6 +36200,266 @@
                     "inheritPreProcessors": {}
                   }
                 ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "完成客户端安装包直传",
+              "api": {
+                "id": "480639319",
+                "method": "post",
+                "path": "/api/admin/client-releases/direct-upload/complete",
+                "parameters": {
+                  "path": [],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {
+                  "type": "securityscheme"
+                },
+                "securityScheme": {
+                  "schemeGroups": [
+                    {
+                      "id": "clientReleaseAdminUser_480639319",
+                      "schemeIds": [
+                        1531752
+                      ]
+                    },
+                    {
+                      "id": "clientReleaseAdminApi_480639319",
+                      "schemeIds": [
+                        1531753
+                      ]
+                    }
+                  ],
+                  "required": true,
+                  "use": {
+                    "id": "clientReleaseAdminUser_480639319",
+                    "configs": {
+                      "1531752": {}
+                    }
+                  },
+                  "scopes": {
+                    "clientReleaseAdminApi_480639319": {}
+                  }
+                },
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "480639419",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/289952109"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "application/json",
+                  "parameters": [],
+                  "jsonSchema": {
+                    "type": "object",
+                    "required": [
+                      "uploadTicket"
+                    ],
+                    "properties": {
+                      "uploadTicket": {
+                        "type": "string",
+                        "description": "初始化接口返回的短时上传票据",
+                        "example": "base64url-payload.base64url-signature"
+                      }
+                    }
+                  },
+                  "mediaType": "application/json",
+                  "oasExtensions": "",
+                  "required": true,
+                  "additionalContentTypes": []
+                },
+                "description": "需要管理员权限；浏览器完成 OSS PUT 后调用该接口。后端校验上传票据、检查 _tmp 临时 OSS 对象大小，并从 OSS 读取对象重新计算 sha256 和 sha512，返回保存版本记录所需的文件信息；保存版本记录时后端会将临时对象复制到正式目录。",
+                "tags": [
+                  "客户端管理"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 2,
+                "cases": [
+                  {
+                    "id": 480639519,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功",
+                    "responseId": "480639419",
+                    "parameters": {
+                      "path": [],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "application/json",
+                      "jsonSchema": {
+                        "type": "object",
+                        "properties": {
+                          "uploadTicket": {
+                            "type": "string",
+                            "example": "base64url-payload.base64url-signature"
+                          }
+                        }
+                      },
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "丢弃客户端安装包未保存上传",
+              "api": {
+                "id": "490100201",
+                "method": "post",
+                "path": "/api/admin/client-releases/direct-upload/discard",
+                "parameters": {
+                  "path": [],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {
+                  "type": "securityscheme"
+                },
+                "securityScheme": {
+                  "schemeGroups": [
+                    {
+                      "id": "clientReleaseAdminUser_480639319",
+                      "schemeIds": [
+                        1531752
+                      ]
+                    },
+                    {
+                      "id": "clientReleaseAdminApi_480639319",
+                      "schemeIds": [
+                        1531753
+                      ]
+                    }
+                  ],
+                  "required": true,
+                  "use": {
+                    "id": "clientReleaseAdminUser_480639319",
+                    "configs": {
+                      "1531752": {}
+                    }
+                  },
+                  "scopes": {
+                    "clientReleaseAdminApi_480639319": {}
+                  }
+                },
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "490101201",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "$ref": "#/definitions/289952110"
+                    },
+                    "itemSchema": {},
+                    "description": "成功",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [],
+                "requestBody": {
+                  "type": "application/json",
+                  "parameters": [],
+                  "jsonSchema": {
+                    "type": "object",
+                    "required": [
+                      "uploadTicket"
+                    ],
+                    "properties": {
+                      "uploadTicket": {
+                        "type": "string",
+                        "description": "初始化接口返回的短时上传票据",
+                        "example": "base64url-payload.base64url-signature"
+                      }
+                    }
+                  },
+                  "mediaType": "application/json",
+                  "oasExtensions": "",
+                  "required": true,
+                  "additionalContentTypes": []
+                },
+                "description": "需要管理员权限（Admin）；用于清理已经 PUT 到 OSS 但尚未保存到客户端版本记录的 _tmp 临时安装包对象。",
+                "tags": [
+                  "客户端管理"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 2,
+                "cases": [],
                 "mocks": [],
                 "customApiFields": "{}",
                 "advancedSettings": {
@@ -51022,7 +51242,7 @@
                 },
                 "sha256": {
                   "type": "string",
-                  "description": "SHA256 校验值，上传接口返回 sha256:<hex>",
+                  "description": "SHA256 校验值，直传完成确认接口返回 sha256:<hex>",
                   "examples": [
                     "sha256:0123456789abcdef"
                   ]
@@ -51271,35 +51491,35 @@
                 },
                 "fileName": {
                   "type": "string",
-                  "description": "上传接口返回的 fileName。前端不应手动编辑上传后的文件名",
+                  "description": "直传完成确认接口返回的 fileName。前端不应手动编辑上传后的文件名",
                   "examples": [
                     "Z-UP-Setup-1.2.3-windows-x64-stable.exe"
                   ]
                 },
                 "objectKey": {
                   "type": "string",
-                  "description": "上传接口返回的 object 字段，保存版本记录时传入 objectKey",
+                  "description": "直传完成确认接口返回的 _tmp 临时 object 字段，保存版本记录时传入 objectKey；保存成功后响应会返回正式 objectKey",
                   "examples": [
-                    "client-releases/stable/windows/x64/1.2.3/20260702090000.000000000-Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+                    "client-releases/_tmp/8f3c6e9d2a1b4c5d9e0f123456789abc/Z-UP-Setup-1.2.3-windows-x64-stable.exe"
                   ]
                 },
                 "size": {
                   "type": "integer",
-                  "description": "上传接口返回的 size，单位 byte",
+                  "description": "直传完成确认接口返回的 size，单位 byte",
                   "examples": [
                     104857600
                   ]
                 },
                 "sha256": {
                   "type": "string",
-                  "description": "上传接口返回的 sha256",
+                  "description": "直传完成确认接口返回的 sha256",
                   "examples": [
                     "sha256:0123456789abcdef"
                   ]
                 },
                 "sha512": {
                   "type": "string",
-                  "description": "上传接口返回的 sha512；已发布版本必须存在",
+                  "description": "直传完成确认接口返回的 sha512；已发布版本必须存在",
                   "examples": [
                     "base64-sha512-value"
                   ]
@@ -51379,7 +51599,7 @@
           "name": "ClientReleaseUploadResult",
           "displayName": "",
           "id": "#/definitions/289952105",
-          "description": "安装包上传到私有 OSS 后的结果",
+          "description": "安装包上传到私有 OSS 并完成确认后的结果",
           "schema": {
             "jsonSchema": {
               "type": "object",
@@ -51394,9 +51614,9 @@
                 },
                 "object": {
                   "type": "string",
-                  "description": "私有 OSS Object Key。保存版本记录时作为 objectKey 传入",
+                  "description": "_tmp 临时私有 OSS Object Key。保存版本记录时作为 objectKey 传入，保存成功后后端会转正为正式 Object Key",
                   "examples": [
-                    "client-releases/stable/windows/x64/1.2.3/20260702090000.000000000-Z-UP-Setup-1.2.3-windows-x64-stable.exe"
+                    "client-releases/_tmp/8f3c6e9d2a1b4c5d9e0f123456789abc/Z-UP-Setup-1.2.3-windows-x64-stable.exe"
                   ]
                 },
                 "size": {
@@ -51567,7 +51787,7 @@
           "name": "ClientReleaseUploadResponse",
           "displayName": "",
           "id": "#/definitions/289952109",
-          "description": "客户端安装包上传响应",
+          "description": "客户端安装包直传完成确认响应",
           "schema": {
             "jsonSchema": {
               "type": "object",

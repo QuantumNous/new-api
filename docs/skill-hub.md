@@ -24,6 +24,8 @@ SKILL_HUB_OSS_ACCESS_KEY_ID=xxx
 SKILL_HUB_OSS_ACCESS_KEY_SECRET=xxx
 SKILL_HUB_OSS_PREFIX=skill-hub/skills
 SKILL_HUB_OSS_SIGNED_URL_EXPIRES_SECONDS=600
+SKILL_HUB_OSS_UPLOAD_URL_EXPIRES_SECONDS=3600
+SKILL_HUB_OSS_UPLOAD_TICKET_SECRET=optional-random-secret
 ```
 
 本地或局域网调试时，如果后台上传后自动回填的 Zip 包地址是
@@ -41,8 +43,11 @@ SKILL_HUB_ALLOW_LOCAL_HTTP=true
 说明：
 
 - `SKILL_HUB_OSS_PREFIX` 为空时默认使用 `skill-hub/skills`。
+- Zip 直传对象会先写入 `SKILL_HUB_OSS_PREFIX/_tmp/`；保存 Skill 时后端再通过 OSS `CopyObject` 转入正式 Zip 目录。
 - `SKILL_HUB_OSS_SIGNED_URL_EXPIRES_SECONDS` 为空时默认 `600` 秒，最大不超过 `86400` 秒。
-- Zip 包上传接口只接受 `.zip` 文件，并校验 Zip 文件头。
+- `SKILL_HUB_OSS_UPLOAD_URL_EXPIRES_SECONDS` 为空时默认 `3600` 秒，最大不超过 `86400` 秒；这是后台直传 OSS 的 PUT signed URL 与上传票据有效期。
+- `SKILL_HUB_OSS_UPLOAD_TICKET_SECRET` 可选；为空时使用 OSS AccessKeySecret 对上传票据签名。
+- Zip 包直传初始化只接受 `.zip` 文件；完成确认时会从 OSS 读取对象并校验 Zip 文件头。
 
 ## 图标 OSS 配置
 
@@ -58,6 +63,8 @@ SKILL_HUB_OSS_ICON_PUBLIC_BASE_URL=https://z-up-api-public.oss-cn-hangzhou.aliyu
 ```
 
 如果图标 Bucket 和 Zip Bucket 可以共用同一组 AccessKey，可以不用配置图标专用 AK，系统会回退使用 `SKILL_HUB_OSS_ACCESS_KEY_ID` 和 `SKILL_HUB_OSS_ACCESS_KEY_SECRET`。
+
+图标直传对象会先写入 `SKILL_HUB_OSS_ICON_PREFIX/_tmp/`；保存 Skill 时后端再复制到正式图标目录，并把正式公开 URL 写入数据库。
 
 如果要给图标 Bucket 单独授权，增加：
 
@@ -84,16 +91,27 @@ oss:DeleteObject
 
 后端会同时校验上传内容和保存后的 URL：
 
-- 图标只能通过 `POST /api/admin/skill-hub/upload-icon` 上传。
+- 图标只能通过 `POST /api/admin/skill-hub/direct-upload/init`、OSS `PUT`、`POST /api/admin/skill-hub/direct-upload/complete` 这一组直传流程上传。
 - 文件大小限制为 `1 MB`。
 - 只允许 `png`、`jpg`、`jpeg`、`webp`。
-- 上传时会校验文件魔数，不只依赖扩展名或浏览器 MIME。
+- 完成确认时会从 OSS 读取对象并校验文件魔数，不只依赖扩展名或浏览器 MIME。
 - `icon` 非空时必须是 `SKILL_HUB_OSS_ICON_PUBLIC_BASE_URL` 下的 HTTPS URL。
 - `icon` 路径必须位于 `SKILL_HUB_OSS_ICON_PREFIX` 目录下。
 - `icon` URL 禁止 query、fragment、userinfo。
 - `icon` URL 后缀必须是 `.png`、`.jpg`、`.jpeg` 或 `.webp`。
 
 这些限制用于避免管理员或外部请求绕过前端写入任意外链、HTTP URL、签名 URL 或非图片资源。
+
+## 直传和 OSS 清理
+
+- 管理后台上传 Zip 包或图标时，先调用 New API 初始化直传，浏览器再用返回的短期 PUT signed URL 直接上传到对应 OSS 前缀的 `_tmp/` 目录，最后调用完成确认接口回填 URL、OSS object 和 checksum。
+- 初始化、PUT 和完成确认不会写数据库；只有保存 Skill 后，后端才会把 `_tmp/` 对象复制到正式目录并写入数据库。
+- 如果上传后没有保存，前端会在替换上传、切换记录、新建草稿或离开页面时 best-effort 调用 `POST /api/admin/skill-hub/direct-upload/discard` 删除刚上传的 OSS 对象。
+- 如果编辑已有 Skill 并上传了新的 Zip 包或图标，保存成功后后端会 best-effort 删除 `_tmp/` 对象和被替换的旧 OSS 对象。
+- 删除 Skill 成功后，后端会 best-effort 删除关联的 Zip 包和图标 OSS 对象。
+- 浏览器崩溃、断网或直接关闭标签页时，前端无法保证一定发出 discard。生产环境应给 `SKILL_HUB_OSS_PREFIX/_tmp/` 和 `SKILL_HUB_OSS_ICON_PREFIX/_tmp/` 配置 OSS 生命周期规则，例如最后修改时间 3 天后删除；正式对象不在 `_tmp/` 下，不会被该规则清理。
+
+OSS Bucket 需要允许管理后台域名执行 `PUT` 和 `OPTIONS`，允许 `Content-Type` 请求头，并建议暴露 `ETag`。Zip Bucket 仍保持私有读写；图标 Bucket 可公共读，但写入仍通过服务端签发的短期 PUT signed URL。
 
 ## 管理后台结构
 
@@ -318,13 +336,14 @@ GET /api/skill-hub/tags/skills?tag_ids=1,2&p=1&page_size=20
 
 | 接口                                             | 权限   | 用途                                                         |
 | ------------------------------------------------ | ------ | ------------------------------------------------------------ |
-| `POST /api/admin/skill-hub/upload`               | 管理员 | 上传 Skill Zip 包到 OSS                                      |
-| `POST /api/admin/skill-hub/upload-icon`          | 管理员 | 上传 Skill 图标到 OSS                                        |
+| `POST /api/admin/skill-hub/direct-upload/init`   | 管理员 | 初始化 Skill Zip 包或图标 OSS 直传，返回 PUT signed URL      |
+| `POST /api/admin/skill-hub/direct-upload/complete` | 管理员 | 完成直传确认，校验 OSS 对象并返回 URL、object、checksum      |
+| `POST /api/admin/skill-hub/direct-upload/discard` | 管理员 | 丢弃未保存上传，删除对应 OSS 对象                            |
 | `GET /api/admin/skill-hub/skills`                | 管理员 | 分页搜索后台 Skill 列表，支持 `keyword`、`p`、`page_size`    |
 | `POST /api/admin/skill-hub/skills`               | 管理员 | 新建 Skill                                                   |
 | `GET /api/admin/skill-hub/skills/:id`            | 管理员 | 获取后台 Skill 详情                                          |
-| `PUT /api/admin/skill-hub/skills/:id`            | 管理员 | 更新 Skill                                                   |
-| `DELETE /api/admin/skill-hub/skills/:id`         | 管理员 | 删除 Skill                                                   |
+| `PUT /api/admin/skill-hub/skills/:id`            | 管理员 | 更新 Skill，保存成功后清理被替换的旧 OSS 对象                |
+| `DELETE /api/admin/skill-hub/skills/:id`         | 管理员 | 删除 Skill，并 best-effort 删除关联 OSS 对象                 |
 | `POST /api/admin/skill-hub/skills/:id/publish`   | 管理员 | 发布 Skill                                                   |
 | `POST /api/admin/skill-hub/skills/:id/unpublish` | 管理员 | 下架 Skill                                                   |
 | `GET /api/admin/skill-hub/tags`                  | 管理员 | 分页搜索标签库，支持 `keyword`、`p`、`page_size`             |

@@ -18,12 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import type {
+  SkillHubDirectUploadInitResponse,
   SkillHubForm,
   SkillHubListResponse,
   SkillHubSkill,
   SkillHubSkillResponse,
   SkillHubTagListResponse,
   SkillHubTagResponse,
+  SkillHubUploadResponse,
 } from './types'
 
 export async function listAdminSkillHubSkills(params?: {
@@ -159,32 +161,93 @@ export async function deleteSkillHubTag(
 export async function uploadSkillHubZip(
   file: File,
   form: Pick<SkillHubForm, 'id' | 'version'>
-): Promise<{
-  success: boolean
-  message?: string
-  data?: { url: string; object: string; size: number; checksum: string }
-}> {
-  const body = new FormData()
-  body.append('file', file)
-  body.append('skill_id', form.id)
-  body.append('version', form.version)
-  const res = await api.post('/api/admin/skill-hub/upload', body)
-  return res.data
+): Promise<SkillHubUploadResponse> {
+  return uploadSkillHubObject(file, 'zip', {
+    skillId: form.id,
+    version: form.version,
+  })
 }
 
 export async function uploadSkillHubIcon(
   file: File,
   form: Pick<SkillHubForm, 'id'>
-): Promise<{
-  success: boolean
-  message?: string
-  data?: { url: string; object: string; size: number; checksum: string }
-}> {
-  const body = new FormData()
-  body.append('file', file)
-  body.append('skill_id', form.id)
-  const res = await api.post('/api/admin/skill-hub/upload-icon', body)
+): Promise<SkillHubUploadResponse> {
+  return uploadSkillHubObject(file, 'icon', { skillId: form.id })
+}
+
+export async function discardSkillHubUpload(uploadTicket: string) {
+  if (!uploadTicket) return
+  await api.post('/api/admin/skill-hub/direct-upload/discard', {
+    uploadTicket,
+  })
+}
+
+async function uploadSkillHubObject(
+  file: File,
+  kind: 'zip' | 'icon',
+  input: { skillId: string; version?: string }
+): Promise<SkillHubUploadResponse> {
+  const initPayload = await initSkillHubDirectUpload(file, kind, input)
+  if (!initPayload.success || !initPayload.data) {
+    return {
+      success: false,
+      message: initPayload.message || 'Failed to upload file',
+    }
+  }
+  try {
+    await putSkillHubObject(initPayload.data, file)
+    const res = await api.post('/api/admin/skill-hub/direct-upload/complete', {
+      uploadTicket: initPayload.data.uploadTicket,
+    })
+    const payload = res.data as SkillHubUploadResponse
+    if (payload.success && payload.data) {
+      payload.data.uploadTicket = initPayload.data.uploadTicket
+    }
+    return payload
+  } catch (error) {
+    await discardSkillHubUpload(initPayload.data.uploadTicket).catch(
+      () => undefined
+    )
+    throw error
+  }
+}
+
+async function initSkillHubDirectUpload(
+  file: File,
+  kind: 'zip' | 'icon',
+  input: { skillId: string; version?: string }
+): Promise<SkillHubDirectUploadInitResponse> {
+  const res = await api.post('/api/admin/skill-hub/direct-upload/init', {
+    kind,
+    skillId: input.skillId,
+    version: input.version || '',
+    fileName: file.name,
+    size: file.size,
+  })
   return res.data
+}
+
+function putSkillHubObject(
+  upload: NonNullable<SkillHubDirectUploadInitResponse['data']>,
+  file: File
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open(upload.uploadMethod || 'PUT', upload.uploadUrl)
+    Object.entries(upload.uploadHeaders || {}).forEach(([key, value]) => {
+      if (value) xhr.setRequestHeader(key, value)
+    })
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve()
+        return
+      }
+      reject(new Error('Failed to upload file'))
+    }
+    xhr.onerror = () => reject(new Error('Failed to upload file'))
+    xhr.onabort = () => reject(new Error('Failed to upload file'))
+    xhr.send(file)
+  })
 }
 
 export function skillToForm(skill?: SkillHubSkill): SkillHubForm {

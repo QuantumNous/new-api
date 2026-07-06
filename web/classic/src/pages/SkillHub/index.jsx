@@ -121,9 +121,7 @@ const isPrivateIPv4Host = (host) => {
     return Number(part);
   });
   if (
-    values.some(
-      (value) => !Number.isInteger(value) || value < 0 || value > 255,
-    )
+    values.some((value) => !Number.isInteger(value) || value < 0 || value > 255)
   ) {
     return false;
   }
@@ -152,6 +150,65 @@ const isImageIcon = (value) => {
     .toLowerCase();
   return trimmed.startsWith('http://') || trimmed.startsWith('https://');
 };
+
+const uploadSkillHubObject = async (file, kind, input) => {
+  const initRes = await API.post('/api/admin/skill-hub/direct-upload/init', {
+    kind,
+    skillId: input.skillId,
+    version: input.version || '',
+    fileName: file.name,
+    size: file.size,
+  });
+  const initPayload = initRes.data;
+  if (!initPayload.success || !initPayload.data) {
+    throw new Error(initPayload.message || 'Upload initialization failed');
+  }
+  try {
+    await putSkillHubObject(initPayload.data, file);
+    const completeRes = await API.post(
+      '/api/admin/skill-hub/direct-upload/complete',
+      {
+        uploadTicket: initPayload.data.uploadTicket,
+      },
+    );
+    const payload = completeRes.data;
+    if (payload.success && payload.data) {
+      payload.data.uploadTicket = initPayload.data.uploadTicket;
+    }
+    return payload;
+  } catch (error) {
+    await discardSkillHubUpload(initPayload.data.uploadTicket).catch(
+      () => undefined,
+    );
+    throw error;
+  }
+};
+
+const discardSkillHubUpload = async (uploadTicket) => {
+  if (!uploadTicket) return;
+  await API.post('/api/admin/skill-hub/direct-upload/discard', {
+    uploadTicket,
+  });
+};
+
+const putSkillHubObject = (upload, file) =>
+  new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(upload.uploadMethod || 'PUT', upload.uploadUrl);
+    Object.entries(upload.uploadHeaders || {}).forEach(([key, value]) => {
+      if (value) xhr.setRequestHeader(key, value);
+    });
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+        return;
+      }
+      reject(new Error('OSS upload failed'));
+    };
+    xhr.onerror = () => reject(new Error('OSS upload failed'));
+    xhr.onabort = () => reject(new Error('OSS upload aborted'));
+    xhr.send(file);
+  });
 
 const skillToForm = (skill) => ({
   ...createDefaultForm(),
@@ -192,7 +249,7 @@ const formToPayload = (form) => ({
 });
 
 const Field = ({ label, children }) => (
-  <label className='flex flex-col gap-1 text-sm text-semi-color-text-1'>
+  <label className='flex min-w-0 flex-col gap-1 text-sm text-semi-color-text-1'>
     <span className='font-medium'>{label}</span>
     {children}
   </label>
@@ -210,6 +267,12 @@ const Section = ({ title, description, children }) => (
     </div>
     <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>{children}</div>
   </section>
+);
+
+const ReadonlyValue = ({ value }) => (
+  <div className='min-h-[34px] min-w-0 flex-1 break-all rounded border border-semi-color-border bg-semi-color-fill-0 px-3 py-2 text-xs leading-relaxed text-semi-color-text-2'>
+    {value || '-'}
+  </div>
 );
 
 const TagEditor = ({ value, suggestions, placeholder, onChange }) => {
@@ -317,6 +380,8 @@ const SkillHub = () => {
   const [iconUploading, setIconUploading] = useState(false);
   const zipInputRef = useRef(null);
   const iconInputRef = useRef(null);
+  const pendingZipUploadRef = useRef(null);
+  const pendingIconUploadRef = useRef(null);
 
   const selectedSkill = useMemo(
     () => skills.find((skill) => skill.id === selectedId),
@@ -384,14 +449,88 @@ const SkillHub = () => {
   }, []);
 
   useEffect(() => {
+    return () => {
+      const pendingZip = pendingZipUploadRef.current;
+      const pendingIcon = pendingIconUploadRef.current;
+      if (pendingZip?.ticket) {
+        discardSkillHubUpload(pendingZip.ticket).catch(() => undefined);
+      }
+      if (pendingIcon?.ticket) {
+        discardSkillHubUpload(pendingIcon.ticket).catch(() => undefined);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (selectedSkill) {
       setForm(skillToForm(selectedSkill));
     }
   }, [selectedSkill]);
 
+  const discardPendingUploads = () => {
+    const pendingZip = pendingZipUploadRef.current;
+    const pendingIcon = pendingIconUploadRef.current;
+    pendingZipUploadRef.current = null;
+    pendingIconUploadRef.current = null;
+    if (pendingZip?.ticket) {
+      discardSkillHubUpload(pendingZip.ticket).catch(() => undefined);
+    }
+    if (pendingIcon?.ticket) {
+      discardSkillHubUpload(pendingIcon.ticket).catch(() => undefined);
+    }
+  };
+
+  const replacePendingZip = (uploadTicket, objectKey) => {
+    const previous = pendingZipUploadRef.current;
+    pendingZipUploadRef.current =
+      uploadTicket && objectKey
+        ? { ticket: uploadTicket, object: objectKey }
+        : null;
+    if (previous?.ticket && previous.ticket !== uploadTicket) {
+      discardSkillHubUpload(previous.ticket).catch(() => undefined);
+    }
+  };
+
+  const replacePendingIcon = (uploadTicket, url) => {
+    const previous = pendingIconUploadRef.current;
+    pendingIconUploadRef.current =
+      uploadTicket && url ? { ticket: uploadTicket, url } : null;
+    if (previous?.ticket && previous.ticket !== uploadTicket) {
+      discardSkillHubUpload(previous.ticket).catch(() => undefined);
+    }
+  };
+
+  const settlePendingUploads = (savedSkill) => {
+    const pendingZip = pendingZipUploadRef.current;
+    const pendingIcon = pendingIconUploadRef.current;
+    pendingZipUploadRef.current = null;
+    pendingIconUploadRef.current = null;
+    if (
+      pendingZip?.ticket &&
+      pendingZip.object &&
+      pendingZip.object !== savedSkill?.source?.ref
+    ) {
+      discardSkillHubUpload(pendingZip.ticket).catch(() => undefined);
+    }
+    if (
+      pendingIcon?.ticket &&
+      pendingIcon.url &&
+      pendingIcon.url !== savedSkill?.icon
+    ) {
+      discardSkillHubUpload(pendingIcon.ticket).catch(() => undefined);
+    }
+  };
+
   const handleNew = () => {
+    discardPendingUploads();
     setSelectedId('');
     setForm(createDefaultForm());
+  };
+
+  const selectSkill = (skill) => {
+    discardPendingUploads();
+    setSelectedId(skill.id);
+    setForm(skillToForm(skill));
   };
 
   const applyTagFilter = (tagId) => {
@@ -438,6 +577,9 @@ const SkillHub = () => {
         return;
       }
       showSuccess('保存成功');
+      if (data) {
+        settlePendingUploads(data);
+      }
       setSelectedId(data?.id || payload.id);
       await loadSkills();
     } finally {
@@ -457,16 +599,19 @@ const SkillHub = () => {
     }
     setUploading(true);
     try {
-      const body = new FormData();
-      body.append('file', file);
-      body.append('skill_id', form.id);
-      body.append('version', form.version);
-      const res = await API.post('/api/admin/skill-hub/upload', body);
-      const { success, data, message } = res.data;
+      const { success, data, message } = await uploadSkillHubObject(
+        file,
+        'zip',
+        {
+          skillId: form.id,
+          version: form.version,
+        },
+      );
       if (!success || !data) {
         showError(message || '上传失败');
         return;
       }
+      replacePendingZip(data.uploadTicket, data.object);
       updateForm('sourceUrl', data.url);
       updateForm('sourceRef', data.object);
       updateForm('sourceChecksum', data.checksum);
@@ -491,15 +636,18 @@ const SkillHub = () => {
     }
     setIconUploading(true);
     try {
-      const body = new FormData();
-      body.append('file', file);
-      body.append('skill_id', form.id);
-      const res = await API.post('/api/admin/skill-hub/upload-icon', body);
-      const { success, data, message } = res.data;
+      const { success, data, message } = await uploadSkillHubObject(
+        file,
+        'icon',
+        {
+          skillId: form.id,
+        },
+      );
       if (!success || !data) {
         showError(message || '图标上传失败');
         return;
       }
+      replacePendingIcon(data.uploadTicket, data.url);
       updateForm('icon', data.url);
       showSuccess('图标已上传');
     } finally {
@@ -601,54 +749,55 @@ const SkillHub = () => {
               </div>
             ) : null}
             <Spin spinning={loading}>
-              <div className='flex max-h-[70vh] flex-col gap-2 overflow-auto pr-1'>
-                {skills.map((skill) => (
-                  <button
-                    key={skill.id}
-                    type='button'
-                    onClick={() => setSelectedId(skill.id)}
-                    className={`rounded border p-3 text-left transition ${
-                      selectedId === skill.id
-                        ? 'border-semi-color-primary bg-semi-color-primary-light-default'
-                        : 'border-semi-color-border bg-semi-color-bg-1 hover:bg-semi-color-fill-0'
-                    }`}
-                  >
-                    <div className='flex items-center justify-between gap-2'>
-                      <span className='truncate font-semibold'>
-                        {skill.name}
-                      </span>
-                      <Space spacing={4}>
-                        {skill.recommended ? (
-                          <Tag color='violet'>推荐</Tag>
-                        ) : null}
-                        <Tag color={isPublishedSkill(skill) ? 'green' : 'grey'}>
-                          {isPublishedSkill(skill) ? '已发布' : '草稿'}
-                        </Tag>
-                      </Space>
-                    </div>
-                    <div className='mt-1 truncate text-xs text-semi-color-text-2'>
-                      {skill.id} · {skill.version}
-                      {skill.author ? ` · ${skill.author}` : ''}
-                    </div>
-                    <div className='mt-2 line-clamp-2 min-h-[40px] text-sm text-semi-color-text-1'>
-                      {skill.description || '暂无描述'}
-                    </div>
-                    {normalizeTags(skill.tags).length ? (
-                      <div className='mt-2 flex max-h-7 flex-wrap gap-1 overflow-hidden'>
-                        {normalizeTags(skill.tags)
-                          .slice(0, 4)
-                          .map((tag) => (
-                            <span
-                              key={tag}
-                              className='rounded bg-semi-color-fill-0 px-2 py-0.5 text-xs text-semi-color-text-2'
-                            >
-                              {tag}
-                            </span>
-                          ))}
+              <div className='flex max-h-[70vh] flex-col gap-2 overflow-auto pr-1 pb-2'>
+                {skills.map((skill) => {
+                  const tags = normalizeTags(skill.tags);
+                  return (
+                    <button
+                      key={skill.id}
+                      type='button'
+                      onClick={() => selectSkill(skill)}
+                      className={`rounded border p-3 text-left transition ${
+                        selectedId === skill.id
+                          ? 'border-semi-color-primary bg-semi-color-primary-light-default'
+                          : 'border-semi-color-border bg-semi-color-bg-1 hover:bg-semi-color-fill-0'
+                      }`}
+                    >
+                      <div className='flex items-center justify-between gap-2'>
+                        <span className='truncate font-semibold'>
+                          {skill.name}
+                        </span>
+                        <Space spacing={4}>
+                          {skill.recommended ? (
+                            <Tag color='violet'>推荐</Tag>
+                          ) : null}
+                          <Tag
+                            color={isPublishedSkill(skill) ? 'green' : 'grey'}
+                          >
+                            {isPublishedSkill(skill) ? '已发布' : '草稿'}
+                          </Tag>
+                        </Space>
                       </div>
-                    ) : null}
-                  </button>
-                ))}
+                      <div className='mt-1 truncate text-xs text-semi-color-text-2'>
+                        {skill.id} · {skill.version}
+                        {skill.author ? ` · ${skill.author}` : ''}
+                      </div>
+                      <div className='mt-2 line-clamp-2 min-h-[40px] text-sm text-semi-color-text-1'>
+                        {skill.description || '暂无描述'}
+                      </div>
+                      <div className='mt-2 flex min-h-7 max-h-7 flex-wrap gap-1 overflow-hidden'>
+                        {tags.slice(0, 4).map((tag) => (
+                          <span
+                            key={tag}
+                            className='rounded bg-semi-color-fill-0 px-2 py-0.5 text-xs text-semi-color-text-2'
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </button>
+                  );
+                })}
                 {skills.length === 0 && (
                   <div className='py-8 text-center text-semi-color-text-2'>
                     暂无 Skill
@@ -697,7 +846,7 @@ const SkillHub = () => {
                 </Field>
                 <div className='md:col-span-2'>
                   <Field label='图标'>
-                    <div className='flex gap-2'>
+                    <div className='flex items-start gap-2'>
                       <div className='flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded border border-semi-color-border bg-semi-color-fill-0 text-semi-color-text-2'>
                         {isImageIcon(form.icon) ? (
                           <img
@@ -710,9 +859,7 @@ const SkillHub = () => {
                           <ImageIcon size={16} />
                         )}
                       </div>
-                      <div className='flex min-w-0 flex-1 items-center truncate rounded border border-semi-color-border bg-semi-color-fill-0 px-3 text-xs text-semi-color-text-2'>
-                        {form.icon.trim() || '未上传图标'}
-                      </div>
+                      <ReadonlyValue value={form.icon.trim() || '未上传图标'} />
                       <input
                         ref={iconInputRef}
                         type='file'
