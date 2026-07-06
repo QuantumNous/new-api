@@ -676,12 +676,51 @@ func StripeWebhook(c *gin.Context) {
 	}
 
 	if processingErr != nil {
-		logger.LogError(ctx, fmt.Sprintf("Stripe webhook processing failed, returning retry event_type=%s client_ip=%s error=%q", string(event.Type), callerIp, processingErr.Error()))
-		c.String(http.StatusInternalServerError, "retry")
+		if isRetryableStripeWebhookProcessingError(processingErr) {
+			logger.LogError(ctx, fmt.Sprintf("Stripe webhook processing failed, returning retry event_type=%s client_ip=%s error=%q", string(event.Type), callerIp, processingErr.Error()))
+			c.String(http.StatusInternalServerError, "retry")
+			return
+		}
+		logger.LogError(ctx, fmt.Sprintf("Stripe webhook processing failed permanently, acknowledging event_type=%s client_ip=%s error=%q", string(event.Type), callerIp, processingErr.Error()))
+		c.Status(http.StatusOK)
 		return
 	}
 
 	c.Status(http.StatusOK)
+}
+
+type stripeWebhookPermanentError struct {
+	err error
+}
+
+func (e stripeWebhookPermanentError) Error() string {
+	if e.err == nil {
+		return ""
+	}
+	return e.err.Error()
+}
+
+func (e stripeWebhookPermanentError) Unwrap() error {
+	return e.err
+}
+
+func permanentStripeWebhookProcessingError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var permanent stripeWebhookPermanentError
+	if errors.As(err, &permanent) {
+		return err
+	}
+	return stripeWebhookPermanentError{err: err}
+}
+
+func isRetryableStripeWebhookProcessingError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var permanent stripeWebhookPermanentError
+	return !errors.As(err, &permanent)
 }
 
 func sessionCompleted(ctx context.Context, event stripe.Event, callerIp string) error {
@@ -763,16 +802,19 @@ func sessionAsyncPaymentFailed(ctx context.Context, event stripe.Event, callerIp
 }
 
 // fulfillOrder is the shared logic for crediting quota after payment is confirmed.
-func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, customerId string, callerIp string) error {
+func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, customerId string, callerIp string) (err error) {
 	if len(referenceId) == 0 {
-		err := errors.New("Stripe checkout completed without local order reference")
+		err := permanentStripeWebhookProcessingError(errors.New("Stripe checkout completed without local order reference"))
 		logger.LogWarn(ctx, fmt.Sprintf("Stripe 完成订单时缺少订单号 client_ip=%s", callerIp))
 		alertStripePaymentProcessingFailure(ctx, event, referenceId, customerId, err)
 		return err
 	}
 
 	LockOrder(referenceId)
-	defer UnlockOrder(referenceId)
+	defer func() {
+		UnlockOrder(referenceId)
+		alertStripePaymentProcessingFailure(ctx, event, referenceId, customerId, err)
+	}()
 	payload := map[string]any{
 		"customer":     customerId,
 		"amount_total": event.GetObjectValue("amount_total"),
@@ -785,20 +827,17 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		return nil
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
 		logger.LogError(ctx, fmt.Sprintf("Stripe 订阅订单处理失败 trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))
-		alertStripePaymentProcessingFailure(ctx, event, referenceId, customerId, err)
 		return err
 	}
 
 	if err := validateStripeTopUpPaymentContract(event, referenceId); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Stripe 鍏呭€煎叆璐︽牎楠屽け璐?trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))
-		alertStripePaymentProcessingFailure(ctx, event, referenceId, customerId, err)
 		return err
 	}
 
 	recharged, err := model.RechargeWithPaymentSnapshot(referenceId, customerId, callerIp, stripePaymentSnapshotFromEvent(event))
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Stripe 充值处理失败 trade_no=%s event_type=%s client_ip=%s error=%q", referenceId, string(event.Type), callerIp, err.Error()))
-		alertStripePaymentProcessingFailure(ctx, event, referenceId, customerId, err)
 		return err
 	}
 	if recharged {
@@ -908,21 +947,21 @@ func stripeEventObjectValue(event stripe.Event, keys ...string) string {
 func validateStripeTopUpPaymentContract(event stripe.Event, referenceId string) error {
 	topUp := model.GetTopUpByTradeNo(referenceId)
 	if topUp == nil {
-		return model.ErrTopUpNotFound
+		return permanentStripeWebhookProcessingError(model.ErrTopUpNotFound)
 	}
 	if topUp.PaymentProvider != model.PaymentProviderStripe {
-		return model.ErrPaymentMethodMismatch
+		return permanentStripeWebhookProcessingError(model.ErrPaymentMethodMismatch)
 	}
 	if topUp.Status == common.TopUpStatusSuccess {
 		return nil
 	}
 	if topUp.Status != common.TopUpStatusPending {
-		return model.ErrTopUpStatusInvalid
+		return permanentStripeWebhookProcessingError(model.ErrTopUpStatusInvalid)
 	}
 
 	expectedPriceId := strings.TrimSpace(topUp.PaymentPriceId)
 	if expectedPriceId == "" {
-		return errors.New("Stripe top-up expected payment contract is missing")
+		return permanentStripeWebhookProcessingError(errors.New("Stripe top-up expected payment contract is missing"))
 	}
 
 	actual, err := stripeCheckoutPaymentContractFromEvent(event)
@@ -932,17 +971,17 @@ func validateStripeTopUpPaymentContract(event stripe.Event, referenceId string) 
 
 	expectedSessionId := strings.TrimSpace(topUp.GatewayTradeNo)
 	if actual.SessionId != "" && expectedSessionId != "" && actual.SessionId != expectedSessionId {
-		return fmt.Errorf("Stripe checkout session mismatch: expected %s got %s", expectedSessionId, actual.SessionId)
+		return permanentStripeWebhookProcessingError(fmt.Errorf("Stripe checkout session mismatch: expected %s got %s", expectedSessionId, actual.SessionId))
 	}
 	if actual.PriceId != expectedPriceId {
-		return fmt.Errorf("Stripe checkout price mismatch: expected %s got %s", expectedPriceId, actual.PriceId)
+		return permanentStripeWebhookProcessingError(fmt.Errorf("Stripe checkout price mismatch: expected %s got %s", expectedPriceId, actual.PriceId))
 	}
 	if actual.Quantity != stripeTopUpLineQuantity {
-		return fmt.Errorf("Stripe checkout quantity mismatch: expected %d got %d", stripeTopUpLineQuantity, actual.Quantity)
+		return permanentStripeWebhookProcessingError(fmt.Errorf("Stripe checkout quantity mismatch: expected %d got %d", stripeTopUpLineQuantity, actual.Quantity))
 	}
 	actualCurrency := strings.ToUpper(strings.TrimSpace(actual.Currency))
 	if actualCurrency == "" {
-		return errors.New("Stripe checkout currency is missing")
+		return permanentStripeWebhookProcessingError(errors.New("Stripe checkout currency is missing"))
 	}
 	// Do not compare Stripe line-item amounts with locally stored package amounts.
 	// Coupons, Adaptive Pricing, taxes, and display-price configuration can change

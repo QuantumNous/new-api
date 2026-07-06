@@ -76,12 +76,13 @@ func TestBuildDingTalkPaymentProcessingAlertContentMasksSensitiveFields(t *testi
 	require.Contains(t, content, "Trade No: ref_payment_alert")
 	require.Contains(t, content, "Event Type: checkout.session.completed")
 	require.Contains(t, content, "Customer ID: cus_alert")
-	require.Contains(t, content, "Customer Email: kurebarr.h@***.com")
+	require.Contains(t, content, "Customer Email: ***@***.com")
 	require.Contains(t, content, "Expected Amount: 3000 JPY")
 	require.Contains(t, content, "Actual Amount: 2999 JPY")
 	require.NotContains(t, content, "secret-token")
 	require.NotContains(t, content, "sk-sensitive")
 	require.NotContains(t, content, "kurebarr.h@gmail.com")
+	require.NotContains(t, content, "kurebarr.h")
 }
 
 func TestNotifyDingTalkPaymentProcessingFailureUsesMonitorDingTalk(t *testing.T) {
@@ -125,6 +126,48 @@ func TestNotifyDingTalkPaymentProcessingFailureUsesMonitorDingTalk(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
 	require.Contains(t, requestBody, "ref_payment_alert")
+}
+
+func TestNotifyDingTalkPaymentProcessingFailureSuppressesDuplicateAlerts(t *testing.T) {
+	allowDingTalkTestServer(t)
+	originalSetting := *operation_setting.GetMonitorSetting()
+	originalHTTPClient := httpClient
+	originalDB := model.DB
+	originalPaymentCooldown := dingTalkPaymentAlertCooldown
+	t.Cleanup(func() {
+		*operation_setting.GetMonitorSetting() = originalSetting
+		httpClient = originalHTTPClient
+		model.DB = originalDB
+		dingTalkPaymentAlertCooldown = originalPaymentCooldown
+	})
+	model.DB = nil
+	dingTalkPaymentAlertCooldown = NewDingTalkPaymentAlertCooldown()
+
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errcode":0,"errmsg":"ok"}`))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting := operation_setting.GetMonitorSetting()
+	setting.DingTalkAlertEnabled = true
+	setting.DingTalkAlertWebhookURL = server.URL
+	setting.DingTalkAlertSecret = ""
+	setting.DingTalkAlertCooldownMinutes = 60
+
+	alert := DingTalkPaymentProcessingAlert{
+		Provider:  "stripe",
+		TradeNo:   "ref_payment_duplicate",
+		EventType: "checkout.session.completed",
+		Error:     "price mismatch",
+	}
+
+	require.NoError(t, NotifyDingTalkPaymentProcessingFailure(alert))
+	require.NoError(t, NotifyDingTalkPaymentProcessingFailure(alert))
+	require.Equal(t, int32(1), atomic.LoadInt32(&requests))
 }
 
 func TestBuildDingTalkCodexModelGovernanceAlertContentSanitizesError(t *testing.T) {

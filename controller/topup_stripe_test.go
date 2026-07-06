@@ -1,10 +1,12 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v81"
+	stripewebhook "github.com/stripe/stripe-go/v81/webhook"
 	"gorm.io/gorm"
 )
 
@@ -600,6 +603,154 @@ func TestFulfillOrderAlertsOnStripePaymentContractFailure(t *testing.T) {
 	require.NotNil(t, reloaded)
 	assert.Equal(t, common.TopUpStatusPending, reloaded.Status)
 	assert.Equal(t, 0, stripeFulfillmentUserQuota(t, 903))
+}
+
+func TestFulfillOrderSendsPaymentProcessingAlertAfterUnlock(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent
+	originalNotifier := notifyStripePaymentProcessingFailure
+	t.Cleanup(func() {
+		stripeCheckoutPaymentContractFromEvent = originalContractFromEvent
+		notifyStripePaymentProcessingFailure = originalNotifier
+	})
+
+	insertStripeFulfillmentUser(t, 906)
+	topUp := &model.TopUp{
+		UserId:             906,
+		Amount:             20,
+		Money:              20,
+		PaymentCurrency:    "USD",
+		PaymentPriceId:     "price_20",
+		PaymentAmountMinor: 2000,
+		TradeNo:            "ref_stripe_alert_unlock",
+		GatewayTradeNo:     "cs_alert_unlock",
+		PaymentMethod:      model.PaymentMethodStripe,
+		PaymentProvider:    model.PaymentProviderStripe,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+	}
+	require.NoError(t, topUp.Insert())
+	stripeCheckoutPaymentContractFromEvent = func(event stripe.Event) (stripeCheckoutPaymentContract, error) {
+		return stripeCheckoutPaymentContract{
+			SessionId: "cs_alert_unlock",
+			PriceId:   "price_other",
+			Quantity:  1,
+			Currency:  "USD",
+		}, nil
+	}
+
+	alertCanLockOrder := make(chan struct{})
+	notifyStripePaymentProcessingFailure = func(alert service.DingTalkPaymentProcessingAlert) error {
+		LockOrder("ref_stripe_alert_unlock")
+		UnlockOrder("ref_stripe_alert_unlock")
+		close(alertCanLockOrder)
+		return nil
+	}
+
+	event := stripe.Event{
+		Type: stripe.EventTypeCheckoutSessionCompleted,
+		Data: &stripe.EventData{Object: map[string]interface{}{
+			"id":                  "cs_alert_unlock",
+			"amount_total":        float64(1999),
+			"currency":            "usd",
+			"client_reference_id": "ref_stripe_alert_unlock",
+			"customer":            "cus_alert_unlock",
+		}},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- fulfillOrder(context.Background(), event, "ref_stripe_alert_unlock", "cus_alert_unlock", "127.0.0.1")
+	}()
+
+	select {
+	case err := <-done:
+		require.Error(t, err)
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("fulfillOrder held the order lock while sending the payment alert")
+	}
+
+	select {
+	case <-alertCanLockOrder:
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("payment alert notifier could not acquire the order lock")
+	}
+}
+
+func TestStripeWebhookAcknowledgesPermanentPaymentContractFailure(t *testing.T) {
+	setupStripeFulfillmentTestDB(t)
+	confirmPaymentComplianceForTest(t)
+	originalSecret := setting.StripeWebhookSecret
+	originalContractFromEvent := stripeCheckoutPaymentContractFromEvent
+	originalNotifier := notifyStripePaymentProcessingFailure
+	t.Cleanup(func() {
+		setting.StripeWebhookSecret = originalSecret
+		stripeCheckoutPaymentContractFromEvent = originalContractFromEvent
+		notifyStripePaymentProcessingFailure = originalNotifier
+	})
+	setting.StripeWebhookSecret = "whsec_test_pr334"
+
+	insertStripeFulfillmentUser(t, 907)
+	topUp := &model.TopUp{
+		UserId:             907,
+		Amount:             20,
+		Money:              20,
+		PaymentCurrency:    "USD",
+		PaymentPriceId:     "price_20",
+		PaymentAmountMinor: 2000,
+		TradeNo:            "ref_stripe_webhook_permanent",
+		GatewayTradeNo:     "cs_webhook_permanent",
+		PaymentMethod:      model.PaymentMethodStripe,
+		PaymentProvider:    model.PaymentProviderStripe,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+	}
+	require.NoError(t, topUp.Insert())
+	stripeCheckoutPaymentContractFromEvent = func(event stripe.Event) (stripeCheckoutPaymentContract, error) {
+		return stripeCheckoutPaymentContract{
+			SessionId: "cs_webhook_permanent",
+			PriceId:   "price_other",
+			Quantity:  1,
+			Currency:  "USD",
+		}, nil
+	}
+
+	var alerts int32
+	notifyStripePaymentProcessingFailure = func(alert service.DingTalkPaymentProcessingAlert) error {
+		atomic.AddInt32(&alerts, 1)
+		return nil
+	}
+
+	payload := []byte(`{
+		"id": "evt_webhook_permanent",
+		"object": "event",
+		"type": "checkout.session.completed",
+		"data": {
+			"object": {
+				"id": "cs_webhook_permanent",
+				"object": "checkout.session",
+				"status": "complete",
+				"payment_status": "paid",
+				"amount_total": 1999,
+				"currency": "usd",
+				"client_reference_id": "ref_stripe_webhook_permanent",
+				"customer": "cus_webhook_permanent"
+			}
+		}
+	}`)
+	signedPayload := stripewebhook.GenerateTestSignedPayload(&stripewebhook.UnsignedPayload{
+		Payload: payload,
+		Secret:  setting.StripeWebhookSecret,
+	})
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/stripe/webhook", bytes.NewReader(signedPayload.Payload))
+	ctx.Request.Header.Set("Stripe-Signature", signedPayload.Header)
+
+	StripeWebhook(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, int32(1), atomic.LoadInt32(&alerts))
 }
 
 func TestFulfillOrderAcceptsAdaptivePresentmentCurrency(t *testing.T) {
