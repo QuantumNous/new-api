@@ -20,6 +20,23 @@ func TestNewGeminiChatBillingUsageRequiresTokenContent(t *testing.T) {
 	assert.False(t, billingUsage.Estimated)
 }
 
+func TestNewClaudeMessagesBillingUsageRequiresTokenContent(t *testing.T) {
+	require.Nil(t, NewClaudeMessagesBillingUsage(nil))
+	require.Nil(t, NewClaudeMessagesBillingUsage(&ClaudeUsage{}))
+	require.Nil(t, NewClaudeMessagesBillingUsage(&ClaudeUsage{CacheCreation: &ClaudeCacheCreationUsage{}}))
+
+	billingUsage := NewClaudeMessagesBillingUsage(&ClaudeUsage{InputTokens: 1})
+	require.NotNil(t, billingUsage)
+	require.NotNil(t, billingUsage.ClaudeUsage)
+	assert.Equal(t, BillingUsageSourceClaudeMessages, billingUsage.Source)
+	assert.Equal(t, BillingUsageSemanticAnthropic, billingUsage.Semantic)
+
+	cacheOnly := NewClaudeMessagesBillingUsage(&ClaudeUsage{
+		CacheCreation: &ClaudeCacheCreationUsage{Ephemeral5mInputTokens: 4},
+	})
+	require.NotNil(t, cacheOnly)
+}
+
 func TestNewOpenAIChatBillingUsageRequiresTokenContent(t *testing.T) {
 	require.Nil(t, NewOpenAIChatBillingUsage(nil))
 	require.Nil(t, NewOpenAIChatBillingUsage(&Usage{}))

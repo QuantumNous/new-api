@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/QuantumNous/new-api/constant"
 )
@@ -222,6 +223,25 @@ func matchAdvancedCustomRouteModel(models []string, model string) bool {
 	return false
 }
 
+// advancedCustomModelRegexCache caches compiled route model patterns. Route model
+// matching runs on the request hot path (distributor affinity, ability filtering,
+// channel cache filtering, adaptor resolve), so patterns must not be recompiled per
+// request. Invalid patterns are cached as nil to avoid recompiling them as well.
+var advancedCustomModelRegexCache sync.Map // pattern string -> *regexp.Regexp (nil when invalid)
+
+func compileAdvancedCustomModelRegex(pattern string) *regexp.Regexp {
+	if cached, ok := advancedCustomModelRegexCache.Load(pattern); ok {
+		re, _ := cached.(*regexp.Regexp)
+		return re
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		re = nil
+	}
+	advancedCustomModelRegexCache.Store(pattern, re)
+	return re
+}
+
 func matchAdvancedCustomRouteModelRule(rule string, model string) bool {
 	if !strings.HasPrefix(rule, advancedCustomModelRegexPrefix) {
 		return rule == model
@@ -230,8 +250,8 @@ func matchAdvancedCustomRouteModelRule(rule string, model string) bool {
 	if pattern == "" {
 		return false
 	}
-	matched, err := regexp.MatchString(pattern, model)
-	return err == nil && matched
+	re := compileAdvancedCustomModelRegex(pattern)
+	return re != nil && re.MatchString(model)
 }
 
 func matchAdvancedCustomIncomingPath(configuredPath string, requestPath string) bool {

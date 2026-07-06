@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -216,6 +217,27 @@ func TestAdvancedCustomMatchPathForModelRegexRules(t *testing.T) {
 	fallbackRoute, ok := config.MatchPathForModel("/v1/responses", "gpt-4o")
 	require.True(t, ok)
 	assert.Equal(t, advancedCustomConverterNone, fallbackRoute.Converter)
+}
+
+func TestAdvancedCustomRouteModelRegexRulesAreCachedCompiled(t *testing.T) {
+	require.True(t, matchAdvancedCustomRouteModelRule("re:^cache-probe-", "cache-probe-model"))
+
+	cached, ok := advancedCustomModelRegexCache.Load("^cache-probe-")
+	require.True(t, ok)
+	require.NotNil(t, cached)
+	_, isRegexp := cached.(*regexp.Regexp)
+	require.True(t, isRegexp)
+
+	// Invalid patterns never match and are cached as nil so they are not recompiled.
+	require.False(t, matchAdvancedCustomRouteModelRule("re:(", "anything"))
+	cached, ok = advancedCustomModelRegexCache.Load("(")
+	require.True(t, ok)
+	re, _ := cached.(*regexp.Regexp)
+	require.Nil(t, re)
+
+	// Cached entries keep matching correctly on subsequent calls.
+	require.True(t, matchAdvancedCustomRouteModelRule("re:^cache-probe-", "cache-probe-other"))
+	require.False(t, matchAdvancedCustomRouteModelRule("re:^cache-probe-", "other-model"))
 }
 
 func TestAdvancedCustomMatchPathForModelExactRuleDoesNotMatchPrefix(t *testing.T) {

@@ -117,6 +117,14 @@ func getPricingEndpointTypesForAbility(ability AbilityWithChannel, advancedCusto
 	return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
 }
 
+// loadPricingAdvancedCustomConfigs runs inside updatePricing while
+// updatePricingLock is held, and nests channelSyncLock.RLock. This defines the
+// global lock order updatePricingLock -> channelSyncLock: any code path holding
+// channelSyncLock must release it before touching the pricing cache (see
+// InitChannelCache / CacheUpdateChannel), otherwise it deadlocks.
+// The returned configs are pointers shared with the channel cache; they are
+// replaced wholesale on update and never mutated in place, so reading them after
+// RUnlock is safe.
 func loadPricingAdvancedCustomConfigs(enableAbilities []AbilityWithChannel) map[int]*dto.AdvancedCustomConfig {
 	channelIDs := make([]int, 0)
 	seen := make(map[int]struct{})

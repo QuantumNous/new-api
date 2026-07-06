@@ -463,6 +463,10 @@ type GeminiChatResponse struct {
 
 // UnmarshalJSON records whether Gemini returned usageMetadata while preserving
 // the historical wire shape that always marshals the usageMetadata field.
+//
+// IMPORTANT: aux shadows GeminiChatResponse. Any field added to
+// GeminiChatResponse must also be added to aux (and copied below), otherwise it
+// is silently dropped during unmarshal.
 func (r *GeminiChatResponse) UnmarshalJSON(data []byte) error {
 	var aux struct {
 		Candidates     []GeminiChatCandidate     `json:"candidates"`

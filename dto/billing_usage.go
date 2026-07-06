@@ -21,7 +21,7 @@ type BillingUsage struct {
 }
 
 func NewClaudeMessagesBillingUsage(usage *ClaudeUsage) *BillingUsage {
-	if usage == nil {
+	if !HasClaudeUsageTokens(usage) {
 		return nil
 	}
 	return &BillingUsage{
@@ -29,6 +29,28 @@ func NewClaudeMessagesBillingUsage(usage *ClaudeUsage) *BillingUsage {
 		Semantic:    BillingUsageSemanticAnthropic,
 		ClaudeUsage: cloneClaudeUsage(usage),
 	}
+}
+
+// HasClaudeUsageTokens mirrors HasOpenAIUsageTokens/HasGeminiUsageMetadataTokens:
+// an all-zero ClaudeUsage must not become a BillingUsage, otherwise it would take
+// precedence during settlement and zero out a non-zero top-level usage.
+func HasClaudeUsageTokens(usage *ClaudeUsage) bool {
+	if usage == nil {
+		return false
+	}
+	if usage.InputTokens != 0 ||
+		usage.OutputTokens != 0 ||
+		usage.CacheCreationInputTokens != 0 ||
+		usage.CacheReadInputTokens != 0 ||
+		usage.ClaudeCacheCreation5mTokens != 0 ||
+		usage.ClaudeCacheCreation1hTokens != 0 {
+		return true
+	}
+	if usage.CacheCreation != nil &&
+		(usage.CacheCreation.Ephemeral5mInputTokens != 0 || usage.CacheCreation.Ephemeral1hInputTokens != 0) {
+		return true
+	}
+	return false
 }
 
 func NewOpenAIChatBillingUsage(usage *Usage) *BillingUsage {
