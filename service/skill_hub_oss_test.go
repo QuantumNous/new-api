@@ -71,6 +71,28 @@ func TestSkillHubUploadURLExpiresDefault(t *testing.T) {
 	}
 }
 
+func TestSkillHubDirectUploadUsesHTTPSForBareEndpoint(t *testing.T) {
+	t.Setenv("SKILL_HUB_OSS_ENDPOINT", "oss-cn-hangzhou.aliyuncs.com")
+	t.Setenv("SKILL_HUB_OSS_BUCKET", "private")
+	t.Setenv("SKILL_HUB_OSS_ACCESS_KEY_ID", "ak")
+	t.Setenv("SKILL_HUB_OSS_ACCESS_KEY_SECRET", "secret")
+	t.Setenv("SKILL_HUB_OSS_PREFIX", "skill-hub/skills")
+
+	result, err := InitSkillHubDirectUpload(SkillHubDirectUploadInput{
+		Kind:     SkillHubUploadKindZip,
+		SkillID:  "demo.skill",
+		Version:  "1.0.0",
+		FileName: "demo.zip",
+		Size:     1,
+	})
+	if err != nil {
+		t.Fatalf("InitSkillHubDirectUpload() error = %v", err)
+	}
+	if !strings.HasPrefix(result.UploadURL, "https://") {
+		t.Fatalf("UploadURL = %q, want https URL", result.UploadURL)
+	}
+}
+
 func TestSkillHubUploadTicketRoundTrip(t *testing.T) {
 	t.Setenv("SKILL_HUB_OSS_ENDPOINT", "https://oss.example.com")
 	t.Setenv("SKILL_HUB_OSS_BUCKET", "private")

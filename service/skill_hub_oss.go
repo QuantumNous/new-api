@@ -434,7 +434,7 @@ func (c skillHubOSSConfig) validate() error {
 }
 
 func (c skillHubOSSConfig) bucket() (*oss.Bucket, error) {
-	client, err := oss.New(c.Endpoint, c.AccessKeyID, c.AccessKeySecret)
+	client, err := oss.New(normalizeOSSEndpoint(c.Endpoint), c.AccessKeyID, c.AccessKeySecret)
 	if err != nil {
 		return nil, err
 	}
@@ -580,11 +580,7 @@ func SignSkillHubZipURL(objectKey string, filename string) (string, error) {
 	if cfg.isTempObjectKey(objectKey) {
 		return "", errors.New("skill hub oss object is not finalized")
 	}
-	client, err := oss.New(cfg.Endpoint, cfg.AccessKeyID, cfg.AccessKeySecret)
-	if err != nil {
-		return "", err
-	}
-	bucket, err := client.Bucket(cfg.Bucket)
+	bucket, err := cfg.bucket()
 	if err != nil {
 		return "", err
 	}

@@ -18,7 +18,7 @@ Skill 包和 Skill 图标的访问方式不同：
 Zip 包沿用 Skill Hub 原有 OSS 配置：
 
 ```env
-SKILL_HUB_OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+SKILL_HUB_OSS_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
 SKILL_HUB_OSS_BUCKET=your-private-bucket
 SKILL_HUB_OSS_ACCESS_KEY_ID=xxx
 SKILL_HUB_OSS_ACCESS_KEY_SECRET=xxx
@@ -56,7 +56,7 @@ SKILL_HUB_ALLOW_LOCAL_HTTP=true
 你当前的公共读 Bucket 可以这样配置：
 
 ```env
-SKILL_HUB_OSS_ICON_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+SKILL_HUB_OSS_ICON_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
 SKILL_HUB_OSS_ICON_BUCKET=z-up-api-public
 SKILL_HUB_OSS_ICON_PREFIX=skill-hub/icons
 SKILL_HUB_OSS_ICON_PUBLIC_BASE_URL=https://z-up-api-public.oss-cn-hangzhou.aliyuncs.com

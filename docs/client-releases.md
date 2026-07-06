@@ -5,7 +5,7 @@
 ## OSS 配置
 
 ```env
-CLIENT_RELEASE_OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+CLIENT_RELEASE_OSS_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
 CLIENT_RELEASE_OSS_BUCKET=your-private-bucket
 CLIENT_RELEASE_OSS_ACCESS_KEY_ID=xxx
 CLIENT_RELEASE_OSS_ACCESS_KEY_SECRET=xxx

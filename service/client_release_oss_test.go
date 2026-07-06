@@ -71,6 +71,29 @@ func TestClientReleaseUploadURLExpiresCapsAtOneDay(t *testing.T) {
 	}
 }
 
+func TestClientReleaseDirectUploadUsesHTTPSForBareEndpoint(t *testing.T) {
+	t.Setenv("CLIENT_RELEASE_OSS_ENDPOINT", "oss-cn-hangzhou.aliyuncs.com")
+	t.Setenv("CLIENT_RELEASE_OSS_BUCKET", "private")
+	t.Setenv("CLIENT_RELEASE_OSS_ACCESS_KEY_ID", "ak")
+	t.Setenv("CLIENT_RELEASE_OSS_ACCESS_KEY_SECRET", "secret")
+	t.Setenv("CLIENT_RELEASE_OSS_PREFIX", "client-releases")
+
+	result, err := InitClientReleaseDirectUpload(ClientReleaseDirectUploadInput{
+		Version:  "1.2.3",
+		Platform: "windows",
+		Arch:     "x64",
+		Channel:  "stable",
+		FileName: "setup.exe",
+		Size:     1,
+	})
+	if err != nil {
+		t.Fatalf("InitClientReleaseDirectUpload() error = %v", err)
+	}
+	if !strings.HasPrefix(result.UploadURL, "https://") {
+		t.Fatalf("UploadURL = %q, want https URL", result.UploadURL)
+	}
+}
+
 func TestClientReleaseUploadTicketRoundTrip(t *testing.T) {
 	cfg := clientReleaseOSSConfig{AccessKeySecret: "secret"}
 	ticket := clientReleaseUploadTicket{

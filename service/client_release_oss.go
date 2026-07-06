@@ -377,7 +377,7 @@ func (c clientReleaseOSSConfig) validate() error {
 }
 
 func (c clientReleaseOSSConfig) bucket() (*oss.Bucket, error) {
-	client, err := oss.New(c.Endpoint, c.AccessKeyID, c.AccessKeySecret)
+	client, err := oss.New(normalizeOSSEndpoint(c.Endpoint), c.AccessKeyID, c.AccessKeySecret)
 	if err != nil {
 		return nil, err
 	}
