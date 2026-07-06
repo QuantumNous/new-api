@@ -49,9 +49,21 @@ func (s *BillingSession) Settle(actualQuota int) error {
 		s.settled = true
 		return nil
 	}
+	dailyLimit := resolveTokenDailyQuotaLimit(s.relayInfo.TokenId, s.relayInfo.TokenDailyQuotaLimit)
+	if !s.relayInfo.IsPlayground {
+		if err := settleTokenDailyQuotaDelta(s.relayInfo.TokenId, dailyLimit, delta); err != nil {
+			return err
+		}
+	}
 	// 1) 调整资金来源（仅在尚未提交时执行，防止重复调用）
 	if !s.fundingSettled {
 		if err := s.funding.Settle(delta); err != nil {
+			if !s.relayInfo.IsPlayground {
+				if releaseErr := settleTokenDailyQuotaDelta(s.relayInfo.TokenId, dailyLimit, -delta); releaseErr != nil {
+					common.SysLog(fmt.Sprintf("error rolling back token daily quota after funding settle failure (userId=%d, tokenId=%d, delta=%d): %s",
+						s.relayInfo.UserId, s.relayInfo.TokenId, delta, releaseErr.Error()))
+				}
+			}
 			return err
 		}
 		s.fundingSettled = true
@@ -115,6 +127,9 @@ func (s *BillingSession) Refund(c *gin.Context) {
 		}
 		// 2) 退还令牌额度
 		if tokenConsumed > 0 && !isPlayground {
+			if err := releaseTokenDailyQuota(tokenId, tokenConsumed); err != nil {
+				common.SysLog("error refunding token daily quota: " + err.Error())
+			}
 			if err := model.IncreaseTokenQuota(tokenId, tokenKey, tokenConsumed); err != nil {
 				common.SysLog("error refunding token quota: " + err.Error())
 			}
@@ -161,12 +176,28 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 	if delta <= 0 {
 		return nil
 	}
+	dailyLimit := resolveTokenDailyQuotaLimit(s.relayInfo.TokenId, s.relayInfo.TokenDailyQuotaLimit)
 
+	if !s.relayInfo.IsPlayground {
+		if err := reserveTokenDailyQuota(s.relayInfo.TokenId, dailyLimit, delta); err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		}
+	}
 	if err := s.reserveFunding(delta); err != nil {
+		if !s.relayInfo.IsPlayground {
+			if releaseErr := releaseTokenDailyQuota(s.relayInfo.TokenId, delta); releaseErr != nil {
+				common.SysLog("error rolling back token daily quota after funding reserve failure: " + releaseErr.Error())
+			}
+		}
 		return err
 	}
 	if err := s.reserveToken(delta); err != nil {
 		s.rollbackFundingReserve(delta)
+		if !s.relayInfo.IsPlayground {
+			if releaseErr := releaseTokenDailyQuota(s.relayInfo.TokenId, delta); releaseErr != nil {
+				common.SysLog("error rolling back token daily quota after token reserve failure: " + releaseErr.Error())
+			}
+		}
 		return err
 	}
 
@@ -197,7 +228,19 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 
 	// ---- 1) 预扣令牌额度 ----
 	if effectiveQuota > 0 {
+		dailyLimit := resolveTokenDailyQuotaLimit(s.relayInfo.TokenId, s.relayInfo.TokenDailyQuotaLimit)
+		if !s.relayInfo.IsPlayground {
+			if err := reserveTokenDailyQuota(s.relayInfo.TokenId, dailyLimit, effectiveQuota); err != nil {
+				return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+			}
+		}
 		if err := PreConsumeTokenQuota(s.relayInfo, effectiveQuota); err != nil {
+			if !s.relayInfo.IsPlayground {
+				if releaseErr := releaseTokenDailyQuota(s.relayInfo.TokenId, effectiveQuota); releaseErr != nil {
+					common.SysLog(fmt.Sprintf("error rolling back token daily quota after token pre-consume failure (userId=%d, tokenId=%d, amount=%d): %s",
+						s.relayInfo.UserId, s.relayInfo.TokenId, effectiveQuota, releaseErr.Error()))
+				}
+			}
 			return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		s.tokenConsumed = effectiveQuota
@@ -207,6 +250,10 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 	if err := s.funding.PreConsume(effectiveQuota); err != nil {
 		// 预扣费失败，回滚令牌额度
 		if s.tokenConsumed > 0 && !s.relayInfo.IsPlayground {
+			if releaseErr := releaseTokenDailyQuota(s.relayInfo.TokenId, s.tokenConsumed); releaseErr != nil {
+				common.SysLog(fmt.Sprintf("error rolling back token daily quota (userId=%d, tokenId=%d, amount=%d, fundingErr=%s): %s",
+					s.relayInfo.UserId, s.relayInfo.TokenId, s.tokenConsumed, err.Error(), releaseErr.Error()))
+			}
 			if rollbackErr := model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, s.tokenConsumed); rollbackErr != nil {
 				common.SysLog(fmt.Sprintf("error rolling back token quota (userId=%d, tokenId=%d, amount=%d, fundingErr=%s): %s",
 					s.relayInfo.UserId, s.relayInfo.TokenId, s.tokenConsumed, err.Error(), rollbackErr.Error()))
@@ -282,6 +329,9 @@ func (s *BillingSession) reserveToken(delta int) error {
 func (s *BillingSession) shouldTrust(c *gin.Context) bool {
 	// 异步任务（ForcePreConsume=true）必须预扣全额，不允许信任旁路
 	if s.relayInfo.ForcePreConsume {
+		return false
+	}
+	if resolveTokenDailyQuotaLimit(s.relayInfo.TokenId, s.relayInfo.TokenDailyQuotaLimit) > 0 {
 		return false
 	}
 

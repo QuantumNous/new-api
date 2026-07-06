@@ -404,6 +404,22 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 }
 
 func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int, sendEmail bool) (err error) {
+	dailyLimit := 0
+	if relayInfo != nil {
+		dailyLimit = resolveTokenDailyQuotaLimit(relayInfo.TokenId, relayInfo.TokenDailyQuotaLimit)
+	}
+	if relayInfo != nil && !relayInfo.IsPlayground && quota > 0 {
+		if err = reserveTokenDailyQuota(relayInfo.TokenId, dailyLimit, quota); err != nil {
+			return err
+		}
+	}
+	defer func() {
+		if err != nil && relayInfo != nil && !relayInfo.IsPlayground && quota > 0 {
+			if releaseErr := releaseTokenDailyQuota(relayInfo.TokenId, quota); releaseErr != nil {
+				common.SysLog("error rolling back token daily quota after post consume failure: " + releaseErr.Error())
+			}
+		}
+	}()
 
 	// 1) Consume from wallet quota OR subscription item
 	if relayInfo != nil && relayInfo.BillingSource == BillingSourceSubscription {
@@ -437,6 +453,11 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 		}
 		if err != nil {
 			return err
+		}
+	}
+	if relayInfo != nil && !relayInfo.IsPlayground && quota < 0 {
+		if releaseErr := releaseTokenDailyQuota(relayInfo.TokenId, -quota); releaseErr != nil {
+			common.SysLog("error releasing token daily quota after refund: " + releaseErr.Error())
 		}
 	}
 

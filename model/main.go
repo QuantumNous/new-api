@@ -312,6 +312,9 @@ func migrateDB() error {
 			return err
 		}
 	}
+	if err := migrateTokenDailyQuotaLimit(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -383,6 +386,9 @@ func migrateDBFast() error {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
 		}
+	}
+	if err := migrateTokenDailyQuotaLimit(); err != nil {
+		return err
 	}
 	common.SysLog("database migrated")
 	return nil
@@ -617,6 +623,36 @@ func migrateTokenModelLimitsToText() error {
 			return fmt.Errorf("failed to migrate %s.%s to text: %w", tableName, columnName, err)
 		}
 		common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to text", tableName, columnName))
+	}
+	return nil
+}
+
+func migrateTokenDailyQuotaLimit() error {
+	tableName := "tokens"
+
+	if !DB.Migrator().HasTable(tableName) {
+		return nil
+	}
+	if !DB.Migrator().HasColumn(&Token{}, "daily_quota_limit") {
+		if err := DB.Migrator().AddColumn(&Token{}, "DailyQuotaLimit"); err != nil {
+			return fmt.Errorf("failed to add %s.daily_quota_limit: %w", tableName, err)
+		}
+	}
+	if !DB.Migrator().HasColumn(tableName, "daily_request_limit") {
+		return nil
+	}
+
+	quotaPerUnit := int(common.QuotaPerUnit)
+	if quotaPerUnit <= 0 {
+		return nil
+	}
+
+	updateSQL := fmt.Sprintf(
+		"UPDATE %s SET daily_quota_limit = daily_request_limit * ? WHERE daily_request_limit > 0 AND daily_quota_limit = 0",
+		tableName,
+	)
+	if err := DB.Exec(updateSQL, quotaPerUnit).Error; err != nil {
+		return fmt.Errorf("failed to migrate %s daily limit data: %w", tableName, err)
 	}
 	return nil
 }

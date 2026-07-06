@@ -74,6 +74,8 @@ const EditTokenModal = (props) => {
     name: '',
     remain_quota: 0,
     remain_amount: 0,
+    daily_quota_limit: 0,
+    daily_quota_limit_amount: 0,
     expired_time: -1,
     unlimited_quota: true,
     model_limits_enabled: false,
@@ -172,6 +174,9 @@ const EditTokenModal = (props) => {
       data.remain_amount = Number(
         quotaToDisplayAmount(data.remain_quota || 0).toFixed(6),
       );
+      data.daily_quota_limit_amount = Number(
+        quotaToDisplayAmount(data.daily_quota_limit || 0).toFixed(6),
+      );
       if (formApiRef.current) {
         formApiRef.current.setValues({ ...getInitValues(), ...data });
       }
@@ -222,6 +227,9 @@ const EditTokenModal = (props) => {
       localInputs.remain_quota = localInputs.unlimited_quota
         ? 0
         : displayAmountToQuota(localInputs.remain_amount);
+      localInputs.daily_quota_limit = displayAmountToQuota(
+        localInputs.daily_quota_limit_amount || 0,
+      );
       if (!localInputs.unlimited_quota && localInputs.remain_quota <= 0) {
         showError(t('请输入金额'));
         setLoading(false);
@@ -265,6 +273,9 @@ const EditTokenModal = (props) => {
         localInputs.remain_quota = localInputs.unlimited_quota
           ? 0
           : displayAmountToQuota(localInputs.remain_amount);
+        localInputs.daily_quota_limit = displayAmountToQuota(
+          localInputs.daily_quota_limit_amount || 0,
+        );
         if (!localInputs.unlimited_quota && localInputs.remain_quota <= 0) {
           showError(t('请输入金额'));
           setLoading(false);
@@ -577,6 +588,22 @@ const EditTokenModal = (props) => {
                         showClear
                       />
                     </div>
+                  </Col>
+                  <Col span={24}>
+                    <Form.InputNumber
+                      field='daily_quota_limit_amount'
+                      label={t('每日消费限额')}
+                      prefix={getCurrencyConfig().symbol}
+                      placeholder={t('输入每日最大消费金额，0 表示不限')}
+                      min={0}
+                      precision={6}
+                      step={0.000001}
+                      extraText={t(
+                        '为这把 API Key 设置独立的每日消费上限，填 0 表示不限。',
+                      )}
+                      style={{ width: '100%' }}
+                      showClear
+                    />
                   </Col>
                   <Col span={24}>
                     <Form.Switch

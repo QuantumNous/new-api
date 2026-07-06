@@ -473,6 +473,42 @@ export function ApiKeysMutateDrawer({
 
               <FormField
                 control={form.control}
+                name='daily_quota_limit_dollars'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Daily spending limit ({{currency}})', {
+                        currency: currencyLabel,
+                      })}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type='number'
+                        min='0'
+                        step={tokensOnly ? 1 : 0.01}
+                        placeholder={t(
+                          'Enter max daily spend (0 = unlimited)'
+                        )}
+                        onChange={(e) =>
+                          field.onChange(
+                            Math.max(0, parseFloat(e.target.value) || 0)
+                          )
+                        }
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Set an independent daily spending cap for this API key. Set 0 for unlimited.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
                 name='unlimited_quota'
                 render={({ field }) => (
                   <FormItem className={sideDrawerSwitchItemClassName()}>
