@@ -986,6 +986,52 @@ func trackSubmittedImageTask(c *gin.Context, info *relaycommon.RelayInfo, respon
 	return responseBody, publicTaskID
 }
 
+func trackCompletedSyncImageTask(c *gin.Context, info *relaycommon.RelayInfo, resultURL string) ([]byte, string) {
+	resultURL = strings.TrimSpace(resultURL)
+	if info == nil || resultURL == "" {
+		return nil, ""
+	}
+	now := time.Now().Unix()
+	publicTaskID := model.GenerateTaskID()
+	task := &model.Task{
+		TaskID:     publicTaskID,
+		Platform:   constant.TaskPlatformOpenAIImage,
+		UserId:     info.UserId,
+		Group:      info.UsingGroup,
+		ChannelId:  info.ChannelId,
+		Status:     model.TaskStatusSuccess,
+		Progress:   "100%",
+		SubmitTime: now,
+		StartTime:  now,
+		FinishTime: now,
+		Properties: model.Properties{OriginModelName: info.OriginModelName, UpstreamModelName: info.UpstreamModelName},
+		PrivateData: model.TaskPrivateData{
+			ResultURL:        resultURL,
+			GptImage2Profile: string(service.GptImage2ProfileFromContext(c)),
+		},
+	}
+	if rd := service.ImageRequestDataFromContext(c); len(rd) > 0 {
+		if encoded, merr := common.Marshal(rd); merr == nil {
+			task.PrivateData.RequestData = string(encoded)
+		}
+	}
+	if err := task.Insert(); err != nil {
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("completed image task insert failed: %v", err))
+		return nil, ""
+	}
+	body, err := common.Marshal(gin.H{
+		"created": now,
+		"data": []gin.H{{
+			"task_id": publicTaskID,
+			"status":  "submitted",
+		}},
+	})
+	if err != nil {
+		return nil, ""
+	}
+	return body, publicTaskID
+}
+
 func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -1017,6 +1063,20 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 					if bodyBytes, ok := rawBody.([]byte); ok && len(bodyBytes) > 0 {
 						scheduleAsyncImageRaceHedge(publicTaskID, info.OriginModelName, bodyBytes, imageRaceTriggerFromContext(c))
 					}
+				}
+			}
+		}
+		if c.GetString(imagePollTaskIDContextKey) == "" {
+			rewrittenBody := service.RewriteImageResponseBodyWithHeaders(responseBody, imageCacheAuthHeaders(c))
+			if resultURL := service.ExtractFirstImageURLFromResponse(rewrittenBody); resultURL != "" {
+				if taskBody, publicTaskID := trackCompletedSyncImageTask(c, info, resultURL); publicTaskID != "" {
+					responseBody = taskBody
+					c.Set(imagePollTaskIDContextKey, publicTaskID)
+					c.Set("image_result_url", resultURL)
+					logger.LogInfo(c.Request.Context(), fmt.Sprintf("client async image request completed by sync upstream, task_id=%s", publicTaskID))
+				} else {
+					responseBody = rewrittenBody
+					c.Set("image_result_url", resultURL)
 				}
 			}
 		}

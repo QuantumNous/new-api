@@ -42,3 +42,15 @@ func TestNormalizeImageGenerationsRequestPathPacky(t *testing.T) {
 	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model)
 	require.Equal(t, "/v1/images/generations", got)
 }
+
+func TestNormalizeImageGenerationsRequestPathSubrouter(t *testing.T) {
+	base := "https://subrouter.ai"
+	model := "gpt-image-2"
+	mode := relayconstant.RelayModeImagesGenerations
+
+	got := normalizeImageGenerationsRequestPath("/v1/images/generations", base, mode, model)
+	require.Equal(t, "/v1/images/generations", got)
+
+	got = normalizeImageGenerationsRequestPath("/v1/images/generations/async", base, mode, model)
+	require.Equal(t, "/v1/images/generations", got)
+}

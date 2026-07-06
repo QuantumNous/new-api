@@ -7,7 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 )
 
-func TestNormalizePackyGptImage2ImageRequestMapsResolutionToSize(t *testing.T) {
+func TestNormalizeSyncGptImage2ImageRequestMapsResolutionToSize(t *testing.T) {
 	req := dto.ImageRequest{
 		Model:      "gpt-image-2",
 		Prompt:     "x",
@@ -15,7 +15,7 @@ func TestNormalizePackyGptImage2ImageRequestMapsResolutionToSize(t *testing.T) {
 		Resolution: "2k",
 	}
 
-	normalizePackyGptImage2ImageRequest(&req)
+	normalizeSyncGptImage2ImageRequest(&req)
 
 	if req.Size != "2048x2048" {
 		t.Fatalf("size = %q, want 2048x2048", req.Size)
@@ -39,7 +39,7 @@ func TestNormalizePackyGptImage2ImageRequestMapsResolutionToSize(t *testing.T) {
 	}
 }
 
-func TestPackyGptImage2SizeForResolution(t *testing.T) {
+func TestGptImage2SizeForResolution(t *testing.T) {
 	cases := []struct {
 		size       string
 		resolution string
@@ -53,8 +53,8 @@ func TestPackyGptImage2SizeForResolution(t *testing.T) {
 		{"1024x1024", "2k", "1024x1024"},
 	}
 	for _, c := range cases {
-		if got := packyGptImage2SizeForResolution(c.size, c.resolution); got != c.want {
-			t.Fatalf("packyGptImage2SizeForResolution(%q, %q) = %q, want %q", c.size, c.resolution, got, c.want)
+		if got := gptImage2SizeForResolution(c.size, c.resolution); got != c.want {
+			t.Fatalf("gptImage2SizeForResolution(%q, %q) = %q, want %q", c.size, c.resolution, got, c.want)
 		}
 	}
 }

@@ -179,22 +179,20 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 }
 
 // normalizeImageGenerationsRequestPath maps client async/sync paths to upstream capabilities.
-// APIMart serves task_id from POST /v1/images/generations only; /async returns 404.
-// Packy serves gpt-image-2 synchronously from /v1/images/generations and has no /async task API.
+// Some OpenAI-compatible image hubs serve gpt-image-2 from POST /v1/images/generations
+// and do not implement /async.
 func normalizeImageGenerationsRequestPath(requestPath, channelBaseURL string, relayMode int, modelName string) string {
 	if relayMode != relayconstant.RelayModeImagesGenerations || !common.UsesAsyncImageTaskUpstream(modelName) {
 		return requestPath
 	}
-	baseLower := strings.ToLower(channelBaseURL)
-	isApimart := strings.Contains(baseLower, "apimart.ai")
-	isPacky := strings.Contains(baseLower, "packyapi.com")
+	isSyncImageUpstream := isSyncGptImage2ImageBase(channelBaseURL)
 	if strings.HasSuffix(requestPath, "/images/generations/async") {
-		if isApimart || isPacky {
+		if isSyncImageUpstream {
 			return strings.TrimSuffix(requestPath, "/async")
 		}
 		return requestPath
 	}
-	if strings.HasSuffix(requestPath, "/images/generations") && !isApimart && !isPacky {
+	if strings.HasSuffix(requestPath, "/images/generations") && !isSyncImageUpstream {
 		return requestPath + "/async"
 	}
 	return requestPath
@@ -582,18 +580,27 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			strings.TrimSpace(request.Webhook) == "" {
 			request.Webhook = service.MediaTaskWebhookBase()
 		}
-		if isPackyBaseURL(info.ChannelBaseUrl) {
-			normalizePackyGptImage2ImageRequest(&request)
+		if isResolutionSizeOnlyGptImage2Base(info.ChannelBaseUrl) {
+			normalizeSyncGptImage2ImageRequest(&request)
 		}
 		return request, nil
 	}
 }
 
-func isPackyBaseURL(baseURL string) bool {
-	return strings.Contains(strings.ToLower(strings.TrimSpace(baseURL)), "packyapi.com")
+func isSyncGptImage2ImageBase(baseURL string) bool {
+	baseLower := strings.ToLower(strings.TrimSpace(baseURL))
+	return strings.Contains(baseLower, "apimart.ai") ||
+		strings.Contains(baseLower, "packyapi.com") ||
+		strings.Contains(baseLower, "subrouter.ai")
 }
 
-func normalizePackyGptImage2ImageRequest(request *dto.ImageRequest) {
+func isResolutionSizeOnlyGptImage2Base(baseURL string) bool {
+	baseLower := strings.ToLower(strings.TrimSpace(baseURL))
+	return strings.Contains(baseLower, "packyapi.com") ||
+		strings.Contains(baseLower, "subrouter.ai")
+}
+
+func normalizeSyncGptImage2ImageRequest(request *dto.ImageRequest) {
 	if request == nil || !service.IsGptImage2Family(request.Model) {
 		return
 	}
@@ -609,7 +616,7 @@ func normalizePackyGptImage2ImageRequest(request *dto.ImageRequest) {
 	if resolution == "" {
 		return
 	}
-	if size := packyGptImage2SizeForResolution(request.Size, resolution); size != "" {
+	if size := gptImage2SizeForResolution(request.Size, resolution); size != "" {
 		request.Size = size
 	}
 	request.Resolution = ""
@@ -618,7 +625,7 @@ func normalizePackyGptImage2ImageRequest(request *dto.ImageRequest) {
 	}
 }
 
-func packyGptImage2SizeForResolution(size, resolution string) string {
+func gptImage2SizeForResolution(size, resolution string) string {
 	res := strings.ToLower(strings.TrimSpace(resolution))
 	if res == "" || res == "auto" {
 		return ""
