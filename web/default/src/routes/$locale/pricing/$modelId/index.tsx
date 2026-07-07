@@ -30,6 +30,19 @@ export const Route = createFileRoute('/$locale/pricing/$modelId/')({
   beforeLoad: async (args) => {
     beforeLoadPublicLocaleRoute(args)
 
+    // With an official website configured, /models/<model> there is the single
+    // public model surface (Rule 9) — hand over unconditionally so old links
+    // keep working for anonymous visitors. The console module policy below
+    // only governs the local fallback page (self-host, no origin configured).
+    if (OFFICIAL_WEBSITE_ORIGIN) {
+      const locale = args.params.locale
+      const modelPath = `/models/${encodeURIComponent(args.params.modelId)}`
+      const path =
+        locale && locale !== 'en' ? `/${locale}${modelPath}` : modelPath
+      window.location.replace(officialWebsiteUrl(path))
+      await new Promise(() => {})
+    }
+
     const access = await getFreshModuleAccess('pricing')
     if (!access.enabled) {
       throw redirect({ to: localizePublicPath('/', args.params.locale) })
@@ -42,17 +55,6 @@ export const Route = createFileRoute('/$locale/pricing/$modelId/')({
           search: { redirect: args.location.href },
         })
       }
-    }
-    // The official website /models/<model> is the single public model surface
-    // (Rule 9) — hand old console links over to it, keeping the locale
-    // prefix. Without a configured origin keep the local page.
-    if (OFFICIAL_WEBSITE_ORIGIN) {
-      const locale = args.params.locale
-      const modelPath = `/models/${encodeURIComponent(args.params.modelId)}`
-      const path =
-        locale && locale !== 'en' ? `/${locale}${modelPath}` : modelPath
-      window.location.replace(officialWebsiteUrl(path))
-      await new Promise(() => {})
     }
   },
   component: ModelDetails,

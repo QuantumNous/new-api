@@ -43,6 +43,10 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
 
   useEffect(() => {
     let cancelled = false;
+    // Reset before fetching so navigating between model pages never shows
+    // the previous model's health numbers while the new request is in flight.
+    setTrend([]);
+    setTrendLoaded(false);
     fetchModelTrend(props.modelName).then((points) => {
       if (cancelled) return;
       setTrend(points);

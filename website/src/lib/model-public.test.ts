@@ -43,6 +43,11 @@ describe("model slug resolution", () => {
     expect(resolvePublicModel(models, "definitely-not-a-model")).toBeNull();
   });
 
+  test("malformed percent-encoding resolves to null instead of throwing", () => {
+    expect(() => resolvePublicModel(models, "%E0%A4%A")).not.toThrow();
+    expect(resolvePublicModel(models, "%E0%A4%A")).toBeNull();
+  });
+
   test("model page paths encode the model name", () => {
     expect(modelPublicPath("claude-sonnet-4.5")).toBe("/models/claude-sonnet-4.5");
     expect(modelPublicPath("a/b")).toBe("/models/a%2Fb");
@@ -89,5 +94,18 @@ describe("example curl", () => {
     });
     expect(curl).toContain("/v1/chat/completions");
     expect(curl).toContain('"messages"');
+  });
+
+  test("model names with quotes cannot break the JSON body or shell quoting", () => {
+    const curl = buildModelExampleCurl({
+      apiBaseUrl: "https://router.flatkey.ai/v1",
+      modelName: `evil"model'name`,
+      kind: "chat",
+    });
+    // JSON.stringify escapes the double quote…
+    expect(curl).toContain('evil\\"model');
+    // …and the single quote uses the POSIX close-escape-reopen pattern.
+    expect(curl).toContain(`'\\''`);
+    expect(curl.split("-d ")[1].startsWith("'")).toBe(true);
   });
 });

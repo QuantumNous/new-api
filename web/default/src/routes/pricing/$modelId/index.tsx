@@ -31,6 +31,17 @@ import { publicPricingSearchSchema } from '@/features/pricing/lib/public-search'
 export const Route = createFileRoute('/pricing/$modelId/')({
   validateSearch: publicPricingSearchSchema,
   beforeLoad: async ({ location, params }) => {
+    // With an official website configured, /models/<model> there is the single
+    // public model surface (Rule 9) — hand over unconditionally so old links
+    // keep working for anonymous visitors. The console module policy below
+    // only governs the local fallback page (self-host, no origin configured).
+    if (OFFICIAL_WEBSITE_ORIGIN) {
+      const path = `/models/${encodeURIComponent(params.modelId)}`
+      window.location.replace(
+        officialWebsiteUrl(localizedWebsitePath(i18n.language, path))
+      )
+      await new Promise(() => {})
+    }
     const access = await getFreshModuleAccess('pricing')
     if (!access.enabled) {
       throw redirect({ to: '/' })
@@ -43,16 +54,6 @@ export const Route = createFileRoute('/pricing/$modelId/')({
           search: { redirect: location.href },
         })
       }
-    }
-    // The official website /models/<model> is the single public model surface
-    // (Rule 9) — hand old console links over to it. Without a configured
-    // origin (local dev, self-host) keep the local page.
-    if (OFFICIAL_WEBSITE_ORIGIN) {
-      const path = `/models/${encodeURIComponent(params.modelId)}`
-      window.location.replace(
-        officialWebsiteUrl(localizedWebsitePath(i18n.language, path))
-      )
-      await new Promise(() => {})
     }
   },
   component: ModelDetails,

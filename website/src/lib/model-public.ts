@@ -37,7 +37,14 @@ export function normalizeModelKey(name: string): string {
 }
 
 export function resolvePublicModel(models: PricingModel[], slug: string): PricingModel | null {
-  const decoded = decodeURIComponent(slug);
+  // Slugs come straight from the URL: malformed percent-encoding
+  // (e.g. "%E0%A4%A") must resolve to null/404, not throw a 500.
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(slug);
+  } catch {
+    decoded = slug;
+  }
   const exact = models.find((model) => model.model_name === decoded);
   if (exact) return exact;
   const key = normalizeModelKey(decoded);
@@ -256,23 +263,29 @@ export function buildModelPublicView(model: PricingModel, data: PricingData) {
   };
 }
 
+// POSIX single-quote escaping: close the quote, emit an escaped quote,
+// reopen. Keeps the copied command intact for any body content.
+function shellSingleQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
 export function buildModelExampleCurl(args: {
   apiBaseUrl: string;
   modelName: string;
   kind: ModelPublicKind;
 }): string {
-  if (args.kind === "image") {
-    return [
-      `curl ${args.apiBaseUrl}/images/generations \\`,
-      '  -H "Content-Type: application/json" \\',
-      '  -H "Authorization: Bearer $FLATKEY_API_KEY" \\',
-      `  -d '{"model":"${args.modelName}","prompt":"A cute cat","size":"1024x1024"}'`,
-    ].join("\n");
-  }
+  const body =
+    args.kind === "image"
+      ? JSON.stringify({ model: args.modelName, prompt: "A cute cat", size: "1024x1024" })
+      : JSON.stringify({
+          model: args.modelName,
+          messages: [{ role: "user", content: "Say hello in one sentence." }],
+        });
+  const path = args.kind === "image" ? "/images/generations" : "/chat/completions";
   return [
-    `curl ${args.apiBaseUrl}/chat/completions \\`,
+    `curl "${args.apiBaseUrl}${path}" \\`,
     '  -H "Content-Type: application/json" \\',
     '  -H "Authorization: Bearer $FLATKEY_API_KEY" \\',
-    `  -d '{"model":"${args.modelName}","messages":[{"role":"user","content":"Say hello in one sentence."}]}'`,
+    `  -d ${shellSingleQuote(body)}`,
   ].join("\n");
 }

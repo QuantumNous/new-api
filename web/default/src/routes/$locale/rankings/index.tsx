@@ -36,8 +36,18 @@ export const Route = createFileRoute('/$locale/rankings/')({
   beforeLoad: async (args) => {
     beforeLoadPublicLocaleRoute(args)
 
-    // Module policy first: a disabled or auth-gated rankings module must not
-    // bounce visitors to the public website via old console URLs.
+    // With an official website configured, its /rankings is the single public
+    // surface — hand over unconditionally (keeping the locale prefix) so old
+    // links keep working for anonymous visitors. The console module policy
+    // below only governs the local fallback page (self-host, no origin).
+    if (OFFICIAL_WEBSITE_ORIGIN) {
+      const locale = (args.params as { locale?: string }).locale
+      const path =
+        locale && locale !== 'en' ? `/${locale}/rankings` : '/rankings'
+      window.location.replace(officialWebsiteUrl(path))
+      await new Promise(() => {})
+    }
+
     const access = await getFreshModuleAccess('rankings')
     if (!access.enabled) {
       throw redirect({ to: '/' })
@@ -50,16 +60,6 @@ export const Route = createFileRoute('/$locale/rankings/')({
           search: { redirect: args.location.href },
         })
       }
-    }
-
-    // Hand over to the official website rankings page (single public
-    // surface), keeping the locale prefix. English lives at the root path.
-    if (OFFICIAL_WEBSITE_ORIGIN) {
-      const locale = (args.params as { locale?: string }).locale
-      const path =
-        locale && locale !== 'en' ? `/${locale}/rankings` : '/rankings'
-      window.location.replace(officialWebsiteUrl(path))
-      await new Promise(() => {})
     }
   },
   component: Rankings,
