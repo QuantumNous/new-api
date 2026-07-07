@@ -9,8 +9,10 @@ import {
   type PricingVendor,
   type PricingSearch,
 } from "@/lib/pricing";
-import { PricingExplorer } from "@/components/pricing-explorer";
+import { ModelsDirectoryTable } from "@/components/models-directory-table";
 import { FlatkeyTallyEmbed } from "@/components/flatkey-tally-embed";
+import { getHomeCopy } from "@/lib/home-copy";
+import { buildHomeModelRows } from "@/lib/home-models";
 import type { Locale } from "@/lib/locales";
 import { SIGN_UP_URL, pricingCheckoutUrl } from "@/lib/pricing-links";
 
@@ -970,16 +972,7 @@ export async function ModelsPage(props: PricingPageProps) {
             </p>
           </header>
 
-          <PricingExplorer
-            locale={props.locale}
-            models={allModels}
-            vendors={pricing.vendors}
-            groupRatio={pricing.groupRatio}
-            usableGroup={pricing.usableGroup}
-            endpointMap={pricing.supportedEndpoint}
-            autoGroups={pricing.autoGroups}
-            initialSearch={props.search}
-          />
+          <ModelsDirectoryTable copy={getHomeCopy(props.locale).table} rows={buildHomeModelRows(pricing)} />
 
           <PricingSeoContent locale={props.locale} modelCount={allModels.length} vendorCount={pricing.vendors.length} />
         </div>

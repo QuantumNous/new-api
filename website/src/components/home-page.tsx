@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, BadgeDollarSign, BarChart3, Check, KeyRound, Link2, Server, ShieldCheck } from "lucide-react";
 import { HomeHealthTrends } from "@/components/home-health-trends";
@@ -21,7 +22,12 @@ type Props = {
   locale: Locale;
 };
 
-const PRIVACY_BADGES = ["GDPR", "SOC 2", "ISO 27001"];
+// Same certification artwork as the footer's "Trusted & verified by" strip.
+const PRIVACY_BADGES = [
+  { src: "/trust/vanta-trust.png", alt: "GDPR powered by Vanta", width: 1260, height: 1260 },
+  { src: "/trust/soc2.png", alt: "CAI SOC 2 certification", width: 94, height: 94 },
+  { src: "/trust/iso-27001.png", alt: "CAI ISO 27001:2022 certification", width: 94, height: 94 },
+];
 
 export async function HomePage(props: Props) {
   const copy = getCopy(props.locale);
@@ -29,14 +35,14 @@ export async function HomePage(props: Props) {
   const pricing = await getPricingData();
   const flagships = pickFlagshipModels(pricing);
   const tableRows = buildHomeModelRows(pricing);
-  const healthModels = flagships.slice(0, 3).map((row) => row.name);
+  const healthModels = flagships.slice(0, 3).map((row) => ({ name: row.name, iconKey: row.iconKey }));
 
   const apiBaseUrlDescription = (text: string) => text.replace("{{apiBaseUrl}}", API_BASE_URL);
   const ctaDescription = copy.home.cta.description.replace("{{host}}", APP_CONSOLE_ORIGIN.replace(/^https?:\/\//, ""));
   const valueBlocks = [
-    { icon: <Server className="size-6" strokeWidth={1.6} />, block: home.values.reliability, badges: [] as string[] },
-    { icon: <BadgeDollarSign className="size-6" strokeWidth={1.6} />, block: home.values.cost, badges: [] as string[] },
-    { icon: <ShieldCheck className="size-6" strokeWidth={1.6} />, block: home.values.privacy, badges: PRIVACY_BADGES },
+    { icon: <Server className="size-6" strokeWidth={1.6} />, block: home.values.reliability, href: "/models", badges: [] as typeof PRIVACY_BADGES },
+    { icon: <BadgeDollarSign className="size-6" strokeWidth={1.6} />, block: home.values.cost, href: "/blog/category/cost-billing-and-ops", badges: [] as typeof PRIVACY_BADGES },
+    { icon: <ShieldCheck className="size-6" strokeWidth={1.6} />, block: home.values.privacy, href: "/blog/category/enterprise-controls-and-trust", badges: PRIVACY_BADGES },
   ];
 
   return (
@@ -109,7 +115,7 @@ export async function HomePage(props: Props) {
         <Stats items={home.stats} />
 
         {/* Screen 2: 30-day model health from real traffic. */}
-        {healthModels.length > 0 ? <HomeHealthTrends locale={props.locale} copy={home.health} models={healthModels} /> : null}
+        {healthModels.length > 0 ? <HomeHealthTrends locale={props.locale} copy={home.health} usageCopy={home.usage} models={healthModels} /> : null}
 
         {/* Screen 3: core value blocks — reliability, cost, privacy. */}
         <section className="relative z-10 overflow-hidden px-6 py-20 md:py-24">
@@ -120,12 +126,13 @@ export async function HomePage(props: Props) {
               <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-3xl">{home.values.title}</h2>
             </div>
             <div className="grid gap-5 md:grid-cols-3">
-              {valueBlocks.map(({ icon, block, badges }) => (
+              {valueBlocks.map(({ icon, block, href, badges }) => (
                 <ValueBlock
                   key={block.title}
                   locale={props.locale}
                   icon={icon}
                   block={block}
+                  href={href}
                   badges={badges}
                   learnMore={home.values.learnMore}
                 />
@@ -197,12 +204,13 @@ function ValueBlock(props: {
   locale: Locale;
   icon: React.ReactNode;
   block: HomeCopy["values"]["reliability"];
-  badges: string[];
+  href: string;
+  badges: typeof PRIVACY_BADGES;
   learnMore: string;
 }) {
   return (
     <Link
-      href={localizePath("/models", props.locale)}
+      href={localizePath(props.href, props.locale)}
       className="group flex flex-col rounded-2xl border border-violet-500/16 bg-white/62 p-7 shadow-[0_24px_70px_-52px_rgba(91,33,182,0.78)] backdrop-blur-sm transition-colors duration-300 hover:border-violet-500/28 hover:bg-white/78 md:p-8 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]"
     >
       <div className="mb-6 flex size-14 items-center justify-center rounded-2xl border border-violet-500/20 bg-violet-500/8 text-violet-700 shadow-[0_18px_44px_-30px_rgba(124,58,237,0.8)] transition-transform duration-300 group-hover:scale-[1.03] dark:text-violet-300">
@@ -219,11 +227,9 @@ function ValueBlock(props: {
         ))}
       </ul>
       {props.badges.length > 0 ? (
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 flex flex-wrap items-center gap-3">
           {props.badges.map((badge) => (
-            <span key={badge} className="rounded-full border border-violet-500/20 bg-violet-500/6 px-3 py-1 text-xs font-bold tracking-wide text-violet-700 dark:text-violet-300">
-              {badge}
-            </span>
+            <Image key={badge.src} src={badge.src} alt={badge.alt} width={badge.width} height={badge.height} className="h-12 w-auto object-contain" />
           ))}
         </div>
       ) : null}

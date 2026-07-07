@@ -1,7 +1,8 @@
 import {
   discountedPriceUsd,
   formatUsdPrice,
-  getModelPriceUsd,
+  getBestGroupRatio,
+  getOfficialPriceUsd,
   getVendorName,
   isTokenBasedModel,
   sortPricingModelsBySeries,
@@ -14,7 +15,33 @@ export type HomePricedModel = {
   vendor: string;
   official: string;
   discounted: string;
+  // Lobehub static-svg icon key rendered by ModelLogo; derived from the model
+  // name because the pricing payload's icon fields are empty in production.
+  iconKey: string;
 };
+
+const ICON_KEY_PATTERNS: Array<[RegExp, string]> = [
+  [/^(gpt|o\d|dall-e|sora|codex)/i, "openai"],
+  [/^claude/i, "claude-color"],
+  [/^(gemini|imagen|veo)/i, "gemini-color"],
+  [/^deepseek/i, "deepseek-color"],
+  [/^qwen/i, "qwen-color"],
+  [/^glm|^chatglm/i, "chatglm-color"],
+  [/^kimi|^moonshot/i, "kimi-color"],
+  [/^grok/i, "grok"],
+  [/^llama/i, "meta-color"],
+  [/^mistral/i, "mistral-color"],
+  [/^doubao/i, "doubao-color"],
+  [/^seedance/i, "bytedance-color"],
+  [/^minimax/i, "minimax-color"],
+];
+
+export function modelIconKey(modelName: string, vendor: string): string {
+  for (const [pattern, key] of ICON_KEY_PATTERNS) {
+    if (pattern.test(modelName)) return key;
+  }
+  return vendor.toLowerCase();
+}
 
 // Flagship picks for the hero price comparison, one per official family.
 const FLAGSHIP_PATTERNS: RegExp[] = [/^gpt-5/i, /^claude-opus/i, /^claude-sonnet/i, /^gemini-[\d.]+.*pro/i];
@@ -42,19 +69,24 @@ export function buildHomeModelRows(data: PricingData): HomePricedModel[] {
 function pricedTokenModels(data: PricingData): PricingModel[] {
   const seen = new Set<string>();
   return data.models.filter((model) => {
-    if (!isTokenBasedModel(model) || getModelPriceUsd(model) <= 0) return false;
+    if (!isTokenBasedModel(model) || getOfficialPriceUsd(model) <= 0) return false;
     if (seen.has(model.model_name)) return false;
     seen.add(model.model_name);
     return true;
   });
 }
 
+// Strike-through = official vendor price; green = after both discount layers
+// (best group ratio, i.e. 60-90% of official, then the top-up bonus ×2/3).
 function toHomeRow(model: PricingModel, data: PricingData): HomePricedModel {
-  const official = getModelPriceUsd(model);
+  const official = getOfficialPriceUsd(model);
+  const listed = official * getBestGroupRatio(model, data.groupRatio);
+  const vendor = model.vendor_name ?? getVendorName(model, data.vendors);
   return {
     name: model.model_name,
-    vendor: model.vendor_name ?? getVendorName(model, data.vendors),
+    vendor,
     official: formatUsdPrice(official),
-    discounted: formatUsdPrice(discountedPriceUsd(official)),
+    discounted: formatUsdPrice(discountedPriceUsd(listed)),
+    iconKey: model.icon || model.vendor_icon || modelIconKey(model.model_name, vendor),
   };
 }

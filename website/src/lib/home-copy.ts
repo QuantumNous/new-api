@@ -15,6 +15,8 @@ export type HomeCopy = {
   compare: {
     title: string;
     subtitle: string;
+    badge: string;
+    layers: string[];
     official: string;
     flatkey: string;
     inputLabel: string;
@@ -30,6 +32,11 @@ export type HomeCopy = {
     trendLabel: string;
     empty: string;
     viewAll: string;
+  };
+  usage: {
+    title: string;
+    subtitle: string;
+    tokensLabel: string;
   };
   values: {
     eyebrow: string;
@@ -48,7 +55,6 @@ export type HomeCopy = {
     colFlatkey: string;
     colLatency: string;
     colHealth: string;
-    colCalls: string;
     perMillion: string;
     viewAll: string;
   };
@@ -59,9 +65,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     hero: {
       badge: "Official models · Stable and secure",
       titleLine1: "Official GPT, Claude and Gemini models.",
-      titleLine2: "Up to 33% cheaper.",
+      titleLine2: "As low as 50% off.",
       description:
-        "flatkey.ai routes your traffic to the official GPT, Claude, and Gemini APIs through one key — same models, same quality, up to 33% lower cost, with stability and security you can verify.",
+        "flatkey.ai routes your traffic to the official GPT, Claude, and Gemini APIs through one key. Model prices run 60-90% of official list, and topping up $200 gets $100 free — stacked, as low as half the official price, stable and secure.",
       ctaTrial: "Start free trial",
       ctaModels: "View model health",
     },
@@ -72,12 +78,14 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       { value: "100+", label: "enterprises in production" },
     ],
     compare: {
-      title: "Official price vs Flatkey",
-      subtitle: "Input price per 1M tokens, after the best top-up bonus",
+      title: "Two discounts, stacked",
+      subtitle: "Input price per 1M tokens",
+      badge: "As low as -50%",
+      layers: ["Model prices: 60-90% of official list", "Top up $200, get $100 free — you pay 2/3"],
       official: "Official",
-      flatkey: "Flatkey",
+      flatkey: "After bonus",
       inputLabel: "Input / 1M tokens",
-      save: "Up to 33% off with the top-up bonus",
+      save: "Both discounts stack — as low as 50% of the official price",
     },
     health: {
       eyebrow: "Live model health",
@@ -90,6 +98,11 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       trendLabel: "Success rate, last 30 days",
       empty: "Collecting data…",
       viewAll: "See all model health",
+    },
+    usage: {
+      title: "Top models",
+      subtitle: "Daily token usage by model across the past month",
+      tokensLabel: "tokens",
     },
     values: {
       eyebrow: "Why teams pick flatkey.ai",
@@ -105,9 +118,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Cut your model spend",
-        desc: "Official models up to 33% cheaper — and one key for 40+ models so every task runs on the right-cost model.",
+        desc: "Model prices at 60-90% of official, and the top-up bonus takes another third off — as low as 50% of official. One key for 40+ models so every task runs on the right-cost model.",
         points: [
-          "Up to 33% off official GPT, Claude, and Gemini pricing",
+          "60-90% of official pricing, stacked with the top-up bonus — as low as 50% off",
           "40+ models integrated behind one key",
           "Route cheap tasks to cheap models, hard tasks to frontier models",
         ],
@@ -126,13 +139,12 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     table: {
       eyebrow: "All models",
       title: "45 models, one key — prices, latency, and health",
-      description: "Discounted price vs official, live latency, 30-day health, and real 30-day call volume for every model.",
+      description: "The 10 busiest models: after-bonus price vs official, TTFT latency, and 30-day health. The full directory lives on the models page.",
       colModel: "Model",
       colOfficial: "Official",
-      colFlatkey: "Flatkey",
+      colFlatkey: "After bonus",
       colLatency: "Latency",
       colHealth: "30-day health",
-      colCalls: "30-day calls",
       perMillion: "$ / 1M input tokens",
       viewAll: "Browse the full model directory",
     },
@@ -141,9 +153,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     hero: {
       badge: "官方模型 · 稳定安全",
       titleLine1: "GPT、Claude、Gemini 官方模型",
-      titleLine2: "最高 6.7 折",
+      titleLine2: "最低 5 折",
       description:
-        "flatkey.ai 用一个 key 把你的请求路由到 GPT、Claude、Gemini 官方 API——同样的模型、同样的质量，成本最高低 33%，稳定与安全可实时验证。",
+        "flatkey.ai 用一个 key 把你的请求路由到 GPT、Claude、Gemini 官方 API——模型定价为官方 6～9 折，充值 $200 再送 $100，两层优惠叠加最低 5 折，稳定安全。",
       ctaTrial: "免费试用",
       ctaModels: "查看模型健康度",
     },
@@ -154,12 +166,14 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       { value: "100+", label: "企业生产环境在用" },
     ],
     compare: {
-      title: "官方价 vs Flatkey",
-      subtitle: "每 1M token 输入价，按最优充值赠送计算",
+      title: "双重优惠",
+      subtitle: "每 1M token 输入价",
+      badge: "低至 5 折",
+      layers: ["模型定价：官方 6～9 折", "充值 $200 送 $100：实付 2/3"],
       official: "官方价",
-      flatkey: "Flatkey",
+      flatkey: "充值后",
       inputLabel: "输入 / 1M tokens",
-      save: "充值赠送后最高 6.7 折",
+      save: "两层优惠叠加，最低为官方价 5 折",
     },
     health: {
       eyebrow: "实时模型健康度",
@@ -172,6 +186,11 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       trendLabel: "成功率（最近 30 天）",
       empty: "数据采集中…",
       viewAll: "查看全部模型健康度",
+    },
+    usage: {
+      title: "Top 模型",
+      subtitle: "最近一个月每日各模型 token 用量",
+      tokensLabel: "tokens",
     },
     values: {
       eyebrow: "为什么选择 flatkey.ai",
@@ -187,9 +206,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "降低成本",
-        desc: "官方模型最高 6.7 折；一个 key 集成 40+ 模型，不同任务用不同成本的模型，让生产成本大幅下降。",
+        desc: "模型价为官方 6～9 折，充值赠送再省 1/3，叠加最低 5 折；一个 key 集成 40+ 模型，不同任务用不同成本的模型。",
         points: [
-          "GPT、Claude、Gemini 官方价最高 6.7 折",
+          "官方 6～9 折 × 充值赠送，最低 5 折",
           "一个 key 集成 40+ 模型",
           "轻任务用低价模型，难任务用旗舰模型",
         ],
@@ -208,13 +227,12 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     table: {
       eyebrow: "全部模型",
       title: "45 个模型一个 key——价格、延迟、健康度",
-      description: "每个模型的折扣价 vs 官方价、实时延迟、30 天健康度与真实 30 天调用量。",
+      description: "最热门的 10 个模型：充值后价格 vs 官方价、首字延迟与 30 天健康度。完整列表见模型页。",
       colModel: "模型",
       colOfficial: "官方价",
-      colFlatkey: "Flatkey",
+      colFlatkey: "充值后",
       colLatency: "延迟",
       colHealth: "30 天健康度",
-      colCalls: "30 天调用",
       perMillion: "$ / 1M 输入 tokens",
       viewAll: "浏览完整模型目录",
     },
@@ -223,9 +241,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     hero: {
       badge: "Modelos oficiales · Estable y seguro",
       titleLine1: "Modelos oficiales de GPT, Claude y Gemini.",
-      titleLine2: "Hasta 33% más barato.",
+      titleLine2: "Hasta 50% de descuento.",
       description:
-        "flatkey.ai enruta tu tráfico a las API oficiales de GPT, Claude y Gemini con una sola key: los mismos modelos, la misma calidad, hasta 33% menos coste, con estabilidad y seguridad verificables.",
+        "flatkey.ai enruta tu tráfico a las API oficiales de GPT, Claude y Gemini con una sola key. Los precios de modelo son el 60-90% del oficial y al recargar $200 recibes $100 gratis: combinados, hasta la mitad del precio oficial, estable y seguro.",
       ctaTrial: "Prueba gratis",
       ctaModels: "Ver salud de los modelos",
     },
@@ -236,12 +254,14 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       { value: "100+", label: "empresas en producción" },
     ],
     compare: {
-      title: "Precio oficial vs Flatkey",
-      subtitle: "Precio de entrada por 1M de tokens, con el mejor bono de recarga",
+      title: "Dos descuentos combinados",
+      subtitle: "Precio de entrada por 1M de tokens",
+      badge: "Hasta -50%",
+      layers: ["Precio de modelo: 60-90% del oficial", "Recarga $200 y recibe $100 gratis: pagas 2/3"],
       official: "Oficial",
-      flatkey: "Flatkey",
+      flatkey: "Con bono",
       inputLabel: "Entrada / 1M tokens",
-      save: "Hasta 33% de descuento con el bono de recarga",
+      save: "Los dos descuentos se combinan: hasta el 50% del precio oficial",
     },
     health: {
       eyebrow: "Salud de modelos en vivo",
@@ -254,6 +274,11 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       trendLabel: "Tasa de éxito, últimos 30 días",
       empty: "Recopilando datos…",
       viewAll: "Ver la salud de todos los modelos",
+    },
+    usage: {
+      title: "Modelos top",
+      subtitle: "Uso diario de tokens por modelo en el último mes",
+      tokensLabel: "tokens",
     },
     values: {
       eyebrow: "Por qué eligen flatkey.ai",
@@ -269,9 +294,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Reduce tu gasto en modelos",
-        desc: "Modelos oficiales hasta 33% más baratos, y una key para 40+ modelos: cada tarea usa el modelo con el coste adecuado.",
+        desc: "Precios de modelo al 60-90% del oficial y el bono de recarga quita otro tercio: hasta el 50% del oficial. Una key para 40+ modelos.",
         points: [
-          "Hasta 33% de descuento sobre el precio oficial de GPT, Claude y Gemini",
+          "60-90% del precio oficial, combinado con el bono de recarga: hasta 50% menos",
           "40+ modelos integrados con una key",
           "Tareas simples a modelos baratos, tareas difíciles a modelos frontier",
         ],
@@ -290,13 +315,12 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     table: {
       eyebrow: "Todos los modelos",
       title: "45 modelos, una key: precios, latencia y salud",
-      description: "Precio con descuento vs oficial, latencia en vivo, salud de 30 días y volumen real de llamadas de cada modelo.",
+      description: "Los 10 modelos más usados: precio con bono vs oficial, latencia TTFT y salud de 30 días. El directorio completo está en la página de modelos.",
       colModel: "Modelo",
       colOfficial: "Oficial",
-      colFlatkey: "Flatkey",
+      colFlatkey: "Con bono",
       colLatency: "Latencia",
       colHealth: "Salud 30 días",
-      colCalls: "Llamadas 30 días",
       perMillion: "$ / 1M tokens de entrada",
       viewAll: "Explorar el directorio completo de modelos",
     },
@@ -305,9 +329,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     hero: {
       badge: "Modèles officiels · Stable et sécurisé",
       titleLine1: "Modèles officiels GPT, Claude et Gemini.",
-      titleLine2: "Jusqu'à 33 % moins cher.",
+      titleLine2: "Jusqu'à 50 % de remise.",
       description:
-        "flatkey.ai route votre trafic vers les API officielles GPT, Claude et Gemini avec une seule clé : mêmes modèles, même qualité, jusqu'à 33 % de coût en moins, avec une stabilité et une sécurité vérifiables.",
+        "flatkey.ai route votre trafic vers les API officielles GPT, Claude et Gemini avec une seule clé. Les prix des modèles sont à 60-90 % du tarif officiel, et recharger 200 $ offre 100 $ : cumulés, jusqu'à la moitié du prix officiel, stable et sécurisé.",
       ctaTrial: "Essai gratuit",
       ctaModels: "Voir la santé des modèles",
     },
@@ -318,12 +342,14 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       { value: "100+", label: "entreprises en production" },
     ],
     compare: {
-      title: "Prix officiel vs Flatkey",
-      subtitle: "Prix d'entrée par 1M de tokens, avec le meilleur bonus de recharge",
+      title: "Deux remises cumulées",
+      subtitle: "Prix d'entrée par 1M de tokens",
+      badge: "Jusqu'à -50 %",
+      layers: ["Prix des modèles : 60-90 % du tarif officiel", "Rechargez 200 $, recevez 100 $ : vous payez 2/3"],
       official: "Officiel",
-      flatkey: "Flatkey",
+      flatkey: "Avec bonus",
       inputLabel: "Entrée / 1M tokens",
-      save: "Jusqu'à 33 % de remise avec le bonus de recharge",
+      save: "Les deux remises se cumulent : jusqu'à 50 % du prix officiel",
     },
     health: {
       eyebrow: "Santé des modèles en direct",
@@ -336,6 +362,11 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       trendLabel: "Taux de réussite, 30 derniers jours",
       empty: "Collecte des données…",
       viewAll: "Voir la santé de tous les modèles",
+    },
+    usage: {
+      title: "Top modèles",
+      subtitle: "Usage quotidien de tokens par modèle sur le dernier mois",
+      tokensLabel: "tokens",
     },
     values: {
       eyebrow: "Pourquoi choisir flatkey.ai",
@@ -351,9 +382,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Réduisez vos coûts de modèles",
-        desc: "Modèles officiels jusqu'à 33 % moins chers, et une clé pour 40+ modèles : chaque tâche tourne sur le modèle au bon coût.",
+        desc: "Prix des modèles à 60-90 % du tarif officiel, et le bonus de recharge retire encore un tiers : jusqu'à 50 % du prix officiel. Une clé pour 40+ modèles.",
         points: [
-          "Jusqu'à 33 % de remise sur les prix officiels GPT, Claude et Gemini",
+          "60-90 % du tarif officiel, cumulé au bonus de recharge : jusqu'à -50 %",
           "40+ modèles intégrés derrière une clé",
           "Tâches simples sur modèles économiques, tâches dures sur modèles frontier",
         ],
@@ -372,13 +403,12 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     table: {
       eyebrow: "Tous les modèles",
       title: "45 modèles, une clé : prix, latence et santé",
-      description: "Prix remisé vs officiel, latence en direct, santé sur 30 jours et volume d'appels réel pour chaque modèle.",
+      description: "Les 10 modèles les plus utilisés : prix avec bonus vs officiel, latence TTFT et santé sur 30 jours. Le catalogue complet est sur la page modèles.",
       colModel: "Modèle",
       colOfficial: "Officiel",
-      colFlatkey: "Flatkey",
+      colFlatkey: "Avec bonus",
       colLatency: "Latence",
       colHealth: "Santé 30 j",
-      colCalls: "Appels 30 j",
       perMillion: "$ / 1M tokens d'entrée",
       viewAll: "Parcourir le catalogue complet des modèles",
     },
@@ -387,9 +417,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     hero: {
       badge: "Modelos oficiais · Estável e seguro",
       titleLine1: "Modelos oficiais GPT, Claude e Gemini.",
-      titleLine2: "Até 33% mais barato.",
+      titleLine2: "Até 50% de desconto.",
       description:
-        "A flatkey.ai roteia seu tráfego para as APIs oficiais de GPT, Claude e Gemini com uma única key: mesmos modelos, mesma qualidade, custo até 33% menor, com estabilidade e segurança verificáveis.",
+        "A flatkey.ai roteia seu tráfego para as APIs oficiais de GPT, Claude e Gemini com uma única key. Os preços dos modelos ficam em 60-90% do oficial e recarregar $200 dá $100 grátis: somados, até a metade do preço oficial, estável e seguro.",
       ctaTrial: "Teste grátis",
       ctaModels: "Ver saúde dos modelos",
     },
@@ -400,12 +430,14 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       { value: "100+", label: "empresas em produção" },
     ],
     compare: {
-      title: "Preço oficial vs Flatkey",
-      subtitle: "Preço de entrada por 1M de tokens, com o melhor bônus de recarga",
+      title: "Dois descontos somados",
+      subtitle: "Preço de entrada por 1M de tokens",
+      badge: "Até -50%",
+      layers: ["Preço do modelo: 60-90% do oficial", "Recarregue $200, ganhe $100: você paga 2/3"],
       official: "Oficial",
-      flatkey: "Flatkey",
+      flatkey: "Com bônus",
       inputLabel: "Entrada / 1M tokens",
-      save: "Até 33% de desconto com o bônus de recarga",
+      save: "Os dois descontos se somam: até 50% do preço oficial",
     },
     health: {
       eyebrow: "Saúde dos modelos ao vivo",
@@ -418,6 +450,11 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       trendLabel: "Taxa de sucesso, últimos 30 dias",
       empty: "Coletando dados…",
       viewAll: "Ver a saúde de todos os modelos",
+    },
+    usage: {
+      title: "Modelos top",
+      subtitle: "Uso diário de tokens por modelo no último mês",
+      tokensLabel: "tokens",
     },
     values: {
       eyebrow: "Por que escolher a flatkey.ai",
@@ -433,9 +470,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Reduza o gasto com modelos",
-        desc: "Modelos oficiais até 33% mais baratos, e uma key para 40+ modelos: cada tarefa roda no modelo com o custo certo.",
+        desc: "Preços de modelo a 60-90% do oficial e o bônus de recarga tira mais um terço: até 50% do oficial. Uma key para 40+ modelos.",
         points: [
-          "Até 33% de desconto sobre o preço oficial de GPT, Claude e Gemini",
+          "60-90% do preço oficial, somado ao bônus de recarga: até 50% off",
           "40+ modelos integrados com uma key",
           "Tarefas simples em modelos baratos, tarefas difíceis em modelos frontier",
         ],
@@ -454,13 +491,12 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     table: {
       eyebrow: "Todos os modelos",
       title: "45 modelos, uma key: preços, latência e saúde",
-      description: "Preço com desconto vs oficial, latência ao vivo, saúde de 30 dias e volume real de chamadas de cada modelo.",
+      description: "Os 10 modelos mais usados: preço com bônus vs oficial, latência TTFT e saúde de 30 dias. O diretório completo está na página de modelos.",
       colModel: "Modelo",
       colOfficial: "Oficial",
-      colFlatkey: "Flatkey",
+      colFlatkey: "Com bônus",
       colLatency: "Latência",
       colHealth: "Saúde 30 dias",
-      colCalls: "Chamadas 30 dias",
       perMillion: "$ / 1M tokens de entrada",
       viewAll: "Explorar o diretório completo de modelos",
     },
@@ -469,9 +505,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     hero: {
       badge: "Официальные модели · Стабильно и безопасно",
       titleLine1: "Официальные модели GPT, Claude и Gemini.",
-      titleLine2: "До 33% дешевле.",
+      titleLine2: "До 50% дешевле.",
       description:
-        "flatkey.ai направляет ваш трафик в официальные API GPT, Claude и Gemini через один ключ: те же модели, то же качество, до 33% ниже стоимость, а стабильность и безопасность можно проверить в реальном времени.",
+        "flatkey.ai направляет ваш трафик в официальные API GPT, Claude и Gemini через один ключ. Цены моделей — 60-90% от официальных, а при пополнении на $200 вы получаете $100 в подарок: вместе это до половины официальной цены, стабильно и безопасно.",
       ctaTrial: "Бесплатный доступ",
       ctaModels: "Смотреть здоровье моделей",
     },
@@ -482,12 +518,14 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       { value: "100+", label: "компаний в продакшене" },
     ],
     compare: {
-      title: "Официальная цена vs Flatkey",
-      subtitle: "Цена входа за 1M токенов с лучшим бонусом пополнения",
+      title: "Две скидки вместе",
+      subtitle: "Цена входа за 1M токенов",
+      badge: "До -50%",
+      layers: ["Цена модели: 60-90% от официальной", "Пополните $200, получите $100: платите 2/3"],
       official: "Официально",
-      flatkey: "Flatkey",
+      flatkey: "С бонусом",
       inputLabel: "Вход / 1M токенов",
-      save: "До 33% скидки с бонусом за пополнение",
+      save: "Скидки складываются: до 50% от официальной цены",
     },
     health: {
       eyebrow: "Здоровье моделей в реальном времени",
@@ -500,6 +538,11 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       trendLabel: "Success rate, последние 30 дней",
       empty: "Собираем данные…",
       viewAll: "Здоровье всех моделей",
+    },
+    usage: {
+      title: "Топ моделей",
+      subtitle: "Ежедневное использование токенов по моделям за месяц",
+      tokensLabel: "токенов",
     },
     values: {
       eyebrow: "Почему выбирают flatkey.ai",
@@ -515,9 +558,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Снижайте расходы на модели",
-        desc: "Официальные модели до 33% дешевле, и один ключ на 40+ моделей — каждая задача на модели с подходящей ценой.",
+        desc: "Цены моделей 60-90% от официальных, бонус пополнения снимает ещё треть — до 50% от официальной цены. Один ключ на 40+ моделей.",
         points: [
-          "До 33% скидки от официальных цен GPT, Claude и Gemini",
+          "60-90% от официальной цены плюс бонус пополнения — до 50% скидки",
           "40+ моделей за одним ключом",
           "Простые задачи — на дешёвых моделях, сложные — на frontier",
         ],
@@ -536,13 +579,12 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     table: {
       eyebrow: "Все модели",
       title: "45 моделей, один ключ: цены, задержка, здоровье",
-      description: "Цена со скидкой vs официальная, задержка, 30-дневное здоровье и реальный объём вызовов каждой модели.",
+      description: "10 самых загруженных моделей: цена с бонусом vs официальная, задержка TTFT и 30-дневное здоровье. Полный каталог — на странице моделей.",
       colModel: "Модель",
       colOfficial: "Официально",
-      colFlatkey: "Flatkey",
+      colFlatkey: "С бонусом",
       colLatency: "Задержка",
       colHealth: "Здоровье 30 дн",
-      colCalls: "Вызовы 30 дн",
       perMillion: "$ / 1M входных токенов",
       viewAll: "Открыть полный каталог моделей",
     },
@@ -551,9 +593,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     hero: {
       badge: "公式モデル · 安定・安全",
       titleLine1: "GPT・Claude・Gemini の公式モデル。",
-      titleLine2: "最大 33% 安く。",
+      titleLine2: "最安で半額。",
       description:
-        "flatkey.ai は 1 つの key であなたのトラフィックを GPT・Claude・Gemini の公式 API にルーティングします。同じモデル、同じ品質、コストは最大 33% 削減。安定性とセキュリティはリアルタイムで確認できます。",
+        "flatkey.ai は 1 つの key でトラフィックを GPT・Claude・Gemini の公式 API にルーティングします。モデル価格は公式の 60〜90%、さらに $200 チャージで $100 プレゼント。二重の割引で最安なら公式の半額、安定・安全です。",
       ctaTrial: "無料で試す",
       ctaModels: "モデルの健全性を見る",
     },
@@ -564,12 +606,14 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       { value: "100+", label: "企業が本番利用" },
     ],
     compare: {
-      title: "公式価格 vs Flatkey",
-      subtitle: "1M トークンあたりの入力価格（最良のチャージ特典適用後）",
+      title: "二重の割引",
+      subtitle: "1M トークンあたりの入力価格",
+      badge: "最安 -50%",
+      layers: ["モデル価格：公式の 60〜90%", "$200 チャージで $100 進呈：支払いは 2/3"],
       official: "公式",
-      flatkey: "Flatkey",
+      flatkey: "チャージ後",
       inputLabel: "入力 / 1M tokens",
-      save: "チャージ特典で最大 33% オフ",
+      save: "割引は重ねがけ：最安で公式価格の 50%",
     },
     health: {
       eyebrow: "モデル健全性（ライブ）",
@@ -582,6 +626,11 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       trendLabel: "成功率（直近 30 日）",
       empty: "データ収集中…",
       viewAll: "全モデルの健全性を見る",
+    },
+    usage: {
+      title: "トップモデル",
+      subtitle: "過去 1 か月のモデル別・日次トークン使用量",
+      tokensLabel: "tokens",
     },
     values: {
       eyebrow: "flatkey.ai が選ばれる理由",
@@ -597,9 +646,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "コスト削減",
-        desc: "公式モデルが最大 33% オフ。さらに 1 key で 40+ モデルを統合し、タスクごとに最適コストのモデルを使えます。",
+        desc: "モデル価格は公式の 60〜90%、チャージ特典でさらに 1/3 オフ——最安で公式の半額。1 key で 40+ モデルを統合できます。",
         points: [
-          "GPT・Claude・Gemini 公式価格から最大 33% オフ",
+          "公式の 60〜90% × チャージ特典で、最安 50% オフ",
           "1 key で 40+ モデルを統合",
           "軽いタスクは低価格モデル、難しいタスクはフロンティアモデルへ",
         ],
@@ -618,13 +667,12 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     table: {
       eyebrow: "全モデル",
       title: "45 モデルを 1 key で——価格・レイテンシ・健全性",
-      description: "各モデルの割引価格 vs 公式価格、ライブレイテンシ、30 日健全性、実際の 30 日呼び出し量。",
+      description: "利用の多い上位 10 モデル：チャージ後価格 vs 公式価格、TTFT レイテンシ、30 日健全性。全モデルはモデルページへ。",
       colModel: "モデル",
       colOfficial: "公式",
-      colFlatkey: "Flatkey",
+      colFlatkey: "チャージ後",
       colLatency: "レイテンシ",
       colHealth: "30 日健全性",
-      colCalls: "30 日呼び出し",
       perMillion: "$ / 1M 入力 tokens",
       viewAll: "モデル一覧をすべて見る",
     },
@@ -633,9 +681,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     hero: {
       badge: "Model chính thức · Ổn định và an toàn",
       titleLine1: "Model chính thức GPT, Claude và Gemini.",
-      titleLine2: "Rẻ hơn tới 33%.",
+      titleLine2: "Rẻ hơn tới 50%.",
       description:
-        "flatkey.ai định tuyến traffic của bạn tới API chính thức của GPT, Claude và Gemini qua một key: cùng model, cùng chất lượng, chi phí thấp hơn tới 33%, với độ ổn định và bảo mật có thể kiểm chứng.",
+        "flatkey.ai định tuyến traffic của bạn tới API chính thức của GPT, Claude và Gemini qua một key. Giá model bằng 60-90% giá chính thức, nạp $200 tặng $100: cộng dồn, thấp nhất bằng một nửa giá chính thức, ổn định và an toàn.",
       ctaTrial: "Dùng thử miễn phí",
       ctaModels: "Xem sức khỏe model",
     },
@@ -646,12 +694,14 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       { value: "100+", label: "doanh nghiệp dùng production" },
     ],
     compare: {
-      title: "Giá chính thức vs Flatkey",
-      subtitle: "Giá input mỗi 1M token, sau ưu đãi nạp tốt nhất",
+      title: "Hai ưu đãi cộng dồn",
+      subtitle: "Giá input mỗi 1M token",
+      badge: "Thấp nhất -50%",
+      layers: ["Giá model: 60-90% giá chính thức", "Nạp $200 tặng $100: chỉ trả 2/3"],
       official: "Chính thức",
-      flatkey: "Flatkey",
+      flatkey: "Sau ưu đãi",
       inputLabel: "Input / 1M tokens",
-      save: "Giảm tới 33% với ưu đãi nạp tiền",
+      save: "Hai ưu đãi cộng dồn: thấp nhất bằng 50% giá chính thức",
     },
     health: {
       eyebrow: "Sức khỏe model trực tiếp",
@@ -664,6 +714,11 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       trendLabel: "Tỷ lệ thành công, 30 ngày gần nhất",
       empty: "Đang thu thập dữ liệu…",
       viewAll: "Xem sức khỏe tất cả model",
+    },
+    usage: {
+      title: "Model hàng đầu",
+      subtitle: "Lượng token dùng mỗi ngày theo model trong tháng qua",
+      tokensLabel: "tokens",
     },
     values: {
       eyebrow: "Vì sao chọn flatkey.ai",
@@ -679,9 +734,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Giảm chi phí model",
-        desc: "Model chính thức rẻ hơn tới 33%, và một key cho 40+ model — mỗi tác vụ chạy trên model có chi phí phù hợp.",
+        desc: "Giá model bằng 60-90% chính thức, ưu đãi nạp giảm thêm 1/3 — thấp nhất 50% giá chính thức. Một key cho 40+ model.",
         points: [
-          "Giảm tới 33% so với giá chính thức GPT, Claude, Gemini",
+          "60-90% giá chính thức, cộng ưu đãi nạp: giảm tới 50%",
           "40+ model tích hợp sau một key",
           "Tác vụ nhẹ dùng model rẻ, tác vụ khó dùng model frontier",
         ],
@@ -700,13 +755,12 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     table: {
       eyebrow: "Tất cả model",
       title: "45 model, một key — giá, độ trễ, sức khỏe",
-      description: "Giá ưu đãi vs chính thức, độ trễ trực tiếp, sức khỏe 30 ngày và khối lượng gọi thật của từng model.",
+      description: "10 model được dùng nhiều nhất: giá sau ưu đãi vs chính thức, độ trễ TTFT và sức khỏe 30 ngày. Danh mục đầy đủ ở trang model.",
       colModel: "Model",
       colOfficial: "Chính thức",
-      colFlatkey: "Flatkey",
+      colFlatkey: "Sau ưu đãi",
       colLatency: "Độ trễ",
       colHealth: "Sức khỏe 30 ngày",
-      colCalls: "Lượt gọi 30 ngày",
       perMillion: "$ / 1M token input",
       viewAll: "Xem toàn bộ danh mục model",
     },
@@ -715,9 +769,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     hero: {
       badge: "Offizielle Modelle · Stabil und sicher",
       titleLine1: "Offizielle GPT-, Claude- und Gemini-Modelle.",
-      titleLine2: "Bis zu 33% günstiger.",
+      titleLine2: "Bis zu 50% günstiger.",
       description:
-        "flatkey.ai leitet deinen Traffic mit einem Key zu den offiziellen GPT-, Claude- und Gemini-APIs: gleiche Modelle, gleiche Qualität, bis zu 33% weniger Kosten — mit nachprüfbarer Stabilität und Sicherheit.",
+        "flatkey.ai leitet deinen Traffic mit einem Key zu den offiziellen GPT-, Claude- und Gemini-APIs. Modellpreise liegen bei 60-90% des offiziellen Listenpreises, und wer $200 auflädt, bekommt $100 geschenkt: kombiniert bis zu 50% des offiziellen Preises, stabil und sicher.",
       ctaTrial: "Kostenlos testen",
       ctaModels: "Modell-Gesundheit ansehen",
     },
@@ -728,12 +782,14 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       { value: "100+", label: "Unternehmen in Produktion" },
     ],
     compare: {
-      title: "Offizieller Preis vs Flatkey",
-      subtitle: "Input-Preis pro 1M Tokens, mit dem besten Aufladebonus",
+      title: "Zwei Rabatte, kombiniert",
+      subtitle: "Input-Preis pro 1M Tokens",
+      badge: "Bis zu -50%",
+      layers: ["Modellpreise: 60-90% des offiziellen Listenpreises", "$200 aufladen, $100 geschenkt: du zahlst 2/3"],
       official: "Offiziell",
-      flatkey: "Flatkey",
+      flatkey: "Mit Bonus",
       inputLabel: "Input / 1M Tokens",
-      save: "Bis zu 33% Rabatt mit dem Aufladebonus",
+      save: "Beide Rabatte kombiniert: bis zu 50% des offiziellen Preises",
     },
     health: {
       eyebrow: "Live-Modell-Gesundheit",
@@ -746,6 +802,11 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       trendLabel: "Erfolgsrate, letzte 30 Tage",
       empty: "Daten werden gesammelt…",
       viewAll: "Gesundheit aller Modelle ansehen",
+    },
+    usage: {
+      title: "Top-Modelle",
+      subtitle: "Tägliche Token-Nutzung pro Modell im letzten Monat",
+      tokensLabel: "Tokens",
     },
     values: {
       eyebrow: "Warum Teams flatkey.ai wählen",
@@ -761,9 +822,9 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       },
       cost: {
         title: "Modellkosten senken",
-        desc: "Offizielle Modelle bis zu 33% günstiger — und ein Key für 40+ Modelle, damit jede Aufgabe auf dem Modell mit den richtigen Kosten läuft.",
+        desc: "Modellpreise bei 60-90% des offiziellen Preises, der Aufladebonus spart ein weiteres Drittel — bis zu 50% des offiziellen Preises. Ein Key für 40+ Modelle.",
         points: [
-          "Bis zu 33% Rabatt auf offizielle GPT-, Claude- und Gemini-Preise",
+          "60-90% des offiziellen Preises, kombiniert mit dem Aufladebonus: bis zu -50%",
           "40+ Modelle hinter einem Key",
           "Leichte Aufgaben auf günstige Modelle, harte auf Frontier-Modelle",
         ],
@@ -782,13 +843,12 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     table: {
       eyebrow: "Alle Modelle",
       title: "45 Modelle, ein Key — Preise, Latenz und Gesundheit",
-      description: "Rabattpreis vs offiziell, Live-Latenz, 30-Tage-Gesundheit und echtes 30-Tage-Aufrufvolumen für jedes Modell.",
+      description: "Die 10 meistgenutzten Modelle: Preis mit Bonus vs offiziell, TTFT-Latenz und 30-Tage-Gesundheit. Das vollständige Verzeichnis gibt es auf der Modellseite.",
       colModel: "Modell",
       colOfficial: "Offiziell",
-      colFlatkey: "Flatkey",
+      colFlatkey: "Mit Bonus",
       colLatency: "Latenz",
       colHealth: "Gesundheit 30 T",
-      colCalls: "Aufrufe 30 T",
       perMillion: "$ / 1M Input-Tokens",
       viewAll: "Vollständiges Modellverzeichnis ansehen",
     },
