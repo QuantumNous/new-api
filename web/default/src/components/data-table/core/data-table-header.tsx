@@ -21,6 +21,7 @@ import {
   type Header,
   type Table as TanstackTable,
 } from '@tanstack/react-table'
+import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -67,9 +68,13 @@ export function DataTableHeader<TData>({
                   role='separator'
                   aria-orientation='vertical'
                   aria-label={t('Resize column')}
+                  tabIndex={0}
                   onDoubleClick={() => header.column.resetSize()}
                   onMouseDown={header.getResizeHandler()}
                   onTouchStart={header.getResizeHandler()}
+                  onKeyDown={(event) =>
+                    handleColumnResizeKeyDown(event, table, header)
+                  }
                   className={cn(
                     'absolute top-0 right-0 h-full w-2 cursor-col-resize touch-none select-none',
                     'after:bg-border hover:after:bg-primary after:absolute after:top-2 after:right-0 after:h-[calc(100%-1rem)] after:w-px after:transition-colors',
@@ -83,6 +88,60 @@ export function DataTableHeader<TData>({
       ))}
     </TableHeader>
   )
+}
+
+function handleColumnResizeKeyDown<TData>(
+  event: KeyboardEvent<HTMLDivElement>,
+  table: TanstackTable<TData>,
+  header: Header<TData, unknown>
+) {
+  const step = event.shiftKey ? 50 : 10
+
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault()
+    resizeColumnByKeyboard(table, header, -step)
+    return
+  }
+
+  if (event.key === 'ArrowRight') {
+    event.preventDefault()
+    resizeColumnByKeyboard(table, header, step)
+    return
+  }
+
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    header.column.resetSize()
+  }
+}
+
+function resizeColumnByKeyboard<TData>(
+  table: TanstackTable<TData>,
+  header: Header<TData, unknown>,
+  delta: number
+) {
+  table.setColumnSizing((previous) => ({
+    ...previous,
+    [header.column.id]: getClampedColumnSize(header, delta),
+  }))
+}
+
+function getClampedColumnSize<TData>(
+  header: Header<TData, unknown>,
+  delta: number
+) {
+  const { minSize, maxSize } = header.column.columnDef
+  const nextSize = header.column.getSize() + delta
+
+  if (typeof minSize === 'number' && nextSize < minSize) {
+    return minSize
+  }
+
+  if (typeof maxSize === 'number' && nextSize > maxSize) {
+    return maxSize
+  }
+
+  return nextSize
 }
 
 function shouldRenderColumnResizer<TData>(
