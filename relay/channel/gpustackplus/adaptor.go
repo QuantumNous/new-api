@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -98,6 +97,14 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		return nil, errors.New("model is required(渠道模型映射与请求 model 均为空)")
 	}
 
+	// 若超管为该模型配置了尺寸白名单(系统设置→图片模型尺寸配置),按配置校验;
+	// 未配置则不加限制。配置按公开模型名键控,故用 origin/request.Model(公开名)做 key。
+	// 参数错误归为 400 并跳过重试——外层 image_handler 的 types.NewError 用 errors.As
+	// 透传本错误,不会被覆盖成 500 可重试(否则会在预扣费后无谓重试)。
+	if err := common.ValidateImageSizeForModel(request.Size, info.OriginModelName, request.Model); err != nil {
+		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+
 	body := map[string]any{
 		"model":   modelName,
 		"prompt":  request.Prompt,
@@ -107,7 +114,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesGenerations:
 		body["task_type"] = "t2i"
-		if ar := aspectRatioFromSize(request.Size); ar != "" {
+		if ar := common.AspectRatioFromSize(request.Size); ar != "" {
 			body["aspect_ratio"] = ar
 		}
 	case relayconstant.RelayModeImagesEdits:
@@ -166,28 +173,6 @@ func extractEditImage(c *gin.Context, request dto.ImageRequest) (string, error) 
 	return "", errors.New("图片编辑(i2i)必须提供底图:JSON 的 image 字段或 multipart 的 image 文件")
 }
 
-// aspectRatioFromSize 把 OpenAI 风格 "WxH" 化简为引擎的 aspect_ratio "W:H";
-// 解析不了则省略(引擎用配置默认值)。
-func aspectRatioFromSize(size string) string {
-	parts := strings.SplitN(strings.ToLower(strings.TrimSpace(size)), "x", 2)
-	if len(parts) != 2 {
-		return ""
-	}
-	w, err1 := strconv.Atoi(parts[0])
-	h, err2 := strconv.Atoi(parts[1])
-	if err1 != nil || err2 != nil || w <= 0 || h <= 0 {
-		return ""
-	}
-	g := gcd(w, h)
-	return fmt.Sprintf("%d:%d", w/g, h/g)
-}
-
-func gcd(a, b int) int {
-	for b != 0 {
-		a, b = b, a%b
-	}
-	return a
-}
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
 	return channel.DoApiRequest(a, c, info, requestBody)
