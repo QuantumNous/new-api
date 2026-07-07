@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -20,6 +21,23 @@ func GetPerfMetricsSummary(c *gin.Context) {
 	}
 
 	activeGroups := append(lo.Keys(ratio_setting.GetGroupRatioCopy()), "auto")
+	if group := strings.TrimSpace(c.Query("group")); group != "" {
+		if group != websitePublicGroup {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "unsupported performance metrics group",
+			})
+			return
+		}
+		if !ratio_setting.ContainsGroupRatio(websitePublicGroup) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"success": false,
+				"message": "public website group is not configured",
+			})
+			return
+		}
+		activeGroups = []string{websitePublicGroup}
+	}
 	result, err := perfmetrics.QuerySummaryAll(hours, activeGroups)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -50,6 +68,13 @@ func GetPerfMetrics(c *gin.Context) {
 		if parsed, err := strconv.Atoi(rawHours); err == nil {
 			hours = parsed
 		}
+	}
+	if strings.TrimSpace(c.Query("group")) == websitePublicGroup && !ratio_setting.ContainsGroupRatio(websitePublicGroup) {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "public website group is not configured",
+		})
+		return
 	}
 
 	result, err := perfmetrics.Query(perfmetrics.QueryParams{

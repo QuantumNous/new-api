@@ -1,6 +1,7 @@
 import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
 
 export const API_BASE_URL = APP_CONSOLE_ORIGIN;
+export const WEBSITE_PUBLIC_PRICING_GROUP = "plg";
 
 export type PricingVendor = {
   id: number;
@@ -46,7 +47,7 @@ type PricingApiResponse = {
   data?: PricingModel[];
   vendors?: PricingVendor[];
   group_ratio?: Record<string, number>;
-  usable_group?: Record<string, { desc: string; ratio: number }>;
+  usable_group?: Record<string, string>;
   supported_endpoint?: Record<string, string>;
   auto_groups?: string[];
 };
@@ -55,7 +56,7 @@ export type PricingData = {
   models: PricingModel[];
   vendors: PricingVendor[];
   groupRatio: Record<string, number>;
-  usableGroup: Record<string, { desc: string; ratio: number }>;
+  usableGroup: Record<string, string>;
   supportedEndpoint: Record<string, unknown>;
   autoGroups: string[];
 };
@@ -76,13 +77,15 @@ const VENDOR_SORT_PRIORITY: Record<string, number> = {
   gemini: 2,
 };
 
-export function publicPricingUrl(apiBaseUrl = API_BASE_URL): string {
-  return `${apiBaseUrl}/api/website/pricing`;
+export function publicPricingUrl(apiBaseUrl = API_BASE_URL, group?: string): string {
+  const url = new URL("/api/website/pricing", apiBaseUrl);
+  if (group) url.searchParams.set("group", group);
+  return url.toString();
 }
 
-export async function getPricingData(): Promise<PricingData> {
+export async function getPricingData(group?: string): Promise<PricingData> {
   try {
-    const response = await fetch(publicPricingUrl(), {
+    const response = await fetch(publicPricingUrl(API_BASE_URL, group), {
       next: { revalidate: 300 },
       headers: { accept: "application/json" },
     });
@@ -198,7 +201,7 @@ export function formatModelPrice(model: PricingModel, type: "input" | "output" |
 export function getAvailableGroups(
   model: PricingModel,
   fallbackGroupRatio: Record<string, number> = {},
-  usableGroup: Record<string, { desc: string; ratio: number }> = {}
+  usableGroup: Record<string, string> = {}
 ): string[] {
   const usableGroups = Object.keys(usableGroup).filter(isVisibleGroup);
   const groups = Array.isArray(model.enable_groups) ? model.enable_groups.filter(isVisibleGroup) : [];

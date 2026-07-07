@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildCodeSampleForTest } from "./pricing-model-browser";
+import { buildCodeSampleForTest, buildPerformanceMetricsPathForTest, buildPerformanceSummaryPathForTest } from "./pricing-model-browser";
 import type { PricingModel } from "@/lib/pricing";
 
 const model: PricingModel = {
@@ -23,5 +23,10 @@ describe("pricing model API samples", () => {
 
     expect(sample).toContain('"model": "gpt-5.5"');
     expect(sample).not.toContain('"model": "gpt-5"');
+  });
+
+  test("requests PLG-only performance metrics for the public models directory", () => {
+    expect(buildPerformanceSummaryPathForTest()).toBe("/api/perf-metrics/summary?hours=24&group=plg");
+    expect(buildPerformanceMetricsPathForTest("gpt-4o mini")).toBe("/api/perf-metrics?model=gpt-4o+mini&hours=24&group=plg");
   });
 });

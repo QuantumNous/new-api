@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { LOCALIZED_TOP_UP_PRICES, TOP_UP_PACKAGE_AMOUNTS, getPricingPageCopy, getPricingPlans, getPricingPageFaqs } from "./pricing-page";
+import {
+  LOCALIZED_TOP_UP_PRICES,
+  MODELS_PAGE_PRICING_GROUP,
+  TOP_UP_PACKAGE_AMOUNTS,
+  getPricingPageCopy,
+  getPricingPlans,
+  getPricingPageFaqs,
+} from "./pricing-page";
 
 describe("pricing page conversion copy", () => {
   test("uses API gateway conversion messaging in the hero and plan section", () => {
@@ -99,5 +106,9 @@ describe("pricing page conversion copy", () => {
     expect(faqs[0]?.question).toContain("3X");
     expect(faqs[0]?.answer).toContain("metered API balance");
     expect(faqs[0]?.answer).toContain("seat overhead");
+  });
+
+  test("models directory uses the PLG public pricing group", () => {
+    expect(MODELS_PAGE_PRICING_GROUP).toBe("plg");
   });
 });

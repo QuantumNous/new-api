@@ -49,6 +49,8 @@ func UpsertPerfMetric(metric *PerfMetric) error {
 }
 
 func GetPerfMetrics(modelName string, group string, startTs int64, endTs int64) ([]PerfMetric, error) {
+	ensurePerfMetricColumnsInitialized()
+
 	var metrics []PerfMetric
 	query := DB.Model(&PerfMetric{}).
 		Where("model_name = ? AND bucket_ts >= ? AND bucket_ts <= ?", modelName, startTs, endTs)
@@ -69,6 +71,8 @@ type PerfMetricSummary struct {
 }
 
 func GetPerfMetricsSummaryAll(startTs int64, endTs int64, groups []string) ([]PerfMetricSummary, error) {
+	ensurePerfMetricColumnsInitialized()
+
 	var summaries []PerfMetricSummary
 	query := DB.Model(&PerfMetric{}).
 		Select("model_name, SUM(request_count) as request_count, SUM(success_count) as success_count, SUM(total_latency_ms) as total_latency_ms, SUM(output_tokens) as output_tokens, SUM(generation_ms) as generation_ms").
@@ -84,6 +88,12 @@ func GetPerfMetricsSummaryAll(startTs int64, endTs int64, groups []string) ([]Pe
 		Having("SUM(request_count) > 0").
 		Find(&summaries).Error
 	return summaries, err
+}
+
+func ensurePerfMetricColumnsInitialized() {
+	if commonGroupCol == "" {
+		initCol()
+	}
 }
 
 func DeletePerfMetricsBefore(cutoffTs int64) error {
