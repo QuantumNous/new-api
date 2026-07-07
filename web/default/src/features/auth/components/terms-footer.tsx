@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useTranslation } from 'react-i18next'
+import { Trans } from 'react-i18next'
 
 import { cn } from '@/lib/utils'
 
@@ -33,12 +33,6 @@ export function TermsFooter({
   className,
   status,
 }: TermsFooterProps) {
-  const { t } = useTranslation()
-  const text =
-    variant === 'sign-in'
-      ? 'By clicking sign in, you agree to our'
-      : 'By creating an account, you agree to our'
-
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
 
@@ -46,49 +40,41 @@ export function TermsFooter({
     return null
   }
 
-  const agreementLink = {
-    label: 'User Agreement',
-    href: '/user-agreement',
+  let messageKey =
+    variant === 'sign-in'
+      ? 'By clicking sign in, you agree to our <privacyPolicy>Privacy Policy</privacyPolicy>.'
+      : 'By creating an account, you agree to our <privacyPolicy>Privacy Policy</privacyPolicy>.'
+  if (hasUserAgreement && hasPrivacyPolicy) {
+    messageKey =
+      variant === 'sign-in'
+        ? 'By clicking sign in, you agree to our <userAgreement>User Agreement</userAgreement> and <privacyPolicy>Privacy Policy</privacyPolicy>.'
+        : 'By creating an account, you agree to our <userAgreement>User Agreement</userAgreement> and <privacyPolicy>Privacy Policy</privacyPolicy>.'
+  } else if (hasUserAgreement) {
+    messageKey =
+      variant === 'sign-in'
+        ? 'By clicking sign in, you agree to our <userAgreement>User Agreement</userAgreement>.'
+        : 'By creating an account, you agree to our <userAgreement>User Agreement</userAgreement>.'
   }
-  const privacyLink = {
-    label: 'Privacy Policy',
-    href: '/privacy-policy',
-  }
-
-  const activeLinks =
-    hasUserAgreement || hasPrivacyPolicy
-      ? ([
-          hasUserAgreement ? agreementLink : null,
-          hasPrivacyPolicy ? privacyLink : null,
-        ].filter(Boolean) as Array<{ label: string; href: string }>)
-      : [agreementLink, privacyLink]
-
-  const [firstLink, secondLink] = activeLinks
 
   return (
     <p className={cn('text-muted-foreground text-center text-xs', className)}>
-      {text}{' '}
-      {firstLink && (
-        <a
-          href={firstLink.href}
-          className='hover:text-primary underline underline-offset-4'
-        >
-          {firstLink.label}
-        </a>
-      )}
-      {secondLink && (
-        <>
-          {' '}
-          {t('and')}{' '}
-          <a
-            href={secondLink.href}
-            className='hover:text-primary underline underline-offset-4'
-          >
-            {secondLink.label}
-          </a>
-        </>
-      )}
-      .
+      <Trans
+        i18nKey={messageKey}
+        components={{
+          userAgreement: (
+            <a
+              href='/user-agreement'
+              className='hover:text-primary underline underline-offset-4'
+            />
+          ),
+          privacyPolicy: (
+            <a
+              href='/privacy-policy'
+              className='hover:text-primary underline underline-offset-4'
+            />
+          ),
+        }}
+      />
     </p>
   )
 }

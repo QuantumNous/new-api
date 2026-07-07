@@ -272,6 +272,17 @@ export const STATIC_I18N_KEYS = [
   'Unbind failed',
   'This user has no bindings',
 
+  // Auth legal terms (dynamic <Trans> keys)
+  'By clicking sign in, you agree to our <privacyPolicy>Privacy Policy</privacyPolicy>.',
+  'By clicking sign in, you agree to our <userAgreement>User Agreement</userAgreement> and <privacyPolicy>Privacy Policy</privacyPolicy>.',
+  'By clicking sign in, you agree to our <userAgreement>User Agreement</userAgreement>.',
+  'By creating an account, you agree to our <privacyPolicy>Privacy Policy</privacyPolicy>.',
+  'By creating an account, you agree to our <userAgreement>User Agreement</userAgreement> and <privacyPolicy>Privacy Policy</privacyPolicy>.',
+  'By creating an account, you agree to our <userAgreement>User Agreement</userAgreement>.',
+  'I have read and agree to the <privacyPolicy>Privacy Policy</privacyPolicy>.',
+  'I have read and agree to the <userAgreement>User Agreement</userAgreement> and <privacyPolicy>Privacy Policy</privacyPolicy>.',
+  'I have read and agree to the <userAgreement>User Agreement</userAgreement>.',
+
   // Subscription plans
   'Subscription Plans',
   'Subscribe Now',
