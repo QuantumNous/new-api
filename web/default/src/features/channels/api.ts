@@ -529,6 +529,7 @@ export async function fetchModels(data: {
   base_url: string
   type: number
   key: string
+  advanced_custom?: string
 }): Promise<FetchModelsResponse> {
   const res = await api.post(
     '/api/channel/fetch_models',

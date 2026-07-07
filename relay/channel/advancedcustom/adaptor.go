@@ -163,6 +163,36 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	return a.routeURL(info)
 }
 
+func (a *Adaptor) BuildModelListRequest(info *relaycommon.RelayInfo) (string, http.Header, error) {
+	if err := a.resolve(nil, info); err != nil {
+		return "", nil, err
+	}
+	if a.converter != dto.AdvancedCustomConverterNone {
+		return "", nil, fmt.Errorf("converter %q does not support model list requests", a.converter)
+	}
+
+	requestURL, err := a.routeURL(info)
+	if err != nil {
+		return "", nil, err
+	}
+
+	header := http.Header{}
+	auth := a.route.Auth
+	if auth == nil {
+		header.Set("Authorization", "Bearer "+info.ApiKey)
+		return requestURL, header, nil
+	}
+
+	switch strings.TrimSpace(auth.Type) {
+	case dto.AdvancedCustomAuthTypeNone, dto.AdvancedCustomAuthTypeQuery:
+	case dto.AdvancedCustomAuthTypeHeader:
+		header.Set(strings.TrimSpace(auth.Name), applyAuthTemplate(auth.Value, info.ApiKey))
+	default:
+		return "", nil, fmt.Errorf("invalid advanced custom auth type: %s", auth.Type)
+	}
+	return requestURL, header, nil
+}
+
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
 	if err := a.resolve(c, info); err != nil {
 		return err

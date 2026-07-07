@@ -3049,6 +3049,7 @@
     "OpenAI Embeddings": "Векторные представления OpenAI",
     "OpenAI Image Edits": "Редактирование изображений OpenAI",
     "OpenAI Image Generations": "Генерация изображений OpenAI",
+    "OpenAI Models": "Модели OpenAI",
     "OpenAI Organization": "Организация OpenAI",
     "OpenAI Organization ID (optional)": "Идентификатор организации OpenAI (необязательно)",
     "OpenAI Realtime": "Реальное время OpenAI",

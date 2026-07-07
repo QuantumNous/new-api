@@ -1360,6 +1360,7 @@ export function ChannelMutateDrawer({
       type: form.getValues('type'),
       key: form.getValues('key'),
       base_url: form.getValues('base_url') || '',
+      advanced_custom: form.getValues('advanced_custom'),
     })
     if (response.success && response.data) {
       return response.data

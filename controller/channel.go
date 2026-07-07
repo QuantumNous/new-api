@@ -202,6 +202,13 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 		headers = GetAuthHeader(key)
 	}
 
+	if err := applyFetchModelsHeaderOverrides(channel, key, headers); err != nil {
+		return nil, err
+	}
+	return headers, nil
+}
+
+func applyFetchModelsHeaderOverrides(channel *model.Channel, key string, headers http.Header) error {
 	headerOverride := channel.GetHeaderOverride()
 	for k, v := range headerOverride {
 		if relaychannel.IsHeaderPassthroughRuleKey(k) {
@@ -209,7 +216,7 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 		}
 		str, ok := v.(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid header override for key %s", k)
+			return fmt.Errorf("invalid header override for key %s", k)
 		}
 		if strings.Contains(str, "{api_key}") {
 			str = strings.ReplaceAll(str, "{api_key}", key)
@@ -217,7 +224,7 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 		headers.Set(k, str)
 	}
 
-	return headers, nil
+	return nil
 }
 
 func FetchUpstreamModels(c *gin.Context) {
@@ -1158,9 +1165,10 @@ func equalStringPtr(a, b *string) bool {
 
 func FetchModels(c *gin.Context) {
 	var req struct {
-		BaseURL string `json:"base_url"`
-		Type    int    `json:"type"`
-		Key     string `json:"key"`
+		BaseURL        string `json:"base_url"`
+		Type           int    `json:"type"`
+		Key            string `json:"key"`
+		AdvancedCustom string `json:"advanced_custom"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1179,6 +1187,46 @@ func FetchModels(c *gin.Context) {
 	// remove line breaks and extra spaces.
 	key := strings.TrimSpace(req.Key)
 	key = strings.Split(key, "\n")[0]
+
+	if req.Type == constant.ChannelTypeAdvancedCustom {
+		var config dto.AdvancedCustomConfig
+		if strings.TrimSpace(req.AdvancedCustom) == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "advanced_custom is required",
+			})
+			return
+		}
+		if err := common.UnmarshalJsonStr(req.AdvancedCustom, &config); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+		settings := dto.ChannelOtherSettings{AdvancedCustom: &config}
+		channel := &model.Channel{
+			Type:    req.Type,
+			Key:     key,
+			BaseURL: &baseURL,
+		}
+		channel.SetOtherSettings(settings)
+
+		models, err := fetchChannelUpstreamModelIDs(channel)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("获取模型列表失败: %s", err.Error()),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    models,
+		})
+		return
+	}
 
 	if req.Type == constant.ChannelTypeOllama {
 		models, err := ollama.FetchOllamaModels(baseURL, key)

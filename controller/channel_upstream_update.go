@@ -14,9 +14,13 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/advancedcustom"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -285,6 +289,10 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return normalizeModelNames(models), nil
 	}
 
+	if channel.Type == constant.ChannelTypeAdvancedCustom {
+		return fetchAdvancedCustomUpstreamModelIDs(channel, baseURL)
+	}
+
 	var url string
 	switch channel.Type {
 	case constant.ChannelTypeAli:
@@ -339,6 +347,50 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return item.ID
 	})
 
+	return normalizeModelNames(ids), nil
+}
+
+func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string) ([]string, error) {
+	key, _, apiErr := channel.GetNextEnabledKey()
+	if apiErr != nil {
+		return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+	}
+	key = strings.TrimSpace(key)
+
+	info := &relaycommon.RelayInfo{
+		RelayFormat:    types.RelayFormatOpenAI,
+		RelayMode:      relayconstant.RelayModeUnknown,
+		RequestURLPath: "/v1/models",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:          constant.ChannelTypeAdvancedCustom,
+			ChannelBaseUrl:       baseURL,
+			ApiKey:               key,
+			ChannelOtherSettings: channel.GetOtherSettings(),
+		},
+	}
+
+	adaptor := &advancedcustom.Adaptor{}
+	url, headers, err := adaptor.BuildModelListRequest(info)
+	if err != nil {
+		return nil, err
+	}
+	if err := applyFetchModelsHeaderOverrides(channel, key, headers); err != nil {
+		return nil, err
+	}
+
+	body, err := GetResponseBody(http.MethodGet, url, channel, headers)
+	if err != nil {
+		return nil, err
+	}
+
+	var result OpenAIModelsResponse
+	if err := common.Unmarshal(body, &result); err != nil {
+		return nil, err
+	}
+
+	ids := lo.Map(result.Data, func(item OpenAIModel, _ int) string {
+		return item.ID
+	})
 	return normalizeModelNames(ids), nil
 }
 

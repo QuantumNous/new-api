@@ -606,7 +606,7 @@ function RouteEditor({
           <Select value={incomingPath} onValueChange={setIncomingPath}>
             <SelectTrigger className='w-full max-w-full lg:h-8'>
               <SelectValue className='min-w-0 truncate'>
-                {`${incomingPathLabel}`}
+                {t(incomingPathLabel)}
               </SelectValue>
             </SelectTrigger>
             <SelectContent
@@ -621,7 +621,7 @@ function RouteEditor({
                     className={longSelectItemClass}
                   >
                     <div className='flex min-w-0 flex-col gap-1 leading-snug whitespace-normal'>
-                      <span>{option.label}</span>
+                      <span>{t(option.label)}</span>
                       <span className='text-muted-foreground font-mono text-xs break-all'>
                         {option.value}
                       </span>

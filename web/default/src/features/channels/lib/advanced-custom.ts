@@ -89,6 +89,10 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
       label: 'OpenAI Responses Compact',
     },
     {
+      value: '/v1/models',
+      label: 'OpenAI Models',
+    },
+    {
       value: '/v1/embeddings',
       label: 'OpenAI Embeddings',
     },
@@ -144,6 +148,7 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
 
 const ADVANCED_CUSTOM_ROUTE_SUMMARY_LABELS: Record<string, string> = {
   '/v1/chat/completions': 'OpenAI Chat',
+  '/v1/models': 'OpenAI Models',
 }
 
 export type AdvancedCustomValidationError = {

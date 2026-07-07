@@ -280,6 +280,65 @@ func TestAdaptorMatchesGeminiIncomingPathTemplate(t *testing.T) {
 	}
 }
 
+func TestAdaptorBuildModelListRequestUsesConfiguredRouteAuth(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/models",
+				UpstreamPath: "/provider/models",
+				Converter:    dto.AdvancedCustomConverterNone,
+				Auth: &dto.AdvancedCustomRouteAuth{
+					Type:  dto.AdvancedCustomAuthTypeHeader,
+					Name:  "x-api-key",
+					Value: "token {api_key}",
+				},
+			},
+		},
+	})
+	info.RequestURLPath = "/v1/models"
+
+	requestURL, header, err := adaptor.BuildModelListRequest(info)
+	require.NoError(t, err)
+
+	parsedURL, err := url.Parse(requestURL)
+	require.NoError(t, err)
+	assert.Equal(t, "fallback.example", parsedURL.Host)
+	assert.Equal(t, "/provider/models", parsedURL.Path)
+	assert.Equal(t, "token sk-test", header.Get("x-api-key"))
+	assert.Empty(t, header.Get("Authorization"))
+}
+
+func TestAdaptorBuildModelListRequestUsesConfiguredQueryAuth(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath: "/v1/models",
+				UpstreamPath: "https://upstream.example/v1/models?existing=1",
+				Converter:    dto.AdvancedCustomConverterNone,
+				Auth: &dto.AdvancedCustomRouteAuth{
+					Type:  dto.AdvancedCustomAuthTypeQuery,
+					Name:  "key",
+					Value: "{api_key}",
+				},
+			},
+		},
+	})
+	info.RequestURLPath = "/v1/models"
+
+	requestURL, header, err := adaptor.BuildModelListRequest(info)
+	require.NoError(t, err)
+
+	parsedURL, err := url.Parse(requestURL)
+	require.NoError(t, err)
+	assert.Equal(t, "upstream.example", parsedURL.Host)
+	assert.Equal(t, "/v1/models", parsedURL.Path)
+	assert.Equal(t, "1", parsedURL.Query().Get("existing"))
+	assert.Equal(t, "sk-test", parsedURL.Query().Get("key"))
+	assert.Empty(t, header.Get("Authorization"))
+}
+
 func TestAdaptorConvertsResponsesRequestToOpenAIChatUpstream(t *testing.T) {
 	adaptor := &Adaptor{}
 	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
