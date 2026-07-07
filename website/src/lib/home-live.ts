@@ -126,7 +126,11 @@ export async function fetchTokenUsage(): Promise<TokenUsage | null> {
 
 export function buildTokenUsage(points: ModelHistoryPoint[], models: ModelHistoryModel[]): TokenUsage | null {
   if (points.length === 0) return null;
-  const top = [...models].sort((a, b) => b.total - a.total).slice(0, TOKEN_USAGE_TOP_SERIES).map((model) => model.name);
+  // The rankings API ships its own "Others" aggregate — fold it into our
+  // Other bucket instead of letting it compete for a named series slot.
+  const isAggregate = (name: string) => /^others?$/i.test(name);
+  const named = models.filter((model) => !isAggregate(model.name));
+  const top = [...named].sort((a, b) => b.total - a.total).slice(0, TOKEN_USAGE_TOP_SERIES).map((model) => model.name);
   const hasOther = models.length > top.length;
   const series = hasOther ? [...top, TOKEN_USAGE_OTHER] : top;
   const seriesIndex = new Map(series.map((name, index) => [name, index]));
