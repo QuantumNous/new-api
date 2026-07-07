@@ -1,7 +1,6 @@
 package airwallex
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
 )
@@ -81,4 +80,42 @@ func GetBillingCheckout(id string) (*BillingCheckout, error) {
 	return &out, nil
 }
 
-var _ = fmt.Sprintf // keep fmt imported for Task 3 additions
+type BillingSubscription struct {
+	Id                string            `json:"id"`
+	BillingCustomerId string            `json:"billing_customer_id"`
+	Status            string            `json:"status"` // PENDING|IN_TRIAL|ACTIVE|UNPAID|CANCELLED
+	Metadata          map[string]string `json:"metadata"`
+}
+
+func GetBillingSubscription(id string) (*BillingSubscription, error) {
+	var sub BillingSubscription
+	if err := do(http.MethodGet, "/api/v1/billing/subscriptions/"+url.PathEscape(id), nil, &sub); err != nil {
+		return nil, err
+	}
+	return &sub, nil
+}
+
+func ListBillingSubscriptions(billingCustomerId, status string) ([]BillingSubscription, error) {
+	var page struct {
+		Items []BillingSubscription `json:"items"`
+	}
+	path := "/api/v1/billing/subscriptions?billing_customer_id=" + url.QueryEscape(billingCustomerId) + "&page_size=20"
+	if status != "" {
+		path += "&status=" + url.QueryEscape(status)
+	}
+	if err := do(http.MethodGet, path, nil, &page); err != nil {
+		return nil, err
+	}
+	return page.Items, nil
+}
+
+// CancelBillingSubscription stops future cycles. proration_behavior is REQUIRED
+// by the Billing cancel endpoint; JINN policy is "NONE" (no cash refund, access
+// runs to period end via the engine's ExpireDueSubscriptions).
+func CancelBillingSubscription(id, requestId, prorationBehavior string) error {
+	if prorationBehavior == "" {
+		prorationBehavior = "NONE"
+	}
+	body := map[string]any{"request_id": requestId, "proration_behavior": prorationBehavior}
+	return do(http.MethodPost, "/api/v1/billing/subscriptions/"+url.PathEscape(id)+"/cancel", body, nil)
+}

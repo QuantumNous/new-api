@@ -76,3 +76,45 @@ func TestCreateBillingCheckoutSubscriptionShape(t *testing.T) {
 		}
 	}
 }
+
+func TestCancelBillingSubscriptionSendsRequiredFields(t *testing.T) {
+	var logins int32
+	var gotPath, gotBody string
+	mockServer(t, &logins, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		buf := make([]byte, r.ContentLength)
+		r.Body.Read(buf)
+		gotBody = string(buf)
+		w.Write([]byte(`{}`))
+	})
+	if err := CancelBillingSubscription("sub_1", "cancel-1", ""); err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/api/v1/billing/subscriptions/sub_1/cancel" {
+		t.Fatalf("wrong path %s", gotPath)
+	}
+	for _, needle := range []string{`"proration_behavior":"NONE"`, `"request_id":"cancel-1"`} {
+		if !strings.Contains(gotBody, needle) {
+			t.Fatalf("body missing %s: %s", needle, gotBody)
+		}
+	}
+}
+
+func TestListBillingSubscriptionsFiltersByCustomer(t *testing.T) {
+	var logins int32
+	var gotQuery string
+	mockServer(t, &logins, func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		w.Write([]byte(`{"items":[{"id":"sub_1","billing_customer_id":"bcus_9","status":"ACTIVE"}]}`))
+	})
+	subs, err := ListBillingSubscriptions("bcus_9", "ACTIVE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(subs) != 1 || subs[0].Id != "sub_1" {
+		t.Fatalf("unexpected subs %+v", subs)
+	}
+	if !strings.Contains(gotQuery, "billing_customer_id=bcus_9") || !strings.Contains(gotQuery, "status=ACTIVE") {
+		t.Fatalf("query missing filters: %s", gotQuery)
+	}
+}
