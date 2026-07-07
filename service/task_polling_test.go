@@ -22,6 +22,7 @@ import (
 type taskPollingFetchAdaptor struct {
 	mu           sync.Mutex
 	taskIDs      []string
+	responseBody map[string][]byte
 	fetched      chan string
 	blockTaskID  string
 	blockStarted chan struct{}
@@ -50,6 +51,12 @@ func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]
 		case a.fetched <- taskID:
 		default:
 		}
+	}
+	if body, ok := a.responseBody[taskID]; ok {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewReader(body)),
+		}, nil
 	}
 
 	response := dto.TaskResponse[model.Task]{
@@ -123,6 +130,50 @@ func seedPollingTask(t *testing.T, channelID int, publicID string, upstreamID st
 	}
 	require.NoError(t, model.DB.Create(task).Error)
 	return task
+}
+
+func TestUpdateVideoTasksPreservesNewAPITaskDtoResultURL(t *testing.T) {
+	truncate(t)
+
+	const channelID = 1001
+	const resultURL = "https://cdn.example.com/videos/result.mp4"
+	seedTaskPollingChannel(t, channelID, true)
+	task := seedPollingTask(t, channelID, "task_public_result_url", "upstream_result_url")
+	response := dto.TaskResponse[dto.TaskDto]{
+		Code: dto.TaskSuccessCode,
+		Data: dto.TaskDto{
+			TaskID:    task.TaskID,
+			Status:    string(model.TaskStatusSuccess),
+			ResultURL: resultURL,
+			Progress:  "100%",
+		},
+	}
+	body, err := common.Marshal(response)
+	require.NoError(t, err)
+
+	adaptor := &taskPollingFetchAdaptor{
+		responseBody: map[string][]byte{
+			task.GetUpstreamTaskID(): body,
+		},
+	}
+	previousFactory := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return adaptor }
+	t.Cleanup(func() { GetTaskAdaptorFunc = previousFactory })
+
+	err = UpdateVideoTasks(context.Background(), constant.TaskPlatform("kling"), map[int][]string{
+		channelID: {
+			task.GetUpstreamTaskID(),
+		},
+	}, map[string]*model.Task{
+		task.GetUpstreamTaskID(): task,
+	})
+
+	require.NoError(t, err)
+	var saved model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&saved).Error)
+	assert.Equal(t, model.TaskStatus(model.TaskStatusSuccess), saved.Status)
+	assert.Equal(t, resultURL, saved.PrivateData.ResultURL)
+	assert.Equal(t, "100%", saved.Progress)
 }
 
 func TestUpdateVideoTasksDefaultSleepWaitsBetweenTasks(t *testing.T) {
