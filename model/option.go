@@ -234,26 +234,39 @@ func UpdateOption(key string, value string) error {
 	if alias, ok := aliasedOptionKey(key); ok {
 		keys = append(keys, alias)
 	}
-	// Save to database first
-	for _, k := range keys {
-		option := Option{
-			Key: k,
+	// Save to database first, atomically across aliased keys so the rows
+	// cannot diverge if one of the writes fails.
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		for _, k := range keys {
+			option := Option{
+				Key: k,
+			}
+			// https://gorm.io/docs/update.html#Save-All-Fields
+			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
+				return err
+			}
+			option.Value = value
+			// Save is a combination function.
+			// If save value does not contain primary key, it will execute Create,
+			// otherwise it will execute Update (with all fields).
+			if err := tx.Save(&option).Error; err != nil {
+				return err
+			}
 		}
-		// https://gorm.io/docs/update.html#Save-All-Fields
-		DB.FirstOrCreate(&option, Option{Key: k})
-		option.Value = value
-		// Save is a combination function.
-		// If save value does not contain primary key, it will execute Create,
-		// otherwise it will execute Update (with all fields).
-		DB.Save(&option)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	// Update OptionMap
+	// Update OptionMap. Refresh every aliased key even if one fails so the
+	// in-memory views stay consistent with the rows already persisted above.
+	var updateErr error
 	for _, k := range keys {
-		if err := updateOptionMap(k, value); err != nil {
-			return err
+		if err := updateOptionMap(k, value); err != nil && updateErr == nil {
+			updateErr = err
 		}
 	}
-	return nil
+	return updateErr
 }
 
 // UpdateOptionsBulk persists multiple key/value pairs in a single database

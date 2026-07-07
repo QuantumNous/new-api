@@ -12,11 +12,33 @@ import (
 func setupOptionFixture(t *testing.T) {
 	t.Helper()
 	require.NoError(t, DB.AutoMigrate(&Option{}))
+
 	common.OptionMapRWMutex.Lock()
 	if common.OptionMap == nil {
 		common.OptionMap = make(map[string]string)
 	}
+	optionMapSnapshot := make(map[string]string, len(common.OptionMap))
+	for k, v := range common.OptionMap {
+		optionMapSnapshot[k] = v
+	}
 	common.OptionMapRWMutex.Unlock()
+
+	groupRatioSnapshot := ratio_setting.GroupRatio2JSONString()
+	groupGroupRatioSnapshot := ratio_setting.GroupGroupRatio2JSONString()
+
+	t.Cleanup(func() {
+		require.NoError(t, DB.Where(commonKeyCol+" IN ?", []string{
+			"GroupRatio", "group_ratio_setting.group_ratio",
+			"GroupGroupRatio", "group_ratio_setting.group_group_ratio",
+		}).Delete(&Option{}).Error)
+
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = optionMapSnapshot
+		common.OptionMapRWMutex.Unlock()
+
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(groupRatioSnapshot))
+		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(groupGroupRatioSnapshot))
+	})
 }
 
 func readOptionValue(t *testing.T, key string) string {
