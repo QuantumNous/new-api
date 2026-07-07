@@ -588,6 +588,7 @@
     "Base URL is required for this channel type": "此渠道类型需要填写 Base URL",
     "Base URL is required when an advanced route uses an upstream path": "高级路由使用上游路径时必须填写 Base URL",
     "Base URL of your Uptime Kuma instance": "您的 Uptime Kuma 实例的基础 URL",
+    "Based on Feishu user groups": "基于飞书用户组",
     "Basic Authentication": "基本身份验证",
     "Basic Configuration": "基本配置",
     "Basic Info": "基本信息",

@@ -588,6 +588,7 @@
     "Base URL is required for this channel type": "Для этого типа канала требуется Base URL",
     "Base URL is required when an advanced route uses an upstream path": "Base URL требуется, когда расширенный маршрут использует путь upstream",
     "Base URL of your Uptime Kuma instance": "Базовый URL вашего экземпляра Uptime Kuma",
+    "Based on Feishu user groups": "На основе групп Feishu",
     "Basic Authentication": "Базовая аутентификация",
     "Basic Configuration": "Базовая конфигурация",
     "Basic Info": "Основная информация",

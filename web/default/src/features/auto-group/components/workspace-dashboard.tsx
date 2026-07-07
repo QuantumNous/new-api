@@ -90,7 +90,7 @@ export function WorkspaceDashboard() {
             <Button onClick={() => applyMutation.mutate()} disabled={applyMutation.isPending}>
               {applyMutation.isPending ? t('Applying...') : t('Apply high-confidence')}
             </Button>
-            <Badge variant='outline'>{t('Manual: ITBP and executives')}</Badge>
+            <Badge variant='outline'>{t('Based on Feishu user groups')}</Badge>
           </div>
         </CardContent>
       </Card>
