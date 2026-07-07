@@ -53,6 +53,14 @@ type User struct {
 	CreatedAt        int64                      `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt      int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	AdminPermissions map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
+	AffiliateRule    *AffiliateUserRulePayload  `json:"affiliate_rule,omitempty" gorm:"-:all"`
+}
+
+type AffiliateUserRulePayload struct {
+	Custom                     bool    `json:"custom"`
+	Enabled                    bool    `json:"enabled"`
+	RewardPercent              float64 `json:"reward_percent"`
+	SettleAfterInviteeConsumed bool    `json:"settle_after_invitee_consumed"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -431,14 +439,16 @@ func HardDeleteUserById(id int) error {
 	})
 }
 
-func inviteUser(inviterId int) (err error) {
+func inviteUser(inviterId int, rewardQuota int) (err error) {
 	user, err := GetUserById(inviterId, true)
 	if err != nil {
 		return err
 	}
 	user.AffCount++
-	user.AffQuota += common.QuotaForInviter
-	user.AffHistoryQuota += common.QuotaForInviter
+	if rewardQuota > 0 {
+		user.AffQuota += rewardQuota
+		user.AffHistoryQuota += rewardQuota
+	}
 	return DB.Save(user).Error
 }
 
@@ -575,16 +585,18 @@ func (user *User) finishInsert(inviterId int) {
 	if common.QuotaForNewUser > 0 {
 		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
 	}
-	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
-		if common.QuotaForInvitee > 0 {
+	if inviterId != 0 {
+		inviterRewardQuota := 0
+		complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
+		if complianceConfirmed && common.QuotaForInvitee > 0 {
 			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
 		}
-		if common.QuotaForInviter > 0 {
-			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
+		if complianceConfirmed && common.QuotaForInviter > 0 {
 			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
+			inviterRewardQuota = common.QuotaForInviter
 		}
+		_ = inviteUser(inviterId, inviterRewardQuota)
 	}
 }
 
@@ -632,15 +644,18 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 	if common.QuotaForNewUser > 0 {
 		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
 	}
-	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
-		if common.QuotaForInvitee > 0 {
+	if inviterId != 0 {
+		inviterRewardQuota := 0
+		complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
+		if complianceConfirmed && common.QuotaForInvitee > 0 {
 			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
 			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
 		}
-		if common.QuotaForInviter > 0 {
+		if complianceConfirmed && common.QuotaForInviter > 0 {
 			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
+			inviterRewardQuota = common.QuotaForInviter
 		}
+		_ = inviteUser(inviterId, inviterRewardQuota)
 	}
 }
 
@@ -1147,6 +1162,11 @@ func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
 		common.SysLog("failed to update user used quota and request count: " + err.Error())
 		return
 	}
+	if quota > 0 {
+		if err := ReleaseEligibleAffiliateRebatesForInvitee(id); err != nil {
+			common.SysLog("failed to release affiliate rebates: " + err.Error())
+		}
+	}
 
 	//// 更新缓存
 	//if err := invalidateUserCache(id); err != nil {
@@ -1168,6 +1188,12 @@ func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, r
 	).Error
 	if err != nil {
 		common.SysLog("failed to batch update user quota, used quota and request count: " + err.Error())
+		return
+	}
+	if usedQuota > 0 {
+		if err := ReleaseEligibleAffiliateRebatesForInvitee(id); err != nil {
+			common.SysLog("failed to release affiliate rebates: " + err.Error())
+		}
 	}
 }
 

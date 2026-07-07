@@ -25,6 +25,7 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
 
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
+import { AffiliateWithdrawalDialog } from './components/dialogs/affiliate-withdrawal-dialog'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
@@ -52,6 +53,7 @@ import type {
   PaymentMethod,
   PresetAmount,
   CreemProduct,
+  AffiliateWithdrawalRequest,
 } from './types'
 
 interface WalletProps {
@@ -69,6 +71,7 @@ export function Wallet(props: WalletProps) {
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
+  const [withdrawalDialogOpen, setWithdrawalDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
@@ -98,6 +101,8 @@ export function Wallet(props: WalletProps) {
     loading: affiliateLoading,
     transferQuota,
     transferring,
+    withdrawRewards,
+    withdrawing,
   } = useAffiliate()
   const { redeeming, redeemCode } = useRedemption()
   const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
@@ -218,6 +223,14 @@ export function Wallet(props: WalletProps) {
     return success
   }
 
+  const handleWithdrawal = async (request: AffiliateWithdrawalRequest) => {
+    const success = await withdrawRewards(request)
+    if (success) {
+      await fetchUser()
+    }
+    return success
+  }
+
   // Handle Creem product selection
   const handleCreemProductSelect = (product: CreemProduct) => {
     setSelectedCreemProduct(product)
@@ -320,8 +333,12 @@ export function Wallet(props: WalletProps) {
               user={user}
               affiliateLink={affiliateLink}
               onTransfer={() => setTransferDialogOpen(true)}
+              onWithdraw={() => setWithdrawalDialogOpen(true)}
               complianceConfirmed={
                 topupInfo?.payment_compliance_confirmed !== false
+              }
+              withdrawalEnabled={
+                topupInfo?.affiliate_withdraw_enabled === true
               }
               loading={affiliateLoading}
             />
@@ -348,6 +365,14 @@ export function Wallet(props: WalletProps) {
         onConfirm={handleTransfer}
         availableQuota={user?.aff_quota ?? 0}
         transferring={transferring}
+      />
+
+      <AffiliateWithdrawalDialog
+        open={withdrawalDialogOpen}
+        onOpenChange={setWithdrawalDialogOpen}
+        onConfirm={handleWithdrawal}
+        availableQuota={user?.aff_quota ?? 0}
+        withdrawing={withdrawing}
       />
 
       <BillingHistoryDialog

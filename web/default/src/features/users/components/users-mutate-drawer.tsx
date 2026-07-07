@@ -61,6 +61,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
   ADMIN_PERMISSION_ACTIONS,
@@ -153,6 +154,7 @@ export function UsersMutateDrawer({
 
   const currentQuotaRaw = form.watch('quota_dollars') || 0
   const selectedRole = form.watch('role')
+  const affiliateRuleCustom = form.watch('affiliate_rule.custom')
   const canEditAdminPermissions = currentUser?.role === ROLE.SUPER_ADMIN
   const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
 
@@ -447,6 +449,116 @@ export function UsersMutateDrawer({
                       </FormItem>
                     )}
                   />
+                </SideDrawerSection>
+              )}
+
+              {isUpdate && (
+                <SideDrawerSection>
+                  <h3 className='text-sm font-medium'>
+                    {t('Referral Rebate Rule')}
+                  </h3>
+
+                  <FormField
+                    control={form.control}
+                    name='affiliate_rule.custom'
+                    render={({ field }) => (
+                      <FormItem className='flex items-center justify-between gap-4 rounded-md border p-3'>
+                        <div className='space-y-1'>
+                          <FormLabel>{t('Custom Referral Rule')}</FormLabel>
+                          <FormDescription>
+                            {t(
+                              'Override the global referral rebate rule for this user'
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  {affiliateRuleCustom && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name='affiliate_rule.enabled'
+                        render={({ field }) => (
+                          <FormItem className='flex items-center justify-between gap-4 rounded-md border p-3'>
+                            <div className='space-y-1'>
+                              <FormLabel>{t('Referral Rebate')}</FormLabel>
+                              <FormDescription>
+                                {t('Enable rebate rewards for this user')}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name='affiliate_rule.reward_percent'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {t('Referral Rebate Percent')}
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type='number'
+                                min={0}
+                                max={100}
+                                step='0.01'
+                                value={field.value ?? 0}
+                                onChange={(event) =>
+                                  field.onChange(
+                                    event.target.value === ''
+                                      ? 0
+                                      : event.currentTarget.valueAsNumber
+                                  )
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name='affiliate_rule.settle_after_invitee_consumed'
+                        render={({ field }) => (
+                          <FormItem className='flex items-center justify-between gap-4 rounded-md border p-3'>
+                            <div className='space-y-1'>
+                              <FormLabel>
+                                {t('Settle After Consumption')}
+                              </FormLabel>
+                              <FormDescription>
+                                {t(
+                                  'Hold rebate rewards until invited users consume their credited top-up quota.'
+                                )}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
                 </SideDrawerSection>
               )}
 

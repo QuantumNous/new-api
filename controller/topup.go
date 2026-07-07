@@ -23,6 +23,7 @@ import (
 
 func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
+	affiliateSetting := operation_setting.GetAffiliateSetting()
 
 	// 获取支付方式
 	payMethods := operation_setting.PayMethods
@@ -104,6 +105,8 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_redemption":                complianceConfirmed,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
+		"affiliate_enabled":                complianceConfirmed && affiliateSetting.Enabled,
+		"affiliate_withdraw_enabled":       complianceConfirmed && affiliateSetting.Enabled && affiliateSetting.WithdrawEnabled,
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
 				return setting.GetWaffoPayMethods()
@@ -399,6 +402,9 @@ func EpayNotify(c *gin.Context) {
 			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 			quotaToAdd := int(dAmount.Mul(dQuotaPerUnit).IntPart())
 			err = model.IncreaseUserQuota(topUp.UserId, quotaToAdd, true)
+			if err == nil {
+				err = model.CreateAffiliateRebateForTopUp(topUp, quotaToAdd)
+			}
 			if err != nil {
 				logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 更新用户额度失败 trade_no=%s user_id=%d client_ip=%s quota_to_add=%d error=%q topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), quotaToAdd, err.Error(), common.GetJsonString(topUp)))
 				return

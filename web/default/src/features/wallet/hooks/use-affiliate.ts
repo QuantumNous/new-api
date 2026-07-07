@@ -23,8 +23,13 @@ import { toast } from 'sonner'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getSelf } from '@/lib/api'
 
-import { getAffiliateCode, transferAffiliateQuota } from '../api'
+import {
+  createAffiliateWithdrawal,
+  getAffiliateCode,
+  transferAffiliateQuota,
+} from '../api'
 import { generateAffiliateLink } from '../lib'
+import type { AffiliateWithdrawalRequest } from '../types'
 
 // ============================================================================
 // Affiliate Hook
@@ -35,6 +40,7 @@ export function useAffiliate() {
   const [affiliateLink, setAffiliateLink] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [transferring, setTransferring] = useState(false)
+  const [withdrawing, setWithdrawing] = useState(false)
   const { copyToClipboard } = useCopyToClipboard()
 
   // Fetch affiliate code
@@ -83,6 +89,34 @@ export function useAffiliate() {
     }
   }, [])
 
+  const withdrawRewards = useCallback(
+    async (request: AffiliateWithdrawalRequest): Promise<boolean> => {
+      try {
+        setWithdrawing(true)
+        const response = await createAffiliateWithdrawal(request)
+
+        if (response.success) {
+          toast.success(
+            response.message || i18next.t('Withdrawal request submitted')
+          )
+          await getSelf()
+          return true
+        }
+
+        toast.error(
+          response.message || i18next.t('Withdrawal request failed')
+        )
+        return false
+      } catch (_error) {
+        toast.error(i18next.t('Withdrawal request failed'))
+        return false
+      } finally {
+        setWithdrawing(false)
+      }
+    },
+    []
+  )
+
   useEffect(() => {
     fetchAffiliateCode()
   }, [fetchAffiliateCode])
@@ -92,8 +126,10 @@ export function useAffiliate() {
     affiliateLink,
     loading,
     transferring,
+    withdrawing,
     copyAffiliateLink,
     transferQuota,
+    withdrawRewards,
     refetch: fetchAffiliateCode,
   }
 }

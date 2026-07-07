@@ -166,8 +166,10 @@ func Redeem(key string, userId int) (quota int, err error) {
 		redemption.RedeemedTime = common.GetTimestamp()
 		redemption.Status = common.RedemptionCodeStatusUsed
 		redemption.UsedUserId = userId
-		err = tx.Save(redemption).Error
-		return err
+		if err = tx.Save(redemption).Error; err != nil {
+			return err
+		}
+		return CreateAffiliateRebateForRedemptionTx(tx, redemption, userId)
 	})
 	if err != nil {
 		common.SysError("redemption failed: " + err.Error())

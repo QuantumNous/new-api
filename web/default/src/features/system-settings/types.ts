@@ -252,6 +252,11 @@ export type BillingSettings = {
   TopUpLink: string
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean
+  'affiliate_setting.enabled': boolean
+  'affiliate_setting.reward_percent': number
+  'affiliate_setting.settle_after_invitee_consumed': boolean
+  'affiliate_setting.redemption_enabled': boolean
+  'affiliate_setting.withdraw_enabled': boolean
   QuotaPerUnit: number
   USDExchangeRate: number
   'general_setting.quota_display_type': string

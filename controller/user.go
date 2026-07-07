@@ -347,6 +347,47 @@ func canManageTargetRole(myRole int, targetRole int) bool {
 	return myRole == common.RoleRootUser || myRole > targetRole
 }
 
+func getAffiliateRulePayload(userId int) (*model.AffiliateUserRulePayload, error) {
+	global := operation_setting.GetAffiliateSetting()
+	payload := &model.AffiliateUserRulePayload{
+		Enabled:                    global.Enabled,
+		RewardPercent:              global.RewardPercent,
+		SettleAfterInviteeConsumed: global.SettleAfterInviteeConsumed,
+	}
+	rule, found, err := model.GetAffiliateUserRule(userId)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		payload.Custom = true
+		payload.Enabled = rule.Enabled
+		payload.RewardPercent = rule.RewardPercent
+		payload.SettleAfterInviteeConsumed = rule.SettleAfterInviteeConsumed
+	}
+	return payload, nil
+}
+
+func updateAffiliateRuleForUserInTx(tx *gorm.DB, userId int, payload *model.AffiliateUserRulePayload) error {
+	if payload == nil {
+		return nil
+	}
+	if !payload.Custom {
+		return model.DeleteAffiliateUserRuleWithTx(tx, userId)
+	}
+	if payload.RewardPercent < 0 || payload.RewardPercent > 100 {
+		return errors.New("affiliate reward percent must be between 0 and 100")
+	}
+	if payload.Enabled && payload.RewardPercent > 0 && !operation_setting.IsPaymentComplianceConfirmed() {
+		return model.ErrAffiliateRuleDisabled
+	}
+	return model.SaveAffiliateUserRuleWithTx(tx, &model.AffiliateUserRule{
+		UserId:                     userId,
+		Enabled:                    payload.Enabled,
+		RewardPercent:              payload.RewardPercent,
+		SettleAfterInviteeConsumed: payload.SettleAfterInviteeConsumed,
+	})
+}
+
 func GetUser(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -364,6 +405,11 @@ func GetUser(c *gin.Context) {
 		return
 	}
 	user.AdminPermissions = authz.Capabilities(user.Id, user.Role)
+	user.AffiliateRule, err = getAffiliateRulePayload(user.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -435,6 +481,83 @@ func TransferAffQuota(c *gin.Context) {
 	common.ApiSuccessI18n(c, i18n.MsgUserTransferSuccess, nil)
 }
 
+type AffiliateWithdrawalRequest struct {
+	Amount        int    `json:"amount"`
+	PaymentMethod string `json:"payment_method"`
+	Account       string `json:"account"`
+	Remark        string `json:"remark"`
+}
+
+func CreateAffiliateWithdrawal(c *gin.Context) {
+	var req AffiliateWithdrawalRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	req.PaymentMethod = strings.TrimSpace(req.PaymentMethod)
+	req.Account = strings.TrimSpace(req.Account)
+	req.Remark = strings.TrimSpace(req.Remark)
+	if req.Amount <= 0 || req.PaymentMethod == "" || req.Account == "" {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	withdrawal, err := model.CreateAffiliateWithdrawal(c.GetInt("id"), req.Amount, req.PaymentMethod, req.Account, req.Remark)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, withdrawal)
+}
+
+func GetAffiliateWithdrawals(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	withdrawals, total, err := model.GetUserAffiliateWithdrawals(c.GetInt("id"), pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(withdrawals)
+	common.ApiSuccess(c, pageInfo)
+}
+
+type AffiliateWithdrawalProcessRequest struct {
+	Status      string `json:"status"`
+	AdminRemark string `json:"admin_remark"`
+}
+
+func GetAllAffiliateWithdrawals(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	withdrawals, total, err := model.GetAllAffiliateWithdrawals(pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(withdrawals)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func ProcessAffiliateWithdrawal(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	var req AffiliateWithdrawalProcessRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	req.Status = strings.TrimSpace(req.Status)
+	req.AdminRemark = strings.TrimSpace(req.AdminRemark)
+	if err := model.UpdateAffiliateWithdrawalStatus(id, req.Status, req.AdminRemark, c.GetInt("id")); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
 func GetAffCode(c *gin.Context) {
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, true)
@@ -477,6 +600,16 @@ func GetSelf(c *gin.Context) {
 
 	// 获取用户设置并提取sidebar_modules
 	userSetting := user.GetSetting()
+	pendingAffiliateQuota, err := model.GetPendingAffiliateQuota(user.Id)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to get pending affiliate quota for user %d: %s", user.Id, err.Error()))
+		pendingAffiliateQuota = 0
+	}
+	affiliateInviteCount, err := model.GetAffiliateInviteCount(user.Id)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to get affiliate invite count for user %d: %s", user.Id, err.Error()))
+		affiliateInviteCount = user.AffCount
+	}
 
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
@@ -496,8 +629,9 @@ func GetSelf(c *gin.Context) {
 		"used_quota":        user.UsedQuota,
 		"request_count":     user.RequestCount,
 		"aff_code":          user.AffCode,
-		"aff_count":         user.AffCount,
+		"aff_count":         affiliateInviteCount,
 		"aff_quota":         user.AffQuota,
+		"aff_pending_quota": pendingAffiliateQuota,
 		"aff_history_quota": user.AffHistoryQuota,
 		"inviter_id":        user.InviterId,
 		"linux_do_id":       user.LinuxDOId,
@@ -696,7 +830,10 @@ func UpdateUser(c *gin.Context) {
 		}
 		touched, err := updateAdminPermissionsForUserInTx(c, tx, updatedUser.Id, originUser.Role, updatedUser.AdminPermissions)
 		authzTouched = touched
-		return err
+		if err != nil {
+			return err
+		}
+		return updateAffiliateRuleForUserInTx(tx, updatedUser.Id, updatedUser.AffiliateRule)
 	}); err != nil {
 		common.ApiError(c, err)
 		return

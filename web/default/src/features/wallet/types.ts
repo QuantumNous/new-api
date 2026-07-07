@@ -41,6 +41,7 @@ export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
 export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
 export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse
+export type AffiliateWithdrawalResponse = ApiResponse<AffiliateWithdrawal>
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string
@@ -156,6 +157,10 @@ export interface TopupInfo {
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */
   payment_compliance_terms_version?: string
+  /** Whether referral rebate is enabled */
+  affiliate_enabled?: boolean
+  /** Whether referral withdrawal requests are enabled */
+  affiliate_withdraw_enabled?: boolean
 }
 
 /**
@@ -221,6 +226,20 @@ export interface AffiliateTransferRequest {
 }
 
 /**
+ * Affiliate withdrawal request
+ */
+export interface AffiliateWithdrawalRequest {
+  /** Quota amount to withdraw */
+  amount: number
+  /** Payment method label */
+  payment_method: string
+  /** Receiving account */
+  account: string
+  /** Optional user remark */
+  remark?: string
+}
+
+/**
  * User wallet data
  */
 export interface UserWalletData {
@@ -234,8 +253,10 @@ export interface UserWalletData {
   used_quota: number
   /** Total request count */
   request_count: number
-  /** Affiliate quota (pending rewards) */
+  /** Affiliate quota available for transfer or withdrawal */
   aff_quota: number
+  /** Affiliate quota waiting for invited users to consume */
+  aff_pending_quota?: number
   /** Total affiliate quota earned (historical) */
   aff_history_quota: number
   /** Number of successful affiliate invites */
@@ -286,4 +307,22 @@ export interface BillingHistoryResponse {
  */
 export interface CompleteOrderRequest {
   trade_no: string
+}
+
+/**
+ * Affiliate withdrawal record
+ */
+export interface AffiliateWithdrawal {
+  id: number
+  user_id: number
+  amount: number
+  payment_method: string
+  account: string
+  remark: string
+  admin_remark: string
+  status: 'pending' | 'paid' | 'rejected'
+  created_at: number
+  updated_at: number
+  processed_at: number
+  processed_by: number
 }

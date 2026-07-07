@@ -70,6 +70,14 @@ const BILLING_SECTIONS = [
             enable_free_model_pre_consume:
               settings['quota_setting.enable_free_model_pre_consume'],
           },
+          affiliate_setting: {
+            enabled: settings['affiliate_setting.enabled'],
+            reward_percent: settings['affiliate_setting.reward_percent'],
+            settle_after_invitee_consumed:
+              settings['affiliate_setting.settle_after_invitee_consumed'],
+            redemption_enabled: settings['affiliate_setting.redemption_enabled'],
+            withdraw_enabled: settings['affiliate_setting.withdraw_enabled'],
+          },
         }}
         complianceConfirmed={
           (settings['payment_setting.compliance_confirmed'] ?? false) &&
