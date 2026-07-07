@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -41,8 +42,8 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgSubscriptionNotEnabled)
 		return
 	}
-	if plan.StripePriceId == "" {
-		common.ApiErrorI18n(c, i18n.MsgPaymentPriceIdNotConfig)
+	if plan.PriceAmount < 0.01 {
+		common.ApiErrorI18n(c, i18n.MsgPaymentAmountTooLow)
 		return
 	}
 	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
@@ -80,7 +81,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	reference := fmt.Sprintf("sub-stripe-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
 
-	payLink, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan.StripePriceId)
+	payLink, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅支付链接创建失败 trade_no=%s plan_id=%d error=%q", referenceId, plan.Id, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgPaymentStartFailed)})
@@ -111,7 +112,21 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	})
 }
 
-func genStripeSubscriptionLink(referenceId string, customerId string, email string, priceId string) (string, error) {
+func genStripeSubscriptionLink(referenceId string, customerId string, email string, plan *model.SubscriptionPlan) (string, error) {
+	if plan == nil {
+		return "", fmt.Errorf("subscription plan is nil")
+	}
+
+	unitAmount := int64(math.Round(plan.PriceAmount * 100))
+	if unitAmount <= 0 {
+		return "", fmt.Errorf("invalid stripe checkout amount")
+	}
+
+	currency := strings.ToLower(strings.TrimSpace(plan.Currency))
+	if currency == "" {
+		currency = "usd"
+	}
+
 	stripe.Key = setting.StripeApiSecret
 
 	params := &stripe.CheckoutSessionParams{
@@ -120,11 +135,18 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 		CancelURL:         stripe.String(paymentReturnPath("/console/topup")),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
-				Price:    stripe.String(priceId),
+				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
+					Currency: stripe.String(currency),
+					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
+						Name: stripe.String(plan.Title),
+					},
+					UnitAmount: stripe.Int64(unitAmount),
+				},
 				Quantity: stripe.Int64(1),
 			},
 		},
-		Mode: stripe.String(string(stripe.CheckoutSessionModeSubscription)),
+		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
+		AllowPromotionCodes: stripe.Bool(setting.StripePromotionCodesEnabled),
 	}
 
 	if "" == customerId {
