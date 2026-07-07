@@ -88,6 +88,7 @@ func TestCreateSubscriptionSendsVerifiedShape(t *testing.T) {
 		CustomerId:        "cus_1",
 		BillingCustomerId: "cus_1",
 		CollectionMethod:  "AUTO_CHARGE",
+		PaymentSourceId:   "cst_1",
 		PaymentConsentId:  "cst_1",
 		Items:             []SubscriptionItem{{PriceId: "pri_pro"}},
 		Recurring:         &SubscriptionRecurring{Period: 1, PeriodUnit: "MONTH"},
@@ -102,7 +103,7 @@ func TestCreateSubscriptionSendsVerifiedShape(t *testing.T) {
 	if gotPath != "/api/v1/subscriptions/create" {
 		t.Fatalf("wrong path %s", gotPath)
 	}
-	for _, needle := range []string{`"payment_consent_id":"cst_1"`, `"billing_customer_id":"cus_1"`, `"collection_method":"AUTO_CHARGE"`, `"price_id":"pri_pro"`, `"period_unit":"MONTH"`, `"trade_no":"sub_ref_x"`} {
+	for _, needle := range []string{`"payment_consent_id":"cst_1"`, `"payment_source_id":"cst_1"`, `"billing_customer_id":"cus_1"`, `"collection_method":"AUTO_CHARGE"`, `"price_id":"pri_pro"`, `"period_unit":"MONTH"`, `"trade_no":"sub_ref_x"`} {
 		if !strings.Contains(gotBody, needle) {
 			t.Fatalf("body missing %s: %s", needle, gotBody)
 		}

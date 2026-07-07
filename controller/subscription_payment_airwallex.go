@@ -365,6 +365,7 @@ func handleAirwallexConsentVerified(c *gin.Context, event airwallexEvent, raw []
 		CustomerId:        customerId,
 		BillingCustomerId: customerId,
 		CollectionMethod:  "AUTO_CHARGE",
+		PaymentSourceId:   consentId,
 		PaymentConsentId:  consentId,
 		Items:             []airwallex.SubscriptionItem{{PriceId: plan.AirwallexPriceId}},
 		Recurring:         &airwallex.SubscriptionRecurring{Period: plan.DurationValue, PeriodUnit: strings.ToUpper(plan.DurationUnit)},

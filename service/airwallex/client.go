@@ -204,7 +204,10 @@ type CreateSubscriptionRequest struct {
 	BillingCustomerId string `json:"billing_customer_id"`
 	// CollectionMethod ∈ AUTO_CHARGE / CHARGE_ON_CHECKOUT / OUT_OF_BAND (live API
 	// 2025-02-14 requires it; the published schema.json is older and omits it).
-	CollectionMethod string                 `json:"collection_method"`
+	CollectionMethod string `json:"collection_method"`
+	// PaymentSourceId is required by the live API when CollectionMethod is
+	// AUTO_CHARGE; for consent-backed charging it carries the PaymentConsent id.
+	PaymentSourceId  string                 `json:"payment_source_id,omitempty"`
 	PaymentConsentId string                 `json:"payment_consent_id"`
 	Items            []SubscriptionItem     `json:"items"`
 	Recurring        *SubscriptionRecurring `json:"recurring,omitempty"`
