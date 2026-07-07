@@ -17,14 +17,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import i18n from 'i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
+import {
+  OFFICIAL_WEBSITE_ORIGIN,
+  localizedWebsitePath,
+  officialWebsiteUrl,
+} from '@/lib/origins'
 import { ModelDetails } from '@/features/pricing/components/model-details'
 import { publicPricingSearchSchema } from '@/features/pricing/lib/public-search'
 
 export const Route = createFileRoute('/pricing/$modelId/')({
   validateSearch: publicPricingSearchSchema,
-  beforeLoad: async ({ location }) => {
+  beforeLoad: async ({ location, params }) => {
     const access = await getFreshModuleAccess('pricing')
     if (!access.enabled) {
       throw redirect({ to: '/' })
@@ -37,6 +43,16 @@ export const Route = createFileRoute('/pricing/$modelId/')({
           search: { redirect: location.href },
         })
       }
+    }
+    // The official website /models/<model> is the single public model surface
+    // (Rule 9) — hand old console links over to it. Without a configured
+    // origin (local dev, self-host) keep the local page.
+    if (OFFICIAL_WEBSITE_ORIGIN) {
+      const path = `/models/${encodeURIComponent(params.modelId)}`
+      window.location.replace(
+        officialWebsiteUrl(localizedWebsitePath(i18n.language, path))
+      )
+      await new Promise(() => {})
     }
   },
   component: ModelDetails,

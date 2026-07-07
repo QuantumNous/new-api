@@ -154,13 +154,13 @@ function parseCreemProducts(data: unknown): CreemProduct[] {
     .filter((item) => item.name && item.productId)
 }
 
-function parseAmountOptions(data: unknown): number[] {
+export function parseAmountOptions(data: unknown): number[] {
   return parseJsonArray(data)
     .map((item) => Number(item))
     .filter((item) => Number.isFinite(item) && item > 0)
 }
 
-function parseNumberMap(data: unknown): Record<number, number> {
+export function parseNumberMap(data: unknown): Record<number, number> {
   if (!data) {
     return {}
   }

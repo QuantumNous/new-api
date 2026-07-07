@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { DailyHealthBars } from "@/components/home-health-bars";
 import { ModelLogo } from "@/components/pricing-model-browser";
@@ -14,10 +15,13 @@ import {
   type HomeTrendPoint,
 } from "@/lib/home-live";
 import type { HomePricedModel } from "@/lib/home-models";
+import { localizePath, type Locale } from "@/lib/locales";
+import { modelPublicPath } from "@/lib/model-public";
 
 type Props = {
   copy: HomeCopy["table"];
   rows: HomePricedModel[];
+  locale?: Locale;
 };
 
 // /models directory: every priced model as one row — official price struck
@@ -75,6 +79,7 @@ export function ModelsDirectoryTable(props: Props) {
               perf={summary[row.name]}
               trend={trends[row.name] ?? []}
               healthLabel={props.copy.colHealth}
+              locale={props.locale}
               onVisible={() => loadTrend(row.name)}
             />
           ))}
@@ -89,6 +94,7 @@ function DirectoryRow(props: {
   perf: HomePerfSummary | undefined;
   trend: HomeTrendPoint[];
   healthLabel: string;
+  locale?: Locale;
   onVisible: () => void;
 }) {
   const ref = useRef<HTMLTableRowElement>(null);
@@ -117,15 +123,32 @@ function DirectoryRow(props: {
   return (
     <tr ref={ref} className="border-b border-violet-500/8 transition-colors last:border-b-0 hover:bg-violet-500/4">
       <td className="max-w-[280px] px-5 py-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-violet-500/15 bg-violet-500/6">
-            <ModelLogo iconKey={row.iconKey} fallback={row.name.charAt(0).toUpperCase()} size={18} />
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate font-mono text-[13px] font-semibold tracking-tight">{row.name}</span>
-            <span className="text-muted-foreground/70 block text-[11px]">{row.vendor}</span>
-          </span>
-        </div>
+        {props.locale ? (
+          <Link
+            href={localizePath(modelPublicPath(row.name), props.locale)}
+            className="flex items-center gap-2.5 hover:opacity-80"
+          >
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-violet-500/15 bg-violet-500/6">
+              <ModelLogo iconKey={row.iconKey} fallback={row.name.charAt(0).toUpperCase()} size={18} />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate font-mono text-[13px] font-semibold tracking-tight underline-offset-2 hover:underline">
+                {row.name}
+              </span>
+              <span className="text-muted-foreground/70 block text-[11px]">{row.vendor}</span>
+            </span>
+          </Link>
+        ) : (
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-violet-500/15 bg-violet-500/6">
+              <ModelLogo iconKey={row.iconKey} fallback={row.name.charAt(0).toUpperCase()} size={18} />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate font-mono text-[13px] font-semibold tracking-tight">{row.name}</span>
+              <span className="text-muted-foreground/70 block text-[11px]">{row.vendor}</span>
+            </span>
+          </div>
+        )}
       </td>
       <td className="text-muted-foreground px-3 py-3 text-right font-mono text-[13px] line-through">{row.official}</td>
       <td className="px-3 py-3 text-right font-mono text-[13px] font-bold text-emerald-600 dark:text-emerald-400">{row.discounted}</td>

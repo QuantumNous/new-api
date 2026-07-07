@@ -26,6 +26,10 @@ import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { getTopupInfo } from '@/features/wallet/api'
+import {
+  parseAmountOptions,
+  parseNumberMap,
+} from '@/features/wallet/hooks/use-topup-info'
 import { requestPromoTopup, isApiSuccess } from './api'
 
 // Recharge tiers. amount = USD charged, bonus = USD credited on top of the
@@ -62,18 +66,20 @@ export function Onboarding() {
   })
 
   const tiers = useMemo<PromoTier[]>(() => {
+    // The raw payload fields may arrive as JSON strings (same reason the
+    // wallet runs them through these parsers) — never .map/.filter them raw.
     const info = topupInfoQuery.data?.data
-    const remaining = info?.bonus_remaining ?? {}
+    const amountOptions = parseAmountOptions(info?.amount_options)
+    const bonus = parseNumberMap(info?.bonus)
+    const remaining = parseNumberMap(info?.bonus_remaining)
     // Stripe checkout packages only accept amounts present in
     // payment_setting.amount_options — a bonus tier outside that set would
     // render a button whose payment request the backend rejects.
-    const allowedAmounts = new Set(
-      (info?.amount_options ?? []).map((amount) => Number(amount))
-    )
-    const fromBonus = Object.entries(info?.bonus ?? {})
-      .map(([amount, bonus]) => ({
+    const allowedAmounts = new Set(amountOptions)
+    const fromBonus = Object.entries(bonus)
+      .map(([amount, bonusValue]) => ({
         amount: Number(amount),
-        bonus: Number(bonus),
+        bonus: Number(bonusValue),
       }))
       // remaining === 0 means this user exhausted the tier's lifetime bonus
       // count; undefined means unlimited.
@@ -91,19 +97,12 @@ export function Onboarding() {
         index === 0 ? { ...tier, highlight: true } : tier
       )
     }
-    const amounts =
-      info?.amount_options && info.amount_options.length > 0
-        ? info.amount_options
-        : FALLBACK_AMOUNTS
-    return amounts
-      .map((amount) => Number(amount))
-      .filter((amount) => amount > 0)
-      .slice(0, 3)
-      .map((amount, index) => ({
-        amount,
-        bonus: 0,
-        highlight: index === 0,
-      }))
+    const amounts = amountOptions.length > 0 ? amountOptions : FALLBACK_AMOUNTS
+    return amounts.slice(0, 3).map((amount, index) => ({
+      amount,
+      bonus: 0,
+      highlight: index === 0,
+    }))
   }, [topupInfoQuery.data])
 
   useEffect(() => {

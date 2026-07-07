@@ -200,6 +200,7 @@ export function PricingExplorer(props: PricingExplorerProps) {
             <ModelsDirectoryTable
               copy={getHomeCopy(props.locale).table}
               rows={buildRowsForModels(visibleModels, props.vendors, props.groupRatio)}
+              locale={props.locale}
             />
           ) : (
             <div className="border-border bg-card flex min-h-64 flex-col items-center justify-center rounded-3xl border px-6 py-14 text-center">
