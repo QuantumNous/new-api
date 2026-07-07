@@ -30,6 +30,7 @@ env:
   APP_CONSOLE_ORIGIN: ${{ vars.STAGING_WEBSITE_APP_CONSOLE_ORIGIN || 'https://staging-console.flatkey.ai' }}
   ROUTER_ORIGIN: ${{ vars.STAGING_WEBSITE_ROUTER_ORIGIN || 'https://staging-router.flatkey.ai' }}
   SITE_ORIGIN: ${{ vars.STAGING_WEBSITE_SITE_ORIGIN || 'https://staging-website.flatkey.ai' }}
+  COOKIE_SESSION_DOMAIN: ${{ vars.STAGING_COOKIE_SESSION_DOMAIN || '.flatkey.ai' }}
 
 jobs:
   build:
@@ -81,6 +82,7 @@ jobs:
             APP_CONSOLE_ORIGIN=${{ env.APP_CONSOLE_ORIGIN }}
             ROUTER_ORIGIN=${{ env.ROUTER_ORIGIN }}
             SITE_ORIGIN=${{ env.SITE_ORIGIN }}
+            COOKIE_SESSION_DOMAIN=${{ env.COOKIE_SESSION_DOMAIN }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/website:staging-latest
@@ -115,6 +117,9 @@ jobs:
           fi
           if [[ -n "${SITE_ORIGIN}" ]]; then
             env_kvs+=("SITE_ORIGIN=${SITE_ORIGIN}")
+          fi
+          if [[ -n "${COOKIE_SESSION_DOMAIN}" ]]; then
+            env_kvs+=("COOKIE_SESSION_DOMAIN=${COOKIE_SESSION_DOMAIN}")
           fi
           env_args=()
           if [[ ${#env_kvs[@]} -gt 0 ]]; then

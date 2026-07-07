@@ -855,9 +855,17 @@ func UpdateSelf(c *gin.Context) {
 		currentSetting := user.GetSetting()
 
 		// 更新language字段
-		if langStr, ok := language.(string); ok {
-			currentSetting.Language = langStr
+		langStr, ok := language.(string)
+		if !ok {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
 		}
+		normalizedLanguage, ok := dto.NormalizeUserLanguagePreference(langStr)
+		if !ok {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		currentSetting.Language = normalizedLanguage
 
 		// 保存更新后的设置
 		user.SetSetting(currentSetting)
@@ -1415,6 +1423,7 @@ func UpdateUserSetting(c *gin.Context) {
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
 		RecordIpLog:                      req.RecordIpLog,
+		Language:                         existingSettings.Language,
 	}
 
 	// 如果是webhook类型,添加webhook相关设置

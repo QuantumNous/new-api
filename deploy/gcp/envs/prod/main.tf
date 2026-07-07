@@ -321,14 +321,15 @@ resource "google_project_iam_member" "web_runtime_metric_writer" {
 module "cloud_run_web" {
   count = var.enable_website ? 1 : 0
 
-  source             = "../../modules/cloud-run-web"
-  project_id         = var.project_id
-  region             = var.region
-  service_name       = var.website_service_name
-  runtime_sa_email   = google_service_account.web_runtime[0].email
-  app_console_origin = var.website_app_console_origin
-  router_origin      = var.website_router_origin
-  site_origin        = var.website_site_origin
+  source                = "../../modules/cloud-run-web"
+  project_id            = var.project_id
+  region                = var.region
+  service_name          = var.website_service_name
+  runtime_sa_email      = google_service_account.web_runtime[0].email
+  app_console_origin    = var.website_app_console_origin
+  router_origin         = var.website_router_origin
+  site_origin           = var.website_site_origin
+  cookie_session_domain = var.website_cookie_session_domain
 
   depends_on = [module.apis]
 }

@@ -49,8 +49,22 @@ export function getLanguageRedirectPath(input: LanguageRedirectInput): string | 
   return localizePath(pathname, locale);
 }
 
-export function buildLanguagePreferenceCookie(locale: Locale): string {
-  return `${LANGUAGE_PREFERENCE_COOKIE}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
+export function buildLanguagePreferenceCookie(locale: Locale, domain?: string | null): string {
+  const normalizedDomain = domain?.trim();
+  const domainAttribute = normalizedDomain ? `; Domain=${normalizedDomain}` : "";
+  return `${LANGUAGE_PREFERENCE_COOKIE}=${locale}; Path=/${domainAttribute}; Max-Age=31536000; SameSite=Lax`;
+}
+
+export function buildLanguagePreferenceCookieWrites(locale: Locale, domain?: string | null): string[] {
+  const normalizedDomain = domain?.trim();
+  if (!normalizedDomain) {
+    return [buildLanguagePreferenceCookie(locale)];
+  }
+
+  return [
+    `${LANGUAGE_PREFERENCE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`,
+    buildLanguagePreferenceCookie(locale, normalizedDomain),
+  ];
 }
 
 function parseAcceptLanguage(acceptLanguage: string | null | undefined): string[] {

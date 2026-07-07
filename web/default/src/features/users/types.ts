@@ -51,6 +51,7 @@ export const userSchema = z.object({
   inviter_id: z.number().optional(),
   ads_attribution: z.string().optional(),
   linux_do_id: z.string().optional(),
+  setting: z.string().optional(),
   status: userStatusSchema,
   role: userRoleSchema,
   created_at: z.number().optional(),

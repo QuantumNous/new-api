@@ -94,3 +94,9 @@ variable "site_origin" {
   description = "Public origin of the marketing site itself. e.g. https://flatkey.ai"
   default     = "https://flatkey.ai"
 }
+
+variable "cookie_session_domain" {
+  type        = string
+  description = "Shared cookie domain for browser-visible website preferences. e.g. .flatkey.ai"
+  default     = ""
+}

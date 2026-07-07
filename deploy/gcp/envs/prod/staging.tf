@@ -471,6 +471,10 @@ resource "google_cloud_run_v2_service" "staging_web" {
         name  = "SITE_ORIGIN"
         value = var.staging_website_origin
       }
+      env {
+        name  = "COOKIE_SESSION_DOMAIN"
+        value = ".flatkey.ai"
+      }
     }
   }
 

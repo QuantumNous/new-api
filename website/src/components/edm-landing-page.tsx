@@ -29,13 +29,20 @@ export function shouldRenderLandingOfferModal(locale: Locale) {
 
 export function EdmLandingPage(props: Props) {
   const ctaUrl = getEdmCtaUrl();
+  const languageCookieDomain = process.env.COOKIE_SESSION_DOMAIN?.trim() || undefined;
   const mainClassName = ["min-h-screen bg-background pt-20 pb-20 text-foreground sm:pb-0", props.locale === "ja" ? "ja-gothic-landing" : ""]
     .filter(Boolean)
     .join(" ");
 
   return (
     <>
-      <LandingHeader campaign={props.campaign} ctaUrl={ctaUrl} locale={props.locale} pathname={props.pathname} />
+      <LandingHeader
+        campaign={props.campaign}
+        ctaUrl={ctaUrl}
+        locale={props.locale}
+        pathname={props.pathname}
+        languageCookieDomain={languageCookieDomain}
+      />
       <main className={mainClassName}>
       <section className="mx-auto grid max-w-6xl gap-8 px-5 py-9 md:grid-cols-[minmax(0,1.02fr)_minmax(340px,0.98fr)] md:px-6 md:py-14 lg:gap-14">
         <div className="flex flex-col justify-center">
@@ -318,7 +325,13 @@ export function EdmLandingPage(props: Props) {
   );
 }
 
-function LandingHeader(props: { campaign: EdmCampaignCopy; ctaUrl: string; locale: Locale; pathname: string }) {
+function LandingHeader(props: {
+  campaign: EdmCampaignCopy;
+  ctaUrl: string;
+  locale: Locale;
+  pathname: string;
+  languageCookieDomain?: string;
+}) {
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-border/60 bg-background/90 backdrop-blur-xl">
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 md:px-6">
@@ -329,7 +342,7 @@ function LandingHeader(props: { campaign: EdmCampaignCopy; ctaUrl: string; local
           <span className="sr-only">flatkey.ai</span>
         </Link>
         <div className="flex min-w-0 items-center gap-2">
-          <LanguageSwitcher locale={props.locale} pathname={props.pathname} />
+          <LanguageSwitcher locale={props.locale} pathname={props.pathname} cookieDomain={props.languageCookieDomain} />
           <a
             href={props.ctaUrl}
             className="flatkey-primary-cta hidden h-9 items-center justify-center rounded-lg px-4 text-xs font-bold transition-opacity hover:opacity-90 sm:inline-flex"

@@ -9,10 +9,11 @@ import { cn } from "@/lib/utils";
 type Props = {
   locale: Locale;
   pathname: string;
+  cookieDomain?: string;
 };
 
-function persistLanguagePreference(locale: Locale) {
-  document.cookie = buildLanguagePreferenceCookie(locale);
+function persistLanguagePreference(locale: Locale, cookieDomain?: string) {
+  document.cookie = buildLanguagePreferenceCookie(locale, cookieDomain);
 }
 
 export function LanguageSwitcher(props: Props) {
@@ -52,7 +53,7 @@ export function LanguageSwitcher(props: Props) {
   }, [open]);
 
   const handleLanguageClick = (locale: Locale) => {
-    persistLanguagePreference(locale);
+    persistLanguagePreference(locale, props.cookieDomain);
     setOpen(false);
   };
 

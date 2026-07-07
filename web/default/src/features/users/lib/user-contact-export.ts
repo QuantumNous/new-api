@@ -38,6 +38,7 @@ export type UserContactsCsvText = {
   id: string
   username: string
   displayName: string
+  language: string
   email: string
   status: string
   quota: string
@@ -77,6 +78,7 @@ const DEFAULT_TEXT: UserContactsCsvText = {
   id: 'ID',
   username: 'Username',
   displayName: 'Display Name',
+  language: 'Interface Language',
   email: 'Email',
   status: 'Status',
   quota: 'Quota',
@@ -95,6 +97,19 @@ const DEFAULT_TEXT: UserContactsCsvText = {
   createdAt: 'Created At',
   lastLogin: 'Last Login',
   noQuota: 'No Quota',
+}
+
+function getUserInterfaceLanguage(user: User): string {
+  if (!user.setting) {
+    return ''
+  }
+
+  try {
+    const setting = JSON.parse(user.setting) as { language?: unknown }
+    return typeof setting.language === 'string' ? setting.language : ''
+  } catch {
+    return ''
+  }
 }
 
 function escapeCsvCell(value: string | number | null | undefined): string {
@@ -130,6 +145,7 @@ export function buildUserContactsCsv(
       text.email,
       text.status,
       text.quota,
+      text.language,
       text.requestCount,
       text.group,
       text.role,
@@ -154,6 +170,7 @@ export function buildUserContactsCsv(
         user.email,
         getUserStatusLabel(user, translateLabel),
         formatUserQuotaDisplay(user, text.noQuota),
+        getUserInterfaceLanguage(user),
         user.request_count,
         user.group,
         getUserRoleLabel(user, translateLabel),

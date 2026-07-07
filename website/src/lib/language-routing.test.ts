@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   LANGUAGE_PREFERENCE_COOKIE,
   buildLanguagePreferenceCookie,
+  buildLanguagePreferenceCookieWrites,
   getLanguageRedirectPath,
   isBotUserAgent,
   resolvePreferredLocale,
@@ -78,5 +79,24 @@ describe("language routing", () => {
 
   test("builds a one-year language preference cookie", () => {
     expect(buildLanguagePreferenceCookie("ja")).toBe("fk_locale=ja; Path=/; Max-Age=31536000; SameSite=Lax");
+  });
+
+  test("builds a shared-domain language preference cookie when configured", () => {
+    expect(buildLanguagePreferenceCookie("ja", ".flatkey.ai")).toBe(
+      "fk_locale=ja; Path=/; Domain=.flatkey.ai; Max-Age=31536000; SameSite=Lax"
+    );
+  });
+
+  test("expires the host-scoped language cookie before setting a shared-domain cookie", () => {
+    expect(buildLanguagePreferenceCookieWrites("ja", ".flatkey.ai")).toEqual([
+      "fk_locale=; Path=/; Max-Age=0; SameSite=Lax",
+      "fk_locale=ja; Path=/; Domain=.flatkey.ai; Max-Age=31536000; SameSite=Lax",
+    ]);
+  });
+
+  test("writes only the normal language cookie when no shared domain is configured", () => {
+    expect(buildLanguagePreferenceCookieWrites("ja", " ")).toEqual([
+      "fk_locale=ja; Path=/; Max-Age=31536000; SameSite=Lax",
+    ]);
   });
 });
