@@ -62,6 +62,7 @@ import {
 } from '@/components/page-transition'
 import { fetchTokenKey, getApiKeys } from '@/features/keys/api'
 import type { ApiKey } from '@/features/keys/types'
+import { getPricing } from '@/features/pricing/api'
 import {
   useApiInfo,
   useDashboardContentVisibility,
@@ -153,6 +154,21 @@ const PREFERRED_EXAMPLE_MODELS = [
   'gpt-5-mini',
   'gpt-4o',
 ]
+
+// The example request always targets /v1/chat/completions, so models tagged
+// as generation/embedding surfaces would only produce a failing curl.
+// Endpoint tags come from channel config, so this is an exclusion list
+// rather than a chat allowlist — models with no pricing metadata stay in.
+const NON_CHAT_ENDPOINT_TYPES = [
+  'image-generation',
+  'openai-video',
+  'embeddings',
+  'jina-rerank',
+]
+
+// Channel metadata is not always tagged (e.g. gemini-embedding-001 carries
+// only ['gemini','openai']), so also drop obvious non-chat model names.
+const NON_CHAT_NAME_PATTERN = /(^|[-_.])(image|embedding|tts|video|seedance)/i
 
 function pickDefaultModel(models: string[]): string {
   return (
@@ -562,10 +578,33 @@ export function OverviewDashboard() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const availableModels = useMemo(
-    () => modelsQuery.data ?? [],
-    [modelsQuery.data]
-  )
+  // Shares the pricing page's query cache; only used to read endpoint tags.
+  const pricingQuery = useQuery({
+    queryKey: ['pricing'],
+    queryFn: getPricing,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const nonChatModels = useMemo(() => {
+    const rows = pricingQuery.data?.data ?? []
+    const excluded = new Set<string>()
+    for (const row of rows) {
+      const types = row.supported_endpoint_types ?? []
+      if (types.some((type) => NON_CHAT_ENDPOINT_TYPES.includes(type))) {
+        excluded.add(row.model_name)
+      }
+    }
+    return excluded
+  }, [pricingQuery.data])
+
+  const availableModels = useMemo(() => {
+    const models = modelsQuery.data ?? []
+    const filtered = models.filter(
+      (model) => !nonChatModels.has(model) && !NON_CHAT_NAME_PATTERN.test(model)
+    )
+    // Never filter down to an empty dropdown on odd channel metadata.
+    return filtered.length > 0 ? filtered : models
+  }, [modelsQuery.data, nonChatModels])
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const exampleModel = useMemo(() => {
     if (selectedModel && availableModels.includes(selectedModel)) {
