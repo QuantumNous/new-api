@@ -3,6 +3,11 @@
 import localforage from "localforage";
 import { nanoid } from "nanoid";
 
+import { fetchServerAssetUrl, isServerAssetKey, serverAssetId, SERVER_ASSET_PREFIX, uploadAssetToServer } from "@/services/api/canvas-assets";
+
+// BUILTIN_MODE: 视频/音频二进制优先入服务端素材库(OBS),本地 IndexedDB 仅作缓存
+const BUILTIN = process.env.NEXT_PUBLIC_BUILTIN_MODE === "1";
+
 export type UploadedFile = { url: string; storageKey: string; bytes: number; mimeType: string; width?: number; height?: number; durationMs?: number };
 
 const store = localforage.createInstance({ name: "infinite-canvas", storeName: "media_files" });
@@ -10,7 +15,15 @@ const objectUrls = new Map<string, string>();
 
 export async function uploadMediaFile(input: string | Blob, prefix = "file"): Promise<UploadedFile> {
     const blob = typeof input === "string" ? await (await fetch(input)).blob() : input;
-    const storageKey = `${prefix}:${nanoid()}`;
+    let storageKey = `${prefix}:${nanoid()}`;
+    if (BUILTIN) {
+        try {
+            const asset = await uploadAssetToServer(blob);
+            storageKey = `${SERVER_ASSET_PREFIX}${asset.asset_id}`;
+        } catch (error) {
+            console.warn("[canvas-assets] 媒体上传服务端素材库失败,回退本地存储:", error);
+        }
+    }
     await store.setItem(storageKey, blob);
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
@@ -23,7 +36,17 @@ export async function resolveMediaUrl(storageKey?: string, fallback = "") {
     const cached = objectUrls.get(storageKey);
     if (cached) return cached;
     const blob = await store.getItem<Blob>(storageKey);
-    if (!blob) return fallback;
+    if (!blob) {
+        // 本地缓存缺失(换设备/清缓存):服务端素材经短期签名 URL 恢复
+        if (BUILTIN && isServerAssetKey(storageKey)) {
+            try {
+                return await fetchServerAssetUrl(serverAssetId(storageKey));
+            } catch {
+                return fallback;
+            }
+        }
+        return fallback;
+    }
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
     return url;

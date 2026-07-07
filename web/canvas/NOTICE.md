@@ -16,5 +16,6 @@
 3. 删除 `src/app/webdav-proxy/route.ts`(内置模式不提供 WebDAV 同步/代理)。
 4. 动态路由 `src/app/(user)/canvas/[id]/` 改为静态页 `src/app/(user)/canvas/editor/?id=<projectId>`(静态导出不支持无 generateStaticParams 的动态段)。
 5. 内置模式(`NEXT_PUBLIC_BUILTIN_MODE=1`):锁定站内渠道(baseUrl=/pg)、禁用外部渠道/BYO API key、`New-Api-User` 请求头注入、401 跳转登录、隐藏 WebDAV/版本检查、模型按 `supported_endpoint_types` 分类、画布项目服务端持久化(`/api/canvas/projects`)。
+6. 内置模式素材库服务端化:`uploadImage`/`uploadMediaFile` 优先上传 new-api 素材库(OBS,`/api/canvas/assets/upload`),storageKey 采用 `ca:<asset_id>` 前缀,本地 IndexedDB 仅作缓存;`resolveImageUrl`/`resolveMediaUrl` 本地 miss 时经短期签名 URL 恢复(跨设备可用);素材库删除同步释放服务端对象与配额;「我的素材」页新增云端容量条(`canvas-storage-bar.tsx`)。
 
 (随实施过程持续补充)

@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 import { localForageStorage } from "@/lib/localforage-storage";
 import { cleanupUnusedImages, resolveImageUrl, uploadImage } from "@/services/image-storage";
 import { cleanupUnusedMedia, resolveMediaUrl } from "@/services/file-storage";
+import { deleteServerAsset, isServerAssetKey, serverAssetId } from "@/services/api/canvas-assets";
 
 export type AssetKind = "text" | "image" | "video";
 export type TextAsset = AssetBase<"text"> & { data: { content: string } };
@@ -82,7 +83,15 @@ export const useAssetStore = create<AssetStore>()(
                 })),
             removeAsset: (id) =>
                 set((state) => {
+                    const removed = state.assets.find((asset) => asset.id === id);
                     const assets = state.assets.filter((asset) => asset.id !== id);
+                    // BUILTIN_MODE: 从素材库删除即释放服务端 OBS 对象与容量配额
+                    // (项目删除不触发此逻辑,符合"仅素材库删除才释放"的设计)
+                    if (removed && removed.kind !== "text" && isServerAssetKey(removed.data.storageKey)) {
+                        void deleteServerAsset(serverAssetId(removed.data.storageKey as string)).catch((error) => {
+                            console.warn("[canvas-assets] 删除服务端素材失败:", error);
+                        });
+                    }
                     get().cleanupImages({ assets });
                     return { assets };
                 }),

@@ -626,7 +626,7 @@ S3/S4/S5（后端）与 S1/S2（画布前端）可并行；S6/S7 依赖前后端
 ### 11.4 待办(按优先级)
 
 1. ~~S8 重做~~(已随 main 合并闭环,见 11.3);残留低优先项:gpustackplus mask(image_mask)转换、若上游未来提供 TTS 则补 audio adaptor + `audio-speech` 标注。
-2. **素材库前端接入**(§5.5「前端接入」+ §4.7 第 4 条):画布节点媒体从 dataUrl/IndexedDB 改为 `asset_id` + 签名 URL;上传入口、"保存到素材库"、容量进度条;届时一并实现 `assets/import` 端点。
+2. ~~素材库前端接入~~(2026-07-07 完成最小闭环):媒体写入汇合点 `uploadImage`/`uploadMediaFile` 在内置模式下优先上传 `/api/canvas/assets/upload`,storageKey 变为 `ca:<asset_id>`(本地 IndexedDB 仅缓存);`resolveImageUrl`/`resolveMediaUrl` 本地 miss 经签名 URL 恢复,项目 JSON 中的 storageKey 引用跨设备可还原;素材库删除同步释放服务端配额;「我的素材」页有云端容量条。残留:`assets/import` 端点(现路径下已不需要——生成结果经 upload 直接入库)、上传失败仅回退本地的离线补传队列。
 3. **提示词封面图本地化**:运营环境跑下载→传腾讯云 COS/EdgeOne→回填 `cover_asset_url` 的脚本(可扩展 `cmd/canvas-prompts-sync` 加 `-upload` 参数)。
 4. default 主题画布入口(如需要):§6.1 方案已验证可行。
 5. 提示词后台 admin CRUD 页面(运营增删改、排序、上下架)。
