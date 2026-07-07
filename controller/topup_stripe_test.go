@@ -332,12 +332,92 @@ func TestStripeCheckoutSessionKeepsAccountEmailVerbatim(t *testing.T) {
 		"https://example.com/cancel",
 		false,
 		false,
+		false,
+		"",
 	)
 
 	require.NotNil(t, params.CustomerEmail)
 	require.Equal(t, "buyer+location_JP@example.com", *params.CustomerEmail)
-	require.NotNil(t, params.AllowPromotionCodes)
-	require.True(t, *params.AllowPromotionCodes)
+	require.Nil(t, params.AllowPromotionCodes, "promotion code field must stay hidden on checkout")
+}
+
+func TestStripeCheckoutSessionCarriesSubmitMessage(t *testing.T) {
+	params := buildStripeCheckoutSessionParams(
+		"trade_bonus",
+		"",
+		"buyer@example.com",
+		"price_123",
+		1,
+		"USD",
+		"https://example.com/success",
+		"https://example.com/cancel",
+		false,
+		false,
+		false,
+		"$27 in credits ($20 + $7 bonus) will be added to your account immediately after payment.",
+	)
+
+	require.NotNil(t, params.CustomText)
+	require.NotNil(t, params.CustomText.Submit)
+	require.Equal(t, "$27 in credits ($20 + $7 bonus) will be added to your account immediately after payment.", *params.CustomText.Submit.Message)
+
+	params = buildStripeCheckoutSessionParams(
+		"trade_nomsg",
+		"",
+		"buyer@example.com",
+		"price_123",
+		1,
+		"USD",
+		"https://example.com/success",
+		"https://example.com/cancel",
+		false,
+		false,
+		false,
+		"",
+	)
+	require.Nil(t, params.CustomText)
+}
+
+func TestStripeCheckoutSessionEmbeddedModeUsesReturnURL(t *testing.T) {
+	params := buildStripeCheckoutSessionParams(
+		"trade_embedded",
+		"",
+		"buyer@example.com",
+		"price_123",
+		1,
+		"USD",
+		"https://example.com/success",
+		"https://example.com/cancel",
+		false,
+		false,
+		true,
+		"",
+	)
+
+	require.NotNil(t, params.UIMode)
+	require.Equal(t, "embedded", *params.UIMode)
+	require.NotNil(t, params.ReturnURL, "redirect payment methods need a landing page")
+	require.Equal(t, "https://example.com/success", *params.ReturnURL)
+	require.Nil(t, params.SuccessURL, "embedded sessions reject success_url")
+	require.Nil(t, params.CancelURL, "embedded sessions reject cancel_url")
+
+	params = buildStripeCheckoutSessionParams(
+		"trade_hosted",
+		"",
+		"buyer@example.com",
+		"price_123",
+		1,
+		"USD",
+		"https://example.com/success",
+		"https://example.com/cancel",
+		false,
+		false,
+		false,
+		"",
+	)
+	require.Nil(t, params.UIMode)
+	require.NotNil(t, params.SuccessURL)
+	require.NotNil(t, params.CancelURL)
 }
 
 func TestStripeCheckoutSessionPassesSelectedCurrency(t *testing.T) {
@@ -352,6 +432,8 @@ func TestStripeCheckoutSessionPassesSelectedCurrency(t *testing.T) {
 		"https://example.com/cancel",
 		false,
 		false,
+		false,
+		"",
 	)
 
 	require.NotNil(t, params.Currency, "non-USD selection must be sent to Stripe")
@@ -369,6 +451,8 @@ func TestStripeCheckoutSessionPassesSelectedCurrency(t *testing.T) {
 		"https://example.com/cancel",
 		false,
 		false,
+		false,
+		"",
 	)
 	require.Nil(t, params.Currency)
 }

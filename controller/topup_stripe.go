@@ -53,6 +53,10 @@ type StripePayRequest struct {
 	InvoiceRequested bool `json:"invoice_requested,omitempty"`
 	// InvoiceProfile is snapshotted to the local order when InvoiceRequested is true.
 	InvoiceProfile *model.InvoiceProfileFields `json:"invoice_profile,omitempty"`
+	// UIMode selects the Checkout presentation. "embedded" renders Checkout inside the
+	// console on our own domain (requires StripePublishableKey to be configured);
+	// anything else keeps the hosted checkout.stripe.com redirect.
+	UIMode string `json:"ui_mode,omitempty"`
 	// SaveCard, when true (onboarding promo top-ups), saves the card during payment via
 	// setup_future_usage so it can be charged off-session later.
 	SaveCard    bool   `json:"save_card,omitempty"`
@@ -462,7 +466,12 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		checkoutCustomerId = customerId
 	}
 
-	checkoutSession, err := genStripeLink(referenceId, checkoutCustomerId, checkoutEmail, checkout, req.SuccessURL, req.CancelURL, invoiceRequested, req.SaveCard)
+	// Embedded mode needs the publishable key on the client to mount Checkout; without
+	// it configured we silently keep the hosted redirect so payment never breaks.
+	embedded := strings.EqualFold(strings.TrimSpace(req.UIMode), "embedded") &&
+		strings.TrimSpace(setting.StripePublishableKey) != ""
+
+	checkoutSession, err := genStripeLink(referenceId, checkoutCustomerId, checkoutEmail, checkout, req.SuccessURL, req.CancelURL, invoiceRequested, req.SaveCard, embedded, stripeCheckoutSubmitMessage(normalizedAmount, bonusAmount))
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 创建 Checkout Session 失败 user_id=%d trade_no=%s amount=%d error=%q", id, referenceId, req.Amount, err.Error()))
 		topUp.Status = common.TopUpStatusFailed
@@ -489,15 +498,35 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		}
 	}
 
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Stripe 充值订单创建成功 user_id=%d trade_no=%s amount=%d normalized_amount=%d money=%.2f currency=%s", id, referenceId, req.Amount, normalizedAmount, checkout.Money, checkout.PaymentCurrency))
-	if checkoutSession == nil || strings.TrimSpace(checkoutSession.URL) == "" {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe Checkout Session 缺少支付链接 user_id=%d trade_no=%s", id, referenceId))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Stripe 充值订单创建成功 user_id=%d trade_no=%s amount=%d normalized_amount=%d money=%.2f currency=%s embedded=%t", id, referenceId, req.Amount, normalizedAmount, checkout.Money, checkout.PaymentCurrency, embedded))
+
+	failMissingPayload := func(what string) {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe Checkout Session 缺少%s user_id=%d trade_no=%s", what, id, referenceId))
 		topUp.Status = common.TopUpStatusFailed
 		_ = topUp.Update()
 		if invoiceRequested {
 			_ = model.UpdatePaymentInvoiceStatus(referenceId, model.PaymentInvoiceStatusFailed)
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
+	}
+
+	if embedded {
+		if checkoutSession == nil || strings.TrimSpace(checkoutSession.ClientSecret) == "" {
+			failMissingPayload("client secret")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"message": "success",
+			"data": gin.H{
+				"client_secret":   checkoutSession.ClientSecret,
+				"publishable_key": setting.StripePublishableKey,
+			},
+		})
+		return
+	}
+
+	if checkoutSession == nil || strings.TrimSpace(checkoutSession.URL) == "" {
+		failMissingPayload("支付链接")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -1466,7 +1495,7 @@ func ensureStripeCustomerTaxID(ctx context.Context, customerId string, fields mo
 //   - cancelURL: custom URL to redirect when payment is canceled (empty for default)
 //
 // Returns the checkout session URL or an error if the session creation fails.
-func genStripeLink(referenceId string, customerId string, email string, checkout *stripeTopUpCheckout, successURL string, cancelURL string, invoiceRequested bool, saveCard bool) (*stripe.CheckoutSession, error) {
+func genStripeLink(referenceId string, customerId string, email string, checkout *stripeTopUpCheckout, successURL string, cancelURL string, invoiceRequested bool, saveCard bool, embedded bool, submitMessage string) (*stripe.CheckoutSession, error) {
 	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
 		return nil, fmt.Errorf("无效的Stripe API密钥")
 	}
@@ -1484,7 +1513,7 @@ func genStripeLink(referenceId string, customerId string, email string, checkout
 		cancelURL = consolePaymentReturnPath("/console/topup")
 	}
 
-	params := buildStripeCheckoutSessionParams(referenceId, customerId, strings.TrimSpace(email), checkout.PriceId, checkout.Quantity, checkout.PaymentCurrency, successURL, cancelURL, invoiceRequested, saveCard)
+	params := buildStripeCheckoutSessionParams(referenceId, customerId, strings.TrimSpace(email), checkout.PriceId, checkout.Quantity, checkout.PaymentCurrency, successURL, cancelURL, invoiceRequested, saveCard, embedded, submitMessage)
 
 	// For onboarding promo top-ups, save the card while paying so it can be charged
 	// off-session later (postpaid auto-charge). Plain wallet top-ups don't save the card.
@@ -1589,16 +1618,62 @@ func canonicalRedirectHostname(host string) string {
 	return strings.TrimSuffix(strings.ToLower(parsedHost.Hostname()), ".")
 }
 
-func buildStripeCheckoutSessionParams(referenceId string, customerId string, email string, priceId string, quantity int64, currency string, successURL string, cancelURL string, invoiceRequested bool, saveCard bool) *stripe.CheckoutSessionParams {
+// stripeCheckoutSubmitMessage renders the reassurance line Checkout shows above the Pay
+// button: what will be credited, that the bonus is included, and that it lands instantly.
+// This is the only place the advertised top-up bonus is visible on the Stripe-hosted page,
+// since the bonus is granted server-side after payment rather than as a Stripe discount.
+// Amounts are spelled out only in USD display mode; token display amounts are too large
+// to read naturally in Checkout's plain-text field, so those get a number-free line.
+func stripeCheckoutSubmitMessage(amount int64, bonusAmount int64) string {
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		if bonusAmount > 0 {
+			return "Your top-up bonus is included and will be credited to your account together with this payment."
+		}
+		return "Credits are added to your account immediately after payment."
+	}
+	if bonusAmount > 0 {
+		return fmt.Sprintf("$%d in credits ($%d + $%d bonus) will be added to your account immediately after payment.", amount+bonusAmount, amount, bonusAmount)
+	}
+	return fmt.Sprintf("$%d in credits will be added to your account immediately after payment.", amount)
+}
+
+func buildStripeCheckoutSessionParams(referenceId string, customerId string, email string, priceId string, quantity int64, currency string, successURL string, cancelURL string, invoiceRequested bool, saveCard bool, embedded bool, submitMessage string) *stripe.CheckoutSessionParams {
+	// Promotion codes are deliberately NOT enabled: an empty "Add promotion code" field
+	// on a top-up checkout reads as "everyone else has a discount you don't", which
+	// undercuts the advertised top-up bonus. Bonuses are granted server-side after
+	// payment (configuredTopUpAmounts), not via Stripe coupons.
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(referenceId),
-		SuccessURL:        stripe.String(successURL),
-		CancelURL:         stripe.String(cancelURL),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			buildStripeTopUpLineItem(priceId, quantity),
 		},
-		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
-		AllowPromotionCodes: stripe.Bool(true),
+		Mode: stripe.String(string(stripe.CheckoutSessionModePayment)),
+	}
+
+	if embedded {
+		// Embedded sessions reject success_url/cancel_url. return_url is still required
+		// because redirect-based payment methods (Alipay, WeChat Pay, Pix...) leave the
+		// page and need somewhere to land; the success URL is the natural target.
+		params.UIMode = stripe.String(string(stripe.CheckoutSessionUIModeEmbedded))
+		params.ReturnURL = stripe.String(successURL)
+	} else {
+		params.SuccessURL = stripe.String(successURL)
+		params.CancelURL = stripe.String(cancelURL)
+	}
+
+	// The Stripe account's statement descriptor is the company name, which buyers of this
+	// product don't recognize. The suffix makes card statements read "<company>* FLATKEY"
+	// so the charge is attributable to the product they bought.
+	params.PaymentIntentData = &stripe.CheckoutSessionPaymentIntentDataParams{
+		StatementDescriptorSuffix: stripe.String("FLATKEY"),
+	}
+
+	if submitMessage != "" {
+		params.CustomText = &stripe.CheckoutSessionCustomTextParams{
+			Submit: &stripe.CheckoutSessionCustomTextSubmitParams{
+				Message: stripe.String(submitMessage),
+			},
+		}
 	}
 
 	// An explicit non-USD pick must reach Stripe, or Checkout renders the Price's default

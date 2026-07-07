@@ -346,6 +346,7 @@ const paymentSchema = z
       }
     }),
     StripeApiSecret: z.string(),
+    StripePublishableKey: z.string(),
     StripeWebhookSecret: z.string(),
     StripePriceId: z.string(),
     StripePriceId20: z.string(),
@@ -740,6 +741,7 @@ export function PaymentSettingsSection({
       AmountBonusGroups: values.AmountBonusGroups.trim(),
       AmountDiscount: values.AmountDiscount.trim(),
       StripeApiSecret: values.StripeApiSecret.trim(),
+      StripePublishableKey: values.StripePublishableKey.trim(),
       StripeWebhookSecret: values.StripeWebhookSecret.trim(),
       StripePriceId: values.StripePriceId.trim(),
       StripePriceId20: values.StripePriceId20.trim(),
@@ -807,6 +809,7 @@ export function PaymentSettingsSection({
       AmountBonusGroups: initialRef.current.AmountBonusGroups.trim(),
       AmountDiscount: initialRef.current.AmountDiscount.trim(),
       StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
+      StripePublishableKey: initialRef.current.StripePublishableKey.trim(),
       StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
       StripePriceId: initialRef.current.StripePriceId.trim(),
       StripePriceId20: initialRef.current.StripePriceId20.trim(),
@@ -960,6 +963,16 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'StripeWebhookSecret',
         value: sanitized.StripeWebhookSecret,
+      })
+    }
+
+    if (
+      sanitized.StripePublishableKey &&
+      sanitized.StripePublishableKey !== initial.StripePublishableKey
+    ) {
+      updates.push({
+        key: 'StripePublishableKey',
+        value: sanitized.StripePublishableKey,
       })
     }
 
@@ -1929,6 +1942,31 @@ export function PaymentSettingsSection({
                     </FormControl>
                     <FormDescription>
                       {t('Stripe API key (leave blank unless updating)')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='StripePublishableKey'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Publishable key')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='password'
+                        placeholder='pk_xxx'
+                        autoComplete='new-password'
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Enables embedded Stripe Checkout inside the console (leave blank to keep the hosted redirect)'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

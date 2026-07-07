@@ -44,6 +44,7 @@ import type {
   PaddlePaymentResponse,
   PaymentOptions,
 } from '../types'
+import type { StripeEmbeddedCheckoutSession } from '../components/dialogs/stripe-embedded-checkout-dialog'
 
 // ============================================================================
 // Payment Hook
@@ -148,6 +149,12 @@ export function usePayment() {
   const [amount, setAmount] = useState<number>(0)
   const [calculating, setCalculating] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [embeddedCheckout, setEmbeddedCheckout] =
+    useState<StripeEmbeddedCheckoutSession | null>(null)
+
+  const closeEmbeddedCheckout = useCallback(() => {
+    setEmbeddedCheckout(null)
+  }, [])
 
   // Calculate payment amount
   const calculatePaymentAmount = useCallback(
@@ -209,6 +216,7 @@ export function usePayment() {
           redirectUrls: getStripeRedirectUrls(),
           invoiceRequested: options?.invoiceRequested,
           invoiceProfile: options?.invoiceProfile,
+          preferEmbeddedCheckout: options?.preferEmbeddedCheckout,
         })
 
         const response = isStripe
@@ -228,7 +236,23 @@ export function usePayment() {
 
         // Handle Stripe payment
         if (isStripe) {
-          const stripeData = response.data as { pay_link?: string } | undefined
+          const stripeData = response.data as
+            | {
+                pay_link?: string
+                client_secret?: string
+                publishable_key?: string
+              }
+            | undefined
+          // Embedded session: mount Checkout in-console. The server only returns a
+          // client_secret when the publishable key is configured, so a missing secret
+          // falls through to the hosted pay_link redirect.
+          if (stripeData?.client_secret && stripeData?.publishable_key) {
+            setEmbeddedCheckout({
+              clientSecret: stripeData.client_secret,
+              publishableKey: stripeData.publishable_key,
+            })
+            return true
+          }
           if (stripeData?.pay_link) {
             keepProcessing = true
             navigateToPaymentPage(stripeData.pay_link)
@@ -282,6 +306,8 @@ export function usePayment() {
     amount,
     calculating,
     processing,
+    embeddedCheckout,
+    closeEmbeddedCheckout,
     calculatePaymentAmount,
     processPayment,
     setAmount,
