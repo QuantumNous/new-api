@@ -164,6 +164,13 @@ const PREFERRED_EXAMPLE_MODELS = [
 const EXCLUDED_ENDPOINT_TYPES = ['openai-video', 'embeddings', 'jina-rerank']
 const EXCLUDED_NAME_PATTERN = /(^|[-_.])(embedding|tts|video|seedance)/i
 const IMAGE_NAME_PATTERN = /(^|[-_.])(image|banana)/i
+const CHAT_ENDPOINT_TYPES = [
+  'openai',
+  'openai-response',
+  'openai-response-compact',
+  'anthropic',
+  'gemini',
+]
 
 type ExampleModelKind = 'chat' | 'image'
 
@@ -575,65 +582,6 @@ export function OverviewDashboard() {
     [apiKeysQuery.data]
   )
 
-  // Scope the model list to the group the preferred key actually routes with,
-  // so the example request only offers models this key can call.
-  const modelGroup = preferredKey?.group?.trim() || user?.group || ''
-
-  const modelsQuery = useQuery({
-    queryKey: ['dashboard', 'overview', 'user-models', modelGroup],
-    queryFn: async () => {
-      const result = await getUserModels(modelGroup || undefined)
-      return result.success ? (result.data ?? []) : []
-    },
-    staleTime: 5 * 60 * 1000,
-  })
-
-  // Shares the pricing page's query cache; only used to read endpoint tags.
-  const pricingQuery = useQuery({
-    queryKey: ['pricing'],
-    queryFn: getPricing,
-    staleTime: 5 * 60 * 1000,
-  })
-
-  const modelEndpointTags = useMemo(() => {
-    const tags = new Map<string, string[]>()
-    for (const row of pricingQuery.data?.data ?? []) {
-      tags.set(row.model_name, row.supported_endpoint_types ?? [])
-    }
-    return tags
-  }, [pricingQuery.data])
-
-  const classifyModel = useCallback(
-    (model: string): ExampleModelKind | null => {
-      const types = modelEndpointTags.get(model) ?? []
-      if (
-        types.some((type) => EXCLUDED_ENDPOINT_TYPES.includes(type)) ||
-        EXCLUDED_NAME_PATTERN.test(model)
-      ) {
-        return null
-      }
-      if (types.includes('image-generation') || IMAGE_NAME_PATTERN.test(model)) {
-        return 'image'
-      }
-      return 'chat'
-    },
-    [modelEndpointTags]
-  )
-
-  const availableModels = useMemo(() => {
-    const models = modelsQuery.data ?? []
-    const filtered = models.filter((model) => classifyModel(model) !== null)
-    // Never filter down to an empty dropdown on odd channel metadata.
-    return filtered.length > 0 ? filtered : models
-  }, [classifyModel, modelsQuery.data])
-  const [selectedModel, setSelectedModel] = useState<string | null>(null)
-  const exampleModel = useMemo(() => {
-    if (selectedModel && availableModels.includes(selectedModel)) {
-      return selectedModel
-    }
-    return pickDefaultModel(availableModels)
-  }, [availableModels, selectedModel])
-
   const startSteps = useMemo<StartStep[]>(
     () => [
       {
@@ -660,6 +608,86 @@ export function OverviewDashboard() {
     ],
     [preferredKey, remainQuota, requestCount, t, usedQuota]
   )
+
+  const completedStepCount = startSteps.filter((step) => step.completed).length
+  const setupComplete = completedStepCount === startSteps.length
+  const setupGuideExpanded = manualSetupGuideExpanded ?? !setupComplete
+
+  // Scope the model list to the group the preferred key actually routes with,
+  // so the example request only offers models this key can call. Both queries
+  // back the request-example card, which only renders inside the setup guide —
+  // keep them off the dashboard's critical path when the guide is collapsed.
+  const modelGroup = preferredKey?.group?.trim() || user?.group || ''
+
+  const modelsQuery = useQuery({
+    queryKey: ['dashboard', 'overview', 'user-models', modelGroup],
+    queryFn: async () => {
+      const result = await getUserModels(modelGroup || undefined)
+      return result.success ? (result.data ?? []) : []
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: setupGuideExpanded,
+  })
+
+  // Shares the pricing page's query cache; only used to read endpoint tags.
+  const pricingQuery = useQuery({
+    queryKey: ['pricing'],
+    queryFn: getPricing,
+    staleTime: 5 * 60 * 1000,
+    enabled: setupGuideExpanded,
+  })
+
+  const modelEndpointTags = useMemo(() => {
+    const tags = new Map<string, string[]>()
+    for (const row of pricingQuery.data?.data ?? []) {
+      tags.set(row.model_name, row.supported_endpoint_types ?? [])
+    }
+    return tags
+  }, [pricingQuery.data])
+
+  const classifyModel = useCallback(
+    (model: string): ExampleModelKind | null => {
+      const types = modelEndpointTags.get(model) ?? []
+      // The name heuristic wins over tags: metadata dirt routinely marks
+      // embedding/TTS models as plain 'openai'.
+      if (EXCLUDED_NAME_PATTERN.test(model)) {
+        return null
+      }
+      if (
+        types.includes('image-generation') ||
+        IMAGE_NAME_PATTERN.test(model)
+      ) {
+        return 'image'
+      }
+      // A multi-endpoint model that can also chat stays demoable — only
+      // models with exclusively non-demoable surfaces get dropped.
+      if (
+        types.length === 0 ||
+        types.some((type) => CHAT_ENDPOINT_TYPES.includes(type))
+      ) {
+        return 'chat'
+      }
+      if (types.some((type) => EXCLUDED_ENDPOINT_TYPES.includes(type))) {
+        return null
+      }
+      return 'chat'
+    },
+    [modelEndpointTags]
+  )
+
+  const availableModels = useMemo(() => {
+    const models = modelsQuery.data ?? []
+    const filtered = models.filter((model) => classifyModel(model) !== null)
+    // Never filter down to an empty dropdown on odd channel metadata.
+    return filtered.length > 0 ? filtered : models
+  }, [classifyModel, modelsQuery.data])
+  const [selectedModel, setSelectedModel] = useState<string | null>(null)
+  const exampleModel = useMemo(() => {
+    if (selectedModel && availableModels.includes(selectedModel)) {
+      return selectedModel
+    }
+    return pickDefaultModel(availableModels)
+  }, [availableModels, selectedModel])
 
   const quickActions = useMemo<QuickAction[]>(
     () => [
@@ -729,9 +757,6 @@ export function OverviewDashboard() {
     }
   }, [apiInfoItems, classifyModel, exampleModel, preferredKey, t])
 
-  const completedStepCount = startSteps.filter((step) => step.completed).length
-  const setupComplete = completedStepCount === startSteps.length
-  const setupGuideExpanded = manualSetupGuideExpanded ?? !setupComplete
   const showLeftContentPanels =
     isAdmin || showApiInfoPanel || showAnnouncementsPanel || showFAQPanel
   const showContentPanels = showLeftContentPanels || showUptimePanel

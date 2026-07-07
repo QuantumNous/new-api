@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Gift, Loader2, Zap } from 'lucide-react'
 import { useTranslation, Trans } from 'react-i18next'
 import { toast } from 'sonner'
@@ -24,23 +25,22 @@ import { useOnboardingStore } from '@/stores/onboarding-store'
 import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { getTopupInfo } from '@/features/wallet/api'
 import { requestPromoTopup, isApiSuccess } from './api'
 
-// Recharge tiers. amount = USD charged, bonus = USD credited on top of the amount.
-// The bonus is a PERMANENT every-top-up reward enforced by the backend
-// (operation_setting AmountBonus with no per-user limit). These numbers must stay
-// in sync with that config — otherwise the dialog would promise credit the backend
-// won't deliver.
+// Recharge tiers. amount = USD charged, bonus = USD credited on top of the
+// amount. Derived from /api/user/topup/info (operation_setting AmountBonus,
+// already filtered to what this user's group can actually receive) so the
+// dialog never promises credit the payment callback won't deliver.
 interface PromoTier {
   amount: number
-  bonus: number // must match operation_setting AmountBonus for this amount
+  bonus: number
   highlight?: boolean
 }
-const TIERS: PromoTier[] = [
-  { amount: 10, bonus: 3, highlight: true },
-  { amount: 20, bonus: 8 },
-  { amount: 200, bonus: 100 },
-]
+
+// Shown only when the bonus config is unavailable — plain amounts, no
+// bonus promises.
+const FALLBACK_AMOUNTS = [10, 20, 200]
 
 /**
  * Onboarding promo dialog. Floats over the console with a translucent, blurred backdrop.
@@ -53,6 +53,51 @@ export function Onboarding() {
   const open = useOnboardingStore((s) => s.open)
   const closeOnboarding = useOnboardingStore((s) => s.closeOnboarding)
   const [pendingAmount, setPendingAmount] = useState<number | null>(null)
+
+  const topupInfoQuery = useQuery({
+    queryKey: ['onboarding', 'topup-info'],
+    queryFn: getTopupInfo,
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const tiers = useMemo<PromoTier[]>(() => {
+    const info = topupInfoQuery.data?.data
+    const remaining = info?.bonus_remaining ?? {}
+    const fromBonus = Object.entries(info?.bonus ?? {})
+      .map(([amount, bonus]) => ({
+        amount: Number(amount),
+        bonus: Number(bonus),
+      }))
+      // remaining === 0 means this user exhausted the tier's lifetime bonus
+      // count; undefined means unlimited.
+      .filter(
+        (tier) =>
+          tier.amount > 0 &&
+          tier.bonus > 0 &&
+          remaining[tier.amount] !== 0
+      )
+      .sort((a, b) => a.amount - b.amount)
+      .slice(0, 3)
+    if (fromBonus.length > 0) {
+      return fromBonus.map((tier, index) =>
+        index === 0 ? { ...tier, highlight: true } : tier
+      )
+    }
+    const amounts =
+      info?.amount_options && info.amount_options.length > 0
+        ? info.amount_options
+        : FALLBACK_AMOUNTS
+    return amounts
+      .map((amount) => Number(amount))
+      .filter((amount) => amount > 0)
+      .slice(0, 3)
+      .map((amount, index) => ({
+        amount,
+        bonus: 0,
+        highlight: index === 0,
+      }))
+  }, [topupInfoQuery.data])
 
   useEffect(() => {
     if (!open) return
@@ -138,7 +183,15 @@ export function Onboarding() {
 
         {/* Tier cards */}
         <div className='flex flex-col gap-2.5'>
-          {TIERS.map((tier) => (
+          {topupInfoQuery.isLoading &&
+            FALLBACK_AMOUNTS.map((amount) => (
+              <div
+                key={amount}
+                className='bg-muted/50 h-[74px] animate-pulse rounded-xl border'
+                aria-hidden='true'
+              />
+            ))}
+          {!topupInfoQuery.isLoading && tiers.map((tier) => (
             <button
               key={tier.amount}
               type='button'
@@ -169,9 +222,11 @@ export function Onboarding() {
                 </span>
               </div>
               <div className='flex flex-col items-end gap-1'>
-                <span className='text-sm font-extrabold text-[#FF2D78]'>
-                  {t('+${{bonus}} free', { bonus: tier.bonus })}
-                </span>
+                {tier.bonus > 0 && (
+                  <span className='text-sm font-extrabold text-[#FF2D78]'>
+                    {t('+${{bonus}} free', { bonus: tier.bonus })}
+                  </span>
+                )}
                 {submitting && pendingAmount === tier.amount ? (
                   <Loader2 className='size-4 animate-spin' aria-hidden='true' />
                 ) : (
