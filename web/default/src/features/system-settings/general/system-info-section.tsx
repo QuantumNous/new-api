@@ -60,6 +60,9 @@ const _systemInfoSchema = z.object({
   }),
   SystemName: z.string().min(1),
   ServerAddress: z.string().optional(),
+  app_console: z.object({
+    origin: z.string().optional(),
+  }),
   Logo: z.string().url().optional().or(z.literal('')),
   Footer: z.string().optional(),
   About: z.string().optional(),
@@ -83,6 +86,29 @@ function normalizeValue(value: unknown): string {
   return typeof value === 'string' ? value : String(value)
 }
 
+function isValidHttpOrigin(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) return true
+  try {
+    const url = new URL(trimmed)
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      (url.pathname === '' || url.pathname === '/') &&
+      url.search === '' &&
+      url.hash === '' &&
+      !trimmed.includes('@')
+    )
+  } catch {
+    return false
+  }
+}
+
+function normalizeHttpOrigin(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  return new URL(trimmed).origin
+}
+
 export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -94,6 +120,9 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     },
     SystemName: normalizeValue(defaultValues.SystemName),
     ServerAddress: normalizeValue(defaultValues.ServerAddress),
+    app_console: {
+      origin: normalizeValue(defaultValues.app_console?.origin),
+    },
     Logo: normalizeValue(defaultValues.Logo),
     Footer: normalizeValue(defaultValues.Footer),
     About: normalizeValue(defaultValues.About),
@@ -117,6 +146,15 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       error: () => t('System name is required'),
     }),
     ServerAddress: z.string().optional(),
+    app_console: z.object({
+      origin: z
+        .string()
+        .refine(
+          isValidHttpOrigin,
+          t('Console Origin must be a valid http(s) origin')
+        )
+        .optional(),
+    }),
     Logo: z.string().url().optional().or(z.literal('')),
     Footer: z.string().optional(),
     About: z.string().optional(),
@@ -140,7 +178,9 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       onSubmit: async (_data, changedFields) => {
         for (const [key, value] of Object.entries(changedFields)) {
           let v = normalizeValue(value)
-          if (key === 'ServerAddress') {
+          if (key === 'app_console.origin') {
+            v = normalizeHttpOrigin(v)
+          } else if (key === 'ServerAddress') {
             v = v.replace(/\/+$/, '')
           }
           await updateOption.mutateAsync({
@@ -241,6 +281,30 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     <FormDescription>
                       {t(
                         'The public URL of your server, used for OAuth callbacks, webhooks, and other external integrations'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='app_console.origin'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Console Origin')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='url'
+                        inputMode='url'
+                        placeholder='https://console.example.com'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'The public console origin used for payment return URLs. Leave empty to use Server Address.'
                       )}
                     </FormDescription>
                     <FormMessage />

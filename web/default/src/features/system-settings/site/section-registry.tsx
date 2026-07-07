@@ -45,6 +45,9 @@ const SITE_SECTIONS = [
           About: settings.About,
           HomePageContent: settings.HomePageContent,
           ServerAddress: settings.ServerAddress,
+          app_console: {
+            origin: settings['app_console.origin'],
+          },
           legal: {
             user_agreement: settings['legal.user_agreement'],
             privacy_policy: settings['legal.privacy_policy'],

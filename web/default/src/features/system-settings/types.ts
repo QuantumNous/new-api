@@ -87,6 +87,7 @@ export type SiteSettings = {
   About: string
   HomePageContent: string
   ServerAddress: string
+  'app_console.origin': string
   'legal.user_agreement': string
   'legal.privacy_policy': string
   'legal.refund_policy': string
