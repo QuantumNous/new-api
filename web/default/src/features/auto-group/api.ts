@@ -21,11 +21,15 @@ import { api } from '@/lib/api'
 import type {
   ApiResponse,
   AutoGroupConfig,
+  AutoGroupDashboard,
+  AutoGroupIdentityRulesResponse,
   AutoGroupInitApplyPayload,
   AutoGroupInitApplyResult,
   AutoGroupInitPreview,
+  AutoGroupReplayResult,
   AutoGroupResolveResult,
   AutoGroupRule,
+  AutoGroupSuggestionsResponse,
   RuleFormData,
 } from './types'
 
@@ -139,5 +143,55 @@ export async function initializeApply(
   payload: AutoGroupInitApplyPayload
 ): Promise<ApiResponse<AutoGroupInitApplyResult>> {
   const res = await api.post('/api/auto-group/initialize/apply', payload)
+  return res.data
+}
+
+export async function getAutoGroupDashboard(): Promise<
+  ApiResponse<AutoGroupDashboard>
+> {
+  const res = await api.get('/api/auto-group/dashboard')
+  return res.data
+}
+
+export async function replayAutoGroupSuggestions(): Promise<
+  ApiResponse<AutoGroupReplayResult>
+> {
+  const res = await api.post('/api/auto-group/replay')
+  return res.data
+}
+
+export async function applyHighConfidenceSuggestions(): Promise<
+  ApiResponse<{ applied: number }>
+> {
+  const res = await api.post('/api/auto-group/apply-high-confidence')
+  return res.data
+}
+
+export async function getAutoGroupSuggestions(
+  status = 'pending'
+): Promise<ApiResponse<AutoGroupSuggestionsResponse>> {
+  const res = await api.get(`/api/auto-group/suggestions?status=${status}`)
+  return res.data
+}
+
+export async function confirmAutoGroupSuggestion(
+  id: number,
+  group: string
+): Promise<ApiResponse> {
+  const res = await api.post(`/api/auto-group/suggestions/${id}/confirm`, {
+    group,
+  })
+  return res.data
+}
+
+export async function skipAutoGroupSuggestion(id: number): Promise<ApiResponse> {
+  const res = await api.post(`/api/auto-group/suggestions/${id}/skip`)
+  return res.data
+}
+
+export async function getAutoGroupIdentityRules(): Promise<
+  ApiResponse<AutoGroupIdentityRulesResponse>
+> {
+  const res = await api.get('/api/auto-group/identity-rules')
   return res.data
 }

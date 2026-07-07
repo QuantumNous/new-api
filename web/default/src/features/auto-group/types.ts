@@ -89,6 +89,57 @@ export interface AutoGroupInitApplyResult {
   saved: number
 }
 
+export interface AutoGroupDashboard {
+  total_users: number
+  auto_apply_count: number
+  confirm_required_count: number
+  skip_count: number
+  protected_count: number
+}
+
+export interface AutoGroupReplayResult {
+  total_users: number
+  auto_apply_count: number
+  confirm_required_count: number
+  skip_count: number
+}
+
+export interface AutoGroupSuggestion {
+  id: number
+  user_id: number
+  username: string
+  display_name: string
+  email: string
+  current_group: string
+  suggested_group: string
+  confidence: 'high' | 'medium' | 'low'
+  action: 'auto_apply' | 'confirm_required' | 'skip'
+  reason: string
+  source: string
+  status: string
+  job_title: string
+  org_level1_name: string
+  org_level2_name: string
+  department_name: string
+  parent_department_name: string
+  org_path: string
+}
+
+export interface AutoGroupSuggestionsResponse {
+  items: AutoGroupSuggestion[]
+}
+
+export interface AutoGroupIdentityRule {
+  name: string
+  target_group: string
+  description: string
+  manual_only: boolean
+}
+
+export interface AutoGroupIdentityRulesResponse {
+  items: AutoGroupIdentityRule[]
+}
+
 // ============================================================================
 // Dialog Types
 // ============================================================================

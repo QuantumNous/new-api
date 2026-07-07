@@ -24,6 +24,9 @@ For commercial licensing, please contact support@quantumnous.com
 export const QUERY_KEYS = {
   RULES: ['auto-group-rules'] as const,
   CONFIG: ['auto-group-config'] as const,
+  DASHBOARD: ['auto-group-dashboard'] as const,
+  SUGGESTIONS: ['auto-group-suggestions'] as const,
+  IDENTITY_RULES: ['auto-group-identity-rules'] as const,
   GROUPS: ['groups'] as const,
 }
 

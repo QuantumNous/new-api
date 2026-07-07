@@ -54,20 +54,15 @@ func IsProtectedGroup(group string) bool {
 //   - changed: 是否需要变更
 //   - err: 查询错误
 func ResolveAndCheckAutoGroup(currentGroup, jobTitle string) (newGroup string, changed bool, err error) {
+	decision := ClassifyAutoGroup(AutoGroupContext{CurrentGroup: currentGroup, JobTitle: jobTitle})
+	if decision.Action == model.AutoGroupActionAutoApply && decision.SuggestedGroup != "" {
+		return decision.SuggestedGroup, currentGroup != decision.SuggestedGroup, nil
+	}
 	target, err := ResolveGroupByJobTitle(jobTitle)
 	if err != nil {
 		return currentGroup, false, err
 	}
-	if target == "" {
-		// 未命中规则，保持现状
-		return currentGroup, false, nil
-	}
-	if currentGroup == target {
-		// 已是目标分组
-		return target, false, nil
-	}
-	if IsProtectedGroup(currentGroup) {
-		// 当前分组受保护，跳过
+	if target == "" || currentGroup == target || IsProtectedGroup(currentGroup) {
 		return currentGroup, false, nil
 	}
 	return target, true, nil

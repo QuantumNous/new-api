@@ -313,6 +313,9 @@ func migrateDB() error {
 		&AuthzRole{},
 		&UsageReportSnapshot{},
 		&GroupMappingRule{},
+		&AutoGroupSuggestion{},
+		&AutoGroupConfirmation{},
+		&AutoGroupLearnedRule{},
 	)
 	if err != nil {
 		return err

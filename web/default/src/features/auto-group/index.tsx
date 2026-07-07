@@ -19,35 +19,40 @@ For commercial licensing, please contact support@quantumnous.com
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
+import { IdentityRules } from './components/identity-rules'
 import { ProtectedGroupsConfig } from './components/protected-groups-config'
-import { RulesDialogs } from './components/rules-dialogs'
-import { RulesPrimaryButtons } from './components/rules-primary-buttons'
-import { RulesProvider } from './components/rules-provider'
-import { RulesTable } from './components/rules-table'
+import { SuggestionsTable } from './components/suggestions-table'
+import { WorkspaceDashboard } from './components/workspace-dashboard'
 
 export function AutoGroupRules() {
   const { t } = useTranslation()
   return (
-    <RulesProvider>
-      <SectionPageLayout fixedContent>
-        <SectionPageLayout.Title>
-          {t('Auto Group Rules')}
-        </SectionPageLayout.Title>
-        <SectionPageLayout.Actions>
-          <RulesPrimaryButtons />
-        </SectionPageLayout.Actions>
-        <SectionPageLayout.Content>
-          <div className='flex h-full min-h-0 flex-col gap-4'>
+    <SectionPageLayout fixedContent>
+      <SectionPageLayout.Title>{t('Auto Group Workspace')}</SectionPageLayout.Title>
+      <SectionPageLayout.Content>
+        <Tabs defaultValue='overview' className='flex h-full min-h-0 flex-col gap-4'>
+          <TabsList className='w-fit'>
+            <TabsTrigger value='overview'>{t('Overview')}</TabsTrigger>
+            <TabsTrigger value='pending'>{t('Pending users')}</TabsTrigger>
+            <TabsTrigger value='rules'>{t('Identity rules')}</TabsTrigger>
+            <TabsTrigger value='protected'>{t('Protected groups')}</TabsTrigger>
+          </TabsList>
+          <TabsContent value='overview' className='min-h-0 flex-1'>
+            <WorkspaceDashboard />
+          </TabsContent>
+          <TabsContent value='pending' className='min-h-0 flex-1'>
+            <SuggestionsTable />
+          </TabsContent>
+          <TabsContent value='rules' className='min-h-0 flex-1'>
+            <IdentityRules />
+          </TabsContent>
+          <TabsContent value='protected' className='min-h-0 flex-1'>
             <ProtectedGroupsConfig />
-            <div className='min-h-0 flex-1 rounded-xl border bg-card'>
-              <RulesTable />
-            </div>
-          </div>
-        </SectionPageLayout.Content>
-      </SectionPageLayout>
-
-      <RulesDialogs />
-    </RulesProvider>
+          </TabsContent>
+        </Tabs>
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
   )
 }

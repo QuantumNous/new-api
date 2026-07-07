@@ -300,6 +300,87 @@ func InitializeAutoGroupApply(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"saved": len(rules)})
 }
 
+// ============ 建议工作台 ============
+
+func GetAutoGroupDashboard(c *gin.Context) {
+	dashboard, err := service.GetAutoGroupDashboard()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, dashboard)
+}
+
+func ReplayAutoGroupSuggestions(c *gin.Context) {
+	result, err := service.ReplayAutoGroupSuggestions()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, result)
+}
+
+func ApplyHighConfidenceAutoGroupSuggestions(c *gin.Context) {
+	count, err := service.ApplyHighConfidenceAutoGroupSuggestions()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"applied": count})
+}
+
+func ListAutoGroupSuggestions(c *gin.Context) {
+	status := strings.TrimSpace(c.Query("status"))
+	items, err := model.ListAutoGroupSuggestions(status)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"items": items})
+}
+
+type confirmAutoGroupSuggestionRequest struct {
+	Group string `json:"group"`
+}
+
+func ConfirmAutoGroupSuggestion(c *gin.Context) {
+	id, err := parseIdParam(c)
+	if err != nil {
+		return
+	}
+	var req confirmAutoGroupSuggestionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	targetGroup := strings.TrimSpace(req.Group)
+	if targetGroup != "" && !isGroupUsable(targetGroup) {
+		common.ApiErrorMsg(c, "目标分组不存在或不可用: "+targetGroup)
+		return
+	}
+	if err := service.ConfirmAutoGroupSuggestion(id, c.GetInt("id"), targetGroup); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+func SkipAutoGroupSuggestion(c *gin.Context) {
+	id, err := parseIdParam(c)
+	if err != nil {
+		return
+	}
+	if err := model.UpdateAutoGroupSuggestionStatus(id, model.AutoGroupSuggestionSkipped); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+func GetAutoGroupIdentityRules(c *gin.Context) {
+	common.ApiSuccess(c, gin.H{"items": service.ListAutoGroupIdentityRules()})
+}
+
 // ============ 辅助函数 ============
 
 var usableGroupsCache struct {

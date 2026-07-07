@@ -143,7 +143,7 @@ export function useSidebarData(): SidebarData {
             icon: Building2,
           },
           {
-            title: t('Auto Group Rules'),
+            title: t('Auto Group Workspace'),
             url: '/auto-group-rules',
             icon: Shield,
           },

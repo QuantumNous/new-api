@@ -373,6 +373,13 @@ func SetApiRouter(router *gin.Engine) {
 		autoGroupRoute := apiRouter.Group("/auto-group")
 		autoGroupRoute.Use(middleware.AdminAuth())
 		{
+			autoGroupRoute.GET("/dashboard", controller.GetAutoGroupDashboard)
+			autoGroupRoute.POST("/replay", controller.ReplayAutoGroupSuggestions)
+			autoGroupRoute.POST("/apply-high-confidence", controller.ApplyHighConfidenceAutoGroupSuggestions)
+			autoGroupRoute.GET("/suggestions", controller.ListAutoGroupSuggestions)
+			autoGroupRoute.POST("/suggestions/:id/confirm", controller.ConfirmAutoGroupSuggestion)
+			autoGroupRoute.POST("/suggestions/:id/skip", controller.SkipAutoGroupSuggestion)
+			autoGroupRoute.GET("/identity-rules", controller.GetAutoGroupIdentityRules)
 			autoGroupRoute.GET("/rules", controller.GetAutoGroupRules)
 			autoGroupRoute.POST("/rules", controller.CreateAutoGroupRule)
 			autoGroupRoute.PUT("/rules/:id", controller.UpdateAutoGroupRule)

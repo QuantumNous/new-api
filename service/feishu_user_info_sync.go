@@ -190,8 +190,20 @@ func syncOneFeishuUserInfo(ctx context.Context, client *lark.Client, user *model
 	// 拉到 JobTitle 后重算 group（用户调岗的兜底）
 	if jobTitle, ok := updates["job_title"].(string); ok && strings.TrimSpace(jobTitle) != "" {
 		oldGroup := user.Group
-		if newGroup, changed := TryAutoGroupOnJobTitle(user.Id, oldGroup, jobTitle); changed {
-			user.Group = newGroup
+		decision := ClassifyAutoGroup(AutoGroupContext{
+			UserId:               user.Id,
+			CurrentGroup:         oldGroup,
+			JobTitle:             jobTitle,
+			OrgLevel1Name:        orgPath.Level1Name,
+			OrgLevel2Name:        orgPath.Level2Name,
+			DepartmentName:       department.Name,
+			ParentDepartmentName: parent.Name,
+			OrgPath:              orgPath.Path,
+		})
+		if decision.Action == model.AutoGroupActionAutoApply && decision.SuggestedGroup != "" && decision.SuggestedGroup != oldGroup {
+			if err := ApplyAutoGroupChange(user.Id, oldGroup, decision.SuggestedGroup); err == nil {
+				user.Group = decision.SuggestedGroup
+			}
 		}
 	}
 
