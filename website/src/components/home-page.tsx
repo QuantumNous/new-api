@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, BadgeDollarSign, BarChart3, Check, KeyRound, Link2, Server, ShieldCheck } from "lucide-react";
 import { HomeHealthTrends } from "@/components/home-health-trends";
 import { HomeModelsTable } from "@/components/home-models-table";
+import { HomeSupport } from "@/components/home-support";
 import { HomePriceCompare } from "@/components/home-price-compare";
 import { SiteShell } from "@/components/site-shell";
 import { getCopy } from "@/lib/copy";
@@ -170,7 +171,10 @@ export async function HomePage(props: Props) {
           </div>
         </section>
 
-        {/* Screen 6: closing CTA. */}
+        {/* Screen 6: support — email, live chat, SMS, or X. */}
+        <HomeSupport copy={home.support} />
+
+        {/* Screen 7: closing CTA. */}
         <section className="relative z-10 overflow-hidden px-6 py-24 md:py-32">
           <div className="absolute inset-0 -z-10 opacity-20" style={{ background: "radial-gradient(ellipse 55% 45% at 30% 50%, rgba(124,58,237,0.28) 0%, transparent 70%), radial-gradient(ellipse 42% 38% at 70% 40%, rgba(217,70,239,0.2) 0%, transparent 70%)" }} />
           <div className="mx-auto max-w-2xl text-center">

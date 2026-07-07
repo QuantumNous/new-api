@@ -8,6 +8,7 @@ type Copy = {
     home: string;
     console: string;
     rankings: string;
+    contact: string;
     blog: string;
     about: string;
     app: string;
@@ -112,6 +113,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Home",
       console: "Console",
       rankings: "Rankings",
+      contact: "Contact us",
       blog: "Blog",
       about: "About",
       app: "Open app",
@@ -269,6 +271,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "主页",
       console: "控制台",
       rankings: "排行",
+      contact: "联系我们",
       blog: "博客",
       about: "关于",
       app: "打开应用",
@@ -423,6 +426,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Inicio",
       console: "Consola",
       rankings: "Rankings",
+      contact: "Contacto",
       blog: "Blog",
       about: "Acerca de",
       app: "Abrir app",
@@ -549,6 +553,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Accueil",
       console: "Console",
       rankings: "Classements",
+      contact: "Contact",
       blog: "Blog",
       about: "À propos",
       app: "Ouvrir l'app",
@@ -675,6 +680,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Início",
       console: "Console",
       rankings: "Rankings",
+      contact: "Contato",
       blog: "Blog",
       about: "Sobre",
       app: "Abrir app",
@@ -801,6 +807,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Главная",
       console: "Консоль",
       rankings: "Рейтинги",
+      contact: "Контакты",
       blog: "Блог",
       about: "О нас",
       app: "Открыть приложение",
@@ -927,6 +934,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "ホーム",
       console: "コンソール",
       rankings: "ランキング",
+      contact: "お問い合わせ",
       blog: "ブログ",
       about: "概要",
       app: "アプリを開く",
@@ -1053,6 +1061,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Trang chủ",
       console: "Bảng điều khiển",
       rankings: "Xếp hạng",
+      contact: "Liên hệ",
       blog: "Blog",
       about: "Giới thiệu",
       app: "Mở ứng dụng",
@@ -1179,6 +1188,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Startseite",
       console: "Konsole",
       rankings: "Rankings",
+      contact: "Kontakt",
       blog: "Blog",
       about: "Über uns",
       app: "App öffnen",

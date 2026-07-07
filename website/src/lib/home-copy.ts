@@ -58,6 +58,15 @@ export type HomeCopy = {
     perMillion: string;
     viewAll: string;
   };
+  support: {
+    eyebrow: string;
+    title: string;
+    description: string;
+    email: { title: string; desc: string };
+    chat: { title: string; desc: string; action: string };
+    sms: { title: string; desc: string };
+    x: { title: string; desc: string };
+  };
 };
 
 const HOME_COPY: Record<Locale, HomeCopy> = {
@@ -148,6 +157,16 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       perMillion: "$ / 1M input tokens",
       viewAll: "Browse the full model directory",
     },
+    support: {
+      eyebrow: "Support",
+      title: "Questions? Talk to us.",
+      description:
+        "We provide online support and usage consultation for the LLM services on flatkey.ai — integration, model choice, or billing. Reach us through any channel below.",
+      email: { title: "Email", desc: "Send us the details and we'll reply by email." },
+      chat: { title: "Live chat", desc: "Chat with us right here on the site for the fastest answer.", action: "Start chatting" },
+      sms: { title: "SMS", desc: "Text us and we'll get back to you." },
+      x: { title: "X (Twitter)", desc: "Follow us or send a DM on X." },
+    },
   },
   zh: {
     hero: {
@@ -235,6 +254,16 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       colHealth: "30 天健康度",
       perMillion: "$ / 1M 输入 tokens",
       viewAll: "浏览完整模型目录",
+    },
+    support: {
+      eyebrow: "服务支持",
+      title: "有任何问题，联系我们",
+      description:
+        "我们为 flatkey.ai 上的 LLM 服务提供在线支持与使用咨询——接入集成、模型选择、计费问题都可以找我们。任选一种方式联系。",
+      email: { title: "邮件", desc: "把问题发给我们，我们会通过邮件回复。" },
+      chat: { title: "在线聊天", desc: "在网站上直接与我们对话，响应最快。", action: "开始对话" },
+      sms: { title: "短信", desc: "发短信给我们，我们会尽快回复。" },
+      x: { title: "X（推特）", desc: "在 X 上关注或私信我们。" },
     },
   },
   es: {
@@ -324,6 +353,16 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       perMillion: "$ / 1M tokens de entrada",
       viewAll: "Explorar el directorio completo de modelos",
     },
+    support: {
+      eyebrow: "Soporte",
+      title: "¿Preguntas? Habla con nosotros.",
+      description:
+        "Ofrecemos soporte en línea y consultoría de uso para los servicios LLM de flatkey.ai: integración, elección de modelo o facturación. Contáctanos por el canal que prefieras.",
+      email: { title: "Email", desc: "Envíanos los detalles y te responderemos por correo." },
+      chat: { title: "Chat en vivo", desc: "Chatea con nosotros aquí mismo en el sitio para la respuesta más rápida.", action: "Iniciar chat" },
+      sms: { title: "SMS", desc: "Envíanos un mensaje de texto y te responderemos." },
+      x: { title: "X (Twitter)", desc: "Síguenos o escríbenos por DM en X." },
+    },
   },
   fr: {
     hero: {
@@ -411,6 +450,16 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       colHealth: "Santé 30 j",
       perMillion: "$ / 1M tokens d'entrée",
       viewAll: "Parcourir le catalogue complet des modèles",
+    },
+    support: {
+      eyebrow: "Support",
+      title: "Des questions ? Parlez-nous.",
+      description:
+        "Nous offrons un support en ligne et des conseils d'utilisation pour les services LLM de flatkey.ai : intégration, choix de modèle ou facturation. Contactez-nous par le canal de votre choix.",
+      email: { title: "E-mail", desc: "Envoyez-nous les détails, nous répondrons par e-mail." },
+      chat: { title: "Chat en direct", desc: "Discutez avec nous directement sur le site pour une réponse rapide.", action: "Démarrer le chat" },
+      sms: { title: "SMS", desc: "Envoyez-nous un SMS, nous vous répondrons rapidement." },
+      x: { title: "X (Twitter)", desc: "Suivez-nous ou écrivez-nous en DM sur X." },
     },
   },
   pt: {
@@ -500,6 +549,16 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       perMillion: "$ / 1M tokens de entrada",
       viewAll: "Explorar o diretório completo de modelos",
     },
+    support: {
+      eyebrow: "Suporte",
+      title: "Dúvidas? Fale com a gente.",
+      description:
+        "Oferecemos suporte online e consultoria de uso para os serviços LLM da flatkey.ai: integração, escolha de modelo ou cobrança. Fale conosco pelo canal que preferir.",
+      email: { title: "Email", desc: "Envie os detalhes e responderemos por e-mail." },
+      chat: { title: "Chat ao vivo", desc: "Converse com a gente aqui no site para a resposta mais rápida.", action: "Iniciar chat" },
+      sms: { title: "SMS", desc: "Mande uma mensagem de texto e retornaremos." },
+      x: { title: "X (Twitter)", desc: "Siga a gente ou mande uma DM no X." },
+    },
   },
   ru: {
     hero: {
@@ -587,6 +646,16 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       colHealth: "Здоровье 30 дн",
       perMillion: "$ / 1M входных токенов",
       viewAll: "Открыть полный каталог моделей",
+    },
+    support: {
+      eyebrow: "Поддержка",
+      title: "Есть вопросы? Напишите нам.",
+      description:
+        "Мы предоставляем онлайн-поддержку и консультации по использованию LLM-сервисов flatkey.ai: интеграция, выбор модели, биллинг. Свяжитесь с нами любым удобным способом.",
+      email: { title: "Email", desc: "Опишите вопрос — ответим по почте." },
+      chat: { title: "Онлайн-чат", desc: "Напишите нам прямо на сайте — это самый быстрый способ.", action: "Начать чат" },
+      sms: { title: "SMS", desc: "Отправьте SMS, и мы вам ответим." },
+      x: { title: "X (Twitter)", desc: "Подписывайтесь и пишите нам в X." },
     },
   },
   ja: {
@@ -676,6 +745,16 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       perMillion: "$ / 1M 入力 tokens",
       viewAll: "モデル一覧をすべて見る",
     },
+    support: {
+      eyebrow: "サポート",
+      title: "ご質問はお気軽に",
+      description:
+        "flatkey.ai の LLM サービスについて、導入・モデル選定・課金まわりまでオンラインでサポート・ご相談を承ります。お好きな方法でご連絡ください。",
+      email: { title: "メール", desc: "内容をお送りください。メールで返信します。" },
+      chat: { title: "ライブチャット", desc: "サイト上でそのままチャット。最も早く回答できます。", action: "チャットを開始" },
+      sms: { title: "SMS", desc: "SMS をお送りいただければ折り返しご連絡します。" },
+      x: { title: "X（Twitter）", desc: "X でフォロー・DM でご連絡ください。" },
+    },
   },
   vi: {
     hero: {
@@ -764,6 +843,16 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       perMillion: "$ / 1M token input",
       viewAll: "Xem toàn bộ danh mục model",
     },
+    support: {
+      eyebrow: "Hỗ trợ",
+      title: "Có câu hỏi? Liên hệ với chúng tôi.",
+      description:
+        "Chúng tôi hỗ trợ trực tuyến và tư vấn sử dụng cho các dịch vụ LLM trên flatkey.ai — tích hợp, chọn model hay thanh toán. Liên hệ theo cách bạn thích.",
+      email: { title: "Email", desc: "Gửi chi tiết cho chúng tôi, chúng tôi sẽ trả lời qua email." },
+      chat: { title: "Chat trực tiếp", desc: "Trò chuyện với chúng tôi ngay trên trang để được trả lời nhanh nhất.", action: "Bắt đầu chat" },
+      sms: { title: "SMS", desc: "Nhắn tin cho chúng tôi, chúng tôi sẽ phản hồi." },
+      x: { title: "X (Twitter)", desc: "Theo dõi và nhắn tin cho chúng tôi trên X." },
+    },
   },
   de: {
     hero: {
@@ -851,6 +940,16 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
       colHealth: "Gesundheit 30 T",
       perMillion: "$ / 1M Input-Tokens",
       viewAll: "Vollständiges Modellverzeichnis ansehen",
+    },
+    support: {
+      eyebrow: "Support",
+      title: "Fragen? Sprich mit uns.",
+      description:
+        "Wir bieten Online-Support und Nutzungsberatung für die LLM-Services auf flatkey.ai — Integration, Modellwahl oder Abrechnung. Erreiche uns über den Kanal deiner Wahl.",
+      email: { title: "E-Mail", desc: "Schick uns die Details, wir antworten per E-Mail." },
+      chat: { title: "Live-Chat", desc: "Chatte direkt hier auf der Seite — der schnellste Weg zur Antwort.", action: "Chat starten" },
+      sms: { title: "SMS", desc: "Schreib uns eine SMS, wir melden uns." },
+      x: { title: "X (Twitter)", desc: "Folge uns oder schreib uns per DM auf X." },
     },
   },
 };

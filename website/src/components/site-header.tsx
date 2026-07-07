@@ -45,6 +45,9 @@ export function SiteHeader(props: Props) {
     { href: "/blog", label: copy.nav.blog, publicPath: true },
     { href: "/pricing", label: copy.nav.pricing, publicPath: true },
     { href: "/models", label: copy.nav.modelPricing, publicPath: true },
+    // Rankings is the website's own daily-updated data page (same pipeline
+    // as the console chart) — the single public rankings surface.
+    { href: "/rankings", label: copy.nav.rankings, publicPath: true },
   ];
   const currentPath = stripLocale(props.pathname);
 
@@ -131,6 +134,15 @@ export function SiteHeader(props: Props) {
                   </div>
                 </div>
               </div>
+              <Link
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200",
+                  currentPath === "/contact" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+                href={localizePath("/contact", props.locale)}
+              >
+                {copy.nav.contact}
+              </Link>
 
               <div className="mx-2 h-4 w-px bg-border/40" />
               <LanguageSwitcher locale={props.locale} pathname={props.pathname} />
@@ -229,6 +241,18 @@ export function SiteHeader(props: Props) {
                 </Link>
               ))}
             </div>
+            <Link
+              href={localizePath("/contact", props.locale)}
+              onClick={() => setMobileOpen(false)}
+              className={cn(
+                "flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                mobileOpen ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
+                currentPath === "/contact" ? "text-foreground" : "text-muted-foreground"
+              )}
+              style={{ transitionDelay: mobileOpen ? `${150 + navItems.length * 50}ms` : "0ms" }}
+            >
+              {copy.nav.contact}
+            </Link>
           </nav>
 
           <div
