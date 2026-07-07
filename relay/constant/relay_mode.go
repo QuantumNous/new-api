@@ -54,9 +54,21 @@ const (
 	RelayModeResponsesCompact
 )
 
+func IsPlaygroundRelayPath(path string) bool {
+	return path == "/pg" || strings.HasPrefix(path, "/pg/")
+}
+
+func CanonicalRelayRequestPath(path string) string {
+	if IsPlaygroundRelayPath(path) {
+		return "/v1" + strings.TrimPrefix(path, "/pg")
+	}
+	return path
+}
+
 func Path2RelayMode(path string) int {
+	path = CanonicalRelayRequestPath(path)
 	relayMode := RelayModeUnknown
-	if strings.HasPrefix(path, "/v1/chat/completions") || strings.HasPrefix(path, "/pg/chat/completions") {
+	if strings.HasPrefix(path, "/v1/chat/completions") {
 		relayMode = RelayModeChatCompletions
 	} else if strings.HasPrefix(path, "/v1/completions") {
 		relayMode = RelayModeCompletions
