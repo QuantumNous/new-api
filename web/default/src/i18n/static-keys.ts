@@ -71,7 +71,7 @@ export const STATIC_I18N_KEYS = [
 
   // Wallet recharge packages
   'Top-up Packages',
-  'Choose a prepaid USD package and checkout with Stripe',
+  'Models are priced at 60–90% of the official list. Top up $200 and get $100 free — both discounts stack, as low as 50% of the official price.',
   'Top up {{price}}',
   'Lowest entry to get started',
   'Pay $10, get $13 in credit',

@@ -187,7 +187,7 @@ const HOME_COPY: Record<Locale, HomeCopy> = {
     compare: {
       title: "双重优惠",
       subtitle: "每 1M token 输入价",
-      badge: "低至 5 折",
+      badge: "最低 5 折",
       layers: ["模型定价：官方 6～9 折", "充值 $200 送 $100：实付 2/3"],
       official: "官方价",
       flatkey: "充值后",

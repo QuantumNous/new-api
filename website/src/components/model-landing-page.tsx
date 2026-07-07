@@ -64,11 +64,11 @@ export function ModelLandingPage({ config, locale, liveModels = [] }: Props) {
           <h1 className="mt-5 text-[clamp(1.9rem,4.2vw,2.9rem)] leading-[1.12] font-bold tracking-tight">
             {t("The same {{model}},", { model: config.displayName })}{" "}
             <span className="bg-gradient-to-r from-violet-600 via-fuchsia-500 to-indigo-500 bg-clip-text text-transparent dark:from-violet-200 dark:via-fuchsia-300 dark:to-indigo-300">
-              {t("up to 33% cheaper")}
+              {t("up to 50% off")}
             </span>
           </h1>
           <p className="text-muted-foreground mt-4 max-w-2xl text-base leading-7">
-            {t("Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.", {
+            {t("Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.", {
               official: config.officialName,
             })}
           </p>

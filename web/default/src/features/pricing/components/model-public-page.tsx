@@ -162,16 +162,19 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
         <div className='rounded-xl border border-violet-500/25 bg-violet-500/[0.06] p-4'>
           <div className='text-muted-foreground flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase'>
             <BadgePercent className='size-3.5' />
-            {t('Top-up discount')}
+            {t('Stacked discount')}
           </div>
           <div className='mt-1 text-3xl font-bold text-violet-700 dark:text-violet-300'>
-            {t('up to 33% cheaper')}
+            {t('up to 50% off')}
           </div>
           <a
             href='/wallet'
             className='text-muted-foreground hover:text-foreground mt-1 block text-xs underline decoration-dotted underline-offset-2'
           >
-            {t('Every top-up earns bonus credit')} →
+            {t(
+              'Models are priced at 60–90% of the official list. Top up $200 and get $100 free — both discounts stack, as low as 50% of the official price.'
+            )}{' '}
+            →
           </a>
         </div>
       </div>
@@ -194,7 +197,7 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
                 {discounted ? (
                   <>
                     <div className='text-muted-foreground/70 mt-1 font-mono text-sm tabular-nums'>
-                      {t('Official price')}{' '}
+                      {t('List price')}{' '}
                       <span className='line-through'>{row.official}</span>
                     </div>
                     <div className='mt-0.5 font-mono text-3xl font-bold text-emerald-600 tabular-nums dark:text-emerald-400'>

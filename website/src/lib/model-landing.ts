@@ -161,7 +161,7 @@ export type ModelLandingKey =
   | "/ million output tokens"
   | "/ second"
   | "# Your existing OpenAI code:"
-  | "up to 33% cheaper"
+  | "up to 50% off"
   | "earns bonus credit"
   | "Est. this run"
   | "Every top-up"
@@ -171,7 +171,7 @@ export type ModelLandingKey =
   | "Pay to unlock · credited instantly · not a free-signup giveaway"
   | "Playground (edit before sign-up)"
   | "Pricing vs official"
-  | "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready."
+  | "Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready."
   | "Sign in to claim →"
   | "Starter / individual"
   | "Team / high-volume"
@@ -258,7 +258,7 @@ const en: Record<ModelLandingKey, string> = {
   "/ million output tokens": "/ million output tokens",
   "/ second": "/ second",
   "# Your existing OpenAI code:": "# Your existing OpenAI code:",
-  "up to 33% cheaper": "up to 33% cheaper",
+  "up to 50% off": "up to 50% off",
   "earns bonus credit": "earns bonus credit",
   "Est. this run": "Est. this run",
   "Every top-up": "Every top-up",
@@ -268,7 +268,7 @@ const en: Record<ModelLandingKey, string> = {
   "Pay to unlock · credited instantly · not a free-signup giveaway": "Pay to unlock · credited instantly · not a free-signup giveaway",
   "Playground (edit before sign-up)": "Playground (edit before sign-up)",
   "Pricing vs official": "Pricing vs official",
-  "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.",
+  "Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.",
   "Sign in to claim →": "Sign in to claim →",
   "Starter / individual": "Starter / individual",
   "Team / high-volume": "Team / high-volume",
@@ -320,7 +320,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "/ million output tokens": "/ 百万输出 token",
     "/ second": "/ 秒",
     "# Your existing OpenAI code:": "# 你现有的 OpenAI 代码：",
-    "up to 33% cheaper": "低至 6.7 折",
+    "up to 50% off": "最低 5 折",
     "earns bonus credit": "都送额度",
     "Est. this run": "本次预估",
     "Every top-up": "每次充值",
@@ -330,7 +330,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "Pay to unlock · credited instantly · not a free-signup giveaway": "付费解锁 · 即时到账 · 不是免费注册赠送",
     "Playground (edit before sign-up)": "Playground（注册前可编辑）",
     "Pricing vs official": "与官方价格对比",
-    "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "同款 {{official}} 上游，同等质量 —— 充值赠送后至高便宜 33%。只改一行 base_url，现有 OpenAI SDK 直接可用。先在下方试用，准备好再登录。",
+    "Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "同款 {{official}} 上游，同等质量 —— 模型定价为官方 6～9 折，叠加充值赠送最低 5 折。只改一行 base_url，现有 OpenAI SDK 直接可用。先在下方试用，准备好再登录。",
     "Sign in to claim →": "登录领取 →",
     "Starter / individual": "入门 / 个人",
     "Team / high-volume": "团队 / 大用量",
@@ -379,7 +379,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "/ million output tokens": "/ millón de tokens de salida",
     "/ second": "/ segundo",
     "# Your existing OpenAI code:": "# Tu código OpenAI actual:",
-    "up to 33% cheaper": "hasta 33% más barato",
+    "up to 50% off": "hasta 50% menos",
     "earns bonus credit": "otorga crédito extra",
     "Est. this run": "Est. esta ejecución",
     "Every top-up": "Cada recarga",
@@ -389,7 +389,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "Pay to unlock · credited instantly · not a free-signup giveaway": "Paga para desbloquear · crédito instantáneo · no es un regalo gratuito por registrarte",
     "Playground (edit before sign-up)": "Playground (edita antes de registrarte)",
     "Pricing vs official": "Precios vs oficial",
-    "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Mismo upstream de {{official}}, misma calidad — con el bono de recarga sale hasta 33% más barato. Cambia una línea de base_url y tu SDK de OpenAI existente simplemente funciona. Pruébalo abajo e inicia sesión cuando estés listo.",
+    "Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Mismo upstream de {{official}}, misma calidad — modelos al 60-90% del precio oficial más el bono de recarga: hasta el 50% del precio oficial. Cambia una línea de base_url y tu SDK de OpenAI existente simplemente funciona. Pruébalo abajo e inicia sesión cuando estés listo.",
     "Sign in to claim →": "Inicia sesión para reclamar →",
     "Starter / individual": "Inicial / individual",
     "Team / high-volume": "Equipo / alto volumen",
@@ -438,7 +438,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "/ million output tokens": "/ million de tokens de sortie",
     "/ second": "/ seconde",
     "# Your existing OpenAI code:": "# Votre code OpenAI actuel :",
-    "up to 33% cheaper": "jusqu'à 33 % moins cher",
+    "up to 50% off": "jusqu'à -50 %",
     "earns bonus credit": "offre du crédit bonus",
     "Est. this run": "Est. pour cette exécution",
     "Every top-up": "Chaque recharge",
@@ -448,7 +448,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "Pay to unlock · credited instantly · not a free-signup giveaway": "Payez pour débloquer · crédité instantanément · pas un cadeau gratuit à l'inscription",
     "Playground (edit before sign-up)": "Playground (modifiez avant l'inscription)",
     "Pricing vs official": "Tarifs vs officiel",
-    "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Même upstream {{official}}, même qualité — le bonus de recharge le rend jusqu'à 33 % moins cher. Changez une ligne de base_url et votre SDK OpenAI existant fonctionne tel quel. Essayez ci-dessous, connectez-vous quand vous êtes prêt.",
+    "Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Même upstream {{official}}, même qualité — modèles à 60-90 % du tarif officiel plus le bonus de recharge : jusqu'à 50 % du prix officiel. Changez une ligne de base_url et votre SDK OpenAI existant fonctionne tel quel. Essayez ci-dessous, connectez-vous quand vous êtes prêt.",
     "Sign in to claim →": "Connectez-vous pour réclamer →",
     "Starter / individual": "Débutant / individuel",
     "Team / high-volume": "Équipe / gros volume",
@@ -497,7 +497,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "/ million output tokens": "/ milhão de tokens de saída",
     "/ second": "/ segundo",
     "# Your existing OpenAI code:": "# Seu código OpenAI atual:",
-    "up to 33% cheaper": "até 33% mais barato",
+    "up to 50% off": "até 50% de desconto",
     "earns bonus credit": "rende crédito bônus",
     "Est. this run": "Est. desta execução",
     "Every top-up": "Cada recarga",
@@ -507,7 +507,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "Pay to unlock · credited instantly · not a free-signup giveaway": "Pague para desbloquear · crédito instantâneo · não é brinde gratuito de cadastro",
     "Playground (edit before sign-up)": "Playground (edite antes de cadastrar)",
     "Pricing vs official": "Preços vs oficial",
-    "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Mesmo upstream da {{official}}, mesma qualidade — com o bônus de recarga fica até 33% mais barato. Mude uma linha do base_url e seu SDK OpenAI existente simplesmente funciona. Teste abaixo e faça login quando estiver pronto.",
+    "Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Mesmo upstream da {{official}}, mesma qualidade — modelos a 60-90% do preço oficial mais o bônus de recarga: até 50% do preço oficial. Mude uma linha do base_url e seu SDK OpenAI existente simplesmente funciona. Teste abaixo e faça login quando estiver pronto.",
     "Sign in to claim →": "Entrar para resgatar →",
     "Starter / individual": "Inicial / individual",
     "Team / high-volume": "Equipe / alto volume",
@@ -556,7 +556,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "/ million output tokens": "/ млн выходных токенов",
     "/ second": "/ секунду",
     "# Your existing OpenAI code:": "# Ваш текущий код OpenAI:",
-    "up to 33% cheaper": "до 33% дешевле",
+    "up to 50% off": "до 50% дешевле",
     "earns bonus credit": "даёт бонусный кредит",
     "Est. this run": "Оценка за этот запуск",
     "Every top-up": "Каждое пополнение",
@@ -566,7 +566,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "Pay to unlock · credited instantly · not a free-signup giveaway": "Оплатите, чтобы разблокировать · зачисляется мгновенно · это не бесплатный бонус за регистрацию",
     "Playground (edit before sign-up)": "Playground (правьте до регистрации)",
     "Pricing vs official": "Цены против официальных",
-    "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Тот же upstream {{official}}, то же качество — с бонусом за пополнение до 33% дешевле. Измените одну строку base_url — и ваш существующий OpenAI SDK просто работает. Попробуйте ниже, войдите, когда будете готовы.",
+    "Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Тот же upstream {{official}}, то же качество — цены моделей 60-90% от официальных, плюс бонус пополнения: до 50% от официальной цены. Измените одну строку base_url — и ваш существующий OpenAI SDK просто работает. Попробуйте ниже, войдите, когда будете готовы.",
     "Sign in to claim →": "Войдите, чтобы получить →",
     "Starter / individual": "Начальный / индивидуальный",
     "Team / high-volume": "Команда / большой объём",
@@ -615,7 +615,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "/ million output tokens": "/ 出力トークン100万あたり",
     "/ second": "/ 秒",
     "# Your existing OpenAI code:": "# 既存の OpenAI コード:",
-    "up to 33% cheaper": "最大 33% お得",
+    "up to 50% off": "最大 50% オフ",
     "earns bonus credit": "ボーナスクレジット進呈",
     "Est. this run": "今回の概算",
     "Every top-up": "毎回のチャージで",
@@ -625,7 +625,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "Pay to unlock · credited instantly · not a free-signup giveaway": "支払いで解放 · 即時反映 · 無料登録特典ではありません",
     "Playground (edit before sign-up)": "プレイグラウンド（登録前に編集可）",
     "Pricing vs official": "公式との価格比較",
-    "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "同じ {{official}} アップストリーム、同じ品質 — チャージ特典で最大33%お得。base_url を1行変えるだけで、既存の OpenAI SDK がそのまま動きます。まず下で試して、準備ができたらサインイン。",
+    "Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "同じ {{official}} アップストリーム、同じ品質 — モデル価格は公式の 60〜90%、チャージ特典と合わせて最安で公式価格の 50%。base_url を1行変えるだけで、既存の OpenAI SDK がそのまま動きます。まず下で試して、準備ができたらサインイン。",
     "Sign in to claim →": "サインインして受け取る →",
     "Starter / individual": "スターター / 個人",
     "Team / high-volume": "チーム / 大量利用",
@@ -674,7 +674,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "/ million output tokens": "/ triệu token đầu ra",
     "/ second": "/ giây",
     "# Your existing OpenAI code:": "# Mã OpenAI hiện có của bạn:",
-    "up to 33% cheaper": "rẻ hơn tới 33%",
+    "up to 50% off": "rẻ hơn tới 50%",
     "earns bonus credit": "đều tặng credit",
     "Est. this run": "Ước tính lần chạy này",
     "Every top-up": "Mỗi lần nạp",
@@ -684,7 +684,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "Pay to unlock · credited instantly · not a free-signup giveaway": "Thanh toán để mở khóa · ghi có tức thì · không phải quà tặng đăng ký miễn phí",
     "Playground (edit before sign-up)": "Playground (chỉnh sửa trước khi đăng ký)",
     "Pricing vs official": "Giá so với chính thức",
-    "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Cùng upstream {{official}}, cùng chất lượng — thưởng nạp giúp rẻ hơn tới 33%. Chỉ đổi một dòng base_url là SDK OpenAI hiện tại chạy ngay. Thử bên dưới, đăng nhập khi sẵn sàng.",
+    "Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Cùng upstream {{official}}, cùng chất lượng — giá model bằng 60-90% chính thức cộng ưu đãi nạp, thấp nhất bằng 50% giá chính thức. Chỉ đổi một dòng base_url là SDK OpenAI hiện tại chạy ngay. Thử bên dưới, đăng nhập khi sẵn sàng.",
     "Sign in to claim →": "Đăng nhập để nhận →",
     "Starter / individual": "Khởi đầu / cá nhân",
     "Team / high-volume": "Nhóm / khối lượng lớn",
@@ -733,7 +733,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "/ million output tokens": "/ Million Output-Tokens",
     "/ second": "/ Sekunde",
     "# Your existing OpenAI code:": "# Dein vorhandener OpenAI-Code:",
-    "up to 33% cheaper": "bis zu 33% günstiger",
+    "up to 50% off": "bis zu 50% günstiger",
     "earns bonus credit": "bringt Bonusguthaben",
     "Est. this run": "Schätzung für diesen Lauf",
     "Every top-up": "Jede Aufladung",
@@ -743,7 +743,7 @@ const translations: Record<Locale, Record<ModelLandingKey, string>> = {
     "Pay to unlock · credited instantly · not a free-signup giveaway": "Zum Freischalten bezahlen · sofort gutgeschrieben · kein kostenloses Anmeldegeschenk",
     "Playground (edit before sign-up)": "Playground (vor der Anmeldung bearbeiten)",
     "Pricing vs official": "Preise im Vergleich zum offiziellen Anbieter",
-    "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Gleicher {{official}}-Upstream, gleiche Qualität — mit dem Aufladebonus bis zu 33% günstiger. Ändere eine Zeile base_url und dein bestehendes OpenAI SDK funktioniert einfach. Teste unten und melde dich an, wenn du bereit bist.",
+    "Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Gleicher {{official}}-Upstream, gleiche Qualität — Modellpreise bei 60-90% des offiziellen Preises plus Aufladebonus: bis zu 50% des offiziellen Preises. Ändere eine Zeile base_url und dein bestehendes OpenAI SDK funktioniert einfach. Probiere es unten aus, melde dich an, wenn du bereit bist.",
     "Sign in to claim →": "Zum Einlösen anmelden →",
     "Starter / individual": "Starter / Einzelperson",
     "Team / high-volume": "Team / hohes Volumen",

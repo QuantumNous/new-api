@@ -72,7 +72,7 @@ export function CardBindBanner() {
         </span>
         <span className='relative'>
           <Trans
-            i18nKey='Every top-up <hl>earns bonus credit</hl> · same models, up to 33% off the official price'
+            i18nKey='Every top-up <hl>earns bonus credit</hl> · same models, up to 50% off the official price'
             components={{
               hl: (
                 <span className='font-extrabold text-amber-300 drop-shadow-[0_0_6px_rgba(252,211,77,0.45)]' />

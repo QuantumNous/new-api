@@ -54,7 +54,7 @@ export async function HomePage(props: Props) {
           className="pointer-events-none absolute inset-0 -z-0 bg-[linear-gradient(to_right,rgba(124,58,237,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(124,58,237,0.08)_1px,transparent_1px)] bg-[size:4.5rem_4.5rem] opacity-70 dark:bg-[linear-gradient(to_right,rgba(148,163,184,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.045)_1px,transparent_1px)] dark:opacity-45"
         />
 
-        {/* Screen 1: hero — official models, up to 33% off, stable and secure. */}
+        {/* Screen 1: hero — official models, as low as 50% of official with stacked discounts, stable and secure. */}
         <section className="relative z-10 overflow-hidden px-6 pt-24 pb-14 md:pt-32 md:pb-20 lg:pt-36">
           <div
             aria-hidden

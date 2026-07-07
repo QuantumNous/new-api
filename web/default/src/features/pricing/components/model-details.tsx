@@ -564,7 +564,7 @@ function PriceSection(props: {
               {discounted ? (
                 <>
                   <div className='text-muted-foreground/70 mt-1 font-mono text-xs tabular-nums'>
-                    {t('Official price')}{' '}
+                    {t('List price')}{' '}
                     <span className='line-through'>{official}</span>
                   </div>
                   <div className='mt-0.5 font-mono text-lg font-bold text-emerald-600 tabular-nums dark:text-emerald-400'>
@@ -1012,7 +1012,12 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
             >
               💰{' '}
               {t('Every top-up earns bonus credit')} ·{' '}
-              {t('up to 33% cheaper')} →
+              {t('up to 50% off')} →
+              <span className='text-muted-foreground mt-1 block text-xs font-normal'>
+                {t(
+                  'Models are priced at 60–90% of the official list. Top up $200 and get $100 free — both discounts stack, as low as 50% of the official price.'
+                )}
+              </span>
             </a>
             {!props.hideGroupPricing && (
             <GroupPricingSection

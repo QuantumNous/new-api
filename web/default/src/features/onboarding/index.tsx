@@ -132,7 +132,7 @@ export function Onboarding() {
         </h2>
         <p className='text-muted-foreground text-center text-sm'>
           {t(
-            'Across Claude / GPT / Gemini and more. Bonus is credited instantly on every top-up — no deadline.'
+            'Models are priced at 60–90% of the official list. Top up $200 and get $100 free — both discounts stack, as low as 50% of the official price.'
           )}
         </p>
 

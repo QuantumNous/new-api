@@ -223,7 +223,9 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
     return (
       <TitledCard
         title={t('Top-up Packages')}
-        description={t('Choose a prepaid USD package and checkout with Stripe')}
+        description={t(
+        'Models are priced at 60–90% of the official list. Top up $200 and get $100 free — both discounts stack, as low as 50% of the official price.'
+      )}
         icon={<WalletCards className='h-4 w-4' />}
         contentClassName='space-y-4 sm:space-y-6'
       >
@@ -255,7 +257,9 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
   return (
     <TitledCard
       title={t('Top-up Packages')}
-      description={t('Choose a prepaid USD package and checkout with Stripe')}
+      description={t(
+        'Models are priced at 60–90% of the official list. Top up $200 and get $100 free — both discounts stack, as low as 50% of the official price.'
+      )}
       icon={<WalletCards className='h-4 w-4' />}
       contentClassName='space-y-4 sm:space-y-6'
     >
