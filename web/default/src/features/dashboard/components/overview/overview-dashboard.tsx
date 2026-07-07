@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
@@ -115,6 +115,7 @@ interface QuickAction {
 interface RequestExample {
   endpoint: string
   model: string
+  kind: ExampleModelKind
   keyName: string
   keyId?: number
   displayKey: string
@@ -155,20 +156,16 @@ const PREFERRED_EXAMPLE_MODELS = [
   'gpt-4o',
 ]
 
-// The example request always targets /v1/chat/completions, so models tagged
-// as generation/embedding surfaces would only produce a failing curl.
-// Endpoint tags come from channel config, so this is an exclusion list
-// rather than a chat allowlist — models with no pricing metadata stay in.
-const NON_CHAT_ENDPOINT_TYPES = [
-  'image-generation',
-  'openai-video',
-  'embeddings',
-  'jina-rerank',
-]
+// The example only knows how to demo chat and image generation, so models
+// whose only surfaces are embedding/TTS/video would produce a failing curl.
+// Endpoint tags come from channel config, so this is an exclusion list plus
+// a name heuristic (metadata is not always tagged — gemini-embedding-001
+// carries only ['gemini','openai']); untagged models stay in as chat.
+const EXCLUDED_ENDPOINT_TYPES = ['openai-video', 'embeddings', 'jina-rerank']
+const EXCLUDED_NAME_PATTERN = /(^|[-_.])(embedding|tts|video|seedance)/i
+const IMAGE_NAME_PATTERN = /(^|[-_.])(image|banana)/i
 
-// Channel metadata is not always tagged (e.g. gemini-embedding-001 carries
-// only ['gemini','openai']), so also drop obvious non-chat model names.
-const NON_CHAT_NAME_PATTERN = /(^|[-_.])(image|embedding|tts|video|seedance)/i
+type ExampleModelKind = 'chat' | 'image'
 
 function pickDefaultModel(models: string[]): string {
   return (
@@ -193,6 +190,10 @@ function normalizeEndpoint(sourceUrl?: string): string {
   return `${withoutTrailingSlash}/v1/chat/completions`
 }
 
+function toImagesEndpoint(chatEndpoint: string): string {
+  return chatEndpoint.replace(/\/chat\/completions$/, '/images/generations')
+}
+
 function getPreferredKey(keys: ApiKey[]): ApiKey | null {
   return keys.find((item) => item.status === 1) ?? keys[0] ?? null
 }
@@ -207,12 +208,19 @@ function buildCurlCommand(args: {
   endpoint: string
   apiKey: string
   model: string
+  kind: ExampleModelKind
 }): string {
+  const endpoint =
+    args.kind === 'image' ? toImagesEndpoint(args.endpoint) : args.endpoint
+  const body =
+    args.kind === 'image'
+      ? `{"model":"${args.model}","prompt":"A cute cat","size":"1024x1024"}`
+      : `{"model":"${args.model}","messages":[{"role":"user","content":"Say hello in one sentence."}]}`
   return [
-    `curl ${args.endpoint} \\`,
+    `curl ${endpoint} \\`,
     '  -H "Content-Type: application/json" \\',
     `  -H "Authorization: Bearer ${args.apiKey}" \\`,
-    `  -d '{"model":"${args.model}","messages":[{"role":"user","content":"Say hello in one sentence."}]}'`,
+    `  -d '${body}'`,
   ].join('\n')
 }
 
@@ -325,6 +333,7 @@ function RequestPreview(props: {
     endpoint: props.example.endpoint,
     apiKey: props.example.displayKey,
     model: props.example.model,
+    kind: props.example.kind,
   })
   const previewLines = previewCurl.split('\n')
   const handleCopyRequest = async () => {
@@ -347,6 +356,7 @@ function RequestPreview(props: {
         endpoint: props.example.endpoint,
         apiKey,
         model: props.example.model,
+        kind: props.example.kind,
       })
       const copied = await copyToClipboard(realCurl)
       if (copied) {
@@ -585,26 +595,37 @@ export function OverviewDashboard() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const nonChatModels = useMemo(() => {
-    const rows = pricingQuery.data?.data ?? []
-    const excluded = new Set<string>()
-    for (const row of rows) {
-      const types = row.supported_endpoint_types ?? []
-      if (types.some((type) => NON_CHAT_ENDPOINT_TYPES.includes(type))) {
-        excluded.add(row.model_name)
-      }
+  const modelEndpointTags = useMemo(() => {
+    const tags = new Map<string, string[]>()
+    for (const row of pricingQuery.data?.data ?? []) {
+      tags.set(row.model_name, row.supported_endpoint_types ?? [])
     }
-    return excluded
+    return tags
   }, [pricingQuery.data])
+
+  const classifyModel = useCallback(
+    (model: string): ExampleModelKind | null => {
+      const types = modelEndpointTags.get(model) ?? []
+      if (
+        types.some((type) => EXCLUDED_ENDPOINT_TYPES.includes(type)) ||
+        EXCLUDED_NAME_PATTERN.test(model)
+      ) {
+        return null
+      }
+      if (types.includes('image-generation') || IMAGE_NAME_PATTERN.test(model)) {
+        return 'image'
+      }
+      return 'chat'
+    },
+    [modelEndpointTags]
+  )
 
   const availableModels = useMemo(() => {
     const models = modelsQuery.data ?? []
-    const filtered = models.filter(
-      (model) => !nonChatModels.has(model) && !NON_CHAT_NAME_PATTERN.test(model)
-    )
+    const filtered = models.filter((model) => classifyModel(model) !== null)
     // Never filter down to an empty dropdown on odd channel metadata.
     return filtered.length > 0 ? filtered : models
-  }, [modelsQuery.data, nonChatModels])
+  }, [classifyModel, modelsQuery.data])
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const exampleModel = useMemo(() => {
     if (selectedModel && availableModels.includes(selectedModel)) {
@@ -700,12 +721,13 @@ export function OverviewDashboard() {
     return {
       endpoint,
       model: exampleModel,
+      kind: classifyModel(exampleModel) ?? 'chat',
       keyName,
       keyId: preferredKey?.id,
       displayKey: preferredKey ? formatDisplayKey(`sk-${preferredKey.key}`) : 'sk-...',
       ready,
     }
-  }, [apiInfoItems, exampleModel, preferredKey, t])
+  }, [apiInfoItems, classifyModel, exampleModel, preferredKey, t])
 
   const completedStepCount = startSteps.filter((step) => step.completed).length
   const setupComplete = completedStepCount === startSteps.length
