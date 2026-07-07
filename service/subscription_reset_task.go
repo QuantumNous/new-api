@@ -24,7 +24,12 @@ var (
 	subscriptionResetOnce    sync.Once
 	subscriptionResetRunning atomic.Bool
 	subscriptionCleanupLast  atomic.Int64
+	recurringChargeLast      atomic.Int64
 )
+
+// Agreement-based rails (WeChat 委托代扣 / Alipay 周期扣款) are merchant-initiated:
+// scan once a day; a no-op while no RecurringCharger is registered (HK/Airwallex).
+const recurringChargeInterval = 24 * time.Hour
 
 func StartSubscriptionQuotaResetTask() {
 	subscriptionResetOnce.Do(func() {
@@ -86,6 +91,11 @@ func runSubscriptionQuotaResetOnce() {
 		if _, err := model.CleanupSubscriptionPreConsumeRecords(7 * 24 * 3600); err == nil {
 			subscriptionCleanupLast.Store(time.Now().Unix())
 		}
+	}
+	lastRecurring := time.Unix(recurringChargeLast.Load(), 0)
+	if time.Since(lastRecurring) >= recurringChargeInterval {
+		ChargeDueAgreementSubscriptions()
+		recurringChargeLast.Store(time.Now().Unix())
 	}
 	if common.DebugEnabled && (totalReset > 0 || totalExpired > 0) {
 		logger.LogDebug(ctx, "subscription maintenance: reset_count=%d, expired_count=%d", totalReset, totalExpired)

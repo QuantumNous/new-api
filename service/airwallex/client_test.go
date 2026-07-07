@@ -1,0 +1,152 @@
+package airwallex
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
+	"testing"
+
+	"github.com/QuantumNous/new-api/setting"
+)
+
+func mockServer(t *testing.T, loginCount *int32, handler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/authentication/login" {
+			if r.Header.Get("x-client-id") != "cid" || r.Header.Get("x-api-key") != "key" {
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte(`{"code":"credentials_invalid","message":"UNAUTHORIZED"}`))
+				return
+			}
+			atomic.AddInt32(loginCount, 1)
+			w.WriteHeader(http.StatusCreated)
+			w.Write([]byte(`{"token":"tok-1"}`))
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer tok-1" {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"code":"unauthorized","message":"Insufficient permissions"}`))
+			return
+		}
+		handler(w, r)
+	}))
+	prevBase := setting.AirwallexApiBase
+	setting.AirwallexApiBase = srv.URL
+	setting.AirwallexClientId = "cid"
+	setting.AirwallexApiKey = "key"
+	ResetTokenCache()
+	t.Cleanup(func() {
+		setting.AirwallexApiBase = prevBase
+		ResetTokenCache()
+		srv.Close()
+	})
+	return srv
+}
+
+func TestTokenCachedAcrossCalls(t *testing.T) {
+	var logins int32
+	mockServer(t, &logins, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"id":"cus_1","merchant_customer_id":"7"}`))
+	})
+	for i := 0; i < 3; i++ {
+		if _, err := CreateCustomer("req-1", "7", "a@b.c"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if logins != 1 {
+		t.Fatalf("expected 1 login, got %d", logins)
+	}
+}
+
+func TestLoginFailureSurfaced(t *testing.T) {
+	var logins int32
+	mockServer(t, &logins, func(w http.ResponseWriter, r *http.Request) {})
+	setting.AirwallexApiKey = "wrong"
+	ResetTokenCache()
+	_, err := CreateCustomer("req-1", "7", "")
+	if err == nil || !strings.Contains(err.Error(), "login failed") {
+		t.Fatalf("expected login failure, got %v", err)
+	}
+	setting.AirwallexApiKey = "key"
+}
+
+func TestCreateSubscriptionSendsVerifiedShape(t *testing.T) {
+	var logins int32
+	var gotPath, gotBody string
+	mockServer(t, &logins, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		buf := make([]byte, r.ContentLength)
+		r.Body.Read(buf)
+		gotBody = string(buf)
+		w.Write([]byte(`{"id":"sub_1","status":"ACTIVE","customer_id":"cus_1"}`))
+	})
+	sub, err := CreateSubscription(&CreateSubscriptionRequest{
+		RequestId:        "req-2",
+		CustomerId:       "cus_1",
+		PaymentConsentId: "cst_1",
+		Items:            []SubscriptionItem{{PriceId: "pri_pro"}},
+		Recurring:        &SubscriptionRecurring{Period: 1, PeriodUnit: "MONTH"},
+		Metadata:         map[string]string{"new_api_user_id": "7", "trade_no": "sub_ref_x"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sub.Id != "sub_1" || sub.Status != "ACTIVE" {
+		t.Fatalf("unexpected sub %+v", sub)
+	}
+	if gotPath != "/api/v1/subscriptions/create" {
+		t.Fatalf("wrong path %s", gotPath)
+	}
+	for _, needle := range []string{`"payment_consent_id":"cst_1"`, `"price_id":"pri_pro"`, `"period_unit":"MONTH"`, `"trade_no":"sub_ref_x"`} {
+		if !strings.Contains(gotBody, needle) {
+			t.Fatalf("body missing %s: %s", needle, gotBody)
+		}
+	}
+}
+
+func TestAPIErrorMapped(t *testing.T) {
+	var logins int32
+	mockServer(t, &logins, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"code":"validation_error","message":"customer_id is invalid"}`))
+	})
+	_, err := CreateSubscription(&CreateSubscriptionRequest{RequestId: "r", CustomerId: "bad"})
+	if err == nil || !strings.Contains(err.Error(), "customer_id is invalid") || !strings.Contains(err.Error(), "validation_error") {
+		t.Fatalf("expected mapped api error, got %v", err)
+	}
+}
+
+func TestActiveMethodsCachedAndStaleServed(t *testing.T) {
+	var logins int32
+	var calls int32
+	mockServer(t, &logins, func(w http.ResponseWriter, r *http.Request) {
+		if atomic.AddInt32(&calls, 1) > 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Write([]byte(`{"items":[{"name":"card"},{"name":"applepay"},{"name":"googlepay"}]}`))
+	})
+	activeMethods.names = nil // reset package cache
+	m, err := ActivePaymentMethodNames()
+	if err != nil || !m["card"] || m["wechatpay"] {
+		t.Fatalf("unexpected %v %v", m, err)
+	}
+	activeMethods.fetched = activeMethods.fetched.Add(-11 * 60 * 1e9) // expire cache
+	m2, err := ActivePaymentMethodNames()
+	if err != nil || !m2["applepay"] {
+		t.Fatalf("expected stale-serve on failure, got %v %v", m2, err)
+	}
+}
+
+func TestRecurringCheckoutURL(t *testing.T) {
+	u := RecurringCheckoutURL("sec%1", "cus_1", "CNY", "https://ok", "https://no")
+	if !strings.HasPrefix(u, "https://checkout.airwallex.com/#/standalone/checkout?") {
+		t.Fatalf("bad prefix: %s", u)
+	}
+	for _, needle := range []string{"mode=recurring", "client_secret=sec%251", "customer_id=cus_1", "currency=CNY", "next_triggered_by=merchant"} {
+		if !strings.Contains(u, needle) {
+			t.Fatalf("url missing %s: %s", needle, u)
+		}
+	}
+}

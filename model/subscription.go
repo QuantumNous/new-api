@@ -163,6 +163,7 @@ type SubscriptionPlan struct {
 	StripePriceId         string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
 	CreemProductId        string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
 	WaffoPancakeProductId string `json:"waffo_pancake_product_id" gorm:"type:varchar(128);default:''"`
+	AirwallexPriceId      string `json:"airwallex_price_id" gorm:"type:varchar(128);default:''"`
 
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
@@ -219,6 +220,21 @@ func (o *SubscriptionOrder) Insert() error {
 
 func (o *SubscriptionOrder) Update() error {
 	return DB.Save(o).Error
+}
+
+// GetLatestPendingSubscriptionOrder returns the user's newest pending order
+// for a provider (used by webhook flows that identify the user before the order).
+func GetLatestPendingSubscriptionOrder(userId int, provider string) *SubscriptionOrder {
+	if userId <= 0 {
+		return nil
+	}
+	var order SubscriptionOrder
+	err := DB.Where("user_id = ? AND payment_provider = ? AND status = ?", userId, provider, common.TopUpStatusPending).
+		Order("create_time desc").First(&order).Error
+	if err != nil {
+		return nil
+	}
+	return &order
 }
 
 func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {

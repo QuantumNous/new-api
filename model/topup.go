@@ -30,6 +30,12 @@ const (
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
 	PaymentMethodBalance      = "balance"
+	// Airwallex is method-aware: one provider, several user-chosen methods.
+	PaymentMethodCard      = "card"
+	PaymentMethodApplePay  = "applepay"
+	PaymentMethodGooglePay = "googlepay"
+	PaymentMethodAlipay    = "alipay"
+	PaymentMethodWeChat    = "wechat"
 )
 
 const (
@@ -39,6 +45,7 @@ const (
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
 	PaymentProviderBalance      = "balance"
+	PaymentProviderAirwallex    = "airwallex"
 )
 
 var (

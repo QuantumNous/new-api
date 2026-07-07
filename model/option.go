@@ -92,6 +92,11 @@ func InitOptionMap() {
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
 	common.OptionMap["StripeUnitPrice"] = strconv.FormatFloat(setting.StripeUnitPrice, 'f', -1, 64)
 	common.OptionMap["StripePromotionCodesEnabled"] = strconv.FormatBool(setting.StripePromotionCodesEnabled)
+	common.OptionMap["AirwallexEnabled"] = strconv.FormatBool(setting.AirwallexEnabled)
+	common.OptionMap["AirwallexClientId"] = setting.AirwallexClientId
+	common.OptionMap["AirwallexApiKey"] = setting.AirwallexApiKey
+	common.OptionMap["AirwallexWebhookSecret"] = setting.AirwallexWebhookSecret
+	common.OptionMap["AirwallexApiBase"] = setting.AirwallexApiBase
 	common.OptionMap["CreemApiKey"] = setting.CreemApiKey
 	common.OptionMap["CreemProducts"] = setting.CreemProducts
 	common.OptionMap["CreemTestMode"] = strconv.FormatBool(setting.CreemTestMode)
@@ -431,6 +436,18 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.StripeMinTopUp, _ = strconv.Atoi(value)
 	case "StripePromotionCodesEnabled":
 		setting.StripePromotionCodesEnabled = value == "true"
+	case "AirwallexEnabled":
+		setting.AirwallexEnabled = value == "true"
+	case "AirwallexClientId":
+		setting.AirwallexClientId = value
+	case "AirwallexApiKey":
+		setting.AirwallexApiKey = value
+	case "AirwallexWebhookSecret":
+		setting.AirwallexWebhookSecret = value
+	case "AirwallexApiBase":
+		if value != "" {
+			setting.AirwallexApiBase = value
+		}
 	case "CreemApiKey":
 		setting.CreemApiKey = value
 	case "CreemProducts":
