@@ -3333,7 +3333,7 @@
     "该规则未设置参数覆盖模板": "Quy tắc này chưa thiết lập mẫu ghi đè tham số",
     "该规则的缓存保留时长；0 表示使用默认 TTL：": "Thời gian lưu bộ nhớ đệm cho quy tắc này; 0 nghĩa là sử dụng TTL mặc định: ",
     "该记录不包含可用的 token 统计口径。": "Bản ghi này không chứa thống kê token khả dụng.",
-    "该记录由旧版本实例写入，缺少审计信息，建议将实例升级至最新版本以便记录服务器IP、回调IP、支付方式与系统版本等审计字段。": "Bản ghi này được ghi bởi phiên bản cũ của instance và thiếu thông tin kiểm toán. Khuyến nghị nâng cấp instance lên phiên bản mới nhất để ghi lại các trường kiểm toán như IP máy chủ, IP callback, phương thức thanh toán và phiên bản hệ thống.",
+    "该条历史记录缺少审计字段。当前版本已支持记录服务器 IP、回调 IP、支付方式与系统版本等审计信息；这些字段仅会写入后续新产生的记录，历史记录无法自动补齐。": "Bản ghi lịch sử này được tạo trước khi tính năng thông tin kiểm toán ra đời nên thiếu dữ liệu kiểm toán. Phiên bản hiện tại đã hỗ trợ ghi lại IP máy chủ, IP gọi lại, phương thức thanh toán và phiên bản hệ thống, nhưng các trường này chỉ được ghi cho các bản ghi mới về sau — không thể bổ sung hồi tố cho bản ghi cũ.",
     "详情": "Chi tiết",
     "详细信息": "Thông tin chi tiết",
     "详见「特殊倍率」和「可用分组」标签页。": "See \"Special Ratios\" and \"Usable Groups\" tabs for details.",
