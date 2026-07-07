@@ -20,6 +20,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -214,6 +215,13 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	// 8. 构建请求体
 	requestBody, err := adaptor.BuildRequestBody(c, info)
 	if err != nil {
+		// 若 adaptor 显式返回 *types.NewAPIError(如输入校验/物化失败),按其 skip-retry
+		// 语义转成 LocalError 的 TaskError,不当作可重试的上游 500(否则会跨渠道重试)。
+		if apiErr, ok := err.(*types.NewAPIError); ok {
+			taskErr := service.TaskErrorFromAPIError(apiErr)
+			taskErr.LocalError = types.IsSkipRetryError(apiErr)
+			return nil, taskErr
+		}
 		return nil, service.TaskErrorWrapper(err, "build_request_failed", http.StatusInternalServerError)
 	}
 
@@ -224,6 +232,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 	if resp != nil && resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
+		// GPUStackPlus 门面 429 = 准入反压("队列满,别再打了"):标 LocalError,
+		// 不跨渠道重试放大反压(其它渠道保持原逻辑:429 走正常重试/失败切换)。
+		if info.ChannelType == constant.ChannelTypeGPUStackPlus && resp.StatusCode == http.StatusTooManyRequests {
+			return nil, service.TaskErrorWrapperLocal(fmt.Errorf("%s", string(responseBody)), "backpressure", resp.StatusCode)
+		}
 		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
 	}
 

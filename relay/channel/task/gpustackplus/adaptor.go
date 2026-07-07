@@ -33,14 +33,43 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/gpustackplus/nfsinput"
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/mediastore"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 )
+
+// new-api 侧当前支持的 task_type。门面 _VALID_TASK_TYPES 还含 s2v(音频驱动),但
+// new-api 尚未接线音频输入物化(音频只能从 metadata 来,会被 legacyInputKeys 剥掉),
+// 故此处不含 s2v —— 显式 400,避免静默丢音频(§N1 复审)。接 s2v 时:在 materialize
+// 里把音频落 input_refs.audio,再把 s2v 加回本表。
+var validTaskTypes = map[string]bool{
+	"t2i": true, "i2i": true, "t2v": true, "i2v": true, "flf2v": true,
+}
+
+// legacyInputKeys 旧的原始输入 / 引擎原生路径字段:输入统一走 input_refs,这些键
+// 若从 metadata 混进 body,门面会因"检测到原始输入字段"整单 400,故播种后剥掉。
+// 与门面 _INPUT_FIELDS + _ENGINE_OWNED_FIELDS 对齐。
+var legacyInputKeys = map[string]bool{
+	"image": true, "last_frame": true, "image_mask": true, "audio": true,
+	"image_path": true, "last_frame_path": true, "image_mask_path": true,
+	"audio_path": true, "video_path": true, "save_result_path": true,
+}
+
+// localBadRequest 构造本地 400 skip-retry 错误:BuildRequestBody 里的输入校验 /
+// 物化失败(URL 下不到、非法 task_type 等)属客户端问题,不应触发跨渠道重试。
+// relay_task.go 识别 *types.NewAPIError 并转成 LocalError 的 TaskError。
+func localBadRequest(err error) *types.NewAPIError {
+	return types.NewErrorWithStatusCode(
+		err, types.ErrorCodeInvalidRequest, http.StatusBadRequest,
+		types.ErrOptionWithSkipRetry(),
+	)
+}
 
 // submitResponse 门面提交接口返回(_public 形态,提交时 nfs_path 恒为 null)。
 type submitResponse struct {
@@ -146,9 +175,16 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 		body[k] = v
 	}
+	// 剥掉遗留输入 / 引擎路径字段(§N4):输入统一走 input_refs,残留会被门面整单拒。
+	for k := range body {
+		if legacyInputKeys[strings.ToLower(strings.TrimSpace(k))] {
+			delete(body, k)
+		}
+	}
 	body["model"] = modelName
 	body["prompt"] = req.Prompt
-	body["user_id"] = info.UserId
+	// user_id 用字符串:与 NFS 输入路径的 <user_id> 段一致,门面校验 parent_dir_name == user_id。
+	body["user_id"] = fmt.Sprintf("%d", info.UserId)
 	if _, ok := body["task_type"]; !ok {
 		body["task_type"] = inferTaskType(modelName)
 	}
@@ -160,9 +196,33 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			body["aspect_ratio"] = ar
 		}
 	}
+	taskType, _ := body["task_type"].(string)
+	// task_type 白名单校验(§N2):它可能来自 metadata,非法值既会让 NFS 写盘路径异常,
+	// 也会被门面拒;就地本地 400,不进后续物化 / 提交。
+	if !validTaskTypes[taskType] {
+		return nil, localBadRequest(fmt.Errorf("不支持的 task_type: %q(允许:t2i/i2i/t2v/i2v/flf2v;s2v 音频驱动暂未接线)", taskType))
+	}
+	// 输入兼容性防呆必须在物化之前(§N2 复审):否则 t2v/t2i 带图、flf2v 只给 1 张等非法
+	// 组合会先把图写到 NFS 再被拒,留下孤儿输入文件。这些检查只依赖 taskType / req,不需物化。
+	if imageRequiredTaskTypes[taskType] && !req.HasImage() {
+		return nil, localBadRequest(fmt.Errorf("模型 %s 的任务类型 %s 需要图片输入,必须提供 image/input_reference", modelName, taskType))
+	}
+	if textOnlyTaskTypes[taskType] && req.HasImage() {
+		return nil, localBadRequest(fmt.Errorf("模型 %s 的任务类型 %s 不接受图片输入;图生视频请改用 i2v 模型(如 wan2.2-i2v)", modelName, taskType))
+	}
+	if taskType == "flf2v" && len(req.Images) < 2 {
+		return nil, localBadRequest(fmt.Errorf("模型 %s 的任务类型 flf2v(首尾帧)需要首帧和尾帧两张图:请提供 images=[首帧,尾帧]", modelName))
+	}
 	if req.HasImage() {
-		// URL 直透 / base64(data-uri)由门面持久化到 SFS 再喂引擎(方案 B)。
-		body["image"] = req.Images[0]
+		// 输入图统一物化落 NFS,发 input_refs 相对路径(不再发 base64/URL 给门面,方案见
+		// gpustack 仓 docs/lightx2v-nfs-input-design.md)。物化顺序:先写全部输入 → 再提交。
+		// 首尾帧(flf2v):images[0]=首帧→image,images[1]=尾帧→last_frame;其余(i2v/s2v)只取首帧。
+		refs, err := materializeVideoInputs(c, info, taskType, modelName, req)
+		if err != nil {
+			// URL 下不到 / SSRF 拒 / 写盘失败:本地 400 skip-retry,不触发跨渠道重试(§N3)。
+			return nil, localBadRequest(err)
+		}
+		body["input_refs"] = refs
 	}
 	// OpenAI 风格 duration/seconds → wan 帧数约定(4n+1,16fps:5s → 81 帧)。
 	durationSec := req.Duration
@@ -177,16 +237,6 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 
-	// 提交前防呆:任务类型与图片输入必须匹配,否则引擎侧要么缺条件要么静默忽略,
-	// 都比不上在这里给出明确报错。
-	taskType, _ := body["task_type"].(string)
-	if imageRequiredTaskTypes[taskType] && !req.HasImage() {
-		return nil, fmt.Errorf("模型 %s 的任务类型 %s 需要图片输入,必须提供 image/input_reference", modelName, taskType)
-	}
-	if textOnlyTaskTypes[taskType] && req.HasImage() {
-		return nil, fmt.Errorf("模型 %s 的任务类型 %s 不接受图片输入;图生视频请改用 i2v 模型(如 wan2.2-i2v)", modelName, taskType)
-	}
-
 	data, err := common.Marshal(body)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal_request_body_failed")
@@ -195,7 +245,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 }
 
 // 门面 task_type 的输入约束(与 gpustack routes/videos.py 的 _VALID_TASK_TYPES 对应)。
-var imageRequiredTaskTypes = map[string]bool{"i2v": true, "flf2v": true, "i2i": true, "s2v": true}
+var imageRequiredTaskTypes = map[string]bool{"i2v": true, "flf2v": true, "i2i": true}
 var textOnlyTaskTypes = map[string]bool{"t2v": true, "t2i": true}
 
 // 被白名单锁定的维度对应的引擎原生别名键——metadata 里这些键会绕过顶层 size/
@@ -223,6 +273,40 @@ func inferTaskType(modelName string) string {
 	default:
 		return "t2v"
 	}
+}
+
+// materializeVideoInputs 把视频链路的输入图统一物化落 NFS,返回 input_refs(field → 相对路径数组)。
+// 视频链路为 JSON-only:req.Images 里是 URL 或 base64/data-uri 字符串。
+// flf2v:images[0]=首帧(image)、images[1]=尾帧(last_frame);i2v/s2v 只取首帧(image)。
+// 用 info.PublicTaskID 作 input-group id,info.UserId 作 <user_id> 段(与门面 user_id 一致)。
+func materializeVideoInputs(c *gin.Context, info *relaycommon.RelayInfo, taskType, modelName string, req relaycommon.TaskSubmitReq) (map[string][]string, error) {
+	if len(req.Images) == 0 {
+		return nil, fmt.Errorf("缺少图片输入")
+	}
+	gid := info.PublicTaskID
+	if strings.TrimSpace(gid) == "" {
+		gid = common.GetUUID()
+	}
+	m := nfsinput.NewMaterializer(taskType, modelName, fmt.Sprintf("%d", info.UserId), gid)
+	ctx := c.Request.Context()
+
+	// 首帧(image),单值。多输入中途失败时回滚已写文件,避免孤儿(§N2 复审)。
+	if err := m.AddString(ctx, nfsinput.FieldImage, 0, false, req.Images[0]); err != nil {
+		m.Cleanup()
+		return nil, err
+	}
+	// flf2v 尾帧(last_frame),单值。
+	if taskType == "flf2v" {
+		if len(req.Images) < 2 {
+			m.Cleanup()
+			return nil, fmt.Errorf("模型 %s 的任务类型 flf2v(首尾帧)需要首帧和尾帧两张图", modelName)
+		}
+		if err := m.AddString(ctx, nfsinput.FieldLastFrame, 0, false, req.Images[1]); err != nil {
+			m.Cleanup()
+			return nil, err
+		}
+	}
+	return m.Refs(), nil
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
