@@ -22,6 +22,9 @@ export const VIDEO_CAPABILITIES = [
 
 // 当前视频体验区页面代表的能力（= 标签页名）
 export const VIDEO_PAGE_CAPABILITY = '文生视频';
+// 图生视频 / 首尾帧能力标签,与文生视频共用体验区,通过 mode 区分
+export const VIDEO_I2V_CAPABILITY = '图生视频';
+export const VIDEO_FLF2V_CAPABILITY = '首尾帧';
 
 // 视频模型「策略类别」：不同类上游对尺寸/时长参数的要求不同。
 // - sora 类（真·OpenAI Sora）：像素尺寸（后端 relay_utils 校验器要求 720x1280 等）+ seconds 字段；
@@ -50,7 +53,8 @@ export const resolveVideoStrategy = (model) => {
 
 // 兼容旧引用：通用兜底 = minimax 类（管理端「默认尺寸/时长」留空时的展示用）。
 export const FALLBACK_VIDEO_SIZES = VIDEO_MODEL_STRATEGIES.minimax.sizes;
-export const FALLBACK_VIDEO_DURATIONS = VIDEO_MODEL_STRATEGIES.minimax.durations;
+export const FALLBACK_VIDEO_DURATIONS =
+  VIDEO_MODEL_STRATEGIES.minimax.durations;
 
 export const VIDEO_HISTORY_STORAGE_KEY = 'video_playground_conversations';
 export const VIDEO_HISTORY_LIMIT = 10; // 对话段数上限

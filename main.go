@@ -21,10 +21,13 @@ import (
 	"github.com/QuantumNous/new-api/oauth"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/relay/channel/gpustackplus/nfsinput"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/mediastore"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-contrib/sessions"
@@ -62,6 +65,16 @@ func main() {
 	common.InitKYCKeys()
 	// Surface OBS media-store key (mis)configuration warnings at startup too.
 	common.InitOBSKeys()
+
+	// LightX2V NFS 输入盘启动探测(§6):启用媒体存储 + NFS 落盘搬运时,<NFSRoot>/inputs
+	// 必须可读写,且与 gpustack lightx2v_output_root 指向同一 SFS(同一绝对挂载路径),
+	// 否则 gpustackplus 的输入物化会落到错误的文件系统。不满足则拒绝启动。
+	if mediastore.Enabled() && system_setting.GetMediaStorageSettings().IngestNFSPath {
+		if err := nfsinput.ProbeNFSInputs(); err != nil {
+			common.FatalLog("LightX2V NFS 输入盘探测失败(NFS 未挂载/不可写/与 gpustack output_root 不一致): " + err.Error())
+		}
+		common.SysLog("LightX2V NFS 输入盘 OK: " + mediastore.NFSRoot() + "/inputs")
+	}
 
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)

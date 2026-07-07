@@ -1,10 +1,20 @@
 import React from 'react';
 import { Card, Select, Typography, Tooltip } from '@douyinfe/semi-ui';
-import { Settings, Users, Sparkles, Ruler, HelpCircle } from 'lucide-react';
+import {
+  Settings,
+  Users,
+  Sparkles,
+  Ruler,
+  HelpCircle,
+  Image as ImageIcon,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
+import ImageUrlInput from '../playground/ImageUrlInput';
+import { IMAGE_MAX_EDIT_IMAGES } from '../../constants/imagePlayground.constants';
 
 const ImageConfigPanel = ({
+  isI2I = false,
   inputs,
   groups,
   models,
@@ -115,6 +125,38 @@ const ImageConfigPanel = ({
             className='!rounded-lg'
           />
         </div>
+
+        {/* 底图上传（仅图生图） */}
+        {isI2I && (
+          <div>
+            <div className='flex items-center gap-2 mb-2'>
+              <ImageIcon size={16} className='text-gray-500' />
+              <Typography.Text strong className='text-sm'>
+                {t('底图')}
+              </Typography.Text>
+              <Tooltip
+                content={t('最多上传 {{count}} 张底图', {
+                  count: IMAGE_MAX_EDIT_IMAGES,
+                })}
+                position='top'
+              >
+                <HelpCircle size={14} className='text-gray-400 cursor-help' />
+              </Tooltip>
+            </div>
+            <ImageUrlInput
+              imageUrls={inputs.imageUrls || []}
+              imageEnabled={true}
+              onImageUrlsChange={(v) =>
+                onInputChange(
+                  'imageUrls',
+                  (v || []).slice(0, IMAGE_MAX_EDIT_IMAGES),
+                )
+              }
+              onImageEnabledChange={() => {}}
+              disabled={disabled}
+            />
+          </div>
+        )}
 
         {/* 图片尺寸 */}
         <div>

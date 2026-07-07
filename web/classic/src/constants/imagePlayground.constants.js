@@ -2,6 +2,7 @@
 
 export const IMAGE_API_ENDPOINTS = {
   IMAGE_GENERATIONS: '/pg/images/generations',
+  IMAGE_EDITS: '/pg/images/edits',
   IMAGE_PROXY: '/pg/images/proxy',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
@@ -21,6 +22,10 @@ export const IMAGE_CAPABILITIES = [
 
 // 当前图片体验区页面代表的能力（= 标签页名）
 export const IMAGE_PAGE_CAPABILITY = '文生图';
+// 图生图（i2i）能力标签，与文生图共用体验区,通过 mode 区分
+export const IMAGE_I2I_CAPABILITY = '图生图';
+// 图生图最多上传底图数（与后端 gpustackplus maxEditImages / 门面 _MAX_INPUT_IMAGES 对齐）
+export const IMAGE_MAX_EDIT_IMAGES = 5;
 
 // 当管理员未配置时使用的兜底尺寸
 export const FALLBACK_IMAGE_SIZES = [

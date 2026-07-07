@@ -7,11 +7,15 @@ import {
   Ruler,
   Clock,
   HelpCircle,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
+import ImageUrlInput from '../playground/ImageUrlInput';
 
 const VideoConfigPanel = ({
+  needsImage = false,
+  isFLF2V = false,
   inputs,
   groups,
   models,
@@ -22,6 +26,27 @@ const VideoConfigPanel = ({
   styleState,
 }) => {
   const { t } = useTranslation();
+
+  // 单帧上传槽:ImageUrlInput 管理数组,这里只取最后一张作为该槽的单帧。
+  const renderFrameSlot = (label, key) => (
+    <div>
+      <div className='flex items-center gap-2 mb-2'>
+        <ImageIcon size={16} className='text-gray-500' />
+        <Typography.Text strong className='text-sm'>
+          {label}
+        </Typography.Text>
+      </div>
+      <ImageUrlInput
+        imageUrls={inputs[key] ? [inputs[key]] : []}
+        imageEnabled={true}
+        onImageUrlsChange={(v) =>
+          onInputChange(key, (v && v.length ? v[v.length - 1] : '') || '')
+        }
+        onImageEnabledChange={() => {}}
+        disabled={disabled}
+      />
+    </div>
+  );
 
   const ensureOption = (options, value) => {
     if (!value) return options;
@@ -125,6 +150,11 @@ const VideoConfigPanel = ({
             className='!rounded-lg'
           />
         </div>
+
+        {/* 帧图上传(图生视频:首帧;首尾帧:首帧+尾帧) */}
+        {needsImage &&
+          renderFrameSlot(isFLF2V ? t('首帧') : t('首帧/参考图'), 'firstFrame')}
+        {isFLF2V && renderFrameSlot(t('尾帧'), 'lastFrame')}
 
         {/* 尺寸 */}
         <div>

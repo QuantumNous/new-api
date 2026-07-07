@@ -69,6 +69,7 @@ func SetRelayRouter(router *gin.Engine) {
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
 		playgroundRouter.POST("/images/generations", controller.PlaygroundImage)
+		playgroundRouter.POST("/images/edits", controller.PlaygroundImage)
 		playgroundRouter.POST("/videos", controller.PlaygroundVideo)
 		playgroundRouter.GET("/videos/:task_id", controller.PlaygroundVideoFetch)
 	}
