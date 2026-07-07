@@ -85,6 +85,11 @@ func getToken() (string, error) {
 // shape end-to-end.
 const subscriptionApiVersion = "2024-09-27"
 
+// billingApiVersion pins /api/v1/billing/* to the 2026-02-27 Billing product
+// (billing customers, checkouts, subscriptions). This generation is mutually
+// exclusive with the legacy /api/v1/subscriptions/* flow (subscriptionApiVersion).
+const billingApiVersion = "2026-02-27"
+
 // do performs an authenticated JSON call; out may be nil.
 func do(method, path string, in any, out any) error {
 	token, err := getToken()
@@ -104,7 +109,10 @@ func do(method, path string, in any, out any) error {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
-	if strings.HasPrefix(path, "/api/v1/subscriptions") {
+	switch {
+	case strings.HasPrefix(path, "/api/v1/billing/"):
+		req.Header.Set("x-api-version", billingApiVersion)
+	case strings.HasPrefix(path, "/api/v1/subscriptions"):
 		req.Header.Set("x-api-version", subscriptionApiVersion)
 	}
 	if in != nil {
