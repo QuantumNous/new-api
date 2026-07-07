@@ -49,6 +49,14 @@ import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   CardStaggerContainer,
   CardStaggerItem,
 } from '@/components/page-transition'
@@ -137,6 +145,21 @@ function saveSetupGuideExpanded(expanded: boolean): void {
 function getCurrentOrigin(): string {
   if (typeof window === 'undefined') return ''
   return window.location.origin
+}
+
+const PREFERRED_EXAMPLE_MODELS = [
+  'gpt-4o-mini',
+  'gpt-4.1-mini',
+  'gpt-5-mini',
+  'gpt-4o',
+]
+
+function pickDefaultModel(models: string[]): string {
+  return (
+    PREFERRED_EXAMPLE_MODELS.find((model) => models.includes(model)) ??
+    models[0] ??
+    'gpt-4o-mini'
+  )
 }
 
 function normalizeEndpoint(sourceUrl?: string): string {
@@ -275,6 +298,8 @@ function StartStepItem(props: {
 function RequestPreview(props: {
   example: RequestExample
   signals: HeroSignal[]
+  models: string[]
+  onModelChange: (model: string) => void
 }) {
   const { t } = useTranslation()
   const shouldReduceMotion = useReducedMotion()
@@ -287,20 +312,24 @@ function RequestPreview(props: {
   })
   const previewLines = previewCurl.split('\n')
   const handleCopyRequest = async () => {
-    if (!props.example.keyId || isCopying) return
+    if (isCopying) return
 
     setIsCopying(true)
     try {
-      const result = await fetchTokenKey(props.example.keyId)
-      const key = result.success && result.data?.key ? result.data.key : ''
-      if (!key) {
-        toast.error(result.message || t('Failed to copy to clipboard'))
-        return
+      let apiKey = 'sk-YOUR_API_KEY'
+      if (props.example.keyId) {
+        const result = await fetchTokenKey(props.example.keyId)
+        const key = result.success && result.data?.key ? result.data.key : ''
+        if (!key) {
+          toast.error(result.message || t('Failed to copy to clipboard'))
+          return
+        }
+        apiKey = `sk-${key}`
       }
 
       const realCurl = buildCurlCommand({
         endpoint: props.example.endpoint,
-        apiKey: `sk-${key}`,
+        apiKey,
         model: props.example.model,
       })
       const copied = await copyToClipboard(realCurl)
@@ -346,23 +375,17 @@ function RequestPreview(props: {
             </div>
           </div>
         </div>
-        {props.example.ready ? (
-          <Button
-            variant='outline'
-            size='sm'
-            className='h-7 gap-1.5 px-2 text-xs'
-            disabled={isCopying}
-            onClick={handleCopyRequest}
-            aria-label={t('Copy ready-to-run curl')}
-          >
-            <Copy data-icon='inline-start' />
-            {isCopying ? t('Loading') : t('Copy')}
-          </Button>
-        ) : (
-          <Button size='sm' variant='outline' render={<Link to='/keys' />}>
-            {t('Create API Key')}
-          </Button>
-        )}
+        <Button
+          variant='outline'
+          size='sm'
+          className='h-7 gap-1.5 px-2 text-xs'
+          disabled={isCopying}
+          onClick={handleCopyRequest}
+          aria-label={t('Copy ready-to-run curl')}
+        >
+          <Copy data-icon='inline-start' />
+          {isCopying ? t('Loading') : t('Copy')}
+        </Button>
       </div>
 
       <div className='bg-foreground/[0.035] my-3 rounded-xl p-3 font-mono text-xs'>
@@ -408,6 +431,46 @@ function RequestPreview(props: {
             </div>
           )
         })}
+
+        <div className='bg-muted/40 flex items-center justify-between gap-3 rounded-xl px-3 py-1.5'>
+          <span className='flex min-w-0 items-center gap-2'>
+            <Timer
+              className='text-muted-foreground size-3.5 shrink-0'
+              aria-hidden='true'
+            />
+            <span className='truncate text-xs font-medium'>
+              {t('Model selected')}
+            </span>
+          </span>
+          <Select
+            value={props.example.model}
+            onValueChange={(value) => {
+              if (typeof value === 'string' && value) {
+                props.onModelChange(value)
+              }
+            }}
+          >
+            <SelectTrigger
+              size='sm'
+              className='text-muted-foreground max-w-48 bg-transparent text-xs'
+              disabled={props.models.length === 0}
+              aria-label={t('Model selected')}
+            >
+              <SelectValue>
+                {props.models.length === 0 ? t('Loading') : props.example.model}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                {props.models.map((model) => (
+                  <SelectItem key={model} value={model}>
+                    {model}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     </motion.div>
   )
@@ -481,19 +544,35 @@ export function OverviewDashboard() {
     staleTime: 60 * 1000,
   })
 
+  const preferredKey = useMemo(
+    () => getPreferredKey(apiKeysQuery.data ?? []),
+    [apiKeysQuery.data]
+  )
+
+  // Scope the model list to the group the preferred key actually routes with,
+  // so the example request only offers models this key can call.
+  const modelGroup = preferredKey?.group?.trim() || user?.group || ''
+
   const modelsQuery = useQuery({
-    queryKey: ['dashboard', 'overview', 'user-models'],
+    queryKey: ['dashboard', 'overview', 'user-models', modelGroup],
     queryFn: async () => {
-      const result = await getUserModels()
+      const result = await getUserModels(modelGroup || undefined)
       return result.success ? (result.data ?? []) : []
     },
     staleTime: 5 * 60 * 1000,
   })
 
-  const preferredKey = useMemo(
-    () => getPreferredKey(apiKeysQuery.data ?? []),
-    [apiKeysQuery.data]
+  const availableModels = useMemo(
+    () => modelsQuery.data ?? [],
+    [modelsQuery.data]
   )
+  const [selectedModel, setSelectedModel] = useState<string | null>(null)
+  const exampleModel = useMemo(() => {
+    if (selectedModel && availableModels.includes(selectedModel)) {
+      return selectedModel
+    }
+    return pickDefaultModel(availableModels)
+  }, [availableModels, selectedModel])
 
   const startSteps = useMemo<StartStep[]>(
     () => [
@@ -570,30 +649,24 @@ export function OverviewDashboard() {
         value: preferredKey ? t('Secured') : t('Needs API key'),
         icon: ShieldCheck,
       },
-      {
-        label: t('Model selected'),
-        value: modelsQuery.data?.[0] ?? t('Loading'),
-        icon: Timer,
-      },
     ],
-    [apiInfoItems.length, modelsQuery.data, preferredKey, t]
+    [apiInfoItems.length, preferredKey, t]
   )
 
   const requestExample = useMemo<RequestExample>(() => {
     const endpoint = normalizeEndpoint(apiInfoItems[0]?.url)
-    const model = modelsQuery.data?.[0] ?? 'gpt-4o-mini'
     const keyName = preferredKey?.name ?? t('No API key yet')
-    const ready = Boolean(preferredKey?.id && model)
+    const ready = Boolean(preferredKey?.id && exampleModel)
 
     return {
       endpoint,
-      model,
+      model: exampleModel,
       keyName,
       keyId: preferredKey?.id,
       displayKey: preferredKey ? formatDisplayKey(`sk-${preferredKey.key}`) : 'sk-...',
       ready,
     }
-  }, [apiInfoItems, modelsQuery.data, preferredKey, t])
+  }, [apiInfoItems, exampleModel, preferredKey, t])
 
   const completedStepCount = startSteps.filter((step) => step.completed).length
   const setupComplete = completedStepCount === startSteps.length
@@ -664,6 +737,8 @@ export function OverviewDashboard() {
                 <RequestPreview
                   example={requestExample}
                   signals={heroSignals}
+                  models={availableModels}
+                  onModelChange={setSelectedModel}
                 />
               </div>
             </div>
