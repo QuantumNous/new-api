@@ -47,6 +47,12 @@ var classicBuildFS embed.FS
 //go:embed web/classic/dist/index.html
 var classicIndexPage []byte
 
+// 画布静态导出产物。必须用 all: 前缀——Next 导出含 _next/ 下划线目录,
+// 普通 //go:embed 会静默跳过下划线开头路径,构建成功但运行时资源全部 404。
+//
+//go:embed all:web/canvas/out
+var canvasBuildFS embed.FS
+
 func main() {
 	startTime := time.Now()
 
@@ -210,6 +216,7 @@ func main() {
 		DefaultIndexPage: indexPage,
 		ClassicBuildFS:   classicBuildFS,
 		ClassicIndexPage: classicIndexPage,
+		CanvasBuildFS:    canvasBuildFS,
 	})
 	var port = os.Getenv("PORT")
 	if port == "" {

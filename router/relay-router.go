@@ -69,6 +69,9 @@ func SetRelayRouter(router *gin.Engine) {
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
 		playgroundRouter.POST("/images/generations", controller.PlaygroundImage)
+		playgroundRouter.POST("/images/edits", controller.PlaygroundImage)
+		playgroundRouter.POST("/responses", controller.PlaygroundResponses)
+		playgroundRouter.POST("/audio/speech", controller.PlaygroundAudioSpeech)
 		playgroundRouter.POST("/videos", controller.PlaygroundVideo)
 		playgroundRouter.GET("/videos/:task_id", controller.PlaygroundVideoFetch)
 	}
@@ -77,6 +80,10 @@ func SetRelayRouter(router *gin.Engine) {
 	playgroundUtilRouter.Use(middleware.UserAuth())
 	{
 		playgroundUtilRouter.GET("/images/proxy", controller.PlaygroundImageProxy)
+		playgroundUtilRouter.GET("/videos/:task_id/content", controller.VideoProxy)
+		playgroundUtilRouter.GET("/models", func(c *gin.Context) {
+			controller.ListModels(c, constant.ChannelTypeOpenAI)
+		})
 	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))

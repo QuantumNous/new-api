@@ -27,6 +27,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       console: true,
       pricing: true,
       docs: true,
+      canvas: true,
       about: true,
     };
 
@@ -60,6 +61,12 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
           ]
         : []),
       {
+        text: t('画布'),
+        itemKey: 'canvas',
+        isExternal: true,
+        externalLink: '/canvas-app/',
+      },
+      {
         text: t('关于'),
         itemKey: 'about',
         to: '/about',
@@ -70,6 +77,10 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
     return allLinks.filter((link) => {
       if (link.itemKey === 'docs') {
         return docsLink && modules.docs;
+      }
+      if (link.itemKey === 'canvas') {
+        // canvas 未显式配置时默认展示（modules.canvas !== false）
+        return modules.canvas !== false;
       }
       if (link.itemKey === 'pricing') {
         // 支持新的pricing配置格式

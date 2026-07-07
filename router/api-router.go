@@ -64,6 +64,24 @@ func SetApiRouter(router *gin.Engine) {
 		// Universal secure verification routes
 		apiRouter.POST("/verify", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.UniversalVerify)
 
+		// 画布提示词库（仅登录可见，数据来自 canvas_prompts 表/内置 seed，不访问外网）
+		apiRouter.GET("/prompts", middleware.UserAuth(), controller.GetCanvasPrompts)
+
+		// 画布项目服务端持久化 + 素材库（OBS 存储、用户级容量限制）
+		canvasRoute := apiRouter.Group("/canvas")
+		canvasRoute.Use(middleware.UserAuth())
+		{
+			canvasRoute.GET("/projects", controller.ListCanvasProjects)
+			canvasRoute.GET("/projects/:project_id", controller.GetCanvasProjectDetail)
+			canvasRoute.PUT("/projects/:project_id", controller.UpsertCanvasProjectHandler)
+			canvasRoute.DELETE("/projects/:project_id", controller.DeleteCanvasProjectHandler)
+			canvasRoute.GET("/assets", controller.ListCanvasAssets)
+			canvasRoute.POST("/assets/upload", controller.UploadCanvasAsset)
+			canvasRoute.GET("/assets/:asset_id/url", controller.GetCanvasAssetURL)
+			canvasRoute.DELETE("/assets/:asset_id", controller.DeleteCanvasAsset)
+			canvasRoute.GET("/storage", controller.GetCanvasStorage)
+		}
+
 		userRoute := apiRouter.Group("/user")
 		{
 			userRoute.POST("/register", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.Register)

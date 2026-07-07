@@ -3990,6 +3990,8 @@
     "请选择要绑定的令牌": "Veuillez sélectionner un jeton à lier",
     "输入名称搜索本企业的令牌": "Rechercher les jetons de l'entreprise par nom",
     "选择要绑定的令牌": "Sélectionner le jeton à lier",
-    "重置密码": "Réinitialiser le mot de passe"
+    "重置密码": "Réinitialiser le mot de passe",
+    "画布": "Canevas",
+    "内置无限画布 AI 创作空间": "Espace de création IA sur canevas infini intégré"
   }
 }

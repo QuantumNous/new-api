@@ -17,6 +17,9 @@ func SetRouter(router *gin.Engine, assets ThemeAssets) {
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
 	SetVideoRouter(router)
+	// 画布静态应用必须早于 FRONTEND_BASE_URL 分支挂载：
+	// 外置前端部署下 /canvas-app/* 仍由 Go 单二进制伺服
+	SetCanvasRouter(router, assets)
 	frontendBaseUrl := os.Getenv("FRONTEND_BASE_URL")
 	if common.IsMasterNode && frontendBaseUrl != "" {
 		frontendBaseUrl = ""
