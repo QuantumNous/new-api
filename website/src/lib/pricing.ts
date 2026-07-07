@@ -195,6 +195,22 @@ export function formatModelPrice(model: PricingModel, type: "input" | "output" |
   return formatUsd(price);
 }
 
+// Numeric USD price per 1M tokens (or per request for request-billed models).
+export function getModelPriceUsd(model: PricingModel, type: "input" | "output" = "input"): number {
+  if (!isTokenBasedModel(model)) return Number(model.model_price ?? 0);
+  const base = Number(model.model_ratio ?? 0) * 2 * getMinGroupRatio(model);
+  return type === "output" ? base * Number(model.completion_ratio ?? 1) : base;
+}
+
+// Effective price after the best top-up bonus tier ($200 + $100 → 2/3 of list).
+export function discountedPriceUsd(value: number): number {
+  return (value * 2) / 3;
+}
+
+export function formatUsdPrice(value: number): string {
+  return formatUsd(value);
+}
+
 export function getAvailableGroups(
   model: PricingModel,
   fallbackGroupRatio: Record<string, number> = {},

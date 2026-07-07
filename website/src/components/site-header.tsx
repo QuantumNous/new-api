@@ -44,7 +44,6 @@ export function SiteHeader(props: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navItems = [
     { href: "/", label: copy.nav.home, publicPath: true },
-    { href: CONSOLE_URL, label: copy.nav.console, publicPath: false },
     { href: "/blog", label: copy.nav.blog, publicPath: true },
     { href: "/pricing", label: copy.nav.pricing, publicPath: true },
     { href: "/models", label: copy.nav.modelPricing, publicPath: true },
@@ -145,6 +144,12 @@ export function SiteHeader(props: Props) {
               <NotificationPopover locale={props.locale} />
               <div className="mx-1 h-4 w-px bg-border/40" />
               <a
+                className="inline-flex h-8 items-center justify-center rounded-lg border border-border/70 px-3.5 text-xs font-medium text-foreground/80 transition-colors hover:border-border hover:text-foreground"
+                href={CONSOLE_URL}
+              >
+                {copy.nav.console}
+              </a>
+              <a
                 className="flatkey-primary-cta inline-flex h-8 items-center justify-center rounded-lg px-3.5 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80"
                 href={SIGN_IN_URL}
               >
@@ -241,6 +246,12 @@ export function SiteHeader(props: Props) {
             )}
             style={{ transitionDelay: mobileOpen ? "250ms" : "0ms" }}
           >
+            <a
+              href={CONSOLE_URL}
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-border/70 text-sm font-medium text-foreground/80 transition-colors hover:border-border hover:text-foreground"
+            >
+              {copy.nav.console}
+            </a>
             <a
               href={SIGN_IN_URL}
               className="flatkey-primary-cta inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80"
