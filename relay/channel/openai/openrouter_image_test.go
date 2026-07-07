@@ -6,6 +6,8 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestGetRequestURLOpenRouterImageGeneration verifies that image generation
@@ -25,14 +27,8 @@ func TestGetRequestURLOpenRouterImageGeneration(t *testing.T) {
 	}
 
 	got, err := adaptor.GetRequestURL(info)
-	if err != nil {
-		t.Fatalf("GetRequestURL returned error: %v", err)
-	}
-
-	want := "https://openrouter.ai/api/v1/images"
-	if got != want {
-		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "https://openrouter.ai/api/v1/images", got)
 }
 
 // TestGetRequestURLOpenRouterChatUnchanged guards against the image special
@@ -51,12 +47,6 @@ func TestGetRequestURLOpenRouterChatUnchanged(t *testing.T) {
 	}
 
 	got, err := adaptor.GetRequestURL(info)
-	if err != nil {
-		t.Fatalf("GetRequestURL returned error: %v", err)
-	}
-
-	want := "https://openrouter.ai/api/v1/chat/completions"
-	if got != want {
-		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "https://openrouter.ai/api/v1/chat/completions", got)
 }
