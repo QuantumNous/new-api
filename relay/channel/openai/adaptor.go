@@ -511,6 +511,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 				if key == "model" {
 					continue
 				}
+				if info.ChannelType == constant.ChannelTypeOpenAI && request.Model == "gpt-image-2" && key == "response_format" {
+					continue
+				}
 				for _, value := range values {
 					writer.WriteField(key, value)
 				}
