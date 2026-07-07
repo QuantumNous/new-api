@@ -275,8 +275,11 @@ func userIDStr(info *relaycommon.RelayInfo) string {
 }
 
 // inputGroupID 唯一 input-group id:优先 PublicTaskID,空则新 uuid。
+// ⚠️ PublicTaskID 是内嵌 *TaskRelayInfo 上的字段,只有 task(视频)链路才初始化它;
+// 图片同步链路 info.TaskRelayInfo 为 nil,直接读 info.PublicTaskID 会空指针 panic。
+// 故先判 TaskRelayInfo 是否存在,图片链路一律用新 uuid。
 func inputGroupID(info *relaycommon.RelayInfo) string {
-	if strings.TrimSpace(info.PublicTaskID) != "" {
+	if info.TaskRelayInfo != nil && strings.TrimSpace(info.PublicTaskID) != "" {
 		return info.PublicTaskID
 	}
 	return common.GetUUID()
