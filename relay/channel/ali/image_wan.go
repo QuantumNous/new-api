@@ -34,6 +34,9 @@ func oaiFormEdit2WanxImageEdit(c *gin.Context, info *relaycommon.RelayInfo, requ
 	imageRequest.Parameters = AliImageParameters{
 		N: int(lo.FromPtrOr(request.N, uint(1))),
 	}
+	if imageRequest.Parameters.N < 0 || imageRequest.Parameters.N > dto.MaxImageN {
+		return nil, fmt.Errorf("parameters.n must be an integer between 1 and %d", dto.MaxImageN)
+	}
 	info.PriceData.AddOtherRatio("n", float64(imageRequest.Parameters.N))
 
 	return &imageRequest, nil

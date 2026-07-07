@@ -78,6 +78,20 @@ func validatePrompt(prompt string) *dto.TaskError {
 	return nil
 }
 
+// MaxTaskDurationSeconds caps user-supplied video duration before it becomes a billing multiplier.
+const MaxTaskDurationSeconds = 3600
+
+func validateTaskDurationBounds(req TaskSubmitReq) *dto.TaskError {
+	seconds := req.Duration
+	if seconds == 0 && req.Seconds != "" {
+		seconds, _ = strconv.Atoi(req.Seconds)
+	}
+	if seconds < 0 || seconds > MaxTaskDurationSeconds {
+		return createTaskError(fmt.Errorf("seconds must be between 1 and %d", MaxTaskDurationSeconds), "invalid_seconds", http.StatusBadRequest, true)
+	}
+	return nil
+}
+
 func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string) (TaskSubmitReq, error) {
 	var req TaskSubmitReq
 	if _, err := c.MultipartForm(); err != nil {
@@ -152,6 +166,9 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 	if taskErr := validatePrompt(prompt); taskErr != nil {
 		return taskErr
 	}
+	if taskErr := validateTaskDurationBounds(req); taskErr != nil {
+		return taskErr
+	}
 
 	action := constant.TaskActionTextGenerate
 	if hasInputReference {
@@ -211,6 +228,9 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 	}
 
 	if taskErr := validatePrompt(req.Prompt); taskErr != nil {
+		return taskErr
+	}
+	if taskErr := validateTaskDurationBounds(req); taskErr != nil {
 		return taskErr
 	}
 

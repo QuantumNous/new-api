@@ -100,8 +100,8 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 			usage.CompletionTokens = estimatedTokens
 			usage.CompletionTokenDetails.AudioTokens = estimatedTokens
 		} else if duration > 0 {
-			// 计算 token: ceil(duration) / 60.0 * 1000，即每分钟 1000 tokens
-			completionTokens := int(math.Round(math.Ceil(duration) / 60.0 * 1000))
+			// 计算 token: ceil(duration) / 60.0 * 1000，即每分钟 1000 tokens。
+			completionTokens := common.QuotaFromFloat(math.Round(math.Ceil(duration) / 60.0 * 1000))
 			usage.CompletionTokens = completionTokens
 			usage.CompletionTokenDetails.AudioTokens = completionTokens
 		}
