@@ -5282,7 +5282,10 @@
     "Request success rate; {{incidents}} incident buckets in the last 30 days": "请求成功率；最近 30 天内 {{incidents}} 个故障区间",
     "Request success rate sampled over the last 30 days": "最近 30 天采样的请求成功率",
     "Loading performance data…": "性能数据加载中…",
-    "Official price": "官方价"
+    "Official price": "官方价",
+    "Registered Users": "注册用户",
+    "IP / Language": "IP / 语言",
+    "Newest {{count}} in the period": "期内最新 {{count}} 人"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "已达 Stripe 拉取上限——以下数据被截断，指标偏低。请缩小天数范围以获得完整数据。"
 }

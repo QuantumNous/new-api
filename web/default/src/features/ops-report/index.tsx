@@ -49,6 +49,7 @@ import type {
   OpsKeywordRow,
   OpsNameCount,
   OpsPayerRow,
+  OpsRegisteredUserRow,
   OpsPaymentRow,
   OpsStripePersonRow,
   OpsStripeReport,
@@ -59,6 +60,7 @@ const DAY_OPTIONS = [7, 30, 60, 90]
 // keep the active tab in the URL hash so a refresh stays on the same tab
 const TAB_VALUES = [
   'registrations',
+  'users',
   'campaigns',
   'funnel',
   'payment',
@@ -426,6 +428,7 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
             <TableHead>{t('Stuck At')}</TableHead>
             <TableHead>{t('Attempts')}</TableHead>
             <TableHead>{t('Card / Billing')}</TableHead>
+            <TableHead>{t('IP / Language')}</TableHead>
             <TableHead>{t('Source')}</TableHead>
             <TableHead className='text-right'>{t('Usage')}</TableHead>
           </TableRow>
@@ -508,6 +511,30 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
                     `${t('Shown')}: ${(row.methods ?? []).join('+')}`}
                 </div>
               </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                <div className='font-mono text-xs'>
+                  {row.last_ip ? (
+                    <a
+                      href={`https://ipinfo.io/${row.last_ip}`}
+                      target='_blank'
+                      rel='noreferrer'
+                      className='underline decoration-dotted'
+                    >
+                      {row.last_ip}
+                    </a>
+                  ) : (
+                    '-'
+                  )}
+                </div>
+                <div className='text-xs'>
+                  {countryLabel(row.ip_country, i18n.language) || '-'}
+                  {row.browser_lang && (
+                    <Badge variant='secondary' className='ml-1'>
+                      {row.browser_lang}
+                    </Badge>
+                  )}
+                </div>
+              </TableCell>
               <TableCell className='max-w-44'>
                 <div className='truncate'>
                   {row.campaign}
@@ -525,8 +552,6 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
                       .filter((v, i, arr) => arr.indexOf(v) === i)
                       .join(','),
                     row.landing,
-                    row.last_ip &&
-                      `${row.ip_country !== '?' ? row.ip_country + ' ' : ''}${row.last_ip}`,
                   ]
                     .filter(Boolean)
                     .join(' · ')}
@@ -670,6 +695,106 @@ function DauTable({ rows }: { rows: OpsDauRow[] }) {
   )
 }
 
+function RegisteredUsersTable({ rows }: { rows: OpsRegisteredUserRow[] }) {
+  const { t, i18n } = useTranslation()
+  return (
+    <div className='overflow-x-auto'>
+      <Table
+        className={`${TABLE_GRID} text-xs [&_td]:px-2 [&_td]:py-1.5 [&_th]:px-2`}
+      >
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('Registered At')}</TableHead>
+            <TableHead>{t('User')}</TableHead>
+            <TableHead>{t('Signup Method')}</TableHead>
+            <TableHead>{t('IP / Language')}</TableHead>
+            <TableHead>{t('Campaign')}</TableHead>
+            <TableHead>{t('Landing Pages')}</TableHead>
+            <TableHead className='text-right'>{t('Paid Amount')}</TableHead>
+            <TableHead className='text-right'>{t('Balance')}</TableHead>
+            <TableHead className='text-right'>{t('Usage')}</TableHead>
+            <TableHead>{t('Last Active')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.user_id}>
+              <TableCell className='whitespace-nowrap'>
+                {shortTime(row.registered_at)}
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                <div>
+                  {row.email || row.username}{' '}
+                  <span className='text-muted-foreground text-xs'>
+                    #{row.user_id}
+                  </span>
+                </div>
+                <div className='text-muted-foreground text-xs'>
+                  {row.display_name || '-'}
+                </div>
+              </TableCell>
+              <TableCell>{row.signup_method || '-'}</TableCell>
+              <TableCell className='whitespace-nowrap'>
+                <div className='font-mono text-xs'>
+                  {row.last_ip ? (
+                    <a
+                      href={`https://ipinfo.io/${row.last_ip}`}
+                      target='_blank'
+                      rel='noreferrer'
+                      className='underline decoration-dotted'
+                    >
+                      {row.last_ip}
+                    </a>
+                  ) : (
+                    '-'
+                  )}
+                </div>
+                <div className='text-xs'>
+                  {countryLabel(row.ip_country, i18n.language) || '-'}
+                  {(row.browser_lang || row.lng) && (
+                    <Badge variant='secondary' className='ml-1'>
+                      {[row.browser_lang, row.lng]
+                        .filter(Boolean)
+                        .filter((v, i, arr) => arr.indexOf(v) === i)
+                        .join(' · ')}
+                    </Badge>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell className='max-w-40'>
+                <div className='truncate'>{row.campaign || '-'}</div>
+                {row.keyword && (
+                  <div className='text-muted-foreground truncate text-xs'>
+                    {row.keyword}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className='max-w-40 truncate'>
+                {row.landing || '-'}
+              </TableCell>
+              <TableCell className='text-right whitespace-nowrap'>
+                {row.paid_usd > 0 ? usd(row.paid_usd) : '-'}
+              </TableCell>
+              <TableCell className='text-right whitespace-nowrap'>
+                {usd(row.balance_usd)}
+              </TableCell>
+              <TableCell className='text-right whitespace-nowrap'>
+                <div>{row.requests} req</div>
+                <div className='text-muted-foreground text-xs'>
+                  {usd(row.consumed_usd)}
+                </div>
+              </TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {shortTime(row.last_active_at)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
 function PayersTable({ rows }: { rows: OpsPayerRow[] }) {
   const { t, i18n } = useTranslation()
   return (
@@ -723,7 +848,12 @@ function PayersTable({ rows }: { rows: OpsPayerRow[] }) {
               <TableCell className='max-w-40 truncate'>
                 {row.keyword || '-'}
               </TableCell>
-              <TableCell>{row.lng || '-'}</TableCell>
+              <TableCell className='whitespace-nowrap'>
+                {[row.browser_lang, row.lng]
+                  .filter(Boolean)
+                  .filter((v, i, arr) => arr.indexOf(v) === i)
+                  .join(' · ') || '-'}
+              </TableCell>
               <TableCell className='max-w-40 truncate'>
                 {row.landing || '-'}
               </TableCell>
@@ -851,6 +981,9 @@ export function OpsReport() {
                 <TabsTrigger value='registrations'>
                   {t('Daily Registrations')}
                 </TabsTrigger>
+                <TabsTrigger value='users'>
+                  {t('Registered Users')}
+                </TabsTrigger>
                 <TabsTrigger value='campaigns'>{t('Ad Campaigns')}</TabsTrigger>
                 <TabsTrigger value='funnel'>
                   {t('Registration Funnel (Weekly)')}
@@ -885,6 +1018,24 @@ export function OpsReport() {
                       yLabel={t('Registrations')}
                     />
                     <FunnelTable rows={report.daily} firstColumn={t('Date')} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value='users'>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      {t('Registered Users')}{' '}
+                      <span className='text-muted-foreground text-sm font-normal'>
+                        {t('Newest {{count}} in the period', {
+                          count: (report.registered_users ?? []).length,
+                        })}
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <RegisteredUsersTable rows={report.registered_users ?? []} />
                   </CardContent>
                 </Card>
               </TabsContent>

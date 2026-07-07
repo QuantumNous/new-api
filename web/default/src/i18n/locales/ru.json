@@ -5282,7 +5282,10 @@
     "Request success rate; {{incidents}} incident buckets in the last 30 days": "Доля успешных запросов; {{incidents}} инцидентных интервалов за 30 дней",
     "Request success rate sampled over the last 30 days": "Доля успешных запросов за последние 30 дней",
     "Loading performance data…": "Загрузка данных о производительности…",
-    "Official price": "Официальная цена"
+    "Official price": "Официальная цена",
+    "Registered Users": "Зарегистрированные пользователи",
+    "IP / Language": "IP / Язык",
+    "Newest {{count}} in the period": "Новейшие {{count}} за период"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Достигнут лимит выборки Stripe — данные ниже усечены, а метрики занижены. Сузьте диапазон дней для полных цифр."
 }

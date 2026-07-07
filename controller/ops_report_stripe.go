@@ -48,6 +48,7 @@ type opsStripePersonRow struct {
 	DisplayName  string         `json:"display_name"`
 	BillingNames []string       `json:"billing_names"` // cardholder names from charge billing details
 	Locales      []string       `json:"locales"`       // Checkout UI locales — browser-language proxy
+	BrowserLang  string         `json:"browser_lang"`  // Primary Accept-Language captured at login
 	Campaign     string         `json:"campaign"`
 	Keyword      string         `json:"keyword"`
 	Lng          string         `json:"lng"`
@@ -226,6 +227,7 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 			a.row.Campaign = agg.campaign
 			a.row.Keyword = agg.keyword
 			a.row.Lng = agg.lng
+			a.row.BrowserLang = u.BrowserLang
 			a.row.Landing = agg.landing
 			a.row.Referrer = agg.referrer
 			persons[u.Id] = a

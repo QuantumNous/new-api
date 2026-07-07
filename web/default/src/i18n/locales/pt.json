@@ -5282,7 +5282,10 @@
     "Request success rate; {{incidents}} incident buckets in the last 30 days": "Taxa de sucesso; {{incidents}} janelas de incidente em 30 dias",
     "Request success rate sampled over the last 30 days": "Taxa de sucesso amostrada nos últimos 30 dias",
     "Loading performance data…": "Carregando dados de desempenho…",
-    "Official price": "Preço oficial"
+    "Official price": "Preço oficial",
+    "Registered Users": "Usuários registrados",
+    "IP / Language": "IP / Idioma",
+    "Newest {{count}} in the period": "Os {{count}} mais recentes do período"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Limite de busca do Stripe atingido — os dados abaixo estão truncados e as métricas subestimam. Reduza o intervalo de dias para números completos."
 }

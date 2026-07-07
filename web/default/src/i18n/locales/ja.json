@@ -5282,7 +5282,10 @@
     "Request success rate; {{incidents}} incident buckets in the last 30 days": "リクエスト成功率；過去30日で {{incidents}} 件の障害区間",
     "Request success rate sampled over the last 30 days": "過去30日間でサンプリングしたリクエスト成功率",
     "Loading performance data…": "パフォーマンスデータを読み込み中…",
-    "Official price": "公式価格"
+    "Official price": "公式価格",
+    "Registered Users": "登録ユーザー",
+    "IP / Language": "IP / 言語",
+    "Newest {{count}} in the period": "期間内の最新 {{count}} 件"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Stripe の取得上限に達したため、以下のデータは切り捨てられ、指標は実際より少なくなります。完全な数値には日数範囲を狭めてください。"
 }

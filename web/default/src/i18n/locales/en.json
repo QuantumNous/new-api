@@ -5282,7 +5282,10 @@
     "Request success rate; {{incidents}} incident buckets in the last 30 days": "Request success rate; {{incidents}} incident buckets in the last 30 days",
     "Request success rate sampled over the last 30 days": "Request success rate sampled over the last 30 days",
     "Loading performance data…": "Loading performance data…",
-    "Official price": "Official price"
+    "Official price": "Official price",
+    "Registered Users": "Registered Users",
+    "IP / Language": "IP / Language",
+    "Newest {{count}} in the period": "Newest {{count}} in the period"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers."
 }

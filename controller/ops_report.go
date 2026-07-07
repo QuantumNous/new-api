@@ -38,6 +38,8 @@ const (
 	opsAutoBrowseWindow  = 60  // seconds after signup treated as auto-fired playground call
 	opsAutoTokenWindow   = 120 // seconds after signup treated as auto-provisioned token
 	opsReportTopPayers   = 20
+	// registered-users detail rows shown in the ops report (newest first)
+	opsReportMaxRegisteredUsers = 200
 	opsReportMaxDays     = 180
 	opsReportDefaultDays = 30
 )
@@ -91,6 +93,7 @@ type opsPayerRow struct {
 	Campaign     string   `json:"campaign"`
 	Keyword      string   `json:"keyword"`
 	Lng          string   `json:"lng"`
+	BrowserLang  string   `json:"browser_lang"`
 	Landing      string   `json:"landing"`
 	SignupMethod string   `json:"signup_method"`
 	Currencies   []string `json:"currencies"`
@@ -126,6 +129,29 @@ type opsReportData struct {
 	TotalPaidUsers int              `json:"total_paid_users"`
 	TotalPaidUSD   float64          `json:"total_paid_usd"`
 	TopPayers      []opsPayerRow    `json:"top_payers"`
+	// Most recent registrations in the report window, newest first (capped).
+	RegisteredUsers []opsRegisteredUserRow `json:"registered_users"`
+}
+
+type opsRegisteredUserRow struct {
+	UserId       int     `json:"user_id"`
+	Username     string  `json:"username"`
+	DisplayName  string  `json:"display_name"`
+	Email        string  `json:"email"`
+	SignupMethod string  `json:"signup_method"`
+	RegisteredAt int64   `json:"registered_at"`
+	Campaign     string  `json:"campaign"`
+	Keyword      string  `json:"keyword"`
+	Lng          string  `json:"lng"`
+	BrowserLang  string  `json:"browser_lang"`
+	Landing      string  `json:"landing"`
+	LastIP       string  `json:"last_ip"`
+	IPCountry    string  `json:"ip_country"`
+	BalanceUSD   float64 `json:"balance_usd"`
+	ConsumedUSD  float64 `json:"consumed_usd"`
+	Requests     int     `json:"requests"`
+	PaidUSD      float64 `json:"paid_usd"`
+	LastActiveAt int64   `json:"last_active_at"`
 }
 
 var (
@@ -286,7 +312,58 @@ func buildOpsReport(days int, dauScope string) (*opsReportData, error) {
 	report.KeywordFunnel = opsRollupKeywords(aggs, 50)
 	report.PaymentWeekly = opsRollupPayment(aggs)
 	report.TopPayers, report.TotalPaidUsers, report.TotalPaidUSD = opsTopPayers(aggs)
+	report.RegisteredUsers = opsRegisteredUsers(aggs)
 	return report, nil
+}
+
+// opsRegisteredUsers lists the newest registrations in the report window with
+// the identity/context columns ops uses to explain conversion anomalies
+// (signup method, attribution, browser language, last IP + country).
+func opsRegisteredUsers(aggs map[int]*opsUserAgg) []opsRegisteredUserRow {
+	rows := make([]opsRegisteredUserRow, 0, len(aggs))
+	for _, a := range aggs {
+		lastActive := a.user.LastLoginAt
+		if a.logStats != nil && a.logStats.LastRequestAt > lastActive {
+			lastActive = a.logStats.LastRequestAt
+		}
+		rows = append(rows, opsRegisteredUserRow{
+			UserId:       a.user.Id,
+			Username:     a.user.Username,
+			DisplayName:  a.user.DisplayName,
+			Email:        a.user.Email,
+			SignupMethod: a.user.OauthKind,
+			RegisteredAt: a.user.CreatedAt,
+			Campaign:     a.campaign,
+			Keyword:      a.keyword,
+			Lng:          a.lng,
+			BrowserLang:  a.user.BrowserLang,
+			Landing:      a.landing,
+			BalanceUSD:   float64(a.user.Quota) / common.QuotaPerUnit,
+			ConsumedUSD:  float64(a.user.UsedQuota) / common.QuotaPerUnit,
+			Requests:     a.user.RequestCount,
+			PaidUSD:      a.paidUSD(),
+			LastActiveAt: lastActive,
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].RegisteredAt > rows[j].RegisteredAt })
+	if len(rows) > opsReportMaxRegisteredUsers {
+		rows = rows[:opsReportMaxRegisteredUsers]
+	}
+	ids := make([]int, len(rows))
+	for i := range rows {
+		ids[i] = rows[i].UserId
+	}
+	if ips, err := model.GetOpsUsersLastIP(ids); err == nil {
+		byUser := map[int]string{}
+		for _, r := range ips {
+			byUser[r.UserId] = r.Ip
+		}
+		for i := range rows {
+			rows[i].LastIP = byUser[rows[i].UserId]
+			rows[i].IPCountry = opsIPCountry(rows[i].LastIP)
+		}
+	}
+	return rows
 }
 
 func parseOpsAttribution(a *opsUserAgg) {
@@ -672,6 +749,7 @@ func opsTopPayers(aggs map[int]*opsUserAgg) ([]opsPayerRow, int, float64) {
 			Campaign:     a.campaign,
 			Keyword:      a.keyword,
 			Lng:          a.lng,
+			BrowserLang:  a.user.BrowserLang,
 			Landing:      a.landing,
 			SignupMethod: a.user.OauthKind,
 			Currencies:   currencies,
