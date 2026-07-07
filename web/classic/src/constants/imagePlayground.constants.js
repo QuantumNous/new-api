@@ -1,5 +1,13 @@
 // 图片模型相关常量
 
+// 提示词预设:点击对应按钮清空输入框并填入该提示词(体验区快速试玩)。
+export const IMAGE_PROMPT_PRESETS = [
+  'The ancient battlefield, thousands of troops and horses to fight, the situation is very fierce, countless casualties',
+  'Peach and water photography, light pink background, surreal still life photography, macro shot tropical fruits, translucent textures, rendered in zbrush style, anime aesthetic, fairy tale core, sparkling water droplets, specular reflection, gorgeous colors, 8k',
+  'Stock image, front view, white humidifier placed on the bedside table, white wall, light coming in from the upper left, dappled light and shadow, Scandinavian style, wide-angle shot, central composition, simple background, high-definition, ultra-detailed, high-resolution',
+  "A stunning and vibrant 3D render scene featuring a decadent chocolate strawberry cake with the number '4000' displayed by luxurious candles. The cake is beautifully adorned with colorful confetti, dripping frosting, and a sparkly red ribbon. Surrounding the cake are floating candles, thumbs up icons, and red neon hearts. Iconic superheroes such as Hulk, Spider-Man, Batman, Captain America, and Superman are seen celebrating the momentous occasion. The bold, glowing words 'followers Thank you ideogramers!' are written on the cake, indicating a celebration of a significant milestone among social media followers. The image bears the red neon firm signature \"Hans Darias AI\" and is captured in a cinematic, fashionable style, photo, cinematic, fashion",
+];
+
 export const IMAGE_API_ENDPOINTS = {
   IMAGE_GENERATIONS: '/pg/images/generations',
   IMAGE_EDITS: '/pg/images/edits',
