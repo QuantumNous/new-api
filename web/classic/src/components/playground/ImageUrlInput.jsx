@@ -101,7 +101,9 @@ const ImageUrlInput = ({
           />
           <Typography.Text strong className='text-sm'>
             {label || t('上传图片')}
-            {required && <span className='text-red-500'> *</span>}
+            {required && (
+              <span style={{ color: 'var(--semi-color-danger)' }}> *</span>
+            )}
           </Typography.Text>
           {tooltip && (
             <Tooltip content={tooltip} position='top'>

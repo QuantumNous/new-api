@@ -24,7 +24,7 @@ const presetLabel = (s) => {
 };
 
 const WELCOME_ID = '__welcome__';
-const MAX_PROMPT_LEN = 2000;
+const MAX_PROMPT_LEN = 5000;
 
 const genUserAvatar = (username) => {
   if (!username) return getLogo();

@@ -169,27 +169,29 @@ const VideoConfigPanel = ({
           )}
         {isFLF2V && !disabled && renderFrameSlot(t('上传尾帧'), 'lastFrame')}
 
-        {/* 尺寸 */}
-        <div>
-          <div className='flex items-center gap-2 mb-2'>
-            <Ruler size={16} className='text-gray-500' />
-            <Typography.Text strong className='text-sm'>
-              {t('视频尺寸')}
-            </Typography.Text>
+        {/* 视频尺寸/分辨率(仅文生视频,且该模型在后台配了尺寸才展示;图生视频跟随参考图) */}
+        {!needsImage && (availableSizes || []).length > 0 && (
+          <div>
+            <div className='flex items-center gap-2 mb-2'>
+              <Ruler size={16} className='text-gray-500' />
+              <Typography.Text strong className='text-sm'>
+                {t('视频尺寸')}
+              </Typography.Text>
+            </div>
+            <Select
+              placeholder={t('请选择尺寸')}
+              name='size'
+              selection
+              onChange={(value) => onInputChange('size', value)}
+              value={inputs.size}
+              optionList={sizeOptions}
+              disabled={disabled}
+              style={{ width: '100%' }}
+              dropdownStyle={{ width: '100%', maxWidth: '100%' }}
+              className='!rounded-lg'
+            />
           </div>
-          <Select
-            placeholder={t('请选择尺寸')}
-            name='size'
-            selection
-            onChange={(value) => onInputChange('size', value)}
-            value={inputs.size}
-            optionList={sizeOptions}
-            disabled={disabled}
-            style={{ width: '100%' }}
-            dropdownStyle={{ width: '100%', maxWidth: '100%' }}
-            className='!rounded-lg'
-          />
-        </div>
+        )}
 
         {/* 宽高比(仅文生视频,且该模型在后台配了宽高比才展示;wan 下由此决定输出分辨率) */}
         {!needsImage && (availableAspectRatios || []).length > 0 && (

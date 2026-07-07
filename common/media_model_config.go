@@ -273,3 +273,21 @@ func AspectRatioFromSize(size string) string {
 	}
 	return fmt.Sprintf("%d:%d", w/g, h/g)
 }
+
+var aspectRatioRe = regexp.MustCompile(`^(\d+):(\d+)$`)
+
+// NormalizeAspectRatio 去除比例串中的空格，得到规范 "a:b"（如 "16 : 9" → "16:9"）。
+// 判断(IsAspectRatio)与向上游转发必须共用它，避免"通过判断的值"与"实际发出的值"不一致。
+func NormalizeAspectRatio(s string) string {
+	return strings.ReplaceAll(strings.TrimSpace(s), " ", "")
+}
+
+// IsAspectRatio 判断字符串是否为纯 "a:b" 宽高比格式(a、b 为正整数)。
+// 用于区分"宽高比"与"精确像素(WxH)"两种尺寸输入。
+func IsAspectRatio(s string) bool {
+	m := aspectRatioRe.FindStringSubmatch(NormalizeAspectRatio(s))
+	if m == nil {
+		return false
+	}
+	return m[1] != "0" && m[2] != "0"
+}
