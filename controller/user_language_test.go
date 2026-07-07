@@ -93,3 +93,35 @@ func TestUpdateUserSettingPreservesLanguagePreference(t *testing.T) {
 	require.Equal(t, "pt", fresh.GetSetting().Language)
 	require.Equal(t, dto.NotifyTypeEmail, fresh.GetSetting().NotifyType)
 }
+
+func TestSearchUsersFiltersByLanguagePreference(t *testing.T) {
+	setupUserLanguageControllerTestDB(t)
+
+	jaUser := model.User{Id: 201, Username: "ja-language-user", Password: "hashed", Status: common.UserStatusEnabled, AffCode: "ja01"}
+	jaUser.SetSetting(dto.UserSetting{Language: "ja"})
+	enUser := model.User{Id: 202, Username: "en-language-user", Password: "hashed", Status: common.UserStatusEnabled, AffCode: "en01"}
+	enUser.SetSetting(dto.UserSetting{Language: "en"})
+	noLanguageUser := model.User{Id: 203, Username: "no-language-user", Password: "hashed", Status: common.UserStatusEnabled, AffCode: "no01"}
+	require.NoError(t, model.DB.Create(&[]model.User{jaUser, enUser, noLanguageUser}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/search?language=ja&p=1&page_size=20", nil)
+
+	SearchUsers(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Items []model.User `json:"items"`
+			Total int          `json:"total"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Equal(t, 1, response.Data.Total)
+	require.Len(t, response.Data.Items, 1)
+	require.Equal(t, "ja-language-user", response.Data.Items[0].Username)
+	require.Equal(t, "ja", response.Data.Items[0].GetSetting().Language)
+}

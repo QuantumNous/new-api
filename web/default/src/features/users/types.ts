@@ -100,6 +100,7 @@ export interface SearchUsersParams {
   group?: string
   role?: string
   status?: string
+  language?: string
   p?: number
   page_size?: number
 }

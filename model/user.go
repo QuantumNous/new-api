@@ -260,7 +260,7 @@ func GetRecallCandidates(minCalls int, maxQuota int, limit int) ([]*User, error)
 	return users, err
 }
 
-func SearchUsers(keyword string, group string, role *int, status *int, startIdx int, num int) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, role *int, status *int, language string, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -305,6 +305,7 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 			query = query.Where("deleted_at IS NULL").Where("status = ?", *status)
 		}
 	}
+	query = applyUserLanguageFilter(query, language)
 
 	// 获取总数
 	err = query.Count(&total).Error
@@ -326,6 +327,20 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 	}
 
 	return users, total, nil
+}
+
+func applyUserLanguageFilter(query *gorm.DB, language string) *gorm.DB {
+	if strings.TrimSpace(language) == "" {
+		return query
+	}
+	switch query.Dialector.Name() {
+	case common.DatabaseTypeMySQL:
+		return query.Where("CASE WHEN JSON_VALID(setting) THEN JSON_UNQUOTE(JSON_EXTRACT(setting, '$.language')) ELSE NULL END = ?", language)
+	case common.DatabaseTypePostgreSQL:
+		return query.Where("CASE WHEN setting IS NULL OR setting = '' THEN NULL ELSE setting::jsonb ->> 'language' END = ?", language)
+	default:
+		return query.Where("CASE WHEN json_valid(setting) THEN json_extract(setting, '$.language') ELSE NULL END = ?", language)
+	}
 }
 
 func GetUserById(id int, selectAll bool) (*User, error) {

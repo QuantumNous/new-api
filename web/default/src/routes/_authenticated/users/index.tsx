@@ -34,6 +34,10 @@ const usersSearchSchema = z.object({
     .array(z.enum(['1', '10', '100']))
     .optional()
     .catch([]),
+  language: z
+    .array(z.enum(['zh', 'en', 'es', 'fr', 'pt', 'ru', 'ja', 'vi']))
+    .optional()
+    .catch([]),
   group: z.string().optional().catch(''),
 })
 

@@ -34,6 +34,7 @@ import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { INTERFACE_LANGUAGE_OPTIONS } from '@/i18n/languages'
 import { Combobox } from '@/components/ui/combobox'
 import {
   DISABLED_ROW_DESKTOP,
@@ -84,6 +85,7 @@ export function UsersTable() {
     columnFilters: [
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: 'role', searchKey: 'role', type: 'array' },
+      { columnId: 'language', searchKey: 'language', type: 'array' },
       { columnId: 'group', searchKey: 'group', type: 'string' },
     ],
   })
@@ -95,9 +97,16 @@ export function UsersTable() {
     (columnFilters.find((filter) => filter.id === 'role')?.value as
       | string[]
       | undefined) ?? []
+  const languageFilter =
+    (columnFilters.find((filter) => filter.id === 'language')?.value as
+      | string[]
+      | undefined) ?? []
   const groupFilter =
     (columnFilters.find((filter) => filter.id === 'group')?.value as string) ??
     ''
+  const statusFilterValue = statusFilter[0] ?? ''
+  const roleFilterValue = roleFilter[0] ?? ''
+  const languageFilterValue = languageFilter[0] ?? ''
 
   const { data: groupsData } = useQuery({
     queryKey: ['assignable-user-groups'],
@@ -108,6 +117,14 @@ export function UsersTable() {
     () => buildUserGroupFilterOptions(groupsData?.data || [], groupFilter),
     [groupsData?.data, groupFilter]
   )
+  const languageOptions = useMemo(
+    () =>
+      INTERFACE_LANGUAGE_OPTIONS.map((language) => ({
+        label: language.label,
+        value: language.code,
+      })),
+    []
+  )
 
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({
@@ -116,15 +133,19 @@ export function UsersTable() {
       pagination.pageIndex + 1,
       pagination.pageSize,
       globalFilter,
-      statusFilter,
-      roleFilter,
+      statusFilterValue,
+      roleFilterValue,
+      languageFilterValue,
       groupFilter,
       refreshTrigger,
     ],
     queryFn: async () => {
       const hasFilter = globalFilter?.trim()
       const hasColumnFilter =
-        statusFilter.length > 0 || roleFilter.length > 0 || Boolean(groupFilter)
+        Boolean(statusFilterValue) ||
+        Boolean(roleFilterValue) ||
+        Boolean(languageFilterValue) ||
+        Boolean(groupFilter)
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
@@ -135,8 +156,9 @@ export function UsersTable() {
           ? await searchUsers({
               ...params,
               keyword: globalFilter,
-              status: statusFilter[0] ?? '',
-              role: roleFilter[0] ?? '',
+              status: statusFilterValue,
+              role: roleFilterValue,
+              language: languageFilterValue,
               group: groupFilter,
             })
           : await getUsers(params)
@@ -243,6 +265,12 @@ export function UsersTable() {
             columnId: 'role',
             title: t('Role'),
             options: getUserRoleOptions(t),
+            singleSelect: true,
+          },
+          {
+            columnId: 'language',
+            title: t('Interface Language'),
+            options: languageOptions,
             singleSelect: true,
           },
         ],
