@@ -3,12 +3,18 @@
 import { BarChart3 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { HomeCopy } from "@/lib/home-copy";
-import { fetchTokenUsage, formatCallCount, TOKEN_USAGE_OTHER, type TokenUsage } from "@/lib/home-live";
+import { fetchTokenUsage, formatCallCount, type TokenUsage } from "@/lib/home-live";
 
-// Validated categorical palette (dataviz skill reference, light mode), fixed
-// slot order; "Other" always renders in neutral gray.
-const SERIES_COLORS = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7", "#e34948"];
-const OTHER_COLOR = "#9ca3af";
+// VChart default light-theme data schemes — the exact palette the rankings
+// page chart uses, so both surfaces look identical. Series order follows the
+// rankings history order (largest model first → slot 1).
+const VCHART_SCHEME_10 = ["#1664FF", "#1AC6FF", "#FF8A00", "#3CC780", "#7442D4", "#FFC400", "#304D77", "#B48DEB", "#009488", "#FF7DDA"];
+const VCHART_SCHEME_20 = ["#1664FF", "#B2CFFF", "#1AC6FF", "#94EFFF", "#FF8A00", "#FFCE7A", "#3CC780", "#B9EDCD", "#7442D4", "#DDC5FA", "#FFC400", "#FAE878", "#304D77", "#8B959E", "#B48DEB", "#EFE3FF", "#009488", "#59BAA8", "#FF7DDA", "#FFCFEE"];
+
+function seriesColor(index: number, count: number): string {
+  const scheme = count > VCHART_SCHEME_10.length ? VCHART_SCHEME_20 : VCHART_SCHEME_10;
+  return scheme[index % scheme.length];
+}
 
 type Props = {
   copy: HomeCopy["usage"];
@@ -51,15 +57,17 @@ export function HomeTokenUsage(props: Props) {
 
       <div className="mt-5 flex h-40 items-end gap-[3px]">
         {usage.days.map((day) => (
-          <div key={day.label} className="flex h-full flex-1 flex-col justify-end gap-[1px]">
+          // flex-col-reverse: series slot 1 (largest model) sits at the bottom
+          // of every stack, matching the rankings chart.
+          <div key={day.label} className="flex h-full flex-1 flex-col-reverse justify-start gap-[1px]">
             {day.values.map((value, index) =>
               value > 0 ? (
                 <div
                   key={usage.series[index]}
-                  className="w-full rounded-[2px] first:rounded-t-[3px]"
+                  className="w-full rounded-[2px] last:rounded-t-[3px]"
                   style={{
                     height: `${Math.max((value / maxDay) * 100, 0.8)}%`,
-                    backgroundColor: usage.series[index] === TOKEN_USAGE_OTHER ? OTHER_COLOR : SERIES_COLORS[index % SERIES_COLORS.length],
+                    backgroundColor: seriesColor(index, usage.series.length),
                   }}
                   title={`${day.label} · ${usage.series[index]} · ${formatCallCount(value)}`}
                 />
@@ -79,10 +87,7 @@ export function HomeTokenUsage(props: Props) {
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-violet-500/10 pt-3">
         {usage.series.map((name, index) => (
           <span key={name} className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
-            <span
-              className="size-2.5 rounded-[3px]"
-              style={{ backgroundColor: name === TOKEN_USAGE_OTHER ? OTHER_COLOR : SERIES_COLORS[index % SERIES_COLORS.length] }}
-            />
+            <span className="size-2.5 rounded-[3px]" style={{ backgroundColor: seriesColor(index, usage.series.length) }} />
             <span className="font-mono">{name}</span>
           </span>
         ))}

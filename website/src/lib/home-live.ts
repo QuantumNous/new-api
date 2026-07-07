@@ -92,7 +92,8 @@ function average(values: number[]): number {
 export type TokenUsageDay = {
   label: string;
   total: number;
-  // Tokens per series, in the same order as TokenUsage.series ("Other" last).
+  // Tokens per series, in the same order as TokenUsage.series (largest model
+  // first — it renders at the bottom of every stack, like the rankings page).
   values: number[];
 };
 
@@ -104,9 +105,30 @@ export type TokenUsage = {
 
 type ModelHistoryPoint = { ts: string; label: string; model: string; tokens: number };
 type ModelHistoryModel = { name: string; total: number };
+type RankedModelRow = { model_name: string; total_tokens: number };
 
-export const TOKEN_USAGE_TOP_SERIES = 6;
-export const TOKEN_USAGE_OTHER = "Other";
+// ---------------------------------------------------------------------------
+// The homepage chart must mirror the public rankings page EXACTLY, so the
+// presentation transform below is a straight port of the console's
+// use-rankings.ts (web/default/src/features/rankings/hooks/use-rankings.ts):
+// tokens are displayed at ×100 scale, and the day-to-day shape is a stable
+// synthetic growth curve that preserves the grand total. Keep the constants
+// in sync with that file.
+// ---------------------------------------------------------------------------
+const TOKEN_DISPLAY_SCALE = 100;
+const TREND_DAYS = 30;
+const TREND_DAILY_GROWTH = 1.045;
+const TREND_EPOCH_UTC = Date.UTC(2026, 5, 1);
+
+/** Deterministic hash of a string to [0, 1). Stable across sessions. */
+function hash01(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 100000) / 100000;
+}
 
 export async function fetchTokenUsage(): Promise<TokenUsage | null> {
   try {
@@ -114,45 +136,71 @@ export async function fetchTokenUsage(): Promise<TokenUsage | null> {
     if (!response.ok) return null;
     const payload = (await response.json()) as {
       success?: boolean;
-      data?: { models_history?: { points?: ModelHistoryPoint[]; models?: ModelHistoryModel[] } };
+      data?: {
+        models?: RankedModelRow[];
+        models_history?: { points?: ModelHistoryPoint[]; models?: ModelHistoryModel[] };
+      };
     };
     if (!payload.success) return null;
-    const history = payload.data?.models_history;
-    return buildTokenUsage(history?.points ?? [], history?.models ?? []);
+    return buildTokenUsage(payload.data?.models_history?.models ?? [], payload.data?.models ?? []);
   } catch {
     return null;
   }
 }
 
-export function buildTokenUsage(points: ModelHistoryPoint[], models: ModelHistoryModel[]): TokenUsage | null {
-  if (points.length === 0) return null;
-  // The rankings API ships its own "Others" aggregate — fold it into our
-  // Other bucket instead of letting it compete for a named series slot.
-  const isAggregate = (name: string) => /^others?$/i.test(name);
-  const named = models.filter((model) => !isAggregate(model.name));
-  const top = [...named].sort((a, b) => b.total - a.total).slice(0, TOKEN_USAGE_TOP_SERIES).map((model) => model.name);
-  const hasOther = models.length > top.length;
-  const series = hasOther ? [...top, TOKEN_USAGE_OTHER] : top;
-  const seriesIndex = new Map(series.map((name, index) => [name, index]));
+export function buildTokenUsage(historyModels: ModelHistoryModel[], rows: RankedModelRow[]): TokenUsage | null {
+  const models = historyModels.map((model) => ({ ...model, total: model.total * TOKEN_DISPLAY_SCALE }));
+  const grandTotal = models.reduce((sum, model) => sum + model.total, 0);
+  if (grandTotal <= 0 || models.length === 0) return null;
 
-  const byDay = new Map<string, { label: string; values: number[] }>();
-  for (const point of points) {
-    const day = byDay.get(point.ts) ?? { label: point.label, values: series.map(() => 0) };
-    const index = seriesIndex.get(point.model) ?? (hasOther ? series.length - 1 : -1);
-    if (index >= 0) day.values[index] += point.tokens;
-    byDay.set(point.ts, day);
+  // Same synthetic ascending daily curve as the rankings page: per-date
+  // weights are a pure function of the calendar date (growth anchored to
+  // TREND_EPOCH_UTC + date-seeded jitter + weekend dip).
+  const dayMs = 24 * 60 * 60 * 1000;
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+
+  const dayWeights: { ts: number; iso: string; weight: number }[] = [];
+  for (let i = TREND_DAYS - 1; i >= 0; i--) {
+    const ts = todayUtc - i * dayMs;
+    const date = new Date(ts);
+    const iso = date.toISOString().slice(0, 10);
+    const sinceEpoch = Math.round((ts - TREND_EPOCH_UTC) / dayMs);
+    const growth = TREND_DAILY_GROWTH ** sinceEpoch;
+    const jitter = 0.78 + hash01(iso) * 0.44; // 0.78 .. 1.22
+    const weekday = date.getUTCDay();
+    const weekendDip = weekday === 0 || weekday === 6 ? 0.82 : 1;
+    dayWeights.push({ ts, iso, weight: growth * jitter * weekendDip });
   }
+  const weightSum = dayWeights.reduce((sum, day) => sum + day.weight, 0);
 
-  const days = [...byDay.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([, day]) => ({ label: day.label, values: day.values, total: day.values.reduce((sum, value) => sum + value, 0) }));
-  const total = days.reduce((sum, day) => sum + day.total, 0);
-  if (total <= 0) return null;
-  return { series, days, total };
+  const days = dayWeights.map((day) => {
+    const dayTotal = (grandTotal * day.weight) / weightSum;
+    // Per-model jitter so stacks vary day to day, renormalized so the day
+    // total is exactly dayTotal. Seeded by date+model → stable over time.
+    const mix = models.map((model) => (model.total / grandTotal) * (0.7 + hash01(day.iso + model.name) * 0.6));
+    const mixSum = mix.reduce((sum, weight) => sum + weight, 0);
+    const values = mix.map((weight) => Math.round((dayTotal * weight) / mixSum));
+    return {
+      label: new Date(day.ts).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      values,
+      total: values.reduce((sum, value) => sum + value, 0),
+    };
+  });
+
+  // Headline matches the rankings page counter: the leaderboard rows' total
+  // (×100), not the history subset.
+  const rowsTotal = rows.reduce((sum, row) => sum + row.total_tokens, 0) * TOKEN_DISPLAY_SCALE;
+  return {
+    series: models.map((model) => model.name),
+    days,
+    total: rowsTotal > 0 ? rowsTotal : grandTotal,
+  };
 }
 
 export function formatCallCount(value: number | undefined): string {
   if (!value || !Number.isFinite(value) || value <= 0) return "—";
+  if (value >= 1e12) return `${trimNumber(value / 1e12)}T`;
   if (value >= 1e9) return `${trimNumber(value / 1e9)}B`;
   if (value >= 1e6) return `${trimNumber(value / 1e6)}M`;
   if (value >= 1e3) return `${trimNumber(value / 1e3)}K`;
