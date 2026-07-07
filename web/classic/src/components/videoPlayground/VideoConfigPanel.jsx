@@ -5,6 +5,7 @@ import {
   Typography,
   Tooltip,
   InputNumber,
+  TextArea,
 } from '@douyinfe/semi-ui';
 import {
   Settings,
@@ -14,6 +15,7 @@ import {
   Clock,
   HelpCircle,
   Shuffle,
+  Ban,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
@@ -201,6 +203,33 @@ const VideoConfigPanel = ({
             disabled={disabled}
             style={{ width: '100%' }}
             dropdownStyle={{ width: '100%', maxWidth: '100%' }}
+            className='!rounded-lg'
+          />
+        </div>
+
+        {/* 负向提示词(默认预填 Wan 推荐值) */}
+        <div>
+          <div className='flex items-center gap-2 mb-2'>
+            <Ban size={16} className='text-gray-500' />
+            <Typography.Text strong className='text-sm'>
+              {t('负向提示词')}
+            </Typography.Text>
+            <Tooltip
+              content={t(
+                "Describe what you don't want included in the videos.",
+              )}
+              position='top'
+            >
+              <HelpCircle size={14} className='text-gray-400 cursor-help' />
+            </Tooltip>
+          </div>
+          <TextArea
+            placeholder={t('负向提示词(可选)')}
+            name='negativePrompt'
+            value={inputs.negativePrompt || ''}
+            onChange={(value) => onInputChange('negativePrompt', value)}
+            autosize={{ minRows: 2, maxRows: 6 }}
+            disabled={disabled}
             className='!rounded-lg'
           />
         </div>

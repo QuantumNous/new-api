@@ -20,6 +20,7 @@ import {
   VIDEO_PAGE_CAPABILITY,
   VIDEO_I2V_CAPABILITY,
   VIDEO_FLF2V_CAPABILITY,
+  VIDEO_DEFAULT_NEGATIVE_PROMPT,
   VIDEO_STATUS,
   VIDEO_HISTORY_LIMIT,
   VIDEO_CONV_TURN_LIMIT,
@@ -87,6 +88,10 @@ const persistConversations = (storageKey, list) => {
 let idSeq = 0;
 const genId = () => `vid-${Date.now()}-${idSeq++}`;
 
+// 默认负向提示词是 Wan 专用的中文词表,只对 Wan 系模型预填;其它厂商(sora/ali/kling…)
+// 默认留空,避免把 Wan 负向词经 metadata 发给不支持/语义不符的上游(codex 复审 P2)。
+const isWanVideoModel = (model) => /wan/i.test(model || '');
+
 // 兼容 OpenAI 错误({error:{message}})与任务错误({code,message,data})两种形态
 const extractApiErrMsg = (error, fallback) => {
   const d = error?.response?.data || {};
@@ -110,6 +115,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     size: '',
     seconds: '',
     seed: '', // 随机种子;'' 表示随机(不下发)
+    negativePrompt: '', // 负向提示词;Wan 模型下由下方 effect 预填默认值,其它厂商留空
     firstFrame: '', // i2v/flf2v 首帧(base64 data-url)
     lastFrame: '', // flf2v 尾帧
   });
@@ -137,9 +143,12 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
   lockedRef.current = locked;
   // 当前进行中的轮询：{ convId, msgId, taskId, timer, canceled }
   const activePollRef = useRef(null);
+  // 用户是否手动改过负向提示词:改过后不再随模型自动预填/清空。
+  const negPromptTouchedRef = useRef(false);
 
   const handleInputChange = useCallback((key, value) => {
     if (lockedRef.current) return;
+    if (key === 'negativePrompt') negPromptTouchedRef.current = true;
     setInputs((prev) => ({ ...prev, [key]: value }));
   }, []);
 
@@ -194,6 +203,17 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
       setInputs((prev) => ({ ...prev, seconds: availableDurations[0] }));
     }
   }, [availableDurations, inputs.seconds, locked]);
+
+  // 负向提示词默认值:仅 Wan 模型预填官方词表,其它厂商清空;用户手动改过后不再自动覆盖。
+  useEffect(() => {
+    if (locked || negPromptTouchedRef.current) return;
+    const def = isWanVideoModel(inputs.model)
+      ? VIDEO_DEFAULT_NEGATIVE_PROMPT
+      : '';
+    setInputs((prev) =>
+      prev.negativePrompt === def ? prev : { ...prev, negativePrompt: def },
+    );
+  }, [inputs.model, locked]);
 
   const loadPricing = useCallback(async () => {
     try {
@@ -476,6 +496,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           size: normalizeVideoSize(inputs.size),
           seconds: inputs.seconds,
           seed: inputs.seed,
+          negativePrompt: inputs.negativePrompt,
           images: convImages,
         };
       } else {
@@ -498,6 +519,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               size: conv.size,
               seconds: conv.seconds,
               seed: conv.seed,
+              negativePrompt: conv.negativePrompt,
               images: conv.images || [],
             }
           : {
@@ -506,6 +528,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               size: normalizeVideoSize(inputs.size),
               seconds: inputs.seconds,
               seed: inputs.seed,
+              negativePrompt: inputs.negativePrompt,
               images: convImages,
             };
       }
@@ -555,6 +578,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               size: params.size,
               seconds: params.seconds,
               seed: params.seed,
+              negativePrompt: params.negativePrompt,
               images: params.images || [],
               title: text,
               createdAt: now,
@@ -592,12 +616,19 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         } else {
           body.duration = parseInt(params.seconds, 10) || undefined;
         }
-        // 随机种子:非空则塞进 metadata(gpustackplus task adaptor 整体透传 metadata 给引擎;
-        // TaskSubmitReq.Metadata 只从请求的 metadata 对象取,故不能放顶层)。留空则引擎随机。
+        // 随机种子 / 负向提示词:塞进 metadata(gpustackplus task adaptor 整体透传 metadata
+        // 给引擎;TaskSubmitReq.Metadata 只从请求的 metadata 对象取,故不能放顶层)。
+        // seed 留空则引擎随机;negative_prompt 非空才发。
         if (params.seed !== '' && params.seed != null) {
           body.metadata = {
             ...(body.metadata || {}),
             seed: Number(params.seed),
+          };
+        }
+        if (params.negativePrompt && params.negativePrompt.trim()) {
+          body.metadata = {
+            ...(body.metadata || {}),
+            negative_prompt: params.negativePrompt.trim(),
           };
         }
         // i2v/flf2v:带帧图。后端 gpustackplus:images[0]=首帧,flf2v 时 images[1]=尾帧。
@@ -715,6 +746,10 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         size: conv.size != null ? conv.size : prev.size,
         seconds: conv.seconds != null ? conv.seconds : prev.seconds,
         seed: conv.seed != null ? conv.seed : prev.seed,
+        negativePrompt:
+          conv.negativePrompt != null
+            ? conv.negativePrompt
+            : prev.negativePrompt,
       }));
       // 若该会话最后一个任务仍在进行中，恢复轮询
       const assts = (conv.messages || []).filter((m) => m.role === 'assistant');

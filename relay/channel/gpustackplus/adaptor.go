@@ -153,6 +153,11 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		body["seed"] = seed
 	}
 
+	// 负向提示词:同样仅本渠道使用(从 Extra / 表单读),非空才透传给引擎(BaseTaskRequest.negative_prompt)。
+	if np := imageNegativePromptFrom(c, request); np != "" {
+		body["negative_prompt"] = np
+	}
+
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesGenerations:
 		body["task_type"] = "t2i"
@@ -311,6 +316,18 @@ func imageSeedFrom(c *gin.Context, request dto.ImageRequest) (int64, bool) {
 		}
 	}
 	return 0, false
+}
+
+// imageNegativePromptFrom 取负向提示词(仅本渠道消费,不放共享 dto):
+// JSON 请求 → dto.Extra["negative_prompt"];multipart(edits)→ 表单字段。空则返回 ""。
+func imageNegativePromptFrom(c *gin.Context, request dto.ImageRequest) string {
+	if raw, ok := request.Extra["negative_prompt"]; ok && len(raw) > 0 {
+		var s string
+		if err := common.Unmarshal(raw, &s); err == nil {
+			return strings.TrimSpace(s)
+		}
+	}
+	return strings.TrimSpace(c.PostForm("negative_prompt"))
 }
 
 // userIDStr new-api 终端用户 id(字符串);与门面 user_id / NFS 路径 <user_id> 段一致。
