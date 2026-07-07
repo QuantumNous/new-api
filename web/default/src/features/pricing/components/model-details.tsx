@@ -1050,7 +1050,22 @@ export function ModelDetails() {
 
   const model = useMemo(() => {
     if (!models || !modelId) return null
-    return models.find((m) => m.model_name === modelId) || null
+    const exact = models.find((m) => m.model_name === modelId)
+    if (exact) return exact
+    // Rankings links carry log/alias model names that may not be in the
+    // pricing list verbatim: channel-suffixed ("claude-opus-4-8-fk") or
+    // vendor-prefixed ("anthropic/claude-sonnet-4.5") variants. Normalize
+    // both sides and fall back to the canonical pricing entry so the
+    // details page never dead-ends on a known model family.
+    const normalize = (name: string) => {
+      let n = name.toLowerCase()
+      const slash = n.lastIndexOf('/')
+      if (slash >= 0) n = n.slice(slash + 1)
+      n = n.replace(/-fk$/, '')
+      return n.replace(/[^a-z0-9]/g, '')
+    }
+    const wanted = normalize(modelId)
+    return models.find((m) => normalize(m.model_name) === wanted) || null
   }, [models, modelId])
 
   const handleBack = () => {
