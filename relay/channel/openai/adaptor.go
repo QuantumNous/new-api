@@ -481,6 +481,11 @@ func convertOpenRouterAudioTranscriptionRequest(c *gin.Context, request dto.Audi
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	if info.ChannelType == constant.ChannelTypeOpenAI && request.Model == "gpt-image-2" {
+		// OpenAI's gpt-image-2 rejects response_format on image generations.
+		request.ResponseFormat = ""
+	}
+
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesEdits:
 		if isJSONRequest(c) {
