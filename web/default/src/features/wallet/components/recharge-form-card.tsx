@@ -96,32 +96,31 @@ const WEBSITE_CHECKOUT_PLAN_COPY_BY_AMOUNT: Record<number, CheckoutPlanCopy> = {
     action: 'checkout',
     amount: 10,
     name: 'Top up {{price}}',
-    caption: 'Lowest entry to get started',
+    caption: 'Pay $10, get $13 in credit',
     description:
       'No contract required. Add balance, create a key, copy the base_url, and test your first request.',
     features: ENTRY_PACKAGE_FEATURES,
+    badge: 'Most Popular',
+    featured: true,
   },
   20: {
     action: 'checkout',
     amount: 20,
     name: 'Top up {{price}}',
-    caption: '3X more usage than the official plan',
-    description:
-      'Best first top-up for trying real API workloads with a clear discount.',
+    caption: 'Pay $20, get $28 in credit',
+    description: 'Best for trying real API workloads.',
     features: [
-      'Permanently 20-40% cheaper',
+      'Bonus credit on every top-up',
       'Usage analytics and cost controls',
       'Enterprise-grade privacy',
       'One invoice across providers',
     ],
-    badge: 'Most Popular',
-    featured: true,
   },
   200: {
     action: 'checkout',
     amount: 200,
     name: 'Top up {{price}}',
-    caption: '40X more usage than the official plan',
+    caption: 'Pay $200, get $300 in credit',
     description:
       'Best value for production testing, team workflows, and sustained model traffic.',
     features: [

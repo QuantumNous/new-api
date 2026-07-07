@@ -46,8 +46,8 @@ describe('RechargeFormCard', () => {
           amount_options: [10, 20, 200],
         }}
         presetAmounts={[
-          { value: 10 },
-          { value: 20, bonus: 5 },
+          { value: 10, bonus: 3 },
+          { value: 20, bonus: 8 },
           { value: 200, bonus: 100 },
         ]}
         selectedPreset={null}
@@ -72,12 +72,14 @@ describe('RechargeFormCard', () => {
     expect(html).toContain('Top up $10')
     expect(html).toContain('Top up $20')
     expect(html).toContain('Top up $200')
-    expect(html).toContain('Lowest entry to get started')
+    expect(html).toContain('Pay $10, get $13 in credit')
     expect(html).toContain('Most Popular')
-    expect(html).toContain('Get $5 free')
-    expect(html).toContain('3X more usage than the official plan')
+    expect(html).toContain('Get $3 free')
+    expect(html).toContain('Get $8 free')
+    expect(html).toContain('Pay $20, get $28 in credit')
     expect(html).toContain('Get $100 free')
-    expect(html).toContain('40X more usage than the official plan')
+    expect(html).toContain('Pay $200, get $300 in credit')
+    expect(html).not.toContain('more usage than the official plan')
     expect(html).toContain('Prepaid balance, no surprise bill')
     expect(html).toContain('One API key for everything')
     expect(html).toContain('Zero vendor lock-in')
@@ -92,9 +94,10 @@ describe('RechargeFormCard', () => {
     expect(html).toContain(
       'No contract required. Add balance, create a key, copy the base_url, and test your first request.'
     )
-    expect(html).toContain(
-      'Best first top-up for trying real API workloads with a clear discount.'
-    )
+    expect(html).toContain('Best for trying real API workloads.')
+    expect(html).toContain('Bonus credit on every top-up')
+    expect(html).not.toContain('Best first top-up')
+    expect(html).not.toContain('Permanently 20-40% cheaper')
     expect(html).toContain(
       'Best value for production testing, team workflows, and sustained model traffic.'
     )

@@ -59,6 +59,10 @@ export function PricingPlansGrid(props: PricingPlansGridProps) {
                 <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-black whitespace-nowrap text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-300/10 dark:text-emerald-200">{plan.discount}</span>
               ) : null}
             </div>
+            <p className={[
+              "mt-3 min-h-10 text-sm leading-5 font-semibold",
+              plan.action === "contact" ? "text-slate-500 dark:text-slate-400" : "text-emerald-700 dark:text-emerald-200",
+            ].join(" ")}>{plan.caption}</p>
             {plan.action === "contact" ? (
               <button
                 type="button"
@@ -80,7 +84,6 @@ export function PricingPlansGrid(props: PricingPlansGridProps) {
                 <ArrowRight className="ml-2 size-4" />
               </a>
             )}
-            <p className="mt-3 min-h-10 text-sm leading-5 text-slate-500 dark:text-slate-400">{plan.caption}</p>
             <div className="mt-6 space-y-3">
               {plan.features.map((feature) => (
                 <p key={feature} className="flex gap-2 text-sm leading-6 text-slate-700 dark:text-slate-300">

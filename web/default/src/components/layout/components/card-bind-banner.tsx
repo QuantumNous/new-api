@@ -65,14 +65,14 @@ export function CardBindBanner() {
           aria-hidden='true'
           className='animate-bonus-shine pointer-events-none absolute inset-y-0 left-0 w-1/5 bg-white/30 blur-md'
         />
-        {/* Limited-time pill — frosted glass on the gradient. */}
+        {/* Standing-offer pill — frosted glass on the gradient. */}
         <span className='relative flex shrink-0 items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold ring-1 ring-white/40 ring-inset backdrop-blur-sm'>
           <Sparkles className='size-3 animate-pulse' aria-hidden='true' />
-          {t('Limited time')}
+          {t('Top-up bonus')}
         </span>
         <span className='relative'>
           <Trans
-            i18nKey='First top-up <hl>50% bonus</hl> · same models at half the official price'
+            i18nKey='Every top-up <hl>earns bonus credit</hl> · same models, up to 33% off the official price'
             components={{
               hl: (
                 <span className='font-extrabold text-amber-300 drop-shadow-[0_0_6px_rgba(252,211,77,0.45)]' />
