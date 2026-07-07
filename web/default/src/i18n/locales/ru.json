@@ -5289,5 +5289,7 @@
     "30-day success rate": "Успешность за 30 дней",
     "Top-up discount": "Скидка за пополнение"
   },
-  "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Достигнут лимит выборки Stripe — данные ниже усечены, а метрики занижены. Сузьте диапазон дней для полных цифр."
+  "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Достигнут лимит выборки Stripe — данные ниже усечены, а метрики занижены. Сузьте диапазон дней для полных цифр.",
+  "Blog": "Блог",
+  "Contact us": "Контакты"
 }

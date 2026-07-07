@@ -38,10 +38,11 @@ export type TopNavLink = {
  *   home: true,
  *   console: true,
  *   pricing: { enabled: true, requireAuth: false },
- *   rankings: { enabled: true, requireAuth: false },
- *   docs: true,
- *   about: true
+ *   rankings: { enabled: true, requireAuth: false }
  * }
+ * Pricing and Rankings link to the official website pages (OFFICIAL_WEBSITE_ORIGIN)
+ * — the website /rankings now serves the same daily-updated data pipeline. The
+ * /docs and /about routes are no longer surfaced here.
  */
 export function useTopNavLinks(): TopNavLink[] {
   const { t } = useTranslation()
@@ -55,46 +56,50 @@ export function useTopNavLinks(): TopNavLink[] {
     )
   }, [status])
 
-  // Documentation link (may be external)
-  const docsLink: string | undefined = status?.docs_link as string | undefined
-
   const isAuthed = !!auth?.user
 
   const links: TopNavLink[] = []
 
-  // Pricing
+  // Mirror the official website header (Home, Blog, Pricing, Models,
+  // Rankings, Contact us) so public console pages align with the site.
+  const websiteLink = (title: string, path: string): TopNavLink => {
+    const href = officialWebsiteUrl(path)
+    return { title, href, external: href.startsWith('http') }
+  }
+
+  links.push(websiteLink(t('Home'), '/'))
+  links.push(websiteLink(t('Blog'), '/blog'))
+
+  // Pricing — official website page, not the in-console pricing route
   const pricing = modules?.pricing
   if (pricing && typeof pricing === 'object' && pricing.enabled) {
     const requiresAuth = pricing.requireAuth && !isAuthed
     const href = officialWebsiteUrl('/pricing')
     links.push({
-      title: t('Model Pricing'),
+      title: t('Pricing'),
       href,
       requiresAuth,
       external: href.startsWith('http'),
     })
   }
 
-  // Rankings
+  links.push(websiteLink(t('Models'), '/models'))
+
+  // Rankings — official website page; it now serves the same daily-updated
+  // data pipeline, and it is the single public rankings surface.
   const rankings = modules?.rankings
   if (rankings && typeof rankings === 'object' && rankings.enabled) {
     const requiresAuth = rankings.requireAuth && !isAuthed
-    links.push({ title: t('Rankings'), href: '/rankings', requiresAuth })
+    const href = officialWebsiteUrl('/rankings')
+    links.push({
+      title: t('Rankings'),
+      href,
+      requiresAuth,
+      external: href.startsWith('http'),
+    })
   }
 
-  // Docs (supports external links)
-  if (modules?.docs !== false) {
-    if (docsLink) {
-      links.push({ title: t('Docs'), href: docsLink, external: true })
-    } else {
-      links.push({ title: t('Docs'), href: '/docs' })
-    }
-  }
-
-  // About
-  if (modules?.about !== false) {
-    links.push({ title: t('About'), href: '/about' })
-  }
+  links.push(websiteLink(t('Contact us'), '/contact'))
 
   return links
 }

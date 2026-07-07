@@ -5289,5 +5289,7 @@
     "30-day success rate": "30日間の成功率",
     "Top-up discount": "チャージ割引"
   },
-  "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Stripe の取得上限に達したため、以下のデータは切り捨てられ、指標は実際より少なくなります。完全な数値には日数範囲を狭めてください。"
+  "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Stripe の取得上限に達したため、以下のデータは切り捨てられ、指標は実際より少なくなります。完全な数値には日数範囲を狭めてください。",
+  "Blog": "ブログ",
+  "Contact us": "お問い合わせ"
 }

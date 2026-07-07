@@ -5289,5 +5289,7 @@
     "30-day success rate": "30 天成功率",
     "Top-up discount": "充值折扣"
   },
-  "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "已达 Stripe 拉取上限——以下数据被截断，指标偏低。请缩小天数范围以获得完整数据。"
+  "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "已达 Stripe 拉取上限——以下数据被截断，指标偏低。请缩小天数范围以获得完整数据。",
+  "Blog": "博客",
+  "Contact us": "联系我们"
 }

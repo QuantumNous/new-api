@@ -5289,5 +5289,7 @@
     "30-day success rate": "Tỷ lệ thành công 30 ngày",
     "Top-up discount": "Ưu đãi nạp tiền"
   },
-  "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Đã đạt giới hạn truy xuất Stripe — dữ liệu bên dưới bị cắt bớt và các chỉ số bị thiếu hụt. Hãy thu hẹp phạm vi ngày để có số liệu đầy đủ."
+  "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Đã đạt giới hạn truy xuất Stripe — dữ liệu bên dưới bị cắt bớt và các chỉ số bị thiếu hụt. Hãy thu hẹp phạm vi ngày để có số liệu đầy đủ.",
+  "Blog": "Blog",
+  "Contact us": "Liên hệ"
 }
