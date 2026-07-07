@@ -306,8 +306,10 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
 	user.AdsAttribution = adsAttribution
-	if language, ok := dto.NormalizeUserLanguagePreference(i18n.GetLangFromContext(c)); ok {
-		user.SetSetting(dto.UserSetting{Language: language})
+	if cookieLang, err := c.Cookie(i18n.LanguagePreferenceCookieName); err == nil {
+		if language, ok := dto.NormalizeUserLanguagePreference(cookieLang); ok {
+			user.SetSetting(dto.UserSetting{Language: language})
+		}
 	}
 
 	// Handle affiliate code
