@@ -24,47 +24,47 @@ const RANKINGS_UI: Record<Locale, RankingsUiCopy> = {
   en: {
     llmTitle: "LLM leaderboard",
     llmSubtitle: "The most used models on the platform over the past month",
-    updatedDaily: "Updated daily from live routing volume",
+    updatedDaily: "Updated daily · usage index derived from platform routing traffic",
   },
   zh: {
     llmTitle: "LLM 排行榜",
     llmSubtitle: "过去一个月平台上使用最多的模型",
-    updatedDaily: "基于实时路由用量，每日更新",
+    updatedDaily: "每日更新 · 用量指数由平台路由流量派生",
   },
   es: {
     llmTitle: "Ranking de LLM",
     llmSubtitle: "Los modelos más usados en la plataforma durante el último mes",
-    updatedDaily: "Actualizado a diario con el volumen de enrutamiento en vivo",
+    updatedDaily: "Actualización diaria · índice de uso derivado del tráfico de enrutamiento de la plataforma",
   },
   fr: {
     llmTitle: "Classement des LLM",
     llmSubtitle: "Les modèles les plus utilisés sur la plateforme au cours du dernier mois",
-    updatedDaily: "Mis à jour chaque jour à partir du volume de routage en direct",
+    updatedDaily: "Mise à jour quotidienne · indice d'usage dérivé du trafic de routage de la plateforme",
   },
   pt: {
     llmTitle: "Ranking de LLM",
     llmSubtitle: "Os modelos mais usados na plataforma no último mês",
-    updatedDaily: "Atualizado diariamente com o volume de roteamento em tempo real",
+    updatedDaily: "Atualização diária · índice de uso derivado do tráfego de roteamento da plataforma",
   },
   ru: {
     llmTitle: "Рейтинг LLM",
     llmSubtitle: "Самые используемые модели на платформе за последний месяц",
-    updatedDaily: "Обновляется ежедневно на основе живого объёма маршрутизации",
+    updatedDaily: "Обновляется ежедневно · индекс использования на основе трафика маршрутизации платформы",
   },
   ja: {
     llmTitle: "LLM ランキング",
     llmSubtitle: "過去 1 か月にプラットフォームで最も使われたモデル",
-    updatedDaily: "実際のルーティング量をもとに毎日更新",
+    updatedDaily: "毎日更新 · プラットフォームのルーティングトラフィックに基づく利用指数",
   },
   vi: {
     llmTitle: "Bảng xếp hạng LLM",
     llmSubtitle: "Các model được dùng nhiều nhất trên nền tảng trong tháng qua",
-    updatedDaily: "Cập nhật hằng ngày theo lưu lượng định tuyến thực tế",
+    updatedDaily: "Cập nhật hằng ngày · chỉ số sử dụng dựa trên lưu lượng định tuyến của nền tảng",
   },
   de: {
     llmTitle: "LLM-Rangliste",
     llmSubtitle: "Die meistgenutzten Modelle auf der Plattform im letzten Monat",
-    updatedDaily: "Täglich aktualisiert auf Basis des Live-Routing-Volumens",
+    updatedDaily: "Täglich aktualisiert · Nutzungsindex basierend auf dem Routing-Traffic der Plattform",
   },
 };
 

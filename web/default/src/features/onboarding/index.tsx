@@ -64,6 +64,12 @@ export function Onboarding() {
   const tiers = useMemo<PromoTier[]>(() => {
     const info = topupInfoQuery.data?.data
     const remaining = info?.bonus_remaining ?? {}
+    // Stripe checkout packages only accept amounts present in
+    // payment_setting.amount_options — a bonus tier outside that set would
+    // render a button whose payment request the backend rejects.
+    const allowedAmounts = new Set(
+      (info?.amount_options ?? []).map((amount) => Number(amount))
+    )
     const fromBonus = Object.entries(info?.bonus ?? {})
       .map(([amount, bonus]) => ({
         amount: Number(amount),
@@ -75,6 +81,7 @@ export function Onboarding() {
         (tier) =>
           tier.amount > 0 &&
           tier.bonus > 0 &&
+          (allowedAmounts.size === 0 || allowedAmounts.has(tier.amount)) &&
           remaining[tier.amount] !== 0
       )
       .sort((a, b) => a.amount - b.amount)
