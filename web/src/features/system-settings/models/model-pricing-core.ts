@@ -20,6 +20,7 @@ import * as z from 'zod'
 
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 
+import { safeJsonParse } from '../utils/json-parser'
 import { formatPricingNumber } from './pricing-format'
 
 export const createModelPricingSchema = (t: (key: string) => string) =>
@@ -62,6 +63,32 @@ export type ModelRatioData = {
   billingMode?: PricingMode
   billingExpr?: string
   requestRuleExpr?: string
+}
+
+export type ModelPricingOptionInput = {
+  modelPrice: string
+  modelRatio: string
+  cacheRatio: string
+  createCacheRatio: string
+  completionRatio: string
+  imageRatio: string
+  audioRatio: string
+  audioCompletionRatio: string
+  billingMode: string
+  billingExpr: string
+}
+
+export type ModelPricingOptionUpdates = {
+  ModelPrice: string
+  ModelRatio: string
+  CacheRatio: string
+  CreateCacheRatio: string
+  CompletionRatio: string
+  ImageRatio: string
+  AudioRatio: string
+  AudioCompletionRatio: string
+  'billing_setting.billing_mode': string
+  'billing_setting.billing_expr': string
 }
 
 export type PreviewRow = {
@@ -154,6 +181,130 @@ export function toNumberOrNull(value: unknown): number | null {
   if (!hasValue(value) && value !== 0) return null
   const num = Number(value)
   return Number.isFinite(num) ? num : null
+}
+
+export function buildModelPricingOptionUpdates({
+  current,
+  data,
+  targetNames = [data.name],
+}: {
+  current: ModelPricingOptionInput
+  data: ModelRatioData
+  targetNames?: string[]
+}): ModelPricingOptionUpdates {
+  const priceMap = safeJsonParse<Record<string, number>>(current.modelPrice, {
+    fallback: {},
+    silent: true,
+  })
+  const ratioMap = safeJsonParse<Record<string, number>>(current.modelRatio, {
+    fallback: {},
+    silent: true,
+  })
+  const cacheMap = safeJsonParse<Record<string, number>>(current.cacheRatio, {
+    fallback: {},
+    silent: true,
+  })
+  const createCacheMap = safeJsonParse<Record<string, number>>(
+    current.createCacheRatio,
+    { fallback: {}, silent: true }
+  )
+  const completionMap = safeJsonParse<Record<string, number>>(
+    current.completionRatio,
+    { fallback: {}, silent: true }
+  )
+  const imageMap = safeJsonParse<Record<string, number>>(current.imageRatio, {
+    fallback: {},
+    silent: true,
+  })
+  const audioMap = safeJsonParse<Record<string, number>>(current.audioRatio, {
+    fallback: {},
+    silent: true,
+  })
+  const audioCompletionMap = safeJsonParse<Record<string, number>>(
+    current.audioCompletionRatio,
+    { fallback: {}, silent: true }
+  )
+  const billingModeMap = safeJsonParse<Record<string, string>>(
+    current.billingMode,
+    { fallback: {}, silent: true }
+  )
+  const billingExprMap = safeJsonParse<Record<string, string>>(
+    current.billingExpr,
+    { fallback: {}, silent: true }
+  )
+
+  const setIfPresent = (
+    target: Record<string, number>,
+    name: string,
+    value: string | undefined
+  ) => {
+    if (!value || value === '') return
+    const parsed = Number.parseFloat(value)
+    if (Number.isFinite(parsed)) target[name] = parsed
+  }
+
+  targetNames.forEach((name) => {
+    delete priceMap[name]
+    delete ratioMap[name]
+    delete cacheMap[name]
+    delete createCacheMap[name]
+    delete completionMap[name]
+    delete imageMap[name]
+    delete audioMap[name]
+    delete audioCompletionMap[name]
+    delete billingModeMap[name]
+    delete billingExprMap[name]
+
+    const mode =
+      data.billingMode ||
+      (data.price && data.price !== '' ? 'per-request' : 'per-token')
+
+    if (mode === 'tiered_expr') {
+      const combined = combineBillingExpr(
+        data.billingExpr || '',
+        data.requestRuleExpr || ''
+      )
+      if (combined) {
+        billingModeMap[name] = 'tiered_expr'
+        billingExprMap[name] = combined
+      }
+      setIfPresent(priceMap, name, data.price)
+      setIfPresent(ratioMap, name, data.ratio)
+      setIfPresent(cacheMap, name, data.cacheRatio)
+      setIfPresent(createCacheMap, name, data.createCacheRatio)
+      setIfPresent(completionMap, name, data.completionRatio)
+      setIfPresent(imageMap, name, data.imageRatio)
+      setIfPresent(audioMap, name, data.audioRatio)
+      setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+      return
+    }
+
+    if (mode === 'per-request') {
+      setIfPresent(priceMap, name, data.price)
+      return
+    }
+
+    setIfPresent(ratioMap, name, data.ratio)
+    setIfPresent(cacheMap, name, data.cacheRatio)
+    setIfPresent(createCacheMap, name, data.createCacheRatio)
+    setIfPresent(completionMap, name, data.completionRatio)
+    setIfPresent(imageMap, name, data.imageRatio)
+    setIfPresent(audioMap, name, data.audioRatio)
+    setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+  })
+
+  return {
+    ModelPrice: JSON.stringify(priceMap, null, 2),
+    ModelRatio: JSON.stringify(ratioMap, null, 2),
+    CacheRatio: JSON.stringify(cacheMap, null, 2),
+    CreateCacheRatio: JSON.stringify(createCacheMap, null, 2),
+    CompletionRatio: JSON.stringify(completionMap, null, 2),
+    ImageRatio: JSON.stringify(imageMap, null, 2),
+    AudioRatio: JSON.stringify(audioMap, null, 2),
+    AudioCompletionRatio: JSON.stringify(audioCompletionMap, null, 2),
+    'billing_setting.billing_mode': JSON.stringify(billingModeMap, null, 2),
+    'billing_setting.billing_expr': JSON.stringify(billingExprMap, null, 2),
+  }
 }
 
 function ratioToBasePrice(ratio: unknown): string {
