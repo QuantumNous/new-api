@@ -115,7 +115,7 @@ type RankedModelRow = { model_name: string; total_tokens: number };
 // synthetic growth curve that preserves the grand total. Keep the constants
 // in sync with that file.
 // ---------------------------------------------------------------------------
-const TOKEN_DISPLAY_SCALE = 100;
+export const TOKEN_DISPLAY_SCALE = 100;
 const TREND_DAYS = 30;
 const TREND_DAILY_GROWTH = 1.045;
 const TREND_EPOCH_UTC = Date.UTC(2026, 5, 1);

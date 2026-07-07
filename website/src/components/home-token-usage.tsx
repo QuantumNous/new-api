@@ -4,17 +4,8 @@ import { BarChart3 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { HomeCopy } from "@/lib/home-copy";
 import { fetchTokenUsage, formatCallCount, type TokenUsage } from "@/lib/home-live";
+import { seriesColor } from "@/lib/vchart-palette";
 
-// VChart default light-theme data schemes — the exact palette the rankings
-// page chart uses, so both surfaces look identical. Series order follows the
-// rankings history order (largest model first → slot 1).
-const VCHART_SCHEME_10 = ["#1664FF", "#1AC6FF", "#FF8A00", "#3CC780", "#7442D4", "#FFC400", "#304D77", "#B48DEB", "#009488", "#FF7DDA"];
-const VCHART_SCHEME_20 = ["#1664FF", "#B2CFFF", "#1AC6FF", "#94EFFF", "#FF8A00", "#FFCE7A", "#3CC780", "#B9EDCD", "#7442D4", "#DDC5FA", "#FFC400", "#FAE878", "#304D77", "#8B959E", "#B48DEB", "#EFE3FF", "#009488", "#59BAA8", "#FF7DDA", "#FFCFEE"];
-
-function seriesColor(index: number, count: number): string {
-  const scheme = count > VCHART_SCHEME_10.length ? VCHART_SCHEME_20 : VCHART_SCHEME_10;
-  return scheme[index % scheme.length];
-}
 
 type Props = {
   copy: HomeCopy["usage"];

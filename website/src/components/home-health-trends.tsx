@@ -59,14 +59,17 @@ export function HomeHealthTrends(props: Props) {
           </div>
           <Link
             className="group inline-flex items-center gap-1.5 text-sm font-semibold text-violet-700 hover:text-violet-800 dark:text-violet-300"
-            href={localizePath("/models", props.locale)}
+            href={localizePath("/rankings", props.locale)}
           >
             {props.copy.viewAll}
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </div>
 
-        <HomeTokenUsage copy={props.usageCopy} />
+        {/* The whole usage chart clicks through to the public rankings page. */}
+        <Link className="block" href={localizePath("/rankings", props.locale)}>
+          <HomeTokenUsage copy={props.usageCopy} />
+        </Link>
 
         <div className="grid gap-5 md:grid-cols-3">
           {props.models.map((model) => {

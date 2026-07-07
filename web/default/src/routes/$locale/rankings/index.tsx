@@ -20,6 +20,7 @@ import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
+import { OFFICIAL_WEBSITE_ORIGIN, officialWebsiteUrl } from '@/lib/origins'
 import { beforeLoadPublicLocaleRoute } from '@/lib/public-locale-route'
 import { Rankings } from '@/features/rankings'
 
@@ -34,6 +35,16 @@ export const Route = createFileRoute('/$locale/rankings/')({
   validateSearch: rankingsSearchSchema,
   beforeLoad: async (args) => {
     beforeLoadPublicLocaleRoute(args)
+
+    // Hand over to the official website rankings page (single public
+    // surface), keeping the locale prefix. English lives at the root path.
+    if (OFFICIAL_WEBSITE_ORIGIN) {
+      const locale = (args.params as { locale?: string }).locale
+      const path =
+        locale && locale !== 'en' ? `/${locale}/rankings` : '/rankings'
+      window.location.replace(officialWebsiteUrl(path))
+      await new Promise(() => {})
+    }
 
     const access = await getFreshModuleAccess('rankings')
     if (!access.enabled) {
