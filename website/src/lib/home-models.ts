@@ -66,6 +66,31 @@ export function buildHomeModelRows(data: PricingData): HomePricedModel[] {
   return sortPricingModelsBySeries(pricedTokenModels(data)).map((model) => toHomeRow(model, data));
 }
 
+// Rows for an externally filtered/sorted model list (the /models directory).
+// Includes per-request models; their prices carry a "/req" suffix since the
+// table header is phrased per 1M tokens.
+export function buildRowsForModels(
+  models: PricingModel[],
+  vendors: PricingData["vendors"],
+  groupRatio: Record<string, number>
+): HomePricedModel[] {
+  return models
+    .filter((model) => getOfficialPriceUsd(model) > 0)
+    .map((model) => {
+      const official = getOfficialPriceUsd(model);
+      const listed = official * getBestGroupRatio(model, groupRatio);
+      const vendor = model.vendor_name ?? getVendorName(model, vendors);
+      const suffix = isTokenBasedModel(model) ? "" : " /req";
+      return {
+        name: model.model_name,
+        vendor,
+        official: `${formatUsdPrice(official)}${suffix}`,
+        discounted: `${formatUsdPrice(discountedPriceUsd(listed))}${suffix}`,
+        iconKey: model.icon || model.vendor_icon || modelIconKey(model.model_name, vendor),
+      };
+    });
+}
+
 function pricedTokenModels(data: PricingData): PricingModel[] {
   const seen = new Set<string>();
   return data.models.filter((model) => {
