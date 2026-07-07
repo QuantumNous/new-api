@@ -885,6 +885,11 @@ func handleConfigUpdate(key, value string) bool {
 	configName := parts[0]
 	configKey := parts[1]
 
+	if configName == "log_request_sampling" {
+		_ = operation_setting.UpdateLogRequestSamplingConfigFromMap(map[string]string{configKey: value})
+		return true
+	}
+
 	// 获取配置对象
 	cfg := config.GlobalConfig.Get(configName)
 	if cfg == nil {

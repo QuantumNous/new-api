@@ -1,13 +1,25 @@
 package config
 
 import (
+	"sync"
 	"testing"
+	"time"
 )
 
 type testConfigWithMap struct {
 	Modes map[string]string `json:"modes"`
 	Exprs map[string]string `json:"exprs"`
 	Name  string            `json:"name"`
+}
+
+type panicJSONField struct{}
+
+func (panicJSONField) MarshalJSON() ([]byte, error) {
+	panic("panic json field")
+}
+
+func (*panicJSONField) UnmarshalJSON(_ []byte) error {
+	panic("panic json field")
 }
 
 func TestUpdateConfigFromMap_MapReplacement(t *testing.T) {
@@ -93,4 +105,311 @@ func TestUpdateConfigFromMap_ScalarFieldsUnchanged(t *testing.T) {
 	if cfg.Modes["m"] != "v" {
 		t.Errorf("Modes should be unchanged, got %v", cfg.Modes)
 	}
+}
+
+func TestConfigManagerLoadFromDBRunsUpdateHook(t *testing.T) {
+	type hookConfig struct {
+		Enabled bool `json:"enabled"`
+	}
+	manager := NewConfigManager()
+	cfg := &hookConfig{}
+	hookCalls := 0
+	manager.Register("hook_config", cfg)
+	manager.RegisterUpdateHook("hook_config", func() {
+		hookCalls++
+	})
+
+	err := manager.LoadFromDB(map[string]string{
+		"hook_config.enabled": "true",
+	})
+	if err != nil {
+		t.Fatalf("LoadFromDB failed: %v", err)
+	}
+	if !cfg.Enabled {
+		t.Fatal("expected config to be updated")
+	}
+	if hookCalls != 1 {
+		t.Fatalf("hook calls = %d, want 1", hookCalls)
+	}
+}
+
+func TestConfigManagerLoadFromDBIsolatesUpdateHookPanic(t *testing.T) {
+	type hookConfig struct {
+		Enabled bool `json:"enabled"`
+	}
+	manager := NewConfigManager()
+	cfgA := &hookConfig{}
+	cfgB := &hookConfig{}
+	hookBCalls := 0
+	manager.Register("hook_config_a", cfgA)
+	manager.Register("hook_config_b", cfgB)
+	manager.RegisterUpdateHook("hook_config_a", func() {
+		panic("boom")
+	})
+	manager.RegisterUpdateHook("hook_config_b", func() {
+		hookBCalls++
+	})
+
+	err := manager.LoadFromDB(map[string]string{
+		"hook_config_a.enabled": "true",
+		"hook_config_b.enabled": "true",
+	})
+	if err != nil {
+		t.Fatalf("LoadFromDB failed: %v", err)
+	}
+	if !cfgA.Enabled || !cfgB.Enabled {
+		t.Fatal("expected both configs to be updated")
+	}
+	if hookBCalls != 1 {
+		t.Fatalf("hook B calls = %d, want 1", hookBCalls)
+	}
+}
+
+func TestConfigManagerRegisterProvidesDefaultModuleLock(t *testing.T) {
+	type lockConfig struct {
+		Enabled bool `json:"enabled"`
+	}
+	manager := NewConfigManager()
+	manager.Register("lock_config", &lockConfig{})
+
+	modules := manager.moduleSnapshots()
+	if len(modules) != 1 {
+		t.Fatalf("modules len = %d, want 1", len(modules))
+	}
+	if modules[0].lock == nil {
+		t.Fatal("registered config module must have a default module lock")
+	}
+
+	manager.RegisterUpdateLock("lock_config", nil)
+	modules = manager.moduleSnapshots()
+	if modules[0].lock == nil {
+		t.Fatal("nil RegisterUpdateLock must restore a default module lock")
+	}
+}
+
+func TestConfigManagerLoadFromDBReleasesLocksOnPanic(t *testing.T) {
+	type panicConfig struct {
+		Field panicJSONField `json:"field"`
+	}
+	manager := NewConfigManager()
+	cfg := &panicConfig{}
+	var moduleLock sync.Mutex
+	manager.Register("panic_config", cfg)
+	manager.RegisterUpdateLock("panic_config", &moduleLock)
+
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("expected LoadFromDB to panic on config JSON update")
+			}
+		}()
+		_ = manager.LoadFromDB(map[string]string{
+			"panic_config.field": `{}`,
+		})
+	}()
+
+	done := make(chan struct{})
+	go func() {
+		_ = manager.Get("panic_config")
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("ConfigManager mutex was not released after panic")
+	}
+
+	if !moduleLock.TryLock() {
+		t.Fatal("module config lock was not released after panic")
+	}
+	moduleLock.Unlock()
+}
+
+func TestConfigManagerLoadFromDBDoesNotHoldGlobalLockWhileWaitingForModuleLock(t *testing.T) {
+	type lockConfig struct {
+		Enabled bool `json:"enabled"`
+	}
+	manager := NewConfigManager()
+	cfg := &lockConfig{}
+	var moduleLock sync.Mutex
+	manager.Register("lock_config", cfg)
+	manager.RegisterUpdateLock("lock_config", &moduleLock)
+
+	moduleLock.Lock()
+	unlocked := false
+	defer func() {
+		if !unlocked {
+			moduleLock.Unlock()
+		}
+	}()
+
+	loadDone := make(chan struct{})
+	go func() {
+		_ = manager.LoadFromDB(map[string]string{
+			"lock_config.enabled": "true",
+		})
+		close(loadDone)
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	getDone := make(chan struct{})
+	go func() {
+		_ = manager.Get("lock_config")
+		close(getDone)
+	}()
+
+	select {
+	case <-getDone:
+	case <-time.After(time.Second):
+		t.Fatal("LoadFromDB held ConfigManager global lock while waiting for module lock")
+	}
+
+	moduleLock.Unlock()
+	unlocked = true
+	select {
+	case <-loadDone:
+	case <-time.After(time.Second):
+		t.Fatal("LoadFromDB did not finish after module lock was released")
+	}
+	if !cfg.Enabled {
+		t.Fatal("expected config update to be applied")
+	}
+}
+
+func TestConfigManagerSaveToDBDoesNotHoldGlobalLockWhileWaitingForModuleLock(t *testing.T) {
+	type lockConfig struct {
+		Enabled bool `json:"enabled"`
+	}
+	manager := NewConfigManager()
+	var moduleLock sync.Mutex
+	manager.Register("lock_config", &lockConfig{Enabled: true})
+	manager.RegisterUpdateLock("lock_config", &moduleLock)
+
+	moduleLock.Lock()
+	unlocked := false
+	defer func() {
+		if !unlocked {
+			moduleLock.Unlock()
+		}
+	}()
+
+	saveDone := make(chan struct{})
+	go func() {
+		_ = manager.SaveToDB(func(_, _ string) error { return nil })
+		close(saveDone)
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	registerDone := make(chan struct{})
+	go func() {
+		manager.RegisterUpdateHook("other_config", func() {})
+		close(registerDone)
+	}()
+
+	select {
+	case <-registerDone:
+	case <-time.After(time.Second):
+		t.Fatal("SaveToDB held ConfigManager global lock while waiting for module lock")
+	}
+
+	moduleLock.Unlock()
+	unlocked = true
+	select {
+	case <-saveDone:
+	case <-time.After(time.Second):
+		t.Fatal("SaveToDB did not finish after module lock was released")
+	}
+}
+
+func TestConfigManagerExportAllConfigsDoesNotHoldGlobalLockWhileWaitingForModuleLock(t *testing.T) {
+	type lockConfig struct {
+		Enabled bool `json:"enabled"`
+	}
+	manager := NewConfigManager()
+	var moduleLock sync.Mutex
+	manager.Register("lock_config", &lockConfig{Enabled: true})
+	manager.RegisterUpdateLock("lock_config", &moduleLock)
+
+	moduleLock.Lock()
+	unlocked := false
+	defer func() {
+		if !unlocked {
+			moduleLock.Unlock()
+		}
+	}()
+
+	exportDone := make(chan struct{})
+	go func() {
+		_ = manager.ExportAllConfigs()
+		close(exportDone)
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	registerDone := make(chan struct{})
+	go func() {
+		manager.RegisterUpdateHook("other_config", func() {})
+		close(registerDone)
+	}()
+
+	select {
+	case <-registerDone:
+	case <-time.After(time.Second):
+		t.Fatal("ExportAllConfigs held ConfigManager global lock while waiting for module lock")
+	}
+
+	moduleLock.Unlock()
+	unlocked = true
+	select {
+	case <-exportDone:
+	case <-time.After(time.Second):
+		t.Fatal("ExportAllConfigs did not finish after module lock was released")
+	}
+}
+
+func TestConfigManagerSaveToDBReleasesModuleLockOnPanic(t *testing.T) {
+	type panicConfig struct {
+		Field panicJSONField `json:"field"`
+	}
+	manager := NewConfigManager()
+	var moduleLock sync.Mutex
+	manager.Register("panic_config", &panicConfig{})
+	manager.RegisterUpdateLock("panic_config", &moduleLock)
+
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("expected SaveToDB to panic on config JSON marshal")
+			}
+		}()
+		_ = manager.SaveToDB(func(_, _ string) error { return nil })
+	}()
+
+	if !moduleLock.TryLock() {
+		t.Fatal("module config lock was not released after SaveToDB panic")
+	}
+	moduleLock.Unlock()
+}
+
+func TestConfigManagerExportAllConfigsReleasesModuleLockOnPanic(t *testing.T) {
+	type panicConfig struct {
+		Field panicJSONField `json:"field"`
+	}
+	manager := NewConfigManager()
+	var moduleLock sync.Mutex
+	manager.Register("panic_config", &panicConfig{})
+	manager.RegisterUpdateLock("panic_config", &moduleLock)
+
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("expected ExportAllConfigs to panic on config JSON marshal")
+			}
+		}()
+		_ = manager.ExportAllConfigs()
+	}()
+
+	if !moduleLock.TryLock() {
+		t.Fatal("module config lock was not released after ExportAllConfigs panic")
+	}
+	moduleLock.Unlock()
 }

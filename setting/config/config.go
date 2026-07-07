@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"reflect"
 	"strconv"
 	"strings"
@@ -12,15 +11,26 @@ import (
 
 // ConfigManager 统一管理所有配置
 type ConfigManager struct {
-	configs map[string]interface{}
-	mutex   sync.RWMutex
+	configs     map[string]interface{}
+	updateHooks map[string]func()
+	updateLocks map[string]sync.Locker
+	mutex       sync.RWMutex
+}
+
+type configModuleSnapshot struct {
+	name   string
+	config interface{}
+	hook   func()
+	lock   sync.Locker
 }
 
 var GlobalConfig = NewConfigManager()
 
 func NewConfigManager() *ConfigManager {
 	return &ConfigManager{
-		configs: make(map[string]interface{}),
+		configs:     make(map[string]interface{}),
+		updateHooks: make(map[string]func()),
+		updateLocks: make(map[string]sync.Locker),
 	}
 }
 
@@ -29,6 +39,33 @@ func (cm *ConfigManager) Register(name string, config interface{}) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 	cm.configs[name] = config
+	if cm.updateLocks[name] == nil {
+		cm.updateLocks[name] = &sync.Mutex{}
+	}
+}
+
+// RegisterUpdateHook registers a callback that runs after LoadFromDB updates a
+// config module. It is useful for modules that publish derived runtime caches.
+func (cm *ConfigManager) RegisterUpdateHook(name string, hook func()) {
+	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
+	if hook == nil {
+		delete(cm.updateHooks, name)
+		return
+	}
+	cm.updateHooks[name] = hook
+}
+
+// RegisterUpdateLock registers a module-level lock for direct reflective config
+// reads and writes performed by ConfigManager.
+func (cm *ConfigManager) RegisterUpdateLock(name string, lock sync.Locker) {
+	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
+	if lock == nil {
+		cm.updateLocks[name] = &sync.Mutex{}
+		return
+	}
+	cm.updateLocks[name] = lock
 }
 
 // Get 获取指定配置模块
@@ -40,28 +77,70 @@ func (cm *ConfigManager) Get(name string) interface{} {
 
 // LoadFromDB 从数据库加载配置
 func (cm *ConfigManager) LoadFromDB(options map[string]string) error {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
+	var hooks []func()
+	var modules []struct {
+		configModuleSnapshot
+		configMap map[string]string
+	}
 
-	for name, config := range cm.configs {
-		prefix := name + "."
-		configMap := make(map[string]string)
+	func() {
+		cm.mutex.Lock()
+		defer cm.mutex.Unlock()
 
-		// 收集属于此配置的所有选项
-		for key, value := range options {
-			if strings.HasPrefix(key, prefix) {
-				configKey := strings.TrimPrefix(key, prefix)
-				configMap[configKey] = value
+		for name, config := range cm.configs {
+			prefix := name + "."
+			configMap := make(map[string]string)
+
+			// 收集属于此配置的所有选项
+			for key, value := range options {
+				if strings.HasPrefix(key, prefix) {
+					configKey := strings.TrimPrefix(key, prefix)
+					configMap[configKey] = value
+				}
+			}
+
+			// 如果找到配置项，则更新配置
+			if len(configMap) > 0 {
+				modules = append(modules, struct {
+					configModuleSnapshot
+					configMap map[string]string
+				}{
+					configModuleSnapshot: configModuleSnapshot{
+						name:   name,
+						config: config,
+						hook:   cm.updateHooks[name],
+						lock:   cm.updateLocks[name],
+					},
+					configMap: configMap,
+				})
 			}
 		}
+	}()
 
-		// 如果找到配置项，则更新配置
-		if len(configMap) > 0 {
-			if err := updateConfigFromMap(config, configMap); err != nil {
-				common.SysError("failed to update config " + name + ": " + err.Error())
-				continue
-			}
+	for _, module := range modules {
+		err := func() error {
+			unlock := lockConfig(module.lock)
+			defer unlock()
+			return updateConfigFromMap(module.config, module.configMap)
+		}()
+		if err != nil {
+			common.SysError("failed to update config " + module.name + ": " + err.Error())
+			continue
 		}
+		if module.hook != nil {
+			hooks = append(hooks, module.hook)
+		}
+	}
+
+	for _, hook := range hooks {
+		func(hook func()) {
+			defer func() {
+				if r := recover(); r != nil {
+					common.SysError("config update hook panic")
+				}
+			}()
+			hook()
+		}(hook)
 	}
 
 	return nil
@@ -69,17 +148,20 @@ func (cm *ConfigManager) LoadFromDB(options map[string]string) error {
 
 // SaveToDB 将配置保存到数据库
 func (cm *ConfigManager) SaveToDB(updateFunc func(key, value string) error) error {
-	cm.mutex.RLock()
-	defer cm.mutex.RUnlock()
+	modules := cm.moduleSnapshots()
 
-	for name, config := range cm.configs {
-		configMap, err := configToMap(config)
+	for _, module := range modules {
+		configMap, err := func() (map[string]string, error) {
+			unlock := lockConfig(module.lock)
+			defer unlock()
+			return configToMap(module.config)
+		}()
 		if err != nil {
 			return err
 		}
 
 		for key, value := range configMap {
-			dbKey := name + "." + key
+			dbKey := module.name + "." + key
 			if err := updateFunc(dbKey, value); err != nil {
 				return err
 			}
@@ -87,6 +169,30 @@ func (cm *ConfigManager) SaveToDB(updateFunc func(key, value string) error) erro
 	}
 
 	return nil
+}
+
+func (cm *ConfigManager) moduleSnapshots() []configModuleSnapshot {
+	cm.mutex.RLock()
+	defer cm.mutex.RUnlock()
+
+	modules := make([]configModuleSnapshot, 0, len(cm.configs))
+	for name, config := range cm.configs {
+		modules = append(modules, configModuleSnapshot{
+			name:   name,
+			config: config,
+			hook:   cm.updateHooks[name],
+			lock:   cm.updateLocks[name],
+		})
+	}
+	return modules
+}
+
+func lockConfig(lock sync.Locker) func() {
+	if lock == nil {
+		return func() {}
+	}
+	lock.Lock()
+	return lock.Unlock
 }
 
 // 辅助函数：将配置对象转换为map
@@ -134,7 +240,7 @@ func configToMap(config interface{}) (map[string]string, error) {
 		case reflect.Ptr:
 			// 处理指针类型：如果非 nil，序列化指向的值
 			if !field.IsNil() {
-				bytes, err := json.Marshal(field.Interface())
+				bytes, err := common.Marshal(field.Interface())
 				if err != nil {
 					return nil, err
 				}
@@ -145,7 +251,7 @@ func configToMap(config interface{}) (map[string]string, error) {
 			}
 		case reflect.Map, reflect.Slice, reflect.Struct:
 			// 复杂类型使用JSON序列化
-			bytes, err := json.Marshal(field.Interface())
+			bytes, err := common.Marshal(field.Interface())
 			if err != nil {
 				return nil, err
 			}
@@ -247,7 +353,7 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 					field.Set(reflect.New(field.Type().Elem()))
 				}
 				// 反序列化到指针指向的值
-				err := json.Unmarshal([]byte(strValue), field.Interface())
+				err := common.Unmarshal([]byte(strValue), field.Interface())
 				if err != nil {
 					continue
 				}
@@ -257,12 +363,12 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 			// absent from the new JSON). Allocate a fresh map so removed keys
 			// are properly cleared.
 			fresh := reflect.New(field.Type())
-			if err := json.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
+			if err := common.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
 				continue
 			}
 			field.Set(fresh.Elem())
 		case reflect.Slice, reflect.Struct:
-			err := json.Unmarshal([]byte(strValue), field.Addr().Interface())
+			err := common.Unmarshal([]byte(strValue), field.Addr().Interface())
 			if err != nil {
 				continue
 			}
@@ -284,20 +390,22 @@ func UpdateConfigFromMap(config interface{}, configMap map[string]string) error 
 
 // ExportAllConfigs 导出所有已注册的配置为扁平结构
 func (cm *ConfigManager) ExportAllConfigs() map[string]string {
-	cm.mutex.RLock()
-	defer cm.mutex.RUnlock()
-
+	modules := cm.moduleSnapshots()
 	result := make(map[string]string)
 
-	for name, cfg := range cm.configs {
-		configMap, err := ConfigToMap(cfg)
+	for _, module := range modules {
+		configMap, err := func() (map[string]string, error) {
+			unlock := lockConfig(module.lock)
+			defer unlock()
+			return ConfigToMap(module.config)
+		}()
 		if err != nil {
 			continue
 		}
 
 		// 使用 "模块名.配置项" 的格式添加到结果中
 		for key, value := range configMap {
-			result[name+"."+key] = value
+			result[module.name+"."+key] = value
 		}
 	}
 
