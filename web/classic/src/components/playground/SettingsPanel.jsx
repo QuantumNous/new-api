@@ -26,6 +26,7 @@ import {
   Switch,
   Tooltip,
   Collapse,
+  InputNumber,
 } from '@douyinfe/semi-ui';
 import {
   Sparkles,
@@ -35,6 +36,7 @@ import {
   Settings,
   HelpCircle,
   SlidersHorizontal,
+  Shuffle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
@@ -236,6 +238,39 @@ const SettingsPanel = ({
               disabled={customRequestMode}
             />
           </div>
+        </div>
+
+        {/* 随机种子(seed)—— 常驻可见,留空为随机 */}
+        <div className={customRequestMode ? 'opacity-50' : ''}>
+          <div className='flex items-center gap-2 mb-2'>
+            <Shuffle size={16} className='text-gray-500' />
+            <Typography.Text strong className='text-sm'>
+              {t('随机种子')}
+            </Typography.Text>
+            <Typography.Text className='text-xs text-gray-400'>
+              ({t('留空为随机')})
+            </Typography.Text>
+          </div>
+          <InputNumber
+            placeholder={t('随机种子 (留空为随机)')}
+            name='seed'
+            min={0}
+            precision={0}
+            value={
+              inputs.seed == null || inputs.seed === ''
+                ? undefined
+                : inputs.seed
+            }
+            onChange={(value) =>
+              onInputChange(
+                'seed',
+                value === '' || value == null ? null : value,
+              )
+            }
+            className='!rounded-lg'
+            style={{ width: '100%' }}
+            disabled={customRequestMode}
+          />
         </div>
 
         {/* 参数控制组件 —— 默认折叠，需要时展开 */}

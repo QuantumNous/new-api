@@ -1,5 +1,11 @@
 import React from 'react';
-import { Card, Select, Typography, Tooltip } from '@douyinfe/semi-ui';
+import {
+  Card,
+  Select,
+  Typography,
+  Tooltip,
+  InputNumber,
+} from '@douyinfe/semi-ui';
 import {
   Settings,
   Users,
@@ -7,7 +13,7 @@ import {
   Ruler,
   Clock,
   HelpCircle,
-  Image as ImageIcon,
+  Shuffle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
@@ -28,24 +34,19 @@ const VideoConfigPanel = ({
   const { t } = useTranslation();
 
   // 单帧上传槽:ImageUrlInput 管理数组,这里只取最后一张作为该槽的单帧。
+  // 帧图仅在 i2v/flf2v 模式渲染,均为必填 → 单行标签(上传首帧/尾帧)+ 红星,无启用开关。
   const renderFrameSlot = (label, key) => (
-    <div>
-      <div className='flex items-center gap-2 mb-2'>
-        <ImageIcon size={16} className='text-gray-500' />
-        <Typography.Text strong className='text-sm'>
-          {label}
-        </Typography.Text>
-      </div>
-      <ImageUrlInput
-        imageUrls={inputs[key] ? [inputs[key]] : []}
-        imageEnabled={true}
-        onImageUrlsChange={(v) =>
-          onInputChange(key, (v && v.length ? v[v.length - 1] : '') || '')
-        }
-        onImageEnabledChange={() => {}}
-        disabled={disabled}
-      />
-    </div>
+    <ImageUrlInput
+      label={label}
+      required
+      imageUrls={inputs[key] ? [inputs[key]] : []}
+      imageEnabled={true}
+      onImageUrlsChange={(v) =>
+        onInputChange(key, (v && v.length ? v[v.length - 1] : '') || '')
+      }
+      onImageEnabledChange={() => {}}
+      disabled={false}
+    />
   );
 
   const ensureOption = (options, value) => {
@@ -151,10 +152,14 @@ const VideoConfigPanel = ({
           />
         </div>
 
-        {/* 帧图上传(图生视频:首帧;首尾帧:首帧+尾帧) */}
+        {/* 帧图上传(图生视频:首帧;首尾帧:首帧+尾帧;锁定/历史态不展示) */}
         {needsImage &&
-          renderFrameSlot(isFLF2V ? t('首帧') : t('首帧/参考图'), 'firstFrame')}
-        {isFLF2V && renderFrameSlot(t('尾帧'), 'lastFrame')}
+          !disabled &&
+          renderFrameSlot(
+            isFLF2V ? t('上传首帧') : t('上传首帧/参考图'),
+            'firstFrame',
+          )}
+        {isFLF2V && !disabled && renderFrameSlot(t('上传尾帧'), 'lastFrame')}
 
         {/* 尺寸 */}
         <div>
@@ -196,6 +201,36 @@ const VideoConfigPanel = ({
             disabled={disabled}
             style={{ width: '100%' }}
             dropdownStyle={{ width: '100%', maxWidth: '100%' }}
+            className='!rounded-lg'
+          />
+        </div>
+
+        {/* 随机种子(seed)—— 常驻,留空为随机 */}
+        <div>
+          <div className='flex items-center gap-2 mb-2'>
+            <Shuffle size={16} className='text-gray-500' />
+            <Typography.Text strong className='text-sm'>
+              {t('随机种子')}
+            </Typography.Text>
+            <Typography.Text className='text-xs text-gray-400'>
+              ({t('留空为随机')})
+            </Typography.Text>
+          </div>
+          <InputNumber
+            placeholder={t('留空为随机')}
+            name='seed'
+            min={0}
+            precision={0}
+            value={
+              inputs.seed === '' || inputs.seed == null
+                ? undefined
+                : inputs.seed
+            }
+            onChange={(value) =>
+              onInputChange('seed', value === '' || value == null ? '' : value)
+            }
+            disabled={disabled}
+            style={{ width: '100%' }}
             className='!rounded-lg'
           />
         </div>

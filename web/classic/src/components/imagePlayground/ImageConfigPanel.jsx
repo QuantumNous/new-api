@@ -1,12 +1,18 @@
 import React from 'react';
-import { Card, Select, Typography, Tooltip } from '@douyinfe/semi-ui';
+import {
+  Card,
+  Select,
+  Typography,
+  Tooltip,
+  InputNumber,
+} from '@douyinfe/semi-ui';
 import {
   Settings,
   Users,
   Sparkles,
   Ruler,
   HelpCircle,
-  Image as ImageIcon,
+  Shuffle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
@@ -126,36 +132,25 @@ const ImageConfigPanel = ({
           />
         </div>
 
-        {/* 底图上传（仅图生图） */}
-        {isI2I && (
-          <div>
-            <div className='flex items-center gap-2 mb-2'>
-              <ImageIcon size={16} className='text-gray-500' />
-              <Typography.Text strong className='text-sm'>
-                {t('底图')}
-              </Typography.Text>
-              <Tooltip
-                content={t('最多上传 {{count}} 张底图', {
-                  count: IMAGE_MAX_EDIT_IMAGES,
-                })}
-                position='top'
-              >
-                <HelpCircle size={14} className='text-gray-400 cursor-help' />
-              </Tooltip>
-            </div>
-            <ImageUrlInput
-              imageUrls={inputs.imageUrls || []}
-              imageEnabled={true}
-              onImageUrlsChange={(v) =>
-                onInputChange(
-                  'imageUrls',
-                  (v || []).slice(0, IMAGE_MAX_EDIT_IMAGES),
-                )
-              }
-              onImageEnabledChange={() => {}}
-              disabled={disabled}
-            />
-          </div>
+        {/* 底图上传（仅图生图;锁定/历史态不展示,底图沿用该会话首条） */}
+        {isI2I && !disabled && (
+          <ImageUrlInput
+            label={t('上传底图')}
+            tooltip={t('最多上传 {{count}} 张底图', {
+              count: IMAGE_MAX_EDIT_IMAGES,
+            })}
+            required
+            imageUrls={inputs.imageUrls || []}
+            imageEnabled={true}
+            onImageUrlsChange={(v) =>
+              onInputChange(
+                'imageUrls',
+                (v || []).slice(0, IMAGE_MAX_EDIT_IMAGES),
+              )
+            }
+            onImageEnabledChange={() => {}}
+            disabled={false}
+          />
         )}
 
         {/* 图片尺寸 */}
@@ -176,6 +171,36 @@ const ImageConfigPanel = ({
             disabled={disabled}
             style={{ width: '100%' }}
             dropdownStyle={{ width: '100%', maxWidth: '100%' }}
+            className='!rounded-lg'
+          />
+        </div>
+
+        {/* 随机种子(seed)—— 常驻,留空为随机 */}
+        <div>
+          <div className='flex items-center gap-2 mb-2'>
+            <Shuffle size={16} className='text-gray-500' />
+            <Typography.Text strong className='text-sm'>
+              {t('随机种子')}
+            </Typography.Text>
+            <Typography.Text className='text-xs text-gray-400'>
+              ({t('留空为随机')})
+            </Typography.Text>
+          </div>
+          <InputNumber
+            placeholder={t('留空为随机')}
+            name='seed'
+            min={0}
+            precision={0}
+            value={
+              inputs.seed === '' || inputs.seed == null
+                ? undefined
+                : inputs.seed
+            }
+            onChange={(value) =>
+              onInputChange('seed', value === '' || value == null ? '' : value)
+            }
+            disabled={disabled}
+            style={{ width: '100%' }}
             className='!rounded-lg'
           />
         </div>

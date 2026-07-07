@@ -80,6 +80,7 @@ const ImageChatArea = ({
   messages,
   generating,
   turnLimitReached = false,
+  missingRequiredImage = false,
   onSend,
   onRegenerate,
   onClear,
@@ -215,7 +216,8 @@ const ImageChatArea = ({
     (props) => {
       const { detailProps } = props;
       const { inputNode, sendNode, onClick } = detailProps;
-      const blockSend = generating || turnLimitReached;
+      // 缺必填底图(图生图未上传)时同样置灰,回车亦拦截,避免只填提示词误发被清空。
+      const blockSend = generating || turnLimitReached || missingRequiredImage;
       const styledSend = React.cloneElement(sendNode, {
         disabled: blockSend || sendNode.props.disabled,
         className: `!rounded-full !bg-purple-500 hover:!bg-purple-600 flex-shrink-0 ${sendNode.props.className || ''}`,
@@ -242,7 +244,10 @@ const ImageChatArea = ({
           )}
           <div
             className='flex items-center gap-2 sm:gap-3 px-3 py-2.5 bg-gray-50 rounded-xl sm:rounded-2xl shadow-sm hover:shadow-md transition-shadow'
-            style={{ border: '1px solid var(--semi-color-border)', minHeight: 52 }}
+            style={{
+              border: '1px solid var(--semi-color-border)',
+              minHeight: 52,
+            }}
             onClick={onClick}
           >
             <div
@@ -262,7 +267,7 @@ const ImageChatArea = ({
         </div>
       );
     },
-    [generating, turnLimitReached, t],
+    [generating, turnLimitReached, missingRequiredImage, t],
   );
 
   return (

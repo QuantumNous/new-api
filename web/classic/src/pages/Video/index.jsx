@@ -27,6 +27,7 @@ const VideoPlaygroundBody = ({ mode }) => {
     generating,
     locked,
     turnLimitReached,
+    missingRequiredImage,
     generate,
     regenerate,
     refetch,
@@ -61,6 +62,7 @@ const VideoPlaygroundBody = ({ mode }) => {
           messages={messages}
           generating={generating}
           turnLimitReached={turnLimitReached}
+          missingRequiredImage={missingRequiredImage}
           styleState={styleState}
           onSend={generate}
           onRegenerate={regenerate}

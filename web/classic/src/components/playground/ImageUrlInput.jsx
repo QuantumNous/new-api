@@ -18,9 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef, useCallback } from 'react';
-import { Typography, Button, Switch, Toast } from '@douyinfe/semi-ui';
+import { Typography, Button, Switch, Toast, Tooltip } from '@douyinfe/semi-ui';
 import { IconUpload } from '@douyinfe/semi-icons';
-import { X, Image } from 'lucide-react';
+import { X, Image, HelpCircle } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 
@@ -38,6 +38,10 @@ const ImageUrlInput = ({
   onImageUrlsChange,
   onImageEnabledChange,
   disabled = false,
+  // 复用于图片/视频体验区:自定义标题、问号提示、必填(红星+隐藏启用开关)。
+  label,
+  tooltip,
+  required = false,
 }) => {
   const { t } = useTranslation();
   const fileInputRef = useRef(null);
@@ -96,23 +100,33 @@ const ImageUrlInput = ({
             className={isActive ? 'text-blue-500' : 'text-gray-400'}
           />
           <Typography.Text strong className='text-sm'>
-            {t('上传图片')}
+            {label || t('上传图片')}
+            {required && <span className='text-red-500'> *</span>}
           </Typography.Text>
-          {disabled && (
+          {tooltip && (
+            <Tooltip content={tooltip} position='top'>
+              <HelpCircle size={14} className='text-gray-400 cursor-help' />
+            </Tooltip>
+          )}
+          {/* 「自定义模式忽略」文案仅用于文本体验区(带启用开关);必填模式不显示 */}
+          {!required && disabled && (
             <Typography.Text className='text-xs text-orange-600'>
               ({t('已在自定义模式中忽略')})
             </Typography.Text>
           )}
         </div>
-        <Switch
-          checked={imageEnabled}
-          onChange={onImageEnabledChange}
-          checkedText={t('启用')}
-          uncheckedText={t('停用')}
-          size='small'
-          className='flex-shrink-0'
-          disabled={disabled}
-        />
+        {/* 必填(图生图/图生视频/首尾帧)不给启用开关——上传是硬性要求 */}
+        {!required && (
+          <Switch
+            checked={imageEnabled}
+            onChange={onImageEnabledChange}
+            checkedText={t('启用')}
+            uncheckedText={t('停用')}
+            size='small'
+            className='flex-shrink-0'
+            disabled={disabled}
+          />
+        )}
       </div>
 
       {/* 隐藏的文件输入 */}

@@ -24,6 +24,7 @@ const ImagePlaygroundBody = ({ mode }) => {
     generating,
     locked,
     turnLimitReached,
+    missingRequiredImage,
     generate,
     regenerate,
     newConversation,
@@ -57,6 +58,7 @@ const ImagePlaygroundBody = ({ mode }) => {
           messages={messages}
           generating={generating}
           turnLimitReached={turnLimitReached}
+          missingRequiredImage={missingRequiredImage}
           styleState={styleState}
           onSend={generate}
           onRegenerate={regenerate}

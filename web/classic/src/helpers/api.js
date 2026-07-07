@@ -36,7 +36,6 @@ export let API = axios.create({
   },
 });
 
-
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
   const targetUrl = typeof url === 'string' ? url : url.toString();
@@ -48,7 +47,6 @@ function redirectToOAuthUrl(url, options = {}) {
 
   window.location.assign(targetUrl);
 }
-
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -149,6 +147,18 @@ export const buildApiPayload = (
     const enabled = parameterEnabled[key];
     const value = inputs[param];
     const hasValue = value !== undefined && value !== null;
+
+    // seed 已移出「高级参数」,常驻可见:非空即下发,不再受 parameterEnabled 门控。
+    // 后端 GeneralOpenAIRequest.Seed 是 *float64,必须发数字(字符串会被拒),故强制 Number。
+    if (param === 'seed') {
+      if (hasValue && value !== '') {
+        const n = Number(value);
+        if (!Number.isNaN(n)) {
+          payload[param] = n;
+        }
+      }
+      return;
+    }
 
     if (!enabled) {
       return;

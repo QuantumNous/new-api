@@ -109,6 +109,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     model: '',
     size: '',
     seconds: '',
+    seed: '', // 随机种子;'' 表示随机(不下发)
     firstFrame: '', // i2v/flf2v 首帧(base64 data-url)
     lastFrame: '', // flf2v 尾帧
   });
@@ -474,6 +475,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           model: inputs.model,
           size: normalizeVideoSize(inputs.size),
           seconds: inputs.seconds,
+          seed: inputs.seed,
           images: convImages,
         };
       } else {
@@ -495,6 +497,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               model: conv.model,
               size: conv.size,
               seconds: conv.seconds,
+              seed: conv.seed,
               images: conv.images || [],
             }
           : {
@@ -502,6 +505,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               model: inputs.model,
               size: normalizeVideoSize(inputs.size),
               seconds: inputs.seconds,
+              seed: inputs.seed,
               images: convImages,
             };
       }
@@ -550,6 +554,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               model: params.model,
               size: params.size,
               seconds: params.seconds,
+              seed: params.seed,
               images: params.images || [],
               title: text,
               createdAt: now,
@@ -586,6 +591,14 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           body.seconds = params.seconds;
         } else {
           body.duration = parseInt(params.seconds, 10) || undefined;
+        }
+        // 随机种子:非空则塞进 metadata(gpustackplus task adaptor 整体透传 metadata 给引擎;
+        // TaskSubmitReq.Metadata 只从请求的 metadata 对象取,故不能放顶层)。留空则引擎随机。
+        if (params.seed !== '' && params.seed != null) {
+          body.metadata = {
+            ...(body.metadata || {}),
+            seed: Number(params.seed),
+          };
         }
         // i2v/flf2v:带帧图。后端 gpustackplus:images[0]=首帧,flf2v 时 images[1]=尾帧。
         if (needsImage && (params.images || []).length > 0) {
@@ -701,6 +714,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
         model: conv.model != null ? conv.model : prev.model,
         size: conv.size != null ? conv.size : prev.size,
         seconds: conv.seconds != null ? conv.seconds : prev.seconds,
+        seed: conv.seed != null ? conv.seed : prev.seed,
       }));
       // 若该会话最后一个任务仍在进行中，恢复轮询
       const assts = (conv.messages || []).filter((m) => m.role === 'assistant');
@@ -725,6 +739,14 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     };
   }, []);
 
+  // i2v/flf2v 必须先上传帧图:新对话(未锁定)且帧图缺失时发送置灰,
+  // 避免只填提示词就点发送(点了才报错且 Semi 会清空已输入的提示词)。flf2v 需首帧+尾帧。
+  const missingRequiredImage =
+    needsImage &&
+    !locked &&
+    ((inputs.firstFrame || '').trim() === '' ||
+      (isFLF2V && (inputs.lastFrame || '').trim() === ''));
+
   return {
     isI2V,
     isFLF2V,
@@ -740,6 +762,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     generating,
     locked,
     turnLimitReached,
+    missingRequiredImage,
     generate,
     regenerate,
     refetch,

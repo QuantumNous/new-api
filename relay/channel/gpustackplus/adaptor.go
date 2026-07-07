@@ -24,6 +24,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -136,11 +137,31 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		"user_id": userIDStr(info),
 	}
 
+	// 用户选的绝对尺寸 → 引擎的 target_shape:[height,width](引擎按 2 元素精确像素出图,
+	// 优先于 aspect_ratio;不传则引擎回落到 aspect_ratio 离散分辨率表 / 输入图尺寸)。
+	// z-image / qwen-image(t2i)与 qwen-image-edit(i2i)共用同一引擎 shape 逻辑,统一透传。
+	var targetShape []int
+	if w, h, ok := common.DimsFromSize(request.Size); ok {
+		targetShape = []int{h, w}
+	}
+
+	// 随机种子:仅本渠道使用,故不加进共享 dto.ImageRequest(否则会被其它渠道的
+	// ConvertImageRequest 原样转发给不认 seed 的上游而报错)。JSON 请求的未知字段落在
+	// dto.Extra(其 MarshalJSON 不外泄 Extra),multipart(edits)从表单取。非空即透传
+	// 给引擎(BaseTaskRequest.seed);留空则引擎自动随机。t2i/i2i 均适用。
+	if seed, ok := imageSeedFrom(c, request); ok {
+		body["seed"] = seed
+	}
+
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesGenerations:
 		body["task_type"] = "t2i"
+		// aspect_ratio 作为 size 为空/不可解析时的兜底;有 target_shape 时引擎会优先用后者。
 		if ar := common.AspectRatioFromSize(request.Size); ar != "" {
 			body["aspect_ratio"] = ar
+		}
+		if targetShape != nil {
+			body["target_shape"] = targetShape
 		}
 	case relayconstant.RelayModeImagesEdits:
 		taskType := "i2i"
@@ -150,6 +171,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			return nil, err
 		}
 		body["input_refs"] = refs
+		if targetShape != nil {
+			body["target_shape"] = targetShape
+		}
 	default:
 		return nil, errors.New("gpustackplus 图片链路仅支持 /v1/images/generations 与 /v1/images/edits")
 	}
@@ -269,6 +293,26 @@ func extractMask(request dto.ImageRequest) string {
 	return ""
 }
 
+// imageSeedFrom 取随机种子(仅本渠道消费,不放共享 dto):
+// JSON 请求 → dto.Extra["seed"](未知字段);multipart(edits)→ 表单 seed 字段。
+// 返回 (seed, true) 表示显式提供了合法整数种子;否则 (0, false)。
+func imageSeedFrom(c *gin.Context, request dto.ImageRequest) (int64, bool) {
+	if raw, ok := request.Extra["seed"]; ok && len(raw) > 0 {
+		// 解到 *int64:JSON 的 null 会得到 nil(视为未提供,交引擎随机),
+		// 只有真正的整数才算显式指定;避免把 "seed": null 误判成 seed=0。
+		var v *int64
+		if err := common.Unmarshal(raw, &v); err == nil && v != nil {
+			return *v, true
+		}
+	}
+	if s := strings.TrimSpace(c.PostForm("seed")); s != "" {
+		if v, err := strconv.ParseInt(s, 10, 64); err == nil {
+			return v, true
+		}
+	}
+	return 0, false
+}
+
 // userIDStr new-api 终端用户 id(字符串);与门面 user_id / NFS 路径 <user_id> 段一致。
 func userIDStr(info *relaycommon.RelayInfo) string {
 	return fmt.Sprintf("%d", info.UserId)
@@ -372,6 +416,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 //   - QUEUED 滞留超 maxQueuedWait(仍未 ASSIGNED/RUNNING)→ skip-retry「系统繁忙」+ 尽力 cancel;
 //   - 每轮等待用 select 监听 ctx.Done():客户端断开 → 停轮 + 尽力 cancel;
 //   - 撞 5 分钟上限 → 尽力 cancel。
+//
 // 返回 *types.NewAPIError 时上层直接透传(保留 skip-retry / 状态码)。
 func (a *Adaptor) pollUntilDone(c *gin.Context, taskID string) (*statusResponse, error) {
 	ctx := c.Request.Context()
