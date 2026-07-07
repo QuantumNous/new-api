@@ -435,10 +435,13 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
           model: params.model,
           group: params.group,
           prompt: text,
-          size: normalizeImageSize(params.size),
           n: 1,
           // 不强制 response_format：各供应商返回原生格式（url 或 base64），前端均兼容
         };
+        // 尺寸/比例仅文生图下发；图生图跟随参考图，不发 size。
+        if (!isI2I) {
+          reqBody.size = normalizeImageSize(params.size);
+        }
         // 随机种子:非空即下发(整数);留空则不发,由引擎自动随机。
         if (params.seed !== '' && params.seed != null) {
           reqBody.seed = Number(params.seed);

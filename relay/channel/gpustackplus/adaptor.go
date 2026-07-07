@@ -161,8 +161,11 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesGenerations:
 		body["task_type"] = "t2i"
-		// aspect_ratio 作为 size 为空/不可解析时的兜底;有 target_shape 时引擎会优先用后者。
-		if ar := common.AspectRatioFromSize(request.Size); ar != "" {
+		// 纯比例(如 "16:9")直接透传 aspect_ratio(引擎按离散分辨率表出图);否则从精确
+		// 像素约分兜底 aspect_ratio。有 target_shape 时引擎会优先用后者。
+		if common.IsAspectRatio(request.Size) {
+			body["aspect_ratio"] = common.NormalizeAspectRatio(request.Size)
+		} else if ar := common.AspectRatioFromSize(request.Size); ar != "" {
 			body["aspect_ratio"] = ar
 		}
 		if targetShape != nil {

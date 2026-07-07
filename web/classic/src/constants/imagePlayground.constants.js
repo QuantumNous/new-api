@@ -35,7 +35,8 @@ export const IMAGE_I2I_CAPABILITY = '图生图';
 // 图生图最多上传底图数（与后端 gpustackplus maxEditImages / 门面 _MAX_INPUT_IMAGES 对齐）
 export const IMAGE_MAX_EDIT_IMAGES = 5;
 
-// 当管理员未配置时使用的兜底尺寸
+// 当管理员未配置时的全局兜底：用最兼容的精确像素（dall-e/gpt-image 等只认像素的模型也能过）。
+// "默认用宽高比"应通过运营配置的 default 六种比例实现，而非这里的全局兜底。
 export const FALLBACK_IMAGE_SIZES = [
   '1024x1024',
   '1024x1792',

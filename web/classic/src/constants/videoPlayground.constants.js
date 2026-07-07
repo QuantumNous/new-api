@@ -178,12 +178,13 @@ export const parseVideoModelConfig = (raw) => {
   }
 };
 
-// 尺寸优先级：按模型配置 → 管理端全局默认 → 按模型类别兜底（sora 像素 / minimax 720P）
+// 尺寸/分辨率:纯 opt-in——按模型配置 → 管理端全局默认 → 空(未配置则不展示、不下发)。
+// 与宽高比一致:留空即"不支持选择",避免给未配置的模型误显尺寸选择器。
 export const getSizesForVideoModel = (config, model) => {
   const m = config?.models?.[model];
   if (m && Array.isArray(m.sizes) && m.sizes.length > 0) return m.sizes;
   if (config?.default?.sizes?.length) return config.default.sizes;
-  return resolveVideoStrategy(model).sizes;
+  return [];
 };
 
 // 宽高比:纯 opt-in——按模型配置 → 管理端全局默认 → 空(未配置则不展示、不下发)。

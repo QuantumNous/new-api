@@ -223,6 +223,12 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		}
 	}
 
+	// 文生图尺寸校验按运营配置(ImageModelSizeConfig)来：size 为空或模型未配置则放行，
+	// 配置了则要求命中允许集(宽高比或精确像素两种输入均可)。图生图不发 size，天然放行。
+	if err := common.ValidateImageSizeForModel(imageRequest.Size, imageRequest.Model); err != nil {
+		return nil, err
+	}
+
 	return imageRequest, nil
 }
 

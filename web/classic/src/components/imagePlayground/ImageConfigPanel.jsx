@@ -155,27 +155,29 @@ const ImageConfigPanel = ({
           />
         )}
 
-        {/* 图片尺寸 */}
-        <div>
-          <div className='flex items-center gap-2 mb-2'>
-            <Ruler size={16} className='text-gray-500' />
-            <Typography.Text strong className='text-sm'>
-              {t('图片尺寸')}
-            </Typography.Text>
+        {/* 图片尺寸（图生图跟随参考图，不显示、不下发） */}
+        {!isI2I && (
+          <div>
+            <div className='flex items-center gap-2 mb-2'>
+              <Ruler size={16} className='text-gray-500' />
+              <Typography.Text strong className='text-sm'>
+                {t('图片尺寸')}
+              </Typography.Text>
+            </div>
+            <Select
+              placeholder={t('请选择尺寸')}
+              name='size'
+              selection
+              onChange={(value) => onInputChange('size', value)}
+              value={inputs.size}
+              optionList={sizeOptions}
+              disabled={disabled}
+              style={{ width: '100%' }}
+              dropdownStyle={{ width: '100%', maxWidth: '100%' }}
+              className='!rounded-lg'
+            />
           </div>
-          <Select
-            placeholder={t('请选择尺寸')}
-            name='size'
-            selection
-            onChange={(value) => onInputChange('size', value)}
-            value={inputs.size}
-            optionList={sizeOptions}
-            disabled={disabled}
-            style={{ width: '100%' }}
-            dropdownStyle={{ width: '100%', maxWidth: '100%' }}
-            className='!rounded-lg'
-          />
-        </div>
+        )}
 
         {/* 负向提示词 */}
         <div>

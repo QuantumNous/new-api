@@ -196,7 +196,12 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
   // size 合法性（锁定时不动）
   useEffect(() => {
     if (locked) return;
-    if (availableSizes.length && !availableSizes.includes(inputs.size)) {
+    if (!availableSizes.length) {
+      // 未配尺寸的模型（如图生视频/首尾帧或未配置的文生视频）清空残留，避免误发旧 size
+      if (inputs.size !== '') setInputs((prev) => ({ ...prev, size: '' }));
+      return;
+    }
+    if (!availableSizes.includes(inputs.size)) {
       setInputs((prev) => ({ ...prev, size: availableSizes[0] }));
     }
   }, [availableSizes, inputs.size, locked]);
@@ -639,8 +644,13 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           model: params.model,
           group: params.group,
           prompt: text,
-          size: normalizeVideoSize(params.size),
         };
+        // 尺寸/分辨率仅文生视频、且该值仍在当前模型允许集内才下发（对齐宽高比的闸门，
+        // 避免切到未配尺寸的模型时把残留旧值误发）；图生视频/首尾帧跟随参考图，不发 size。
+        const videoSizeVal = normalizeVideoSize(params.size);
+        if (!needsImage && availableSizes.includes(videoSizeVal)) {
+          body.size = videoSizeVal;
+        }
         if (strategy.durationField === 'seconds') {
           body.seconds = params.seconds;
         } else {
