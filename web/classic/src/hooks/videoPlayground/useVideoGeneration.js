@@ -18,6 +18,12 @@ import {
 import {
   VIDEO_API_ENDPOINTS,
   VIDEO_PAGE_CAPABILITY,
+  VIDEO_I2V_CAPABILITY,
+  VIDEO_FLF2V_CAPABILITY,
+  VIDEO_DEFAULT_NEGATIVE_PROMPT,
+  VIDEO_DEFAULT_ASPECT_RATIO,
+  aspectRatioToShape,
+  getAspectRatiosForVideoModel,
   VIDEO_STATUS,
   VIDEO_HISTORY_LIMIT,
   VIDEO_CONV_TURN_LIMIT,
@@ -33,11 +39,20 @@ import {
   buildVideoContentUrl,
 } from '../../constants/videoPlayground.constants';
 
-const CONV_STORAGE_KEY = 'video_playground_conversations';
+// 文生视频 / 图生视频 / 首尾帧共用本 hook,按 mode 区分能力过滤、是否带帧图。
+const CONV_STORAGE_KEY_BASE = 'video_playground_conversations';
+const VIDEO_MODES = {
+  text2video: { capability: VIDEO_PAGE_CAPABILITY, suffix: '' },
+  image2video: { capability: VIDEO_I2V_CAPABILITY, suffix: '_i2v' },
+  flf2v: { capability: VIDEO_FLF2V_CAPABILITY, suffix: '_flf2v' },
+};
+const modeMeta = (mode) => VIDEO_MODES[mode] || VIDEO_MODES.text2video;
+const storageKeyFor = (mode) =>
+  `${CONV_STORAGE_KEY_BASE}${modeMeta(mode).suffix}`;
 
-const loadConversations = () => {
+const loadConversations = (storageKey) => {
   try {
-    const raw = localStorage.getItem(CONV_STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
@@ -45,11 +60,28 @@ const loadConversations = () => {
   }
 };
 
-const persistConversations = (list) => {
+// i2v/flf2v 的帧图是 base64 data-url,落 localStorage 会撑爆配额导致整段历史写入
+// 失败(连带正在进行的任务刷新/恢复丢失)。落盘前剥掉 data: 图,只留 url 图。
+const stripFramesForPersist = (list) =>
+  list.map((conv) => {
+    const stripImgs = (arr) =>
+      Array.isArray(arr)
+        ? arr.filter((src) => !String(src).startsWith('data:'))
+        : arr;
+    return {
+      ...conv,
+      images: stripImgs(conv.images),
+      messages: (conv.messages || []).map((m) =>
+        m.images ? { ...m, images: stripImgs(m.images) } : m,
+      ),
+    };
+  });
+
+const persistConversations = (storageKey, list) => {
   try {
     localStorage.setItem(
-      CONV_STORAGE_KEY,
-      JSON.stringify(list.slice(0, VIDEO_HISTORY_LIMIT)),
+      storageKey,
+      JSON.stringify(stripFramesForPersist(list.slice(0, VIDEO_HISTORY_LIMIT))),
     );
   } catch (e) {
     // ignore quota errors
@@ -59,29 +91,46 @@ const persistConversations = (list) => {
 let idSeq = 0;
 const genId = () => `vid-${Date.now()}-${idSeq++}`;
 
+// 默认负向提示词是 Wan 专用的中文词表,只对 Wan 系模型预填;其它厂商(sora/ali/kling…)
+// 默认留空,避免把 Wan 负向词经 metadata 发给不支持/语义不符的上游(codex 复审 P2)。
+const isWanVideoModel = (model) => /wan/i.test(model || '');
+
 // 兼容 OpenAI 错误({error:{message}})与任务错误({code,message,data})两种形态
 const extractApiErrMsg = (error, fallback) => {
   const d = error?.response?.data || {};
   return d.error?.message || d.message || error?.message || fallback;
 };
 
-export const useVideoGeneration = () => {
+export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
   const { t } = useTranslation();
   const [statusState] = useContext(StatusContext);
   const [userState] = useContext(UserContext);
+
+  const isI2V = mode === 'image2video';
+  const isFLF2V = mode === 'flf2v';
+  const needsImage = isI2V || isFLF2V;
+  const pageCapability = modeMeta(mode).capability;
+  const storageKey = storageKeyFor(mode);
 
   const [inputs, setInputs] = useState({
     group: '',
     model: '',
     size: '',
     seconds: '',
+    seed: '', // 随机种子;'' 表示随机(不下发)
+    negativePrompt: '', // 负向提示词;Wan 模型下由下方 effect 预填默认值,其它厂商留空
+    aspectRatio: '', // 宽高比;仅当该模型在后台配了宽高比才由 effect 选中默认值并下发
+    firstFrame: '', // i2v/flf2v 首帧(base64 data-url)
+    lastFrame: '', // flf2v 尾帧
   });
   const [groups, setGroups] = useState([]);
   const [models, setModels] = useState([]);
   // 来自 /api/pricing：model -> enable_groups[]（用于分组过滤）
   const [modelGroupsMap, setModelGroupsMap] = useState(new Map());
 
-  const [conversations, setConversations] = useState(() => loadConversations());
+  const [conversations, setConversations] = useState(() =>
+    loadConversations(storageKey),
+  );
   const [currentConvId, setCurrentConvId] = useState(null);
   const [generating, setGenerating] = useState(false);
 
@@ -98,9 +147,12 @@ export const useVideoGeneration = () => {
   lockedRef.current = locked;
   // 当前进行中的轮询：{ convId, msgId, taskId, timer, canceled }
   const activePollRef = useRef(null);
+  // 用户是否手动改过负向提示词:改过后不再随模型自动预填/清空。
+  const negPromptTouchedRef = useRef(false);
 
   const handleInputChange = useCallback((key, value) => {
     if (lockedRef.current) return;
+    if (key === 'negativePrompt') negPromptTouchedRef.current = true;
     setInputs((prev) => ({ ...prev, [key]: value }));
   }, []);
 
@@ -117,6 +169,10 @@ export const useVideoGeneration = () => {
     () => getDurationsForVideoModel(videoConfig, inputs.model),
     [videoConfig, inputs.model],
   );
+  const availableAspectRatios = useMemo(
+    () => getAspectRatiosForVideoModel(videoConfig, inputs.model),
+    [videoConfig, inputs.model],
+  );
 
   // 视频模型集合 = 管理员在「视频模型配置」里声明、且能力含「文生视频」的模型。
   // 只认运营设置里的能力声明，不再按后端端点类型识别。
@@ -124,7 +180,7 @@ export const useVideoGeneration = () => {
     const set = new Set();
     Object.entries(videoConfig.models || {}).forEach(([model, cfg]) => {
       const caps = Array.isArray(cfg?.capabilities) ? cfg.capabilities : [];
-      if (caps.includes(VIDEO_PAGE_CAPABILITY)) set.add(model);
+      if (caps.includes(pageCapability)) set.add(model);
     });
     return set;
   }, [videoConfig]);
@@ -140,7 +196,12 @@ export const useVideoGeneration = () => {
   // size 合法性（锁定时不动）
   useEffect(() => {
     if (locked) return;
-    if (availableSizes.length && !availableSizes.includes(inputs.size)) {
+    if (!availableSizes.length) {
+      // 未配尺寸的模型（如图生视频/首尾帧或未配置的文生视频）清空残留，避免误发旧 size
+      if (inputs.size !== '') setInputs((prev) => ({ ...prev, size: '' }));
+      return;
+    }
+    if (!availableSizes.includes(inputs.size)) {
       setInputs((prev) => ({ ...prev, size: availableSizes[0] }));
     }
   }, [availableSizes, inputs.size, locked]);
@@ -155,6 +216,35 @@ export const useVideoGeneration = () => {
       setInputs((prev) => ({ ...prev, seconds: availableDurations[0] }));
     }
   }, [availableDurations, inputs.seconds, locked]);
+
+  // 宽高比合法性(锁定时不动):该模型配了宽高比 → 当前值非法则选默认(优先 16:9,否则首项);
+  // 未配置 → 清空(不展示、不下发)。纯 opt-in,不给不支持的模型强塞。
+  useEffect(() => {
+    if (locked) return;
+    if (availableAspectRatios.length === 0) {
+      if (inputs.aspectRatio !== '') {
+        setInputs((prev) => ({ ...prev, aspectRatio: '' }));
+      }
+      return;
+    }
+    if (!availableAspectRatios.includes(inputs.aspectRatio)) {
+      const next = availableAspectRatios.includes(VIDEO_DEFAULT_ASPECT_RATIO)
+        ? VIDEO_DEFAULT_ASPECT_RATIO
+        : availableAspectRatios[0];
+      setInputs((prev) => ({ ...prev, aspectRatio: next }));
+    }
+  }, [availableAspectRatios, inputs.aspectRatio, locked]);
+
+  // 负向提示词默认值:仅 Wan 模型预填官方词表,其它厂商清空;用户手动改过后不再自动覆盖。
+  useEffect(() => {
+    if (locked || negPromptTouchedRef.current) return;
+    const def = isWanVideoModel(inputs.model)
+      ? VIDEO_DEFAULT_NEGATIVE_PROMPT
+      : '';
+    setInputs((prev) =>
+      prev.negativePrompt === def ? prev : { ...prev, negativePrompt: def },
+    );
+  }, [inputs.model, locked]);
 
   const loadPricing = useCallback(async () => {
     try {
@@ -276,7 +366,7 @@ export const useVideoGeneration = () => {
             }
           : c,
       );
-      persistConversations(next);
+      persistConversations(storageKey, next);
       return next;
     });
   }, []);
@@ -404,6 +494,8 @@ export const useVideoGeneration = () => {
       const text = (prompt || '').trim();
       if (!text || generating) return;
 
+      // i2v:images=[首帧];flf2v:images=[首帧,尾帧]。后续追问沿用对话首条锁定的帧图。
+      let convImages = [];
       let convId = currentConvId;
       let params;
       if (convId == null) {
@@ -411,12 +503,33 @@ export const useVideoGeneration = () => {
           showError(t('请先选择一个视频模型'));
           return;
         }
+        if (needsImage) {
+          const first = (inputs.firstFrame || '').trim();
+          if (!first) {
+            showError(t('请先上传首帧图片'));
+            return;
+          }
+          if (isFLF2V) {
+            const last = (inputs.lastFrame || '').trim();
+            if (!last) {
+              showError(t('首尾帧模式需上传首帧和尾帧两张图'));
+              return;
+            }
+            convImages = [first, last];
+          } else {
+            convImages = [first];
+          }
+        }
         convId = genId();
         params = {
           group: inputs.group,
           model: inputs.model,
           size: normalizeVideoSize(inputs.size),
           seconds: inputs.seconds,
+          seed: inputs.seed,
+          negativePrompt: inputs.negativePrompt,
+          aspectRatio: inputs.aspectRatio,
+          images: convImages,
         };
       } else {
         const conv = conversationsRef.current.find((c) => c.id === convId);
@@ -437,18 +550,42 @@ export const useVideoGeneration = () => {
               model: conv.model,
               size: conv.size,
               seconds: conv.seconds,
+              seed: conv.seed,
+              negativePrompt: conv.negativePrompt,
+              aspectRatio: conv.aspectRatio,
+              images: conv.images || [],
             }
           : {
               group: inputs.group,
               model: inputs.model,
               size: normalizeVideoSize(inputs.size),
               seconds: inputs.seconds,
+              seed: inputs.seed,
+              negativePrompt: inputs.negativePrompt,
+              aspectRatio: inputs.aspectRatio,
+              images: convImages,
             };
+      }
+
+      // i2v/flf2v 续问:帧图取自锁定的对话;刷新后 base64 帧图已从 localStorage
+      // 剥离,无法续问(避免向后端发空帧被拒),提示重开对话重新上传。
+      if (needsImage) {
+        params.images = (params.images || []).filter(Boolean);
+        const need = isFLF2V ? 2 : 1;
+        if (params.images.length < need) {
+          showError(t('帧图已失效,请开启新对话并重新上传'));
+          return;
+        }
       }
 
       const reqId = genId();
       const now = new Date().toISOString();
-      const userMsg = { id: `${reqId}-u`, role: 'user', content: text };
+      const userMsg = {
+        id: `${reqId}-u`,
+        role: 'user',
+        content: text,
+        images: needsImage ? params.images || [] : undefined,
+      };
       const asstId = `${reqId}-a`;
       const asstMsg = {
         id: asstId,
@@ -474,6 +611,10 @@ export const useVideoGeneration = () => {
               model: params.model,
               size: params.size,
               seconds: params.seconds,
+              seed: params.seed,
+              negativePrompt: params.negativePrompt,
+              aspectRatio: params.aspectRatio,
+              images: params.images || [],
               title: text,
               createdAt: now,
               updatedAt: now,
@@ -490,7 +631,7 @@ export const useVideoGeneration = () => {
           next = [conv, ...prev.filter((_, i) => i !== idx)];
         }
         next = next.slice(0, VIDEO_HISTORY_LIMIT);
-        persistConversations(next);
+        persistConversations(storageKey, next);
         return next;
       });
       if (currentConvId == null) setCurrentConvId(convId);
@@ -503,16 +644,57 @@ export const useVideoGeneration = () => {
           model: params.model,
           group: params.group,
           prompt: text,
-          size: normalizeVideoSize(params.size),
         };
+        // 尺寸/分辨率仅文生视频、且该值仍在当前模型允许集内才下发（对齐宽高比的闸门，
+        // 避免切到未配尺寸的模型时把残留旧值误发）；图生视频/首尾帧跟随参考图，不发 size。
+        const videoSizeVal = normalizeVideoSize(params.size);
+        if (!needsImage && availableSizes.includes(videoSizeVal)) {
+          body.size = videoSizeVal;
+        }
         if (strategy.durationField === 'seconds') {
           body.seconds = params.seconds;
         } else {
           body.duration = parseInt(params.seconds, 10) || undefined;
         }
-        const res = await API.post(VIDEO_API_ENDPOINTS.VIDEO_GENERATIONS, body, {
-          skipErrorHandler: true,
-        });
+        // 随机种子 / 负向提示词:塞进 metadata(gpustackplus task adaptor 整体透传 metadata
+        // 给引擎;TaskSubmitReq.Metadata 只从请求的 metadata 对象取,故不能放顶层)。
+        // seed 留空则引擎随机;negative_prompt 非空才发。
+        if (params.seed !== '' && params.seed != null) {
+          body.metadata = {
+            ...(body.metadata || {}),
+            seed: Number(params.seed),
+          };
+        }
+        if (params.negativePrompt && params.negativePrompt.trim()) {
+          body.metadata = {
+            ...(body.metadata || {}),
+            negative_prompt: params.negativePrompt.trim(),
+          };
+        }
+        // 宽高比 → target_shape:[h,w]。纯 opt-in:仅 t2v、且该值仍在当前模型的允许集内才下发
+        // (续问历史会话时 conv.aspectRatio 可能是后台已改/删的旧值,校验一遍避免绕过白名单)。
+        // wan 视频引擎按 target_shape 出分辨率;i2v/flf2v 跟随输入图故不发。
+        if (
+          !needsImage &&
+          params.aspectRatio &&
+          availableAspectRatios.includes(params.aspectRatio)
+        ) {
+          const shape = aspectRatioToShape(params.aspectRatio);
+          if (shape) {
+            body.metadata = { ...(body.metadata || {}), target_shape: shape };
+          }
+        }
+        // i2v/flf2v:带帧图。后端 gpustackplus:images[0]=首帧,flf2v 时 images[1]=尾帧。
+        if (needsImage && (params.images || []).length > 0) {
+          body.images = params.images;
+        }
+        const res = await API.post(
+          VIDEO_API_ENDPOINTS.VIDEO_GENERATIONS,
+          body,
+          {
+            skipErrorHandler: true,
+          },
+        );
         const data = res.data || {};
         // 兼容两种响应形态：OpenAIVideo（顶层 id/status）与通用 TaskResponse（data.task_id）
         const inner = data.data || {};
@@ -561,7 +743,18 @@ export const useVideoGeneration = () => {
         setGenerating(false);
       }
     },
-    [currentConvId, inputs, generating, patchConvMessage, pollOnce, t],
+    [
+      currentConvId,
+      inputs,
+      generating,
+      patchConvMessage,
+      pollOnce,
+      storageKey,
+      needsImage,
+      isFLF2V,
+      availableAspectRatios,
+      t,
+    ],
   );
 
   const regenerate = useCallback((prompt) => generate(prompt), [generate]);
@@ -575,7 +768,7 @@ export const useVideoGeneration = () => {
     if (activePollRef.current) activePollRef.current.canceled = true;
     finishPoll();
     setConversations([]);
-    persistConversations([]);
+    persistConversations(storageKey, []);
     setCurrentConvId(null);
   }, [finishPoll]);
 
@@ -589,7 +782,7 @@ export const useVideoGeneration = () => {
       }
       setConversations((prev) => {
         const next = prev.filter((c) => c.id !== id);
-        persistConversations(next);
+        persistConversations(storageKey, next);
         return next;
       });
       setCurrentConvId((cur) => (cur === id ? null : cur));
@@ -606,11 +799,16 @@ export const useVideoGeneration = () => {
         model: conv.model != null ? conv.model : prev.model,
         size: conv.size != null ? conv.size : prev.size,
         seconds: conv.seconds != null ? conv.seconds : prev.seconds,
+        seed: conv.seed != null ? conv.seed : prev.seed,
+        negativePrompt:
+          conv.negativePrompt != null
+            ? conv.negativePrompt
+            : prev.negativePrompt,
+        aspectRatio:
+          conv.aspectRatio != null ? conv.aspectRatio : prev.aspectRatio,
       }));
       // 若该会话最后一个任务仍在进行中，恢复轮询
-      const assts = (conv.messages || []).filter(
-        (m) => m.role === 'assistant',
-      );
+      const assts = (conv.messages || []).filter((m) => m.role === 'assistant');
       const last = assts[assts.length - 1];
       if (
         last?.taskId &&
@@ -632,18 +830,31 @@ export const useVideoGeneration = () => {
     };
   }, []);
 
+  // i2v/flf2v 必须先上传帧图:新对话(未锁定)且帧图缺失时发送置灰,
+  // 避免只填提示词就点发送(点了才报错且 Semi 会清空已输入的提示词)。flf2v 需首帧+尾帧。
+  const missingRequiredImage =
+    needsImage &&
+    !locked &&
+    ((inputs.firstFrame || '').trim() === '' ||
+      (isFLF2V && (inputs.lastFrame || '').trim() === ''));
+
   return {
+    isI2V,
+    isFLF2V,
+    needsImage,
     inputs,
     handleInputChange,
     groups,
     models,
     availableSizes,
     availableDurations,
+    availableAspectRatios,
     messages,
     conversations,
     generating,
     locked,
     turnLimitReached,
+    missingRequiredImage,
     generate,
     regenerate,
     refetch,

@@ -8,5 +8,4 @@ const ChannelName = "gpustackplus"
 var ModelList = []string{
 	"wan2.2-t2v",
 	"wan2.2-i2v",
-	"z-image",
 }

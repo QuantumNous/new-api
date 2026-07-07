@@ -6,4 +6,5 @@ const ChannelName = "gpustackplus"
 // ModelList 生图默认模型（自建增强引擎 LightX2V 系）。实际以渠道模型映射为准。
 var ModelList = []string{
 	"z-image",
+	"qwen-image-edit",
 }

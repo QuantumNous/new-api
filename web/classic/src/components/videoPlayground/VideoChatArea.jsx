@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useContext } from 'react';
+import React, { useState, useMemo, useCallback, useContext } from 'react';
 import {
   Card,
   Chat,
@@ -6,15 +6,25 @@ import {
   Typography,
   Progress,
   Spin,
+  TextArea,
 } from '@douyinfe/semi-ui';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download, RefreshCw, Send } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { showError, getLogo, stringToColor } from '../../helpers';
 import { UserContext } from '../../context/User';
-import { VIDEO_STATUS } from '../../constants/videoPlayground.constants';
+import {
+  VIDEO_STATUS,
+  VIDEO_PROMPT_PRESETS,
+} from '../../constants/videoPlayground.constants';
+
+// 预设按钮上显示的短标签:截断长提示词,避免撑爆按钮。
+const presetLabel = (s) => {
+  const v = (s || '').trim();
+  return v.length > 22 ? `${v.slice(0, 22)}…` : v;
+};
 
 const WELCOME_ID = '__welcome__';
-const MAX_PROMPT_LEN = 2000;
+const MAX_PROMPT_LEN = 5000;
 
 const genUserAvatar = (username) => {
   if (!username) return getLogo();
@@ -121,6 +131,7 @@ const VideoChatArea = ({
   messages,
   generating,
   turnLimitReached = false,
+  missingRequiredImage = false,
   onSend,
   onRegenerate,
   onRefetch,
@@ -128,6 +139,8 @@ const VideoChatArea = ({
 }) => {
   const { t } = useTranslation();
   const [userState] = useContext(UserContext);
+  // 受控输入框:预设按钮直接 setInputValue,发送后清空(缺图/上限时不清空,提示词不丢)。
+  const [inputValue, setInputValue] = useState('');
 
   const roleConfig = useMemo(
     () => ({
@@ -285,59 +298,85 @@ const VideoChatArea = ({
     [byId, generating, onRegenerate, onRefetch, t],
   );
 
-  const renderInputArea = useCallback(
-    (props) => {
-      const { detailProps } = props;
-      const { inputNode, sendNode, onClick } = detailProps;
-      const blockSend = generating || turnLimitReached;
-      const styledSend = React.cloneElement(sendNode, {
-        disabled: blockSend || sendNode.props.disabled,
-        className: `!rounded-full !bg-purple-500 hover:!bg-purple-600 flex-shrink-0 ${sendNode.props.className || ''}`,
-        style: {
-          ...sendNode.props.style,
-          width: 32,
-          height: 32,
-          minWidth: 32,
-          padding: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        },
-      });
-      return (
-        <div className='p-2 sm:p-4'>
-          {turnLimitReached && (
-            <Typography.Text
-              type='warning'
-              className='text-xs block mb-2 text-center'
-            >
-              {t('本轮对话已达生成上限，请点击右侧「新对话」继续')}
-            </Typography.Text>
-          )}
-          <div
-            className='flex items-center gap-2 sm:gap-3 px-3 py-2.5 bg-gray-50 rounded-xl sm:rounded-2xl shadow-sm hover:shadow-md transition-shadow'
-            style={{ border: '1px solid var(--semi-color-border)', minHeight: 52 }}
-            onClick={onClick}
+  const renderInputArea = useCallback(() => {
+    // 缺必填帧图/生成中/达上限时置灰,回车与点击均不发送,提示词不丢。
+    const blockSend = generating || turnLimitReached || missingRequiredImage;
+    const canSend = !blockSend && inputValue.trim().length > 0;
+    const doSend = () => {
+      if (!canSend) return;
+      onSend(inputValue.trim());
+      setInputValue('');
+    };
+    return (
+      <div className='p-2 sm:p-4'>
+        {turnLimitReached && (
+          <Typography.Text
+            type='warning'
+            className='text-xs block mb-2 text-center'
           >
-            <div
-              className='flex-1'
-              onKeyDownCapture={(e) => {
-                // 生成中/达上限时拦截回车，阻止 Semi 触发 send（否则会清空输入框且不发送）
-                if (blockSend && e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }
-              }}
+            {t('本轮对话已达生成上限，请点击右侧「新对话」继续')}
+          </Typography.Text>
+        )}
+        {/* 预设提示词:扁长按钮,防误触;点击清空当前输入并填入该提示词 */}
+        <div className='flex flex-wrap gap-2 mb-2'>
+          {VIDEO_PROMPT_PRESETS.map((p, i) => (
+            <button
+              key={i}
+              type='button'
+              title={p}
+              onClick={() => setInputValue(p)}
+              className='text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full px-3 py-1.5 truncate max-w-[220px] transition-colors'
             >
-              {React.cloneElement(inputNode, { maxLength: MAX_PROMPT_LEN })}
-            </div>
-            {styledSend}
-          </div>
+              {presetLabel(p)}
+            </button>
+          ))}
         </div>
-      );
-    },
-    [generating, turnLimitReached, t],
-  );
+        <div className='relative'>
+          <TextArea
+            value={inputValue}
+            onChange={setInputValue}
+            placeholder={t('请输入视频生成提示词')}
+            maxLength={MAX_PROMPT_LEN}
+            autosize={{ minRows: 2, maxRows: 6 }}
+            className='!rounded-xl'
+            style={{ paddingRight: 46 }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                doSend();
+              }
+            }}
+          />
+          <Button
+            theme='solid'
+            onClick={doSend}
+            disabled={!canSend}
+            icon={<Send size={16} className='text-white' />}
+            className='!rounded-full !bg-purple-500 hover:!bg-purple-600'
+            style={{
+              position: 'absolute',
+              right: 8,
+              bottom: 8,
+              width: 32,
+              height: 32,
+              minWidth: 32,
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          />
+        </div>
+      </div>
+    );
+  }, [
+    generating,
+    turnLimitReached,
+    missingRequiredImage,
+    inputValue,
+    onSend,
+    t,
+  ]);
 
   return (
     <Card

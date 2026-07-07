@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -1604,6 +1605,214 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	}
 
 	return usage, nil
+}
+
+// geminiSupportedAspectRatios is the exact set Gemini's imageConfig.aspect_ratio
+// accepts; any other value is rejected upstream. Paired with each ratio's numeric
+// value so an arbitrary size can snap to the nearest supported one.
+var geminiSupportedAspectRatios = []struct {
+	ratio string
+	value float64
+}{
+	{"1:1", 1.0}, {"1:4", 0.25}, {"1:8", 0.125}, {"2:3", 2.0 / 3},
+	{"3:2", 1.5}, {"3:4", 0.75}, {"4:1", 4.0}, {"4:3", 4.0 / 3},
+	{"4:5", 0.8}, {"5:4", 1.25}, {"8:1", 8.0}, {"9:16", 9.0 / 16},
+	{"16:9", 16.0 / 9}, {"21:9", 21.0 / 9},
+}
+
+// geminiImageAspectRatioFromSize maps a configured size ("WxH") or ratio ("a:b")
+// to the NEAREST Gemini-supported aspect ratio. Snapping (rather than exact
+// reduction) is required because Gemini only accepts a fixed whitelist — e.g.
+// 1024x1792 reduces to 4:7, which Gemini rejects, so it snaps to 9:16. Returns ""
+// for an empty/unparseable size so the caller leaves the aspect ratio unset
+// (model default, or the input-image ratio for image-to-image). Note: Gemini's
+// imageConfig only accepts an aspect ratio, not an absolute resolution.
+func geminiImageAspectRatioFromSize(size string) string {
+	size = strings.TrimSpace(size)
+	if size == "" {
+		return ""
+	}
+
+	var target float64
+	if w, h, ok := common.DimsFromSize(size); ok {
+		target = float64(w) / float64(h)
+	} else if strings.Contains(size, ":") {
+		parts := strings.SplitN(size, ":", 2)
+		a, err1 := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+		b, err2 := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+		if err1 != nil || err2 != nil || b == 0 {
+			return ""
+		}
+		target = a / b
+	} else {
+		return ""
+	}
+
+	best := ""
+	bestDiff := math.MaxFloat64
+	for _, ar := range geminiSupportedAspectRatios {
+		if diff := math.Abs(ar.value - target); diff < bestDiff {
+			bestDiff = diff
+			best = ar.ratio
+		}
+	}
+	return best
+}
+
+// collectGeminiImageInputs gathers reference images (for image-to-image) from the
+// OpenAI images request. It accepts request.Image and request.Images, each of
+// which may be a single string or an array of strings (URL or base64/data-uri).
+// Absence is not an error: text-to-image simply has none.
+func collectGeminiImageInputs(request dto.ImageRequest) []string {
+	var out []string
+	appendStr := func(s string) {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	parseRaw := func(raw json.RawMessage) {
+		if len(raw) == 0 {
+			return
+		}
+		var s string
+		if err := common.Unmarshal(raw, &s); err == nil {
+			appendStr(s)
+			return
+		}
+		var arr []string
+		if err := common.Unmarshal(raw, &arr); err == nil {
+			for _, v := range arr {
+				appendStr(v)
+			}
+		}
+	}
+	parseRaw(request.Image)
+	parseRaw(request.Images)
+	return out
+}
+
+// geminiInlinePartFromString turns a URL or base64/data-uri image string into a
+// Gemini inline-data part, validating the mime type against the same whitelist
+// used by the chat path.
+func geminiInlinePartFromString(c *gin.Context, s string) (dto.GeminiPart, error) {
+	source := types.NewFileSourceFromData(strings.TrimSpace(s), "")
+	if source == nil {
+		return dto.GeminiPart{}, errors.New("empty image input")
+	}
+	base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Gemini image edit")
+	if err != nil {
+		return dto.GeminiPart{}, fmt.Errorf("get file data from '%s' failed: %w", source.GetIdentifier(), err)
+	}
+	if _, ok := geminiSupportedMimeTypes[strings.ToLower(mimeType)]; !ok {
+		return dto.GeminiPart{}, fmt.Errorf("mime type is not supported by Gemini: '%s'", mimeType)
+	}
+	return dto.GeminiPart{
+		InlineData: &dto.GeminiInlineData{MimeType: mimeType, Data: base64Data},
+	}, nil
+}
+
+// convertGeminiImagineRequest builds a generateContent request for Gemini
+// chat-style image models (those in SupportedImagineModels) arriving through the
+// OpenAI images endpoints. Reference images, when present, enable image-to-image.
+func convertGeminiImagineRequest(c *gin.Context, request dto.ImageRequest) (*dto.GeminiChatRequest, error) {
+	if strings.TrimSpace(request.Prompt) == "" {
+		return nil, errors.New("prompt is required")
+	}
+
+	parts := []dto.GeminiPart{{Text: request.Prompt}}
+	for _, s := range collectGeminiImageInputs(request) {
+		part, err := geminiInlinePartFromString(c, s)
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, part)
+	}
+
+	geminiRequest := dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{
+			{
+				Role:  "user",
+				Parts: parts,
+			},
+		},
+		GenerationConfig: dto.GeminiChatGenerationConfig{
+			ResponseModalities: []string{"TEXT", "IMAGE"},
+		},
+	}
+
+	if ar := geminiImageAspectRatioFromSize(request.Size); ar != "" {
+		imageConfig, err := common.Marshal(map[string]string{"aspectRatio": ar})
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal image_config: %w", err)
+		}
+		geminiRequest.GenerationConfig.ImageConfig = imageConfig
+	}
+
+	safetySettings := make([]dto.GeminiChatSafetySettings, 0, len(SafetySettingList))
+	for _, category := range SafetySettingList {
+		safetySettings = append(safetySettings, dto.GeminiChatSafetySettings{
+			Category:  category,
+			Threshold: model_setting.GetGeminiSafetySetting(category),
+		})
+	}
+	geminiRequest.SafetySettings = safetySettings
+
+	return &geminiRequest, nil
+}
+
+// GeminiImageChatHandler converts a generateContent response (from a chat-style
+// Gemini image model) into an OpenAI images response (data[].b64_json). Billing
+// is token-based via the upstream usageMetadata, matching the chat path.
+func GeminiImageChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	responseBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, types.NewOpenAIError(readErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	service.CloseResponseBodyGracefully(resp)
+
+	var geminiResponse dto.GeminiChatResponse
+	if jsonErr := common.Unmarshal(responseBody, &geminiResponse); jsonErr != nil {
+		return nil, types.NewOpenAIError(jsonErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	usage := buildUsageFromGeminiMetadata(geminiResponse.UsageMetadata, info.GetEstimatePromptTokens())
+
+	if len(geminiResponse.Candidates) == 0 {
+		if geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
+			return nil, types.NewOpenAIError(
+				errors.New("request blocked by Gemini API: "+*geminiResponse.PromptFeedback.BlockReason),
+				types.ErrorCodePromptBlocked, http.StatusBadRequest)
+		}
+		return nil, types.NewOpenAIError(errors.New("empty response from Gemini API"),
+			types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
+	}
+
+	openAIResponse := dto.ImageResponse{
+		Created: common.GetTimestamp(),
+		Data:    make([]dto.ImageData, 0),
+	}
+	for _, candidate := range geminiResponse.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if part.InlineData != nil && strings.HasPrefix(part.InlineData.MimeType, "image") {
+				openAIResponse.Data = append(openAIResponse.Data, dto.ImageData{
+					B64Json: part.InlineData.Data,
+				})
+			}
+		}
+	}
+
+	if len(openAIResponse.Data) == 0 {
+		return nil, types.NewOpenAIError(errors.New("no images generated"),
+			types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	jsonResponse, jsonErr := common.Marshal(openAIResponse)
+	if jsonErr != nil {
+		return nil, types.NewError(jsonErr, types.ErrorCodeBadResponseBody)
+	}
+
+	service.IOCopyBytesGracefully(c, resp, jsonResponse)
+	return &usage, nil
 }
 
 type GeminiModelsResponse struct {

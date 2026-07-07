@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import {
-  Input,
   InputNumber,
   Slider,
   Typography,
@@ -27,16 +26,7 @@ import {
   Tag,
 } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import {
-  Hash,
-  Thermometer,
-  Target,
-  Repeat,
-  Ban,
-  Shuffle,
-  Check,
-  X,
-} from 'lucide-react';
+import { Hash, Thermometer, Target, Repeat, Ban, Check, X } from 'lucide-react';
 
 const ParameterControl = ({
   inputs,
@@ -257,43 +247,6 @@ const ParameterControl = ({
           precision={0}
           style={{ width: '100%' }}
           disabled={!parameterEnabled.max_tokens || disabled}
-        />
-      </div>
-
-      {/* Seed */}
-      <div
-        className={`transition-opacity duration-200 mb-4 ${!parameterEnabled.seed || disabled ? 'opacity-50' : ''}`}
-      >
-        <div className='flex items-center justify-between mb-2'>
-          <div className='flex items-center gap-2'>
-            <Shuffle size={16} className='text-gray-500' />
-            <Typography.Text strong className='text-sm'>
-              Seed
-            </Typography.Text>
-            <Typography.Text className='text-xs text-gray-400'>
-              ({t('可选，用于复现结果')})
-            </Typography.Text>
-          </div>
-          <Button
-            theme={parameterEnabled.seed ? 'solid' : 'borderless'}
-            type={parameterEnabled.seed ? 'primary' : 'tertiary'}
-            size='small'
-            icon={parameterEnabled.seed ? <Check size={10} /> : <X size={10} />}
-            onClick={() => onParameterToggle('seed')}
-            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
-            disabled={disabled}
-          />
-        </div>
-        <Input
-          placeholder={t('随机种子 (留空为随机)')}
-          name='seed'
-          autoComplete='new-password'
-          value={inputs.seed || ''}
-          onChange={(value) =>
-            onInputChange('seed', value === '' ? null : value)
-          }
-          className='!rounded-lg'
-          disabled={!parameterEnabled.seed || disabled}
         />
       </div>
     </>

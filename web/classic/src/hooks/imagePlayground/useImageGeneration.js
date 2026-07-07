@@ -18,6 +18,8 @@ import {
 import {
   IMAGE_API_ENDPOINTS,
   IMAGE_PAGE_CAPABILITY,
+  IMAGE_I2I_CAPABILITY,
+  IMAGE_MAX_EDIT_IMAGES,
   IMAGE_GEN_STATUS,
   IMAGE_HISTORY_LIMIT,
   IMAGE_CONV_TURN_LIMIT,
@@ -26,11 +28,17 @@ import {
   normalizeImageSize,
 } from '../../constants/imagePlayground.constants';
 
-const CONV_STORAGE_KEY = 'image_playground_conversations';
+// 文生图 / 图生图共用本 hook,按 mode 区分能力过滤、请求端点、是否带底图。
+// 两种模式各自独立的历史存储 key,互不串扰。
+const CONV_STORAGE_KEY_BASE = 'image_playground_conversations';
+const storageKeyFor = (mode) =>
+  mode === 'image2image'
+    ? `${CONV_STORAGE_KEY_BASE}_i2i`
+    : CONV_STORAGE_KEY_BASE;
 
-const loadConversations = () => {
+const loadConversations = (storageKey) => {
   try {
-    const raw = localStorage.getItem(CONV_STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
@@ -39,10 +47,18 @@ const loadConversations = () => {
 };
 
 // base64（data: 开头）图片不落 localStorage，避免撑爆配额；仅保留 url 图。
-// 若某条消息的图片全是 base64，落盘时丢弃图片并标记 imagesNotPersisted。
+// 图生图的底图(conv.images / 用户消息 images)也是 base64,同样剥掉——否则一两张
+// 上传图就可能超配额,导致整段历史写入失败。刷新后底图丢失的对话不能再续问
+// (generate 里对 isI2I 底图为空的续问拦截并提示重开对话)。
+const stripImgList = (arr) =>
+  Array.isArray(arr)
+    ? arr.filter((src) => !String(src).startsWith('data:'))
+    : arr;
+
 const stripBase64ForPersist = (list) =>
   list.map((conv) => ({
     ...conv,
+    images: stripImgList(conv.images),
     messages: (conv.messages || []).map((m) => {
       if (!m.images || m.images.length === 0) return m;
       const urlImages = m.images.filter(
@@ -58,10 +74,10 @@ const stripBase64ForPersist = (list) =>
     }),
   }));
 
-const persistConversations = (list) => {
+const persistConversations = (storageKey, list) => {
   try {
     localStorage.setItem(
-      CONV_STORAGE_KEY,
+      storageKey,
       JSON.stringify(stripBase64ForPersist(list.slice(0, IMAGE_HISTORY_LIMIT))),
     );
   } catch (e) {
@@ -72,12 +88,23 @@ const persistConversations = (list) => {
 let idSeq = 0;
 const genId = () => `img-${Date.now()}-${idSeq++}`;
 
-export const useImageGeneration = () => {
+export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
   const { t } = useTranslation();
   const [statusState] = useContext(StatusContext);
   const [userState] = useContext(UserContext);
 
-  const [inputs, setInputs] = useState({ group: '', model: '', size: '' });
+  const isI2I = mode === 'image2image';
+  const pageCapability = isI2I ? IMAGE_I2I_CAPABILITY : IMAGE_PAGE_CAPABILITY;
+  const storageKey = storageKeyFor(mode);
+
+  const [inputs, setInputs] = useState({
+    group: '',
+    model: '',
+    size: '',
+    seed: '', // 随机种子;'' 表示随机(不下发,引擎自动随机)
+    negativePrompt: '', // 负向提示词;生图默认不填
+    imageUrls: [], // 图生图底图（base64 data-url 数组,≤IMAGE_MAX_EDIT_IMAGES）
+  });
   const [groups, setGroups] = useState([]);
   const [models, setModels] = useState([]);
   // 来自 /api/pricing：model -> enable_groups[]（用于分组过滤）
@@ -85,7 +112,9 @@ export const useImageGeneration = () => {
 
   // 以「对话」为单位的历史；每个对话 = { id, group, model, size, title, createdAt, updatedAt, messages: [...] }
   // currentConvId 为 null 表示「新对话」（尚未开始生成）
-  const [conversations, setConversations] = useState(() => loadConversations());
+  const [conversations, setConversations] = useState(() =>
+    loadConversations(storageKey),
+  );
   const [currentConvId, setCurrentConvId] = useState(null);
   const [generating, setGenerating] = useState(false);
 
@@ -133,7 +162,7 @@ export const useImageGeneration = () => {
     const set = new Set();
     Object.entries(sizeConfig.models || {}).forEach(([model, cfg]) => {
       const caps = Array.isArray(cfg?.capabilities) ? cfg.capabilities : [];
-      if (caps.includes(IMAGE_PAGE_CAPABILITY)) set.add(model);
+      if (caps.includes(pageCapability)) set.add(model);
     });
     return set;
   }, [sizeConfig]);
@@ -261,7 +290,7 @@ export const useImageGeneration = () => {
             }
           : c,
       );
-      persistConversations(next);
+      persistConversations(storageKey, next);
       return next;
     });
   }, []);
@@ -272,6 +301,8 @@ export const useImageGeneration = () => {
       const text = (prompt || '').trim();
       if (!text || generating) return;
 
+      // 图生图:底图取自新对话的 inputs.imageUrls;后续追问沿用对话首条锁定的底图。
+      let convImages = [];
       let convId = currentConvId;
       let params;
       if (convId == null) {
@@ -279,11 +310,28 @@ export const useImageGeneration = () => {
           showError(t('请先选择一个图片模型'));
           return;
         }
+        if (isI2I) {
+          const imgs = (inputs.imageUrls || []).filter(Boolean);
+          if (imgs.length === 0) {
+            showError(t('请先上传至少一张底图'));
+            return;
+          }
+          if (imgs.length > IMAGE_MAX_EDIT_IMAGES) {
+            showError(
+              t('最多上传 {{count}} 张底图', { count: IMAGE_MAX_EDIT_IMAGES }),
+            );
+            return;
+          }
+          convImages = imgs;
+        }
         convId = genId();
         params = {
           group: inputs.group,
           model: inputs.model,
           size: normalizeImageSize(inputs.size),
+          seed: inputs.seed,
+          negativePrompt: inputs.negativePrompt,
+          images: convImages,
         };
       } else {
         const conv = conversationsRef.current.find((c) => c.id === convId);
@@ -300,17 +348,43 @@ export const useImageGeneration = () => {
           return;
         }
         params = conv
-          ? { group: conv.group, model: conv.model, size: conv.size }
+          ? {
+              group: conv.group,
+              model: conv.model,
+              size: conv.size,
+              seed: conv.seed,
+              negativePrompt: conv.negativePrompt,
+              images: conv.images || [],
+            }
           : {
               group: inputs.group,
               model: inputs.model,
               size: normalizeImageSize(inputs.size),
+              seed: inputs.seed,
+              negativePrompt: inputs.negativePrompt,
+              images: convImages,
             };
+      }
+
+      // 图生图续问:底图取自锁定的对话;刷新后 base64 底图已从 localStorage 剥离,
+      // 此时无法续问,提示重开对话重新上传(避免向后端发空底图被拒)。
+      if (isI2I) {
+        params.images = (params.images || []).filter(Boolean);
+        if (params.images.length === 0) {
+          showError(t('底图已失效,请开启新对话并重新上传底图'));
+          return;
+        }
       }
 
       const reqId = genId();
       const now = new Date().toISOString();
-      const userMsg = { id: `${reqId}-u`, role: 'user', content: text };
+      const userMsg = {
+        id: `${reqId}-u`,
+        role: 'user',
+        content: text,
+        // 图生图:用户消息展示底图
+        images: isI2I ? params.images || [] : undefined,
+      };
       const asstMsg = {
         id: `${reqId}-a`,
         role: 'assistant',
@@ -331,6 +405,9 @@ export const useImageGeneration = () => {
               group: params.group,
               model: params.model,
               size: params.size,
+              seed: params.seed,
+              negativePrompt: params.negativePrompt,
+              images: params.images || [],
               title: text,
               createdAt: now,
               updatedAt: now,
@@ -347,23 +424,41 @@ export const useImageGeneration = () => {
           next = [conv, ...prev.filter((_, i) => i !== idx)];
         }
         next = next.slice(0, IMAGE_HISTORY_LIMIT);
-        persistConversations(next);
+        persistConversations(storageKey, next);
         return next;
       });
       if (currentConvId == null) setCurrentConvId(convId);
       setGenerating(true);
 
       try {
+        const reqBody = {
+          model: params.model,
+          group: params.group,
+          prompt: text,
+          n: 1,
+          // 不强制 response_format：各供应商返回原生格式（url 或 base64），前端均兼容
+        };
+        // 尺寸/比例仅文生图下发；图生图跟随参考图，不发 size。
+        if (!isI2I) {
+          reqBody.size = normalizeImageSize(params.size);
+        }
+        // 随机种子:非空即下发(整数);留空则不发,由引擎自动随机。
+        if (params.seed !== '' && params.seed != null) {
+          reqBody.seed = Number(params.seed);
+        }
+        // 负向提示词:非空才发(生图默认不填)。gpustackplus 从 Extra 读取,不外泄其它渠道。
+        if (params.negativePrompt && params.negativePrompt.trim()) {
+          reqBody.negative_prompt = params.negativePrompt.trim();
+        }
+        // 图生图:走 edits 端点,带底图数组(gpustackplus 后端接受 image 数组)
+        if (isI2I) {
+          reqBody.image = params.images || [];
+        }
         const res = await API.post(
-          IMAGE_API_ENDPOINTS.IMAGE_GENERATIONS,
-          {
-            model: params.model,
-            group: params.group,
-            prompt: text,
-            size: normalizeImageSize(params.size),
-            n: 1,
-            // 不强制 response_format：各供应商返回原生格式（url 或 base64），前端均兼容
-          },
+          isI2I
+            ? IMAGE_API_ENDPOINTS.IMAGE_EDITS
+            : IMAGE_API_ENDPOINTS.IMAGE_GENERATIONS,
+          reqBody,
           { skipErrorHandler: true },
         );
         const data = res.data || {};
@@ -398,7 +493,7 @@ export const useImageGeneration = () => {
         setGenerating(false);
       }
     },
-    [currentConvId, inputs, generating, patchConvMessage, t],
+    [currentConvId, inputs, generating, patchConvMessage, storageKey, isI2I, t],
   );
 
   const regenerate = useCallback((prompt) => generate(prompt), [generate]);
@@ -410,20 +505,20 @@ export const useImageGeneration = () => {
 
   const clearHistory = useCallback(() => {
     setConversations([]);
-    persistConversations([]);
+    persistConversations(storageKey, []);
     setCurrentConvId(null);
   }, []);
 
   const deleteHistoryItem = useCallback((id) => {
     setConversations((prev) => {
       const next = prev.filter((c) => c.id !== id);
-      persistConversations(next);
+      persistConversations(storageKey, next);
       return next;
     });
     setCurrentConvId((cur) => (cur === id ? null : cur));
   }, []);
 
-  // 点击历史：恢复整段对话，并带出当时锁定的分组/模型/尺寸
+  // 点击历史：恢复整段对话，并带出当时锁定的分组/模型/尺寸/种子
   const openHistoryItem = useCallback((conv) => {
     setCurrentConvId(conv.id);
     setInputs((prev) => ({
@@ -431,10 +526,19 @@ export const useImageGeneration = () => {
       group: conv.group != null ? conv.group : prev.group,
       model: conv.model != null ? conv.model : prev.model,
       size: conv.size != null ? conv.size : prev.size,
+      seed: conv.seed != null ? conv.seed : prev.seed,
+      negativePrompt:
+        conv.negativePrompt != null ? conv.negativePrompt : prev.negativePrompt,
     }));
   }, []);
 
+  // 图生图必须先上传底图:新对话(未锁定)且无底图时发送置灰,
+  // 避免只填提示词就点发送(点了才报错且 Semi 会清空已输入的提示词)。
+  const missingRequiredImage =
+    isI2I && !locked && (inputs.imageUrls || []).length === 0;
+
   return {
+    isI2I,
     inputs,
     handleInputChange,
     groups,
@@ -445,6 +549,7 @@ export const useImageGeneration = () => {
     generating,
     locked,
     turnLimitReached,
+    missingRequiredImage,
     generate,
     regenerate,
     newConversation,

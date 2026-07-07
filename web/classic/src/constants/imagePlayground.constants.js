@@ -1,7 +1,16 @@
 // 图片模型相关常量
 
+// 提示词预设:点击对应按钮清空输入框并填入该提示词(体验区快速试玩)。
+export const IMAGE_PROMPT_PRESETS = [
+  'The ancient battlefield, thousands of troops and horses to fight, the situation is very fierce, countless casualties',
+  'Peach and water photography, light pink background, surreal still life photography, macro shot tropical fruits, translucent textures, rendered in zbrush style, anime aesthetic, fairy tale core, sparkling water droplets, specular reflection, gorgeous colors, 8k',
+  'Stock image, front view, white humidifier placed on the bedside table, white wall, light coming in from the upper left, dappled light and shadow, Scandinavian style, wide-angle shot, central composition, simple background, high-definition, ultra-detailed, high-resolution',
+  "A stunning and vibrant 3D render scene featuring a decadent chocolate strawberry cake with the number '4000' displayed by luxurious candles. The cake is beautifully adorned with colorful confetti, dripping frosting, and a sparkly red ribbon. Surrounding the cake are floating candles, thumbs up icons, and red neon hearts. Iconic superheroes such as Hulk, Spider-Man, Batman, Captain America, and Superman are seen celebrating the momentous occasion. The bold, glowing words 'followers Thank you ideogramers!' are written on the cake, indicating a celebration of a significant milestone among social media followers. The image bears the red neon firm signature \"Hans Darias AI\" and is captured in a cinematic, fashionable style, photo, cinematic, fashion",
+];
+
 export const IMAGE_API_ENDPOINTS = {
   IMAGE_GENERATIONS: '/pg/images/generations',
+  IMAGE_EDITS: '/pg/images/edits',
   IMAGE_PROXY: '/pg/images/proxy',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
@@ -21,8 +30,13 @@ export const IMAGE_CAPABILITIES = [
 
 // 当前图片体验区页面代表的能力（= 标签页名）
 export const IMAGE_PAGE_CAPABILITY = '文生图';
+// 图生图（i2i）能力标签，与文生图共用体验区,通过 mode 区分
+export const IMAGE_I2I_CAPABILITY = '图生图';
+// 图生图最多上传底图数（与后端 gpustackplus maxEditImages / 门面 _MAX_INPUT_IMAGES 对齐）
+export const IMAGE_MAX_EDIT_IMAGES = 5;
 
-// 当管理员未配置时使用的兜底尺寸
+// 当管理员未配置时的全局兜底：用最兼容的精确像素（dall-e/gpt-image 等只认像素的模型也能过）。
+// "默认用宽高比"应通过运营配置的 default 六种比例实现，而非这里的全局兜底。
 export const FALLBACK_IMAGE_SIZES = [
   '1024x1024',
   '1024x1792',

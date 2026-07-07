@@ -1,10 +1,28 @@
 import React from 'react';
-import { Card, Select, Typography, Tooltip } from '@douyinfe/semi-ui';
-import { Settings, Users, Sparkles, Ruler, HelpCircle } from 'lucide-react';
+import {
+  Card,
+  Select,
+  Typography,
+  Tooltip,
+  InputNumber,
+  TextArea,
+} from '@douyinfe/semi-ui';
+import {
+  Settings,
+  Users,
+  Sparkles,
+  Ruler,
+  HelpCircle,
+  Shuffle,
+  Ban,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
+import ImageUrlInput from '../playground/ImageUrlInput';
+import { IMAGE_MAX_EDIT_IMAGES } from '../../constants/imagePlayground.constants';
 
 const ImageConfigPanel = ({
+  isI2I = false,
   inputs,
   groups,
   models,
@@ -116,24 +134,102 @@ const ImageConfigPanel = ({
           />
         </div>
 
-        {/* 图片尺寸 */}
+        {/* 底图上传（仅图生图;锁定/历史态不展示,底图沿用该会话首条） */}
+        {isI2I && !disabled && (
+          <ImageUrlInput
+            label={t('上传底图')}
+            tooltip={t('最多上传 {{count}} 张底图', {
+              count: IMAGE_MAX_EDIT_IMAGES,
+            })}
+            required
+            imageUrls={inputs.imageUrls || []}
+            imageEnabled={true}
+            onImageUrlsChange={(v) =>
+              onInputChange(
+                'imageUrls',
+                (v || []).slice(0, IMAGE_MAX_EDIT_IMAGES),
+              )
+            }
+            onImageEnabledChange={() => {}}
+            disabled={false}
+          />
+        )}
+
+        {/* 图片尺寸（图生图跟随参考图，不显示、不下发） */}
+        {!isI2I && (
+          <div>
+            <div className='flex items-center gap-2 mb-2'>
+              <Ruler size={16} className='text-gray-500' />
+              <Typography.Text strong className='text-sm'>
+                {t('图片尺寸')}
+              </Typography.Text>
+            </div>
+            <Select
+              placeholder={t('请选择尺寸')}
+              name='size'
+              selection
+              onChange={(value) => onInputChange('size', value)}
+              value={inputs.size}
+              optionList={sizeOptions}
+              disabled={disabled}
+              style={{ width: '100%' }}
+              dropdownStyle={{ width: '100%', maxWidth: '100%' }}
+              className='!rounded-lg'
+            />
+          </div>
+        )}
+
+        {/* 负向提示词 */}
         <div>
           <div className='flex items-center gap-2 mb-2'>
-            <Ruler size={16} className='text-gray-500' />
+            <Ban size={16} className='text-gray-500' />
             <Typography.Text strong className='text-sm'>
-              {t('图片尺寸')}
+              {t('负向提示词')}
+            </Typography.Text>
+            <Tooltip
+              content={t("Describe what you don't want included in the image.")}
+              position='top'
+            >
+              <HelpCircle size={14} className='text-gray-400 cursor-help' />
+            </Tooltip>
+          </div>
+          <TextArea
+            placeholder={t('负向提示词(可选)')}
+            name='negativePrompt'
+            value={inputs.negativePrompt || ''}
+            onChange={(value) => onInputChange('negativePrompt', value)}
+            autosize={{ minRows: 2, maxRows: 6 }}
+            disabled={disabled}
+            className='!rounded-lg'
+          />
+        </div>
+
+        {/* 随机种子(seed)—— 常驻,留空为随机 */}
+        <div>
+          <div className='flex items-center gap-2 mb-2'>
+            <Shuffle size={16} className='text-gray-500' />
+            <Typography.Text strong className='text-sm'>
+              {t('随机种子')}
+            </Typography.Text>
+            <Typography.Text className='text-xs text-gray-400'>
+              ({t('留空为随机')})
             </Typography.Text>
           </div>
-          <Select
-            placeholder={t('请选择尺寸')}
-            name='size'
-            selection
-            onChange={(value) => onInputChange('size', value)}
-            value={inputs.size}
-            optionList={sizeOptions}
+          <InputNumber
+            placeholder={t('留空为随机')}
+            name='seed'
+            min={0}
+            precision={0}
+            value={
+              inputs.seed === '' || inputs.seed == null
+                ? undefined
+                : inputs.seed
+            }
+            onChange={(value) =>
+              onInputChange('seed', value === '' || value == null ? '' : value)
+            }
             disabled={disabled}
             style={{ width: '100%' }}
-            dropdownStyle={{ width: '100%', maxWidth: '100%' }}
             className='!rounded-lg'
           />
         </div>
