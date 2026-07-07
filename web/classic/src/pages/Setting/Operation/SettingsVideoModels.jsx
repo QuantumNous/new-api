@@ -14,6 +14,7 @@ import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
 import {
   VIDEO_CAPABILITIES,
+  VIDEO_ASPECT_RATIOS,
   parseVideoModelConfig,
   normalizeSizeList,
   normalizeList,
@@ -31,18 +32,21 @@ export default function SettingsVideoModels(props) {
   // 留空表示“按模型类别自动兜底”（sora 像素/seconds，minimax 720P/duration）
   const [defaultSizes, setDefaultSizes] = useState([]);
   const [defaultDurations, setDefaultDurations] = useState([]);
-  // [{ model, sizes:[], durations:[] }]
+  const [defaultAspectRatios, setDefaultAspectRatios] = useState([]);
+  // [{ model, sizes:[], durations:[], aspectRatios:[] }]
   const [modelRows, setModelRows] = useState([]);
 
   useEffect(() => {
     const cfg = parseVideoModelConfig(props.options?.VideoModelConfig);
     setDefaultSizes(cfg.default.sizes);
     setDefaultDurations(cfg.default.durations);
+    setDefaultAspectRatios(cfg.default.aspectRatios || []);
     setModelRows(
       Object.entries(cfg.models || {}).map(([model, c]) => ({
         model,
         sizes: c.sizes || [],
         durations: c.durations || [],
+        aspectRatios: c.aspectRatios || [],
         capabilities: c.capabilities || [],
       })),
     );
@@ -51,7 +55,13 @@ export default function SettingsVideoModels(props) {
   const addRow = () =>
     setModelRows((prev) => [
       ...prev,
-      { model: '', sizes: [], durations: [], capabilities: [] },
+      {
+        model: '',
+        sizes: [],
+        durations: [],
+        aspectRatios: [],
+        capabilities: [],
+      },
     ]);
   const updateRow = (idx, patch) =>
     setModelRows((prev) =>
@@ -70,6 +80,7 @@ export default function SettingsVideoModels(props) {
         models[name] = {
           sizes: normalizeSizeList(r.sizes),
           durations: normalizeList(r.durations),
+          aspectRatios: normalizeList(r.aspectRatios),
           capabilities: normalizeList(r.capabilities),
         };
       });
@@ -77,6 +88,7 @@ export default function SettingsVideoModels(props) {
         default: {
           sizes: normalizeSizeList(defaultSizes),
           durations: normalizeList(defaultDurations),
+          aspectRatios: normalizeList(defaultAspectRatios),
         },
         models,
       });
@@ -106,7 +118,7 @@ export default function SettingsVideoModels(props) {
       <Form.Section
         text={t('视频模型配置')}
         extraText={t(
-          '声明哪些是视频模型，并为其配置可选尺寸、时长与支持能力。仅勾选了「文生视频」的模型会出现在文生视频体验区，能力也会作为标签在模型广场展示。默认与按模型均留空时，按模型类别自动兜底：sora 类用像素尺寸(720x1280)+秒数，其余(MiniMax 等)用分辨率档位(720P)。下拉支持输入自定义值。',
+          '声明哪些是视频模型，并为其配置可选尺寸、时长与支持能力。仅勾选了「文生视频」的模型会出现在文生视频体验区，能力也会作为标签在模型广场展示。默认与按模型均留空时，按模型类别自动兜底：sora 类用像素尺寸(720x1280)+秒数，其余(MiniMax 等)用分辨率档位(720P)。宽高比为「按需启用」：只有填了宽高比的模型才会在文生视频体验区显示宽高比选择器并据此出分辨率(如 wan2.2-t2v)，未填则不显示、不下发(如 MiniMax 不支持宽高比就别填)。下拉支持输入自定义值。',
         )}
       >
         <div
@@ -140,6 +152,19 @@ export default function SettingsVideoModels(props) {
               optionList={toOptions(defaultDurations)}
               onChange={setDefaultDurations}
               placeholder={t('输入秒数后回车，如 5')}
+              style={{ width: '100%', marginTop: 8 }}
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <Text strong>{t('默认宽高比')}</Text>
+            <Select
+              multiple
+              filter
+              allowCreate
+              value={defaultAspectRatios}
+              optionList={toOptions(VIDEO_ASPECT_RATIOS)}
+              onChange={setDefaultAspectRatios}
+              placeholder={t('如 16:9(留空则不启用宽高比)')}
               style={{ width: '100%', marginTop: 8 }}
             />
           </div>
@@ -190,6 +215,16 @@ export default function SettingsVideoModels(props) {
                   optionList={toOptions(row.durations)}
                   onChange={(v) => updateRow(idx, { durations: v })}
                   placeholder={t('时长(秒)，如 5')}
+                  style={{ flex: 1, minWidth: 140 }}
+                />
+                <Select
+                  multiple
+                  filter
+                  allowCreate
+                  value={row.aspectRatios}
+                  optionList={toOptions(VIDEO_ASPECT_RATIOS)}
+                  onChange={(v) => updateRow(idx, { aspectRatios: v })}
+                  placeholder={t('宽高比,如 16:9')}
                   style={{ flex: 1, minWidth: 140 }}
                 />
                 <Select

@@ -22,11 +22,13 @@ const VideoPlaygroundBody = ({ mode }) => {
     models,
     availableSizes,
     availableDurations,
+    availableAspectRatios,
     messages,
     conversations,
     generating,
     locked,
     turnLimitReached,
+    missingRequiredImage,
     generate,
     regenerate,
     refetch,
@@ -50,6 +52,7 @@ const VideoPlaygroundBody = ({ mode }) => {
           models={models}
           availableSizes={availableSizes}
           availableDurations={availableDurations}
+          availableAspectRatios={availableAspectRatios}
           onInputChange={handleInputChange}
           disabled={locked}
           styleState={styleState}
@@ -61,6 +64,7 @@ const VideoPlaygroundBody = ({ mode }) => {
           messages={messages}
           generating={generating}
           turnLimitReached={turnLimitReached}
+          missingRequiredImage={missingRequiredImage}
           styleState={styleState}
           onSend={generate}
           onRegenerate={regenerate}

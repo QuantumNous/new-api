@@ -101,6 +101,8 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
     group: '',
     model: '',
     size: '',
+    seed: '', // 随机种子;'' 表示随机(不下发,引擎自动随机)
+    negativePrompt: '', // 负向提示词;生图默认不填
     imageUrls: [], // 图生图底图（base64 data-url 数组,≤IMAGE_MAX_EDIT_IMAGES）
   });
   const [groups, setGroups] = useState([]);
@@ -327,6 +329,8 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
           group: inputs.group,
           model: inputs.model,
           size: normalizeImageSize(inputs.size),
+          seed: inputs.seed,
+          negativePrompt: inputs.negativePrompt,
           images: convImages,
         };
       } else {
@@ -348,12 +352,16 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
               group: conv.group,
               model: conv.model,
               size: conv.size,
+              seed: conv.seed,
+              negativePrompt: conv.negativePrompt,
               images: conv.images || [],
             }
           : {
               group: inputs.group,
               model: inputs.model,
               size: normalizeImageSize(inputs.size),
+              seed: inputs.seed,
+              negativePrompt: inputs.negativePrompt,
               images: convImages,
             };
       }
@@ -397,6 +405,8 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
               group: params.group,
               model: params.model,
               size: params.size,
+              seed: params.seed,
+              negativePrompt: params.negativePrompt,
               images: params.images || [],
               title: text,
               createdAt: now,
@@ -429,6 +439,14 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
           n: 1,
           // 不强制 response_format：各供应商返回原生格式（url 或 base64），前端均兼容
         };
+        // 随机种子:非空即下发(整数);留空则不发,由引擎自动随机。
+        if (params.seed !== '' && params.seed != null) {
+          reqBody.seed = Number(params.seed);
+        }
+        // 负向提示词:非空才发(生图默认不填)。gpustackplus 从 Extra 读取,不外泄其它渠道。
+        if (params.negativePrompt && params.negativePrompt.trim()) {
+          reqBody.negative_prompt = params.negativePrompt.trim();
+        }
         // 图生图:走 edits 端点,带底图数组(gpustackplus 后端接受 image 数组)
         if (isI2I) {
           reqBody.image = params.images || [];
@@ -497,7 +515,7 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
     setCurrentConvId((cur) => (cur === id ? null : cur));
   }, []);
 
-  // 点击历史：恢复整段对话，并带出当时锁定的分组/模型/尺寸
+  // 点击历史：恢复整段对话，并带出当时锁定的分组/模型/尺寸/种子
   const openHistoryItem = useCallback((conv) => {
     setCurrentConvId(conv.id);
     setInputs((prev) => ({
@@ -505,8 +523,16 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
       group: conv.group != null ? conv.group : prev.group,
       model: conv.model != null ? conv.model : prev.model,
       size: conv.size != null ? conv.size : prev.size,
+      seed: conv.seed != null ? conv.seed : prev.seed,
+      negativePrompt:
+        conv.negativePrompt != null ? conv.negativePrompt : prev.negativePrompt,
     }));
   }, []);
+
+  // 图生图必须先上传底图:新对话(未锁定)且无底图时发送置灰,
+  // 避免只填提示词就点发送(点了才报错且 Semi 会清空已输入的提示词)。
+  const missingRequiredImage =
+    isI2I && !locked && (inputs.imageUrls || []).length === 0;
 
   return {
     isI2I,
@@ -520,6 +546,7 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
     generating,
     locked,
     turnLimitReached,
+    missingRequiredImage,
     generate,
     regenerate,
     newConversation,

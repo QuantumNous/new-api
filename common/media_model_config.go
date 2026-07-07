@@ -240,6 +240,22 @@ func firstNonEmptyStr(vals ...string) string {
 
 var wxhRe = regexp.MustCompile(`^(\d+)x(\d+)$`)
 
+// DimsFromSize 解析 "WxH"(容忍 × ✕ * 等分隔符与空格)为像素宽高;无法解析
+// (如 "720P"、空串)返回 ok=false。用于把用户选的绝对尺寸透传给引擎,而不是
+// 只保留宽高比——否则引擎会按 aspect_ratio 的离散分辨率表出固定尺寸,忽略用户选择。
+func DimsFromSize(size string) (w, h int, ok bool) {
+	m := wxhRe.FindStringSubmatch(normalizeSizeToken(size))
+	if m == nil {
+		return 0, 0, false
+	}
+	w, _ = strconv.Atoi(m[1])
+	h, _ = strconv.Atoi(m[2])
+	if w <= 0 || h <= 0 {
+		return 0, 0, false
+	}
+	return w, h, true
+}
+
 // AspectRatioFromSize 把 "WxH" 化简为 "W:H"(约分);无法解析(如 "720P")返回空串。
 func AspectRatioFromSize(size string) string {
 	m := wxhRe.FindStringSubmatch(normalizeSizeToken(size))

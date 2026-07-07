@@ -1,5 +1,12 @@
 import React from 'react';
-import { Card, Select, Typography, Tooltip } from '@douyinfe/semi-ui';
+import {
+  Card,
+  Select,
+  Typography,
+  Tooltip,
+  InputNumber,
+  TextArea,
+} from '@douyinfe/semi-ui';
 import {
   Settings,
   Users,
@@ -7,7 +14,9 @@ import {
   Ruler,
   Clock,
   HelpCircle,
-  Image as ImageIcon,
+  Shuffle,
+  Ban,
+  Proportions,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
@@ -21,6 +30,7 @@ const VideoConfigPanel = ({
   models,
   availableSizes,
   availableDurations,
+  availableAspectRatios,
   onInputChange,
   disabled = false,
   styleState,
@@ -28,24 +38,19 @@ const VideoConfigPanel = ({
   const { t } = useTranslation();
 
   // 单帧上传槽:ImageUrlInput 管理数组,这里只取最后一张作为该槽的单帧。
+  // 帧图仅在 i2v/flf2v 模式渲染,均为必填 → 单行标签(上传首帧/尾帧)+ 红星,无启用开关。
   const renderFrameSlot = (label, key) => (
-    <div>
-      <div className='flex items-center gap-2 mb-2'>
-        <ImageIcon size={16} className='text-gray-500' />
-        <Typography.Text strong className='text-sm'>
-          {label}
-        </Typography.Text>
-      </div>
-      <ImageUrlInput
-        imageUrls={inputs[key] ? [inputs[key]] : []}
-        imageEnabled={true}
-        onImageUrlsChange={(v) =>
-          onInputChange(key, (v && v.length ? v[v.length - 1] : '') || '')
-        }
-        onImageEnabledChange={() => {}}
-        disabled={disabled}
-      />
-    </div>
+    <ImageUrlInput
+      label={label}
+      required
+      imageUrls={inputs[key] ? [inputs[key]] : []}
+      imageEnabled={true}
+      onImageUrlsChange={(v) =>
+        onInputChange(key, (v && v.length ? v[v.length - 1] : '') || '')
+      }
+      onImageEnabledChange={() => {}}
+      disabled={false}
+    />
   );
 
   const ensureOption = (options, value) => {
@@ -64,6 +69,10 @@ const VideoConfigPanel = ({
   const durationOptions = ensureOption(
     (availableDurations || []).map((s) => ({ label: `${s}s`, value: s })),
     inputs.seconds,
+  );
+  const aspectRatioOptions = ensureOption(
+    (availableAspectRatios || []).map((r) => ({ label: r, value: r })),
+    inputs.aspectRatio,
   );
 
   return (
@@ -151,10 +160,14 @@ const VideoConfigPanel = ({
           />
         </div>
 
-        {/* 帧图上传(图生视频:首帧;首尾帧:首帧+尾帧) */}
+        {/* 帧图上传(图生视频:首帧;首尾帧:首帧+尾帧;锁定/历史态不展示) */}
         {needsImage &&
-          renderFrameSlot(isFLF2V ? t('首帧') : t('首帧/参考图'), 'firstFrame')}
-        {isFLF2V && renderFrameSlot(t('尾帧'), 'lastFrame')}
+          !disabled &&
+          renderFrameSlot(
+            isFLF2V ? t('上传首帧') : t('上传首帧/参考图'),
+            'firstFrame',
+          )}
+        {isFLF2V && !disabled && renderFrameSlot(t('上传尾帧'), 'lastFrame')}
 
         {/* 尺寸 */}
         <div>
@@ -178,6 +191,30 @@ const VideoConfigPanel = ({
           />
         </div>
 
+        {/* 宽高比(仅文生视频,且该模型在后台配了宽高比才展示;wan 下由此决定输出分辨率) */}
+        {!needsImage && (availableAspectRatios || []).length > 0 && (
+          <div>
+            <div className='flex items-center gap-2 mb-2'>
+              <Proportions size={16} className='text-gray-500' />
+              <Typography.Text strong className='text-sm'>
+                {t('宽高比')}
+              </Typography.Text>
+            </div>
+            <Select
+              placeholder={t('请选择宽高比')}
+              name='aspectRatio'
+              selection
+              onChange={(value) => onInputChange('aspectRatio', value)}
+              value={inputs.aspectRatio}
+              optionList={aspectRatioOptions}
+              disabled={disabled}
+              style={{ width: '100%' }}
+              dropdownStyle={{ width: '100%', maxWidth: '100%' }}
+              className='!rounded-lg'
+            />
+          </div>
+        )}
+
         {/* 时长 */}
         <div>
           <div className='flex items-center gap-2 mb-2'>
@@ -196,6 +233,63 @@ const VideoConfigPanel = ({
             disabled={disabled}
             style={{ width: '100%' }}
             dropdownStyle={{ width: '100%', maxWidth: '100%' }}
+            className='!rounded-lg'
+          />
+        </div>
+
+        {/* 负向提示词(默认预填 Wan 推荐值) */}
+        <div>
+          <div className='flex items-center gap-2 mb-2'>
+            <Ban size={16} className='text-gray-500' />
+            <Typography.Text strong className='text-sm'>
+              {t('负向提示词')}
+            </Typography.Text>
+            <Tooltip
+              content={t(
+                "Describe what you don't want included in the videos.",
+              )}
+              position='top'
+            >
+              <HelpCircle size={14} className='text-gray-400 cursor-help' />
+            </Tooltip>
+          </div>
+          <TextArea
+            placeholder={t('负向提示词(可选)')}
+            name='negativePrompt'
+            value={inputs.negativePrompt || ''}
+            onChange={(value) => onInputChange('negativePrompt', value)}
+            autosize={{ minRows: 2, maxRows: 6 }}
+            disabled={disabled}
+            className='!rounded-lg'
+          />
+        </div>
+
+        {/* 随机种子(seed)—— 常驻,留空为随机 */}
+        <div>
+          <div className='flex items-center gap-2 mb-2'>
+            <Shuffle size={16} className='text-gray-500' />
+            <Typography.Text strong className='text-sm'>
+              {t('随机种子')}
+            </Typography.Text>
+            <Typography.Text className='text-xs text-gray-400'>
+              ({t('留空为随机')})
+            </Typography.Text>
+          </div>
+          <InputNumber
+            placeholder={t('留空为随机')}
+            name='seed'
+            min={0}
+            precision={0}
+            value={
+              inputs.seed === '' || inputs.seed == null
+                ? undefined
+                : inputs.seed
+            }
+            onChange={(value) =>
+              onInputChange('seed', value === '' || value == null ? '' : value)
+            }
+            disabled={disabled}
+            style={{ width: '100%' }}
             className='!rounded-lg'
           />
         </div>
