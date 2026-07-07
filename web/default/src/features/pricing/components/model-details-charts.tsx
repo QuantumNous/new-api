@@ -74,8 +74,19 @@ export function LatencyTrendChart(props: {
 
   const spec = useMemo(() => {
     if (props.series.length === 0) return null
+    // Hour labels collapse multi-day series into one x category (every daily
+    // bucket lands on the same wall-clock hour) — switch to day labels when
+    // the series spans more than 48 hours.
+    const timestamps = props.series.map((p) => Date.parse(p.timestamp))
+    const spanMs = Math.max(...timestamps) - Math.min(...timestamps)
+    const useDayLabels = spanMs > 48 * 60 * 60 * 1000
     const data = props.series.map((point) => ({
-      time: formatHourLabel(point.timestamp),
+      time: useDayLabels
+        ? new Date(point.timestamp).toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+          })
+        : formatHourLabel(point.timestamp),
       group: point.group,
       ttft: point.ttft_ms,
     }))

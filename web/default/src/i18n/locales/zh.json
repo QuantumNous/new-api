@@ -36,7 +36,7 @@
     "{{count}} hours ago": "{{count}} 小时前",
     "{{count}} incidents": "{{count}} 起事件",
     "{{count}} incidents in the last 24 hours": "最近 24 小时 {{count}} 个异常桶",
-    "{{count}} incidents in the last 30 days": "最近 30 天 {{count}} 起事件",
+    "{{count}} incidents in the last 30 days": "最近 30 天 {{count}} 次故障",
     "{{count}} IP(s)": "{{count}} 个 IP",
     "{{count}} item": "{{count}} 项",
     "{{count}} items": "{{count}} 项",
@@ -2866,7 +2866,7 @@
     "No header overrides configured.": "未配置标头覆盖。",
     "No history data available": "暂无历史数据",
     "No incidents in the last 24 hours": "最近 24 小时无异常",
-    "No incidents in the last 30 days": "最近 30 天无事件",
+    "No incidents in the last 30 days": "最近 30 天无故障",
     "No Inviter": "无邀请人",
     "No items configured yet.": "尚未配置项目。",
     "No keys found": "未找到密钥",
@@ -5276,7 +5276,13 @@
     "Top up $10 get $3": "充 $10 送 $3",
     "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "同款 {{official}} 上游，同等质量 —— 充值赠送后至高便宜 33%。只改一行 base_url，现有 OpenAI SDK 直接可用。先在下方试用，准备好再登录。",
     "Pay $10, get $13 in credit": "充 $10 到账 $13",
-    "Weekly token usage by model across the last 30 days": "最近 30 天各模型的每周 Token 用量"
+    "Weekly token usage by model across the last 30 days": "最近 30 天各模型的每周 Token 用量",
+    "Latency trend (last 30 days)": "延迟趋势（最近 30 天）",
+    "Availability (last 30 days)": "可用性（最近 30 天）",
+    "Request success rate; {{incidents}} incident buckets in the last 30 days": "请求成功率；最近 30 天内 {{incidents}} 个故障区间",
+    "Request success rate sampled over the last 30 days": "最近 30 天采样的请求成功率",
+    "Loading performance data…": "性能数据加载中…",
+    "Official price": "官方价"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "已达 Stripe 拉取上限——以下数据被截断，指标偏低。请缩小天数范围以获得完整数据。"
 }

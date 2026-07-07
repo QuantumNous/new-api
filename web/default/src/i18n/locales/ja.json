@@ -36,7 +36,7 @@
     "{{count}} hours ago": "{{count}} 時間前",
     "{{count}} incidents": "{{count}} 件のインシデント",
     "{{count}} incidents in the last 24 hours": "過去 24 時間に {{count}} 件のインシデント",
-    "{{count}} incidents in the last 30 days": "過去 30 日間で {{count}} 件のインシデント",
+    "{{count}} incidents in the last 30 days": "過去30日で {{count}} 件の障害",
     "{{count}} IP(s)": "{{count}} IP",
     "{{count}} item": "{{count}} 件",
     "{{count}} items": "{{count}} 件",
@@ -2866,7 +2866,7 @@
     "No header overrides configured.": "ヘッダーのオーバーライドが設定されていません。",
     "No history data available": "履歴データがありません",
     "No incidents in the last 24 hours": "過去 24 時間にインシデントはありません",
-    "No incidents in the last 30 days": "過去 30 日間でインシデントはありません",
+    "No incidents in the last 30 days": "過去30日間、障害なし",
     "No Inviter": "招待者なし",
     "No items configured yet.": "項目はまだ設定されていません。",
     "No keys found": "キーが見つかりません",
@@ -5276,7 +5276,13 @@
     "Top up $10 get $3": "$10 チャージで $3 進呈",
     "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "同じ {{official}} アップストリーム、同じ品質 — チャージ特典で最大33%お得。base_url を1行変えるだけで、既存の OpenAI SDK がそのまま動きます。まず下で試して、準備ができたらサインイン。",
     "Pay $10, get $13 in credit": "$10 のチャージで $13 分に",
-    "Weekly token usage by model across the last 30 days": "過去30日間のモデル別・週間トークン使用量"
+    "Weekly token usage by model across the last 30 days": "過去30日間のモデル別・週間トークン使用量",
+    "Latency trend (last 30 days)": "レイテンシ推移（過去30日）",
+    "Availability (last 30 days)": "可用性（過去30日）",
+    "Request success rate; {{incidents}} incident buckets in the last 30 days": "リクエスト成功率；過去30日で {{incidents}} 件の障害区間",
+    "Request success rate sampled over the last 30 days": "過去30日間でサンプリングしたリクエスト成功率",
+    "Loading performance data…": "パフォーマンスデータを読み込み中…",
+    "Official price": "公式価格"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Stripe の取得上限に達したため、以下のデータは切り捨てられ、指標は実際より少なくなります。完全な数値には日数範囲を狭めてください。"
 }

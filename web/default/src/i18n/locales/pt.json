@@ -36,7 +36,7 @@
     "{{count}} hours ago": "{{count}} horas atrás",
     "{{count}} incidents": "Incidentes {{count}}",
     "{{count}} incidents in the last 24 hours": "Incidentes {{count}} nas últimas 24 horas",
-    "{{count}} incidents in the last 30 days": "Incidentes {{count}} nos últimos 30 dias",
+    "{{count}} incidents in the last 30 days": "{{count}} incidentes nos últimos 30 dias",
     "{{count}} IP(s)": "{{count}} IP(s)",
     "{{count}} item": "Item {{count}}",
     "{{count}} items": "Itens {{count}}",
@@ -2866,7 +2866,7 @@
     "No header overrides configured.": "Nenhuma substituição de cabeçalho configurada.",
     "No history data available": "Nenhum dado histórico disponível",
     "No incidents in the last 24 hours": "Nenhum incidente nas últimas 24 horas",
-    "No incidents in the last 30 days": "Nenhum incidente nos últimos 30 dias",
+    "No incidents in the last 30 days": "Sem incidentes nos últimos 30 dias",
     "No Inviter": "Sem convidado",
     "No items configured yet.": "Nenhum item configurado ainda.",
     "No keys found": "Nenhuma chave encontrada",
@@ -5276,7 +5276,13 @@
     "Top up $10 get $3": "Recarregue $10 e ganhe $3",
     "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Mesmo upstream da {{official}}, mesma qualidade — com o bônus de recarga fica até 33% mais barato. Mude uma linha do base_url e seu SDK OpenAI existente simplesmente funciona. Teste abaixo e faça login quando estiver pronto.",
     "Pay $10, get $13 in credit": "Pague $10, receba $13 em crédito",
-    "Weekly token usage by model across the last 30 days": "Uso semanal de tokens por modelo nos últimos 30 dias"
+    "Weekly token usage by model across the last 30 days": "Uso semanal de tokens por modelo nos últimos 30 dias",
+    "Latency trend (last 30 days)": "Tendência de latência (últimos 30 dias)",
+    "Availability (last 30 days)": "Disponibilidade (últimos 30 dias)",
+    "Request success rate; {{incidents}} incident buckets in the last 30 days": "Taxa de sucesso; {{incidents}} janelas de incidente em 30 dias",
+    "Request success rate sampled over the last 30 days": "Taxa de sucesso amostrada nos últimos 30 dias",
+    "Loading performance data…": "Carregando dados de desempenho…",
+    "Official price": "Preço oficial"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Limite de busca do Stripe atingido — os dados abaixo estão truncados e as métricas subestimam. Reduza o intervalo de dias para números completos."
 }

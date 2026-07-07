@@ -5276,7 +5276,13 @@
     "Top up $10 get $3": "Nạp $10 tặng $3",
     "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Cùng upstream {{official}}, cùng chất lượng — thưởng nạp giúp rẻ hơn tới 33%. Chỉ đổi một dòng base_url là SDK OpenAI hiện tại chạy ngay. Thử bên dưới, đăng nhập khi sẵn sàng.",
     "Pay $10, get $13 in credit": "Nạp $10, nhận $13 credit",
-    "Weekly token usage by model across the last 30 days": "Mức dùng token hàng tuần theo model trong 30 ngày qua"
+    "Weekly token usage by model across the last 30 days": "Mức dùng token hàng tuần theo model trong 30 ngày qua",
+    "Latency trend (last 30 days)": "Xu hướng độ trễ (30 ngày qua)",
+    "Availability (last 30 days)": "Độ khả dụng (30 ngày qua)",
+    "Request success rate; {{incidents}} incident buckets in the last 30 days": "Tỷ lệ thành công; {{incidents}} khoảng sự cố trong 30 ngày qua",
+    "Request success rate sampled over the last 30 days": "Tỷ lệ thành công lấy mẫu trong 30 ngày qua",
+    "Loading performance data…": "Đang tải dữ liệu hiệu năng…",
+    "Official price": "Giá chính thức"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Đã đạt giới hạn truy xuất Stripe — dữ liệu bên dưới bị cắt bớt và các chỉ số bị thiếu hụt. Hãy thu hẹp phạm vi ngày để có số liệu đầy đủ."
 }

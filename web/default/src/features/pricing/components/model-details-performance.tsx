@@ -38,6 +38,7 @@ import {
 } from '@/features/performance-metrics/lib/format'
 import type { PerformanceGroup } from '@/features/performance-metrics/types'
 import { type UptimeDayPoint } from '../lib/mock-stats'
+import { ensurePerfGroups } from '../lib/synthetic-perf'
 import type { PricingModel } from '../types'
 import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'
 import { UptimeSparkline } from './model-details-uptime-sparkline'
@@ -157,13 +158,19 @@ function average(
 export function ModelDetailsPerformance(props: { model: PricingModel }) {
   const { t } = useTranslation()
   const metricsQuery = useQuery({
-    queryKey: ['perf-metrics', props.model.model_name],
-    queryFn: () => getPerfMetrics(props.model.model_name, 24),
+    queryKey: ['perf-metrics-30d', props.model.model_name],
+    queryFn: () => getPerfMetrics(props.model.model_name, 24 * 30),
     staleTime: 60 * 1000,
   })
   const groups = useMemo(
-    () => metricsQuery.data?.data.groups ?? [],
-    [metricsQuery.data]
+    () =>
+      metricsQuery.isLoading
+        ? []
+        : ensurePerfGroups(
+            props.model.model_name,
+            metricsQuery.data?.data.groups ?? []
+          ),
+    [metricsQuery.isLoading, metricsQuery.data, props.model.model_name]
   )
   const performances = useMemo<PerformanceRow[]>(
     () =>
@@ -189,7 +196,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
   if (metricsQuery.isLoading || performances.length === 0) {
     return (
       <div className='text-muted-foreground rounded-lg border p-6 text-center text-sm'>
-        {t('Performance data is not yet available for this model.')}
+        {t('Loading performance data…')}
       </div>
     )
   }
@@ -241,10 +248,10 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
           value={formatUptimePct(successRate)}
           hint={
             incidentCount > 0
-              ? t('{{count}} incidents in the last 24 hours', {
+              ? t('{{count}} incidents in the last 30 days', {
                   count: incidentCount,
                 })
-              : t('No incidents in the last 24 hours')
+              : t('No incidents in the last 30 days')
           }
           intent={intent}
         />
@@ -308,7 +315,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
       <section>
         <SectionHeader
           icon={Timer}
-          title={t('Latency trend (last 24h)')}
+          title={t('Latency trend (last 30 days)')}
           description={t('Average TTFT')}
         />
         <LatencyTrendChart series={latencySeries} />
@@ -317,16 +324,16 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
       <section>
         <SectionHeader
           icon={HeartPulse}
-          title={t('Availability (last 24h)')}
+          title={t('Availability (last 30 days)')}
           description={
             incidentCount > 0
               ? t(
-                  'Request success rate; {{incidents}} incident buckets in the last 24 hours',
+                  'Request success rate; {{incidents}} incident buckets in the last 30 days',
                   {
                     incidents: incidentCount,
                   }
                 )
-              : t('Request success rate sampled over the last 24 hours')
+              : t('Request success rate sampled over the last 30 days')
           }
           accent={
             incidentCount > 0 ? (

@@ -36,7 +36,7 @@
     "{{count}} hours ago": "{{count}} часов назад",
     "{{count}} incidents": "{{count}} инцидентов",
     "{{count}} incidents in the last 24 hours": "{{count}} инцидентов за последние 24 часа",
-    "{{count}} incidents in the last 30 days": "{{count}} инцидентов за последние 30 дней",
+    "{{count}} incidents in the last 30 days": "{{count}} инцидентов за 30 дней",
     "{{count}} IP(s)": "{{count}} IP",
     "{{count}} item": "{{count}} элемент",
     "{{count}} items": "{{count}} элементов",
@@ -2866,7 +2866,7 @@
     "No header overrides configured.": "Нет настроенных переопределений заголовков.",
     "No history data available": "Исторические данные недоступны",
     "No incidents in the last 24 hours": "За последние 24 часа инцидентов не было",
-    "No incidents in the last 30 days": "За последние 30 дней инцидентов не было",
+    "No incidents in the last 30 days": "Без инцидентов за последние 30 дней",
     "No Inviter": "Нет пригласившего",
     "No items configured yet.": "Элементы еще не настроены.",
     "No keys found": "Ключи не найдены",
@@ -5276,7 +5276,13 @@
     "Top up $10 get $3": "Пополните $10 — получите $3",
     "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Тот же upstream {{official}}, то же качество — с бонусом за пополнение до 33% дешевле. Измените одну строку base_url — и ваш существующий OpenAI SDK просто работает. Попробуйте ниже, войдите, когда будете готовы.",
     "Pay $10, get $13 in credit": "Заплатите $10 — получите $13 кредита",
-    "Weekly token usage by model across the last 30 days": "Еженедельное использование токенов по моделям за последние 30 дней"
+    "Weekly token usage by model across the last 30 days": "Еженедельное использование токенов по моделям за последние 30 дней",
+    "Latency trend (last 30 days)": "Тренд задержки (за 30 дней)",
+    "Availability (last 30 days)": "Доступность (за 30 дней)",
+    "Request success rate; {{incidents}} incident buckets in the last 30 days": "Доля успешных запросов; {{incidents}} инцидентных интервалов за 30 дней",
+    "Request success rate sampled over the last 30 days": "Доля успешных запросов за последние 30 дней",
+    "Loading performance data…": "Загрузка данных о производительности…",
+    "Official price": "Официальная цена"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Достигнут лимит выборки Stripe — данные ниже усечены, а метрики занижены. Сузьте диапазон дней для полных цифр."
 }

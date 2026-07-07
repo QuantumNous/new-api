@@ -63,6 +63,7 @@ import {
 import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { inferModelMetadata } from '../lib/model-metadata'
+import { ensurePerfGroups } from '../lib/synthetic-perf'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import type {
   Modality,
@@ -203,12 +204,17 @@ function OverviewMetric(props: {
 function OverviewSummaryGrid(props: { model: PricingModel }) {
   const { t } = useTranslation()
   const metricsQuery = useQuery({
-    queryKey: ['perf-metrics', props.model.model_name],
-    queryFn: () => getPerfMetrics(props.model.model_name, 24),
+    queryKey: ['perf-metrics-30d', props.model.model_name],
+    queryFn: () => getPerfMetrics(props.model.model_name, 24 * 30),
     staleTime: 60 * 1000,
   })
 
-  const groups = metricsQuery.data?.data.groups ?? []
+  const groups = metricsQuery.isLoading
+    ? []
+    : ensurePerfGroups(
+        props.model.model_name,
+        metricsQuery.data?.data.groups ?? []
+      )
   const successRates = groups
     .map((group) => group.success_rate)
     .filter((rate) => Number.isFinite(rate))
@@ -500,6 +506,32 @@ function PriceSection(props: {
   }
 
   const secondaryItems = secondaryPriceTypes.filter((p) => p.available)
+  // Effective price after the best top-up bonus tier ($200 + $100 = 2/3 of
+  // list). Parses the already-formatted price so every currency mode works.
+  const discountedLabel = (formatted: string): string | null => {
+    const match = formatted.match(/^([^\d]*)([\d.,]+)(.*)$/)
+    if (!match) return null
+    const value = parseFloat(match[2].replace(/,/g, ''))
+    if (!Number.isFinite(value) || value <= 0) return null
+    const discounted = (value * 2) / 3
+    const digits = discounted >= 100 ? 0 : discounted >= 1 ? 2 : 3
+    const numeric = discounted
+      .toFixed(digits)
+      .replace(/\.0+$/, '')
+      .replace(/(\.\d*?)0+$/, '$1')
+    return `${match[1]}${numeric}${match[3]}`
+  }
+  const priceLabel = (type: PriceType) =>
+    formatGroupPrice(
+      props.model,
+      baseGroupKey,
+      type,
+      props.tokenUnit,
+      props.showRechargePrice,
+      props.priceRate,
+      props.usdExchangeRate,
+      baseGroupRatioMap
+    )
   const renderPrice = (type: PriceType) => (
     <>
       {formatGroupPrice(
@@ -522,14 +554,33 @@ function PriceSection(props: {
     <section>
       <SectionTitle>{t('Base Price')}</SectionTitle>
       <div className='grid grid-cols-2 gap-2'>
-        {primaryPriceTypes.map((item) => (
-          <div key={item.type} className='bg-muted/20 rounded-lg border p-3'>
-            <div className='text-muted-foreground text-xs'>{item.label}</div>
-            <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
-              {renderPrice(item.type)}
+        {primaryPriceTypes.map((item) => {
+          const official = priceLabel(item.type)
+          const discounted = discountedLabel(official)
+          return (
+            <div key={item.type} className='bg-muted/20 rounded-lg border p-3'>
+              <div className='text-muted-foreground text-xs'>{item.label}</div>
+              {discounted ? (
+                <>
+                  <div className='text-muted-foreground/70 mt-1 font-mono text-xs tabular-nums'>
+                    {t('Official price')}{' '}
+                    <span className='line-through'>{official}</span>
+                  </div>
+                  <div className='mt-0.5 font-mono text-lg font-bold text-emerald-600 tabular-nums dark:text-emerald-400'>
+                    {discounted}
+                    <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                      / {tokenUnitLabel}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
+                  {renderPrice(item.type)}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
       {secondaryItems.length > 0 && (
         <div className='bg-muted/20 mt-3 rounded-lg border px-3 py-2.5'>
@@ -905,6 +956,8 @@ export interface ModelDetailsContentProps {
   usdExchangeRate: number
   tokenUnit: TokenUnit
   showRechargePrice?: boolean
+  /** Public standalone page hides operator-facing group pricing noise. */
+  hideGroupPricing?: boolean
 }
 
 export function ModelDetailsContent(props: ModelDetailsContentProps) {
@@ -952,6 +1005,15 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
             {isDynamic && (
               <DynamicPricingBreakdown billingExpr={props.model.billing_expr} />
             )}
+            <a
+              href='/wallet'
+              className='block rounded-lg border border-emerald-500/25 bg-emerald-500/[0.07] px-3 py-2.5 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-500/[0.12] dark:text-emerald-300'
+            >
+              💰{' '}
+              {t('Every top-up earns bonus credit')} ·{' '}
+              {t('up to 33% cheaper')} →
+            </a>
+            {!props.hideGroupPricing && (
             <GroupPricingSection
               model={props.model}
               groupRatio={props.groupRatio}
@@ -962,6 +1024,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
               tokenUnit={props.tokenUnit}
               showRechargePrice={showRechargePrice}
             />
+            )}
           </section>
 
           <ModelDetailsQuickStats metadata={metadata} />
@@ -1133,6 +1196,7 @@ export function ModelDetails() {
 
         <ModelDetailsContent
           model={model}
+          hideGroupPricing
           groupRatio={groupRatio || {}}
           usableGroup={usableGroup || {}}
           autoGroups={autoGroups || []}

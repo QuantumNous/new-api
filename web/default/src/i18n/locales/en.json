@@ -5276,7 +5276,13 @@
     "Top up $10 get $3": "Top up $10 get $3",
     "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.": "Same {{official}} upstream, same quality — top-up bonus makes it up to 33% cheaper. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.",
     "Pay $10, get $13 in credit": "Pay $10, get $13 in credit",
-    "Weekly token usage by model across the last 30 days": "Weekly token usage by model across the last 30 days"
+    "Weekly token usage by model across the last 30 days": "Weekly token usage by model across the last 30 days",
+    "Latency trend (last 30 days)": "Latency trend (last 30 days)",
+    "Availability (last 30 days)": "Availability (last 30 days)",
+    "Request success rate; {{incidents}} incident buckets in the last 30 days": "Request success rate; {{incidents}} incident buckets in the last 30 days",
+    "Request success rate sampled over the last 30 days": "Request success rate sampled over the last 30 days",
+    "Loading performance data…": "Loading performance data…",
+    "Official price": "Official price"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers."
 }
