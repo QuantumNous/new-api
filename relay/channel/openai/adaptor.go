@@ -508,7 +508,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		// 写入所有非文件字段
 		if mf != nil {
 			for key, values := range mf.Value {
-				if key == "model" {
+				if key == "model" || key == "group" {
 					continue
 				}
 				if info.ChannelType == constant.ChannelTypeOpenAI && request.Model == "gpt-image-2" && key == "response_format" {
