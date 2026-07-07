@@ -18,10 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
-import { formatTokens } from '../lib/format'
+import { formatShare, formatTokens } from '../lib/format'
+import { modelIconName } from '../lib/model-icon'
 import type { ModelRanking } from '../types'
-import { ModelLink, VendorLink } from './entity-links'
-import { GrowthText } from './growth-text'
+import { ModelLink } from './entity-links'
 
 type ModelLeaderboardProps = {
   rows: ModelRanking[]
@@ -33,13 +33,12 @@ type ModelLeaderboardProps = {
 }
 
 /**
- * Two-column model leaderboard list: "rank · model
- * (with vendor below) · tokens (with growth below)" rendering. Splits
- * `rows` evenly between the two columns so the visual rhythm matches a
- * single ranked list rather than two independent lists.
+ * Two-column model leaderboard list: "rank · model · tokens (with share
+ * below)" rendering. Splits `rows` evenly between the two columns so the
+ * visual rhythm matches a single ranked list rather than two independent
+ * lists.
  *
- * Both the model name and vendor name are clickable: model jumps to
- * `/pricing/{modelName}` and vendor jumps to `/pricing?vendor={vendor}`.
+ * The model name is clickable and jumps to `/pricing/{modelName}`.
  */
 export function ModelLeaderboard(props: ModelLeaderboardProps) {
   const limited = props.limit ? props.rows.slice(0, props.limit) : props.rows
@@ -81,7 +80,10 @@ function ModelList(props: {
             {row.rank}.
           </span>
           <span className='shrink-0'>
-            {getLobeIcon(row.vendor_icon, compact ? 20 : 22)}
+            {getLobeIcon(
+              modelIconName(row.model_name, row.vendor_icon),
+              compact ? 20 : 22
+            )}
           </span>
           <div className='min-w-0 flex-1'>
             <ModelLink
@@ -94,18 +96,6 @@ function ModelList(props: {
             >
               {row.model_name}
             </ModelLink>
-            <p
-              className={
-                compact
-                  ? 'text-muted-foreground/80 truncate text-[11px] italic'
-                  : 'text-muted-foreground/80 truncate text-xs italic'
-              }
-            >
-              by{' '}
-              <VendorLink vendor={row.vendor}>
-                {row.vendor.toLowerCase()}
-              </VendorLink>
-            </p>
           </div>
           <div className='shrink-0 text-right'>
             <div
@@ -125,10 +115,14 @@ function ModelList(props: {
                 </>
               )}
             </div>
-            <GrowthText
-              value={row.growth_pct}
-              className={compact ? 'text-[10px]' : 'text-[11px]'}
-            />
+            <div
+              className={
+                'text-muted-foreground font-mono tabular-nums ' +
+                (compact ? 'text-[10px]' : 'text-[11px]')
+              }
+            >
+              {formatShare(row.share)}
+            </div>
           </div>
         </li>
       ))}
