@@ -47,34 +47,49 @@ const botProtectionSchema = z.object({
   TurnstileCheckEnabled: z.boolean(),
   TurnstileSiteKey: z.string().optional(),
   TurnstileSecretKey: z.string().optional(),
+  TurnstileSecretKeyConfigured: z.boolean().optional(),
 })
 
 type BotProtectionFormValues = z.infer<typeof botProtectionSchema>
 
 type BotProtectionSectionProps = {
-  defaultValues: BotProtectionFormValues
+  defaultValues: Omit<BotProtectionFormValues, 'TurnstileSecretKeyConfigured'>
+  turnstileSecretKeyConfigured?: boolean
 }
 
 export function BotProtectionSection({
   defaultValues,
+  turnstileSecretKeyConfigured = false,
 }: BotProtectionSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
   const form = useForm<BotProtectionFormValues>({
     resolver: zodResolver(botProtectionSchema),
-    defaultValues,
+    defaultValues: {
+      ...defaultValues,
+      TurnstileSecretKeyConfigured: turnstileSecretKeyConfigured,
+    },
   })
 
   useEffect(() => {
-    form.reset(defaultValues)
-  }, [defaultValues, form])
+    form.reset({
+      ...defaultValues,
+      TurnstileSecretKeyConfigured: turnstileSecretKeyConfigured,
+    })
+  }, [defaultValues, form, turnstileSecretKeyConfigured])
 
   const onSubmit = async (data: BotProtectionFormValues) => {
-    const updates = Object.entries(data).filter(
-      ([key, value]) =>
-        value !== defaultValues[key as keyof BotProtectionFormValues]
-    )
+    const updates = Object.entries(data).filter(([key, value]) => {
+      if (key === 'TurnstileSecretKeyConfigured') return false
+      if (
+        key === 'TurnstileSecretKey' &&
+        (value === '' || value === undefined)
+      ) {
+        return false
+      }
+      return value !== defaultValues[key as keyof typeof defaultValues]
+    })
 
     for (const [key, value] of updates) {
       await updateOption.mutateAsync({ key, value: value ?? '' })
@@ -139,11 +154,20 @@ export function BotProtectionSection({
                 <FormControl>
                   <Input
                     type='password'
-                    placeholder={t('Your Turnstile secret key')}
+                    placeholder={
+                      turnstileSecretKeyConfigured
+                        ? t('Leave blank to keep the existing key')
+                        : t('Your Turnstile secret key')
+                    }
                     autoComplete='new-password'
                     {...field}
                   />
                 </FormControl>
+                {turnstileSecretKeyConfigured ? (
+                  <FormDescription>
+                    {t('Leave blank to keep the existing key')}
+                  </FormDescription>
+                ) : null}
                 <FormMessage />
               </FormItem>
             )}

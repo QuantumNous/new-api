@@ -57,6 +57,24 @@ func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}
 	}
 }
 
+// optionKeysExposedToAdmin lists option keys that should be returned by
+// GET /api/option/ even though they match sensitive suffix heuristics.
+// TurnstileSiteKey is public (also exposed via /api/status for login widgets).
+var optionKeysExposedToAdmin = map[string]struct{}{
+	"TurnstileSiteKey": {},
+}
+
+func isSensitiveOptionKey(key string) bool {
+	if _, ok := optionKeysExposedToAdmin[key]; ok {
+		return false
+	}
+	return strings.HasSuffix(key, "Token") ||
+		strings.HasSuffix(key, "Secret") ||
+		strings.HasSuffix(key, "Key") ||
+		strings.HasSuffix(key, "secret") ||
+		strings.HasSuffix(key, "api_key")
+}
+
 func buildCompletionRatioMetaValue(optionValues map[string]string) string {
 	modelNames := make(map[string]struct{})
 	for _, key := range completionRatioMetaOptionKeys {
@@ -78,15 +96,11 @@ func buildCompletionRatioMetaValue(optionValues map[string]string) string {
 func GetOptions(c *gin.Context) {
 	var options []*model.Option
 	optionValues := make(map[string]string)
+	turnstileSecretConfigured := false
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
 		value := common.Interface2String(v)
-		isSensitiveKey := strings.HasSuffix(k, "Token") ||
-			strings.HasSuffix(k, "Secret") ||
-			strings.HasSuffix(k, "Key") ||
-			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key")
-		if isSensitiveKey {
+		if isSensitiveOptionKey(k) {
 			continue
 		}
 		options = append(options, &model.Option{
@@ -100,7 +114,14 @@ func GetOptions(c *gin.Context) {
 			}
 		}
 	}
+	turnstileSecretConfigured = common.TurnstileSecretKey != ""
 	common.OptionMapRWMutex.Unlock()
+	if turnstileSecretConfigured {
+		options = append(options, &model.Option{
+			Key:   "TurnstileSecretKeyConfigured",
+			Value: "true",
+		})
+	}
 	options = append(options, &model.Option{
 		Key:   "CompletionRatioMeta",
 		Value: buildCompletionRatioMetaValue(optionValues),
