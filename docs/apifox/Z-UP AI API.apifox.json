@@ -39325,7 +39325,7 @@
                 "responseExamples": [
                   {
                     "name": "成功示例",
-                    "data": "{\n  \"message\": \"success\",\n  \"data\": {\n    \"pay_link\": \"https://checkout.stripe.com/c/pay/cs_test_xxx\"\n  }\n}",
+                    "data": "{\n  \"message\": \"success\",\n  \"data\": {\n    \"pay_link\": \"https://checkout.stripe.com/c/pay/cs_test_xxx\",\n    \"trade_no\": \"sub_ref_xxx\"\n  }\n}",
                     "responseId": "195498254",
                     "description": "",
                     "oasKey": "",
