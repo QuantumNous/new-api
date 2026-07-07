@@ -21,6 +21,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
 import { OFFICIAL_WEBSITE_ORIGIN, officialWebsiteUrl } from '@/lib/origins'
+import i18n from '@/i18n/config'
 import { Rankings } from '@/features/rankings'
 
 const rankingsSearchSchema = z.object({
@@ -37,7 +38,9 @@ export const Route = createFileRoute('/rankings/')({
     // single public rankings surface — hand old console links over to it.
     // Without a configured origin (local dev, self-host) keep the local page.
     if (OFFICIAL_WEBSITE_ORIGIN) {
-      window.location.replace(officialWebsiteUrl('/rankings'))
+      const lang = (i18n.language || 'en').split('-')[0]
+      const path = lang && lang !== 'en' ? `/${lang}/rankings` : '/rankings'
+      window.location.replace(officialWebsiteUrl(path))
       await new Promise(() => {})
     }
     const access = await getFreshModuleAccess('rankings')

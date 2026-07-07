@@ -22,14 +22,14 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FlatkeyBrandLogo } from '@/components/brand/flatkey-brand-logo'
 import { LanguageSwitcher } from '@/components/language-switcher'
-import { OFFICIAL_WEBSITE_ORIGIN, officialWebsiteUrl } from '@/lib/origins'
+import { OFFICIAL_WEBSITE_ORIGIN, localizedWebsitePath, officialWebsiteUrl } from '@/lib/origins'
 
 type AuthLayoutProps = {
   children: React.ReactNode
 }
 
 export function AuthLayout({ children }: AuthLayoutProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { systemName, loading } = useSystemConfig()
 
   return (
@@ -66,7 +66,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         // When a separate marketing site is configured, the logo links out to its home
         // (OpenRouter-style). Otherwise fall back to the in-app root.
         return OFFICIAL_WEBSITE_ORIGIN ? (
-          <a href={officialWebsiteUrl('/')} className={logoClassName}>
+          <a href={officialWebsiteUrl(localizedWebsitePath(i18n.language, '/'))} className={logoClassName}>
             {logoInner}
           </a>
         ) : (

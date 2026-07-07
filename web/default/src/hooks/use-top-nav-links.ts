@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
-import { officialWebsiteUrl } from '@/lib/origins'
+import { localizedWebsitePath, officialWebsiteUrl } from '@/lib/origins'
 import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
 import { useStatus } from '@/hooks/use-status'
 
@@ -45,7 +45,7 @@ export type TopNavLink = {
  * /docs and /about routes are no longer surfaced here.
  */
 export function useTopNavLinks(): TopNavLink[] {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { status } = useStatus()
   const { auth } = useAuthStore()
 
@@ -62,8 +62,12 @@ export function useTopNavLinks(): TopNavLink[] {
 
   // Mirror the official website header (Home, Blog, Pricing, Models,
   // Rankings, Contact us) so public console pages align with the site.
+  // Carry the console UI language as the website locale path prefix so the
+  // language choice survives the hop (English lives at the root path).
+  const localizedPath = (path: string) =>
+    localizedWebsitePath(i18n.language, path)
   const websiteLink = (title: string, path: string): TopNavLink => {
-    const href = officialWebsiteUrl(path)
+    const href = officialWebsiteUrl(localizedPath(path))
     return { title, href, external: href.startsWith('http') }
   }
 
@@ -74,7 +78,7 @@ export function useTopNavLinks(): TopNavLink[] {
   const pricing = modules?.pricing
   if (pricing && typeof pricing === 'object' && pricing.enabled) {
     const requiresAuth = pricing.requireAuth && !isAuthed
-    const href = officialWebsiteUrl('/pricing')
+    const href = officialWebsiteUrl(localizedPath('/pricing'))
     links.push({
       title: t('Pricing'),
       href,
@@ -90,7 +94,7 @@ export function useTopNavLinks(): TopNavLink[] {
   const rankings = modules?.rankings
   if (rankings && typeof rankings === 'object' && rankings.enabled) {
     const requiresAuth = rankings.requireAuth && !isAuthed
-    const href = officialWebsiteUrl('/rankings')
+    const href = officialWebsiteUrl(localizedPath('/rankings'))
     links.push({
       title: t('Rankings'),
       href,

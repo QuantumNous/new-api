@@ -12,7 +12,7 @@ import {
 import { PricingExplorer } from "@/components/pricing-explorer";
 import { FlatkeyTallyEmbed } from "@/components/flatkey-tally-embed";
 import type { Locale } from "@/lib/locales";
-import { SIGN_UP_URL, pricingCheckoutUrl } from "@/lib/pricing-links";
+import { pricingCheckoutUrl, signUpUrlForLocale } from "@/lib/pricing-links";
 
 type PricingPageProps = {
   locale: Locale;
@@ -796,7 +796,7 @@ function stripeLookupKey(currency: PricingCurrency, amountMinor: number): string
   return `topup-${currency.toLowerCase()}-${amountMinor}`;
 }
 
-function checkoutPlanFields(currency: PricingCurrency, index: number) {
+function checkoutPlanFields(currency: PricingCurrency, index: number, locale?: Locale) {
   const displayAmount = localizedTopUpAmount(currency, index);
   const amount = topUpPackageAmount(index);
   const amountMinor = topUpAmountMinor(currency, displayAmount);
@@ -808,12 +808,15 @@ function checkoutPlanFields(currency: PricingCurrency, index: number) {
     amount,
     amountMinor,
     stripeLookupKey: lookupKey,
-    checkoutUrl: pricingCheckoutUrl({
-      amount,
-      currency,
-      amountMinor,
-      stripeLookupKey: lookupKey,
-    }),
+    checkoutUrl: pricingCheckoutUrl(
+      {
+        amount,
+        currency,
+        amountMinor,
+        stripeLookupKey: lookupKey,
+      },
+      locale
+    ),
   };
 }
 
@@ -830,7 +833,7 @@ export function getPricingPlans(locale: Locale): PricingPlan[] {
       badge: copy.popularBadge,
       discount: copy.bonus10Label,
       featured: true,
-      ...checkoutPlanFields(currency, 0),
+      ...checkoutPlanFields(currency, 0, locale),
       features: [copy.trustSignals[0], copy.packageBullets[3], copy.packageBullets[4], copy.packageBullets[5]],
     },
     {
@@ -841,7 +844,7 @@ export function getPricingPlans(locale: Locale): PricingPlan[] {
       cta: topUpPlanName(currency, 1, copy),
       discount: copy.bonus20Label,
       featured: false,
-      ...checkoutPlanFields(currency, 1),
+      ...checkoutPlanFields(currency, 1, locale),
       features: [copy.packageBullets[2], copy.trustSignals[1], copy.trustSignals[2], copy.trustSignals[3]],
     },
     {
@@ -852,7 +855,7 @@ export function getPricingPlans(locale: Locale): PricingPlan[] {
       cta: topUpPlanName(currency, 2, copy),
       discount: copy.bonus200Label,
       featured: false,
-      ...checkoutPlanFields(currency, 2),
+      ...checkoutPlanFields(currency, 2, locale),
       features: [copy.highestPrepaidValue, copy.trustSignals[1], copy.trustSignals[2], copy.trustSignals[3]],
     },
     {
@@ -1033,7 +1036,7 @@ function PricingPackages(props: { locale: Locale }) {
           </div>
           <a
             className="flatkey-primary-cta mt-6 inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(15,23,42,0.55)] transition-opacity hover:opacity-90"
-            href={SIGN_UP_URL}
+            href={signUpUrlForLocale(props.locale)}
           >
             {copy.getFreeApiKey}
             <ArrowRight className="ml-2 size-4" />
@@ -1059,7 +1062,7 @@ function PricingPackages(props: { locale: Locale }) {
             </div>
             <a
               className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-emerald-600 px-4 text-sm font-bold text-white shadow-[0_16px_34px_-18px_rgba(5,150,105,0.75)] transition-colors hover:bg-emerald-500"
-              href={SIGN_UP_URL}
+              href={signUpUrlForLocale(props.locale)}
             >
               {copy.getFreeApiKey}
               <ArrowRight className="ml-2 size-4" />

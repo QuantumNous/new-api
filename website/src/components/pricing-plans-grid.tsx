@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, CheckCircle2, X } from "lucide-react";
 import { FlatkeyTallyEmbed } from "@/components/flatkey-tally-embed";
 import type { Locale } from "@/lib/locales";
-import { SIGN_UP_URL } from "@/lib/pricing-links";
+import { signUpUrlForLocale } from "@/lib/pricing-links";
 import type { PricingPlan } from "@/components/pricing-page";
 
 type PricingPlansGridContactCopy = {
@@ -74,7 +74,7 @@ export function PricingPlansGrid(props: PricingPlansGridProps) {
               </button>
             ) : (
               <a
-                href={plan.checkoutUrl ?? SIGN_UP_URL}
+                href={plan.checkoutUrl ?? signUpUrlForLocale(props.locale)}
                 className={[
                   "mt-6 inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-bold transition-colors",
                   plan.featured ? "bg-violet-600 !text-white hover:bg-violet-500 dark:bg-violet-500 dark:hover:bg-violet-400" : "border border-violet-500/18 bg-violet-500/8 text-violet-700 hover:bg-violet-500/12 dark:border-violet-300/20 dark:bg-violet-300/10 dark:text-violet-100 dark:hover:bg-violet-300/15",

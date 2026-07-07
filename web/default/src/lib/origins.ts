@@ -24,6 +24,19 @@ export const OFFICIAL_WEBSITE_ORIGIN = normalizeOrigin(
   import.meta.env.VITE_OFFICIAL_WEBSITE_ORIGIN as string | undefined
 )
 
+/**
+ * Locale-prefixed website path: the console UI language maps to the website's
+ * /{locale} routes (English lives at the root). Keeps the language choice
+ * when hopping console → website.
+ */
+export function localizedWebsitePath(
+  language: string | undefined,
+  path: string
+): string {
+  const lang = (language || 'en').split('-')[0]
+  return lang && lang !== 'en' ? `/${lang}${path === '/' ? '' : path}` : path
+}
+
 export function officialWebsiteUrl(
   path: string,
   origin = OFFICIAL_WEBSITE_ORIGIN

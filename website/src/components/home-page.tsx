@@ -16,7 +16,6 @@ import { getPricingData } from "@/lib/pricing";
 
 // "Start free trial" lands the user straight on the console API Keys tab:
 // already-authenticated users skip the form, new users land on /keys after signing up.
-const SIGN_UP_URL = consoleUrl("/sign-up", "?redirect=/keys");
 const API_BASE_URL = `${ROUTER_ORIGIN}/v1`;
 
 type Props = {
@@ -40,6 +39,7 @@ export async function HomePage(props: Props) {
 
   const apiBaseUrlDescription = (text: string) => text.replace("{{apiBaseUrl}}", API_BASE_URL);
   // {{host}} is the API endpoint developers pin in their SDK config — the router origin, not the console.
+  const signUpUrl = consoleUrl("/sign-up", `redirect=/keys&lng=${props.locale}`);
   const ctaDescription = copy.home.cta.description.replace("{{host}}", ROUTER_ORIGIN.replace(/^https?:\/\//, ""));
   const valueBlocks = [
     { icon: <Server className="size-6" strokeWidth={1.6} />, block: home.values.reliability, href: "/models", badges: [] as typeof PRIVACY_BADGES },
@@ -93,7 +93,7 @@ export async function HomePage(props: Props) {
               <div className="landing-animate-fade-up mt-8 flex flex-wrap items-center gap-3 opacity-0" style={{ animationDelay: "180ms" }}>
                 <a
                   className="flatkey-hero-cta group inline-flex h-11 items-center px-5 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
-                  href={SIGN_UP_URL}
+                  href={signUpUrl}
                   style={{ borderRadius: "0.5rem" }}
                 >
                   {home.hero.ctaTrial}
@@ -188,7 +188,7 @@ export async function HomePage(props: Props) {
             <div className="mt-8 flex items-center justify-center gap-3">
               <a
                 className="flatkey-hero-cta group inline-flex h-10 items-center px-4 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)] transition-colors hover:opacity-90"
-                href={SIGN_UP_URL}
+                href={signUpUrl}
                 style={{ borderRadius: "0.5rem" }}
               >
                 {home.hero.ctaTrial}

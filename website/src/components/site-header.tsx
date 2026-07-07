@@ -11,8 +11,8 @@ import { type Locale, localizePath, stripLocale } from "@/lib/locales";
 import { consoleUrl } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 
-const SIGN_IN_URL = consoleUrl("/sign-in");
-const CONSOLE_URL = consoleUrl("/dashboard");
+// Console links carry ?lng=<locale> so the console SPA (i18next querystring
+// detector) opens in the language the visitor picked on the website.
 const useCaseItems = [
   { href: "/use-case/codex", label: "Codex" },
   { href: "/use-case/claude-code", label: "Claude Code" },
@@ -37,6 +37,8 @@ type Props = {
 
 export function SiteHeader(props: Props) {
   const copy = getCopy(props.locale);
+  const consoleHref = consoleUrl("/dashboard", `lng=${props.locale}`);
+  const signInHref = consoleUrl("/sign-in", `lng=${props.locale}`);
   const useCaseLabel = useCaseLabelByLocale[props.locale] ?? useCaseLabelByLocale.en;
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -150,13 +152,13 @@ export function SiteHeader(props: Props) {
               <div className="mx-1 h-4 w-px bg-border/40" />
               <a
                 className="inline-flex h-8 items-center justify-center rounded-lg border border-border/70 px-3.5 text-xs font-medium text-foreground/80 transition-colors hover:border-border hover:text-foreground"
-                href={CONSOLE_URL}
+                href={consoleHref}
               >
                 {copy.nav.console}
               </a>
               <a
                 className="flatkey-primary-cta inline-flex h-8 items-center justify-center rounded-lg px-3.5 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80"
-                href={SIGN_IN_URL}
+                href={signInHref}
               >
                 {copy.nav.signIn}
               </a>
@@ -263,13 +265,13 @@ export function SiteHeader(props: Props) {
             style={{ transitionDelay: mobileOpen ? "250ms" : "0ms" }}
           >
             <a
-              href={CONSOLE_URL}
+              href={consoleHref}
               className="inline-flex h-10 items-center justify-center rounded-lg border border-border/70 text-sm font-medium text-foreground/80 transition-colors hover:border-border hover:text-foreground"
             >
               {copy.nav.console}
             </a>
             <a
-              href={SIGN_IN_URL}
+              href={signInHref}
               className="flatkey-primary-cta inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80"
             >
               {copy.nav.signIn}
