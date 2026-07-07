@@ -42,6 +42,34 @@ func TestConsolePaymentReturnPathFallsBackToServerAddress(t *testing.T) {
 	require.Equal(t, "https://router.flatkey.ai/console/topup", consolePaymentReturnPath("/console/topup"))
 }
 
+func TestConsolePaymentReturnPathFallsBackForInvalidConsoleOrigin(t *testing.T) {
+	originalTheme := common.GetTheme()
+	originalServerAddress := system_setting.ServerAddress
+	originalAppConsoleOrigin := system_setting.GetAppConsoleSettings().Origin
+	t.Cleanup(func() {
+		common.SetTheme(originalTheme)
+		system_setting.ServerAddress = originalServerAddress
+		system_setting.GetAppConsoleSettings().Origin = originalAppConsoleOrigin
+	})
+
+	common.SetTheme("classic")
+	system_setting.ServerAddress = "https://router.flatkey.ai/"
+
+	tests := []string{
+		"console.flatkey.ai",
+		"//console.flatkey.ai",
+		"https://console.flatkey.ai/path",
+		"javascript:alert(1)",
+	}
+
+	for _, origin := range tests {
+		t.Run(origin, func(t *testing.T) {
+			system_setting.GetAppConsoleSettings().Origin = origin
+			require.Equal(t, "https://router.flatkey.ai/console/topup", consolePaymentReturnPath("/console/topup"))
+		})
+	}
+}
+
 func TestPaymentReturnPathKeepsServerAddressDefault(t *testing.T) {
 	originalTheme := common.GetTheme()
 	originalServerAddress := system_setting.ServerAddress

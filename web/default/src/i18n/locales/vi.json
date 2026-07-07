@@ -1006,6 +1006,7 @@
     "Console Area": "Khu vực bảng điều khiển",
     "Console Content": "Nội dung bảng điều khiển",
     "Console Origin": "Origin bảng điều khiển",
+    "Console Origin must be a valid http(s) origin": "Origin bảng điều khiển phải là origin http(s) hợp lệ",
     "Consume": "Tiêu thụ",
     "Consume one reset": "Dùng một lần đặt lại",
     "Consumed in the last 24 hours": "Đã tiêu thụ trong 24 giờ qua",

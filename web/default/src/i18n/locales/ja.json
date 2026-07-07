@@ -1006,6 +1006,7 @@
     "Console Area": "コンソールエリア",
     "Console Content": "コンソールコンテンツ",
     "Console Origin": "コンソールオリジン",
+    "Console Origin must be a valid http(s) origin": "コンソールオリジンは有効な http(s) オリジンである必要があります",
     "Consume": "消費",
     "Consume one reset": "リセットを1回消費",
     "Consumed in the last 24 hours": "直近24時間の消費量",

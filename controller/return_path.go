@@ -13,8 +13,8 @@ func paymentReturnPath(suffix string) string {
 }
 
 func consolePaymentReturnPath(suffix string) string {
-	base := strings.TrimRight(strings.TrimSpace(system_setting.GetAppConsoleSettings().Origin), "/")
-	if base == "" {
+	base, err := system_setting.NormalizeAppConsoleOrigin(system_setting.GetAppConsoleSettings().Origin)
+	if err != nil || base == "" {
 		return paymentReturnPath(suffix)
 	}
 	return base + common.ThemeAwarePath(suffix)

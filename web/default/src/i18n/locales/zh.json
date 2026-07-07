@@ -1006,6 +1006,7 @@
     "Console Area": "控制台区域",
     "Console Content": "控制台内容",
     "Console Origin": "控制台 Origin",
+    "Console Origin must be a valid http(s) origin": "控制台 Origin 必须是有效的 http(s) origin",
     "Consume": "消耗",
     "Consume one reset": "消费一次重置",
     "Consumed in the last 24 hours": "近 24 小时消耗量",

@@ -1006,6 +1006,7 @@
     "Console Area": "Console Area",
     "Console Content": "Console Content",
     "Console Origin": "Console Origin",
+    "Console Origin must be a valid http(s) origin": "Console Origin must be a valid http(s) origin",
     "Consume": "Consume",
     "Consume one reset": "Consume one reset",
     "Consumed in the last 24 hours": "Consumed in the last 24 hours",

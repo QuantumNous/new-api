@@ -355,6 +355,9 @@ func validateAndNormalizeOptionValue(key string, value string) (string, error) {
 	if key == "payment_setting.amount_bonus_groups" {
 		return normalizeAmountBonusGroupsOptionValue(value)
 	}
+	if key == "app_console.origin" {
+		return system_setting.NormalizeAppConsoleOrigin(value)
+	}
 	if key == "QuotaForInviterMaxCount" {
 		maxCount, err := parseInviterRewardMaxCount(value)
 		if err != nil {

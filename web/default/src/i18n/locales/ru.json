@@ -1006,6 +1006,7 @@
     "Console Area": "Область консоли",
     "Console Content": "Содержимое консоли",
     "Console Origin": "Origin консоли",
+    "Console Origin must be a valid http(s) origin": "Origin консоли должен быть допустимым http(s) origin",
     "Consume": "Расход",
     "Consume one reset": "Использовать один сброс",
     "Consumed in the last 24 hours": "Потреблено за последние 24 часа",

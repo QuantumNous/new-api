@@ -86,6 +86,29 @@ function normalizeValue(value: unknown): string {
   return typeof value === 'string' ? value : String(value)
 }
 
+function isValidHttpOrigin(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed) return true
+  try {
+    const url = new URL(trimmed)
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      (url.pathname === '' || url.pathname === '/') &&
+      url.search === '' &&
+      url.hash === '' &&
+      !trimmed.includes('@')
+    )
+  } catch {
+    return false
+  }
+}
+
+function normalizeHttpOrigin(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  return new URL(trimmed).origin
+}
+
 export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -124,7 +147,13 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     }),
     ServerAddress: z.string().optional(),
     app_console: z.object({
-      origin: z.string().optional(),
+      origin: z
+        .string()
+        .refine(
+          isValidHttpOrigin,
+          t('Console Origin must be a valid http(s) origin')
+        )
+        .optional(),
     }),
     Logo: z.string().url().optional().or(z.literal('')),
     Footer: z.string().optional(),
@@ -149,7 +178,9 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       onSubmit: async (_data, changedFields) => {
         for (const [key, value] of Object.entries(changedFields)) {
           let v = normalizeValue(value)
-          if (key === 'ServerAddress' || key === 'app_console.origin') {
+          if (key === 'app_console.origin') {
+            v = normalizeHttpOrigin(v)
+          } else if (key === 'ServerAddress') {
             v = v.replace(/\/+$/, '')
           }
           await updateOption.mutateAsync({
@@ -265,6 +296,8 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     <FormLabel>{t('Console Origin')}</FormLabel>
                     <FormControl>
                       <Input
+                        type='url'
+                        inputMode='url'
                         placeholder='https://console.example.com'
                         {...field}
                       />
