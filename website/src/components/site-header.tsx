@@ -33,6 +33,7 @@ const useCaseLabelByLocale: Record<Locale, string> = {
 type Props = {
   locale: Locale;
   pathname: string;
+  languageCookieDomain?: string;
 };
 
 export function SiteHeader(props: Props) {
@@ -147,7 +148,11 @@ export function SiteHeader(props: Props) {
               </Link>
 
               <div className="mx-2 h-4 w-px bg-border/40" />
-              <LanguageSwitcher locale={props.locale} pathname={props.pathname} />
+              <LanguageSwitcher
+                locale={props.locale}
+                pathname={props.pathname}
+                cookieDomain={props.languageCookieDomain}
+              />
               <NotificationPopover locale={props.locale} />
               <div className="mx-1 h-4 w-px bg-border/40" />
               <a
