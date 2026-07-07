@@ -77,6 +77,7 @@ import { ModelDetailsApi, ModelDetailsProviderInfo } from './model-details-api'
 import { ModalityIcons } from './model-details-modalities'
 import { ModelDetailsPerformance } from './model-details-performance'
 import { ModelDetailsQuickStats } from './model-details-quick-stats'
+import { ModelPublicPage } from './model-public-page'
 
 // ----------------------------------------------------------------------------
 // Local UI helpers
@@ -272,7 +273,7 @@ function OverviewSummaryGrid(props: { model: PricingModel }) {
 // Model header (always visible above the detail sections)
 // ----------------------------------------------------------------------------
 
-function ModelHeader(props: { model: PricingModel }) {
+export function ModelHeader(props: { model: PricingModel }) {
   const { t } = useTranslation()
   const model = props.model
   const modelIconKey = model.icon || model.vendor_icon
@@ -1194,22 +1195,11 @@ export function ModelDetails() {
           {t('Back')}
         </Button>
 
-        <ModelDetailsContent
+        <ModelPublicPage
           model={model}
-          hideGroupPricing
-          groupRatio={groupRatio || {}}
-          usableGroup={usableGroup || {}}
-          autoGroups={autoGroups || []}
           priceRate={priceRate ?? 1}
           usdExchangeRate={usdExchangeRate ?? 1}
           tokenUnit={tokenUnit}
-          showRechargePrice={showRechargePrice}
-          endpointMap={
-            (endpointMap as Record<
-              string,
-              { path?: string; method?: string }
-            >) || {}
-          }
         />
       </div>
     </PublicLayout>

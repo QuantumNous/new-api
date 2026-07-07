@@ -5285,7 +5285,9 @@
     "Official price": "官方价",
     "Registered Users": "注册用户",
     "IP / Language": "IP / 语言",
-    "Newest {{count}} in the period": "期内最新 {{count}} 人"
+    "Newest {{count}} in the period": "期内最新 {{count}} 人",
+    "30-day success rate": "30 天成功率",
+    "Top-up discount": "充值折扣"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "已达 Stripe 拉取上限——以下数据被截断，指标偏低。请缩小天数范围以获得完整数据。"
 }

@@ -5285,7 +5285,9 @@
     "Official price": "Official price",
     "Registered Users": "Registered Users",
     "IP / Language": "IP / Language",
-    "Newest {{count}} in the period": "Newest {{count}} in the period"
+    "Newest {{count}} in the period": "Newest {{count}} in the period",
+    "30-day success rate": "30-day success rate",
+    "Top-up discount": "Top-up discount"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers."
 }

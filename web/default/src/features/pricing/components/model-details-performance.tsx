@@ -84,7 +84,7 @@ type PerformanceRow = {
   avg_tps: number
 }
 
-function toLatencySeries(groups: PerformanceGroup[]) {
+export function toLatencySeries(groups: PerformanceGroup[]) {
   const byTs = new Map<number, number[]>()
   for (const group of groups) {
     for (const point of group.series) {
@@ -106,7 +106,7 @@ function toLatencySeries(groups: PerformanceGroup[]) {
     }))
 }
 
-function toUptimeSeries(groups: PerformanceGroup[]): UptimeDayPoint[] {
+export function toUptimeSeries(groups: PerformanceGroup[]): UptimeDayPoint[] {
   const byTs = new Map<number, { rates: number[]; incidents: number }>()
   for (const group of groups) {
     for (const point of group.series) {

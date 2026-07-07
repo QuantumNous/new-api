@@ -5285,7 +5285,9 @@
     "Official price": "Precio oficial",
     "Registered Users": "Usuarios registrados",
     "IP / Language": "IP / Idioma",
-    "Newest {{count}} in the period": "Los {{count}} más recientes del período"
+    "Newest {{count}} in the period": "Los {{count}} más recientes del período",
+    "30-day success rate": "Tasa de éxito en 30 días",
+    "Top-up discount": "Descuento por recarga"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Se alcanzó el límite de consulta de Stripe: los datos siguientes están truncados y las métricas subestiman. Reduce el rango de días para obtener cifras completas."
 }
