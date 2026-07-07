@@ -34,6 +34,8 @@ import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import { ensurePerfGroups } from '../lib/synthetic-perf'
 import type { PriceType, PricingModel, TokenUnit } from '../types'
+import { Code2 } from 'lucide-react'
+import { ModelDetailsApi } from './model-details-api'
 import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'
 import { ModelHeader } from './model-details'
 import {
@@ -62,6 +64,7 @@ type ModelPublicPageProps = {
   priceRate: number
   usdExchangeRate: number
   tokenUnit: TokenUnit
+  endpointMap: Record<string, { path?: string; method?: string }>
 }
 
 export function ModelPublicPage(props: ModelPublicPageProps) {
@@ -235,6 +238,15 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
           </h2>
           <LatencyTrendChart series={latencySeries} />
         </div>
+      </section>
+
+      {/* API quickstart: code samples, auth, supported parameters. */}
+      <section className='bg-card/60 rounded-xl border p-4'>
+        <h2 className='text-muted-foreground mb-3 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase'>
+          <Code2 className='size-3.5' />
+          API
+        </h2>
+        <ModelDetailsApi model={model} endpointMap={props.endpointMap} />
       </section>
     </div>
   )

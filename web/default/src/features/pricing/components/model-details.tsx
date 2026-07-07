@@ -1200,6 +1200,12 @@ export function ModelDetails() {
           priceRate={priceRate ?? 1}
           usdExchangeRate={usdExchangeRate ?? 1}
           tokenUnit={tokenUnit}
+          endpointMap={
+            (endpointMap as Record<
+              string,
+              { path?: string; method?: string }
+            >) || {}
+          }
         />
       </div>
     </PublicLayout>
