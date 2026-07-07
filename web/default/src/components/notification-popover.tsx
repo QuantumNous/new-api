@@ -210,6 +210,7 @@ function NoticeContent({
         breaks
         content={notice}
         mode={isLikelyHtml(notice) ? 'html' : 'markdown'}
+        htmlVariant='isolated'
       />
     </ScrollArea>
   )
