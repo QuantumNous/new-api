@@ -26,6 +26,7 @@ type OpsPlgUser struct {
 	UsedQuota      int64  `json:"used_quota"`
 	RequestCount   int    `json:"request_count"`
 	LastLoginAt    int64  `json:"last_login_at"`
+	BrowserLang    string `json:"browser_lang"`
 }
 
 type OpsUserLogStats struct {
@@ -71,7 +72,7 @@ func GetOpsPlgUsers() ([]*OpsPlgUser, error) {
 	var users []*OpsPlgUser
 	err := DB.Table("users").
 		Select(`id, username, display_name, email, created_at, ads_attribution,
-			quota, used_quota, request_count, last_login_at,
+			quota, used_quota, request_count, last_login_at, browser_lang,
 			CASE WHEN google_id IS NOT NULL AND google_id <> '' THEN 'google'
 			     WHEN github_id IS NOT NULL AND github_id <> '' THEN 'github'
 			     ELSE 'email' END AS oauth_kind`).

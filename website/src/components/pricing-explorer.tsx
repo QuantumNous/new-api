@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Boxes, Filter, RotateCcw, Search } from "lucide-react";
-import { PricingModelBrowser, ModelLogo } from "@/components/pricing-model-browser";
+import { ModelsDirectoryTable } from "@/components/models-directory-table";
+import { ModelLogo } from "@/components/pricing-model-browser";
+import { getHomeCopy } from "@/lib/home-copy";
+import { buildRowsForModels } from "@/lib/home-models";
 import {
   filterPricingModels,
   getTopEndpoints,
@@ -194,13 +197,10 @@ export function PricingExplorer(props: PricingExplorerProps) {
           </div>
 
           {visibleModels.length > 0 ? (
-            <PricingModelBrowser
+            <ModelsDirectoryTable
+              copy={getHomeCopy(props.locale).table}
+              rows={buildRowsForModels(visibleModels, props.vendors, props.groupRatio)}
               locale={props.locale}
-              models={visibleModels}
-              groupRatio={props.groupRatio}
-              usableGroup={props.usableGroup}
-              endpointMap={props.endpointMap}
-              autoGroups={props.autoGroups}
             />
           ) : (
             <div className="border-border bg-card flex min-h-64 flex-col items-center justify-center rounded-3xl border px-6 py-14 text-center">

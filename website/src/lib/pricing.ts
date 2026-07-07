@@ -198,6 +198,35 @@ export function formatModelPrice(model: PricingModel, type: "input" | "output" |
   return formatUsd(price);
 }
 
+// Official vendor list price per 1M tokens (ratio convention: model_ratio × $2,
+// calibrated to the vendor's published price), before any group discount.
+export function getOfficialPriceUsd(model: PricingModel, type: "input" | "output" = "input"): number {
+  if (!isTokenBasedModel(model)) return Number(model.model_price ?? 0);
+  const base = Number(model.model_ratio ?? 0) * 2;
+  return type === "output" ? base * Number(model.completion_ratio ?? 1) : base;
+}
+
+// Cheapest visible group ratio for the model — the "60-90% of official" layer.
+// Group ratios live in the pricing payload's top-level group_ratio map, keyed
+// by the model's enable_groups.
+export function getBestGroupRatio(model: PricingModel, fallbackGroupRatio: Record<string, number>): number {
+  const groups = Array.isArray(model.enable_groups) ? model.enable_groups.filter(isVisibleGroup) : [];
+  const names = groups.includes("all") ? Object.keys(fallbackGroupRatio).filter(isVisibleGroup) : groups;
+  const ratios = names
+    .map((group) => model.group_ratio?.[group] ?? fallbackGroupRatio[group])
+    .filter((ratio): ratio is number => typeof ratio === "number" && Number.isFinite(ratio) && ratio > 0);
+  return ratios.length > 0 ? Math.min(...ratios) : 1;
+}
+
+// Effective price after the best top-up bonus tier ($200 + $100 → 2/3 of list).
+export function discountedPriceUsd(value: number): number {
+  return (value * 2) / 3;
+}
+
+export function formatUsdPrice(value: number): string {
+  return formatUsd(value);
+}
+
 export function getAvailableGroups(
   model: PricingModel,
   fallbackGroupRatio: Record<string, number> = {},

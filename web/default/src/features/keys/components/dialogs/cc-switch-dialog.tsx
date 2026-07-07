@@ -101,7 +101,7 @@ export function CCSwitchDialog(props: Props) {
 
   const { data: modelsData } = useQuery({
     queryKey: ['user-models-ccswitch'],
-    queryFn: getUserModels,
+    queryFn: () => getUserModels(),
     enabled: props.open,
     staleTime: 5 * 60 * 1000,
   })

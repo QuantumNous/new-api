@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import type { RankingPeriod, RankingsSnapshot } from './types'
 
-type RankingsResponse = {
+export type RankingsResponse = {
   success: boolean
   message?: string
   data: RankingsSnapshot
