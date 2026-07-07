@@ -32,6 +32,35 @@ export const VIDEO_PROMPT_PRESETS = [
 export const VIDEO_DEFAULT_NEGATIVE_PROMPT =
   '色调艳丽,过曝,静态,细节模糊不清,字幕,风格,作品,画作,画面,静止,整体发灰,最差质量,低质量,JPEG压缩残留,丑陋的,残缺的,多余的手指,画得不好的手部,画得不好的脸部,畸形的,毁容的,形态畸形的肢体,手指融合,静止不动的画面,杂乱的背景,三条腿,背景人很多,倒着走';
 
+// 视频宽高比(文生视频):可在运营后台按模型配置允许集,未配置默认全集。
+export const VIDEO_ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:3', '3:4'];
+// 默认选中的宽高比(minimax 无宽高比可参考;取 16:9 = wan 引擎默认 1280×720)。
+export const VIDEO_DEFAULT_ASPECT_RATIO = '16:9';
+// 宽高比 → 引擎 target_shape:[height,width](720p 级,均为 16 的倍数)。
+// wan t2v runner 的 get_latent_shape_with_target_hw 优先采用 target_shape,不认识 aspect_ratio。
+export const VIDEO_ASPECT_RATIO_TO_SHAPE = {
+  '16:9': [720, 1280],
+  '9:16': [1280, 720],
+  '1:1': [960, 960],
+  '4:3': [768, 1024],
+  '3:4': [1024, 768],
+};
+
+// 宽高比 → target_shape:[height,width]。预设 5 种走上表(手调过的固定值);其它自定义 "W:H"
+// (后台 allowCreate 可能录入,如 2:1)按 ~720p 面积等比算,并对齐到 16 的倍数,避免被静默丢弃。
+export const aspectRatioToShape = (ratio) => {
+  if (VIDEO_ASPECT_RATIO_TO_SHAPE[ratio])
+    return VIDEO_ASPECT_RATIO_TO_SHAPE[ratio];
+  const m = /^\s*(\d+)\s*:\s*(\d+)\s*$/.exec(String(ratio || ''));
+  if (!m) return null;
+  const w = parseInt(m[1], 10);
+  const h = parseInt(m[2], 10);
+  if (w <= 0 || h <= 0) return null;
+  const scale = Math.sqrt((1280 * 720) / (w * h));
+  const round16 = (x) => Math.max(16, Math.round((x * scale) / 16) * 16);
+  return [round16(h), round16(w)]; // [height, width]
+};
+
 // 当前视频体验区页面代表的能力（= 标签页名）
 export const VIDEO_PAGE_CAPABILITY = '文生视频';
 // 图生视频 / 首尾帧能力标签,与文生视频共用体验区,通过 mode 区分
@@ -117,7 +146,10 @@ export const normalizeSizeList = (list) =>
 // 形如 { default: { sizes:[], durations:[] }, models: { name: { sizes:[], durations:[] } } }
 export const parseVideoModelConfig = (raw) => {
   // 未配置时默认留空，交由 getSizes/DurationsForVideoModel 按模型类别兜底
-  const empty = { default: { sizes: [], durations: [] }, models: {} };
+  const empty = {
+    default: { sizes: [], durations: [], aspectRatios: [] },
+    models: {},
+  };
   if (!raw) return empty;
   try {
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
@@ -128,6 +160,7 @@ export const parseVideoModelConfig = (raw) => {
         models[name] = {
           sizes: normalizeSizeList(cfg?.sizes),
           durations: normalizeList(cfg?.durations),
+          aspectRatios: normalizeList(cfg?.aspectRatios),
           capabilities: normalizeList(cfg?.capabilities),
         };
       });
@@ -136,6 +169,7 @@ export const parseVideoModelConfig = (raw) => {
       default: {
         sizes: normalizeSizeList(def.sizes),
         durations: normalizeList(def.durations),
+        aspectRatios: normalizeList(def.aspectRatios),
       },
       models,
     };
@@ -150,6 +184,16 @@ export const getSizesForVideoModel = (config, model) => {
   if (m && Array.isArray(m.sizes) && m.sizes.length > 0) return m.sizes;
   if (config?.default?.sizes?.length) return config.default.sizes;
   return resolveVideoStrategy(model).sizes;
+};
+
+// 宽高比:纯 opt-in——按模型配置 → 管理端全局默认 → 空(未配置则不展示、不下发)。
+// 不做全集兜底,避免给 minimax 等不支持宽高比的模型误显选择器。
+export const getAspectRatiosForVideoModel = (config, model) => {
+  const m = config?.models?.[model];
+  if (m && Array.isArray(m.aspectRatios) && m.aspectRatios.length > 0)
+    return m.aspectRatios;
+  if (config?.default?.aspectRatios?.length) return config.default.aspectRatios;
+  return [];
 };
 
 // 兼容多种状态取值：OpenAIVideo(queued/in_progress/completed/failed)

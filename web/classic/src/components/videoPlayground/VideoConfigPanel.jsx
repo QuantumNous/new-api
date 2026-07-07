@@ -16,6 +16,7 @@ import {
   HelpCircle,
   Shuffle,
   Ban,
+  Proportions,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
@@ -29,6 +30,7 @@ const VideoConfigPanel = ({
   models,
   availableSizes,
   availableDurations,
+  availableAspectRatios,
   onInputChange,
   disabled = false,
   styleState,
@@ -67,6 +69,10 @@ const VideoConfigPanel = ({
   const durationOptions = ensureOption(
     (availableDurations || []).map((s) => ({ label: `${s}s`, value: s })),
     inputs.seconds,
+  );
+  const aspectRatioOptions = ensureOption(
+    (availableAspectRatios || []).map((r) => ({ label: r, value: r })),
+    inputs.aspectRatio,
   );
 
   return (
@@ -184,6 +190,30 @@ const VideoConfigPanel = ({
             className='!rounded-lg'
           />
         </div>
+
+        {/* 宽高比(仅文生视频,且该模型在后台配了宽高比才展示;wan 下由此决定输出分辨率) */}
+        {!needsImage && (availableAspectRatios || []).length > 0 && (
+          <div>
+            <div className='flex items-center gap-2 mb-2'>
+              <Proportions size={16} className='text-gray-500' />
+              <Typography.Text strong className='text-sm'>
+                {t('宽高比')}
+              </Typography.Text>
+            </div>
+            <Select
+              placeholder={t('请选择宽高比')}
+              name='aspectRatio'
+              selection
+              onChange={(value) => onInputChange('aspectRatio', value)}
+              value={inputs.aspectRatio}
+              optionList={aspectRatioOptions}
+              disabled={disabled}
+              style={{ width: '100%' }}
+              dropdownStyle={{ width: '100%', maxWidth: '100%' }}
+              className='!rounded-lg'
+            />
+          </div>
+        )}
 
         {/* 时长 */}
         <div>

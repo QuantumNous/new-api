@@ -22,6 +22,7 @@ const VideoPlaygroundBody = ({ mode }) => {
     models,
     availableSizes,
     availableDurations,
+    availableAspectRatios,
     messages,
     conversations,
     generating,
@@ -51,6 +52,7 @@ const VideoPlaygroundBody = ({ mode }) => {
           models={models}
           availableSizes={availableSizes}
           availableDurations={availableDurations}
+          availableAspectRatios={availableAspectRatios}
           onInputChange={handleInputChange}
           disabled={locked}
           styleState={styleState}

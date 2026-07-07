@@ -21,6 +21,9 @@ import {
   VIDEO_I2V_CAPABILITY,
   VIDEO_FLF2V_CAPABILITY,
   VIDEO_DEFAULT_NEGATIVE_PROMPT,
+  VIDEO_DEFAULT_ASPECT_RATIO,
+  aspectRatioToShape,
+  getAspectRatiosForVideoModel,
   VIDEO_STATUS,
   VIDEO_HISTORY_LIMIT,
   VIDEO_CONV_TURN_LIMIT,
@@ -116,6 +119,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     seconds: '',
     seed: '', // 随机种子;'' 表示随机(不下发)
     negativePrompt: '', // 负向提示词;Wan 模型下由下方 effect 预填默认值,其它厂商留空
+    aspectRatio: '', // 宽高比;仅当该模型在后台配了宽高比才由 effect 选中默认值并下发
     firstFrame: '', // i2v/flf2v 首帧(base64 data-url)
     lastFrame: '', // flf2v 尾帧
   });
@@ -165,6 +169,10 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     () => getDurationsForVideoModel(videoConfig, inputs.model),
     [videoConfig, inputs.model],
   );
+  const availableAspectRatios = useMemo(
+    () => getAspectRatiosForVideoModel(videoConfig, inputs.model),
+    [videoConfig, inputs.model],
+  );
 
   // 视频模型集合 = 管理员在「视频模型配置」里声明、且能力含「文生视频」的模型。
   // 只认运营设置里的能力声明，不再按后端端点类型识别。
@@ -203,6 +211,24 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
       setInputs((prev) => ({ ...prev, seconds: availableDurations[0] }));
     }
   }, [availableDurations, inputs.seconds, locked]);
+
+  // 宽高比合法性(锁定时不动):该模型配了宽高比 → 当前值非法则选默认(优先 16:9,否则首项);
+  // 未配置 → 清空(不展示、不下发)。纯 opt-in,不给不支持的模型强塞。
+  useEffect(() => {
+    if (locked) return;
+    if (availableAspectRatios.length === 0) {
+      if (inputs.aspectRatio !== '') {
+        setInputs((prev) => ({ ...prev, aspectRatio: '' }));
+      }
+      return;
+    }
+    if (!availableAspectRatios.includes(inputs.aspectRatio)) {
+      const next = availableAspectRatios.includes(VIDEO_DEFAULT_ASPECT_RATIO)
+        ? VIDEO_DEFAULT_ASPECT_RATIO
+        : availableAspectRatios[0];
+      setInputs((prev) => ({ ...prev, aspectRatio: next }));
+    }
+  }, [availableAspectRatios, inputs.aspectRatio, locked]);
 
   // 负向提示词默认值:仅 Wan 模型预填官方词表,其它厂商清空;用户手动改过后不再自动覆盖。
   useEffect(() => {
@@ -497,6 +523,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           seconds: inputs.seconds,
           seed: inputs.seed,
           negativePrompt: inputs.negativePrompt,
+          aspectRatio: inputs.aspectRatio,
           images: convImages,
         };
       } else {
@@ -520,6 +547,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               seconds: conv.seconds,
               seed: conv.seed,
               negativePrompt: conv.negativePrompt,
+              aspectRatio: conv.aspectRatio,
               images: conv.images || [],
             }
           : {
@@ -529,6 +557,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               seconds: inputs.seconds,
               seed: inputs.seed,
               negativePrompt: inputs.negativePrompt,
+              aspectRatio: inputs.aspectRatio,
               images: convImages,
             };
       }
@@ -579,6 +608,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
               seconds: params.seconds,
               seed: params.seed,
               negativePrompt: params.negativePrompt,
+              aspectRatio: params.aspectRatio,
               images: params.images || [],
               title: text,
               createdAt: now,
@@ -630,6 +660,19 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
             ...(body.metadata || {}),
             negative_prompt: params.negativePrompt.trim(),
           };
+        }
+        // 宽高比 → target_shape:[h,w]。纯 opt-in:仅 t2v、且该值仍在当前模型的允许集内才下发
+        // (续问历史会话时 conv.aspectRatio 可能是后台已改/删的旧值,校验一遍避免绕过白名单)。
+        // wan 视频引擎按 target_shape 出分辨率;i2v/flf2v 跟随输入图故不发。
+        if (
+          !needsImage &&
+          params.aspectRatio &&
+          availableAspectRatios.includes(params.aspectRatio)
+        ) {
+          const shape = aspectRatioToShape(params.aspectRatio);
+          if (shape) {
+            body.metadata = { ...(body.metadata || {}), target_shape: shape };
+          }
         }
         // i2v/flf2v:带帧图。后端 gpustackplus:images[0]=首帧,flf2v 时 images[1]=尾帧。
         if (needsImage && (params.images || []).length > 0) {
@@ -699,6 +742,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
       storageKey,
       needsImage,
       isFLF2V,
+      availableAspectRatios,
       t,
     ],
   );
@@ -750,6 +794,8 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
           conv.negativePrompt != null
             ? conv.negativePrompt
             : prev.negativePrompt,
+        aspectRatio:
+          conv.aspectRatio != null ? conv.aspectRatio : prev.aspectRatio,
       }));
       // 若该会话最后一个任务仍在进行中，恢复轮询
       const assts = (conv.messages || []).filter((m) => m.role === 'assistant');
@@ -792,6 +838,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
     models,
     availableSizes,
     availableDurations,
+    availableAspectRatios,
     messages,
     conversations,
     generating,
