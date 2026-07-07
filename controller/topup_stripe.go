@@ -809,12 +809,11 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 	} else if topUp := model.GetTopUpByTradeNo(referenceId); topUp != nil && topUp.SaveCard &&
 		topUp.Status == common.TopUpStatusSuccess {
 		// Webhook redelivery/replay of an already-fulfilled save-card order doubles as the
-		// retry lever for card binding: if the first fulfillment's Stripe card lookup failed
-		// transiently, replaying the event from the Stripe dashboard re-attempts the bind.
-		// Skip once bound — backfill is idempotent but costs a Stripe API call.
-		if user, uerr := model.GetUserById(topUp.UserId, false); uerr == nil && user != nil && !user.StripeCardBound {
-			backfillCardFingerprintFromTopUp(ctx, topUp, customerId, callerIp)
-		}
+		// retry lever for card binding. Always re-run the backfill (it is idempotent, one
+		// Stripe list call on a rare path) instead of gating on StripeCardBound: bind and
+		// the fingerprint's bonus-slot claim are two steps, and a replay must also heal a
+		// claim that failed transiently after the bind itself succeeded.
+		backfillCardFingerprintFromTopUp(ctx, topUp, customerId, callerIp)
 	}
 
 	syncStripePaymentInvoice(ctx, event, referenceId, customerId)
