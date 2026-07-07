@@ -58,6 +58,22 @@ describe("website proxy language redirects", () => {
     expect(setCookieHeaders(response)).toContain("fk_locale=ja; Path=/; Domain=.flatkey.ai; Max-Age=31536000; SameSite=Lax");
   });
 
+  test("clears ambiguous duplicate language cookies without rewriting a stale value", () => {
+    const response = withCookieSessionDomain(".flatkey.ai", () =>
+      proxy(request("/pricing", { cookie: "fk_locale=en; fk_locale=ja" }))
+    );
+
+    expect(setCookieHeaders(response)).toEqual(["fk_locale=; Path=/; Max-Age=0; SameSite=Lax"]);
+  });
+
+  test("clears ambiguous duplicate language cookies even when the first value is invalid", () => {
+    const response = withCookieSessionDomain(".flatkey.ai", () =>
+      proxy(request("/pricing", { cookie: "fk_locale=xx; fk_locale=ja" }))
+    );
+
+    expect(setCookieHeaders(response)).toEqual(["fk_locale=; Path=/; Max-Age=0; SameSite=Lax"]);
+  });
+
   test("does not migrate the language cookie when no shared cookie domain is configured", () => {
     const response = withCookieSessionDomain(undefined, () =>
       proxy(request("/pricing", { cookie: "fk_locale=ja" }))

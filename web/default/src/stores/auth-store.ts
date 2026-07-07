@@ -57,10 +57,15 @@ export interface AuthUser {
   permissions?: UserPermissions
 }
 
+type AuthUserUpdate =
+  | AuthUser
+  | null
+  | ((currentUser: AuthUser | null) => AuthUser | null)
+
 interface AuthState {
   auth: {
     user: AuthUser | null
-    setUser: (user: AuthUser | null) => void
+    setUser: (user: AuthUserUpdate) => void
     reset: () => void
   }
 }
@@ -85,8 +90,13 @@ export const useAuthStore = create<AuthState>()((set) => {
   return {
     auth: {
       user: initUser,
-      setUser: (user) =>
+      setUser: (nextUser) =>
         set((state) => {
+          const user =
+            typeof nextUser === 'function'
+              ? nextUser(state.auth.user)
+              : nextUser
+
           // Persist user to localStorage
           if (typeof window !== 'undefined') {
             if (user) {

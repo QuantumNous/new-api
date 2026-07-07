@@ -43,15 +43,26 @@ function normalizePreference(value?: string | null): InterfaceLanguageCode | nul
 export function getLanguagePreferenceCookie(): InterfaceLanguageCode | null {
   if (typeof document === 'undefined') return null
 
-  const cookie = document.cookie
+  const cookies = document.cookie
     .split(';')
     .map((part) => part.trim())
-    .find((part) => part.startsWith(`${LANGUAGE_PREFERENCE_COOKIE}=`))
+    .filter((part) => part.startsWith(`${LANGUAGE_PREFERENCE_COOKIE}=`))
 
-  if (!cookie) return null
+  const preferences = new Set<InterfaceLanguageCode>()
 
-  const value = cookie.slice(LANGUAGE_PREFERENCE_COOKIE.length + 1)
-  return normalizePreference(decodeURIComponent(value))
+  for (const cookie of cookies) {
+    const value = cookie.slice(LANGUAGE_PREFERENCE_COOKIE.length + 1)
+    try {
+      const normalized = normalizePreference(decodeURIComponent(value))
+      if (normalized) preferences.add(normalized)
+    } catch {
+      /* Ignore malformed legacy cookie values and continue to later duplicates. */
+    }
+  }
+
+  if (preferences.size !== 1) return null
+  const [preference] = preferences
+  return preference ?? null
 }
 
 export function buildLanguagePreferenceCookie(

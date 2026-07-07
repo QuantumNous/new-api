@@ -16,11 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 import {
   buildLanguagePreferenceCookie,
+  getLanguagePreferenceCookie,
   LANGUAGE_PREFERENCE_COOKIE,
 } from './language-preference-cookie'
+
+const originalDocument = globalThis.document
+
+afterEach(() => {
+  Object.defineProperty(globalThis, 'document', {
+    value: originalDocument,
+    configurable: true,
+  })
+})
 
 describe('language preference cookie', () => {
   test('builds the shared-domain language cookie used by website and console', () => {
@@ -37,5 +47,47 @@ describe('language preference cookie', () => {
 
   test('rejects unsupported languages instead of coercing them to English', () => {
     expect(buildLanguagePreferenceCookie('de', '.flatkey.ai')).toBeNull()
+  })
+
+  test('ignores malformed percent-encoded cookie values', () => {
+    Object.defineProperty(globalThis, 'document', {
+      value: { cookie: `${LANGUAGE_PREFERENCE_COOKIE}=%E0%A4%A` },
+      configurable: true,
+    })
+
+    expect(getLanguagePreferenceCookie()).toBeNull()
+  })
+
+  test('skips malformed duplicate values and returns the first valid language cookie', () => {
+    Object.defineProperty(globalThis, 'document', {
+      value: {
+        cookie: `${LANGUAGE_PREFERENCE_COOKIE}=%E0%A4%A; ${LANGUAGE_PREFERENCE_COOKIE}=ja`,
+      },
+      configurable: true,
+    })
+
+    expect(getLanguagePreferenceCookie()).toBe('ja')
+  })
+
+  test('returns identical duplicate language cookies as a single preference', () => {
+    Object.defineProperty(globalThis, 'document', {
+      value: {
+        cookie: `${LANGUAGE_PREFERENCE_COOKIE}=ja; ${LANGUAGE_PREFERENCE_COOKIE}=ja`,
+      },
+      configurable: true,
+    })
+
+    expect(getLanguagePreferenceCookie()).toBe('ja')
+  })
+
+  test('treats conflicting duplicate language cookies as ambiguous', () => {
+    Object.defineProperty(globalThis, 'document', {
+      value: {
+        cookie: `${LANGUAGE_PREFERENCE_COOKIE}=en; ${LANGUAGE_PREFERENCE_COOKIE}=ja`,
+      },
+      configurable: true,
+    })
+
+    expect(getLanguagePreferenceCookie()).toBeNull()
   })
 })

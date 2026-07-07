@@ -2,7 +2,7 @@
 
 import { Check, Languages } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { buildLanguagePreferenceCookie } from "@/lib/language-routing";
+import { buildLanguagePreferenceCookieWrites } from "@/lib/language-routing";
 import { LOCALE_LABELS, LOCALES, type Locale, localizePath, stripLocale } from "@/lib/locales";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +13,9 @@ type Props = {
 };
 
 function persistLanguagePreference(locale: Locale, cookieDomain?: string) {
-  document.cookie = buildLanguagePreferenceCookie(locale, cookieDomain);
+  for (const cookie of buildLanguagePreferenceCookieWrites(locale, cookieDomain)) {
+    document.cookie = cookie;
+  }
 }
 
 export function LanguageSwitcher(props: Props) {

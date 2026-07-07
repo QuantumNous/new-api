@@ -48,8 +48,14 @@ describe('user language preference sync', () => {
     await syncUserLanguagePreferenceToDatabase(
       { id: 1, setting: JSON.stringify({ language: 'en' }) },
       'ja',
-      (user) => {
-        updatedUser = user
+      (nextUser) => {
+        updatedUser =
+          typeof nextUser === 'function'
+            ? nextUser({
+                id: 1,
+                setting: JSON.stringify({ language: 'en' }),
+              }) ?? undefined
+            : nextUser ?? undefined
       }
     )
 
@@ -87,5 +93,67 @@ describe('user language preference sync', () => {
     )
 
     expect(calls).toEqual([])
+  })
+
+  test('swallows best-effort database sync failures', async () => {
+    api.put = (() => Promise.reject(new Error('offline'))) as typeof api.put
+
+    await expect(
+      syncUserLanguagePreferenceToDatabase(
+        { id: 1, setting: JSON.stringify({ language: 'en' }) },
+        'ja'
+      )
+    ).resolves.toBeUndefined()
+  })
+
+  test('merges language into the latest matching user instead of the request snapshot', async () => {
+    api.put = (() =>
+      Promise.resolve({ data: { success: true } })) as typeof api.put
+
+    let updater:
+      | ((
+          currentUser: {
+            id: number
+            quota: number
+            setting: string
+            language?: string
+          } | null
+        ) => {
+          id: number
+          quota: number
+          setting: string
+          language?: string
+        } | null)
+      | undefined
+
+    await syncUserLanguagePreferenceToDatabase(
+      { id: 1, quota: 10, setting: JSON.stringify({ language: 'en' }) },
+      'ja',
+      (nextUser) => {
+        if (typeof nextUser === 'function') {
+          updater = nextUser
+        }
+      }
+    )
+
+    const updated = updater?.({
+      id: 1,
+      quota: 99,
+      setting: JSON.stringify({ language: 'en' }),
+    })
+
+    expect(updated?.quota).toBe(99)
+    expect(getPreferredUserLanguage(updated)).toBe('ja')
+    expect(
+      updater?.({
+        id: 2,
+        quota: 99,
+        setting: JSON.stringify({ language: 'en' }),
+      })
+    ).toEqual({
+      id: 2,
+      quota: 99,
+      setting: JSON.stringify({ language: 'en' }),
+    })
   })
 })

@@ -155,9 +155,9 @@ func SetUserLangLoader(loader func(userId int) string) {
 
 // GetLangFromContext extracts the language setting from gin context
 // It checks multiple sources in priority order:
-// 1. Browser language preference cookie (fk_locale)
-// 2. User settings (ContextKeyUserSetting) - if already loaded (e.g., by TokenAuth)
-// 3. Lazy load user language from cache/DB using user ID
+// 1. User settings (ContextKeyUserSetting) - if already loaded (e.g., by TokenAuth)
+// 2. Lazy load user language from cache/DB using user ID
+// 3. Browser language preference cookie (fk_locale)
 // 4. Language set by middleware (ContextKeyLanguage) - from Accept-Language header
 // 5. Default language (English)
 func GetLangFromContext(c *gin.Context) string {
@@ -165,35 +165,33 @@ func GetLangFromContext(c *gin.Context) string {
 		return DefaultLang
 	}
 
-	// 1. Browser cookie is the current UI language intent and may be newer than DB.
-	if cookieLang, err := c.Cookie(LanguagePreferenceCookieName); err == nil {
-		if normalized, ok := NormalizeLanguage(cookieLang); ok {
-			return normalized
-		}
-	}
-
-	// 2. Try to get language from user settings (if already loaded by TokenAuth or other middleware)
+	// 1. Try to get language from user settings (if already loaded by TokenAuth or other middleware)
 	if userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting); ok {
 		if userSetting.Language != "" {
-			normalized := normalizeLang(userSetting.Language)
-			if IsSupported(normalized) {
+			if normalized, ok := NormalizeLanguage(userSetting.Language); ok {
 				return normalized
 			}
 		}
 	}
 
-	// 3. Lazy load user language using user ID (for session-based auth where full settings aren't loaded)
+	// 2. Lazy load user language using user ID (for session-based auth where full settings aren't loaded)
 	if userLangLoaderFunc != nil {
 		if userId, exists := c.Get("id"); exists {
 			if uid, ok := userId.(int); ok && uid > 0 {
 				lang := userLangLoaderFunc(uid)
 				if lang != "" {
-					normalized := normalizeLang(lang)
-					if IsSupported(normalized) {
+					if normalized, ok := NormalizeLanguage(lang); ok {
 						return normalized
 					}
 				}
 			}
+		}
+	}
+
+	// 3. Browser cookie carries the current UI language intent for anonymous requests.
+	if cookieLang, err := c.Cookie(LanguagePreferenceCookieName); err == nil {
+		if normalized, ok := NormalizeLanguage(cookieLang); ok {
+			return normalized
 		}
 	}
 

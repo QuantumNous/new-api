@@ -5,6 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -24,4 +27,13 @@ func TestDetectLanguageUsesSharedLocaleCookieBeforeAcceptLanguage(t *testing.T) 
 	ctx.Request.Header.Set("Accept-Language", "en")
 
 	require.Equal(t, i18n.LangJa, detectLanguage(ctx))
+}
+
+func TestDetectLanguagePrefersUserSettingBeforeSharedLocaleCookie(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx := newI18nRequestContext(http.MethodGet, "/api/user/self")
+	ctx.Request.AddCookie(&http.Cookie{Name: "fk_locale", Value: "ja"})
+	common.SetContextKey(ctx, constant.ContextKeyUserSetting, dto.UserSetting{Language: i18n.LangEn})
+
+	require.Equal(t, i18n.LangEn, detectLanguage(ctx))
 }

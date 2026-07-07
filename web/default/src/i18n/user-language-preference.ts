@@ -30,6 +30,10 @@ export type UserLanguageSource = {
   setting?: unknown
 }
 
+type UserLanguageSetter<T extends UserLanguageSource> = (
+  user: T | null | ((currentUser: T | null) => T | null)
+) => void
+
 function normalizeLanguage(value?: string | null): InterfaceLanguageCode | null {
   const normalized = value?.trim().replace(/_/g, '-').toLowerCase()
   if (!normalized) return null
@@ -108,7 +112,7 @@ export function withUserLanguagePreference<T extends UserLanguageSource>(
 export async function syncUserLanguagePreferenceToDatabase<T extends UserLanguageSource>(
   user: T | null | undefined,
   language: string,
-  setUser?: (user: T) => void
+  setUser?: UserLanguageSetter<T>
 ): Promise<void> {
   if (!user?.id) return
 
@@ -117,10 +121,17 @@ export async function syncUserLanguagePreferenceToDatabase<T extends UserLanguag
 
   if (getPreferredUserLanguage(user) === nextLanguage) return
 
-  const response = await api.put('/api/user/self', { language: nextLanguage })
-  if (!response.data?.success) return
+  try {
+    const response = await api.put('/api/user/self', { language: nextLanguage })
+    if (!response.data?.success) return
+  } catch {
+    return
+  }
 
-  setUser?.(withUserLanguagePreference(user, nextLanguage))
+  setUser?.((currentUser) => {
+    if (!currentUser || currentUser.id !== user.id) return currentUser
+    return withUserLanguagePreference(currentUser, nextLanguage)
+  })
 }
 
 export function persistUserLanguageCookie(language: string): InterfaceLanguageCode | null {

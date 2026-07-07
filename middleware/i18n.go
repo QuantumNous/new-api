@@ -19,19 +19,19 @@ func I18n() gin.HandlerFunc {
 }
 
 // detectLanguage determines the language preference for the request
-// Priority: 1. Browser cookie -> 2. User setting (if logged in) -> 3. Accept-Language header -> 4. Default language
+// Priority: 1. User setting (if logged in) -> 2. Browser cookie -> 3. Accept-Language header -> 4. Default language
 func detectLanguage(c *gin.Context) string {
-	// 1. Browser cookie is the current UI language intent and may be newer than DB.
-	if cookieLang, err := c.Cookie(i18n.LanguagePreferenceCookieName); err == nil {
-		if normalized, ok := i18n.NormalizeLanguage(cookieLang); ok {
+	// 1. Try to get language from user setting (set by auth middleware)
+	if userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting); ok {
+		if normalized, ok := i18n.NormalizeLanguage(userSetting.Language); ok {
 			return normalized
 		}
 	}
 
-	// 2. Try to get language from user setting (set by auth middleware)
-	if userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting); ok {
-		if userSetting.Language != "" && i18n.IsSupported(userSetting.Language) {
-			return userSetting.Language
+	// 2. Browser cookie carries the current UI language intent for anonymous requests.
+	if cookieLang, err := c.Cookie(i18n.LanguagePreferenceCookieName); err == nil {
+		if normalized, ok := i18n.NormalizeLanguage(cookieLang); ok {
+			return normalized
 		}
 	}
 
