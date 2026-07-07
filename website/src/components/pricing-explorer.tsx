@@ -21,7 +21,7 @@ type PricingExplorerProps = {
   models: PricingModel[];
   vendors: PricingVendor[];
   groupRatio: Record<string, number>;
-  usableGroup: Record<string, { desc: string; ratio: number }>;
+  usableGroup: Record<string, string>;
   endpointMap: Record<string, unknown>;
   autoGroups: string[];
   initialSearch?: PricingSearch;

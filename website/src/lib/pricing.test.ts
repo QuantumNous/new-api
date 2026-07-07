@@ -9,6 +9,10 @@ describe("publicPricingUrl", () => {
   test("defaults public pricing data fetches to the console origin", () => {
     expect(publicPricingUrl()).toBe("https://console.flatkey.ai/api/website/pricing");
   });
+
+  test("can request the allowlisted PLG public pricing view", () => {
+    expect(publicPricingUrl("https://console.flatkey.ai", "plg")).toBe("https://console.flatkey.ai/api/website/pricing?group=plg");
+  });
 });
 
 describe("sortPricingModelsBySeries", () => {
