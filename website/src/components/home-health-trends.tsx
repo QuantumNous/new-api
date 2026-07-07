@@ -116,4 +116,3 @@ export function HomeHealthTrends(props: Props) {
     </section>
   );
 }
-

@@ -34,15 +34,9 @@ const rankingsSearchSchema = z.object({
 export const Route = createFileRoute('/rankings/')({
   validateSearch: rankingsSearchSchema,
   beforeLoad: async ({ location }) => {
-    // The official website /rankings serves the same data pipeline and is the
-    // single public rankings surface — hand old console links over to it.
-    // Without a configured origin (local dev, self-host) keep the local page.
-    if (OFFICIAL_WEBSITE_ORIGIN) {
-      const lang = (i18n.language || 'en').split('-')[0]
-      const path = lang && lang !== 'en' ? `/${lang}/rankings` : '/rankings'
-      window.location.replace(officialWebsiteUrl(path))
-      await new Promise(() => {})
-    }
+    // Module policy first: if the operator disabled rankings or requires
+    // auth, old console URLs must respect that instead of bouncing visitors
+    // to the public website.
     const access = await getFreshModuleAccess('rankings')
     if (!access.enabled) {
       throw redirect({ to: '/' })
@@ -55,6 +49,15 @@ export const Route = createFileRoute('/rankings/')({
           search: { redirect: location.href },
         })
       }
+    }
+    // The official website /rankings serves the same data pipeline and is the
+    // single public rankings surface — hand old console links over to it.
+    // Without a configured origin (local dev, self-host) keep the local page.
+    if (OFFICIAL_WEBSITE_ORIGIN) {
+      const lang = (i18n.language || 'en').split('-')[0]
+      const path = lang && lang !== 'en' ? `/${lang}/rankings` : '/rankings'
+      window.location.replace(officialWebsiteUrl(path))
+      await new Promise(() => {})
     }
   },
   component: Rankings,

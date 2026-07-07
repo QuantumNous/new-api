@@ -36,16 +36,8 @@ export const Route = createFileRoute('/$locale/rankings/')({
   beforeLoad: async (args) => {
     beforeLoadPublicLocaleRoute(args)
 
-    // Hand over to the official website rankings page (single public
-    // surface), keeping the locale prefix. English lives at the root path.
-    if (OFFICIAL_WEBSITE_ORIGIN) {
-      const locale = (args.params as { locale?: string }).locale
-      const path =
-        locale && locale !== 'en' ? `/${locale}/rankings` : '/rankings'
-      window.location.replace(officialWebsiteUrl(path))
-      await new Promise(() => {})
-    }
-
+    // Module policy first: a disabled or auth-gated rankings module must not
+    // bounce visitors to the public website via old console URLs.
     const access = await getFreshModuleAccess('rankings')
     if (!access.enabled) {
       throw redirect({ to: '/' })
@@ -58,6 +50,16 @@ export const Route = createFileRoute('/$locale/rankings/')({
           search: { redirect: args.location.href },
         })
       }
+    }
+
+    // Hand over to the official website rankings page (single public
+    // surface), keeping the locale prefix. English lives at the root path.
+    if (OFFICIAL_WEBSITE_ORIGIN) {
+      const locale = (args.params as { locale?: string }).locale
+      const path =
+        locale && locale !== 'en' ? `/${locale}/rankings` : '/rankings'
+      window.location.replace(officialWebsiteUrl(path))
+      await new Promise(() => {})
     }
   },
   component: Rankings,
