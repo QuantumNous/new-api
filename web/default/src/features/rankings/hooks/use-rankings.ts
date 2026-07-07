@@ -107,7 +107,7 @@ function buildDailyTrendHistory(
     }))
   })
 
-  return { models: history.models, points }
+  return { models: history.models, points, buckets: days.length }
 }
 
 function transformSnapshot(response: RankingsResponse): RankingsResponse {
@@ -122,6 +122,7 @@ function transformSnapshot(response: RankingsResponse): RankingsResponse {
       ...p,
       tokens: p.tokens * TOKEN_DISPLAY_SCALE,
     })),
+    buckets: snapshot.models_history.buckets,
   }
   return {
     ...response,

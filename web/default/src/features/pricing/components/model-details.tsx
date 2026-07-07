@@ -1100,19 +1100,10 @@ export function ModelDetails() {
   const modelId =
     typeof params.modelId === 'string' ? params.modelId : undefined
   const tokenUnitSearchValue = search.tokenUnit
-  const showRechargePrice = search.rechargePrice === true
   const currentPublicLanguage = getPublicPathLanguage(window.location.pathname)
 
-  const {
-    models,
-    groupRatio,
-    usableGroup,
-    endpointMap,
-    autoGroups,
-    isLoading,
-    priceRate,
-    usdExchangeRate,
-  } = usePricingData()
+  const { models, endpointMap, isLoading, priceRate, usdExchangeRate } =
+    usePricingData()
 
   const tokenUnit: TokenUnit =
     tokenUnitSearchValue === 'K' ? 'K' : DEFAULT_TOKEN_UNIT
