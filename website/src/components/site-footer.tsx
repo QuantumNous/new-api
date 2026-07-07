@@ -140,12 +140,11 @@ export function SiteFooter(props: SiteFooterProps) {
       <div className="mx-auto max-w-6xl px-6 py-12 md:py-16">
         <div className="grid gap-10 md:grid-cols-[minmax(200px,280px)_1fr] md:items-center md:gap-16">
           <div className="shrink-0">
-            <Link href={localizePath("/", props.locale)} className="group flex items-center gap-2.5">
-              <FlatkeyBrandLogo
-                variant="full"
-                className="h-20 w-40 -translate-x-5 transition-transform duration-300 group-hover:scale-[1.02]"
-                imageClassName="scale-[1.65]"
-              />
+            <Link href={localizePath("/", props.locale)} className="group inline-flex items-center">
+              {/* Same natural mark+wordmark lockup as the header — the old
+                  full-image variant relied on scale/translate cropping tuned
+                  to the pre-v5 artwork and clipped the v5 shield mark. */}
+              <FlatkeyBrandLogo className="transition-transform duration-300 group-hover:scale-[1.02]" />
               <span className="sr-only text-sm font-semibold tracking-tight">flatkey.ai</span>
             </Link>
             <p className="text-muted-foreground/60 mt-3 max-w-[200px] text-xs leading-relaxed">{copy.tagline}</p>
