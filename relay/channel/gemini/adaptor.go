@@ -59,7 +59,12 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
-		return nil, errors.New("not supported model for image generation, only imagen models are supported")
+		// Gemini chat-style image models (SupportedImagineModels) are served
+		// through generateContent; bridge the OpenAI images request into it.
+		if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
+			return convertGeminiImagineRequest(c, request)
+		}
+		return nil, errors.New("not supported model for image generation, only imagen and gemini image models are supported")
 	}
 
 	// convert size to aspect ratio but allow user to specify aspect ratio
@@ -261,6 +266,14 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return GeminiImageHandler(c, info, resp)
+	}
+
+	// Gemini chat-style image models on the OpenAI images endpoints:
+	// convert the generateContent response into an images response.
+	if (info.RelayMode == constant.RelayModeImagesGenerations ||
+		info.RelayMode == constant.RelayModeImagesEdits) &&
+		model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
+		return GeminiImageChatHandler(c, info, resp)
 	}
 
 	// check if the model is an embedding model
