@@ -11,7 +11,7 @@ import { getHomeCopy, type HomeCopy } from "@/lib/home-copy";
 import { buildHomeModelRows, pickFlagshipModels } from "@/lib/home-models";
 import type { Locale } from "@/lib/locales";
 import { localizePath } from "@/lib/locales";
-import { APP_CONSOLE_ORIGIN, ROUTER_ORIGIN, consoleUrl } from "@/lib/origins";
+import { ROUTER_ORIGIN, consoleUrl } from "@/lib/origins";
 import { getPricingData } from "@/lib/pricing";
 
 // "Start free trial" lands the user straight on the console API Keys tab:
@@ -39,7 +39,8 @@ export async function HomePage(props: Props) {
   const healthModels = flagships.slice(0, 3).map((row) => ({ name: row.name, iconKey: row.iconKey }));
 
   const apiBaseUrlDescription = (text: string) => text.replace("{{apiBaseUrl}}", API_BASE_URL);
-  const ctaDescription = copy.home.cta.description.replace("{{host}}", APP_CONSOLE_ORIGIN.replace(/^https?:\/\//, ""));
+  // {{host}} is the API endpoint developers pin in their SDK config — the router origin, not the console.
+  const ctaDescription = copy.home.cta.description.replace("{{host}}", ROUTER_ORIGIN.replace(/^https?:\/\//, ""));
   const valueBlocks = [
     { icon: <Server className="size-6" strokeWidth={1.6} />, block: home.values.reliability, href: "/models", badges: [] as typeof PRIVACY_BADGES },
     { icon: <BadgeDollarSign className="size-6" strokeWidth={1.6} />, block: home.values.cost, href: "/blog/category/cost-billing-and-ops", badges: [] as typeof PRIVACY_BADGES },
