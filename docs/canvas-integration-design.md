@@ -596,7 +596,7 @@ S3/S4/S5（后端）与 S1/S2（画布前端）可并行；S6/S7 依赖前后端
 | S5 项目持久化 + 素材库 | ✅ | PUT→409(旧 version)→200(对 version)→DELETE 全链路实测;storage 返回默认 200MB |
 | S6 导航(**仅 classic**) | ✅ | classic 构建通过;**default 主题按用户指示未动**(中途指示"只做 classic",已回滚 default 全部改动) |
 | S7 embed + Docker | ✅ | 未登录 `/canvas-app/` 302 /login;登录后全页面+`_next` 资源 200;深链 404.html;admin 关模块后 404;`go build`/`go vet`/`gofmt` 干净 |
-| S8 gpustackplus 能力补齐 | ❌ 未做 | 见 11.3(基线丢失) |
+| S8 gpustackplus 能力补齐 | ✅(2026-07-07 合并 main 后闭环) | 见 11.3 更新说明 |
 
 ### 11.2 与设计稿的实现偏差(均有理由,执行时以此为准)
 
@@ -612,7 +612,11 @@ S3/S4/S5（后端）与 S1/S2（画布前端）可并行；S6/S7 依赖前后端
 
 ### 11.3 注意事项(重要)
 
-- **S8 基线丢失**:实施会话中,工作区里原有的一批未提交改动(gpustackplus `/v1/images/edits` i2i 适配、`GetEndpointTypesByChannelType` 的 GPUStackPlus 分支等,约 540 行)在会话中途消失(非本会话操作,stash 为空,无法从 git 恢复)。即 §5.7 开头"2026-07-07 更新:已对齐 GPUStack M4 门面契约"描述的代码**现已不存在**,当前 gpustackplus 仍不支持图片编辑。S8 需按 §5.7 重做;未补齐前相关模型会因缺少对应 endpoint type 自动从画布对应节点隐藏,不会误调用。
+- **S8 基线"丢失"结论已更正(2026-07-07 晚)**:先前判断的"gpustackplus 未提交改动丢失"不成立——那批改动在并行会话中提交为 `feat/gpustackplus-m4-facade` 等分支并已合入 main(PR #26 起)。本分支已合并 main(merge commit `8d8ef8b32`,唯一冲突 `router/relay-router.go` 已解决:main 侧也加了 `/pg/images/edits`,保留画布侧 responses/audio 两行)。合并后 S8 状态:
+  - 图片生成(t2i)与图片编辑(i2i,multipart 底图)已支持,画布 `requestEdit` 的 multipart `/pg/images/edits` 与 S3 的 distributor multipart 解析链路匹配;
+  - `GetEndpointTypesByChannelType` 的 GPUStackPlus 分支(图片→image-generation、视频→openai-video)与画布侧 `audio-speech` 标注共存;
+  - TTS(上游不提供)与助手(不支持 responses/chat)按"未补前隐藏"策略闭环——gpustackplus 模型不带对应 endpoint type,画布音频/助手节点自动不展示;
+  - mask(image_mask)转换仍未接(qwen-edit 当前不用 mask),保留为低优先待办。
 - **`go build` 前置条件**:必须先存在 `web/canvas/out`(`make build-frontend-canvas` 或 `cd web/canvas && bun install && NEXT_PUBLIC_BUILTIN_MODE=1 bun run build`),否则 `go:embed` 编译失败。与 `web/default/dist` 同状况。
 - **`docker build` 未实测**(本机耗时),Dockerfile 的 `builder-canvas` 阶段与现有两个 bun 阶段写法一致,CI 首跑注意。
 - 提示词源之一(EvoLinkAI 的 `data/ingested_tweets.json`)上游已 404,seed 少这一类;封面图目前仍是 GitHub raw URL(`cover_url`),`cover_asset_url` 为空 —— 生产内网展示会缺图(前端有占位逻辑),需运营侧跑图片预同步后回填 DB。
@@ -621,7 +625,7 @@ S3/S4/S5（后端）与 S1/S2（画布前端）可并行；S6/S7 依赖前后端
 
 ### 11.4 待办(按优先级)
 
-1. **S8 重做**:gpustackplus 图片编辑(i2i 底图/mask)、音频 TTS、助手(openai-response 或 chat)能力 + endpoint type 标注(§5.7)。
+1. ~~S8 重做~~(已随 main 合并闭环,见 11.3);残留低优先项:gpustackplus mask(image_mask)转换、若上游未来提供 TTS 则补 audio adaptor + `audio-speech` 标注。
 2. **素材库前端接入**(§5.5「前端接入」+ §4.7 第 4 条):画布节点媒体从 dataUrl/IndexedDB 改为 `asset_id` + 签名 URL;上传入口、"保存到素材库"、容量进度条;届时一并实现 `assets/import` 端点。
 3. **提示词封面图本地化**:运营环境跑下载→传腾讯云 COS/EdgeOne→回填 `cover_asset_url` 的脚本(可扩展 `cmd/canvas-prompts-sync` 加 `-upload` 参数)。
 4. default 主题画布入口(如需要):§6.1 方案已验证可行。
