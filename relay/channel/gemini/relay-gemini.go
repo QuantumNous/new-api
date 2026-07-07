@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -1606,22 +1607,56 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	return usage, nil
 }
 
-// geminiImageAspectRatioFromSize maps a configured size to a Gemini aspect ratio.
-// A value already expressed as a ratio ("16:9") is passed through; any "WxH"
-// (including admin-configured resolutions like "1920x1080") is reduced via
-// common.AspectRatioFromSize. Returns "" for an empty/unparseable size so the
-// caller leaves the aspect ratio unset (model default, or the input-image ratio
-// for image-to-image). Note: Gemini's imageConfig only accepts an aspect ratio,
-// not an absolute resolution, so exact WxH cannot be forwarded.
+// geminiSupportedAspectRatios is the exact set Gemini's imageConfig.aspect_ratio
+// accepts; any other value is rejected upstream. Paired with each ratio's numeric
+// value so an arbitrary size can snap to the nearest supported one.
+var geminiSupportedAspectRatios = []struct {
+	ratio string
+	value float64
+}{
+	{"1:1", 1.0}, {"1:4", 0.25}, {"1:8", 0.125}, {"2:3", 2.0 / 3},
+	{"3:2", 1.5}, {"3:4", 0.75}, {"4:1", 4.0}, {"4:3", 4.0 / 3},
+	{"4:5", 0.8}, {"5:4", 1.25}, {"8:1", 8.0}, {"9:16", 9.0 / 16},
+	{"16:9", 16.0 / 9}, {"21:9", 21.0 / 9},
+}
+
+// geminiImageAspectRatioFromSize maps a configured size ("WxH") or ratio ("a:b")
+// to the NEAREST Gemini-supported aspect ratio. Snapping (rather than exact
+// reduction) is required because Gemini only accepts a fixed whitelist — e.g.
+// 1024x1792 reduces to 4:7, which Gemini rejects, so it snaps to 9:16. Returns ""
+// for an empty/unparseable size so the caller leaves the aspect ratio unset
+// (model default, or the input-image ratio for image-to-image). Note: Gemini's
+// imageConfig only accepts an aspect ratio, not an absolute resolution.
 func geminiImageAspectRatioFromSize(size string) string {
 	size = strings.TrimSpace(size)
 	if size == "" {
 		return ""
 	}
-	if strings.Contains(size, ":") {
-		return size
+
+	var target float64
+	if w, h, ok := common.DimsFromSize(size); ok {
+		target = float64(w) / float64(h)
+	} else if strings.Contains(size, ":") {
+		parts := strings.SplitN(size, ":", 2)
+		a, err1 := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+		b, err2 := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+		if err1 != nil || err2 != nil || b == 0 {
+			return ""
+		}
+		target = a / b
+	} else {
+		return ""
 	}
-	return common.AspectRatioFromSize(size)
+
+	best := ""
+	bestDiff := math.MaxFloat64
+	for _, ar := range geminiSupportedAspectRatios {
+		if diff := math.Abs(ar.value - target); diff < bestDiff {
+			bestDiff = diff
+			best = ar.ratio
+		}
+	}
+	return best
 }
 
 // collectGeminiImageInputs gathers reference images (for image-to-image) from the
