@@ -40,6 +40,7 @@ export default function ModelRatioSettings(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     ModelPrice: '',
+    VideoSecondsPrice: '',
     ModelRatio: '',
     CacheRatio: '',
     CreateCacheRatio: '',
@@ -159,6 +160,32 @@ export default function ModelRatioSettings(props) {
                 },
               ]}
               onChange={(value) => setInputs({ ...inputs, ModelPrice: value })}
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('视频按秒价格')}
+              extraText={t(
+                '一个 JSON 文本，键为模型名称，值为档位价格表，例如 720p / 1080p 以及 default / silent / audio',
+              )}
+              placeholder={t(
+                '例如：{"happyhorse-1.1-r2v":{"720p":{"default":0.9,"silent":0.6},"1080p":{"default":1.2,"silent":0.8}}}',
+              )}
+              field={'VideoSecondsPrice'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: '不是合法的 JSON 字符串',
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, VideoSecondsPrice: value })
+              }
             />
           </Col>
         </Row>

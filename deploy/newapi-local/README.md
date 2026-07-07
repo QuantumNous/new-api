@@ -178,6 +178,44 @@ SQL_DSN=postgresql://<user>:<password>@postgres:5432/<db>?sslmode=disable
 
 PostgreSQL 数据保存在 Docker volume `newapi_pg_data` 中。现有的 SQLite 文件 `./data/one-api.db` 不会自动迁移；切到 PostgreSQL 模式会创建一套新的数据库，除非你另行做数据迁移。
 
+## 4.1 本地 devtools 测试容器
+
+如果你希望固定一个带 `Go + Bun` 的开发/测试容器，避免每次临时 `docker run` 重复拉镜像、重复安装依赖，可以使用 `docker-compose.devtools.yml`。
+
+启动：
+```bash
+docker compose -f deploy/newapi-local/docker-compose.devtools.yml up -d --build devtools
+```
+
+进入容器：
+```bash
+docker compose -f deploy/newapi-local/docker-compose.devtools.yml exec devtools bash
+```
+
+容器里已经预设：
+- `GOPROXY=https://goproxy.cn,direct`
+- `GOSUMDB=sum.golang.google.cn`
+- `npm_config_registry=https://registry.npmmirror.com`
+- `bun install` 使用 `https://registry.npmmirror.com`
+
+同时会持久化这些缓存/依赖，避免重复下载：
+- Go 模块缓存：`newapi_devtools_go_pkg`
+- Go build 缓存：`newapi_devtools_go_build`
+- Bun 安装缓存：`newapi_devtools_bun_cache`
+- `web/default/node_modules`
+- `web/classic/node_modules`
+
+首次进入容器后，常用命令示例：
+```bash
+cd /workspace/web/classic
+bun install
+bun test src/pages/Setting/Ratio/modelPricingVideoSecondsPrice.test.js src/helpers/pricingTaskConditionPrice.test.js
+bun run build
+
+cd /workspace
+go test ./relay/channel/task/ali ./relay/channel/task/taskcommon ./relay/helper ./relay ./setting/ratio_setting ./model
+```
+
 ## 5. 本地 metadata
 
 这个目录包含一份可维护的 NewAPI upstream metadata：

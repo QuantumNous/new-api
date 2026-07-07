@@ -138,14 +138,17 @@ export default function ModelPricingEditor({
     filterMode,
   });
 
-  const getExprModeLabel = useCallback((model) => {
-    if (model?.billingMode !== 'tiered_expr') {
-      return '';
-    }
-    return (model.billingExpr || '').includes('tier(')
-      ? t('阶梯计费')
-      : t('表达式计费');
-  }, [t]);
+  const getExprModeLabel = useCallback(
+    (model) => {
+      if (model?.billingMode !== 'tiered_expr') {
+        return '';
+      }
+      return (model.billingExpr || '').includes('tier(')
+        ? t('阶梯计费')
+        : t('表达式计费');
+    },
+    [t],
+  );
 
   const columns = useMemo(
     () => [
@@ -191,16 +194,20 @@ export default function ModelPricingEditor({
             color={
               record.billingMode === 'per-request'
                 ? 'teal'
-                : record.billingMode === 'tiered_expr'
-                  ? 'amber'
-                  : 'violet'
+                : record.billingMode === 'video-seconds'
+                  ? 'cyan'
+                  : record.billingMode === 'tiered_expr'
+                    ? 'amber'
+                    : 'violet'
             }
           >
             {record.billingMode === 'per-request'
               ? t('按次计费')
-              : record.billingMode === 'tiered_expr'
-                ? getExprModeLabel(record)
-                : t('按量计费')}
+              : record.billingMode === 'video-seconds'
+                ? t('按秒计费')
+                : record.billingMode === 'tiered_expr'
+                  ? getExprModeLabel(record)
+                  : t('按量计费')}
           </Tag>
         ),
       },
@@ -383,16 +390,20 @@ export default function ModelPricingEditor({
                   color={
                     selectedModel.billingMode === 'per-request'
                       ? 'teal'
-                      : selectedModel.billingMode === 'tiered_expr'
-                        ? 'amber'
-                        : 'blue'
+                      : selectedModel.billingMode === 'video-seconds'
+                        ? 'cyan'
+                        : selectedModel.billingMode === 'tiered_expr'
+                          ? 'amber'
+                          : 'blue'
                   }
                 >
                   {selectedModel.billingMode === 'per-request'
                     ? t('按次计费')
-                    : selectedModel.billingMode === 'tiered_expr'
-                      ? getExprModeLabel(selectedModel)
-                      : t('按量计费')}
+                    : selectedModel.billingMode === 'video-seconds'
+                      ? t('按秒计费')
+                      : selectedModel.billingMode === 'tiered_expr'
+                        ? getExprModeLabel(selectedModel)
+                        : t('按量计费')}
                 </Tag>
               ) : null
             }
@@ -419,6 +430,7 @@ export default function ModelPricingEditor({
                   >
                     <Radio value='per-token'>{t('按量计费')}</Radio>
                     <Radio value='per-request'>{t('按次计费')}</Radio>
+                    <Radio value='video-seconds'>{t('按秒计费')}</Radio>
                     <Radio value='tiered_expr'>{t('表达式/阶梯计费')}</Radio>
                   </RadioGroup>
                   <div className='mt-2 text-xs text-gray-500'>
@@ -456,6 +468,94 @@ export default function ModelPricingEditor({
                     }
                     extraText={t('适合 MJ / 任务类等按次收费模型。')}
                   />
+                ) : selectedModel.billingMode === 'video-seconds' ? (
+                  <Card
+                    bodyStyle={{ padding: 16 }}
+                    style={{
+                      marginBottom: 16,
+                      background: 'var(--semi-color-fill-0)',
+                    }}
+                  >
+                    <div className='mb-3'>
+                      <div className='font-medium'>{t('视频按秒价格')}</div>
+                      <div className='text-xs text-gray-500 mt-1'>
+                        {t(
+                          '按模型配置 720p / 1080p 档位价格，default 为默认价，silent 为 audio=false 时的静音价，audio 为显式有声价。',
+                        )}
+                      </div>
+                    </div>
+                    <div className='font-medium mb-3'>{t('720p')}</div>
+                    <PriceInput
+                      label={t('720p 默认价格')}
+                      value={selectedModel.videoSeconds720pDefault}
+                      placeholder={t('输入 USD / second')}
+                      suffix={t('$/秒')}
+                      onChange={(value) =>
+                        handleNumericFieldChange(
+                          'videoSeconds720pDefault',
+                          value,
+                        )
+                      }
+                    />
+                    <PriceInput
+                      label={t('720p 静音价格')}
+                      value={selectedModel.videoSeconds720pSilent}
+                      placeholder={t('输入 USD / second')}
+                      suffix={t('$/秒')}
+                      onChange={(value) =>
+                        handleNumericFieldChange(
+                          'videoSeconds720pSilent',
+                          value,
+                        )
+                      }
+                    />
+                    <PriceInput
+                      label={t('720p 有声价格')}
+                      value={selectedModel.videoSeconds720pAudio}
+                      placeholder={t('输入 USD / second')}
+                      suffix={t('$/秒')}
+                      onChange={(value) =>
+                        handleNumericFieldChange('videoSeconds720pAudio', value)
+                      }
+                    />
+                    <div className='font-medium mb-3'>{t('1080p')}</div>
+                    <PriceInput
+                      label={t('1080p 默认价格')}
+                      value={selectedModel.videoSeconds1080pDefault}
+                      placeholder={t('输入 USD / second')}
+                      suffix={t('$/秒')}
+                      onChange={(value) =>
+                        handleNumericFieldChange(
+                          'videoSeconds1080pDefault',
+                          value,
+                        )
+                      }
+                    />
+                    <PriceInput
+                      label={t('1080p 静音价格')}
+                      value={selectedModel.videoSeconds1080pSilent}
+                      placeholder={t('输入 USD / second')}
+                      suffix={t('$/秒')}
+                      onChange={(value) =>
+                        handleNumericFieldChange(
+                          'videoSeconds1080pSilent',
+                          value,
+                        )
+                      }
+                    />
+                    <PriceInput
+                      label={t('1080p 有声价格')}
+                      value={selectedModel.videoSeconds1080pAudio}
+                      placeholder={t('输入 USD / second')}
+                      suffix={t('$/秒')}
+                      onChange={(value) =>
+                        handleNumericFieldChange(
+                          'videoSeconds1080pAudio',
+                          value,
+                        )
+                      }
+                    />
+                  </Card>
                 ) : selectedModel.billingMode === 'tiered_expr' ? (
                   <TieredPricingEditor
                     model={selectedModel}
