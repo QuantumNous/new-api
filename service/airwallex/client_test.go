@@ -3,10 +3,12 @@ package airwallex
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
 )
 
@@ -141,12 +143,23 @@ func TestActiveMethodsCachedAndStaleServed(t *testing.T) {
 
 func TestRecurringCheckoutURL(t *testing.T) {
 	u := RecurringCheckoutURL("sec%1", "cus_1", "CNY", "https://ok", "https://no")
-	if !strings.HasPrefix(u, "https://checkout.airwallex.com/#/standalone/checkout?") {
+	if !strings.HasPrefix(u, "https://checkout.airwallex.com/#/standalone/recurring?") {
 		t.Fatalf("bad prefix: %s", u)
 	}
-	for _, needle := range []string{"mode=recurring", "client_secret=sec%251", "customer_id=cus_1", "currency=CNY", "next_triggered_by=merchant"} {
+	for _, needle := range []string{"mode=recurring", "client_secret=sec%251", "customer_id=cus_1", "currency=CNY"} {
 		if !strings.Contains(u, needle) {
 			t.Fatalf("url missing %s: %s", needle, u)
 		}
+	}
+	q, err := url.ParseQuery(strings.SplitN(u, "?", 2)[1])
+	if err != nil {
+		t.Fatalf("unparseable query: %v", err)
+	}
+	var ro map[string]string
+	if err := common.Unmarshal([]byte(q.Get("recurringOptions")), &ro); err != nil {
+		t.Fatalf("recurringOptions not JSON: %v", err)
+	}
+	if ro["next_triggered_by"] != "merchant" || ro["merchant_trigger_reason"] != "scheduled" || ro["currency"] != "CNY" {
+		t.Fatalf("bad recurringOptions: %v", ro)
 	}
 }

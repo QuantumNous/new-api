@@ -350,19 +350,26 @@ func StandardCheckoutURL(intentId, clientSecret, currency, successUrl, failUrl s
 // RecurringCheckoutURL builds the Hosted Payment Page URL in recurring mode:
 // the page collects a payment method and creates+verifies a merchant-triggered
 // PaymentConsent for the customer. clientSecret comes from GenerateCustomerClientSecret.
+// The recurring HPP lives at /#/standalone/recurring, and the consent settings must
+// travel as a single JSON `recurringOptions` param — flat next_triggered_by /
+// merchant_trigger_reason params are dropped by the page's param whitelist.
 func RecurringCheckoutURL(clientSecret, customerId, currency, successUrl, failUrl string) string {
+	recurringOptions, _ := common.Marshal(map[string]string{
+		"next_triggered_by":       "merchant",
+		"merchant_trigger_reason": "scheduled",
+		"currency":                currency,
+	})
 	q := url.Values{}
 	q.Set("mode", "recurring")
 	q.Set("client_secret", clientSecret)
 	q.Set("customer_id", customerId)
 	q.Set("currency", currency)
-	q.Set("next_triggered_by", "merchant")
-	q.Set("merchant_trigger_reason", "scheduled")
+	q.Set("recurringOptions", string(recurringOptions))
 	if successUrl != "" {
 		q.Set("successUrl", successUrl)
 	}
 	if failUrl != "" {
 		q.Set("failUrl", failUrl)
 	}
-	return CheckoutBase + "/#/standalone/checkout?" + q.Encode()
+	return CheckoutBase + "/#/standalone/recurring?" + q.Encode()
 }
