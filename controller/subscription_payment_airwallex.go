@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service/airwallex"
 	"github.com/QuantumNous/new-api/setting"
@@ -21,8 +23,22 @@ import (
 )
 
 type SubscriptionAirwallexPayRequest struct {
-	PlanId int    `json:"plan_id"`
-	Method string `json:"method"` // card / applepay / googlepay / alipay / wechat
+	PlanId    int    `json:"plan_id"`
+	Method    string `json:"method"`     // card / applepay / googlepay / alipay / wechat
+	ReturnUrl string `json:"return_url"` // optional; origin must be JINN-trusted, else ignored
+}
+
+// airwallexReturnUrl resolves the post-checkout landing URL: a client-supplied
+// return_url whose origin is JINN-trusted, else the admin-console fallback.
+func airwallexReturnUrl(requested string) string {
+	if requested != "" {
+		if u, err := url.Parse(requested); err == nil && (u.Scheme == "https" || u.Scheme == "http") {
+			if middleware.TrustedBrowserOrigin(u.Scheme + "://" + u.Host) {
+				return requested
+			}
+		}
+	}
+	return paymentReturnPath("/console/topup")
 }
 
 // jinnMethod → the Airwallex payment_method_type names that must be active for it.
@@ -131,7 +147,7 @@ func SubscriptionRequestAirwallexPay(c *gin.Context) {
 	reference := fmt.Sprintf("sub-awx-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
 
-	payLink, err := genAirwallexSubscriptionLink(c, user, plan, req.Method, referenceId)
+	payLink, err := genAirwallexSubscriptionLink(c, user, plan, req.Method, referenceId, airwallexReturnUrl(req.ReturnUrl))
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Airwallex 订阅支付链接创建失败 trade_no=%s plan_id=%d error=%q", referenceId, plan.Id, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
@@ -165,7 +181,7 @@ func SubscriptionRequestAirwallexPay(c *gin.Context) {
 //   - auto-renew methods (card wallets, later Alipay): HPP recurring mode collects a
 //     merchant-triggered PaymentConsent; the webhook then creates the managed Subscription.
 //   - wechat: one-time PaymentIntent for a single term (manual renew) — no consent exists.
-func genAirwallexSubscriptionLink(c *gin.Context, user *model.User, plan *model.SubscriptionPlan, method string, tradeNo string) (string, error) {
+func genAirwallexSubscriptionLink(c *gin.Context, user *model.User, plan *model.SubscriptionPlan, method string, tradeNo string, returnUrl string) (string, error) {
 	merchantCustomerId := strconv.Itoa(user.Id)
 	customer, err := airwallex.FindCustomerByMerchantId(merchantCustomerId)
 	if err != nil {
@@ -177,8 +193,6 @@ func genAirwallexSubscriptionLink(c *gin.Context, user *model.User, plan *model.
 			return "", err
 		}
 	}
-
-	returnUrl := paymentReturnPath("/console/topup")
 
 	if method == model.PaymentMethodWeChat {
 		intent, err := airwallex.CreatePaymentIntent(tradeNo, plan.PriceAmount, plan.Currency, tradeNo, customer.Id,

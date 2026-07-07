@@ -108,3 +108,20 @@ func TestAirwallexMethodMapCoversAllConstants(t *testing.T) {
 	_, ok := airwallexMethodNames["paypal"]
 	require.False(t, ok)
 }
+
+func TestAirwallexReturnUrl(t *testing.T) {
+	// Trusted origin passes through, including path/query.
+	trusted := "https://account.jinn.ccwu.cc:8444/return?plan=3"
+	require.Equal(t, trusted, airwallexReturnUrl(trusted))
+	// Untrusted origins, garbage, and non-http schemes fall back to the console path.
+	fallback := airwallexReturnUrl("")
+	require.NotEmpty(t, fallback)
+	for _, bad := range []string{
+		"https://evil.example.com/return",
+		"https://account.jinn.ccwu.cc/return", // missing :8444 → different origin
+		"javascript:alert(1)",
+		"://not-a-url",
+	} {
+		require.Equal(t, fallback, airwallexReturnUrl(bad), bad)
+	}
+}

@@ -14,8 +14,15 @@ import (
 // Access-Control-Allow-Origin: * whenever credentials are sent. Add the Phase 4
 // production taskpane origin here once it is chosen.
 var trustedCredentialedOrigins = map[string]bool{
-	"https://localhost:3000": true,
-	"https://localhost:3001": true,
+	"https://localhost:3000":            true,
+	"https://localhost:3001":            true,
+	"https://account.jinn.ccwu.cc:8444": true, // JINN account portal (also the payment return-URL allowlist)
+}
+
+// TrustedBrowserOrigin reports whether origin is one of the JINN-owned web
+// origins. Payment processors reuse it to validate client-supplied return URLs.
+func TrustedBrowserOrigin(origin string) bool {
+	return trustedCredentialedOrigins[origin]
 }
 
 // CORS keeps new-api's prior open, non-credentialed access for arbitrary
