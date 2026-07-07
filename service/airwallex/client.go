@@ -199,8 +199,12 @@ type Subscription struct {
 }
 
 type CreateSubscriptionRequest struct {
-	RequestId        string                 `json:"request_id"`
-	CustomerId       string                 `json:"customer_id"`
+	RequestId         string `json:"request_id"`
+	CustomerId        string `json:"customer_id"`
+	BillingCustomerId string `json:"billing_customer_id"`
+	// CollectionMethod ∈ AUTO_CHARGE / CHARGE_ON_CHECKOUT / OUT_OF_BAND (live API
+	// 2025-02-14 requires it; the published schema.json is older and omits it).
+	CollectionMethod string                 `json:"collection_method"`
 	PaymentConsentId string                 `json:"payment_consent_id"`
 	Items            []SubscriptionItem     `json:"items"`
 	Recurring        *SubscriptionRecurring `json:"recurring,omitempty"`
