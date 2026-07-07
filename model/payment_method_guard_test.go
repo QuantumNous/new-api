@@ -306,7 +306,7 @@ func getUserCardBoundForTest(t *testing.T, userID int) bool {
 	return user.StripeCardBound
 }
 
-func TestRechargeStripeBindsCardAtomicallyForSaveCardTopUp(t *testing.T) {
+func TestRechargeStripeDoesNotBindCardForSaveCardTopUp(t *testing.T) {
 	truncateTables(t)
 
 	insertUserForPaymentGuardTest(t, 120, 0)
@@ -323,18 +323,20 @@ func TestRechargeStripeBindsCardAtomicallyForSaveCardTopUp(t *testing.T) {
 	}
 	require.NoError(t, topUp.Insert())
 
-	// First fulfillment: credits the stored amount and marks the card bound, in one transaction.
+	// First fulfillment: credits the stored amount and persists the customer, but must NOT
+	// set stripe_card_bound — a save-card Checkout can complete via a local payment method
+	// with no card saved. Binding happens later, after the Stripe API confirms a saved card.
 	recharged, err := Recharge("save-card-bind-guard", "cus_bind", "127.0.0.1")
 	require.NoError(t, err)
 	assert.True(t, recharged)
-	assert.True(t, getUserCardBoundForTest(t, 120), "save-card top-up must set stripe_card_bound")
+	assert.False(t, getUserCardBoundForTest(t, 120), "Recharge alone must not set stripe_card_bound")
 	assert.Equal(t, int(20*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 120))
 
-	// Webhook redelivery: order already Success → no re-credit, binding unchanged (idempotent).
+	// Webhook redelivery: order already Success → no re-credit, still unbound (idempotent).
 	recharged, err = Recharge("save-card-bind-guard", "cus_bind", "127.0.0.1")
 	require.NoError(t, err)
 	assert.False(t, recharged)
-	assert.True(t, getUserCardBoundForTest(t, 120))
+	assert.False(t, getUserCardBoundForTest(t, 120))
 	assert.Equal(t, int(20*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 120))
 
 	var user User

@@ -87,6 +87,8 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 			return 20000, nil
 		case "price_multi_currency_200:BRL":
 			return 99000, nil
+		case "price_multi_currency_10:INR":
+			return 89900, nil
 		default:
 			return 0, errors.New("unexpected price lookup")
 		}
@@ -139,6 +141,17 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 	require.Equal(t, "BRL", checkout.PaymentCurrency)
 	require.Equal(t, int64(99000), checkout.AmountMinor)
 	require.Equal(t, 200.0, checkout.Money)
+
+	checkout, err = resolveStripeTopUpCheckout(&StripePayRequest{
+		Amount:         10,
+		StripeCurrency: "INR",
+	}, 10, "default")
+	require.NoError(t, err)
+	require.Equal(t, "price_multi_currency_10", checkout.PriceId)
+	require.Equal(t, int64(1), checkout.Quantity)
+	require.Equal(t, "INR", checkout.PaymentCurrency)
+	require.Equal(t, int64(89900), checkout.AmountMinor)
+	require.Equal(t, 10.0, checkout.Money)
 }
 
 func TestResolveStripeTopUpCheckoutRejectsPriceAmountNotMatchingPackage(t *testing.T) {
@@ -314,6 +327,7 @@ func TestStripeCheckoutSessionKeepsAccountEmailVerbatim(t *testing.T) {
 		"buyer+location_JP@example.com",
 		"price_123",
 		1,
+		"USD",
 		"https://example.com/success",
 		"https://example.com/cancel",
 		false,
@@ -324,6 +338,39 @@ func TestStripeCheckoutSessionKeepsAccountEmailVerbatim(t *testing.T) {
 	require.Equal(t, "buyer+location_JP@example.com", *params.CustomerEmail)
 	require.NotNil(t, params.AllowPromotionCodes)
 	require.True(t, *params.AllowPromotionCodes)
+}
+
+func TestStripeCheckoutSessionPassesSelectedCurrency(t *testing.T) {
+	params := buildStripeCheckoutSessionParams(
+		"trade_inr",
+		"",
+		"buyer@example.com",
+		"price_123",
+		1,
+		"INR",
+		"https://example.com/success",
+		"https://example.com/cancel",
+		false,
+		false,
+	)
+
+	require.NotNil(t, params.Currency, "non-USD selection must be sent to Stripe")
+	require.Equal(t, "inr", *params.Currency)
+
+	// USD (the Price default) stays unset so Stripe adaptive pricing keeps working.
+	params = buildStripeCheckoutSessionParams(
+		"trade_usd",
+		"",
+		"buyer@example.com",
+		"price_123",
+		1,
+		"USD",
+		"https://example.com/success",
+		"https://example.com/cancel",
+		false,
+		false,
+	)
+	require.Nil(t, params.Currency)
 }
 
 func TestStripePaymentSnapshotFromEventUsesCurrencyMinorUnits(t *testing.T) {

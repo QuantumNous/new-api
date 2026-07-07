@@ -248,6 +248,16 @@ export const STATIC_I18N_KEYS = [
   'Prefix',
   'Contains',
   'Suffix',
+  // Ops report ad match types (MATCH_TYPE_LABELS)
+  'Phrase',
+  'Broad',
+
+  // Ops report stripe person statuses (STRIPE_STATUS_LABELS)
+  'Paid OK',
+  'Card Failed',
+  'Opened, No Action',
+  'Card Binding',
+
   'Match model name exactly',
   'Match models starting with this name',
   'Match models containing this name',

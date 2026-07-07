@@ -199,6 +199,8 @@ export interface TopupInfo {
   bonus_remaining?: Record<number, number>
   /** Optional topup link for purchasing codes */
   topup_link?: string
+  /** ISO country of the caller IP ("?" when unknown); gates the checkout-currency selector */
+  client_region?: string
   /** Whether Creem topup is enabled */
   enable_creem_topup?: boolean
   /** Available Creem products */
@@ -250,7 +252,7 @@ export interface PaymentRequest {
   /** Payment method identifier */
   payment_method: string
   /** Optional explicit Stripe checkout package currency override */
-  stripe_currency?: 'USD' | 'JPY' | 'BRL'
+  stripe_currency?: 'USD' | 'JPY' | 'BRL' | 'INR'
   /** Save the card during payment (setup_future_usage) for later off-session auto-charge */
   save_card?: boolean
   /** Optional redirect URL after successful hosted checkout */
@@ -271,7 +273,7 @@ export interface PaymentOptions {
   invoiceRequested?: boolean
   invoiceProfile?: InvoiceProfile
   /** Optional explicit Stripe checkout package currency override */
-  stripeCurrency?: 'USD' | 'JPY' | 'BRL'
+  stripeCurrency?: 'USD' | 'JPY' | 'BRL' | 'INR'
 }
 
 /**

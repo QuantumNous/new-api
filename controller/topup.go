@@ -161,6 +161,9 @@ func GetTopUpInfo(c *gin.Context) {
 			return remaining
 		}(),
 		"topup_link": common.TopUpLink,
+		// ISO country of the caller IP; drives the wallet checkout-currency
+		// selector (only shown to regions with a local payment method benefit).
+		"client_region": opsIPCountry(c.ClientIP()),
 	}
 	common.ApiSuccess(c, data)
 }

@@ -129,7 +129,7 @@ func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, g
 
 func stripeTopUpCurrencySupported(currency string) bool {
 	switch strings.ToUpper(strings.TrimSpace(currency)) {
-	case "USD", "JPY", "BRL":
+	case "USD", "JPY", "BRL", "INR":
 		return true
 	default:
 		return false
@@ -208,6 +208,15 @@ func expectedStripeTopUpAmountMinor(currency string, packageAmount int64) (int64
 			return 9990, true
 		case 200:
 			return 99000, true
+		}
+	case "INR":
+		switch packageAmount {
+		case 10:
+			return 89900, true
+		case 20:
+			return 179900, true
+		case 200:
+			return 1799000, true
 		}
 	}
 	return 0, false
@@ -843,10 +852,18 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 	if recharged {
 		topUp := model.GetTopUpByTradeNo(referenceId)
 		sendPaymentSuccessGA(ctx, topUp)
-		// For save-card (onboarding promo) top-ups the card is already marked bound atomically
-		// inside model.Recharge's transaction. Here we only best-effort backfill the card's
-		// fingerprint (a Stripe API call, too slow/failure-prone for the credit transaction),
-		// used for anti-abuse dedup. Only on first fulfillment (recharged==true).
+		// For save-card (onboarding promo) top-ups this performs the actual card binding:
+		// it verifies via the Stripe API that the customer really has a saved card before
+		// setting card_bound (local-method payments finish without saving one), and records
+		// the card fingerprint for anti-abuse dedup.
+		backfillCardFingerprintFromTopUp(ctx, topUp, customerId, callerIp)
+	} else if topUp := model.GetTopUpByTradeNo(referenceId); topUp != nil && topUp.SaveCard &&
+		topUp.Status == common.TopUpStatusSuccess {
+		// Webhook redelivery/replay of an already-fulfilled save-card order doubles as the
+		// retry lever for card binding. Always re-run the backfill (it is idempotent, one
+		// Stripe list call on a rare path) instead of gating on StripeCardBound: bind and
+		// the fingerprint's bonus-slot claim are two steps, and a replay must also heal a
+		// claim that failed transiently after the bind itself succeeded.
 		backfillCardFingerprintFromTopUp(ctx, topUp, customerId, callerIp)
 	}
 
@@ -1096,11 +1113,12 @@ func stripePaymentSnapshotFromEvent(event stripe.Event) model.PaymentSnapshot {
 	return model.PaymentSnapshot{Money: total / 100, Currency: currency}
 }
 
-// backfillCardFingerprintFromTopUp best-effort records the saved card's Stripe fingerprint
-// (used for anti-abuse dedup) after a save-card top-up. The card is already marked bound
-// atomically inside model.Recharge; this only adds the fingerprint, which requires a slow
-// Stripe API call unsuitable for the credit transaction. No-op for ordinary wallet top-ups.
-// Failures are logged, not fatal. Call only on first fulfillment.
+// backfillCardFingerprintFromTopUp binds the card after a save-card top-up. Save-card
+// Checkouts keep local payment methods available (setup_future_usage is card-scoped), so a
+// completed top-up does not by itself prove a card was saved; this queries the Stripe API for
+// a card actually attached to the customer and only then sets card_bound plus the fingerprint
+// (anti-abuse dedup). No-op for ordinary wallet top-ups and when no card was saved. Failures
+// are logged, not fatal. Call only on first fulfillment.
 func backfillCardFingerprintFromTopUp(ctx context.Context, topUp *model.TopUp, customerId string, callerIp string) {
 	if topUp == nil || topUp.UserId <= 0 {
 		return
@@ -1118,14 +1136,34 @@ func backfillCardFingerprintFromTopUp(ctx context.Context, topUp *model.TopUp, c
 		}
 	}
 	if customerId == "" {
-		// No customer to query: binding (if any) was handled in the transaction; nothing to add.
+		// No customer to query means no off-session charge is possible anyway; leave unbound.
+		logger.LogWarn(ctx, fmt.Sprintf("Stripe 充值绑卡：缺少 customer，跳过绑卡 user_id=%d trade_no=%s", topUp.UserId, topUp.TradeNo))
 		return
 	}
-	fingerprint := fetchCardFingerprint(customerId)
+	// "No saved card" (skip is correct: local-method payment saved nothing) must not be
+	// conflated with "lookup failed": a swallowed transient failure would leave a genuinely
+	// saved card permanently unbound. Bounded retry rides out blips; if all attempts fail,
+	// log at error level — replaying the webhook event re-runs the bind (see fulfillOrder).
+	var fingerprint string
+	var lookupErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+		}
+		fingerprint, lookupErr = fetchCardFingerprint(customerId)
+		if lookupErr == nil {
+			break
+		}
+	}
+	if lookupErr != nil {
+		logger.LogError(ctx, fmt.Sprintf("Stripe 充值绑卡：查询已存卡失败，本次放弃绑卡（可从 Stripe 后台重放该 webhook 事件补绑）user_id=%d trade_no=%s customer=%s error=%q", topUp.UserId, topUp.TradeNo, customerId, lookupErr.Error()))
+		return
+	}
 	if strings.TrimSpace(fingerprint) == "" {
+		logger.LogInfo(ctx, fmt.Sprintf("Stripe 充值绑卡：customer 无已存卡，跳过绑卡 user_id=%d trade_no=%s customer=%s", topUp.UserId, topUp.TradeNo, customerId))
 		return
 	}
-	// Idempotently persist customer + fingerprint (and ensure card_bound) — safe to repeat.
+	// Idempotently persist customer + fingerprint (and set card_bound) — safe to repeat.
 	if err := model.SetStripeCardBound(topUp.UserId, customerId, fingerprint); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("Stripe 充值绑卡：记录卡指纹失败 user_id=%d trade_no=%s error=%q", topUp.UserId, topUp.TradeNo, err.Error()))
 		return
@@ -1446,13 +1484,20 @@ func genStripeLink(referenceId string, customerId string, email string, checkout
 		cancelURL = paymentReturnPath("/console/topup")
 	}
 
-	params := buildStripeCheckoutSessionParams(referenceId, customerId, strings.TrimSpace(email), checkout.PriceId, checkout.Quantity, successURL, cancelURL, invoiceRequested, saveCard)
+	params := buildStripeCheckoutSessionParams(referenceId, customerId, strings.TrimSpace(email), checkout.PriceId, checkout.Quantity, checkout.PaymentCurrency, successURL, cancelURL, invoiceRequested, saveCard)
 
 	// For onboarding promo top-ups, save the card while paying so it can be charged
 	// off-session later (postpaid auto-charge). Plain wallet top-ups don't save the card.
+	// Scoped to payment_method_options.card (not payment_intent_data.setup_future_usage):
+	// a top-level setup_future_usage makes Stripe hide every payment method that can't be
+	// saved for off-session reuse (Alipay/Pix/UPI/WeChat...), leaving card-only checkouts.
+	// Card payments still bind the card; local-method payments simply skip binding
+	// (backfillCardFingerprintFromTopUp tolerates the missing card).
 	if saveCard {
-		params.PaymentIntentData = &stripe.CheckoutSessionPaymentIntentDataParams{
-			SetupFutureUsage: stripe.String("off_session"),
+		params.PaymentMethodOptions = &stripe.CheckoutSessionPaymentMethodOptionsParams{
+			Card: &stripe.CheckoutSessionPaymentMethodOptionsCardParams{
+				SetupFutureUsage: stripe.String("off_session"),
+			},
 		}
 	}
 
@@ -1544,7 +1589,7 @@ func canonicalRedirectHostname(host string) string {
 	return strings.TrimSuffix(strings.ToLower(parsedHost.Hostname()), ".")
 }
 
-func buildStripeCheckoutSessionParams(referenceId string, customerId string, email string, priceId string, quantity int64, successURL string, cancelURL string, invoiceRequested bool, saveCard bool) *stripe.CheckoutSessionParams {
+func buildStripeCheckoutSessionParams(referenceId string, customerId string, email string, priceId string, quantity int64, currency string, successURL string, cancelURL string, invoiceRequested bool, saveCard bool) *stripe.CheckoutSessionParams {
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(referenceId),
 		SuccessURL:        stripe.String(successURL),
@@ -1554,6 +1599,15 @@ func buildStripeCheckoutSessionParams(referenceId string, customerId string, ema
 		},
 		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
 		AllowPromotionCodes: stripe.Bool(true),
+	}
+
+	// An explicit non-USD pick must reach Stripe, or Checkout renders the Price's default
+	// (USD) and the UI promise, the local order record, and the actual charge diverge.
+	// USD stays unset on purpose: it is the Price default anyway, and leaving it out keeps
+	// Stripe adaptive pricing available for users who explicitly choose USD.
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	if currency != "" && currency != "USD" {
+		params.Currency = stripe.String(strings.ToLower(currency))
 	}
 
 	if "" == customerId {

@@ -64,7 +64,9 @@ require (
 	github.com/BlockRunAI/blockrun-llm-go v0.17.0
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/ethereum/go-ethereum v1.14.12
+	github.com/phuslu/iploc v1.0.20260701
 	github.com/waffo-com/waffo-pancake-sdk-go v0.3.1
+	gorm.io/hints v1.1.2
 )
 
 require (
@@ -80,7 +82,6 @@ require (
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/supranational/blst v0.3.13 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
-	gorm.io/hints v1.1.2 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 

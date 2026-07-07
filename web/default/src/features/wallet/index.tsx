@@ -56,8 +56,11 @@ import {
   getPaddleCheckoutUrlFallback,
   getWalletCheckoutInitialTopupAmount,
   isPresetTopupAmount,
+  defaultCurrencyForRegion,
   normalizeStripeCheckoutCurrency,
   shouldConsumeWalletCheckoutSearchParams,
+  shouldShowCurrencySelector,
+  type StripeCheckoutCurrency,
   type WalletCheckoutSearch,
 } from './lib'
 import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
@@ -123,6 +126,25 @@ export function Wallet(props: WalletProps) {
   const [userLoading, setUserLoading] = useState(true)
   const [topupAmount, setTopupAmount] = useState(0)
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null)
+  // settlement currency for Stripe checkout; local currencies unlock local
+  // payment methods (Pix needs BRL, UPI needs INR)
+  const [checkoutCurrency, setCheckoutCurrency] =
+    useState<StripeCheckoutCurrency>(
+      () =>
+        normalizeStripeCheckoutCurrency(
+          props.initialCheckoutSearch?.currency
+        ) ?? 'USD'
+    )
+  const currencyTouchedRef = useRef(
+    normalizeStripeCheckoutCurrency(props.initialCheckoutSearch?.currency) !=
+      null
+  )
+
+  const handleCheckoutCurrencyChange = (currency: StripeCheckoutCurrency) => {
+    currencyTouchedRef.current = true
+    setCheckoutCurrency(currency)
+  }
+
   const [paymentLoadingAmount, setPaymentLoadingAmount] = useState<
     number | null
   >(null)
@@ -138,6 +160,12 @@ export function Wallet(props: WalletProps) {
   const [cardBoundDialogOpen, setCardBoundDialogOpen] = useState(false)
 
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
+  // default the settlement currency by caller region (IN→INR, BR→BRL, JP→JPY)
+  // unless the URL or the user already picked one
+  useEffect(() => {
+    if (currencyTouchedRef.current || !topupInfo?.client_region) return
+    setCheckoutCurrency(defaultCurrencyForRegion(topupInfo.client_region))
+  }, [topupInfo?.client_region])
 
   const { processing, processPayment } = usePayment()
   const {
@@ -618,14 +646,9 @@ export function Wallet(props: WalletProps) {
         return
       }
 
-      const checkoutCurrency = normalizeStripeCheckoutCurrency(
-        props.initialCheckoutSearch?.currency
-      )
-      const success = await processPayment(
-        preset.value,
-        'stripe',
-        checkoutCurrency ? { stripeCurrency: checkoutCurrency } : undefined
-      )
+      const success = await processPayment(preset.value, 'stripe', {
+        stripeCurrency: checkoutCurrency,
+      })
       if (success) {
         await fetchUser()
       }
@@ -686,6 +709,14 @@ export function Wallet(props: WalletProps) {
                     processing ? paymentLoadingAmount : null
                   }
                   loading={topupLoading}
+                  checkoutCurrency={checkoutCurrency}
+                  onCheckoutCurrencyChange={handleCheckoutCurrencyChange}
+                  showCurrencySelector={
+                    shouldShowCurrencySelector(topupInfo?.client_region) ||
+                    normalizeStripeCheckoutCurrency(
+                      props.initialCheckoutSearch?.currency
+                    ) != null
+                  }
                 />
               </div>
 
