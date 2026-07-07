@@ -42,6 +42,6 @@ export const staticDataTableClassNames = {
   mutedCodeCell: 'text-muted-foreground font-mono text-sm',
   topNumericCell: 'py-2 text-right font-mono',
   mediumCell: 'font-medium',
-  actionHeaderCell: 'text-right',
-  actionCell: 'text-right',
+  actionHeaderCell: 'w-auto max-w-none text-right',
+  actionCell: 'w-auto max-w-none text-right',
 } as const

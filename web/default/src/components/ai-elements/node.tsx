@@ -16,9 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ComponentProps } from 'react'
 import { Handle, Position } from '@xyflow/react'
-import { cn } from '@/lib/utils'
+import type { ComponentProps } from 'react'
+
 import {
   Card,
   CardAction,
@@ -28,6 +28,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 export type NodeProps = ComponentProps<typeof Card> & {
   handles: {

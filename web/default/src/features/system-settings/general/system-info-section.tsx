@@ -16,10 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import * as z from 'zod'
-import type { Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import type { Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
+
 import {
   Form,
   FormControl,
@@ -39,6 +40,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
 import {
@@ -126,15 +128,48 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       >,
       defaultValues: normalizedDefaults,
       onSubmit: async (_data, changedFields) => {
-        for (const [key, value] of Object.entries(changedFields)) {
+        // 主题切换会改变后端返回的前端产物，需放到最后处理：先更新其余设置项，
+        // 仅当它们全部成功后才提交主题切换，避免其它设置失败时就切换了主题，
+        // 导致用户停留或刷新到另一套前端不存在的路由而 404。
+        const entries = Object.entries(changedFields)
+        const themeEntry = entries.find(([key]) => key === 'theme.frontend')
+        const otherEntries = entries.filter(([key]) => key !== 'theme.frontend')
+
+        let allSucceeded = true
+        for (const [key, value] of otherEntries) {
           let v = normalizeValue(value)
           if (key === 'ServerAddress') {
             v = v.replace(/\/+$/, '')
           }
-          await updateOption.mutateAsync({
+          const res = await updateOption.mutateAsync({
             key,
             value: v,
           })
+          if (!res.success) {
+            allSucceeded = false
+          }
+        }
+        if (themeEntry && !allSucceeded) {
+          // Theme was not submitted; keep form state consistent with backend.
+          _data.theme.frontend = normalizedDefaults.theme.frontend
+          return
+        }
+        if (themeEntry && allSucceeded) {
+          const res = await updateOption.mutateAsync({
+            key: themeEntry[0],
+            value: normalizeValue(themeEntry[1]),
+          })
+          if (res.success) {
+            // 当前路由在另一套前端中并不存在，主题切换成功后重置到首页以避免 404。
+            // 延时用于让表单脏状态先清除（移除 beforeunload 拦截）并展示成功提示后再刷新；
+            // 使用 replace 让已失效的路由不进入历史，防止返回按钮再次触发 404。
+            setTimeout(() => {
+              window.location.replace('/')
+            }, 600)
+          } else {
+            // Theme update failed; revert to the last saved value.
+            _data.theme.frontend = normalizedDefaults.theme.frontend
+          }
         }
       },
     })

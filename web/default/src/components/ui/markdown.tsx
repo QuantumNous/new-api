@@ -18,12 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import DOMPurify from 'dompurify'
 import * as katex from 'katex'
+
 import 'katex/dist/katex.min.css'
 import { Marked, Renderer, type MarkedExtension, type Tokens } from 'marked'
 import { useMemo } from 'react'
+
 import { cn } from '@/lib/utils'
 
 interface MarkdownProps {
+  breaks?: boolean
   children: string
   className?: string
 }
@@ -186,13 +189,13 @@ function renderMath(source: string, displayMode: boolean): string {
 }
 
 function replaceEmojiShortcodes(value: string): string {
-  return value.replace(/:(?:smiley|star|fa-star|fa-gear):/g, (shortcode) => {
+  return value.replaceAll(/:(?:smiley|star|fa-star|fa-gear):/g, (shortcode) => {
     return emojiShortcodes[shortcode] ?? shortcode
   })
 }
 
 function getTextUnits(value: string): number {
-  return Array.from(value).reduce((total, character) => {
+  return [...value].reduce((total, character) => {
     if (/\s/.test(character)) {
       return total + 0.5
     }
@@ -231,7 +234,8 @@ function splitFlowLabel(label: string, maxUnits: number): string[] {
 
 function renderFlowText(layout: FlowNodeLayout): string {
   const lineHeight = 18
-  const firstLineY = layout.y - ((layout.labelLines.length - 1) * lineHeight) / 2 + 5
+  const firstLineY =
+    layout.y - ((layout.labelLines.length - 1) * lineHeight) / 2 + 5
 
   return layout.labelLines
     .map((line, index) => {
@@ -240,10 +244,16 @@ function renderFlowText(layout: FlowNodeLayout): string {
     .join('')
 }
 
-function getFlowNodeLayout(node: FlowNode, index: number, centerX: number): FlowNodeLayout {
+function getFlowNodeLayout(
+  node: FlowNode,
+  index: number,
+  centerX: number
+): FlowNodeLayout {
   const isCondition = node.type === 'condition'
   const labelLines = splitFlowLabel(node.label, isCondition ? 14 : 18)
-  const labelWidth = Math.max(...labelLines.map((line) => getTextUnits(line) * 7.2))
+  const labelWidth = Math.max(
+    ...labelLines.map((line) => getTextUnits(line) * 7.2)
+  )
   const textHeight = labelLines.length * 18
 
   if (isCondition) {
@@ -278,7 +288,10 @@ function getFlowNodeLayout(node: FlowNode, index: number, centerX: number): Flow
   }
 }
 
-function getFlowAnchor(layout: FlowNodeLayout, side: 'bottom' | 'left' | 'right' | 'top'): {
+function getFlowAnchor(
+  layout: FlowNodeLayout,
+  side: 'bottom' | 'left' | 'right' | 'top'
+): {
   x: number
   y: number
 } {
@@ -322,7 +335,10 @@ function renderFlowShape(layout: FlowNodeLayout): string {
   `
 }
 
-function parseFlowDiagram(source: string): { edges: FlowEdge[]; nodes: FlowNode[] } {
+function parseFlowDiagram(source: string): {
+  edges: FlowEdge[]
+  nodes: FlowNode[]
+} {
   const lines = source
     .split('\n')
     .map((line) => line.trim())
@@ -346,8 +362,12 @@ function parseFlowDiagram(source: string): { edges: FlowEdge[]; nodes: FlowNode[
     }
 
     for (let index = 0; index < edgeParts.length - 1; index += 1) {
-      const fromMatch = /^([A-Za-z][\w-]*)(?:\(([^)]+)\))?$/.exec(edgeParts[index])
-      const toMatch = /^([A-Za-z][\w-]*)(?:\(([^)]+)\))?$/.exec(edgeParts[index + 1])
+      const fromMatch = /^([A-Za-z][\w-]*)(?:\(([^)]+)\))?$/.exec(
+        edgeParts[index]
+      )
+      const toMatch = /^([A-Za-z][\w-]*)(?:\(([^)]+)\))?$/.exec(
+        edgeParts[index + 1]
+      )
 
       if (!fromMatch || !toMatch) {
         continue
@@ -370,10 +390,17 @@ function renderFlowDiagram(source: string): string {
   const loopX = 520
   const nodeIndex = new Map(nodes.map((node, index) => [node.id, index]))
   const nodePositions = new Map(
-    nodes.map((node, index) => [node.id, getFlowNodeLayout(node, index, centerX)])
+    nodes.map((node, index) => [
+      node.id,
+      getFlowNodeLayout(node, index, centerX),
+    ])
   )
-  const lastNode = nodes.length > 0 ? nodePositions.get(nodes[nodes.length - 1].id) : undefined
-  const height = Math.max(180, (lastNode?.y ?? 64) + (lastNode?.height ?? 40) / 2 + 54)
+  const lastNode =
+    nodes.length > 0 ? nodePositions.get(nodes.at(-1)?.id ?? '') : undefined
+  const height = Math.max(
+    180,
+    (lastNode?.y ?? 64) + (lastNode?.height ?? 40) / 2 + 54
+  )
   const renderedEdges = edges
     .map((edge) => {
       const from = nodePositions.get(edge.from)
@@ -383,7 +410,8 @@ function renderFlowDiagram(source: string): string {
         return ''
       }
 
-      const isBackward = (nodeIndex.get(edge.to) ?? 0) <= (nodeIndex.get(edge.from) ?? 0)
+      const isBackward =
+        (nodeIndex.get(edge.to) ?? 0) <= (nodeIndex.get(edge.from) ?? 0)
 
       if (isBackward) {
         const fromAnchor = getFlowAnchor(from, 'right')
@@ -435,7 +463,10 @@ function renderFlowDiagram(source: string): string {
   `
 }
 
-function parseSequenceDiagram(source: string): { messages: SequenceMessage[]; participants: string[] } {
+function parseSequenceDiagram(source: string): {
+  messages: SequenceMessage[]
+  participants: string[]
+} {
   const lines = source
     .split('\n')
     .map((line) => line.trim())
@@ -465,7 +496,9 @@ function parseSequenceDiagram(source: string): { messages: SequenceMessage[]; pa
       return
     }
 
-    const messageMatch = /^([^-\s]+)\s*(-{1,2}>>?|-->)\s*([^:]+):\s*(.+)$/.exec(line)
+    const messageMatch = /^([^-\s]+)\s*(-{1,2}>>?|-->)\s*([^:]+):\s*(.+)$/.exec(
+      line
+    )
 
     if (!messageMatch) {
       return
@@ -494,10 +527,16 @@ function renderSequenceDiagram(source: string): string {
   const marginX = 80
   const top = 42
   const rowGap = 72
-  const width = Math.max(360, marginX * 2 + Math.max(0, participants.length - 1) * laneGap)
+  const width = Math.max(
+    360,
+    marginX * 2 + Math.max(0, participants.length - 1) * laneGap
+  )
   const height = Math.max(180, 126 + messages.length * rowGap)
   const positions = new Map(
-    participants.map((participant, index) => [participant, marginX + index * laneGap])
+    participants.map((participant, index) => [
+      participant,
+      marginX + index * laneGap,
+    ])
   )
   const participantBoxes = participants
     .map((participant) => {
@@ -538,7 +577,8 @@ function renderSequenceDiagram(source: string): string {
       const toX = positions.get(message.to ?? '') ?? marginX
       const labelX = (fromX + toX) / 2
       const label = escapeHtml(message.label)
-      const dash = message.lineStyle === 'dashed' ? ' stroke-dasharray="4 4"' : ''
+      const dash =
+        message.lineStyle === 'dashed' ? ' stroke-dasharray="4 4"' : ''
 
       return `
         <line x1="${fromX}" y1="${y}" x2="${toX}" y2="${y}" class="markdown-diagram-edge"${dash} marker-end="url(#markdown-diagram-arrow)" />
@@ -694,31 +734,39 @@ function addExternalLinkAttributes(html: string): string {
   return template.innerHTML
 }
 
-function renderMarkdown(markdown: string): string {
-  const parsedHtml = markdownParser.parse(markdown, markdownOptions)
+function renderMarkdown(markdown: string, breaks = false): string {
+  const parsedHtml = markdownParser.parse(markdown, {
+    ...markdownOptions,
+    breaks,
+  })
   const html = DOMPurify.sanitize(parsedHtml, sanitizeOptions)
 
   return addExternalLinkAttributes(html)
 }
 
 export function Markdown(props: MarkdownProps) {
-  const html = useMemo(() => renderMarkdown(props.children), [props.children])
+  const html = useMemo(
+    () => renderMarkdown(props.children, props.breaks),
+    [props.breaks, props.children]
+  )
 
   return (
     <div
       className={cn(
         'prose prose-sm dark:prose-invert max-w-none',
-        'prose-headings:font-semibold prose-headings:tracking-tight',
-        'prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg',
-        'prose-p:leading-relaxed prose-p:my-2',
-        'prose-a:text-primary prose-a:no-underline hover:prose-a:underline',
-        'prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none',
-        'prose-pre:bg-muted prose-pre:border',
-        'prose-blockquote:border-l-primary prose-blockquote:bg-muted/50 prose-blockquote:py-1',
-        'prose-ul:my-2 prose-ol:my-2 prose-li:my-1',
-        'prose-table:border prose-thead:bg-muted',
-        'prose-td:border prose-th:border prose-td:px-3 prose-th:px-3',
-        'prose-img:rounded-lg prose-img:shadow-sm',
+        '[&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:text-2xl [&_h1]:font-semibold',
+        '[&_h2]:mt-5 [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold',
+        '[&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold',
+        '[&_h4]:mt-4 [&_h4]:mb-2 [&_h4]:font-semibold',
+        '[&_p]:my-2 [&_p]:leading-relaxed [&_strong]:font-semibold [&_em]:italic',
+        '[&_a]:text-primary [&_a]:underline hover:[&_a]:text-primary/80',
+        '[&_ol]:my-2 [&_ul]:my-2 [&_ol]:list-decimal [&_ul]:list-disc [&_ol]:pl-5 [&_ul]:pl-5 [&_li]:my-1 [&_li]:pl-1',
+        '[&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:bg-muted/50 [&_blockquote]:py-1 [&_blockquote]:pl-4',
+        '[&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono',
+        '[&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:border [&_pre]:bg-muted [&_pre]:p-3 [&_table]:my-4 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto',
+        '[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-sm',
+        '[&_thead]:bg-muted [&_th]:border [&_td]:border [&_th]:px-3 [&_td]:px-3 [&_th]:py-2 [&_td]:py-2 [&_th]:text-left',
+        '[&_hr]:my-6 [&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-lg',
         '[&_.katex-display]:my-4 [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden',
         '[&_.markdown-page-break]:my-6 [&_.markdown-page-break]:border-dashed',
         '[&_.markdown-diagram]:my-4 [&_.markdown-diagram]:overflow-x-auto [&_.markdown-diagram]:rounded-md [&_.markdown-diagram]:border [&_.markdown-diagram]:bg-background [&_.markdown-diagram]:p-4',
@@ -732,7 +780,7 @@ export function Markdown(props: MarkdownProps) {
         '[&_.markdown-sequence-note]:fill-warning/20 [&_.markdown-sequence-note]:stroke-warning',
         '[&_.markdown-sequence-note-text]:fill-foreground [&_.markdown-sequence-note-text]:text-xs',
         '[&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
-        '[overflow-wrap:anywhere] break-words',
+        '[overflow-wrap:anywhere]',
         props.className
       )}
       dangerouslySetInnerHTML={{ __html: html }}

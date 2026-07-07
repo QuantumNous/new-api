@@ -16,10 +16,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { Cell, Row } from '@tanstack/react-table'
 import * as React from 'react'
-import type { Row } from '@tanstack/react-table'
+
 import { StatusBadgeTypeContext } from '@/components/status-badge'
+
 import { getCellLabel, renderCellContent } from './card-cell-utils'
+
+function orderCardCells<TData>(
+  cells: Cell<TData, unknown>[]
+): Cell<TData, unknown>[] {
+  return [...cells].sort((a, b) => {
+    const aOrder = a.column.columnDef.meta?.mobileOrder
+    const bOrder = b.column.columnDef.meta?.mobileOrder
+
+    if (aOrder == null && bOrder == null) return 0
+    if (aOrder == null) return 1
+    if (bOrder == null) return -1
+    return aOrder - bOrder
+  })
+}
 
 /**
  * Shared, column-meta-driven card content rendering for TanStack rows.
@@ -60,12 +76,14 @@ function CompactContent<TData>({ row }: { row: Row<TData> }) {
   const titleCell = allCells.find((_, i) => cellMetas[i]?.mobileTitle)
   const badgeCell = allCells.find((_, i) => cellMetas[i]?.mobileBadge)
   const actionsCell = allCells.find((c) => c.column.id === 'actions')
-  const fieldCells = allCells.filter(
-    (c, i) =>
-      c !== titleCell &&
-      c !== badgeCell &&
-      c !== actionsCell &&
-      !cellMetas[i]?.mobileHidden
+  const fieldCells = orderCardCells(
+    allCells.filter(
+      (c, i) =>
+        c !== titleCell &&
+        c !== badgeCell &&
+        c !== actionsCell &&
+        !cellMetas[i]?.mobileHidden
+    )
   )
 
   return (
@@ -96,7 +114,7 @@ function CompactContent<TData>({ row }: { row: Row<TData> }) {
                     {label}
                   </div>
                 )}
-                <div className='min-w-0 overflow-hidden text-xs [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'>
+                <div className='min-w-0 overflow-hidden text-xs [&_:is([data-slot=badge-cell],[data-slot=provider-badge],[data-slot=status-badge])]:ml-0'>
                   <StatusBadgeTypeContext.Provider value='text'>
                     {renderCellContent(cell) ?? '-'}
                   </StatusBadgeTypeContext.Provider>
@@ -133,8 +151,10 @@ function FallbackContent<TData>({ row }: { row: Row<TData> }) {
   )
 
   const actionsCell = allCells.find((c) => c.column.id === 'actions')
-  const contentCells = allCells.filter(
-    (c, i) => c.column.id !== 'actions' && !cellMetas[i]?.mobileHidden
+  const contentCells = orderCardCells(
+    allCells.filter(
+      (c, i) => c.column.id !== 'actions' && !cellMetas[i]?.mobileHidden
+    )
   )
 
   return (
@@ -146,7 +166,7 @@ function FallbackContent<TData>({ row }: { row: Row<TData> }) {
           return (
             <div
               key={cell.id}
-              className='flex justify-end overflow-hidden [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'
+              className='flex justify-end overflow-hidden [&_:is([data-slot=badge-cell],[data-slot=provider-badge],[data-slot=status-badge])]:ml-0'
             >
               <StatusBadgeTypeContext.Provider value='text'>
                 {renderCellContent(cell)}
@@ -163,7 +183,7 @@ function FallbackContent<TData>({ row }: { row: Row<TData> }) {
             <span className='text-muted-foreground shrink-0 text-[10px] font-medium select-none'>
               {label}
             </span>
-            <div className='flex min-w-0 flex-1 items-center justify-end overflow-hidden text-xs [&_[data-slot=provider-badge]]:ml-0 [&_[data-slot=status-badge]]:ml-0'>
+            <div className='flex min-w-0 flex-1 items-center justify-end overflow-hidden text-xs [&_:is([data-slot=badge-cell],[data-slot=provider-badge],[data-slot=status-badge])]:ml-0'>
               <StatusBadgeTypeContext.Provider value='text'>
                 {renderCellContent(cell) ?? '-'}
               </StatusBadgeTypeContext.Provider>
