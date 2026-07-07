@@ -63,3 +63,26 @@
 - Kling `customize` 模式空 `prompt`
 - Kling 非法素材类型、缺失 `multi_prompt`、`audio` 非法值、`element_list` 超限
 - `watermark_video_url` 透传
+
+## 视频按秒计费
+
+- 新增 `video_seconds` 计费模式，专门用于视频任务模型。
+- 价格配置按模型级生效，不按模型族共享。
+- 统一价格表结构为 `model -> tier -> price_key`：
+  - `tier` 当前约定使用 `720p`、`1080p`
+  - `price_key` 支持 `default`、`silent`、`audio`
+- 价格选择顺序：
+  - 当请求显式 `audio=false` 且配置了 `silent` 时，使用 `silent`
+  - 当请求显式 `audio=true` 且配置了 `audio` 时，使用 `audio`
+  - 其他情况回退到 `default`
+- HappyHorse 计费参数转换规则：
+  - 从 `metadata.resolution` 解析档位
+  - `720P -> 720p`
+  - `1080P` 或缺省 -> `1080p`
+- Kling on Bailian 计费参数转换规则：
+  - 从 `metadata.mode` 解析档位
+  - `std -> 720p`
+  - `pro` 或缺省 -> `1080p`
+  - `metadata.audio=false` 视为静音计费候选
+- 最终额度公式：
+  - `quota = unit_price_per_second * duration_seconds * QuotaPerUnit * group_ratio`

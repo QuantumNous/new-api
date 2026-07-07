@@ -19,6 +19,8 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -195,9 +197,14 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if !info.PriceData.UsePrice && info.PriceData.ConditionalInputPrice > 0 {
 		info.PriceData.Quota = int(info.PriceData.ConditionalInputPrice / 4 * common.QuotaPerUnit * info.PriceData.GroupRatioInfo.GroupRatio)
 	}
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeVideoSeconds {
+		if err := applyVideoSecondsBilling(c, info); err != nil {
+			return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
+		}
+	}
 
 	// 6. 将 OtherRatios 应用到基础额度
-	if !common.StringsContains(constant.TaskPricePatches, modelName) {
+	if billing_setting.GetBillingMode(info.OriginModelName) != billing_setting.BillingModeVideoSeconds && !common.StringsContains(constant.TaskPricePatches, modelName) {
 		if info.PriceData.ConditionalInputPrice <= 0 {
 			for _, ra := range info.PriceData.OtherRatios {
 				if ra != 1.0 {
@@ -281,6 +288,27 @@ func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float6
 		}
 	}
 	return int(result)
+}
+
+func applyVideoSecondsBilling(c *gin.Context, info *relaycommon.RelayInfo) error {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return err
+	}
+	videoParams, err := taskcommon.ConvertVideoBillingParams(info, req)
+	if err != nil {
+		return err
+	}
+	unitPrice, ok := ratio_setting.GetVideoSecondsPrice(info.OriginModelName, videoParams.Tier, videoParams.AudioEnabled)
+	if !ok {
+		return fmt.Errorf("video seconds price not configured for %s tier %s", info.OriginModelName, videoParams.Tier)
+	}
+	info.PriceData.VideoSecondsUnitPrice = unitPrice
+	info.PriceData.VideoSecondsTier = videoParams.Tier
+	info.PriceData.VideoDurationSeconds = videoParams.DurationSeconds
+	info.PriceData.VideoAudioEnabled = &videoParams.AudioEnabled
+	info.PriceData.Quota = int(unitPrice * float64(videoParams.DurationSeconds) * common.QuotaPerUnit * info.PriceData.GroupRatioInfo.GroupRatio)
+	return nil
 }
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){

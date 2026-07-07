@@ -8,6 +8,7 @@ import (
 
 	relayconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 )
@@ -351,6 +352,54 @@ func TestConvertToOpenAIVideoPreservesWatermarkURLMetadata(t *testing.T) {
 	metadata, _ := out["metadata"].(map[string]any)
 	if metadata["watermark_url"] != "https://example.com/video-watermark.mp4" {
 		t.Fatalf("expected watermark_url metadata, got %#v", metadata)
+	}
+}
+
+func TestHappyHorseVideoBillingParamsUseResolutionTier(t *testing.T) {
+	req := relaycommon.TaskSubmitReq{
+		Model:    "happyhorse-1.1-r2v",
+		Duration: 5,
+		Metadata: map[string]any{"resolution": "720P"},
+	}
+
+	params, err := taskcommon.ConvertVideoBillingParams(nil, req)
+	if err != nil {
+		t.Fatalf("ConvertVideoBillingParams returned error: %v", err)
+	}
+	if params.Tier != "720p" {
+		t.Fatalf("expected 720p tier, got %q", params.Tier)
+	}
+}
+
+func TestKlingVideoBillingParamsUseModeTier(t *testing.T) {
+	req := relaycommon.TaskSubmitReq{
+		Model:    "kling/kling-v3-video-generation",
+		Duration: 5,
+		Metadata: map[string]any{"mode": "std"},
+	}
+
+	params, err := taskcommon.ConvertVideoBillingParams(nil, req)
+	if err != nil {
+		t.Fatalf("ConvertVideoBillingParams returned error: %v", err)
+	}
+	if params.Tier != "720p" {
+		t.Fatalf("expected 720p tier, got %q", params.Tier)
+	}
+}
+
+func TestKlingVideoBillingParamsUseSilentWhenAudioFalse(t *testing.T) {
+	req := relaycommon.TaskSubmitReq{
+		Model:    "kling/kling-v3-video-generation",
+		Duration: 5,
+		Metadata: map[string]any{"audio": false},
+	}
+
+	params, err := taskcommon.ConvertVideoBillingParams(nil, req)
+	if err != nil {
+		t.Fatalf("ConvertVideoBillingParams returned error: %v", err)
+	}
+	if params.AudioEnabled {
+		t.Fatalf("expected audio disabled")
 	}
 }
 

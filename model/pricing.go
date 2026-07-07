@@ -1,7 +1,6 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -32,6 +31,7 @@ type Pricing struct {
 	AudioRatio             *float64                      `json:"audio_ratio,omitempty"`
 	AudioCompletionRatio   *float64                      `json:"audio_completion_ratio,omitempty"`
 	TaskConditionPrice     map[string]map[string]float64 `json:"task_condition_price,omitempty"`
+	VideoSecondsPrice      map[string]map[string]float64 `json:"video_seconds_price,omitempty"`
 	EnableGroup            []string                      `json:"enable_groups"`
 	SupportedEndpointTypes []constant.EndpointType       `json:"supported_endpoint_types"`
 	BillingMode            string                        `json:"billing_mode,omitempty"`
@@ -221,7 +221,7 @@ func updatePricing() {
 			continue
 		}
 		var raw map[string]interface{}
-		if err := json.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
+		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
 			endpoints := make([]string, 0, len(raw))
 			for k, v := range raw {
 				switch v.(type) {
@@ -265,7 +265,7 @@ func updatePricing() {
 			continue
 		}
 		var raw map[string]interface{}
-		if err := json.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
+		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
 			for k, v := range raw {
 				switch val := v.(type) {
 				case string:
@@ -315,32 +315,7 @@ func updatePricing() {
 			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
 			pricing.QuotaType = 0
 		}
-		if cacheRatio, ok := ratio_setting.GetCacheRatio(model); ok {
-			pricing.CacheRatio = &cacheRatio
-		}
-		if createCacheRatio, ok := ratio_setting.GetCreateCacheRatio(model); ok {
-			pricing.CreateCacheRatio = &createCacheRatio
-		}
-		if imageRatio, ok := ratio_setting.GetImageRatio(model); ok {
-			pricing.ImageRatio = &imageRatio
-		}
-		if ratio_setting.ContainsAudioRatio(model) {
-			audioRatio := ratio_setting.GetAudioRatio(model)
-			pricing.AudioRatio = &audioRatio
-		}
-		if ratio_setting.ContainsAudioCompletionRatio(model) {
-			audioCompletionRatio := ratio_setting.GetAudioCompletionRatio(model)
-			pricing.AudioCompletionRatio = &audioCompletionRatio
-		}
-		if taskConditionPrice, ok := ratio_setting.GetTaskConditionPriceCopy()[model]; ok && len(taskConditionPrice) > 0 {
-			pricing.TaskConditionPrice = taskConditionPrice
-		}
-		if billingMode := billing_setting.GetBillingMode(model); billingMode == "tiered_expr" {
-			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
-				pricing.BillingMode = billingMode
-				pricing.BillingExpr = expr
-			}
-		}
+		applyConfiguredPricing(model, &pricing)
 		pricingMap = append(pricingMap, pricing)
 	}
 
@@ -365,4 +340,40 @@ func updatePricing() {
 // GetSupportedEndpointMap 返回全局端点到路径的映射
 func GetSupportedEndpointMap() map[string]common.EndpointInfo {
 	return supportedEndpointMap
+}
+
+func applyConfiguredPricing(model string, pricing *Pricing) {
+	if cacheRatio, ok := ratio_setting.GetCacheRatio(model); ok {
+		pricing.CacheRatio = &cacheRatio
+	}
+	if createCacheRatio, ok := ratio_setting.GetCreateCacheRatio(model); ok {
+		pricing.CreateCacheRatio = &createCacheRatio
+	}
+	if imageRatio, ok := ratio_setting.GetImageRatio(model); ok {
+		pricing.ImageRatio = &imageRatio
+	}
+	if ratio_setting.ContainsAudioRatio(model) {
+		audioRatio := ratio_setting.GetAudioRatio(model)
+		pricing.AudioRatio = &audioRatio
+	}
+	if ratio_setting.ContainsAudioCompletionRatio(model) {
+		audioCompletionRatio := ratio_setting.GetAudioCompletionRatio(model)
+		pricing.AudioCompletionRatio = &audioCompletionRatio
+	}
+	if taskConditionPrice, ok := ratio_setting.GetTaskConditionPriceCopy()[model]; ok && len(taskConditionPrice) > 0 {
+		pricing.TaskConditionPrice = taskConditionPrice
+	}
+	if videoSecondsPrice, ok := ratio_setting.GetVideoSecondsPriceCopy()[model]; ok && len(videoSecondsPrice) > 0 {
+		pricing.VideoSecondsPrice = videoSecondsPrice
+		pricing.QuotaType = 1
+	}
+	switch billingMode := billing_setting.GetBillingMode(model); billingMode {
+	case billing_setting.BillingModeVideoSeconds:
+		pricing.BillingMode = billingMode
+	case billing_setting.BillingModeTieredExpr:
+		if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
+			pricing.BillingMode = billingMode
+			pricing.BillingExpr = expr
+		}
+	}
 }
