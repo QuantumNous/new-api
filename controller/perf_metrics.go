@@ -69,17 +69,27 @@ func GetPerfMetrics(c *gin.Context) {
 			hours = parsed
 		}
 	}
-	if strings.TrimSpace(c.Query("group")) == websitePublicGroup && !ratio_setting.ContainsGroupRatio(websitePublicGroup) {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"success": false,
-			"message": "public website group is not configured",
-		})
-		return
+	group := strings.TrimSpace(c.Query("group"))
+	if group != "" {
+		if group != websitePublicGroup {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "unsupported performance metrics group",
+			})
+			return
+		}
+		if !ratio_setting.ContainsGroupRatio(websitePublicGroup) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"success": false,
+				"message": "public website group is not configured",
+			})
+			return
+		}
 	}
 
 	result, err := perfmetrics.Query(perfmetrics.QueryParams{
 		Model: modelName,
-		Group: c.Query("group"),
+		Group: group,
 		Hours: hours,
 	})
 	if err != nil {

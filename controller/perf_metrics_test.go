@@ -108,3 +108,12 @@ func TestGetPerfMetricsFailsClosedWhenPublicGroupRatioMissing(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 	require.JSONEq(t, `{"success":false,"message":"public website group is not configured"}`, recorder.Body.String())
 }
+
+func TestGetPerfMetricsRejectsUnsupportedExplicitGroup(t *testing.T) {
+	setupPerfMetricsControllerTest(t)
+
+	recorder := performPerfMetricsRequest("/api/perf-metrics?model=gpt-enterprise&hours=24&group=company-employees")
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.JSONEq(t, `{"success":false,"message":"unsupported performance metrics group"}`, recorder.Body.String())
+}
