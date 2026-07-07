@@ -46,6 +46,8 @@ describe("model slug resolution", () => {
   test("malformed percent-encoding resolves to null instead of throwing", () => {
     expect(() => resolvePublicModel(models, "%E0%A4%A")).not.toThrow();
     expect(resolvePublicModel(models, "%E0%A4%A")).toBeNull();
+    // No raw-slug fallback: "gpt-image-2%" must not normalize into a hit.
+    expect(resolvePublicModel(models, "gpt-image-2%")).toBeNull();
   });
 
   test("model page paths encode the model name", () => {

@@ -38,12 +38,13 @@ export function normalizeModelKey(name: string): string {
 
 export function resolvePublicModel(models: PricingModel[], slug: string): PricingModel | null {
   // Slugs come straight from the URL: malformed percent-encoding
-  // (e.g. "%E0%A4%A") must resolve to null/404, not throw a 500.
+  // (e.g. "%E0%A4%A") must 404, not throw a 500 — and not fall back to the
+  // raw slug either, or "gpt-4%" would normalize into a real model hit.
   let decoded: string;
   try {
     decoded = decodeURIComponent(slug);
   } catch {
-    decoded = slug;
+    return null;
   }
   const exact = models.find((model) => model.model_name === decoded);
   if (exact) return exact;
