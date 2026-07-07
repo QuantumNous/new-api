@@ -41,15 +41,16 @@ type Channel struct {
 	UsedQuota          int64   `json:"used_quota" gorm:"bigint;default:0"`
 	ModelMapping       *string `json:"model_mapping" gorm:"type:text"`
 	//MaxInputTokens     *int    `json:"max_input_tokens" gorm:"default:0"`
-	StatusCodeMapping *string `json:"status_code_mapping" gorm:"type:varchar(1024);default:''"`
-	Priority          *int64  `json:"priority" gorm:"bigint;default:0"`
-	AutoBan           *int    `json:"auto_ban" gorm:"default:1"`
-	OtherInfo         string  `json:"other_info"`
-	Tag               *string `json:"tag" gorm:"index"`
-	Setting           *string `json:"setting" gorm:"type:text"` // 渠道额外设置
-	ParamOverride     *string `json:"param_override" gorm:"type:text"`
-	HeaderOverride    *string `json:"header_override" gorm:"type:text"`
-	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
+	StatusCodeMapping         *string `json:"status_code_mapping" gorm:"type:varchar(1024);default:''"`
+	StatusCodeResponseMapping *string `json:"status_code_response_mapping" gorm:"type:text"`
+	Priority                  *int64  `json:"priority" gorm:"bigint;default:0"`
+	AutoBan                   *int    `json:"auto_ban" gorm:"default:1"`
+	OtherInfo                 string  `json:"other_info"`
+	Tag                       *string `json:"tag" gorm:"index"`
+	Setting                   *string `json:"setting" gorm:"type:text"` // 渠道额外设置
+	ParamOverride             *string `json:"param_override" gorm:"type:text"`
+	HeaderOverride            *string `json:"header_override" gorm:"type:text"`
+	Remark                    *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 
@@ -511,6 +512,13 @@ func (channel *Channel) GetStatusCodeMapping() string {
 		return ""
 	}
 	return *channel.StatusCodeMapping
+}
+
+func (channel *Channel) GetStatusCodeResponseMapping() string {
+	if channel.StatusCodeResponseMapping == nil {
+		return ""
+	}
+	return *channel.StatusCodeResponseMapping
 }
 
 func (channel *Channel) Insert() error {

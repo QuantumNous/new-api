@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -62,6 +64,132 @@ func TestResetStatusCode(t *testing.T) {
 			require.Equal(t, tc.expectedCode, newAPIError.StatusCode)
 		})
 	}
+}
+
+func TestResetStatusCodeUsesOriginalStatusCode(t *testing.T) {
+	t.Parallel()
+
+	newAPIError := types.NewOpenAIError(
+		errors.New("rate limited"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+	)
+
+	ResetStatusCode(newAPIError, `{"429":503}`)
+	require.Equal(t, http.StatusServiceUnavailable, newAPIError.StatusCode)
+
+	ResetStatusCode(newAPIError, `{"429":502}`)
+	require.Equal(t, http.StatusBadGateway, newAPIError.StatusCode)
+	require.Equal(t, http.StatusTooManyRequests, newAPIError.GetOriginalStatusCode())
+}
+
+func TestApplyStatusCodeResponseMapping(t *testing.T) {
+	t.Parallel()
+
+	newAPIError := types.NewOpenAIError(
+		errors.New("upstream rate limited"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+	)
+	mapping := `{"429":{"status_code":503,"message":"Upstream is busy, please retry later.","type":"server_error","code":"upstream_overloaded"}}`
+
+	messageOverridden := ApplyStatusCodeResponseMapping(newAPIError, mapping)
+
+	require.True(t, messageOverridden)
+	require.Equal(t, http.StatusServiceUnavailable, newAPIError.StatusCode)
+	require.Equal(t, "Upstream is busy, please retry later.", newAPIError.Error())
+
+	openAIError := newAPIError.ToOpenAIError()
+	require.Equal(t, "Upstream is busy, please retry later.", openAIError.Message)
+	require.Equal(t, "server_error", openAIError.Type)
+	require.Equal(t, "upstream_overloaded", openAIError.Code)
+
+	claudeError := newAPIError.ToClaudeError()
+	require.Equal(t, "Upstream is busy, please retry later.", claudeError.Message)
+	require.Equal(t, "server_error", claudeError.Type)
+}
+
+func TestApplyStatusCodeResponseMappingKeepsValidFieldsWhenStatusCodeInvalid(t *testing.T) {
+	t.Parallel()
+
+	newAPIError := types.NewOpenAIError(
+		errors.New("upstream rate limited"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+	)
+
+	messageOverridden := ApplyStatusCodeResponseMapping(newAPIError, `{"429":{"status_code":700,"message":"Custom message"}}`)
+
+	require.True(t, messageOverridden)
+	require.Equal(t, http.StatusTooManyRequests, newAPIError.StatusCode)
+	require.Equal(t, "Custom message", newAPIError.ToOpenAIError().Message)
+}
+
+func TestApplyStatusCodeResponseMappingIgnoresInvalidConfig(t *testing.T) {
+	t.Parallel()
+
+	newAPIError := types.NewOpenAIError(
+		errors.New("upstream rate limited"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+	)
+
+	messageOverridden := ApplyStatusCodeResponseMapping(newAPIError, `{"429":"busy"}`)
+
+	require.False(t, messageOverridden)
+	require.Equal(t, http.StatusTooManyRequests, newAPIError.StatusCode)
+	require.Equal(t, "upstream rate limited", newAPIError.Error())
+}
+
+func TestApplyStatusCodeResponseMappingTakesPrecedenceOverStatusCodeMapping(t *testing.T) {
+	t.Parallel()
+
+	newAPIError := types.NewOpenAIError(
+		errors.New("upstream rate limited"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+	)
+
+	ResetStatusCode(newAPIError, `{"429":503}`)
+	ApplyStatusCodeResponseMapping(newAPIError, `{"429":{"status_code":502,"message":"Gateway failed"}}`)
+
+	require.Equal(t, http.StatusBadGateway, newAPIError.StatusCode)
+	require.Equal(t, "Gateway failed", newAPIError.ToOpenAIError().Message)
+}
+
+func TestApplyStatusCodeResponseMappingToTaskError(t *testing.T) {
+	t.Parallel()
+
+	taskErr := &dto.TaskError{
+		Code:               "upstream_error",
+		Message:            "too many requests",
+		StatusCode:         http.StatusTooManyRequests,
+		OriginalStatusCode: http.StatusTooManyRequests,
+		Error:              errors.New("too many requests"),
+	}
+
+	messageOverridden := ApplyStatusCodeResponseMappingToTaskError(
+		taskErr,
+		`{"429":{"status_code":503,"message":"Task upstream is busy.","code":"upstream_overloaded"}}`,
+	)
+
+	require.True(t, messageOverridden)
+	require.Equal(t, http.StatusServiceUnavailable, taskErr.StatusCode)
+	require.Equal(t, "Task upstream is busy.", taskErr.Message)
+	require.Equal(t, "upstream_overloaded", taskErr.Code)
+	require.EqualError(t, taskErr.Error, "Task upstream is busy.")
+}
+
+func TestValidateStatusCodeResponseMapping(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, ValidateStatusCodeResponseMapping(`{"429":{"status_code":503,"message":"busy","type":"server_error","code":"upstream_overloaded"}}`))
+	require.NoError(t, ValidateStatusCodeResponseMapping(""))
+	require.Error(t, ValidateStatusCodeResponseMapping(`{"bad":{"message":"busy"}}`))
+	require.Error(t, ValidateStatusCodeResponseMapping(`{"429":"busy"}`))
+	require.Error(t, ValidateStatusCodeResponseMapping(`{"429":{"status_code":700}}`))
+	require.Error(t, ValidateStatusCodeResponseMapping(`{"429":{"message":503}}`))
+	require.Error(t, ValidateStatusCodeResponseMapping(`{"429":{"description":"busy"}}`))
 }
 
 func TestRelayErrorHandlerTruncatesInvalidJSONBodyInLog(t *testing.T) {

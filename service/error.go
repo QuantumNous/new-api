@@ -134,6 +134,9 @@ func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) 
 	if newApiErr == nil {
 		return
 	}
+	if newApiErr.OriginalStatusCode == 0 {
+		newApiErr.OriginalStatusCode = newApiErr.StatusCode
+	}
 	if statusCodeMappingStr == "" || statusCodeMappingStr == "{}" {
 		return
 	}
@@ -145,7 +148,7 @@ func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) 
 	if newApiErr.StatusCode == http.StatusOK {
 		return
 	}
-	codeStr := strconv.Itoa(newApiErr.StatusCode)
+	codeStr := strconv.Itoa(newApiErr.GetOriginalStatusCode())
 	if value, ok := statusCodeMapping[codeStr]; ok {
 		intCode, ok := parseStatusCodeMappingValue(value)
 		if !ok {
@@ -153,6 +156,132 @@ func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) 
 		}
 		newApiErr.StatusCode = intCode
 	}
+}
+
+type statusCodeResponseMappingEntry struct {
+	StatusCode *int
+	Message    *string
+	Type       *string
+	Code       *string
+}
+
+func ApplyStatusCodeResponseMapping(newApiErr *types.NewAPIError, statusCodeResponseMappingStr string) bool {
+	if newApiErr == nil {
+		return false
+	}
+	entry, ok := matchStatusCodeResponseMapping(newApiErr.GetOriginalStatusCode(), statusCodeResponseMappingStr)
+	if !ok {
+		return false
+	}
+	if entry.StatusCode != nil {
+		newApiErr.StatusCode = *entry.StatusCode
+	}
+	if entry.Message != nil || entry.Type != nil || entry.Code != nil {
+		newApiErr.SetResponseOverride(types.ErrorResponseOverride{
+			Message: entry.Message,
+			Type:    entry.Type,
+			Code:    entry.Code,
+		})
+	}
+	return entry.Message != nil
+}
+
+func ApplyStatusCodeResponseMappingToTaskError(taskErr *dto.TaskError, statusCodeResponseMappingStr string) bool {
+	if taskErr == nil {
+		return false
+	}
+	statusCode := taskErr.OriginalStatusCode
+	if statusCode == 0 {
+		statusCode = taskErr.StatusCode
+	}
+	entry, ok := matchStatusCodeResponseMapping(statusCode, statusCodeResponseMappingStr)
+	if !ok {
+		return false
+	}
+	if entry.StatusCode != nil {
+		taskErr.StatusCode = *entry.StatusCode
+	}
+	if entry.Message != nil {
+		taskErr.Message = *entry.Message
+		taskErr.Error = errors.New(*entry.Message)
+	}
+	if entry.Code != nil {
+		taskErr.Code = *entry.Code
+	}
+	return entry.Message != nil
+}
+
+func ValidateStatusCodeResponseMapping(statusCodeResponseMappingStr string) error {
+	if statusCodeResponseMappingStr == "" || statusCodeResponseMappingStr == "{}" {
+		return nil
+	}
+	var rawMapping map[string]any
+	if err := common.Unmarshal([]byte(statusCodeResponseMappingStr), &rawMapping); err != nil {
+		return fmt.Errorf("status_code_response_mapping must be a valid JSON object: %w", err)
+	}
+	for rawStatusCode, rawEntry := range rawMapping {
+		statusCode, err := strconv.Atoi(rawStatusCode)
+		if err != nil || !isValidHTTPStatusCode(statusCode) {
+			return fmt.Errorf("status_code_response_mapping key %q must be a valid HTTP status code", rawStatusCode)
+		}
+		entry, ok := rawEntry.(map[string]any)
+		if !ok {
+			return fmt.Errorf("status_code_response_mapping entry for %s must be a JSON object", rawStatusCode)
+		}
+		for field, rawValue := range entry {
+			switch field {
+			case "status_code":
+				targetStatusCode, ok := parseStatusCodeMappingValue(rawValue)
+				if !ok || !isValidHTTPStatusCode(targetStatusCode) {
+					return fmt.Errorf("status_code_response_mapping status_code for %s must be a valid HTTP status code", rawStatusCode)
+				}
+			case "message", "type", "code":
+				if _, ok := rawValue.(string); !ok {
+					return fmt.Errorf("status_code_response_mapping %s for %s must be a string", field, rawStatusCode)
+				}
+			default:
+				return fmt.Errorf("status_code_response_mapping field %q for %s is not supported", field, rawStatusCode)
+			}
+		}
+	}
+	return nil
+}
+
+func matchStatusCodeResponseMapping(statusCode int, statusCodeResponseMappingStr string) (statusCodeResponseMappingEntry, bool) {
+	if statusCode == 0 || statusCodeResponseMappingStr == "" || statusCodeResponseMappingStr == "{}" {
+		return statusCodeResponseMappingEntry{}, false
+	}
+	var statusCodeResponseMapping map[string]map[string]any
+	if err := common.Unmarshal([]byte(statusCodeResponseMappingStr), &statusCodeResponseMapping); err != nil {
+		return statusCodeResponseMappingEntry{}, false
+	}
+	rawEntry, ok := statusCodeResponseMapping[strconv.Itoa(statusCode)]
+	if !ok {
+		return statusCodeResponseMappingEntry{}, false
+	}
+	entry := statusCodeResponseMappingEntry{}
+	if rawStatusCode, ok := rawEntry["status_code"]; ok {
+		if statusCode, valid := parseStatusCodeMappingValue(rawStatusCode); valid && isValidHTTPStatusCode(statusCode) {
+			entry.StatusCode = common.GetPointer(statusCode)
+		}
+	}
+	if message, ok := rawEntry["message"].(string); ok {
+		entry.Message = common.GetPointer(message)
+	}
+	if errorType, ok := rawEntry["type"].(string); ok {
+		entry.Type = common.GetPointer(errorType)
+	}
+	if errorCode, ok := rawEntry["code"].(string); ok {
+		entry.Code = common.GetPointer(errorCode)
+	}
+	if entry.StatusCode == nil && entry.Message == nil && entry.Type == nil && entry.Code == nil {
+		return statusCodeResponseMappingEntry{}, false
+	}
+	return entry, true
+}
+
+func isValidHTTPStatusCode(statusCode int) bool {
+	return statusCode >= http.StatusContinue && statusCode <= 599
 }
 
 func parseStatusCodeMappingValue(value any) (int, bool) {
@@ -200,10 +329,11 @@ func TaskErrorWrapper(err error, code string, statusCode int) *dto.TaskError {
 	}
 	//避免暴露内部错误
 	taskError := &dto.TaskError{
-		Code:       code,
-		Message:    text,
-		StatusCode: statusCode,
-		Error:      err,
+		Code:               code,
+		Message:            text,
+		StatusCode:         statusCode,
+		OriginalStatusCode: statusCode,
+		Error:              err,
 	}
 
 	return taskError
@@ -215,9 +345,10 @@ func TaskErrorFromAPIError(apiErr *types.NewAPIError) *dto.TaskError {
 		return nil
 	}
 	return &dto.TaskError{
-		Code:       string(apiErr.GetErrorCode()),
-		Message:    apiErr.Err.Error(),
-		StatusCode: apiErr.StatusCode,
-		Error:      apiErr.Err,
+		Code:               string(apiErr.GetErrorCode()),
+		Message:            apiErr.Err.Error(),
+		StatusCode:         apiErr.StatusCode,
+		OriginalStatusCode: apiErr.GetOriginalStatusCode(),
+		Error:              apiErr.Err,
 	}
 }

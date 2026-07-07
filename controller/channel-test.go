@@ -859,13 +859,16 @@ func TestChannel(c *gin.Context) {
 	}
 	result := testChannel(requestCtx, channel, testUserID, testModel, endpointType, isStream)
 	if result.localErr != nil {
+		message := result.localErr.Error()
 		resp := gin.H{
 			"success": false,
-			"message": result.localErr.Error(),
+			"message": message,
 			"time":    0.0,
 		}
 		if result.newAPIError != nil {
-			resp["error_code"] = result.newAPIError.GetErrorCode()
+			service.ApplyStatusCodeResponseMapping(result.newAPIError, channel.GetStatusCodeResponseMapping())
+			resp["message"] = result.newAPIError.Error()
+			resp["error_code"] = result.newAPIError.ToOpenAIError().Code
 		}
 		c.JSON(http.StatusOK, resp)
 		return
@@ -875,11 +878,12 @@ func TestChannel(c *gin.Context) {
 	go channel.UpdateResponseTime(milliseconds)
 	consumedTime := float64(milliseconds) / 1000.0
 	if result.newAPIError != nil {
+		service.ApplyStatusCodeResponseMapping(result.newAPIError, channel.GetStatusCodeResponseMapping())
 		c.JSON(http.StatusOK, gin.H{
 			"success":    false,
 			"message":    result.newAPIError.Error(),
 			"time":       consumedTime,
-			"error_code": result.newAPIError.GetErrorCode(),
+			"error_code": result.newAPIError.ToOpenAIError().Code,
 		})
 		return
 	}

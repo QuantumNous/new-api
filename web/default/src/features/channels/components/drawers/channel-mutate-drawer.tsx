@@ -322,6 +322,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     hasConfiguredOverrideValue(values.header_override) ||
     values.advanced_custom?.trim() ||
     hasConfiguredOverrideValue(values.status_code_mapping) ||
+    hasConfiguredOverrideValue(values.status_code_response_mapping) ||
     values.tag?.trim() ||
     values.remark?.trim() ||
     values.priority ||
@@ -715,6 +716,9 @@ export function ChannelMutateDrawer({
   const currentTag = form.watch('tag')
   const currentRemark = form.watch('remark')
   const currentStatusCodeMapping = form.watch('status_code_mapping')
+  const currentStatusCodeResponseMapping = form.watch(
+    'status_code_response_mapping'
+  )
   const currentParamOverride = form.watch('param_override')
   const currentHeaderOverride = form.watch('header_override')
   const currentForceFormat = form.watch('force_format')
@@ -919,6 +923,7 @@ export function ChannelMutateDrawer({
   )
   const overrideRulesConfigured = Boolean(
     hasConfiguredOverrideValue(currentStatusCodeMapping) ||
+    hasConfiguredOverrideValue(currentStatusCodeResponseMapping) ||
     hasConfiguredOverrideValue(currentParamOverride) ||
     hasConfiguredOverrideValue(currentHeaderOverride)
   )
@@ -3672,13 +3677,57 @@ export function ChannelMutateDrawer({
                                       disabled={isSubmitting}
                                       keyPlaceholder='400'
                                       valuePlaceholder='500'
-                                      keyLabel='Original Code'
-                                      valueLabel='Mapped Code'
+                                      keyLabel={t('Original Code')}
+                                      valueLabel={t('Mapped Code')}
                                       emptyMessage={t(
                                         'No status code mappings configured.'
                                       )}
                                       template={{ '400': '500', '429': '503' }}
                                       valueType='string'
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name='status_code_response_mapping'
+                              render={({ field }) => (
+                                <FormItem className='space-y-3'>
+                                  <div className='space-y-1'>
+                                    <FormLabel>
+                                      {t('Status Code Response Mapping')}
+                                    </FormLabel>
+                                    <FormDescription>
+                                      {t(
+                                        'Customize error responses by upstream status code'
+                                      )}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <JsonEditor
+                                      value={field.value || ''}
+                                      onChange={field.onChange}
+                                      disabled={isSubmitting}
+                                      keyPlaceholder='429'
+                                      valuePlaceholder='{"status_code":503,"message":"Upstream is busy, please retry later.","type":"server_error","code":"upstream_overloaded"}'
+                                      keyLabel={t('Original Code')}
+                                      valueLabel={t('Response')}
+                                      emptyMessage={t(
+                                        'No status code response mappings configured.'
+                                      )}
+                                      template={{
+                                        '429': {
+                                          status_code: 503,
+                                          message:
+                                            'Upstream is busy, please retry later.',
+                                          type: 'server_error',
+                                          code: 'upstream_overloaded',
+                                        },
+                                      }}
+                                      valueType='any'
                                     />
                                   </FormControl>
                                   <FormMessage />

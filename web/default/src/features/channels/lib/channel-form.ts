@@ -87,6 +87,46 @@ function isOptionalStatusCodeMapping(value: string | undefined): boolean {
   }
 }
 
+function isValidHttpStatusCode(value: unknown): boolean {
+  if (typeof value === 'number') {
+    return Number.isInteger(value) && value >= 100 && value <= 599
+  }
+  if (typeof value === 'string') {
+    if (!/^[1-5]\d{2}$/.test(value)) return false
+    const code = Number(value)
+    return Number.isInteger(code) && code >= 100 && code <= 599
+  }
+  return false
+}
+
+function isOptionalStatusCodeResponseMapping(
+  value: string | undefined
+): boolean {
+  try {
+    const parsed = parseOptionalJson(value)
+    if (parsed === undefined) return true
+    if (!isJsonObjectValue(parsed)) return false
+    return Object.entries(parsed).every(([statusCode, response]) => {
+      if (!isValidHttpStatusCode(statusCode)) return false
+      if (!isJsonObjectValue(response)) return false
+
+      const supportedFields = new Set([
+        'status_code',
+        'message',
+        'type',
+        'code',
+      ])
+      return Object.entries(response).every(([field, fieldValue]) => {
+        if (!supportedFields.has(field)) return false
+        if (field === 'status_code') return isValidHttpStatusCode(fieldValue)
+        return typeof fieldValue === 'string'
+      })
+    })
+  } catch {
+    return false
+  }
+}
+
 function isCodexCredential(value: string | undefined): boolean {
   try {
     const parsed = parseOptionalJson(value)
@@ -155,6 +195,13 @@ export const channelFormSchema = z
       .refine(
         isOptionalStatusCodeMapping,
         'Status code mapping must use valid HTTP status codes'
+      ),
+    status_code_response_mapping: z
+      .string()
+      .optional()
+      .refine(
+        isOptionalStatusCodeResponseMapping,
+        'Status code response mapping must use valid HTTP status codes and string error fields'
       ),
     tag: z.string().optional(),
     remark: z
@@ -313,6 +360,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   auto_ban: 1,
   status: CHANNEL_STATUS.ENABLED,
   status_code_mapping: '',
+  status_code_response_mapping: '',
   tag: '',
   remark: '',
   setting: '',
@@ -454,6 +502,7 @@ export function transformChannelToFormDefaults(
     auto_ban: channel.auto_ban ?? 1,
     status: channel.status,
     status_code_mapping: channel.status_code_mapping || '',
+    status_code_response_mapping: channel.status_code_response_mapping || '',
     tag: channel.tag || '',
     remark: channel.remark || '',
     setting: channel.setting || '',
@@ -657,6 +706,8 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     auto_ban: formData.auto_ban ?? 1,
     status: formData.status,
     status_code_mapping: formData.status_code_mapping || null,
+    status_code_response_mapping:
+      formData.status_code_response_mapping || null,
     tag: formData.tag || null,
     remark: formData.remark || '',
     setting: buildSettingJSON(formData),
@@ -704,6 +755,8 @@ export function transformFormDataToUpdatePayload(
     test_model: formData.test_model || null,
     auto_ban: formData.auto_ban ?? 1,
     status_code_mapping: formData.status_code_mapping || null,
+    status_code_response_mapping:
+      formData.status_code_response_mapping || null,
     tag: formData.tag || null,
     remark: formData.remark || '',
     setting: buildSettingJSON(formData),
@@ -733,6 +786,8 @@ export function transformFormDataToUpdatePayload(
   payload.remark = formData.remark || ''
   payload.model_mapping = formData.model_mapping || ''
   payload.status_code_mapping = formData.status_code_mapping || ''
+  payload.status_code_response_mapping =
+    formData.status_code_response_mapping || ''
   payload.param_override = formData.param_override || ''
   payload.header_override = formData.header_override || ''
 
