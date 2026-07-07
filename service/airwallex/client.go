@@ -232,6 +232,16 @@ func CreateSubscription(req *CreateSubscriptionRequest) (*Subscription, error) {
 	return &sub, nil
 }
 
+// GetSubscription fetches one subscription with full fields — webhook events
+// carry a slim object without metadata, so handlers re-fetch by id.
+func GetSubscription(subscriptionId string) (*Subscription, error) {
+	var sub Subscription
+	if err := do(http.MethodGet, "/api/v1/subscriptions/"+url.PathEscape(subscriptionId), nil, &sub); err != nil {
+		return nil, err
+	}
+	return &sub, nil
+}
+
 // CancelSubscription stops future cycles. prorationBehavior ∈ ALL / PRORATED / NONE;
 // JINN policy is NONE (no cash refunds — access runs to period end via the engine term).
 func CancelSubscription(subscriptionId, requestId, prorationBehavior string) error {

@@ -382,6 +382,16 @@ func handleAirwallexSubscriptionActive(c *gin.Context, event airwallexEvent, raw
 	ctx := c.Request.Context()
 	tradeNo := airwallexObjectMetadata(event.Data.Object, "trade_no")
 	if tradeNo == "" {
+		// The event object is slim (no metadata) — re-fetch the subscription.
+		if subId := airwallexObjectString(event.Data.Object, "id"); subId != "" {
+			if sub, err := airwallex.GetSubscription(subId); err == nil && sub.Metadata != nil {
+				tradeNo = sub.Metadata["trade_no"]
+			} else if err != nil {
+				logger.LogError(ctx, "Airwallex subscription.active: 订阅查询失败 "+err.Error())
+			}
+		}
+	}
+	if tradeNo == "" {
 		logger.LogInfo(ctx, "Airwallex subscription.active without trade_no metadata, ignored")
 		return
 	}
