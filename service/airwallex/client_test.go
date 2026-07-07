@@ -76,23 +76,22 @@ func TestLoginFailureSurfaced(t *testing.T) {
 func TestCreateSubscriptionSendsVerifiedShape(t *testing.T) {
 	var logins int32
 	var gotPath, gotBody string
+	var gotVersion string
 	mockServer(t, &logins, func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
+		gotVersion = r.Header.Get("x-api-version")
 		buf := make([]byte, r.ContentLength)
 		r.Body.Read(buf)
 		gotBody = string(buf)
 		w.Write([]byte(`{"id":"sub_1","status":"ACTIVE","customer_id":"cus_1"}`))
 	})
 	sub, err := CreateSubscription(&CreateSubscriptionRequest{
-		RequestId:         "req-2",
-		CustomerId:        "cus_1",
-		BillingCustomerId: "cus_1",
-		CollectionMethod:  "AUTO_CHARGE",
-		PaymentSourceId:   "cst_1",
-		PaymentConsentId:  "cst_1",
-		Items:             []SubscriptionItem{{PriceId: "pri_pro"}},
-		Recurring:         &SubscriptionRecurring{Period: 1, PeriodUnit: "MONTH"},
-		Metadata:          map[string]string{"new_api_user_id": "7", "trade_no": "sub_ref_x"},
+		RequestId:        "req-2",
+		CustomerId:       "cus_1",
+		PaymentConsentId: "cst_1",
+		Items:            []SubscriptionItem{{PriceId: "pri_pro"}},
+		Recurring:        &SubscriptionRecurring{Period: 1, PeriodUnit: "MONTH"},
+		Metadata:         map[string]string{"new_api_user_id": "7", "trade_no": "sub_ref_x"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -103,9 +102,18 @@ func TestCreateSubscriptionSendsVerifiedShape(t *testing.T) {
 	if gotPath != "/api/v1/subscriptions/create" {
 		t.Fatalf("wrong path %s", gotPath)
 	}
-	for _, needle := range []string{`"payment_consent_id":"cst_1"`, `"payment_source_id":"cst_1"`, `"billing_customer_id":"cus_1"`, `"collection_method":"AUTO_CHARGE"`, `"price_id":"pri_pro"`, `"period_unit":"MONTH"`, `"trade_no":"sub_ref_x"`} {
+	for _, needle := range []string{`"payment_consent_id":"cst_1"`, `"price_id":"pri_pro"`, `"period_unit":"MONTH"`, `"trade_no":"sub_ref_x"`} {
 		if !strings.Contains(gotBody, needle) {
 			t.Fatalf("body missing %s: %s", needle, gotBody)
+		}
+	}
+	if gotVersion != subscriptionApiVersion {
+		t.Fatalf("x-api-version not pinned: %q", gotVersion)
+	}
+	// The pinned generation must not carry new-Billing-product fields.
+	for _, forbidden := range []string{"billing_customer_id", "collection_method", "payment_source_id"} {
+		if strings.Contains(gotBody, forbidden) {
+			t.Fatalf("body must not contain %s: %s", forbidden, gotBody)
 		}
 	}
 }

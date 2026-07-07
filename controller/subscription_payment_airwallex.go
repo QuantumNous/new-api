@@ -361,15 +361,12 @@ func handleAirwallexConsentVerified(c *gin.Context, event airwallexEvent, raw []
 		return
 	}
 	_, err = airwallex.CreateSubscription(&airwallex.CreateSubscriptionRequest{
-		RequestId:         order.TradeNo + "-sub",
-		CustomerId:        customerId,
-		BillingCustomerId: customerId,
-		CollectionMethod:  "AUTO_CHARGE",
-		PaymentSourceId:   consentId,
-		PaymentConsentId:  consentId,
-		Items:             []airwallex.SubscriptionItem{{PriceId: plan.AirwallexPriceId}},
-		Recurring:         &airwallex.SubscriptionRecurring{Period: plan.DurationValue, PeriodUnit: strings.ToUpper(plan.DurationUnit)},
-		Metadata:          map[string]string{"trade_no": order.TradeNo, "new_api_user_id": strconv.Itoa(userId)},
+		RequestId:        order.TradeNo + "-sub",
+		CustomerId:       customerId,
+		PaymentConsentId: consentId,
+		Items:            []airwallex.SubscriptionItem{{PriceId: plan.AirwallexPriceId}},
+		Recurring:        &airwallex.SubscriptionRecurring{Period: plan.DurationValue, PeriodUnit: strings.ToUpper(plan.DurationUnit)},
+		Metadata:         map[string]string{"trade_no": order.TradeNo, "new_api_user_id": strconv.Itoa(userId)},
 	})
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Airwallex 订阅创建失败 trade_no=%s error=%q", order.TradeNo, err.Error()))

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -76,6 +77,14 @@ func getToken() (string, error) {
 	return cachedToken, nil
 }
 
+// subscriptionApiVersion pins /api/v1/subscriptions/* to the documented
+// consent-based flow. The unpinned (2025+) version demands the new Billing
+// entities — bcus_ billing customers, psrc_ payment sources, collection_method,
+// and an UNSCHEDULED consent — none of which the published schema documents.
+// Verified empirically 2026-07-07: pinned requests validate the schema.json
+// shape end-to-end.
+const subscriptionApiVersion = "2024-09-27"
+
 // do performs an authenticated JSON call; out may be nil.
 func do(method, path string, in any, out any) error {
 	token, err := getToken()
@@ -95,6 +104,9 @@ func do(method, path string, in any, out any) error {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
+	if strings.HasPrefix(path, "/api/v1/subscriptions") {
+		req.Header.Set("x-api-version", subscriptionApiVersion)
+	}
 	if in != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -198,16 +210,14 @@ type Subscription struct {
 	Metadata             map[string]string `json:"metadata"`
 }
 
+// CreateSubscriptionRequest is the published-schema shape, valid under the
+// pinned subscriptionApiVersion. Do NOT add the newer Billing-product fields
+// (billing_customer_id/collection_method/payment_source_id) without also
+// migrating to bcus_/psrc_ entities and UNSCHEDULED consents — the two API
+// generations are mutually exclusive.
 type CreateSubscriptionRequest struct {
-	RequestId         string `json:"request_id"`
-	CustomerId        string `json:"customer_id"`
-	BillingCustomerId string `json:"billing_customer_id"`
-	// CollectionMethod ∈ AUTO_CHARGE / CHARGE_ON_CHECKOUT / OUT_OF_BAND (live API
-	// 2025-02-14 requires it; the published schema.json is older and omits it).
-	CollectionMethod string `json:"collection_method"`
-	// PaymentSourceId is required by the live API when CollectionMethod is
-	// AUTO_CHARGE; for consent-backed charging it carries the PaymentConsent id.
-	PaymentSourceId  string                 `json:"payment_source_id,omitempty"`
+	RequestId        string                 `json:"request_id"`
+	CustomerId       string                 `json:"customer_id"`
 	PaymentConsentId string                 `json:"payment_consent_id"`
 	Items            []SubscriptionItem     `json:"items"`
 	Recurring        *SubscriptionRecurring `json:"recurring,omitempty"`
