@@ -27,7 +27,7 @@ type registerResponse struct {
 	} `json:"data"`
 }
 
-func performRegisterRequest(t *testing.T, body []byte) *httptest.ResponseRecorder {
+func performRegisterRequest(t *testing.T, body []byte, cookies ...*http.Cookie) *httptest.ResponseRecorder {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -38,6 +38,9 @@ func performRegisterRequest(t *testing.T, body []byte) *httptest.ResponseRecorde
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/user/register", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
+	for _, cookie := range cookies {
+		request.AddCookie(cookie)
+	}
 	router.ServeHTTP(recorder, request)
 
 	return recorder
@@ -56,6 +59,46 @@ func performWeChatAuthRequest(t *testing.T, code string) *httptest.ResponseRecor
 	router.ServeHTTP(recorder, request)
 
 	return recorder
+}
+
+func TestRegisterPersistsSharedCookieLanguage(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+
+	originalRegisterEnabled := common.RegisterEnabled
+	originalPasswordRegisterEnabled := common.PasswordRegisterEnabled
+	originalEmailVerificationEnabled := common.EmailVerificationEnabled
+	originalGenerateDefaultToken := constant.GenerateDefaultToken
+	t.Cleanup(func() {
+		common.RegisterEnabled = originalRegisterEnabled
+		common.PasswordRegisterEnabled = originalPasswordRegisterEnabled
+		common.EmailVerificationEnabled = originalEmailVerificationEnabled
+		constant.GenerateDefaultToken = originalGenerateDefaultToken
+	})
+	common.RegisterEnabled = true
+	common.PasswordRegisterEnabled = true
+	common.EmailVerificationEnabled = false
+	constant.GenerateDefaultToken = false
+
+	body, err := common.Marshal(map[string]any{
+		"username": "cookie-language-user",
+		"password": "password123",
+		"email":    "cookie-language@example.com",
+	})
+	require.NoError(t, err)
+
+	recorder := performRegisterRequest(t, body, &http.Cookie{
+		Name:  backendI18n.LanguagePreferenceCookieName,
+		Value: "ja",
+	})
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload registerResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+
+	var user model.User
+	require.NoError(t, db.First(&user, "username = ?", "cookie-language-user").Error)
+	require.Equal(t, "ja", user.GetSetting().Language)
 }
 
 func TestRegisterWithEmailVerificationAutoLogsInNewUser(t *testing.T) {

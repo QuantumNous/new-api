@@ -30,6 +30,8 @@ const (
 	DefaultLang = LangEn // Fallback to English if language not supported
 )
 
+const LanguagePreferenceCookieName = "fk_locale"
+
 //go:embed locales/*.yaml
 var localeFS embed.FS
 
@@ -153,16 +155,24 @@ func SetUserLangLoader(loader func(userId int) string) {
 
 // GetLangFromContext extracts the language setting from gin context
 // It checks multiple sources in priority order:
-// 1. User settings (ContextKeyUserSetting) - if already loaded (e.g., by TokenAuth)
-// 2. Lazy load user language from cache/DB using user ID
-// 3. Language set by middleware (ContextKeyLanguage) - from Accept-Language header
-// 4. Default language (English)
+// 1. Browser language preference cookie (fk_locale)
+// 2. User settings (ContextKeyUserSetting) - if already loaded (e.g., by TokenAuth)
+// 3. Lazy load user language from cache/DB using user ID
+// 4. Language set by middleware (ContextKeyLanguage) - from Accept-Language header
+// 5. Default language (English)
 func GetLangFromContext(c *gin.Context) string {
 	if c == nil {
 		return DefaultLang
 	}
 
-	// 1. Try to get language from user settings (if already loaded by TokenAuth or other middleware)
+	// 1. Browser cookie is the current UI language intent and may be newer than DB.
+	if cookieLang, err := c.Cookie(LanguagePreferenceCookieName); err == nil {
+		if normalized, ok := NormalizeLanguage(cookieLang); ok {
+			return normalized
+		}
+	}
+
+	// 2. Try to get language from user settings (if already loaded by TokenAuth or other middleware)
 	if userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting); ok {
 		if userSetting.Language != "" {
 			normalized := normalizeLang(userSetting.Language)
@@ -172,7 +182,7 @@ func GetLangFromContext(c *gin.Context) string {
 		}
 	}
 
-	// 2. Lazy load user language using user ID (for session-based auth where full settings aren't loaded)
+	// 3. Lazy load user language using user ID (for session-based auth where full settings aren't loaded)
 	if userLangLoaderFunc != nil {
 		if userId, exists := c.Get("id"); exists {
 			if uid, ok := userId.(int); ok && uid > 0 {
@@ -187,7 +197,7 @@ func GetLangFromContext(c *gin.Context) string {
 		}
 	}
 
-	// 3. Try to get language from context (set by I18n middleware from Accept-Language)
+	// 4. Try to get language from context (set by I18n middleware from Accept-Language)
 	if lang := c.GetString(string(constant.ContextKeyLanguage)); lang != "" {
 		normalized := normalizeLang(lang)
 		if IsSupported(normalized) {
@@ -195,7 +205,7 @@ func GetLangFromContext(c *gin.Context) string {
 		}
 	}
 
-	// 4. Try Accept-Language header directly (fallback if middleware didn't run)
+	// 5. Try Accept-Language header directly (fallback if middleware didn't run)
 	if acceptLang := c.GetHeader("Accept-Language"); acceptLang != "" {
 		lang := ParseAcceptLanguage(acceptLang)
 		if IsSupported(lang) {
@@ -229,30 +239,38 @@ func ParseAcceptLanguage(header string) string {
 
 // normalizeLang normalizes language code to supported format
 func normalizeLang(lang string) string {
+	if normalized, ok := NormalizeLanguage(lang); ok {
+		return normalized
+	}
+	return DefaultLang
+}
+
+// NormalizeLanguage normalizes a language tag and reports whether it is supported.
+func NormalizeLanguage(lang string) (string, bool) {
 	lang = strings.ToLower(strings.TrimSpace(lang))
 
 	// Handle common variations
 	switch {
 	case strings.HasPrefix(lang, "zh-tw"):
-		return LangZhTW
+		return LangZhTW, true
 	case strings.HasPrefix(lang, "zh"):
-		return LangZhCN
+		return LangZhCN, true
 	case strings.HasPrefix(lang, "en"):
-		return LangEn
+		return LangEn, true
 	case lang == LangPt || strings.HasPrefix(lang, "pt-") || strings.HasPrefix(lang, "pt_"):
-		return LangPt
+		return LangPt, true
 	case strings.HasPrefix(lang, "es"):
-		return LangEs
+		return LangEs, true
 	case strings.HasPrefix(lang, "fr"):
-		return LangFr
+		return LangFr, true
 	case strings.HasPrefix(lang, "ru"):
-		return LangRu
+		return LangRu, true
 	case strings.HasPrefix(lang, "ja"):
-		return LangJa
+		return LangJa, true
 	case strings.HasPrefix(lang, "vi"):
-		return LangVi
+		return LangVi, true
 	default:
-		return DefaultLang
+		return "", false
 	}
 }
 
@@ -263,7 +281,11 @@ func SupportedLanguages() []string {
 
 // IsSupported checks if a language code is supported
 func IsSupported(lang string) bool {
-	lang = normalizeLang(lang)
+	var ok bool
+	lang, ok = NormalizeLanguage(lang)
+	if !ok {
+		return false
+	}
 	for _, supported := range SupportedLanguages() {
 		if lang == supported {
 			return true

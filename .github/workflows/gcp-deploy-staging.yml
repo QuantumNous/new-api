@@ -80,6 +80,7 @@ jobs:
           push: true
           build-args: |
             VITE_OFFICIAL_WEBSITE_ORIGIN=${{ env.STAGING_OFFICIAL_WEBSITE_ORIGIN }}
+            VITE_COOKIE_SESSION_DOMAIN=${{ env.STAGING_COOKIE_SESSION_DOMAIN }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/server:staging-latest

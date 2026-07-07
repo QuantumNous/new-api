@@ -106,6 +106,7 @@ jobs:
             VITE_X_SIGNUP_EVENT_ID=${{ vars.VITE_X_SIGNUP_EVENT_ID }}
             VITE_X_TOPUP_EVENT_ID=${{ vars.VITE_X_TOPUP_EVENT_ID }}
             VITE_OFFICIAL_WEBSITE_ORIGIN=${{ secrets.OFFICIAL_WEBSITE_ORIGIN }}
+            VITE_COOKIE_SESSION_DOMAIN=${{ secrets.COOKIE_SESSION_DOMAIN }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/server:main-latest

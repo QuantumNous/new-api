@@ -24,29 +24,18 @@ import { useOnboardingStore } from '@/stores/onboarding-store'
 import { identifyMixpanelUser } from '@/lib/analytics/mixpanel'
 import { getSelf } from '@/lib/api'
 import type { User } from '@/features/users/types'
+import { getLanguagePreferenceCookie } from '@/i18n/language-preference-cookie'
+import {
+  applyInterfaceLanguage,
+  getPreferredUserLanguage,
+  persistUserLanguageCookie,
+  syncUserLanguagePreferenceToDatabase,
+} from '@/i18n/user-language-preference'
 import {
   consumePendingOnboarding,
   isSafeInternalPath,
   saveUserId,
 } from '../lib/storage'
-
-function getSavedLanguage(user: User): string | undefined {
-  const userData = user as Record<string, unknown>
-  if (typeof userData.language === 'string') {
-    return userData.language
-  }
-
-  if (typeof userData.setting !== 'string') {
-    return undefined
-  }
-
-  try {
-    const setting = JSON.parse(userData.setting) as { language?: unknown }
-    return typeof setting.language === 'string' ? setting.language : undefined
-  } catch {
-    return undefined
-  }
-}
 
 /**
  * Hook for handling authentication redirects and user data management
@@ -85,9 +74,20 @@ export function useAuthRedirect() {
         }
 
         // Restore saved language preference
-        const savedLang = getSavedLanguage(user)
-        if (savedLang && savedLang !== i18n.language) {
-          i18n.changeLanguage(savedLang)
+        const cookieLanguage = getLanguagePreferenceCookie()
+        if (cookieLanguage) {
+          applyInterfaceLanguage(i18n, cookieLanguage)
+          void syncUserLanguagePreferenceToDatabase(
+            user,
+            cookieLanguage,
+            auth.setUser
+          )
+        } else {
+          const savedLang = getPreferredUserLanguage(user)
+          if (savedLang) {
+            applyInterfaceLanguage(i18n, savedLang)
+            persistUserLanguageCookie(savedLang)
+          }
         }
       }
     } catch (error) {

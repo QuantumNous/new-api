@@ -232,6 +232,9 @@ func Register(c *gin.Context) {
 		Role:           common.RoleCommonUser, // 明确设置角色为普通用户
 		AdsAttribution: sanitizeAdsAttribution(user.AdsAttribution),
 	}
+	if language, ok := dto.NormalizeUserLanguagePreference(i18n.GetLangFromContext(c)); ok {
+		cleanUser.SetSetting(dto.UserSetting{Language: language})
+	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}

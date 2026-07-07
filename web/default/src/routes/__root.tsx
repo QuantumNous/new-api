@@ -25,10 +25,8 @@ import {
   useLocation,
 } from '@tanstack/react-router'
 import i18n from '@/i18n/config'
-import { normalizeInterfaceLanguage } from '@/i18n/languages'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
-import type { i18n as I18nInstance } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { captureAdsAttribution } from '@/lib/analytics/attribution'
@@ -38,6 +36,13 @@ import {
 } from '@/lib/analytics/mixpanel'
 import { getSelf } from '@/lib/api'
 import { getPublicPathLanguage, isPublicWebsitePath } from '@/lib/public-locale'
+import { getLanguagePreferenceCookie } from '@/i18n/language-preference-cookie'
+import {
+  applyInterfaceLanguage,
+  getPreferredUserLanguage,
+  persistUserLanguageCookie,
+  syncUserLanguagePreferenceToDatabase,
+} from '@/i18n/user-language-preference'
 import { ThemeCustomizationProvider } from '@/context/theme-customization-provider'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Toaster } from '@/components/ui/sonner'
@@ -47,54 +52,9 @@ import { GeneralError } from '@/features/errors/general-error'
 import { NotFoundError } from '@/features/errors/not-found-error'
 import { getSetupStatus } from '@/features/setup/api'
 
-type UserLanguageSource = {
-  language?: unknown
-  setting?: unknown
-}
-
-function getPreferredUserLanguage(
-  user: UserLanguageSource | null | undefined
-): string | undefined {
-  if (!user) return undefined
-  if (typeof user.language === 'string') return user.language
-
-  if (user.setting && typeof user.setting === 'object') {
-    const language = (user.setting as Record<string, unknown>).language
-    return typeof language === 'string' ? language : undefined
-  }
-
-  if (typeof user.setting !== 'string') return undefined
-
-  try {
-    const setting = JSON.parse(user.setting) as { language?: unknown }
-    return typeof setting.language === 'string' ? setting.language : undefined
-  } catch {
-    return undefined
-  }
-}
-
 function hasExplicitLanguageQuery(): boolean {
   if (typeof window === 'undefined') return false
   return new URLSearchParams(window.location.search).has('lng')
-}
-
-function applyUserLanguagePreference(
-  i18n: I18nInstance,
-  user: UserLanguageSource | null | undefined
-): void {
-  if (hasExplicitLanguageQuery()) return
-
-  const preferredLanguage = getPreferredUserLanguage(user)
-  if (!preferredLanguage) return
-
-  const nextLanguage = normalizeInterfaceLanguage(preferredLanguage)
-  const currentLanguage = normalizeInterfaceLanguage(
-    i18n.resolvedLanguage || i18n.language
-  )
-
-  if (nextLanguage !== currentLanguage) {
-    void i18n.changeLanguage(nextLanguage)
-  }
 }
 
 function UserLanguagePreferenceSync() {
@@ -104,9 +64,21 @@ function UserLanguagePreferenceSync() {
   const userId = user?.id
 
   useEffect(() => {
-    applyUserLanguagePreference(i18n, user)
+    if (!hasExplicitLanguageQuery()) {
+      const cookieLanguage = getLanguagePreferenceCookie()
+      if (cookieLanguage) {
+        applyInterfaceLanguage(i18n, cookieLanguage)
+        void syncUserLanguagePreferenceToDatabase(user, cookieLanguage, setUser)
+      } else {
+        const userLanguage = getPreferredUserLanguage(user)
+        if (userLanguage) {
+          applyInterfaceLanguage(i18n, userLanguage)
+          persistUserLanguageCookie(userLanguage)
+        }
+      }
+    }
     identifyMixpanelUser(user)
-  }, [i18n, user])
+  }, [i18n, setUser, user])
 
   useEffect(() => {
     if (!userId) return
@@ -117,7 +89,24 @@ function UserLanguagePreferenceSync() {
       .then((response) => {
         if (cancelled || !response?.success || !response.data) return
         setUser(response.data)
-        applyUserLanguagePreference(i18n, response.data)
+        if (hasExplicitLanguageQuery()) return
+
+        const cookieLanguage = getLanguagePreferenceCookie()
+        if (cookieLanguage) {
+          applyInterfaceLanguage(i18n, cookieLanguage)
+          void syncUserLanguagePreferenceToDatabase(
+            response.data,
+            cookieLanguage,
+            setUser
+          )
+          return
+        }
+
+        const userLanguage = getPreferredUserLanguage(response.data)
+        if (userLanguage) {
+          applyInterfaceLanguage(i18n, userLanguage)
+          persistUserLanguageCookie(userLanguage)
+        }
       })
       .catch(() => {
         /* Auth errors are handled by the shared API layer. */
