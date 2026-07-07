@@ -10,9 +10,15 @@ type Props = {
 };
 
 export function SiteShell(props: Props) {
+  const languageCookieDomain = process.env.COOKIE_SESSION_DOMAIN?.trim() || undefined;
+
   return (
     <>
-      <SiteHeader locale={props.locale} pathname={props.pathname} />
+      <SiteHeader
+        locale={props.locale}
+        pathname={props.pathname}
+        languageCookieDomain={languageCookieDomain}
+      />
       <main>{props.children}</main>
       <SiteFooter locale={props.locale} />
     </>

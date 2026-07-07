@@ -20,6 +20,8 @@ import { Link } from '@tanstack/react-router'
 import { type ColumnDef } from '@tanstack/react-table'
 import { ScrollText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { INTERFACE_LANGUAGE_OPTIONS } from '@/i18n/languages'
+import { getPreferredUserLanguage } from '@/i18n/user-language-preference'
 import { formatQuota, formatTimestamp } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -57,6 +59,10 @@ function getQuotaProgressColor(percentage: number): string {
   if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-amber-500'
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
+
+const LANGUAGE_LABELS = new Map<string, string>(
+  INTERFACE_LANGUAGE_OPTIONS.map((language) => [language.code, language.label])
+)
 
 export function useUsersColumns(): ColumnDef<User>[] {
   const { t } = useTranslation()
@@ -150,6 +156,33 @@ export function useUsersColumns(): ColumnDef<User>[] {
         )
       },
       meta: { label: t('Email') },
+    },
+    {
+      id: 'language',
+      accessorFn: (user) => getPreferredUserLanguage(user) ?? '',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Interface Language')} />
+      ),
+      cell: ({ row }) => {
+        const language = row.getValue('language') as string
+
+        if (!language) {
+          return <span className='text-muted-foreground text-sm'>-</span>
+        }
+
+        return (
+          <StatusBadge
+            label={LANGUAGE_LABELS.get(language) ?? language}
+            variant='neutral'
+            copyable={false}
+          />
+        )
+      },
+      filterFn: (row, id, value) => {
+        return value.includes(String(row.getValue(id)))
+      },
+      enableSorting: false,
+      meta: { label: t('Interface Language'), mobileHidden: true },
     },
     {
       accessorKey: 'status',

@@ -105,6 +105,7 @@ export function UsersPrimaryButtons() {
           id: t('ID'),
           username: t('Username'),
           displayName: t('Display Name'),
+          language: t('Interface Language'),
           email: t('Email'),
           status: t('Status'),
           quota: t('Quota'),

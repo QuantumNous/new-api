@@ -31,6 +31,12 @@ export const INTERFACE_LANGUAGE_OPTIONS = [
 export type InterfaceLanguageCode =
   (typeof INTERFACE_LANGUAGE_OPTIONS)[number]['code']
 
+export function isInterfaceLanguageCode(
+  value?: string | null
+): value is InterfaceLanguageCode {
+  return INTERFACE_LANGUAGE_OPTIONS.some((lang) => lang.code === value)
+}
+
 export function normalizeInterfaceLanguage(value?: string | null): string {
   if (!value) return 'en'
 

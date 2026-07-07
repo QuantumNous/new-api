@@ -33,6 +33,7 @@ export default defineConfig(({ envMode }) => {
   const xSignupEventId = pixelVar('VITE_X_SIGNUP_EVENT_ID')
   const xTopupEventId = pixelVar('VITE_X_TOPUP_EVENT_ID')
   const officialWebsiteOrigin = pixelVar('VITE_OFFICIAL_WEBSITE_ORIGIN')
+  const cookieSessionDomain = pixelVar('VITE_COOKIE_SESSION_DOMAIN')
 
   const isProd = envMode === 'production'
   const devProxy = Object.fromEntries(
@@ -93,6 +94,8 @@ export default defineConfig(({ envMode }) => {
         'import.meta.env.VITE_OFFICIAL_WEBSITE_ORIGIN': JSON.stringify(
           officialWebsiteOrigin
         ),
+        'import.meta.env.VITE_COOKIE_SESSION_DOMAIN':
+          JSON.stringify(cookieSessionDomain),
       },
     },
     resolve: {
@@ -130,6 +133,7 @@ export default defineConfig(({ envMode }) => {
           gadsConversionId,
           gadsSignupSendTo,
           officialWebsiteOrigin,
+          cookieSessionDomain,
         ],
       },
     },

@@ -30,7 +30,7 @@ env:
   # Staging console 内部“回官网”链接必须指向 staging website，不能串生产 flatkey.ai。
   STAGING_OFFICIAL_WEBSITE_ORIGIN: ${{ vars.STAGING_OFFICIAL_WEBSITE_ORIGIN || 'https://staging-website.flatkey.ai' }}
   STAGING_APP_CONSOLE_ORIGIN: ${{ vars.STAGING_APP_CONSOLE_ORIGIN || 'https://staging-console.flatkey.ai' }}
-  STAGING_COOKIE_SESSION_DOMAIN: ${{ vars.STAGING_COOKIE_SESSION_DOMAIN || '.flatkey.ai' }}
+  STAGING_COOKIE_SESSION_DOMAIN: ${{ vars.STAGING_COOKIE_SESSION_DOMAIN || '' }}
   STAGING_SESSION_COOKIE_SECURE: ${{ vars.STAGING_SESSION_COOKIE_SECURE || 'true' }}
 
 jobs:
@@ -56,6 +56,26 @@ jobs:
             echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
           fi
 
+      - name: Compute cookie domain
+        id: compute_cookie_domain
+        if: env.SKIP_BUILD != 'true'
+        run: |
+          set -euo pipefail
+          host="${STAGING_APP_CONSOLE_ORIGIN#http://}"
+          host="${host#https://}"
+          host="${host%%/*}"
+          cookie_domain=""
+          configured_domain="${STAGING_COOKIE_SESSION_DOMAIN:-}"
+          if [[ -n "${configured_domain}" ]]; then
+            match_domain="${configured_domain#.}"
+            if [[ "${host}" == "${match_domain}" || "${host}" == *."${match_domain}" ]]; then
+              cookie_domain="${configured_domain}"
+            fi
+          elif [[ "${host}" == "flatkey.ai" || "${host}" == *.flatkey.ai ]]; then
+            cookie_domain=".flatkey.ai"
+          fi
+          echo "cookie_domain=${cookie_domain}" >> "$GITHUB_OUTPUT"
+
       - name: Auth to GCP via WIF
         if: env.SKIP_BUILD != 'true'
         uses: google-github-actions/auth@v2
@@ -80,6 +100,7 @@ jobs:
           push: true
           build-args: |
             VITE_OFFICIAL_WEBSITE_ORIGIN=${{ env.STAGING_OFFICIAL_WEBSITE_ORIGIN }}
+            VITE_COOKIE_SESSION_DOMAIN=${{ steps.compute_cookie_domain.outputs.cookie_domain }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/server:staging-latest
@@ -105,10 +126,23 @@ jobs:
         run: |
           set -euo pipefail
           revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
+          host="${STAGING_APP_CONSOLE_ORIGIN#http://}"
+          host="${host#https://}"
+          host="${host%%/*}"
+          effective_cookie_domain=""
+          configured_domain="${STAGING_COOKIE_SESSION_DOMAIN:-}"
+          if [[ -n "${configured_domain}" ]]; then
+            match_domain="${configured_domain#.}"
+            if [[ "${host}" == "${match_domain}" || "${host}" == *."${match_domain}" ]]; then
+              effective_cookie_domain="${configured_domain}"
+            fi
+          elif [[ "${host}" == "flatkey.ai" || "${host}" == *.flatkey.ai ]]; then
+            effective_cookie_domain=".flatkey.ai"
+          fi
           env_vars=(
             "OFFICIAL_WEBSITE_ORIGIN=${STAGING_OFFICIAL_WEBSITE_ORIGIN}"
             "APP_CONSOLE_ORIGIN=${STAGING_APP_CONSOLE_ORIGIN}"
-            "COOKIE_SESSION_DOMAIN=${STAGING_COOKIE_SESSION_DOMAIN}"
+            "COOKIE_SESSION_DOMAIN=${effective_cookie_domain}"
             "SESSION_COOKIE_SECURE=${STAGING_SESSION_COOKIE_SECURE}"
           )
           IFS=,

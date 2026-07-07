@@ -323,9 +323,10 @@ resource "google_cloud_run_v2_service" "staging" {
         name  = "APP_CONSOLE_ORIGIN"
         value = var.staging_console_origin
       }
+      // Live staging env is owned by CI because env is lifecycle-ignored below; keep deploy workflows mirrored.
       env {
         name  = "COOKIE_SESSION_DOMAIN"
-        value = ".flatkey.ai"
+        value = local.staging_console_host == "flatkey.ai" || endswith(local.staging_console_host, ".flatkey.ai") ? ".flatkey.ai" : ""
       }
       env {
         name  = "SESSION_COOKIE_SECURE"
@@ -470,6 +471,11 @@ resource "google_cloud_run_v2_service" "staging_web" {
       env {
         name  = "SITE_ORIGIN"
         value = var.staging_website_origin
+      }
+      // Live staging env is owned by CI because env is lifecycle-ignored below; keep deploy workflows mirrored.
+      env {
+        name  = "COOKIE_SESSION_DOMAIN"
+        value = local.staging_website_host == "flatkey.ai" || endswith(local.staging_website_host, ".flatkey.ai") ? ".flatkey.ai" : ""
       }
     }
   }

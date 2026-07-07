@@ -89,6 +89,10 @@ resource "google_cloud_run_v2_service" "web" {
         name  = "SITE_ORIGIN"
         value = var.site_origin
       }
+      env {
+        name  = "COOKIE_SESSION_DOMAIN"
+        value = var.cookie_session_domain
+      }
     }
   }
 

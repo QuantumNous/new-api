@@ -232,6 +232,9 @@ func Register(c *gin.Context) {
 		Role:           common.RoleCommonUser, // 明确设置角色为普通用户
 		AdsAttribution: sanitizeAdsAttribution(user.AdsAttribution),
 	}
+	if language, ok := dto.NormalizeUserLanguagePreference(i18n.GetLangFromContext(c)); ok {
+		cleanUser.SetSetting(dto.UserSetting{Language: language})
+	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}
@@ -308,6 +311,15 @@ func GetAllUsers(c *gin.Context) {
 func SearchUsers(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
+	language := ""
+	if languageParam := c.Query("language"); languageParam != "" {
+		normalizedLanguage, ok := dto.NormalizeUserLanguagePreference(languageParam)
+		if !ok {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		language = normalizedLanguage
+	}
 	var role *int
 	if roleStr := c.Query("role"); roleStr != "" {
 		if parsed, err := strconv.Atoi(roleStr); err == nil {
@@ -321,7 +333,7 @@ func SearchUsers(c *gin.Context) {
 		}
 	}
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, role, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	users, total, err := model.SearchUsers(keyword, group, role, status, language, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -855,9 +867,17 @@ func UpdateSelf(c *gin.Context) {
 		currentSetting := user.GetSetting()
 
 		// 更新language字段
-		if langStr, ok := language.(string); ok {
-			currentSetting.Language = langStr
+		langStr, ok := language.(string)
+		if !ok {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
 		}
+		normalizedLanguage, ok := dto.NormalizeUserLanguagePreference(langStr)
+		if !ok {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		currentSetting.Language = normalizedLanguage
 
 		// 保存更新后的设置
 		user.SetSetting(currentSetting)
@@ -1415,6 +1435,7 @@ func UpdateUserSetting(c *gin.Context) {
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
 		RecordIpLog:                      req.RecordIpLog,
+		Language:                         existingSettings.Language,
 	}
 
 	// 如果是webhook类型,添加webhook相关设置
