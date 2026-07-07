@@ -23,8 +23,8 @@
     "marked": "^4.1.1",
     "mermaid": "^11.6.0",
     "qrcode.react": "catalog:",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "react-dropzone": "^14.2.3",
     "react-fireworks": "^1.0.4",
     "react-i18next": "^13.0.0",
@@ -75,8 +75,8 @@
     ]
   },
   "devDependencies": {
-    "@rsbuild/core": "^2.0.7",
-    "@rsbuild/plugin-react": "^2.0.0",
+    "@rsbuild/core": "catalog:",
+    "@rsbuild/plugin-react": "catalog:",
     "@so1ve/prettier-config": "^3.1.0",
     "autoprefixer": "^10.4.21",
     "eslint": "8.57.0",

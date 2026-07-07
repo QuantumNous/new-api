@@ -8,19 +8,19 @@
 
 ### 技术栈
 
-| 类别     | 技术 |
-|----------|------|
-| 包管理   | Bun |
-| 框架     | React 19、TypeScript |
-| 数据与请求 | @tanstack/react-query、axios、Zustand |
-| 路由     | @tanstack/react-router |
-| 表格与列表 | @tanstack/react-table、@tanstack/react-virtual |
-| 国际化   | i18next、react-i18next、i18next-browser-languagedetector |
-| 日期     | Day.js |
-| UI 与样式 | Base UI、Hugeicons、Tailwind CSS、clsx / class-variance-authority |
-| 表单     | React Hook Form、Zod |
-| 图表     | @visactor/vchart、@visactor/react-vchart |
-| 工具     | qrcode.react、oxfmt、oxlint、vitest（可选）|
+| 类别       | 技术                                                              |
+| ---------- | ----------------------------------------------------------------- |
+| 包管理     | Bun                                                               |
+| 框架       | React 19、TypeScript                                              |
+| 数据与请求 | @tanstack/react-query、axios、Zustand                             |
+| 路由       | @tanstack/react-router                                            |
+| 表格与列表 | @tanstack/react-table、@tanstack/react-virtual                    |
+| 国际化     | i18next、react-i18next、i18next-browser-languagedetector          |
+| 日期       | Day.js                                                            |
+| UI 与样式  | Base UI、Hugeicons、Tailwind CSS、clsx / class-variance-authority |
+| 表单       | React Hook Form、Zod                                              |
+| 图表       | @visactor/vchart、@visactor/react-vchart                          |
+| 工具       | qrcode.react、oxfmt、oxlint、vitest（可选）                       |
 
 优先选用成熟、维护良好的开源库；仅在现有库无法满足或需特殊适配时自行实现，并评估可维护性与通用性。
 
@@ -57,17 +57,17 @@
 ### 3.1 国际化
 
 - **页面文本**：所有面向用户的文案均需支持 i18n，使用 `useTranslation()` 的 `t()` 进行翻译。
-- **使用场景**  
-  - **React 组件**：必须使用 `const { t } = useTranslation()`，以保证语言切换时组件会重新渲染。  
-  - **非 React 环境**（工具函数、常量、类方法）：可使用 `import { t } from 'i18next'`；此类用法不会随语言切换自动更新，仅在不依赖响应式更新的场景使用。  
+- **使用场景**
+  - **React 组件**：必须使用 `const { t } = useTranslation()`，以保证语言切换时组件会重新渲染。
+  - **非 React 环境**（工具函数、常量、类方法）：可使用 `import { t } from 'i18next'`；此类用法不会随语言切换自动更新，仅在不依赖响应式更新的场景使用。
   - 即使父组件已使用 `useTranslation()`，子组件仍应自行使用，以保证独立性。
 - **专有名词**：品牌、产品、技术术语等可保留英文（如 API、React、TypeScript）；若有约定俗成的译法则使用翻译。
 - **翻译键**：使用有层级、语义清晰的键名，如 `dashboard.overview.title`，并保持命名一致。
 
 - **枚举与文案（常量中的 i18n）**  
-  各 feature 的 `constants.ts` 中常出现「枚举/状态 + 展示文案」或「成功/错误消息」，须统一约定以免遗漏 i18n、用法混乱：  
-  - **成功/错误/提示类消息**（如 `SUCCESS_MESSAGES`、`ERROR_MESSAGES`）：常量值仅表示 **i18n 键**（与英文 fallback 同字面量）。展示时**必须**通过 `t()` 使用，例如 `toast.success(t(SUCCESS_MESSAGES.API_KEY_CREATED))`、`toast.error(t(ERROR_MESSAGES.UNEXPECTED))`，**禁止**直接 `toast.success(SUCCESS_MESSAGES.xxx)` 当作最终文案。  
-  - **状态/选项的 label**：在常量中统一用 **labelKey**（字符串，即 i18n 键），组件中通过 `t(config.labelKey)` 渲染；或约定用 `label` 存与 en 一致的 key 字符串，组件用 `t(config.label)`。同一 feature 内只采用一种方式，避免混用。  
+  各 feature 的 `constants.ts` 中常出现「枚举/状态 + 展示文案」或「成功/错误消息」，须统一约定以免遗漏 i18n、用法混乱：
+  - **成功/错误/提示类消息**（如 `SUCCESS_MESSAGES`、`ERROR_MESSAGES`）：常量值仅表示 **i18n 键**（与英文 fallback 同字面量）。展示时**必须**通过 `t()` 使用，例如 `toast.success(t(SUCCESS_MESSAGES.API_KEY_CREATED))`、`toast.error(t(ERROR_MESSAGES.UNEXPECTED))`，**禁止**直接 `toast.success(SUCCESS_MESSAGES.xxx)` 当作最终文案。
+  - **状态/选项的 label**：在常量中统一用 **labelKey**（字符串，即 i18n 键），组件中通过 `t(config.labelKey)` 渲染；或约定用 `label` 存与 en 一致的 key 字符串，组件用 `t(config.label)`。同一 feature 内只采用一种方式，避免混用。
   - **新增此类常量时**：同步在 `src/i18n/static-keys.ts` 中登记对应 key（若项目用其做提取），或确保文案以 `t('...')` 字面量形式出现以便扫描，避免遗漏翻译。
 
 ### 3.2 代码风格与类型

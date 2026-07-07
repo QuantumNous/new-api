@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import React from 'react'
-import { cn } from '@/lib/utils'
+
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 export interface LogoProps extends React.HTMLAttributes<HTMLDivElement> {
   image: React.ComponentType<React.SVGProps<SVGSVGElement>>

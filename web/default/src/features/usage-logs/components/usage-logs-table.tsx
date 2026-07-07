@@ -19,23 +19,26 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { type ColumnDef } from '@tanstack/react-table'
-import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
-import { useIsAdmin } from '@/hooks/use-admin'
-import { useTableUrlState } from '@/hooks/use-table-url-state'
+
 import {
   DataTablePage,
   DataTableRow,
   useDataTable,
 } from '@/components/data-table'
+import { useMediaQuery } from '@/hooks'
+import { useIsAdmin } from '@/hooks/use-admin'
+import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { cn } from '@/lib/utils'
+
 import {
   DEFAULT_LOGS_DATA,
   LOG_TYPE_ALL_VALUE,
   LOG_TYPE_ENUM,
 } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
+import { parseLogOther } from '../lib/format'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
@@ -48,6 +51,10 @@ const logTypeRowTint: Record<number, string> = {
   [LOG_TYPE_ENUM.ERROR]: 'bg-rose-50/40 dark:bg-rose-950/20',
   [LOG_TYPE_ENUM.REFUND]: 'bg-blue-50/30 dark:bg-blue-950/15',
 }
+
+// Warning tint for logs where a quota conversion saturated (admin-only marker).
+// Takes precedence over the per-type tint since it flags a billing anomaly.
+const quotaSaturationRowTint = 'bg-amber-50/60 dark:bg-amber-950/25'
 
 function getColumnVisibilityStorageKey(
   logCategory: LogCategory,
@@ -202,8 +209,16 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         const logType = (row.original as Record<string, unknown>).type as
           | number
           | undefined
-        const tintClass =
+        let tintClass =
           isCommon && logType != null ? (logTypeRowTint[logType] ?? '') : ''
+        if (isCommon && isAdmin) {
+          const other = parseLogOther(
+            ((row.original as Record<string, unknown>).other as string) ?? ''
+          )
+          if (other?.admin_info?.quota_saturation) {
+            tintClass = quotaSaturationRowTint
+          }
+        }
 
         return (
           <DataTableRow

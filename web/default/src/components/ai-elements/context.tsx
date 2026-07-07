@@ -18,11 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
-import { type ComponentProps, createContext, useContext } from 'react'
 import type { LanguageModelUsage } from 'ai'
+import { type ComponentProps, createContext, useContext } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getUsage } from 'tokenlens'
-import { cn } from '@/lib/utils'
+
 import { Button } from '@/components/ui/button'
 import {
   HoverCard,
@@ -30,6 +30,7 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
 import { Progress } from '@/components/ui/progress'
+import { cn } from '@/lib/utils'
 
 const PERCENT_MAX = 100
 const ICON_RADIUS = 10
@@ -346,7 +347,7 @@ export const ContextReasoningUsage = ({
 }: ContextReasoningUsageProps) => {
   const { t } = useTranslation()
   const { usage, modelId } = useContextValue()
-  const reasoningTokens = usage?.reasoningTokens ?? 0
+  const reasoningTokens = usage?.outputTokenDetails.reasoningTokens ?? 0
 
   if (children) {
     return children
@@ -387,7 +388,7 @@ export const ContextCacheUsage = ({
 }: ContextCacheUsageProps) => {
   const { t } = useTranslation()
   const { usage, modelId } = useContextValue()
-  const cacheTokens = usage?.cachedInputTokens ?? 0
+  const cacheTokens = usage?.inputTokenDetails.cacheReadTokens ?? 0
 
   if (children) {
     return children

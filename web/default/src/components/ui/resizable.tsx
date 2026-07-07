@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 'use client'
 
 import * as ResizablePrimitive from 'react-resizable-panels'
+
 import { cn } from '@/lib/utils'
 
 function ResizablePanelGroup({

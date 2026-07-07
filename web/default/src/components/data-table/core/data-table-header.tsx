@@ -21,7 +21,9 @@ import {
   type Header,
   type Table as TanstackTable,
 } from '@tanstack/react-table'
+
 import { TableHead, TableHeader, TableRow } from '@/components/ui/table'
+
 import { DataTableColumnHeader } from './column-header'
 import { isContentSizedColumn } from './content-sized-columns'
 import type { DataTableColumnClassName } from './types'

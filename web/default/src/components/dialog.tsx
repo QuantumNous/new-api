@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
-import { cn } from '@/lib/utils'
+
 import {
   Dialog as DialogRoot,
   DialogContent,
@@ -27,6 +27,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 
 type DialogProps = React.ComponentProps<typeof DialogRoot> & {
   title: React.ReactNode

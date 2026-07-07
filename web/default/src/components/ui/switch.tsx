@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Switch as SwitchPrimitive } from '@base-ui/react/switch'
+
 import { cn } from '@/lib/utils'
 
 function Switch({
