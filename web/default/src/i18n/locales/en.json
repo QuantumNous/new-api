@@ -5273,5 +5273,6 @@
     "opened": "opened",
     "tried": "tried",
     "Shown": "Shown"
-  }
+  },
+  "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers."
 }

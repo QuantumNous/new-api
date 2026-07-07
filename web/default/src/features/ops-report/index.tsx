@@ -555,6 +555,13 @@ function StripeTab({ report }: { report: OpsStripeReport }) {
           <CardTitle>{t('Payment Conversion (Stripe)')}</CardTitle>
         </CardHeader>
         <CardContent className='space-y-4'>
+          {report.capped ? (
+            <p className='text-destructive text-sm font-medium'>
+              {t(
+                'Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.'
+              )}
+            </p>
+          ) : null}
           <div className='grid grid-cols-2 gap-2 md:grid-cols-4'>
             <StripeStat
               label={t('Sessions Created')}

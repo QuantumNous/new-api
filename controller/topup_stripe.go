@@ -1303,7 +1303,7 @@ func genStripeLink(referenceId string, customerId string, email string, checkout
 		cancelURL = paymentReturnPath("/console/topup")
 	}
 
-	params := buildStripeCheckoutSessionParams(referenceId, customerId, strings.TrimSpace(email), checkout.PriceId, checkout.Quantity, successURL, cancelURL, invoiceRequested, saveCard)
+	params := buildStripeCheckoutSessionParams(referenceId, customerId, strings.TrimSpace(email), checkout.PriceId, checkout.Quantity, checkout.PaymentCurrency, successURL, cancelURL, invoiceRequested, saveCard)
 
 	// For onboarding promo top-ups, save the card while paying so it can be charged
 	// off-session later (postpaid auto-charge). Plain wallet top-ups don't save the card.
@@ -1408,7 +1408,7 @@ func canonicalRedirectHostname(host string) string {
 	return strings.TrimSuffix(strings.ToLower(parsedHost.Hostname()), ".")
 }
 
-func buildStripeCheckoutSessionParams(referenceId string, customerId string, email string, priceId string, quantity int64, successURL string, cancelURL string, invoiceRequested bool, saveCard bool) *stripe.CheckoutSessionParams {
+func buildStripeCheckoutSessionParams(referenceId string, customerId string, email string, priceId string, quantity int64, currency string, successURL string, cancelURL string, invoiceRequested bool, saveCard bool) *stripe.CheckoutSessionParams {
 	params := &stripe.CheckoutSessionParams{
 		ClientReferenceID: stripe.String(referenceId),
 		SuccessURL:        stripe.String(successURL),
@@ -1418,6 +1418,15 @@ func buildStripeCheckoutSessionParams(referenceId string, customerId string, ema
 		},
 		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
 		AllowPromotionCodes: stripe.Bool(true),
+	}
+
+	// An explicit non-USD pick must reach Stripe, or Checkout renders the Price's default
+	// (USD) and the UI promise, the local order record, and the actual charge diverge.
+	// USD stays unset on purpose: it is the Price default anyway, and leaving it out keeps
+	// Stripe adaptive pricing available for users who explicitly choose USD.
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	if currency != "" && currency != "USD" {
+		params.Currency = stripe.String(strings.ToLower(currency))
 	}
 
 	if "" == customerId {

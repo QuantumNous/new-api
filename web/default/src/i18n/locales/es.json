@@ -5273,5 +5273,6 @@
     "opened": "abiertas",
     "tried": "intentos",
     "Shown": "Métodos mostrados"
-  }
+  },
+  "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Se alcanzó el límite de consulta de Stripe: los datos siguientes están truncados y las métricas subestiman. Reduce el rango de días para obtener cifras completas."
 }

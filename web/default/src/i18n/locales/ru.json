@@ -5273,5 +5273,6 @@
     "opened": "открыто",
     "tried": "попыток",
     "Shown": "Показанные способы"
-  }
+  },
+  "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Достигнут лимит выборки Stripe — данные ниже усечены, а метрики занижены. Сузьте диапазон дней для полных цифр."
 }

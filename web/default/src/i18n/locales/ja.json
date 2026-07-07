@@ -5273,5 +5273,6 @@
     "opened": "開設",
     "tried": "試行",
     "Shown": "表示された支払方法"
-  }
+  },
+  "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Stripe の取得上限に達したため、以下のデータは切り捨てられ、指標は実際より少なくなります。完全な数値には日数範囲を狭めてください。"
 }

@@ -60,6 +60,10 @@ type OpsTopUp struct {
 	// overwrite Money with the settled original-currency amount (e.g. INR 899),
 	// so USD aggregation must go through this field for non-USD rows.
 	BonusTier int `json:"bonus_tier"`
+	// PaymentProvider distinguishes user-initiated orders from system-generated
+	// stripe_auto rows (threshold auto-charges; their failed rows are mere cooldown
+	// markers) so intent stats can exclude the latter.
+	PaymentProvider string `json:"payment_provider"`
 }
 
 // GetOpsPlgUsers returns every plg-group user (the self-serve population).
@@ -194,7 +198,7 @@ func GetOpsUserTokenStats(autoWindowSec int64) ([]*OpsUserTokenStats, error) {
 func GetOpsTopUps() ([]*OpsTopUp, error) {
 	var topUps []*OpsTopUp
 	sql := fmt.Sprintf(`
-		SELECT t.user_id, t.money, t.status, t.create_time, t.payment_currency, t.bonus_tier
+		SELECT t.user_id, t.money, t.status, t.create_time, t.payment_currency, t.bonus_tier, t.payment_provider
 		FROM top_ups t
 		INNER JOIN users u ON u.id = t.user_id
 		WHERE u.%s = ?

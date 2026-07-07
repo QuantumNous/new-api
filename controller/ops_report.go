@@ -241,7 +241,13 @@ func buildOpsReport(days int, dauScope string) (*opsReportData, error) {
 		if !ok {
 			continue
 		}
-		a.hasIntent = true
+		// stripe_auto rows are system-generated threshold auto-charges — their failed
+		// rows are just cooldown markers (see model/stripe_card.go) — so only
+		// user-initiated orders signal payment intent. Auto-charge successes still
+		// count as revenue below.
+		if t.PaymentProvider != model.PaymentProviderStripeAuto {
+			a.hasIntent = true
+		}
 		if t.Status == common.TopUpStatusSuccess {
 			a.paidOrders = append(a.paidOrders, t)
 		}

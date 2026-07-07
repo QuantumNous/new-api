@@ -304,8 +304,10 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 	// existing Stripe Customer can lack CustomerEmail, so email-only matching drops the
 	// exact no_action/abandoned population this report exists to surface. The trade_no
 	// was written by us at session creation and resolves through top_ups regardless of
-	// whether the checkout was ever submitted. Email stays as fallback (e.g. setup-mode
-	// card-bind sessions, which carry no client_reference_id).
+	// whether the checkout was ever submitted. Email fallback is limited to setup-mode
+	// sessions (our card-bind flow, which carries no client_reference_id): payment-mode
+	// sessions that don't resolve through top_ups belong to other flows on this Stripe
+	// account (subscriptions, other products) and would pollute top-up conversion stats.
 	tradeNos := make([]string, 0, len(sessions))
 	seenTradeNos := map[string]bool{}
 	for _, s := range sessions {
@@ -330,6 +332,9 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 			if u := byId[uid]; u != nil {
 				return u
 			}
+		}
+		if s.Mode != stripe.CheckoutSessionModeSetup {
+			return nil
 		}
 		email := ""
 		if s.CustomerDetails != nil && s.CustomerDetails.Email != "" {

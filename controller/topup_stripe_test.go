@@ -323,6 +323,7 @@ func TestStripeCheckoutSessionKeepsAccountEmailVerbatim(t *testing.T) {
 		"buyer+location_JP@example.com",
 		"price_123",
 		1,
+		"USD",
 		"https://example.com/success",
 		"https://example.com/cancel",
 		false,
@@ -333,6 +334,39 @@ func TestStripeCheckoutSessionKeepsAccountEmailVerbatim(t *testing.T) {
 	require.Equal(t, "buyer+location_JP@example.com", *params.CustomerEmail)
 	require.NotNil(t, params.AllowPromotionCodes)
 	require.True(t, *params.AllowPromotionCodes)
+}
+
+func TestStripeCheckoutSessionPassesSelectedCurrency(t *testing.T) {
+	params := buildStripeCheckoutSessionParams(
+		"trade_inr",
+		"",
+		"buyer@example.com",
+		"price_123",
+		1,
+		"INR",
+		"https://example.com/success",
+		"https://example.com/cancel",
+		false,
+		false,
+	)
+
+	require.NotNil(t, params.Currency, "non-USD selection must be sent to Stripe")
+	require.Equal(t, "inr", *params.Currency)
+
+	// USD (the Price default) stays unset so Stripe adaptive pricing keeps working.
+	params = buildStripeCheckoutSessionParams(
+		"trade_usd",
+		"",
+		"buyer@example.com",
+		"price_123",
+		1,
+		"USD",
+		"https://example.com/success",
+		"https://example.com/cancel",
+		false,
+		false,
+	)
+	require.Nil(t, params.Currency)
 }
 
 func TestStripePaymentSnapshotFromEventUsesCurrencyMinorUnits(t *testing.T) {
