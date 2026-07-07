@@ -507,11 +507,25 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 		// 写入所有非文件字段
 		if mf != nil {
+			allowedMultipartImageEditFields := map[string]struct{}{
+				"prompt":             {},
+				"n":                  {},
+				"size":               {},
+				"quality":            {},
+				"output_format":      {},
+				"output_compression": {},
+				"background":         {},
+				"moderation":         {},
+				"partial_images":     {},
+				"stream":             {},
+				"user":               {},
+				"input_fidelity":     {},
+			}
 			for key, values := range mf.Value {
-				if key == "model" || key == "group" {
+				if key == "model" {
 					continue
 				}
-				if info.ChannelType == constant.ChannelTypeOpenAI && request.Model == "gpt-image-2" && key == "response_format" {
+				if _, ok := allowedMultipartImageEditFields[key]; !ok {
 					continue
 				}
 				for _, value := range values {
