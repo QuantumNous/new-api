@@ -20,6 +20,8 @@
 
 并采用“越具体越优先，未命中再降级”的匹配策略。
 
+关键原则：**不要求管理员维护完整组织路径**。完整路径变化频繁、录入成本高，只作为系统回放和解释依据；规则维护应以稳定的组织特征为主，例如岗位关键词、一级组织、上级部门关键词、所在部门关键词、路径片段。
+
 ## 目标
 
 1. 支持同一岗位在不同组织层级、不同部门路径下映射到不同分组。
@@ -91,8 +93,8 @@ type GroupMappingRule struct {
 | `parent_department_operator` | varchar(32) | 匹配方式 |
 | `department_pattern` | varchar(255) | 所在部门匹配，可空 |
 | `department_operator` | varchar(32) | 匹配方式 |
-| `org_path_pattern` | text | 部门路径匹配，可空 |
-| `org_path_operator` | varchar(32) | 匹配方式 |
+| `org_path_pattern` | text | 部门路径片段匹配，可空；不要求录完整路径 |
+| `org_path_operator` | varchar(32) | 匹配方式，默认使用 `contains` |
 | `remark` | varchar(256) | 备注 |
 | `created_at` | bigint | 创建时间 |
 | `updated_at` | bigint | 更新时间 |
@@ -111,6 +113,40 @@ any       不限制
 ```
 
 暂不支持正则，避免前端校验、数据库差异和误用风险。
+
+### 路径维护策略
+
+不做“完整部门路径精确匹配”。管理员不应该维护：
+
+```text
+华西区域事业部/华西区域事业部本部/区域运营/成都一城区/（成都一城区）半岛城邦三期管理处
+```
+
+而应该维护更稳定的片段或层级特征：
+
+```text
+岗位 = 财务BP经理
+所在部门 contains 大区财经管理部
+-> 大区职能部门
+
+岗位 = 财务BP经理
+所在部门 contains 环渤海大区财经管理部
+-> 城区级职能部门
+
+岗位 = 城区市场总监
+-> 城区SC
+
+岗位 contains 城区财务BP
+-> 城区级职能部门
+```
+
+系统可以在预览和回放时展示完整路径，用来帮助管理员判断，但规则本身优先沉淀为：
+
+```text
+岗位关键词 + 一级组织/上级部门/所在部门关键词 + 少量路径片段
+```
+
+完整路径只作为兜底字段，不作为主要维护方式。
 
 ### 唯一性
 
@@ -155,9 +191,9 @@ type AutoGroupContext struct {
 
 ```text
 priority 1000：保护/特殊规则
-priority 900：岗位 + 明确部门路径
-priority 800：岗位 + 上级部门
-priority 700：岗位 + 一级组织
+priority 900：岗位 + 所在部门/上级部门关键词
+priority 800：岗位 + 稳定路径片段
+priority 700：岗位 + 一级组织/二级组织
 priority 500：无争议岗位兜底
 priority 100：低置信度建议规则
 ```
