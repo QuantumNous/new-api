@@ -28,6 +28,8 @@ export const QUERY_KEYS = {
   SUGGESTIONS: ['auto-group-suggestions'] as const,
   IDENTITY_RULES: ['auto-group-identity-rules'] as const,
   GROUPS: ['groups'] as const,
+  FEISHU_GROUPS: ['auto-group-feishu-groups'] as const,
+  FEISHU_GROUP_MAPPINGS: ['auto-group-feishu-group-mappings'] as const,
 }
 
 // ============================================================================

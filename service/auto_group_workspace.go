@@ -73,31 +73,13 @@ func ClassifyAutoGroup(ctx AutoGroupContext) AutoGroupDecision {
 	if IsProtectedGroup(ctx.CurrentGroup) {
 		return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceHigh, Reason: "当前分组受保护", Source: "protected"}
 	}
-	if group, reason := matchFeishuUserGroupAutoGroup(ctx); group != "" {
-		if ctx.CurrentGroup == group {
-			return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: group, Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceHigh, Reason: "飞书用户组已匹配当前分组", Source: "feishu_user_group"}
+	if mapping, err := model.FindFeishuGroupPackageMapping(ctx.FeishuGroupIds, ctx.FeishuGroupNames); err == nil && mapping != nil {
+		if ctx.CurrentGroup == mapping.TargetGroup {
+			return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: mapping.TargetGroup, Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceHigh, Reason: "飞书用户组已匹配当前套餐分组", Source: "feishu_user_group"}
 		}
-		return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: group, Action: model.AutoGroupActionAutoApply, Confidence: model.AutoGroupConfidenceHigh, Reason: reason, Source: "feishu_user_group"}
+		return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: mapping.TargetGroup, Action: model.AutoGroupActionAutoApply, Confidence: model.AutoGroupConfidenceHigh, Reason: "飞书用户组命中套餐映射: " + mapping.FeishuGroupName, Source: "feishu_user_group"}
 	}
-	if ctx.JobTitle == "" {
-		return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceLow, Reason: "岗位为空且未命中飞书用户组", Source: "no_match"}
-	}
-	if isManualOnlyGroupJob(ctx.JobTitle) {
-		return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, Action: model.AutoGroupActionConfirmRequired, Confidence: model.AutoGroupConfidenceMedium, Reason: "疑似管理员手动维护分组", Source: "manual_only"}
-	}
-	if group, reason := matchBuiltInAutoGroup(ctx); group != "" {
-		if ctx.CurrentGroup == group {
-			return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: group, Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceHigh, Reason: "已在目标分组", Source: "builtin_rule"}
-		}
-		return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: group, Action: model.AutoGroupActionAutoApply, Confidence: model.AutoGroupConfidenceHigh, Reason: reason, Source: "builtin_rule"}
-	}
-	if group, err := ResolveGroupByJobTitle(ctx.JobTitle); err == nil && strings.TrimSpace(group) != "" {
-		if ctx.CurrentGroup == group {
-			return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: group, Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceMedium, Reason: "旧岗位规则命中且已在目标分组", Source: "legacy_rule"}
-		}
-		return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, SuggestedGroup: group, Action: model.AutoGroupActionConfirmRequired, Confidence: model.AutoGroupConfidenceMedium, Reason: "旧岗位规则命中，需确认后应用", Source: "legacy_rule"}
-	}
-	return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, Action: model.AutoGroupActionConfirmRequired, Confidence: model.AutoGroupConfidenceLow, Reason: "未命中高置信度身份规则", Source: "no_match"}
+	return AutoGroupDecision{UserId: ctx.UserId, CurrentGroup: ctx.CurrentGroup, Action: model.AutoGroupActionSkip, Confidence: model.AutoGroupConfidenceLow, Reason: "未命中飞书用户组套餐映射", Source: "no_mapping"}
 }
 
 func ReplayAutoGroupSuggestions() (*AutoGroupReplayResult, error) {
@@ -238,83 +220,7 @@ func ConfirmAutoGroupSuggestion(suggestionId, operatorId int, targetGroup string
 
 func ListAutoGroupIdentityRules() []AutoGroupIdentityRule {
 	return []AutoGroupIdentityRule{
-		{Name: "飞书用户组映射", TargetGroup: "Base token套餐", Description: "优先按飞书通讯录用户组匹配 Base 表中的 token套餐映射", ManualOnly: false},
+		{Name: "飞书用户组映射", TargetGroup: "套餐分组", Description: "按管理员配置的飞书通讯录用户组到套餐分组映射自动分组", ManualOnly: false},
 		{Name: "保护分组", TargetGroup: "当前分组", Description: "已在受保护分组中的用户不会被自动改到其他分组", ManualOnly: true},
-		{Name: "城区SC兜底", TargetGroup: "城区SC", Description: "未命中飞书用户组时，城区三保交付总监、城区解决方案总监、城区总经理、城区市场总监可兜底匹配", ManualOnly: false},
-		{Name: "城区级职能部门兜底", TargetGroup: "城区级职能部门", Description: "未命中飞书用户组时，城区财务BP、城区人力行政共享（人力资源中心）、城区保洁专业经理可兜底匹配", ManualOnly: false},
-		{Name: "项目BMG兜底", TargetGroup: "项目BMG", Description: "未命中飞书用户组时，物业项目相关岗位可兜底匹配", ManualOnly: false},
 	}
-}
-
-func matchFeishuUserGroupAutoGroup(ctx AutoGroupContext) (string, string) {
-	for _, groupID := range ctx.FeishuGroupIds {
-		if target := feishuUserGroupToTokenPackage(strings.TrimSpace(groupID)); target != "" {
-			return target, "飞书通讯录用户组命中套餐映射"
-		}
-	}
-	for _, groupName := range ctx.FeishuGroupNames {
-		if target := feishuUserGroupToTokenPackage(strings.TrimSpace(groupName)); target != "" {
-			return target, "飞书通讯录用户组命中套餐映射: " + strings.TrimSpace(groupName)
-		}
-	}
-	return "", ""
-}
-
-func feishuUserGroupToTokenPackage(value string) string {
-	switch strings.TrimSpace(value) {
-	case "15ee29afg72a666f", "集团高管":
-		return "集团高层"
-	case "4764bbd5ca6bggg6", "事业部CEO", "gc18gddada4dc7f1", "集团职能部门/支持中心负责人":
-		return "一级部门责任人"
-	case "5e8ffd4d63764f18", "集团总部职能部门/支持中心的二级部门或职能模块负责人", "85g38g4eeeda4183", "集团总部职能部门/支持中心员工":
-		return "集团职能部门"
-	case "1a4b8bd73e191469", "区域、产品、客户、楼宇事业部、合资公司 核心经营单元SC成员":
-		return "城区SC"
-	case "18g7cfdf4dg7ee88", "区域、产品、客户事业部职能部门负责人 （含COO、CMO）":
-		return "事业部SC"
-	case "1c2c5599f387827e", "区域、产品、客户事业部职能部门员工":
-		return "大区职能部门"
-	case "a19c5age1g6g25a6", "区域、产品、客户、楼宇科技事业部 核心经营单元专业类员工/操作类员工/ 基本经营单元负责人":
-		return "城区级职能部门"
-	case "528a7f599b6e4gaa", "区域事业部基本经营单元BMG", "4g9aec2e7egea1f4", "六大区-物业项目经理":
-		return "项目BMG"
-	default:
-		return ""
-	}
-}
-
-func matchBuiltInAutoGroup(ctx AutoGroupContext) (string, string) {
-	job := ctx.JobTitle
-	if equalsAny(job, "城区三保交付总监", "城区解决方案总监", "城区总经理", "城区市场总监") {
-		return "城区SC", "岗位属于城区SC身份"
-	}
-	if strings.Contains(job, "城区财务BP") {
-		return "城区级职能部门", "岗位包含城区财务BP"
-	}
-	if strings.Contains(job, "城区人力行政共享") && ctx.OrgLevel1Name == "人力资源中心" {
-		return "城区级职能部门", "岗位包含城区人力行政共享且一级组织为人力资源中心"
-	}
-	if job == "城区保洁专业经理" {
-		return "城区级职能部门", "岗位为城区保洁专业经理"
-	}
-	if strings.Contains(job, "物业项目") || job == "项目经理（合资职位）" {
-		return "项目BMG", "岗位属于项目BMG身份"
-	}
-	if equalsAny(job, "CEO", "COO", "CMO", "大区CEO", "大区COO", "大区CMO") {
-		return "事业部SC", "岗位属于事业部SC身份"
-	}
-	return "", ""
-}
-
-func isManualOnlyGroupJob(jobTitle string) bool {
-	return equalsAny(jobTitle, "董事长", "联席总裁", "首席财务官") || strings.Contains(strings.ToLower(jobTitle), "itbp") || strings.Contains(jobTitle, "AIBP")
-}
-
-func equalsAny(value string, candidates ...string) bool {
-	for _, candidate := range candidates {
-		if value == candidate {
-			return true
-		}
-	}
-	return false
 }

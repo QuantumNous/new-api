@@ -140,6 +140,41 @@ export interface AutoGroupIdentityRulesResponse {
   items: AutoGroupIdentityRule[]
 }
 
+export interface FeishuGroupOption {
+  id: string
+  group_id: string
+  name: string
+}
+
+export interface FeishuGroupsResponse {
+  items: FeishuGroupOption[]
+}
+
+export interface FeishuGroupPackageMapping {
+  id: number
+  feishu_group_id: string
+  feishu_group_name: string
+  target_group: string
+  enabled: boolean
+  priority: number
+  remark: string
+  created_at: number
+  updated_at: number
+}
+
+export interface FeishuGroupPackageMappingsResponse {
+  items: FeishuGroupPackageMapping[]
+}
+
+export interface FeishuGroupPackageMappingPayload {
+  feishu_group_id: string
+  feishu_group_name: string
+  target_group: string
+  enabled?: boolean
+  priority?: number
+  remark?: string
+}
+
 // ============================================================================
 // Dialog Types
 // ============================================================================

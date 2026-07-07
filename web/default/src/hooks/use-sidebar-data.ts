@@ -143,7 +143,7 @@ export function useSidebarData(): SidebarData {
             icon: Building2,
           },
           {
-            title: t('Auto Group Workspace'),
+            title: t('Feishu Group Package Mapping'),
             url: '/auto-group-rules',
             icon: Shield,
           },

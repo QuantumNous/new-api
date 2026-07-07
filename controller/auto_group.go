@@ -300,6 +300,152 @@ func InitializeAutoGroupApply(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"saved": len(rules)})
 }
 
+// ============ 飞书用户组套餐映射 ============
+
+type feishuGroupPackageMappingRequest struct {
+	FeishuGroupId   string `json:"feishu_group_id"`
+	FeishuGroupName string `json:"feishu_group_name"`
+	TargetGroup     string `json:"target_group" binding:"required"`
+	Enabled         *bool  `json:"enabled"`
+	Priority        int    `json:"priority"`
+	Remark          string `json:"remark"`
+}
+
+func ListFeishuGroups(c *gin.Context) {
+	catalog, err := service.FetchFeishuGroupCatalog()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	items := make([]service.FeishuGroupInfo, 0, len(catalog))
+	seen := map[string]bool{}
+	for _, group := range catalog {
+		key := group.Id
+		if key == "" {
+			key = group.GroupId + ":" + group.Name
+		}
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		items = append(items, group)
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Name == items[j].Name {
+			return items[i].GroupId < items[j].GroupId
+		}
+		return items[i].Name < items[j].Name
+	})
+	common.ApiSuccess(c, gin.H{"items": items})
+}
+
+func GetFeishuGroupPackageMappings(c *gin.Context) {
+	items, err := model.GetAllFeishuGroupPackageMappings()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"items": items})
+}
+
+func CreateFeishuGroupPackageMapping(c *gin.Context) {
+	var req feishuGroupPackageMappingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	mapping, ok := buildFeishuGroupPackageMappingFromRequest(req)
+	if !ok {
+		common.ApiErrorMsg(c, "飞书用户组和套餐分组不能为空")
+		return
+	}
+	if duplicated, err := model.IsDuplicateFeishuGroupPackageMapping(0, mapping.FeishuGroupId, mapping.FeishuGroupName); err != nil {
+		common.ApiError(c, err)
+		return
+	} else if duplicated {
+		c.JSON(http.StatusConflict, gin.H{"success": false, "message": "该飞书用户组已配置映射"})
+		return
+	}
+	if err := model.CreateFeishuGroupPackageMapping(mapping); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, mapping)
+}
+
+func UpdateFeishuGroupPackageMapping(c *gin.Context) {
+	id, err := parseIdParam(c)
+	if err != nil {
+		return
+	}
+	var req feishuGroupPackageMappingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	mapping, err := model.GetFeishuGroupPackageMappingById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	updated, ok := buildFeishuGroupPackageMappingFromRequest(req)
+	if !ok {
+		common.ApiErrorMsg(c, "飞书用户组和套餐分组不能为空")
+		return
+	}
+	if duplicated, err := model.IsDuplicateFeishuGroupPackageMapping(id, updated.FeishuGroupId, updated.FeishuGroupName); err != nil {
+		common.ApiError(c, err)
+		return
+	} else if duplicated {
+		c.JSON(http.StatusConflict, gin.H{"success": false, "message": "该飞书用户组已配置映射"})
+		return
+	}
+	mapping.FeishuGroupId = updated.FeishuGroupId
+	mapping.FeishuGroupName = updated.FeishuGroupName
+	mapping.TargetGroup = updated.TargetGroup
+	mapping.Enabled = updated.Enabled
+	mapping.Priority = updated.Priority
+	mapping.Remark = updated.Remark
+	if err := model.UpdateFeishuGroupPackageMapping(mapping); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, mapping)
+}
+
+func DeleteFeishuGroupPackageMapping(c *gin.Context) {
+	id, err := parseIdParam(c)
+	if err != nil {
+		return
+	}
+	if err := model.DeleteFeishuGroupPackageMapping(id); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+func buildFeishuGroupPackageMappingFromRequest(req feishuGroupPackageMappingRequest) (*model.FeishuGroupPackageMapping, bool) {
+	feishuGroupId := strings.TrimSpace(req.FeishuGroupId)
+	feishuGroupName := strings.TrimSpace(req.FeishuGroupName)
+	targetGroup := strings.TrimSpace(req.TargetGroup)
+	if targetGroup == "" || !isGroupUsable(targetGroup) || (feishuGroupId == "" && feishuGroupName == "") {
+		return nil, false
+	}
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+	return &model.FeishuGroupPackageMapping{
+		FeishuGroupId:   feishuGroupId,
+		FeishuGroupName: feishuGroupName,
+		TargetGroup:     targetGroup,
+		Enabled:         enabled,
+		Priority:        req.Priority,
+		Remark:          strings.TrimSpace(req.Remark),
+	}, true
+}
+
 // ============ 建议工作台 ============
 
 func GetAutoGroupDashboard(c *gin.Context) {

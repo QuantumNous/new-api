@@ -369,10 +369,15 @@ func SetApiRouter(router *gin.Engine) {
 			groupRoute.GET("/", controller.GetGroups)
 		}
 
-		// Auto group by job_title (按岗位自动分组)
+		// Auto group by Feishu user group (按飞书通讯录用户组自动分组)
 		autoGroupRoute := apiRouter.Group("/auto-group")
 		autoGroupRoute.Use(middleware.AdminAuth())
 		{
+			autoGroupRoute.GET("/feishu-groups", controller.ListFeishuGroups)
+			autoGroupRoute.GET("/feishu-group-mappings", controller.GetFeishuGroupPackageMappings)
+			autoGroupRoute.POST("/feishu-group-mappings", controller.CreateFeishuGroupPackageMapping)
+			autoGroupRoute.PUT("/feishu-group-mappings/:id", controller.UpdateFeishuGroupPackageMapping)
+			autoGroupRoute.DELETE("/feishu-group-mappings/:id", controller.DeleteFeishuGroupPackageMapping)
 			autoGroupRoute.GET("/dashboard", controller.GetAutoGroupDashboard)
 			autoGroupRoute.POST("/replay", controller.ReplayAutoGroupSuggestions)
 			autoGroupRoute.POST("/apply-high-confidence", controller.ApplyHighConfidenceAutoGroupSuggestions)

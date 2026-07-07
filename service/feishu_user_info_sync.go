@@ -187,31 +187,29 @@ func syncOneFeishuUserInfo(ctx context.Context, client *lark.Client, user *model
 		return err
 	}
 
-	// 拉到 JobTitle 后重算 group（用户调岗的兜底）
-	if jobTitle, ok := updates["job_title"].(string); ok && strings.TrimSpace(jobTitle) != "" {
-		oldGroup := user.Group
-		ctx := AutoGroupContext{
-			UserId:               user.Id,
-			FeishuOpenId:         user.FeishuId,
-			CurrentGroup:         oldGroup,
-			JobTitle:             jobTitle,
-			OrgLevel1Name:        orgPath.Level1Name,
-			OrgLevel2Name:        orgPath.Level2Name,
-			DepartmentName:       department.Name,
-			ParentDepartmentName: parent.Name,
-			OrgPath:              orgPath.Path,
+	oldGroup := user.Group
+	jobTitle, _ := updates["job_title"].(string)
+	agCtx := AutoGroupContext{
+		UserId:               user.Id,
+		FeishuOpenId:         user.FeishuId,
+		CurrentGroup:         oldGroup,
+		JobTitle:             jobTitle,
+		OrgLevel1Name:        orgPath.Level1Name,
+		OrgLevel2Name:        orgPath.Level2Name,
+		DepartmentName:       department.Name,
+		ParentDepartmentName: parent.Name,
+		OrgPath:              orgPath.Path,
+	}
+	if catalog, catalogErr := FetchFeishuGroupCatalog(); catalogErr == nil && strings.TrimSpace(user.FeishuId) != "" {
+		if groupIds, groupNames, groupErr := FetchFeishuUserGroupMembership(user.FeishuId, catalog); groupErr == nil {
+			agCtx.FeishuGroupIds = groupIds
+			agCtx.FeishuGroupNames = groupNames
 		}
-		if catalog, catalogErr := FetchFeishuGroupCatalog(); catalogErr == nil && strings.TrimSpace(user.FeishuId) != "" {
-			if groupIds, groupNames, groupErr := FetchFeishuUserGroupMembership(user.FeishuId, catalog); groupErr == nil {
-				ctx.FeishuGroupIds = groupIds
-				ctx.FeishuGroupNames = groupNames
-			}
-		}
-		decision := ClassifyAutoGroup(ctx)
-		if decision.Action == model.AutoGroupActionAutoApply && decision.SuggestedGroup != "" && decision.SuggestedGroup != oldGroup {
-			if err := ApplyAutoGroupChange(user.Id, oldGroup, decision.SuggestedGroup); err == nil {
-				user.Group = decision.SuggestedGroup
-			}
+	}
+	decision := ClassifyAutoGroup(agCtx)
+	if decision.Action == model.AutoGroupActionAutoApply && decision.SuggestedGroup != "" && decision.SuggestedGroup != oldGroup {
+		if err := ApplyAutoGroupChange(user.Id, oldGroup, decision.SuggestedGroup); err == nil {
+			user.Group = decision.SuggestedGroup
 		}
 	}
 

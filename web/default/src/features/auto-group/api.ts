@@ -30,11 +30,51 @@ import type {
   AutoGroupResolveResult,
   AutoGroupRule,
   AutoGroupSuggestionsResponse,
+  FeishuGroupPackageMapping,
+  FeishuGroupPackageMappingPayload,
+  FeishuGroupPackageMappingsResponse,
+  FeishuGroupsResponse,
   RuleFormData,
 } from './types'
 
 // Re-export getGroups so consumers can import all group-related APIs from one place
 export { getGroups } from '@/features/users/api'
+
+export async function getFeishuGroups(): Promise<
+  ApiResponse<FeishuGroupsResponse>
+> {
+  const res = await api.get('/api/auto-group/feishu-groups')
+  return res.data
+}
+
+export async function getFeishuGroupPackageMappings(): Promise<
+  ApiResponse<FeishuGroupPackageMappingsResponse>
+> {
+  const res = await api.get('/api/auto-group/feishu-group-mappings')
+  return res.data
+}
+
+export async function createFeishuGroupPackageMapping(
+  data: FeishuGroupPackageMappingPayload
+): Promise<ApiResponse<FeishuGroupPackageMapping>> {
+  const res = await api.post('/api/auto-group/feishu-group-mappings', data)
+  return res.data
+}
+
+export async function updateFeishuGroupPackageMapping(
+  id: number,
+  data: FeishuGroupPackageMappingPayload
+): Promise<ApiResponse<FeishuGroupPackageMapping>> {
+  const res = await api.put(`/api/auto-group/feishu-group-mappings/${id}`, data)
+  return res.data
+}
+
+export async function deleteFeishuGroupPackageMapping(
+  id: number
+): Promise<ApiResponse> {
+  const res = await api.delete(`/api/auto-group/feishu-group-mappings/${id}`)
+  return res.data
+}
 
 // ============================================================================
 // Auto Group Rule CRUD APIs

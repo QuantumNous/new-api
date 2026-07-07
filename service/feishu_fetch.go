@@ -53,9 +53,9 @@ func FetchFeishuJobTitle(feishuUserId string) (string, error) {
 }
 
 type FeishuGroupInfo struct {
-	Id      string
-	GroupId string
-	Name    string
+	Id      string `json:"id"`
+	GroupId string `json:"group_id"`
+	Name    string `json:"name"`
 }
 
 func FetchFeishuGroupCatalog() (map[string]FeishuGroupInfo, error) {

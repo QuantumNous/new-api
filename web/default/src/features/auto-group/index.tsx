@@ -21,32 +21,22 @@ import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import { IdentityRules } from './components/identity-rules'
+import { FeishuGroupMappings } from './components/feishu-group-mappings'
 import { ProtectedGroupsConfig } from './components/protected-groups-config'
-import { SuggestionsTable } from './components/suggestions-table'
-import { WorkspaceDashboard } from './components/workspace-dashboard'
 
 export function AutoGroupRules() {
   const { t } = useTranslation()
   return (
     <SectionPageLayout fixedContent>
-      <SectionPageLayout.Title>{t('Auto Group Workspace')}</SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t('Feishu Group Package Mapping')}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
-        <Tabs defaultValue='overview' className='flex h-full min-h-0 flex-col gap-4'>
+        <Tabs defaultValue='mappings' className='flex h-full min-h-0 flex-col gap-4'>
           <TabsList className='w-fit'>
-            <TabsTrigger value='overview'>{t('Overview')}</TabsTrigger>
-            <TabsTrigger value='pending'>{t('Pending users')}</TabsTrigger>
-            <TabsTrigger value='rules'>{t('Identity rules')}</TabsTrigger>
+            <TabsTrigger value='mappings'>{t('Mappings')}</TabsTrigger>
             <TabsTrigger value='protected'>{t('Protected groups')}</TabsTrigger>
           </TabsList>
-          <TabsContent value='overview' className='min-h-0 flex-1'>
-            <WorkspaceDashboard />
-          </TabsContent>
-          <TabsContent value='pending' className='min-h-0 flex-1'>
-            <SuggestionsTable />
-          </TabsContent>
-          <TabsContent value='rules' className='min-h-0 flex-1'>
-            <IdentityRules />
+          <TabsContent value='mappings' className='min-h-0 flex-1'>
+            <FeishuGroupMappings />
           </TabsContent>
           <TabsContent value='protected' className='min-h-0 flex-1'>
             <ProtectedGroupsConfig />
