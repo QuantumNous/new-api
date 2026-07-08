@@ -191,6 +191,29 @@ func TestUpdateLogRequestSamplingSettingExecutesCallbackOnce(t *testing.T) {
 	}
 }
 
+func TestUpdateLogRequestSamplingSettingAllowsReentrantReads(t *testing.T) {
+	resetLogRequestSamplingSettingForTest(t)
+
+	done := make(chan struct{})
+	go func() {
+		UpdateLogRequestSamplingSetting(func(setting *LogRequestSamplingSetting) {
+			_ = GetLogRequestSamplingSetting()
+			setting.Enabled = true
+		})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("UpdateLogRequestSamplingSetting deadlocked when update callback read the setting")
+	}
+
+	if !GetLogRequestSamplingSnapshot().Enabled {
+		t.Fatal("expected setting update to be applied")
+	}
+}
+
 func TestUpdateLogRequestSamplingSettingSerializesConcurrentFieldChanges(t *testing.T) {
 	resetLogRequestSamplingSettingForTest(t)
 

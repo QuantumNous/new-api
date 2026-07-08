@@ -133,9 +133,10 @@ var defaultLogRequestSamplingSetting = LogRequestSamplingSetting{
 }
 
 var (
-	logRequestSamplingSetting = cloneLogRequestSamplingSetting(defaultLogRequestSamplingSetting)
-	logRequestSamplingValue   atomic.Value
-	logRequestSamplingMu      sync.Mutex
+	logRequestSamplingSetting  = cloneLogRequestSamplingSetting(defaultLogRequestSamplingSetting)
+	logRequestSamplingValue    atomic.Value
+	logRequestSamplingMu       sync.Mutex
+	logRequestSamplingUpdateMu sync.Mutex
 )
 
 func init() {
@@ -156,11 +157,17 @@ func UpdateLogRequestSamplingSetting(update func(*LogRequestSamplingSetting)) {
 		return
 	}
 
+	logRequestSamplingUpdateMu.Lock()
+	defer logRequestSamplingUpdateMu.Unlock()
+
+	logRequestSamplingMu.Lock()
+	draft := cloneLogRequestSamplingSetting(logRequestSamplingSetting)
+	logRequestSamplingMu.Unlock()
+
+	update(&draft)
+
 	logRequestSamplingMu.Lock()
 	defer logRequestSamplingMu.Unlock()
-
-	draft := cloneLogRequestSamplingSetting(logRequestSamplingSetting)
-	update(&draft)
 	logRequestSamplingSetting = cloneLogRequestSamplingSetting(draft)
 	storeLogRequestSamplingSnapshotLocked()
 }

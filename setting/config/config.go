@@ -382,7 +382,13 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 				}
 
 				fresh := reflect.New(field.Type().Elem())
-				fresh.Elem().Set(field.Elem())
+				backup, err := common.Marshal(field.Interface())
+				if err != nil {
+					return fmt.Errorf("failed to backup JSON config field %s: %w", key, err)
+				}
+				if err := common.Unmarshal(backup, fresh.Interface()); err != nil {
+					return fmt.Errorf("failed to backup JSON config field %s: %w", key, err)
+				}
 				if err := common.Unmarshal(raw, fresh.Interface()); err != nil {
 					return fmt.Errorf("failed to parse JSON config field %s: %w", key, err)
 				}

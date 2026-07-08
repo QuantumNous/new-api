@@ -24,7 +24,8 @@ func (*panicJSONField) UnmarshalJSON(_ []byte) error {
 }
 
 type nestedJSONConfig struct {
-	Value string `json:"value"`
+	Value string            `json:"value"`
+	Tags  map[string]string `json:"tags,omitempty"`
 }
 
 type testConfigWithJSONFields struct {
@@ -182,6 +183,32 @@ func TestUpdateConfigFromMap_InvalidJSONPreventsPartialUpdate(t *testing.T) {
 	}
 	if len(cfg.Items) != 1 || cfg.Items[0] != "old-item" {
 		t.Fatalf("items = %v, want old value preserved", cfg.Items)
+	}
+}
+
+func TestUpdateConfigFromMap_InvalidPointerJSONDoesNotMutateSharedNestedState(t *testing.T) {
+	cfg := &testConfigWithJSONFields{
+		Ptr: &nestedJSONConfig{
+			Value: "old-ptr",
+			Tags:  map[string]string{"old": "tag"},
+		},
+	}
+	originalPtr := cfg.Ptr
+
+	err := UpdateConfigFromMap(cfg, map[string]string{
+		"ptr": `{"value":"new-ptr","tags":{"new":"tag"},`,
+	})
+	if err == nil {
+		t.Fatal("expected invalid JSON to return an error")
+	}
+	if cfg.Ptr != originalPtr {
+		t.Fatal("failed pointer config update must preserve pointer identity")
+	}
+	if cfg.Ptr.Value != "old-ptr" {
+		t.Fatalf("ptr value = %q, want old-ptr", cfg.Ptr.Value)
+	}
+	if len(cfg.Ptr.Tags) != 1 || cfg.Ptr.Tags["old"] != "tag" {
+		t.Fatalf("ptr tags = %v, want old tags preserved", cfg.Ptr.Tags)
 	}
 }
 
