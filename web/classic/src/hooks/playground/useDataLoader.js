@@ -27,11 +27,12 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  API,
   processModelsData,
   processGroupsData,
   showWarning,
   showError,
+  getUserModelsCached,
+  cachedGet,
 } from '../../helpers';
 import { isPlaygroundSupported } from '../../helpers/playground';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
@@ -69,11 +70,9 @@ export const useDataLoader = (
 
   const loadModels = useCallback(async () => {
     try {
-      const groupParam = inputs.group
-        ? `?group=${encodeURIComponent(inputs.group)}`
-        : '';
-      const res = await API.get(`${API_ENDPOINTS.USER_MODELS}${groupParam}`);
-      const { success, message, data } = res.data;
+      const { success, message, data } = await getUserModelsCached(
+        inputs.group,
+      );
 
       if (success) {
         const previousModel = inputs.model;
@@ -121,8 +120,9 @@ export const useDataLoader = (
 
   const loadGroups = useCallback(async () => {
     try {
-      const res = await API.get(API_ENDPOINTS.USER_GROUPS);
-      const { success, message, data } = res.data;
+      const { success, message, data } = await cachedGet(
+        API_ENDPOINTS.USER_GROUPS,
+      );
 
       if (success) {
         const userGroup =
@@ -135,7 +135,10 @@ export const useDataLoader = (
         if (types.size > 0) {
           const textGroupSet = new Set();
           types.forEach((_tp, model) => {
-            if (isPlaygroundSupported(model, types) && !mediaModelSet.has(model)) {
+            if (
+              isPlaygroundSupported(model, types) &&
+              !mediaModelSet.has(model)
+            ) {
               (gmap.get(model) || []).forEach((g) => textGroupSet.add(g));
             }
           });
@@ -169,10 +172,10 @@ export const useDataLoader = (
     if (!setModelEndpointTypes) return;
     try {
       // skipErrorHandler 跳过全局拦截器的 Toast，pricing 拉不到不应该让用户看到错误弹窗。
-      const res = await API.get(API_ENDPOINTS.PRICING, {
-        skipErrorHandler: true,
+      const payload = await cachedGet(API_ENDPOINTS.PRICING, {
+        config: { skipErrorHandler: true },
       });
-      const { success, data } = res.data || {};
+      const { success, data } = payload || {};
       if (!success || !Array.isArray(data)) return;
       const map = new Map();
       const groupsMap = new Map();

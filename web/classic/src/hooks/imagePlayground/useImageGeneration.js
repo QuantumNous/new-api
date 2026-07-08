@@ -14,6 +14,8 @@ import {
   showError,
   processGroupsData,
   processModelsData,
+  getUserModelsCached,
+  cachedGet,
 } from '../../helpers';
 import {
   IMAGE_API_ENDPOINTS,
@@ -188,10 +190,10 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
   // 加载 pricing：构建 model -> 端点类型、model -> 分组 两个映射（覆盖全部模型）
   const loadPricing = useCallback(async () => {
     try {
-      const res = await API.get(IMAGE_API_ENDPOINTS.PRICING, {
-        skipErrorHandler: true,
+      const payload = await cachedGet(IMAGE_API_ENDPOINTS.PRICING, {
+        config: { skipErrorHandler: true },
       });
-      const { success, data } = res.data || {};
+      const { success, data } = payload || {};
       if (!success || !Array.isArray(data)) return;
       const groupsMap = new Map();
       data.forEach((item) => {
@@ -206,8 +208,9 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
 
   const loadGroups = useCallback(async () => {
     try {
-      const res = await API.get(IMAGE_API_ENDPOINTS.USER_GROUPS);
-      const { success, data } = res.data;
+      const { success, data } = await cachedGet(
+        IMAGE_API_ENDPOINTS.USER_GROUPS,
+      );
       if (!success) return;
       const userGroup =
         userState?.user?.group ||
@@ -234,13 +237,7 @@ export const useImageGeneration = ({ mode = 'text2image' } = {}) => {
 
   const loadModels = useCallback(async () => {
     try {
-      const groupParam = inputs.group
-        ? `?group=${encodeURIComponent(inputs.group)}`
-        : '';
-      const res = await API.get(
-        `${IMAGE_API_ENDPOINTS.USER_MODELS}${groupParam}`,
-      );
-      const { success, data } = res.data;
+      const { success, data } = await getUserModelsCached(inputs.group);
       if (!success) return;
       let list = Array.isArray(data) ? data : [];
       // 严格过滤：仅保留图片模型（后端识别 ∪ 管理员声明）
