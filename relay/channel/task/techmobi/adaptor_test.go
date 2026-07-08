@@ -387,17 +387,17 @@ func TestParseTaskResult_MapsTerminalFailureStatuses(t *testing.T) {
 	}
 }
 
-func TestParseTaskResult_FailsUnknownNonEmptyStatus(t *testing.T) {
+func TestParseTaskResult_KeepsUnknownNonEmptyStatusInProgress(t *testing.T) {
 	a := &TaskAdaptor{}
 
-	info, err := a.ParseTaskResult([]byte(`{"id":"task_upstream_123","status":"stalled"}`))
+	info, err := a.ParseTaskResult([]byte(`{"id":"task_upstream_123","status":"submitted"}`))
 	if err != nil {
-		t.Fatalf("stalled: %v", err)
+		t.Fatalf("submitted: %v", err)
 	}
-	if info.Status != model.TaskStatusFailure || info.Progress != "100%" {
+	if info.Status != model.TaskStatusInProgress || info.Progress != "30%" {
 		t.Fatalf("unknown status/progress = %q/%q", info.Status, info.Progress)
 	}
-	if info.Reason != "unrecognized upstream task status: stalled" {
+	if info.Reason != "" {
 		t.Fatalf("unknown reason = %q", info.Reason)
 	}
 }
