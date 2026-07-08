@@ -42,6 +42,11 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+const (
+	channelTestChannelNotExistMessage = "channel does not exist"
+	channelTestNotMultiKeyMessage     = "channel is not in multi-key mode"
+)
+
 type TestAllKeysRequest struct {
 	Model             *string `json:"model,omitempty"`
 	IncludeDisabled   *bool   `json:"include_disabled,omitempty"`
@@ -1391,11 +1396,11 @@ func TestAllKeys(c *gin.Context) {
 		}
 	}
 	if channel == nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel does not exist"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": channelTestChannelNotExistMessage})
 		return
 	}
 	if !channel.ChannelInfo.IsMultiKey {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel is not in multi-key mode"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": channelTestNotMultiKeyMessage})
 		return
 	}
 
