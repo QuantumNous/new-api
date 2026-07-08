@@ -142,18 +142,18 @@ export function ApiKeyGroupCombobox({
           />
         }
       >
-        <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
-          <span className='min-w-0'>
-            <span className='block truncate font-medium'>
+        <span className='grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:gap-3'>
+          <span className='flex min-w-0 flex-col overflow-hidden text-left'>
+            <span className='block max-w-full truncate font-medium'>
               {selectedOption?.label || placeholder || t('Select a group')}
             </span>
             {selectedOption?.desc && (
-              <span className='text-muted-foreground block truncate text-[11px] sm:text-xs'>
+              <span className='text-muted-foreground block max-w-full text-[11px] leading-[1.35] whitespace-normal break-words line-clamp-2 sm:text-xs'>
                 {selectedOption.desc}
               </span>
             )}
           </span>
-          <span className='hidden sm:block'>
+          <span className='hidden shrink-0 justify-self-end sm:block'>
             <GroupRatioBadge ratio={selectedOption?.ratio} />
           </span>
         </span>
@@ -179,7 +179,7 @@ export function ApiKeyGroupCombobox({
                   key={option.value}
                   value={option.value}
                   onSelect={() => handleSelect(option.value)}
-                  className='data-[selected=true]:bg-muted items-start gap-3 rounded-lg px-3 py-3 transition-colors'
+                  className='data-[selected=true]:bg-muted grid min-w-0 grid-cols-[16px_minmax(0,1fr)_auto] items-start gap-3 rounded-lg px-3 py-3 transition-colors'
                 >
                   <Check
                     className={cn(
@@ -187,17 +187,19 @@ export function ApiKeyGroupCombobox({
                       value === option.value ? 'opacity-100' : 'opacity-0'
                     )}
                   />
-                  <span className='min-w-0 flex-1'>
-                    <span className='block truncate font-medium'>
+                  <span className='flex min-w-0 flex-col overflow-hidden text-left'>
+                    <span className='block max-w-full truncate font-medium'>
                       {option.label}
                     </span>
                     {option.desc && (
-                      <span className='text-muted-foreground block truncate text-xs'>
+                      <span className='text-muted-foreground block max-w-full text-xs leading-[1.35] whitespace-normal break-words line-clamp-2'>
                         {option.desc}
                       </span>
                     )}
                   </span>
-                  <GroupRatioBadge ratio={option.ratio} />
+                  <span className='shrink-0 justify-self-end'>
+                    <GroupRatioBadge ratio={option.ratio} />
+                  </span>
                 </CommandItem>
               ))}
             </CommandGroup>
