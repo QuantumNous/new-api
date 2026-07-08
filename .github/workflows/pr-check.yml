@@ -25,6 +25,12 @@ jobs:
           require-pr-template: true
           strict-pr-template-sections: "✅ 提交前检查项 / Checklist"
 
+          # Disable account/activity heuristics that are unrelated to code quality.
+          max-emoji-count: 0
+          max-added-comments: 0
+          max-daily-forks: 0
+          min-global-merge-ratio: 0
+
           detect-spam-usernames: true
           min-account-age: 30
 
