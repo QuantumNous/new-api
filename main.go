@@ -189,6 +189,27 @@ func main() {
 
 	// Initialize HTTP server
 	server := gin.New()
+	// Client-IP resolution behind proxies. Without this, Gin trusts every proxy
+	// and c.ClientIP() returns the LEFTMOST X-Forwarded-For entry, which the
+	// client itself can forge. That breaks everything keyed on c.ClientIP():
+	// wallet checkout-currency geo (client_region gates INR/UPI, BRL/Pix),
+	// rate-limit buckets, token IP allowlists, and request-IP logs.
+	//
+	// TRUSTED_PLATFORM=cloudflare  -> read CF-Connecting-IP (authoritative on
+	//   Cloudflare-proxied hosts, e.g. console.flatkey.ai; set this on the
+	//   newapi-console service ONLY — router.flatkey.ai is DNS-only and has no
+	//   Cloudflare headers, so the env must stay unset there).
+	// TRUSTED_PLATFORM=<header>    -> read that header verbatim (escape hatch
+	//   for other fronting proxies that inject a trusted client-IP header).
+	// unset                        -> Gin default behavior (unchanged).
+	if tp := strings.TrimSpace(os.Getenv("TRUSTED_PLATFORM")); tp != "" {
+		if strings.EqualFold(tp, "cloudflare") {
+			server.TrustedPlatform = gin.PlatformCloudflare
+		} else {
+			server.TrustedPlatform = tp
+		}
+		common.SysLog("trusted platform header: " + server.TrustedPlatform)
+	}
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{
