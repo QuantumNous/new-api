@@ -32,10 +32,13 @@ type PerfGroup = {
 
 const THIRTY_DAYS_HOURS = 720;
 
-export async function fetchHealthSummary(group?: string): Promise<Record<string, HomePerfSummary>> {
+export async function fetchHealthSummary(group?: string, model?: string): Promise<Record<string, HomePerfSummary>> {
   try {
     const params = new URLSearchParams({ hours: String(THIRTY_DAYS_HOURS) });
     if (group) params.set("group", group);
+    // When a model is given, the proxy filters to that model's row so the page
+    // downloads only what it needs instead of the whole-platform catalog.
+    if (model) params.set("model", model);
     const response = await fetch(`/api/perf-metrics/summary?${params.toString()}`, {
       headers: { accept: "application/json" },
     });

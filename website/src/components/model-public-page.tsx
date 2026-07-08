@@ -91,7 +91,8 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
     const model = props.modelName;
     const wanted = normalizeModelKey(model);
     // Whole-platform health (no group) — real total volume across all tiers.
-    Promise.all([fetchModelTrend(model), fetchHealthSummary()]).then(([points, byName]) => {
+    // Pass the model so the proxy returns only this model's summary row.
+    Promise.all([fetchModelTrend(model), fetchHealthSummary(undefined, model)]).then(([points, byName]) => {
       if (cancelled) return;
       const summary =
         byName[model] ?? Object.values(byName).find((row) => normalizeModelKey(row.model_name) === wanted);
