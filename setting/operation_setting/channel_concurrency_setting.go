@@ -114,16 +114,16 @@ func GetChannelConcurrencyWaitInterval() time.Duration {
 func GetChannelConcurrencyMaxWaiting(maxConcurrency int) int {
 	channelConcurrencySettingMu.RLock()
 	defer channelConcurrencySettingMu.RUnlock()
+	maxWaiting := 1
 	if channelConcurrencySetting.MaxWaitingPerChannel > 0 {
-		if channelConcurrencySetting.MaxWaitingPerChannel > maxChannelConcurrencyMaxWaitingPerChannel {
-			return maxChannelConcurrencyMaxWaitingPerChannel
-		}
-		return channelConcurrencySetting.MaxWaitingPerChannel
+		maxWaiting = channelConcurrencySetting.MaxWaitingPerChannel
+	} else if maxConcurrency > 0 {
+		maxWaiting = maxConcurrency
 	}
-	if maxConcurrency > 0 {
-		return maxConcurrency
+	if maxWaiting > maxChannelConcurrencyMaxWaitingPerChannel {
+		return maxChannelConcurrencyMaxWaitingPerChannel
 	}
-	return 1
+	return maxWaiting
 }
 
 func IsChannelConcurrencyCooldownEnabled() bool {

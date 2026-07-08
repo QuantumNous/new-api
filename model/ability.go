@@ -72,7 +72,7 @@ func getPriority(group string, model string, retry int) (int, error) {
 	var priorities []int
 	err := DB.Model(&Ability{}).
 		Select("DISTINCT(priority)").
-		Where(&Ability{Group: group, Model: model, Enabled: true}).
+		Where(abilityEnabledCondition(group, model)).
 		Order("priority DESC").              // 按优先级降序排序
 		Pluck("priority", &priorities).Error // Pluck用于将查询的结果直接扫描到一个切片中
 
@@ -100,15 +100,24 @@ func getPriority(group string, model string, retry int) (int, error) {
 	return priorityToUse, nil
 }
 
+func abilityEnabledCondition(group string, model string) map[string]interface{} {
+	return map[string]interface{}{
+		"group":   group,
+		"model":   model,
+		"enabled": true,
+	}
+}
+
 func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
-	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(&Ability{Group: group, Model: model, Enabled: true})
-	channelQuery := DB.Where(&Ability{Group: group, Model: model, Enabled: true}).Where("priority = (?)", maxPrioritySubQuery)
+	condition := abilityEnabledCondition(group, model)
+	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(condition)
+	channelQuery := DB.Where(condition).Where("priority = (?)", maxPrioritySubQuery)
 	if retry != 0 {
 		priority, err := getPriority(group, model, retry)
 		if err != nil {
 			return nil, err
 		} else {
-			channelQuery = DB.Where(&Ability{Group: group, Model: model, Enabled: true}).Where("priority = ?", priority)
+			channelQuery = DB.Where(condition).Where("priority = ?", priority)
 		}
 	}
 
@@ -121,7 +130,7 @@ func GetChannelCandidates(group string, model string, retry int) ([]*Channel, er
 
 func GetChannelCandidatesWithFilter(group string, model string, retry int, filter ChannelFilter) ([]*Channel, error) {
 	var abilities []Ability
-	err := DB.Where(&Ability{Group: group, Model: model, Enabled: true}).
+	err := DB.Where(abilityEnabledCondition(group, model)).
 		Order("priority DESC, weight DESC").
 		Find(&abilities).Error
 	if err != nil {
@@ -194,7 +203,7 @@ type abilityChannelCandidate struct {
 func GetChannelWithFilter(group string, model string, retry int, filter ChannelFilter) (*Channel, error) {
 	var abilities []Ability
 
-	channelQuery := DB.Where(&Ability{Group: group, Model: model, Enabled: true})
+	channelQuery := DB.Where(abilityEnabledCondition(group, model))
 	err := channelQuery.Order("priority DESC, weight DESC").Find(&abilities).Error
 	if err != nil {
 		return nil, err

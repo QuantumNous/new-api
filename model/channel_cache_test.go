@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetSatisfiedChannelCandidatesWithFilterClampsRetryToLowestPriority(t *testing.T) {
+func TestGetSatisfiedChannelCandidatesWithFilterReturnsEmptyWhenRetryExhausted(t *testing.T) {
 	prevMemoryCacheEnabled := common.MemoryCacheEnabled
 	prevGroup2Model2Channels := group2model2channels
 	prevChannelsIDM := channelsIDM
@@ -32,8 +32,7 @@ func TestGetSatisfiedChannelCandidatesWithFilterClampsRetryToLowestPriority(t *t
 
 	candidates, err := GetSatisfiedChannelCandidatesWithFilter("default", "gpt-test", 99, nil)
 	require.NoError(t, err)
-	require.Len(t, candidates, 1)
-	require.Equal(t, 2, candidates[0].Id)
+	require.Empty(t, candidates)
 }
 
 func TestSelectWeightedRandomChannelReturnsErrorOnWeightOverflow(t *testing.T) {

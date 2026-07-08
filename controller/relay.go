@@ -468,11 +468,7 @@ func shouldMarkChannelConcurrencyCooldown(err *types.NewAPIError) bool {
 		return false
 	}
 	if err.StatusCode == http.StatusTooManyRequests {
-		return strings.Contains(message, "rate limit") ||
-			strings.Contains(message, "rate limited") ||
-			strings.Contains(message, "too many requests") ||
-			strings.Contains(message, "overload") ||
-			strings.Contains(message, "capacity")
+		return true
 	}
 	return strings.Contains(message, "rate limit") ||
 		strings.Contains(message, "rate limited") ||

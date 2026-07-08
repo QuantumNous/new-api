@@ -160,6 +160,9 @@ func TestShouldMarkChannelConcurrencyCooldownExcludesQuota429(t *testing.T) {
 	require.True(t, shouldMarkChannelConcurrencyCooldown(
 		types.NewOpenAIError(errors.New("rate limit exceeded"), types.ErrorCodeBadResponseStatusCode, http.StatusTooManyRequests),
 	))
+	require.True(t, shouldMarkChannelConcurrencyCooldown(
+		types.NewOpenAIError(errors.New(""), types.ErrorCodeBadResponseStatusCode, http.StatusTooManyRequests),
+	))
 }
 
 func TestGetChannelSkipsCoolingDownChannel(t *testing.T) {

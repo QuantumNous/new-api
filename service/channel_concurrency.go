@@ -130,11 +130,11 @@ func AcquireChannelConcurrencyWithWait(ctx context.Context, channel *model.Chann
 		return nil, false, err
 	}
 	if waiting > operation_setting.GetChannelConcurrencyMaxWaiting(maxConcurrency) {
-		_ = waitingLease.Release(ctx)
+		releaseChannelConcurrencyWaitingLeaseWithLog(waitingLease, channel.Id)
 		return nil, false, ErrChannelConcurrencyLimit
 	}
 	defer func() {
-		_ = waitingLease.Release(context.Background())
+		releaseChannelConcurrencyWaitingLeaseWithLog(waitingLease, channel.Id)
 	}()
 
 	waitCtx, cancel := context.WithTimeout(ctx, operation_setting.GetChannelConcurrencyWaitTimeout())
@@ -191,7 +191,7 @@ func tryAcquireChannelConcurrencyWithToken(ctx context.Context, channel *model.C
 		} else if !ok {
 			return nil, false, nil
 		} else {
-			startChannelConcurrencyLeaseRenewal(lease)
+			startChannelConcurrencyLeaseRenewal(ctx, lease)
 			return lease, true, nil
 		}
 	}
@@ -199,7 +199,7 @@ func tryAcquireChannelConcurrencyWithToken(ctx context.Context, channel *model.C
 	if !acquireMemoryChannelConcurrency(channel.Id, maxConcurrency, token) {
 		return nil, false, nil
 	}
-	startChannelConcurrencyLeaseRenewal(lease)
+	startChannelConcurrencyLeaseRenewal(ctx, lease)
 	return lease, true, nil
 }
 
@@ -436,9 +436,12 @@ func acquireRedisChannelConcurrency(ctx context.Context, channelID int, maxConcu
 	return result == 1, nil
 }
 
-func startChannelConcurrencyLeaseRenewal(lease *ChannelConcurrencyLease) {
+func startChannelConcurrencyLeaseRenewal(parent context.Context, lease *ChannelConcurrencyLease) {
 	if lease == nil {
 		return
+	}
+	if parent == nil {
+		parent = context.Background()
 	}
 	ttl := operation_setting.GetChannelConcurrencySlotTTL()
 	interval := channelConcurrencyRenewInterval(ttl)
@@ -448,9 +451,11 @@ func startChannelConcurrencyLeaseRenewal(lease *ChannelConcurrencyLease) {
 			interval = time.Second
 		}
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, timeoutCancel := context.WithTimeout(parent, ttl*2)
+	ctx, cancel := context.WithCancel(ctx)
 	lease.renewCancel = cancel
 	go func() {
+		defer timeoutCancel()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
@@ -637,6 +642,14 @@ func acquireChannelConcurrencyWaiting(ctx context.Context, channelID int) (*chan
 	defer channelConcurrencyMemoryMu.Unlock()
 	channelConcurrencyMemoryWaits[channelID]++
 	return lease, channelConcurrencyMemoryWaits[channelID], nil
+}
+
+func releaseChannelConcurrencyWaitingLeaseWithLog(lease *channelConcurrencyWaitingLease, channelID int) {
+	releaseCtx, releaseCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer releaseCancel()
+	if err := lease.Release(releaseCtx); err != nil {
+		common.SysError(fmt.Sprintf("release channel concurrency waiting lease failed: channel_id=%d, error=%s", channelID, err.Error()))
+	}
 }
 
 func incrementChannelConcurrencyWaiting(ctx context.Context, channelID int, maxConcurrency int) (int, error) {

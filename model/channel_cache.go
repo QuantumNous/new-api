@@ -322,7 +322,7 @@ func GetSatisfiedChannelCandidatesWithFilter(group string, model string, retry i
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
 	if retry >= len(sortedUniquePriorities) {
-		retry = len(sortedUniquePriorities) - 1
+		return nil, nil
 	}
 	if retry < 0 {
 		retry = 0

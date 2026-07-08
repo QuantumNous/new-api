@@ -57,6 +57,10 @@ func TestChannelConcurrencySettingRejectsExtremeDurations(t *testing.T) {
 	require.Equal(t, time.Duration(defaultChannelConcurrencyWaitIntervalMS)*time.Millisecond, GetChannelConcurrencyWaitInterval())
 	require.Equal(t, time.Duration(defaultChannelConcurrencyCooldownSecs)*time.Second, GetChannelConcurrencyCooldown())
 	require.Equal(t, maxChannelConcurrencyMaxWaitingPerChannel, GetChannelConcurrencyMaxWaiting(1))
+
+	setting.MaxWaitingPerChannel = 0
+	SetChannelConcurrencySettingForTest(setting)
+	require.Equal(t, maxChannelConcurrencyMaxWaitingPerChannel, GetChannelConcurrencyMaxWaiting(maxChannelConcurrencyMaxWaitingPerChannel+1))
 }
 
 func TestGetChannelConcurrencySettingReturnsSnapshot(t *testing.T) {
