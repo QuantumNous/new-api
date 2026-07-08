@@ -2,7 +2,25 @@ package model
 
 import (
 	"fmt"
+	"strings"
 )
+
+// opsDayBucketExpr builds a portable SQL expression that maps created_at (epoch
+// seconds) to the start epoch of the report-timezone day it falls in, using the
+// explicit per-day UTC boundaries computed by the controller (DST-aware). This
+// replaces a single fixed tz-offset FLOOR, which mis-buckets the hour near
+// midnight whenever the window spans a DST transition. dayStarts holds n+1
+// ascending boundaries for n days; the constants are integers, so inlining them
+// is injection-safe and works on SQLite/MySQL/PostgreSQL alike.
+func opsDayBucketExpr(dayStarts []int64) string {
+	var b strings.Builder
+	b.WriteString("CASE")
+	for i := 0; i+1 < len(dayStarts); i++ {
+		fmt.Fprintf(&b, " WHEN created_at >= %d AND created_at < %d THEN %d", dayStarts[i], dayStarts[i+1], dayStarts[i])
+	}
+	b.WriteString(" END")
+	return b.String()
+}
 
 // Ops daily report data layer. All queries are read-only aggregates over the
 // PLG user population (group = 'plg'; Enterprise/internal accounts excluded).
@@ -42,6 +60,10 @@ type OpsUserTokenStats struct {
 	UserId           int   `json:"user_id"`
 	ManualTokenCount int   `json:"manual_token_count"`
 	FirstManualAt    int64 `json:"first_manual_at"`
+	// AutoKeyUsedQuota is the quota burned through auto-provisioned tokens
+	// (created within the auto window of signup) — the ops cost of giving
+	// signup credit to bot/farm registrations that never create a manual key.
+	AutoKeyUsedQuota int64 `json:"auto_key_used_quota"`
 }
 
 type OpsKeyDaily struct {
@@ -127,23 +149,28 @@ func GetOpsUserLogStats(userIds []int) ([]*OpsUserLogStats, error) {
 	return all, nil
 }
 
-// GetOpsKeyDailyUsage returns per-user-per-day API-key request aggregates
-// since startTs (the "key used" DAU series source).
-func GetOpsKeyDailyUsage(userIds []int, startTs int64) ([]*OpsKeyDaily, error) {
+// GetOpsKeyDailyUsage returns per-user-per-day API-key request aggregates over
+// the window defined by dayStarts (the "key used" DAU series source). dayStarts
+// holds n+1 ascending UTC epoch boundaries — the real report-timezone midnights
+// for the n days — so buckets stay correct across DST transitions. day_ts
+// values are the per-day start epochs.
+func GetOpsKeyDailyUsage(userIds []int, dayStarts []int64) ([]*OpsKeyDaily, error) {
+	if len(dayStarts) < 2 {
+		return nil, nil
+	}
+	dayExpr := opsDayBucketExpr(dayStarts)
+	startTs := dayStarts[0]
 	var all []*OpsKeyDaily
 	for _, chunk := range chunkInts(userIds, opsReportChunkSize) {
 		var batch []*OpsKeyDaily
-		// FLOOR: MySQL '/' is decimal division, so without it the expression
-		// equals created_at and buckets per second; PG/SQLite integer division
-		// already floors and FLOOR is a no-op there.
 		sql := fmt.Sprintf(`
 			SELECT user_id,
-			       FLOOR(created_at / 86400) * 86400 AS day_ts,
+			       %s AS day_ts,
 			       COUNT(*) AS req_count,
 			       COALESCE(SUM(quota), 0) AS quota
 			FROM logs%s
 			WHERE type = ? AND token_id > 0 AND created_at >= ? AND user_id IN ?
-			GROUP BY user_id, FLOOR(created_at / 86400) * 86400`, logsForceIndexHint())
+			GROUP BY user_id, %s`, dayExpr, logsForceIndexHint(), dayExpr)
 		if err := LOG_DB.Raw(sql, LogTypeConsume, startTs, chunk).Scan(&batch).Error; err != nil {
 			return nil, err
 		}
@@ -158,16 +185,21 @@ func GetOpsKeyDailyUsage(userIds []int, startTs int64) ([]*OpsKeyDaily, error) {
 // logs table, so the optimizer full-scans ~45M rows there (measured 100s+ on
 // prod). Trade-off: quota_data counts all consumption including playground,
 // not only token_id>0 API-key calls.
-func GetOpsAllKeyDailyUsage(startTs int64) ([]*OpsDauDay, error) {
+func GetOpsAllKeyDailyUsage(dayStarts []int64) ([]*OpsDauDay, error) {
+	if len(dayStarts) < 2 {
+		return nil, nil
+	}
+	dayExpr := opsDayBucketExpr(dayStarts)
+	startTs := dayStarts[0]
 	var rows []*OpsDauDay
-	err := DB.Raw(`
-		SELECT FLOOR(created_at / 86400) * 86400 AS day_ts,
+	err := DB.Raw(fmt.Sprintf(`
+		SELECT %s AS day_ts,
 		       COUNT(DISTINCT user_id) AS active_users,
 		       COALESCE(SUM(count), 0) AS req_count,
 		       COALESCE(SUM(quota), 0) AS quota
 		FROM quota_data
 		WHERE created_at >= ?
-		GROUP BY FLOOR(created_at / 86400) * 86400`, startTs).Scan(&rows).Error
+		GROUP BY %s`, dayExpr, dayExpr), startTs).Scan(&rows).Error
 	return rows, err
 }
 
@@ -186,12 +218,13 @@ func GetOpsUserTokenStats(autoWindowSec int64) ([]*OpsUserTokenStats, error) {
 	sql := fmt.Sprintf(`
 		SELECT t.user_id,
 		       COALESCE(SUM(CASE WHEN t.created_time - u.created_at >= ? THEN 1 ELSE 0 END), 0) AS manual_token_count,
-		       COALESCE(MIN(CASE WHEN t.created_time - u.created_at >= ? THEN t.created_time END), 0) AS first_manual_at
+		       COALESCE(MIN(CASE WHEN t.created_time - u.created_at >= ? THEN t.created_time END), 0) AS first_manual_at,
+		       COALESCE(SUM(CASE WHEN t.created_time - u.created_at < ? THEN t.used_quota ELSE 0 END), 0) AS auto_key_used_quota
 		FROM tokens t
 		INNER JOIN users u ON u.id = t.user_id
 		WHERE u.%s = ?
 		GROUP BY t.user_id`, commonGroupCol)
-	err := DB.Raw(sql, autoWindowSec, autoWindowSec, "plg").Scan(&stats).Error
+	err := DB.Raw(sql, autoWindowSec, autoWindowSec, autoWindowSec, "plg").Scan(&stats).Error
 	return stats, err
 }
 

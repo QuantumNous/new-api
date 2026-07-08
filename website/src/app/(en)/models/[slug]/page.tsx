@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { ModelLandingPage } from "@/components/model-landing-page";
 import { ModelPublicPage } from "@/components/model-public-page";
+import { SiteShell } from "@/components/site-shell";
 import {
   getModelLandingConfig,
   getModelLandingConfigs,
@@ -63,11 +64,13 @@ export default async function Page(props: Props) {
   if (!model) notFound();
 
   return (
-    <ModelPublicPage
-      locale="en"
-      {...buildModelPublicView(model, pricing)}
-      apiBaseUrl={`${ROUTER_ORIGIN}/v1`}
-      consoleTopUpUrl={consoleUrl("/wallet")}
-    />
+    <SiteShell locale="en" pathname={modelPublicPath(model.model_name)}>
+      <ModelPublicPage
+        locale="en"
+        {...buildModelPublicView(model, pricing)}
+        apiBaseUrl={`${ROUTER_ORIGIN}/v1`}
+        consoleTopUpUrl={consoleUrl("/wallet")}
+      />
+    </SiteShell>
   );
 }

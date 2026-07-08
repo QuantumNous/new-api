@@ -32,9 +32,14 @@ type PerfGroup = {
 
 const THIRTY_DAYS_HOURS = 720;
 
-export async function fetchHealthSummary(): Promise<Record<string, HomePerfSummary>> {
+export async function fetchHealthSummary(group?: string, model?: string): Promise<Record<string, HomePerfSummary>> {
   try {
-    const response = await fetch(`/api/perf-metrics/summary?hours=${THIRTY_DAYS_HOURS}`, {
+    const params = new URLSearchParams({ hours: String(THIRTY_DAYS_HOURS) });
+    if (group) params.set("group", group);
+    // When a model is given, the proxy filters to that model's row so the page
+    // downloads only what it needs instead of the whole-platform catalog.
+    if (model) params.set("model", model);
+    const response = await fetch(`/api/perf-metrics/summary?${params.toString()}`, {
       headers: { accept: "application/json" },
     });
     if (!response.ok) return {};
@@ -46,9 +51,10 @@ export async function fetchHealthSummary(): Promise<Record<string, HomePerfSumma
   }
 }
 
-export async function fetchModelTrend(modelName: string): Promise<HomeTrendPoint[]> {
+export async function fetchModelTrend(modelName: string, group?: string): Promise<HomeTrendPoint[]> {
   try {
     const params = new URLSearchParams({ model: modelName, hours: String(THIRTY_DAYS_HOURS) });
+    if (group) params.set("group", group);
     const response = await fetch(`/api/perf-metrics?${params.toString()}`, { headers: { accept: "application/json" } });
     if (!response.ok) return [];
     const payload = (await response.json()) as { success?: boolean; data?: { groups?: PerfGroup[] } };
@@ -217,6 +223,12 @@ export function formatLatencyMs(value: number | undefined): string {
   if (!value || !Number.isFinite(value) || value <= 0) return "—";
   if (value >= 1000) return `${(value / 1000).toFixed(2)}s`;
   return `${Math.round(value)}ms`;
+}
+
+// Throughput in output tokens per second (avg_tps from the perf summary).
+export function formatThroughput(value: number | undefined): string {
+  if (!value || !Number.isFinite(value) || value <= 0) return "—";
+  return `${trimNumber(value)} t/s`;
 }
 
 function trimNumber(value: number): string {

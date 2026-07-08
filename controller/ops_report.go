@@ -27,6 +27,8 @@ import (
 //     auto-provisioned by signup integrations: main-key/auto/default).
 //   - key used:     any API-key request (token_id > 0), auto keys included.
 //   - paid:         top_ups status = success.
+//   - op cost:      quota burned via auto-provisioned keys (created < 120s
+//     after signup) — signup-credit spend, dominated by farm registrations.
 //
 // The report is a full recompute over ~thousands of plg users and their log
 // aggregates; results are cached per node for opsReportCacheTTL. The cache is
@@ -53,6 +55,10 @@ type opsFunnelRow struct {
 	PayIntent     int     `json:"pay_intent"`
 	Paid          int     `json:"paid"`
 	PaidUSD       float64 `json:"paid_usd"`
+	// CostUSD is the quota burned through the cohort's auto-provisioned keys
+	// (created < opsAutoTokenWindow after signup), i.e. signup-credit spend by
+	// users who never manually created a key — dominated by farm registrations.
+	CostUSD float64 `json:"cost_usd"`
 }
 
 type opsNameCount struct {
@@ -280,21 +286,24 @@ func buildOpsReport(days int, dauScope string) (*opsReportData, error) {
 	}
 
 	now := time.Now().Unix()
-	startTs := (now/86400)*86400 - int64(days-1)*86400
+	// Real Pacific-midnight boundaries for the window (DST-aware), so daily
+	// buckets never shift by an hour across a DST transition.
+	dayStarts := opsPacificDayStarts(days)
+	startTs := dayStarts[0]
 
 	report := &opsReportData{GeneratedAt: now, Days: days, DauScope: dauScope}
 	if dauScope == "all" {
-		allDaily, err := model.GetOpsAllKeyDailyUsage(startTs)
+		allDaily, err := model.GetOpsAllKeyDailyUsage(dayStarts)
 		if err != nil {
 			return nil, err
 		}
-		report.Dau = opsRollupDauDays(allDaily, days, startTs)
+		report.Dau = opsRollupDauDays(allDaily, dayStarts)
 	} else {
-		keyDaily, err := model.GetOpsKeyDailyUsage(ids, startTs)
+		keyDaily, err := model.GetOpsKeyDailyUsage(ids, dayStarts)
 		if err != nil {
 			return nil, err
 		}
-		report.Dau = opsRollupDau(keyDaily, days, startTs)
+		report.Dau = opsRollupDau(keyDaily, dayStarts)
 	}
 	report.Daily = opsRollupFunnel(aggs, func(a *opsUserAgg) string {
 		if a.user.CreatedAt < startTs {
@@ -440,12 +449,53 @@ func (a *opsUserAgg) paidUSD() float64 {
 	return total
 }
 
+// opsLoc is the report timezone: all day/week bucketing and date labels use
+// US Pacific Time so the report matches the ads accounts and US business day.
+var opsLoc = func() *time.Location {
+	loc, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}()
+
+// opsTzOffset returns the current Pacific UTC offset in seconds (PDT -25200 /
+// PST -28800). It is applied as a fixed shift for all day bucketing — Go and
+// SQL alike, since cross-DB SQL cannot do real timezone math — so buckets stay
+// aligned everywhere; rows within an hour of midnight around a DST switch may
+// land on the neighboring date, which is acceptable for ops trend stats.
+func opsTzOffset() int64 {
+	_, off := time.Now().In(opsLoc).Zone()
+	return int64(off)
+}
+
+// opsPacificDayStarts returns n+1 ascending UTC epoch boundaries: the real
+// report-timezone (Pacific) midnights for the n days ending today, plus the
+// start of tomorrow as the closing boundary. Built via the tz database so a
+// window spanning a DST change gets correct 23h/25h days instead of a fixed
+// 24h offset that mis-buckets the hour around midnight.
+func opsPacificDayStarts(n int) []int64 {
+	now := time.Now().In(opsLoc)
+	y, m, d := now.Date()
+	todayStart := time.Date(y, m, d, 0, 0, 0, 0, opsLoc)
+	starts := make([]int64, 0, n+1)
+	for i := n - 1; i >= 0; i-- {
+		starts = append(starts, todayStart.AddDate(0, 0, -i).Unix())
+	}
+	starts = append(starts, todayStart.AddDate(0, 0, 1).Unix())
+	return starts
+}
+
+// Format the instant in real Pacific wall-clock time (opsLoc) rather than
+// shifting by the current fixed offset — the latter mis-dates instants that
+// fall in the other DST regime (e.g. an October PDT date within a window
+// generated in PST).
 func opsDay(ts int64) string {
-	return time.Unix(ts, 0).UTC().Format("2006-01-02")
+	return time.Unix(ts, 0).In(opsLoc).Format("2006-01-02")
 }
 
 func opsWeek(ts int64) string {
-	t := time.Unix(ts, 0).UTC()
+	t := time.Unix(ts, 0).In(opsLoc)
 	monday := t.AddDate(0, 0, -(int(t.Weekday())+6)%7)
 	return monday.Format("2006-01-02")
 }
@@ -478,6 +528,9 @@ func opsRollupFunnel(aggs map[int]*opsUserAgg, keyFn func(*opsUserAgg) string, s
 		if len(a.paidOrders) > 0 {
 			row.Paid++
 			row.PaidUSD += a.paidUSD()
+		}
+		if a.tokenStats != nil {
+			row.CostUSD += float64(a.tokenStats.AutoKeyUsedQuota) / common.QuotaPerUnit
 		}
 	}
 	rows := make([]opsFunnelRow, 0, len(groups))
@@ -662,7 +715,9 @@ func opsRollupPayment(aggs map[int]*opsUserAgg) []opsPaymentRow {
 	return rows
 }
 
-func opsRollupDau(keyDaily []*model.OpsKeyDaily, days int, startTs int64) []opsDauRow {
+// dayStarts holds n+1 ascending Pacific-midnight boundaries; row i covers
+// [dayStarts[i], dayStarts[i+1]). Rows are emitted newest-first.
+func opsRollupDau(keyDaily []*model.OpsKeyDaily, dayStarts []int64) []opsDauRow {
 	type acc struct {
 		users    map[int]bool
 		requests int
@@ -679,9 +734,10 @@ func opsRollupDau(keyDaily []*model.OpsKeyDaily, days int, startTs int64) []opsD
 		a.requests += r.ReqCount
 		a.quota += r.Quota
 	}
-	rows := make([]opsDauRow, 0, days)
-	for i := days - 1; i >= 0; i-- {
-		ts := startTs + int64(i)*86400
+	n := len(dayStarts) - 1
+	rows := make([]opsDauRow, 0, n)
+	for i := n - 1; i >= 0; i-- {
+		ts := dayStarts[i]
 		row := opsDauRow{Date: opsDay(ts)}
 		if a, ok := byDay[ts]; ok {
 			row.ActiveUsers = len(a.users)
@@ -693,14 +749,15 @@ func opsRollupDau(keyDaily []*model.OpsKeyDaily, days int, startTs int64) []opsD
 	return rows
 }
 
-func opsRollupDauDays(days []*model.OpsDauDay, n int, startTs int64) []opsDauRow {
+func opsRollupDauDays(daysData []*model.OpsDauDay, dayStarts []int64) []opsDauRow {
 	byDay := map[int64]*model.OpsDauDay{}
-	for _, d := range days {
+	for _, d := range daysData {
 		byDay[d.DayTs] = d
 	}
+	n := len(dayStarts) - 1
 	rows := make([]opsDauRow, 0, n)
 	for i := n - 1; i >= 0; i-- {
-		ts := startTs + int64(i)*86400
+		ts := dayStarts[i]
 		row := opsDauRow{Date: opsDay(ts)}
 		if d, ok := byDay[ts]; ok {
 			row.ActiveUsers = d.ActiveUsers

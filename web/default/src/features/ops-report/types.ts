@@ -32,6 +32,7 @@ export interface OpsFunnelRow {
   pay_intent: number
   paid: number
   paid_usd: number
+  cost_usd: number
 }
 
 export interface OpsNameCount {

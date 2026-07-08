@@ -1,13 +1,17 @@
 import { BarChart3, Trophy } from "lucide-react";
+import Link from "next/link";
 import { SiteShell } from "@/components/site-shell";
 import { getPageContent } from "@/content/pages";
 import { getHomeCopy } from "@/lib/home-copy";
 import { formatCallCount } from "@/lib/home-live";
 import { modelIconKey } from "@/lib/home-models";
 import { ModelLogo } from "@/components/pricing-model-browser";
-import { displayTokens, fetchRankingsData, type RankingsData } from "@/lib/rankings-live";
+import { modelPublicPath, resolvePublicModel } from "@/lib/model-public";
+import { getPricingData } from "@/lib/pricing";
+import { displayTokens, fetchRankingsData } from "@/lib/rankings-live";
+import { buildRankingsSchema, stringifyJsonLd } from "@/lib/schema";
 import { seriesColor } from "@/lib/vchart-palette";
-import type { Locale } from "@/lib/locales";
+import { localizePath, type Locale } from "@/lib/locales";
 
 type Props = {
   locale: Locale;
@@ -84,13 +88,40 @@ export async function RankingsPage(props: Props) {
   const content = getPageContent("rankings", props.locale);
   const usageCopy = getHomeCopy(props.locale).usage;
   const ui = RANKINGS_UI[props.locale] ?? RANKINGS_UI.en;
-  const data: RankingsData | null = await fetchRankingsData();
+  const [data, pricing] = await Promise.all([fetchRankingsData(), getPricingData()]);
   const usage = data?.usage ?? null;
+
+  // Resolve each ranked name to its public model page, so rows become internal
+  // links (and only ones that actually resolve — never link to a 404). Reused
+  // for the ItemList structured data below.
+  const hrefCache = new Map<string, string | null>();
+  const modelHref = (name: string): string | null => {
+    if (!hrefCache.has(name)) {
+      const model = resolvePublicModel(pricing.models, name);
+      hrefCache.set(name, model ? localizePath(modelPublicPath(model.model_name), props.locale) : null);
+    }
+    return hrefCache.get(name) ?? null;
+  };
+  const rankingsSchema =
+    data && data.models.length > 0
+      ? buildRankingsSchema({
+          locale: props.locale,
+          title: ui.llmTitle,
+          items: data.models
+            .map((row) => ({ name: row.model_name, path: modelHref(row.model_name) }))
+            .filter((item): item is { name: string; path: string } => item.path != null)
+            .slice(0, 25)
+            .map((item, index) => ({ name: item.name, path: item.path, position: index + 1 })),
+        })
+      : null;
   const maxDay = usage ? Math.max(...usage.days.map((day) => day.total), 1) : 1;
   const labelEvery = usage ? Math.max(1, Math.ceil(usage.days.length / 8)) : 1;
 
   return (
     <SiteShell locale={props.locale} pathname={props.pathname}>
+      {rankingsSchema ? (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: stringifyJsonLd(rankingsSchema) }} />
+      ) : null}
       <main className="home-landing relative min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f4f0ff_0%,#fbfaff_28%,#ffffff_58%,#f4f1ff_100%)] px-6 pt-28 pb-24 dark:bg-[linear-gradient(180deg,#050712_0%,#080b18_36%,#070712_72%,#03040b_100%)]">
         <div
           aria-hidden
@@ -199,7 +230,16 @@ export async function RankingsPage(props: Props) {
                             />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <span className="text-foreground block truncate font-mono text-sm font-medium">{row.model_name}</span>
+                            {modelHref(row.model_name) ? (
+                              <Link
+                                href={modelHref(row.model_name) as string}
+                                className="text-foreground hover:text-violet-600 dark:hover:text-violet-400 block truncate font-mono text-sm font-medium hover:underline"
+                              >
+                                {row.model_name}
+                              </Link>
+                            ) : (
+                              <span className="text-foreground block truncate font-mono text-sm font-medium">{row.model_name}</span>
+                            )}
                           </div>
                           <div className="shrink-0 text-right">
                             <div className="text-foreground font-mono text-sm font-semibold tabular-nums">

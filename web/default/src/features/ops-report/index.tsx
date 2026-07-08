@@ -159,9 +159,16 @@ function countryLabel(code: string, locale: string): string {
   return `${flag} ${name}`
 }
 
+// All times in this report render in US Pacific Time to match the backend's
+// Pacific day bucketing (and the ads accounts' timezone).
+const REPORT_TZ = 'America/Los_Angeles'
+
 const formatTimestamp = (timestamp: number): string => {
   if (!timestamp) return '-'
-  return new Date(timestamp * 1000).toLocaleString()
+  return new Date(timestamp * 1000).toLocaleString(undefined, {
+    timeZone: REPORT_TZ,
+    timeZoneName: 'short',
+  })
 }
 
 // Landing paths are captured on both the public website (flatkey.ai, always
@@ -237,6 +244,7 @@ function FunnelCells({ row }: { row: OpsFunnelRow }) {
       {cell(row.pay_intent)}
       {cell(row.paid)}
       <TableCell className='text-right'>{usd(row.paid_usd)}</TableCell>
+      <TableCell className='text-right'>{usd(row.cost_usd)}</TableCell>
     </>
   )
 }
@@ -254,6 +262,7 @@ function FunnelHeader({ firstColumn }: { firstColumn: string }) {
         <TableHead className='text-right'>{t('Payment Intent')}</TableHead>
         <TableHead className='text-right'>{t('Paid Users')}</TableHead>
         <TableHead className='text-right'>{t('Paid Amount')}</TableHead>
+        <TableHead className='text-right'>{t('Op Cost')}</TableHead>
       </TableRow>
     </TableHeader>
   )
@@ -405,8 +414,20 @@ function StripePersonStatus({ status }: { status: string }) {
 
 const shortTime = (timestamp: number): string => {
   if (!timestamp) return '-'
-  const d = new Date(timestamp * 1000)
-  return `${d.getMonth() + 1}-${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: REPORT_TZ,
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    // h23 so midnight renders as 00:xx, not 24:xx (some engines format the
+    // midnight hour as 24 under hour12:false), keeping the PT day boundary clear.
+    hourCycle: 'h23',
+  }).formatToParts(new Date(timestamp * 1000))
+  const get = (type: string) =>
+    parts.find((p) => p.type === type)?.value ?? ''
+  return `${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`
 }
 
 function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
@@ -428,7 +449,6 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
             <TableHead>{t('Stuck At')}</TableHead>
             <TableHead>{t('Attempts')}</TableHead>
             <TableHead>{t('Card / Billing')}</TableHead>
-            <TableHead>{t('IP / Language')}</TableHead>
             <TableHead>{t('Source')}</TableHead>
             <TableHead className='text-right'>{t('Usage')}</TableHead>
           </TableRow>
@@ -439,8 +459,8 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
               <TableCell className='whitespace-nowrap'>
                 {shortTime(row.last_at)}
               </TableCell>
-              <TableCell className='whitespace-nowrap'>
-                <div>
+              <TableCell className='max-w-40 whitespace-normal'>
+                <div className='break-all'>
                   {row.email}{' '}
                   <span className='text-muted-foreground text-xs'>
                     #{row.user_id}
@@ -475,7 +495,7 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
                   </div>
                 )}
               </TableCell>
-              <TableCell className='max-w-36'>
+              <TableCell className='max-w-36 break-words whitespace-normal'>
                 <div>
                   {(row.amounts ?? [])
                     .map((a) => `${a.name}\u00d7${a.count}`)
@@ -486,48 +506,40 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
                   {row.succeeded > 0 && ` / ${row.succeeded} OK`}
                 </div>
               </TableCell>
-              <TableCell className='max-w-40'>
-                {row.attempts > 0 ? (
-                  <div>
-                    {(row.card_country ?? [])
-                      .map((cc) => countryLabel(cc, i18n.language))
-                      .join(' ') || '-'}
-                    {(row.billing_cc ?? []).length > 0 && (
-                      <span className='text-muted-foreground text-xs'>
-                        {' '}
-                        / {(row.billing_cc ?? []).join(',')}
-                      </span>
-                    )}
-                    {(row.card_brands ?? []).length > 0 && (
-                      <span className='text-muted-foreground text-xs'>
-                        {' '}
-                        {(row.card_brands ?? []).join(' ')}
-                      </span>
-                    )}
-                  </div>
-                ) : null}
-                <div className='text-muted-foreground text-xs'>
-                  {(row.methods ?? []).length > 0 &&
-                    `${t('Shown')}: ${(row.methods ?? []).join('+')}`}
-                </div>
-              </TableCell>
-              <TableCell className='whitespace-nowrap'>
-                <div className='font-mono text-xs'>
-                  {row.last_ip ? (
-                    <a
-                      href={`https://ipinfo.io/${row.last_ip}`}
-                      target='_blank'
-                      rel='noreferrer'
-                      className='underline decoration-dotted'
-                    >
-                      {row.last_ip}
-                    </a>
-                  ) : (
-                    '-'
+              <TableCell className='max-w-44 break-words whitespace-normal'>
+                <div>
+                  {row.attempts > 0 &&
+                    [
+                      (row.card_country ?? [])
+                        .map((cc) => countryLabel(cc, i18n.language))
+                        .join(' '),
+                      (row.card_brands ?? []).join(' '),
+                      (row.billing_cc ?? []).join(','),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  {(row.methods ?? []).length > 0 && (
+                    <span className='text-muted-foreground'>
+                      {row.attempts > 0 ? ' · ' : ''}
+                      {(row.methods ?? []).join('+')}
+                    </span>
                   )}
                 </div>
-                <div className='text-xs'>
+                <div className='text-muted-foreground'>
                   {countryLabel(row.ip_country, i18n.language) || '-'}
+                  {row.last_ip && (
+                    <>
+                      {' '}
+                      <a
+                        href={`https://ipinfo.io/${row.last_ip}`}
+                        target='_blank'
+                        rel='noreferrer'
+                        className='font-mono underline decoration-dotted'
+                      >
+                        {row.last_ip}
+                      </a>
+                    </>
+                  )}
                   {row.browser_lang && (
                     <Badge variant='secondary' className='ml-1'>
                       {row.browser_lang}
@@ -971,7 +983,7 @@ export function OpsReport() {
           <div className='space-y-4'>
             <p className='text-muted-foreground text-sm'>
               {t(
-                'PLG users only (group=plg, internal and enterprise accounts excluded). All dates are UTC. Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.'
+                'PLG users only (group=plg, internal and enterprise accounts excluded). All dates and times are US Pacific Time (PT). Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys; op cost = quota burned via auto-provisioned keys (created within 2 minutes of signup).'
               )}{' '}
               {t('Generated at')}: {formatTimestamp(report.generated_at)}
             </p>
