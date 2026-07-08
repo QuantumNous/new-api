@@ -1,6 +1,7 @@
 package operation_setting
 
 import (
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/setting/config"
@@ -11,6 +12,12 @@ const (
 	defaultChannelConcurrencyWaitTimeoutMS  = 5000
 	defaultChannelConcurrencyWaitIntervalMS = 100
 	defaultChannelConcurrencyCooldownSecs   = 30
+
+	maxChannelConcurrencySlotTTLMinutes       = 24 * 60
+	maxChannelConcurrencyWaitTimeoutMS        = 60 * 1000
+	maxChannelConcurrencyWaitIntervalMS       = 5 * 1000
+	maxChannelConcurrencyCooldownSeconds      = 60 * 60
+	maxChannelConcurrencyMaxWaitingPerChannel = 10000
 )
 
 type ChannelConcurrencySetting struct {
@@ -33,16 +40,44 @@ var channelConcurrencySetting = ChannelConcurrencySetting{
 	CooldownSeconds:      defaultChannelConcurrencyCooldownSecs,
 }
 
+var channelConcurrencySettingMu sync.RWMutex
+
 func init() {
 	config.GlobalConfig.Register("channel_concurrency_setting", &channelConcurrencySetting)
 }
 
-func GetChannelConcurrencySetting() *ChannelConcurrencySetting {
-	return &channelConcurrencySetting
+func (s *ChannelConcurrencySetting) LockConfig() {
+	channelConcurrencySettingMu.Lock()
+}
+
+func (s *ChannelConcurrencySetting) UnlockConfig() {
+	channelConcurrencySettingMu.Unlock()
+}
+
+func (s *ChannelConcurrencySetting) RLockConfig() {
+	channelConcurrencySettingMu.RLock()
+}
+
+func (s *ChannelConcurrencySetting) RUnlockConfig() {
+	channelConcurrencySettingMu.RUnlock()
+}
+
+func GetChannelConcurrencySetting() ChannelConcurrencySetting {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
+	return channelConcurrencySetting
+}
+
+func SetChannelConcurrencySettingForTest(setting ChannelConcurrencySetting) {
+	channelConcurrencySettingMu.Lock()
+	defer channelConcurrencySettingMu.Unlock()
+	channelConcurrencySetting = setting
 }
 
 func GetChannelConcurrencySlotTTLMinutes() int {
-	if channelConcurrencySetting.SlotTTLMinutes <= 0 {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
+	if channelConcurrencySetting.SlotTTLMinutes <= 0 || channelConcurrencySetting.SlotTTLMinutes > maxChannelConcurrencySlotTTLMinutes {
 		return defaultChannelConcurrencySlotTTLMinutes
 	}
 	return channelConcurrencySetting.SlotTTLMinutes
@@ -53,25 +88,36 @@ func GetChannelConcurrencySlotTTL() time.Duration {
 }
 
 func IsChannelConcurrencyWaitEnabled() bool {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
 	return channelConcurrencySetting.WaitEnabled
 }
 
 func GetChannelConcurrencyWaitTimeout() time.Duration {
-	if channelConcurrencySetting.WaitTimeoutMS <= 0 {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
+	if channelConcurrencySetting.WaitTimeoutMS <= 0 || channelConcurrencySetting.WaitTimeoutMS > maxChannelConcurrencyWaitTimeoutMS {
 		return time.Duration(defaultChannelConcurrencyWaitTimeoutMS) * time.Millisecond
 	}
 	return time.Duration(channelConcurrencySetting.WaitTimeoutMS) * time.Millisecond
 }
 
 func GetChannelConcurrencyWaitInterval() time.Duration {
-	if channelConcurrencySetting.WaitIntervalMS <= 0 {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
+	if channelConcurrencySetting.WaitIntervalMS <= 0 || channelConcurrencySetting.WaitIntervalMS > maxChannelConcurrencyWaitIntervalMS {
 		return time.Duration(defaultChannelConcurrencyWaitIntervalMS) * time.Millisecond
 	}
 	return time.Duration(channelConcurrencySetting.WaitIntervalMS) * time.Millisecond
 }
 
 func GetChannelConcurrencyMaxWaiting(maxConcurrency int) int {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
 	if channelConcurrencySetting.MaxWaitingPerChannel > 0 {
+		if channelConcurrencySetting.MaxWaitingPerChannel > maxChannelConcurrencyMaxWaitingPerChannel {
+			return maxChannelConcurrencyMaxWaitingPerChannel
+		}
 		return channelConcurrencySetting.MaxWaitingPerChannel
 	}
 	if maxConcurrency > 0 {
@@ -81,11 +127,15 @@ func GetChannelConcurrencyMaxWaiting(maxConcurrency int) int {
 }
 
 func IsChannelConcurrencyCooldownEnabled() bool {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
 	return channelConcurrencySetting.CooldownEnabled
 }
 
 func GetChannelConcurrencyCooldown() time.Duration {
-	if channelConcurrencySetting.CooldownSeconds <= 0 {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
+	if channelConcurrencySetting.CooldownSeconds <= 0 || channelConcurrencySetting.CooldownSeconds > maxChannelConcurrencyCooldownSeconds {
 		return time.Duration(defaultChannelConcurrencyCooldownSecs) * time.Second
 	}
 	return time.Duration(channelConcurrencySetting.CooldownSeconds) * time.Second

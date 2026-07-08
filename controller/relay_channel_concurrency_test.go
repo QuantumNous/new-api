@@ -14,8 +14,10 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -110,6 +112,54 @@ func TestProcessChannelErrorMarksCooldownOnTooManyRequests(t *testing.T) {
 	loads, err := service.GetChannelConcurrencyLoads(context.Background(), []*model.Channel{{Id: channelID, MaxConcurrency: 1}})
 	require.NoError(t, err)
 	require.True(t, loads[channelID].CoolingDown)
+}
+
+func TestProcessChannelErrorMarksRedisCooldownWithCanceledRequestContext(t *testing.T) {
+	mr := miniredis.RunT(t)
+	prevRDB := common.RDB
+	prevRedisEnabled := common.RedisEnabled
+	common.RDB = redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	common.RedisEnabled = true
+	t.Cleanup(func() {
+		_ = common.RDB.Close()
+		common.RDB = prevRDB
+		common.RedisEnabled = prevRedisEnabled
+		mr.Close()
+	})
+	prevErrorLogEnabled := constant.ErrorLogEnabled
+	constant.ErrorLogEnabled = false
+	t.Cleanup(func() {
+		constant.ErrorLogEnabled = prevErrorLogEnabled
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	reqCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	c.Request = httptest.NewRequestWithContext(reqCtx, http.MethodPost, "/v1/chat/completions", nil)
+	channelID := 909905
+
+	processChannelError(
+		c,
+		*types.NewChannelError(channelID, constant.ChannelTypeOpenAI, "cooldown", false, "", false),
+		types.NewOpenAIError(errors.New("rate limit exceeded"), types.ErrorCodeBadResponseStatusCode, http.StatusTooManyRequests),
+	)
+
+	loads, err := service.GetChannelConcurrencyLoads(context.Background(), []*model.Channel{{Id: channelID, MaxConcurrency: 1}})
+	require.NoError(t, err)
+	require.True(t, loads[channelID].CoolingDown)
+}
+
+func TestShouldMarkChannelConcurrencyCooldownExcludesQuota429(t *testing.T) {
+	require.False(t, shouldMarkChannelConcurrencyCooldown(
+		types.NewOpenAIError(errors.New("insufficient_quota: quota exceeded"), types.ErrorCodeBadResponseStatusCode, http.StatusTooManyRequests),
+	))
+	require.False(t, shouldMarkChannelConcurrencyCooldown(
+		types.NewOpenAIError(errors.New("账户余额不足"), types.ErrorCodeBadResponseStatusCode, http.StatusTooManyRequests),
+	))
+	require.True(t, shouldMarkChannelConcurrencyCooldown(
+		types.NewOpenAIError(errors.New("rate limit exceeded"), types.ErrorCodeBadResponseStatusCode, http.StatusTooManyRequests),
+	))
 }
 
 func TestGetChannelSkipsCoolingDownChannel(t *testing.T) {

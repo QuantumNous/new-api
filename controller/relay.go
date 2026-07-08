@@ -404,10 +404,8 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
 	if shouldMarkChannelConcurrencyCooldown(err) {
-		cooldownCtx := context.Background()
-		if c != nil && c.Request != nil {
-			cooldownCtx = c.Request.Context()
-		}
+		cooldownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
 		if cooldownErr := service.MarkChannelConcurrencyCooldown(cooldownCtx, channelError.ChannelId, 0, err.ErrorWithStatusCode()); cooldownErr != nil {
 			logger.LogError(c, fmt.Sprintf("mark channel concurrency cooldown failed: %s", cooldownErr.Error()))
 		}
@@ -461,11 +459,23 @@ func shouldMarkChannelConcurrencyCooldown(err *types.NewAPIError) bool {
 	if err == nil {
 		return false
 	}
-	if err.StatusCode == http.StatusTooManyRequests {
-		return true
-	}
 	message := strings.ToLower(err.Error())
+	if strings.Contains(message, "insufficient_quota") ||
+		strings.Contains(message, "quota exceeded") ||
+		strings.Contains(message, "balance") ||
+		strings.Contains(message, "余额") ||
+		strings.Contains(message, "额度") {
+		return false
+	}
+	if err.StatusCode == http.StatusTooManyRequests {
+		return strings.Contains(message, "rate limit") ||
+			strings.Contains(message, "rate limited") ||
+			strings.Contains(message, "too many requests") ||
+			strings.Contains(message, "overload") ||
+			strings.Contains(message, "capacity")
+	}
 	return strings.Contains(message, "rate limit") ||
+		strings.Contains(message, "rate limited") ||
 		strings.Contains(message, "too many requests") ||
 		strings.Contains(message, "overload") ||
 		strings.Contains(message, "capacity")

@@ -201,14 +201,15 @@ func useMiddlewareMemoryChannelConcurrencyForTest(t *testing.T) func() {
 func useMiddlewareChannelConcurrencyWaitSettingForTest(t *testing.T, timeout time.Duration, interval time.Duration, maxWaiting int) func() {
 	t.Helper()
 	setting := operation_setting.GetChannelConcurrencySetting()
-	original := *setting
+	original := setting
 	setting.WaitEnabled = true
 	setting.WaitTimeoutMS = int(timeout / time.Millisecond)
 	setting.WaitIntervalMS = int(interval / time.Millisecond)
 	setting.MaxWaitingPerChannel = maxWaiting
 	setting.CooldownEnabled = true
+	operation_setting.SetChannelConcurrencySettingForTest(setting)
 	return func() {
-		*setting = original
+		operation_setting.SetChannelConcurrencySettingForTest(original)
 	}
 }
 

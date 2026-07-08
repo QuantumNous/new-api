@@ -26,6 +26,7 @@ type ChannelFilter func(*Channel) bool
 const (
 	channelCacheMissLogInterval = time.Minute
 	channelCacheMissLogMaxKeys  = 10000
+	maxInt64ForWeight           = int64(^uint64(0) >> 1)
 )
 
 func InitChannelCache() {
@@ -158,14 +159,24 @@ func GetRandomSatisfiedChannelWithFilter(group string, model string, retry int, 
 	if retry >= len(uniquePriorities) {
 		retry = len(uniquePriorities) - 1
 	}
+	if retry < 0 {
+		retry = 0
+	}
 	targetPriority := int64(sortedUniquePriorities[retry])
 
 	// get the priority for the given retry number
-	var sumWeight = 0
+	var sumWeight int64
 	var targetChannels []*Channel
 	for _, channel := range candidateChannels {
 		if channel.GetPriority() == targetPriority {
-			sumWeight += channel.GetWeight()
+			weight, err := channelWeightForRandom(channel)
+			if err != nil {
+				return nil, err
+			}
+			if sumWeight > maxInt64ForWeight-weight {
+				return nil, errors.New("channel weight overflow")
+			}
+			sumWeight += weight
 			targetChannels = append(targetChannels, channel)
 		}
 	}
@@ -175,28 +186,35 @@ func GetRandomSatisfiedChannelWithFilter(group string, model string, retry int, 
 	}
 
 	// smoothing factor and adjustment
-	smoothingFactor := 1
-	smoothingAdjustment := 0
+	var smoothingFactor int64 = 1
+	var smoothingAdjustment int64
 
 	if sumWeight == 0 {
 		// when all channels have weight 0, set sumWeight to the number of channels and set smoothing adjustment to 100
 		// each channel's effective weight = 100
-		sumWeight = len(targetChannels) * 100
+		sumWeight = int64(len(targetChannels)) * 100
 		smoothingAdjustment = 100
-	} else if sumWeight/len(targetChannels) < 10 {
+	} else if sumWeight/int64(len(targetChannels)) < 10 {
 		// when the average weight is less than 10, set smoothing factor to 100
 		smoothingFactor = 100
+	}
+	if sumWeight > maxInt64ForWeight/smoothingFactor {
+		return nil, errors.New("channel weight overflow")
 	}
 
 	// Calculate the total weight of all channels up to endIdx
 	totalWeight := sumWeight * smoothingFactor
 
 	// Generate a random value in the range [0, totalWeight)
-	randomWeight := rand.Intn(totalWeight)
+	randomWeight := rand.Int63n(totalWeight)
 
 	// Find a channel based on its weight
 	for _, channel := range targetChannels {
-		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
+		weight, err := channelWeightForRandom(channel)
+		if err != nil {
+			return nil, err
+		}
+		randomWeight -= weight*smoothingFactor + smoothingAdjustment
 		if randomWeight < 0 {
 			return channel, nil
 		}
@@ -304,7 +322,10 @@ func GetSatisfiedChannelCandidatesWithFilter(group string, model string, retry i
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
 	if retry >= len(sortedUniquePriorities) {
-		return nil, nil
+		retry = len(sortedUniquePriorities) - 1
+	}
+	if retry < 0 {
+		retry = 0
 	}
 
 	targetPriority := int64(sortedUniquePriorities[retry])
@@ -329,29 +350,51 @@ func SelectWeightedRandomChannel(targetChannels []*Channel) (*Channel, error) {
 		return targetChannels[0], nil
 	}
 
-	sumWeight := 0
+	var sumWeight int64
 	for _, channel := range targetChannels {
-		sumWeight += channel.GetWeight()
+		weight, err := channelWeightForRandom(channel)
+		if err != nil {
+			return nil, err
+		}
+		if sumWeight > maxInt64ForWeight-weight {
+			return nil, errors.New("channel weight overflow")
+		}
+		sumWeight += weight
 	}
 
-	smoothingFactor := 1
-	smoothingAdjustment := 0
+	var smoothingFactor int64 = 1
+	var smoothingAdjustment int64
 
 	if sumWeight == 0 {
-		sumWeight = len(targetChannels) * 100
+		sumWeight = int64(len(targetChannels)) * 100
 		smoothingAdjustment = 100
-	} else if sumWeight/len(targetChannels) < 10 {
+	} else if sumWeight/int64(len(targetChannels)) < 10 {
 		smoothingFactor = 100
 	}
+	if sumWeight > maxInt64ForWeight/smoothingFactor {
+		return nil, errors.New("channel weight overflow")
+	}
 
-	randomWeight := rand.Intn(sumWeight * smoothingFactor)
+	randomWeight := rand.Int63n(sumWeight * smoothingFactor)
 	for _, channel := range targetChannels {
-		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
+		weight, err := channelWeightForRandom(channel)
+		if err != nil {
+			return nil, err
+		}
+		randomWeight -= weight*smoothingFactor + smoothingAdjustment
 		if randomWeight < 0 {
 			return channel, nil
 		}
 	}
 	return nil, errors.New("channel not found")
+}
+
+func channelWeightForRandom(channel *Channel) (int64, error) {
+	weight := channel.GetWeight()
+	if weight < 0 {
+		return 0, fmt.Errorf("invalid negative channel weight: channel #%d", channel.Id)
+	}
+	return int64(weight), nil
 }
 
 func CacheGetChannel(id int) (*Channel, error) {
