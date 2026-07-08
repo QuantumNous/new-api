@@ -42,6 +42,7 @@ export function SubQuotaLimitsField() {
   const { t } = useTranslation()
   const {
     control,
+    register,
     watch,
     setValue,
     formState: { errors },
@@ -134,10 +135,13 @@ export function SubQuotaLimitsField() {
             </div>
 
             <div className='space-y-1'>
+              <label htmlFor={nameId} className='text-xs font-medium'>
+                {t('Name')}
+              </label>
               <Input
                 id={nameId}
                 placeholder={t('Name e.g. 5 hour quota')}
-                {...control.register(`sub_quota_limits.${index}.name`)}
+                {...register(`sub_quota_limits.${index}.name`)}
               />
               {getFieldError(index, 'name') ? (
                 <p className='text-destructive text-xs'>
@@ -149,14 +153,14 @@ export function SubQuotaLimitsField() {
             <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
               <div className='space-y-1'>
                 <label htmlFor={periodValueId} className='text-xs font-medium'>
-                  {t('Duration Value')}
+                  {t('Period Value')}
                 </label>
                 <Input
                   id={periodValueId}
                   type='number'
                   min={periodValueConstraints.min}
                   step={periodValueConstraints.step}
-                  {...control.register(`sub_quota_limits.${index}.period_value`, {
+                  {...register(`sub_quota_limits.${index}.period_value`, {
                     valueAsNumber: true,
                   })}
                 />
@@ -169,7 +173,7 @@ export function SubQuotaLimitsField() {
 
               <div className='space-y-1'>
                 <label htmlFor={periodUnitId} className='text-xs font-medium'>
-                  {t('Duration Unit')}
+                  {t('Period Unit')}
                 </label>
                 <Select
                   value={periodUnit}
@@ -214,7 +218,7 @@ export function SubQuotaLimitsField() {
                   type='number'
                   min={0}
                   step='0.01'
-                  {...control.register(`sub_quota_limits.${index}.limit_usd`, {
+                  {...register(`sub_quota_limits.${index}.limit_usd`, {
                     valueAsNumber: true,
                   })}
                 />

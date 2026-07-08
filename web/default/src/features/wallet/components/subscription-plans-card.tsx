@@ -54,6 +54,7 @@ import {
 import { getSubQuotaPeriodUnitOptions } from '@/features/subscriptions/constants'
 import { SubscriptionPurchaseDialog } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
 import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
+import { parseSubQuotaLimits } from '@/features/subscriptions/lib/plan-form'
 import type {
   PlanRecord,
   SubQuotaUsage,
@@ -181,29 +182,16 @@ function buildPlanSubLimitLabels(
   plan: PlanRecord['plan'],
   t: TFunction
 ): string[] {
-  const raw = plan.sub_quota_limits
-  if (!raw) return []
+  const limits = parseSubQuotaLimits(plan.sub_quota_limits)
+  if (limits.length === 0) return []
 
-  try {
-    const arr = JSON.parse(raw)
-    if (!Array.isArray(arr)) return []
-
-    const labels: string[] = []
-    for (const sl of arr) {
-      const name = String(sl?.name || '').trim()
-      const usd = Number(sl?.limit_usd || 0)
-      const unit = String(sl?.period_unit || '')
-      const val = Number(sl?.period_value || 0)
-      const unitLabel = getSubQuotaUnitLabel(unit, t)
-      const tail = `$${usd.toFixed(2)} / ${val} ${unitLabel}`
-      labels.push(
-        name ? `${t('Sub Limit')}: ${name} (${tail})` : `${t('Sub Limit')}: ${tail}`
-      )
-    }
-    return labels
-  } catch {
-    return []
-  }
+  return limits.map((limit) => {
+    const unitLabel = getSubQuotaUnitLabel(limit.period_unit, t)
+    const tail = `$${Number(limit.limit_usd || 0).toFixed(2)} / ${Number(limit.period_value || 0)} ${unitLabel}`
+    return limit.name
+      ? `${t('Sub Limit')}: ${limit.name} (${tail})`
+      : `${t('Sub Limit')}: ${tail}`
+  })
 }
 
 export function SubscriptionPlansCard({
@@ -509,7 +497,7 @@ export function SubscriptionPlansCard({
           {hasAny && (
             <>
               <Separator className='my-3' />
-              <div className='space-y-3 pr-1'>
+              <div className='max-h-[70vh] space-y-3 overflow-y-auto pr-1'>
                 {allSubscriptions.map((sub) => {
                   const subscription = sub.subscription
                   const totalAmount = Number(subscription?.amount_total || 0)
@@ -589,7 +577,7 @@ export function SubscriptionPlansCard({
                           (subscription?.end_time || 0) * 1000
                         ).toLocaleString()}
                       </div>
-                      {isActive && nextResetTime > 0 && (
+                      {isActive && nextResetTime > 0 && !(totalAmount > 0) && (
                         <div className='text-muted-foreground mt-1'>
                           {t('Next reset')}:{' '}
                           {new Date(nextResetTime * 1000).toLocaleString()}

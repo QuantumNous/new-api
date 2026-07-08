@@ -335,7 +335,7 @@ export function SubscriptionsMutateDrawer({
                           step='0.01'
                           min={0}
                           onChange={(e) =>
-                            field.onChange(parseFloat(e.target.value) || 0)
+                            field.onChange(Number(e.target.value) || 0)
                           }
                         />
                       </FormControl>
@@ -371,7 +371,7 @@ export function SubscriptionsMutateDrawer({
                                 })
                           }
                           onChange={(e) =>
-                            field.onChange(parseFloat(e.target.value) || 0)
+                            field.onChange(Number(e.target.value) || 0)
                           }
                         />
                       </FormControl>
@@ -487,7 +487,7 @@ export function SubscriptionsMutateDrawer({
                           type='number'
                           min={0}
                           onChange={(e) =>
-                            field.onChange(parseInt(e.target.value, 10) || 0)
+                            field.onChange(Math.trunc(Number(e.target.value)) || 0)
                           }
                         />
                       </FormControl>
@@ -511,7 +511,7 @@ export function SubscriptionsMutateDrawer({
                         {...field}
                         type='number'
                         onChange={(e) =>
-                          field.onChange(parseInt(e.target.value, 10) || 0)
+                          field.onChange(Math.trunc(Number(e.target.value)) || 0)
                         }
                       />
                     </FormControl>
@@ -632,7 +632,7 @@ export function SubscriptionsMutateDrawer({
                             type='number'
                             min={1}
                             onChange={(e) =>
-                              field.onChange(parseInt(e.target.value, 10) || 0)
+                              field.onChange(Math.trunc(Number(e.target.value)) || 0)
                             }
                           />
                         </FormControl>
@@ -653,7 +653,7 @@ export function SubscriptionsMutateDrawer({
                             type='number'
                             min={1}
                             onChange={(e) =>
-                              field.onChange(parseInt(e.target.value, 10) || 0)
+                              field.onChange(Math.trunc(Number(e.target.value)) || 0)
                             }
                           />
                         </FormControl>
@@ -720,7 +720,7 @@ export function SubscriptionsMutateDrawer({
                           min={0}
                           disabled={resetPeriod !== 'custom'}
                           onChange={(e) =>
-                            field.onChange(parseInt(e.target.value, 10) || 0)
+                            field.onChange(Math.trunc(Number(e.target.value)) || 0)
                           }
                         />
                       </FormControl>
@@ -737,7 +737,16 @@ export function SubscriptionsMutateDrawer({
                 <Gauge className='h-4 w-4' />
                 {t('Sub Quota Limits')}
               </h3>
-              <SubQuotaLimitsField />
+              <FormField
+                control={form.control}
+                name='sub_quota_limits'
+                render={() => (
+                  <FormItem>
+                    <SubQuotaLimitsField />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </SideDrawerSection>
 
             {/* Payment Config */}

@@ -907,15 +907,11 @@ func GetAllUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	result := make([]SubscriptionSummary, 0, len(subs))
 	for _, sub := range subs {
 		subCopy := sub
-		isActive := sub.Status == "active" && sub.EndTime > now
 		summary := SubscriptionSummary{
 			Subscription: &subCopy,
 		}
-		if isActive {
-			summary.MainQuotaUsage = BuildMainQuotaUsage(&subCopy)
-			if usages, err := BuildSubQuotaUsage(subCopy.UserId, &subCopy, now); err == nil && len(usages) > 0 {
-				summary.SubQuotaUsage = usages
-			}
+		if sub.Status == "active" && sub.EndTime > now {
+			attachLiveUsage(&summary, &subCopy, now)
 		}
 		result = append(result, summary)
 	}
@@ -936,6 +932,16 @@ func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 	return result
 }
 
+func attachLiveUsage(summary *SubscriptionSummary, sub *UserSubscription, now int64) {
+	if summary == nil || sub == nil {
+		return
+	}
+	summary.MainQuotaUsage = BuildMainQuotaUsage(sub)
+	if usages, err := BuildSubQuotaUsage(sub.UserId, sub, now); err == nil && len(usages) > 0 {
+		summary.SubQuotaUsage = usages
+	}
+}
+
 // buildActiveSubscriptionSummaries is like buildSubscriptionSummaries but also
 // attaches live main+sub quota usage computed from the consume logs. Used by
 // user-facing views; admin views use the cheaper buildSubscriptionSummaries.
@@ -947,12 +953,9 @@ func buildActiveSubscriptionSummaries(subs []UserSubscription, now int64) []Subs
 	for _, sub := range subs {
 		subCopy := sub
 		summary := SubscriptionSummary{
-			Subscription:   &subCopy,
-			MainQuotaUsage:  BuildMainQuotaUsage(&subCopy),
+			Subscription: &subCopy,
 		}
-		if usages, err := BuildSubQuotaUsage(subCopy.UserId, &subCopy, now); err == nil && len(usages) > 0 {
-			summary.SubQuotaUsage = usages
-		}
+		attachLiveUsage(&summary, &subCopy, now)
 		result = append(result, summary)
 	}
 	return result
@@ -1403,7 +1406,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 					continue
 				}
 			}
-			if err := checkSubscriptionSubLimits(tx, userId, &sub, amount, now); err != nil {
+			if err := checkSubscriptionSubLimits(userId, &sub, amount, now); err != nil {
 				if errors.Is(err, ErrSubQuotaExceeded) {
 					continue
 				}

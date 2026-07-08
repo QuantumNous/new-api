@@ -103,7 +103,7 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   sub_quota_limits: [],
 }
 
-function parseSubQuotaLimits(raw: string | undefined): {
+export function parseSubQuotaLimits(raw: string | undefined): {
   name: string
   period_unit: 'hour' | 'day' | 'week' | 'month'
   period_value: number

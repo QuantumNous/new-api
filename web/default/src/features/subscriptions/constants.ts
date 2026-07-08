@@ -41,7 +41,9 @@ export const RESET_PERIODS = [
 // Sub-quota window limit options
 export const SUB_QUOTA_PERIOD_UNITS = [
   { value: 'hour', labelKey: 'hours' },
+  { value: 'day', labelKey: 'days' },
   { value: 'week', labelKey: 'weeks' },
+  { value: 'month', labelKey: 'months' },
 ] as const
 
 export const SUB_QUOTA_ANCHORS = [

@@ -9,7 +9,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 )
 
 // Subscription sub-quota window anchor options
@@ -323,7 +322,7 @@ func sumConsumeQuotaInWindow(userId int, windowStart, windowEnd, resetAt int64) 
 
 // checkSubscriptionSubLimits verifies the candidate pre-consume amount does
 // not exceed any sub-limit window. Returns nil on success, error on violation.
-func checkSubscriptionSubLimits(tx *gorm.DB, userId int, sub *UserSubscription, amount int64, now int64) error {
+func checkSubscriptionSubLimits(userId int, sub *UserSubscription, amount int64, now int64) error {
 	if sub == nil || amount <= 0 {
 		return nil
 	}
@@ -336,11 +335,6 @@ func checkSubscriptionSubLimits(tx *gorm.DB, userId int, sub *UserSubscription, 
 	}
 	if len(limits) > SubQuotaMaxSubLimits {
 		limits = limits[:SubQuotaMaxSubLimits]
-	}
-	queryDB := LOG_DB
-	if tx != nil && tx != LOG_DB {
-		// sub-limit check is read-only; use LOG_DB for the consume-log table.
-		_ = queryDB
 	}
 	for _, limit := range limits {
 		if limit.LimitUSD <= 0 {
@@ -493,7 +487,7 @@ func AutoMigrateSubscriptionSubQuotaLimits() error {
 	// composite (user_id, type, created_at) index exists on all three DBs.
 	indexName := "idx_logs_user_type_created_at"
 	if !LOG_DB.Migrator().HasIndex(&Log{}, indexName) {
-		if err := LOG_DB.Exec("CREATE INDEX IF NOT EXISTS " + indexName + " ON logs(user_id, type, created_at)").Error; err != nil {
+		if err := LOG_DB.Exec("CREATE INDEX " + indexName + " ON logs(user_id, type, created_at)").Error; err != nil {
 			common.SysError("create " + indexName + " failed: " + err.Error())
 		}
 	}
