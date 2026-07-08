@@ -21,6 +21,7 @@ import { z } from 'zod'
 
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 
+import { MAX_SUB_QUOTA_LIMITS } from '../constants'
 import type { SubscriptionPlan, PlanPayload } from '../types'
 
 function createSubQuotaLimitSchema(t: TFunction) {
@@ -73,7 +74,7 @@ export function getPlanFormSchema(t: TFunction) {
     stripe_price_id: z.string().optional(),
     creem_product_id: z.string().optional(),
     waffo_pancake_product_id: z.string().optional(),
-    sub_quota_limits: z.array(subQuotaLimitSchema).max(2).optional().default([]),
+    sub_quota_limits: z.array(subQuotaLimitSchema).max(MAX_SUB_QUOTA_LIMITS).optional().default([]),
   })
 }
 

@@ -27,6 +27,8 @@ const (
 	SubQuotaMaxSubLimits = 2
 )
 
+var ErrSubQuotaExceeded = errors.New("subscription sub quota exceeded")
+
 // SubscriptionSubQuotaLimit is one sub-quota window limit configuration.
 // Stored as JSON text in subscription_plans.sub_quota_limits and
 // user_subscriptions.sub_quota_limits (purchase-time snapshot).
@@ -357,7 +359,8 @@ func checkSubscriptionSubLimits(tx *gorm.DB, userId int, sub *UserSubscription, 
 			return err
 		}
 		if usedQuota+amount > limitQuota {
-			return fmt.Errorf("子限制额度不足: %s used=%d need=%d limit=%d reset=%d",
+			return fmt.Errorf("%w: %s used=%d need=%d limit=%d reset=%d",
+				ErrSubQuotaExceeded,
 				limit.Name, usedQuota, amount, limitQuota, windowEnd)
 		}
 	}

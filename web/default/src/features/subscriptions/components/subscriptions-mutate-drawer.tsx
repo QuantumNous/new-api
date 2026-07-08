@@ -17,7 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CalendarClock, CreditCard, RefreshCw, Settings2 } from 'lucide-react'
+import {
+  CalendarClock,
+  CreditCard,
+  Gauge,
+  RefreshCw,
+  Settings2,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -728,7 +734,7 @@ export function SubscriptionsMutateDrawer({
             {/* Sub Quota Limits */}
             <SideDrawerSection>
               <h3 className='flex items-center gap-2 text-sm font-medium'>
-                <RefreshCw className='h-4 w-4' />
+                <Gauge className='h-4 w-4' />
                 {t('Sub Quota Limits')}
               </h3>
               <SubQuotaLimitsField />

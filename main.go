@@ -342,6 +342,7 @@ func InitResources() error {
 	if common.IsMasterNode {
 		if mErr := model.AutoMigrateSubscriptionSubQuotaLimits(); mErr != nil {
 			common.SysError("auto migrate subscription sub quota limits failed: " + mErr.Error())
+			return mErr
 		}
 		model.MaybeBackfillSubscriptionSubQuotaLimits()
 	}

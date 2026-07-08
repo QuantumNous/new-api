@@ -40,7 +40,12 @@ import type { PlanFormValues } from '../lib'
 
 export function SubQuotaLimitsField() {
   const { t } = useTranslation()
-  const { control, watch, setValue } = useFormContext<PlanFormValues>()
+  const {
+    control,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useFormContext<PlanFormValues>()
   const { fields, append, remove } = useFieldArray({
     control,
     name: 'sub_quota_limits',
@@ -65,6 +70,16 @@ export function SubQuotaLimitsField() {
     unit === 'hour'
       ? { min: 0.01, step: '0.01' }
       : { min: 1, step: '1' }
+
+  const getFieldError = (
+    index: number,
+    key: 'name' | 'period_value' | 'period_unit' | 'limit_usd' | 'anchor'
+  ) => {
+    const fieldError = errors.sub_quota_limits?.[index] as
+      | Record<string, { message?: string }>
+      | undefined
+    return fieldError?.[key]?.message
+  }
 
   return (
     <div className='space-y-3'>
@@ -92,14 +107,16 @@ export function SubQuotaLimitsField() {
 
       {fields.map((field, index) => {
         const periodUnit = watch(`sub_quota_limits.${index}.period_unit`)
-        const isHour = periodUnit === 'hour'
         const periodValueConstraints = getPeriodValueConstraints(periodUnit)
+        const baseId = `sub-quota-${field.id}`
+        const nameId = `${baseId}-name`
+        const periodValueId = `${baseId}-period-value`
+        const periodUnitId = `${baseId}-period-unit`
+        const limitUsdId = `${baseId}-limit-usd`
+        const anchorId = `${baseId}-anchor`
 
         return (
-          <div
-            key={field.id}
-            className='space-y-3 rounded-md border p-3'
-          >
+          <div key={field.id} className='space-y-3 rounded-md border p-3'>
             <div className='flex items-center justify-between'>
               <span className='text-sm font-medium'>
                 {t('Sub Limit')} #{index + 1}
@@ -116,17 +133,26 @@ export function SubQuotaLimitsField() {
               </Button>
             </div>
 
-            <Input
-              placeholder={t('Name e.g. 5 hour quota')}
-              {...control.register(`sub_quota_limits.${index}.name`)}
-            />
+            <div className='space-y-1'>
+              <Input
+                id={nameId}
+                placeholder={t('Name e.g. 5 hour quota')}
+                {...control.register(`sub_quota_limits.${index}.name`)}
+              />
+              {getFieldError(index, 'name') ? (
+                <p className='text-destructive text-xs'>
+                  {String(getFieldError(index, 'name'))}
+                </p>
+              ) : null}
+            </div>
 
             <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
               <div className='space-y-1'>
-                <label className='text-xs font-medium'>
+                <label htmlFor={periodValueId} className='text-xs font-medium'>
                   {t('Duration Value')}
                 </label>
                 <Input
+                  id={periodValueId}
                   type='number'
                   min={periodValueConstraints.min}
                   step={periodValueConstraints.step}
@@ -134,10 +160,15 @@ export function SubQuotaLimitsField() {
                     valueAsNumber: true,
                   })}
                 />
+                {getFieldError(index, 'period_value') ? (
+                  <p className='text-destructive text-xs'>
+                    {String(getFieldError(index, 'period_value'))}
+                  </p>
+                ) : null}
               </div>
 
               <div className='space-y-1'>
-                <label className='text-xs font-medium'>
+                <label htmlFor={periodUnitId} className='text-xs font-medium'>
                   {t('Duration Unit')}
                 </label>
                 <Select
@@ -154,7 +185,7 @@ export function SubQuotaLimitsField() {
                     label: o.label,
                   }))}
                 >
-                  <SelectTrigger className='w-full'>
+                  <SelectTrigger id={periodUnitId} className='w-full'>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>
@@ -167,13 +198,19 @@ export function SubQuotaLimitsField() {
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+                {getFieldError(index, 'period_unit') ? (
+                  <p className='text-destructive text-xs'>
+                    {String(getFieldError(index, 'period_unit'))}
+                  </p>
+                ) : null}
               </div>
 
               <div className='space-y-1'>
-                <label className='text-xs font-medium'>
+                <label htmlFor={limitUsdId} className='text-xs font-medium'>
                   {t('Limit Amount (USD)')}
                 </label>
                 <Input
+                  id={limitUsdId}
                   type='number'
                   min={0}
                   step='0.01'
@@ -181,14 +218,19 @@ export function SubQuotaLimitsField() {
                     valueAsNumber: true,
                   })}
                 />
+                {getFieldError(index, 'limit_usd') ? (
+                  <p className='text-destructive text-xs'>
+                    {String(getFieldError(index, 'limit_usd'))}
+                  </p>
+                ) : null}
               </div>
 
               <div className='space-y-1'>
-                <label className='text-xs font-medium'>
+                <label htmlFor={anchorId} className='text-xs font-medium'>
                   {t('Anchor')}
                 </label>
                 <Select
-                  value={watch(`sub_quota_limits.${index}.anchor`) || (isHour ? 'subscription_start' : 'calendar')}
+                  value={watch(`sub_quota_limits.${index}.anchor`)}
                   onValueChange={(v) =>
                     v !== null &&
                     setValue(`sub_quota_limits.${index}.anchor`, v)
@@ -198,7 +240,7 @@ export function SubQuotaLimitsField() {
                     label: o.label,
                   }))}
                 >
-                  <SelectTrigger className='w-full'>
+                  <SelectTrigger id={anchorId} className='w-full'>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>
@@ -211,9 +253,13 @@ export function SubQuotaLimitsField() {
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+                {getFieldError(index, 'anchor') ? (
+                  <p className='text-destructive text-xs'>
+                    {String(getFieldError(index, 'anchor'))}
+                  </p>
+                ) : null}
               </div>
             </div>
-
           </div>
         )
       })}

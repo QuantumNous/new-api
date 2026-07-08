@@ -186,7 +186,7 @@ type SubscriptionPlan struct {
 	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds" gorm:"type:bigint;default:0"`
 
 	// Optional 0..2 sub-quota window limits JSON snapshot. Empty = none.
-	SubQuotaLimits string `json:"sub_quota_limits" gorm:"type:text;default:''"`
+	SubQuotaLimits string `json:"sub_quota_limits" gorm:"type:text"`
 
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
@@ -280,7 +280,7 @@ type UserSubscription struct {
 	AllowWalletOverflow bool `json:"allow_wallet_overflow"`
 
 	// Purchase-time snapshot of the plan's sub-quota window limits JSON.
-	SubQuotaLimits string `json:"sub_quota_limits" gorm:"type:text;default:''"`
+	SubQuotaLimits string `json:"sub_quota_limits" gorm:"type:text"`
 
 	// Sub-quota window consumption is counted from this timestamp onwards;
 	// 0 means count from the natural window start. An admin reset sets this
@@ -1404,7 +1404,10 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				}
 			}
 			if err := checkSubscriptionSubLimits(tx, userId, &sub, amount, now); err != nil {
-				continue
+				if errors.Is(err, ErrSubQuotaExceeded) {
+					continue
+				}
+				return err
 			}
 			record := &SubscriptionPreConsumeRecord{
 				RequestId:          requestId,

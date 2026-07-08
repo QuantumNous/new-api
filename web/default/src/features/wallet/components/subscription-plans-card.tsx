@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Crown, RefreshCw, Sparkles, Check } from 'lucide-react'
 import { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react'
+import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -50,6 +51,7 @@ import {
   getSelfSubscriptionFull,
   updateBillingPreference,
 } from '@/features/subscriptions/api'
+import { getSubQuotaPeriodUnitOptions } from '@/features/subscriptions/constants'
 import { SubscriptionPurchaseDialog } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
 import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
 import type {
@@ -168,26 +170,18 @@ function SubQuotaUsageList(props: {
   )
 }
 
-function getSubQuotaUnitLabel(unit: string, t: (key: string) => string): string {
-  switch (unit) {
-    case 'hour':
-      return t('hours')
-    case 'day':
-      return t('days')
-    case 'week':
-      return t('weeks')
-    case 'month':
-      return t('months')
-    default:
-      return unit
-  }
+function getSubQuotaUnitLabel(unit: string, t: TFunction): string {
+  const unitLabelMap = new Map<string, string>(
+    getSubQuotaPeriodUnitOptions(t).map((option) => [option.value, option.label])
+  )
+  return unitLabelMap.get(unit) || unit
 }
 
 function buildPlanSubLimitLabels(
   plan: PlanRecord['plan'],
-  t: (key: string) => string
+  t: TFunction
 ): string[] {
-  const raw = (plan as { sub_quota_limits?: string }).sub_quota_limits
+  const raw = plan.sub_quota_limits
   if (!raw) return []
 
   try {
