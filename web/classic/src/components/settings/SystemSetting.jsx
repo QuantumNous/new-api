@@ -57,6 +57,7 @@ const SystemSetting = () => {
     'discord.client_id': '',
     'discord.client_secret': '',
     'oidc.enabled': '',
+    'oidc.display_name': '',
     'oidc.client_id': '',
     'oidc.client_secret': '',
     'oidc.well_known': '',
@@ -554,6 +555,14 @@ const SystemSetting = () => {
       options.push({
         key: 'oidc.well_known',
         value: inputs['oidc.well_known'],
+      });
+    }
+    if (
+      originInputs['oidc.display_name'] !== inputs['oidc.display_name']
+    ) {
+      options.push({
+        key: 'oidc.display_name',
+        value: inputs['oidc.display_name'],
       });
     }
     if (originInputs['oidc.client_id'] !== inputs['oidc.client_id']) {
@@ -1418,6 +1427,17 @@ const SystemSetting = () => {
                       '若你的 OIDC Provider 支持 Discovery Endpoint，你可以仅填写 OIDC Well-Known URL，系统会自动获取 OIDC 配置',
                     )}
                   </Text>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['oidc.display_name']"
+                        label={t('OIDC 显示名称')}
+                        placeholder={t('留空则默认显示为 OIDC，例如：公司 SSO')}
+                      />
+                    </Col>
+                  </Row>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
