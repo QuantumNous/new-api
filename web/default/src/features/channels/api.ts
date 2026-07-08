@@ -35,8 +35,6 @@ import type {
   GetChannelsResponse,
   MultiKeyManageParams,
   MultiKeyStatusResponse,
-  TestAllKeysRequest,
-  TestAllKeysResponse,
   SearchChannelsParams,
   SearchChannelsResponse,
   TagOperationParams,
@@ -224,21 +222,6 @@ export async function testChannel(
   const res = await api.get(
     `/api/channel/test/${id}`,
     channelActionConfig({ params })
-  )
-  return res.data
-}
-
-/**
- * Test all keys for a multi-key channel and recover recoverable keys.
- */
-export async function testAllMultiKeys(
-  id: number,
-  params?: TestAllKeysRequest
-): Promise<TestAllKeysResponse> {
-  const res = await api.post(
-    `/api/channel/${id}/test-all-keys`,
-    params ?? {},
-    channelActionConfig()
   )
   return res.data
 }

@@ -234,6 +234,13 @@ func TestCloneChannelForSpecificKeyTestUsesRandomMode(t *testing.T) {
 	assert.Equal(t, "key-2", clone.Key)
 }
 
+func TestMaskChannelKeyDoesNotLeakShortKeys(t *testing.T) {
+	assert.Equal(t, "***", maskChannelKey("abcd"))
+	assert.Equal(t, "***", maskChannelKey("12345678"))
+	assert.Equal(t, "123***890", maskChannelKey("1234567890"))
+	assert.Equal(t, "123***90ab", maskChannelKey("1234567890ab"))
+}
+
 func TestResolveTestAllKeysOptionsFollowsRoutingReliabilitySettings(t *testing.T) {
 	originalDisable := common.AutomaticDisableChannelEnabled
 	originalEnable := common.AutomaticEnableChannelEnabled
