@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef } from 'react';
-import { InputNumber, Select, Typography } from '@douyinfe/semi-ui';
-import { Bot, Image as ImageIcon, X } from 'lucide-react';
+import { InputNumber, Select } from '@douyinfe/semi-ui';
+import { Bot, Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlayground } from '../../contexts/PlaygroundContext';
 import { selectFilter } from '../../helpers';
@@ -45,6 +45,7 @@ const PlaygroundComposer = ({
 
   const isVideoMode = playgroundMode === 'video';
   const isImageMode = playgroundMode === 'image';
+  const selectedImageCount = inputs.imageEnabled ? imageUrls.length : 0;
   const normalizedImageModel = String(inputs.imageModel || '').toLowerCase();
   const isQwenImageModel = normalizedImageModel.includes('qwen-image');
   const modelOptions = isVideoMode
@@ -82,10 +83,77 @@ const PlaygroundComposer = ({
   return (
     <div className='new-playground-composer-wrap'>
       <div className='new-playground-composer' onClick={onClick}>
+        {inputs.imageEnabled && imageUrls.length > 0 && (
+          <div className='reference-image-list'>
+            {imageUrls.map((url, index) => (
+              <div
+                key={`${index}-${url.slice(0, 24)}`}
+                className='reference-image-item'
+              >
+                <img
+                  src={url}
+                  alt={t('图片 {{index}}', { index: index + 1 })}
+                  className='reference-image-preview'
+                />
+                <button
+                  type='button'
+                  className='reference-image-remove'
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onRemoveImage?.(index);
+                  }}
+                  aria-label={t('删除')}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className='composer-input-row'>{inputNode}</div>
+
         <div className='composer-controls'>
-          <div className='composer-left-controls'>
-            <div className='composer-model-row'>
+          <div className='composer-control-row'>
+            <div className='composer-control-left'>
+              <div className='reference-images'>
+                <button
+                  className={`reference-upload ${inputs.imageEnabled ? 'is-active' : ''}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (!inputs.imageEnabled) {
+                      onInputChange('imageEnabled', true);
+                    }
+                    fileInputRef.current?.click();
+                  }}
+                  type='button'
+                  aria-label={t('参考图片')}
+                  title={t('支持 JPEG、PNG、Webp')}
+                >
+                  <Plus size={20} />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type='file'
+                  accept='image/jpeg,image/png,image/webp'
+                  className='hidden'
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      onSelectImageFile?.(file);
+                    }
+                    event.target.value = '';
+                  }}
+                />
+              </div>
+
+              <span className='composer-reference-count'>
+                {t('已选择 {{selected}} / {{total}}', {
+                  selected: selectedImageCount,
+                  total: 10,
+                })}
+              </span>
+
               <Select
                 value={selectedModel}
                 optionList={modelOptions}
@@ -108,132 +176,68 @@ const PlaygroundComposer = ({
                 position='top'
               />
 
-              <div className='composer-send-row'>{styledSendNode}</div>
+              {isImageMode && (
+                <div className='video-options'>
+                  <Select
+                    value={inputs.imageSize}
+                    optionList={imageSizeOptions}
+                    onChange={(value) => onInputChange('imageSize', value)}
+                    className='video-option-control'
+                    position='top'
+                  />
+                  <Select
+                    value={inputs.imageQuality}
+                    optionList={[
+                      { label: 'auto', value: 'auto' },
+                      { label: 'high', value: 'high' },
+                      { label: 'medium', value: 'medium' },
+                      { label: 'low', value: 'low' },
+                    ]}
+                    onChange={(value) => onInputChange('imageQuality', value)}
+                    className='video-option-control image-quality-control'
+                    position='top'
+                  />
+                  <Select
+                    value={inputs.outputFormat}
+                    optionList={[
+                      { label: 'png', value: 'png' },
+                      { label: 'jpeg', value: 'jpeg' },
+                      { label: 'webp', value: 'webp' },
+                    ]}
+                    onChange={(value) => onInputChange('outputFormat', value)}
+                    className='video-option-control output-format-control'
+                    position='top'
+                  />
+                </div>
+              )}
+              {isVideoMode && (
+                <div className='video-options'>
+                  <Select
+                    value={inputs.videoRatio}
+                    optionList={[
+                      { label: '16:9', value: '16:9' },
+                      { label: '9:16', value: '9:16' },
+                      { label: '1:1', value: '1:1' },
+                      { label: '4:3', value: '4:3' },
+                      { label: '3:4', value: '3:4' },
+                    ]}
+                    onChange={(value) => onInputChange('videoRatio', value)}
+                    className='video-option-control video-ratio-control'
+                    position='top'
+                  />
+                  <InputNumber
+                    min={1}
+                    max={30}
+                    value={inputs.videoDuration}
+                    suffix={t('秒')}
+                    onChange={(value) => onInputChange('videoDuration', value)}
+                    className='video-option-control video-duration-control'
+                  />
+                </div>
+              )}
             </div>
 
-            <div className='reference-images'>
-              <Typography.Text className='reference-label'>
-                {t('参考图片')}
-              </Typography.Text>
-              <div className='reference-image-row'>
-                <button
-                  className={`reference-upload ${inputs.imageEnabled ? 'is-active' : ''}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (!inputs.imageEnabled) {
-                      onInputChange('imageEnabled', true);
-                    }
-                    fileInputRef.current?.click();
-                  }}
-                  type='button'
-                >
-                  <ImageIcon size={20} />
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type='file'
-                  accept='image/jpeg,image/png,image/webp'
-                  className='hidden'
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) {
-                      onSelectImageFile?.(file);
-                    }
-                    event.target.value = '';
-                  }}
-                />
-                {inputs.imageEnabled && imageUrls.length > 0 && (
-                  <div className='reference-image-list'>
-                    {imageUrls.map((url, index) => (
-                      <div
-                        key={`${index}-${url.slice(0, 24)}`}
-                        className='reference-image-item'
-                      >
-                        <img
-                          src={url}
-                          alt={t('图片 {{index}}', { index: index + 1 })}
-                          className='reference-image-preview'
-                        />
-                        <button
-                          type='button'
-                          className='reference-image-remove'
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onRemoveImage?.(index);
-                          }}
-                          aria-label={t('删除')}
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <span className='reference-help-text'>
-                {t('支持 JPEG、PNG、Webp')}
-              </span>
-            </div>
-
-            {isImageMode && (
-              <div className='video-options'>
-                <Select
-                  value={inputs.imageSize}
-                  optionList={imageSizeOptions}
-                  onChange={(value) => onInputChange('imageSize', value)}
-                  className='video-option-control'
-                  position='top'
-                />
-                <Select
-                  value={inputs.imageQuality}
-                  optionList={[
-                    { label: 'auto', value: 'auto' },
-                    { label: 'high', value: 'high' },
-                    { label: 'medium', value: 'medium' },
-                    { label: 'low', value: 'low' },
-                  ]}
-                  onChange={(value) => onInputChange('imageQuality', value)}
-                  className='video-option-control'
-                  position='top'
-                />
-                <Select
-                  value={inputs.outputFormat}
-                  optionList={[
-                    { label: 'png', value: 'png' },
-                    { label: 'jpeg', value: 'jpeg' },
-                    { label: 'webp', value: 'webp' },
-                  ]}
-                  onChange={(value) => onInputChange('outputFormat', value)}
-                  className='video-option-control'
-                  position='top'
-                />
-              </div>
-            )}
-            {isVideoMode && (
-              <div className='video-options'>
-                <Select
-                  value={inputs.videoRatio}
-                  optionList={[
-                    { label: '16:9', value: '16:9' },
-                    { label: '9:16', value: '9:16' },
-                    { label: '1:1', value: '1:1' },
-                    { label: '4:3', value: '4:3' },
-                    { label: '3:4', value: '3:4' },
-                  ]}
-                  onChange={(value) => onInputChange('videoRatio', value)}
-                  className='video-option-control'
-                  position='top'
-                />
-                <InputNumber
-                  min={1}
-                  max={30}
-                  value={inputs.videoDuration}
-                  suffix={t('秒')}
-                  onChange={(value) => onInputChange('videoDuration', value)}
-                  className='video-option-control'
-                />
-              </div>
-            )}
+            <div className='composer-send-row'>{styledSendNode}</div>
           </div>
         </div>
       </div>
