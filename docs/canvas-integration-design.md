@@ -623,6 +623,12 @@ S3/S4/S5（后端）与 S1/S2（画布前端）可并行；S6/S7 依赖前后端
 - 画布静态资源目前不走 gzip(canvas 路由在 gzip 中间件之外),体积可接受,后续可优化。
 - 提示词内存缓存 TTL 6h;运营改库后最迟 6h 生效,如需立即生效可重启或后续加失效接口。
 
+### 11.3.1 灰度策略(2026-07-08)
+
+画布功能合入 main 后转为**默认隐藏**灰度发布:`HeaderNavModules` 未配置 canvas 键(含选项为空/解析失败)时,后端 `CanvasStaticAuth` 对 `/canvas-app/*` 返回 404,classic 导航不展示画布入口;仅当 admin 在 后台-顶栏管理 显式打开画布开关(canvas=true)后功能可用。充分测试后如需默认开放,恢复 `canvasModuleEnabled` 与 classic 导航的 `!== false` 语义即可(改动点:`middleware/canvas_auth.go`、`web/classic/src/hooks/common/useNavigation.js`、`SettingsHeaderNavModules.jsx`)。
+
+注意:画布开关的 UI 入口**仅存在于 classic 后台**(default 主题按约束未做任何改动,无开关也无导航入口)。若生产切换为 default 主题,控制画布开关需临时切 classic 后台操作,或直接 `PUT /api/option` 写 `HeaderNavModules`。已核实 default 后台保存顶栏配置不会丢失 `canvas` 键(default 的 `parseHeaderNavModules` 保留未知 boolean 键,`onSubmit` spread 完整配置,`serializeHeaderNavModules` 全量序列化)。
+
 ### 11.4 待办(按优先级)
 
 1. ~~S8 重做~~(已随 main 合并闭环,见 11.3);残留低优先项:gpustackplus mask(image_mask)转换、若上游未来提供 TTS 则补 audio adaptor + `audio-speech` 标注。

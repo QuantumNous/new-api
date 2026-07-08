@@ -27,7 +27,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       console: true,
       pricing: true,
       docs: true,
-      canvas: true,
+      canvas: false,
       about: true,
     };
 
@@ -79,8 +79,8 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         return docsLink && modules.docs;
       }
       if (link.itemKey === 'canvas') {
-        // canvas 未显式配置时默认展示（modules.canvas !== false）
-        return modules.canvas !== false;
+        // 画布灰度期默认隐藏，仅 admin 显式开启（canvas === true）才展示
+        return modules.canvas === true;
       }
       if (link.itemKey === 'pricing') {
         // 支持新的pricing配置格式

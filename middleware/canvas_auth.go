@@ -42,21 +42,20 @@ func CanvasStaticAuth() gin.HandlerFunc {
 	}
 }
 
-// canvasModuleEnabled 读取 HeaderNavModules 选项中的 canvas 开关;
-// 未配置(键缺失/解析失败)时默认开启,与前端导航的 `canvas !== false` 语义一致。
+// canvasModuleEnabled 读取 HeaderNavModules 选项中的 canvas 开关。
+// 画布功能灰度期默认关闭:未配置(选项为空/键缺失/解析失败)一律视为关闭,
+// 仅当 admin 在后台显式设置 canvas=true 时开放;前端导航同语义(`canvas === true`)。
 func canvasModuleEnabled() bool {
 	common.OptionMapRWMutex.RLock()
 	raw := common.OptionMap["HeaderNavModules"]
 	common.OptionMapRWMutex.RUnlock()
 	if strings.TrimSpace(raw) == "" {
-		return true
+		return false
 	}
 	var modules map[string]interface{}
 	if err := common.UnmarshalJsonStr(raw, &modules); err != nil {
-		return true
+		return false
 	}
-	if enabled, ok := modules["canvas"].(bool); ok {
-		return enabled
-	}
-	return true
+	enabled, ok := modules["canvas"].(bool)
+	return ok && enabled
 }

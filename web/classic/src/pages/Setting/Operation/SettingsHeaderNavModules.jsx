@@ -47,7 +47,7 @@ export default function SettingsHeaderNavModules(props) {
       requireAuth: false, // 默认不需要登录鉴权
     },
     docs: true,
-    canvas: true,
+    canvas: false,
     about: true,
   });
 
@@ -88,7 +88,7 @@ export default function SettingsHeaderNavModules(props) {
         requireAuth: false,
       },
       docs: true,
-      canvas: true,
+      canvas: false,
       about: true,
     };
     setHeaderNavModules(defaultModules);
@@ -144,9 +144,9 @@ export default function SettingsHeaderNavModules(props) {
           };
         }
 
-        // 旧配置没有 canvas 键时按默认开启，避免保存时把该键静默丢掉
+        // 旧配置没有 canvas 键时按灰度默认关闭补键，避免保存时把该键静默丢掉
         if (typeof modules.canvas === 'undefined') {
-          modules.canvas = true;
+          modules.canvas = false;
         }
 
         setHeaderNavModules(modules);
@@ -160,7 +160,7 @@ export default function SettingsHeaderNavModules(props) {
             requireAuth: false,
           },
           docs: true,
-          canvas: true,
+          canvas: false,
           about: true,
         };
         setHeaderNavModules(defaultModules);
