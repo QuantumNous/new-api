@@ -966,10 +966,10 @@ export function PaymentSettingsSection({
       })
     }
 
-    if (
-      sanitized.StripePublishableKey &&
-      sanitized.StripePublishableKey !== initial.StripePublishableKey
-    ) {
+    // Publishable key is public config, not a secret: allow clearing it (submit
+    // whenever it differs from the initial value) so admins can turn embedded
+    // Checkout back off. The Secret/Webhook fields keep their non-empty guard.
+    if (sanitized.StripePublishableKey !== initial.StripePublishableKey) {
       updates.push({
         key: 'StripePublishableKey',
         value: sanitized.StripePublishableKey,

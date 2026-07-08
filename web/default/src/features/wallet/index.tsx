@@ -677,6 +677,17 @@ export function Wallet(props: WalletProps) {
     []
   )
 
+  // Stable so the embedded Stripe Checkout effect (which depends on this
+  // callback) does not re-run and remount the form on every wallet re-render.
+  const handleEmbeddedCheckoutOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        closeEmbeddedCheckout()
+      }
+    },
+    [closeEmbeddedCheckout]
+  )
+
   return (
     <>
       <SectionPageLayout>
@@ -766,11 +777,7 @@ export function Wallet(props: WalletProps) {
 
       <StripeEmbeddedCheckoutDialog
         session={embeddedCheckout}
-        onOpenChange={(open) => {
-          if (!open) {
-            closeEmbeddedCheckout()
-          }
-        }}
+        onOpenChange={handleEmbeddedCheckoutOpenChange}
       />
 
       <Dialog open={cardBoundDialogOpen} onOpenChange={setCardBoundDialogOpen}>

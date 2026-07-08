@@ -527,7 +527,9 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 					"pay_amount":    normalizedAmount,
 					"bonus_amount":  bonusAmount,
 					"credit_amount": normalizedAmount + bonusAmount,
-					"show_amounts":  operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens,
+					// Only surface USD amounts: the displayed "$" figures are USD, so a
+					// non-USD Checkout (JPY/BRL/INR/…) would misrepresent the charge.
+					"show_amounts":  operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens && strings.EqualFold(checkout.PaymentCurrency, "USD"),
 				},
 			},
 		})
@@ -1664,7 +1666,17 @@ func buildStripeCheckoutSessionParams(referenceId string, customerId string, ema
 		// because redirect-based payment methods (Alipay, WeChat Pay, Pix...) leave the
 		// page and need somewhere to land; the success URL is the natural target.
 		params.UIMode = stripe.String(string(stripe.CheckoutSessionUIModeEmbedded))
-		params.ReturnURL = stripe.String(successURL)
+		// Carry the Stripe session id and our trade_no back so the frontend can
+		// locate this Checkout Session / order and recover status when a
+		// redirect-based method returns to the page. {CHECKOUT_SESSION_ID} is
+		// substituted by Stripe.
+		returnURL := successURL
+		separator := "?"
+		if strings.Contains(returnURL, "?") {
+			separator = "&"
+		}
+		returnURL = returnURL + separator + "session_id={CHECKOUT_SESSION_ID}&trade_no=" + url.QueryEscape(referenceId)
+		params.ReturnURL = stripe.String(returnURL)
 	} else {
 		params.SuccessURL = stripe.String(successURL)
 		params.CancelURL = stripe.String(cancelURL)

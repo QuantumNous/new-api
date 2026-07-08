@@ -419,6 +419,9 @@ const shortTime = (timestamp: number): string => {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    // h23 so midnight renders as 00:xx, not 24:xx (some engines format the
+    // midnight hour as 24 under hour12:false), keeping the PT day boundary clear.
+    hourCycle: 'h23',
   }).formatToParts(new Date(timestamp * 1000))
   const get = (type: string) =>
     parts.find((p) => p.type === type)?.value ?? ''
