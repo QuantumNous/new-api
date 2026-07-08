@@ -8,6 +8,7 @@ type Copy = {
     home: string;
     console: string;
     rankings: string;
+    contact: string;
     blog: string;
     about: string;
     app: string;
@@ -112,6 +113,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Home",
       console: "Console",
       rankings: "Rankings",
+      contact: "Contact us",
       blog: "Blog",
       about: "About",
       app: "Open app",
@@ -132,9 +134,9 @@ const copies: Record<Locale, BaseCopy> = {
       close: "Close",
     },
     home: {
-      title: "One API gateway for production AI teams",
+      title: "Official GPT, Claude & Gemini models — as low as 50% off",
       description:
-        "flatkey.ai unifies model access, routing, billing, usage analytics, and operational controls for teams shipping AI products.",
+        "flatkey.ai routes your traffic to the official GPT, Claude, and Gemini APIs through one key. Same models, as low as half the official price with stacked discounts, plus live 30-day health for every model.",
       primary: "Get a key",
       secondary: "View Pricing",
       hero: {
@@ -269,6 +271,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "主页",
       console: "控制台",
       rankings: "排行",
+      contact: "联系我们",
       blog: "博客",
       about: "关于",
       app: "打开应用",
@@ -289,8 +292,8 @@ const copies: Record<Locale, BaseCopy> = {
       close: "关闭",
     },
     home: {
-      title: "面向生产团队的一站式 AI API 网关",
-      description: "flatkey.ai 统一模型接入、路由、计费、用量分析和运营控制，帮助团队稳定交付 AI 产品。",
+      title: "GPT、Claude、Gemini 官方模型，最低 5 折",
+      description: "flatkey.ai 用一个 key 把请求路由到 GPT、Claude、Gemini 官方 API。模型价官方 6～9 折，充值赠送再省 1/3，叠加最低 5 折，每个模型都有实时 30 天健康度。",
       primary: "获取密钥",
       secondary: "查看定价",
       hero: {
@@ -423,6 +426,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Inicio",
       console: "Consola",
       rankings: "Rankings",
+      contact: "Contacto",
       blog: "Blog",
       about: "Acerca de",
       app: "Abrir app",
@@ -443,9 +447,9 @@ const copies: Record<Locale, BaseCopy> = {
       close: "Cerrar",
     },
     home: {
-      title: "Una puerta de enlace API para equipos de IA en producción",
+      title: "Modelos oficiales de GPT, Claude y Gemini — hasta 50% menos",
       description:
-        "flatkey.ai unifica acceso a modelos, enrutamiento, facturación, analítica de uso y controles operativos.",
+        "flatkey.ai enruta tu tráfico a las API oficiales de GPT, Claude y Gemini con una sola key. Los mismos modelos, hasta la mitad del precio oficial con descuentos combinados, y salud de 30 días en vivo para cada modelo.",
       primary: "Obtener una clave",
       secondary: "Ver precios",
       hero: {
@@ -549,6 +553,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Accueil",
       console: "Console",
       rankings: "Classements",
+      contact: "Contact",
       blog: "Blog",
       about: "À propos",
       app: "Ouvrir l'app",
@@ -569,9 +574,9 @@ const copies: Record<Locale, BaseCopy> = {
       close: "Fermer",
     },
     home: {
-      title: "Une passerelle API pour les équipes IA en production",
+      title: "Modèles officiels GPT, Claude et Gemini — jusqu'à 50 % moins cher",
       description:
-        "flatkey.ai unifie l'accès aux modèles, le routage, la facturation, l'analyse d'usage et les contrôles opérationnels.",
+        "flatkey.ai route votre trafic vers les API officielles GPT, Claude et Gemini avec une seule clé. Mêmes modèles, jusqu'à la moitié du prix officiel grâce aux remises cumulées, avec la santé sur 30 jours de chaque modèle en direct.",
       primary: "Obtenir une clé",
       secondary: "Voir les tarifs",
       hero: {
@@ -675,6 +680,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Início",
       console: "Console",
       rankings: "Rankings",
+      contact: "Contato",
       blog: "Blog",
       about: "Sobre",
       app: "Abrir app",
@@ -695,9 +701,9 @@ const copies: Record<Locale, BaseCopy> = {
       close: "Fechar",
     },
     home: {
-      title: "Um gateway de API para equipes de IA em produção",
+      title: "Modelos oficiais GPT, Claude e Gemini — até 50% mais barato",
       description:
-        "flatkey.ai unifica acesso a modelos, roteamento, cobrança, análise de uso e controles operacionais.",
+        "A flatkey.ai roteia seu tráfego para as APIs oficiais de GPT, Claude e Gemini com uma única key. Mesmos modelos, até a metade do preço oficial com descontos somados, e saúde de 30 dias ao vivo para cada modelo.",
       primary: "Obter uma chave",
       secondary: "Ver preços",
       hero: {
@@ -801,6 +807,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Главная",
       console: "Консоль",
       rankings: "Рейтинги",
+      contact: "Контакты",
       blog: "Блог",
       about: "О нас",
       app: "Открыть приложение",
@@ -821,9 +828,9 @@ const copies: Record<Locale, BaseCopy> = {
       close: "Закрыть",
     },
     home: {
-      title: "Единый API-шлюз для AI-команд в продакшене",
+      title: "Официальные модели GPT, Claude и Gemini — до 50% дешевле",
       description:
-        "flatkey.ai объединяет доступ к моделям, маршрутизацию, биллинг, аналитику использования и операционный контроль.",
+        "flatkey.ai направляет ваш трафик в официальные API GPT, Claude и Gemini через один ключ. Те же модели, до половины официальной цены со складывающимися скидками, и live-здоровье каждой модели за 30 дней.",
       primary: "Получить ключ",
       secondary: "Смотреть цены",
       hero: {
@@ -927,6 +934,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "ホーム",
       console: "コンソール",
       rankings: "ランキング",
+      contact: "お問い合わせ",
       blog: "ブログ",
       about: "概要",
       app: "アプリを開く",
@@ -947,9 +955,9 @@ const copies: Record<Locale, BaseCopy> = {
       close: "閉じる",
     },
     home: {
-      title: "本番 AI チームのための API ゲートウェイ",
+      title: "GPT・Claude・Gemini の公式モデルを最安半額で",
       description:
-        "flatkey.ai はモデル接続、ルーティング、課金、利用分析、運用管理を一つにまとめます。",
+        "flatkey.ai は 1 つの key でトラフィックを GPT・Claude・Gemini の公式 API にルーティング。二重割引で同じモデルを最安公式の半額に、全モデルの直近 30 日の健全性をライブで確認できます。",
       primary: "キーを取得",
       secondary: "料金を見る",
       hero: {
@@ -1053,6 +1061,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Trang chủ",
       console: "Bảng điều khiển",
       rankings: "Xếp hạng",
+      contact: "Liên hệ",
       blog: "Blog",
       about: "Giới thiệu",
       app: "Mở ứng dụng",
@@ -1073,9 +1082,9 @@ const copies: Record<Locale, BaseCopy> = {
       close: "Đóng",
     },
     home: {
-      title: "Một cổng API cho đội ngũ AI vận hành sản phẩm",
+      title: "Model chính thức GPT, Claude và Gemini — rẻ hơn tới 50%",
       description:
-        "flatkey.ai hợp nhất truy cập mô hình, định tuyến, tính phí, phân tích sử dụng và kiểm soát vận hành.",
+        "flatkey.ai định tuyến traffic tới API chính thức của GPT, Claude và Gemini qua một key. Cùng model, thấp nhất bằng nửa giá chính thức nhờ ưu đãi cộng dồn, kèm sức khỏe 30 ngày trực tiếp cho từng model.",
       primary: "Lấy khóa",
       secondary: "Xem giá",
       hero: {
@@ -1179,6 +1188,7 @@ const copies: Record<Locale, BaseCopy> = {
       home: "Startseite",
       console: "Konsole",
       rankings: "Rankings",
+      contact: "Kontakt",
       blog: "Blog",
       about: "Über uns",
       app: "App öffnen",
@@ -1199,9 +1209,9 @@ const copies: Record<Locale, BaseCopy> = {
       close: "Schließen",
     },
     home: {
-      title: "Ein API-Gateway für AI-Teams im Produktivbetrieb",
+      title: "Offizielle GPT-, Claude- und Gemini-Modelle — bis zu 50% günstiger",
       description:
-        "flatkey.ai vereint Modellzugriff, Routing, Abrechnung, Nutzungsanalysen und Betriebssteuerung für Teams, die AI-Produkte ausliefern.",
+        "flatkey.ai leitet deinen Traffic mit einem Key zu den offiziellen GPT-, Claude- und Gemini-APIs. Gleiche Modelle, mit kombinierten Rabatten bis zu 50% günstiger, mit Live-30-Tage-Gesundheit für jedes Modell.",
       primary: "Schlüssel holen",
       secondary: "Preise ansehen",
       hero: {

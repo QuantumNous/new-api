@@ -20,6 +20,7 @@ import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
+import { OFFICIAL_WEBSITE_ORIGIN, officialWebsiteUrl } from '@/lib/origins'
 import { beforeLoadPublicLocaleRoute } from '@/lib/public-locale-route'
 import { Rankings } from '@/features/rankings'
 
@@ -34,6 +35,18 @@ export const Route = createFileRoute('/$locale/rankings/')({
   validateSearch: rankingsSearchSchema,
   beforeLoad: async (args) => {
     beforeLoadPublicLocaleRoute(args)
+
+    // With an official website configured, its /rankings is the single public
+    // surface — hand over unconditionally (keeping the locale prefix) so old
+    // links keep working for anonymous visitors. The console module policy
+    // below only governs the local fallback page (self-host, no origin).
+    if (OFFICIAL_WEBSITE_ORIGIN) {
+      const locale = (args.params as { locale?: string }).locale
+      const path =
+        locale && locale !== 'en' ? `/${locale}/rankings` : '/rankings'
+      window.location.replace(officialWebsiteUrl(path))
+      await new Promise(() => {})
+    }
 
     const access = await getFreshModuleAccess('rankings')
     if (!access.enabled) {

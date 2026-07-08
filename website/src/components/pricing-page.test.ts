@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { LOCALIZED_TOP_UP_PRICES, TOP_UP_PACKAGE_AMOUNTS, getPricingPageCopy, getPricingPlans, getPricingPageFaqs } from "./pricing-page";
+import {
+  LOCALIZED_TOP_UP_PRICES,
+  MODELS_PAGE_PRICING_GROUP,
+  TOP_UP_PACKAGE_AMOUNTS,
+  getPricingPageCopy,
+  getPricingPlans,
+  getPricingPageFaqs,
+} from "./pricing-page";
 
 describe("pricing page conversion copy", () => {
   test("uses API gateway conversion messaging in the hero and plan section", () => {
@@ -12,14 +19,7 @@ describe("pricing page conversion copy", () => {
       "Create an API key",
       "Call GPT, Claude, Gemini, DeepSeek, and video models",
     ]);
-    expect(copy.costExamplesTitle).toBe("3X the official Plus plan usage");
-    expect(copy.officialPlusProof.medal).toBe("Official token burn verified");
-    expect(copy.officialPlusProof.proof).toContain("$20 reaches 3X official Plus-style usable workload");
-    expect(copy.costExamples.map((item) => item.label)).toEqual([
-      "Built for real API workloads",
-      "One balance across top models",
-      "40% lower effective cost",
-    ]);
+    expect(copy.packageBullets).toContain("Bonus credit on every top-up");
     expect(copy.trustSignals).toContain("Prepaid balance, no surprise bill");
   });
 
@@ -29,13 +29,20 @@ describe("pricing page conversion copy", () => {
     expect(plans.map((plan) => plan.price)).toEqual(["$10", "$20", "$200", "Custom"]);
     expect(plans.slice(0, 3).map((plan) => plan.action)).toEqual(["checkout", "checkout", "checkout"]);
     expect(plans.map((plan) => plan.caption)).toEqual([
-      "Lowest entry to get started",
-      "3X more usage than the official plan",
-      "40X more usage than the official plan",
+      "Pay $10, get $13 in credit",
+      "Pay $20, get $28 in credit",
+      "Pay $200, get $300 in credit",
       "Custom usage, routing, and invoicing",
     ]);
-    expect(plans[1]?.badge).toBe("Most Popular");
-    expect(plans[1]?.discount).toBe("+5 free bonus");
+    expect(plans.slice(0, 3).map((plan) => plan.cta)).toEqual([
+      "Top up $10",
+      "Top up $20",
+      "Top up $200",
+    ]);
+    expect(plans[0]?.badge).toBe("Most Popular");
+    expect(plans[0]?.discount).toBe("+3 free bonus");
+    expect(plans[1]?.badge).toBeUndefined();
+    expect(plans[1]?.discount).toBe("+8 free bonus");
     expect(plans[2]?.discount).toBe("+100 free bonus");
     expect(plans[3]?.name).toBe("Enterprise");
     expect(plans[3]?.cta).toBe("Contact Us");
@@ -53,8 +60,9 @@ describe("pricing page conversion copy", () => {
     expect(copy.modelsDescription).not.toBe(
       "Discover live model availability, pricing, endpoint support, and model detail pages."
     );
-    expect(plans[1]?.badge).not.toBe("Most Popular");
-    expect(plans[1]?.discount).toBe("+5 de bônus grátis");
+    expect(plans[0]?.badge).not.toBe("Most Popular");
+    expect(plans[0]?.discount).toBe("+3 de bônus grátis");
+    expect(plans[1]?.discount).toBe("+8 de bônus grátis");
     expect(plans[2]?.discount).toBe("+100 de bônus grátis");
     expect(plans[3]?.cta).not.toBe("Contact Us");
     expect(plans[3]?.name).toBe(copy.enterprisePlanName);
@@ -92,12 +100,16 @@ describe("pricing page conversion copy", () => {
     expect(LOCALIZED_TOP_UP_PRICES.JPY).toEqual([1500, 3000, 30000]);
   });
 
-  test("answers how the $20 plan reaches 3X usage", () => {
+  test("answers how the top-up bonus works", () => {
     const faqs = getPricingPageFaqs("en");
 
-    expect(faqs[0]?.question).toContain("$20");
-    expect(faqs[0]?.question).toContain("3X");
-    expect(faqs[0]?.answer).toContain("metered API balance");
-    expect(faqs[0]?.answer).toContain("seat overhead");
+    expect(faqs[0]?.question).toContain("top-up bonus");
+    expect(faqs[0]?.answer).toContain("+$3 on $10");
+    expect(faqs[0]?.answer).toContain("+$8 on $20");
+    expect(faqs[0]?.answer).toContain("+$100 on $200");
+  });
+
+  test("models directory uses the PLG public pricing group", () => {
+    expect(MODELS_PAGE_PRICING_GROUP).toBe("plg");
   });
 });

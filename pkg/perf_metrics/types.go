@@ -22,6 +22,13 @@ type QueryParams struct {
 	Model string
 	Group string
 	Hours int
+	// Groups, when non-nil, restricts results to these groups (Group must be
+	// empty). MergeGroups collapses the matched groups into one "all" series
+	// with counter-level (request-weighted) aggregation — averaging the
+	// per-group series client-side would weight a 5-request group the same as
+	// a 5M-request one.
+	Groups      []string
+	MergeGroups bool
 }
 
 type BucketPoint struct {
@@ -50,9 +57,10 @@ type QueryResult struct {
 type ModelSummary struct {
 	ModelName    string  `json:"model_name"`
 	AvgLatencyMs int64   `json:"avg_latency_ms"`
+	AvgTtftMs    int64   `json:"avg_ttft_ms"`
 	SuccessRate  float64 `json:"success_rate"`
 	AvgTps       float64 `json:"avg_tps"`
-	RequestCount int64   `json:"-"`
+	RequestCount int64   `json:"request_count"`
 }
 
 type SummaryAllResult struct {

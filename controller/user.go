@@ -130,9 +130,25 @@ func Login(c *gin.Context) {
 	setupLogin(&user, c)
 }
 
+// primaryAcceptLanguage extracts the first language tag from an
+// Accept-Language header ("zh-CN,zh;q=0.9,en;q=0.8" -> "zh-CN").
+func primaryAcceptLanguage(header string) string {
+	first := strings.TrimSpace(strings.SplitN(header, ",", 2)[0])
+	if i := strings.IndexByte(first, ';'); i >= 0 {
+		first = strings.TrimSpace(first[:i])
+	}
+	if len(first) > 32 {
+		first = first[:32]
+	}
+	return first
+}
+
 // setup session & cookies and then return user info
 func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
 	model.UpdateUserLastLoginAt(user.Id)
+	if lang := primaryAcceptLanguage(c.GetHeader("Accept-Language")); lang != "" && lang != user.BrowserLang {
+		model.UpdateUserBrowserLang(user.Id, lang)
+	}
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
 	session.Set("username", user.Username)

@@ -37,7 +37,27 @@ export type AmountResponse = ApiResponse<string>
 export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   url?: string
 }
-export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
+/** Bonus summary shown in the embedded checkout banner (USD display mode only) */
+export interface StripeTopupSummary {
+  /** USD the buyer pays (top-up tier) */
+  pay_amount: number
+  /** USD bonus credited on top */
+  bonus_amount: number
+  /** Total USD credited to the wallet (pay + bonus) */
+  credit_amount: number
+  /** Whether the amounts are meaningful to display (false in token display mode) */
+  show_amounts: boolean
+}
+export type StripePaymentResponse = ApiResponse<{
+  /** Hosted checkout redirect link (hosted ui_mode) */
+  pay_link?: string
+  /** Embedded Checkout session client secret (embedded ui_mode) */
+  client_secret?: string
+  /** Stripe publishable key used to mount embedded Checkout */
+  publishable_key?: string
+  /** Bonus banner data for the embedded checkout dialog */
+  topup_summary?: StripeTopupSummary
+}>
 export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
@@ -259,6 +279,8 @@ export interface PaymentRequest {
   success_url?: string
   /** Optional redirect URL after cancelled hosted checkout */
   cancel_url?: string
+  /** Checkout presentation: 'embedded' renders inside the console when the server supports it */
+  ui_mode?: 'embedded'
   /** Whether Stripe should create a company invoice */
   invoice_requested?: boolean
   /** Company invoice profile snapshot */
@@ -272,6 +294,8 @@ export interface PaymentRequest {
 export interface PaymentOptions {
   invoiceRequested?: boolean
   invoiceProfile?: InvoiceProfile
+  /** Prefer embedded Stripe Checkout (falls back to hosted redirect when unavailable) */
+  preferEmbeddedCheckout?: boolean
   /** Optional explicit Stripe checkout package currency override */
   stripeCurrency?: 'USD' | 'JPY' | 'BRL' | 'INR'
 }

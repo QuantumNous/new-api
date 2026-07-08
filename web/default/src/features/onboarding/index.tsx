@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Gift, Loader2, Zap } from 'lucide-react'
 import { useTranslation, Trans } from 'react-i18next'
 import { toast } from 'sonner'
@@ -24,82 +25,92 @@ import { useOnboardingStore } from '@/stores/onboarding-store'
 import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { getTopupInfo } from '@/features/wallet/api'
+import {
+  parseAmountOptions,
+  parseNumberMap,
+} from '@/features/wallet/hooks/use-topup-info'
 import { requestPromoTopup, isApiSuccess } from './api'
 
-// Visual urgency timer: 10 days from the moment the user FIRST sees the dialog. The anchor
-// (end timestamp) is persisted in localStorage so a refresh or reopen doesn't reset it.
-const COUNTDOWN_DURATION_MS = 10 * 24 * 60 * 60 * 1000
-const COUNTDOWN_STORAGE_KEY = 'onboarding_promo_deadline'
-
-// Returns the promo end timestamp (ms), creating+persisting it on first call.
-function getPromoDeadline(): number {
-  try {
-    const stored = localStorage.getItem(COUNTDOWN_STORAGE_KEY)
-    if (stored) {
-      const parsed = Number(stored)
-      if (Number.isFinite(parsed) && parsed > 0) return parsed
-    }
-    const deadline = Date.now() + COUNTDOWN_DURATION_MS
-    localStorage.setItem(COUNTDOWN_STORAGE_KEY, String(deadline))
-    return deadline
-  } catch {
-    // localStorage unavailable (private mode / SSR): fall back to a non-persisted window.
-    return Date.now() + COUNTDOWN_DURATION_MS
-  }
-}
-
-// Promo recharge tiers. amount = USD charged. off/usage are OPTIONAL marketing
-// labels; only attach a specific discount/multiplier number when it is actually
-// backed by operation_setting (AmountDiscount/AmountBonus) for that amount —
-// otherwise the badge would promise a discount the backend won't deliver. The
-// $10 entry tier intentionally carries no numeric claim (low-friction entry).
+// Recharge tiers. amount = USD charged, bonus = USD credited on top of the
+// amount. Derived from /api/user/topup/info (operation_setting AmountBonus,
+// already filtered to what this user's group can actually receive) so the
+// dialog never promises credit the payment callback won't deliver.
 interface PromoTier {
   amount: number
-  off?: string // e.g. "40% OFF" — omit if not config-backed
-  usage?: string // e.g. "3X" — omit if not config-backed
+  bonus: number
   highlight?: boolean
 }
-const TIERS: PromoTier[] = [
-  { amount: 10 },
-  { amount: 20, off: '40% OFF', usage: '3X' },
-  { amount: 200, off: '50% OFF', usage: '40X', highlight: true },
-]
 
-function breakdown(ms: number) {
-  const total = Math.max(0, Math.floor(ms / 1000))
-  return {
-    days: Math.floor(total / 86400),
-    hours: Math.floor((total % 86400) / 3600),
-    minutes: Math.floor((total % 3600) / 60),
-    seconds: total % 60,
-  }
-}
+// Shown only when the bonus config is unavailable — plain amounts, no
+// bonus promises.
+const FALLBACK_AMOUNTS = [10, 20, 200]
 
 /**
  * Onboarding promo dialog. Floats over the console with a translucent, blurred backdrop.
  * Presents recharge tiers; clicking one starts a real Stripe payment that also binds
- * the card (save_card) for later postpaid auto-charge. Discount figures shown
- * are marketing copy; payment pricing is enforced on the backend.
+ * the card (save_card) for later postpaid auto-charge. Bonus figures shown must
+ * match the backend AmountBonus config; crediting is enforced on the backend.
  */
 export function Onboarding() {
   const { t } = useTranslation()
   const open = useOnboardingStore((s) => s.open)
   const closeOnboarding = useOnboardingStore((s) => s.closeOnboarding)
   const [pendingAmount, setPendingAmount] = useState<number | null>(null)
-  const [remainingMs, setRemainingMs] = useState(COUNTDOWN_DURATION_MS)
+
+  const topupInfoQuery = useQuery({
+    queryKey: ['onboarding', 'topup-info'],
+    queryFn: getTopupInfo,
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const tiers = useMemo<PromoTier[]>(() => {
+    // The raw payload fields may arrive as JSON strings (same reason the
+    // wallet runs them through these parsers) — never .map/.filter them raw.
+    const info = topupInfoQuery.data?.data
+    const amountOptions = parseAmountOptions(info?.amount_options)
+    const bonus = parseNumberMap(info?.bonus)
+    const remaining = parseNumberMap(info?.bonus_remaining)
+    // Stripe checkout packages only accept amounts present in
+    // payment_setting.amount_options — a bonus tier outside that set would
+    // render a button whose payment request the backend rejects.
+    const allowedAmounts = new Set(amountOptions)
+    const fromBonus = Object.entries(bonus)
+      .map(([amount, bonusValue]) => ({
+        amount: Number(amount),
+        bonus: Number(bonusValue),
+      }))
+      // remaining === 0 means this user exhausted the tier's lifetime bonus
+      // count; undefined means unlimited.
+      .filter(
+        (tier) =>
+          tier.amount > 0 &&
+          tier.bonus > 0 &&
+          (allowedAmounts.size === 0 || allowedAmounts.has(tier.amount)) &&
+          remaining[tier.amount] !== 0
+      )
+      .sort((a, b) => a.amount - b.amount)
+      .slice(0, 3)
+    if (fromBonus.length > 0) {
+      return fromBonus.map((tier, index) =>
+        index === 0 ? { ...tier, highlight: true } : tier
+      )
+    }
+    const amounts = amountOptions.length > 0 ? amountOptions : FALLBACK_AMOUNTS
+    return amounts.slice(0, 3).map((amount, index) => ({
+      amount,
+      bonus: 0,
+      highlight: index === 0,
+    }))
+  }, [topupInfoQuery.data])
 
   useEffect(() => {
     if (!open) return
     // Card-bind funnel step 1: the promo/bind dialog actually opened.
     trackAdsFunnelEvent('flatkey_cardbind_dialog_open')
-    const deadline = getPromoDeadline()
-    const tick = () => setRemainingMs(Math.max(0, deadline - Date.now()))
-    tick()
-    const timer = setInterval(tick, 1000)
-    return () => clearInterval(timer)
   }, [open])
 
-  const { days, hours, minutes, seconds } = breakdown(remainingMs)
   const submitting = pendingAmount !== null
 
   const startTopup = async (amount: number) => {
@@ -152,7 +163,7 @@ export function Onboarding() {
             absolutely-positioned close (X) button, which otherwise overlaps long
             translations (PT/ES/JP) on the first line. */}
         <p className='text-muted-foreground px-8 text-center text-xs font-medium'>
-          🎟 {t('Congrats — you’ve unlocked a new-user exclusive offer')}
+          🎟 {t('Every top-up earns bonus credit')}
         </p>
 
         {/* Glowing gift icon */}
@@ -166,19 +177,27 @@ export function Onboarding() {
         {/* Headline */}
         <h2 className='text-center text-2xl leading-tight font-extrabold tracking-tight'>
           <Trans
-            i18nKey='Top up & get <hl>up to 50% OFF</hl>'
+            i18nKey='Top up & get <hl>bonus credit</hl> — every time'
             components={{ hl: <span className='text-[#FF2D78]' /> }}
           />
         </h2>
         <p className='text-muted-foreground text-center text-sm'>
           {t(
-            'Across Claude / GPT / Gemini and more. Limited-time only — prices revert after it ends.'
+            'Models are priced at 60–90% of the official list. Top up $200 and get $100 free — both discounts stack, as low as 50% of the official price.'
           )}
         </p>
 
         {/* Tier cards */}
         <div className='flex flex-col gap-2.5'>
-          {TIERS.map((tier) => (
+          {topupInfoQuery.isLoading &&
+            FALLBACK_AMOUNTS.map((amount) => (
+              <div
+                key={amount}
+                className='bg-muted/50 h-[74px] animate-pulse rounded-xl border'
+                aria-hidden='true'
+              />
+            ))}
+          {!topupInfoQuery.isLoading && tiers.map((tier) => (
             <button
               key={tier.amount}
               type='button'
@@ -193,7 +212,7 @@ export function Onboarding() {
             >
               {tier.highlight && (
                 <span className='absolute -top-2 right-3 rounded-full bg-[#FF2D78] px-2 py-0.5 text-[10px] font-bold text-white'>
-                  {t('Best value')}
+                  {t('Most Popular')}
                 </span>
               )}
               <div className='flex flex-col'>
@@ -203,17 +222,15 @@ export function Onboarding() {
                   })}
                 </span>
                 <span className='text-muted-foreground text-xs'>
-                  {tier.usage
-                    ? t('{{usage}} more usage than the official plan', {
-                        usage: tier.usage,
-                      })
-                    : t('Lowest entry to get started')}
+                  {t('You get ${{total}} in credit', {
+                    total: tier.amount + tier.bonus,
+                  })}
                 </span>
               </div>
               <div className='flex flex-col items-end gap-1'>
-                {tier.off && (
+                {tier.bonus > 0 && (
                   <span className='text-sm font-extrabold text-[#FF2D78]'>
-                    {tier.off}
+                    {t('+${{bonus}} free', { bonus: tier.bonus })}
                   </span>
                 )}
                 {submitting && pendingAmount === tier.amount ? (
@@ -225,19 +242,6 @@ export function Onboarding() {
             </button>
           ))}
         </div>
-
-        {/* Countdown */}
-        <p className='text-muted-foreground text-center text-xs'>
-          {t('Offer ends in')}{' '}
-          <span className='text-foreground font-bold tabular-nums'>
-            {t('{{days}}d {{hours}}h {{minutes}}m {{seconds}}s', {
-              days,
-              hours,
-              minutes,
-              seconds,
-            })}
-          </span>
-        </p>
 
         <Button
           variant='ghost'

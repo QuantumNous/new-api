@@ -136,6 +136,90 @@ export function buildBlogArticleSchema(input: BlogArticleSchemaInput): JsonLdGra
   ]);
 }
 
+type ModelSchemaInput = {
+  locale: Locale;
+  modelName: string;
+  vendorName: string;
+  description: string;
+  // Effective price per 1M input tokens on flatkey, in USD.
+  inputPriceUsd: number;
+  // Localized page path, e.g. "/zh/models/gpt-4o-mini".
+  pagePath: string;
+  faq: Array<{ q: string; a: string }>;
+};
+
+export function buildModelSchema(input: ModelSchemaInput): JsonLdGraph {
+  const modelsUrl = absoluteUrl(localizePath("/models", input.locale));
+  const pageUrl = absoluteUrl(input.pagePath);
+  // Only emit an Offer with a real, finite, non-negative price — a NaN/Infinity
+  // or missing price would serialize to null / an invalid price and hand search
+  // engines a broken price signal.
+  const validPrice = Number.isFinite(input.inputPriceUsd) && input.inputPriceUsd >= 0;
+  return graph([
+    websiteSchema(),
+    {
+      "@type": "Product",
+      name: `${input.modelName} API`,
+      description: input.description,
+      category: "AI model API",
+      brand: { "@type": "Brand", name: input.vendorName },
+      url: pageUrl,
+      ...(validPrice
+        ? {
+            offers: {
+              "@type": "Offer",
+              priceCurrency: "USD",
+              price: input.inputPriceUsd,
+              description: `Effective ${SITE_NAME} price for ${input.modelName}`,
+              availability: "https://schema.org/InStock",
+              url: pageUrl,
+              seller: organizationSchema(),
+            },
+          }
+        : {}),
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: input.faq.map((item) => ({
+        "@type": "Question",
+        name: item.q,
+        acceptedAnswer: { "@type": "Answer", text: item.a },
+      })),
+    },
+    breadcrumbSchema([
+      { name: "Models", item: modelsUrl },
+      { name: input.modelName, item: pageUrl },
+    ]),
+  ]);
+}
+
+type RankingsSchemaInput = {
+  locale: Locale;
+  title: string;
+  // Ranked models, already ordered; `path` is the localized model-page path.
+  items: Array<{ name: string; path: string; position: number }>;
+};
+
+export function buildRankingsSchema(input: RankingsSchemaInput): JsonLdGraph {
+  const rankingsUrl = absoluteUrl(localizePath("/rankings", input.locale));
+  return graph([
+    websiteSchema(),
+    {
+      "@type": "ItemList",
+      name: input.title,
+      url: rankingsUrl,
+      numberOfItems: input.items.length,
+      itemListElement: input.items.map((item) => ({
+        "@type": "ListItem",
+        position: item.position,
+        name: item.name,
+        url: absoluteUrl(item.path),
+      })),
+    },
+    breadcrumbSchema([{ name: input.title, item: rankingsUrl }]),
+  ]);
+}
+
 function graph(items: JsonLdObject[]): JsonLdGraph {
   return {
     "@context": "https://schema.org",

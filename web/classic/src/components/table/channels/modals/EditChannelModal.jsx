@@ -186,6 +186,7 @@ const EditChannelModal = (props) => {
     groups: ['default'],
     priority: 0,
     weight: 0,
+    max_concurrency: 0,
     tag: '',
     multi_key_mode: 'random',
     // 渠道额外设置的默认值
@@ -1031,6 +1032,7 @@ const EditChannelModal = (props) => {
         (data.remark && data.remark.trim()) ||
         (data.priority && data.priority !== 0) ||
         (data.weight && data.weight !== 0) ||
+        (data.max_concurrency && data.max_concurrency !== 0) ||
         (data.proxy && data.proxy.trim()) ||
         (data.system_prompt && data.system_prompt.trim()) ||
         data.thinking_to_content ||
@@ -1856,6 +1858,10 @@ const EditChannelModal = (props) => {
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
+    localInputs.max_concurrency = Math.max(
+      0,
+      Math.floor(Number(localInputs.max_concurrency) || 0),
+    );
     localInputs.models = localInputs.models.join(',');
     localInputs.group = (localInputs.groups || []).join(',');
 
@@ -2481,6 +2487,25 @@ const EditChannelModal = (props) => {
                         min={0}
                         onNumberChange={(value) => handleInputChange('weight', value)}
                         style={{ width: '100%' }}
+                      />
+                    </Col>
+                  </Row>
+
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.InputNumber
+                        field='max_concurrency'
+                        label={t('渠道并发上限')}
+                        placeholder={t('0 表示不限制')}
+                        min={0}
+                        precision={0}
+                        onNumberChange={(value) =>
+                          handleInputChange('max_concurrency', value)
+                        }
+                        style={{ width: '100%' }}
+                        extraText={t(
+                          '单个渠道允许的最大进行中请求数，0 表示不限制'
+                        )}
                       />
                     </Col>
                   </Row>

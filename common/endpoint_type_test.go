@@ -26,6 +26,7 @@ func TestGetEndpointTypesByChannelType_VideoChannels(t *testing.T) {
 		{"Sora", constant.ChannelTypeSora},
 		{"BlockRunVideo", constant.ChannelTypeBlockRunVideo},
 		{"BlockRunSeedance", constant.ChannelTypeBlockRunSeedance},
+		{"TechMobiVideo", constant.ChannelTypeTechMobiVideo},
 	}
 
 	for _, tc := range cases {

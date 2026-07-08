@@ -64,6 +64,7 @@ const (
 	ChannelTypeBlockRunSeedance = 102
 	ChannelTypeJimengProxy      = 103 // Jimeng reverse proxy (iptag/jimeng-api): OpenAI-compatible image/video proxy, sessionid auth
 	ChannelTypeJimengZhizinan   = 104 // Jimeng reverse proxy (zhizinan1997/jimeng-free-api-all)
+	ChannelTypeTechMobiVideo    = 105 // TechMobi Seedance-compatible async video API
 	ChannelTypeDummy                  // this one is only for count, do not add any channel after this
 
 )
@@ -134,11 +135,12 @@ var ChannelBaseURLs = []string{
 	"", "", "", "", "", "", "", "", "", "", // 70-79
 	"", "", "", "", "", "", "", "", "", "", // 80-89
 	"", "", "", "", "", "", "", "", "", "", // 90-99
-	"https://blockrun.ai/api", // 100 BlockRun
-	"https://api2.flatkey.ai", // 101 BlockRunVideo
-	"https://blockrun.ai/api", // 102 BlockRunSeedance
-	"",                        // 103 JimengProxy (self-hosted iptag/jimeng-api; set base URL per channel)
-	"",                        // 104 JimengZhizinan (self-hosted zhizinan1997/jimeng-free-api-all)
+	"https://blockrun.ai/api",      // 100 BlockRun
+	"https://api2.flatkey.ai",      // 101 BlockRunVideo
+	"https://blockrun.ai/api",      // 102 BlockRunSeedance
+	"",                             // 103 JimengProxy (self-hosted iptag/jimeng-api; set base URL per channel)
+	"",                             // 104 JimengZhizinan (self-hosted zhizinan1997/jimeng-free-api-all)
+	"https://api.chatgpttech.mobi", // 105 TechMobiVideo
 }
 
 var ChannelTypeNames = map[int]string{
@@ -202,6 +204,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeBlockRunSeedance: "BlockRunSeedance",
 	ChannelTypeJimengProxy:      "JimengProxy",
 	ChannelTypeJimengZhizinan:   "JimengZhizinan",
+	ChannelTypeTechMobiVideo:    "TechMobiVideo",
 }
 
 func GetChannelTypeName(channelType int) string {

@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { getAllBlogPosts, getBlogCategories } from "@/lib/blog";
 import { LOCALES, type Locale, localizePath } from "@/lib/locales";
 import { getModelLandingPathnames } from "@/lib/model-landing";
+import { modelPublicPath } from "@/lib/model-public";
 import { getPricingData, getTopVendors, getVendorName } from "@/lib/pricing";
 
 const base = "https://flatkey.ai";
@@ -56,6 +57,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...entry("/glm-5-2", 0.86, "daily"),
     ...entry("/rankings", 0.7, "daily"),
     ...entry("/about", 0.5, "monthly"),
+    ...entry("/contact", 0.5, "monthly"),
     ...entry("/blog", 0.9, "daily"),
     ...entry("/terms", 0.3, "yearly"),
     ...entry("/privacy", 0.3, "yearly"),
@@ -63,6 +65,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...entry("/refund-policy", 0.3, "yearly"),
   ];
   const modelLandingEntries = getModelLandingPathnames().flatMap((pathname) => entry(pathname, 0.82, "daily"));
+  // Every live model gets its own public page (/models/<name>); include them so
+  // search engines discover the full catalog, not just the curated landings.
+  const landingSlugs = new Set(getModelLandingPathnames().map((pathname) => pathname.replace(/^\/models\//, "")));
+  const modelPublicEntries = pricing.models
+    .filter((model) => !landingSlugs.has(model.model_name))
+    .flatMap((model) => entry(modelPublicPath(model.model_name), 0.6, "daily"));
   const categoryEntries = categories.flatMap((category) => entry(`/blog/category/${category.slug}`, 0.7, "weekly"));
   const postsBySlug = new Map<string, Partial<Record<Locale, { date?: string }>>>();
 
@@ -102,5 +110,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     queryEntry("/models", `vendor=${encodeURIComponent(vendor)}`, 0.72, "daily")
   );
 
-  return [...staticEntries, ...modelLandingEntries, ...vendorEntries, ...categoryEntries, ...postEntries];
+  return [
+    ...staticEntries,
+    ...modelLandingEntries,
+    ...modelPublicEntries,
+    ...vendorEntries,
+    ...categoryEntries,
+    ...postEntries,
+  ];
 }

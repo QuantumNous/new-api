@@ -40,6 +40,7 @@ import { getCardStatus } from '@/features/onboarding/api'
 import { getPaddleTopUpStatus, isApiSuccess } from './api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryPanel } from './components/dialogs/billing-history-dialog'
+import { StripeEmbeddedCheckoutDialog } from './components/dialogs/stripe-embedded-checkout-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
@@ -167,7 +168,8 @@ export function Wallet(props: WalletProps) {
     setCheckoutCurrency(defaultCurrencyForRegion(topupInfo.client_region))
   }, [topupInfo?.client_region])
 
-  const { processing, processPayment } = usePayment()
+  const { processing, processPayment, embeddedCheckout, closeEmbeddedCheckout } =
+    usePayment()
   const {
     affiliateLink,
     loading: affiliateLoading,
@@ -648,6 +650,7 @@ export function Wallet(props: WalletProps) {
 
       const success = await processPayment(preset.value, 'stripe', {
         stripeCurrency: checkoutCurrency,
+        preferEmbeddedCheckout: true,
       })
       if (success) {
         await fetchUser()
@@ -672,6 +675,17 @@ export function Wallet(props: WalletProps) {
       setShowSubscriptionPanel(available)
     },
     []
+  )
+
+  // Stable so the embedded Stripe Checkout effect (which depends on this
+  // callback) does not re-run and remount the form on every wallet re-render.
+  const handleEmbeddedCheckoutOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        closeEmbeddedCheckout()
+      }
+    },
+    [closeEmbeddedCheckout]
   )
 
   return (
@@ -759,6 +773,11 @@ export function Wallet(props: WalletProps) {
         onConfirm={handleTransfer}
         availableQuota={user?.aff_quota ?? 0}
         transferring={transferring}
+      />
+
+      <StripeEmbeddedCheckoutDialog
+        session={embeddedCheckout}
+        onOpenChange={handleEmbeddedCheckoutOpenChange}
       />
 
       <Dialog open={cardBoundDialogOpen} onOpenChange={setCardBoundDialogOpen}>

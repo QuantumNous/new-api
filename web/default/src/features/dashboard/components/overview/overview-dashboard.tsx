@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
@@ -49,11 +49,20 @@ import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   CardStaggerContainer,
   CardStaggerItem,
 } from '@/components/page-transition'
 import { fetchTokenKey, getApiKeys } from '@/features/keys/api'
 import type { ApiKey } from '@/features/keys/types'
+import { getPricing } from '@/features/pricing/api'
 import {
   useApiInfo,
   useDashboardContentVisibility,
@@ -106,6 +115,7 @@ interface QuickAction {
 interface RequestExample {
   endpoint: string
   model: string
+  kind: ExampleModelKind
   keyName: string
   keyId?: number
   displayKey: string
@@ -139,6 +149,39 @@ function getCurrentOrigin(): string {
   return window.location.origin
 }
 
+const PREFERRED_EXAMPLE_MODELS = [
+  'gpt-4o-mini',
+  'gpt-4.1-mini',
+  'gpt-5-mini',
+  'gpt-4o',
+]
+
+// The example only knows how to demo chat and image generation, so models
+// whose only surfaces are embedding/TTS/video would produce a failing curl.
+// Endpoint tags come from channel config, so this is an exclusion list plus
+// a name heuristic (metadata is not always tagged — gemini-embedding-001
+// carries only ['gemini','openai']); untagged models stay in as chat.
+const EXCLUDED_ENDPOINT_TYPES = ['openai-video', 'embeddings', 'jina-rerank']
+const EXCLUDED_NAME_PATTERN = /(^|[-_.])(embedding|tts|video|seedance)/i
+const IMAGE_NAME_PATTERN = /(^|[-_.])(image|banana)/i
+const CHAT_ENDPOINT_TYPES = [
+  'openai',
+  'openai-response',
+  'openai-response-compact',
+  'anthropic',
+  'gemini',
+]
+
+type ExampleModelKind = 'chat' | 'image'
+
+function pickDefaultModel(models: string[]): string {
+  return (
+    PREFERRED_EXAMPLE_MODELS.find((model) => models.includes(model)) ??
+    models[0] ??
+    'gpt-4o-mini'
+  )
+}
+
 function normalizeEndpoint(sourceUrl?: string): string {
   const fallback = `${getCurrentOrigin()}/v1/chat/completions`
   const trimmed = sourceUrl?.trim()
@@ -152,6 +195,10 @@ function normalizeEndpoint(sourceUrl?: string): string {
     return `${withoutTrailingSlash}/chat/completions`
   }
   return `${withoutTrailingSlash}/v1/chat/completions`
+}
+
+function toImagesEndpoint(chatEndpoint: string): string {
+  return chatEndpoint.replace(/\/chat\/completions$/, '/images/generations')
 }
 
 function getPreferredKey(keys: ApiKey[]): ApiKey | null {
@@ -168,12 +215,19 @@ function buildCurlCommand(args: {
   endpoint: string
   apiKey: string
   model: string
+  kind: ExampleModelKind
 }): string {
+  const endpoint =
+    args.kind === 'image' ? toImagesEndpoint(args.endpoint) : args.endpoint
+  const body =
+    args.kind === 'image'
+      ? `{"model":"${args.model}","prompt":"A cute cat","size":"1024x1024"}`
+      : `{"model":"${args.model}","messages":[{"role":"user","content":"Say hello in one sentence."}]}`
   return [
-    `curl ${args.endpoint} \\`,
+    `curl ${endpoint} \\`,
     '  -H "Content-Type: application/json" \\',
     `  -H "Authorization: Bearer ${args.apiKey}" \\`,
-    `  -d '{"model":"${args.model}","messages":[{"role":"user","content":"Say hello in one sentence."}]}'`,
+    `  -d '${body}'`,
   ].join('\n')
 }
 
@@ -275,6 +329,8 @@ function StartStepItem(props: {
 function RequestPreview(props: {
   example: RequestExample
   signals: HeroSignal[]
+  models: string[]
+  onModelChange: (model: string) => void
 }) {
   const { t } = useTranslation()
   const shouldReduceMotion = useReducedMotion()
@@ -284,24 +340,30 @@ function RequestPreview(props: {
     endpoint: props.example.endpoint,
     apiKey: props.example.displayKey,
     model: props.example.model,
+    kind: props.example.kind,
   })
   const previewLines = previewCurl.split('\n')
   const handleCopyRequest = async () => {
-    if (!props.example.keyId || isCopying) return
+    if (isCopying) return
 
     setIsCopying(true)
     try {
-      const result = await fetchTokenKey(props.example.keyId)
-      const key = result.success && result.data?.key ? result.data.key : ''
-      if (!key) {
-        toast.error(result.message || t('Failed to copy to clipboard'))
-        return
+      let apiKey = 'sk-YOUR_API_KEY'
+      if (props.example.keyId) {
+        const result = await fetchTokenKey(props.example.keyId)
+        const key = result.success && result.data?.key ? result.data.key : ''
+        if (!key) {
+          toast.error(result.message || t('Failed to copy to clipboard'))
+          return
+        }
+        apiKey = `sk-${key}`
       }
 
       const realCurl = buildCurlCommand({
         endpoint: props.example.endpoint,
-        apiKey: `sk-${key}`,
+        apiKey,
         model: props.example.model,
+        kind: props.example.kind,
       })
       const copied = await copyToClipboard(realCurl)
       if (copied) {
@@ -346,23 +408,17 @@ function RequestPreview(props: {
             </div>
           </div>
         </div>
-        {props.example.ready ? (
-          <Button
-            variant='outline'
-            size='sm'
-            className='h-7 gap-1.5 px-2 text-xs'
-            disabled={isCopying}
-            onClick={handleCopyRequest}
-            aria-label={t('Copy ready-to-run curl')}
-          >
-            <Copy data-icon='inline-start' />
-            {isCopying ? t('Loading') : t('Copy')}
-          </Button>
-        ) : (
-          <Button size='sm' variant='outline' render={<Link to='/keys' />}>
-            {t('Create API Key')}
-          </Button>
-        )}
+        <Button
+          variant='outline'
+          size='sm'
+          className='h-7 gap-1.5 px-2 text-xs'
+          disabled={isCopying}
+          onClick={handleCopyRequest}
+          aria-label={t('Copy ready-to-run curl')}
+        >
+          <Copy data-icon='inline-start' />
+          {isCopying ? t('Loading') : t('Copy')}
+        </Button>
       </div>
 
       <div className='bg-foreground/[0.035] my-3 rounded-xl p-3 font-mono text-xs'>
@@ -408,6 +464,46 @@ function RequestPreview(props: {
             </div>
           )
         })}
+
+        <div className='bg-muted/40 flex items-center justify-between gap-3 rounded-xl px-3 py-1.5'>
+          <span className='flex min-w-0 items-center gap-2'>
+            <Timer
+              className='text-muted-foreground size-3.5 shrink-0'
+              aria-hidden='true'
+            />
+            <span className='truncate text-xs font-medium'>
+              {t('Model selected')}
+            </span>
+          </span>
+          <Select
+            value={props.example.model}
+            onValueChange={(value) => {
+              if (typeof value === 'string' && value) {
+                props.onModelChange(value)
+              }
+            }}
+          >
+            <SelectTrigger
+              size='sm'
+              className='text-muted-foreground max-w-48 bg-transparent text-xs'
+              disabled={props.models.length === 0}
+              aria-label={t('Model selected')}
+            >
+              <SelectValue>
+                {props.models.length === 0 ? t('Loading') : props.example.model}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                {props.models.map((model) => (
+                  <SelectItem key={model} value={model}>
+                    {model}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     </motion.div>
   )
@@ -481,15 +577,6 @@ export function OverviewDashboard() {
     staleTime: 60 * 1000,
   })
 
-  const modelsQuery = useQuery({
-    queryKey: ['dashboard', 'overview', 'user-models'],
-    queryFn: async () => {
-      const result = await getUserModels()
-      return result.success ? (result.data ?? []) : []
-    },
-    staleTime: 5 * 60 * 1000,
-  })
-
   const preferredKey = useMemo(
     () => getPreferredKey(apiKeysQuery.data ?? []),
     [apiKeysQuery.data]
@@ -521,6 +608,86 @@ export function OverviewDashboard() {
     ],
     [preferredKey, remainQuota, requestCount, t, usedQuota]
   )
+
+  const completedStepCount = startSteps.filter((step) => step.completed).length
+  const setupComplete = completedStepCount === startSteps.length
+  const setupGuideExpanded = manualSetupGuideExpanded ?? !setupComplete
+
+  // Scope the model list to the group the preferred key actually routes with,
+  // so the example request only offers models this key can call. Both queries
+  // back the request-example card, which only renders inside the setup guide —
+  // keep them off the dashboard's critical path when the guide is collapsed.
+  const modelGroup = preferredKey?.group?.trim() || user?.group || ''
+
+  const modelsQuery = useQuery({
+    queryKey: ['dashboard', 'overview', 'user-models', modelGroup],
+    queryFn: async () => {
+      const result = await getUserModels(modelGroup || undefined)
+      return result.success ? (result.data ?? []) : []
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: setupGuideExpanded,
+  })
+
+  // Shares the pricing page's query cache; only used to read endpoint tags.
+  const pricingQuery = useQuery({
+    queryKey: ['pricing'],
+    queryFn: getPricing,
+    staleTime: 5 * 60 * 1000,
+    enabled: setupGuideExpanded,
+  })
+
+  const modelEndpointTags = useMemo(() => {
+    const tags = new Map<string, string[]>()
+    for (const row of pricingQuery.data?.data ?? []) {
+      tags.set(row.model_name, row.supported_endpoint_types ?? [])
+    }
+    return tags
+  }, [pricingQuery.data])
+
+  const classifyModel = useCallback(
+    (model: string): ExampleModelKind | null => {
+      const types = modelEndpointTags.get(model) ?? []
+      // The name heuristic wins over tags: metadata dirt routinely marks
+      // embedding/TTS models as plain 'openai'.
+      if (EXCLUDED_NAME_PATTERN.test(model)) {
+        return null
+      }
+      if (
+        types.includes('image-generation') ||
+        IMAGE_NAME_PATTERN.test(model)
+      ) {
+        return 'image'
+      }
+      // A multi-endpoint model that can also chat stays demoable — only
+      // models with exclusively non-demoable surfaces get dropped.
+      if (
+        types.length === 0 ||
+        types.some((type) => CHAT_ENDPOINT_TYPES.includes(type))
+      ) {
+        return 'chat'
+      }
+      if (types.some((type) => EXCLUDED_ENDPOINT_TYPES.includes(type))) {
+        return null
+      }
+      return 'chat'
+    },
+    [modelEndpointTags]
+  )
+
+  const availableModels = useMemo(() => {
+    const models = modelsQuery.data ?? []
+    const filtered = models.filter((model) => classifyModel(model) !== null)
+    // Never filter down to an empty dropdown on odd channel metadata.
+    return filtered.length > 0 ? filtered : models
+  }, [classifyModel, modelsQuery.data])
+  const [selectedModel, setSelectedModel] = useState<string | null>(null)
+  const exampleModel = useMemo(() => {
+    if (selectedModel && availableModels.includes(selectedModel)) {
+      return selectedModel
+    }
+    return pickDefaultModel(availableModels)
+  }, [availableModels, selectedModel])
 
   const quickActions = useMemo<QuickAction[]>(
     () => [
@@ -570,34 +737,26 @@ export function OverviewDashboard() {
         value: preferredKey ? t('Secured') : t('Needs API key'),
         icon: ShieldCheck,
       },
-      {
-        label: t('Model selected'),
-        value: modelsQuery.data?.[0] ?? t('Loading'),
-        icon: Timer,
-      },
     ],
-    [apiInfoItems.length, modelsQuery.data, preferredKey, t]
+    [apiInfoItems.length, preferredKey, t]
   )
 
   const requestExample = useMemo<RequestExample>(() => {
     const endpoint = normalizeEndpoint(apiInfoItems[0]?.url)
-    const model = modelsQuery.data?.[0] ?? 'gpt-4o-mini'
     const keyName = preferredKey?.name ?? t('No API key yet')
-    const ready = Boolean(preferredKey?.id && model)
+    const ready = Boolean(preferredKey?.id && exampleModel)
 
     return {
       endpoint,
-      model,
+      model: exampleModel,
+      kind: classifyModel(exampleModel) ?? 'chat',
       keyName,
       keyId: preferredKey?.id,
       displayKey: preferredKey ? formatDisplayKey(`sk-${preferredKey.key}`) : 'sk-...',
       ready,
     }
-  }, [apiInfoItems, modelsQuery.data, preferredKey, t])
+  }, [apiInfoItems, classifyModel, exampleModel, preferredKey, t])
 
-  const completedStepCount = startSteps.filter((step) => step.completed).length
-  const setupComplete = completedStepCount === startSteps.length
-  const setupGuideExpanded = manualSetupGuideExpanded ?? !setupComplete
   const showLeftContentPanels =
     isAdmin || showApiInfoPanel || showAnnouncementsPanel || showFAQPanel
   const showContentPanels = showLeftContentPanels || showUptimePanel
@@ -664,6 +823,8 @@ export function OverviewDashboard() {
                 <RequestPreview
                   example={requestExample}
                   signals={heroSignals}
+                  models={availableModels}
+                  onModelChange={setSelectedModel}
                 />
               </div>
             </div>

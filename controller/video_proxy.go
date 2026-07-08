@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	taskblockrunseedance "github.com/QuantumNous/new-api/relay/channel/task/blockrunseedance"
 	taskjimengzhizinan "github.com/QuantumNous/new-api/relay/channel/task/jimengzhizinan"
+	tasktechmobi "github.com/QuantumNous/new-api/relay/channel/task/techmobi"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
@@ -131,6 +132,8 @@ func VideoProxy(c *gin.Context) {
 		videoURL = taskblockrunseedance.ExtractUpstreamVideoURL(task.Data)
 	case constant.ChannelTypeJimengZhizinan:
 		videoURL = taskjimengzhizinan.ExtractUpstreamVideoURL(task.Data)
+	case constant.ChannelTypeTechMobiVideo:
+		videoURL = tasktechmobi.ExtractUpstreamVideoURL(task.Data)
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()
@@ -181,9 +184,7 @@ func VideoProxy(c *gin.Context) {
 	}
 
 	for key, values := range resp.Header {
-		// Never forward upstream cookies to the public/anonymous client.
-		switch http.CanonicalHeaderKey(key) {
-		case "Set-Cookie", "Set-Cookie2":
+		if !shouldProxyVideoHeader(key) {
 			continue
 		}
 		for _, value := range values {
@@ -195,6 +196,21 @@ func VideoProxy(c *gin.Context) {
 	c.Writer.WriteHeader(resp.StatusCode)
 	if _, err = io.Copy(c.Writer, resp.Body); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to stream video content: %s", err.Error()))
+	}
+}
+
+func shouldProxyVideoHeader(key string) bool {
+	switch http.CanonicalHeaderKey(key) {
+	case "Accept-Ranges",
+		"Content-Disposition",
+		"Content-Length",
+		"Content-Range",
+		"Content-Type",
+		"Etag",
+		"Last-Modified":
+		return true
+	default:
+		return false
 	}
 }
 

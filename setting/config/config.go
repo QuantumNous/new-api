@@ -19,13 +19,25 @@ type ConfigManager struct {
 }
 
 type configModuleSnapshot struct {
-	name   string
-	config interface{}
-	hook   func()
-	lock   sync.Locker
+	name        string
+	config      interface{}
+	hook        func()
+	lock        sync.Locker
+	readLocker  configReadLocker
+	writeLocker configWriteLocker
 }
 
 var GlobalConfig = NewConfigManager()
+
+type configWriteLocker interface {
+	LockConfig()
+	UnlockConfig()
+}
+
+type configReadLocker interface {
+	RLockConfig()
+	RUnlockConfig()
+}
 
 func NewConfigManager() *ConfigManager {
 	return &ConfigManager{
@@ -102,15 +114,19 @@ func (cm *ConfigManager) LoadFromDB(options map[string]string) error {
 
 			// 如果找到配置项，则更新配置
 			if len(configMap) > 0 {
+				readLocker, _ := config.(configReadLocker)
+				writeLocker, _ := config.(configWriteLocker)
 				modules = append(modules, struct {
 					configModuleSnapshot
 					configMap map[string]string
 				}{
 					configModuleSnapshot: configModuleSnapshot{
-						name:   name,
-						config: config,
-						hook:   cm.updateHooks[name],
-						lock:   cm.updateLocks[name],
+						name:        name,
+						config:      config,
+						hook:        cm.updateHooks[name],
+						lock:        cm.updateLocks[name],
+						readLocker:  readLocker,
+						writeLocker: writeLocker,
 					},
 					configMap: configMap,
 				})
@@ -120,7 +136,7 @@ func (cm *ConfigManager) LoadFromDB(options map[string]string) error {
 
 	for _, module := range modules {
 		err := func() error {
-			unlock := lockConfig(module.lock)
+			unlock := lockModuleForWrite(module.configModuleSnapshot)
 			defer unlock()
 			return updateConfigFromMap(module.config, module.configMap)
 		}()
@@ -153,7 +169,7 @@ func (cm *ConfigManager) SaveToDB(updateFunc func(key, value string) error) erro
 
 	for _, module := range modules {
 		configMap, err := func() (map[string]string, error) {
-			unlock := lockConfig(module.lock)
+			unlock := lockModuleForRead(module)
 			defer unlock()
 			return configToMap(module.config)
 		}()
@@ -178,14 +194,34 @@ func (cm *ConfigManager) moduleSnapshots() []configModuleSnapshot {
 
 	modules := make([]configModuleSnapshot, 0, len(cm.configs))
 	for name, config := range cm.configs {
+		readLocker, _ := config.(configReadLocker)
+		writeLocker, _ := config.(configWriteLocker)
 		modules = append(modules, configModuleSnapshot{
-			name:   name,
-			config: config,
-			hook:   cm.updateHooks[name],
-			lock:   cm.updateLocks[name],
+			name:        name,
+			config:      config,
+			hook:        cm.updateHooks[name],
+			lock:        cm.updateLocks[name],
+			readLocker:  readLocker,
+			writeLocker: writeLocker,
 		})
 	}
 	return modules
+}
+
+func lockModuleForWrite(module configModuleSnapshot) func() {
+	if module.writeLocker != nil {
+		module.writeLocker.LockConfig()
+		return module.writeLocker.UnlockConfig
+	}
+	return lockConfig(module.lock)
+}
+
+func lockModuleForRead(module configModuleSnapshot) func() {
+	if module.readLocker != nil {
+		module.readLocker.RLockConfig()
+		return module.readLocker.RUnlockConfig
+	}
+	return lockConfig(module.lock)
 }
 
 func lockConfig(lock sync.Locker) func() {
@@ -458,7 +494,7 @@ func (cm *ConfigManager) ExportAllConfigs() map[string]string {
 
 	for _, module := range modules {
 		configMap, err := func() (map[string]string, error) {
-			unlock := lockConfig(module.lock)
+			unlock := lockModuleForRead(module)
 			defer unlock()
 			return ConfigToMap(module.config)
 		}()

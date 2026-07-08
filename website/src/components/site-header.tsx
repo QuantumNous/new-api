@@ -6,14 +6,13 @@ import { useEffect, useState } from "react";
 import { FlatkeyBrandLogo } from "@/components/flatkey-brand-logo";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { NotificationPopover } from "@/components/notification-popover";
-import { ThemeSwitch } from "@/components/theme-switch";
 import { getCopy } from "@/lib/copy";
 import { type Locale, localizePath, stripLocale } from "@/lib/locales";
 import { consoleUrl } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 
-const SIGN_IN_URL = consoleUrl("/sign-in");
-const CONSOLE_URL = consoleUrl("/dashboard");
+// Console links carry ?lng=<locale> so the console SPA (i18next querystring
+// detector) opens in the language the visitor picked on the website.
 const useCaseItems = [
   { href: "/use-case/codex", label: "Codex" },
   { href: "/use-case/claude-code", label: "Claude Code" },
@@ -39,15 +38,19 @@ type Props = {
 
 export function SiteHeader(props: Props) {
   const copy = getCopy(props.locale);
+  const consoleHref = consoleUrl("/dashboard", `lng=${props.locale}`);
+  const signInHref = consoleUrl("/sign-in", `lng=${props.locale}`);
   const useCaseLabel = useCaseLabelByLocale[props.locale] ?? useCaseLabelByLocale.en;
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const navItems = [
     { href: "/", label: copy.nav.home, publicPath: true },
-    { href: CONSOLE_URL, label: copy.nav.console, publicPath: false },
     { href: "/blog", label: copy.nav.blog, publicPath: true },
     { href: "/pricing", label: copy.nav.pricing, publicPath: true },
     { href: "/models", label: copy.nav.modelPricing, publicPath: true },
+    // Rankings is the website's own daily-updated data page (same pipeline
+    // as the console chart) — the single public rankings surface.
+    { href: "/rankings", label: copy.nav.rankings, publicPath: true },
   ];
   const currentPath = stripLocale(props.pathname);
 
@@ -134,6 +137,15 @@ export function SiteHeader(props: Props) {
                   </div>
                 </div>
               </div>
+              <Link
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200",
+                  currentPath === "/contact" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+                href={localizePath("/contact", props.locale)}
+              >
+                {copy.nav.contact}
+              </Link>
 
               <div className="mx-2 h-4 w-px bg-border/40" />
               <LanguageSwitcher
@@ -141,19 +153,23 @@ export function SiteHeader(props: Props) {
                 pathname={props.pathname}
                 cookieDomain={props.languageCookieDomain}
               />
-              <ThemeSwitch locale={props.locale} />
               <NotificationPopover locale={props.locale} />
               <div className="mx-1 h-4 w-px bg-border/40" />
               <a
+                className="inline-flex h-8 items-center justify-center rounded-lg border border-border/70 px-3.5 text-xs font-medium text-foreground/80 transition-colors hover:border-border hover:text-foreground"
+                href={consoleHref}
+              >
+                {copy.nav.console}
+              </a>
+              <a
                 className="flatkey-primary-cta inline-flex h-8 items-center justify-center rounded-lg px-3.5 text-xs font-medium transition-opacity hover:opacity-90 active:opacity-80"
-                href={SIGN_IN_URL}
+                href={signInHref}
               >
                 {copy.nav.signIn}
               </a>
             </div>
 
             <div className="flex items-center gap-2 sm:hidden">
-              <ThemeSwitch locale={props.locale} />
               <button
                 type="button"
                 className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -232,6 +248,18 @@ export function SiteHeader(props: Props) {
                 </Link>
               ))}
             </div>
+            <Link
+              href={localizePath("/contact", props.locale)}
+              onClick={() => setMobileOpen(false)}
+              className={cn(
+                "flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                mobileOpen ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
+                currentPath === "/contact" ? "text-foreground" : "text-muted-foreground"
+              )}
+              style={{ transitionDelay: mobileOpen ? `${150 + navItems.length * 50}ms` : "0ms" }}
+            >
+              {copy.nav.contact}
+            </Link>
           </nav>
 
           <div
@@ -242,7 +270,13 @@ export function SiteHeader(props: Props) {
             style={{ transitionDelay: mobileOpen ? "250ms" : "0ms" }}
           >
             <a
-              href={SIGN_IN_URL}
+              href={consoleHref}
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-border/70 text-sm font-medium text-foreground/80 transition-colors hover:border-border hover:text-foreground"
+            >
+              {copy.nav.console}
+            </a>
+            <a
+              href={signInHref}
               className="flatkey-primary-cta inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80"
             >
               {copy.nav.signIn}
