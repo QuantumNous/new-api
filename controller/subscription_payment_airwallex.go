@@ -50,6 +50,10 @@ var airwallexMethodNames = map[string][]string{
 	model.PaymentMethodWeChat:    {"wechatpay"},
 }
 
+// getBillingSubscription is a seam so webhook tests can resolve a subscription
+// without a live Airwallex call.
+var getBillingSubscription = airwallex.GetBillingSubscription
+
 func airwallexConfigured() string {
 	if !setting.AirwallexEnabled {
 		return "Airwallex 未启用"
@@ -330,19 +334,24 @@ func AirwallexWebhook(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
+	var handlerErr error
 	switch event.Name {
-	case "payment_consent.verified":
-		handleAirwallexConsentVerified(c, event, body)
-	case "subscription.active":
-		handleAirwallexSubscriptionActive(c, event, body)
-	case "subscription.unpaid", "subscription.cancelled":
+	case "billing_checkout.completed":
+		handlerErr = handleAirwallexBillingCheckoutCompleted(c, event)
+	case "invoice.paid":
+		handlerErr = handleAirwallexInvoicePaid(c, event)
+	case "subscription.cancelled", "subscription.unpaid":
 		logger.LogInfo(ctx, fmt.Sprintf("Airwallex webhook %s: subscription=%v (term-end downgrade is engine-native)", event.Name, event.Data.Object["id"]))
 	case "payment_intent.succeeded":
-		handleAirwallexIntentSucceeded(c, event, body)
+		handlerErr = handleAirwallexIntentSucceeded(c, event, body)
 	default:
 		logger.LogInfo(ctx, "Airwallex webhook ignored event: "+event.Name)
 	}
-	// Always 200 after signature-valid processing; Airwallex retries non-2xx.
+	if handlerErr != nil {
+		logger.LogError(ctx, fmt.Sprintf("Airwallex webhook handler failed event=%s err=%v", event.Name, handlerErr))
+		c.JSON(http.StatusInternalServerError, gin.H{"received": false})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"received": true})
 }
 
@@ -362,91 +371,84 @@ func airwallexObjectMetadata(obj map[string]any, key string) string {
 	return ""
 }
 
-// handleAirwallexConsentVerified: HPP recurring checkout produced a verified
-// merchant-triggered consent → create the managed Subscription for the user's
-// latest pending Airwallex order. subscription.active then completes the order.
-func handleAirwallexConsentVerified(c *gin.Context, event airwallexEvent, raw []byte) {
-	ctx := c.Request.Context()
-	consentId := airwallexObjectString(event.Data.Object, "id")
-	customerId := airwallexObjectString(event.Data.Object, "customer_id")
-	if consentId == "" || customerId == "" {
-		return
-	}
-	customer, err := airwallex.GetCustomer(customerId)
-	if err != nil {
-		logger.LogError(ctx, "Airwallex consent.verified: 客户查询失败 "+err.Error())
-		return
-	}
-	userId, err := strconv.Atoi(customer.MerchantCustomerId)
-	if err != nil || userId <= 0 {
-		logger.LogError(ctx, "Airwallex consent.verified: 无法映射用户 merchant_customer_id="+customer.MerchantCustomerId)
-		return
-	}
-	order := model.GetLatestPendingSubscriptionOrder(userId, model.PaymentProviderAirwallex)
-	if order == nil {
-		logger.LogInfo(ctx, fmt.Sprintf("Airwallex consent.verified: 用户 %d 无待支付订阅订单，忽略", userId))
-		return
-	}
-	if order.PaymentMethod == model.PaymentMethodWeChat {
-		return // one-off branch never uses consents
-	}
-	plan, err := model.GetSubscriptionPlanById(order.PlanId)
-	if err != nil || plan.AirwallexPriceId == "" {
-		logger.LogError(ctx, fmt.Sprintf("Airwallex consent.verified: 订单 %s 套餐无效", order.TradeNo))
-		return
-	}
-	_, err = airwallex.CreateSubscription(&airwallex.CreateSubscriptionRequest{
-		RequestId:        order.TradeNo + "-sub",
-		CustomerId:       customerId,
-		PaymentConsentId: consentId,
-		Items:            []airwallex.SubscriptionItem{{PriceId: plan.AirwallexPriceId}},
-		Recurring:        &airwallex.SubscriptionRecurring{Period: plan.DurationValue, PeriodUnit: strings.ToUpper(plan.DurationUnit)},
-		Metadata:         map[string]string{"trade_no": order.TradeNo, "new_api_user_id": strconv.Itoa(userId)},
-	})
-	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("Airwallex 订阅创建失败 trade_no=%s error=%q", order.TradeNo, err.Error()))
-		return
-	}
-	logger.LogInfo(ctx, fmt.Sprintf("Airwallex 订阅已创建 trade_no=%s consent=%s", order.TradeNo, consentId))
-}
-
-// handleAirwallexSubscriptionActive completes the pending order on first
-// activation; a later cycle's event for an already-completed trade_no opens
-// the next paid order so the engine extends the term (vendor-side renewal).
-func handleAirwallexSubscriptionActive(c *gin.Context, event airwallexEvent, raw []byte) {
+// handleAirwallexBillingCheckoutCompleted handles the billing_checkout.completed
+// event. It resolves trade_no from the event object metadata (falling back to a
+// re-fetch if absent) and completes the pending subscription order.
+func handleAirwallexBillingCheckoutCompleted(c *gin.Context, event airwallexEvent) error {
 	ctx := c.Request.Context()
 	tradeNo := airwallexObjectMetadata(event.Data.Object, "trade_no")
 	if tradeNo == "" {
-		// The event object is slim (no metadata) — re-fetch the subscription.
-		if subId := airwallexObjectString(event.Data.Object, "id"); subId != "" {
-			if sub, err := airwallex.GetSubscription(subId); err == nil && sub.Metadata != nil {
-				tradeNo = sub.Metadata["trade_no"]
-			} else if err != nil {
-				logger.LogError(ctx, "Airwallex subscription.active: 订阅查询失败 "+err.Error())
+		// Slim webhook object — re-fetch by checkout id.
+		checkoutId := airwallexObjectString(event.Data.Object, "id")
+		if checkoutId != "" {
+			co, err := airwallex.GetBillingCheckout(checkoutId)
+			if err != nil {
+				return fmt.Errorf("Airwallex billing_checkout.completed: 重新获取checkout失败 id=%s: %w", checkoutId, err)
+			}
+			if co.Metadata != nil {
+				tradeNo = co.Metadata["trade_no"]
 			}
 		}
 	}
 	if tradeNo == "" {
-		logger.LogInfo(ctx, "Airwallex subscription.active without trade_no metadata, ignored")
-		return
+		logger.LogInfo(ctx, "Airwallex billing_checkout.completed: 无 trade_no metadata，忽略")
+		return nil
 	}
 	payload := common.GetJsonString(event.Data.Object)
-	err := model.CompleteSubscriptionOrder(tradeNo, payload, model.PaymentProviderAirwallex, "")
-	if err == nil {
-		logger.LogInfo(ctx, "Airwallex 订阅订单完成 trade_no="+tradeNo)
-		return
+	if err := model.CompleteSubscriptionOrder(tradeNo, payload, model.PaymentProviderAirwallex, ""); err != nil {
+		if err == model.ErrSubscriptionOrderNotFound {
+			logger.LogInfo(ctx, "Airwallex billing_checkout.completed: 订单未找到 trade_no="+tradeNo+"，忽略")
+			return nil
+		}
+		return fmt.Errorf("Airwallex billing_checkout.completed 处理失败 trade_no=%s: %w", tradeNo, err)
 	}
-	orig := model.GetSubscriptionOrderByTradeNo(tradeNo)
-	if orig != nil && orig.Status == common.TopUpStatusSuccess {
-		renewAirwallexSubscription(c, orig, payload)
-		return
-	}
-	logger.LogError(ctx, fmt.Sprintf("Airwallex subscription.active 处理失败 trade_no=%s error=%v", tradeNo, err))
+	logger.LogInfo(ctx, "Airwallex 订阅订单完成 trade_no="+tradeNo)
+	return nil
 }
 
-// renewAirwallexSubscription inserts + completes the next cycle's paid order.
-// Trade no is derived from the original + billing month, so webhook retries stay idempotent.
-func renewAirwallexSubscription(c *gin.Context, orig *model.SubscriptionOrder, payload string) {
+// handleAirwallexInvoicePaid handles the invoice.paid event. The invoice object
+// carries no metadata, so trade_no is resolved via the managed subscription
+// (getBillingSubscription seam allows override in tests). First-cycle invoices
+// are skipped (already activated by billing_checkout.completed); subsequent
+// cycles trigger renewal order creation and completion.
+func handleAirwallexInvoicePaid(c *gin.Context, event airwallexEvent) error {
+	ctx := c.Request.Context()
+	subId := airwallexObjectString(event.Data.Object, "subscription_id")
+	if subId == "" {
+		logger.LogInfo(ctx, "Airwallex invoice.paid: 无 subscription_id，忽略")
+		return nil
+	}
+	sub, err := getBillingSubscription(subId)
+	if err != nil {
+		return fmt.Errorf("Airwallex invoice.paid: 订阅查询失败 sub=%s: %w", subId, err)
+	}
+	tradeNo := ""
+	if sub.Metadata != nil {
+		tradeNo = sub.Metadata["trade_no"]
+	}
+	if tradeNo == "" {
+		logger.LogInfo(ctx, "Airwallex invoice.paid: 无 trade_no metadata sub="+subId+"，忽略")
+		return nil
+	}
+	orig := model.GetSubscriptionOrderByTradeNo(tradeNo)
+	if orig == nil {
+		logger.LogInfo(ctx, "Airwallex invoice.paid: 订单未找到 trade_no="+tradeNo+"，忽略")
+		return nil
+	}
+	if orig.Status != common.TopUpStatusSuccess {
+		// First cycle — billing_checkout.completed already handles activation.
+		logger.LogInfo(ctx, "Airwallex invoice.paid: 首次周期，跳过（由 billing_checkout.completed 激活）trade_no="+tradeNo)
+		return nil
+	}
+	// Subsequent cycle — create and complete the renewal order.
+	payload := common.GetJsonString(event.Data.Object)
+	return renewAirwallexSubscriptionBilling(c, orig, payload)
+}
+
+// renewAirwallexSubscriptionBilling inserts + completes the next cycle's paid
+// order. Trade no is derived from the original + billing month, so webhook
+// retries stay idempotent. Returns error so callers receive 500 on DB failure.
+func renewAirwallexSubscriptionBilling(c *gin.Context, orig *model.SubscriptionOrder, payload string) error {
 	ctx := c.Request.Context()
 	period := time.Now().UTC().Format("200601")
 	renewTradeNo := fmt.Sprintf("%s-r%s", orig.TradeNo, period)
@@ -462,20 +464,19 @@ func renewAirwallexSubscription(c *gin.Context, orig *model.SubscriptionOrder, p
 			Status:          common.TopUpStatusPending,
 		}
 		if err := order.Insert(); err != nil {
-			logger.LogError(ctx, fmt.Sprintf("Airwallex 续费订单创建失败 trade_no=%s error=%q", renewTradeNo, err.Error()))
-			return
+			return fmt.Errorf("Airwallex 续费订单创建失败 trade_no=%s: %w", renewTradeNo, err)
 		}
 	}
 	if err := model.CompleteSubscriptionOrder(renewTradeNo, payload, model.PaymentProviderAirwallex, ""); err != nil {
-		logger.LogError(ctx, fmt.Sprintf("Airwallex 续费订单完成失败 trade_no=%s error=%v", renewTradeNo, err))
-		return
+		return fmt.Errorf("Airwallex 续费订单完成失败 trade_no=%s: %w", renewTradeNo, err)
 	}
 	logger.LogInfo(ctx, "Airwallex 订阅续费完成 trade_no="+renewTradeNo)
+	return nil
 }
 
 // handleAirwallexIntentSucceeded completes one-off orders (the WeChat
 // manual-renew branch; Stage-2 wallet top-ups will branch here by trade_no).
-func handleAirwallexIntentSucceeded(c *gin.Context, event airwallexEvent, raw []byte) {
+func handleAirwallexIntentSucceeded(c *gin.Context, event airwallexEvent, raw []byte) error {
 	ctx := c.Request.Context()
 	tradeNo := airwallexObjectMetadata(event.Data.Object, "trade_no")
 	if tradeNo == "" {
@@ -483,14 +484,15 @@ func handleAirwallexIntentSucceeded(c *gin.Context, event airwallexEvent, raw []
 	}
 	if !strings.HasPrefix(tradeNo, "sub_ref_") {
 		logger.LogInfo(ctx, "Airwallex payment_intent.succeeded 非订阅订单，忽略 trade_no="+tradeNo)
-		return
+		return nil
 	}
 	payload := common.GetJsonString(event.Data.Object)
 	if err := model.CompleteSubscriptionOrder(tradeNo, payload, model.PaymentProviderAirwallex, ""); err != nil {
-		if err != model.ErrSubscriptionOrderNotFound {
-			logger.LogError(ctx, fmt.Sprintf("Airwallex payment_intent.succeeded 处理失败 trade_no=%s error=%v", tradeNo, err))
+		if err == model.ErrSubscriptionOrderNotFound {
+			return nil
 		}
-		return
+		return fmt.Errorf("Airwallex payment_intent.succeeded 处理失败 trade_no=%s: %w", tradeNo, err)
 	}
 	logger.LogInfo(ctx, "Airwallex 一次性订阅订单完成 trade_no="+tradeNo)
+	return nil
 }
