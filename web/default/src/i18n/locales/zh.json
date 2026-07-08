@@ -5274,8 +5274,7 @@
     "Card / Billing": "卡 / 账单",
     "Cardholder": "持卡人",
     "opened": "开台",
-    "tried": "试卡",
-    "Shown": "展示的支付方式"
+    "tried": "试卡"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "已达 Stripe 拉取上限——以下数据被截断，指标偏低。请缩小天数范围以获得完整数据。",
   "Complete your top-up": "完成充值",

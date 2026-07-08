@@ -5274,8 +5274,7 @@
     "Card / Billing": "Carte / Facturation",
     "Cardholder": "Titulaire",
     "opened": "ouvertes",
-    "tried": "essais",
-    "Shown": "Méthodes affichées"
+    "tried": "essais"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Limite de récupération Stripe atteinte — les données ci-dessous sont tronquées et les indicateurs sous-estimés. Réduisez la plage de jours pour des chiffres complets.",
   "Complete your top-up": "Finalisez votre recharge",

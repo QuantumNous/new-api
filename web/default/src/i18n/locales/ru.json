@@ -5274,8 +5274,7 @@
     "Card / Billing": "Карта / Платёж",
     "Cardholder": "Держатель карты",
     "opened": "открыто",
-    "tried": "попыток",
-    "Shown": "Показанные способы"
+    "tried": "попыток"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Достигнут лимит выборки Stripe — данные ниже усечены, а метрики занижены. Сузьте диапазон дней для полных цифр.",
   "Complete your top-up": "Завершите пополнение",

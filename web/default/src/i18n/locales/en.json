@@ -5274,8 +5274,7 @@
     "Card / Billing": "Card / Billing",
     "Cardholder": "Cardholder",
     "opened": "opened",
-    "tried": "tried",
-    "Shown": "Shown"
+    "tried": "tried"
   },
   "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.": "Stripe fetch limit reached — data below is truncated and metrics undercount. Narrow the day range for complete numbers.",
   "Complete your top-up": "Complete your top-up",

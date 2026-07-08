@@ -444,7 +444,6 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
             <TableHead>{t('Stuck At')}</TableHead>
             <TableHead>{t('Attempts')}</TableHead>
             <TableHead>{t('Card / Billing')}</TableHead>
-            <TableHead>{t('IP / Language')}</TableHead>
             <TableHead>{t('Source')}</TableHead>
             <TableHead className='text-right'>{t('Usage')}</TableHead>
           </TableRow>
@@ -455,8 +454,8 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
               <TableCell className='whitespace-nowrap'>
                 {shortTime(row.last_at)}
               </TableCell>
-              <TableCell className='whitespace-nowrap'>
-                <div>
+              <TableCell className='max-w-40 whitespace-normal'>
+                <div className='break-all'>
                   {row.email}{' '}
                   <span className='text-muted-foreground text-xs'>
                     #{row.user_id}
@@ -491,7 +490,7 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
                   </div>
                 )}
               </TableCell>
-              <TableCell className='max-w-36'>
+              <TableCell className='max-w-36 break-words whitespace-normal'>
                 <div>
                   {(row.amounts ?? [])
                     .map((a) => `${a.name}\u00d7${a.count}`)
@@ -502,48 +501,40 @@ function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
                   {row.succeeded > 0 && ` / ${row.succeeded} OK`}
                 </div>
               </TableCell>
-              <TableCell className='max-w-40'>
-                {row.attempts > 0 ? (
-                  <div>
-                    {(row.card_country ?? [])
-                      .map((cc) => countryLabel(cc, i18n.language))
-                      .join(' ') || '-'}
-                    {(row.billing_cc ?? []).length > 0 && (
-                      <span className='text-muted-foreground text-xs'>
-                        {' '}
-                        / {(row.billing_cc ?? []).join(',')}
-                      </span>
-                    )}
-                    {(row.card_brands ?? []).length > 0 && (
-                      <span className='text-muted-foreground text-xs'>
-                        {' '}
-                        {(row.card_brands ?? []).join(' ')}
-                      </span>
-                    )}
-                  </div>
-                ) : null}
-                <div className='text-muted-foreground text-xs'>
-                  {(row.methods ?? []).length > 0 &&
-                    `${t('Shown')}: ${(row.methods ?? []).join('+')}`}
-                </div>
-              </TableCell>
-              <TableCell className='whitespace-nowrap'>
-                <div className='font-mono text-xs'>
-                  {row.last_ip ? (
-                    <a
-                      href={`https://ipinfo.io/${row.last_ip}`}
-                      target='_blank'
-                      rel='noreferrer'
-                      className='underline decoration-dotted'
-                    >
-                      {row.last_ip}
-                    </a>
-                  ) : (
-                    '-'
+              <TableCell className='max-w-44 break-words whitespace-normal'>
+                <div>
+                  {row.attempts > 0 &&
+                    [
+                      (row.card_country ?? [])
+                        .map((cc) => countryLabel(cc, i18n.language))
+                        .join(' '),
+                      (row.card_brands ?? []).join(' '),
+                      (row.billing_cc ?? []).join(','),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  {(row.methods ?? []).length > 0 && (
+                    <span className='text-muted-foreground'>
+                      {row.attempts > 0 ? ' · ' : ''}
+                      {(row.methods ?? []).join('+')}
+                    </span>
                   )}
                 </div>
-                <div className='text-xs'>
+                <div className='text-muted-foreground'>
                   {countryLabel(row.ip_country, i18n.language) || '-'}
+                  {row.last_ip && (
+                    <>
+                      {' '}
+                      <a
+                        href={`https://ipinfo.io/${row.last_ip}`}
+                        target='_blank'
+                        rel='noreferrer'
+                        className='font-mono underline decoration-dotted'
+                      >
+                        {row.last_ip}
+                      </a>
+                    </>
+                  )}
                   {row.browser_lang && (
                     <Badge variant='secondary' className='ml-1'>
                       {row.browser_lang}
