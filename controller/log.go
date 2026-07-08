@@ -67,6 +67,34 @@ func GetUserLogs(c *gin.Context) {
 	return
 }
 
+func GetLogRequestSamples(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	logId, _ := strconv.Atoi(c.Query("log_id"))
+	userId, _ := strconv.Atoi(c.Query("user_id"))
+	tokenId, _ := strconv.Atoi(c.Query("token_id"))
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	samples, total, err := model.ListLogRequestSamples(model.LogRequestSampleQuery{
+		LogId:          logId,
+		UserId:         userId,
+		TokenId:        tokenId,
+		StartTimestamp: startTimestamp,
+		EndTimestamp:   endTimestamp,
+		ModelName:      c.Query("model_name"),
+		UserGroup:      c.Query("group"),
+		RequestPath:    c.Query("request_path"),
+		RequestId:      c.Query("request_id"),
+	}, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(samples)
+	common.ApiSuccess(c, pageInfo)
+	return
+}
+
 // Deprecated: SearchAllLogs 已废弃，前端未使用该接口。
 func SearchAllLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
