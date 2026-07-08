@@ -8,6 +8,7 @@ import {
 test('extractVideoSecondsPriceMap returns video seconds prices for visual editor', () => {
   const result = extractVideoSecondsPriceMap(`{
     "happyhorse-1.1-r2v": {
+      "480p": { "default": 0.5, "audio": 0.7 },
       "720p": { "default": 0.9, "silent": 0.6 },
       "1080p": { "default": 1.2, "audio": 1.5 },
       "2k": { "default": 1.8 },
@@ -17,6 +18,8 @@ test('extractVideoSecondsPriceMap returns video seconds prices for visual editor
 
   assert.deepEqual(result, {
     'happyhorse-1.1-r2v': {
+      '480p_default': 0.5,
+      '480p_audio': 0.7,
       '720p_default': 0.9,
       '720p_silent': 0.6,
       '1080p_default': 1.2,
@@ -36,6 +39,8 @@ test('buildVideoSecondsPriceValueFromModelMap preserves unrelated models and upd
 
   const result = buildVideoSecondsPriceValueFromModelMap(raw, {
     'happyhorse-1.1-r2v': {
+      '480p_default': 0.5,
+      '480p_audio': 0.7,
       '720p_default': 0.9,
       '720p_silent': 0.6,
       '1080p_default': 1.2,
@@ -50,6 +55,7 @@ test('buildVideoSecondsPriceValueFromModelMap preserves unrelated models and upd
       '720p': { default: 0.4 },
     },
     'happyhorse-1.1-r2v': {
+      '480p': { default: 0.5, audio: 0.7 },
       '720p': { default: 0.9, silent: 0.6 },
       '1080p': { default: 1.2, audio: 1.5 },
       '2k': { default: 1.8 },
@@ -71,6 +77,9 @@ test('buildVideoSecondsPriceValueFromModelMap deletes a model when all controlle
 
   const result = buildVideoSecondsPriceValueFromModelMap(raw, {
     'happyhorse-1.1-r2v': {
+      '480p_default': null,
+      '480p_silent': null,
+      '480p_audio': null,
       '720p_default': null,
       '720p_silent': null,
       '720p_audio': null,
@@ -104,6 +113,8 @@ test('buildVideoSecondsPriceValueFromModelMap preserves unknown tiers for edited
 
   const result = buildVideoSecondsPriceValueFromModelMap(raw, {
     'happyhorse-1.1-r2v': {
+      '480p_default': 0.4,
+      '480p_silent': 0.3,
       '720p_default': 1.0,
       '720p_silent': 0.7,
       '1080p_default': 1.3,
@@ -116,6 +127,7 @@ test('buildVideoSecondsPriceValueFromModelMap preserves unknown tiers for edited
   assert.deepEqual(JSON.parse(result), {
     'happyhorse-1.1-r2v': {
       '8k': { default: 2.4 },
+      '480p': { default: 0.4, silent: 0.3 },
       '2k': { default: 2.0, audio: 2.3 },
       '720p': { default: 1.0, silent: 0.7 },
       '1080p': { default: 1.3, audio: 1.6 },

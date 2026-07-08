@@ -37,6 +37,7 @@ export const PAGE_SIZE = 10;
 export const PRICE_SUFFIX = '$/1M tokens';
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
 const VIDEO_SECONDS_TIER_FIELD_PREFIX = {
+  '480p': 'videoSeconds480p',
   '720p': 'videoSeconds720p',
   '1080p': 'videoSeconds1080p',
   '2k': 'videoSeconds2k',

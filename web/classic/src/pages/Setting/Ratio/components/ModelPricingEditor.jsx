@@ -57,6 +57,7 @@ import TieredPricingEditor from './TieredPricingEditor';
 const { Text } = Typography;
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
 const VIDEO_SECONDS_TIER_FIELD_PREFIX = {
+  '480p': 'videoSeconds480p',
   '720p': 'videoSeconds720p',
   '1080p': 'videoSeconds1080p',
   '2k': 'videoSeconds2k',
@@ -497,7 +498,7 @@ export default function ModelPricingEditor({
                       <div className='font-medium'>{t('视频按秒价格')}</div>
                       <div className='text-xs text-gray-500 mt-1'>
                         {t(
-                          '按模型配置 720p / 1080p / 2k / 4k 档位价格，default 为默认价，silent 为 audio=false 时的静音价，audio 为显式有声价。',
+                          '按模型配置 480p / 720p / 1080p / 2k / 4k 档位价格，default 为默认价，silent 为 audio=false 时的静音价，audio 为显式有声价。',
                         )}
                       </div>
                     </div>

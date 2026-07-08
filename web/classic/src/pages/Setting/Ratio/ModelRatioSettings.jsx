@@ -168,10 +168,10 @@ export default function ModelRatioSettings(props) {
             <Form.TextArea
               label={t('视频按秒价格')}
               extraText={t(
-                '一个 JSON 文本，键为模型名称，值为档位价格表，例如 720p / 1080p / 2k / 4k 以及 default / silent / audio',
+                '一个 JSON 文本，键为模型名称，值为档位价格表，例如 480p / 720p / 1080p / 2k / 4k 以及 default / silent / audio',
               )}
               placeholder={t(
-                '例如：{"happyhorse-1.1-r2v":{"720p":{"default":0.9,"silent":0.6},"1080p":{"default":1.2,"silent":0.8},"2k":{"default":1.8},"4k":{"silent":2.6}}}',
+                '例如：{"happyhorse-1.1-r2v":{"480p":{"default":0.5},"720p":{"default":0.9,"silent":0.6},"1080p":{"default":1.2,"silent":0.8},"2k":{"default":1.8},"4k":{"silent":2.6}}}',
               )}
               field={'VideoSecondsPrice'}
               autosize={{ minRows: 6, maxRows: 12 }}

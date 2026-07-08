@@ -1,4 +1,10 @@
-export const VIDEO_SECONDS_CONTROLLED_TIERS = ['720p', '1080p', '2k', '4k'];
+export const VIDEO_SECONDS_CONTROLLED_TIERS = [
+  '480p',
+  '720p',
+  '1080p',
+  '2k',
+  '4k',
+];
 export const VIDEO_SECONDS_CONTROLLED_PRICE_KEYS = [
   'default',
   'silent',
