@@ -294,6 +294,10 @@ func migrateDB() error {
 		&FeedbackImage{},
 		&PerfMetric{},
 		&MediaStorageStats{},
+		&CanvasPrompt{},
+		&CanvasProject{},
+		&CanvasAsset{},
+		&CanvasStorageUsage{},
 	)
 	if err != nil {
 		return err

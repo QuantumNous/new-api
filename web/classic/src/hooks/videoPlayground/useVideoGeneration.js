@@ -14,6 +14,8 @@ import {
   showError,
   processGroupsData,
   processModelsData,
+  getUserModelsCached,
+  cachedGet,
 } from '../../helpers';
 import {
   VIDEO_API_ENDPOINTS,
@@ -248,10 +250,10 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
 
   const loadPricing = useCallback(async () => {
     try {
-      const res = await API.get(VIDEO_API_ENDPOINTS.PRICING, {
-        skipErrorHandler: true,
+      const payload = await cachedGet(VIDEO_API_ENDPOINTS.PRICING, {
+        config: { skipErrorHandler: true },
       });
-      const { success, data } = res.data || {};
+      const { success, data } = payload || {};
       if (!success || !Array.isArray(data)) return;
       const groupsMap = new Map();
       data.forEach((item) => {
@@ -266,8 +268,9 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
 
   const loadGroups = useCallback(async () => {
     try {
-      const res = await API.get(VIDEO_API_ENDPOINTS.USER_GROUPS);
-      const { success, data } = res.data;
+      const { success, data } = await cachedGet(
+        VIDEO_API_ENDPOINTS.USER_GROUPS,
+      );
       if (!success) return;
       const userGroup =
         userState?.user?.group ||
@@ -292,13 +295,7 @@ export const useVideoGeneration = ({ mode = 'text2video' } = {}) => {
 
   const loadModels = useCallback(async () => {
     try {
-      const groupParam = inputs.group
-        ? `?group=${encodeURIComponent(inputs.group)}`
-        : '';
-      const res = await API.get(
-        `${VIDEO_API_ENDPOINTS.USER_MODELS}${groupParam}`,
-      );
-      const { success, data } = res.data;
+      const { success, data } = await getUserModelsCached(inputs.group);
       if (!success) return;
       let list = Array.isArray(data) ? data : [];
       list = list.filter((m) => videoModelSet.has(m));

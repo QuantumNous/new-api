@@ -1,8 +1,9 @@
 FRONTEND_DIR = ./web/default
 FRONTEND_CLASSIC_DIR = ./web/classic
+FRONTEND_CANVAS_DIR = ./web/canvas
 BACKEND_DIR = .
 
-.PHONY: all build-frontend build-frontend-classic build-all-frontends start-backend dev dev-api dev-web dev-web-classic
+.PHONY: all build-frontend build-frontend-classic build-frontend-canvas build-all-frontends start-backend dev dev-api dev-web dev-web-classic
 
 all: build-all-frontends start-backend
 
@@ -14,7 +15,11 @@ build-frontend-classic:
 	@echo "Building classic frontend..."
 	@cd $(FRONTEND_CLASSIC_DIR) && bun install && VITE_REACT_APP_VERSION=$(cat ../../VERSION) bun run build
 
-build-all-frontends: build-frontend build-frontend-classic
+build-frontend-canvas:
+	@echo "Building canvas frontend..."
+	@cd $(FRONTEND_CANVAS_DIR) && bun install && NEXT_PUBLIC_BUILTIN_MODE=1 bun run build
+
+build-all-frontends: build-frontend build-frontend-classic build-frontend-canvas
 
 start-backend:
 	@echo "Starting backend dev server..."

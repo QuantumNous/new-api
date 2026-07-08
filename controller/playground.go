@@ -22,6 +22,17 @@ func PlaygroundImage(c *gin.Context) {
 	playgroundRelay(c, types.RelayFormatOpenAIImage)
 }
 
+// PlaygroundResponses relays an OpenAI Responses request (canvas assistant,
+// streaming) on behalf of the logged-in user (session auth).
+func PlaygroundResponses(c *gin.Context) {
+	playgroundRelay(c, types.RelayFormatOpenAIResponses)
+}
+
+// PlaygroundAudioSpeech relays a TTS request on behalf of the logged-in user (session auth).
+func PlaygroundAudioSpeech(c *gin.Context) {
+	playgroundRelay(c, types.RelayFormatOpenAIAudio)
+}
+
 func playgroundRelay(c *gin.Context, relayFormat types.RelayFormat) {
 	if apiErr := playgroundSetupContext(c, relayFormat); apiErr != nil {
 		c.JSON(apiErr.StatusCode, gin.H{"error": apiErr.ToOpenAIError()})

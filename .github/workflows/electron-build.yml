@@ -51,6 +51,15 @@ jobs:
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(git describe --tags) bun run build
           cd ..
 
+      - name: Build canvas frontend
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: |
+          cd web/canvas
+          bun install
+          NEXT_PUBLIC_BUILTIN_MODE=1 bun run build
+          cd ../..
+
       # - name: Build Go binary (macos/Linux)
       #   if: runner.os != 'Windows'
       #   run: |

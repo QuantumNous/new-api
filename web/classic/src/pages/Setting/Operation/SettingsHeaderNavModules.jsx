@@ -47,6 +47,7 @@ export default function SettingsHeaderNavModules(props) {
       requireAuth: false, // 默认不需要登录鉴权
     },
     docs: true,
+    canvas: true,
     about: true,
   });
 
@@ -87,6 +88,7 @@ export default function SettingsHeaderNavModules(props) {
         requireAuth: false,
       },
       docs: true,
+      canvas: true,
       about: true,
     };
     setHeaderNavModules(defaultModules);
@@ -142,6 +144,11 @@ export default function SettingsHeaderNavModules(props) {
           };
         }
 
+        // 旧配置没有 canvas 键时按默认开启，避免保存时把该键静默丢掉
+        if (typeof modules.canvas === 'undefined') {
+          modules.canvas = true;
+        }
+
         setHeaderNavModules(modules);
       } catch (error) {
         // 使用默认配置
@@ -153,6 +160,7 @@ export default function SettingsHeaderNavModules(props) {
             requireAuth: false,
           },
           docs: true,
+          canvas: true,
           about: true,
         };
         setHeaderNavModules(defaultModules);
@@ -182,6 +190,11 @@ export default function SettingsHeaderNavModules(props) {
       key: 'docs',
       title: t('文档'),
       description: t('系统文档和帮助信息'),
+    },
+    {
+      key: 'canvas',
+      title: t('画布'),
+      description: t('内置无限画布 AI 创作空间'),
     },
     {
       key: 'about',

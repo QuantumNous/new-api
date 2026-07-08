@@ -24,6 +24,11 @@ var (
 		"o4",
 		"chatgpt",
 	}
+	// AudioSpeechModels 按模型名识别 TTS（文本转语音）模型，用于 audio-speech 端点能力标注
+	AudioSpeechModels = []string{
+		"tts",
+		"prefix:speech-",
+	}
 )
 
 func IsOpenAIResponseOnlyModel(modelName string) bool {
@@ -42,6 +47,22 @@ func IsImageGenerationModel(modelName string) bool {
 			return true
 		}
 		if strings.HasPrefix(m, "prefix:") && strings.HasPrefix(modelName, strings.TrimPrefix(m, "prefix:")) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsAudioSpeechModel(modelName string) bool {
+	modelName = strings.ToLower(modelName)
+	for _, m := range AudioSpeechModels {
+		if strings.HasPrefix(m, "prefix:") {
+			if strings.HasPrefix(modelName, strings.TrimPrefix(m, "prefix:")) {
+				return true
+			}
+			continue
+		}
+		if strings.Contains(modelName, m) {
 			return true
 		}
 	}

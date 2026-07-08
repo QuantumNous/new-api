@@ -19,6 +19,7 @@ type ThemeAssets struct {
 	DefaultIndexPage []byte
 	ClassicBuildFS   embed.FS
 	ClassicIndexPage []byte
+	CanvasBuildFS    embed.FS
 }
 
 func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
@@ -32,7 +33,7 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	router.Use(static.Serve("/", themeFS))
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")
-		if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
+		if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/pg") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
 			controller.RelayNotFound(c)
 			return
 		}

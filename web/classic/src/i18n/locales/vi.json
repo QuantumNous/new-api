@@ -4513,6 +4513,8 @@
     "请填写用户名和密码": "Vui lòng nhập tên đăng nhập và mật khẩu",
     "请选择要绑定的令牌": "Vui lòng chọn token để ràng buộc",
     "输入名称搜索本企业的令牌": "Tìm token của doanh nghiệp theo tên",
-    "选择要绑定的令牌": "Chọn token để ràng buộc"
+    "选择要绑定的令牌": "Chọn token để ràng buộc",
+    "画布": "Canvas",
+    "内置无限画布 AI 创作空间": "Không gian sáng tạo AI canvas vô hạn tích hợp"
   }
 }
