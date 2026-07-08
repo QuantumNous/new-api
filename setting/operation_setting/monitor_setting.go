@@ -53,7 +53,8 @@ func GetMonitorSetting() *MonitorSetting {
 		monitorSetting.ChannelTestMode = ChannelTestModeScheduledAll
 	}
 	if v, ok := os.LookupEnv("CHANNEL_TEST_CONCURRENCY"); ok {
-		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+		if parsed, err := strconv.Atoi(v); err == nil {
+			// A non-positive override is normalized to 1 by the clamp below.
 			monitorSetting.ChannelTestConcurrency = parsed
 		}
 	}

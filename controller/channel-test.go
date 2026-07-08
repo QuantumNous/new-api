@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -924,11 +923,25 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 	}
 
 	var (
-		mu        sync.Mutex
-		wg        sync.WaitGroup
-		processed atomic.Int32
-		sem       = make(chan struct{}, concurrency)
+		mu         sync.Mutex // guards summary
+		progressMu sync.Mutex // serializes report so progress stays monotonic
+		completed  int
+		wg         sync.WaitGroup
+		sem        = make(chan struct{}, concurrency)
 	)
+
+	// advanceProgress reports one more processed channel. report may persist
+	// progress to storage and is not assumed to be concurrency-safe, so calls are
+	// serialized here to keep the reported count ordered and monotonic.
+	advanceProgress := func() {
+		if report == nil {
+			return
+		}
+		progressMu.Lock()
+		completed++
+		report(completed, total)
+		progressMu.Unlock()
+	}
 
 	if report != nil {
 		report(0, total)
@@ -985,9 +998,7 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 		}
 		mu.Unlock()
 
-		if report != nil {
-			report(int(processed.Add(1)), total)
-		}
+		advanceProgress()
 	}
 
 dispatch:
@@ -996,9 +1007,7 @@ dispatch:
 			break
 		}
 		if channel.Status == common.ChannelStatusManuallyDisabled {
-			if report != nil {
-				report(int(processed.Add(1)), total)
-			}
+			advanceProgress()
 			continue
 		}
 
