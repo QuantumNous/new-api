@@ -77,6 +77,10 @@ export function SidebarModulesSection({
       title: t('Personal area'),
       description: t('Wallet management and personal preferences.'),
     },
+    organization: {
+      title: t('Organization area'),
+      description: t('Organization members, billing, and audit pages.'),
+    },
     admin: {
       title: t('Admin area'),
       description: t('Global configuration and administrative tools.'),
@@ -129,6 +133,22 @@ export function SidebarModulesSection({
         description: t('Personal settings and profile management.'),
       },
     },
+    organization: {
+      usage: {
+        title: t('Organization billing'),
+        description: t(
+          'View organization billing summary and usage breakdown.'
+        ),
+      },
+      members: {
+        title: t('Organization members'),
+        description: t('Manage organization members and roles.'),
+      },
+      logs: {
+        title: t('Organization billing logs'),
+        description: t('Review and export organization billing logs.'),
+      },
+    },
     admin: {
       channel: {
         title: t('Channels'),
@@ -137,6 +157,10 @@ export function SidebarModulesSection({
       models: {
         title: t('Models'),
         description: t('Manage catalog visibility and pricing.'),
+      },
+      organization: {
+        title: t('Organizations'),
+        description: t('Manage organizations, owners, members, and billing.'),
       },
       redemption: {
         title: t('Redeem codes'),

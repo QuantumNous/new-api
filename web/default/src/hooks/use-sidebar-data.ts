@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -18,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Activity,
+  Building2,
   Box,
   CreditCard,
   FileText,
@@ -27,6 +29,7 @@ import {
   ListTodo,
   MessageSquare,
   Radio,
+  ReceiptText,
   ServerCog,
   Settings,
   Ticket,
@@ -36,8 +39,13 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
+import {
+  getOrganizationSelf,
+  organizationKeys,
+} from '@/features/organizations/api'
 import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -47,6 +55,42 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const { auth } = useAuthStore()
+  const organizationQuery = useQuery({
+    queryKey: organizationKeys.self,
+    queryFn: getOrganizationSelf,
+    enabled: Boolean(auth.user),
+    staleTime: 60_000,
+  })
+  const organizationSelf = organizationQuery.data?.data
+  const organizationRole = organizationSelf?.member.role
+  const organizationItems = [
+    {
+      title: t('Organization billing'),
+      url: '/organization/usage',
+      icon: ReceiptText,
+    },
+    ...(organizationRole === 'owner' || organizationRole === 'admin'
+      ? [
+          {
+            title: t('Organization members'),
+            url: '/organization/members',
+            icon: Users,
+          },
+        ]
+      : []),
+    ...(organizationRole === 'owner' ||
+    organizationRole === 'admin' ||
+    organizationRole === 'billing'
+      ? [
+          {
+            title: t('Organization billing logs'),
+            url: '/organization/logs',
+            icon: FileText,
+          },
+        ]
+      : []),
+  ]
 
   return {
     navGroups: [
@@ -115,6 +159,15 @@ export function useSidebarData(): SidebarData {
           },
         ],
       },
+      ...(organizationSelf
+        ? [
+            {
+              id: 'organization',
+              title: t('Organization'),
+              items: organizationItems,
+            },
+          ]
+        : []),
       {
         id: 'admin',
         title: t('Admin'),
@@ -133,6 +186,12 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('Organizations'),
+            url: '/admin/organizations',
+            activeUrls: ['/admin/organizations'],
+            icon: Building2,
           },
           {
             title: t('Redemption Codes'),

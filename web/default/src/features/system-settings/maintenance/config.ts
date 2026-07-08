@@ -72,10 +72,17 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
     topup: true,
     personal: true,
   },
+  organization: {
+    enabled: true,
+    usage: true,
+    members: true,
+    logs: true,
+  },
   admin: {
     enabled: true,
     channel: true,
     models: true,
+    organization: true,
     redemption: true,
     user: true,
     setting: true,
