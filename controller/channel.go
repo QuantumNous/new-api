@@ -1155,6 +1155,19 @@ func equalStringPtr(a, b *string) bool {
 	return *a == *b
 }
 
+func normalizeFetchModelsRequestKey(channel *model.Channel) {
+	key := strings.TrimSpace(channel.Key)
+	if key == "" || strings.HasPrefix(key, "{") || strings.HasPrefix(key, "[") {
+		channel.Key = key
+		return
+	}
+	channel.Key = strings.TrimSpace(strings.Split(key, "\n")[0])
+}
+
+func fetchModelsRequestRequiresKey(channelType int) bool {
+	return channelType != constant.ChannelTypeOllama
+}
+
 func FetchModels(c *gin.Context) {
 	var channel model.Channel
 
@@ -1166,7 +1179,8 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 
-	if strings.TrimSpace(channel.Key) == "" {
+	normalizeFetchModelsRequestKey(&channel)
+	if fetchModelsRequestRequiresKey(channel.Type) && channel.Key == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "Please enter API key first",
