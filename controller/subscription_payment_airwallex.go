@@ -294,11 +294,33 @@ func SubscriptionCancelAirwallex(c *gin.Context) {
 // ---- webhook ----
 
 type airwallexEvent struct {
-	Id   string `json:"id"`
-	Name string `json:"name"`
-	Data struct {
-		Object map[string]any `json:"object"`
-	} `json:"data"`
+	Id   string             `json:"id"`
+	Name string             `json:"name"`
+	Data airwallexEventData `json:"data"`
+}
+
+// airwallexEventData normalizes the two webhook envelope shapes Airwallex emits.
+// Payment Acceptance events (payment_intent.*, payment_consent.*, customer.*)
+// nest the resource under data.object, whereas Billing events
+// (billing_checkout.*, invoice.*, subscription.*) place the resource fields
+// DIRECTLY under data with no "object" wrapper. Object exposes the resource for
+// either shape. Reading only data.object silently dropped every Billing event —
+// the 2026-07-08 charged-but-not-upgraded incident.
+type airwallexEventData struct {
+	Object map[string]any
+}
+
+func (d *airwallexEventData) UnmarshalJSON(b []byte) error {
+	var m map[string]any
+	if err := common.Unmarshal(b, &m); err != nil {
+		return err
+	}
+	if obj, ok := m["object"].(map[string]any); ok {
+		d.Object = obj
+	} else {
+		d.Object = m
+	}
+	return nil
 }
 
 // verifyAirwallexSignature checks x-signature == HMAC-SHA256(x-timestamp + rawBody, webhook secret).
@@ -340,7 +362,9 @@ func AirwallexWebhook(c *gin.Context) {
 	switch event.Name {
 	case "billing_checkout.completed":
 		handlerErr = handleAirwallexBillingCheckoutCompleted(c, event)
-	case "invoice.paid":
+	case "invoice.paid", "invoice.payment.paid":
+		// Airwallex Billing emits invoice.payment.paid (not invoice.paid) for the
+		// version pinned on our endpoint; accept both so renewals route correctly.
 		handlerErr = handleAirwallexInvoicePaid(c, event)
 	case "subscription.cancelled", "subscription.unpaid":
 		logger.LogInfo(ctx, fmt.Sprintf("Airwallex webhook %s: subscription=%v (term-end downgrade is engine-native)", event.Name, event.Data.Object["id"]))

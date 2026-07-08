@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service/airwallex"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -175,6 +176,44 @@ func TestBillingCheckoutCompletedExtractsTradeNo(t *testing.T) {
 	o := model.GetSubscriptionOrderByTradeNo("sub_capture_0708")
 	require.NotNil(t, o, "order must exist after completion")
 	require.Equal(t, common.TopUpStatusSuccess, o.Status, "order must be succeeded")
+}
+
+// TestAirwallexWebhookBillingCheckoutCompletedEndToEnd drives a real
+// billing_checkout.completed payload through the full signed webhook path
+// (signature → envelope parse → event routing → handler). Airwallex Billing
+// events place the resource DIRECTLY under "data" (not nested under
+// "data.object" like Payment Acceptance events); this is the regression for the
+// 2026-07-08 charged-but-not-upgraded incident, where the parser read an empty
+// object and the handler logged "无 trade_no metadata，忽略".
+func TestAirwallexWebhookBillingCheckoutCompletedEndToEnd(t *testing.T) {
+	setupAirwallexWebhookDB(t)
+
+	prev := setting.AirwallexWebhookSecret
+	setting.AirwallexWebhookSecret = "whsec_test"
+	t.Cleanup(func() { setting.AirwallexWebhookSecret = prev })
+
+	order := &model.SubscriptionOrder{
+		UserId:          7,
+		PlanId:          1,
+		Money:           20.0,
+		TradeNo:         "sub_capture_0708",
+		PaymentMethod:   model.PaymentMethodCard,
+		PaymentProvider: model.PaymentProviderAirwallex,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
+	}
+	require.NoError(t, order.Insert())
+
+	body, err := os.ReadFile("testdata/awx_billing_checkout_completed.json")
+	require.NoError(t, err)
+
+	w := webhookRequest(t, "whsec_test", body, true)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	o := model.GetSubscriptionOrderByTradeNo("sub_capture_0708")
+	require.NotNil(t, o, "order must exist after completion")
+	require.Equal(t, common.TopUpStatusSuccess, o.Status,
+		"billing_checkout.completed with data-direct envelope must upgrade the user")
 }
 
 // TestBillingCheckoutCompletedResolvesViaSubscription verifies that a real slim
