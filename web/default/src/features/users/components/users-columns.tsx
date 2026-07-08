@@ -104,11 +104,8 @@ export function useUsersColumns(): ColumnDef<User>[] {
       ),
       cell: ({ row }) => {
         const username = row.getValue('username') as string
-        const displayName = row.original.display_name
         const email = row.original.email
         const remark = row.original.remark
-        const secondaryText =
-          displayName && displayName !== username ? displayName : ''
 
         return (
           <div className='flex min-w-[160px] flex-col gap-1'>
@@ -136,11 +133,6 @@ export function useUsersColumns(): ColumnDef<User>[] {
                 </Tooltip>
               )}
             </div>
-            {secondaryText && (
-              <LongText className='text-muted-foreground max-w-[180px] text-xs'>
-                {secondaryText}
-              </LongText>
-            )}
             {email && (
               <button
                 type='button'
