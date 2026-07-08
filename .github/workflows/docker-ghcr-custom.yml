@@ -13,11 +13,28 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  prepare:
+    name: Prepare build metadata
+    runs-on: ubuntu-latest
+    outputs:
+      image_name: ${{ steps.meta.outputs.image_name }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - id: meta
+        run: |
+          echo "image_name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.image_tag }}"
+          else
+            TAG=${GITHUB_REF#refs/tags/}
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
   build_single_arch:
     name: Build & push (${{ matrix.arch }})
+    needs: [prepare]
     strategy:
       fail-fast: false
       matrix:
@@ -30,7 +47,7 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     outputs:
-      tag: ${{ steps.version.outputs.tag }}
+      tag: ${{ needs.prepare.outputs.tag }}
 
     permissions:
       contents: read
@@ -42,18 +59,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve tag & write VERSION
-        id: version
+      - name: Write VERSION
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.image_tag }}"
-          else
-            TAG=${GITHUB_REF#refs/tags/}
-          fi
+          TAG="${{ needs.prepare.outputs.tag }}"
           echo "TAG=${TAG}" >> "$GITHUB_ENV"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "${TAG}" > VERSION
           echo "Building tag: ${TAG} for ${{ matrix.arch }}"
+          echo "Image: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -69,7 +81,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}
 
       - name: Build & push
         id: build
@@ -79,8 +91,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}-${{ matrix.arch }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }}
+            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}:${{ env.TAG }}-${{ matrix.arch }}
+            ${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}:latest-${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -89,13 +101,13 @@ jobs:
         run: |
           echo "### Docker Image (${{ matrix.arch }})" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-${{ matrix.arch }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ env.REGISTRY }}/${{ needs.prepare.outputs.image_name }}:${TAG}-${{ matrix.arch }}" >> "$GITHUB_STEP_SUMMARY"
           echo "${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
   create_manifests:
     name: Create multi-arch manifests
-    needs: [build_single_arch]
+    needs: [prepare, build_single_arch]
     runs-on: ubuntu-latest
 
     permissions:
@@ -104,7 +116,9 @@ jobs:
 
     steps:
       - name: Set version
-        run: echo "TAG=${{ needs.build_single_arch.outputs.tag }}" >> "$GITHUB_ENV"
+        run: |
+          echo "TAG=${{ needs.prepare.outputs.tag }}" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=${{ needs.prepare.outputs.image_name }}" >> "$GITHUB_ENV"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
