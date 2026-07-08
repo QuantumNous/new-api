@@ -73,8 +73,14 @@ export const PAYMENT_METHOD_NAMES: Record<string, string> = {
   custom3: 'Custom 3',
 }
 
-/** Epay methods store `money` in CNY; display uses USD recharge amount instead. */
-const CNY_METHODS = new Set(['alipay', 'wxpay', 'custom1', 'custom2', 'custom3'])
+/** Epay methods store `money` in CNY. */
+const CNY_METHODS = new Set([
+  'alipay',
+  'wxpay',
+  'custom1',
+  'custom2',
+  'custom3',
+])
 
 /** Platega SBP QR stores `money` in RUB. */
 const RUB_METHODS = new Set(['platega'])
@@ -85,10 +91,10 @@ const RUB_METHODS = new Set(['platega'])
 export function formatPaidAmount(
   money: number,
   method: string,
-  amount: number
+  amount: number,
 ): string {
   if (CNY_METHODS.has(method)) {
-    return amount > 0 ? `$${amount.toFixed(2)}` : '—'
+    return money > 0 ? `¥${money.toFixed(2)}` : '—'
   }
   if (RUB_METHODS.has(method)) {
     if (money <= 0) return '—'
@@ -103,7 +109,7 @@ export function formatPaidAmount(
  */
 export function getPaymentMethodName(
   method: string,
-  t?: (key: string) => string
+  t?: (key: string) => string,
 ): string {
   const name = PAYMENT_METHOD_NAMES[method] || method
   return t ? t(name) : name
