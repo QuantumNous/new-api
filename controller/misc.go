@@ -285,11 +285,7 @@ func SendEmailVerification(c *gin.Context) {
 		return
 	}
 	code := common.GenerateVerificationCode(6)
-	if err := common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose); err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to register email verification code for %s: %s", email, err.Error()))
-		common.ApiErrorMsg(c, "验证码服务异常")
-		return
-	}
+	common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose)
 	subject := fmt.Sprintf("%s邮箱验证邮件", common.SystemName)
 	content := fmt.Sprintf("<p>您好，你正在进行%s邮箱验证。</p>"+
 		"<p>您的验证码为: <strong>%s</strong></p>"+
@@ -317,14 +313,7 @@ func SendPasswordResetEmail(c *gin.Context) {
 	}
 	if model.IsEmailAlreadyTaken(email) {
 		code := common.GenerateVerificationCode(0)
-		if err := common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose); err != nil {
-			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to register password reset code for %s: %s", email, err.Error()))
-			c.JSON(http.StatusOK, gin.H{
-				"success": true,
-				"message": "",
-			})
-			return
-		}
+		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
 		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
 		subject := fmt.Sprintf("%s密码重置", common.SystemName)
 		content := fmt.Sprintf("<p>您好，你正在进行%s密码重置。</p>"+
@@ -357,7 +346,13 @@ func ResetPassword(c *gin.Context) {
 		})
 		return
 	}
-	if !common.VerifyCodeWithKey(req.Email, req.Token, common.PasswordResetPurpose) {
+	tokenValid, err := common.ConsumeVerificationCodeWithKey(req.Email, req.Token, common.PasswordResetPurpose)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to consume password reset token for %s: %s", req.Email, err.Error()))
+		common.ApiErrorMsg(c, "重置链接校验失败，请稍后重试")
+		return
+	}
+	if !tokenValid {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "重置链接非法或已过期",
@@ -370,7 +365,6 @@ func ResetPassword(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.DeleteKey(req.Email, common.PasswordResetPurpose)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
