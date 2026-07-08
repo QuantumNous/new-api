@@ -46,6 +46,7 @@ type Channel struct {
 	Status             int     `json:"status" gorm:"default:1"`
 	Name               string  `json:"name" gorm:"index"`
 	Weight             *uint   `json:"weight" gorm:"default:0"`
+	MaxConcurrency     int     `json:"max_concurrency" gorm:"default:0"`
 	CreatedTime        int64   `json:"created_time" gorm:"bigint"`
 	TestTime           int64   `json:"test_time" gorm:"bigint"`
 	ResponseTime       int     `json:"response_time"` // in milliseconds
@@ -515,6 +516,13 @@ func (channel *Channel) GetWeight() int {
 		return 0
 	}
 	return int(*channel.Weight)
+}
+
+func (channel *Channel) GetMaxConcurrency() int {
+	if channel == nil || channel.MaxConcurrency < 0 {
+		return 0
+	}
+	return channel.MaxConcurrency
 }
 
 func (channel *Channel) GetBaseURL() string {

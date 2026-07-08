@@ -43,6 +43,7 @@ export const channelSchema = z.object({
   status: z.number(), // 1: enabled, 0: manual disabled, 2: auto disabled
   name: z.string(),
   weight: z.number().nullish(),
+  max_concurrency: z.number().default(0),
   created_time: z.number(),
   test_time: z.number(),
   response_time: z.number(), // in milliseconds
@@ -317,6 +318,7 @@ export interface ChannelFormData {
   model_mapping?: string
   priority?: number
   weight?: number
+  max_concurrency?: number
   test_model?: string
   auto_ban?: number
   status: number
