@@ -55,6 +55,7 @@ type textQuotaSummary struct {
 	AudioInputPrice          float64
 	ImageGenerationCallPrice float64
 	ToolCallSurchargeQuota   decimal.Decimal
+	InputTokensIncludeCache  bool
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -204,6 +205,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	isOpenRouterClaudeBilling := relayInfo.ChannelMeta != nil &&
 		relayInfo.ChannelType == constant.ChannelTypeOpenRouter &&
 		summary.IsClaudeUsageSemantic
+	summary.InputTokensIncludeCache = !summary.IsClaudeUsageSemantic && !legacyClaudeDerived
 
 	if isOpenRouterClaudeBilling {
 		summary.PromptTokens -= summary.CacheTokens
@@ -483,6 +485,18 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other["request_data"] = requestData
 	}
 
+	accounting := BuildConsumeAccountingFields(ConsumeAccountingInput{
+		UserId:                  relayInfo.UserId,
+		ChannelId:               relayInfo.ChannelId,
+		ModelName:               summary.ModelName,
+		InputTokens:             summary.PromptTokens,
+		InputTokensIncludeCache: summary.InputTokensIncludeCache,
+		OutputTokens:            summary.CompletionTokens,
+		CacheReadTokens:         summary.CacheTokens,
+		CacheWriteTokens:        cacheWriteTokens,
+		GroupRatio:              summary.GroupRatio,
+		Quota:                   summary.Quota,
+	})
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     summary.PromptTokens,
@@ -496,6 +510,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		IsStream:         relayInfo.IsStream,
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
+		Accounting:       accounting,
 	})
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(summary.CompletionTokens))

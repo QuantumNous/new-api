@@ -33,6 +33,8 @@ export const userFormSchema = z.object({
   quota_dollars: z.number().min(0).optional(),
   group: z.string().optional(),
   remark: z.string().optional(),
+  is_reseller: z.boolean().optional(),
+  reseller_user_id: z.number().min(0).optional(),
 })
 
 export type UserFormValues = z.infer<typeof userFormSchema>
@@ -49,6 +51,8 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   quota_dollars: 0,
   group: DEFAULT_GROUP,
   remark: '',
+  is_reseller: false,
+  reseller_user_id: 0,
 }
 
 // ============================================================================
@@ -93,5 +97,7 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
+    is_reseller: Boolean(user.is_reseller),
+    reseller_user_id: user.reseller_user_id || 0,
   }
 }

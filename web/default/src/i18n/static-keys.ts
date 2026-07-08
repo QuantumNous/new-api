@@ -287,6 +287,7 @@ export const STATIC_I18N_KEYS = [
   'Received',
   'Payment initiated',
   'Payment page opened',
+  'User group description.default',
 
   // Upstream model updates
   'Upstream Model Updates',

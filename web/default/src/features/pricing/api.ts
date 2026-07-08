@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api } from '@/lib/api'
+import { api, normalizeUsableGroupMap } from '@/lib/api'
 import type { PricingData } from './types'
 
 // ----------------------------------------------------------------------------
@@ -26,5 +26,8 @@ import type { PricingData } from './types'
 // Get model pricing data
 export async function getPricing(): Promise<PricingData> {
   const res = await api.get('/api/pricing')
-  return res.data
+  return {
+    ...res.data,
+    usable_group: normalizeUsableGroupMap(res.data?.usable_group) ?? {},
+  }
 }

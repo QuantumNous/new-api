@@ -160,3 +160,34 @@ func ChannelActualPricesResolved(channelID int, modelName string) (*model.Channe
 		CacheCreationPrice: row.CacheCreationPrice * mult,
 	}, nil
 }
+
+// ChannelProcurementPricesResolved returns the channel procurement unit price
+// (channel_model_pricings × recharge_rate) using the same alias/model_mapping
+// resolution as ChannelActualPricesResolved.
+func ChannelProcurementPricesResolved(channelID int, modelName string) (*model.ChannelActualPrices, error) {
+	var ch struct {
+		ModelMapping *string
+		RechargeRate *float64
+	}
+	if err := model.DB.Table("channels").
+		Select("model_mapping, recharge_rate").
+		Where("id = ?", channelID).
+		Scan(&ch).Error; err != nil {
+		return nil, err
+	}
+	candidates := PricingNameCandidates(modelName, ch.ModelMapping)
+	row, ok := LookupChannelPricingRow(channelID, candidates)
+	if !ok {
+		return nil, nil
+	}
+	rechargeRate := 1.0
+	if ch.RechargeRate != nil && *ch.RechargeRate > 0 {
+		rechargeRate = *ch.RechargeRate
+	}
+	return &model.ChannelActualPrices{
+		InputPrice:         row.InputPrice * rechargeRate,
+		OutputPrice:        row.OutputPrice * rechargeRate,
+		CachePrice:         row.CachePrice * rechargeRate,
+		CacheCreationPrice: row.CacheCreationPrice * rechargeRate,
+	}, nil
+}

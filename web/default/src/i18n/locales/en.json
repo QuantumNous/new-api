@@ -4274,6 +4274,7 @@
     "User created successfully": "User created successfully",
     "User dashboard and quota controls.": "User dashboard and quota controls.",
     "User Exclusive Ratio": "User Exclusive Ratio",
+    "User group description.default": "Smart routing (prefers the cheapest available channel, auto-fallback on failure, includes a 5% service fee)",
     "User group": "User group",
     "User Group": "User Group",
     "User group name": "User group name",

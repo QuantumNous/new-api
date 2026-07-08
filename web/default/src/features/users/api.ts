@@ -26,6 +26,9 @@ import type {
   ManageUserAction,
   ManageUserQuotaPayload,
   ApiResponse,
+  ResellerProfilePayload,
+  ResellerModelRule,
+  SaveResellerRulesPayload,
 } from './types'
 
 // ============================================================================
@@ -134,6 +137,47 @@ export async function resetUserTwoFA(id: number): Promise<ApiResponse> {
  */
 export async function getGroups(): Promise<ApiResponse<string[]>> {
   const res = await api.get('/api/group/')
+  return res.data
+}
+
+export async function updateResellerProfile(
+  userId: number,
+  data: ResellerProfilePayload
+): Promise<ApiResponse> {
+  const res = await api.put(`/api/user/${userId}/reseller-profile`, data)
+  return res.data
+}
+
+export async function searchResellers(
+  keyword = ''
+): Promise<ApiResponse<User[]>> {
+  const res = await api.get(
+    `/api/user/resellers/search?keyword=${encodeURIComponent(keyword)}`
+  )
+  return res.data
+}
+
+export async function getResellerDownlines(
+  resellerId: number
+): Promise<ApiResponse<User[]>> {
+  const res = await api.get(`/api/user/${resellerId}/reseller-downlines`)
+  return res.data
+}
+
+export async function getResellerRules(
+  resellerId: number,
+  downlineUserId?: number
+): Promise<ApiResponse<ResellerModelRule[]>> {
+  const qs = downlineUserId ? `?downline_user_id=${downlineUserId}` : ''
+  const res = await api.get(`/api/user/${resellerId}/reseller-rules${qs}`)
+  return res.data
+}
+
+export async function saveResellerRules(
+  resellerId: number,
+  data: SaveResellerRulesPayload
+): Promise<ApiResponse> {
+  const res = await api.put(`/api/user/${resellerId}/reseller-rules`, data)
   return res.data
 }
 

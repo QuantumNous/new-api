@@ -49,6 +49,8 @@ export const userSchema = z.object({
   aff_quota: z.number().optional(),
   aff_history_quota: z.number().optional(),
   inviter_id: z.number().optional(),
+  is_reseller: z.boolean().optional(),
+  reseller_user_id: z.number().optional(),
   registration_channel_code: z.string().optional(),
   registration_channel_name: z.string().optional(),
   registration_source_url: z.string().optional(),
@@ -112,6 +114,27 @@ export interface UserFormData {
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
+}
+
+export interface ResellerProfilePayload {
+  is_reseller: boolean
+  reseller_user_id: number
+}
+
+export interface ResellerModelRule {
+  id?: number
+  reseller_user_id?: number
+  downline_user_id?: number
+  model_name: string
+  discount_ratio: number
+  enabled?: boolean
+  created_at?: number
+  updated_at?: number
+}
+
+export interface SaveResellerRulesPayload {
+  downline_user_id: number
+  rules: ResellerModelRule[]
 }
 
 export type ManageUserAction =
