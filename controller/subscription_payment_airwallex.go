@@ -258,16 +258,12 @@ func SubscriptionCancelAirwallex(c *gin.Context) {
 		return
 	}
 	userId := c.GetInt("id")
-	customer, err := airwallex.FindCustomerByMerchantId(strconv.Itoa(userId))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if customer == nil {
+	billingCustomerId := model.GetAirwallexBillingCustomerId(userId)
+	if billingCustomerId == "" {
 		common.ApiErrorMsg(c, "无进行中的订阅")
 		return
 	}
-	subs, err := airwallex.ListSubscriptions(customer.Id, "ACTIVE")
+	subs, err := airwallex.ListBillingSubscriptions(billingCustomerId, "ACTIVE")
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -275,7 +271,7 @@ func SubscriptionCancelAirwallex(c *gin.Context) {
 	cancelled := 0
 	for _, sub := range subs {
 		reqId := fmt.Sprintf("cancel-%s-%d", sub.Id, time.Now().UnixMilli())
-		if err := airwallex.CancelSubscription(sub.Id, reqId, "NONE"); err != nil {
+		if err := airwallex.CancelBillingSubscription(sub.Id, reqId, "NONE"); err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Airwallex 取消订阅失败 sub=%s error=%q", sub.Id, err.Error()))
 			common.ApiErrorMsg(c, "取消订阅失败，请稍后重试")
 			return
