@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -275,18 +276,21 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 		"last_detect_result": detectStatus,
 	}
 
-	// Routing algorithm 0.1 status machine:
-	//   suspicious → status=3 (AutoDisabled) + counter=0
-	//   pass while status=3 → counter+1; counter==fingerprintRecoveryThreshold → status=1 + counter=0
+	// Routing algorithm 0.2 status machine:
+	//   suspicious → disable only this channel+model ability, leaving other models
+	//     on the same channel routable.
+	//   pass for an auto-disabled model → counter+1; counter==threshold → re-enable
+	//     that channel+model ability.
+	//   pass while channel status=3 → keep legacy channel recovery behavior.
 	//   pass while status=1 → no-op (counter only matters during recovery)
 	//   notcomplete → leave status & counter alone (transient errors shouldn't punish)
 	//   status=2 (ManuallyDisabled) → algorithm never touches it
 	if ch.Status != common.ChannelStatusManuallyDisabled {
 		switch detectStatus {
 		case "suspicious":
-			updates["status"] = common.ChannelStatusAutoDisabled
-			updates["consecutive_fingerprint_pass"] = 0
+			disableModelForFingerprint(ch, targetModel, now, updates)
 		case "pass":
+			recoverModelForFingerprint(ch, targetModel, updates)
 			if ch.Status == common.ChannelStatusAutoDisabled {
 				next := ch.ConsecutiveFingerprintPass + 1
 				if next >= fingerprintRecoveryThreshold {
@@ -304,10 +308,133 @@ func detectOneChannel(ctx context.Context, flaskURL string, ch *model.Channel, t
 	}
 }
 
+const autoDisabledModelsInfoKey = "auto_disabled_models"
+
+func disableModelForFingerprint(ch *model.Channel, targetModel string, now int64, updates map[string]interface{}) {
+	targetModel = strings.TrimSpace(targetModel)
+	if ch == nil || targetModel == "" {
+		return
+	}
+
+	info := ch.GetOtherInfo()
+	autoDisabledModels := autoDisabledModelInfo(info)
+	_, alreadyAutoDisabled := autoDisabledModels[targetModel]
+
+	var enabledCount int64
+	if err := model.DB.Table("abilities").
+		Where("channel_id = ? AND model = ? AND enabled = ?", ch.Id, targetModel, true).
+		Count(&enabledCount).Error; err != nil {
+		logger.LogWarn(context.Background(), fmt.Sprintf("auto-detect: failed to count enabled abilities channel=%d model=%s: %v", ch.Id, targetModel, err))
+		return
+	}
+
+	// If the operator had already disabled this model manually, do not mark it as
+	// auto-disabled. That prevents future fingerprint passes from re-enabling a
+	// manually disabled channel+model pair.
+	if enabledCount == 0 && !alreadyAutoDisabled {
+		return
+	}
+
+	if err := model.DB.Table("abilities").
+		Where("channel_id = ? AND model = ? AND enabled = ?", ch.Id, targetModel, true).
+		Update("enabled", false).Error; err != nil {
+		logger.LogWarn(context.Background(), fmt.Sprintf("auto-detect: failed to disable ability channel=%d model=%s: %v", ch.Id, targetModel, err))
+		return
+	}
+
+	autoDisabledModels[targetModel] = map[string]interface{}{
+		"disabled_at": now,
+		"pass_count":  0,
+		"reason":      "fingerprint suspicious",
+	}
+	info[autoDisabledModelsInfoKey] = autoDisabledModels
+	ch.SetOtherInfo(info)
+	updates["other_info"] = ch.OtherInfo
+	model.InitChannelCache()
+}
+
+func recoverModelForFingerprint(ch *model.Channel, targetModel string, updates map[string]interface{}) {
+	targetModel = strings.TrimSpace(targetModel)
+	if ch == nil || targetModel == "" {
+		return
+	}
+
+	info := ch.GetOtherInfo()
+	autoDisabledModels := autoDisabledModelInfo(info)
+	raw, ok := autoDisabledModels[targetModel]
+	if !ok {
+		return
+	}
+
+	entry, ok := raw.(map[string]interface{})
+	if !ok {
+		entry = map[string]interface{}{}
+	}
+	passCount := autoDisabledModelPassCount(entry) + 1
+	if passCount < fingerprintRecoveryThreshold {
+		entry["pass_count"] = passCount
+		autoDisabledModels[targetModel] = entry
+		info[autoDisabledModelsInfoKey] = autoDisabledModels
+		ch.SetOtherInfo(info)
+		updates["other_info"] = ch.OtherInfo
+		return
+	}
+
+	if err := model.DB.Table("abilities").
+		Where("channel_id = ? AND model = ?", ch.Id, targetModel).
+		Update("enabled", true).Error; err != nil {
+		logger.LogWarn(context.Background(), fmt.Sprintf("auto-detect: failed to re-enable ability channel=%d model=%s: %v", ch.Id, targetModel, err))
+		return
+	}
+
+	delete(autoDisabledModels, targetModel)
+	if len(autoDisabledModels) == 0 {
+		delete(info, autoDisabledModelsInfoKey)
+	} else {
+		info[autoDisabledModelsInfoKey] = autoDisabledModels
+	}
+	ch.SetOtherInfo(info)
+	updates["other_info"] = ch.OtherInfo
+	model.InitChannelCache()
+}
+
+func autoDisabledModelInfo(info map[string]interface{}) map[string]interface{} {
+	if info == nil {
+		return map[string]interface{}{}
+	}
+	raw, ok := info[autoDisabledModelsInfoKey]
+	if !ok || raw == nil {
+		return map[string]interface{}{}
+	}
+	if m, ok := raw.(map[string]interface{}); ok {
+		return m
+	}
+	return map[string]interface{}{}
+}
+
+func autoDisabledModelPassCount(entry map[string]interface{}) int {
+	if entry == nil {
+		return 0
+	}
+	switch v := entry["pass_count"].(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case json.Number:
+		n, _ := v.Int64()
+		return int(n)
+	default:
+		return 0
+	}
+}
+
 // fingerprintRecoveryThreshold = how many consecutive fingerprint pass results
-// an auto-disabled channel must accumulate before it's re-enabled. 12 ≈ 12 minutes
-// at the default 1-minute tick or 12 hours at hourly tick — enough confidence
-// without keeping a confirmed-bad channel offline forever.
+// an auto-disabled channel/model must accumulate before it's re-enabled.
+// 12 ≈ 12 minutes at the default 1-minute tick or 12 hours at hourly tick —
+// enough confidence without keeping a confirmed-bad route offline forever.
 const fingerprintRecoveryThreshold = 12
 
 // RunChannelDetectionNow triggers a single fingerprint detection for the given
