@@ -165,17 +165,17 @@ func tryAcquireChannelConcurrencyWithToken(ctx context.Context, channel *model.C
 		ctx = context.Background()
 	}
 
+	maxConcurrency := channel.GetMaxConcurrency()
+	if maxConcurrency <= 0 {
+		return nil, true, nil
+	}
+
 	coolingDown, err := isChannelConcurrencyCoolingDown(ctx, channel.Id)
 	if err != nil {
 		return nil, false, err
 	}
 	if coolingDown {
 		return nil, false, nil
-	}
-
-	maxConcurrency := channel.GetMaxConcurrency()
-	if maxConcurrency <= 0 {
-		return nil, true, nil
 	}
 
 	lease := &ChannelConcurrencyLease{
@@ -222,9 +222,12 @@ func GetChannelConcurrencyLoads(ctx context.Context, channels []*model.Channel) 
 	}
 
 	if common.RedisEnabled && common.RDB != nil {
-		redisLoads, err := getRedisChannelConcurrencyLoads(ctx, loads)
+		redisLoads, err := getRedisChannelConcurrencyLoads(ctx, boundedChannelConcurrencyLoads(loads))
 		if err == nil {
-			return redisLoads, nil
+			for channelID, load := range redisLoads {
+				loads[channelID] = load
+			}
+			return loads, nil
 		}
 		common.SysError(fmt.Sprintf("get channel concurrency loads from redis failed, fallback to memory: %s", err.Error()))
 	}
@@ -512,6 +515,11 @@ func newChannelConcurrencyToken() string {
 }
 
 func getRedisChannelConcurrencyLoads(ctx context.Context, initial map[int]ChannelConcurrencyLoad) (map[int]ChannelConcurrencyLoad, error) {
+	initial = boundedChannelConcurrencyLoads(initial)
+	if len(initial) == 0 {
+		return map[int]ChannelConcurrencyLoad{}, nil
+	}
+
 	now := time.Now()
 	if redisNow, err := common.RDB.Time(ctx).Result(); err == nil {
 		now = redisNow
@@ -723,6 +731,10 @@ func getMemoryChannelConcurrencyLoads(initial map[int]ChannelConcurrencyLoad) ma
 
 	loads := make(map[int]ChannelConcurrencyLoad, len(initial))
 	for channelID, load := range initial {
+		if load.MaxConcurrency <= 0 {
+			loads[channelID] = load
+			continue
+		}
 		load.Active = len(channelConcurrencyMemorySlots[channelID])
 		load.Waiting = channelConcurrencyMemoryWaits[channelID]
 		if cooldownUntil, ok := channelConcurrencyMemoryCooldowns[channelID]; ok {
@@ -732,6 +744,16 @@ func getMemoryChannelConcurrencyLoads(initial map[int]ChannelConcurrencyLoad) ma
 		loads[channelID] = load
 	}
 	return loads
+}
+
+func boundedChannelConcurrencyLoads(loads map[int]ChannelConcurrencyLoad) map[int]ChannelConcurrencyLoad {
+	bounded := make(map[int]ChannelConcurrencyLoad, len(loads))
+	for channelID, load := range loads {
+		if load.MaxConcurrency > 0 {
+			bounded[channelID] = load
+		}
+	}
+	return bounded
 }
 
 func cleanupMemoryChannelConcurrencyLocked(now time.Time) {
