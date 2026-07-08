@@ -4352,6 +4352,8 @@
     "Test Connection": "Kiểm tra kết nối",
     "Test connectivity for:": "Kiểm tra kết nối cho:",
     "Test failed": "Kiểm tra thất bại",
+    "Test concurrency": "Test concurrency",
+    "Number of channels tested in parallel during a batch test (1 = one at a time).": "Number of channels tested in parallel during a batch test (1 = one at a time).",
     "Test interval (minutes)": "Khoảng thời gian kiểm tra (phút)",
     "Test Latency": "Kiểm tra độ trễ",
     "Test Mode": "Chế độ thử nghiệm",

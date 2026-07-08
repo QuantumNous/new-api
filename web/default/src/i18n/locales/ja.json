@@ -4352,6 +4352,8 @@
     "Test Connection": "接続をテスト",
     "Test connectivity for:": "接続性をテスト:",
     "Test failed": "テストに失敗しました",
+    "Test concurrency": "Test concurrency",
+    "Number of channels tested in parallel during a batch test (1 = one at a time).": "Number of channels tested in parallel during a batch test (1 = one at a time).",
     "Test interval (minutes)": "テスト間隔（分）",
     "Test Latency": "レイテンシをテスト",
     "Test Mode": "テストモード",

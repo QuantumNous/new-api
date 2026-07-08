@@ -1,0 +1,4 @@
+{
+  "Test concurrency": "Test concurrency",
+  "Number of channels tested in parallel during a batch test (1 = one at a time).": "Number of channels tested in parallel during a batch test (1 = one at a time)."
+}

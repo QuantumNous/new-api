@@ -4352,6 +4352,8 @@
     "Test Connection": "Tester la connexion",
     "Test connectivity for:": "Tester la connectivité pour :",
     "Test failed": "Échec du test",
+    "Test concurrency": "Test concurrency",
+    "Number of channels tested in parallel during a batch test (1 = one at a time).": "Number of channels tested in parallel during a batch test (1 = one at a time).",
     "Test interval (minutes)": "Intervalle de test (minutes)",
     "Test Latency": "Tester la latence",
     "Test Mode": "Mode test",
