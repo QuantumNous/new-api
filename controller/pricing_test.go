@@ -30,17 +30,20 @@ func TestFilterPricingByUsableGroupsPrunesEnableGroups(t *testing.T) {
 	require.Equal(t, []string{"default", "vip"}, filtered[1].EnableGroup)
 }
 
-func TestFilterGroupModelRatioByUsableGroups(t *testing.T) {
+func TestFilterGroupModelRatioByUsableGroupsAndModels(t *testing.T) {
 	source := map[string]map[string]float64{
-		"default":  {"gpt-5.5": 0.3},
-		"internal": {"secret-model": 0.1},
+		"default":  {"gpt-5.5": 0.3, "hidden-model": 0.1},
+		"internal": {"gpt-5.5": 0.2},
 		"empty":    {},
 	}
 	usableGroup := map[string]string{
 		"default": "Default",
 	}
+	pricing := []model.Pricing{
+		{ModelName: "gpt-5.5", EnableGroup: []string{"default"}},
+	}
 
-	filtered := filterGroupModelRatioByUsableGroups(source, usableGroup)
+	filtered := filterGroupModelRatioByUsableGroupsAndModels(source, usableGroup, pricing)
 
 	require.Equal(t, map[string]map[string]float64{
 		"default": {"gpt-5.5": 0.3},
@@ -50,6 +53,7 @@ func TestFilterGroupModelRatioByUsableGroups(t *testing.T) {
 func TestPricingDisplayOptionKeysIncludeBillingSettings(t *testing.T) {
 	require.True(t, isPricingDisplayOptionKey("billing_setting.billing_mode"))
 	require.True(t, isPricingDisplayOptionKey("billing_setting.billing_expr"))
+	require.True(t, isPricingDisplayOptionKey("UserUsableGroups"))
 	require.False(t, isPricingDisplayOptionKey("billing_setting.model_billing_mode"))
 	require.False(t, isPricingDisplayOptionKey("billing_setting.model_billing_expr"))
 }

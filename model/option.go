@@ -1047,32 +1047,38 @@ func syncRenamedGroupsToGroupModelRatio(renames map[string]string) error {
 		return err
 	}
 	value := string(valueBytes)
+
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		for _, key := range []string{"GroupModelRatio", "group_ratio_setting.group_model_ratio"} {
+			if key == "group_ratio_setting.group_model_ratio" {
+				var count int64
+				if err := tx.Model(&Option{}).Where("key = ?", key).Count(&count).Error; err != nil {
+					return err
+				}
+				if count == 0 {
+					continue
+				}
+			}
+			option := Option{Key: key}
+			if err := tx.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+				return err
+			}
+			option.Value = value
+			if err := tx.Save(&option).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
 	if err := ratio_setting.UpdateGroupModelRatioByJSONString(value); err != nil {
 		return err
 	}
 	common.OptionMap["GroupModelRatio"] = value
 	if _, ok := common.OptionMap["group_ratio_setting.group_model_ratio"]; ok {
 		common.OptionMap["group_ratio_setting.group_model_ratio"] = value
-	}
-
-	for _, key := range []string{"GroupModelRatio", "group_ratio_setting.group_model_ratio"} {
-		if key == "group_ratio_setting.group_model_ratio" {
-			var count int64
-			if err := DB.Model(&Option{}).Where("key = ?", key).Count(&count).Error; err != nil {
-				return err
-			}
-			if count == 0 {
-				continue
-			}
-		}
-		option := Option{Key: key}
-		if err := DB.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
-			return err
-		}
-		option.Value = value
-		if err := DB.Save(&option).Error; err != nil {
-			return err
-		}
 	}
 
 	return nil

@@ -112,11 +112,16 @@ export function GroupModelRatioEditor(props: GroupModelRatioEditorProps) {
     oldModelName: string,
     newModelName: string
   ) => {
+    const normalizedModelName = newModelName.trim()
+    if (!normalizedModelName || normalizedModelName === oldModelName) return
     const next = cloneGroupModelRatio(ratioMap)
     const group = { ...(next[groupName] ?? {}) }
+    if (Object.prototype.hasOwnProperty.call(group, normalizedModelName)) {
+      return
+    }
     const ratio = group[oldModelName] ?? 1
     delete group[oldModelName]
-    group[newModelName] = ratio
+    group[normalizedModelName] = ratio
     next[groupName] = group
     emit(next)
   }

@@ -637,8 +637,9 @@ function GroupPricingSection(props: {
   autoGroups: string[];
 }) {
   const availableGroups = getAvailableGroups(props.model, props.groupRatio, props.usableGroup);
+  const effectiveGroupRatio = { ...props.groupRatio, ...(props.model.group_ratio ?? {}) };
   const tokenBased = isTokenBasedModel(props.model);
-  const extraPriceTypes = TOKEN_PRICE_TYPES.slice(2).filter(([type]) => formatGroupTokenPrice(props.model, availableGroups[0] ?? "Default", props.groupRatio, type) !== "-");
+  const extraPriceTypes = TOKEN_PRICE_TYPES.slice(2).filter(([type]) => formatGroupTokenPrice(props.model, availableGroups[0] ?? "Default", effectiveGroupRatio, type) !== "-");
 
   return (
     <section>
@@ -676,7 +677,7 @@ function GroupPricingSection(props: {
               {availableGroups.map((group) => {
                 const modelSpecificRatio = props.model.group_model_ratio?.[group];
                 const hasModelSpecificRatio = typeof modelSpecificRatio === "number" && Number.isFinite(modelSpecificRatio);
-                const ratio = modelSpecificRatio ?? props.model.group_ratio?.[group] ?? props.groupRatio[group] ?? props.usableGroup[group]?.ratio ?? 1;
+                const ratio = effectiveGroupRatio[group] ?? props.usableGroup[group]?.ratio ?? 1;
                 return (
                   <tr
                     key={group}
@@ -699,10 +700,10 @@ function GroupPricingSection(props: {
                     {tokenBased ? (
                       <>
                         <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5 text-right font-mono">
-                          {formatGroupTokenPrice(props.model, group, props.groupRatio, "input")}
+                          {formatGroupTokenPrice(props.model, group, effectiveGroupRatio, "input")}
                         </td>
                         <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5 text-right font-mono">
-                          {formatGroupTokenPrice(props.model, group, props.groupRatio, "output")}
+                          {formatGroupTokenPrice(props.model, group, effectiveGroupRatio, "output")}
                         </td>
                         {extraPriceTypes.map(([type]) => (
                           <td
@@ -710,13 +711,13 @@ function GroupPricingSection(props: {
                             data-slot="table-cell"
                             className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5 text-right font-mono"
                           >
-                            {formatGroupTokenPrice(props.model, group, props.groupRatio, type)}
+                            {formatGroupTokenPrice(props.model, group, effectiveGroupRatio, type)}
                           </td>
                         ))}
                       </>
                     ) : (
                       <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5 text-right font-mono">
-                        {formatGroupRequestPrice(props.model, group, props.groupRatio)}
+                        {formatGroupRequestPrice(props.model, group, effectiveGroupRatio)}
                       </td>
                     )}
                   </tr>

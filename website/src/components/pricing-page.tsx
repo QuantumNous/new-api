@@ -1344,15 +1344,21 @@ function enrichVendorNames(
   groupModelRatio: GroupModelRatio,
   usableGroup: Record<string, { desc: string; ratio: number }>
 ) {
-  return models.map((model) => ({
-    ...model,
-    vendor_name: getVendorName(model, vendors),
-    vendor_icon: model.vendor_icon ?? vendors.find((vendor) => vendor.id === model.vendor_id)?.icon,
-    vendor_description: model.vendor_description ?? vendors.find((vendor) => vendor.id === model.vendor_id)?.description,
-    group_ratio: buildEffectiveGroupRatio(model, groupRatio, groupModelRatio),
-    group_model_ratio: getGroupModelRatioForModel(model.model_name, groupModelRatio),
-    enable_groups: getAvailableGroups(model, groupRatio, usableGroup),
-  }));
+  return models.map((model) => {
+    const effectiveGroupRatio = buildEffectiveGroupRatio(model, groupRatio, groupModelRatio);
+    const enrichedModel = {
+      ...model,
+      vendor_name: getVendorName(model, vendors),
+      vendor_icon: model.vendor_icon ?? vendors.find((vendor) => vendor.id === model.vendor_id)?.icon,
+      vendor_description: model.vendor_description ?? vendors.find((vendor) => vendor.id === model.vendor_id)?.description,
+      group_ratio: effectiveGroupRatio,
+      group_model_ratio: getGroupModelRatioForModel(model.model_name, groupModelRatio),
+    };
+    return {
+      ...enrichedModel,
+      enable_groups: getAvailableGroups(enrichedModel, groupRatio, usableGroup),
+    };
+  });
 }
 
 function parseParam(value: string | string[] | undefined): string | undefined {

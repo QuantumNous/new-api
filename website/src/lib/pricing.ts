@@ -113,7 +113,7 @@ export function buildEffectiveGroupRatio(
   fallbackGroupRatio: Record<string, number>,
   groupModelRatio: GroupModelRatio = {}
 ): Record<string, number> {
-  const effective = { ...(model.group_ratio ?? fallbackGroupRatio) };
+  const effective = { ...fallbackGroupRatio, ...(model.group_ratio ?? {}) };
   const matchedModelName = formatMatchingModelName(model.model_name);
   for (const [group, modelRatios] of Object.entries(groupModelRatio)) {
     const ratio = modelRatios?.[matchedModelName];
@@ -259,13 +259,15 @@ export function getAvailableGroups(
 ): string[] {
   const usableGroups = Object.keys(usableGroup).filter(isVisibleGroup);
   const groups = Array.isArray(model.enable_groups) ? model.enable_groups.filter(isVisibleGroup) : [];
+  const ratioGroups = Object.keys(model.group_ratio ?? fallbackGroupRatio).filter(isVisibleGroup);
   if (groups.includes("all")) return usableGroups;
-  if (groups.length > 0 && usableGroups.length > 0) {
+  const candidateGroups = Array.from(new Set([...groups, ...ratioGroups]));
+  if (candidateGroups.length > 0 && usableGroups.length > 0) {
     const usableSet = new Set(usableGroups);
-    return groups.filter((group) => usableSet.has(group));
+    return candidateGroups.filter((group) => usableSet.has(group));
   }
-  if (groups.length > 0) return groups;
-  return Object.keys(model.group_ratio ?? fallbackGroupRatio);
+  if (candidateGroups.length > 0) return candidateGroups;
+  return ratioGroups;
 }
 
 export function formatGroupTokenPrice(

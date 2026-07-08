@@ -3,6 +3,7 @@ import {
   buildEffectiveGroupRatio,
   formatMatchingModelName,
   formatGroupTokenPrice,
+  getAvailableGroups,
   getPricingData,
   publicPricingUrl,
   sortPricingModelsBySeries,
@@ -77,6 +78,23 @@ describe("group model ratio", () => {
     expect(
       buildEffectiveGroupRatio(tokenModel, { plg: 0.9, vip: 0.8 }, { plg: { "gpt-5.5": 0.3 } })
     ).toEqual({ plg: 0.3, vip: 0.8 });
+  });
+
+  test("keeps fallback group ratios when a model has partial group overrides", () => {
+    expect(
+      buildEffectiveGroupRatio({ ...tokenModel, group_ratio: { plg: 0.7 } }, { plg: 0.9, vip: 0.8 }, {})
+    ).toEqual({ plg: 0.7, vip: 0.8 });
+  });
+
+  test("includes model-specific groups in available group candidates", () => {
+    const effectiveRatio = buildEffectiveGroupRatio(tokenModel, { default: 1, plg: 0.9 }, { plg: { "gpt-5.5": 0.3 } });
+    expect(
+      getAvailableGroups(
+        { ...tokenModel, enable_groups: ["default"], group_ratio: effectiveRatio },
+        { default: 1, plg: 0.9 },
+        { default: { desc: "Default", ratio: 1 }, plg: { desc: "PLG", ratio: 0.9 } }
+      )
+    ).toEqual(["default", "plg"]);
   });
 
   test("uses model-specific ratio in group token prices", () => {

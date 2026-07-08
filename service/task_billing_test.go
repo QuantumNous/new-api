@@ -538,6 +538,39 @@ func TestRecalculateTaskQuotaByTokensUsesBillingContextGroupModelRatioSnapshot(t
 	require.Equal(t, "test-model", other["group_model_ratio_model"])
 }
 
+func TestRecalculateTaskQuotaByTokensSkipsPerCallBilling(t *testing.T) {
+	truncate(t)
+	restoreRatioSettings(t)
+	originalModelRatio := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(originalModelRatio))
+	})
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"test-model":1}`))
+
+	ctx := context.Background()
+	task := &model.Task{
+		TaskID:    "task-per-call",
+		UserId:    1,
+		ChannelId: 2,
+		Group:     "plg",
+		Quota:     100,
+		PrivateData: model.TaskPrivateData{
+			TokenId: 3,
+			BillingContext: &model.TaskBillingContext{
+				GroupRatio:      0.3,
+				ModelRatio:      1,
+				OriginModelName: "test-model",
+				PerCallBilling:  true,
+			},
+		},
+	}
+
+	RecalculateTaskQuotaByTokens(ctx, task, 1000)
+
+	require.Equal(t, 100, task.Quota)
+	require.Zero(t, countLogs(t))
+}
+
 // ===========================================================================
 // CAS + Billing integration tests
 // Simulates the flow in updateVideoSingleTask (service/task_polling.go)

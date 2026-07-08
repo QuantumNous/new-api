@@ -42,6 +42,7 @@ func isPricingDisplayOptionKey(key string) bool {
 		"AudioCompletionRatio",
 		"GroupRatio",
 		"GroupModelRatio",
+		"UserUsableGroups",
 		"group_ratio_setting.group_ratio",
 		"group_ratio_setting.group_model_ratio",
 		"billing_setting.billing_mode",

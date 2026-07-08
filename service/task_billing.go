@@ -269,6 +269,10 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	if totalTokens <= 0 {
 		return
 	}
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
+		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，跳过 token 差额结算", task.TaskID))
+		return
+	}
 
 	modelName := taskModelName(task)
 
