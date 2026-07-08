@@ -16,25 +16,25 @@ const (
 
 // BillingHold 记录 HoldRefund 挂起的预扣费，供超时对账任务处理。
 type BillingHold struct {
-	Id                 int    `json:"id" gorm:"primaryKey"`
-	RequestId          string `json:"request_id" gorm:"type:varchar(64);uniqueIndex;not null"`
-	UserId             int    `json:"user_id" gorm:"index;not null"`
-	TokenId            int    `json:"token_id" gorm:"not null;default:0"`
-	TokenName          string `json:"token_name" gorm:"type:varchar(191);default:''"`
-	ChannelId          int    `json:"channel_id" gorm:"not null;default:0"`
-	ModelName          string `json:"model_name" gorm:"type:varchar(191);default:''"`
-	Group              string `json:"group" gorm:"type:varchar(64);default:''"`
-	PreConsumedQuota   int    `json:"pre_consumed_quota" gorm:"not null;default:0"`
-	ReceivedResponses  int    `json:"received_responses" gorm:"not null;default:0"`
-	UpstreamTaskId     string `json:"upstream_task_id" gorm:"type:varchar(128);default:''"`
-	ErrorStatus        int    `json:"error_status" gorm:"not null;default:0"`
-	ErrorCode          string `json:"error_code" gorm:"type:varchar(64);default:''"`
-	ErrorMessage       string `json:"error_message" gorm:"type:text"`
-	Status             string `json:"status" gorm:"type:varchar(32);index;not null;default:'pending'"`
-	VerifyDetail       string `json:"verify_detail" gorm:"type:text"`
-	CreatedAt          int64  `json:"created_at" gorm:"bigint;index"`
-	ReconcileAfter     int64  `json:"reconcile_after" gorm:"bigint;index"`
-	ResolvedAt         int64  `json:"resolved_at" gorm:"bigint;default:0"`
+	Id                int    `json:"id" gorm:"primaryKey"`
+	RequestId         string `json:"request_id" gorm:"type:varchar(64);uniqueIndex;not null"`
+	UserId            int    `json:"user_id" gorm:"index;not null"`
+	TokenId           int    `json:"token_id" gorm:"not null;default:0"`
+	TokenName         string `json:"token_name" gorm:"type:varchar(191);default:''"`
+	ChannelId         int    `json:"channel_id" gorm:"not null;default:0"`
+	ModelName         string `json:"model_name" gorm:"type:varchar(191);default:''"`
+	Group             string `json:"group" gorm:"type:varchar(64);default:''"`
+	PreConsumedQuota  int    `json:"pre_consumed_quota" gorm:"not null;default:0"`
+	ReceivedResponses int    `json:"received_responses" gorm:"not null;default:0"`
+	UpstreamTaskId    string `json:"upstream_task_id" gorm:"type:varchar(128);default:''"`
+	ErrorStatus       int    `json:"error_status" gorm:"not null;default:0"`
+	ErrorCode         string `json:"error_code" gorm:"type:varchar(64);default:''"`
+	ErrorMessage      string `json:"error_message" gorm:"type:text"`
+	Status            string `json:"status" gorm:"type:varchar(32);index;not null;default:'pending'"`
+	VerifyDetail      string `json:"verify_detail" gorm:"type:text"`
+	CreatedAt         int64  `json:"created_at" gorm:"bigint;index"`
+	ReconcileAfter    int64  `json:"reconcile_after" gorm:"bigint;index"`
+	ResolvedAt        int64  `json:"resolved_at" gorm:"bigint;default:0"`
 }
 
 func CreateBillingHold(hold *BillingHold) error {
@@ -159,10 +159,10 @@ func SumUserOrphanPreconsumeGap(userId int) (gap int, err error) {
 	if err = DB.Select("quota", "used_quota").Where("id = ?", userId).First(user).Error; err != nil {
 		return 0, err
 	}
-	var topupSum int64
+	var topupSum float64
 	err = DB.Model(&TopUp{}).
 		Where("user_id = ? AND status = ?", userId, common.TopUpStatusSuccess).
-		Select("COALESCE(SUM(amount * ?), 0)", int64(common.QuotaPerUnit)).
+		Select("COALESCE(SUM((CASE WHEN credited_amount > 0 THEN credited_amount ELSE amount END) * ?), 0)", common.QuotaPerUnit).
 		Scan(&topupSum).Error
 	if err != nil {
 		return 0, err

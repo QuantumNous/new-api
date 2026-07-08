@@ -26,13 +26,13 @@ import (
 // ============================================================================
 
 type cryptoChainConfig struct {
-	rpcEnvKey     string
-	defaultRPC    string
-	usdtAddress   string
-	usdcAddress   string
-	usdtDecimals  int
-	usdcDecimals  int
-	nativeCGID    string // CoinGecko ID for native coin price lookup
+	rpcEnvKey      string
+	defaultRPC     string
+	usdtAddress    string
+	usdcAddress    string
+	usdtDecimals   int
+	usdcDecimals   int
+	nativeCGID     string // CoinGecko ID for native coin price lookup
 	nativeDecimals int
 }
 
@@ -360,7 +360,8 @@ func verifyAndCredit(depositId string, rec *depositRecord, cfg cryptoChainConfig
 	topUp := &model.TopUp{
 		UserId:          rec.UserId,
 		Amount:          int64(math.Round(creditUsd)), // 到账美元（含 bonus），与 epay 一致
-		Money:           usdValue,                      // 实付（链上实收）
+		CreditedAmount:  creditUsd,                    // 精确到账美元；用于展示和统计，避免 7.5 被 amount 四舍五入成 8
+		Money:           usdValue,                     // 实付（链上实收）
 		TradeNo:         tradeNo,
 		PaymentMethod:   "crypto",
 		PaymentProvider: "crypto",

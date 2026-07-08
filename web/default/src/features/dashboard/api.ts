@@ -76,7 +76,7 @@ export async function getUptimeStatus() {
 export interface TopupDailyStat {
   day: number
   count: number
-  total_amount: number // quota units
+  total_amount: number // credited USD
 }
 
 export interface UserDailyStat {

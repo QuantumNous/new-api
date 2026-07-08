@@ -20,6 +20,7 @@ type TopUp struct {
 	Id              int     `json:"id"`
 	UserId          int     `json:"user_id" gorm:"index"`
 	Amount          int64   `json:"amount"`
+	CreditedAmount  float64 `json:"credited_amount" gorm:"type:decimal(18,6);default:0"`
 	Money           float64 `json:"money"`
 	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
@@ -117,12 +118,16 @@ func (topUp *TopUp) FillCountryFromIP(clientIP string, profileCountry ...string)
 }
 
 // topUpCreditQuota converts a successful order to internal quota units.
-// Amount = USD tier to credit; Money = actual payment (lower when first-topup promo applies).
+// CreditedAmount = precise USD credited when available.
+// Amount = legacy integer USD tier to credit; Money = actual payment.
 func topUpCreditQuota(topUp *TopUp) float64 {
 	if topUp == nil {
 		return 0
 	}
 	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+	if topUp.CreditedAmount > 0 {
+		return decimal.NewFromFloat(topUp.CreditedAmount).Mul(dQuotaPerUnit).InexactFloat64()
+	}
 	switch topUp.PaymentProvider {
 	case PaymentProviderStripe:
 		// Stripe Money already reflects unit price × group ratio (USD charged).
@@ -160,15 +165,15 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 }
 
 type TopupDailyStat struct {
-	Day         int64 `json:"day"`          // Unix timestamp of day start (UTC)
-	Count       int   `json:"count"`         // number of successful top-ups
-	TotalAmount int64 `json:"total_amount"`  // sum of amount (quota units)
+	Day         int64   `json:"day"`          // Unix timestamp of day start (UTC)
+	Count       int     `json:"count"`        // number of successful top-ups
+	TotalAmount float64 `json:"total_amount"` // sum of credited USD amount
 }
 
 func GetTopupDailyStats(start, end int64) ([]TopupDailyStat, error) {
 	var rows []TopupDailyStat
 	err := DB.Table("top_ups").
-		Select("(create_time / 86400 * 86400) as day, count(*) as count, sum(amount) as total_amount").
+		Select("(create_time / 86400 * 86400) as day, count(*) as count, sum(CASE WHEN credited_amount > 0 THEN credited_amount ELSE amount END) as total_amount").
 		Where("create_time >= ? AND create_time <= ? AND status = ?", start, end, "success").
 		Group("(create_time / 86400 * 86400)").
 		Order("day asc").

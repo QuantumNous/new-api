@@ -77,7 +77,9 @@ export function RegistrationChannels() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return stats
-    return stats.filter((s) => channelLabel(s.channel).toLowerCase().includes(q))
+    return stats.filter((s) =>
+      channelLabel(s.channel).toLowerCase().includes(q)
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stats, search])
 
@@ -165,7 +167,7 @@ export function RegistrationChannels() {
                   </TableCell>
                   <TableCell className='text-right'>{s.paying_count}</TableCell>
                   <TableCell className='text-right'>
-                    {s.topup_amount > 0 ? `$${s.topup_amount}` : '—'}
+                    {s.topup_amount > 0 ? `$${s.topup_amount.toFixed(2)}` : '—'}
                   </TableCell>
                 </TableRow>
               ))}

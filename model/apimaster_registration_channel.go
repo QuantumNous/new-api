@@ -25,8 +25,8 @@ type RegistrationChannel struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 	RegisteredCount int       `json:"registered_count"`
 	// Paid-conversion stats joined from new-api top_ups (per channel).
-	TopupAmount int64 `json:"topup_amount"` // sum of successful top_ups (USD integer)
-	PayingCount int   `json:"paying_count"` // distinct users in this channel who topped up
+	TopupAmount float64 `json:"topup_amount"` // sum of successful top_ups (credited USD)
+	PayingCount int     `json:"paying_count"` // distinct users in this channel who topped up
 }
 
 type RegistrationChannelInput struct {
@@ -148,12 +148,12 @@ func ListRegistrationChannels() ([]RegistrationChannel, error) {
 }
 
 type RegistrationChannelStat struct {
-	Channel         string `json:"channel"`
-	RegisteredCount int    `json:"registered_count"`
-	PayingCount     int    `json:"paying_count"`
-	TopupAmount     int64  `json:"topup_amount"`
-	UV              int64  `json:"uv"`
-	PV              int64  `json:"pv"`
+	Channel         string  `json:"channel"`
+	RegisteredCount int     `json:"registered_count"`
+	PayingCount     int     `json:"paying_count"`
+	TopupAmount     float64 `json:"topup_amount"`
+	UV              int64   `json:"uv"`
+	PV              int64   `json:"pv"`
 }
 
 // channelDisplayExpr maps a user's raw source to its display key:
@@ -200,7 +200,7 @@ func ListRegistrationChannelStats(days int) ([]RegistrationChannelStat, error) {
 	}
 	var userChans []userChan
 	if err := APIMASTER_PG_DB.Raw(`
-		SELECT LEFT(REPLACE(u.id::text, '-', ''), 20) AS username, `+channelDisplayExpr+` AS channel
+		SELECT LEFT(REPLACE(u.id::text, '-', ''), 20) AS username, ` + channelDisplayExpr + ` AS channel
 		FROM users u
 		LEFT JOIN registration_channels c ON c.code = u.registration_channel_code
 		LEFT JOIN users inv ON inv.id = u.referred_by
@@ -216,11 +216,11 @@ func ListRegistrationChannelStats(days int) ([]RegistrationChannelStat, error) {
 	cutoff := common.GetTimestamp() - int64(days)*86400
 	type topupRow struct {
 		Username string
-		Amount   int64
+		Amount   float64
 	}
 	var topups []topupRow
 	if err := DB.Raw(`
-		SELECT u.username AS username, COALESCE(SUM(t.amount), 0) AS amount
+		SELECT u.username AS username, COALESCE(SUM(CASE WHEN t.credited_amount > 0 THEN t.credited_amount ELSE t.amount END), 0) AS amount
 		FROM top_ups t JOIN users u ON u.id = t.user_id
 		WHERE t.status = 'success' AND t.create_time >= ?
 		GROUP BY u.username
@@ -249,7 +249,7 @@ func ListRegistrationChannelStats(days int) ([]RegistrationChannelStat, error) {
 	type agg struct {
 		reg    int
 		paying int
-		amount int64
+		amount float64
 		uv     int64
 		pv     int64
 	}
@@ -303,7 +303,7 @@ func ListRegistrationChannelStats(days int) ([]RegistrationChannelStat, error) {
 }
 
 type channelTopupStat struct {
-	amount int64
+	amount float64
 	paying int
 }
 
@@ -319,11 +319,11 @@ func getChannelTopupStats() (map[string]*channelTopupStat, error) {
 	// 1) new-api username -> summed successful top_up amount (only payers appear).
 	type topupRow struct {
 		Username string
-		Amount   int64
+		Amount   float64
 	}
 	var topups []topupRow
 	if err := DB.Raw(`
-		SELECT u.username AS username, COALESCE(SUM(t.amount), 0) AS amount
+		SELECT u.username AS username, COALESCE(SUM(CASE WHEN t.credited_amount > 0 THEN t.credited_amount ELSE t.amount END), 0) AS amount
 		FROM top_ups t
 		JOIN users u ON u.id = t.user_id
 		WHERE t.status = 'success'
@@ -334,7 +334,7 @@ func getChannelTopupStats() (map[string]*channelTopupStat, error) {
 	if len(topups) == 0 {
 		return map[string]*channelTopupStat{}, nil
 	}
-	amountByUser := make(map[string]int64, len(topups))
+	amountByUser := make(map[string]float64, len(topups))
 	for _, t := range topups {
 		amountByUser[t.Username] = t.Amount
 	}

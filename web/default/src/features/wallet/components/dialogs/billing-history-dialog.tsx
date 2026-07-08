@@ -184,6 +184,10 @@ export function BillingHistoryDialog({
                 <div className='space-y-3'>
                   {records.map((record) => {
                     const statusConfig = getStatusConfig(record.status)
+                    const creditedAmount =
+                      Number(record.credited_amount || 0) > 0
+                        ? Number(record.credited_amount)
+                        : Number(record.amount || 0)
                     return (
                       <div
                         key={record.id}
@@ -244,7 +248,7 @@ export function BillingHistoryDialog({
                               {t('Amount')}
                             </Label>
                             <div className='text-sm font-semibold'>
-                              {formatCurrencyFromUSD(record.amount, {
+                              {formatCurrencyFromUSD(creditedAmount, {
                                 digitsLarge: 2,
                                 digitsSmall: 2,
                                 abbreviate: false,
@@ -256,7 +260,11 @@ export function BillingHistoryDialog({
                               {t('Payment')}
                             </Label>
                             <div className='text-sm font-semibold text-red-600'>
-                              {formatPaidAmount(record.money, record.payment_method, record.amount)}
+                              {formatPaidAmount(
+                                record.money,
+                                record.payment_method,
+                                creditedAmount
+                              )}
                             </div>
                           </div>
                         </div>
