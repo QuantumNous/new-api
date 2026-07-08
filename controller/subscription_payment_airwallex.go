@@ -237,8 +237,10 @@ func genAirwallexSubscriptionLink(c *gin.Context, user *model.User, plan *model.
 		},
 		Metadata:   map[string]string{"trade_no": tradeNo, "new_api_user_id": strconv.Itoa(user.Id)},
 		Locale:     "AUTO",
+		// HOSTED Billing Checkout uses success_url for the post-payment redirect.
+		// return_url is only valid for embedded/redirect ui_modes; sending it with
+		// ui_mode=HOSTED triggers a validation_error and no checkout url is returned.
 		SuccessUrl: returnUrl,
-		ReturnUrl:  returnUrl,
 	})
 	if err != nil {
 		return "", err
