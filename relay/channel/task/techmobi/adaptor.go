@@ -302,9 +302,8 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 			break
 		}
 		if status := strings.TrimSpace(pr.Status); status != "" {
-			info.Status = model.TaskStatusFailure
-			info.Progress = defaultProgress(info.Progress, taskcommon.ProgressComplete)
-			info.Reason = "unrecognized upstream task status: " + taskcommon.ScrubBrandedText(status)
+			info.Status = model.TaskStatusInProgress
+			info.Progress = defaultProgress(info.Progress, taskcommon.ProgressInProgress)
 			break
 		}
 		info.Status = model.TaskStatusInProgress
