@@ -54,6 +54,10 @@ var airwallexMethodNames = map[string][]string{
 // without a live Airwallex call.
 var getBillingSubscription = airwallex.GetBillingSubscription
 
+// getBillingCheckout is a seam so webhook tests can re-fetch a checkout without a
+// live Airwallex call.
+var getBillingCheckout = airwallex.GetBillingCheckout
+
 func airwallexConfigured() string {
 	if !setting.AirwallexEnabled {
 		return "Airwallex 未启用"
@@ -375,21 +379,38 @@ func airwallexObjectMetadata(obj map[string]any, key string) string {
 func handleAirwallexBillingCheckoutCompleted(c *gin.Context, event airwallexEvent) error {
 	ctx := c.Request.Context()
 	tradeNo := airwallexObjectMetadata(event.Data.Object, "trade_no")
+	subscriptionId := airwallexObjectString(event.Data.Object, "subscription_id")
 	if tradeNo == "" {
 		// Slim webhook object — re-fetch by checkout id.
 		checkoutId := airwallexObjectString(event.Data.Object, "id")
 		if checkoutId != "" {
-			co, err := airwallex.GetBillingCheckout(checkoutId)
+			co, err := getBillingCheckout(checkoutId)
 			if err != nil {
 				return fmt.Errorf("Airwallex billing_checkout.completed: 重新获取checkout失败 id=%s: %w", checkoutId, err)
 			}
 			if co.Metadata != nil {
 				tradeNo = co.Metadata["trade_no"]
 			}
+			if subscriptionId == "" {
+				subscriptionId = co.SubscriptionId
+			}
+		}
+	}
+	if tradeNo == "" && subscriptionId != "" {
+		// SUBSCRIPTION-mode checkouts persist our metadata on the managed
+		// subscription (subscription_data.metadata), not the checkout object —
+		// same as invoice.paid. Resolve trade_no from the subscription as the
+		// final fallback before giving up.
+		sub, err := getBillingSubscription(subscriptionId)
+		if err != nil {
+			return fmt.Errorf("Airwallex billing_checkout.completed: 订阅查询失败 sub=%s: %w", subscriptionId, err)
+		}
+		if sub.Metadata != nil {
+			tradeNo = sub.Metadata["trade_no"]
 		}
 	}
 	if tradeNo == "" {
-		logger.LogInfo(ctx, "Airwallex billing_checkout.completed: 无 trade_no metadata，忽略")
+		logger.LogInfo(ctx, "Airwallex billing_checkout.completed: 无 trade_no metadata，忽略 sub="+subscriptionId)
 		return nil
 	}
 	payload := common.GetJsonString(event.Data.Object)

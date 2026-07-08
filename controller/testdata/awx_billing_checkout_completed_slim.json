@@ -1,0 +1,15 @@
+{
+  "id": "evt_slim_checkout_completed",
+  "name": "billing_checkout.completed",
+  "account_id": "acct_qwrs1PYuNLKj6RTNQux8tg",
+  "created_at": "2026-07-08T06:31:56+0000",
+  "data": {
+    "object": {
+      "id": "bco_sgpd7fzxlhk710l2b9e",
+      "status": "COMPLETED",
+      "mode": "SUBSCRIPTION",
+      "ui_mode": "HOSTED",
+      "billing_customer_id": "bcus_sgpd6l298hk6pnwgwc3"
+    }
+  }
+}

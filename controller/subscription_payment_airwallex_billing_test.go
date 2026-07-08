@@ -177,6 +177,59 @@ func TestBillingCheckoutCompletedExtractsTradeNo(t *testing.T) {
 	require.Equal(t, common.TopUpStatusSuccess, o.Status, "order must be succeeded")
 }
 
+// TestBillingCheckoutCompletedResolvesViaSubscription verifies that a real slim
+// billing_checkout.completed webhook — which carries NO metadata on the checkout
+// object (SUBSCRIPTION-mode checkouts persist metadata on the managed
+// subscription, not the checkout) — still resolves trade_no via the subscription
+// seam and completes the order. Regression for the 2026-07-08 charged-but-not-
+// upgraded incident, where the handler only looked at checkout metadata and
+// logged "无 trade_no metadata，忽略".
+func TestBillingCheckoutCompletedResolvesViaSubscription(t *testing.T) {
+	setupAirwallexWebhookDB(t)
+
+	order := &model.SubscriptionOrder{
+		UserId:          7,
+		PlanId:          1,
+		Money:           20.0,
+		TradeNo:         "sub_capture_0708",
+		PaymentMethod:   model.PaymentMethodCard,
+		PaymentProvider: model.PaymentProviderAirwallex,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
+	}
+	require.NoError(t, order.Insert())
+
+	// Re-fetched checkout also carries no metadata (SUBSCRIPTION-mode checkouts
+	// don't persist it) but does expose the subscription_id.
+	savedCheckout := getBillingCheckout
+	getBillingCheckout = func(id string) (*airwallex.BillingCheckout, error) {
+		return &airwallex.BillingCheckout{
+			Id:             id,
+			Status:         "COMPLETED",
+			SubscriptionId: "sub_sgpdwssjlhk6pph640l",
+		}, nil
+	}
+	t.Cleanup(func() { getBillingCheckout = savedCheckout })
+
+	// Slim checkout carries no metadata; trade_no lives on the subscription.
+	savedSeam := getBillingSubscription
+	getBillingSubscription = func(id string) (*airwallex.BillingSubscription, error) {
+		require.Equal(t, "sub_sgpdwssjlhk6pph640l", id, "must resolve via subscription_id")
+		return &airwallex.BillingSubscription{
+			Id:       id,
+			Metadata: map[string]string{"trade_no": "sub_capture_0708"},
+		}, nil
+	}
+	t.Cleanup(func() { getBillingSubscription = savedSeam })
+
+	ev := loadEvent(t, "testdata/awx_billing_checkout_completed_slim.json")
+	require.NoError(t, handleAirwallexBillingCheckoutCompleted(testCtx(), ev))
+
+	o := model.GetSubscriptionOrderByTradeNo("sub_capture_0708")
+	require.NotNil(t, o, "order must exist after completion")
+	require.Equal(t, common.TopUpStatusSuccess, o.Status, "order must be succeeded via subscription fallback")
+}
+
 // TestInvoicePaidRenewsAfterFirstCycle verifies that handleAirwallexInvoicePaid
 // resolves trade_no via the getBillingSubscription seam (because the invoice.paid
 // fixture carries no metadata), skips first-cycle activation (already done by
