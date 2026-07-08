@@ -1,5 +1,9 @@
-const CONTROLLED_TIERS = ['720p', '1080p'];
-const CONTROLLED_PRICE_KEYS = ['default', 'silent', 'audio'];
+export const VIDEO_SECONDS_CONTROLLED_TIERS = ['720p', '1080p', '2k', '4k'];
+export const VIDEO_SECONDS_CONTROLLED_PRICE_KEYS = [
+  'default',
+  'silent',
+  'audio',
+];
 
 const parseVideoSecondsPrice = (rawVideoSecondsPrice) => {
   if (!rawVideoSecondsPrice) {
@@ -56,13 +60,13 @@ export function buildVideoSecondsPriceValueFromModelMap(
       nextVideoSecondsPrice[modelName] || {},
     );
 
-    CONTROLLED_TIERS.forEach((tier) => {
+    VIDEO_SECONDS_CONTROLLED_TIERS.forEach((tier) => {
       const existingTierValue =
         nextModelValue[tier] && typeof nextModelValue[tier] === 'object'
           ? { ...nextModelValue[tier] }
           : {};
 
-      CONTROLLED_PRICE_KEYS.forEach((priceKey) => {
+      VIDEO_SECONDS_CONTROLLED_PRICE_KEYS.forEach((priceKey) => {
         const fieldKey = `${tier}_${priceKey}`;
         const value = fields?.[fieldKey];
 

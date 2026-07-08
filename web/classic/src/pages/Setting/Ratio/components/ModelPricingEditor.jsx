@@ -48,11 +48,28 @@ import {
   hasValue,
   useModelPricingEditorState,
 } from '../hooks/useModelPricingEditorState';
+import {
+  VIDEO_SECONDS_CONTROLLED_TIERS,
+} from '../modelPricingVideoSecondsPrice';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import TieredPricingEditor from './TieredPricingEditor';
 
 const { Text } = Typography;
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
+const VIDEO_SECONDS_TIER_FIELD_PREFIX = {
+  '720p': 'videoSeconds720p',
+  '1080p': 'videoSeconds1080p',
+  '2k': 'videoSeconds2k',
+  '4k': 'videoSeconds4k',
+};
+const VIDEO_SECONDS_PRICE_KEY_SUFFIX = {
+  default: 'Default',
+  silent: 'Silent',
+  audio: 'Audio',
+};
+
+const getVideoSecondsFieldName = (tier, priceKey) =>
+  `${VIDEO_SECONDS_TIER_FIELD_PREFIX[tier]}${VIDEO_SECONDS_PRICE_KEY_SUFFIX[priceKey]}`;
 
 const PriceInput = ({
   label,
@@ -480,81 +497,57 @@ export default function ModelPricingEditor({
                       <div className='font-medium'>{t('视频按秒价格')}</div>
                       <div className='text-xs text-gray-500 mt-1'>
                         {t(
-                          '按模型配置 720p / 1080p 档位价格，default 为默认价，silent 为 audio=false 时的静音价，audio 为显式有声价。',
+                          '按模型配置 720p / 1080p / 2k / 4k 档位价格，default 为默认价，silent 为 audio=false 时的静音价，audio 为显式有声价。',
                         )}
                       </div>
                     </div>
-                    <div className='font-medium mb-3'>{t('720p')}</div>
-                    <PriceInput
-                      label={t('720p 默认价格')}
-                      value={selectedModel.videoSeconds720pDefault}
-                      placeholder={t('输入 USD / second')}
-                      suffix={t('$/秒')}
-                      onChange={(value) =>
-                        handleNumericFieldChange(
-                          'videoSeconds720pDefault',
-                          value,
-                        )
-                      }
-                    />
-                    <PriceInput
-                      label={t('720p 静音价格')}
-                      value={selectedModel.videoSeconds720pSilent}
-                      placeholder={t('输入 USD / second')}
-                      suffix={t('$/秒')}
-                      onChange={(value) =>
-                        handleNumericFieldChange(
-                          'videoSeconds720pSilent',
-                          value,
-                        )
-                      }
-                    />
-                    <PriceInput
-                      label={t('720p 有声价格')}
-                      value={selectedModel.videoSeconds720pAudio}
-                      placeholder={t('输入 USD / second')}
-                      suffix={t('$/秒')}
-                      onChange={(value) =>
-                        handleNumericFieldChange('videoSeconds720pAudio', value)
-                      }
-                    />
-                    <div className='font-medium mb-3'>{t('1080p')}</div>
-                    <PriceInput
-                      label={t('1080p 默认价格')}
-                      value={selectedModel.videoSeconds1080pDefault}
-                      placeholder={t('输入 USD / second')}
-                      suffix={t('$/秒')}
-                      onChange={(value) =>
-                        handleNumericFieldChange(
-                          'videoSeconds1080pDefault',
-                          value,
-                        )
-                      }
-                    />
-                    <PriceInput
-                      label={t('1080p 静音价格')}
-                      value={selectedModel.videoSeconds1080pSilent}
-                      placeholder={t('输入 USD / second')}
-                      suffix={t('$/秒')}
-                      onChange={(value) =>
-                        handleNumericFieldChange(
-                          'videoSeconds1080pSilent',
-                          value,
-                        )
-                      }
-                    />
-                    <PriceInput
-                      label={t('1080p 有声价格')}
-                      value={selectedModel.videoSeconds1080pAudio}
-                      placeholder={t('输入 USD / second')}
-                      suffix={t('$/秒')}
-                      onChange={(value) =>
-                        handleNumericFieldChange(
-                          'videoSeconds1080pAudio',
-                          value,
-                        )
-                      }
-                    />
+                    {VIDEO_SECONDS_CONTROLLED_TIERS.map((tier) => (
+                      <div key={tier}>
+                        <div className='font-medium mb-3'>{t(tier)}</div>
+                        <PriceInput
+                          label={t(`${tier} Default Price`)}
+                          value={
+                            selectedModel[getVideoSecondsFieldName(tier, 'default')]
+                          }
+                          placeholder={t('Enter USD / second')}
+                          suffix={t('$/sec')}
+                          onChange={(value) =>
+                            handleNumericFieldChange(
+                              getVideoSecondsFieldName(tier, 'default'),
+                              value,
+                            )
+                          }
+                        />
+                        <PriceInput
+                          label={t(`${tier} Silent Price`)}
+                          value={
+                            selectedModel[getVideoSecondsFieldName(tier, 'silent')]
+                          }
+                          placeholder={t('Enter USD / second')}
+                          suffix={t('$/sec')}
+                          onChange={(value) =>
+                            handleNumericFieldChange(
+                              getVideoSecondsFieldName(tier, 'silent'),
+                              value,
+                            )
+                          }
+                        />
+                        <PriceInput
+                          label={t(`${tier} Audio Price`)}
+                          value={
+                            selectedModel[getVideoSecondsFieldName(tier, 'audio')]
+                          }
+                          placeholder={t('Enter USD / second')}
+                          suffix={t('$/sec')}
+                          onChange={(value) =>
+                            handleNumericFieldChange(
+                              getVideoSecondsFieldName(tier, 'audio'),
+                              value,
+                            )
+                          }
+                        />
+                      </div>
+                    ))}
                   </Card>
                 ) : selectedModel.billingMode === 'tiered_expr' ? (
                   <TieredPricingEditor

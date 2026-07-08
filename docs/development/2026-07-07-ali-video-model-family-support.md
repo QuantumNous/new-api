@@ -69,7 +69,7 @@
 - 新增 `video_seconds` 计费模式，专门用于视频任务模型。
 - 价格配置按模型级生效，不按模型族共享。
 - 统一价格表结构为 `model -> tier -> price_key`：
-  - `tier` 当前约定使用 `720p`、`1080p`
+  - `tier` 配置层支持任意标准化档位，classic 可视化编辑器当前内置 `720p`、`1080p`、`2k`、`4k`
   - `price_key` 支持 `default`、`silent`、`audio`
 - 价格选择顺序：
   - 当请求显式 `audio=false` 且配置了 `silent` 时，使用 `silent`

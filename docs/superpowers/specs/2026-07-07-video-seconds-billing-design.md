@@ -51,7 +51,7 @@ This mode should:
 
 - be configured per model
 - bill directly by `unit price per second * duration seconds`
-- support standardized tier keys such as `720p` and `1080p`
+- support standardized tier keys such as `720p`, `1080p`, `2k`, `4k`, and future higher resolutions
 - support optional audio-specific variants
 - rely on model-specific converters that normalize incoming task requests into a shared billing parameter structure
 
@@ -140,7 +140,7 @@ type VideoBillingParams struct {
 Semantics:
 
 - `Tier`
-  - standardized output price tier such as `720p`, `1080p`
+  - standardized output price tier such as `720p`, `1080p`, `2k`, `4k`
 - `DurationSeconds`
   - final duration used for pricing
 - `AudioEnabled`
