@@ -27,6 +27,8 @@ import (
 //     auto-provisioned by signup integrations: main-key/auto/default).
 //   - key used:     any API-key request (token_id > 0), auto keys included.
 //   - paid:         top_ups status = success.
+//   - op cost:      quota burned via auto-provisioned keys (created < 120s
+//     after signup) — signup-credit spend, dominated by farm registrations.
 //
 // The report is a full recompute over ~thousands of plg users and their log
 // aggregates; results are cached per node for opsReportCacheTTL. The cache is
@@ -53,6 +55,10 @@ type opsFunnelRow struct {
 	PayIntent     int     `json:"pay_intent"`
 	Paid          int     `json:"paid"`
 	PaidUSD       float64 `json:"paid_usd"`
+	// CostUSD is the quota burned through the cohort's auto-provisioned keys
+	// (created < opsAutoTokenWindow after signup), i.e. signup-credit spend by
+	// users who never manually created a key — dominated by farm registrations.
+	CostUSD float64 `json:"cost_usd"`
 }
 
 type opsNameCount struct {
@@ -522,6 +528,9 @@ func opsRollupFunnel(aggs map[int]*opsUserAgg, keyFn func(*opsUserAgg) string, s
 		if len(a.paidOrders) > 0 {
 			row.Paid++
 			row.PaidUSD += a.paidUSD()
+		}
+		if a.tokenStats != nil {
+			row.CostUSD += float64(a.tokenStats.AutoKeyUsedQuota) / common.QuotaPerUnit
 		}
 	}
 	rows := make([]opsFunnelRow, 0, len(groups))

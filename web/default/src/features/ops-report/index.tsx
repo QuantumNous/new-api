@@ -244,6 +244,7 @@ function FunnelCells({ row }: { row: OpsFunnelRow }) {
       {cell(row.pay_intent)}
       {cell(row.paid)}
       <TableCell className='text-right'>{usd(row.paid_usd)}</TableCell>
+      <TableCell className='text-right'>{usd(row.cost_usd)}</TableCell>
     </>
   )
 }
@@ -261,6 +262,7 @@ function FunnelHeader({ firstColumn }: { firstColumn: string }) {
         <TableHead className='text-right'>{t('Payment Intent')}</TableHead>
         <TableHead className='text-right'>{t('Paid Users')}</TableHead>
         <TableHead className='text-right'>{t('Paid Amount')}</TableHead>
+        <TableHead className='text-right'>{t('Op Cost')}</TableHead>
       </TableRow>
     </TableHeader>
   )
@@ -981,7 +983,7 @@ export function OpsReport() {
           <div className='space-y-4'>
             <p className='text-muted-foreground text-sm'>
               {t(
-                'PLG users only (group=plg, internal and enterprise accounts excluded). All dates and times are US Pacific Time (PT). Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.'
+                'PLG users only (group=plg, internal and enterprise accounts excluded). All dates and times are US Pacific Time (PT). Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys; op cost = quota burned via auto-provisioned keys (created within 2 minutes of signup).'
               )}{' '}
               {t('Generated at')}: {formatTimestamp(report.generated_at)}
             </p>

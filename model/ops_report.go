@@ -60,6 +60,10 @@ type OpsUserTokenStats struct {
 	UserId           int   `json:"user_id"`
 	ManualTokenCount int   `json:"manual_token_count"`
 	FirstManualAt    int64 `json:"first_manual_at"`
+	// AutoKeyUsedQuota is the quota burned through auto-provisioned tokens
+	// (created within the auto window of signup) — the ops cost of giving
+	// signup credit to bot/farm registrations that never create a manual key.
+	AutoKeyUsedQuota int64 `json:"auto_key_used_quota"`
 }
 
 type OpsKeyDaily struct {
@@ -214,12 +218,13 @@ func GetOpsUserTokenStats(autoWindowSec int64) ([]*OpsUserTokenStats, error) {
 	sql := fmt.Sprintf(`
 		SELECT t.user_id,
 		       COALESCE(SUM(CASE WHEN t.created_time - u.created_at >= ? THEN 1 ELSE 0 END), 0) AS manual_token_count,
-		       COALESCE(MIN(CASE WHEN t.created_time - u.created_at >= ? THEN t.created_time END), 0) AS first_manual_at
+		       COALESCE(MIN(CASE WHEN t.created_time - u.created_at >= ? THEN t.created_time END), 0) AS first_manual_at,
+		       COALESCE(SUM(CASE WHEN t.created_time - u.created_at < ? THEN t.used_quota ELSE 0 END), 0) AS auto_key_used_quota
 		FROM tokens t
 		INNER JOIN users u ON u.id = t.user_id
 		WHERE u.%s = ?
 		GROUP BY t.user_id`, commonGroupCol)
-	err := DB.Raw(sql, autoWindowSec, autoWindowSec, "plg").Scan(&stats).Error
+	err := DB.Raw(sql, autoWindowSec, autoWindowSec, autoWindowSec, "plg").Scan(&stats).Error
 	return stats, err
 }
 
