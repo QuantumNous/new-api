@@ -3003,7 +3003,7 @@
     "该规则未设置参数覆盖模板": "Cette règle n'a pas de modèle de remplacement de paramètres défini",
     "该规则的缓存保留时长；0 表示使用默认 TTL：": "Durée de rétention du cache pour cette règle ; 0 signifie utiliser le TTL par défaut : ",
     "该记录不包含可用的 token 统计口径。": "Cet enregistrement ne contient pas de statistiques de tokens disponibles.",
-    "该记录由旧版本实例写入，缺少审计信息，建议将实例升级至最新版本以便记录服务器IP、回调IP、支付方式与系统版本等审计字段。": "Cet enregistrement a été écrit par une ancienne version de l'instance et ne contient pas d'informations d'audit. Veuillez mettre à jour l'instance vers la dernière version afin d'enregistrer les champs d'audit tels que l'IP du serveur, l'IP de rappel, le mode de paiement et la version du système.",
+    "该条历史记录缺少审计字段。当前版本已支持记录服务器 IP、回调 IP、支付方式与系统版本等审计信息；这些字段仅会写入后续新产生的记录，历史记录无法自动补齐。": "Cet enregistrement historique date d'avant le suivi des informations d'audit et ne peut pas être complété rétroactivement. La version actuelle enregistre déjà l'IP du serveur, l'IP de rappel, le mode de paiement et la version du système pour les nouveaux paiements à venir.",
     "详情": "Détails",
     "详见「特殊倍率」和「可用分组」标签页。": "See \"Special Ratios\" and \"Usable Groups\" tabs for details.",
     "语言偏好": "Préférence linguistique",

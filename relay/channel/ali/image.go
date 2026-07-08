@@ -54,6 +54,12 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 		}
 	}
 
+	// Parameters may come from Extra["parameters"], bypassing the standard
+	// top-level n validation; enforce the same bound before it becomes a
+	// billing multiplier.
+	if imageRequest.Parameters.N < 0 || imageRequest.Parameters.N > dto.MaxImageN {
+		return nil, fmt.Errorf("parameters.n must be an integer between 1 and %d", dto.MaxImageN)
+	}
 	if imageRequest.Parameters.N != 0 {
 		info.PriceData.AddOtherRatio("n", float64(imageRequest.Parameters.N))
 	}

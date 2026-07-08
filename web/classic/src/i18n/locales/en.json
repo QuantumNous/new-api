@@ -3099,7 +3099,7 @@
     "该规则未设置参数覆盖模板": "This rule has no parameter override template set",
     "该规则的缓存保留时长；0 表示使用默认 TTL：": "Cache retention duration for this rule; 0 means using default TTL: ",
     "该记录不包含可用的 token 统计口径。": "This record does not contain available token statistics.",
-    "该记录由旧版本实例写入，缺少审计信息，建议将实例升级至最新版本以便记录服务器IP、回调IP、支付方式与系统版本等审计字段。": "This record was written by an older instance and lacks audit info. Please upgrade the instance to the latest version so that server IP, callback IP, payment method, and system version audit fields are recorded.",
+    "该条历史记录缺少审计字段。当前版本已支持记录服务器 IP、回调 IP、支付方式与系统版本等审计信息；这些字段仅会写入后续新产生的记录，历史记录无法自动补齐。": "This historical record predates audit-info tracking and cannot be backfilled. The current instance already records server IP, callback IP, payment method, and system version for new top-ups going forward.",
     "详情": "Details",
     "详见「特殊倍率」和「可用分组」标签页。": "See \"Special Ratios\" and \"Usable Groups\" tabs for details.",
     "语言偏好": "Language Preference",
