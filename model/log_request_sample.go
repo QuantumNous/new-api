@@ -123,8 +123,14 @@ func maybeRecordLogRequestSample(c *gin.Context, userId int, params RecordConsum
 			return
 		}
 	}
-	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-	if userGroup == "" || !snapshot.GroupEnabled(userGroup) {
+	sampleGroup := params.Group
+	if sampleGroup == "" {
+		sampleGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	}
+	if sampleGroup == "" {
+		sampleGroup = common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+	}
+	if sampleGroup == "" || !snapshot.GroupEnabled(sampleGroup) {
 		return
 	}
 	requestPath := c.Request.URL.Path
@@ -169,7 +175,7 @@ func maybeRecordLogRequestSample(c *gin.Context, userId int, params RecordConsum
 		CreatedAt:        log.CreatedAt,
 		ModelName:        params.ModelName,
 		TokenId:          params.TokenId,
-		UserGroup:        userGroup,
+		UserGroup:        sampleGroup,
 		RequestPath:      requestPath,
 		RequestParams:    paramsJSON,
 		RequestBodySize:  storage.Size(),

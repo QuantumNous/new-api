@@ -141,7 +141,7 @@ func TestRecordConsumeLogRequestSamplingWritesRedactedSampleForEligiblePLG(t *te
 		PromptTokens:     3,
 		CompletionTokens: 4,
 		UseTimeSeconds:   1,
-		Group:            "enterprise",
+		Group:            "plg",
 		Other:            map[string]interface{}{"note": "keep"},
 	})
 
@@ -204,6 +204,35 @@ func TestRecordConsumeLogRequestSamplingWritesRedactedSampleForEligiblePLG(t *te
 	require.NotContains(t, sample.RequestParams, "example.com")
 	require.NotContains(t, sample.RequestParams, "safe=ok")
 	require.NotContains(t, sample.RequestParams, "data:image/png;base64")
+}
+
+func TestRecordConsumeLogRequestSamplingUsesLoggedGroupForEligibility(t *testing.T) {
+	truncateTables(t)
+	configureRequestSamplingForTest(t, true, 1, []string{"plg"})
+
+	c := newRequestSamplingContext("POST", "/v1/chat/completions", strings.NewReader(`{"messages":[{"content":"hi"}]}`))
+	common.SetContextKey(c, constant.ContextKeyUserGroup, "root")
+	RecordConsumeLog(c, 123, RecordConsumeLogParams{
+		ModelName: "gpt-4o",
+		TokenId:   9,
+		Group:     "plg",
+		Other:     map[string]interface{}{},
+	})
+
+	var sample LogRequestSample
+	require.NoError(t, LOG_DB.First(&sample).Error)
+	require.Equal(t, "plg", sample.UserGroup)
+
+	c = newRequestSamplingContext("POST", "/v1/chat/completions", strings.NewReader(`{"messages":[{"content":"hi"}]}`))
+	common.SetContextKey(c, constant.ContextKeyUserGroup, "plg")
+	RecordConsumeLog(c, 123, RecordConsumeLogParams{
+		ModelName: "gpt-4o",
+		TokenId:   9,
+		Group:     "enterprise",
+		Other:     map[string]interface{}{},
+	})
+
+	require.Equal(t, int64(1), countRequestSamples(t))
 }
 
 func TestRecordConsumeLogRequestSamplingCanRedactTextContent(t *testing.T) {
