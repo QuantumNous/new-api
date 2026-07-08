@@ -143,17 +143,17 @@ export function ApiKeyGroupCombobox({
         }
       >
         <span className='flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3'>
-          <span className='min-w-0'>
-            <span className='block truncate font-medium'>
+          <span className='flex min-w-0 flex-1 flex-col overflow-hidden text-left'>
+            <span className='block max-w-full truncate font-medium'>
               {selectedOption?.label || placeholder || t('Select a group')}
             </span>
             {selectedOption?.desc && (
-              <span className='text-muted-foreground block truncate text-[11px] sm:text-xs'>
+              <span className='text-muted-foreground block max-w-full truncate text-[11px] sm:text-xs'>
                 {selectedOption.desc}
               </span>
             )}
           </span>
-          <span className='hidden sm:block'>
+          <span className='hidden shrink-0 sm:block'>
             <GroupRatioBadge ratio={selectedOption?.ratio} />
           </span>
         </span>
@@ -179,7 +179,7 @@ export function ApiKeyGroupCombobox({
                   key={option.value}
                   value={option.value}
                   onSelect={() => handleSelect(option.value)}
-                  className='data-[selected=true]:bg-muted items-start gap-3 rounded-lg px-3 py-3 transition-colors'
+                  className='data-[selected=true]:bg-muted min-w-0 items-start gap-3 rounded-lg px-3 py-3 transition-colors'
                 >
                   <Check
                     className={cn(
@@ -187,12 +187,12 @@ export function ApiKeyGroupCombobox({
                       value === option.value ? 'opacity-100' : 'opacity-0'
                     )}
                   />
-                  <span className='min-w-0 flex-1'>
-                    <span className='block truncate font-medium'>
+                  <span className='flex min-w-0 flex-1 flex-col overflow-hidden text-left'>
+                    <span className='block max-w-full truncate font-medium'>
                       {option.label}
                     </span>
                     {option.desc && (
-                      <span className='text-muted-foreground block truncate text-xs'>
+                      <span className='text-muted-foreground block max-w-full truncate text-xs'>
                         {option.desc}
                       </span>
                     )}
