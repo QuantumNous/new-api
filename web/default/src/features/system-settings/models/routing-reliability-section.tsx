@@ -81,6 +81,10 @@ const routingReliabilitySchema = z
         .number()
         .int()
         .min(1, 'Interval must be at least 1 minute'),
+      test_concurrency: z.coerce
+        .number()
+        .int()
+        .min(1, 'Concurrency must be at least 1'),
       channel_test_mode: z.enum(channelTestModes),
     }),
   })
@@ -126,6 +130,7 @@ type RoutingReliabilitySectionProps = {
     AutomaticRetryStatusCodes: string
     'monitor_setting.auto_test_channel_enabled': boolean
     'monitor_setting.auto_test_channel_minutes': number
+    'monitor_setting.test_concurrency': number
     'monitor_setting.channel_test_mode': ChannelTestMode
   }
 }
@@ -144,6 +149,7 @@ type NormalizedRoutingReliabilityValues = {
   AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
+  'monitor_setting.test_concurrency': number
   'monitor_setting.channel_test_mode': ChannelTestMode
 }
 
@@ -168,6 +174,7 @@ const buildFormDefaults = (
       defaults['monitor_setting.auto_test_channel_enabled'],
     auto_test_channel_minutes:
       defaults['monitor_setting.auto_test_channel_minutes'],
+    test_concurrency: defaults['monitor_setting.test_concurrency'],
     channel_test_mode: normalizeChannelTestMode(
       defaults['monitor_setting.channel_test_mode']
     ),
@@ -194,6 +201,8 @@ const normalizeDefaults = (
     defaults['monitor_setting.auto_test_channel_enabled'],
   'monitor_setting.auto_test_channel_minutes':
     defaults['monitor_setting.auto_test_channel_minutes'],
+  'monitor_setting.test_concurrency':
+    defaults['monitor_setting.test_concurrency'],
   'monitor_setting.channel_test_mode': normalizeChannelTestMode(
     defaults['monitor_setting.channel_test_mode']
   ),
@@ -219,6 +228,7 @@ const normalizeFormValues = (
     values.monitor_setting.auto_test_channel_enabled,
   'monitor_setting.auto_test_channel_minutes':
     values.monitor_setting.auto_test_channel_minutes,
+  'monitor_setting.test_concurrency': values.monitor_setting.test_concurrency,
   'monitor_setting.channel_test_mode': values.monitor_setting.channel_test_mode,
 })
 
@@ -447,6 +457,30 @@ export function RoutingReliabilitySection({
                             'How frequently the system checks auto-disabled channels for recovery'
                           )
                         : t('How frequently the system tests all channels')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='monitor_setting.test_concurrency'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Test concurrency')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={1}
+                        step={1}
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Number of channels tested in parallel during a batch test (1 = one at a time).'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

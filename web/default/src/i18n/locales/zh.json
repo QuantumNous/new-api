@@ -4352,6 +4352,8 @@
     "Test Connection": "测试连接",
     "Test connectivity for:": "测试连接性：",
     "Test failed": "测试失败",
+    "Test concurrency": "测试并发数",
+    "Number of channels tested in parallel during a batch test (1 = one at a time).": "批量测试时并行测试的渠道数量（1 = 逐个测试）。",
     "Test interval (minutes)": "测试间隔 (分钟)",
     "Test Latency": "测试延迟",
     "Test Mode": "测试模式",
