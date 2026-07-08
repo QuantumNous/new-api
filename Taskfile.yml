@@ -1,0 +1,60 @@
+version: "3"
+
+tasks:
+  docs:check:
+    desc: "Check docs structure: dirs, READMEs, required files (non-empty)"
+    cmds:
+      - test -s AGENTS.md
+      - test -s README.md
+      - test -s docs/README.md
+      - test -s docs/00-context/README.md
+      - test -s docs/10-product/README.md
+      - test -s docs/20-architecture/README.md
+      - test -s docs/30-engineering/README.md
+      - test -s docs/40-operations/README.md
+      - test -s docs/50-planning/README.md
+      - test -s docs/60-marketing/README.md
+      - test -s docs/70-research/README.md
+      - test -s docs/80-dev/README.md
+      - test -s docs/90-ui-ux/README.md
+      - test -s docs/99-archive/README.md
+      - test -s docs/00-context/项目简介.md
+      - test -s docs/00-context/需求清单.md
+      - test -s docs/00-context/硬约束.md
+      - test -s docs/10-product/核心业务流程.md
+      - test -s docs/10-product/验收标准.md
+      - test -s docs/20-architecture/架构概览.md
+      - test -s docs/20-architecture/数据模型.md
+      - test -d docs/20-architecture/decisions
+      - test -s docs/30-engineering/本地环境搭建.md
+      - test -s docs/30-engineering/命令清单.md
+      - test -s docs/30-engineering/AI编码指南.md
+      - test -s docs/30-engineering/编码规范.md
+      - test -s docs/40-operations/环境配置.md
+      - test -s docs/40-operations/运维手册.md
+      - test -s docs/40-operations/监控告警.md
+      - test -s docs/50-planning/路线图.md
+      - test -s docs/50-planning/变更记录.md
+      - test -s docs/60-marketing/产品定位.md
+      - test -s docs/60-marketing/发布说明.md
+      - test -s docs/70-research/参考资料.md
+      - test -s docs/70-research/备选方案.md
+      - test -s docs/90-ui-ux/页面清单.md
+      - test -s docs/90-ui-ux/交互模式.md
+      - test -s docs/00-context/术语表.md
+      - test -s docs/10-product/用户与角色.md
+      - test -s docs/templates/adr.md
+      - test -x scripts/docs/new-adr.sh
+
+  ai:check:
+    desc: "Check existing AI guide files without changing them"
+    cmds:
+      - test -s AGENTS.md
+      - test -s CLAUDE.md
+      - grep -q "AGENTS.md" CLAUDE.md
+
+  docs:new-adr:
+    desc: "Create a numbered ADR. Usage: task docs:new-adr -- title=某个架构决策"
+    cmds:
+      - test -n "{{.title}}"
+      - bash scripts/docs/new-adr.sh "{{.title}}"
