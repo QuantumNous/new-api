@@ -194,6 +194,48 @@ func TestCacheGetRandomSatisfiedChannelDoesNotFilterEmbeddingsEndpoint(t *testin
 	require.Equal(t, 115, channel.Id)
 }
 
+func TestCacheGetRandomSatisfiedChannelAllowsZhipuV4ForAnthropicMessages(t *testing.T) {
+	setupChannelSelectEndpointTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	priority := int64(100)
+	weight := uint(1000)
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:       116,
+		Type:     constant.ChannelTypeZhipu_v4,
+		Key:      "zhipu-key",
+		Name:     "zhipu-v4",
+		Status:   common.ChannelStatusEnabled,
+		Priority: &priority,
+		Weight:   &weight,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group:     "company-employees",
+		Model:     "glm-5.2",
+		ChannelId: 116,
+		Enabled:   true,
+		Priority:  &priority,
+		Weight:    weight,
+	}).Error)
+	model.InitChannelCache()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	channel, selectedGroup, err := CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx:        ctx,
+		TokenGroup: "company-employees",
+		ModelName:  "glm-5.2",
+		Retry:      common.GetPointer(0),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "company-employees", selectedGroup)
+	require.NotNil(t, channel)
+	require.Equal(t, 116, channel.Id)
+}
+
 func TestDBGetRandomSatisfiedChannelFiltersBeforeRetryPriority(t *testing.T) {
 	setupChannelSelectEndpointTestDB(t)
 	common.MemoryCacheEnabled = false
@@ -294,6 +336,8 @@ func TestChannelSupportsRequestEndpointDoesNotFilterLegacyEndpointModes(t *testi
 		path  string
 		model string
 	}{
+		{"anthropic messages", "/v1/messages", "glm-5.2"},
+		{"gemini generate content", "/v1beta/models/gemini-2.5-flash:generateContent", "gemini-2.5-flash"},
 		{"embeddings", "/v1/embeddings", "text-embedding-3-small"},
 		{"image generation", "/v1/images/generations", "gpt-image-2"},
 		{"rerank", "/v1/rerank", "jina-reranker-v2-base-multilingual"},
@@ -343,20 +387,15 @@ func TestChannelSupportsRequestEndpointRejectsUnsupportedResponsesAdaptors(t *te
 	}, "gpt-5.4"))
 }
 
-func TestRequestedEndpointTypeRecognizesV1Models(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/models/gemini-2.5-flash:generateContent", nil)
-
-	require.Equal(t, constant.EndpointTypeGemini, requestedEndpointType(ctx))
-}
-
 func TestRequestedEndpointTypeDoesNotFilterLegacyEndpointModes(t *testing.T) {
 	cases := []struct {
 		name string
 		path string
 	}{
+		{"playground chat", "/pg/chat/completions"},
+		{"anthropic messages", "/v1/messages"},
+		{"gemini v1beta", "/v1beta/models/gemini-2.5-flash:generateContent"},
+		{"gemini v1", "/v1/models/gemini-2.5-flash:generateContent"},
 		{"embeddings", "/v1/embeddings"},
 		{"image generation", "/v1/images/generations"},
 		{"rerank", "/v1/rerank"},
