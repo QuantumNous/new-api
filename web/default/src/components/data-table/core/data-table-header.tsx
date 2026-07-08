@@ -21,7 +21,7 @@ import {
   type Header,
   type Table as TanstackTable,
 } from '@tanstack/react-table'
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -56,6 +56,7 @@ export function DataTableHeader<TData>({
             <TableHead
               key={header.id}
               colSpan={header.colSpan}
+              data-column-id={header.column.id}
               className={cn(
                 'relative',
                 getColumnClassName?.(header.column.id, 'header')
@@ -68,8 +69,11 @@ export function DataTableHeader<TData>({
                   role='separator'
                   aria-orientation='vertical'
                   aria-label={t('Resize column')}
+                  data-column-resizer
                   tabIndex={0}
-                  onDoubleClick={() => header.column.resetSize()}
+                  onDoubleClick={(event) =>
+                    handleColumnAutoSize(event, table, header)
+                  }
                   onMouseDown={header.getResizeHandler()}
                   onTouchStart={header.getResizeHandler()}
                   onKeyDown={(event) =>
@@ -111,7 +115,7 @@ function handleColumnResizeKeyDown<TData>(
 
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
-    header.column.resetSize()
+    autoSizeColumn(event.currentTarget, table, header)
   }
 }
 
@@ -122,16 +126,47 @@ function resizeColumnByKeyboard<TData>(
 ) {
   table.setColumnSizing((previous) => ({
     ...previous,
-    [header.column.id]: getClampedColumnSize(header, delta),
+    [header.column.id]: getClampedColumnSize(
+      header,
+      header.column.getSize() + delta
+    ),
+  }))
+}
+
+function handleColumnAutoSize<TData>(
+  event: MouseEvent<HTMLDivElement>,
+  table: TanstackTable<TData>,
+  header: Header<TData, unknown>
+) {
+  event.preventDefault()
+  autoSizeColumn(event.currentTarget, table, header)
+}
+
+function autoSizeColumn<TData>(
+  resizerElement: HTMLElement,
+  table: TanstackTable<TData>,
+  header: Header<TData, unknown>
+) {
+  const measuredSize = measureColumnContentWidth(
+    resizerElement,
+    header.column.id
+  )
+
+  if (measuredSize === undefined) {
+    return
+  }
+
+  table.setColumnSizing((previous) => ({
+    ...previous,
+    [header.column.id]: getClampedColumnSize(header, measuredSize),
   }))
 }
 
 function getClampedColumnSize<TData>(
   header: Header<TData, unknown>,
-  delta: number
+  nextSize: number
 ) {
   const { minSize, maxSize } = header.column.columnDef
-  const nextSize = header.column.getSize() + delta
 
   if (typeof minSize === 'number' && nextSize < minSize) {
     return minSize
@@ -142,6 +177,64 @@ function getClampedColumnSize<TData>(
   }
 
   return nextSize
+}
+
+function measureColumnContentWidth(
+  resizerElement: HTMLElement,
+  columnId: string
+) {
+  const tableElement = resizerElement.closest('table')
+  if (!tableElement) {
+    return undefined
+  }
+
+  const cells = tableElement.querySelectorAll<HTMLElement>(
+    getColumnElementSelector(columnId)
+  )
+  if (cells.length === 0) {
+    return undefined
+  }
+
+  const measuredWidth = [...cells].reduce(
+    (maxWidth, cell) => Math.max(maxWidth, measureElementWidth(cell)),
+    0
+  )
+
+  return measuredWidth > 0 ? Math.ceil(measuredWidth) : undefined
+}
+
+function measureElementWidth(element: HTMLElement) {
+  const clone = element.cloneNode(true) as HTMLElement
+
+  clone.querySelectorAll('[data-column-resizer]').forEach((resizer) => {
+    resizer.remove()
+  })
+
+  clone.style.position = 'absolute'
+  clone.style.visibility = 'hidden'
+  clone.style.pointerEvents = 'none'
+  clone.style.left = '-10000px'
+  clone.style.top = '0'
+  clone.style.width = 'max-content'
+  clone.style.minWidth = '0'
+  clone.style.maxWidth = 'none'
+  clone.style.height = 'auto'
+  clone.style.whiteSpace = 'nowrap'
+
+  document.body.append(clone)
+  const width = clone.scrollWidth
+  clone.remove()
+
+  return width
+}
+
+function getColumnElementSelector(columnId: string) {
+  const escapedColumnId =
+    typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+      ? CSS.escape(columnId)
+      : columnId.replaceAll('\\', '\\\\').replaceAll('"', '\\"')
+
+  return `[data-column-id="${escapedColumnId}"]`
 }
 
 function shouldRenderColumnResizer<TData>(
