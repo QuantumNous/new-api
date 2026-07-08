@@ -5282,5 +5282,6 @@
   "Payment is processed securely by Stripe.": "Le paiement est traité en toute sécurité par Stripe.",
   "Failed to load the payment form, please try again": "Échec du chargement du formulaire de paiement, veuillez réessayer",
   "Publishable key": "Clé publiable",
-  "Enables embedded Stripe Checkout inside the console (leave blank to keep the hosted redirect)": "Active Stripe Checkout intégré dans la console (laisser vide pour conserver la redirection hébergée)"
+  "Enables embedded Stripe Checkout inside the console (leave blank to keep the hosted redirect)": "Active Stripe Checkout intégré dans la console (laisser vide pour conserver la redirection hébergée)",
+  "Pay ${{pay}}, get ${{total}} — includes ${{bonus}} bonus": "Payez ${{pay}}, obtenez ${{total}} — dont ${{bonus}} de bonus"
 }

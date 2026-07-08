@@ -43,6 +43,7 @@ import type {
   ApiResponse,
   PaddlePaymentResponse,
   PaymentOptions,
+  StripeTopupSummary,
 } from '../types'
 import type { StripeEmbeddedCheckoutSession } from '../components/dialogs/stripe-embedded-checkout-dialog'
 
@@ -241,6 +242,7 @@ export function usePayment() {
                 pay_link?: string
                 client_secret?: string
                 publishable_key?: string
+                topup_summary?: StripeTopupSummary
               }
             | undefined
           // Embedded session: mount Checkout in-console. The server only returns a
@@ -250,6 +252,7 @@ export function usePayment() {
             setEmbeddedCheckout({
               clientSecret: stripeData.client_secret,
               publishableKey: stripeData.publishable_key,
+              summary: stripeData.topup_summary ?? null,
             })
             return true
           }

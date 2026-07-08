@@ -515,11 +515,20 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 			failMissingPayload("client secret")
 			return
 		}
+		// The embedded dialog renders its own bonus banner above the Stripe form.
+		// Amounts are trustworthy only in USD display mode (token display amounts are
+		// huge and unreadable in a headline), mirroring stripeCheckoutSubmitMessage.
 		c.JSON(http.StatusOK, gin.H{
 			"message": "success",
 			"data": gin.H{
 				"client_secret":   checkoutSession.ClientSecret,
 				"publishable_key": setting.StripePublishableKey,
+				"topup_summary": gin.H{
+					"pay_amount":    normalizedAmount,
+					"bonus_amount":  bonusAmount,
+					"credit_amount": normalizedAmount + bonusAmount,
+					"show_amounts":  operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens,
+				},
 			},
 		})
 		return

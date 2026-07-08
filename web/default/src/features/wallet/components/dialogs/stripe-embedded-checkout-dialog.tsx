@@ -18,14 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useRef, useState } from 'react'
 import { loadStripe, type StripeEmbeddedCheckout } from '@stripe/stripe-js'
-import { Loader2 } from 'lucide-react'
+import { Gift, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Dialog } from '@/components/dialog'
+import type { StripeTopupSummary } from '../../types'
 
 export interface StripeEmbeddedCheckoutSession {
   clientSecret: string
   publishableKey: string
+  summary: StripeTopupSummary | null
 }
 
 interface StripeEmbeddedCheckoutDialogProps {
@@ -118,8 +120,23 @@ function EmbeddedCheckoutFrame({
     }
   }, [session, onOpenChange, t])
 
+  const summary = session.summary
+  const showBonusBanner = Boolean(summary?.show_amounts && summary.bonus_amount > 0)
+
   return (
     <div className='min-h-[480px]'>
+      {showBonusBanner && summary ? (
+        <div className='mx-4 mt-1 mb-3 flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 py-2 text-center text-white'>
+          <Gift className='h-4 w-4 shrink-0' />
+          <span className='text-sm font-bold sm:text-base'>
+            {t('Pay ${{pay}}, get ${{total}} — includes ${{bonus}} bonus', {
+              pay: summary.pay_amount,
+              total: summary.credit_amount,
+              bonus: summary.bonus_amount,
+            })}
+          </span>
+        </div>
+      ) : null}
       {mounting && (
         <div className='flex h-[480px] items-center justify-center'>
           <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />

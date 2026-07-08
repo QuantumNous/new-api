@@ -5282,5 +5282,6 @@
   "Payment is processed securely by Stripe.": "支付由 Stripe 安全处理。",
   "Failed to load the payment form, please try again": "支付表单加载失败，请重试",
   "Publishable key": "Publishable key（可发布密钥）",
-  "Enables embedded Stripe Checkout inside the console (leave blank to keep the hosted redirect)": "启用控制台内嵌 Stripe 收银台（留空则保持跳转到托管页面）"
+  "Enables embedded Stripe Checkout inside the console (leave blank to keep the hosted redirect)": "启用控制台内嵌 Stripe 收银台（留空则保持跳转到托管页面）",
+  "Pay ${{pay}}, get ${{total}} — includes ${{bonus}} bonus": "支付 ${{pay}}，到账 ${{total}} — 含 ${{bonus}} 赠送"
 }

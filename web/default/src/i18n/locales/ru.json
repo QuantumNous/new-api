@@ -5282,5 +5282,6 @@
   "Payment is processed securely by Stripe.": "Платёж безопасно обрабатывается Stripe.",
   "Failed to load the payment form, please try again": "Не удалось загрузить платёжную форму, попробуйте ещё раз",
   "Publishable key": "Публикуемый ключ",
-  "Enables embedded Stripe Checkout inside the console (leave blank to keep the hosted redirect)": "Включает встроенный Stripe Checkout в консоли (оставьте пустым, чтобы сохранить переадресацию)"
+  "Enables embedded Stripe Checkout inside the console (leave blank to keep the hosted redirect)": "Включает встроенный Stripe Checkout в консоли (оставьте пустым, чтобы сохранить переадресацию)",
+  "Pay ${{pay}}, get ${{total}} — includes ${{bonus}} bonus": "Оплатите ${{pay}}, получите ${{total}} — включая бонус ${{bonus}}"
 }

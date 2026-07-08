@@ -37,6 +37,17 @@ export type AmountResponse = ApiResponse<string>
 export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   url?: string
 }
+/** Bonus summary shown in the embedded checkout banner (USD display mode only) */
+export interface StripeTopupSummary {
+  /** USD the buyer pays (top-up tier) */
+  pay_amount: number
+  /** USD bonus credited on top */
+  bonus_amount: number
+  /** Total USD credited to the wallet (pay + bonus) */
+  credit_amount: number
+  /** Whether the amounts are meaningful to display (false in token display mode) */
+  show_amounts: boolean
+}
 export type StripePaymentResponse = ApiResponse<{
   /** Hosted checkout redirect link (hosted ui_mode) */
   pay_link?: string
@@ -44,6 +55,8 @@ export type StripePaymentResponse = ApiResponse<{
   client_secret?: string
   /** Stripe publishable key used to mount embedded Checkout */
   publishable_key?: string
+  /** Bonus banner data for the embedded checkout dialog */
+  topup_summary?: StripeTopupSummary
 }>
 export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse

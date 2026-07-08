@@ -5282,5 +5282,6 @@
   "Payment is processed securely by Stripe.": "お支払いは Stripe により安全に処理されます。",
   "Failed to load the payment form, please try again": "決済フォームの読み込みに失敗しました。もう一度お試しください",
   "Publishable key": "公開可能キー",
-  "Enables embedded Stripe Checkout inside the console (leave blank to keep the hosted redirect)": "コンソール内埋め込み Stripe Checkout を有効化（空欄の場合はホスト型リダイレクトを維持）"
+  "Enables embedded Stripe Checkout inside the console (leave blank to keep the hosted redirect)": "コンソール内埋め込み Stripe Checkout を有効化（空欄の場合はホスト型リダイレクトを維持）",
+  "Pay ${{pay}}, get ${{total}} — includes ${{bonus}} bonus": "${{pay}} で ${{total}} 分 — ${{bonus}} ボーナス込み"
 }

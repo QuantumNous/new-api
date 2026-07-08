@@ -5282,5 +5282,6 @@
   "Payment is processed securely by Stripe.": "Thanh toán được xử lý an toàn bởi Stripe.",
   "Failed to load the payment form, please try again": "Không tải được biểu mẫu thanh toán, vui lòng thử lại",
   "Publishable key": "Khóa công khai (publishable key)",
-  "Enables embedded Stripe Checkout inside the console (leave blank to keep the hosted redirect)": "Bật Stripe Checkout nhúng trong bảng điều khiển (để trống để giữ chuyển hướng được lưu trữ)"
+  "Enables embedded Stripe Checkout inside the console (leave blank to keep the hosted redirect)": "Bật Stripe Checkout nhúng trong bảng điều khiển (để trống để giữ chuyển hướng được lưu trữ)",
+  "Pay ${{pay}}, get ${{total}} — includes ${{bonus}} bonus": "Thanh toán ${{pay}}, nhận ${{total}} — gồm ${{bonus}} thưởng"
 }
