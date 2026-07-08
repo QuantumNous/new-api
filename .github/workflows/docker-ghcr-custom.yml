@@ -6,8 +6,8 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Image tag (e.g. v1.0.0-custom)'
+      image_tag:
+        description: 'Docker image tag only (e.g. v1.0.0-custom), not a git ref'
         required: true
         type: string
 
@@ -40,14 +40,13 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
         with:
-          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 1 }}
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
 
       - name: Resolve tag & write VERSION
         id: version
         run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            TAG="${{ github.event.inputs.tag }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.image_tag }}"
           else
             TAG=${GITHUB_REF#refs/tags/}
           fi
