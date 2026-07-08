@@ -21,7 +21,9 @@ func GetPerfMetricsSummary(c *gin.Context) {
 	}
 
 	activeGroups := append(lo.Keys(ratio_setting.GetGroupRatioCopy()), "auto")
-	if group := strings.TrimSpace(c.Query("group")); group != "" {
+	// "all" = default scope (every active group), for callers like the public
+	// website that must state the scope explicitly.
+	if group := strings.TrimSpace(c.Query("group")); group != "" && group != "all" {
 		if group != websitePublicGroup {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
@@ -70,7 +72,10 @@ func GetPerfMetrics(c *gin.Context) {
 		}
 	}
 	group := strings.TrimSpace(c.Query("group"))
-	if group != "" {
+	// "all" merges every active group into one request-weighted series (the
+	// public website's whole-platform health view).
+	mergeAll := group == "all"
+	if group != "" && !mergeAll {
 		if group != websitePublicGroup {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
@@ -87,11 +92,17 @@ func GetPerfMetrics(c *gin.Context) {
 		}
 	}
 
-	result, err := perfmetrics.Query(perfmetrics.QueryParams{
+	params := perfmetrics.QueryParams{
 		Model: modelName,
 		Group: group,
 		Hours: hours,
-	})
+	}
+	if mergeAll {
+		params.Group = ""
+		params.Groups = append(lo.Keys(ratio_setting.GetGroupRatioCopy()), "auto")
+		params.MergeGroups = true
+	}
+	result, err := perfmetrics.Query(params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -100,7 +111,9 @@ func GetPerfMetrics(c *gin.Context) {
 		return
 	}
 
-	result.Groups = filterActiveGroups(result.Groups)
+	if !mergeAll {
+		result.Groups = filterActiveGroups(result.Groups)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

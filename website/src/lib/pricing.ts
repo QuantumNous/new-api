@@ -2,6 +2,8 @@ import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
 
 export const API_BASE_URL = APP_CONSOLE_ORIGIN;
 export const WEBSITE_PUBLIC_PRICING_GROUP = "plg";
+// Health metrics scope: every active group, merged server-side (whole-platform traffic).
+export const PERF_METRICS_ALL_GROUPS = "all";
 
 export type PricingVendor = {
   id: number;

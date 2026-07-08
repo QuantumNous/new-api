@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
-import { WEBSITE_PUBLIC_PRICING_GROUP } from "@/lib/pricing";
+import { PERF_METRICS_ALL_GROUPS, WEBSITE_PUBLIC_PRICING_GROUP } from "@/lib/pricing";
 
 export async function GET(request: NextRequest) {
   const source = request.nextUrl.searchParams;
@@ -9,13 +9,14 @@ export async function GET(request: NextRequest) {
   const hours = source.get("hours") ?? "24";
   const group = source.get("group")?.trim();
 
-  if (group && group !== WEBSITE_PUBLIC_PRICING_GROUP) {
+  if (group && group !== PERF_METRICS_ALL_GROUPS && group !== WEBSITE_PUBLIC_PRICING_GROUP) {
     return NextResponse.json({ success: false, message: "unsupported performance metrics group" }, { status: 400 });
   }
 
   if (model) target.searchParams.set("model", model);
   target.searchParams.set("hours", hours);
-  target.searchParams.set("group", WEBSITE_PUBLIC_PRICING_GROUP);
+  // Whole-platform health by default; "plg" stays allowed for the public-tier view.
+  target.searchParams.set("group", group || PERF_METRICS_ALL_GROUPS);
 
   return proxyJson(target);
 }

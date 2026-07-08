@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { GET } from "./route";
 
 describe("perf metrics proxy", () => {
-  test("defaults omitted group to the allowlisted PLG group", async () => {
+  test("defaults omitted group to the merged all-groups scope", async () => {
     const originalFetch = globalThis.fetch;
     let requestedUrl = "";
     globalThis.fetch = ((url: string | URL) => {
@@ -16,7 +16,7 @@ describe("perf metrics proxy", () => {
       const response = await GET(request);
 
       expect(response.status).toBe(200);
-      expect(requestedUrl).toContain("group=plg");
+      expect(requestedUrl).toContain("group=all");
     } finally {
       globalThis.fetch = originalFetch;
     }

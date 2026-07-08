@@ -22,6 +22,13 @@ type QueryParams struct {
 	Model string
 	Group string
 	Hours int
+	// Groups, when non-nil, restricts results to these groups (Group must be
+	// empty). MergeGroups collapses the matched groups into one "all" series
+	// with counter-level (request-weighted) aggregation — averaging the
+	// per-group series client-side would weight a 5-request group the same as
+	// a 5M-request one.
+	Groups      []string
+	MergeGroups bool
 }
 
 type BucketPoint struct {
