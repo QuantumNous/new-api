@@ -52,7 +52,7 @@ This mode should:
 - be configured per model
 - bill directly by `unit price per second * duration seconds`
 - support standardized tier keys such as `480p`, `720p`, `1080p`, `2k`, `4k`, and future higher resolutions
-- support optional audio-specific variants
+- support optional silent-specific variants
 - rely on model-specific converters that normalize incoming task requests into a shared billing parameter structure
 
 This is the clearest and safest design because:
@@ -189,9 +189,6 @@ Each tier entry supports:
 - `silent`
   - optional
   - used when billing should treat the request as explicitly no-audio
-- `audio`
-  - optional
-  - used when billing should treat the request as explicitly audio-enabled
 
 Resolution tier keys should be normalized strings:
 
@@ -206,20 +203,18 @@ Audio should be treated as an optional pricing dimension.
 
 Design rule:
 
-- if audio-specific prices are not configured, billing should fall back to `default`
-- models are not required to define both `audio` and `silent`
+- if `silent` is not configured, billing should fall back to `default`
+- models are not required to define `silent`
 - pricing behavior should respect the model’s actual request semantics and defaults
 
 Recommended price selection order:
 
 1. if `AudioEnabled == false` and `silent` is configured, use `silent`
-2. if `AudioEnabled == true` and `audio` is configured, use `audio`
-3. otherwise use `default`
+2. otherwise use `default`
 
 This lets admins model both patterns:
 
 - models whose default experience is audio-enabled, with optional silent discount
-- models whose default experience is silent, with optional audio premium
 
 ## Converter Layer
 
@@ -344,7 +339,7 @@ Shape:
 
 - model name
   - tier key
-    - price key (`default`, `silent`, `audio`)
+    - price key (`default`, `silent`)
 
 Example lookup helper:
 
@@ -429,7 +424,7 @@ This is safer than accidental underbilling or overbilling.
 Minimum tests should cover:
 
 - price lookup by model and tier
-- `default` / `silent` / `audio` selection rules
+- `default` / `silent` selection rules
 - HappyHorse converter:
   - `resolution=720P`
   - `resolution=1080P`
@@ -473,7 +468,7 @@ Resolved:
 Resolved:
 
 - no
-- audio is an optional pricing dimension
+- silent is an optional pricing dimension
 
 ### Q: Should Kling use `resolution` or `mode` for pricing tier?
 

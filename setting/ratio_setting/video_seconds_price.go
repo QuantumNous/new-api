@@ -32,11 +32,6 @@ func GetVideoSecondsPrice(modelName, tier string, audioEnabled bool) (float64, b
 			return price, true
 		}
 	}
-	if audioEnabled {
-		if price, ok := tierMap["audio"]; ok {
-			return price, true
-		}
-	}
 	price, ok := tierMap["default"]
 	return price, ok
 }

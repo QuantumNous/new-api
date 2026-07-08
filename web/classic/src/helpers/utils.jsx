@@ -1145,7 +1145,7 @@ export const getModelPriceItems = (priceData, t, quotaDisplayType = 'USD') => {
   if (priceData.isVideoSecondsPricing) {
     return Object.entries(priceData.videoSecondsPrices || {}).flatMap(
       ([tier, priceMap]) =>
-        ['default', 'silent', 'audio']
+        ['default', 'silent']
           .filter((priceKey) => priceMap[priceKey])
           .map((priceKey) => ({
             key: `${tier}-${priceKey}`,

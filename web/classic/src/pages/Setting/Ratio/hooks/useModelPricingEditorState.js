@@ -44,9 +44,8 @@ const VIDEO_SECONDS_TIER_FIELD_PREFIX = {
   '4k': 'videoSeconds4k',
 };
 const VIDEO_SECONDS_PRICE_KEY_SUFFIX = {
-  default: 'Default',
-  silent: 'Silent',
-  audio: 'Audio',
+	default: 'Default',
+	silent: 'Silent',
 };
 
 const getVideoSecondsFieldName = (tier, priceKey) =>
@@ -439,11 +438,9 @@ export const buildSummaryText = (model, t) => {
     const parts = VIDEO_SECONDS_CONTROLLED_TIERS.reduce((acc, tier) => {
       const defaultValue = getVideoSecondsFieldValue(model, tier, 'default');
       const silentValue = getVideoSecondsFieldValue(model, tier, 'silent');
-      const audioValue = getVideoSecondsFieldValue(model, tier, 'audio');
-
-      if ([defaultValue, silentValue, audioValue].some(hasValue)) {
+      if ([defaultValue, silentValue].some(hasValue)) {
         acc.push(
-          `${tier} D $${defaultValue || '-'} / S $${silentValue || '-'} / A $${audioValue || '-'}`,
+          `${tier} D $${defaultValue || '-'} / S $${silentValue || '-'}`,
         );
       }
       return acc;

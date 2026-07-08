@@ -66,7 +66,6 @@ const VIDEO_SECONDS_TIER_FIELD_PREFIX = {
 const VIDEO_SECONDS_PRICE_KEY_SUFFIX = {
   default: 'Default',
   silent: 'Silent',
-  audio: 'Audio',
 };
 
 const getVideoSecondsFieldName = (tier, priceKey) =>
@@ -498,7 +497,7 @@ export default function ModelPricingEditor({
                       <div className='font-medium'>{t('视频按秒价格')}</div>
                       <div className='text-xs text-gray-500 mt-1'>
                         {t(
-                          '按模型配置 480p / 720p / 1080p / 2k / 4k 档位价格，default 为默认价，silent 为 audio=false 时的静音价，audio 为显式有声价。',
+                          '按模型配置 480p / 720p / 1080p / 2k / 4k 档位价格，default 为模型默认价格，silent 为 audio=false 时的静音价。',
                         )}
                       </div>
                     </div>
@@ -529,20 +528,6 @@ export default function ModelPricingEditor({
                           onChange={(value) =>
                             handleNumericFieldChange(
                               getVideoSecondsFieldName(tier, 'silent'),
-                              value,
-                            )
-                          }
-                        />
-                        <PriceInput
-                          label={t(`${tier} Audio Price`)}
-                          value={
-                            selectedModel[getVideoSecondsFieldName(tier, 'audio')]
-                          }
-                          placeholder={t('Enter USD / second')}
-                          suffix={t('$/sec')}
-                          onChange={(value) =>
-                            handleNumericFieldChange(
-                              getVideoSecondsFieldName(tier, 'audio'),
                               value,
                             )
                           }

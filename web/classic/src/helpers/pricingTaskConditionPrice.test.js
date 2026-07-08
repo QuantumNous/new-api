@@ -172,7 +172,7 @@ test(
       billing_mode: 'video_seconds',
       video_seconds_price: {
         '720p': { default: 0.9, silent: 0.6 },
-        '1080p': { default: 1.2, audio: 1.5 },
+        '1080p': { default: 1.2 },
       },
     },
     selectedGroup: 'all',
@@ -191,6 +191,10 @@ test(
   assert.equal(
     items.find((item) => item.key === '1080p-default')?.value,
     '$1.200',
+  );
+  assert.equal(
+    items.find((item) => item.key === '1080p-audio'),
+    undefined,
   );
   },
 );

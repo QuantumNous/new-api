@@ -8,7 +8,6 @@ export const VIDEO_SECONDS_CONTROLLED_TIERS = [
 export const VIDEO_SECONDS_CONTROLLED_PRICE_KEYS = [
   'default',
   'silent',
-  'audio',
 ];
 
 const parseVideoSecondsPrice = (rawVideoSecondsPrice) => {
