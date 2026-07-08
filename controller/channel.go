@@ -1155,6 +1155,33 @@ func equalStringPtr(a, b *string) bool {
 	return *a == *b
 }
 
+type fetchModelsRequest struct {
+	BaseURL        string `json:"base_url"`
+	Type           int    `json:"type"`
+	Key            string `json:"key"`
+	Setting        string `json:"setting"`
+	Settings       string `json:"settings"`
+	HeaderOverride string `json:"header_override"`
+}
+
+func (req fetchModelsRequest) channel() model.Channel {
+	channel := model.Channel{
+		Type:          req.Type,
+		Key:           req.Key,
+		OtherSettings: req.Settings,
+	}
+	if req.BaseURL != "" {
+		channel.BaseURL = &req.BaseURL
+	}
+	if req.Setting != "" {
+		channel.Setting = &req.Setting
+	}
+	if req.HeaderOverride != "" {
+		channel.HeaderOverride = &req.HeaderOverride
+	}
+	return channel
+}
+
 func normalizeFetchModelsRequestKey(channel *model.Channel) {
 	key := strings.TrimSpace(channel.Key)
 	if key == "" || strings.HasPrefix(key, "{") || strings.HasPrefix(key, "[") {
@@ -1169,9 +1196,9 @@ func fetchModelsRequestRequiresKey(channelType int) bool {
 }
 
 func FetchModels(c *gin.Context) {
-	var channel model.Channel
+	var req fetchModelsRequest
 
-	if err := c.ShouldBindJSON(&channel); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Invalid request",
@@ -1179,6 +1206,7 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 
+	channel := req.channel()
 	normalizeFetchModelsRequestKey(&channel)
 	if fetchModelsRequestRequiresKey(channel.Type) && channel.Key == "" {
 		c.JSON(http.StatusOK, gin.H{
