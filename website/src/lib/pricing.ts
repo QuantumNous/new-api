@@ -307,7 +307,7 @@ function getVendorSortKey(model: PricingModel): string {
   return `${priority}:${vendor}`;
 }
 
-function getModelFamilyKey(modelName: string): string {
+export function getModelFamilyKey(modelName: string): string {
   const name = modelName.toLowerCase();
   const normalized = name
     .replace(/\b(20\d{2}[-_]?\d{2}[-_]?\d{2}|\d{8})\b/g, "")
