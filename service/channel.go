@@ -33,13 +33,25 @@ func formatNotifyType(channelId int, status int) string {
 }
 
 func channelFeishuDedupe(m *sync.Map, channelID int, window time.Duration) bool {
+	return channelFeishuDedupeKey(m, fmt.Sprintf("channel:%d", channelID), window)
+}
+
+func channelModelFeishuDedupe(m *sync.Map, channelID int, modelName string, window time.Duration) bool {
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return channelFeishuDedupe(m, channelID, window)
+	}
+	return channelFeishuDedupeKey(m, fmt.Sprintf("channel:%d:model:%s", channelID, modelName), window)
+}
+
+func channelFeishuDedupeKey(m *sync.Map, key string, window time.Duration) bool {
 	now := time.Now()
-	if v, ok := m.Load(channelID); ok {
+	if v, ok := m.Load(key); ok {
 		if now.Sub(v.(time.Time)) < window {
 			return false
 		}
 	}
-	m.Store(channelID, now)
+	m.Store(key, now)
 	return true
 }
 
@@ -55,26 +67,38 @@ func channelNotifyMeta(channelID int) (tag, baseURL string) {
 	return tag, baseURL
 }
 
-func notifyFeishuChannelDisabled(channelError types.ChannelError, reason string) {
+func channelModelNotifyLines(channelName string, channelID int, modelName string) []string {
+	lines := []string{
+		fmt.Sprintf("渠道：%s (#%d)", channelName, channelID),
+	}
+	if modelName = strings.TrimSpace(modelName); modelName != "" {
+		lines = append(lines, fmt.Sprintf("模型：%s", modelName))
+	}
+	return lines
+}
+
+func notifyFeishuChannelDisabled(channelError types.ChannelError, modelName string, reason string) {
 	chatID := common.FeishuOpsChatID()
 	if chatID == "" {
 		return
 	}
-	if !channelFeishuDedupe(&feishuDisableDedupe, channelError.ChannelId, feishuDisableDedupeWindow) {
+	if !channelModelFeishuDedupe(&feishuDisableDedupe, channelError.ChannelId, modelName, feishuDisableDedupeWindow) {
 		return
 	}
 	tag, _ := channelNotifyMeta(channelError.ChannelId)
-	lines := []string{
-		fmt.Sprintf("渠道：%s (#%d)", channelError.ChannelName, channelError.ChannelId),
-	}
+	lines := channelModelNotifyLines(channelError.ChannelName, channelError.ChannelId, modelName)
 	if tag != "" {
 		lines = append(lines, fmt.Sprintf("标签：%s", tag))
 	}
 	lines = append(lines,
 		fmt.Sprintf("原因：%s", reason),
 		fmt.Sprintf("时间：%s", time.Now().Format("2006-01-02 15:04:05")),
-		"可在控制台重新启用",
 	)
+	if strings.TrimSpace(modelName) != "" {
+		lines = append(lines, "已自动禁用该渠道下的这个模型")
+	} else {
+		lines = append(lines, "可在控制台重新启用渠道")
+	}
 	gopool.Go(func() {
 		if err := common.SendFeishuCard(chatID, "⚠️ 渠道已自动禁用", lines); err != nil {
 			common.SysLog(fmt.Sprintf("飞书禁用通知失败 channel #%d: %v", channelError.ChannelId, err))
@@ -82,26 +106,28 @@ func notifyFeishuChannelDisabled(channelError types.ChannelError, reason string)
 	})
 }
 
-func notifyFeishuChannelEnabled(channelID int, channelName string) {
+func notifyFeishuChannelEnabled(channelID int, channelName string, modelName string) {
 	chatID := common.FeishuOpsChatID()
 	if chatID == "" {
 		return
 	}
-	if !channelFeishuDedupe(&feishuEnableDedupe, channelID, feishuEnableDedupeWindow) {
+	if !channelModelFeishuDedupe(&feishuEnableDedupe, channelID, modelName, feishuEnableDedupeWindow) {
 		return
 	}
 	tag, _ := channelNotifyMeta(channelID)
-	lines := []string{
-		fmt.Sprintf("渠道：%s (#%d)", channelName, channelID),
-	}
+	lines := channelModelNotifyLines(channelName, channelID, modelName)
 	if tag != "" {
 		lines = append(lines, fmt.Sprintf("标签：%s", tag))
 	}
 	lines = append(lines,
 		"原因：自动恢复探针测试通过",
 		fmt.Sprintf("时间：%s", time.Now().Format("2006-01-02 15:04:05")),
-		"已重新启用渠道",
 	)
+	if strings.TrimSpace(modelName) != "" {
+		lines = append(lines, "已重新启用该渠道下的这个模型")
+	} else {
+		lines = append(lines, "已重新启用渠道")
+	}
 	gopool.Go(func() {
 		if err := common.SendFeishuCard(chatID, "✅ 渠道已自动启用", lines); err != nil {
 			common.SysLog(fmt.Sprintf("飞书启用通知失败 channel #%d: %v", channelID, err))
@@ -109,18 +135,16 @@ func notifyFeishuChannelEnabled(channelID int, channelName string) {
 	})
 }
 
-func NotifyChannelDisableProbePassed(channelError types.ChannelError, reason string, latencyMs int64) {
+func NotifyChannelDisableProbePassed(channelError types.ChannelError, modelName string, reason string, latencyMs int64) {
 	chatID := common.FeishuOpsChatID()
 	if chatID == "" {
 		return
 	}
-	if !channelFeishuDedupe(&feishuProbePassDedupe, channelError.ChannelId, feishuProbePassDedupeWindow) {
+	if !channelModelFeishuDedupe(&feishuProbePassDedupe, channelError.ChannelId, modelName, feishuProbePassDedupeWindow) {
 		return
 	}
 	tag, _ := channelNotifyMeta(channelError.ChannelId)
-	lines := []string{
-		fmt.Sprintf("渠道：%s (#%d)", channelError.ChannelName, channelError.ChannelId),
-	}
+	lines := channelModelNotifyLines(channelError.ChannelName, channelError.ChannelId, modelName)
 	if tag != "" {
 		lines = append(lines, fmt.Sprintf("标签：%s", tag))
 	}
@@ -196,7 +220,7 @@ func DisableChannel(channelError types.ChannelError, reason string) {
 		subject := fmt.Sprintf("通道「%s」（#%d）已被禁用", channelError.ChannelName, channelError.ChannelId)
 		content := fmt.Sprintf("通道「%s」（#%d）已被禁用，原因：%s", channelError.ChannelName, channelError.ChannelId, reason)
 		NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled), subject, content)
-		notifyFeishuChannelDisabled(channelError, reason)
+		notifyFeishuChannelDisabled(channelError, "", reason)
 	}
 }
 
@@ -249,7 +273,7 @@ func DisableChannelModel(channelError types.ChannelError, modelName string, reas
 	subject := fmt.Sprintf("通道「%s」（#%d）模型「%s」已被禁用", channelError.ChannelName, channelError.ChannelId, modelName)
 	content := fmt.Sprintf("通道「%s」（#%d）模型「%s」已被禁用，原因：%s", channelError.ChannelName, channelError.ChannelId, modelName, reason)
 	NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled), subject, content)
-	notifyFeishuChannelDisabled(channelError, fmt.Sprintf("模型 %s：%s", modelName, reason))
+	notifyFeishuChannelDisabled(channelError, modelName, reason)
 }
 
 func EnableChannel(channelId int, usingKey string, channelName string) {
@@ -258,7 +282,7 @@ func EnableChannel(channelId int, usingKey string, channelName string) {
 		subject := fmt.Sprintf("通道「%s」（#%d）已被启用", channelName, channelId)
 		content := fmt.Sprintf("通道「%s」（#%d）已被启用", channelName, channelId)
 		NotifyRootUser(formatNotifyType(channelId, common.ChannelStatusEnabled), subject, content)
-		notifyFeishuChannelEnabled(channelId, channelName)
+		notifyFeishuChannelEnabled(channelId, channelName, "")
 	}
 }
 
@@ -297,7 +321,7 @@ func EnableChannelModel(channelId int, modelName string, channelName string) {
 	subject := fmt.Sprintf("通道「%s」（#%d）模型「%s」已被启用", channelName, channelId, modelName)
 	content := fmt.Sprintf("通道「%s」（#%d）模型「%s」自动恢复检测通过，已启用", channelName, channelId, modelName)
 	NotifyRootUser(formatNotifyType(channelId, common.ChannelStatusEnabled), subject, content)
-	notifyFeishuChannelEnabled(channelId, fmt.Sprintf("%s / %s", channelName, modelName))
+	notifyFeishuChannelEnabled(channelId, channelName, modelName)
 }
 
 func ShouldDisableChannel(err *types.NewAPIError) bool {

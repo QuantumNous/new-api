@@ -860,7 +860,11 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 				service.NotifyUpstreamRecharge(channelError, err)
 				service.DisableChannel(channelError, reason)
 			case service.HealthDisableImmediate, service.HealthDisableWindow:
-				service.DisableChannel(channelError, reason)
+				if originalModel != "" {
+					service.DisableChannelModel(channelError, originalModel, reason)
+				} else {
+					service.DisableChannel(channelError, reason)
+				}
 			case service.HealthProbeBeforeDisable:
 				probeBeforeDisablingChannel(channelError, err, reason, originalModel)
 			}
@@ -937,7 +941,7 @@ func probeBeforeDisablingChannel(channelError types.ChannelError, originalErr *t
 	if result.newAPIError == nil && result.localErr == nil {
 		service.ClearChannelHealth(channelError.ChannelId)
 		service.RecordChannelSuccess(channelError.ChannelId)
-		service.NotifyChannelDisableProbePassed(channelError, originalReason, latencyMs)
+		service.NotifyChannelDisableProbePassed(channelError, modelName, originalReason, latencyMs)
 		common.SysLog(fmt.Sprintf("channel #%d disable probe passed in %.2fs; skip auto disable", channelError.ChannelId, float64(latencyMs)/1000.0))
 		return
 	}
