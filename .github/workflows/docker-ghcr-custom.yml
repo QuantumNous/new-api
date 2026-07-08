@@ -14,6 +14,10 @@ on:
 env:
   REGISTRY: ghcr.io
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   prepare:
     name: Prepare build metadata
@@ -111,8 +115,8 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      packages: read
       contents: read
+      packages: write
 
     steps:
       - name: Set version
