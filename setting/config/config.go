@@ -349,14 +349,23 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 			if strValue == "null" {
 				field.Set(reflect.Zero(field.Type()))
 			} else {
-				fresh := reflect.New(field.Type().Elem())
-				if !field.IsNil() {
-					fresh.Elem().Set(field.Elem())
+				if field.IsNil() {
+					fresh := reflect.New(field.Type().Elem())
+					if err := common.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
+						return fmt.Errorf("failed to parse JSON config field %s: %w", key, err)
+					}
+					field.Set(fresh)
+					continue
 				}
-				if err := common.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
+
+				backup, err := common.Marshal(field.Interface())
+				if err != nil {
+					return fmt.Errorf("failed to backup JSON config field %s: %w", key, err)
+				}
+				if err := common.Unmarshal([]byte(strValue), field.Interface()); err != nil {
+					_ = common.Unmarshal(backup, field.Interface())
 					return fmt.Errorf("failed to parse JSON config field %s: %w", key, err)
 				}
-				field.Set(fresh)
 			}
 		case reflect.Map:
 			// json.Unmarshal merges into existing maps (keeps old keys that are
