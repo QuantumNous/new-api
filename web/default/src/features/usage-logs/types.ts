@@ -364,6 +364,7 @@ export interface UserInfo {
   id: number
   username: string
   display_name?: string
+  email?: string
   quota: number
   used_quota: number
   request_count: number

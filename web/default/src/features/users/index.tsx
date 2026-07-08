@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
+import { UserInfoDialog } from '../usage-logs/components/dialogs/user-info-dialog'
 import { UsersDeleteDialog } from './components/users-delete-dialog'
 import { UsersMutateDrawer } from './components/users-mutate-drawer'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
@@ -26,7 +27,14 @@ import { UsersTable } from './components/users-table'
 
 function UsersContent() {
   const { t } = useTranslation()
-  const { open, setOpen, currentRow } = useUsers()
+  const {
+    open,
+    setOpen,
+    currentRow,
+    selectedUserId,
+    userInfoDialogOpen,
+    setUserInfoDialogOpen,
+  } = useUsers()
 
   return (
     <>
@@ -47,6 +55,11 @@ function UsersContent() {
         open={open === 'create' || open === 'update'}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
         currentRow={open === 'update' ? currentRow || undefined : undefined}
+      />
+      <UserInfoDialog
+        userId={selectedUserId}
+        open={userInfoDialogOpen}
+        onOpenChange={setUserInfoDialogOpen}
       />
       <UsersDeleteDialog />
     </>

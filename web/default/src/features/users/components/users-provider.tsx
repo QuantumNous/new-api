@@ -25,6 +25,10 @@ type UsersContextType = {
   setOpen: (str: UsersDialogType | null) => void
   currentRow: User | null
   setCurrentRow: React.Dispatch<React.SetStateAction<User | null>>
+  selectedUserId: number | null
+  setSelectedUserId: React.Dispatch<React.SetStateAction<number | null>>
+  userInfoDialogOpen: boolean
+  setUserInfoDialogOpen: React.Dispatch<React.SetStateAction<boolean>>
   refreshTrigger: number
   triggerRefresh: () => void
 }
@@ -34,6 +38,8 @@ const UsersContext = React.createContext<UsersContextType | null>(null)
 export function UsersProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useDialogState<UsersDialogType>(null)
   const [currentRow, setCurrentRow] = useState<User | null>(null)
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
+  const [userInfoDialogOpen, setUserInfoDialogOpen] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   const triggerRefresh = () => setRefreshTrigger((prev) => prev + 1)
@@ -45,6 +51,10 @@ export function UsersProvider({ children }: { children: React.ReactNode }) {
         setOpen,
         currentRow,
         setCurrentRow,
+        selectedUserId,
+        setSelectedUserId,
+        userInfoDialogOpen,
+        setUserInfoDialogOpen,
         refreshTrigger,
         triggerRefresh,
       }}

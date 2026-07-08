@@ -35,6 +35,7 @@ import { StatusBadge } from '@/components/status-badge'
 import { USER_STATUSES, USER_ROLES, isUserDeleted } from '../constants'
 import { type User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
+import { useUsers } from './users-provider'
 
 function getQuotaProgressColor(percentage: number): string {
   if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
@@ -44,6 +45,13 @@ function getQuotaProgressColor(percentage: number): string {
 
 export function useUsersColumns(): ColumnDef<User>[] {
   const { t } = useTranslation()
+  const { setSelectedUserId, setUserInfoDialogOpen } = useUsers()
+
+  const openUserInfo = (userId: number) => {
+    setSelectedUserId(userId)
+    setUserInfoDialogOpen(true)
+  }
+
   return [
     {
       id: 'select',
@@ -74,7 +82,18 @@ export function useUsersColumns(): ColumnDef<User>[] {
         <DataTableColumnHeader column={column} title='ID' />
       ),
       cell: ({ row }) => {
-        return <div className='w-[60px]'>{row.getValue('id')}</div>
+        return (
+          <button
+            type='button'
+            className='w-[60px] text-left font-mono text-sm hover:underline'
+            onClick={(e) => {
+              e.stopPropagation()
+              openUserInfo(row.original.id)
+            }}
+          >
+            {row.getValue('id')}
+          </button>
+        )
       },
       meta: { label: t('ID'), mobileHidden: true },
     },
@@ -87,6 +106,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const username = row.getValue('username') as string
         const email = row.original.email
         const displayName = row.original.display_name
+        const email = row.original.email
         const remark = row.original.remark
         const secondaryText =
           email || (displayName && displayName !== username ? displayName : '')
@@ -94,9 +114,16 @@ export function useUsersColumns(): ColumnDef<User>[] {
         return (
           <div className='flex min-w-[160px] flex-col gap-1'>
             <div className='flex items-center gap-2'>
-              <LongText className='max-w-[140px] font-medium'>
-                {username}
-              </LongText>
+              <button
+                type='button'
+                className='min-w-0 max-w-[140px] text-left font-medium hover:underline'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openUserInfo(row.original.id)
+                }}
+              >
+                <LongText className='max-w-[140px]'>{username}</LongText>
+              </button>
               {remark && (
                 <Tooltip>
                   <TooltipTrigger
@@ -114,6 +141,18 @@ export function useUsersColumns(): ColumnDef<User>[] {
               <LongText className='text-muted-foreground max-w-[180px] text-xs'>
                 {secondaryText}
               </LongText>
+            )}
+            {email && (
+              <button
+                type='button'
+                className='text-muted-foreground max-w-[220px] text-left text-xs hover:underline'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  openUserInfo(row.original.id)
+                }}
+              >
+                <LongText className='max-w-[220px]'>{email}</LongText>
+              </button>
             )}
           </div>
         )

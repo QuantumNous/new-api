@@ -74,6 +74,17 @@ export function UserInfoDialog({
     }
   }, [open, userId, fetchUserInfo])
 
+  useEffect(() => {
+    if (!open) {
+      setUserInfo(null)
+    }
+  }, [open])
+
+  const renderText = (value?: string | null) => {
+    if (!value) return '-'
+    return value
+  }
+
   const InfoItem = ({
     label,
     value,
@@ -107,24 +118,30 @@ export function UserInfoDialog({
           <div className='space-y-4 py-4'>
             {/* Basic Info */}
             <div className='grid grid-cols-2 gap-4'>
-              <InfoItem label={t('Username')} value={userInfo.username} />
-              {userInfo.display_name && (
-                <InfoItem
-                  label={t('Display Name')}
-                  value={userInfo.display_name}
-                />
-              )}
+              <InfoItem
+                label={t('Username')}
+                value={renderText(userInfo.username)}
+              />
+              <InfoItem label='UID' value={userInfo.id || userId || '-'} />
+            </div>
+
+            <div className='grid grid-cols-2 gap-4'>
+              <InfoItem
+                label={t('Display Name')}
+                value={renderText(userInfo.display_name)}
+              />
+              <InfoItem label={t('Email')} value={renderText(userInfo.email)} />
             </div>
 
             {/* Balance Info */}
             <div className='grid grid-cols-2 gap-4'>
               <InfoItem
                 label={t('Balance')}
-                value={formatQuota(userInfo.quota)}
+                value={formatQuota(userInfo.quota ?? 0)}
               />
               <InfoItem
                 label={t('Used Quota')}
-                value={formatQuota(userInfo.used_quota)}
+                value={formatQuota(userInfo.used_quota ?? 0)}
               />
             </div>
 
@@ -132,11 +149,12 @@ export function UserInfoDialog({
             <div className='grid grid-cols-2 gap-4'>
               <InfoItem
                 label={t('Request Count')}
-                value={formatCompactNumber(userInfo.request_count)}
+                value={formatCompactNumber(userInfo.request_count ?? 0)}
               />
-              {userInfo.group && (
-                <InfoItem label={t('User Group')} value={userInfo.group} />
-              )}
+              <InfoItem
+                label={t('User Group')}
+                value={renderText(userInfo.group)}
+              />
             </div>
 
             {/* Invitation Info */}
