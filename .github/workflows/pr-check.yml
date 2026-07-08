@@ -2,12 +2,12 @@ name: PR Check
 
 permissions:
   contents: read
-  issues: read
-  pull-requests: read
+  issues: write
+  pull-requests: write
 
 on:
   pull_request_target:
-    types: [opened, reopened]
+    types: [opened, reopened, synchronize]
 
 jobs:
   pr-quality:
