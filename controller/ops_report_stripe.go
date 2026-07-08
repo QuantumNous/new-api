@@ -185,7 +185,9 @@ func opsStripeStatus(a *opsStripePersonAcc) string {
 func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 	stripe.Key = setting.StripeApiSecret
 	now := time.Now().Unix()
-	startTs := (now/86400)*86400 - int64(days-1)*86400
+	off := opsTzOffset()
+	// window starts at Pacific midnight (days-1) days ago, matching the main report
+	startTs := ((now+off)/86400)*86400 - off - int64(days-1)*86400
 	report := &opsStripeReport{GeneratedAt: now, Days: days}
 
 	users, err := model.GetOpsPlgUsers()

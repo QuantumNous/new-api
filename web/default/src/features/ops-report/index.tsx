@@ -159,9 +159,16 @@ function countryLabel(code: string, locale: string): string {
   return `${flag} ${name}`
 }
 
+// All times in this report render in US Pacific Time to match the backend's
+// Pacific day bucketing (and the ads accounts' timezone).
+const REPORT_TZ = 'America/Los_Angeles'
+
 const formatTimestamp = (timestamp: number): string => {
   if (!timestamp) return '-'
-  return new Date(timestamp * 1000).toLocaleString()
+  return new Date(timestamp * 1000).toLocaleString(undefined, {
+    timeZone: REPORT_TZ,
+    timeZoneName: 'short',
+  })
 }
 
 // Landing paths are captured on both the public website (flatkey.ai, always
@@ -405,8 +412,17 @@ function StripePersonStatus({ status }: { status: string }) {
 
 const shortTime = (timestamp: number): string => {
   if (!timestamp) return '-'
-  const d = new Date(timestamp * 1000)
-  return `${d.getMonth() + 1}-${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: REPORT_TZ,
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(timestamp * 1000))
+  const get = (type: string) =>
+    parts.find((p) => p.type === type)?.value ?? ''
+  return `${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`
 }
 
 function StripePersonsTable({ rows }: { rows: OpsStripePersonRow[] }) {
@@ -971,7 +987,7 @@ export function OpsReport() {
           <div className='space-y-4'>
             <p className='text-muted-foreground text-sm'>
               {t(
-                'PLG users only (group=plg, internal and enterprise accounts excluded). All dates are UTC. Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.'
+                'PLG users only (group=plg, internal and enterprise accounts excluded). All dates and times are US Pacific Time (PT). Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.'
               )}{' '}
               {t('Generated at')}: {formatTimestamp(report.generated_at)}
             </p>

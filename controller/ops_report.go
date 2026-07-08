@@ -280,17 +280,19 @@ func buildOpsReport(days int, dauScope string) (*opsReportData, error) {
 	}
 
 	now := time.Now().Unix()
-	startTs := (now/86400)*86400 - int64(days-1)*86400
+	off := opsTzOffset()
+	// window starts at Pacific midnight (days-1) days ago
+	startTs := ((now+off)/86400)*86400 - off - int64(days-1)*86400
 
 	report := &opsReportData{GeneratedAt: now, Days: days, DauScope: dauScope}
 	if dauScope == "all" {
-		allDaily, err := model.GetOpsAllKeyDailyUsage(startTs)
+		allDaily, err := model.GetOpsAllKeyDailyUsage(startTs, off)
 		if err != nil {
 			return nil, err
 		}
 		report.Dau = opsRollupDauDays(allDaily, days, startTs)
 	} else {
-		keyDaily, err := model.GetOpsKeyDailyUsage(ids, startTs)
+		keyDaily, err := model.GetOpsKeyDailyUsage(ids, startTs, off)
 		if err != nil {
 			return nil, err
 		}
@@ -440,12 +442,32 @@ func (a *opsUserAgg) paidUSD() float64 {
 	return total
 }
 
+// opsLoc is the report timezone: all day/week bucketing and date labels use
+// US Pacific Time so the report matches the ads accounts and US business day.
+var opsLoc = func() *time.Location {
+	loc, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}()
+
+// opsTzOffset returns the current Pacific UTC offset in seconds (PDT -25200 /
+// PST -28800). It is applied as a fixed shift for all day bucketing — Go and
+// SQL alike, since cross-DB SQL cannot do real timezone math — so buckets stay
+// aligned everywhere; rows within an hour of midnight around a DST switch may
+// land on the neighboring date, which is acceptable for ops trend stats.
+func opsTzOffset() int64 {
+	_, off := time.Now().In(opsLoc).Zone()
+	return int64(off)
+}
+
 func opsDay(ts int64) string {
-	return time.Unix(ts, 0).UTC().Format("2006-01-02")
+	return time.Unix(ts+opsTzOffset(), 0).UTC().Format("2006-01-02")
 }
 
 func opsWeek(ts int64) string {
-	t := time.Unix(ts, 0).UTC()
+	t := time.Unix(ts+opsTzOffset(), 0).UTC()
 	monday := t.AddDate(0, 0, -(int(t.Weekday())+6)%7)
 	return monday.Format("2006-01-02")
 }

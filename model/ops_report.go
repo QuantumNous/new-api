@@ -128,8 +128,10 @@ func GetOpsUserLogStats(userIds []int) ([]*OpsUserLogStats, error) {
 }
 
 // GetOpsKeyDailyUsage returns per-user-per-day API-key request aggregates
-// since startTs (the "key used" DAU series source).
-func GetOpsKeyDailyUsage(userIds []int, startTs int64) ([]*OpsKeyDaily, error) {
+// since startTs (the "key used" DAU series source). tzOffset (seconds, e.g.
+// Pacific -25200) shifts the day boundaries so buckets are report-timezone
+// days; day_ts values are the shifted-day start epochs (midnight in that tz).
+func GetOpsKeyDailyUsage(userIds []int, startTs int64, tzOffset int64) ([]*OpsKeyDaily, error) {
 	var all []*OpsKeyDaily
 	for _, chunk := range chunkInts(userIds, opsReportChunkSize) {
 		var batch []*OpsKeyDaily
@@ -138,13 +140,13 @@ func GetOpsKeyDailyUsage(userIds []int, startTs int64) ([]*OpsKeyDaily, error) {
 		// already floors and FLOOR is a no-op there.
 		sql := fmt.Sprintf(`
 			SELECT user_id,
-			       FLOOR(created_at / 86400) * 86400 AS day_ts,
+			       FLOOR((created_at + ?) / 86400) * 86400 - ? AS day_ts,
 			       COUNT(*) AS req_count,
 			       COALESCE(SUM(quota), 0) AS quota
 			FROM logs%s
 			WHERE type = ? AND token_id > 0 AND created_at >= ? AND user_id IN ?
-			GROUP BY user_id, FLOOR(created_at / 86400) * 86400`, logsForceIndexHint())
-		if err := LOG_DB.Raw(sql, LogTypeConsume, startTs, chunk).Scan(&batch).Error; err != nil {
+			GROUP BY FLOOR((created_at + ?) / 86400) * 86400 - ?, user_id`, logsForceIndexHint())
+		if err := LOG_DB.Raw(sql, tzOffset, tzOffset, LogTypeConsume, startTs, chunk, tzOffset, tzOffset).Scan(&batch).Error; err != nil {
 			return nil, err
 		}
 		all = append(all, batch...)
@@ -158,16 +160,16 @@ func GetOpsKeyDailyUsage(userIds []int, startTs int64) ([]*OpsKeyDaily, error) {
 // logs table, so the optimizer full-scans ~45M rows there (measured 100s+ on
 // prod). Trade-off: quota_data counts all consumption including playground,
 // not only token_id>0 API-key calls.
-func GetOpsAllKeyDailyUsage(startTs int64) ([]*OpsDauDay, error) {
+func GetOpsAllKeyDailyUsage(startTs int64, tzOffset int64) ([]*OpsDauDay, error) {
 	var rows []*OpsDauDay
 	err := DB.Raw(`
-		SELECT FLOOR(created_at / 86400) * 86400 AS day_ts,
+		SELECT FLOOR((created_at + ?) / 86400) * 86400 - ? AS day_ts,
 		       COUNT(DISTINCT user_id) AS active_users,
 		       COALESCE(SUM(count), 0) AS req_count,
 		       COALESCE(SUM(quota), 0) AS quota
 		FROM quota_data
 		WHERE created_at >= ?
-		GROUP BY FLOOR(created_at / 86400) * 86400`, startTs).Scan(&rows).Error
+		GROUP BY FLOOR((created_at + ?) / 86400) * 86400 - ?`, tzOffset, tzOffset, startTs, tzOffset, tzOffset).Scan(&rows).Error
 	return rows, err
 }
 

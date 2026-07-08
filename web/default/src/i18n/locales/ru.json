@@ -5264,7 +5264,7 @@
     "{{count}} paying users, {{amount}} total": "{{count}} платящих пользователей, всего {{amount}}",
     "PLG Only": "Только PLG",
     "All Users": "Все пользователи",
-    "PLG users only (group=plg, internal and enterprise accounts excluded). All dates are UTC. Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.": "Только PLG-пользователи (group=plg, внутренние и корпоративные аккаунты исключены). Все даты в UTC. Реальный просмотр = чаты в playground без автоматического запроса при регистрации; ключи вручную = API-ключи, созданные через 2+ минуты после регистрации; пользователи ключей = любой запрос по API-ключу, включая автосозданные ключи.",
+    "PLG users only (group=plg, internal and enterprise accounts excluded). All dates and times are US Pacific Time (PT). Real browse = playground chats excluding the auto-fired signup request; manual keys = API keys created 2+ minutes after signup; key users = any API key request including auto-provisioned keys.": "Только PLG-пользователи (group=plg, внутренние и корпоративные аккаунты исключены). Все даты и время указаны по тихоокеанскому времени США (PT). Реальный просмотр = чаты в playground без автоматического запроса при регистрации; ключи вручную = API-ключи, созданные через 2+ минуты после регистрации; пользователи ключей = любой запрос по API-ключу, включая автосозданные ключи.",
     "Payment Currency": "Валюта оплаты",
     "Signup Method": "Способ регистрации",
     "Last IP": "Последний IP",
