@@ -3,6 +3,7 @@ package operation_setting
 import (
 	"math"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -126,6 +127,11 @@ func TestLogRequestSamplingExplicitEmptyScopeDoesNotFallbackToDefaults(t *testin
 		t.Fatalf("UpdateConfigFromMap failed: %v", err)
 	}
 
+	setting := GetLogRequestSamplingSetting()
+	if setting.Groups == nil || setting.EligiblePaths == nil {
+		t.Fatalf("explicit empty slices must be preserved, got groups=%v eligible_paths=%v", setting.Groups, setting.EligiblePaths)
+	}
+
 	snapshot := GetLogRequestSamplingSnapshot()
 	if len(snapshot.Groups) != 0 {
 		t.Fatalf("groups = %v, want explicit empty", snapshot.Groups)
@@ -197,10 +203,13 @@ func TestUpdateLogRequestSamplingSettingDoesNotOverwriteConcurrentFieldChanges(t
 	updateStarted := make(chan struct{})
 	allowUpdate := make(chan struct{})
 	updateDone := make(chan struct{})
+	var updateCalls int32
 	go func() {
 		UpdateLogRequestSamplingSetting(func(setting *LogRequestSamplingSetting) {
-			close(updateStarted)
-			<-allowUpdate
+			if atomic.AddInt32(&updateCalls, 1) == 1 {
+				close(updateStarted)
+				<-allowUpdate
+			}
 			setting.Enabled = true
 		})
 		close(updateDone)
@@ -229,6 +238,52 @@ func TestUpdateLogRequestSamplingSettingDoesNotOverwriteConcurrentFieldChanges(t
 	}
 	if !reflect.DeepEqual(setting.Groups, []string{"enterprise"}) {
 		t.Fatalf("groups = %v, want concurrent enterprise update to be preserved", setting.Groups)
+	}
+}
+
+func TestUpdateLogRequestSamplingSettingRetriesConcurrentSameFieldChanges(t *testing.T) {
+	resetLogRequestSamplingSettingForTest(t)
+
+	updateStarted := make(chan struct{})
+	allowUpdate := make(chan struct{})
+	updateDone := make(chan struct{})
+	var updateCalls int32
+
+	go func() {
+		UpdateLogRequestSamplingSetting(func(setting *LogRequestSamplingSetting) {
+			if atomic.AddInt32(&updateCalls, 1) == 1 {
+				close(updateStarted)
+				<-allowUpdate
+			}
+			setting.Groups = append(setting.Groups, "alpha")
+		})
+		close(updateDone)
+	}()
+
+	select {
+	case <-updateStarted:
+	case <-time.After(time.Second):
+		t.Fatal("first update did not start")
+	}
+
+	UpdateLogRequestSamplingSetting(func(setting *LogRequestSamplingSetting) {
+		setting.Groups = append(setting.Groups, "beta")
+	})
+	close(allowUpdate)
+
+	select {
+	case <-updateDone:
+	case <-time.After(time.Second):
+		t.Fatal("first update did not finish")
+	}
+
+	setting := GetLogRequestSamplingSetting()
+	want := []string{"plg", "beta", "alpha"}
+	if !reflect.DeepEqual(setting.Groups, want) {
+		t.Fatalf("groups = %v, want %v", setting.Groups, want)
+	}
+	if got := atomic.LoadInt32(&updateCalls); got < 2 {
+		t.Fatalf("update callback calls = %d, want retry after concurrent write", got)
 	}
 }
 

@@ -156,17 +156,24 @@ func UpdateLogRequestSamplingSetting(update func(*LogRequestSamplingSetting)) {
 	if update == nil {
 		return
 	}
-	logRequestSamplingMu.Lock()
-	base := cloneLogRequestSamplingSetting(logRequestSamplingSetting)
-	logRequestSamplingMu.Unlock()
 
-	draft := cloneLogRequestSamplingSetting(base)
-	update(&draft)
+	for {
+		logRequestSamplingMu.Lock()
+		base := cloneLogRequestSamplingSetting(logRequestSamplingSetting)
+		logRequestSamplingMu.Unlock()
 
-	logRequestSamplingMu.Lock()
-	defer logRequestSamplingMu.Unlock()
-	applyLogRequestSamplingSettingChanges(&logRequestSamplingSetting, base, draft)
-	storeLogRequestSamplingSnapshotLocked()
+		draft := cloneLogRequestSamplingSetting(base)
+		update(&draft)
+
+		logRequestSamplingMu.Lock()
+		if logRequestSamplingSettingsEqual(logRequestSamplingSetting, base) {
+			logRequestSamplingSetting = cloneLogRequestSamplingSetting(draft)
+			storeLogRequestSamplingSnapshotLocked()
+			logRequestSamplingMu.Unlock()
+			return
+		}
+		logRequestSamplingMu.Unlock()
+	}
 }
 
 func UpdateLogRequestSamplingConfigFromMap(configMap map[string]string) error {
@@ -216,43 +223,30 @@ func storeLogRequestSamplingSnapshotLocked() {
 	logRequestSamplingValue.Store(&snapshot)
 }
 
-func applyLogRequestSamplingSettingChanges(current *LogRequestSamplingSetting, base LogRequestSamplingSetting, draft LogRequestSamplingSetting) {
-	if current == nil {
-		return
-	}
-	if draft.Enabled != base.Enabled {
-		current.Enabled = draft.Enabled
-	}
-	if draft.SampleRate != base.SampleRate {
-		current.SampleRate = draft.SampleRate
-	}
-	if !reflect.DeepEqual(draft.Groups, base.Groups) {
-		current.Groups = append([]string(nil), draft.Groups...)
-	}
-	if !reflect.DeepEqual(draft.EligiblePaths, base.EligiblePaths) {
-		current.EligiblePaths = append([]string(nil), draft.EligiblePaths...)
-	}
-	if draft.MaxBodyBytes != base.MaxBodyBytes {
-		current.MaxBodyBytes = draft.MaxBodyBytes
-	}
-	if draft.MaxStringBytes != base.MaxStringBytes {
-		current.MaxStringBytes = draft.MaxStringBytes
-	}
-	if draft.MaxJSONDepth != base.MaxJSONDepth {
-		current.MaxJSONDepth = draft.MaxJSONDepth
-	}
-	if draft.DropBinaryPayloads != base.DropBinaryPayloads {
-		current.DropBinaryPayloads = draft.DropBinaryPayloads
-	}
-	if draft.AllowTextContentStorage != base.AllowTextContentStorage {
-		current.AllowTextContentStorage = draft.AllowTextContentStorage
-	}
+func logRequestSamplingSettingsEqual(a LogRequestSamplingSetting, b LogRequestSamplingSetting) bool {
+	return a.Enabled == b.Enabled &&
+		float64ConfigEqual(a.SampleRate, b.SampleRate) &&
+		reflect.DeepEqual(a.Groups, b.Groups) &&
+		reflect.DeepEqual(a.EligiblePaths, b.EligiblePaths) &&
+		a.MaxBodyBytes == b.MaxBodyBytes &&
+		a.MaxStringBytes == b.MaxStringBytes &&
+		a.MaxJSONDepth == b.MaxJSONDepth &&
+		a.DropBinaryPayloads == b.DropBinaryPayloads &&
+		a.AllowTextContentStorage == b.AllowTextContentStorage
+}
+
+func float64ConfigEqual(a float64, b float64) bool {
+	return a == b || (math.IsNaN(a) && math.IsNaN(b))
 }
 
 func cloneLogRequestSamplingSetting(in LogRequestSamplingSetting) LogRequestSamplingSetting {
 	out := in
-	out.Groups = append([]string(nil), in.Groups...)
-	out.EligiblePaths = append([]string(nil), in.EligiblePaths...)
+	if in.Groups != nil {
+		out.Groups = append([]string{}, in.Groups...)
+	}
+	if in.EligiblePaths != nil {
+		out.EligiblePaths = append([]string{}, in.EligiblePaths...)
+	}
 	return out
 }
 

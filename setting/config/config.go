@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -348,15 +349,14 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 			if strValue == "null" {
 				field.Set(reflect.Zero(field.Type()))
 			} else {
-				// 如果指针是 nil，需要先初始化
-				if field.IsNil() {
-					field.Set(reflect.New(field.Type().Elem()))
+				fresh := reflect.New(field.Type().Elem())
+				if !field.IsNil() {
+					fresh.Elem().Set(field.Elem())
 				}
-				// 反序列化到指针指向的值
-				err := common.Unmarshal([]byte(strValue), field.Interface())
-				if err != nil {
-					continue
+				if err := common.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
+					return fmt.Errorf("failed to parse JSON config field %s: %w", key, err)
 				}
+				field.Set(fresh)
 			}
 		case reflect.Map:
 			// json.Unmarshal merges into existing maps (keeps old keys that are
@@ -364,14 +364,22 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 			// are properly cleared.
 			fresh := reflect.New(field.Type())
 			if err := common.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
-				continue
+				return fmt.Errorf("failed to parse JSON config field %s: %w", key, err)
 			}
 			field.Set(fresh.Elem())
-		case reflect.Slice, reflect.Struct:
-			err := common.Unmarshal([]byte(strValue), field.Addr().Interface())
-			if err != nil {
-				continue
+		case reflect.Slice:
+			fresh := reflect.New(field.Type())
+			if err := common.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
+				return fmt.Errorf("failed to parse JSON config field %s: %w", key, err)
 			}
+			field.Set(fresh.Elem())
+		case reflect.Struct:
+			fresh := reflect.New(field.Type())
+			fresh.Elem().Set(field)
+			if err := common.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
+				return fmt.Errorf("failed to parse JSON config field %s: %w", key, err)
+			}
+			field.Set(fresh.Elem())
 		}
 	}
 

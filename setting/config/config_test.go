@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -20,6 +21,18 @@ func (panicJSONField) MarshalJSON() ([]byte, error) {
 
 func (*panicJSONField) UnmarshalJSON(_ []byte) error {
 	panic("panic json field")
+}
+
+type nestedJSONConfig struct {
+	Value string `json:"value"`
+}
+
+type testConfigWithJSONFields struct {
+	Ptr    *nestedJSONConfig `json:"ptr"`
+	Modes  map[string]string `json:"modes"`
+	Items  []string          `json:"items"`
+	Nested nestedJSONConfig  `json:"nested"`
+	Name   string            `json:"name"`
 }
 
 func TestUpdateConfigFromMap_MapReplacement(t *testing.T) {
@@ -56,6 +69,95 @@ func TestUpdateConfigFromMap_MapReplacement(t *testing.T) {
 	}
 	if cfg.Exprs["model-b"] != "p * 10 + c * 50" {
 		t.Errorf("Exprs[model-b] = %q, want %q", cfg.Exprs["model-b"], "p * 10 + c * 50")
+	}
+}
+
+func TestUpdateConfigFromMap_InvalidJSONReturnsErrorAndPreservesField(t *testing.T) {
+	tests := []struct {
+		name      string
+		fieldName string
+		configMap map[string]string
+		assert    func(*testing.T, *testConfigWithJSONFields)
+	}{
+		{
+			name:      "ptr",
+			fieldName: "ptr",
+			configMap: map[string]string{"ptr": `{"value":`},
+			assert: func(t *testing.T, cfg *testConfigWithJSONFields) {
+				t.Helper()
+				if cfg.Ptr == nil || cfg.Ptr.Value != "old-ptr" {
+					t.Fatalf("ptr = %#v, want old value preserved", cfg.Ptr)
+				}
+			},
+		},
+		{
+			name:      "map",
+			fieldName: "modes",
+			configMap: map[string]string{"modes": `{"a":`},
+			assert: func(t *testing.T, cfg *testConfigWithJSONFields) {
+				t.Helper()
+				if cfg.Modes["old"] != "mode" || len(cfg.Modes) != 1 {
+					t.Fatalf("modes = %v, want old map preserved", cfg.Modes)
+				}
+			},
+		},
+		{
+			name:      "slice",
+			fieldName: "items",
+			configMap: map[string]string{"items": `["new"`},
+			assert: func(t *testing.T, cfg *testConfigWithJSONFields) {
+				t.Helper()
+				if len(cfg.Items) != 1 || cfg.Items[0] != "old-item" {
+					t.Fatalf("items = %v, want old slice preserved", cfg.Items)
+				}
+			},
+		},
+		{
+			name:      "struct",
+			fieldName: "nested",
+			configMap: map[string]string{"nested": `{"value":`},
+			assert: func(t *testing.T, cfg *testConfigWithJSONFields) {
+				t.Helper()
+				if cfg.Nested.Value != "old-nested" {
+					t.Fatalf("nested = %#v, want old value preserved", cfg.Nested)
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := &testConfigWithJSONFields{
+				Ptr:    &nestedJSONConfig{Value: "old-ptr"},
+				Modes:  map[string]string{"old": "mode"},
+				Items:  []string{"old-item"},
+				Nested: nestedJSONConfig{Value: "old-nested"},
+				Name:   "old-name",
+			}
+
+			err := UpdateConfigFromMap(cfg, test.configMap)
+			if err == nil {
+				t.Fatal("expected invalid JSON to return an error")
+			}
+			if !strings.Contains(err.Error(), test.fieldName) {
+				t.Fatalf("error = %q, want field name %q", err.Error(), test.fieldName)
+			}
+			test.assert(t, cfg)
+		})
+	}
+}
+
+func TestUpdateConfigFromMap_InvalidJSONDoesNotAllocateNilPointer(t *testing.T) {
+	cfg := &testConfigWithJSONFields{}
+
+	err := UpdateConfigFromMap(cfg, map[string]string{
+		"ptr": `{"value":`,
+	})
+	if err == nil {
+		t.Fatal("expected invalid JSON to return an error")
+	}
+	if cfg.Ptr != nil {
+		t.Fatalf("ptr = %#v, want nil pointer preserved", cfg.Ptr)
 	}
 }
 
@@ -130,6 +232,32 @@ func TestConfigManagerLoadFromDBRunsUpdateHook(t *testing.T) {
 	}
 	if hookCalls != 1 {
 		t.Fatalf("hook calls = %d, want 1", hookCalls)
+	}
+}
+
+func TestConfigManagerLoadFromDBSkipsUpdateHookOnInvalidJSON(t *testing.T) {
+	type hookConfig struct {
+		Groups []string `json:"groups"`
+	}
+	manager := NewConfigManager()
+	cfg := &hookConfig{Groups: []string{"old"}}
+	hookCalls := 0
+	manager.Register("hook_config", cfg)
+	manager.RegisterUpdateHook("hook_config", func() {
+		hookCalls++
+	})
+
+	err := manager.LoadFromDB(map[string]string{
+		"hook_config.groups": `["new"`,
+	})
+	if err != nil {
+		t.Fatalf("LoadFromDB failed: %v", err)
+	}
+	if hookCalls != 0 {
+		t.Fatalf("hook calls = %d, want 0 after invalid JSON", hookCalls)
+	}
+	if len(cfg.Groups) != 1 || cfg.Groups[0] != "old" {
+		t.Fatalf("groups = %v, want old value preserved", cfg.Groups)
 	}
 }
 
