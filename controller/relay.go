@@ -634,6 +634,9 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 	if taskErr.StatusCode == http.StatusBadRequest {
 		return false
 	}
+	if taskErr.StatusCode == http.StatusForbidden {
+		return false
+	}
 	if taskErr.StatusCode == 408 {
 		// azure处理超时不重试
 		return false
