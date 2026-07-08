@@ -698,6 +698,147 @@ func UpdateUser(c *gin.Context) {
 	return
 }
 
+type resellerProfileRequest struct {
+	IsReseller     bool `json:"is_reseller"`
+	ResellerUserId int  `json:"reseller_user_id"`
+}
+
+func UpdateUserResellerProfile(c *gin.Context) {
+	if c.GetInt("role") != common.RoleRootUser {
+		common.ApiErrorMsg(c, "只有 root 管理员可以编辑分销商关系")
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	var req resellerProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if err := model.UpdateUserResellerProfile(id, req.IsReseller, req.ResellerUserId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	model.RecordLog(id, model.LogTypeManage, fmt.Sprintf("root updated reseller profile: is_reseller=%t reseller_user_id=%d", req.IsReseller, req.ResellerUserId))
+	common.ApiSuccess(c, nil)
+}
+
+func SearchResellerUsers(c *gin.Context) {
+	if c.GetInt("role") != common.RoleRootUser {
+		common.ApiErrorMsg(c, "只有 root 管理员可以查看分销商账号")
+		return
+	}
+	users, err := model.FindResellerUserByKeyword(c.Query("keyword"), 20)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, users)
+}
+
+func GetResellerDownlines(c *gin.Context) {
+	if c.GetInt("role") != common.RoleRootUser {
+		common.ApiErrorMsg(c, "只有 root 管理员可以查看分销商下线")
+		return
+	}
+	resellerId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || resellerId <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	users, err := model.GetResellerDownlines(resellerId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, users)
+}
+
+func GetResellerRules(c *gin.Context) {
+	if c.GetInt("role") != common.RoleRootUser {
+		common.ApiErrorMsg(c, "只有 root 管理员可以查看分销商规则")
+		return
+	}
+	resellerId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || resellerId <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	downlineId, _ := strconv.Atoi(c.Query("downline_user_id"))
+	rules, err := model.GetResellerRules(resellerId, downlineId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, rules)
+}
+
+type resellerRuleInput struct {
+	ModelName     string  `json:"model_name"`
+	DiscountRatio float64 `json:"discount_ratio"`
+	Enabled       *bool   `json:"enabled"`
+}
+
+type saveResellerRulesRequest struct {
+	DownlineUserId int                 `json:"downline_user_id"`
+	Rules          []resellerRuleInput `json:"rules"`
+}
+
+func SaveResellerRules(c *gin.Context) {
+	if c.GetInt("role") != common.RoleRootUser {
+		common.ApiErrorMsg(c, "只有 root 管理员可以编辑分销商规则")
+		return
+	}
+	resellerId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || resellerId <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	var req saveResellerRulesRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.DownlineUserId <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if err := model.EnsureResellerDownline(resellerId, req.DownlineUserId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	rules := make([]model.ResellerModelRule, 0, len(req.Rules))
+	for _, item := range req.Rules {
+		modelName := strings.TrimSpace(item.ModelName)
+		if modelName == "" {
+			common.ApiErrorMsg(c, "模型名称不能为空")
+			return
+		}
+		if item.DiscountRatio <= 0 || item.DiscountRatio > 1 {
+			common.ApiErrorMsg(c, "折扣比例必须大于 0 且小于等于 1")
+			return
+		}
+		if _, _, _, _, ok := service.GlobalModelPricingUSD(modelName); !ok {
+			common.ApiErrorMsg(c, fmt.Sprintf("模型 %s 没有官方原价，无法保存分销商折扣比例", modelName))
+			return
+		}
+		enabled := true
+		if item.Enabled != nil {
+			enabled = *item.Enabled
+		}
+		rules = append(rules, model.ResellerModelRule{
+			ModelName:     modelName,
+			DiscountRatio: item.DiscountRatio,
+			Enabled:       enabled,
+		})
+	}
+	if err := model.UpsertResellerRules(resellerId, req.DownlineUserId, rules, c.GetInt("id")); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	model.RecordLog(resellerId, model.LogTypeManage, fmt.Sprintf("root updated reseller rules for downline %d", req.DownlineUserId))
+	common.ApiSuccess(c, nil)
+}
+
 func AdminClearUserBinding(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

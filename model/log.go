@@ -39,6 +39,17 @@ type Log struct {
 	Ip               string `json:"ip" gorm:"index;default:''"`
 	RequestId        string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	Other            string `json:"other"`
+
+	AccountingChannelCostAmountUSD  float64 `json:"-" gorm:"column:accounting_channel_cost_amount_usd;type:decimal(20,10);default:0;index"`
+	AccountingUserPriceAmountUSD    float64 `json:"-" gorm:"column:accounting_user_price_amount_usd;type:decimal(20,10);default:0;index"`
+	AccountingResellerCostAmountUSD float64 `json:"-" gorm:"column:accounting_reseller_cost_amount_usd;type:decimal(20,10);default:0;index"`
+	AccountingUserFinalAmountUSD    float64 `json:"-" gorm:"column:accounting_user_final_amount_usd;type:decimal(20,10);default:0;index"`
+	AccountingResellerUserId        int     `json:"-" gorm:"column:accounting_reseller_user_id;default:0;index"`
+	AccountingResellerRuleId        int     `json:"-" gorm:"column:accounting_reseller_rule_id;default:0;index"`
+	AccountingResellerDiscountRatio float64 `json:"-" gorm:"column:accounting_reseller_discount_ratio;type:decimal(12,8);default:0"`
+	AccountingGroupRatio            float64 `json:"-" gorm:"column:accounting_group_ratio;type:decimal(12,8);default:0"`
+	AccountingStatus                string  `json:"-" gorm:"column:accounting_status;type:varchar(32);default:'';index"`
+	AccountingSnapshot              string  `json:"-" gorm:"column:accounting_snapshot;type:text"`
 }
 
 // don't use iota, avoid change log type value
@@ -69,7 +80,7 @@ func formatUserLogs(logs []*Log, startIdx int) {
 }
 
 func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
-	err = LOG_DB.Model(&Log{}).Where("token_id = ?", tokenId).Order("id desc").Limit(common.MaxRecentItems).Find(&logs).Error
+	err = LOG_DB.Model(&Log{}).Omit("AccountingSnapshot").Where("token_id = ?", tokenId).Order("id desc").Limit(common.MaxRecentItems).Find(&logs).Error
 	formatUserLogs(logs, 0)
 	return logs, err
 }
@@ -397,6 +408,20 @@ type RecordConsumeLogParams struct {
 	IsStream         bool                   `json:"is_stream"`
 	Group            string                 `json:"group"`
 	Other            map[string]interface{} `json:"other"`
+	Accounting       AccountingLogFields    `json:"-"`
+}
+
+type AccountingLogFields struct {
+	ChannelCostAmountUSD  float64
+	UserPriceAmountUSD    float64
+	ResellerCostAmountUSD float64
+	UserFinalAmountUSD    float64
+	ResellerUserId        int
+	ResellerRuleId        int
+	ResellerDiscountRatio float64
+	GroupRatio            float64
+	Status                string
+	Snapshot              string
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
@@ -438,6 +463,17 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		}(),
 		RequestId: requestId,
 		Other:     otherStr,
+
+		AccountingChannelCostAmountUSD:  params.Accounting.ChannelCostAmountUSD,
+		AccountingUserPriceAmountUSD:    params.Accounting.UserPriceAmountUSD,
+		AccountingResellerCostAmountUSD: params.Accounting.ResellerCostAmountUSD,
+		AccountingUserFinalAmountUSD:    params.Accounting.UserFinalAmountUSD,
+		AccountingResellerUserId:        params.Accounting.ResellerUserId,
+		AccountingResellerRuleId:        params.Accounting.ResellerRuleId,
+		AccountingResellerDiscountRatio: params.Accounting.ResellerDiscountRatio,
+		AccountingGroupRatio:            params.Accounting.GroupRatio,
+		AccountingStatus:                params.Accounting.Status,
+		AccountingSnapshot:              params.Accounting.Snapshot,
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
@@ -558,7 +594,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	if err != nil {
 		return nil, 0, err
 	}
-	err = tx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	err = tx.Omit("AccountingSnapshot").Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -703,7 +739,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		common.SysError("failed to count user logs: " + err.Error())
 		return nil, 0, errors.New("查询日志失败")
 	}
-	err = tx.Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
+	err = tx.Omit("AccountingSnapshot").Order("logs.id desc").Limit(num).Offset(startIdx).Find(&logs).Error
 	if err != nil {
 		common.SysError("failed to search user logs: " + err.Error())
 		return nil, 0, errors.New("查询日志失败")

@@ -241,6 +241,15 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
+	accounting := BuildConsumeAccountingFields(ConsumeAccountingInput{
+		UserId:       relayInfo.UserId,
+		ChannelId:    relayInfo.ChannelId,
+		ModelName:    modelName,
+		InputTokens:  usage.InputTokens,
+		OutputTokens: usage.OutputTokens,
+		GroupRatio:   groupRatio,
+		Quota:        quota,
+	})
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     usage.InputTokens,
@@ -254,6 +263,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		IsStream:         relayInfo.IsStream,
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
+		Accounting:       accounting,
 	})
 }
 
@@ -362,6 +372,17 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
+	accounting := BuildConsumeAccountingFields(ConsumeAccountingInput{
+		UserId:           relayInfo.UserId,
+		ChannelId:        relayInfo.ChannelId,
+		ModelName:        relayInfo.OriginModelName,
+		InputTokens:      usage.PromptTokens,
+		OutputTokens:     usage.CompletionTokens,
+		CacheReadTokens:  usage.PromptTokensDetails.CachedTokens,
+		CacheWriteTokens: usage.PromptTokensDetails.CachedCreationTokens,
+		GroupRatio:       groupRatio,
+		Quota:            quota,
+	})
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     usage.PromptTokens,
@@ -375,6 +396,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		IsStream:         relayInfo.IsStream,
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
+		Accounting:       accounting,
 	})
 	gopool.Go(func() {
 		perfmetrics.RecordRelaySample(relayInfo, true, int64(usage.CompletionTokens))

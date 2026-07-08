@@ -82,15 +82,23 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 			other["request_data"] = rd
 		}
 	}
+	accounting := BuildConsumeAccountingFields(ConsumeAccountingInput{
+		UserId:     info.UserId,
+		ChannelId:  info.ChannelId,
+		ModelName:  info.OriginModelName,
+		GroupRatio: info.PriceData.GroupRatioInfo.GroupRatio,
+		Quota:      info.PriceData.Quota,
+	})
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
-		ChannelId: info.ChannelId,
-		ModelName: info.OriginModelName,
-		TokenName: tokenName,
-		Quota:     info.PriceData.Quota,
-		Content:   logContent,
-		TokenId:   info.TokenId,
-		Group:     info.UsingGroup,
-		Other:     other,
+		ChannelId:  info.ChannelId,
+		ModelName:  info.OriginModelName,
+		TokenName:  tokenName,
+		Quota:      info.PriceData.Quota,
+		Content:    logContent,
+		TokenId:    info.TokenId,
+		Group:      info.UsingGroup,
+		Other:      other,
+		Accounting: accounting,
 	})
 	model.UpdateUserUsedQuotaAndRequestCount(info.UserId, info.PriceData.Quota)
 	model.UpdateChannelUsedQuota(info.ChannelId, info.PriceData.Quota)

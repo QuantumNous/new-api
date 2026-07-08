@@ -147,6 +147,13 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 		"violation_fee_marker": CSAMViolationMarker,
 	}
 
+	accounting := BuildConsumeAccountingFields(ConsumeAccountingInput{
+		UserId:     relayInfo.UserId,
+		ChannelId:  relayInfo.ChannelId,
+		ModelName:  relayInfo.OriginModelName,
+		GroupRatio: groupRatio,
+		Quota:      feeQuota,
+	})
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:      relayInfo.ChannelId,
 		ModelName:      relayInfo.OriginModelName,
@@ -158,6 +165,7 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 		IsStream:       relayInfo.IsStream,
 		Group:          relayInfo.UsingGroup,
 		Other:          other,
+		Accounting:     accounting,
 	})
 
 	return true

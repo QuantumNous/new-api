@@ -25,6 +25,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -54,8 +56,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { createUser, updateUser, getUser, getGroups } from '../api'
+import {
+  createUser,
+  updateUser,
+  getUser,
+  getGroups,
+  updateResellerProfile,
+  searchResellers,
+} from '../api'
 import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
   userFormSchema,
@@ -65,6 +75,7 @@ import {
   transformUserToFormDefaults,
 } from '../lib'
 import { type User } from '../types'
+import { ResellerRulesPanel } from './reseller-rules-panel'
 import { UserQuotaDialog } from './user-quota-dialog'
 import { useUsers } from './users-provider'
 
@@ -72,6 +83,11 @@ type UsersMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentRow?: User
+}
+
+function resellerAccountLabel(user: User): string {
+  if (user.email) return user.email
+  return user.username ? `${user.username} · ${user.id}` : String(user.id)
 }
 
 export function UsersMutateDrawer({
@@ -82,6 +98,8 @@ export function UsersMutateDrawer({
   const { t } = useTranslation()
   const isUpdate = !!currentRow
   const { triggerRefresh } = useUsers()
+  const currentAuthUser = useAuthStore((state) => state.auth.user)
+  const isRoot = currentAuthUser?.role === ROLE.SUPER_ADMIN
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [quotaDialogOpen, setQuotaDialogOpen] = useState(false)
 
@@ -93,6 +111,13 @@ export function UsersMutateDrawer({
   })
 
   const groups = groupsData?.data || []
+  const { data: resellersData } = useQuery({
+    queryKey: ['reseller-users'],
+    queryFn: () => searchResellers(''),
+    enabled: open && isUpdate && isRoot,
+    staleTime: 60 * 1000,
+  })
+  const resellerUsers = resellersData?.data || []
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
@@ -119,6 +144,7 @@ export function UsersMutateDrawer({
   const tokensOnly = currencyMeta.kind === 'tokens'
 
   const currentQuotaRaw = form.watch('quota_dollars') || 0
+  const isReseller = Boolean(form.watch('is_reseller'))
 
   const onSubmit = async (data: UserFormValues) => {
     setIsSubmitting(true)
@@ -129,6 +155,18 @@ export function UsersMutateDrawer({
         : await createUser(payload)
 
       if (result.success) {
+        if (isUpdate && isRoot && currentRow) {
+          const resellerResult = await updateResellerProfile(currentRow.id, {
+            is_reseller: Boolean(data.is_reseller),
+            reseller_user_id: data.is_reseller
+              ? 0
+              : Number(data.reseller_user_id || 0),
+          })
+          if (!resellerResult.success) {
+            toast.error(resellerResult.message || '分销商关系保存失败')
+            return
+          }
+        }
         toast.success(
           isUpdate
             ? t(SUCCESS_MESSAGES.USER_UPDATED)
@@ -393,6 +431,75 @@ export function UsersMutateDrawer({
                         <FormMessage />
                       </FormItem>
                     )}
+                  />
+                </div>
+              )}
+
+              {isUpdate && isRoot && currentRow && (
+                <div className='space-y-4'>
+                  <h3 className='text-sm font-medium'>分销商</h3>
+
+                  <FormField
+                    control={form.control}
+                    name='is_reseller'
+                    render={({ field }) => (
+                      <FormItem className='flex items-center justify-between rounded-md border px-3 py-2'>
+                        <FormLabel>标记为分销商</FormLabel>
+                        <FormControl>
+                          <Switch
+                            checked={Boolean(field.value)}
+                            onCheckedChange={(checked) => {
+                              field.onChange(checked)
+                              if (checked) {
+                                form.setValue('reseller_user_id', 0)
+                              }
+                            }}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='reseller_user_id'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>上级分销商邮箱</FormLabel>
+                        <Select
+                          value={String(field.value || 0)}
+                          onValueChange={(value) => field.onChange(Number(value))}
+                          disabled={isReseller}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder='选择上级分销商邮箱' />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              <SelectItem value='0'>无</SelectItem>
+                              {resellerUsers
+                                .filter((user) => user.id !== currentRow.id)
+                                .map((user) => (
+                                  <SelectItem
+                                    key={user.id}
+                                    value={String(user.id)}
+                                  >
+                                    {resellerAccountLabel(user)}
+                                  </SelectItem>
+                                ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <ResellerRulesPanel
+                    resellerId={currentRow.id}
+                    enabled={isReseller}
                   />
                 </div>
               )}
