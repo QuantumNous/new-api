@@ -221,7 +221,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		}
 
 		if strings.Contains(imageRequest.Size, "×") {
-			return nil, errors.New("size an unexpected error occurred in the parameter, please use 'x' instead of the multiplication sign '×'")
+			return nil, errors.New("size parameter must use 'x' instead of the multiplication sign '×'")
 		}
 
 		if imageRequest.N != nil && *imageRequest.N > dto.MaxImageN {
