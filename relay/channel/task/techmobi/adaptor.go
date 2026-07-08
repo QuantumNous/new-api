@@ -83,6 +83,22 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	return bytes.NewReader(data), nil
 }
 
+func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	req, err := taskcommon.GetSeedanceRequest(c)
+	if err != nil {
+		return nil
+	}
+	modelName := strings.TrimSpace(info.UpstreamModelName)
+	if modelName == "" {
+		modelName = info.OriginModelName
+	}
+	ratio, ok := GetVideoGenerationRatio(modelName, req.Resolution, len(req.Videos()) > 0)
+	if !ok || ratio == 1.0 {
+		return nil
+	}
+	return map[string]float64{"video_generation": ratio}
+}
+
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }

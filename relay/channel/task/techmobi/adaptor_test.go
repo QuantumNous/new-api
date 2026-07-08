@@ -157,6 +157,47 @@ func TestBuildRequestBody_UnmappedModelSetsUpstreamModelName(t *testing.T) {
 	}
 }
 
+func TestEstimateBilling_UsesResolutionAndVideoInputRatio(t *testing.T) {
+	a := &TaskAdaptor{}
+	c, _ := newJSONCtx(`{
+		"model":"doubao/doubao-seedance-2-0-260128",
+		"content":[
+			{"type":"text","text":"extend this clip"},
+			{"type":"video_url","video_url":{"url":"https://cdn.example.com/input.mp4"}}
+		],
+		"resolution":"1080p"
+	}`)
+	info := newRelayInfo()
+	info.UpstreamModelName = "doubao/doubao-seedance-2-0-260128"
+
+	if taskErr := a.ValidateRequestAndSetAction(c, info); taskErr != nil {
+		t.Fatalf("ValidateRequestAndSetAction error: %+v", taskErr)
+	}
+	ratios := a.EstimateBilling(c, info)
+	want, _ := GetVideoGenerationRatio("doubao/doubao-seedance-2-0-260128", "1080p", true)
+	if ratios["video_generation"] != want {
+		t.Fatalf("video_generation ratio = %v, want %v", ratios["video_generation"], want)
+	}
+}
+
+func TestEstimateBilling_NoExtraRatioForBaseTier(t *testing.T) {
+	a := &TaskAdaptor{}
+	c, _ := newJSONCtx(`{
+		"model":"doubao/doubao-seedance-2-0-260128",
+		"content":[{"type":"text","text":"a cat walking"}],
+		"resolution":"720p"
+	}`)
+	info := newRelayInfo()
+	info.UpstreamModelName = "doubao/doubao-seedance-2-0-260128"
+
+	if taskErr := a.ValidateRequestAndSetAction(c, info); taskErr != nil {
+		t.Fatalf("ValidateRequestAndSetAction error: %+v", taskErr)
+	}
+	if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+		t.Fatalf("EstimateBilling = %v, want nil for base tier", ratios)
+	}
+}
+
 func TestDoResponse_SubmitIDStartsAsyncTaskWithPublicEnvelope(t *testing.T) {
 	a := &TaskAdaptor{}
 	a.Init(newRelayInfo())
