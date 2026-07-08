@@ -191,3 +191,26 @@ func TestUpdateOptionRejectsNullInviterRewardLimit(t *testing.T) {
 		t.Fatalf("expected rejected inviter reward limit not to persist, got %d rows", count)
 	}
 }
+
+func TestUpdateOptionRejectsInvalidGroupModelRatioAtController(t *testing.T) {
+	db := setupOptionControllerTestDB(t)
+
+	ctx, recorder := newOptionRequestContext(t, map[string]any{
+		"key":   "GroupModelRatio",
+		"value": `{"plg":{"gpt-5.5":-0.1}}`,
+	})
+	UpdateOption(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected invalid group model ratio to fail")
+	}
+
+	var count int64
+	if err := db.Model(&model.Option{}).Where("key = ?", "GroupModelRatio").Count(&count).Error; err != nil {
+		t.Fatalf("failed to count group model ratio option rows: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected rejected group model ratio not to persist, got %d rows", count)
+	}
+}

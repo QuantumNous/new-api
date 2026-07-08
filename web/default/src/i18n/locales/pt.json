@@ -2786,6 +2786,7 @@
     "Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.": "JSON aninhado que define regras por grupo para adicionar (+:), remover (-:) ou anexar grupos utilizáveis.",
     "Nested JSON: source group →": "JSON aninhado: grupo de origem →",
     "Nested JSON map of group → model → ratio. This overrides inter-group and group ratios for matching models.": "JSON aninhado grupo → modelo → proporção. Substitui as proporções entre grupos e de grupo para modelos correspondentes.",
+    "Use billing-normalized model keys, same as ModelRatio, for example gpt-4o-gizmo-*.": "Use chaves de modelo normalizadas para cobrança, como no ModelRatio, por exemplo gpt-4o-gizmo-*.",
     "Network proxy for this channel (supports socks5 protocol)": "Proxy de rede para este canal (suporta protocolo Socks5)",
     "Never": "Nunca",
     "Never expires": "Nunca expira",

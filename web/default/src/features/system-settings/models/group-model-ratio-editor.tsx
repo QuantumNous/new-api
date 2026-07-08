@@ -43,6 +43,47 @@ type GroupModelRatioEditorProps = {
 
 type GroupModelRatioMap = Record<string, Record<string, number>>
 
+function formatBillingModelName(modelName: string): string {
+  let name = modelName.trim()
+  if (name.startsWith('gemini-2.5-flash-lite')) {
+    name = handleThinkingBudgetModel(
+      name,
+      'gemini-2.5-flash-lite',
+      'gemini-2.5-flash-lite-thinking-*'
+    )
+  } else if (name.startsWith('gemini-2.5-flash')) {
+    name = handleThinkingBudgetModel(
+      name,
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-thinking-*'
+    )
+  } else if (name.startsWith('gemini-2.5-pro')) {
+    name = handleThinkingBudgetModel(
+      name,
+      'gemini-2.5-pro',
+      'gemini-2.5-pro-thinking-*'
+    )
+  }
+
+  if (name.startsWith('gpt-4-gizmo')) {
+    return 'gpt-4-gizmo-*'
+  }
+  if (name.startsWith('gpt-4o-gizmo')) {
+    return 'gpt-4o-gizmo-*'
+  }
+  return name
+}
+
+function handleThinkingBudgetModel(
+  modelName: string,
+  prefix: string,
+  wildcard: string
+): string {
+  return modelName.startsWith(prefix) && modelName.includes('-thinking-')
+    ? wildcard
+    : modelName
+}
+
 function parseGroupModelRatio(value: string): GroupModelRatioMap {
   return safeJsonParse<GroupModelRatioMap>(value, {
     fallback: {},
@@ -65,7 +106,7 @@ function serializeGroupModelRatio(source: GroupModelRatioMap): string {
     if (!groupName) continue
     const cleaned: Record<string, number> = {}
     for (const [modelName, ratio] of Object.entries(modelRatios ?? {})) {
-      const normalizedModelName = modelName.trim()
+      const normalizedModelName = formatBillingModelName(modelName)
       const normalizedRatio = Number(ratio)
       if (!normalizedModelName || !Number.isFinite(normalizedRatio)) continue
       cleaned[normalizedModelName] = normalizedRatio
@@ -112,7 +153,7 @@ export function GroupModelRatioEditor(props: GroupModelRatioEditorProps) {
     oldModelName: string,
     newModelName: string
   ) => {
-    const normalizedModelName = newModelName.trim()
+    const normalizedModelName = formatBillingModelName(newModelName)
     if (!normalizedModelName || normalizedModelName === oldModelName) return
     const next = cloneGroupModelRatio(ratioMap)
     const group = { ...(next[groupName] ?? {}) }
@@ -175,6 +216,10 @@ export function GroupModelRatioEditor(props: GroupModelRatioEditorProps) {
             <CardDescription>
               {t(
                 'Nested JSON map of group → model → ratio. This overrides inter-group and group ratios for matching models.'
+              )}
+              <br />
+              {t(
+                'Use billing-normalized model keys, same as ModelRatio, for example gpt-4o-gizmo-*.'
               )}
             </CardDescription>
           </div>

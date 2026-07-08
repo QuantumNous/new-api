@@ -2786,6 +2786,7 @@
     "Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.": "JSON lồng nhau xác định quy tắc theo nhóm để thêm (+:), xóa (-:), hoặc nối các nhóm có thể sử dụng.",
     "Nested JSON: source group →": "JSON lồng nhau: nhóm nguồn →",
     "Nested JSON map of group → model → ratio. This overrides inter-group and group ratios for matching models.": "JSON lồng nhau nhóm → mô hình → tỷ lệ. Ghi đè tỷ lệ giữa nhóm và tỷ lệ nhóm cho các mô hình khớp.",
+    "Use billing-normalized model keys, same as ModelRatio, for example gpt-4o-gizmo-*.": "Dùng khóa mô hình đã chuẩn hóa cho tính phí, giống ModelRatio, ví dụ gpt-4o-gizmo-*.",
     "Network proxy for this channel (supports socks5 protocol)": "Proxy mạng cho kênh này (hỗ trợ giao thức socks5)",
     "Never": "Không bao giờ",
     "Never expires": "Không hết hạn",

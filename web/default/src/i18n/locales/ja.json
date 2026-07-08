@@ -2786,6 +2786,7 @@
     "Nested JSON defining per-group rules for adding (+:), removing (-:), or appending usable groups.": "追加 (+:)、削除 (-:)、または使用可能なグループの追加を行うグループごとのルールを定義するネストされたJSON。",
     "Nested JSON: source group →": "ネストされたJSON: ソースグループ →",
     "Nested JSON map of group → model → ratio. This overrides inter-group and group ratios for matching models.": "グループ → モデル → 倍率のネスト JSON。該当モデルではグループ間倍率と通常グループ倍率を上書きします。",
+    "Use billing-normalized model keys, same as ModelRatio, for example gpt-4o-gizmo-*.": "ModelRatio と同じ請求用に正規化されたモデルキーを使用してください。例: gpt-4o-gizmo-*。",
     "Network proxy for this channel (supports socks5 protocol)": "このチャネルのネットワークプロキシ (socks5プロトコルをサポート)",
     "Never": "しない",
     "Never expires": "無期限",
