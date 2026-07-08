@@ -10,7 +10,7 @@ import (
 // step4 / apimaster: only "default" is surfaced to end-users. Matches
 // AutoCheapestGroup constant and the DB GroupRatio / UserUsableGroups keys.
 var userUsableGroups = map[string]string{
-	"default": "智能路由（最便宜可用渠道优先，失败自动 fallback，含 5% 服务费）",
+	"default": "i18n:User group description.default",
 }
 var userUsableGroupsMutex sync.RWMutex
 
