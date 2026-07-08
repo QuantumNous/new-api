@@ -83,6 +83,11 @@ func storeVerificationCodeInMemory(key string, code string, purpose string) {
 }
 
 func VerifyCodeWithKey(key string, code string, purpose string) bool {
+	if purpose == PasswordResetPurpose {
+		matched, err := ConsumeVerificationCodeWithKey(key, code, purpose)
+		return err == nil && matched
+	}
+
 	if redisVerificationEnabled() {
 		value, err := RedisGet(verificationRedisKey(key, purpose))
 		if err == nil {
