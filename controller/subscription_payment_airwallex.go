@@ -203,11 +203,46 @@ func genAirwallexSubscriptionLink(c *gin.Context, user *model.User, plan *model.
 		return airwallex.StandardCheckoutURL(intent.Id, intent.ClientSecret, plan.Currency, returnUrl, returnUrl), nil
 	}
 
-	secret, err := airwallex.GenerateCustomerClientSecret(customer.Id)
+	// Auto-renew methods (card / applepay / googlepay / alipay) use a hosted
+	// Billing Checkout in SUBSCRIPTION mode. Airwallex creates the managed
+	// subscription server-side; billing_checkout.completed then activates us.
+	// WeChat is handled above (one-off intent) — it is not a valid Billing
+	// SUBSCRIPTION payment_method_type.
+	billingCustomerId := model.GetAirwallexBillingCustomerId(user.Id)
+	if billingCustomerId == "" {
+		cust, err := airwallex.CreateBillingCustomer(tradeNo+"-bcus", user.Email,
+			map[string]string{"new_api_user_id": strconv.Itoa(user.Id)})
+		if err != nil {
+			return "", err
+		}
+		if err := model.SaveAirwallexBillingCustomerId(user.Id, cust.Id); err != nil {
+			return "", err
+		}
+		billingCustomerId = cust.Id
+	}
+
+	checkout, err := airwallex.CreateBillingCheckout(&airwallex.CreateBillingCheckoutRequest{
+		RequestId:         tradeNo + "-co",
+		Mode:              "SUBSCRIPTION",
+		UiMode:            "HOSTED",
+		BillingCustomerId: billingCustomerId,
+		LineItems:         []airwallex.BillingCheckoutLineItem{{PriceId: plan.AirwallexPriceId, Quantity: 1}},
+		PaymentOptions:    map[string]any{"payment_method_types": airwallexMethodNames[method]},
+		SubscriptionData: map[string]any{
+			"metadata": map[string]string{"trade_no": tradeNo, "new_api_user_id": strconv.Itoa(user.Id)},
+		},
+		Metadata:   map[string]string{"trade_no": tradeNo, "new_api_user_id": strconv.Itoa(user.Id)},
+		Locale:     "AUTO",
+		SuccessUrl: returnUrl,
+		ReturnUrl:  returnUrl,
+	})
 	if err != nil {
 		return "", err
 	}
-	return airwallex.RecurringCheckoutURL(secret, customer.Id, plan.Currency, returnUrl, returnUrl), nil
+	if checkout.Url == "" {
+		return "", fmt.Errorf("airwallex billing checkout empty url (status %s)", checkout.Status)
+	}
+	return checkout.Url, nil
 }
 
 // SubscriptionCancelAirwallex stops auto-renew for the caller's active Airwallex
