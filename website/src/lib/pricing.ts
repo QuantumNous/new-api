@@ -261,7 +261,8 @@ export function getAvailableGroups(
   const groups = Array.isArray(model.enable_groups) ? model.enable_groups.filter(isVisibleGroup) : [];
   const ratioGroups = Object.keys(model.group_ratio ?? fallbackGroupRatio).filter(isVisibleGroup);
   if (groups.includes("all")) return usableGroups;
-  const candidateGroups = Array.from(new Set([...groups, ...ratioGroups]));
+  const modelSpecificGroups = Object.keys(model.group_model_ratio ?? {}).filter(isVisibleGroup);
+  const candidateGroups = Array.from(new Set(groups.length > 0 ? [...groups, ...modelSpecificGroups] : ratioGroups));
   if (candidateGroups.length > 0 && usableGroups.length > 0) {
     const usableSet = new Set(usableGroups);
     return candidateGroups.filter((group) => usableSet.has(group));

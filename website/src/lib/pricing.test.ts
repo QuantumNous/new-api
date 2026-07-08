@@ -90,11 +90,25 @@ describe("group model ratio", () => {
     const effectiveRatio = buildEffectiveGroupRatio(tokenModel, { default: 1, plg: 0.9 }, { plg: { "gpt-5.5": 0.3 } });
     expect(
       getAvailableGroups(
-        { ...tokenModel, enable_groups: ["default"], group_ratio: effectiveRatio },
+        { ...tokenModel, enable_groups: ["default"], group_ratio: effectiveRatio, group_model_ratio: { plg: 0.3 } },
         { default: 1, plg: 0.9 },
         { default: { desc: "Default", ratio: 1 }, plg: { desc: "PLG", ratio: 0.9 } }
       )
     ).toEqual(["default", "plg"]);
+  });
+
+  test("does not expand explicit groups with fallback ratio groups", () => {
+    expect(
+      getAvailableGroups(
+        { ...tokenModel, enable_groups: ["default"], group_ratio: { default: 1, plg: 0.9, vip: 0.8 } },
+        { default: 1, plg: 0.9, vip: 0.8 },
+        {
+          default: { desc: "Default", ratio: 1 },
+          plg: { desc: "PLG", ratio: 0.9 },
+          vip: { desc: "VIP", ratio: 0.8 },
+        }
+      )
+    ).toEqual(["default"]);
   });
 
   test("uses model-specific ratio in group token prices", () => {

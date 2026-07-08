@@ -50,6 +50,29 @@ func TestFilterGroupModelRatioByUsableGroupsAndModels(t *testing.T) {
 	}, filtered)
 }
 
+func TestFilteredPricingDrivesVisibleGroupModelRatio(t *testing.T) {
+	source := map[string]map[string]float64{
+		"default": {
+			"visible-model": 0.3,
+			"hidden-model":  0.2,
+		},
+	}
+	usableGroup := map[string]string{
+		"default": "Default",
+	}
+	rawPricing := []model.Pricing{
+		{ModelName: "visible-model", EnableGroup: []string{"default"}},
+		{ModelName: "hidden-model", EnableGroup: []string{"internal"}},
+	}
+	filteredPricing := filterPricingByUsableGroups(rawPricing, usableGroup)
+
+	filtered := filterGroupModelRatioByUsableGroupsAndModels(source, usableGroup, filteredPricing)
+
+	require.Equal(t, map[string]map[string]float64{
+		"default": {"visible-model": 0.3},
+	}, filtered)
+}
+
 func TestPricingDisplayOptionKeysIncludeBillingSettings(t *testing.T) {
 	require.True(t, isPricingDisplayOptionKey("billing_setting.billing_mode"))
 	require.True(t, isPricingDisplayOptionKey("billing_setting.billing_expr"))
