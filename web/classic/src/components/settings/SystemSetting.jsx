@@ -1434,7 +1434,7 @@ const SystemSetting = () => {
                       <Form.Input
                         field="['oidc.display_name']"
                         label={t('OIDC 显示名称')}
-                        placeholder={t('留空则默认显示为 OIDC，例如：公司 SSO')}
+                        placeholder={t('例如：公司 SSO，留空则默认显示为 OIDC')}
                       />
                     </Col>
                   </Row>
