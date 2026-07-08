@@ -5,7 +5,10 @@ import {
   getPricingData,
   getVendorName,
   getAvailableGroups,
+  buildEffectiveGroupRatio,
+  getGroupModelRatioForModel,
   WEBSITE_PUBLIC_PRICING_GROUP,
+  type GroupModelRatio,
   type PricingModel,
   type PricingVendor,
   type PricingSearch,
@@ -939,7 +942,7 @@ export async function PricingPage(props: PricingPageProps) {
 
 export async function ModelsPage(props: PricingPageProps) {
   const pricing = await getPricingData(MODELS_PAGE_PRICING_GROUP);
-  const allModels = enrichVendorNames(pricing.models, pricing.vendors, pricing.groupRatio, pricing.usableGroup);
+  const allModels = enrichVendorNames(pricing.models, pricing.vendors, pricing.groupRatio, pricing.groupModelRatio, pricing.usableGroup);
   const copy = pricingCopy(props.locale);
 
   return (
@@ -1163,16 +1166,24 @@ function enrichVendorNames(
   models: PricingModel[],
   vendors: PricingVendor[],
   groupRatio: Record<string, number>,
+  groupModelRatio: GroupModelRatio,
   usableGroup: Record<string, string>
 ) {
-  return models.map((model) => ({
-    ...model,
-    vendor_name: getVendorName(model, vendors),
-    vendor_icon: model.vendor_icon ?? vendors.find((vendor) => vendor.id === model.vendor_id)?.icon,
-    vendor_description: model.vendor_description ?? vendors.find((vendor) => vendor.id === model.vendor_id)?.description,
-    group_ratio: model.group_ratio ?? groupRatio,
-    enable_groups: getAvailableGroups(model, groupRatio, usableGroup),
-  }));
+  return models.map((model) => {
+    const effectiveGroupRatio = buildEffectiveGroupRatio(model, groupRatio, groupModelRatio);
+    const enrichedModel = {
+      ...model,
+      vendor_name: getVendorName(model, vendors),
+      vendor_icon: model.vendor_icon ?? vendors.find((vendor) => vendor.id === model.vendor_id)?.icon,
+      vendor_description: model.vendor_description ?? vendors.find((vendor) => vendor.id === model.vendor_id)?.description,
+      group_ratio: effectiveGroupRatio,
+      group_model_ratio: getGroupModelRatioForModel(model.model_name, groupModelRatio),
+    };
+    return {
+      ...enrichedModel,
+      enable_groups: getAvailableGroups(enrichedModel, groupRatio, usableGroup),
+    };
+  });
 }
 
 function parseParam(value: string | string[] | undefined): string | undefined {

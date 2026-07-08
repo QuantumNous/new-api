@@ -130,6 +130,9 @@ export interface LogOtherData {
   model_price?: number
   group_ratio?: number
   user_group_ratio?: number
+  group_model_ratio?: number
+  group_model_ratio_group?: string
+  group_model_ratio_model?: string
   cache_ratio?: number
   cache_creation_ratio?: number
   cache_creation_ratio_5m?: number

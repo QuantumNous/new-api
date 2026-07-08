@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -46,6 +47,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	AppendGroupRatioSource(other, info.PriceData.GroupRatioInfo)
 	if info.IsModelMapped {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = info.UpstreamModelName
@@ -125,6 +127,7 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 			other["model_ratio"] = bc.ModelRatio
 		}
 		other["group_ratio"] = bc.GroupRatio
+		AppendGroupRatioSource(other, groupRatioInfoFromTaskBillingContext(bc))
 		if len(bc.OtherRatios) > 0 {
 			for k, v := range bc.OtherRatios {
 				other[k] = v
@@ -137,6 +140,21 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 		other["upstream_model_name"] = props.UpstreamModelName
 	}
 	return other
+}
+
+func groupRatioInfoFromTaskBillingContext(bc *model.TaskBillingContext) types.GroupRatioInfo {
+	if bc == nil {
+		return types.GroupRatioInfo{}
+	}
+	info := types.GroupRatioInfo{
+		GroupRatio:           bc.GroupRatio,
+		GroupModelRatio:      bc.GroupModelRatio,
+		GroupModelRatioGroup: bc.GroupModelRatioGroup,
+		GroupModelRatioModel: bc.GroupModelRatioModel,
+		HasGroupModelRatio:   bc.GroupModelRatioGroup != "" || bc.GroupModelRatioModel != "",
+		GroupSpecialRatio:    -1,
+	}
+	return info
 }
 
 // taskModelName 从 BillingContext 或 Properties 中获取模型名称。
@@ -251,6 +269,10 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	if totalTokens <= 0 {
 		return
 	}
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
+		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，跳过 token 差额结算", task.TaskID))
+		return
+	}
 
 	modelName := taskModelName(task)
 
@@ -273,14 +295,12 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 		return
 	}
 
-	groupRatio := ratio_setting.GetGroupRatio(group)
-	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
-
-	var finalGroupRatio float64
-	if hasUserGroupRatio {
-		finalGroupRatio = userGroupRatio
+	finalGroupRatio := 1.0
+	if bc := task.PrivateData.BillingContext; bc != nil {
+		finalGroupRatio = bc.GroupRatio
 	} else {
-		finalGroupRatio = groupRatio
+		groupRatioInfo := ratio_setting.GetEffectiveGroupRatio(group, group, modelName)
+		finalGroupRatio = groupRatioInfo.GroupRatio
 	}
 
 	// 计算 OtherRatios 乘积（视频折扣、时长等）

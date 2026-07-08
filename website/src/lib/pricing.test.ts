@@ -1,5 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { publicPricingUrl, sortPricingModelsBySeries, type PricingModel } from "./pricing";
+import {
+  buildEffectiveGroupRatio,
+  formatMatchingModelName,
+  formatGroupTokenPrice,
+  getAvailableGroups,
+  getPricingData,
+  publicPricingUrl,
+  sortPricingModelsBySeries,
+  type PricingModel,
+} from "./pricing";
 
 describe("publicPricingUrl", () => {
   test("points website pricing at the cached public API", () => {
@@ -12,6 +21,27 @@ describe("publicPricingUrl", () => {
 
   test("can request the allowlisted PLG public pricing view", () => {
     expect(publicPricingUrl("https://console.flatkey.ai", "plg")).toBe("https://console.flatkey.ai/api/website/pricing?group=plg");
+  });
+
+  test("fetches pricing without Next response caching", async () => {
+    const originalFetch = globalThis.fetch;
+    let fetchInput: RequestInfo | URL | undefined;
+    let fetchInit: RequestInit | undefined;
+    try {
+      globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
+        fetchInput = _input;
+        fetchInit = init;
+        return Promise.resolve(new Response(JSON.stringify({ success: true, data: [] }), { status: 200 }));
+      }) as typeof fetch;
+
+      await getPricingData("plg");
+
+      expect(String(fetchInput)).toBe("https://console.flatkey.ai/api/website/pricing?group=plg");
+      expect(fetchInit?.cache).toBe("no-store");
+      expect((fetchInit?.headers as Record<string, string>)?.accept).toBe("application/json");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
 
@@ -40,5 +70,79 @@ describe("sortPricingModelsBySeries", () => {
       "AI:mirothinker-1-7b",
       "Z.ai:glm-5",
     ]);
+  });
+});
+
+describe("group model ratio", () => {
+  const tokenModel: PricingModel = {
+    model_name: "gpt-5.5",
+    quota_type: 0,
+    model_ratio: 1,
+    completion_ratio: 2,
+  };
+
+  test("overrides the group ratio for a specific model", () => {
+    expect(
+      buildEffectiveGroupRatio(tokenModel, { plg: 0.9, vip: 0.8 }, { plg: { "gpt-5.5": 0.3 } })
+    ).toEqual({ plg: 0.3, vip: 0.8 });
+  });
+
+  test("keeps fallback group ratios when a model has partial group overrides", () => {
+    expect(
+      buildEffectiveGroupRatio({ ...tokenModel, group_ratio: { plg: 0.7 } }, { plg: 0.9, vip: 0.8 }, {})
+    ).toEqual({ plg: 0.7, vip: 0.8 });
+  });
+
+  test("includes model-specific groups in available group candidates", () => {
+    const effectiveRatio = buildEffectiveGroupRatio(tokenModel, { default: 1, plg: 0.9 }, { plg: { "gpt-5.5": 0.3 } });
+    expect(
+      getAvailableGroups(
+        { ...tokenModel, enable_groups: ["default"], group_ratio: effectiveRatio, group_model_ratio: { plg: 0.3 } },
+        { default: 1, plg: 0.9 },
+        { default: "Default", plg: "PLG" }
+      )
+    ).toEqual(["default", "plg"]);
+  });
+
+  test("does not expand explicit groups with fallback ratio groups", () => {
+    expect(
+      getAvailableGroups(
+        { ...tokenModel, enable_groups: ["default"], group_ratio: { default: 1, plg: 0.9, vip: 0.8 } },
+        { default: 1, plg: 0.9, vip: 0.8 },
+        { default: "Default", plg: "PLG", vip: "VIP" }
+      )
+    ).toEqual(["default"]);
+  });
+
+  test("uses model-specific ratio in group token prices", () => {
+    const model = {
+      ...tokenModel,
+      group_ratio: buildEffectiveGroupRatio(tokenModel, { plg: 0.9 }, { plg: { "gpt-5.5": 0.3 } }),
+    };
+
+    expect(formatGroupTokenPrice(model, "plg", { plg: 0.9 }, "input")).toBe("$0.6");
+    expect(formatGroupTokenPrice(model, "plg", { plg: 0.9 }, "output")).toBe("$1.2");
+  });
+
+  test("matches backend gizmo wildcard model names", () => {
+    const model = {
+      ...tokenModel,
+      model_name: "gpt-4o-gizmo-custom",
+    };
+
+    expect(formatMatchingModelName(model.model_name)).toBe("gpt-4o-gizmo-*");
+    expect(buildEffectiveGroupRatio(model, { plg: 0.9 }, { plg: { "gpt-4o-gizmo-*": 0.4 } })).toEqual({ plg: 0.4 });
+  });
+
+  test("matches backend Gemini thinking-budget wildcard model names", () => {
+    const model = {
+      ...tokenModel,
+      model_name: "gemini-2.5-pro-thinking-32768",
+    };
+
+    expect(formatMatchingModelName(model.model_name)).toBe("gemini-2.5-pro-thinking-*");
+    expect(buildEffectiveGroupRatio(model, { plg: 0.9 }, { plg: { "gemini-2.5-pro-thinking-*": 0.5 } })).toEqual({
+      plg: 0.5,
+    });
   });
 });

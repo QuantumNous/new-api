@@ -4,13 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,7 +75,7 @@ func truncate(t *testing.T) {
 
 func seedUser(t *testing.T, id int, quota int) {
 	t.Helper()
-	user := &model.User{Id: id, Username: "test_user", Quota: quota, Status: common.UserStatusEnabled}
+	user := &model.User{Id: id, Username: "test_user_" + strconv.Itoa(id), Quota: quota, Status: common.UserStatusEnabled, AffCode: "test_aff_" + strconv.Itoa(id)}
 	require.NoError(t, model.DB.Create(user).Error)
 }
 
@@ -106,6 +111,22 @@ func seedChannel(t *testing.T, id int) {
 	t.Helper()
 	ch := &model.Channel{Id: id, Name: "test_channel", Key: "sk-test", Status: common.ChannelStatusEnabled}
 	require.NoError(t, model.DB.Create(ch).Error)
+}
+
+func restoreRatioSettings(t *testing.T) {
+	t.Helper()
+
+	originalModelRatio := ratio_setting.ModelRatio2JSONString()
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	originalGroupGroupRatio := ratio_setting.GroupGroupRatio2JSONString()
+	originalGroupModelRatio := ratio_setting.GroupModelRatio2JSONString()
+
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(originalModelRatio))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(originalGroupGroupRatio))
+		require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(originalGroupModelRatio))
+	})
 }
 
 func makeTask(userId, channelId, quota, tokenId int, billingSource string, subscriptionId int) *model.Task {
@@ -182,6 +203,51 @@ func countLogs(t *testing.T) int64 {
 	var count int64
 	model.LOG_DB.Model(&model.Log{}).Count(&count)
 	return count
+}
+
+func TestLogTaskConsumptionIncludesGroupModelRatioSource(t *testing.T) {
+	truncate(t)
+
+	const userID, channelID = 1, 1
+	seedUser(t, userID, 10000)
+	seedChannel(t, channelID)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", nil)
+	ctx.Set("username", "test_user_1")
+
+	LogTaskConsumption(ctx, &relaycommon.RelayInfo{
+		UserId:          userID,
+		OriginModelName: "gpt-5.5",
+		UsingGroup:      "plg",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId: channelID,
+		},
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{
+			Action: "submit",
+		},
+		PriceData: types.PriceData{
+			ModelPrice: 0.02,
+			Quota:      30,
+			GroupRatioInfo: types.GroupRatioInfo{
+				GroupRatio:           0.3,
+				GroupModelRatio:      0.3,
+				HasGroupModelRatio:   true,
+				GroupModelRatioGroup: "plg",
+				GroupModelRatioModel: "gpt-5.5",
+			},
+		},
+	})
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+
+	other := map[string]any{}
+	require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+	require.Equal(t, 0.3, other["group_model_ratio"])
+	require.Equal(t, "plg", other["group_model_ratio_group"])
+	require.Equal(t, "gpt-5.5", other["group_model_ratio_model"])
 }
 
 // ===========================================================================
@@ -427,6 +493,82 @@ func TestRecalculate_Subscription_NegativeDelta(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+func TestRecalculateTaskQuotaByTokensUsesBillingContextGroupModelRatioSnapshot(t *testing.T) {
+	truncate(t)
+	restoreRatioSettings(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 15, 15, 15
+	const initQuota, preConsumed = 10000, 100
+	const tokenRemain = 5000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-recalc-group-model", tokenRemain)
+	seedChannel(t, channelID)
+
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"test-model":1}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"plg":0.9}`))
+	require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(`{"plg":{"plg":0.8}}`))
+	require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(`{"plg":{"test-model":0.7}}`))
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.Group = "plg"
+	task.PrivateData.BillingContext.GroupRatio = 0.3
+	task.PrivateData.BillingContext.GroupModelRatio = 0.3
+	task.PrivateData.BillingContext.GroupModelRatioGroup = "plg"
+	task.PrivateData.BillingContext.GroupModelRatioModel = "test-model"
+
+	RecalculateTaskQuotaByTokens(ctx, task, 1000)
+
+	const actualQuota = 300
+	assert.Equal(t, actualQuota, task.Quota)
+	assert.Equal(t, initQuota-(actualQuota-preConsumed), getUserQuota(t, userID))
+	assert.Equal(t, tokenRemain-(actualQuota-preConsumed), getTokenRemainQuota(t, tokenID))
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	require.Equal(t, model.LogTypeConsume, log.Type)
+	require.Equal(t, actualQuota-preConsumed, log.Quota)
+	other, err := common.StrToMap(log.Other)
+	require.NoError(t, err)
+	require.Equal(t, 0.3, other["group_model_ratio"])
+	require.Equal(t, "plg", other["group_model_ratio_group"])
+	require.Equal(t, "test-model", other["group_model_ratio_model"])
+}
+
+func TestRecalculateTaskQuotaByTokensSkipsPerCallBilling(t *testing.T) {
+	truncate(t)
+	restoreRatioSettings(t)
+	originalModelRatio := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(originalModelRatio))
+	})
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"test-model":1}`))
+
+	ctx := context.Background()
+	task := &model.Task{
+		TaskID:    "task-per-call",
+		UserId:    1,
+		ChannelId: 2,
+		Group:     "plg",
+		Quota:     100,
+		PrivateData: model.TaskPrivateData{
+			TokenId: 3,
+			BillingContext: &model.TaskBillingContext{
+				GroupRatio:      0.3,
+				ModelRatio:      1,
+				OriginModelName: "test-model",
+				PerCallBilling:  true,
+			},
+		},
+	}
+
+	RecalculateTaskQuotaByTokens(ctx, task, 1000)
+
+	require.Equal(t, 100, task.Quota)
+	require.Zero(t, countLogs(t))
 }
 
 // ===========================================================================

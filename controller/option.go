@@ -30,6 +30,39 @@ var completionRatioMetaOptionKeys = []string{
 	"AudioCompletionRatio",
 }
 
+func isPricingDisplayOptionKey(key string) bool {
+	switch key {
+	case "ModelPrice",
+		"ModelRatio",
+		"CompletionRatio",
+		"CacheRatio",
+		"CreateCacheRatio",
+		"ImageRatio",
+		"AudioRatio",
+		"AudioCompletionRatio",
+		"GroupRatio",
+		"GroupModelRatio",
+		"UserUsableGroups",
+		"group_ratio_setting.group_ratio",
+		"group_ratio_setting.group_model_ratio",
+		"billing_setting.billing_mode",
+		"billing_setting.billing_expr":
+		return true
+	default:
+		return false
+	}
+}
+
+func invalidatePricingDisplayCachesForOptions(keys ...string) {
+	for _, key := range keys {
+		if isPricingDisplayOptionKey(key) {
+			model.InvalidatePricingCache()
+			InvalidateWebsitePricingCache()
+			return
+		}
+	}
+}
+
 func isPaymentComplianceOptionKey(key string) bool {
 	return strings.HasPrefix(key, "payment_setting.compliance_")
 }
@@ -363,6 +396,15 @@ func prepareOptionUpdate(c *gin.Context, option *OptionUpdateRequest) bool {
 			})
 			return false
 		}
+	case "GroupModelRatio", "group_ratio_setting.group_model_ratio":
+		err = ratio_setting.CheckGroupModelRatio(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return false
+		}
 	case "ImageRatio":
 		err = ratio_setting.UpdateImageRatioByJSONString(option.Value.(string))
 		if err != nil {
@@ -484,6 +526,7 @@ func UpdateOption(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	invalidatePricingDisplayCachesForOptions(option.Key)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -524,6 +567,9 @@ func UpdateOptions(c *gin.Context) {
 	if err := model.UpdateOptionsBulk(values); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	for key := range values {
+		invalidatePricingDisplayCachesForOptions(key)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

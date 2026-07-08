@@ -81,6 +81,39 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 	return filtered
 }
 
+func filterGroupModelRatioByUsableGroupsAndModels(source map[string]map[string]float64, usableGroup map[string]string, pricing []model.Pricing) map[string]map[string]float64 {
+	if len(source) == 0 || len(usableGroup) == 0 {
+		return map[string]map[string]float64{}
+	}
+	visibleModels := make(map[string]struct{}, len(pricing))
+	for _, item := range pricing {
+		if item.ModelName != "" {
+			visibleModels[item.ModelName] = struct{}{}
+			visibleModels[ratio_setting.FormatMatchingModelName(item.ModelName)] = struct{}{}
+		}
+	}
+	if len(visibleModels) == 0 {
+		return map[string]map[string]float64{}
+	}
+
+	filtered := make(map[string]map[string]float64)
+	for group, modelRatios := range source {
+		if _, ok := usableGroup[group]; !ok || len(modelRatios) == 0 {
+			continue
+		}
+		groupRatios := make(map[string]float64, len(modelRatios))
+		for modelName, ratio := range modelRatios {
+			if _, ok := visibleModels[modelName]; ok {
+				groupRatios[modelName] = ratio
+			}
+		}
+		if len(groupRatios) > 0 {
+			filtered[group] = groupRatios
+		}
+	}
+	return filtered
+}
+
 func GetPricing(c *gin.Context) {
 	pricing := model.GetPricing()
 	userId, exists := c.Get("id")
@@ -117,10 +150,11 @@ func GetPricing(c *gin.Context) {
 		"data":               pricing,
 		"vendors":            model.GetVendors(),
 		"group_ratio":        groupRatio,
+		"group_model_ratio":  filterGroupModelRatioByUsableGroupsAndModels(ratio_setting.GetGroupModelRatioCopy(), usableGroup, pricing),
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
 		"auto_groups":        service.GetUserAutoGroup(group),
-		"pricing_version":    "a42d372ccf0b5dd13ecf71203521f9d2",
+		"pricing_version":    "group-model-ratio-v1",
 	})
 }
 
@@ -166,8 +200,16 @@ func GetWebsitePricing(c *gin.Context) {
 		return
 	}
 
-	c.Header("Cache-Control", "public, max-age=300, stale-while-revalidate=60")
+	c.Header("Cache-Control", "no-store, max-age=0")
 	c.Data(200, "application/json; charset=utf-8", body)
+}
+
+func InvalidateWebsitePricingCache() {
+	websitePricingCache.Lock()
+	defer websitePricingCache.Unlock()
+
+	websitePricingCache.body = nil
+	websitePricingCache.expiresAt = time.Time{}
 }
 
 func getCachedWebsitePricingJSON() ([]byte, error) {
@@ -201,6 +243,7 @@ func getCachedWebsitePricingJSON() ([]byte, error) {
 func buildWebsitePricingPayloadDefault() gin.H {
 	pricing := model.GetPricing()
 	usableGroup := service.GetUserUsableGroups("")
+	filteredPricing := filterPricingByUsableGroups(pricing, usableGroup)
 	groupRatio := map[string]float64{}
 	for group, ratio := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := usableGroup[group]; ok {
@@ -210,13 +253,14 @@ func buildWebsitePricingPayloadDefault() gin.H {
 
 	return gin.H{
 		"success":            true,
-		"data":               filterPricingByUsableGroups(pricing, usableGroup),
+		"data":               filteredPricing,
 		"vendors":            model.GetVendors(),
 		"group_ratio":        groupRatio,
+		"group_model_ratio":  filterGroupModelRatioByUsableGroupsAndModels(ratio_setting.GetGroupModelRatioCopy(), usableGroup, filteredPricing),
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
 		"auto_groups":        service.GetUserAutoGroup(""),
-		"pricing_version":    "website-public-v1",
+		"pricing_version":    "website-public-v2",
 	}
 }
 

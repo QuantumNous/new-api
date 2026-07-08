@@ -103,6 +103,7 @@ func main() {
 	// corresponding reload primitive immediately, collapsing the cross-replica
 	// convergence window from SyncFrequency (60s default) to milliseconds.
 	// 60s polling above remains as fallback in case pubsub messages are missed.
+	model.RegisterOptionReloadHook(controller.InvalidateWebsitePricingCache)
 	go common.SubscribeConfigChanged(context.Background(), func(scope string) {
 		defer func() {
 			if r := recover(); r != nil {
