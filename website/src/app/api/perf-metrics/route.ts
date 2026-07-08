@@ -15,8 +15,12 @@ export async function GET(request: NextRequest) {
 
   if (model) target.searchParams.set("model", model);
   target.searchParams.set("hours", hours);
-  // Whole-platform health by default; "plg" stays allowed for the public-tier view.
-  target.searchParams.set("group", group || PERF_METRICS_ALL_GROUPS);
+  // Whole-platform health by default; "plg" stays allowed for the public-tier
+  // view. The backend has no literal "all" group — whole-platform is expressed
+  // by omitting the group param, so only forward a concrete group like "plg".
+  if (group && group !== PERF_METRICS_ALL_GROUPS) {
+    target.searchParams.set("group", group);
+  }
 
   return proxyJson(target);
 }
