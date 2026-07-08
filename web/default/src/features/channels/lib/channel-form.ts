@@ -140,6 +140,7 @@ export const channelFormSchema = z
     weight: z.number().optional(),
     max_concurrency: z
       .number()
+      .int('Max concurrency must be a whole number')
       .min(0, 'Max concurrency must be 0 or greater')
       .optional(),
     test_model: z.string().optional(),

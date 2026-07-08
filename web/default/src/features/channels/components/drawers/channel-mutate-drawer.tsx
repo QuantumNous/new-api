@@ -2568,9 +2568,17 @@ export function ChannelMutateDrawer({
                                     type='number'
                                     placeholder='0'
                                     min={0}
+                                    step={1}
                                     {...field}
                                     onChange={(e) =>
-                                      field.onChange(Number(e.target.value))
+                                      field.onChange(
+                                        Math.max(
+                                          0,
+                                          Math.floor(
+                                            Number(e.target.value) || 0
+                                          )
+                                        )
+                                      )
                                     }
                                   />
                                 </FormControl>

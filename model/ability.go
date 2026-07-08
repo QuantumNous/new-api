@@ -113,34 +113,22 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 }
 
 func GetChannelCandidates(group string, model string, retry int) ([]*Channel, error) {
-	var priorities []int
-	err := DB.Model(&Ability{}).
-		Select("DISTINCT(priority)").
-		Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
-		Order("priority DESC").
-		Pluck("priority", &priorities).Error
-	if err != nil {
-		return nil, err
-	}
-	if len(priorities) == 0 {
-		normalizedModel := ratio_setting.FormatMatchingModelName(model)
-		if normalizedModel != model {
-			return GetChannelCandidates(group, normalizedModel, retry)
-		}
-		return nil, nil
-	}
-	if retry >= len(priorities) {
-		return nil, nil
-	}
+	return GetChannelCandidatesWithFilter(group, model, retry, nil)
+}
 
+func GetChannelCandidatesWithFilter(group string, model string, retry int, filter ChannelFilter) ([]*Channel, error) {
 	var abilities []Ability
-	err = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = ?", group, model, true, priorities[retry]).
-		Order("weight DESC").
+	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+		Order("priority DESC, weight DESC").
 		Find(&abilities).Error
 	if err != nil {
 		return nil, err
 	}
 	if len(abilities) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(model)
+		if normalizedModel != model {
+			return GetChannelCandidatesWithFilter(group, normalizedModel, retry, filter)
+		}
 		return nil, nil
 	}
 
@@ -158,15 +146,37 @@ func GetChannelCandidates(group string, model string, retry int) ([]*Channel, er
 		channelsByID[channel.Id] = channel
 	}
 
-	orderedChannels := make([]*Channel, 0, len(abilities))
+	candidates := make([]abilityChannelCandidate, 0, len(abilities))
 	for _, ability := range abilities {
 		channel, ok := channelsByID[ability.ChannelId]
 		if !ok {
 			return nil, fmt.Errorf("鏁版嵁搴撲竴鑷存€ч敊璇紝娓犻亾# %d 涓嶅瓨鍦紝璇疯仈绯荤鐞嗗憳淇", ability.ChannelId)
 		}
-		orderedChannels = append(orderedChannels, channel)
+		if channel.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		if filter == nil || filter(channel) {
+			candidate := *channel
+			weight := ability.Weight
+			candidate.Priority = ability.Priority
+			candidate.Weight = &weight
+			candidates = append(candidates, abilityChannelCandidate{ability: ability, channel: candidate})
+		}
 	}
-	return orderedChannels, nil
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	targetCandidates := filterAbilityCandidatesByRetryExact(candidates, retry)
+	if len(targetCandidates) == 0 {
+		return nil, nil
+	}
+
+	candidateChannels := make([]*Channel, 0, len(targetCandidates))
+	for i := range targetCandidates {
+		candidateChannels = append(candidateChannels, &targetCandidates[i].channel)
+	}
+	return candidateChannels, nil
 }
 
 func GetChannel(group string, model string, retry int) (*Channel, error) {
@@ -230,6 +240,14 @@ func GetChannelWithFilter(group string, model string, retry int, filter ChannelF
 }
 
 func filterAbilityCandidatesByRetry(candidates []abilityChannelCandidate, retry int) []abilityChannelCandidate {
+	return filterAbilityCandidatesByRetryWithClamp(candidates, retry, true)
+}
+
+func filterAbilityCandidatesByRetryExact(candidates []abilityChannelCandidate, retry int) []abilityChannelCandidate {
+	return filterAbilityCandidatesByRetryWithClamp(candidates, retry, false)
+}
+
+func filterAbilityCandidatesByRetryWithClamp(candidates []abilityChannelCandidate, retry int, clamp bool) []abilityChannelCandidate {
 	uniquePriorities := make(map[int64]bool)
 	for _, candidate := range candidates {
 		uniquePriorities[getAbilityPriority(candidate.ability)] = true
@@ -242,6 +260,9 @@ func filterAbilityCandidatesByRetry(candidates []abilityChannelCandidate, retry 
 		return sortedUniquePriorities[i] > sortedUniquePriorities[j]
 	})
 	if retry >= len(sortedUniquePriorities) {
+		if !clamp {
+			return nil
+		}
 		retry = len(sortedUniquePriorities) - 1
 	}
 	targetPriority := sortedUniquePriorities[retry]

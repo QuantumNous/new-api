@@ -335,6 +335,9 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		if channel == nil {
 			return nil, types.NewError(fmt.Errorf("渠道 %d 不存在", channelId), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 		}
+		if channel.Status != common.ChannelStatusEnabled {
+			return nil, types.NewErrorWithStatusCode(fmt.Errorf("channel %d is disabled", channelId), types.ErrorCodeGetChannelFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		}
 		ok, err := service.EnsureChannelConcurrencyForContext(c, channel)
 		if err != nil {
 			return nil, types.NewErrorWithStatusCode(fmt.Errorf("acquire channel concurrency failed for channel %d: %s", channelId, err.Error()), types.ErrorCodeGetChannelFailed, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())

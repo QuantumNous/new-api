@@ -129,13 +129,21 @@ func tryAcquireChannelConcurrencyWithToken(ctx context.Context, channel *model.C
 		return nil, false, fmt.Errorf("channel is nil")
 	}
 
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	coolingDown, err := isChannelConcurrencyCoolingDown(ctx, channel.Id)
+	if err != nil {
+		return nil, false, err
+	}
+	if coolingDown {
+		return nil, false, nil
+	}
+
 	maxConcurrency := channel.GetMaxConcurrency()
 	if maxConcurrency <= 0 {
 		return nil, true, nil
-	}
-
-	if ctx == nil {
-		ctx = context.Background()
 	}
 
 	lease := &ChannelConcurrencyLease{
@@ -217,6 +225,28 @@ func MarkChannelConcurrencyCooldown(ctx context.Context, channelID int, duration
 	defer channelConcurrencyMemoryMu.Unlock()
 	channelConcurrencyMemoryCooldowns[channelID] = time.Now().Add(duration)
 	return nil
+}
+
+func isChannelConcurrencyCoolingDown(ctx context.Context, channelID int) (bool, error) {
+	if !operation_setting.IsChannelConcurrencyCooldownEnabled() || channelID <= 0 {
+		return false, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if common.RedisEnabled && common.RDB != nil {
+		coolingDown, err := common.RDB.Exists(ctx, channelConcurrencyCooldownRedisKey(channelID)).Result()
+		if err == nil {
+			return coolingDown > 0, nil
+		}
+		common.SysError(fmt.Sprintf("check channel concurrency cooldown in redis failed, fallback to memory: channel_id=%d, error=%s", channelID, err.Error()))
+	}
+
+	channelConcurrencyMemoryMu.Lock()
+	defer channelConcurrencyMemoryMu.Unlock()
+	cooldownUntil, ok := channelConcurrencyMemoryCooldowns[channelID]
+	return ok && cooldownUntil.After(time.Now()), nil
 }
 
 func ReleaseChannelConcurrency(ctx context.Context, lease *ChannelConcurrencyLease) error {

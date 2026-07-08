@@ -158,6 +158,22 @@ func TestChannelConcurrencyLoadsIncludeActiveWaitingAndCooldown(t *testing.T) {
 	require.InDelta(t, 0.5, load.LoadRate, 0.001)
 }
 
+func TestTryAcquireChannelConcurrencySkipsCoolingDownChannel(t *testing.T) {
+	resetChannelConcurrencyForTest()
+	restore := useMemoryChannelConcurrencyForTest(t)
+	defer restore()
+
+	channel := &model.Channel{Id: 110, MaxConcurrency: 1}
+	ctx := context.Background()
+
+	require.NoError(t, MarkChannelConcurrencyCooldown(ctx, channel.Id, time.Second, "test cooldown"))
+
+	lease, ok, err := TryAcquireChannelConcurrency(ctx, channel)
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Nil(t, lease)
+}
+
 func TestTryAcquireChannelConcurrencyFallsBackToMemoryWhenRedisFails(t *testing.T) {
 	resetChannelConcurrencyForTest()
 	restore := useFailingRedisChannelConcurrencyForTest(t)

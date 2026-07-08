@@ -471,7 +471,11 @@ export const useChannelsData = () => {
         break;
       case 'max_concurrency':
         if (value === '') return;
-        data.max_concurrency = Math.max(0, Number.parseInt(value, 10) || 0);
+        data.max_concurrency = Number(value);
+        if (!Number.isInteger(data.max_concurrency) || data.max_concurrency < 0) {
+          showError(t('渠道并发上限必须是非负整数'));
+          return;
+        }
         res = await API.put('/api/channel/', data);
         break;
       case 'enable_all':

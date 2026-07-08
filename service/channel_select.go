@@ -274,11 +274,10 @@ func getRandomSatisfiedChannelWithConcurrency(c *gin.Context, group string, mode
 	var waitCandidate *model.Channel
 	waitCandidateRetry := retry
 	for priorityRetry := retry; ; priorityRetry++ {
-		candidates, err := model.GetSatisfiedChannelCandidates(group, modelName, priorityRetry)
+		candidates, err := model.GetSatisfiedChannelCandidatesWithFilter(group, modelName, priorityRetry, buildEndpointChannelFilter(c, modelName))
 		if err != nil {
 			return nil, priorityRetry, err
 		}
-		candidates = filterChannelCandidates(candidates, buildEndpointChannelFilter(c, modelName))
 		if len(candidates) == 0 {
 			if sawCandidates && waitCandidate != nil {
 				ok, waitErr := AcquireChannelConcurrencyWithWaitForContext(c, waitCandidate)
@@ -389,17 +388,4 @@ func removeChannelCandidate(candidates []*model.Channel, channelID int) []*model
 		}
 	}
 	return candidates
-}
-
-func filterChannelCandidates(candidates []*model.Channel, filter model.ChannelFilter) []*model.Channel {
-	if filter == nil || len(candidates) == 0 {
-		return candidates
-	}
-	filtered := make([]*model.Channel, 0, len(candidates))
-	for _, candidate := range candidates {
-		if filter(candidate) {
-			filtered = append(filtered, candidate)
-		}
-	}
-	return filtered
 }

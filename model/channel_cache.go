@@ -254,8 +254,12 @@ func logChannelCacheMissLocked(group string, model string, retry int) {
 }
 
 func GetSatisfiedChannelCandidates(group string, model string, retry int) ([]*Channel, error) {
+	return GetSatisfiedChannelCandidatesWithFilter(group, model, retry, nil)
+}
+
+func GetSatisfiedChannelCandidatesWithFilter(group string, model string, retry int, filter ChannelFilter) ([]*Channel, error) {
 	if !common.MemoryCacheEnabled {
-		return GetChannelCandidates(group, model, retry)
+		return GetChannelCandidatesWithFilter(group, model, retry, filter)
 	}
 
 	channelSyncLock.RLock()
@@ -275,13 +279,23 @@ func GetSatisfiedChannelCandidates(group string, model string, retry int) ([]*Ch
 		return nil, nil
 	}
 
-	uniquePriorities := make(map[int]bool)
+	candidateChannels := make([]*Channel, 0, len(channels))
 	for _, channelId := range channels {
-		if channel, ok := channelsIDM[channelId]; ok {
-			uniquePriorities[int(channel.GetPriority())] = true
-		} else {
+		channel, ok := channelsIDM[channelId]
+		if !ok {
 			return nil, fmt.Errorf("鏁版嵁搴撲竴鑷存€ч敊璇紝娓犻亾# %d 涓嶅瓨鍦紝璇疯仈绯荤鐞嗗憳淇", channelId)
 		}
+		if filter == nil || filter(channel) {
+			candidateChannels = append(candidateChannels, channel)
+		}
+	}
+	if len(candidateChannels) == 0 {
+		return nil, nil
+	}
+
+	uniquePriorities := make(map[int]bool)
+	for _, channel := range candidateChannels {
+		uniquePriorities[int(channel.GetPriority())] = true
 	}
 
 	var sortedUniquePriorities []int
@@ -295,13 +309,9 @@ func GetSatisfiedChannelCandidates(group string, model string, retry int) ([]*Ch
 
 	targetPriority := int64(sortedUniquePriorities[retry])
 	var targetChannels []*Channel
-	for _, channelId := range channels {
-		if channel, ok := channelsIDM[channelId]; ok {
-			if channel.GetPriority() == targetPriority {
-				targetChannels = append(targetChannels, channel)
-			}
-		} else {
-			return nil, fmt.Errorf("鏁版嵁搴撲竴鑷存€ч敊璇紝娓犻亾# %d 涓嶅瓨鍦紝璇疯仈绯荤鐞嗗憳淇", channelId)
+	for _, channel := range candidateChannels {
+		if channel.GetPriority() == targetPriority {
+			targetChannels = append(targetChannels, channel)
 		}
 	}
 	if len(targetChannels) == 0 {

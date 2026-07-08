@@ -1860,7 +1860,7 @@ const EditChannelModal = (props) => {
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
     localInputs.max_concurrency = Math.max(
       0,
-      Number(localInputs.max_concurrency) || 0,
+      Math.floor(Number(localInputs.max_concurrency) || 0),
     );
     localInputs.models = localInputs.models.join(',');
     localInputs.group = (localInputs.groups || []).join(',');
@@ -2498,6 +2498,7 @@ const EditChannelModal = (props) => {
                         label={t('渠道并发上限')}
                         placeholder={t('0 表示不限制')}
                         min={0}
+                        precision={0}
                         onNumberChange={(value) =>
                           handleInputChange('max_concurrency', value)
                         }

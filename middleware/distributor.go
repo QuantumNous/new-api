@@ -147,8 +147,8 @@ func Distribute() func(c *gin.Context) {
 										ok, acquireErr := service.AcquireChannelConcurrencyWithWaitForContext(c, preferred)
 										if acquireErr != nil {
 											if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
-												abortWithOpenAiMessage(c, http.StatusTooManyRequests, "channel concurrency limit exceeded", types.ErrorCodeGetChannelFailed)
-												return
+												affinityConcurrencyLimited = true
+												break
 											}
 											abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("acquire channel concurrency failed: %s", acquireErr.Error()), types.ErrorCodeGetChannelFailed)
 											return
@@ -171,13 +171,13 @@ func Distribute() func(c *gin.Context) {
 							ok, acquireErr := service.AcquireChannelConcurrencyWithWaitForContext(c, preferred)
 							if acquireErr != nil {
 								if errors.Is(acquireErr, service.ErrChannelConcurrencyLimit) {
-									abortWithOpenAiMessage(c, http.StatusTooManyRequests, "channel concurrency limit exceeded", types.ErrorCodeGetChannelFailed)
+									affinityConcurrencyLimited = true
+								} else {
+									abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("acquire channel concurrency failed: %s", acquireErr.Error()), types.ErrorCodeGetChannelFailed)
 									return
 								}
-								abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("acquire channel concurrency failed: %s", acquireErr.Error()), types.ErrorCodeGetChannelFailed)
-								return
 							}
-							if !ok {
+							if !ok || affinityConcurrencyLimited {
 								affinityConcurrencyLimited = true
 							} else {
 								channel = preferred

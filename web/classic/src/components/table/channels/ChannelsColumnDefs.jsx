@@ -708,6 +708,7 @@ export const getChannelsColumns = ({
               innerButtons
               defaultValue={record.max_concurrency || 0}
               min={0}
+              precision={0}
               size='small'
             />
           </div>
