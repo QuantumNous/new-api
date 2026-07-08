@@ -230,6 +230,50 @@ func TestBillingCheckoutCompletedResolvesViaSubscription(t *testing.T) {
 	require.Equal(t, common.TopUpStatusSuccess, o.Status, "order must be succeeded via subscription fallback")
 }
 
+// TestBillingCheckoutCompletedResolvesViaCheckoutSubscriptionData verifies the
+// case where Airwallex surfaces our trade_no ONLY under the re-fetched checkout's
+// subscription_data.metadata (not top-level checkout metadata, and with no
+// reachable subscription). The handler must still resolve it without ever calling
+// getBillingSubscription.
+func TestBillingCheckoutCompletedResolvesViaCheckoutSubscriptionData(t *testing.T) {
+	setupAirwallexWebhookDB(t)
+
+	order := &model.SubscriptionOrder{
+		UserId:          7,
+		PlanId:          1,
+		Money:           20.0,
+		TradeNo:         "sub_capture_0708",
+		PaymentMethod:   model.PaymentMethodCard,
+		PaymentProvider: model.PaymentProviderAirwallex,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
+	}
+	require.NoError(t, order.Insert())
+
+	savedCheckout := getBillingCheckout
+	getBillingCheckout = func(id string) (*airwallex.BillingCheckout, error) {
+		co := &airwallex.BillingCheckout{Id: id, Status: "COMPLETED"}
+		co.SubscriptionData.Metadata = map[string]string{"trade_no": "sub_capture_0708"}
+		return co, nil
+	}
+	t.Cleanup(func() { getBillingCheckout = savedCheckout })
+
+	// Subscription seam must never be hit — trade_no is on the checkout itself.
+	savedSeam := getBillingSubscription
+	getBillingSubscription = func(id string) (*airwallex.BillingSubscription, error) {
+		t.Fatalf("getBillingSubscription must not be called; trade_no is on subscription_data.metadata (id=%s)", id)
+		return nil, nil
+	}
+	t.Cleanup(func() { getBillingSubscription = savedSeam })
+
+	ev := loadEvent(t, "testdata/awx_billing_checkout_completed_slim.json")
+	require.NoError(t, handleAirwallexBillingCheckoutCompleted(testCtx(), ev))
+
+	o := model.GetSubscriptionOrderByTradeNo("sub_capture_0708")
+	require.NotNil(t, o, "order must exist after completion")
+	require.Equal(t, common.TopUpStatusSuccess, o.Status, "order must be succeeded via checkout.subscription_data.metadata")
+}
+
 // TestInvoicePaidRenewsAfterFirstCycle verifies that handleAirwallexInvoicePaid
 // resolves trade_no via the getBillingSubscription seam (because the invoice.paid
 // fixture carries no metadata), skips first-cycle activation (already done by

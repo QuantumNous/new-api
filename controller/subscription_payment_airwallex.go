@@ -391,6 +391,12 @@ func handleAirwallexBillingCheckoutCompleted(c *gin.Context, event airwallexEven
 			if co.Metadata != nil {
 				tradeNo = co.Metadata["trade_no"]
 			}
+			// SUBSCRIPTION-mode checkouts may carry our metadata under
+			// subscription_data.metadata instead of the top-level checkout
+			// metadata — check both before falling through to the subscription.
+			if tradeNo == "" && co.SubscriptionData.Metadata != nil {
+				tradeNo = co.SubscriptionData.Metadata["trade_no"]
+			}
 			if subscriptionId == "" {
 				subscriptionId = co.SubscriptionId
 			}

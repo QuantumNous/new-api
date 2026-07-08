@@ -61,6 +61,12 @@ type BillingCheckout struct {
 	Url            string            `json:"url"`    // present only when status ACTIVE
 	SubscriptionId string            `json:"subscription_id"`
 	Metadata       map[string]string `json:"metadata"`
+	// SubscriptionData mirrors the create request's subscription_data. In
+	// SUBSCRIPTION mode Airwallex may surface our trade_no here (under
+	// subscription_data.metadata) rather than on the top-level checkout metadata.
+	SubscriptionData struct {
+		Metadata map[string]string `json:"metadata"`
+	} `json:"subscription_data"`
 }
 
 func CreateBillingCheckout(req *CreateBillingCheckoutRequest) (*BillingCheckout, error) {
