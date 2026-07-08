@@ -1296,6 +1296,46 @@ func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*Subsc
 	return info, nil
 }
 
+// AirwallexBillingCustomer maps a new-api user to their Airwallex Billing
+// customer (bcus_...). The Billing customers API has no merchant_customer_id
+// filter (unlike legacy pa/customers), so this id must be persisted to reuse
+// across checkout, renewal, and cancellation.
+type AirwallexBillingCustomer struct {
+	Id         int    `json:"id"`
+	UserId     int    `json:"user_id" gorm:"uniqueIndex"`
+	CustomerId string `json:"customer_id" gorm:"type:varchar(128);not null"`
+	CreatedAt  int64  `json:"created_at" gorm:"bigint"`
+}
+
+func GetAirwallexBillingCustomerId(userId int) string {
+	if userId <= 0 {
+		return ""
+	}
+	var row AirwallexBillingCustomer
+	if err := DB.Where("user_id = ?", userId).First(&row).Error; err != nil {
+		return ""
+	}
+	return row.CustomerId
+}
+
+func SaveAirwallexBillingCustomerId(userId int, customerId string) error {
+	if userId <= 0 || customerId == "" {
+		return errors.New("userId and customerId required")
+	}
+	var row AirwallexBillingCustomer
+	err := DB.Where("user_id = ?", userId).First(&row).Error
+	if err == gorm.ErrRecordNotFound {
+		return DB.Create(&AirwallexBillingCustomer{
+			UserId: userId, CustomerId: customerId, CreatedAt: common.GetTimestamp(),
+		}).Error
+	}
+	if err != nil {
+		return err
+	}
+	row.CustomerId = customerId
+	return DB.Save(&row).Error
+}
+
 // Update subscription used amount by delta (positive consume more, negative refund).
 func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error {
 	if userSubscriptionId <= 0 {
