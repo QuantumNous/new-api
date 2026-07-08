@@ -23,10 +23,18 @@ import { UsersMutateDrawer } from './components/users-mutate-drawer'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
 import { UsersProvider, useUsers } from './components/users-provider'
 import { UsersTable } from './components/users-table'
+import { UserInfoDialog } from './components/user-info-dialog'
 
 function UsersContent() {
   const { t } = useTranslation()
-  const { open, setOpen, currentRow } = useUsers()
+  const {
+    open,
+    setOpen,
+    currentRow,
+    selectedUserId,
+    userInfoDialogOpen,
+    setUserInfoDialogOpen,
+  } = useUsers()
 
   return (
     <>
@@ -47,6 +55,11 @@ function UsersContent() {
         open={open === 'create' || open === 'update'}
         onOpenChange={(isOpen) => !isOpen && setOpen(null)}
         currentRow={open === 'update' ? currentRow || undefined : undefined}
+      />
+      <UserInfoDialog
+        userId={selectedUserId}
+        open={userInfoDialogOpen}
+        onOpenChange={setUserInfoDialogOpen}
       />
       <UsersDeleteDialog />
     </>

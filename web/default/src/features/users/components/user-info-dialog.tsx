@@ -20,7 +20,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatQuota, formatCompactNumber } from '@/lib/format'
+import { formatCompactNumber, formatQuota } from '@/lib/format'
+import { api } from '@/lib/api'
 import {
   Dialog,
   DialogContent,
@@ -29,8 +30,21 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { getUserInfo } from '../../api'
-import type { UserInfo } from '../../types'
+
+interface UserInfo {
+  id: number
+  username?: string
+  display_name?: string
+  email?: string
+  quota?: number
+  used_quota?: number
+  request_count?: number
+  group?: string
+  aff_code?: string
+  aff_count?: number
+  aff_quota?: number
+  remark?: string
+}
 
 interface UserInfoDialogProps {
   userId: number | null
@@ -51,7 +65,12 @@ export function UserInfoDialog({
     async (id: number) => {
       setIsLoading(true)
       try {
-        const result = await getUserInfo(id)
+        const res = await api.get(`/api/user/${id}`)
+        const result = res.data as {
+          success: boolean
+          message?: string
+          data?: UserInfo
+        }
         if (result.success) {
           setUserInfo(result.data || null)
         } else {
@@ -116,7 +135,6 @@ export function UserInfoDialog({
           </div>
         ) : userInfo ? (
           <div className='space-y-4 py-4'>
-            {/* Basic Info */}
             <div className='grid grid-cols-2 gap-4'>
               <InfoItem
                 label={t('Username')}
@@ -133,7 +151,6 @@ export function UserInfoDialog({
               <InfoItem label={t('Email')} value={renderText(userInfo.email)} />
             </div>
 
-            {/* Balance Info */}
             <div className='grid grid-cols-2 gap-4'>
               <InfoItem
                 label={t('Balance')}
@@ -145,7 +162,6 @@ export function UserInfoDialog({
               />
             </div>
 
-            {/* Statistics */}
             <div className='grid grid-cols-2 gap-4'>
               <InfoItem
                 label={t('Request Count')}
@@ -157,7 +173,6 @@ export function UserInfoDialog({
               />
             </div>
 
-            {/* Invitation Info */}
             {(userInfo.aff_code ||
               userInfo.aff_count !== undefined ||
               (userInfo.aff_quota !== undefined && userInfo.aff_quota > 0)) && (
@@ -186,7 +201,6 @@ export function UserInfoDialog({
               </>
             )}
 
-            {/* Remark */}
             {userInfo.remark && (
               <div className='space-y-1.5'>
                 <Label className='text-muted-foreground text-xs'>
