@@ -229,7 +229,46 @@ export type MultiKeyConfirmAction = {
     | 'enable-all'
     | 'disable-all'
     | 'delete-disabled'
+    | 'test-all-keys'
   keyIndex?: number
+}
+
+export interface TestAllKeysRequest {
+  model?: string
+  include_disabled?: boolean
+  auto_enable_success?: boolean
+  auto_disable_failed?: boolean
+  concurrency?: number
+}
+
+export interface TestAllKeyResult {
+  key_index: number
+  masked_key: string
+  old_status: string
+  test_success: boolean
+  latency_ms: number
+  new_status: string
+  action: string
+  error: string
+}
+
+export interface TestAllKeysSummary {
+  total: number
+  tested: number
+  success: number
+  failed: number
+  skipped: number
+  auto_enabled: number
+  auto_disabled: number
+  kept_manual_disabled: number
+}
+
+export interface TestAllKeysResponse {
+  success: boolean
+  channel_id: number
+  summary: TestAllKeysSummary
+  results: TestAllKeyResult[]
+  message?: string
 }
 
 export interface MultiKeyStatusResponse {
@@ -289,6 +328,7 @@ export interface SearchChannelsParams {
 
 export interface ChannelTestParams {
   test_model?: string
+  key_index?: number
 }
 
 export interface CopyChannelParams {

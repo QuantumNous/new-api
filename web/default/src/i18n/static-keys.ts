@@ -215,6 +215,28 @@ export const STATIC_I18N_KEYS = [
   // Channel Affinity section
   'Channel Affinity',
 
+  // Multi-key management test results
+  'Test all keys and recover available keys',
+  'Test all keys completed',
+  'Are you sure you want to test all keys in this channel? Auto-disabled keys that pass will be re-enabled. Manually disabled keys will stay disabled.',
+  'Test Results',
+  'Test Result',
+  'Masked Key',
+  'Old Status',
+  'New Status',
+  'Latency',
+  'Kept',
+  'Auto Enabled',
+  'Auto Disabled',
+  'Kept Manual Disabled',
+  'Skipped',
+  'Total',
+  'Tested',
+  'Success',
+  'Failed',
+  'Error',
+  'Action',
+
   // Models constants
   'Exact Match',
   'Prefix Match',

@@ -216,6 +216,8 @@ export const MULTI_KEY_CONFIRM_MESSAGES = {
   DISABLE_ALL: 'Are you sure you want to disable all enabled keys?',
   DELETE_DISABLED:
     'Are you sure you want to delete all auto-disabled keys? This action cannot be undone.',
+  TEST_ALL_KEYS:
+    'Are you sure you want to test all keys in this channel? Auto-disabled keys that pass will be re-enabled. Manually disabled keys will stay disabled.',
 } as const
 
 // ============================================================================
