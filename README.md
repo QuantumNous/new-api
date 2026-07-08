@@ -664,6 +664,17 @@ newapi 这边 [service/uptime_check.go](service/uptime_check.go) 维护了对齐
 
 ---
 
+## 当前指纹自动禁用语义
+
+- `service/auto_detect.go` 和 `service/detection_sync.go` 都按 `(channel_id, claimed_model)` 处理指纹结果。
+- fingerprint `suspicious` 只关闭该渠道下对应模型的 `abilities.enabled`，并在 `channels.other_info.auto_disabled_models` 记录恢复计数；同渠道其他模型保持可路由。
+- fingerprint `pass` 只恢复此前由 fingerprint 自动关闭的同一 `(channel_id, model)`；人工关闭的模型不会被自动恢复。
+- `notcomplete` 和 `uptime` 不触发 fingerprint 自动禁用。
+- 普通请求失败的 `AutomaticDisableChannelEnabled` 属于渠道健康保护：invalid key / 欠费等全局错误仍禁用整渠道；连续 5xx/timeout/429 先用原始请求模型做确认探针，确认失败后只关闭该 `(channel_id, model)`。
+- 通用自动恢复会扫描 `channels.other_info.auto_disabled_models`，逐个用被封模型探测；哪个模型探测通过只恢复哪个模型，不会恢复同渠道其他模型或整渠道。
+
+---
+
 ## 路由算法 0.1 存档（2026-05-14）
 
 第一版"按价格最便宜可用渠道优先 + 检测自动禁用 + 自动恢复"的最简路由。只做 cheapest 一种策略，跑在 newapi distributor 端；apimaster 不参与决策。

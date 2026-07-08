@@ -342,15 +342,22 @@ func disableModelForFingerprint(ch *model.Channel, targetModel string, now int64
 		return
 	}
 
-	autoDisabledModels[targetModel] = map[string]interface{}{
-		"disabled_at": now,
-		"pass_count":  0,
-		"reason":      "fingerprint suspicious",
-	}
+	autoDisabledModels[targetModel] = newAutoDisabledModelEntry(now, "fingerprint suspicious")
 	info[autoDisabledModelsInfoKey] = autoDisabledModels
 	ch.SetOtherInfo(info)
 	updates["other_info"] = ch.OtherInfo
 	model.InitChannelCache()
+}
+
+func newAutoDisabledModelEntry(now int64, reason string) map[string]interface{} {
+	if reason == "" {
+		reason = "auto disabled"
+	}
+	return map[string]interface{}{
+		"disabled_at": now,
+		"pass_count":  0,
+		"reason":      reason,
+	}
 }
 
 func recoverModelForFingerprint(ch *model.Channel, targetModel string, updates map[string]interface{}) {

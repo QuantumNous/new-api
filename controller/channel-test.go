@@ -1123,6 +1123,86 @@ func recordCommonAutoReenableProbe(channel *model.Channel, result testResult, la
 	_ = model.DB.Model(channel).Update("other_info", channel.OtherInfo).Error
 }
 
+type commonAutoDisabledModel struct {
+	Model       string
+	DisabledAt  int64
+	LastProbeAt int64
+	LastReason  string
+}
+
+func commonAutoDisabledModels(channel *model.Channel) []commonAutoDisabledModel {
+	info := commonAutoReenableInfo(channel)
+	raw, ok := info["auto_disabled_models"].(map[string]interface{})
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	out := make([]commonAutoDisabledModel, 0, len(raw))
+	for modelName, rawEntry := range raw {
+		modelName = strings.TrimSpace(modelName)
+		if modelName == "" {
+			continue
+		}
+		entry, _ := rawEntry.(map[string]interface{})
+		out = append(out, commonAutoDisabledModel{
+			Model:       modelName,
+			DisabledAt:  commonAutoReenableInt64(entry, "disabled_at"),
+			LastProbeAt: commonAutoReenableInt64(entry, "last_reenable_probe_at"),
+			LastReason:  commonAutoReenableString(entry, "last_reenable_probe_reason"),
+		})
+	}
+	return out
+}
+
+func commonAutoReenableString(info map[string]interface{}, key string) string {
+	if info == nil {
+		return ""
+	}
+	if v, ok := info[key].(string); ok {
+		return strings.TrimSpace(v)
+	}
+	return ""
+}
+
+func commonAutoReenableShouldProbeModel(entry commonAutoDisabledModel) bool {
+	if entry.LastProbeAt <= 0 {
+		return true
+	}
+	interval := commonAutoReenableProbeInterval(entry.DisabledAt, entry.LastReason)
+	return time.Since(time.Unix(entry.LastProbeAt, 0)) >= interval
+}
+
+func recordCommonAutoReenableModelProbe(channel *model.Channel, modelName string, result testResult, latencyMs int64) {
+	if channel == nil || strings.TrimSpace(modelName) == "" {
+		return
+	}
+	info := commonAutoReenableInfo(channel)
+	raw, ok := info["auto_disabled_models"].(map[string]interface{})
+	if !ok {
+		raw = map[string]interface{}{}
+	}
+	entry, _ := raw[modelName].(map[string]interface{})
+	if entry == nil {
+		entry = map[string]interface{}{}
+	}
+	entry["last_reenable_probe_at"] = common.GetTimestamp()
+	entry["last_reenable_probe_latency_ms"] = latencyMs
+	if result.newAPIError == nil && result.localErr == nil {
+		entry["last_reenable_probe_result"] = "success"
+		delete(entry, "last_reenable_probe_reason")
+	} else {
+		entry["last_reenable_probe_result"] = "failed"
+		if result.newAPIError != nil {
+			entry["last_reenable_probe_reason"] = result.newAPIError.ErrorWithStatusCode()
+		} else if result.localErr != nil {
+			entry["last_reenable_probe_reason"] = result.localErr.Error()
+		}
+	}
+	raw[modelName] = entry
+	info["auto_disabled_models"] = raw
+	channel.SetOtherInfo(info)
+	_ = model.DB.Model(channel).Update("other_info", channel.OtherInfo).Error
+}
+
 func commonAutoReenableCandidates() ([]*model.Channel, error) {
 	var channels []*model.Channel
 	if err := model.DB.Where("status = ?", common.ChannelStatusAutoDisabled).Find(&channels).Error; err != nil {
@@ -1131,6 +1211,23 @@ func commonAutoReenableCandidates() ([]*model.Channel, error) {
 	out := make([]*model.Channel, 0, len(channels))
 	for _, channel := range channels {
 		if !channelHasCommonAutoDisableReason(channel) {
+			continue
+		}
+		out = append(out, channel)
+	}
+	return out, nil
+}
+
+func commonModelAutoReenableCandidates() ([]*model.Channel, error) {
+	var channels []*model.Channel
+	if err := model.DB.
+		Where("status <> ? AND other_info LIKE ?", common.ChannelStatusManuallyDisabled, "%auto_disabled_models%").
+		Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	out := make([]*model.Channel, 0, len(channels))
+	for _, channel := range channels {
+		if len(commonAutoDisabledModels(channel)) == 0 {
 			continue
 		}
 		out = append(out, channel)
@@ -1148,6 +1245,13 @@ func testCommonAutoDisabledChannels() error {
 	commonAutoReenableLock.Unlock()
 
 	channels, err := commonAutoReenableCandidates()
+	if err != nil {
+		commonAutoReenableLock.Lock()
+		commonAutoReenableRunning = false
+		commonAutoReenableLock.Unlock()
+		return err
+	}
+	modelChannels, err := commonModelAutoReenableCandidates()
 	if err != nil {
 		commonAutoReenableLock.Lock()
 		commonAutoReenableRunning = false
@@ -1179,6 +1283,23 @@ func testCommonAutoDisabledChannels() error {
 			}
 			channel.UpdateResponseTime(milliseconds)
 			time.Sleep(common.RequestInterval)
+		}
+
+		for _, channel := range modelChannels {
+			for _, disabledModel := range commonAutoDisabledModels(channel) {
+				if !commonAutoReenableShouldProbeModel(disabledModel) {
+					continue
+				}
+				tik := time.Now()
+				result := testChannel(channel, disabledModel.Model, "", shouldUseStreamForAutomaticChannelTest(channel))
+				milliseconds := time.Since(tik).Milliseconds()
+				recordCommonAutoReenableModelProbe(channel, disabledModel.Model, result, milliseconds)
+				if result.newAPIError == nil && result.localErr == nil {
+					service.EnableChannelModel(channel.Id, disabledModel.Model, channel.Name)
+				}
+				channel.UpdateResponseTime(milliseconds)
+				time.Sleep(common.RequestInterval)
+			}
 		}
 	})
 	return nil

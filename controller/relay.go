@@ -853,6 +853,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	action, reason := service.EvaluateChannelHealth(channelError, err)
 	if action != service.HealthSkip {
+		originalModel := strings.TrimSpace(c.GetString("original_model"))
 		gopool.Go(func() {
 			switch action {
 			case service.HealthNotifyRecharge:
@@ -861,7 +862,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			case service.HealthDisableImmediate, service.HealthDisableWindow:
 				service.DisableChannel(channelError, reason)
 			case service.HealthProbeBeforeDisable:
-				probeBeforeDisablingChannel(channelError, err, reason)
+				probeBeforeDisablingChannel(channelError, err, reason, originalModel)
 			}
 		})
 	}
@@ -910,7 +911,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 
 }
 
-func probeBeforeDisablingChannel(channelError types.ChannelError, originalErr *types.NewAPIError, originalReason string) {
+func probeBeforeDisablingChannel(channelError types.ChannelError, originalErr *types.NewAPIError, originalReason string, modelName string) {
 	if _, loaded := channelDisableProbeRunning.LoadOrStore(channelError.ChannelId, struct{}{}); loaded {
 		common.SysLog(fmt.Sprintf("channel #%d disable probe already running, skip duplicate trigger", channelError.ChannelId))
 		return
@@ -927,8 +928,9 @@ func probeBeforeDisablingChannel(channelError types.ChannelError, originalErr *t
 		return
 	}
 
+	modelName = strings.TrimSpace(modelName)
 	tik := time.Now()
-	result := testChannel(channel, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+	result := testChannel(channel, modelName, "", shouldUseStreamForAutomaticChannelTest(channel))
 	latencyMs := time.Since(tik).Milliseconds()
 	channel.UpdateResponseTime(latencyMs)
 
@@ -954,7 +956,7 @@ func probeBeforeDisablingChannel(channelError types.ChannelError, originalErr *t
 		service.NotifyUpstreamRecharge(channelError, probeErr)
 		service.DisableChannel(channelError, reason)
 	case service.CategoryDisableImmediate, service.CategoryDisableWindow, service.CategoryRateLimitWindow:
-		service.DisableChannel(channelError, reason)
+		service.DisableChannelModel(channelError, modelName, reason)
 	}
 
 	if originalErr != nil {

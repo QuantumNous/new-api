@@ -15,11 +15,6 @@ import (
 const (
 	detectionSyncInterval = 30 * time.Second
 	detectionLookback     = 24 * time.Hour
-	// suspicious detection drops priority by this amount
-	detectionPriorityPenalty = int64(10)
-	// pass detection raises priority by this amount
-	detectionPriorityBonus = int64(5)
-	detectionPriorityMax   = int64(100)
 )
 
 var detectionSyncOnce sync.Once
@@ -60,13 +55,13 @@ func runDetectionSyncOnce() {
 	ctx := context.Background()
 	since := time.Now().Add(-detectionLookback)
 
-	// Query most recent conclusive detection per base_url within lookback window.
+	// Query most recent conclusive detection per base_url+claimed_model within lookback window.
 	// We intentionally do not sync notcomplete rows into frontend-facing channel
 	// state, so transient failures do not overwrite the last usable signal.
 	// DISTINCT ON is PostgreSQL-specific — safe here because APIMASTER_PG_DB is always PG.
 	var rows []apimasterDetectionRow
 	err := model.APIMASTER_PG_DB.Raw(`
-		SELECT DISTINCT ON (base_url)
+		SELECT DISTINCT ON (base_url, claimed_model)
 			base_url,
 			status,
 			claimed_model,
@@ -80,8 +75,9 @@ func runDetectionSyncOnce() {
 		FROM detections
 		WHERE created_at > $1
 		  AND base_url IS NOT NULL
+		  AND claimed_model IS NOT NULL
 		  AND status IN ('pass', 'suspicious')
-		ORDER BY base_url, created_at DESC
+		ORDER BY base_url, claimed_model, created_at DESC
 	`, since).Scan(&rows).Error
 	if err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("detection sync: PG query failed: %v", err))
@@ -101,15 +97,15 @@ func applyDetectionResult(ctx context.Context, d apimasterDetectionRow) {
 	}
 
 	for _, ch := range channels {
-		// Skip if we already processed a result at this timestamp or newer
-		if ch.LastDetectResult == d.Status && ch.LastDetectedAt != nil && *ch.LastDetectedAt >= d.DetectTime {
-			// Note: dedup uses raw d.Status intentionally — we check against what Flask reported,
-			// not the boosted status, to avoid re-processing on every sync tick.
+		if d.ClaimedModel == "" || !splitChannelModels(ch.Models)[d.ClaimedModel] {
 			continue
 		}
 
 		// Apply confidence boost before persisting
 		boostedTop5Json, boostedTop1Score, rawTop1Score, rawTop5Json, boostedStatus := BoostDetectionResult(d.Top5Json, d.Top1Score, d.ClaimedModel, d.Status)
+		if syncedDetectionExists(ch.Id, d.ClaimedModel, boostedStatus, d.DetectTime) {
+			continue
+		}
 
 		// Write log entry
 		logEntry := model.ChannelDetectLog{
@@ -136,30 +132,25 @@ func applyDetectionResult(ctx context.Context, d apimasterDetectionRow) {
 			"last_detect_result": boostedStatus,
 		}
 
-		// Only adjust priority for conclusive results
-		if boostedStatus == "pass" || boostedStatus == "suspicious" {
-			priority := int64(0)
-			if ch.Priority != nil {
-				priority = *ch.Priority
-			}
-			if boostedStatus == "suspicious" {
-				priority -= detectionPriorityPenalty
-				if priority < 0 {
-					priority = 0
+		// Keep fingerprint sync consistent with auto_detect:
+		// suspicious disables only this channel+model ability; pass recovers only
+		// a model that was auto-disabled by fingerprint. Other models on the same
+		// channel must remain routable.
+		if ch.Status != common.ChannelStatusManuallyDisabled {
+			switch boostedStatus {
+			case "suspicious":
+				disableModelForFingerprint(&ch, d.ClaimedModel, now, updates)
+			case "pass":
+				recoverModelForFingerprint(&ch, d.ClaimedModel, updates)
+				if ch.Status == common.ChannelStatusAutoDisabled {
+					next := ch.ConsecutiveFingerprintPass + 1
+					if next >= fingerprintRecoveryThreshold {
+						updates["status"] = common.ChannelStatusEnabled
+						updates["consecutive_fingerprint_pass"] = 0
+					} else {
+						updates["consecutive_fingerprint_pass"] = next
+					}
 				}
-				updates["priority"] = priority
-				if priority == 0 {
-					updates["status"] = 2 // disable channel
-				}
-			} else {
-				if ch.Status == 2 {
-					updates["status"] = 1 // re-enable if previously disabled by detection
-				}
-				priority += detectionPriorityBonus
-				if priority > detectionPriorityMax {
-					priority = detectionPriorityMax
-				}
-				updates["priority"] = priority
 			}
 		}
 
@@ -167,4 +158,14 @@ func applyDetectionResult(ctx context.Context, d apimasterDetectionRow) {
 			logger.LogWarn(ctx, fmt.Sprintf("detection sync: failed to update channel %d: %v", ch.Id, err))
 		}
 	}
+}
+
+func syncedDetectionExists(channelId int, claimedModel string, status string, detectTime int64) bool {
+	var count int64
+	if err := model.DB.Table("channel_detect_logs").
+		Where("channel_id = ? AND claimed_model = ? AND source = ? AND status = ? AND detect_time >= ?", channelId, claimedModel, "sync", status, detectTime).
+		Count(&count).Error; err != nil {
+		return false
+	}
+	return count > 0
 }
