@@ -1001,6 +1001,7 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 		advanceProgress()
 	}
 
+	dispatched := false
 dispatch:
 	for _, channel := range channels {
 		if ctx != nil && ctx.Err() != nil {
@@ -1009,6 +1010,23 @@ dispatch:
 		if channel.Status == common.ChannelStatusManuallyDisabled {
 			advanceProgress()
 			continue
+		}
+
+		// RequestInterval throttles how fast new tests are dispatched, spacing out
+		// upstream load even when tests run concurrently. Only throttle between
+		// dispatches, never before the first or after the last one.
+		if dispatched && common.RequestInterval > 0 {
+			if ctx == nil {
+				time.Sleep(common.RequestInterval)
+			} else {
+				timer := time.NewTimer(common.RequestInterval)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					break dispatch
+				case <-timer.C:
+				}
+			}
 		}
 
 		// Acquire a worker slot, honoring cancellation so a runner that loses its
@@ -1029,20 +1047,7 @@ dispatch:
 			defer func() { <-sem }()
 			testOne(ch)
 		}(channel)
-
-		// RequestInterval throttles how fast new tests are dispatched, spacing out
-		// upstream load even when tests run concurrently.
-		if common.RequestInterval > 0 {
-			if ctx == nil {
-				time.Sleep(common.RequestInterval)
-			} else {
-				select {
-				case <-ctx.Done():
-					break dispatch
-				case <-time.After(common.RequestInterval):
-				}
-			}
-		}
+		dispatched = true
 	}
 
 	wg.Wait()
