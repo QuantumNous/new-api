@@ -161,6 +161,30 @@ func TestUpdateConfigFromMap_InvalidJSONDoesNotAllocateNilPointer(t *testing.T) 
 	}
 }
 
+func TestUpdateConfigFromMap_InvalidJSONPreventsPartialUpdate(t *testing.T) {
+	cfg := &testConfigWithJSONFields{
+		Ptr:    &nestedJSONConfig{Value: "old-ptr"},
+		Modes:  map[string]string{"old": "mode"},
+		Items:  []string{"old-item"},
+		Nested: nestedJSONConfig{Value: "old-nested"},
+		Name:   "old-name",
+	}
+
+	err := UpdateConfigFromMap(cfg, map[string]string{
+		"name":  "new-name",
+		"items": `["new"`,
+	})
+	if err == nil {
+		t.Fatal("expected invalid JSON to return an error")
+	}
+	if cfg.Name != "old-name" {
+		t.Fatalf("name = %q, want old-name after failed update", cfg.Name)
+	}
+	if len(cfg.Items) != 1 || cfg.Items[0] != "old-item" {
+		t.Fatalf("items = %v, want old value preserved", cfg.Items)
+	}
+}
+
 func TestUpdateConfigFromMap_PointerFieldPreservesIdentity(t *testing.T) {
 	cfg := &testConfigWithJSONFields{
 		Ptr: &nestedJSONConfig{Value: "old-ptr"},

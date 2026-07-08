@@ -174,116 +174,62 @@ func TestLogRequestSamplingGlobalConfigLoadRefreshesSnapshot(t *testing.T) {
 	}
 }
 
-func TestUpdateLogRequestSamplingSettingAllowsReentrantReads(t *testing.T) {
+func TestUpdateLogRequestSamplingSettingExecutesCallbackOnce(t *testing.T) {
 	resetLogRequestSamplingSettingForTest(t)
 
-	done := make(chan struct{})
-	go func() {
-		UpdateLogRequestSamplingSetting(func(setting *LogRequestSamplingSetting) {
-			_ = GetLogRequestSamplingSetting()
-			setting.Enabled = true
-		})
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("UpdateLogRequestSamplingSetting deadlocked when update callback read the setting")
-	}
+	var updateCalls int32
+	UpdateLogRequestSamplingSetting(func(setting *LogRequestSamplingSetting) {
+		atomic.AddInt32(&updateCalls, 1)
+		setting.Enabled = true
+	})
 
 	if !GetLogRequestSamplingSnapshot().Enabled {
 		t.Fatal("expected setting update to be applied")
 	}
-}
-
-func TestUpdateLogRequestSamplingSettingDoesNotOverwriteConcurrentFieldChanges(t *testing.T) {
-	resetLogRequestSamplingSettingForTest(t)
-
-	updateStarted := make(chan struct{})
-	allowUpdate := make(chan struct{})
-	updateDone := make(chan struct{})
-	var updateCalls int32
-	go func() {
-		UpdateLogRequestSamplingSetting(func(setting *LogRequestSamplingSetting) {
-			if atomic.AddInt32(&updateCalls, 1) == 1 {
-				close(updateStarted)
-				<-allowUpdate
-			}
-			setting.Enabled = true
-		})
-		close(updateDone)
-	}()
-
-	select {
-	case <-updateStarted:
-	case <-time.After(time.Second):
-		t.Fatal("first update did not start")
-	}
-
-	UpdateLogRequestSamplingSetting(func(setting *LogRequestSamplingSetting) {
-		setting.Groups = []string{"enterprise"}
-	})
-	close(allowUpdate)
-
-	select {
-	case <-updateDone:
-	case <-time.After(time.Second):
-		t.Fatal("first update did not finish")
-	}
-
-	setting := GetLogRequestSamplingSetting()
-	if !setting.Enabled {
-		t.Fatal("expected first update to enable sampling")
-	}
-	if !reflect.DeepEqual(setting.Groups, []string{"enterprise"}) {
-		t.Fatalf("groups = %v, want concurrent enterprise update to be preserved", setting.Groups)
+	if got := atomic.LoadInt32(&updateCalls); got != 1 {
+		t.Fatalf("update callback calls = %d, want 1", got)
 	}
 }
 
-func TestUpdateLogRequestSamplingSettingRetriesConcurrentSameFieldChanges(t *testing.T) {
+func TestUpdateLogRequestSamplingSettingSerializesConcurrentFieldChanges(t *testing.T) {
 	resetLogRequestSamplingSettingForTest(t)
 
-	updateStarted := make(chan struct{})
-	allowUpdate := make(chan struct{})
-	updateDone := make(chan struct{})
-	var updateCalls int32
-
-	go func() {
-		UpdateLogRequestSamplingSetting(func(setting *LogRequestSamplingSetting) {
-			if atomic.AddInt32(&updateCalls, 1) == 1 {
-				close(updateStarted)
-				<-allowUpdate
-			}
-			setting.Groups = append(setting.Groups, "alpha")
-		})
-		close(updateDone)
-	}()
-
-	select {
-	case <-updateStarted:
-	case <-time.After(time.Second):
-		t.Fatal("first update did not start")
+	const workers = 8
+	done := make(chan struct{}, workers)
+	for i := 0; i < workers; i++ {
+		group := string(rune('a' + i))
+		go func() {
+			UpdateLogRequestSamplingSetting(func(setting *LogRequestSamplingSetting) {
+				setting.Groups = append(setting.Groups, group)
+			})
+			done <- struct{}{}
+		}()
 	}
 
-	UpdateLogRequestSamplingSetting(func(setting *LogRequestSamplingSetting) {
-		setting.Groups = append(setting.Groups, "beta")
-	})
-	close(allowUpdate)
-
-	select {
-	case <-updateDone:
-	case <-time.After(time.Second):
-		t.Fatal("first update did not finish")
+	for i := 0; i < workers; i++ {
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("concurrent update did not finish")
+		}
 	}
 
 	setting := GetLogRequestSamplingSetting()
-	want := []string{"plg", "beta", "alpha"}
-	if !reflect.DeepEqual(setting.Groups, want) {
-		t.Fatalf("groups = %v, want %v", setting.Groups, want)
+	if len(setting.Groups) != workers+1 {
+		t.Fatalf("groups = %v, want default plg plus %d appended groups", setting.Groups, workers)
 	}
-	if got := atomic.LoadInt32(&updateCalls); got < 2 {
-		t.Fatalf("update callback calls = %d, want retry after concurrent write", got)
+	seen := make(map[string]bool)
+	for _, group := range setting.Groups {
+		seen[group] = true
+	}
+	if !seen["plg"] {
+		t.Fatalf("groups = %v, want default plg preserved", setting.Groups)
+	}
+	for i := 0; i < workers; i++ {
+		group := string(rune('a' + i))
+		if !seen[group] {
+			t.Fatalf("groups = %v, want appended group %q", setting.Groups, group)
+		}
 	}
 }
 

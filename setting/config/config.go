@@ -281,6 +281,7 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 	}
 
 	typ := val.Type()
+	commit := make([]func() error, 0, len(configMap))
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
 		fieldType := typ.Field(i)
@@ -309,13 +310,19 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 
 		switch field.Kind() {
 		case reflect.String:
-			field.SetString(strValue)
+			commit = append(commit, func() error {
+				field.SetString(strValue)
+				return nil
+			})
 		case reflect.Bool:
 			boolValue, err := strconv.ParseBool(strValue)
 			if err != nil {
 				continue
 			}
-			field.SetBool(boolValue)
+			commit = append(commit, func() error {
+				field.SetBool(boolValue)
+				return nil
+			})
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			intValue, err := strconv.ParseInt(strValue, 10, 64)
 			if err != nil {
@@ -326,7 +333,10 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 				}
 				intValue = int64(floatValue)
 			}
-			field.SetInt(intValue)
+			commit = append(commit, func() error {
+				field.SetInt(intValue)
+				return nil
+			})
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			uintValue, err := strconv.ParseUint(strValue, 10, 64)
 			if err != nil {
@@ -337,35 +347,51 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 				}
 				uintValue = uint64(floatValue)
 			}
-			field.SetUint(uintValue)
+			commit = append(commit, func() error {
+				field.SetUint(uintValue)
+				return nil
+			})
 		case reflect.Float32, reflect.Float64:
 			floatValue, err := strconv.ParseFloat(strValue, 64)
 			if err != nil {
 				continue
 			}
-			field.SetFloat(floatValue)
+			commit = append(commit, func() error {
+				field.SetFloat(floatValue)
+				return nil
+			})
 		case reflect.Ptr:
 			// 处理指针类型
 			if strValue == "null" {
-				field.Set(reflect.Zero(field.Type()))
+				commit = append(commit, func() error {
+					field.Set(reflect.Zero(field.Type()))
+					return nil
+				})
 			} else {
+				raw := []byte(strValue)
 				if field.IsNil() {
 					fresh := reflect.New(field.Type().Elem())
-					if err := common.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
+					if err := common.Unmarshal(raw, fresh.Interface()); err != nil {
 						return fmt.Errorf("failed to parse JSON config field %s: %w", key, err)
 					}
-					field.Set(fresh)
+					commit = append(commit, func() error {
+						field.Set(fresh)
+						return nil
+					})
 					continue
 				}
 
-				backup, err := common.Marshal(field.Interface())
-				if err != nil {
-					return fmt.Errorf("failed to backup JSON config field %s: %w", key, err)
-				}
-				if err := common.Unmarshal([]byte(strValue), field.Interface()); err != nil {
-					_ = common.Unmarshal(backup, field.Interface())
+				fresh := reflect.New(field.Type().Elem())
+				fresh.Elem().Set(field.Elem())
+				if err := common.Unmarshal(raw, fresh.Interface()); err != nil {
 					return fmt.Errorf("failed to parse JSON config field %s: %w", key, err)
 				}
+				commit = append(commit, func() error {
+					if err := common.Unmarshal(raw, field.Interface()); err != nil {
+						return fmt.Errorf("failed to commit JSON config field %s: %w", key, err)
+					}
+					return nil
+				})
 			}
 		case reflect.Map:
 			// json.Unmarshal merges into existing maps (keeps old keys that are
@@ -375,23 +401,37 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 			if err := common.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
 				return fmt.Errorf("failed to parse JSON config field %s: %w", key, err)
 			}
-			field.Set(fresh.Elem())
+			commit = append(commit, func() error {
+				field.Set(fresh.Elem())
+				return nil
+			})
 		case reflect.Slice:
 			fresh := reflect.New(field.Type())
 			if err := common.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
 				return fmt.Errorf("failed to parse JSON config field %s: %w", key, err)
 			}
-			field.Set(fresh.Elem())
+			commit = append(commit, func() error {
+				field.Set(fresh.Elem())
+				return nil
+			})
 		case reflect.Struct:
 			fresh := reflect.New(field.Type())
 			fresh.Elem().Set(field)
 			if err := common.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
 				return fmt.Errorf("failed to parse JSON config field %s: %w", key, err)
 			}
-			field.Set(fresh.Elem())
+			commit = append(commit, func() error {
+				field.Set(fresh.Elem())
+				return nil
+			})
 		}
 	}
 
+	for _, fn := range commit {
+		if err := fn(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

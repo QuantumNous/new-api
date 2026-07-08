@@ -2,7 +2,6 @@ package operation_setting
 
 import (
 	"math"
-	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -157,23 +156,13 @@ func UpdateLogRequestSamplingSetting(update func(*LogRequestSamplingSetting)) {
 		return
 	}
 
-	for {
-		logRequestSamplingMu.Lock()
-		base := cloneLogRequestSamplingSetting(logRequestSamplingSetting)
-		logRequestSamplingMu.Unlock()
+	logRequestSamplingMu.Lock()
+	defer logRequestSamplingMu.Unlock()
 
-		draft := cloneLogRequestSamplingSetting(base)
-		update(&draft)
-
-		logRequestSamplingMu.Lock()
-		if logRequestSamplingSettingsEqual(logRequestSamplingSetting, base) {
-			logRequestSamplingSetting = cloneLogRequestSamplingSetting(draft)
-			storeLogRequestSamplingSnapshotLocked()
-			logRequestSamplingMu.Unlock()
-			return
-		}
-		logRequestSamplingMu.Unlock()
-	}
+	draft := cloneLogRequestSamplingSetting(logRequestSamplingSetting)
+	update(&draft)
+	logRequestSamplingSetting = cloneLogRequestSamplingSetting(draft)
+	storeLogRequestSamplingSnapshotLocked()
 }
 
 func UpdateLogRequestSamplingConfigFromMap(configMap map[string]string) error {
@@ -221,22 +210,6 @@ func RefreshLogRequestSamplingSnapshot() {
 func storeLogRequestSamplingSnapshotLocked() {
 	snapshot := buildLogRequestSamplingSnapshot(logRequestSamplingSetting)
 	logRequestSamplingValue.Store(&snapshot)
-}
-
-func logRequestSamplingSettingsEqual(a LogRequestSamplingSetting, b LogRequestSamplingSetting) bool {
-	return a.Enabled == b.Enabled &&
-		float64ConfigEqual(a.SampleRate, b.SampleRate) &&
-		reflect.DeepEqual(a.Groups, b.Groups) &&
-		reflect.DeepEqual(a.EligiblePaths, b.EligiblePaths) &&
-		a.MaxBodyBytes == b.MaxBodyBytes &&
-		a.MaxStringBytes == b.MaxStringBytes &&
-		a.MaxJSONDepth == b.MaxJSONDepth &&
-		a.DropBinaryPayloads == b.DropBinaryPayloads &&
-		a.AllowTextContentStorage == b.AllowTextContentStorage
-}
-
-func float64ConfigEqual(a float64, b float64) bool {
-	return a == b || (math.IsNaN(a) && math.IsNaN(b))
 }
 
 func cloneLogRequestSamplingSetting(in LogRequestSamplingSetting) LogRequestSamplingSetting {
