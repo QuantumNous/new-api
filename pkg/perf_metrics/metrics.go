@@ -86,12 +86,27 @@ func Query(params QueryParams) (QueryResult, error) {
 	endTs := time.Now().Unix()
 	startTs := endTs - int64(params.Hours)*3600
 
+	allowedGroups := allowedGroupSet(params.Groups)
+	groupAllowed := func(group string) bool {
+		if params.Group != "" {
+			return group == params.Group
+		}
+		if allowedGroups == nil {
+			return true
+		}
+		_, ok := allowedGroups[group]
+		return ok
+	}
+
 	merged := map[bucketKey]counters{}
 	rows, err := model.GetPerfMetrics(params.Model, params.Group, startTs, endTs)
 	if err != nil {
 		return QueryResult{}, err
 	}
 	for _, row := range rows {
+		if !groupAllowed(row.Group) {
+			continue
+		}
 		mergeCounters(merged, bucketKey{
 			model:    row.ModelName,
 			group:    row.Group,
@@ -112,12 +127,21 @@ func Query(params QueryParams) (QueryResult, error) {
 		if k.model != params.Model || k.bucketTs < startTs || k.bucketTs > endTs {
 			return true
 		}
-		if params.Group != "" && k.group != params.Group {
+		if !groupAllowed(k.group) {
 			return true
 		}
 		mergeCounters(merged, k, value.(*atomicBucket).snapshot())
 		return true
 	})
+
+	if params.MergeGroups {
+		collapsed := map[bucketKey]counters{}
+		for k, v := range merged {
+			k.group = "all"
+			mergeCounters(collapsed, k, v)
+		}
+		merged = collapsed
+	}
 
 	return buildQueryResult(params.Model, merged), nil
 }
@@ -144,6 +168,8 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 			requestCount:   row.RequestCount,
 			successCount:   row.SuccessCount,
 			totalLatencyMs: row.TotalLatencyMs,
+			ttftSumMs:      row.TtftSumMs,
+			ttftCount:      row.TtftCount,
 			outputTokens:   row.OutputTokens,
 			generationMs:   row.GenerationMs,
 		}
@@ -167,6 +193,8 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 		cur.requestCount += snap.requestCount
 		cur.successCount += snap.successCount
 		cur.totalLatencyMs += snap.totalLatencyMs
+		cur.ttftSumMs += snap.ttftSumMs
+		cur.ttftCount += snap.ttftCount
 		cur.outputTokens += snap.outputTokens
 		cur.generationMs += snap.generationMs
 		totals[k.model] = cur
@@ -184,9 +212,14 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 		if total.generationMs > 0 {
 			avgTps = float64(total.outputTokens) / (float64(total.generationMs) / 1000.0)
 		}
+		avgTtft := int64(0)
+		if total.ttftCount > 0 {
+			avgTtft = total.ttftSumMs / total.ttftCount
+		}
 		models = append(models, ModelSummary{
 			ModelName:    name,
 			AvgLatencyMs: avgLatency,
+			AvgTtftMs:    avgTtft,
 			SuccessRate:  math.Round(successRate*100) / 100,
 			AvgTps:       math.Round(avgTps*100) / 100,
 			RequestCount: total.requestCount,

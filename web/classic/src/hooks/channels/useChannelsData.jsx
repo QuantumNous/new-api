@@ -140,6 +140,7 @@ export const useChannelsData = () => {
     BALANCE: 'balance',
     PRIORITY: 'priority',
     WEIGHT: 'weight',
+    MAX_CONCURRENCY: 'max_concurrency',
     OPERATE: 'operate',
   };
 
@@ -180,6 +181,7 @@ export const useChannelsData = () => {
       [COLUMN_KEYS.BALANCE]: true,
       [COLUMN_KEYS.PRIORITY]: true,
       [COLUMN_KEYS.WEIGHT]: true,
+      [COLUMN_KEYS.MAX_CONCURRENCY]: true,
       [COLUMN_KEYS.OPERATE]: true,
     };
   };
@@ -260,6 +262,7 @@ export const useChannelsData = () => {
             response_time: 0,
             priority: -1,
             weight: -1,
+            max_concurrency: '',
           };
           tagChannelDates.children = [];
           channelDates.push(tagChannelDates);
@@ -464,6 +467,15 @@ export const useChannelsData = () => {
         if (value === '') return;
         data.weight = parseInt(value);
         if (data.weight < 0) data.weight = 0;
+        res = await API.put('/api/channel/', data);
+        break;
+      case 'max_concurrency':
+        if (value === '') return;
+        data.max_concurrency = Number(value);
+        if (!Number.isInteger(data.max_concurrency) || data.max_concurrency < 0) {
+          showError(t('渠道并发上限必须是非负整数'));
+          return;
+        }
         res = await API.put('/api/channel/', data);
         break;
       case 'enable_all':

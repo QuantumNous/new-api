@@ -38,6 +38,7 @@ import {
   getAvailableGroups,
   isTokenBasedModel,
   parseTags,
+  WEBSITE_PUBLIC_PRICING_GROUP,
   type PricingModel,
 } from "@/lib/pricing";
 import { localizePath, type Locale } from "@/lib/locales";
@@ -58,7 +59,7 @@ type PricingModelBrowserProps = {
   locale: Locale;
   models: PricingModel[];
   groupRatio: Record<string, number>;
-  usableGroup: Record<string, { desc: string; ratio: number }>;
+  usableGroup: Record<string, string>;
   endpointMap: Record<string, unknown>;
   autoGroups: string[];
 };
@@ -191,6 +192,8 @@ const MODALITY_LABELS: Record<Modality, string> = {
   video: "Video",
   file: "File",
 };
+
+const MODELS_PAGE_PERFORMANCE_GROUP = WEBSITE_PUBLIC_PRICING_GROUP;
 
 export function PricingModelBrowser(props: PricingModelBrowserProps) {
   const [selectedModelName, setSelectedModelName] = useState<string | null>(null);
@@ -382,7 +385,7 @@ function ModelPriceCard(props: { model: PricingModel; locale: Locale; performanc
 function ModelDetailsDrawer(props: {
   model: PricingModel | null;
   groupRatio: Record<string, number>;
-  usableGroup: Record<string, { desc: string; ratio: number }>;
+  usableGroup: Record<string, string>;
   endpointMap: Record<string, unknown>;
   autoGroups: string[];
   performance?: PerformanceSummary;
@@ -438,7 +441,7 @@ function ModelDetailsDrawer(props: {
 function ModelDetailsContent(props: {
   model: PricingModel;
   groupRatio: Record<string, number>;
-  usableGroup: Record<string, { desc: string; ratio: number }>;
+  usableGroup: Record<string, string>;
   endpointMap: Record<string, unknown>;
   autoGroups: string[];
   performance?: PerformanceSummary;
@@ -633,7 +636,7 @@ function PriceSection(props: { model: PricingModel; groupRatio: Record<string, n
 function GroupPricingSection(props: {
   model: PricingModel;
   groupRatio: Record<string, number>;
-  usableGroup: Record<string, { desc: string; ratio: number }>;
+  usableGroup: Record<string, string>;
   autoGroups: string[];
 }) {
   const availableGroups = getAvailableGroups(props.model, props.groupRatio, props.usableGroup);
@@ -677,7 +680,7 @@ function GroupPricingSection(props: {
               {availableGroups.map((group) => {
                 const modelSpecificRatio = props.model.group_model_ratio?.[group];
                 const hasModelSpecificRatio = typeof modelSpecificRatio === "number" && Number.isFinite(modelSpecificRatio);
-                const ratio = effectiveGroupRatio[group] ?? props.usableGroup[group]?.ratio ?? 1;
+                const ratio = effectiveGroupRatio[group] ?? props.groupRatio[group] ?? 1;
                 return (
                   <tr
                     key={group}
@@ -1468,7 +1471,7 @@ function resolveEndpointPath(configuredPath: unknown, fallback: string): string 
 }
 
 async function fetchPerformanceSummary(): Promise<Record<string, PerformanceSummary>> {
-  const response = await fetch("/api/perf-metrics/summary?hours=24", { headers: { accept: "application/json" } });
+  const response = await fetch(buildPerformanceSummaryPath(), { headers: { accept: "application/json" } });
   if (!response.ok) return {};
   const payload = (await response.json()) as { success?: boolean; data?: { models?: PerformanceSummary[] } };
   if (!payload.success) return {};
@@ -1476,11 +1479,19 @@ async function fetchPerformanceSummary(): Promise<Record<string, PerformanceSumm
 }
 
 async function fetchPerformanceMetrics(modelName: string): Promise<PerformanceMetricsData | null> {
-  const params = new URLSearchParams({ model: modelName, hours: "24" });
-  const response = await fetch(`/api/perf-metrics?${params.toString()}`, { headers: { accept: "application/json" } });
+  const response = await fetch(buildPerformanceMetricsPath(modelName), { headers: { accept: "application/json" } });
   if (!response.ok) return null;
   const payload = (await response.json()) as { success?: boolean; data?: PerformanceMetricsData };
   return payload.success && payload.data ? payload.data : null;
+}
+
+function buildPerformanceSummaryPath(): string {
+  return `/api/perf-metrics/summary?${new URLSearchParams({ hours: "24", group: MODELS_PAGE_PERFORMANCE_GROUP }).toString()}`;
+}
+
+function buildPerformanceMetricsPath(modelName: string): string {
+  const params = new URLSearchParams({ model: modelName, hours: "24", group: MODELS_PAGE_PERFORMANCE_GROUP });
+  return `/api/perf-metrics?${params.toString()}`;
 }
 
 function aggregatePerformance(groups: PerformanceGroup[]): PerformanceSummary | null {
@@ -1565,6 +1576,14 @@ export function buildCodeSampleForTest(lang: ApiLang, model: PricingModel, endpo
   if (lang === "typescript") return `import OpenAI from 'openai'\n\nconst client = new OpenAI({\n  baseURL: '${baseUrl}/v1',\n  apiKey: process.env.NEW_API_KEY,\n})\n\nconst completion = await client.chat.completions.create({\n  model: '${exampleModelName}',\n  messages: [{ role: 'user', content: '${userMessage}' }],\n})\n\nconsole.log(completion.choices[0].message.content)`;
   if (lang === "javascript") return `const response = await fetch('${url}', {\n  method: 'POST',\n  headers: {\n    Authorization: \`Bearer \${process.env.NEW_API_KEY}\`,\n    'Content-Type': 'application/json',\n  },\n  body: JSON.stringify(${JSON.stringify(body, null, 2)}),\n})\n\nconst data = await response.json()\nconsole.log(data)`;
   return buildCurl(url, body, "Authorization: Bearer $NEW_API_KEY");
+}
+
+export function buildPerformanceSummaryPathForTest(): string {
+  return buildPerformanceSummaryPath();
+}
+
+export function buildPerformanceMetricsPathForTest(modelName: string): string {
+  return buildPerformanceMetricsPath(modelName);
 }
 
 function getExampleModelName(modelName: string) {

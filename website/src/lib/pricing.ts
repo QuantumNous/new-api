@@ -1,6 +1,9 @@
 import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
 
 export const API_BASE_URL = APP_CONSOLE_ORIGIN;
+export const WEBSITE_PUBLIC_PRICING_GROUP = "plg";
+// Health metrics scope: every active group, merged server-side (whole-platform traffic).
+export const PERF_METRICS_ALL_GROUPS = "all";
 
 export type PricingVendor = {
   id: number;
@@ -48,7 +51,7 @@ type PricingApiResponse = {
   vendors?: PricingVendor[];
   group_ratio?: Record<string, number>;
   group_model_ratio?: GroupModelRatio;
-  usable_group?: Record<string, { desc: string; ratio: number }>;
+  usable_group?: Record<string, string>;
   supported_endpoint?: Record<string, string>;
   auto_groups?: string[];
 };
@@ -60,7 +63,7 @@ export type PricingData = {
   vendors: PricingVendor[];
   groupRatio: Record<string, number>;
   groupModelRatio: GroupModelRatio;
-  usableGroup: Record<string, { desc: string; ratio: number }>;
+  usableGroup: Record<string, string>;
   supportedEndpoint: Record<string, unknown>;
   autoGroups: string[];
 };
@@ -81,13 +84,15 @@ const VENDOR_SORT_PRIORITY: Record<string, number> = {
   gemini: 2,
 };
 
-export function publicPricingUrl(apiBaseUrl = API_BASE_URL): string {
-  return `${apiBaseUrl}/api/website/pricing`;
+export function publicPricingUrl(apiBaseUrl = API_BASE_URL, group?: string): string {
+  const url = new URL("/api/website/pricing", apiBaseUrl);
+  if (group) url.searchParams.set("group", group);
+  return url.toString();
 }
 
-export async function getPricingData(): Promise<PricingData> {
+export async function getPricingData(group?: string): Promise<PricingData> {
   try {
-    const response = await fetch(publicPricingUrl(), {
+    const response = await fetch(publicPricingUrl(API_BASE_URL, group), {
       cache: "no-store",
       headers: { accept: "application/json" },
     });
@@ -252,10 +257,39 @@ export function formatModelPrice(model: PricingModel, type: "input" | "output" |
   return formatUsd(price);
 }
 
+// Official vendor list price per 1M tokens (ratio convention: model_ratio × $2,
+// calibrated to the vendor's published price), before any group discount.
+export function getOfficialPriceUsd(model: PricingModel, type: "input" | "output" = "input"): number {
+  if (!isTokenBasedModel(model)) return Number(model.model_price ?? 0);
+  const base = Number(model.model_ratio ?? 0) * 2;
+  return type === "output" ? base * Number(model.completion_ratio ?? 1) : base;
+}
+
+// Cheapest visible group ratio for the model — the "60-90% of official" layer.
+// Group ratios live in the pricing payload's top-level group_ratio map, keyed
+// by the model's enable_groups.
+export function getBestGroupRatio(model: PricingModel, fallbackGroupRatio: Record<string, number>): number {
+  const groups = Array.isArray(model.enable_groups) ? model.enable_groups.filter(isVisibleGroup) : [];
+  const names = groups.includes("all") ? Object.keys(fallbackGroupRatio).filter(isVisibleGroup) : groups;
+  const ratios = names
+    .map((group) => model.group_ratio?.[group] ?? fallbackGroupRatio[group])
+    .filter((ratio): ratio is number => typeof ratio === "number" && Number.isFinite(ratio) && ratio > 0);
+  return ratios.length > 0 ? Math.min(...ratios) : 1;
+}
+
+// Effective price after the best top-up bonus tier ($200 + $100 → 2/3 of list).
+export function discountedPriceUsd(value: number): number {
+  return (value * 2) / 3;
+}
+
+export function formatUsdPrice(value: number): string {
+  return formatUsd(value);
+}
+
 export function getAvailableGroups(
   model: PricingModel,
   fallbackGroupRatio: Record<string, number> = {},
-  usableGroup: Record<string, { desc: string; ratio: number }> = {}
+  usableGroup: Record<string, string> = {}
 ): string[] {
   const usableGroups = Object.keys(usableGroup).filter(isVisibleGroup);
   const groups = Array.isArray(model.enable_groups) ? model.enable_groups.filter(isVisibleGroup) : [];
@@ -333,7 +367,7 @@ function getVendorSortKey(model: PricingModel): string {
   return `${priority}:${vendor}`;
 }
 
-function getModelFamilyKey(modelName: string): string {
+export function getModelFamilyKey(modelName: string): string {
   const name = modelName.toLowerCase();
   const normalized = name
     .replace(/\b(20\d{2}[-_]?\d{2}[-_]?\d{2}|\d{8})\b/g, "")

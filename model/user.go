@@ -65,6 +65,10 @@ type User struct {
 	StripeCardFingerprint   string         `json:"stripe_card_fingerprint,omitempty" gorm:"type:varchar(64);column:stripe_card_fingerprint;index"`
 	CreatedAt               int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt             int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	// Primary Accept-Language tag observed at the most recent login
+	// (e.g. "zh-CN"). Analytics-only: surfaced in the ops report to explain
+	// currency/locale mismatches; never used for authorization.
+	BrowserLang             string         `json:"browser_lang" gorm:"type:varchar(32);default:'';column:browser_lang"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -1043,6 +1047,15 @@ func GetRootUser() (user *User) {
 func UpdateUserLastLoginAt(id int) {
 	if err := DB.Model(&User{}).Where("id = ?", id).Update("last_login_at", common.GetTimestamp()).Error; err != nil {
 		common.SysLog("failed to update user last_login_at: " + err.Error())
+	}
+}
+
+// UpdateUserBrowserLang persists the primary Accept-Language tag observed at
+// login. Best-effort analytics write (ops report), safe under multi-node:
+// last writer wins on a single column.
+func UpdateUserBrowserLang(id int, lang string) {
+	if err := DB.Model(&User{}).Where("id = ?", id).Update("browser_lang", lang).Error; err != nil {
+		common.SysLog("failed to update user browser_lang: " + err.Error())
 	}
 }
 

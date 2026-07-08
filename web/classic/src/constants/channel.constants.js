@@ -211,6 +211,11 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: 'JimengZhizinan',
   },
+  {
+    value: 105,
+    color: 'blue',
+    label: 'TechMobiVideo',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.

@@ -8,6 +8,11 @@ import (
 )
 
 var StripeApiSecret = ""
+
+// StripePublishableKey is the client-side (pk_...) key. When set, the console can
+// render Stripe Checkout in embedded mode on our own domain instead of redirecting
+// to checkout.stripe.com; when empty, checkout falls back to the hosted redirect.
+var StripePublishableKey = ""
 var StripeWebhookSecret = ""
 var StripePriceId = ""
 var StripePriceId20 = ""

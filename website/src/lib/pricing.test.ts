@@ -19,17 +19,24 @@ describe("publicPricingUrl", () => {
     expect(publicPricingUrl()).toBe("https://console.flatkey.ai/api/website/pricing");
   });
 
+  test("can request the allowlisted PLG public pricing view", () => {
+    expect(publicPricingUrl("https://console.flatkey.ai", "plg")).toBe("https://console.flatkey.ai/api/website/pricing?group=plg");
+  });
+
   test("fetches pricing without Next response caching", async () => {
     const originalFetch = globalThis.fetch;
+    let fetchInput: RequestInfo | URL | undefined;
     let fetchInit: RequestInit | undefined;
     try {
       globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
+        fetchInput = _input;
         fetchInit = init;
         return Promise.resolve(new Response(JSON.stringify({ success: true, data: [] }), { status: 200 }));
       }) as typeof fetch;
 
-      await getPricingData();
+      await getPricingData("plg");
 
+      expect(String(fetchInput)).toBe("https://console.flatkey.ai/api/website/pricing?group=plg");
       expect(fetchInit?.cache).toBe("no-store");
       expect((fetchInit?.headers as Record<string, string>)?.accept).toBe("application/json");
     } finally {
@@ -92,7 +99,7 @@ describe("group model ratio", () => {
       getAvailableGroups(
         { ...tokenModel, enable_groups: ["default"], group_ratio: effectiveRatio, group_model_ratio: { plg: 0.3 } },
         { default: 1, plg: 0.9 },
-        { default: { desc: "Default", ratio: 1 }, plg: { desc: "PLG", ratio: 0.9 } }
+        { default: "Default", plg: "PLG" }
       )
     ).toEqual(["default", "plg"]);
   });
@@ -102,11 +109,7 @@ describe("group model ratio", () => {
       getAvailableGroups(
         { ...tokenModel, enable_groups: ["default"], group_ratio: { default: 1, plg: 0.9, vip: 0.8 } },
         { default: 1, plg: 0.9, vip: 0.8 },
-        {
-          default: { desc: "Default", ratio: 1 },
-          plg: { desc: "PLG", ratio: 0.9 },
-          vip: { desc: "VIP", ratio: 0.8 },
-        }
+        { default: "Default", plg: "PLG", vip: "VIP" }
       )
     ).toEqual(["default"]);
   });

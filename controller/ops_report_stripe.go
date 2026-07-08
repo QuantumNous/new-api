@@ -48,6 +48,7 @@ type opsStripePersonRow struct {
 	DisplayName  string         `json:"display_name"`
 	BillingNames []string       `json:"billing_names"` // cardholder names from charge billing details
 	Locales      []string       `json:"locales"`       // Checkout UI locales — browser-language proxy
+	BrowserLang  string         `json:"browser_lang"`  // Primary Accept-Language captured at login
 	Campaign     string         `json:"campaign"`
 	Keyword      string         `json:"keyword"`
 	Lng          string         `json:"lng"`
@@ -184,7 +185,9 @@ func opsStripeStatus(a *opsStripePersonAcc) string {
 func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 	stripe.Key = setting.StripeApiSecret
 	now := time.Now().Unix()
-	startTs := (now/86400)*86400 - int64(days-1)*86400
+	off := opsTzOffset()
+	// window starts at Pacific midnight (days-1) days ago, matching the main report
+	startTs := ((now+off)/86400)*86400 - off - int64(days-1)*86400
 	report := &opsStripeReport{GeneratedAt: now, Days: days}
 
 	users, err := model.GetOpsPlgUsers()
@@ -226,6 +229,7 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 			a.row.Campaign = agg.campaign
 			a.row.Keyword = agg.keyword
 			a.row.Lng = agg.lng
+			a.row.BrowserLang = u.BrowserLang
 			a.row.Landing = agg.landing
 			a.row.Referrer = agg.referrer
 			persons[u.Id] = a

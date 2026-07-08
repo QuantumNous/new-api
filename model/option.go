@@ -118,6 +118,7 @@ func InitOptionMap() {
 	common.OptionMap["MinTopUp"] = strconv.Itoa(operation_setting.MinTopUp)
 	common.OptionMap["StripeMinTopUp"] = strconv.Itoa(setting.StripeMinTopUp)
 	common.OptionMap["StripeApiSecret"] = setting.StripeApiSecret
+	common.OptionMap["StripePublishableKey"] = setting.StripePublishableKey
 	common.OptionMap["StripeWebhookSecret"] = setting.StripeWebhookSecret
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
 	common.OptionMap["StripePriceId20"] = setting.StripePriceId20
@@ -700,6 +701,8 @@ func applyOptionMapValue(key string, value string) (err error) {
 		operation_setting.MinTopUp, _ = strconv.Atoi(value)
 	case "StripeApiSecret":
 		setting.StripeApiSecret = value
+	case "StripePublishableKey":
+		setting.StripePublishableKey = value
 	case "StripeWebhookSecret":
 		setting.StripeWebhookSecret = value
 	case "StripePriceId":

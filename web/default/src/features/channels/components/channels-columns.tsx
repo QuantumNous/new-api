@@ -290,6 +290,34 @@ function WeightCell({ channel }: { channel: Channel }) {
 }
 
 /**
+ * Max concurrency cell component with inline editing
+ */
+function MaxConcurrencyCell({ channel }: { channel: Channel }) {
+  const queryClient = useQueryClient()
+  const isTagRow = isTagAggregateRow(channel)
+  const maxConcurrency = channel.max_concurrency
+
+  if (isTagRow) {
+    return <span className='text-muted-foreground text-xs'>-</span>
+  }
+
+  return (
+    <NumericSpinnerInput
+      value={maxConcurrency ?? 0}
+      onChange={(value) => {
+        handleUpdateChannelField(
+          channel.id,
+          'max_concurrency',
+          value,
+          queryClient
+        )
+      }}
+      min={0}
+    />
+  )
+}
+
+/**
  * Balance cell component with click to update
  */
 function BalanceCell({ channel }: { channel: Channel }) {
@@ -976,6 +1004,16 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       header: t('Weight'),
       cell: ({ row }) => <WeightCell channel={row.original} />,
       size: 90,
+      enableSorting: false,
+    },
+
+    // Max concurrency column
+    {
+      accessorKey: 'max_concurrency',
+      meta: { label: t('Max Concurrency'), mobileHidden: true },
+      header: t('Max Concurrency'),
+      cell: ({ row }) => <MaxConcurrencyCell channel={row.original} />,
+      size: 120,
       enableSorting: false,
     },
 

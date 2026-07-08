@@ -2,12 +2,14 @@ package controller
 
 import (
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -157,6 +159,41 @@ func GetPricing(c *gin.Context) {
 }
 
 func GetWebsitePricing(c *gin.Context) {
+	if group := strings.TrimSpace(c.Query("group")); group != "" {
+		if group != websitePublicGroup {
+			c.JSON(400, gin.H{
+				"success": false,
+				"message": "unsupported website pricing group",
+			})
+			return
+		}
+		ratio, ok := ratio_setting.GetGroupRatioCopy()[websitePublicGroup]
+		if !ok {
+			c.JSON(503, gin.H{
+				"success": false,
+				"message": "public website group is not configured",
+			})
+			return
+		}
+
+		body, err := common.Marshal(buildWebsitePublicGroupPricingPayload(
+			model.GetPricing(),
+			model.GetVendors(),
+			model.GetSupportedEndpointMap(),
+			service.GetUserAutoGroup(""),
+			websitePublicGroup,
+			ratio,
+		))
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+
+		c.Header("Cache-Control", "no-store")
+		c.Data(200, "application/json; charset=utf-8", body)
+		return
+	}
+
 	body, err := getCachedWebsitePricingJSON()
 	if err != nil {
 		common.ApiError(c, err)
@@ -224,6 +261,32 @@ func buildWebsitePricingPayloadDefault() gin.H {
 		"supported_endpoint": model.GetSupportedEndpointMap(),
 		"auto_groups":        service.GetUserAutoGroup(""),
 		"pricing_version":    "website-public-v2",
+	}
+}
+
+func buildWebsitePublicGroupPricingPayload(
+	pricing []model.Pricing,
+	vendors []model.PricingVendor,
+	supportedEndpoint map[string]common.EndpointInfo,
+	autoGroups []string,
+	group string,
+	ratio float64,
+) gin.H {
+	description := setting.GetUsableGroupDescription(group)
+	if strings.TrimSpace(description) == "" {
+		description = group
+	}
+	usableGroup := map[string]string{group: description}
+
+	return gin.H{
+		"success":            true,
+		"data":               filterPricingByUsableGroups(pricing, usableGroup),
+		"vendors":            vendors,
+		"group_ratio":        map[string]float64{group: ratio},
+		"usable_group":       usableGroup,
+		"supported_endpoint": supportedEndpoint,
+		"auto_groups":        autoGroups,
+		"pricing_version":    "website-public-plg-v1",
 	}
 }
 

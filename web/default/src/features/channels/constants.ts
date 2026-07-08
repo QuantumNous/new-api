@@ -84,12 +84,13 @@ export const CHANNEL_TYPES = {
   102: 'BlockRunSeedance',
   103: 'JimengProxy',
   104: 'JimengZhizinan',
+  105: 'TechMobiVideo',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
   1, 14, 33, 24, 43, 3, 41, 48, 42, 34, 20, 100, 4, 40, 27, 25, 17, 26, 15, 46,
   23, 18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 22, 21, 44, 2, 5, 36,
-  50, 51, 52, 53, 54, 55, 56, 58, 101, 102, 103, 104,
+  50, 51, 52, 53, 54, 55, 56, 58, 101, 102, 103, 104, 105,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {
@@ -284,6 +285,7 @@ export const DEFAULT_CHANNEL_VALUES = {
   status: CHANNEL_STATUS.ENABLED,
   priority: 0,
   weight: 0,
+  max_concurrency: 0,
   auto_ban: 1,
   remark: '',
 } as const
@@ -366,6 +368,8 @@ export const FIELD_DESCRIPTIONS = {
     'Map request model names to actual provider model names (JSON format)',
   PRIORITY: 'Higher priority channels are selected first',
   WEIGHT: 'Used for load balancing. Higher weight = more requests',
+  MAX_CONCURRENCY:
+    'Maximum in-flight requests for this channel. Use 0 for unlimited',
   TEST_MODEL: 'Model to use when testing channel connectivity',
   AUTO_BAN: 'Automatically disable channel on repeated failures',
   STATUS_CODE_MAPPING: 'Map response status codes (JSON format)',

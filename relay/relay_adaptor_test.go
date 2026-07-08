@@ -26,3 +26,13 @@ func TestGetTaskAdaptor_JimengZhizinan(t *testing.T) {
 		t.Fatalf("channel name = %q, want JimengZhizinan", adaptor.GetChannelName())
 	}
 }
+
+func TestGetTaskAdaptor_TechMobiVideo(t *testing.T) {
+	adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeTechMobiVideo)))
+	if adaptor == nil {
+		t.Fatal("expected TechMobiVideo task adaptor")
+	}
+	if adaptor.GetChannelName() != "techmobi-video" {
+		t.Fatalf("channel name = %q, want techmobi-video", adaptor.GetChannelName())
+	}
+}

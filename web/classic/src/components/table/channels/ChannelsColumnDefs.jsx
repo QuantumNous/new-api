@@ -683,6 +683,39 @@ export const getChannelsColumns = ({
       },
     },
     {
+      key: COLUMN_KEYS.MAX_CONCURRENCY,
+      title: t('渠道并发上限'),
+      dataIndex: 'max_concurrency',
+      render: (text, record, index) => {
+        if (record.children !== undefined) {
+          return <span className='text-gray-400'>-</span>;
+        }
+
+        return (
+          <div>
+            <InputNumber
+              style={{ width: 90 }}
+              name='max_concurrency'
+              onBlur={(e) => {
+                manageChannel(
+                  record.id,
+                  'max_concurrency',
+                  record,
+                  e.target.value,
+                );
+              }}
+              keepFocus={true}
+              innerButtons
+              defaultValue={record.max_concurrency || 0}
+              min={0}
+              precision={0}
+              size='small'
+            />
+          </div>
+        );
+      },
+    },
+    {
       key: COLUMN_KEYS.OPERATE,
       title: '',
       dataIndex: 'operate',

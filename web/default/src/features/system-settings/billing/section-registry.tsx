@@ -148,6 +148,7 @@ const BILLING_SECTIONS = [
           AmountDiscount: settings['payment_setting.amount_discount'],
           StripeApiSecret: settings.StripeApiSecret,
           StripeWebhookSecret: settings.StripeWebhookSecret,
+          StripePublishableKey: settings.StripePublishableKey,
           StripePriceId: settings.StripePriceId,
           StripePriceId20: settings.StripePriceId20 ?? '',
           StripePriceId200: settings.StripePriceId200 ?? '',

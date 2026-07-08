@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -52,6 +54,38 @@ func TestResolvePlaygroundUsingGroupDoesNotTreatPlgTokenAsPlgUser(t *testing.T) 
 
 	require.NoError(t, err)
 	require.Equal(t, "default", group)
+}
+
+func TestGetModelRequestGenerationTasksSubmit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/generation/tasks", strings.NewReader(`{"model":"doubao/doubao-seedance-2-0-260128"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	modelRequest, shouldSelectChannel, err := getModelRequest(c)
+
+	require.NoError(t, err)
+	require.True(t, shouldSelectChannel)
+	require.Equal(t, "doubao/doubao-seedance-2-0-260128", modelRequest.Model)
+	relayMode, ok := c.Get("relay_mode")
+	require.True(t, ok)
+	require.Equal(t, relayconstant.RelayModeVideoSubmit, relayMode)
+}
+
+func TestGetModelRequestGenerationTasksFetch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/generation/tasks/task_abc", nil)
+
+	_, shouldSelectChannel, err := getModelRequest(c)
+
+	require.NoError(t, err)
+	require.False(t, shouldSelectChannel)
+	relayMode, ok := c.Get("relay_mode")
+	require.True(t, ok)
+	require.Equal(t, relayconstant.RelayModeVideoFetchByID, relayMode)
 }
 
 func TestResolvePlaygroundUsingGroupDoesNotExpandAccessFromTokenGroup(t *testing.T) {

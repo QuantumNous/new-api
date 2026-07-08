@@ -39,19 +39,20 @@ const localeTranslations = {
 
 const walletRechargeKeys = [
   'Top-up Packages',
-  'Choose a prepaid USD package and checkout with Stripe',
+  'Models are priced at 60–90% of the official list. Top up $200 and get $100 free — both discounts stack, as low as 50% of the official price.',
   'Top up {{price}}',
   'Lowest entry to get started',
+  'Pay $10, get $13 in credit',
   'Prepaid balance, no surprise bill',
   'No contract required. Add balance, create a key, copy the base_url, and test your first request.',
-  '3X more usage than the official plan',
-  'Best first top-up for trying real API workloads with a clear discount.',
+  'Pay $20, get $28 in credit',
+  'Best for trying real API workloads.',
   'Most Popular',
-  'Permanently 20-40% cheaper',
+  'Bonus credit on every top-up',
   'Usage analytics and cost controls',
   'Enterprise-grade privacy',
   'One invoice across providers',
-  '40X more usage than the official plan',
+  'Pay $200, get $300 in credit',
   'Best value for production testing, team workflows, and sustained model traffic.',
   'Highest prepaid value',
   'Custom',
@@ -83,7 +84,7 @@ describe('wallet recharge i18n', () => {
   test('translates new wallet recharge keys outside English', () => {
     const newWalletKeys = [
       'Top-up Packages',
-      'Choose a prepaid USD package and checkout with Stripe',
+      'Models are priced at 60–90% of the official list. Top up $200 and get $100 free — both discounts stack, as low as 50% of the official price.',
       'Custom usage, routing, and invoicing',
       'For higher monthly usage, invoicing, team procurement, or custom routing discounts.',
     ] as const

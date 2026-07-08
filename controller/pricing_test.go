@@ -1,11 +1,14 @@
 package controller
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -164,4 +167,68 @@ func TestGetWebsitePricingDisablesHTTPCache(t *testing.T) {
 	GetWebsitePricing(ctx)
 
 	require.Equal(t, "no-store, max-age=0", recorder.Header().Get("Cache-Control"))
+}
+
+func TestGetWebsitePricingRejectsUnsupportedExplicitGroupBeforeCache(t *testing.T) {
+	previousBuilder := buildWebsitePricingPayload
+	t.Cleanup(func() {
+		buildWebsitePricingPayload = previousBuilder
+	})
+
+	buildWebsitePricingPayload = func() gin.H {
+		t.Fatal("default cached pricing builder must not run for unsupported explicit groups")
+		return nil
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/website/pricing?group=company-employees", nil)
+
+	GetWebsitePricing(ctx)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.JSONEq(t, `{"success":false,"message":"unsupported website pricing group"}`, recorder.Body.String())
+}
+
+func TestGetWebsitePricingFailsClosedWhenPublicGroupRatioMissing(t *testing.T) {
+	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+	})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/website/pricing?group=plg", nil)
+
+	GetWebsitePricing(ctx)
+
+	require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+	require.JSONEq(t, `{"success":false,"message":"public website group is not configured"}`, recorder.Body.String())
+}
+
+func TestBuildWebsitePublicGroupPricingPayloadIncludesHiddenPLGOnly(t *testing.T) {
+	pricing := []model.Pricing{
+		{ModelName: "plg-model", EnableGroup: []string{"plg", "vip"}},
+		{ModelName: "all-model", EnableGroup: []string{"all"}},
+		{ModelName: "enterprise-only", EnableGroup: []string{"company-employees"}},
+	}
+
+	payload := buildWebsitePublicGroupPricingPayload(pricing, nil, nil, nil, "plg", 0.9)
+	body, err := common.Marshal(payload)
+	require.NoError(t, err)
+
+	require.JSONEq(t, `{
+		"success": true,
+		"data": [
+			{"model_name":"plg-model","quota_type":0,"model_ratio":0,"model_price":0,"owner_by":"","completion_ratio":0,"enable_groups":["plg"],"supported_endpoint_types":null},
+			{"model_name":"all-model","quota_type":0,"model_ratio":0,"model_price":0,"owner_by":"","completion_ratio":0,"enable_groups":["plg"],"supported_endpoint_types":null}
+		],
+		"vendors": null,
+		"group_ratio": {"plg": 0.9},
+		"usable_group": {"plg": "plg"},
+		"supported_endpoint": null,
+		"auto_groups": null,
+		"pricing_version": "website-public-plg-v1"
+	}`, string(body))
 }

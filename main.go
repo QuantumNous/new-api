@@ -6,6 +6,7 @@ import (
 	"embed"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -190,6 +191,78 @@ func main() {
 
 	// Initialize HTTP server
 	server := gin.New()
+	// Client-IP resolution behind proxies. Without this, Gin trusts every proxy
+	// and c.ClientIP() returns the LEFTMOST X-Forwarded-For entry, which the
+	// client itself can forge. That breaks everything keyed on c.ClientIP():
+	// wallet checkout-currency geo (client_region gates INR/UPI, BRL/Pix),
+	// rate-limit buckets, token IP allowlists, and request-IP logs.
+	//
+	// TRUSTED_PLATFORM=cloudflare  -> read CF-Connecting-IP (authoritative on
+	//   Cloudflare-proxied hosts, e.g. console.flatkey.ai; set this on the
+	//   newapi-console service ONLY — router.flatkey.ai is DNS-only and has no
+	//   Cloudflare headers, so the env must stay unset there).
+	// TRUSTED_PLATFORM=<header>    -> read that header verbatim (escape hatch
+	//   for other fronting proxies that inject a trusted client-IP header).
+	// unset                        -> Gin default behavior (unchanged).
+	if tp := strings.TrimSpace(os.Getenv("TRUSTED_PLATFORM")); tp != "" {
+		var trustedHeader string
+		if strings.EqualFold(tp, "cloudflare") {
+			server.TrustedPlatform = gin.PlatformCloudflare
+			trustedHeader = "CF-Connecting-IP"
+		} else {
+			server.TrustedPlatform = tp
+			trustedHeader = tp
+		}
+		common.SysLog("trusted platform header: " + server.TrustedPlatform)
+
+		// c.ClientIP() reads the platform header verbatim WITHOUT verifying the
+		// request came from that platform. On any ingress reachable directly
+		// (bypassing the front proxy) a client could forge it to spoof their IP
+		// and bypass rate limits, token IP allowlists, and geo/payment gating.
+		// Gate it by the direct TCP peer: strip the header unless the peer is in
+		// TRUSTED_PROXY_CIDRS (the front-proxy ranges for this topology, e.g. the
+		// GCP LB / Cloudflare / internal-proxy CIDRs). Runs before any handler
+		// reads ClientIP. No CIDRs configured => unchanged behavior + a warning,
+		// which is only safe when the origin is network-restricted to the proxy.
+		if cidrEnv := strings.TrimSpace(os.Getenv("TRUSTED_PROXY_CIDRS")); cidrEnv != "" {
+			var trustedNets []*net.IPNet
+			for _, part := range strings.Split(cidrEnv, ",") {
+				part = strings.TrimSpace(part)
+				if part == "" {
+					continue
+				}
+				_, ipnet, err := net.ParseCIDR(part)
+				if err != nil {
+					common.FatalLog("invalid TRUSTED_PROXY_CIDRS entry: " + part)
+					return
+				}
+				trustedNets = append(trustedNets, ipnet)
+			}
+			server.Use(func(c *gin.Context) {
+				host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
+				if err != nil {
+					host = c.Request.RemoteAddr
+				}
+				peer := net.ParseIP(host)
+				trusted := false
+				if peer != nil {
+					for _, ipnet := range trustedNets {
+						if ipnet.Contains(peer) {
+							trusted = true
+							break
+						}
+					}
+				}
+				if !trusted {
+					c.Request.Header.Del(trustedHeader)
+				}
+				c.Next()
+			})
+			common.SysLog(fmt.Sprintf("trusted platform header %s gated to %d proxy CIDR(s)", trustedHeader, len(trustedNets)))
+		} else {
+			common.SysLog("WARNING: TRUSTED_PLATFORM is set without TRUSTED_PROXY_CIDRS; the " + trustedHeader + " header is trusted unconditionally and can be spoofed unless this origin only accepts traffic from the front proxy at the network level. Set TRUSTED_PROXY_CIDRS to the front-proxy ranges to gate it.")
+		}
+	}
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{

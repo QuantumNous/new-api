@@ -18,6 +18,16 @@ type ConfigManager struct {
 
 var GlobalConfig = NewConfigManager()
 
+type configWriteLocker interface {
+	LockConfig()
+	UnlockConfig()
+}
+
+type configReadLocker interface {
+	RLockConfig()
+	RUnlockConfig()
+}
+
 func NewConfigManager() *ConfigManager {
 	return &ConfigManager{
 		configs: make(map[string]interface{}),
@@ -57,6 +67,16 @@ func (cm *ConfigManager) LoadFromDB(options map[string]string) error {
 
 		// 如果找到配置项，则更新配置
 		if len(configMap) > 0 {
+			if locker, ok := config.(configWriteLocker); ok {
+				locker.LockConfig()
+				err := updateConfigFromMap(config, configMap)
+				locker.UnlockConfig()
+				if err != nil {
+					common.SysError("failed to update config " + name + ": " + err.Error())
+					continue
+				}
+				continue
+			}
 			if err := updateConfigFromMap(config, configMap); err != nil {
 				common.SysError("failed to update config " + name + ": " + err.Error())
 				continue
@@ -73,6 +93,22 @@ func (cm *ConfigManager) SaveToDB(updateFunc func(key, value string) error) erro
 	defer cm.mutex.RUnlock()
 
 	for name, config := range cm.configs {
+		if locker, ok := config.(configReadLocker); ok {
+			locker.RLockConfig()
+			configMap, err := configToMap(config)
+			locker.RUnlockConfig()
+			if err != nil {
+				return err
+			}
+			for key, value := range configMap {
+				dbKey := name + "." + key
+				if err := updateFunc(dbKey, value); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+
 		configMap, err := configToMap(config)
 		if err != nil {
 			return err
@@ -290,6 +326,19 @@ func (cm *ConfigManager) ExportAllConfigs() map[string]string {
 	result := make(map[string]string)
 
 	for name, cfg := range cm.configs {
+		if locker, ok := cfg.(configReadLocker); ok {
+			locker.RLockConfig()
+			configMap, err := ConfigToMap(cfg)
+			locker.RUnlockConfig()
+			if err != nil {
+				continue
+			}
+			for key, value := range configMap {
+				result[name+"."+key] = value
+			}
+			continue
+		}
+
 		configMap, err := ConfigToMap(cfg)
 		if err != nil {
 			continue

@@ -376,11 +376,20 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
-	isOpenAIVideoAPI := strings.HasPrefix(c.Request.RequestURI, "/v1/videos/")
+	isOpenAIVideoAPI := isOpenAIVideoFetchPath(c.Request.URL.Path)
+	isGenerationTasksAPI := isGenerationTasksFetchPath(c.Request.URL.Path)
 
 	// Gemini/Vertex 支持实时查询：用户 fetch 时直接从上游拉取最新状态
-	if realtimeResp := tryRealtimeFetch(originTask, isOpenAIVideoAPI); len(realtimeResp) > 0 {
+	if realtimeResp := tryRealtimeFetch(originTask, isOpenAIVideoAPI || isGenerationTasksAPI); len(realtimeResp) > 0 {
 		respBody = realtimeResp
+		return
+	}
+
+	if isGenerationTasksAPI {
+		respBody, err = generationTaskRespBody(originTask)
+		if err != nil {
+			taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -416,6 +425,66 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
 	}
 	return
+}
+
+func isOpenAIVideoFetchPath(path string) bool {
+	return strings.HasPrefix(path, "/v1/videos/")
+}
+
+func isGenerationTasksFetchPath(path string) bool {
+	return strings.HasPrefix(path, "/v1/generation/tasks/")
+}
+
+type generationTaskVideoURL struct {
+	URL string `json:"url"`
+}
+
+type generationTaskContent struct {
+	Type     string                 `json:"type"`
+	VideoURL generationTaskVideoURL `json:"video_url"`
+}
+
+type generationTaskResponse struct {
+	ID      string                  `json:"id"`
+	Status  string                  `json:"status"`
+	Content []generationTaskContent `json:"content,omitempty"`
+	Usage   *dto.OpenAIVideoUsage   `json:"usage,omitempty"`
+	Error   *dto.OpenAIVideoError   `json:"error,omitempty"`
+}
+
+func generationTaskRespBody(task *model.Task) ([]byte, error) {
+	resp := generationTaskResponse{
+		ID:     task.TaskID,
+		Status: mapTaskStatusToGenerationTask(task.Status),
+		Usage:  task.PrivateData.UsageDTO(),
+	}
+	if task.Status == model.TaskStatusSuccess {
+		if url := task.GetResultURL(); strings.TrimSpace(url) != "" {
+			resp.Content = []generationTaskContent{{
+				Type: "video_url",
+				VideoURL: generationTaskVideoURL{
+					URL: url,
+				},
+			}}
+		}
+	}
+	if task.Status == model.TaskStatusFailure {
+		resp.Error = &dto.OpenAIVideoError{
+			Message: taskcommon.ScrubBrandedText(task.FailReason),
+		}
+	}
+	return common.Marshal(resp)
+}
+
+func mapTaskStatusToGenerationTask(status model.TaskStatus) string {
+	switch status {
+	case model.TaskStatusSuccess:
+		return "succeeded"
+	case model.TaskStatusFailure:
+		return "failed"
+	default:
+		return "processing"
+	}
 }
 
 // tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。
