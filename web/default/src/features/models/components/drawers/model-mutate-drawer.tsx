@@ -186,6 +186,7 @@ export function ModelMutateDrawer({
       'tool_price_setting.prices': '{}',
       TopupGroupRatio: '',
       GroupRatio: '',
+      GroupModelRatio: '{}',
       UserUsableGroups: '',
       GroupGroupRatio: '',
       AutoGroups: '',

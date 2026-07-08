@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -23,6 +24,36 @@ type Option struct {
 }
 
 const OptionKeyPlaygroundDefaultModel = "PlaygroundDefaultModel"
+
+var (
+	optionReloadHooksMu sync.RWMutex
+	optionReloadHooks   []func()
+)
+
+func RegisterOptionReloadHook(hook func()) {
+	if hook == nil {
+		return
+	}
+	optionReloadHooksMu.Lock()
+	defer optionReloadHooksMu.Unlock()
+	optionReloadHooks = append(optionReloadHooks, hook)
+}
+
+func runOptionReloadHooks() {
+	optionReloadHooksMu.RLock()
+	hooks := append([]func(){}, optionReloadHooks...)
+	optionReloadHooksMu.RUnlock()
+	for _, hook := range hooks {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					common.SysError("option reload hook panic")
+				}
+			}()
+			hook()
+		}()
+	}
+}
 
 func AllOption() ([]*Option, error) {
 	var options []*Option
@@ -163,6 +194,7 @@ func InitOptionMap() {
 	common.OptionMap["CreateCacheRatio"] = ratio_setting.CreateCacheRatio2JSONString()
 	common.OptionMap["GroupRatio"] = ratio_setting.GroupRatio2JSONString()
 	common.OptionMap["GroupGroupRatio"] = ratio_setting.GroupGroupRatio2JSONString()
+	common.OptionMap["GroupModelRatio"] = ratio_setting.GroupModelRatio2JSONString()
 	common.OptionMap["UserUsableGroups"] = setting.UserUsableGroups2JSONString()
 	common.OptionMap["CompletionRatio"] = ratio_setting.CompletionRatio2JSONString()
 	common.OptionMap["ImageRatio"] = ratio_setting.ImageRatio2JSONString()
@@ -215,6 +247,8 @@ func LoadOptionsFromDatabase() {
 	}
 	setting.ApplyPaddleEnvOverrides()
 	syncPaddleOptionMap()
+	InvalidatePricingCache()
+	runOptionReloadHooks()
 }
 
 func syncPaddleOptionMap() {
@@ -354,6 +388,11 @@ func validateAndNormalizeOptionValue(key string, value string) (string, error) {
 	}
 	if key == "payment_setting.amount_bonus_groups" {
 		return normalizeAmountBonusGroupsOptionValue(value)
+	}
+	if key == "GroupModelRatio" || key == "group_ratio_setting.group_model_ratio" {
+		if err := ratio_setting.CheckGroupModelRatio(value); err != nil {
+			return "", err
+		}
 	}
 	if key == "app_console.origin" {
 		return system_setting.NormalizeAppConsoleOrigin(value)
@@ -826,9 +865,14 @@ func applyOptionMapValue(key string, value string) (err error) {
 			if err == nil && len(renames) > 0 {
 				err = syncRenamedGroupsToChannels(renames)
 			}
+			if err == nil && len(renames) > 0 {
+				err = syncRenamedGroupsToGroupModelRatio(renames)
+			}
 		}
 	case "GroupGroupRatio":
 		err = ratio_setting.UpdateGroupGroupRatioByJSONString(value)
+	case "GroupModelRatio":
+		err = ratio_setting.UpdateGroupModelRatioByJSONString(value)
 	case "UserUsableGroups":
 		err = setting.UpdateUserUsableGroupsByJSONString(value)
 	case "CompletionRatio":
@@ -902,6 +946,9 @@ func handleConfigUpdate(key, value string) bool {
 		performance_setting.UpdateAndSync()
 	} else if configName == "tool_price_setting" {
 		operation_setting.RebuildToolPriceIndex()
+	} else if configName == "group_ratio_setting" {
+		InvalidatePricingCache()
+		ratio_setting.InvalidateExposedDataCache()
 	} else if configName == "billing_setting" {
 		InvalidatePricingCache()
 		ratio_setting.InvalidateExposedDataCache()
@@ -967,6 +1014,67 @@ func syncRenamedGroupsToChannels(renames map[string]string) error {
 	if changed {
 		publishChannelsChanged()
 	}
+	return nil
+}
+
+func syncRenamedGroupsToGroupModelRatio(renames map[string]string) error {
+	current := ratio_setting.GetGroupModelRatioCopy()
+	changed := false
+
+	for oldName, newName := range renames {
+		modelRatios, ok := current[oldName]
+		if !ok {
+			continue
+		}
+		target := current[newName]
+		if target == nil {
+			target = make(map[string]float64, len(modelRatios))
+		}
+		for modelName, ratio := range modelRatios {
+			target[modelName] = ratio
+		}
+		current[newName] = target
+		delete(current, oldName)
+		changed = true
+	}
+
+	if !changed {
+		return nil
+	}
+
+	valueBytes, err := common.Marshal(current)
+	if err != nil {
+		return err
+	}
+	value := string(valueBytes)
+	if err := ratio_setting.UpdateGroupModelRatioByJSONString(value); err != nil {
+		return err
+	}
+	common.OptionMap["GroupModelRatio"] = value
+	if _, ok := common.OptionMap["group_ratio_setting.group_model_ratio"]; ok {
+		common.OptionMap["group_ratio_setting.group_model_ratio"] = value
+	}
+
+	for _, key := range []string{"GroupModelRatio", "group_ratio_setting.group_model_ratio"} {
+		if key == "group_ratio_setting.group_model_ratio" {
+			var count int64
+			if err := DB.Model(&Option{}).Where("key = ?", key).Count(&count).Error; err != nil {
+				return err
+			}
+			if count == 0 {
+				continue
+			}
+		}
+		option := Option{Key: key}
+		if err := DB.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+			return err
+		}
+		option.Value = value
+		if err := DB.Save(&option).Error; err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

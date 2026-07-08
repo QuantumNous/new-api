@@ -31,6 +31,7 @@ export type PricingModel = {
   tags?: string;
   supported_endpoint_types?: string[];
   group_ratio?: Record<string, number>;
+  group_model_ratio?: Record<string, number>;
   billing_mode?: string;
   billing_expr?: string;
   pricing_version?: string;
@@ -46,15 +47,19 @@ type PricingApiResponse = {
   data?: PricingModel[];
   vendors?: PricingVendor[];
   group_ratio?: Record<string, number>;
+  group_model_ratio?: GroupModelRatio;
   usable_group?: Record<string, { desc: string; ratio: number }>;
   supported_endpoint?: Record<string, string>;
   auto_groups?: string[];
 };
 
+export type GroupModelRatio = Record<string, Record<string, number>>;
+
 export type PricingData = {
   models: PricingModel[];
   vendors: PricingVendor[];
   groupRatio: Record<string, number>;
+  groupModelRatio: GroupModelRatio;
   usableGroup: Record<string, { desc: string; ratio: number }>;
   supportedEndpoint: Record<string, unknown>;
   autoGroups: string[];
@@ -83,7 +88,7 @@ export function publicPricingUrl(apiBaseUrl = API_BASE_URL): string {
 export async function getPricingData(): Promise<PricingData> {
   try {
     const response = await fetch(publicPricingUrl(), {
-      next: { revalidate: 300 },
+      cache: "no-store",
       headers: { accept: "application/json" },
     });
     if (!response.ok) return emptyPricingData();
@@ -93,6 +98,7 @@ export async function getPricingData(): Promise<PricingData> {
       models: payload.data ?? [],
       vendors: payload.vendors ?? [],
       groupRatio: payload.group_ratio ?? {},
+      groupModelRatio: payload.group_model_ratio ?? {},
       usableGroup: payload.usable_group ?? {},
       supportedEndpoint: payload.supported_endpoint ?? {},
       autoGroups: payload.auto_groups ?? [],
@@ -100,6 +106,57 @@ export async function getPricingData(): Promise<PricingData> {
   } catch {
     return emptyPricingData();
   }
+}
+
+export function buildEffectiveGroupRatio(
+  model: Pick<PricingModel, "model_name" | "group_ratio">,
+  fallbackGroupRatio: Record<string, number>,
+  groupModelRatio: GroupModelRatio = {}
+): Record<string, number> {
+  const effective = { ...(model.group_ratio ?? fallbackGroupRatio) };
+  const matchedModelName = formatMatchingModelName(model.model_name);
+  for (const [group, modelRatios] of Object.entries(groupModelRatio)) {
+    const ratio = modelRatios?.[matchedModelName];
+    if (typeof ratio === "number" && Number.isFinite(ratio)) {
+      effective[group] = ratio;
+    }
+  }
+  return effective;
+}
+
+export function getGroupModelRatioForModel(modelName: string, groupModelRatio: GroupModelRatio = {}): Record<string, number> {
+  const result: Record<string, number> = {};
+  const matchedModelName = formatMatchingModelName(modelName);
+  for (const [group, modelRatios] of Object.entries(groupModelRatio)) {
+    const ratio = modelRatios?.[matchedModelName];
+    if (typeof ratio === "number" && Number.isFinite(ratio)) {
+      result[group] = ratio;
+    }
+  }
+  return result;
+}
+
+export function formatMatchingModelName(modelName: string): string {
+  let name = modelName;
+  if (name.startsWith("gemini-2.5-flash-lite")) {
+    name = handleThinkingBudgetModel(name, "gemini-2.5-flash-lite", "gemini-2.5-flash-lite-thinking-*");
+  } else if (name.startsWith("gemini-2.5-flash")) {
+    name = handleThinkingBudgetModel(name, "gemini-2.5-flash", "gemini-2.5-flash-thinking-*");
+  } else if (name.startsWith("gemini-2.5-pro")) {
+    name = handleThinkingBudgetModel(name, "gemini-2.5-pro", "gemini-2.5-pro-thinking-*");
+  }
+
+  if (name.startsWith("gpt-4-gizmo")) {
+    return "gpt-4-gizmo-*";
+  }
+  if (name.startsWith("gpt-4o-gizmo")) {
+    return "gpt-4o-gizmo-*";
+  }
+  return name;
+}
+
+function handleThinkingBudgetModel(modelName: string, prefix: string, wildcard: string): string {
+  return modelName.startsWith(prefix) && modelName.includes("-thinking-") ? wildcard : modelName;
 }
 
 export function filterPricingModels(models: PricingModel[], search: PricingSearch): PricingModel[] {
@@ -363,5 +420,5 @@ function formatUsd(value: number): string {
 }
 
 function emptyPricingData(): PricingData {
-  return { models: [], vendors: [], groupRatio: {}, usableGroup: {}, supportedEndpoint: {}, autoGroups: [] };
+  return { models: [], vendors: [], groupRatio: {}, groupModelRatio: {}, usableGroup: {}, supportedEndpoint: {}, autoGroups: [] };
 }

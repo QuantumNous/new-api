@@ -609,12 +609,15 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
-			ModelPrice:      relayInfo.PriceData.ModelPrice,
-			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
-			ModelRatio:      relayInfo.PriceData.ModelRatio,
-			OtherRatios:     relayInfo.PriceData.OtherRatios,
-			OriginModelName: relayInfo.OriginModelName,
-			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+			ModelPrice:           relayInfo.PriceData.ModelPrice,
+			GroupRatio:           relayInfo.PriceData.GroupRatioInfo.GroupRatio,
+			GroupModelRatio:      relayInfo.PriceData.GroupRatioInfo.GroupModelRatio,
+			GroupModelRatioGroup: relayInfo.PriceData.GroupRatioInfo.GroupModelRatioGroup,
+			GroupModelRatioModel: relayInfo.PriceData.GroupRatioInfo.GroupModelRatioModel,
+			ModelRatio:           relayInfo.PriceData.ModelRatio,
+			OtherRatios:          relayInfo.PriceData.OtherRatios,
+			OriginModelName:      relayInfo.OriginModelName,
+			PerCallBilling:       common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

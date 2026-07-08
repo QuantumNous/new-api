@@ -54,6 +54,7 @@ const defaultBillingSettings: BillingSettings = {
   'tool_price_setting.prices': '{}',
   TopupGroupRatio: '',
   GroupRatio: '',
+  GroupModelRatio: '{}',
   UserUsableGroups: '',
   GroupGroupRatio: '',
   AutoGroups: '',

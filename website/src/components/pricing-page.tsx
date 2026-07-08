@@ -6,6 +6,9 @@ import {
   getPricingData,
   getVendorName,
   getAvailableGroups,
+  buildEffectiveGroupRatio,
+  getGroupModelRatioForModel,
+  type GroupModelRatio,
   type PricingModel,
   type PricingVendor,
   type PricingSearch,
@@ -1118,7 +1121,7 @@ export async function PricingPage(props: PricingPageProps) {
 
 export async function ModelsPage(props: PricingPageProps) {
   const pricing = await getPricingData();
-  const allModels = enrichVendorNames(pricing.models, pricing.vendors, pricing.groupRatio, pricing.usableGroup);
+  const allModels = enrichVendorNames(pricing.models, pricing.vendors, pricing.groupRatio, pricing.groupModelRatio, pricing.usableGroup);
   const copy = pricingCopy(props.locale);
 
   return (
@@ -1338,6 +1341,7 @@ function enrichVendorNames(
   models: PricingModel[],
   vendors: PricingVendor[],
   groupRatio: Record<string, number>,
+  groupModelRatio: GroupModelRatio,
   usableGroup: Record<string, { desc: string; ratio: number }>
 ) {
   return models.map((model) => ({
@@ -1345,7 +1349,8 @@ function enrichVendorNames(
     vendor_name: getVendorName(model, vendors),
     vendor_icon: model.vendor_icon ?? vendors.find((vendor) => vendor.id === model.vendor_id)?.icon,
     vendor_description: model.vendor_description ?? vendors.find((vendor) => vendor.id === model.vendor_id)?.description,
-    group_ratio: model.group_ratio ?? groupRatio,
+    group_ratio: buildEffectiveGroupRatio(model, groupRatio, groupModelRatio),
+    group_model_ratio: getGroupModelRatioForModel(model.model_name, groupModelRatio),
     enable_groups: getAvailableGroups(model, groupRatio, usableGroup),
   }));
 }

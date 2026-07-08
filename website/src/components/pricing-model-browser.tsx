@@ -674,7 +674,9 @@ function GroupPricingSection(props: {
             </thead>
             <tbody data-slot="table-body" className="[&_tr:last-child]:border-0">
               {availableGroups.map((group) => {
-                const ratio = props.groupRatio[group] || props.usableGroup[group]?.ratio || 1;
+                const modelSpecificRatio = props.model.group_model_ratio?.[group];
+                const hasModelSpecificRatio = typeof modelSpecificRatio === "number" && Number.isFinite(modelSpecificRatio);
+                const ratio = modelSpecificRatio ?? props.model.group_ratio?.[group] ?? props.groupRatio[group] ?? props.usableGroup[group]?.ratio ?? 1;
                 return (
                   <tr
                     key={group}
@@ -684,8 +686,15 @@ function GroupPricingSection(props: {
                     <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5">
                       <GroupBadge group={group} />
                     </td>
-                    <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 text-muted-foreground py-2.5 font-mono">
-                      {ratio}x
+                    <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-muted-foreground">{ratio}x</span>
+                        {hasModelSpecificRatio ? (
+                          <span className="rounded border border-border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                            Model-specific
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     {tokenBased ? (
                       <>
