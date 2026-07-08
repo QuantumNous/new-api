@@ -452,6 +452,9 @@ func renewAirwallexSubscriptionBilling(c *gin.Context, orig *model.SubscriptionO
 		order := &model.SubscriptionOrder{
 			UserId:          orig.UserId,
 			PlanId:          orig.PlanId,
+			// Money is the original order's amount (a historical record for the
+			// renewal row); the authoritative charge is Airwallex-side. If the
+			// plan price changes mid-subscription these can diverge — acceptable.
 			Money:           orig.Money,
 			TradeNo:         renewTradeNo,
 			PaymentMethod:   orig.PaymentMethod,
