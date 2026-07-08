@@ -1,6 +1,10 @@
 package system_setting
 
-import "github.com/QuantumNous/new-api/setting/config"
+import (
+	"strings"
+
+	"github.com/QuantumNous/new-api/setting/config"
+)
 
 type OIDCSettings struct {
 	Enabled               bool   `json:"enabled"`
@@ -30,8 +34,8 @@ func GetOIDCSettings() *OIDCSettings {
 // default in one place for both the OAuth provider name and the public
 // status payload.
 func (s *OIDCSettings) GetEffectiveDisplayName() string {
-	if s.DisplayName != "" {
-		return s.DisplayName
+	if trimmed := strings.TrimSpace(s.DisplayName); trimmed != "" {
+		return trimmed
 	}
 	return "OIDC"
 }

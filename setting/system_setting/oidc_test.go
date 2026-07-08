@@ -14,6 +14,8 @@ func TestOIDCSettings_GetEffectiveDisplayName(t *testing.T) {
 	}{
 		{name: "blank falls back to OIDC", displayName: "", want: "OIDC"},
 		{name: "custom name is returned verbatim", displayName: "Acme SSO", want: "Acme SSO"},
+		{name: "whitespace-only falls back to OIDC", displayName: "   ", want: "OIDC"},
+		{name: "surrounding whitespace is trimmed", displayName: "  Acme SSO  ", want: "Acme SSO"},
 	}
 
 	for _, tt := range tests {
