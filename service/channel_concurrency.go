@@ -191,7 +191,7 @@ func tryAcquireChannelConcurrencyWithToken(ctx context.Context, channel *model.C
 		} else if !ok {
 			return nil, false, nil
 		} else {
-			startChannelConcurrencyLeaseRenewal(ctx, lease)
+			startChannelConcurrencyLeaseRenewal(lease)
 			return lease, true, nil
 		}
 	}
@@ -199,7 +199,7 @@ func tryAcquireChannelConcurrencyWithToken(ctx context.Context, channel *model.C
 	if !acquireMemoryChannelConcurrency(channel.Id, maxConcurrency, token) {
 		return nil, false, nil
 	}
-	startChannelConcurrencyLeaseRenewal(ctx, lease)
+	startChannelConcurrencyLeaseRenewal(lease)
 	return lease, true, nil
 }
 
@@ -436,12 +436,9 @@ func acquireRedisChannelConcurrency(ctx context.Context, channelID int, maxConcu
 	return result == 1, nil
 }
 
-func startChannelConcurrencyLeaseRenewal(parent context.Context, lease *ChannelConcurrencyLease) {
+func startChannelConcurrencyLeaseRenewal(lease *ChannelConcurrencyLease) {
 	if lease == nil {
 		return
-	}
-	if parent == nil {
-		parent = context.Background()
 	}
 	ttl := operation_setting.GetChannelConcurrencySlotTTL()
 	interval := channelConcurrencyRenewInterval(ttl)
@@ -451,11 +448,9 @@ func startChannelConcurrencyLeaseRenewal(parent context.Context, lease *ChannelC
 			interval = time.Second
 		}
 	}
-	ctx, timeoutCancel := context.WithTimeout(parent, ttl*2)
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 	lease.renewCancel = cancel
 	go func() {
-		defer timeoutCancel()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {

@@ -179,7 +179,7 @@ func GetChannelCandidatesWithFilter(group string, model string, retry int, filte
 		return nil, nil
 	}
 
-	targetCandidates := filterAbilityCandidatesByRetry(candidates, retry)
+	targetCandidates := filterAbilityCandidatesByRetryExact(candidates, retry)
 	if len(targetCandidates) == 0 {
 		return nil, nil
 	}

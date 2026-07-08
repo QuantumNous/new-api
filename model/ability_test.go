@@ -57,3 +57,52 @@ func TestGetChannelCandidatesKeepsEmptyGroupCondition(t *testing.T) {
 	require.Len(t, candidates, 1)
 	require.Equal(t, emptyGroupChannel.Id, candidates[0].Id)
 }
+
+func TestGetChannelCandidatesWithFilterReturnsEmptyWhenRetryExhausted(t *testing.T) {
+	originalDB := DB
+	originalMemoryCacheEnabled := common.MemoryCacheEnabled
+	originalUsingSQLite := common.UsingSQLite
+	originalUsingMySQL := common.UsingMySQL
+	originalUsingPostgreSQL := common.UsingPostgreSQL
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&Channel{}, &Ability{}))
+	DB = db
+	common.MemoryCacheEnabled = false
+	common.UsingSQLite = true
+	common.UsingMySQL = false
+	common.UsingPostgreSQL = false
+	t.Cleanup(func() {
+		DB = originalDB
+		common.MemoryCacheEnabled = originalMemoryCacheEnabled
+		common.UsingSQLite = originalUsingSQLite
+		common.UsingMySQL = originalUsingMySQL
+		common.UsingPostgreSQL = originalUsingPostgreSQL
+	})
+
+	highPriority := int64(10)
+	lowPriority := int64(0)
+	weight := uint(1)
+	highPriorityChannel := &Channel{
+		Id:       9201,
+		Status:   common.ChannelStatusEnabled,
+		Priority: &highPriority,
+		Weight:   &weight,
+	}
+	lowPriorityChannel := &Channel{
+		Id:       9202,
+		Status:   common.ChannelStatusEnabled,
+		Priority: &lowPriority,
+		Weight:   &weight,
+	}
+	require.NoError(t, DB.Create(highPriorityChannel).Error)
+	require.NoError(t, DB.Create(lowPriorityChannel).Error)
+	require.NoError(t, DB.Create(&Ability{Group: "default", Model: "gpt-retry-exhausted", ChannelId: highPriorityChannel.Id, Enabled: true, Priority: &highPriority, Weight: weight}).Error)
+	require.NoError(t, DB.Create(&Ability{Group: "default", Model: "gpt-retry-exhausted", ChannelId: lowPriorityChannel.Id, Enabled: true, Priority: &lowPriority, Weight: weight}).Error)
+
+	candidates, err := GetChannelCandidatesWithFilter("default", "gpt-retry-exhausted", 99, nil)
+
+	require.NoError(t, err)
+	require.Empty(t, candidates)
+}
