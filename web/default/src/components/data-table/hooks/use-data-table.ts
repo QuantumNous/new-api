@@ -110,6 +110,8 @@ type ColumnWithSizing<TData> = ColumnDef<TData, unknown> & {
   columns?: ColumnDef<TData, unknown>[]
 }
 
+const COLUMN_SIZING_PERSIST_DELAY_MS = 250
+
 function resolveUpdater<TValue>(
   updater: Updater<TValue>,
   previous: TValue
@@ -344,6 +346,9 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
   const hydratedColumnSizingStorageKeyRef = React.useRef(columnSizingStorageKey)
   const skipNextColumnVisibilityPersistRef = React.useRef(false)
   const skipNextColumnSizingPersistRef = React.useRef(false)
+  const columnSizingPersistTimerRef = React.useRef<number | undefined>(
+    undefined
+  )
   const [rowSelection, onRowSelectionChange] = useControllableTableState(
     options.rowSelection,
     initialRowSelection,
@@ -484,13 +489,28 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
       return
     }
 
-    try {
-      window.localStorage.setItem(
-        columnSizingStorageKey,
-        JSON.stringify(columnSizing)
-      )
-    } catch {
-      // Storage can be unavailable in private mode; table controls still work.
+    if (columnSizingPersistTimerRef.current !== undefined) {
+      window.clearTimeout(columnSizingPersistTimerRef.current)
+    }
+
+    columnSizingPersistTimerRef.current = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(
+          columnSizingStorageKey,
+          JSON.stringify(columnSizing)
+        )
+      } catch {
+        // Storage can be unavailable in private mode; table controls still work.
+      } finally {
+        columnSizingPersistTimerRef.current = undefined
+      }
+    }, COLUMN_SIZING_PERSIST_DELAY_MS)
+
+    return () => {
+      if (columnSizingPersistTimerRef.current !== undefined) {
+        window.clearTimeout(columnSizingPersistTimerRef.current)
+        columnSizingPersistTimerRef.current = undefined
+      }
     }
   }, [columnSizing, columnSizingStorageKey])
 

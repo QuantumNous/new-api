@@ -317,7 +317,9 @@ export function ChannelsTable() {
       tag: false,
     },
     columnVisibilityStorageKey: CHANNELS_COLUMN_VISIBILITY_STORAGE_KEY,
-    columnSizingStorageKey: CHANNELS_COLUMN_SIZING_STORAGE_KEY,
+    columnSizingStorageKey: isMobile
+      ? false
+      : CHANNELS_COLUMN_SIZING_STORAGE_KEY,
     columnFilters,
     pagination,
     globalFilter,
@@ -333,7 +335,7 @@ export function ChannelsTable() {
     manualSorting: true,
     manualFiltering: true,
     withExpandedRowModel: true,
-    enableColumnResizing: true,
+    enableColumnResizing: !isMobile,
     ensurePageInRange,
   })
 
