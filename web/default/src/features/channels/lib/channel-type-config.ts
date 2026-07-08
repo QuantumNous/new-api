@@ -158,6 +158,20 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Seedance video, pay-per-call USDC on Base via x402. Fund the wallet first.',
     },
   },
+  105: {
+    id: 105,
+    name: CHANNEL_TYPES[105],
+    icon: 'doubao',
+    defaultBaseUrl: 'https://api.chatgpttech.mobi',
+    supportedModels: ['doubao/doubao-seedance-2-0-260128'],
+    hints: {
+      baseUrl: 'Default: https://api.chatgpttech.mobi',
+      key: 'TechMobi API key',
+      models: 'doubao/doubao-seedance-2-0-260128',
+      other:
+        'Async Seedance-compatible video channel. Customers call NewAPI video endpoints; NewAPI submits to /v1/generation/tasks upstream.',
+    },
+  },
 }
 
 /**
