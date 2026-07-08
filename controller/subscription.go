@@ -270,13 +270,19 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"stripe_price_id":            req.Plan.StripePriceId,
 			"creem_product_id":           req.Plan.CreemProductId,
 			"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
-			"airwallex_price_id":         req.Plan.AirwallexPriceId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 			"updated_at":                 common.GetTimestamp(),
+		}
+		// airwallex_price_id has no field in the admin plan-edit form, so a normal
+		// UI save sends it empty. Only write it when non-empty, so an ordinary edit
+		// can't blank the Billing price (→ charged-but-not-upgraded). The cutover
+		// script (airwallex-billing-bringup.sh) always sends the new pri_ id.
+		if req.Plan.AirwallexPriceId != "" {
+			updateMap["airwallex_price_id"] = req.Plan.AirwallexPriceId
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
 			return err
