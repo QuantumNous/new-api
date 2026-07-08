@@ -15,8 +15,8 @@ describe('model pricing option updates', () => {
         imageRatio: '{}',
         audioRatio: '{}',
         audioCompletionRatio: '{}',
-        billingMode: '{}',
-        billingExpr: '{}',
+        billingMode: JSON.stringify({ 'gpt-test': 'tiered_expr' }),
+        billingExpr: JSON.stringify({ 'gpt-test': 'tier("old", p)' }),
       },
       data: {
         name: 'gpt-test',
@@ -30,6 +30,8 @@ describe('model pricing option updates', () => {
     assert.deepEqual(JSON.parse(updates.ModelPrice), {})
     assert.deepEqual(JSON.parse(updates.ModelRatio), { 'gpt-test': 1.5 })
     assert.deepEqual(JSON.parse(updates.CompletionRatio), { 'gpt-test': 2 })
+    assert.deepEqual(JSON.parse(updates['billing_setting.billing_mode']), {})
+    assert.deepEqual(JSON.parse(updates['billing_setting.billing_expr']), {})
   })
 
   test('uses per-request price when switching away from stale token ratios', () => {
@@ -58,5 +60,40 @@ describe('model pricing option updates', () => {
     assert.deepEqual(JSON.parse(updates.ModelPrice), { 'gpt-test': 0.01 })
     assert.deepEqual(JSON.parse(updates.ModelRatio), {})
     assert.deepEqual(JSON.parse(updates.CompletionRatio), {})
+  })
+
+  test('keeps fallback price and token ratios when switching into tiered expression mode', () => {
+    const updates = buildModelPricingOptionUpdates({
+      current: {
+        modelPrice: JSON.stringify({ 'gpt-test': 0.01 }),
+        modelRatio: JSON.stringify({ 'gpt-test': 1.5 }),
+        cacheRatio: '{}',
+        createCacheRatio: '{}',
+        completionRatio: JSON.stringify({ 'gpt-test': 2 }),
+        imageRatio: '{}',
+        audioRatio: '{}',
+        audioCompletionRatio: '{}',
+        billingMode: '{}',
+        billingExpr: '{}',
+      },
+      data: {
+        name: 'gpt-test',
+        billingMode: 'tiered_expr',
+        price: '0.02',
+        ratio: '2',
+        completionRatio: '3',
+        billingExpr: 'tier("base", p * 0 + c * 0)',
+      },
+    })
+
+    assert.deepEqual(JSON.parse(updates.ModelPrice), { 'gpt-test': 0.02 })
+    assert.deepEqual(JSON.parse(updates.ModelRatio), { 'gpt-test': 2 })
+    assert.deepEqual(JSON.parse(updates.CompletionRatio), { 'gpt-test': 3 })
+    assert.deepEqual(JSON.parse(updates['billing_setting.billing_mode']), {
+      'gpt-test': 'tiered_expr',
+    })
+    assert.deepEqual(JSON.parse(updates['billing_setting.billing_expr']), {
+      'gpt-test': 'tier("base", p * 0 + c * 0)',
+    })
   })
 })

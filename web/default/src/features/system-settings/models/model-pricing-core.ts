@@ -91,6 +91,66 @@ export type ModelPricingOptionUpdates = {
   'billing_setting.billing_expr': string
 }
 
+type NumericOptionCurrentKey =
+  | 'modelPrice'
+  | 'modelRatio'
+  | 'cacheRatio'
+  | 'createCacheRatio'
+  | 'completionRatio'
+  | 'imageRatio'
+  | 'audioRatio'
+  | 'audioCompletionRatio'
+
+type NumericOptionOutputKey =
+  | 'ModelPrice'
+  | 'ModelRatio'
+  | 'CacheRatio'
+  | 'CreateCacheRatio'
+  | 'CompletionRatio'
+  | 'ImageRatio'
+  | 'AudioRatio'
+  | 'AudioCompletionRatio'
+
+type NumericOptionDataKey =
+  | 'price'
+  | 'ratio'
+  | 'cacheRatio'
+  | 'createCacheRatio'
+  | 'completionRatio'
+  | 'imageRatio'
+  | 'audioRatio'
+  | 'audioCompletionRatio'
+
+const pricingMapFields: Array<{
+  currentKey: NumericOptionCurrentKey
+  outputKey: NumericOptionOutputKey
+  dataKey: NumericOptionDataKey
+}> = [
+  { currentKey: 'modelPrice', outputKey: 'ModelPrice', dataKey: 'price' },
+  { currentKey: 'modelRatio', outputKey: 'ModelRatio', dataKey: 'ratio' },
+  { currentKey: 'cacheRatio', outputKey: 'CacheRatio', dataKey: 'cacheRatio' },
+  {
+    currentKey: 'createCacheRatio',
+    outputKey: 'CreateCacheRatio',
+    dataKey: 'createCacheRatio',
+  },
+  {
+    currentKey: 'completionRatio',
+    outputKey: 'CompletionRatio',
+    dataKey: 'completionRatio',
+  },
+  { currentKey: 'imageRatio', outputKey: 'ImageRatio', dataKey: 'imageRatio' },
+  { currentKey: 'audioRatio', outputKey: 'AudioRatio', dataKey: 'audioRatio' },
+  {
+    currentKey: 'audioCompletionRatio',
+    outputKey: 'AudioCompletionRatio',
+    dataKey: 'audioCompletionRatio',
+  },
+]
+
+const priceMapField = pricingMapFields[0]
+const ratioMapFields = pricingMapFields.slice(1)
+
 export type PreviewRow = {
   key: string
   label: string
@@ -192,38 +252,32 @@ export function buildModelPricingOptionUpdates({
   data: ModelRatioData
   targetNames?: string[]
 }): ModelPricingOptionUpdates {
-  const priceMap = safeJsonParse<Record<string, number>>(current.modelPrice, {
-    fallback: {},
-    silent: true,
-  })
-  const ratioMap = safeJsonParse<Record<string, number>>(current.modelRatio, {
-    fallback: {},
-    silent: true,
-  })
-  const cacheMap = safeJsonParse<Record<string, number>>(current.cacheRatio, {
-    fallback: {},
-    silent: true,
-  })
-  const createCacheMap = safeJsonParse<Record<string, number>>(
-    current.createCacheRatio,
-    { fallback: {}, silent: true }
-  )
-  const completionMap = safeJsonParse<Record<string, number>>(
-    current.completionRatio,
-    { fallback: {}, silent: true }
-  )
-  const imageMap = safeJsonParse<Record<string, number>>(current.imageRatio, {
-    fallback: {},
-    silent: true,
-  })
-  const audioMap = safeJsonParse<Record<string, number>>(current.audioRatio, {
-    fallback: {},
-    silent: true,
-  })
-  const audioCompletionMap = safeJsonParse<Record<string, number>>(
-    current.audioCompletionRatio,
-    { fallback: {}, silent: true }
-  )
+  const pricingMaps = Object.fromEntries(
+    pricingMapFields.map((field) => [
+      field.outputKey,
+      safeJsonParse<Record<string, number>>(current[field.currentKey], {
+        fallback: {},
+        silent: true,
+      }),
+    ])
+  ) as Record<NumericOptionOutputKey, Record<string, number>>
+
+  const priceMap = pricingMaps.ModelPrice
+
+  const setFieldIfPresent = (
+    field: (typeof pricingMapFields)[number],
+    name: string
+  ) => {
+    setIfPresent(pricingMaps[field.outputKey], name, data[field.dataKey])
+  }
+
+  const setFieldsIfPresent = (
+    fields: typeof pricingMapFields,
+    name: string
+  ) => {
+    fields.forEach((field) => setFieldIfPresent(field, name))
+  }
+
   const billingModeMap = safeJsonParse<Record<string, string>>(
     current.billingMode,
     { fallback: {}, silent: true }
@@ -244,14 +298,9 @@ export function buildModelPricingOptionUpdates({
   }
 
   targetNames.forEach((name) => {
-    delete priceMap[name]
-    delete ratioMap[name]
-    delete cacheMap[name]
-    delete createCacheMap[name]
-    delete completionMap[name]
-    delete imageMap[name]
-    delete audioMap[name]
-    delete audioCompletionMap[name]
+    pricingMapFields.forEach((field) => {
+      delete pricingMaps[field.outputKey][name]
+    })
     delete billingModeMap[name]
     delete billingExprMap[name]
 
@@ -268,40 +317,31 @@ export function buildModelPricingOptionUpdates({
         billingModeMap[name] = 'tiered_expr'
         billingExprMap[name] = combined
       }
-      setIfPresent(priceMap, name, data.price)
-      setIfPresent(ratioMap, name, data.ratio)
-      setIfPresent(cacheMap, name, data.cacheRatio)
-      setIfPresent(createCacheMap, name, data.createCacheRatio)
-      setIfPresent(completionMap, name, data.completionRatio)
-      setIfPresent(imageMap, name, data.imageRatio)
-      setIfPresent(audioMap, name, data.audioRatio)
-      setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+      setFieldsIfPresent(pricingMapFields, name)
       return
     }
 
     if (mode === 'per-request') {
-      setIfPresent(priceMap, name, data.price)
+      setFieldIfPresent(priceMapField, name)
       return
     }
 
-    setIfPresent(ratioMap, name, data.ratio)
-    setIfPresent(cacheMap, name, data.cacheRatio)
-    setIfPresent(createCacheMap, name, data.createCacheRatio)
-    setIfPresent(completionMap, name, data.completionRatio)
-    setIfPresent(imageMap, name, data.imageRatio)
-    setIfPresent(audioMap, name, data.audioRatio)
-    setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+    setFieldsIfPresent(ratioMapFields, name)
   })
 
   return {
     ModelPrice: JSON.stringify(priceMap, null, 2),
-    ModelRatio: JSON.stringify(ratioMap, null, 2),
-    CacheRatio: JSON.stringify(cacheMap, null, 2),
-    CreateCacheRatio: JSON.stringify(createCacheMap, null, 2),
-    CompletionRatio: JSON.stringify(completionMap, null, 2),
-    ImageRatio: JSON.stringify(imageMap, null, 2),
-    AudioRatio: JSON.stringify(audioMap, null, 2),
-    AudioCompletionRatio: JSON.stringify(audioCompletionMap, null, 2),
+    ModelRatio: JSON.stringify(pricingMaps.ModelRatio, null, 2),
+    CacheRatio: JSON.stringify(pricingMaps.CacheRatio, null, 2),
+    CreateCacheRatio: JSON.stringify(pricingMaps.CreateCacheRatio, null, 2),
+    CompletionRatio: JSON.stringify(pricingMaps.CompletionRatio, null, 2),
+    ImageRatio: JSON.stringify(pricingMaps.ImageRatio, null, 2),
+    AudioRatio: JSON.stringify(pricingMaps.AudioRatio, null, 2),
+    AudioCompletionRatio: JSON.stringify(
+      pricingMaps.AudioCompletionRatio,
+      null,
+      2
+    ),
     'billing_setting.billing_mode': JSON.stringify(billingModeMap, null, 2),
     'billing_setting.billing_expr': JSON.stringify(billingExprMap, null, 2),
   }
