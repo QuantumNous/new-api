@@ -77,17 +77,9 @@ func getToken() (string, error) {
 	return cachedToken, nil
 }
 
-// subscriptionApiVersion pins /api/v1/subscriptions/* to the documented
-// consent-based flow. The unpinned (2025+) version demands the new Billing
-// entities — bcus_ billing customers, psrc_ payment sources, collection_method,
-// and an UNSCHEDULED consent — none of which the published schema documents.
-// Verified empirically 2026-07-07: pinned requests validate the schema.json
-// shape end-to-end.
-const subscriptionApiVersion = "2024-09-27"
-
 // billingApiVersion pins /api/v1/billing/* to the 2026-02-27 Billing product
-// (billing customers, checkouts, subscriptions). This generation is mutually
-// exclusive with the legacy /api/v1/subscriptions/* flow (subscriptionApiVersion).
+// (billing customers, checkouts, subscriptions). The legacy consent-based
+// /api/v1/subscriptions/* flow (x-api-version 2024-09-27) has been removed.
 const billingApiVersion = "2026-02-27"
 
 // do performs an authenticated JSON call; out may be nil.
@@ -109,11 +101,8 @@ func do(method, path string, in any, out any) error {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
-	switch {
-	case strings.HasPrefix(path, "/api/v1/billing/"):
+	if strings.HasPrefix(path, "/api/v1/billing/") {
 		req.Header.Set("x-api-version", billingApiVersion)
-	case strings.HasPrefix(path, "/api/v1/subscriptions"):
-		req.Header.Set("x-api-version", subscriptionApiVersion)
 	}
 	if in != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -175,131 +164,6 @@ func FindCustomerByMerchantId(merchantCustomerId string) (*Customer, error) {
 		return nil, nil
 	}
 	return &page.Items[0], nil
-}
-
-func GetCustomer(customerId string) (*Customer, error) {
-	var c Customer
-	if err := do(http.MethodGet, "/api/v1/pa/customers/"+url.PathEscape(customerId), nil, &c); err != nil {
-		return nil, err
-	}
-	return &c, nil
-}
-
-func GenerateCustomerClientSecret(customerId string) (string, error) {
-	var resp struct {
-		ClientSecret string `json:"client_secret"`
-	}
-	if err := do(http.MethodGet, "/api/v1/pa/customers/"+url.PathEscape(customerId)+"/generate_client_secret", nil, &resp); err != nil {
-		return "", err
-	}
-	if resp.ClientSecret == "" {
-		return "", errors.New("airwallex generate_client_secret returned empty client_secret")
-	}
-	return resp.ClientSecret, nil
-}
-
-type SubscriptionItem struct {
-	PriceId  string `json:"price_id"`
-	Quantity int    `json:"quantity,omitempty"`
-}
-
-type SubscriptionRecurring struct {
-	Period     int    `json:"period,omitempty"`
-	PeriodUnit string `json:"period_unit"`
-}
-
-type Subscription struct {
-	Id                   string            `json:"id"`
-	CustomerId           string            `json:"customer_id"`
-	PaymentConsentId     string            `json:"payment_consent_id"`
-	Status               string            `json:"status"`
-	CurrentPeriodStartAt string            `json:"current_period_start_at"`
-	CurrentPeriodEndAt   string            `json:"current_period_end_at"`
-	Metadata             map[string]string `json:"metadata"`
-}
-
-// CreateSubscriptionRequest is the published-schema shape, valid under the
-// pinned subscriptionApiVersion. Do NOT add the newer Billing-product fields
-// (billing_customer_id/collection_method/payment_source_id) without also
-// migrating to bcus_/psrc_ entities and UNSCHEDULED consents — the two API
-// generations are mutually exclusive.
-type CreateSubscriptionRequest struct {
-	RequestId        string                 `json:"request_id"`
-	CustomerId       string                 `json:"customer_id"`
-	PaymentConsentId string                 `json:"payment_consent_id"`
-	Items            []SubscriptionItem     `json:"items"`
-	Recurring        *SubscriptionRecurring `json:"recurring,omitempty"`
-	Metadata         map[string]string      `json:"metadata,omitempty"`
-}
-
-func CreateSubscription(req *CreateSubscriptionRequest) (*Subscription, error) {
-	var sub Subscription
-	if err := do(http.MethodPost, "/api/v1/subscriptions/create", req, &sub); err != nil {
-		return nil, err
-	}
-	return &sub, nil
-}
-
-// GetSubscription fetches one subscription with full fields — webhook events
-// carry a slim object without metadata, so handlers re-fetch by id.
-func GetSubscription(subscriptionId string) (*Subscription, error) {
-	var sub Subscription
-	if err := do(http.MethodGet, "/api/v1/subscriptions/"+url.PathEscape(subscriptionId), nil, &sub); err != nil {
-		return nil, err
-	}
-	return &sub, nil
-}
-
-// CancelSubscription stops future cycles. prorationBehavior ∈ ALL / PRORATED / NONE;
-// JINN policy is NONE (no cash refunds — access runs to period end via the engine term).
-func CancelSubscription(subscriptionId, requestId, prorationBehavior string) error {
-	body := map[string]any{"request_id": requestId}
-	if prorationBehavior != "" {
-		body["proration_behavior"] = prorationBehavior
-	}
-	return do(http.MethodPost, "/api/v1/subscriptions/"+url.PathEscape(subscriptionId)+"/cancel", body, nil)
-}
-
-// ListSubscriptions returns the customer's subscriptions, optionally filtered by status (e.g. "ACTIVE").
-func ListSubscriptions(customerId, status string) ([]Subscription, error) {
-	var page struct {
-		Items []Subscription `json:"items"`
-	}
-	path := "/api/v1/subscriptions?customer_id=" + url.QueryEscape(customerId) + "&page_size=20"
-	if status != "" {
-		path += "&status=" + url.QueryEscape(status)
-	}
-	if err := do(http.MethodGet, path, nil, &page); err != nil {
-		return nil, err
-	}
-	return page.Items, nil
-}
-
-func UpdateSubscription(subscriptionId string, body map[string]any) (*Subscription, error) {
-	var sub Subscription
-	if err := do(http.MethodPost, "/api/v1/subscriptions/"+url.PathEscape(subscriptionId)+"/update", body, &sub); err != nil {
-		return nil, err
-	}
-	return &sub, nil
-}
-
-type PaymentConsent struct {
-	Id         string `json:"id"`
-	CustomerId string `json:"customer_id"`
-	Status     string `json:"status"`
-}
-
-// ListVerifiedConsents returns the customer's VERIFIED merchant-triggered consents, newest first.
-func ListVerifiedConsents(customerId string) ([]PaymentConsent, error) {
-	var page struct {
-		Items []PaymentConsent `json:"items"`
-	}
-	path := "/api/v1/pa/payment_consents?customer_id=" + url.QueryEscape(customerId) +
-		"&next_triggered_by=merchant&status=VERIFIED&page_size=10"
-	if err := do(http.MethodGet, path, nil, &page); err != nil {
-		return nil, err
-	}
-	return page.Items, nil
 }
 
 type PaymentIntent struct {
