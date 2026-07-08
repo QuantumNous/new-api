@@ -63,13 +63,40 @@ import {
   resetUserSubscriptionsByPlan,
 } from '../../api'
 import { formatTimestamp } from '../../lib'
-import type { PlanRecord, UserSubscriptionRecord } from '../../types'
+import type { PlanRecord, SubQuotaUsage, UserSubscriptionRecord } from '../../types'
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   user: { id: number; username?: string } | null
   onSuccess?: () => void
+}
+
+function AdminSubQuotaRow(props: {
+  u: SubQuotaUsage
+  t: (key: string) => string
+}) {
+  const usagePct = Math.min(100, Math.round(props.u.percent || 0))
+  return (
+    <div className='rounded border p-1.5'>
+      <div className='flex items-center justify-between'>
+        <span className='font-medium'>{props.u.name || props.t('Sub Limit')}</span>
+        {props.u.exceeded && (
+          <span className='text-destructive font-medium'>
+            {props.t('Exceeded')}
+          </span>
+        )}
+      </div>
+      <div className='text-muted-foreground mt-1'>
+        ${(props.u.used_usd || 0).toFixed(2)} / ${(props.u.limit_usd || 0).toFixed(2)}{' '}
+        · {props.t('Remaining')} ${(props.u.remaining_usd || 0).toFixed(2)}
+      </div>
+      <div className='text-muted-foreground mt-0.5 text-[11px]'>
+        {props.t('Next reset')}: {new Date((props.u.reset_time || 0) * 1000).toLocaleString()}{' '}
+        ({usagePct}%)
+      </div>
+    </div>
+  )
 }
 
 function SubscriptionStatusBadge(props: {
@@ -342,9 +369,22 @@ export function UserSubscriptionsDialog(props: Props) {
                     const sub = record.subscription
                     const total = Number(sub.amount_total || 0)
                     const used = Number(sub.amount_used || 0)
-                    return total > 0
-                      ? `${formatQuota(used)}/${formatQuota(total)}`
-                      : t('Unlimited')
+                    const mainQuota =
+                      total > 0
+                        ? `${formatQuota(used)}/${formatQuota(total)}`
+                        : t('Unlimited')
+                    const subUsages = record.sub_quota_usage || []
+                    if (subUsages.length === 0) {
+                      return <span className='text-xs'>{mainQuota}</span>
+                    }
+                    return (
+                      <div className='space-y-1.5 text-xs'>
+                        <div className='font-medium'>{mainQuota}</div>
+                        {subUsages.map((u) => (
+                          <AdminSubQuotaRow key={`${u.name}-${u.window_start}`} u={u} t={t} />
+                        ))}
+                      </div>
+                    )
                   },
                 },
                 {

@@ -23,7 +23,30 @@ import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 
 import type { SubscriptionPlan, PlanPayload } from '../types'
 
+function createSubQuotaLimitSchema(t: TFunction) {
+  return z
+    .object({
+      name: z.string(),
+      period_unit: z.enum(['hour', 'day', 'week', 'month']),
+      period_value: z.coerce.number().positive(t('Please enter a valid number')),
+      limit_usd: z.coerce.number().min(0),
+      natural: z.boolean().optional().default(false),
+      anchor: z.string().optional().default(''),
+    })
+    .superRefine((limit, ctx) => {
+      if (limit.period_unit === 'week' && limit.period_value < 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['period_value'],
+          message: t('Please enter a valid number'),
+        })
+      }
+    })
+}
+
 export function getPlanFormSchema(t: TFunction) {
+  const subQuotaLimitSchema = createSubQuotaLimitSchema(t)
+
   return z.object({
     title: z.string().min(1, t('Please enter plan title')),
     subtitle: z.string().optional(),
@@ -50,6 +73,7 @@ export function getPlanFormSchema(t: TFunction) {
     stripe_price_id: z.string().optional(),
     creem_product_id: z.string().optional(),
     waffo_pancake_product_id: z.string().optional(),
+    sub_quota_limits: z.array(subQuotaLimitSchema).max(2).optional().default([]),
   })
 }
 
@@ -75,6 +99,46 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   stripe_price_id: '',
   creem_product_id: '',
   waffo_pancake_product_id: '',
+  sub_quota_limits: [],
+}
+
+function parseSubQuotaLimits(raw: string | undefined): {
+  name: string
+  period_unit: 'hour' | 'day' | 'week' | 'month'
+  period_value: number
+  limit_usd: number
+  natural: boolean
+  anchor: string
+}[] {
+  if (!raw) return []
+  let arr: unknown
+  try {
+    arr = JSON.parse(raw)
+  } catch {
+    return []
+  }
+  if (!Array.isArray(arr)) return []
+  return (arr as {
+    name?: string
+    period_unit?: 'hour' | 'day' | 'week' | 'month'
+    period_value?: number
+    limit_usd?: number
+    natural?: boolean
+    anchor?: string
+  }[]).map((item) => ({
+    name: item?.name || '',
+    period_unit: (item?.period_unit || 'hour') as
+      | 'hour'
+      | 'day'
+      | 'week'
+      | 'month',
+    period_value: Number(item?.period_value || 0),
+    limit_usd: Number(item?.limit_usd || 0),
+    natural: !!item?.natural,
+    anchor:
+      item?.anchor ||
+      (item?.period_unit === 'hour' ? 'subscription_start' : 'calendar'),
+  }))
 }
 
 export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
@@ -98,6 +162,7 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     stripe_price_id: plan.stripe_price_id || '',
     creem_product_id: plan.creem_product_id || '',
     waffo_pancake_product_id: plan.waffo_pancake_product_id || '',
+    sub_quota_limits: parseSubQuotaLimits(plan.sub_quota_limits),
   }
 }
 
@@ -119,6 +184,7 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       total_amount: parseQuotaFromDollars(Number(values.total_amount || 0)),
       upgrade_group: values.upgrade_group || '',
       downgrade_group: values.downgrade_group || '',
+      sub_quota_limits: JSON.stringify(values.sub_quota_limits || []),
     },
   }
 }

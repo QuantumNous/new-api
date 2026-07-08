@@ -185,6 +185,9 @@ type SubscriptionPlan struct {
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
 	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds" gorm:"type:bigint;default:0"`
 
+	// Optional 0..2 sub-quota window limits JSON snapshot. Empty = none.
+	SubQuotaLimits string `json:"sub_quota_limits" gorm:"type:text;default:''"`
+
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
 }
@@ -276,6 +279,15 @@ type UserSubscription struct {
 	// Whether wallet fallback is allowed after this subscription's quota is exhausted (snapshot from plan)
 	AllowWalletOverflow bool `json:"allow_wallet_overflow"`
 
+	// Purchase-time snapshot of the plan's sub-quota window limits JSON.
+	SubQuotaLimits string `json:"sub_quota_limits" gorm:"type:text;default:''"`
+
+	// Sub-quota window consumption is counted from this timestamp onwards;
+	// 0 means count from the natural window start. An admin reset sets this
+	// to the current time so prior consume logs no longer count, without
+	// deleting any logs.
+	SubQuotaResetAt int64 `json:"sub_quota_reset_at" gorm:"type:bigint;default:0"`
+
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
 }
@@ -294,6 +306,9 @@ func (s *UserSubscription) BeforeUpdate(tx *gorm.DB) error {
 
 type SubscriptionSummary struct {
 	Subscription *UserSubscription `json:"subscription"`
+	// User-facing usage for the main quota and sub-quota windows.
+	MainQuotaUsage *MainQuotaUsage             `json:"main_quota_usage,omitempty"`
+	SubQuotaUsage  []SubscriptionSubQuotaUsage `json:"sub_quota_usage,omitempty"`
 }
 
 type SubscriptionResetResult struct {
@@ -548,6 +563,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		PrevUserGroup:       prevGroup,
 		DowngradeGroup:      strings.TrimSpace(plan.DowngradeGroup),
 		AllowWalletOverflow: allowWalletOverflow,
+		SubQuotaLimits:      strings.TrimSpace(plan.SubQuotaLimits),
 		CreatedAt:           common.GetTimestamp(),
 		UpdatedAt:           common.GetTimestamp(),
 	}
@@ -819,7 +835,8 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	return nil
 }
 
-// GetAllActiveUserSubscriptions returns all active subscriptions for a user.
+// GetAllActiveUserSubscriptions returns all active subscriptions for a user,
+// with live main+sub quota usage attached.
 func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
@@ -832,7 +849,7 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	return buildSubscriptionSummaries(subs), nil
+	return buildActiveSubscriptionSummaries(subs, now), nil
 }
 
 // HasActiveUserSubscription returns whether the user has any active subscription.
@@ -869,11 +886,14 @@ func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
 	return strictCount == 0, nil
 }
 
-// GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.
+// GetAllUserSubscriptions returns all subscriptions (active and expired) for
+// a user. Active subscriptions carry live main+sub quota usage; expired ones
+// only carry the raw subscription row.
 func GetAllUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
+	now := common.GetTimestamp()
 	var subs []UserSubscription
 	err := DB.Where("user_id = ?", userId).
 		Order("end_time desc, id desc").
@@ -881,7 +901,25 @@ func GetAllUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	return buildSubscriptionSummaries(subs), nil
+	if len(subs) == 0 {
+		return []SubscriptionSummary{}, nil
+	}
+	result := make([]SubscriptionSummary, 0, len(subs))
+	for _, sub := range subs {
+		subCopy := sub
+		isActive := sub.Status == "active" && sub.EndTime > now
+		summary := SubscriptionSummary{
+			Subscription: &subCopy,
+		}
+		if isActive {
+			summary.MainQuotaUsage = BuildMainQuotaUsage(&subCopy)
+			if usages, err := BuildSubQuotaUsage(subCopy.UserId, &subCopy, now); err == nil && len(usages) > 0 {
+				summary.SubQuotaUsage = usages
+			}
+		}
+		result = append(result, summary)
+	}
+	return result, nil
 }
 
 func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
@@ -894,6 +932,28 @@ func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 		result = append(result, SubscriptionSummary{
 			Subscription: &subCopy,
 		})
+	}
+	return result
+}
+
+// buildActiveSubscriptionSummaries is like buildSubscriptionSummaries but also
+// attaches live main+sub quota usage computed from the consume logs. Used by
+// user-facing views; admin views use the cheaper buildSubscriptionSummaries.
+func buildActiveSubscriptionSummaries(subs []UserSubscription, now int64) []SubscriptionSummary {
+	if len(subs) == 0 {
+		return []SubscriptionSummary{}
+	}
+	result := make([]SubscriptionSummary, 0, len(subs))
+	for _, sub := range subs {
+		subCopy := sub
+		summary := SubscriptionSummary{
+			Subscription:   &subCopy,
+			MainQuotaUsage:  BuildMainQuotaUsage(&subCopy),
+		}
+		if usages, err := BuildSubQuotaUsage(subCopy.UserId, &subCopy, now); err == nil && len(usages) > 0 {
+			summary.SubQuotaUsage = usages
+		}
+		result = append(result, summary)
 	}
 	return result
 }
@@ -996,6 +1056,15 @@ func resetUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *Subscript
 			sub.LastResetTime = now
 		} else {
 			sub.LastResetTime = 0
+		}
+	}
+	// 复位子配额窗口用量：把统计起点设为当前时间，使之前的 consume 日志
+	// 不再计入当前窗口，而不删除任何日志。当窗口自然滚动到下一个区块时，
+	// windowStart 会超过 SubQuotaResetAt，复位自动失效。
+	if len(strings.TrimSpace(sub.SubQuotaLimits)) > 0 {
+		limits, err := parseSubQuotaLimits(sub.SubQuotaLimits)
+		if err == nil && len(limits) > 0 {
+			sub.SubQuotaResetAt = now
 		}
 	}
 	return tx.Save(sub).Error
@@ -1266,6 +1335,8 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 	sub.AmountUsed = 0
 	sub.LastResetTime = base.Unix()
 	sub.NextResetTime = next
+	// 主配额复位时同步清子配额统计起点，让子限制窗口从自然起点重新统计。
+	sub.SubQuotaResetAt = 0
 	return tx.Save(sub).Error
 }
 
@@ -1331,6 +1402,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				if remain < amount {
 					continue
 				}
+			}
+			if err := checkSubscriptionSubLimits(tx, userId, &sub, amount, now); err != nil {
+				continue
 			}
 			record := &SubscriptionPreConsumeRecord{
 				RequestId:          requestId,

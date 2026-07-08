@@ -44,9 +44,55 @@ export const subscriptionPlanSchema = z.object({
   stripe_price_id: z.string().optional(),
   creem_product_id: z.string().optional(),
   waffo_pancake_product_id: z.string().optional(),
+  // Stored as a JSON text field on the backend ("" or a JSON array string).
+  sub_quota_limits: z.string().optional().default(''),
 })
 
 export type SubscriptionPlan = z.infer<typeof subscriptionPlanSchema>
+
+// ---------------------------------------------------------------------------
+// Sub-quota window limit (admin config) and usage (user-facing display)
+// ---------------------------------------------------------------------------
+
+export interface SubQuotaLimit {
+  name: string
+  period_unit: 'hour' | 'day' | 'week' | 'month'
+  period_value: number
+  limit_usd: number
+  natural?: boolean
+  anchor?: string
+}
+
+export interface MainQuotaUsage {
+  limit_usd: number
+  used_usd: number
+  remaining_usd: number
+  percent: number
+  limit_quota: number
+  used_quota: number
+  remaining_quota: number
+  reset_time: number
+  exceeded: boolean
+}
+
+export interface SubQuotaUsage {
+  name: string
+  period_unit: string
+  period_value: number
+  natural: boolean
+  anchor: string
+  limit_usd: number
+  used_usd: number
+  remaining_usd: number
+  percent: number
+  limit_quota: number
+  used_quota: number
+  remaining_quota: number
+  window_start: number
+  window_end: number
+  reset_time: number
+  exceeded: boolean
+}
 
 export interface PlanRecord {
   plan: SubscriptionPlan
@@ -67,12 +113,15 @@ export const userSubscriptionSchema = z.object({
   amount_total: z.number(),
   amount_used: z.number(),
   next_reset_time: z.number().optional(),
+  sub_quota_limits: z.string().optional().default(''),
 })
 
 export type UserSubscription = z.infer<typeof userSubscriptionSchema>
 
 export interface UserSubscriptionRecord {
   subscription: UserSubscription
+  main_quota_usage?: MainQuotaUsage
+  sub_quota_usage?: SubQuotaUsage[]
 }
 
 // ============================================================================

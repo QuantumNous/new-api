@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 
 // ============================================================================
 // Duration Unit Options
@@ -38,10 +38,37 @@ export const RESET_PERIODS = [
   { value: 'custom', labelKey: 'Custom (seconds)' },
 ] as const
 
+// Sub-quota window limit options
+export const SUB_QUOTA_PERIOD_UNITS = [
+  { value: 'hour', labelKey: 'hours' },
+  { value: 'week', labelKey: 'weeks' },
+] as const
+
+export const SUB_QUOTA_ANCHORS = [
+  { value: 'subscription_start', labelKey: 'Subscription start time' },
+  { value: 'calendar', labelKey: 'Calendar aligned' },
+] as const
+
+export const MAX_SUB_QUOTA_LIMITS = 2
+
 export function getDurationUnitOptions(t: TFunction) {
   return DURATION_UNITS.map((u) => ({ value: u.value, label: t(u.labelKey) }))
 }
 
 export function getResetPeriodOptions(t: TFunction) {
   return RESET_PERIODS.map((p) => ({ value: p.value, label: t(p.labelKey) }))
+}
+
+export function getSubQuotaPeriodUnitOptions(t: TFunction) {
+  return SUB_QUOTA_PERIOD_UNITS.map((u) => ({
+    value: u.value,
+    label: t(u.labelKey),
+  }))
+}
+
+export function getSubQuotaAnchorOptions(t: TFunction) {
+  return SUB_QUOTA_ANCHORS.map((a) => ({
+    value: a.value,
+    label: t(a.labelKey),
+  }))
 }

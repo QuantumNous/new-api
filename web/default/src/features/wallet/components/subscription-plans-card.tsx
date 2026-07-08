@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Crown, RefreshCw, Sparkles, Check } from 'lucide-react'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -54,6 +54,7 @@ import { SubscriptionPurchaseDialog } from '@/features/subscriptions/components/
 import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
 import type {
   PlanRecord,
+  SubQuotaUsage,
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
 import { formatQuota } from '@/lib/format'
@@ -89,6 +90,125 @@ function getBillingPreferenceLabel(
       return t('Wallet Only')
     default:
       return preference
+  }
+}
+
+function getSubscriptionEndLabel(
+  isActive: boolean,
+  isCancelled: boolean,
+  t: (key: string) => string
+): string {
+  if (isActive) return t('Until')
+  if (isCancelled) return t('Cancelled at')
+  return t('Expired at')
+}
+
+function SubQuotaUsageList(props: {
+  usages: SubQuotaUsage[]
+  t: (key: string) => string
+}) {
+  return (
+    <div className='mt-2 space-y-2'>
+      <div className='text-xs font-medium'>{props.t('Sub Quota Limits')}</div>
+      {props.usages.map((u) => {
+        const usagePct = Math.min(100, Math.round(u.percent || 0))
+        const key = `${u.name || 'sub'}-${u.window_start || 0}-${u.window_end || 0}`
+        return (
+          <div key={key} className='rounded-md border p-2'>
+            <div className='flex items-center justify-between text-xs'>
+              <span className='font-medium'>{u.name || props.t('Sub Limit')}</span>
+              {u.exceeded && (
+                <span className='text-destructive font-medium'>
+                  {props.t('Exceeded')}
+                </span>
+              )}
+            </div>
+            <table className='mt-1.5 w-full table-fixed border-collapse text-xs'>
+              <tbody>
+                <tr>
+                  <td className='text-muted-foreground py-0.5 pr-2'>
+                    {props.t('Used')}
+                  </td>
+                  <td className='py-0.5'>
+                    ${(u.used_usd || 0).toFixed(2)}
+                    <span className='text-muted-foreground ml-2'>({usagePct}%)</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td className='text-muted-foreground py-0.5 pr-2'>
+                    {props.t('Total Quota')}
+                  </td>
+                  <td className='py-0.5'>
+                    ${(u.limit_usd || 0).toFixed(2)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className='text-muted-foreground py-0.5 pr-2'>
+                    {props.t('Remaining')}
+                  </td>
+                  <td className='py-0.5'>
+                    ${(u.remaining_usd || 0).toFixed(2)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className='text-muted-foreground py-0.5 pr-2'>
+                    {props.t('Next reset')}
+                  </td>
+                  <td className='py-0.5'>
+                    {new Date((u.reset_time || 0) * 1000).toLocaleString()}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <Progress value={usagePct} className='mt-1.5 h-1' />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function getSubQuotaUnitLabel(unit: string, t: (key: string) => string): string {
+  switch (unit) {
+    case 'hour':
+      return t('hours')
+    case 'day':
+      return t('days')
+    case 'week':
+      return t('weeks')
+    case 'month':
+      return t('months')
+    default:
+      return unit
+  }
+}
+
+function buildPlanSubLimitLabels(
+  plan: PlanRecord['plan'],
+  t: (key: string) => string
+): string[] {
+  const raw = (plan as { sub_quota_limits?: string }).sub_quota_limits
+  if (!raw) return []
+
+  try {
+    const arr = JSON.parse(raw)
+    if (!Array.isArray(arr)) return []
+
+    const labels: string[] = []
+    for (const sl of arr) {
+      const name = String(sl?.name || '').trim()
+      const usd = Number(sl?.limit_usd || 0)
+      const unit = String(sl?.period_unit || '')
+      const val = Number(sl?.period_value || 0)
+      const unitLabel = getSubQuotaUnitLabel(unit, t)
+      const tail = `$${usd.toFixed(2)} / ${val} ${unitLabel}`
+      labels.push(
+        name ? `${t('Sub Limit')}: ${name} (${tail})` : `${t('Sub Limit')}: ${tail}`
+      )
+    }
+    return labels
+  } catch {
+    return []
   }
 }
 
@@ -244,8 +364,8 @@ export function SubscriptionPlansCard({
         <CardContent className='space-y-4 p-3 sm:p-5'>
           <Skeleton className='h-20 w-full' />
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className='h-48 w-full' />
+            {['one', 'two', 'three'].map((key) => (
+              <Skeleton key={key} className='h-48 w-full' />
             ))}
           </div>
         </CardContent>
@@ -395,7 +515,7 @@ export function SubscriptionPlansCard({
           {hasAny && (
             <>
               <Separator className='my-3' />
-              <div className='max-h-64 space-y-3 overflow-y-auto pr-1'>
+              <div className='space-y-3 pr-1'>
                 {allSubscriptions.map((sub) => {
                   const subscription = sub.subscription
                   const totalAmount = Number(subscription?.amount_total || 0)
@@ -411,6 +531,41 @@ export function SubscriptionPlansCard({
                   const isCancelled = subscription?.status === 'cancelled'
                   const isActive =
                     subscription?.status === 'active' && !isExpired
+                  const endLabel = getSubscriptionEndLabel(
+                    isActive,
+                    isCancelled,
+                    t
+                  )
+                  const nextResetTime = Number(
+                    subscription?.next_reset_time || 0
+                  )
+
+                  let statusBadge: ReactNode
+                  if (isActive) {
+                    statusBadge = (
+                      <StatusBadge
+                        label={t('Active')}
+                        variant='success'
+                        copyable={false}
+                      />
+                    )
+                  } else if (isCancelled) {
+                    statusBadge = (
+                      <StatusBadge
+                        label={t('Cancelled')}
+                        variant='neutral'
+                        copyable={false}
+                      />
+                    )
+                  } else {
+                    statusBadge = (
+                      <StatusBadge
+                        label={t('Expired')}
+                        variant='neutral'
+                        copyable={false}
+                      />
+                    )
+                  }
 
                   return (
                     <div
@@ -424,25 +579,7 @@ export function SubscriptionPlansCard({
                               ? `${planTitle} · ${t('Subscription')} #${subscription?.id}`
                               : `${t('Subscription')} #${subscription?.id}`}
                           </span>
-                          {isActive ? (
-                            <StatusBadge
-                              label={t('Active')}
-                              variant='success'
-                              copyable={false}
-                            />
-                          ) : isCancelled ? (
-                            <StatusBadge
-                              label={t('Cancelled')}
-                              variant='neutral'
-                              copyable={false}
-                            />
-                          ) : (
-                            <StatusBadge
-                              label={t('Expired')}
-                              variant='neutral'
-                              copyable={false}
-                            />
-                          )}
+                          {statusBadge}
                         </div>
                         {isActive && (
                           <span className='text-muted-foreground'>
@@ -453,50 +590,93 @@ export function SubscriptionPlansCard({
                         )}
                       </div>
                       <div className='text-muted-foreground mt-1.5'>
-                        {isActive
-                          ? t('Until')
-                          : isCancelled
-                            ? t('Cancelled at')
-                            : t('Expired at')}{' '}
+                        {endLabel}{' '}
                         {new Date(
                           (subscription?.end_time || 0) * 1000
                         ).toLocaleString()}
                       </div>
-                      {isActive && (subscription?.next_reset_time ?? 0) > 0 && (
+                      {isActive && nextResetTime > 0 && (
                         <div className='text-muted-foreground mt-1'>
                           {t('Next reset')}:{' '}
-                          {new Date(
-                            subscription!.next_reset_time! * 1000
-                          ).toLocaleString()}
+                          {new Date(nextResetTime * 1000).toLocaleString()}
                         </div>
                       )}
-                      <div className='text-muted-foreground mt-1'>
-                        {t('Total Quota')}:{' '}
-                        {totalAmount > 0 ? (
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={<span className='cursor-help' />}
-                            >
-                              {formatQuota(usedAmount)}/
-                              {formatQuota(totalAmount)} · {t('Remaining')}{' '}
-                              {formatQuota(remainAmount)}
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
-                              {t('Remaining')} {remainAmount}
-                            </TooltipContent>
-                          </Tooltip>
-                        ) : (
-                          t('Unlimited')
-                        )}
-                        {totalAmount > 0 && (
-                          <span className='ml-2'>
-                            {t('Used')} {usagePercent}%
-                          </span>
-                        )}
-                      </div>
-                      {totalAmount > 0 && isActive && (
+                      {totalAmount > 0 && isActive ? (
+                        <table className='mt-1.5 w-full table-fixed border-collapse text-xs'>
+                          <tbody>
+                            <tr>
+                              <td className='text-muted-foreground py-0.5 pr-2'>
+                                {t('Used')}
+                              </td>
+                              <td className='py-0.5'>
+                                {formatQuota(usedAmount)}
+                                {totalAmount > 0 && (
+                                  <span className='text-muted-foreground ml-2'>
+                                    ({usagePercent}%)
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className='text-muted-foreground py-0.5 pr-2'>
+                                {t('Total Quota')}
+                              </td>
+                              <td className='py-0.5'>
+                                {formatQuota(totalAmount)}
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className='text-muted-foreground py-0.5 pr-2'>
+                                {t('Remaining')}
+                              </td>
+                              <td className='py-0.5'>
+                                {formatQuota(remainAmount)}
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className='text-muted-foreground py-0.5 pr-2'>
+                                {t('Next reset')}
+                              </td>
+                              <td className='py-0.5'>
+                                {nextResetTime > 0
+                                  ? new Date(nextResetTime * 1000).toLocaleString()
+                                  : t('No Reset')}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div className='text-muted-foreground mt-1'>
+                          {t('Total Quota')}:{' '}
+                          {totalAmount > 0 ? (
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={<span className='cursor-help' />}
+                              >
+                                {formatQuota(usedAmount)}/
+                                {formatQuota(totalAmount)} · {t('Remaining')}{' '}
+                                {formatQuota(remainAmount)}
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
+                                {t('Remaining')} {remainAmount}
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            t('Unlimited')
+                          )}
+                          {totalAmount > 0 && (
+                            <span className='ml-2'>
+                              {t('Used')} {usagePercent}%
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {totalAmount > 0 && (
                         <Progress value={usagePercent} className='mt-2 h-1.5' />
+                      )}
+                      {isActive && sub?.sub_quota_usage && sub.sub_quota_usage.length > 0 && (
+                        <SubQuotaUsageList usages={sub.sub_quota_usage} t={t} />
                       )}
                     </div>
                   )
@@ -539,6 +719,8 @@ export function SubscriptionPlansCard({
                   : null,
               ].filter(Boolean) as string[]
 
+              const subLimitLabels = buildPlanSubLimitLabels(plan, t)
+
               return (
                 <Card
                   key={plan.id}
@@ -577,6 +759,15 @@ export function SubscriptionPlansCard({
 
                     <div className='flex-1 space-y-1.5 pb-3'>
                       {benefits.map((label) => (
+                        <div
+                          key={label}
+                          className='text-muted-foreground flex items-center gap-2 text-xs'
+                        >
+                          <Check className='text-primary h-3 w-3 shrink-0' />
+                          <span>{label}</span>
+                        </div>
+                      ))}
+                      {subLimitLabels.map((label) => (
                         <div
                           key={label}
                           className='text-muted-foreground flex items-center gap-2 text-xs'
