@@ -8,15 +8,16 @@ import (
 )
 
 type ConsumeAccountingInput struct {
-	UserId           int
-	ChannelId        int
-	ModelName        string
-	InputTokens      int
-	OutputTokens     int
-	CacheReadTokens  int
-	CacheWriteTokens int
-	GroupRatio       float64
-	Quota            int
+	UserId                  int
+	ChannelId               int
+	ModelName               string
+	InputTokens             int
+	InputTokensIncludeCache bool
+	OutputTokens            int
+	CacheReadTokens         int
+	CacheWriteTokens        int
+	GroupRatio              float64
+	Quota                   int
 }
 
 type accountingPriceTuple struct {
@@ -39,6 +40,7 @@ type consumeAccountingSnapshot struct {
 	ResellerDiscountRatio   float64            `json:"reseller_discount_ratio,omitempty"`
 	GroupRatio              float64            `json:"group_ratio"`
 	Quota                   int                `json:"quota"`
+	InputTokensIncludeCache bool               `json:"input_tokens_include_cache"`
 	Tokens                  map[string]int     `json:"tokens"`
 	Prices                  map[string]any     `json:"prices"`
 	AmountsUSD              map[string]float64 `json:"amounts_usd"`
@@ -70,7 +72,8 @@ func BuildConsumeAccountingFields(input ConsumeAccountingInput) (fields model.Ac
 		ModelName:               input.ModelName,
 		GroupRatio:              input.GroupRatio,
 		Quota:                   input.Quota,
-		AccountingAmountVersion: "usd_per_1m_tokens_v1",
+		InputTokensIncludeCache: input.InputTokensIncludeCache,
+		AccountingAmountVersion: "usd_per_1m_tokens_v2",
 		Tokens: map[string]int{
 			"input":       input.InputTokens,
 			"output":      input.OutputTokens,
@@ -193,7 +196,14 @@ func tupleFromChannelPrices(p *model.ChannelActualPrices) accountingPriceTuple {
 }
 
 func amountUSD(prices accountingPriceTuple, input ConsumeAccountingInput) float64 {
-	return (prices.InputPrice*float64(input.InputTokens) +
+	inputTokens := input.InputTokens
+	if input.InputTokensIncludeCache {
+		inputTokens -= input.CacheReadTokens + input.CacheWriteTokens
+		if inputTokens < 0 {
+			inputTokens = 0
+		}
+	}
+	return (prices.InputPrice*float64(inputTokens) +
 		prices.OutputPrice*float64(input.OutputTokens) +
 		prices.CachePrice*float64(input.CacheReadTokens) +
 		prices.CacheCreationPrice*float64(input.CacheWriteTokens)) / 1000000.0
