@@ -11,6 +11,9 @@ export type ModelSeoInput = {
   modelName: string;
   vendorName: string;
   kind: "chat" | "image";
+  // Token-billed → per-1M-token units; otherwise per-request (image/request
+  // models are not billed per token, so the copy must not say "tokens").
+  isTokenBilled: boolean;
   savingsPct: number;
   inputList: string;
   inputDiscounted: string;
@@ -42,6 +45,11 @@ type SeoStrings = {
   coverage: string;
   modalityChat: string;
   modalityImage: string;
+  // Price unit phrases placed at the {inputUnit}/{outputUnit} slots. Token
+  // models use unitInput/unitOutput; request/image models use unitRequest.
+  unitInput: string;
+  unitOutput: string;
+  unitRequest: string;
   intro: string;
   savingsFull: string; // intro, em-dash wrapped
   savingsShort: string; // faq #1, comma wrapped
@@ -74,12 +82,19 @@ export function modelSeoUi(locale: Locale): ModelSeoUi {
   return strings(locale).ui;
 }
 
+// Price-unit phrases for the current model's billing type.
+function unitVars(v: ModelSeoInput, s: SeoStrings): { inputUnit: string; outputUnit: string } {
+  return v.isTokenBilled
+    ? { inputUnit: s.unitInput, outputUnit: s.unitOutput }
+    : { inputUnit: s.unitRequest, outputUnit: s.unitRequest };
+}
+
 export function buildModelIntro(v: ModelSeoInput, locale: Locale): string {
   const s = strings(locale);
   const vars = baseVars(v);
   const modality = v.kind === "image" ? s.modalityImage : s.modalityChat;
   const savings = v.savingsPct > 0 ? ` — ${fill(s.savingsFull, vars)}` : "";
-  return fill(s.intro, { ...vars, modality, coverage: s.coverage, savings });
+  return fill(s.intro, { ...vars, ...unitVars(v, s), modality, coverage: s.coverage, savings });
 }
 
 export function buildModelHowTo(v: ModelSeoInput, locale: Locale): Array<{ title: string; body: string }> {
@@ -95,7 +110,7 @@ export function buildModelFaq(v: ModelSeoInput, locale: Locale): Array<{ q: stri
   const cheaper = v.savingsPct > 0 ? ` (${fill(s.cheaper, vars)})` : "";
   return s.faq.map((item) => ({
     q: fill(item.q, vars),
-    a: fill(item.a, { ...vars, coverage: s.coverage, savingsShort, cheaper }),
+    a: fill(item.a, { ...vars, ...unitVars(v, s), coverage: s.coverage, savingsShort, cheaper }),
   }));
 }
 
@@ -122,8 +137,11 @@ const STR: Record<Locale, SeoStrings> = {
     coverage: "GPT, Claude, Gemini, DeepSeek, Seedance and 500+ other models",
     modalityChat: "chat and completion",
     modalityImage: "image-generation",
+    unitInput: "per 1M input tokens",
+    unitOutput: "per 1M output tokens",
+    unitRequest: "per request",
     intro:
-      "{model} is a {vendor} {modality} model you can call through flatkey.ai's OpenAI-compatible API. On flatkey it runs at {inputDiscounted} per 1M input tokens{savings}, and {outputDiscounted} per 1M output tokens. One API key covers {coverage}, so you can switch models without changing SDKs or juggling separate accounts. Billing is prepaid with live usage analytics and a single invoice, which keeps spend predictable as you scale.",
+      "{model} is a {vendor} {modality} model you can call through flatkey.ai's OpenAI-compatible API. On flatkey it runs at {inputDiscounted} {inputUnit}{savings}, and {outputDiscounted} {outputUnit}. One API key covers {coverage}, so you can switch models without changing SDKs or juggling separate accounts. Billing is prepaid with live usage analytics and a single invoice, which keeps spend predictable as you scale.",
     savingsFull: "about {savingsPct}% below the {inputList} official list price",
     savingsShort: "roughly {savingsPct}% below the official list price",
     cheaper: "about {savingsPct}% cheaper",
@@ -144,7 +162,7 @@ const STR: Record<Locale, SeoStrings> = {
     faq: [
       {
         q: "How much does the {model} API cost?",
-        a: "On flatkey.ai, {model} costs {inputDiscounted} per 1M input tokens and {outputDiscounted} per 1M output tokens{savingsShort}. Top up $200 and get $100 free to stretch the budget further.",
+        a: "On flatkey.ai, {model} costs {inputDiscounted} {inputUnit} and {outputDiscounted} {outputUnit}{savingsShort}. Top up $200 and get $100 free to stretch the budget further.",
       },
       {
         q: "Is {model} OpenAI-compatible?",
@@ -189,8 +207,11 @@ const STR: Record<Locale, SeoStrings> = {
     coverage: "GPT、Claude、Gemini、DeepSeek、Seedance 等 500+ 模型",
     modalityChat: "对话与补全",
     modalityImage: "图像生成",
+    unitInput: "/100 万 tokens",
+    unitOutput: "/100 万 tokens",
+    unitRequest: "/次",
     intro:
-      "{model} 是 {vendor} 的{modality}模型，可通过 flatkey.ai 的 OpenAI 兼容 API 调用。在 flatkey 上，输入 {inputDiscounted}/100 万 tokens{savings}，输出 {outputDiscounted}/100 万 tokens。一把 API Key 打通 {coverage}，无需更换 SDK 或维护多个账户即可切换模型。预付计费，配实时用量分析和统一账单，规模化时开支可控。",
+      "{model} 是 {vendor} 的{modality}模型，可通过 flatkey.ai 的 OpenAI 兼容 API 调用。在 flatkey 上，输入 {inputDiscounted}{inputUnit}{savings}，输出 {outputDiscounted}{outputUnit}。一把 API Key 打通 {coverage}，无需更换 SDK 或维护多个账户即可切换模型。预付计费，配实时用量分析和统一账单，规模化时开支可控。",
     savingsFull: "较官方列表价 {inputList} 低约 {savingsPct}%",
     savingsShort: "约比官方列表价低 {savingsPct}%",
     cheaper: "约便宜 {savingsPct}%",
@@ -211,7 +232,7 @@ const STR: Record<Locale, SeoStrings> = {
     faq: [
       {
         q: "{model} API 多少钱？",
-        a: "在 flatkey.ai 上，{model} 输入 {inputDiscounted}/100 万 tokens，输出 {outputDiscounted}/100 万 tokens{savingsShort}。充值 $200 送 $100，预算更耐用。",
+        a: "在 flatkey.ai 上，{model} 输入 {inputDiscounted}{inputUnit}，输出 {outputDiscounted}{outputUnit}{savingsShort}。充值 $200 送 $100，预算更耐用。",
       },
       {
         q: "{model} 与 OpenAI 兼容吗？",
@@ -257,8 +278,11 @@ const STR: Record<Locale, SeoStrings> = {
     coverage: "GPT, Claude, Gemini, DeepSeek, Seedance y más de 500 modelos",
     modalityChat: "de chat y completado",
     modalityImage: "de generación de imágenes",
+    unitInput: "por 1M de tokens de entrada",
+    unitOutput: "por 1M de tokens de salida",
+    unitRequest: "por solicitud",
     intro:
-      "{model} es un modelo {modality} de {vendor} que puedes llamar a través de la API compatible con OpenAI de flatkey.ai. En flatkey cuesta {inputDiscounted} por 1M de tokens de entrada{savings} y {outputDiscounted} por 1M de tokens de salida. Una sola API key cubre {coverage}, así que puedes cambiar de modelo sin cambiar de SDK ni gestionar varias cuentas. La facturación es prepago, con analíticas de uso en vivo y una única factura, lo que mantiene el gasto previsible al escalar.",
+      "{model} es un modelo {modality} de {vendor} que puedes llamar a través de la API compatible con OpenAI de flatkey.ai. En flatkey cuesta {inputDiscounted} {inputUnit}{savings} y {outputDiscounted} {outputUnit}. Una sola API key cubre {coverage}, así que puedes cambiar de modelo sin cambiar de SDK ni gestionar varias cuentas. La facturación es prepago, con analíticas de uso en vivo y una única factura, lo que mantiene el gasto previsible al escalar.",
     savingsFull: "alrededor de un {savingsPct}% por debajo del precio de lista oficial de {inputList}",
     savingsShort: "aproximadamente un {savingsPct}% por debajo del precio de lista oficial",
     cheaper: "alrededor de un {savingsPct}% más barato",
@@ -279,7 +303,7 @@ const STR: Record<Locale, SeoStrings> = {
     faq: [
       {
         q: "¿Cuánto cuesta la API de {model}?",
-        a: "En flatkey.ai, {model} cuesta {inputDiscounted} por 1M de tokens de entrada y {outputDiscounted} por 1M de salida{savingsShort}. Recarga $200 y recibe $100 gratis para estirar el presupuesto.",
+        a: "En flatkey.ai, {model} cuesta {inputDiscounted} {inputUnit} y {outputDiscounted} {outputUnit}{savingsShort}. Recarga $200 y recibe $100 gratis para estirar el presupuesto.",
       },
       {
         q: "¿Es {model} compatible con OpenAI?",
@@ -325,8 +349,11 @@ const STR: Record<Locale, SeoStrings> = {
     coverage: "GPT, Claude, Gemini, DeepSeek, Seedance et plus de 500 modèles",
     modalityChat: "de chat et de complétion",
     modalityImage: "de génération d'images",
+    unitInput: "par million de tokens en entrée",
+    unitOutput: "par million de tokens en sortie",
+    unitRequest: "par requête",
     intro:
-      "{model} est un modèle {modality} de {vendor} que vous pouvez appeler via l'API compatible OpenAI de flatkey.ai. Sur flatkey, il coûte {inputDiscounted} par million de tokens en entrée{savings} et {outputDiscounted} par million de tokens en sortie. Une seule clé API couvre {coverage}, ce qui vous permet de changer de modèle sans changer de SDK ni jongler avec plusieurs comptes. La facturation est prépayée, avec des analyses d'usage en temps réel et une facture unique, ce qui rend les dépenses prévisibles à mesure que vous montez en charge.",
+      "{model} est un modèle {modality} de {vendor} que vous pouvez appeler via l'API compatible OpenAI de flatkey.ai. Sur flatkey, il coûte {inputDiscounted} {inputUnit}{savings} et {outputDiscounted} {outputUnit}. Une seule clé API couvre {coverage}, ce qui vous permet de changer de modèle sans changer de SDK ni jongler avec plusieurs comptes. La facturation est prépayée, avec des analyses d'usage en temps réel et une facture unique, ce qui rend les dépenses prévisibles à mesure que vous montez en charge.",
     savingsFull: "environ {savingsPct}% en dessous du tarif catalogue officiel de {inputList}",
     savingsShort: "environ {savingsPct}% en dessous du tarif catalogue officiel",
     cheaper: "environ {savingsPct}% moins cher",
@@ -347,7 +374,7 @@ const STR: Record<Locale, SeoStrings> = {
     faq: [
       {
         q: "Combien coûte l'API {model} ?",
-        a: "Sur flatkey.ai, {model} coûte {inputDiscounted} par million de tokens en entrée et {outputDiscounted} par million en sortie{savingsShort}. Rechargez 200 $ et recevez 100 $ offerts pour prolonger votre budget.",
+        a: "Sur flatkey.ai, {model} coûte {inputDiscounted} {inputUnit} et {outputDiscounted} {outputUnit}{savingsShort}. Rechargez 200 $ et recevez 100 $ offerts pour prolonger votre budget.",
       },
       {
         q: "{model} est-il compatible OpenAI ?",
@@ -393,8 +420,11 @@ const STR: Record<Locale, SeoStrings> = {
     coverage: "GPT, Claude, Gemini, DeepSeek, Seedance e mais de 500 modelos",
     modalityChat: "de chat e conclusão",
     modalityImage: "de geração de imagens",
+    unitInput: "por 1M de tokens de entrada",
+    unitOutput: "por 1M de tokens de saída",
+    unitRequest: "por requisição",
     intro:
-      "{model} é um modelo {modality} da {vendor} que você pode chamar pela API compatível com OpenAI da flatkey.ai. Na flatkey ele custa {inputDiscounted} por 1M de tokens de entrada{savings} e {outputDiscounted} por 1M de tokens de saída. Uma única API key cobre {coverage}, então você troca de modelo sem mudar de SDK nem gerenciar várias contas. A cobrança é pré-paga, com análises de uso ao vivo e uma única fatura, o que mantém o gasto previsível conforme você escala.",
+      "{model} é um modelo {modality} da {vendor} que você pode chamar pela API compatível com OpenAI da flatkey.ai. Na flatkey ele custa {inputDiscounted} {inputUnit}{savings} e {outputDiscounted} {outputUnit}. Uma única API key cobre {coverage}, então você troca de modelo sem mudar de SDK nem gerenciar várias contas. A cobrança é pré-paga, com análises de uso ao vivo e uma única fatura, o que mantém o gasto previsível conforme você escala.",
     savingsFull: "cerca de {savingsPct}% abaixo do preço de tabela oficial de {inputList}",
     savingsShort: "cerca de {savingsPct}% abaixo do preço de tabela oficial",
     cheaper: "cerca de {savingsPct}% mais barato",
@@ -415,7 +445,7 @@ const STR: Record<Locale, SeoStrings> = {
     faq: [
       {
         q: "Quanto custa a API do {model}?",
-        a: "Na flatkey.ai, {model} custa {inputDiscounted} por 1M de tokens de entrada e {outputDiscounted} por 1M de saída{savingsShort}. Recarregue $200 e ganhe $100 grátis para esticar o orçamento.",
+        a: "Na flatkey.ai, {model} custa {inputDiscounted} {inputUnit} e {outputDiscounted} {outputUnit}{savingsShort}. Recarregue $200 e ganhe $100 grátis para esticar o orçamento.",
       },
       {
         q: "O {model} é compatível com OpenAI?",
@@ -461,8 +491,11 @@ const STR: Record<Locale, SeoStrings> = {
     coverage: "GPT, Claude, Gemini, DeepSeek, Seedance и ещё 500+ моделей",
     modalityChat: "для чата и завершений",
     modalityImage: "для генерации изображений",
+    unitInput: "за 1М входных токенов",
+    unitOutput: "за 1М выходных токенов",
+    unitRequest: "за запрос",
     intro:
-      "{model} — это модель {modality} от {vendor}, которую можно вызвать через совместимый с OpenAI API flatkey.ai. На flatkey она стоит {inputDiscounted} за 1М входных токенов{savings} и {outputDiscounted} за 1М выходных токенов. Один API-ключ покрывает {coverage}, поэтому вы переключаете модели без смены SDK и без отдельных аккаунтов. Тарификация предоплатная, с аналитикой использования в реальном времени и единым счётом, что делает расходы предсказуемыми при масштабировании.",
+      "{model} — это модель {modality} от {vendor}, которую можно вызвать через совместимый с OpenAI API flatkey.ai. На flatkey она стоит {inputDiscounted} {inputUnit}{savings} и {outputDiscounted} {outputUnit}. Один API-ключ покрывает {coverage}, поэтому вы переключаете модели без смены SDK и без отдельных аккаунтов. Тарификация предоплатная, с аналитикой использования в реальном времени и единым счётом, что делает расходы предсказуемыми при масштабировании.",
     savingsFull: "примерно на {savingsPct}% ниже официальной прайс-цены {inputList}",
     savingsShort: "примерно на {savingsPct}% ниже официальной прайс-цены",
     cheaper: "примерно на {savingsPct}% дешевле",
@@ -483,7 +516,7 @@ const STR: Record<Locale, SeoStrings> = {
     faq: [
       {
         q: "Сколько стоит API {model}?",
-        a: "На flatkey.ai {model} стоит {inputDiscounted} за 1М входных токенов и {outputDiscounted} за 1М выходных{savingsShort}. Пополните на $200 и получите $100 бесплатно, чтобы растянуть бюджет.",
+        a: "На flatkey.ai {model} стоит {inputDiscounted} {inputUnit} и {outputDiscounted} {outputUnit}{savingsShort}. Пополните на $200 и получите $100 бесплатно, чтобы растянуть бюджет.",
       },
       {
         q: "Совместим ли {model} с OpenAI?",
@@ -528,8 +561,11 @@ const STR: Record<Locale, SeoStrings> = {
     coverage: "GPT、Claude、Gemini、DeepSeek、Seedance など500以上のモデル",
     modalityChat: "チャット・補完",
     modalityImage: "画像生成",
+    unitInput: "入力100万トークンあたり ",
+    unitOutput: "出力100万トークンあたり ",
+    unitRequest: "1回あたり ",
     intro:
-      "{model} は {vendor} の{modality}モデルで、flatkey.ai のOpenAI互換API経由で呼び出せます。flatkey では入力100万トークンあたり {inputDiscounted}{savings}、出力100万トークンあたり {outputDiscounted} です。APIキー1本で {coverage} をカバーし、SDKを変えたり複数アカウントを管理したりせずにモデルを切り替えられます。課金は前払いで、リアルタイムの利用状況分析と1枚の請求書により、スケール時も支出を予測しやすく保てます。",
+      "{model} は {vendor} の{modality}モデルで、flatkey.ai のOpenAI互換API経由で呼び出せます。flatkey では{inputUnit}{inputDiscounted}{savings}、{outputUnit}{outputDiscounted} です。APIキー1本で {coverage} をカバーし、SDKを変えたり複数アカウントを管理したりせずにモデルを切り替えられます。課金は前払いで、リアルタイムの利用状況分析と1枚の請求書により、スケール時も支出を予測しやすく保てます。",
     savingsFull: "公式定価 {inputList} より約{savingsPct}%安い水準",
     savingsShort: "公式定価より約{savingsPct}%安い",
     cheaper: "約{savingsPct}%お得",
@@ -550,7 +586,7 @@ const STR: Record<Locale, SeoStrings> = {
     faq: [
       {
         q: "{model} APIの料金は？",
-        a: "flatkey.ai では、{model} は入力100万トークンあたり {inputDiscounted}、出力100万トークンあたり {outputDiscounted}{savingsShort}。$200チャージで$100プレゼントされ、予算をさらに延ばせます。",
+        a: "flatkey.ai では、{model} は{inputUnit}{inputDiscounted}、{outputUnit}{outputDiscounted}{savingsShort}。$200チャージで$100プレゼントされ、予算をさらに延ばせます。",
       },
       {
         q: "{model} はOpenAI互換ですか？",
@@ -596,8 +632,11 @@ const STR: Record<Locale, SeoStrings> = {
     coverage: "GPT, Claude, Gemini, DeepSeek, Seedance và hơn 500 mô hình khác",
     modalityChat: "trò chuyện và hoàn thành",
     modalityImage: "tạo ảnh",
+    unitInput: "cho mỗi 1M token đầu vào",
+    unitOutput: "cho mỗi 1M token đầu ra",
+    unitRequest: "mỗi lượt gọi",
     intro:
-      "{model} là mô hình {modality} của {vendor} mà bạn có thể gọi qua API tương thích OpenAI của flatkey.ai. Trên flatkey, giá là {inputDiscounted} cho mỗi 1M token đầu vào{savings} và {outputDiscounted} cho mỗi 1M token đầu ra. Một API key bao trùm {coverage}, nên bạn đổi mô hình mà không cần đổi SDK hay quản lý nhiều tài khoản. Thanh toán trả trước, kèm phân tích sử dụng thời gian thực và một hóa đơn duy nhất, giúp chi phí dễ dự đoán khi mở rộng.",
+      "{model} là mô hình {modality} của {vendor} mà bạn có thể gọi qua API tương thích OpenAI của flatkey.ai. Trên flatkey, giá là {inputDiscounted} {inputUnit}{savings} và {outputDiscounted} {outputUnit}. Một API key bao trùm {coverage}, nên bạn đổi mô hình mà không cần đổi SDK hay quản lý nhiều tài khoản. Thanh toán trả trước, kèm phân tích sử dụng thời gian thực và một hóa đơn duy nhất, giúp chi phí dễ dự đoán khi mở rộng.",
     savingsFull: "thấp hơn khoảng {savingsPct}% so với giá niêm yết chính thức {inputList}",
     savingsShort: "thấp hơn khoảng {savingsPct}% so với giá niêm yết chính thức",
     cheaper: "rẻ hơn khoảng {savingsPct}%",
@@ -618,7 +657,7 @@ const STR: Record<Locale, SeoStrings> = {
     faq: [
       {
         q: "API {model} giá bao nhiêu?",
-        a: "Trên flatkey.ai, {model} có giá {inputDiscounted} cho mỗi 1M token đầu vào và {outputDiscounted} cho mỗi 1M đầu ra{savingsShort}. Nạp $200 tặng $100 để kéo dài ngân sách.",
+        a: "Trên flatkey.ai, {model} có giá {inputDiscounted} {inputUnit} và {outputDiscounted} {outputUnit}{savingsShort}. Nạp $200 tặng $100 để kéo dài ngân sách.",
       },
       {
         q: "{model} có tương thích OpenAI không?",
@@ -664,8 +703,11 @@ const STR: Record<Locale, SeoStrings> = {
     coverage: "GPT, Claude, Gemini, DeepSeek, Seedance und über 500 weitere Modelle",
     modalityChat: "Chat- und Completion-",
     modalityImage: "Bildgenerierungs-",
+    unitInput: "pro 1M Eingabe-Tokens",
+    unitOutput: "pro 1M Ausgabe-Tokens",
+    unitRequest: "pro Anfrage",
     intro:
-      "{model} ist ein {modality}Modell von {vendor}, das du über die OpenAI-kompatible API von flatkey.ai aufrufen kannst. Auf flatkey kostet es {inputDiscounted} pro 1M Eingabe-Tokens{savings} und {outputDiscounted} pro 1M Ausgabe-Tokens. Ein API-Key deckt {coverage} ab, sodass du Modelle wechselst, ohne SDKs zu tauschen oder mehrere Konten zu verwalten. Die Abrechnung ist Prepaid, mit Live-Nutzungsanalysen und einer einzigen Rechnung, was die Ausgaben beim Skalieren planbar hält.",
+      "{model} ist ein {modality}Modell von {vendor}, das du über die OpenAI-kompatible API von flatkey.ai aufrufen kannst. Auf flatkey kostet es {inputDiscounted} {inputUnit}{savings} und {outputDiscounted} {outputUnit}. Ein API-Key deckt {coverage} ab, sodass du Modelle wechselst, ohne SDKs zu tauschen oder mehrere Konten zu verwalten. Die Abrechnung ist Prepaid, mit Live-Nutzungsanalysen und einer einzigen Rechnung, was die Ausgaben beim Skalieren planbar hält.",
     savingsFull: "etwa {savingsPct}% unter dem offiziellen Listenpreis von {inputList}",
     savingsShort: "etwa {savingsPct}% unter dem offiziellen Listenpreis",
     cheaper: "etwa {savingsPct}% günstiger",
@@ -686,7 +728,7 @@ const STR: Record<Locale, SeoStrings> = {
     faq: [
       {
         q: "Was kostet die {model}-API?",
-        a: "Auf flatkey.ai kostet {model} {inputDiscounted} pro 1M Eingabe-Tokens und {outputDiscounted} pro 1M Ausgabe-Tokens{savingsShort}. Lade $200 auf und erhalte $100 gratis, um dein Budget zu strecken.",
+        a: "Auf flatkey.ai kostet {model} {inputDiscounted} {inputUnit} und {outputDiscounted} {outputUnit}{savingsShort}. Lade $200 auf und erhalte $100 gratis, um dein Budget zu strecken.",
       },
       {
         q: "Ist {model} OpenAI-kompatibel?",

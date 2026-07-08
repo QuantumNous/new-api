@@ -457,6 +457,7 @@ export function buildModelPublicView(model: PricingModel, data: PricingData) {
     iconKey: model.icon || model.vendor_icon || modelIconKey(model.model_name, vendor),
     endpointTypes: model.supported_endpoint_types ?? [],
     kind: classifyPublicModel(model),
+    isTokenBilled: isTokenBasedModel(model),
     priceRows,
     // Comparison hooks + prose/JSON-LD inputs.
     savingsPct,
@@ -506,7 +507,7 @@ export function buildModelExamplePython(args: {
   const head = [
     "from openai import OpenAI",
     "",
-    `client = OpenAI(base_url="${args.apiBaseUrl}", api_key=os.environ["FLATKEY_API_KEY"])`,
+    `client = OpenAI(base_url=${JSON.stringify(args.apiBaseUrl)}, api_key=os.environ["FLATKEY_API_KEY"])`,
     "",
   ];
   if (args.kind === "image") {
@@ -514,7 +515,7 @@ export function buildModelExamplePython(args: {
       "import os",
       ...head,
       "img = client.images.generate(",
-      `    model="${args.modelName}",`,
+      `    model=${JSON.stringify(args.modelName)},`,
       '    prompt="A cute cat",',
       '    size="1024x1024",',
       ")",
@@ -525,7 +526,7 @@ export function buildModelExamplePython(args: {
     "import os",
     ...head,
     "resp = client.chat.completions.create(",
-    `    model="${args.modelName}",`,
+    `    model=${JSON.stringify(args.modelName)},`,
     '    messages=[{"role": "user", "content": "Say hello in one sentence."}],',
     ")",
     "print(resp.choices[0].message.content)",
@@ -540,14 +541,14 @@ export function buildModelExampleNode(args: {
   const head = [
     'import OpenAI from "openai";',
     "",
-    `const client = new OpenAI({ baseURL: "${args.apiBaseUrl}", apiKey: process.env.FLATKEY_API_KEY });`,
+    `const client = new OpenAI({ baseURL: ${JSON.stringify(args.apiBaseUrl)}, apiKey: process.env.FLATKEY_API_KEY });`,
     "",
   ];
   if (args.kind === "image") {
     return [
       ...head,
       "const img = await client.images.generate({",
-      `  model: "${args.modelName}",`,
+      `  model: ${JSON.stringify(args.modelName)},`,
       '  prompt: "A cute cat",',
       '  size: "1024x1024",',
       "});",
@@ -557,7 +558,7 @@ export function buildModelExampleNode(args: {
   return [
     ...head,
     "const resp = await client.chat.completions.create({",
-    `  model: "${args.modelName}",`,
+    `  model: ${JSON.stringify(args.modelName)},`,
     '  messages: [{ role: "user", content: "Say hello in one sentence." }],',
     "});",
     "console.log(resp.choices[0].message.content);",

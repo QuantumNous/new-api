@@ -151,6 +151,10 @@ type ModelSchemaInput = {
 export function buildModelSchema(input: ModelSchemaInput): JsonLdGraph {
   const modelsUrl = absoluteUrl(localizePath("/models", input.locale));
   const pageUrl = absoluteUrl(input.pagePath);
+  // Only emit an Offer with a real, finite, non-negative price — a NaN/Infinity
+  // or missing price would serialize to null / an invalid price and hand search
+  // engines a broken price signal.
+  const validPrice = Number.isFinite(input.inputPriceUsd) && input.inputPriceUsd >= 0;
   return graph([
     websiteSchema(),
     {
@@ -160,15 +164,19 @@ export function buildModelSchema(input: ModelSchemaInput): JsonLdGraph {
       category: "AI model API",
       brand: { "@type": "Brand", name: input.vendorName },
       url: pageUrl,
-      offers: {
-        "@type": "Offer",
-        priceCurrency: "USD",
-        price: input.inputPriceUsd,
-        description: `Per 1M input tokens for ${input.modelName} on ${SITE_NAME}`,
-        availability: "https://schema.org/InStock",
-        url: pageUrl,
-        seller: organizationSchema(),
-      },
+      ...(validPrice
+        ? {
+            offers: {
+              "@type": "Offer",
+              priceCurrency: "USD",
+              price: input.inputPriceUsd,
+              description: `Effective ${SITE_NAME} price for ${input.modelName}`,
+              availability: "https://schema.org/InStock",
+              url: pageUrl,
+              seller: organizationSchema(),
+            },
+          }
+        : {}),
     },
     {
       "@type": "FAQPage",

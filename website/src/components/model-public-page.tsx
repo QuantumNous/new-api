@@ -52,6 +52,7 @@ export type ModelPublicPageProps = {
   iconKey?: string;
   endpointTypes: string[];
   kind: ModelPublicKind;
+  isTokenBilled: boolean;
   // Pre-formatted on the server from the pricing payload.
   priceRows: ModelPublicPriceRow[];
   savingsPct: number;
@@ -119,6 +120,7 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
     modelName: props.modelName,
     vendorName: props.vendorName,
     kind: props.kind,
+    isTokenBilled: props.isTokenBilled,
     savingsPct: props.savingsPct,
     inputList: props.inputList,
     inputDiscounted: props.inputDiscounted,
