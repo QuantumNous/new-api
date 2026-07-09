@@ -99,6 +99,7 @@ func runClientGoneHedgedRelay(c *gin.Context, relayInfo *relaycommon.RelayInfo, 
 
 	var raceMu sync.Mutex
 	var winner *hedgeAttempt
+	winnerCh := make(chan *hedgeAttempt, 1)
 	attempts := make([]*hedgeAttempt, 0, 2)
 
 	// judge：gate 收到首个数据帧时同步判胜；胜者返回 true，并对败者 MarkLoser → cancel
@@ -110,6 +111,7 @@ func runClientGoneHedgedRelay(c *gin.Context, relayInfo *relaycommon.RelayInfo, 
 				return winner == a
 			}
 			winner = a
+			winnerCh <- a
 			for _, other := range attempts {
 				if other == a {
 					continue
@@ -197,20 +199,11 @@ func runClientGoneHedgedRelay(c *gin.Context, relayInfo *relaycommon.RelayInfo, 
 		}
 	}
 
-	// 等待所有 attempt 结束（败者已被 cancel，会很快退出；上游卡死兜底 60s）
-	waitAttempt(primary, 0)
-	if hedge != nil {
-		if !waitAttempt(hedge, 60*time.Second) {
-			logger.LogError(c, "clientgone hedge: hedge attempt did not finish within grace period, skip loser accounting")
-			hedge = nil // 不再触碰其 HedgeState，延迟计费保持挂起 → 永不结算，安全
-		}
-	}
+	// 等待终局：一旦有赢家，只等赢家自己的流跑完就返回（败者收尾异步做，绝不吊住客户端连接）；
+	// 无赢家则等两路都结束（双败）
+	finalWinner := awaitRaceOutcome(winnerCh, primary, hedge)
 
-	raceMu.Lock()
-	finalWinner := winner
-	raceMu.Unlock()
-
-	// 安全网：没有任何数据帧但有 attempt 正常结束（理论上流式必有数据，防御性处理）
+	// 安全网：没有任何数据帧但有 attempt 正常结束（理论上流式必有数据，防御性处理；此时两路都已结束）
 	if finalWinner == nil {
 		if primary.err == nil {
 			finalWinner = primary
@@ -237,7 +230,7 @@ func runClientGoneHedgedRelay(c *gin.Context, relayInfo *relaycommon.RelayInfo, 
 		return primary.err
 	}
 
-	// 有赢家：结算赢家、记录败者、回填状态
+	// 有赢家：结算赢家、回填状态；败者可能仍在收尾（已被 cancel），记账放后台
 	var loser *hedgeAttempt
 	for _, a := range []*hedgeAttempt{primary, hedge} {
 		if a != nil && a != finalWinner {
@@ -247,7 +240,20 @@ func runClientGoneHedgedRelay(c *gin.Context, relayInfo *relaycommon.RelayInfo, 
 
 	winnerUsage := service.FinalizeHedgeWinnerBilling(finalWinner.c, finalWinner.info)
 	if loser != nil {
-		service.RecordHedgeLoserConsumption(loser.c, loser.info, loser.channel.Id, loser.channel.Name, finalWinner.channel.Id)
+		loserAttempt := loser
+		winnerChannelId := finalWinner.channel.Id
+		requestID := c.GetString(common.RequestIdKey)
+		gopool.Go(func() {
+			if !waitAttempt(loserAttempt, 120*time.Second) {
+				// 败者协程 120s 仍未退出：放弃记账。其 HedgeState 永不结算 → 永不计费，安全
+				logger.LogError(context.Background(), fmt.Sprintf(
+					"clientgone hedge: loser attempt (channel #%d) did not finish within grace period, skip loser accounting, request_id=%s",
+					loserAttempt.channel.Id, requestID))
+				return
+			}
+			service.RecordHedgeLoserConsumption(loserAttempt.c, loserAttempt.info,
+				loserAttempt.channel.Id, loserAttempt.channel.Name, winnerChannelId)
+		})
 	}
 
 	backfillRelayInfoFromAttempt(relayInfo, finalWinner.info)
@@ -314,6 +320,41 @@ func dispatchHedgeRelay(c *gin.Context, info *relaycommon.RelayInfo, relayFormat
 		return relay.ClaudeHelper(c, info)
 	default:
 		return relayHandler(c, info)
+	}
+}
+
+// awaitRaceOutcome 等待竞速终局：
+// 有赢家 → 等赢家自己的 goroutine 结束后立即返回（不等败者）；
+// 无赢家 → 等两路都结束后返回 nil（双败）。
+func awaitRaceOutcome(winnerCh <-chan *hedgeAttempt, primary, hedge *hedgeAttempt) *hedgeAttempt {
+	primaryDone := primary.done
+	var hedgeDone chan struct{}
+	if hedge != nil {
+		hedgeDone = hedge.done
+	}
+	pending := 1
+	if hedge != nil {
+		pending++
+	}
+	for pending > 0 {
+		select {
+		case w := <-winnerCh:
+			<-w.done
+			return w
+		case <-primaryDone:
+			primaryDone = nil
+			pending--
+		case <-hedgeDone:
+			hedgeDone = nil
+			pending--
+		}
+	}
+	// 两路都已结束：判胜可能发生在最后一刻，补收一次
+	select {
+	case w := <-winnerCh:
+		return w
+	default:
+		return nil
 	}
 }
 
