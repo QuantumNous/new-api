@@ -942,3 +942,145 @@ CRYPTO_RPC_BASE=https://mainnet.base.org
 - 系统里 `abilities` 表出现的模型名一律要有自己的倍率条目（`/api/pricing` 不做别名换算），新增渠道用了新的日期变体名时记得同步在"模型定价"里配一份，否则会吃 newapi 内置默认兜底比例 37.5（曾在 haiku 变体上出现过）
 - `/console/pricing` 页面默认按"default"分组的 1.05（5%）加价展示，用户反馈这个页面不该带这个加价，尚未处理（不影响实际计费，只是这个展示页面本身要不要单独去掉分组倍率）
 - **Crypto 重启丢状态**：`sync.Map` 不持久化，重启后 pending 记录丢失，用户需重新提交 txHash
+
+## 渠道采购价四件套与完整性告警修复（2026-07-09）
+
+### 背景
+
+渠道数据页展示的"采购价"是后续记账、结算、毛利统计的基础。一次请求最终会涉及多套价格：
+
+- 渠道采购价：我们向上游采购的价格
+- 用户价格：采购价乘 apimaster 渠道加价倍率后的用户展示基础价
+- 用户最终结算价格：用户价格再乘 group ratio 后的实际扣费价
+- 分销商记账价：分销商与下线结算的拿货价（官方原价 × 下线模型折扣比例）
+
+本节只记录 **渠道数据页最终展示出来的渠道采购价四件套** 的修复和审计口径；使用日志金额快照、分销商结算规则另见记账改造记录。
+
+### 最终口径
+
+渠道数据页每个 `(channel, model)` 最终只认一套采购价，来源优先级固定为：
+
+```text
+pricing > manual > global
+```
+
+含义：
+
+- `pricing`：来自 `channel_model_pricings`，包括普通 `/api/pricing` 采集、OpenRouter `/v1/models` 采集，以及 model mapping 命中的价格。底层历史字段值可能是 `api`，审计展示时统一归一为 `pricing`。
+- `manual`：渠道没有 pricing 行时，按渠道设置里的 `model_price_ratio` + `manual_group_ratio`，基于系统官方原价实时计算。
+- `global`：前两者都没有时，用系统设置里的官方原价兜底。**global 是合法来源**，有些官方渠道本来就应该按官方价格，不再因为触发 global 报警。
+- `none`：三层都没有拿到价格，才是真正异常。
+
+页面最终展示和审计检查的是已经乘过 `recharge_rate` 的实际采购价字段：
+
+- `actual_price`：输入采购价
+- `actual_output_price`：输出采购价
+- `actual_cache_price`：缓存读采购价
+- `actual_cache_creation_price`：缓存写采购价
+
+### 完整性规则
+
+LLM / 文本模型要求四件套都存在且 `> 0`：
+
+- 输入
+- 输出
+- 缓存读
+- 缓存写
+
+图片、视频、按张、按秒、按次模型只要求主价格存在：
+
+- 图片模型按张收费
+- 视频模型按秒收费
+- 这类模型没有输出 token、缓存读、缓存写轴，缺这些字段不报警
+
+当前按媒体模型处理的渠道数据 tab：
+
+- `gemini-3.1-flash-image-preview`
+- `gpt-image-2`
+- `sora-2`
+- `sora-2-pro`
+- `kling-v3-motion-control`
+
+### 修复内容
+
+**`controller/model_data_audit.go`**
+
+- 新增单模型审计接口：`GET /api/admin/channel-data/audit`
+- 新增全部 tab 批量审计接口：`GET /api/admin/channel-data/audit-batch?models=...`
+- 批量接口直接复用渠道数据页同一套价格解析逻辑，避免"页面显示一套，审计另一套"
+- `normalizedChannelDataAuditSource` 将底层 `api` 归一为审计口径的 `pricing`
+- `channelDataAuditShouldAlert` 只在缺价格字段时报警，不再因为 `global` 报警
+- LLM 要求四件套；媒体模型只要求主价格
+
+**`web/default/src/features/channel-data/index.tsx`**
+
+- 渠道数据页顶部增加跨全部模型 tab 的价格完整性汇总
+- 正常时显示：`全部渠道价格齐全`
+- 有问题时显示：`xxmodel，xx渠道 缺价格数据`
+- 行内采购价单元格增加 `缺价` 标记，tooltip 展示缺少的字段
+- 顶部告警不是当前 tab，而是 `MODEL_TABS` 全部模型 + 全部渠道
+
+**`service/channel_pricing.go`**
+
+- `/api/pricing` 返回缺缓存读或缓存写时，按官方原价比例补齐：
+  - `cache_read = 渠道输入价 × 官方缓存读价 / 官方输入价`
+  - `cache_write = 渠道输入价 × 官方缓存写价 / 官方输入价`
+- 只在渠道输入价、输出价有效，且官方四件套可用时补齐
+- 避免上游 `/api/pricing` 缺 `create_cache_ratio` 导致写缓存采购价为 0
+
+**`service/channel_pricing_openrouter.go`**
+
+- OpenRouter `/v1/models` 采集路径也走同一套 `fillMissingCachePricesFromOfficial`
+- 修复 OpenRouter 刷新后再次把写缓存价刷成 0 的问题
+
+### 数据修复与审计结果
+
+2026-07-09 在 master 当前渠道数据页按正确口径重审：
+
+```text
+总渠道-模型行：143
+pricing：81
+manual：56
+global：6
+none：0
+缺价报警：0
+```
+
+结论：
+
+- 当前渠道数据页在用的这批模型和渠道，采购价完整性通过
+- `global=6` 是合法官方价兜底，不算异常
+- `none=0`，说明没有渠道最终完全拿不到价格
+- LLM 渠道当前最终展示的输入、输出、缓存读、缓存写四件套齐全
+- 图片/视频渠道按主价格检查，不误报输出和缓存字段缺失
+
+### 使用日志金额口径修复
+
+本次价格修复前，使用日志新增的金额字段曾出现过两类口径问题：
+
+1. 缓存读 token 被重复计入输入金额
+   - 错误口径：`prompt_tokens` 全量按输入价算，同时又额外把 `cache_tokens` 按缓存读价算
+   - 正确口径：
+     - 普通输入 token = `prompt_tokens - cache_tokens`
+     - 缓存读 token = `cache_tokens`
+     - 输出 token = `completion_tokens`
+   - 这样用户最终结算金额才能和实际扣费 quota 对齐
+
+2. 图片 / 视频模型不能按 token 金额公式算
+   - 图片按张收费，金额 = 张数 × 主价格
+   - 视频按秒收费，金额 = 秒数 × 主价格
+   - 输出、缓存读、缓存写对图片/视频不适用，不参与金额计算
+
+修复后的原则：
+
+- 使用日志里存的是每次请求的价格快照和金额快照，方便后续报表直接汇总
+- LLM 金额按输入、输出、缓存读、缓存写分别计算后求和
+- 图片/视频金额按业务单位计算，后台展示的最终用户扣费金额和日志金额保持一致
+- 账务异常不影响请求；价格/金额快照缺失只用于后续告警和对账排查
+
+### 踩坑记录
+
+- 审计时必须先初始化 `options`，即服务启动链路里的 `model.InitOptionMap()`。否则 `GlobalModelPricingUSD` 只能看到默认内存值，看不到数据库里的官方原价，会把本应命中 `global` 或 `manual` 的渠道误判为 `none`。
+- `api` 和 `pricing` 是同一个来源层级的不同命名：底层 `channel_model_pricings.pricing_source` 多数存 `api`，业务审计口径叫 `pricing`。统计时必须归一，否则会把 pricing 行误算成 `none`。
+- `global` 不是错误。之前曾按"触发 global 就不对"理解过重，最终用户确认：官方渠道可以用官方原价兜底，只有最终价格字段缺失才报警。
+- `/api/pricing` 和 OpenRouter 可能只给输入/输出/缓存读，缺缓存写。对 LLM 记账而言写缓存不能为 0，应该按官方四件套比例补齐。
