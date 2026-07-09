@@ -74,6 +74,12 @@ function renderType(type, t) {
           {t('绘图')}
         </Tag>
       );
+    case 'IMAGE_GENERATION':
+      return (
+        <Tag color='cyan' shape='circle' prefixIcon={<Palette size={14} />}>
+          {t('图片生成')}
+        </Tag>
+      );
     case 'UPSCALE':
       return (
         <Tag color='orange' shape='circle' prefixIcon={<ZoomIn size={14} />}>

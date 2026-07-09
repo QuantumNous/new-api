@@ -265,12 +265,14 @@ func GetAllMidjourney(c *gin.Context) {
 		EndTimestamp:   c.Query("end_timestamp"),
 	}
 
-	items := model.GetAllTasks(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
-	total := model.CountAllTasks(queryParams)
+	items := model.GetAllDrawingLogs(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
+	total := model.CountAllDrawingLogs(queryParams)
 
 	if setting.MjForwardUrlEnabled {
 		for i, midjourney := range items {
-			midjourney.ImageUrl = system_setting.ServerAddress + "/mj/image/" + midjourney.MjId
+			if midjourney.Id > 0 {
+				midjourney.ImageUrl = system_setting.ServerAddress + "/mj/image/" + midjourney.MjId
+			}
 			items[i] = midjourney
 		}
 	}
@@ -290,12 +292,14 @@ func GetUserMidjourney(c *gin.Context) {
 		EndTimestamp:   c.Query("end_timestamp"),
 	}
 
-	items := model.GetAllUserTask(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
-	total := model.CountAllUserTask(userId, queryParams)
+	items := model.GetAllUserDrawingLogs(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
+	total := model.CountAllUserDrawingLogs(userId, queryParams)
 
 	if setting.MjForwardUrlEnabled {
 		for i, midjourney := range items {
-			midjourney.ImageUrl = system_setting.ServerAddress + "/mj/image/" + midjourney.MjId
+			if midjourney.Id > 0 {
+				midjourney.ImageUrl = system_setting.ServerAddress + "/mj/image/" + midjourney.MjId
+			}
 			items[i] = midjourney
 		}
 	}
