@@ -72,7 +72,42 @@ export function buildTaskBillingSummaryLines({
   const conditionalInputPrice = Number(other?.conditional_input_price);
 
   if (Number.isFinite(conditionalInputPrice) && conditionalInputPrice > 0) {
-    lines.push(`Input Price ${formatPrice(conditionalInputPrice)} / 1M tokens`);
+    lines.push(
+      t('Input Price {{price}} / 1M tokens', {
+        price: formatPrice(conditionalInputPrice),
+      }),
+    );
+  }
+
+  if (other?.billing_mode === 'video_seconds') {
+    if (other?.video_seconds_tier) {
+      lines.push(
+        t('Resolution {{tier}}', {
+          tier: other.video_seconds_tier,
+        }),
+      );
+    }
+    if (other?.video_audio_enabled !== undefined) {
+      lines.push(
+        t('Audio {{mode}}', {
+          mode: other.video_audio_enabled === true ? t('enabled') : t('silent'),
+        }),
+      );
+    }
+    if (Number.isFinite(Number(other?.video_duration_seconds))) {
+      lines.push(
+        t('Duration {{seconds}}s', {
+          seconds: Number(other.video_duration_seconds),
+        }),
+      );
+    }
+    if (Number.isFinite(Number(other?.video_seconds_unit_price))) {
+      lines.push(
+        t('Unit Price {{price}} / second', {
+          price: formatPrice(Number(other.video_seconds_unit_price)),
+        }),
+      );
+    }
   }
 
   if (content) {
@@ -86,4 +121,44 @@ export function buildTaskBillingSummaryLines({
   }
 
   return lines;
+}
+
+export function buildVideoSecondsBillingProcessLines({
+  other,
+  formatPrice,
+  t,
+  ratioLabel,
+}) {
+  if (other?.billing_mode !== 'video_seconds') {
+    return [];
+  }
+
+  const unitPrice = Number(other?.video_seconds_unit_price);
+  const durationSeconds = Number(other?.video_duration_seconds);
+  const groupRatio = Number(other?.group_ratio ?? 1);
+  const tier = String(other?.video_seconds_tier ?? '').toUpperCase();
+  const audioLabel = other?.video_audio_enabled === true ? t('audio') : t('silent');
+
+  if (!Number.isFinite(unitPrice) || !Number.isFinite(durationSeconds)) {
+    return [];
+  }
+
+  const details = [];
+  if (tier) {
+    details.push(tier);
+  }
+  details.push(audioLabel);
+  details.push(`${durationSeconds}s`);
+
+  return [
+    t('Video Rate {{price}} / second', {
+      price: formatPrice(unitPrice),
+    }),
+    t('{{details}} * {{ratioLabel}} {{ratio}} = {{total}}', {
+      details: details.join(' / '),
+      ratioLabel,
+      ratio: groupRatio,
+      total: formatPrice(unitPrice * durationSeconds * groupRatio),
+    }),
+  ];
 }

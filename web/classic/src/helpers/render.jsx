@@ -20,7 +20,11 @@ For commercial licensing, please contact support@quantumnous.com
 import i18next from 'i18next';
 import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
-import { buildTaskBillingSummaryLines, isTaskLog } from './taskBillingSummary';
+import {
+  buildTaskBillingSummaryLines,
+  buildVideoSecondsBillingProcessLines,
+  isTaskLog,
+} from './taskBillingSummary';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 import { visit } from 'unist-util-visit';
 import * as LobeIcons from '@lobehub/icons';
@@ -1644,14 +1648,46 @@ function renderPriceSimpleCore({
 }
 
 export function renderTaskBillingProcess(other, content) {
-  if (other?.task_id != null) {
-    return renderBillingArticle([content].filter(Boolean), {
+  if (other?.billing_mode === 'video_seconds') {
+    const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
+      other?.group_ratio,
+      other?.user_group_ratio,
+    );
+    const lines = buildVideoSecondsBillingProcessLines({
+      other: {
+        ...other,
+        group_ratio: effectiveGroupRatio,
+      },
+      t: (value, vars) => i18next.t(value, vars),
+      formatPrice: (value) => formatBillingDisplayPrice(value, 1),
+      ratioLabel: i18next.t(ratioLabel),
+    });
+
+    if (lines.length > 0) {
+      return renderBillingArticle(lines, {
+        showReferenceNote: false,
+      });
+    }
+  }
+
+  const lines = buildTaskBillingSummaryLines({
+    other,
+    content,
+    t: (value) => value,
+    formatPrice: (value) => formatBillingDisplayPrice(value, 1),
+  });
+
+  if (lines.length > 0) {
+    return renderBillingArticle(lines, {
       showReferenceNote: false,
     });
   }
-  return renderBillingArticle([
-    buildBillingText('任务预扣费（将在任务完成后按实际token重算）'),
-  ]);
+  return renderBillingArticle(
+    [buildBillingText('任务预扣费（将在任务完成后按实际token重算）')],
+    {
+      showReferenceNote: false,
+    },
+  );
 }
 
 export function renderModelPrice(

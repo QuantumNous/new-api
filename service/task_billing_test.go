@@ -235,6 +235,58 @@ func TestLogTaskConsumptionIncludesConditionalInputPrice(t *testing.T) {
 	assert.Equal(t, "/v1/video/generations", other["request_path"])
 }
 
+func TestLogTaskConsumptionIncludesVideoSecondsBillingDetails(t *testing.T) {
+	truncate(t)
+
+	const userID, tokenID, channelID = 2, 2, 2
+	seedUser(t, userID, 100000)
+	seedToken(t, tokenID, userID, "sk-test-key-2", 100000)
+	seedChannel(t, channelID)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+	ctx.Set("token_name", "test-token")
+
+	audioEnabled := false
+	info := &relaycommon.RelayInfo{
+		UserId:          userID,
+		TokenId:         tokenID,
+		UsingGroup:      "default",
+		OriginModelName: "kling/kling-v3-video-generation",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId: channelID,
+		},
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{
+			Action: "textGenerate",
+		},
+		PriceData: types.PriceData{
+			ModelPrice:            -1,
+			VideoSecondsUnitPrice: 0.6,
+			VideoSecondsTier:      "720p",
+			VideoDurationSeconds:  5,
+			VideoAudioEnabled:     &audioEnabled,
+			Quota:                 1500000,
+			GroupRatioInfo: types.GroupRatioInfo{
+				GroupRatio: 1,
+			},
+		},
+	}
+
+	LogTaskConsumption(ctx, info)
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+
+	var other map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(log.Other), &other))
+	assert.Equal(t, "video_seconds", other["billing_mode"])
+	assert.Equal(t, float64(0.6), other["video_seconds_unit_price"])
+	assert.Equal(t, "720p", other["video_seconds_tier"])
+	assert.Equal(t, float64(5), other["video_duration_seconds"])
+	assert.Equal(t, false, other["video_audio_enabled"])
+}
+
 // ===========================================================================
 // RefundTaskQuota tests
 // ===========================================================================
