@@ -9933,6 +9933,273 @@
                 "inheritPreProcessors": {}
               }
             },
+
+            {
+              "name": "??????",
+              "api": {
+                "id": "580700001",
+                "method": "get",
+                "path": "/api/user/order/status",
+                "parameters": {
+                  "path": [],
+                  "query": [
+                    {
+                      "id": "ordStatusTradeNo",
+                      "name": "trade_no",
+                      "required": true,
+                      "enable": true,
+                      "description": "??????????????????",
+                      "example": "sub_ref_xxx",
+                      "type": "string",
+                      "schema": {
+                        "type": "string"
+                      },
+                      "omitGeneratedExample": false
+                    },
+                    {
+                      "id": "ordStatusType",
+                      "name": "type",
+                      "required": false,
+                      "enable": true,
+                      "description": "?????`auto` ???????????`topup` ??????`subscription` ??????",
+                      "example": "auto",
+                      "type": "string",
+                      "schema": {
+                        "type": "string",
+                        "default": "auto",
+                        "enum": [
+                          "auto",
+                          "topup",
+                          "subscription"
+                        ]
+                      },
+                      "omitGeneratedExample": false
+                    }
+                  ],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {
+                  "type": "securityscheme"
+                },
+                "securityScheme": {
+                  "schemeGroups": [
+                    {
+                      "id": "k5GxFzRvKZrOVjoN2b-tg",
+                      "schemeIds": [
+                        1531752
+                      ]
+                    },
+                    {
+                      "id": "VpMVgi3qT-WZaP5J0GU0v",
+                      "schemeIds": [
+                        1531753
+                      ]
+                    }
+                  ],
+                  "required": true,
+                  "use": {
+                    "id": "k5GxFzRvKZrOVjoN2b-tg",
+                    "configs": {
+                      "1531752": {}
+                    }
+                  },
+                  "scopes": {
+                    "VpMVgi3qT-WZaP5J0GU0v": {}
+                  }
+                },
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "580700002",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "order_type": {
+                              "type": "string",
+                              "enum": [
+                                "topup",
+                                "subscription"
+                              ]
+                            },
+                            "trade_no": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "payment_method": {
+                              "type": "string"
+                            },
+                            "payment_provider": {
+                              "type": "string"
+                            },
+                            "create_time": {
+                              "type": "integer"
+                            },
+                            "complete_time": {
+                              "type": "integer"
+                            },
+                            "amount": {
+                              "type": "integer"
+                            },
+                            "plan_id": {
+                              "type": "integer"
+                            },
+                            "money": {
+                              "type": "number"
+                            }
+                          },
+                          "x-apifox-orders": [
+                            "order_type",
+                            "trade_no",
+                            "status",
+                            "payment_method",
+                            "payment_provider",
+                            "create_time",
+                            "complete_time",
+                            "amount",
+                            "plan_id",
+                            "money"
+                          ]
+                        }
+                      },
+                      "x-apifox-orders": [
+                        "success",
+                        "message",
+                        "data"
+                      ]
+                    },
+                    "itemSchema": {},
+                    "description": "??",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [
+                  {
+                    "name": "????????",
+                    "data": "{\n  \"success\": true,\n  \"message\": \"\",\n  \"data\": {\n    \"order_type\": \"subscription\",\n    \"trade_no\": \"sub_ref_xxx\",\n    \"status\": \"pending\",\n    \"payment_method\": \"alipay\",\n    \"payment_provider\": \"alipay\",\n    \"create_time\": 1760000000,\n    \"complete_time\": 0,\n    \"plan_id\": 1,\n    \"money\": 9.99\n  }\n}",
+                    "responseId": "580700002",
+                    "description": "",
+                    "oasKey": "subscription",
+                    "oasExtensions": ""
+                  },
+                  {
+                    "name": "????????",
+                    "data": "{\n  \"success\": true,\n  \"message\": \"\",\n  \"data\": {\n    \"order_type\": \"topup\",\n    \"trade_no\": \"topup_ref_xxx\",\n    \"status\": \"success\",\n    \"payment_method\": \"stripe\",\n    \"payment_provider\": \"stripe\",\n    \"create_time\": 1760000000,\n    \"complete_time\": 1760000300,\n    \"amount\": 500000,\n    \"money\": 5\n  }\n}",
+                    "responseId": "580700002",
+                    "description": "",
+                    "oasKey": "topup",
+                    "oasExtensions": ""
+                  }
+                ],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "?? ?????User?????????????????????????????????????? `type` ????????",
+                "tags": [
+                  "??"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 9,
+                "cases": [
+                  {
+                    "id": 580700003,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "??",
+                    "responseId": "580700002",
+                    "parameters": {
+                      "path": [],
+                      "query": [
+                        {
+                          "id": "ordStatusTradeNoCase",
+                          "relatedId": "ordStatusTradeNo",
+                          "relatedName": "trade_no",
+                          "name": "trade_no",
+                          "type": "string",
+                          "value": "sub_ref_xxx",
+                          "enable": true,
+                          "description": "??????????????????",
+                          "isDelete": false
+                        },
+                        {
+                          "id": "ordStatusTypeCase",
+                          "relatedId": "ordStatusType",
+                          "relatedName": "type",
+                          "name": "type",
+                          "type": "string",
+                          "value": "subscription",
+                          "enable": true,
+                          "description": "?????`auto` ???????????`topup` ??????`subscription` ??????",
+                          "isDelete": false
+                        }
+                      ],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
             {
               "name": "发起易支付",
               "api": {
@@ -39265,6 +39532,212 @@
                 "inheritPreProcessors": {}
               }
             },
+
+            {
+              "name": "?????????",
+              "api": {
+                "id": "580700101",
+                "method": "post",
+                "path": "/api/subscription/alipay/pay",
+                "parameters": {
+                  "path": [],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {
+                  "type": "securityscheme"
+                },
+                "securityScheme": {
+                  "schemeGroups": [
+                    {
+                      "id": "v3AEQ5QbT_wRDhwY-fQsK",
+                      "schemeIds": [
+                        1531752
+                      ]
+                    },
+                    {
+                      "id": "6bLB6YE1CQISlDK0iuFFt",
+                      "schemeIds": [
+                        1531753
+                      ]
+                    }
+                  ],
+                  "required": true,
+                  "use": {
+                    "id": "v3AEQ5QbT_wRDhwY-fQsK",
+                    "configs": {
+                      "1531752": {}
+                    }
+                  },
+                  "scopes": {
+                    "6bLB6YE1CQISlDK0iuFFt": {}
+                  }
+                },
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "580700102",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "pay_type": {
+                              "type": "string",
+                              "description": "??? redirect"
+                            },
+                            "pay_url": {
+                              "type": "string"
+                            },
+                            "trade_no": {
+                              "type": "string"
+                            }
+                          },
+                          "x-apifox-orders": [
+                            "pay_type",
+                            "pay_url",
+                            "trade_no"
+                          ]
+                        }
+                      },
+                      "x-apifox-orders": [
+                        "message",
+                        "data"
+                      ]
+                    },
+                    "itemSchema": {},
+                    "description": "??",
+                    "contentType": "json",
+                    "mediaType": "application/json",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [
+                  {
+                    "name": "????",
+                    "data": "{\n  \"message\": \"success\",\n  \"data\": {\n    \"pay_type\": \"redirect\",\n    \"pay_url\": \"https://openapi.alipay.com/gateway.do?...\",\n    \"trade_no\": \"sub_ref_xxx\"\n  }\n}",
+                    "responseId": "580700102",
+                    "description": "",
+                    "oasKey": "",
+                    "oasExtensions": ""
+                  }
+                ],
+                "requestBody": {
+                  "type": "application/json",
+                  "parameters": [],
+                  "jsonSchema": {
+                    "type": "object",
+                    "properties": {
+                      "plan_id": {
+                        "type": "integer",
+                        "description": "???? ID"
+                      },
+                      "payment_method": {
+                        "type": "string",
+                        "description": "???????? `alipay`",
+                        "enum": [
+                          "alipay"
+                        ]
+                      },
+                      "return_url": {
+                        "type": "string",
+                        "description": "?????????????????????????"
+                      }
+                    },
+                    "required": [
+                      "plan_id",
+                      "payment_method"
+                    ],
+                    "x-apifox-orders": [
+                      "plan_id",
+                      "payment_method",
+                      "return_url"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "value": "{\n  \"plan_id\": 1,\n  \"payment_method\": \"alipay\",\n  \"return_url\": \"https://app.example.com/console/topup?show_history=true\"\n}",
+                      "mediaType": "application/json",
+                      "description": ""
+                    }
+                  ],
+                  "mediaType": "application/json",
+                  "oasExtensions": "",
+                  "required": true,
+                  "additionalContentTypes": []
+                },
+                "description": "????????????????????????????????????",
+                "tags": [
+                  "??"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 21,
+                "cases": [
+                  {
+                    "id": 580700103,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "??",
+                    "responseId": "580700102",
+                    "parameters": {
+                      "path": [],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "data": "{\n  \"plan_id\": 1,\n  \"payment_method\": \"alipay\",\n  \"return_url\": \"https://app.example.com/console/topup?show_history=true\"\n}",
+                      "type": "application/json",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
             {
               "name": "发起订阅 Stripe 支付",
               "api": {
@@ -41131,6 +41604,235 @@
                     "path": null,
                     "name": "成功",
                     "responseId": "181964674",
+                    "parameters": {
+                      "path": [],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+
+            {
+              "name": "?????????",
+              "api": {
+                "id": "580700111",
+                "method": "post",
+                "path": "/api/subscription/alipay/notify",
+                "parameters": {
+                  "path": [],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {},
+                "securityScheme": {},
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "580700112",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "string",
+                      "examples": [
+                        "success"
+                      ]
+                    },
+                    "itemSchema": {},
+                    "description": "??",
+                    "contentType": "raw",
+                    "mediaType": "text/plain",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [
+                  {
+                    "name": "????",
+                    "data": "\"success\"",
+                    "responseId": "580700112",
+                    "description": "",
+                    "oasKey": "",
+                    "oasExtensions": ""
+                  }
+                ],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "?????????????????????????????????????? `success`????? `fail`?",
+                "tags": [
+                  "??"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 99,
+                "cases": [
+                  {
+                    "id": 580700113,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "??",
+                    "responseId": "580700112",
+                    "parameters": {
+                      "path": [],
+                      "query": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {},
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "none",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 8068398,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 8068398,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            },
+            {
+              "name": "??????????GET?",
+              "api": {
+                "id": "580700114",
+                "method": "get",
+                "path": "/api/subscription/alipay/notify",
+                "parameters": {
+                  "path": [],
+                  "query": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "auth": {},
+                "securityScheme": {},
+                "commonParameters": {},
+                "responses": [
+                  {
+                    "id": "580700115",
+                    "code": "200",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "string",
+                      "examples": [
+                        "success"
+                      ]
+                    },
+                    "itemSchema": {},
+                    "description": "??",
+                    "contentType": "raw",
+                    "mediaType": "text/plain",
+                    "oasExtensions": ""
+                  }
+                ],
+                "responseExamples": [
+                  {
+                    "name": "????",
+                    "data": "\"success\"",
+                    "responseId": "580700115",
+                    "description": "",
+                    "oasKey": "",
+                    "oasExtensions": ""
+                  }
+                ],
+                "requestBody": {
+                  "type": "none",
+                  "parameters": [],
+                  "oasExtensions": "",
+                  "required": false,
+                  "additionalContentTypes": []
+                },
+                "description": "??????????? GET ????????? Query ????????????????? `success`????? `fail`?",
+                "tags": [
+                  "??"
+                ],
+                "status": "released",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 100,
+                "cases": [
+                  {
+                    "id": 580700116,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "??",
+                    "responseId": "580700115",
                     "parameters": {
                       "path": [],
                       "query": [],
