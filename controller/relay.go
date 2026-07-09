@@ -227,20 +227,28 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
-		switch relayFormat {
-		case types.RelayFormatOpenAIRealtime:
-			newAPIError = relay.WssHelper(c, relayInfo)
-		case types.RelayFormatClaude:
-			newAPIError = relay.ClaudeHelper(c, relayInfo)
-		case types.RelayFormatGemini:
-			newAPIError = geminiRelayHandler(c, relayInfo)
-		default:
-			newAPIError = relayHandler(c, relayInfo)
+		if policy, hedgeOk := shouldClientGoneHedge(c, relayInfo, relayFormat, retryParam.GetRetry()); hedgeOk {
+			newAPIError = runClientGoneHedgedRelay(c, relayInfo, relayFormat, channel, retryParam, policy)
+		} else {
+			switch relayFormat {
+			case types.RelayFormatOpenAIRealtime:
+				newAPIError = relay.WssHelper(c, relayInfo)
+			case types.RelayFormatClaude:
+				newAPIError = relay.ClaudeHelper(c, relayInfo)
+			case types.RelayFormatGemini:
+				newAPIError = geminiRelayHandler(c, relayInfo)
+			default:
+				newAPIError = relayHandler(c, relayInfo)
+			}
 		}
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
-			service.RecordChannelSuccess(channel.Id)
+			successChannelId := channel.Id
+			if winnerId := c.GetInt(clientGoneHedgeWinnerChannelKey); winnerId > 0 {
+				successChannelId = winnerId
+			}
+			service.RecordChannelSuccess(successChannelId)
 			notifyOfficialFallbackResult(c, relayInfo, nil)
 			service.MaybeEnqueueShadowBenchmark(c, relayInfo, relayFormat, nil)
 			return
@@ -251,7 +259,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		retryDecision := evaluateRetry(c, newAPIError, retryParam.GetRetry(), common.RetryTimes-retryParam.GetRetry())
 		setRetryDecision(c, retryDecision)
-		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		if c.GetBool("clientgone_hedge_error_accounted") {
+			// clientgone fallback 竞速内部已按真实失败渠道计过账，避免误记到 primary 渠道
+			c.Set("clientgone_hedge_error_accounted", false)
+		} else {
+			processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		}
 
 		if !retryDecision.ShouldRetry {
 			break

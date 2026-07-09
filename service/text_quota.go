@@ -331,6 +331,10 @@ func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) 
 }
 
 func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []string) {
+	// clientgone fallback 竞速中的 attempt：计费延迟到竞速终局由控制器统一结算
+	if relayInfo != nil && relayInfo.HedgeState != nil && relayInfo.HedgeState.TryDefer(usage, extraContent) {
+		return
+	}
 	originUsage := usage
 	if usage == nil {
 		extraContent = append(extraContent, "上游无计费信息")

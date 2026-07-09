@@ -67,6 +67,7 @@ const defaultModelSettings: ModelSettings = {
   'channel_affinity_setting.default_ttl_seconds': 3600,
   'channel_affinity_setting.rules': '[]',
   model_fallback_setting: '{"policies":[]}',
+  clientgone_fallback_setting: '{"policies":[]}',
   'model_deployment.ionet.api_key': '',
   'model_deployment.ionet.enabled': false,
 }

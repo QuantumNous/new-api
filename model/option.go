@@ -212,6 +212,7 @@ func InitOptionMap() {
 		common.OptionMap[k] = v
 	}
 	common.OptionMap["model_fallback_setting"] = model_setting.GetModelFallbackSettingsJSONString()
+	common.OptionMap["clientgone_fallback_setting"] = model_setting.GetClientGoneFallbackSettingsJSONString()
 
 	common.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
@@ -266,6 +267,13 @@ func UpdateOption(key string, value string) error {
 		}
 		value = normalizedValue
 	}
+	if key == "clientgone_fallback_setting" {
+		normalizedValue, err := model_setting.NormalizeClientGoneFallbackSettingsJSONString(value)
+		if err != nil {
+			return err
+		}
+		value = normalizedValue
+	}
 	// Save to database first
 	option := Option{
 		Key: key,
@@ -292,6 +300,14 @@ func updateOptionMap(key string, value string) (err error) {
 		}
 		common.OptionMap["model_fallback_setting"] = normalizedValue
 		delete(common.OptionMap, "model_fallback_setting.policies")
+		return nil
+	}
+	if key == "clientgone_fallback_setting" {
+		normalizedValue, applyErr := model_setting.ApplyClientGoneFallbackSettings(value)
+		if applyErr != nil {
+			return applyErr
+		}
+		common.OptionMap["clientgone_fallback_setting"] = normalizedValue
 		return nil
 	}
 	common.OptionMap[key] = value

@@ -33,6 +33,11 @@ type FailedRequestSnapshot struct {
 	RelayFormat     string `json:"relay_format" gorm:"type:varchar(64)"`
 	LastChannelId   int    `json:"last_channel_id" gorm:"index"`
 	LastChannelName string `json:"last_channel_name"`
+	// 时序字段（相对请求开始的毫秒数；-1 表示未发生）
+	FrtMs             int64 `json:"frt_ms" gorm:"default:-1"`      // 首字时刻
+	CancelAtMs        int64 `json:"cancel_at_ms" gorm:"default:-1"` // 快照写入时刻（client_gone 时 ≈ 客户端断开被检测到的时刻）
+	LastDataMs        int64 `json:"last_data_ms" gorm:"default:-1"` // 最后一次收到上游数据的时刻
+	SendResponseCount int   `json:"send_response_count"`            // 断开前已向客户端下发的 chunk 数
 }
 
 const (

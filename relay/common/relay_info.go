@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -120,6 +121,9 @@ type RelayInfo struct {
 	RelayFormat            types.RelayFormat
 	SendResponseCount      int
 	ReceivedResponseCount  int
+	// LastDataTime 记录最后一次从上游收到有效数据的时刻（零值表示从未收到），
+	// 用于 client_gone 快照分析"断开时数据流进行到哪一步"。
+	LastDataTime time.Time
 	FinalPreConsumedQuota  int // 最终预消耗的配额
 	// ForcePreConsume 为 true 时禁用 BillingSession 的信任额度旁路，
 	// 强制预扣全额。用于异步任务（视频/音乐生成等），因为请求返回后任务仍在运行，
@@ -170,6 +174,10 @@ type RelayInfo struct {
 	FinalRequestRelayFormat types.RelayFormat
 
 	StreamStatus *StreamStatus
+
+	// HedgeState 非 nil 表示当前 RelayInfo 是 clientgone fallback 竞速的一个 attempt，
+	// 计费会被延迟到竞速终局由控制器统一结算。nil = 完全现状路径。
+	HedgeState *HedgeAttemptState
 
 	ThinkingContentInfo
 	TokenCountMeta
@@ -656,6 +664,115 @@ func (info *RelayInfo) SetFirstResponseTime() {
 
 func (info *RelayInfo) HasSendResponse() bool {
 	return info.FirstResponseTime.After(info.StartTime)
+}
+
+const (
+	HedgeRolePrimary = "primary"
+	HedgeRoleHedge   = "hedge"
+)
+
+// HedgeAttemptState 记录 clientgone fallback 竞速中单个 attempt 的计费延迟状态。
+// PostTextConsumeQuota 在竞速期间通过 TryDefer 暂存 usage；
+// 竞速终局由控制器对赢家调用 TakeDeferred 后重入结算，败者的暂存 usage 只记日志不扣费。
+type HedgeAttemptState struct {
+	Role string
+
+	mu            sync.Mutex
+	settled       bool
+	loser         bool
+	deferredUsage any // *dto.Usage；用 any 避免与 dto 的循环引用顾虑，取出时由调用方断言
+	deferredExtra []string
+	hasDeferred   bool
+}
+
+// TryDefer 在竞速未结算时暂存计费参数并返回 true（计费被延迟）；
+// 已结算（赢家重入）时返回 false，让 PostTextConsumeQuota 正常走完。
+func (s *HedgeAttemptState) TryDefer(usage any, extraContent []string) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.settled {
+		return false
+	}
+	s.deferredUsage = usage
+	s.deferredExtra = extraContent
+	s.hasDeferred = true
+	return true
+}
+
+// TakeDeferred 标记结算并取出暂存的计费参数；ok=false 表示该 attempt 从未走到计费点。
+func (s *HedgeAttemptState) TakeDeferred() (usage any, extraContent []string, ok bool) {
+	if s == nil {
+		return nil, nil, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.settled = true
+	if !s.hasDeferred {
+		return nil, nil, false
+	}
+	return s.deferredUsage, s.deferredExtra, true
+}
+
+func (s *HedgeAttemptState) MarkLoser() {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loser = true
+}
+
+func (s *HedgeAttemptState) IsLoser() bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.loser
+}
+
+// CloneForHedgeAttempt 生成用于竞速 attempt 的 RelayInfo 副本：
+// 浅拷贝后重置所有 per-attempt 派生状态；Billing 指针保持共享（预扣费只有一次，赢家结算一次）。
+// 注意：clone.Request 与原对象共享，hedge attempt 必须由调用方重新解析并覆盖（模型映射会改写 DTO）。
+func (info *RelayInfo) CloneForHedgeAttempt(role string) *RelayInfo {
+	if info == nil {
+		return nil
+	}
+	clone := *info
+	clone.FirstResponseTime = info.StartTime.Add(-time.Second)
+	clone.isFirstResponse = true
+	clone.SendResponseCount = 0
+	clone.ReceivedResponseCount = 0
+	clone.LastDataTime = time.Time{}
+	clone.StreamStatus = nil
+	clone.LastError = nil
+	clone.ChannelMeta = nil
+	clone.FinalRequestRelayFormat = ""
+	clone.RequestConversionChain = append([]types.RelayFormat(nil), info.RequestConversionChain...)
+	clone.ThinkingContentInfo = ThinkingContentInfo{
+		IsFirstThinkingContent:  true,
+		SendLastThinkingContent: false,
+	}
+	if info.ClaudeConvertInfo != nil {
+		cc := *info.ClaudeConvertInfo
+		cc.Usage = nil
+		clone.ClaudeConvertInfo = &cc
+	}
+	if info.ResponsesUsageInfo != nil {
+		tools := make(map[string]*BuildInToolInfo, len(info.ResponsesUsageInfo.BuiltInTools))
+		for k, v := range info.ResponsesUsageInfo.BuiltInTools {
+			if v != nil {
+				vv := *v
+				tools[k] = &vv
+			}
+		}
+		clone.ResponsesUsageInfo = &ResponsesUsageInfo{BuiltInTools: tools}
+	}
+	clone.HedgeState = &HedgeAttemptState{Role: role}
+	return &clone
 }
 
 type TaskRelayInfo struct {

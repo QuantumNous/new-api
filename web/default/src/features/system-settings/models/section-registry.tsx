@@ -21,6 +21,7 @@ import { IoNetDeploymentSettingsSection } from '../integrations/ionet-deployment
 import type { ModelSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { ClaudeSettingsCard } from './claude-settings-card'
+import { ClientGoneFallbackSettingsSection } from './clientgone-fallback-settings-section'
 import { GeminiSettingsCard } from './gemini-settings-card'
 import { GlobalSettingsCard } from './global-settings-card'
 import { GrokSettingsCard } from './grok-settings-card'
@@ -148,13 +149,18 @@ const MODELS_SECTIONS = [
   },
   {
     id: 'official-fallback',
-    titleKey: 'Official Fallback',
+    titleKey: 'Fallback Config',
     descriptionKey:
-      'Configure which request model IDs switch to an official fallback channel after a number of failed attempts.',
+      'Configure official fallback and clientgone fallback (first-byte racing) rules.',
     build: (settings: ModelSettings) => (
-      <OfficialFallbackSettingsSection
-        defaultValue={settings['model_fallback_setting']}
-      />
+      <div className="space-y-6">
+        <OfficialFallbackSettingsSection
+          defaultValue={settings['model_fallback_setting']}
+        />
+        <ClientGoneFallbackSettingsSection
+          defaultValue={settings['clientgone_fallback_setting']}
+        />
+      </div>
     ),
   },
   {

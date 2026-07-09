@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -124,7 +125,17 @@ func SaveRequestSnapshot(c *gin.Context, relayInfo *relaycommon.RelayInfo, opts 
 		RelayFormat:     string(relayFormat),
 		LastChannelId:   c.GetInt("channel_id"),
 		LastChannelName: c.GetString("channel_name"),
+		FrtMs:           -1,
+		CancelAtMs:      time.Since(relayInfo.StartTime).Milliseconds(),
+		LastDataMs:      -1,
 	}
+	if relayInfo.HasSendResponse() {
+		snapshot.FrtMs = relayInfo.FirstResponseTime.Sub(relayInfo.StartTime).Milliseconds()
+	}
+	if !relayInfo.LastDataTime.IsZero() {
+		snapshot.LastDataMs = relayInfo.LastDataTime.Sub(relayInfo.StartTime).Milliseconds()
+	}
+	snapshot.SendResponseCount = relayInfo.SendResponseCount
 	if err := model.SaveFailedRequestSnapshot(snapshot); err != nil {
 		logger.LogError(c, fmt.Sprintf("failed to save request snapshot: %s", err.Error()))
 		return
