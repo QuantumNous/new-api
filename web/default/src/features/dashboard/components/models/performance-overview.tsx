@@ -45,40 +45,53 @@ type PerformanceSummary = {
   successRate: number
 }
 
-function simpleAverage(
+function weightedAverage(
   rows: PerfModelSummary[],
   metric: WeightedMetric,
   isValid: (value: number) => boolean
 ): number {
-  let total = 0
-  let count = 0
+  let weightedTotal = 0
+  let weightSum = 0
+  let fallbackTotal = 0
+  let fallbackCount = 0
 
   for (const row of rows) {
     const value = Number(row[metric])
     if (!isValid(value)) continue
-    total += value
-    count++
+
+    fallbackTotal += value
+    fallbackCount++
+
+    const weight = Number(row.request_count)
+    if (Number.isFinite(weight) && weight > 0) {
+      weightedTotal += value * weight
+      weightSum += weight
+    }
   }
 
-  return count > 0 ? total / count : NaN
+  // Weight each model by its request_count so low-traffic models do not skew
+  // the overall figures. Fall back to an unweighted mean only when no usable
+  // request counts are available (e.g. older backends that omit the field).
+  if (weightSum > 0) return weightedTotal / weightSum
+  return fallbackCount > 0 ? fallbackTotal / fallbackCount : NaN
 }
 
 function buildPerformanceSummary(rows: PerfModelSummary[]): PerformanceSummary {
   return {
     totalRequests: rows.length,
     avgLatencyMs: Math.round(
-      simpleAverage(
+      weightedAverage(
         rows,
         'avg_latency_ms',
         (value) => Number.isFinite(value) && value > 0
       )
     ),
-    avgTps: simpleAverage(
+    avgTps: weightedAverage(
       rows,
       'avg_tps',
       (value) => Number.isFinite(value) && value > 0
     ),
-    successRate: simpleAverage(rows, 'success_rate', Number.isFinite),
+    successRate: weightedAverage(rows, 'success_rate', Number.isFinite),
   }
 }
 
