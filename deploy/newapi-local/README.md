@@ -178,6 +178,13 @@ SQL_DSN=postgresql://<user>:<password>@postgres:5432/<db>?sslmode=disable
 
 PostgreSQL 数据保存在 Docker volume `newapi_pg_data` 中。现有的 SQLite 文件 `./data/one-api.db` 不会自动迁移；切到 PostgreSQL 模式会创建一套新的数据库，除非你另行做数据迁移。
 
+本地几个 compose 文件目前职责如下：
+
+- `docker-compose.yml`：本地 SQLite 开发环境
+- `docker-compose.postgres.yml`：本地 PostgreSQL 开发环境
+- `docker-compose.devtools.yml`：固定开发/测试工具容器
+- `docker-compose.dev.mock.yml`：独立阿里视频 mock 容器
+
 ## 4.1 本地 devtools 测试容器
 
 如果你希望固定一个带 `Go + Bun` 的开发/测试容器，避免每次临时 `docker run` 重复拉镜像、重复安装依赖，可以使用 `docker-compose.devtools.yml`。
@@ -218,12 +225,12 @@ go test ./relay/channel/task/ali ./relay/channel/task/taskcommon ./relay/helper 
 
 ## 4.2 阿里视频本地 mock
 
-PostgreSQL 本地 compose 现在额外包含一个 `ali-video-mock` 服务，专门给 HappyHorse / Kling 做零成本联调。
+本地开发提供一个独立的 `ali-video-mock` compose 文件，专门给 HappyHorse / Kling 做零成本联调。
 
 启动：
 
 ```bash
-docker compose --env-file .env.postgres -f docker-compose.postgres.yml up -d --build ali-video-mock
+docker compose -f docker-compose.dev.mock.yml up -d --build
 ```
 
 健康检查：
@@ -268,7 +275,7 @@ http://127.0.0.1:18080
 用于验证失败退款链路时，推荐：
 
 ```bash
-ALI_VIDEO_MOCK_FAIL_RATE=0.5 docker compose --env-file .env.postgres -f docker-compose.postgres.yml up -d --build ali-video-mock
+ALI_VIDEO_MOCK_FAIL_RATE=0.5 docker compose -f docker-compose.dev.mock.yml up -d --build
 ```
 
 ## 5. 本地 metadata
