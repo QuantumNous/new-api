@@ -24,6 +24,7 @@ import { ClaudeSettingsCard } from './claude-settings-card'
 import { GeminiSettingsCard } from './gemini-settings-card'
 import { GlobalSettingsCard } from './global-settings-card'
 import { GrokSettingsCard } from './grok-settings-card'
+import { RoutingReliabilitySection } from './routing-reliability-section'
 
 function formatJsonForEditor(value: string, fallback: string) {
   const raw = (value ?? '').toString().trim()
@@ -39,7 +40,6 @@ const MODELS_SECTIONS = [
   {
     id: 'global',
     titleKey: 'Global Model Configuration',
-    descriptionKey: 'Configure global model settings',
     build: (settings: ModelSettings) => (
       <GlobalSettingsCard
         defaultValues={{
@@ -66,9 +66,32 @@ const MODELS_SECTIONS = [
     ),
   },
   {
+    id: 'routing-reliability',
+    titleKey: 'Routing Reliability',
+    build: (settings: ModelSettings) => (
+      <RoutingReliabilitySection
+        defaultValues={{
+          RetryTimes: settings.RetryTimes,
+          ChannelDisableThreshold: settings.ChannelDisableThreshold,
+          AutomaticDisableChannelEnabled:
+            settings.AutomaticDisableChannelEnabled,
+          AutomaticEnableChannelEnabled: settings.AutomaticEnableChannelEnabled,
+          AutomaticDisableKeywords: settings.AutomaticDisableKeywords,
+          AutomaticDisableStatusCodes: settings.AutomaticDisableStatusCodes,
+          AutomaticRetryStatusCodes: settings.AutomaticRetryStatusCodes,
+          'monitor_setting.auto_test_channel_enabled':
+            settings['monitor_setting.auto_test_channel_enabled'],
+          'monitor_setting.auto_test_channel_minutes':
+            settings['monitor_setting.auto_test_channel_minutes'],
+          'monitor_setting.channel_test_mode':
+            settings['monitor_setting.channel_test_mode'],
+        }}
+      />
+    ),
+  },
+  {
     id: 'gemini',
     titleKey: 'Gemini',
-    descriptionKey: 'Configure Gemini model settings',
     build: (settings: ModelSettings) => (
       <GeminiSettingsCard
         defaultValues={{
@@ -93,7 +116,6 @@ const MODELS_SECTIONS = [
   {
     id: 'claude',
     titleKey: 'Claude',
-    descriptionKey: 'Configure Claude model settings',
     build: (settings: ModelSettings) => (
       <ClaudeSettingsCard
         defaultValues={{
@@ -112,7 +134,6 @@ const MODELS_SECTIONS = [
   {
     id: 'grok',
     titleKey: 'Grok',
-    descriptionKey: 'Configure xAI Grok model settings',
     build: (settings: ModelSettings) => (
       <GrokSettingsCard
         defaultValues={{
@@ -127,7 +148,6 @@ const MODELS_SECTIONS = [
   {
     id: 'channel-affinity',
     titleKey: 'Channel Affinity',
-    descriptionKey: 'Configure channel affinity (sticky routing) rules',
     build: (settings: ModelSettings) => (
       <ChannelAffinitySection
         defaultValues={{
@@ -135,6 +155,8 @@ const MODELS_SECTIONS = [
             settings['channel_affinity_setting.enabled'],
           'channel_affinity_setting.switch_on_success':
             settings['channel_affinity_setting.switch_on_success'],
+          'channel_affinity_setting.keep_on_channel_disabled':
+            settings['channel_affinity_setting.keep_on_channel_disabled'],
           'channel_affinity_setting.max_entries':
             settings['channel_affinity_setting.max_entries'],
           'channel_affinity_setting.default_ttl_seconds':
@@ -148,7 +170,6 @@ const MODELS_SECTIONS = [
   {
     id: 'model-deployment',
     titleKey: 'Model Deployment',
-    descriptionKey: 'Configure model deployment provider settings',
     build: (settings: ModelSettings) => (
       <IoNetDeploymentSettingsSection
         defaultValues={{
@@ -173,3 +194,4 @@ export const MODELS_SECTION_IDS = modelsRegistry.sectionIds
 export const MODELS_DEFAULT_SECTION = modelsRegistry.defaultSection
 export const getModelsSectionNavItems = modelsRegistry.getSectionNavItems
 export const getModelsSectionContent = modelsRegistry.getSectionContent
+export const getModelsSectionMeta = modelsRegistry.getSectionMeta

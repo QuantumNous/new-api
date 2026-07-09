@@ -16,9 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useMemo } from 'react'
 import { Lightbulb, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
+import { ReactIconByName } from '@/components/react-icon-by-name'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -26,14 +30,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isArray } from '../utils/json-validators'
 import {
@@ -46,47 +43,70 @@ type PaymentMethodsVisualEditorProps = {
   onChange: (value: string) => void
 }
 
-const PAYMENT_TEMPLATES = [
-  {
-    name: 'Alipay',
-    template: {
-      color: 'rgba(var(--semi-blue-5), 1)',
-      name: '支付宝',
-      type: 'alipay',
-    },
-  },
-  {
-    name: 'WeChat Pay',
-    template: {
-      color: 'rgba(var(--semi-green-5), 1)',
-      name: '微信',
-      type: 'wxpay',
-    },
-  },
-  {
-    name: 'Stripe',
-    template: {
-      color: 'rgba(var(--semi-green-5), 1)',
-      name: 'Stripe',
-      type: 'stripe',
-    },
-  },
-  {
-    name: 'Custom',
-    template: {
-      color: 'black',
-      min_topup: '50',
-      name: '自定义1',
-      type: 'custom1',
-    },
-  },
-]
+const PAYMENT_TYPE_ICON_NAMES: Record<string, string> = {
+  alipay: 'SiAlipay',
+  stripe: 'SiStripe',
+  waffo_pancake: 'LuCreditCard',
+  wxpay: 'SiWechat',
+}
+
+function getDefaultIconName(type: string) {
+  return PAYMENT_TYPE_ICON_NAMES[type] ?? ''
+}
+
+function getEffectiveIconName(method: PaymentMethodData) {
+  return method.icon || getDefaultIconName(method.type)
+}
 
 export function PaymentMethodsVisualEditor({
   value,
   onChange,
 }: PaymentMethodsVisualEditorProps) {
   const { t } = useTranslation()
+  const paymentTemplates = [
+    {
+      name: t('Epay Alipay'),
+      template: {
+        icon: getDefaultIconName('alipay'),
+        name: '支付宝',
+        type: 'alipay',
+      },
+    },
+    {
+      name: t('Epay WeChat Pay'),
+      template: {
+        icon: getDefaultIconName('wxpay'),
+        name: '微信',
+        type: 'wxpay',
+      },
+    },
+    {
+      name: t('Stripe'),
+      template: {
+        icon: getDefaultIconName('stripe'),
+        min_topup: '10',
+        name: 'Stripe',
+        type: 'stripe',
+      },
+    },
+    {
+      name: 'Waffo Pancake',
+      template: {
+        icon: getDefaultIconName('waffo_pancake'),
+        name: 'Waffo Pancake',
+        type: 'waffo_pancake',
+      },
+    },
+    {
+      name: t('Custom Epay method'),
+      template: {
+        icon: 'LuCreditCard',
+        min_topup: '50',
+        name: '自定义1',
+        type: 'custom1',
+      },
+    },
+  ]
   const [searchText, setSearchText] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editData, setEditData] = useState<PaymentMethodData | null>(null)
@@ -105,10 +125,11 @@ export function PaymentMethodsVisualEditor({
         item !== null &&
         'name' in item &&
         'type' in item &&
-        'color' in item &&
         typeof item.name === 'string' &&
         typeof item.type === 'string' &&
-        typeof item.color === 'string'
+        (!('icon' in item) || typeof item.icon === 'string') &&
+        (!('min_topup' in item) || typeof item.min_topup === 'string') &&
+        (!('color' in item) || typeof item.color === 'string')
     )
   }, [value])
 
@@ -118,7 +139,8 @@ export function PaymentMethodsVisualEditor({
     return paymentMethods.filter(
       (method) =>
         method.name.toLowerCase().includes(lowerSearch) ||
-        method.type.toLowerCase().includes(lowerSearch)
+        method.type.toLowerCase().includes(lowerSearch) ||
+        getEffectiveIconName(method).toLowerCase().includes(lowerSearch)
     )
   }, [paymentMethods, searchText])
 
@@ -209,14 +231,6 @@ export function PaymentMethodsVisualEditor({
     }
   }
 
-  const getColorPreview = (color: string) => {
-    // For CSS variables, show a placeholder
-    if (color.includes('var(--')) {
-      return null
-    }
-    return color
-  }
-
   return (
     <div className='space-y-4'>
       <div className='flex flex-col gap-3 sm:flex-row sm:items-center'>
@@ -242,10 +256,10 @@ export function PaymentMethodsVisualEditor({
             <PopoverContent className='w-60'>
               <div className='space-y-2'>
                 <p className='text-muted-foreground text-xs'>
-                  {t('Quick insert common payment methods')}
+                  {t('Quick insert payment entries')}
                 </p>
                 <div className='space-y-1'>
-                  {PAYMENT_TEMPLATES.map((item) => (
+                  {paymentTemplates.map((item) => (
                     <Button
                       key={item.name}
                       type='button'
@@ -291,95 +305,94 @@ export function PaymentMethodsVisualEditor({
       ) : (
         <div className='rounded-md border'>
           {/* Desktop table view */}
-          <div className='hidden md:block'>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('Name')}</TableHead>
-                  <TableHead>{t('Type')}</TableHead>
-                  <TableHead>{t('Color')}</TableHead>
-                  <TableHead>{t('Min Top-up')}</TableHead>
-                  <TableHead className='text-right'>{t('Actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredMethods.map((method, index) => {
-                  const colorPreview = getColorPreview(method.color)
-                  return (
-                    <TableRow key={`${method.type}-${index}`}>
-                      <TableCell className='font-medium'>
-                        {method.name}
-                      </TableCell>
-                      <TableCell>
-                        <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
-                          {method.type}
-                        </code>
-                      </TableCell>
-                      <TableCell>
-                        <div className='flex items-center gap-2'>
-                          {colorPreview && (
-                            <div
-                              className='size-5 shrink-0 rounded border'
-                              style={{ backgroundColor: colorPreview }}
-                            />
-                          )}
-                          <span className='text-muted-foreground truncate font-mono text-xs'>
-                            {method.color}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {method.min_topup ? (
-                          <span className='font-mono text-sm'>
-                            {method.min_topup}
-                          </span>
-                        ) : (
-                          <span className='text-muted-foreground text-sm'>
-                            —
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className='text-right'>
-                        <div className='flex justify-end gap-2'>
-                          <Button
-                            type='button'
-                            variant='ghost'
-                            size='sm'
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              handleEdit(method)
-                            }}
-                          >
-                            <Pencil className='h-4 w-4' />
-                          </Button>
-                          <Button
-                            type='button'
-                            variant='ghost'
-                            size='sm'
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              handleDelete(method)
-                            }}
-                          >
-                            <Trash2 className='h-4 w-4' />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+          <StaticDataTable
+            className='hidden rounded-none border-0 md:block'
+            data={filteredMethods}
+            getRowKey={(method, index) => `${method.type}-${index}`}
+            columns={[
+              {
+                id: 'name',
+                header: t('Name'),
+                cellClassName: 'font-medium',
+                cell: (method) => method.name,
+              },
+              {
+                id: 'type',
+                header: t('Payment type key'),
+                cell: (method) => (
+                  <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
+                    {method.type}
+                  </code>
+                ),
+              },
+              {
+                id: 'icon',
+                header: t('Icon'),
+                cell: (method) => {
+                  const iconName = getEffectiveIconName(method)
+
+                  return iconName ? (
+                    <div className='flex items-center gap-2'>
+                      <ReactIconByName
+                        name={iconName}
+                        className='text-muted-foreground size-5 shrink-0'
+                        title={iconName}
+                      />
+                      <span className='text-muted-foreground truncate font-mono text-sm'>
+                        {iconName}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className='text-muted-foreground text-sm'>—</span>
                   )
-                })}
-              </TableBody>
-            </Table>
-          </div>
+                },
+              },
+              {
+                id: 'min-top-up',
+                header: t('Min Top-up'),
+                cell: (method) =>
+                  method.min_topup ? (
+                    <span className='font-mono text-sm'>
+                      {method.min_topup}
+                    </span>
+                  ) : (
+                    <span className='text-muted-foreground text-sm'>—</span>
+                  ),
+              },
+              {
+                id: 'actions',
+                header: t('Actions'),
+                className: 'text-right',
+                cellClassName: 'text-right',
+                cell: (method) => (
+                  <StaticRowActions
+                    editLabel={t('Edit')}
+                    deleteLabel={t('Delete')}
+                    menuLabel={t('Open menu')}
+                    onEdit={() => handleEdit(method)}
+                    onDelete={() => handleDelete(method)}
+                  />
+                ),
+              },
+            ]}
+          />
 
           {/* Mobile card view */}
           <div className='divide-y md:hidden'>
-            {filteredMethods.map((method, index) => {
-              const colorPreview = getColorPreview(method.color)
+            {filteredMethods.map((method) => {
+              const iconName = getEffectiveIconName(method)
+              const methodKey = [
+                method.type,
+                method.name,
+                method.icon,
+                method.min_topup,
+                method.color,
+              ]
+                .filter(Boolean)
+                .join('-')
+
               return (
-                <div key={`${method.type}-${index}`} className='p-4'>
+                <div key={methodKey} className='p-4'>
                   <div className='mb-3 flex items-start justify-between'>
                     <div className='flex-1'>
                       <div className='mb-1 font-medium'>{method.name}</div>
@@ -417,19 +430,22 @@ export function PaymentMethodsVisualEditor({
                   <div className='space-y-2 text-sm'>
                     <div className='flex items-center gap-2'>
                       <span className='text-muted-foreground min-w-20'>
-                        {t('Color:')}
+                        {t('Icon')}
                       </span>
-                      <div className='flex items-center gap-2'>
-                        {colorPreview && (
-                          <div
-                            className='size-5 shrink-0 rounded border'
-                            style={{ backgroundColor: colorPreview }}
+                      {iconName ? (
+                        <div className='flex min-w-0 items-center gap-2'>
+                          <ReactIconByName
+                            name={iconName}
+                            className='text-muted-foreground size-5 shrink-0'
+                            title={iconName}
                           />
-                        )}
-                        <span className='text-muted-foreground truncate font-mono text-xs'>
-                          {method.color}
-                        </span>
-                      </div>
+                          <span className='text-muted-foreground truncate font-mono text-xs'>
+                            {iconName}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className='text-muted-foreground text-xs'>—</span>
+                      )}
                     </div>
                     {method.min_topup && (
                       <div className='flex items-center gap-2'>

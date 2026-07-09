@@ -28,7 +28,6 @@ const AUTH_SECTIONS = [
   {
     id: 'basic-auth',
     titleKey: 'Basic Authentication',
-    descriptionKey: 'Configure password-based login and registration',
     build: (settings: AuthSettings) => (
       <BasicAuthSection
         defaultValues={{
@@ -46,9 +45,9 @@ const AUTH_SECTIONS = [
   {
     id: 'oauth',
     titleKey: 'OAuth Integrations',
-    descriptionKey: 'Configure third-party authentication providers',
     build: (settings: AuthSettings) => (
       <OAuthSection
+        serverAddress={settings.ServerAddress}
         defaultValues={{
           GitHubOAuthEnabled: settings.GitHubOAuthEnabled,
           GitHubClientId: settings.GitHubClientId,
@@ -82,7 +81,6 @@ const AUTH_SECTIONS = [
   {
     id: 'passkey',
     titleKey: 'Passkey Authentication',
-    descriptionKey: 'Configure Passkey (WebAuthn) login settings',
     build: (settings: AuthSettings) => (
       <PasskeySection
         defaultValues={{
@@ -96,14 +94,8 @@ const AUTH_SECTIONS = [
             | 'required'
             | 'preferred'
             | 'discouraged',
-          'passkey.attachment_preference': (settings[
-            'passkey.attachment_preference'
-          ] === ''
-            ? 'none'
-            : settings['passkey.attachment_preference']) as
-            | 'none'
-            | 'platform'
-            | 'cross-platform',
+          'passkey.attachment_preference':
+            settings['passkey.attachment_preference'],
         }}
       />
     ),
@@ -111,7 +103,6 @@ const AUTH_SECTIONS = [
   {
     id: 'bot-protection',
     titleKey: 'Bot Protection',
-    descriptionKey: 'Protect login and registration with Cloudflare Turnstile',
     build: (settings: AuthSettings) => (
       <BotProtectionSection
         defaultValues={{
@@ -125,8 +116,9 @@ const AUTH_SECTIONS = [
   {
     id: 'custom-oauth',
     titleKey: 'Custom OAuth',
-    descriptionKey: 'Configure custom OAuth providers for user authentication',
-    build: () => <CustomOAuthSection />,
+    build: (settings: AuthSettings) => (
+      <CustomOAuthSection serverAddress={settings.ServerAddress} />
+    ),
   },
 ] as const
 
@@ -143,3 +135,4 @@ export const AUTH_SECTION_IDS = authRegistry.sectionIds
 export const AUTH_DEFAULT_SECTION = authRegistry.defaultSection
 export const getAuthSectionNavItems = authRegistry.getSectionNavItems
 export const getAuthSectionContent = authRegistry.getSectionContent
+export const getAuthSectionMeta = authRegistry.getSectionMeta

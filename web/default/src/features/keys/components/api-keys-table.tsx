@@ -16,26 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import {
-  type SortingState,
-  type VisibilityState,
-  getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
+import { type Table as TanstackTable } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatQuota } from '@/lib/format'
-import { cn } from '@/lib/utils'
-import { useTableUrlState } from '@/hooks/use-table-url-state'
+
+import {
+  DISABLED_ROW_DESKTOP,
+  DISABLED_ROW_MOBILE,
+  DataTablePage,
+  useDebouncedColumnFilter,
+  useDataTable,
+} from '@/components/data-table'
+import { StatusBadge } from '@/components/status-badge'
 import {
   Empty,
   EmptyDescription,
@@ -43,13 +38,12 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  DISABLED_ROW_DESKTOP,
-  DISABLED_ROW_MOBILE,
-  DataTablePage,
-} from '@/components/data-table'
-import { StatusBadge } from '@/components/status-badge'
+import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { formatQuota } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
 import { getApiKeys, searchApiKeys } from '../api'
 import {
   API_KEY_STATUS,
@@ -65,6 +59,7 @@ import { DataTableBulkActions } from './data-table-bulk-actions'
 import { DataTableRowActions } from './data-table-row-actions'
 
 const route = getRouteApi('/_authenticated/keys/')
+const API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY = 'api-keys:column-visibility'
 
 function isDisabledApiKeyRow(apiKey: ApiKey) {
   return apiKey.status !== API_KEY_STATUS.ENABLED
@@ -97,7 +92,7 @@ function ApiKeysMobileList({
   table,
   isLoading,
 }: {
-  table: ReturnType<typeof useReactTable<ApiKey>>
+  table: TanstackTable<ApiKey>
   isLoading: boolean
 }) {
   const { t } = useTranslation()
@@ -153,7 +148,6 @@ function ApiKeysMobileList({
                 <StatusBadge
                   label={t(statusConfig.label)}
                   variant={statusConfig.variant}
-                  showDot={statusConfig.showDot}
                   copyable={false}
                 />
               )}
@@ -191,9 +185,6 @@ export function ApiKeysTable() {
   const { t } = useTranslation()
   const { refreshTrigger } = useApiKeys()
   const columns = useApiKeysColumns()
-  const [rowSelection, setRowSelection] = useState({})
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
 
   const {
     globalFilter,
@@ -208,8 +199,22 @@ export function ApiKeysTable() {
     navigate: route.useNavigate(),
     pagination: { defaultPage: 1, defaultPageSize: 20 },
     globalFilter: { enabled: true, key: 'filter' },
-    columnFilters: [{ columnId: 'status', searchKey: 'status', type: 'array' }],
+    columnFilters: [
+      { columnId: 'status', searchKey: 'status', type: 'array' },
+      { columnId: '_tokenSearch', searchKey: 'token', type: 'string' },
+    ],
   })
+
+  const {
+    value: tokenFilter,
+    inputValue: tokenFilterInput,
+    setInputValue: setTokenFilterInput,
+  } = useDebouncedColumnFilter({
+    columnFilters,
+    columnId: '_tokenSearch',
+    onColumnFiltersChange,
+  })
+  const shouldSearch = Boolean(globalFilter?.trim() || tokenFilter.trim())
 
   // Fetch data with React Query
   // eslint-disable-next-line @tanstack/query/exhaustive-deps
@@ -219,32 +224,31 @@ export function ApiKeysTable() {
       pagination.pageIndex + 1,
       pagination.pageSize,
       globalFilter,
+      tokenFilter,
       refreshTrigger,
     ],
     queryFn: async () => {
-      // If there's a global filter, use search
-      const hasFilter = globalFilter?.trim()
-
-      if (hasFilter) {
-        const result = await searchApiKeys({ keyword: globalFilter })
-        if (!result.success) {
-          toast.error(result.message || t(ERROR_MESSAGES.SEARCH_FAILED))
-          return { items: [], total: 0 }
-        }
-        return {
-          items: result.data || [],
-          total: result.data?.length || 0,
-        }
-      }
-
-      // Otherwise use pagination
-      const result = await getApiKeys({
-        p: pagination.pageIndex + 1,
-        size: pagination.pageSize,
-      })
+      const result = shouldSearch
+        ? await searchApiKeys({
+            keyword: globalFilter,
+            token: tokenFilter,
+            p: pagination.pageIndex + 1,
+            size: pagination.pageSize,
+          })
+        : await getApiKeys({
+            p: pagination.pageIndex + 1,
+            size: pagination.pageSize,
+          })
 
       if (!result.success) {
-        toast.error(result.message || t(ERROR_MESSAGES.LOAD_FAILED))
+        toast.error(
+          result.message ||
+            t(
+              shouldSearch
+                ? ERROR_MESSAGES.SEARCH_FAILED
+                : ERROR_MESSAGES.LOAD_FAILED
+            )
+        )
         return { items: [], total: 0 }
       }
 
@@ -258,47 +262,22 @@ export function ApiKeysTable() {
 
   const apiKeys = data?.items || []
 
-  const table = useReactTable({
+  const { table } = useDataTable({
     data: apiKeys,
     columns,
-    state: {
-      sorting,
-      columnVisibility,
-      rowSelection,
-      columnFilters,
-      globalFilter,
-      pagination,
-    },
     enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
-    onColumnVisibilityChange: setColumnVisibility,
-    globalFilterFn: (row, _columnId, filterValue) => {
-      const name = String(row.getValue('name')).toLowerCase()
-      const key = String(row.original.key).toLowerCase()
-      const searchValue = String(filterValue).toLowerCase()
-
-      return name.includes(searchValue) || key.includes(searchValue)
-    },
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
+    columnFilters,
+    columnVisibilityStorageKey: API_KEYS_COLUMN_VISIBILITY_STORAGE_KEY,
+    globalFilter,
+    pagination,
+    globalFilterFn: () => true,
     onPaginationChange,
     onGlobalFilterChange,
     onColumnFiltersChange,
-    manualPagination: !globalFilter,
-    pageCount: globalFilter
-      ? Math.ceil((data?.total || 0) / pagination.pageSize)
-      : Math.ceil((data?.total || 0) / pagination.pageSize),
+    manualPagination: true,
+    totalCount: data?.total || 0,
+    ensurePageInRange,
   })
-
-  const pageCount = table.getPageCount()
-  useEffect(() => {
-    ensurePageInRange(pageCount)
-  }, [pageCount, ensurePageInRange])
 
   return (
     <DataTablePage
@@ -311,13 +290,24 @@ export function ApiKeysTable() {
         'No API keys available. Create your first API key to get started.'
       )}
       skeletonKeyPrefix='api-keys-skeleton'
+      applyHeaderSize
       toolbarProps={{
-        searchPlaceholder: t('Filter by name or key...'),
+        searchPlaceholder: t('Filter by name...'),
+        additionalSearch: (
+          <Input
+            placeholder={t('Filter by API key...')}
+            aria-label={t('Filter by API key...')}
+            value={tokenFilterInput}
+            onChange={(e) => setTokenFilterInput(e.target.value)}
+            className='w-full sm:w-50 lg:w-60'
+          />
+        ),
         filters: [
           {
             columnId: 'status',
             title: t('Status'),
             options: API_KEY_STATUS_OPTIONS,
+            singleSelect: true,
           },
         ],
       }}

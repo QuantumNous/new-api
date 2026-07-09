@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import i18next from 'i18next'
 import { useEffect, useMemo, useRef } from 'react'
 import {
   useForm,
@@ -23,7 +24,6 @@ import {
   type FieldValues,
   type FieldNamesMarkedBoolean,
 } from 'react-hook-form'
-import i18next from 'i18next'
 import { toast } from 'sonner'
 
 type SettingsFormOptions<T extends FieldValues> = UseFormProps<T> & {

@@ -22,12 +22,13 @@ import {
   Layers,
   Gauge,
   Zap,
-  Wallet,
+  Flame,
   TrendingUp,
   Activity,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
 import { safeDivide } from '@/features/dashboard/lib'
 
 interface StatCardConfig {
@@ -83,7 +84,7 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
 }
 
 export function useSummaryCardsConfig(totals: {
-  remainDisplay: string
+  todayUsageDisplay: string
   usedDisplay: string
   requestCountDisplay: string
   currencyLabel: string
@@ -93,13 +94,13 @@ export function useSummaryCardsConfig(totals: {
 
   return [
     {
-      key: 'balance',
-      title: t('Current Balance'),
-      value: totals.remainDisplay,
+      key: 'todayUsage',
+      title: t('Last 24h usage'),
+      value: totals.todayUsageDisplay,
       description: totals.currencyEnabled
-        ? `${t('Remaining quota')} (${totals.currencyLabel})`
-        : t('Remaining quota units'),
-      icon: Wallet,
+        ? `${t('Consumed in the last 24 hours')} (${totals.currencyLabel})`
+        : t('Consumed in the last 24 hours'),
+      icon: Flame,
     },
     {
       key: 'usage',

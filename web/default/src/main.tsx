@@ -16,33 +16,40 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { StrictMode } from 'react'
-import ReactDOM from 'react-dom/client'
-import { AxiosError } from 'axios'
 import {
   QueryCache,
   QueryClient,
   QueryClientProvider,
 } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
+import { AxiosError } from 'axios'
 import i18next from 'i18next'
+import { StrictMode } from 'react'
+import ReactDOM from 'react-dom/client'
 import { toast } from 'sonner'
-import { useAuthStore } from '@/stores/auth-store'
+
 import { getStatus } from '@/lib/api'
-import '@/lib/dayjs'
+import { installBuildMetadata } from '@/lib/build-metadata'
 import { applyFaviconToDom } from '@/lib/dom-utils'
+import '@/lib/dayjs'
+import { initializeFrontendCache } from '@/lib/frontend-cache'
 import { handleServerError } from '@/lib/handle-server-error'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
 import './i18n/config'
 // Generated Routes
 import { routeTree } from './routeTree.gen'
+
 // Styles
 import './styles/index.css'
 
 // Ensure VChart theme is initialized before any chart mounts (prevents white default theme flash)
 // VChart theme is driven by our ThemeProvider (html.light/html.dark) via per-chart `theme` prop.
+initializeFrontendCache()
+installBuildMetadata()
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -59,7 +66,8 @@ const queryClient = new QueryClient({
           [401, 403].includes(error.response?.status ?? 0)
         )
       },
-      refetchOnWindowFocus: import.meta.env.PROD,
+      // Keep focused tabs from silently re-running heavy pages like logs.
+      refetchOnWindowFocus: false,
       staleTime: 10 * 1000, // 10s
     },
     mutations: {

@@ -16,14 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { BarChart3, Trophy } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useThemeRadiusPx } from '@/lib/theme-radius'
+
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
-import { useThemeCustomization } from '@/context/theme-customization-provider'
+
 import { formatTokens } from '../lib/format'
 import type { ModelHistorySeries, ModelRanking, RankingPeriod } from '../types'
 import { ModelLeaderboard } from './model-leaderboard'
@@ -33,7 +33,6 @@ const PERIOD_DESCRIPTIONS: Record<RankingPeriod, string> = {
   week: 'Weekly token usage by model across the past few weeks',
   month: 'Daily token usage by model across the past month',
   year: 'Weekly token usage by model across the past year',
-  all: 'Token usage by model since launch',
 }
 
 const TOOLTIP_MAX_ROWS = 10
@@ -52,11 +51,14 @@ type ModelsSectionProps = {
 export function ModelsSection(props: ModelsSectionProps) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
-  const { customization } = useThemeCustomization()
-  const barRadius = useThemeRadiusPx(
-    '--radius-sm',
-    `${customization.preset}:${customization.radius}`
-  )
+  const chartTextColor =
+    resolvedTheme === 'dark'
+      ? 'rgba(255, 255, 255, 0.68)'
+      : 'rgba(15, 23, 42, 0.58)'
+  const chartGridColor =
+    resolvedTheme === 'dark'
+      ? 'rgba(255, 255, 255, 0.12)'
+      : 'rgba(15, 23, 42, 0.12)'
 
   // Order points so the largest model appears at the bottom of every stack.
   const orderedPoints = useMemo(() => {
@@ -84,15 +86,12 @@ export function ModelsSection(props: ModelsSectionProps) {
       yField: 'tokens',
       seriesField: 'model',
       stack: true,
-      bar: {
-        style: barRadius == null ? {} : { cornerRadius: barRadius },
-      },
       legends: { visible: false },
       axes: [
         {
           orient: 'bottom',
           label: {
-            style: { fill: 'currentColor', fontSize: 10 },
+            style: { fill: chartTextColor, fontSize: 10 },
             autoHide: true,
             autoLimit: true,
           },
@@ -102,9 +101,12 @@ export function ModelsSection(props: ModelsSectionProps) {
           orient: 'left',
           label: {
             formatMethod: (val: number | string) => formatTokens(Number(val)),
-            style: { fill: 'currentColor', fontSize: 10 },
+            style: { fill: chartTextColor, fontSize: 10 },
           },
-          grid: { visible: true, style: { lineDash: [3, 3] } },
+          grid: {
+            visible: true,
+            style: { lineDash: [3, 3], stroke: chartGridColor },
+          },
         },
       ],
       tooltip: {
@@ -159,7 +161,7 @@ export function ModelsSection(props: ModelsSectionProps) {
       },
       animationAppear: { duration: 500 },
     }
-  }, [barRadius, orderedPoints, t])
+  }, [chartGridColor, chartTextColor, orderedPoints, t])
 
   return (
     <section className='bg-card overflow-hidden rounded-lg border'>

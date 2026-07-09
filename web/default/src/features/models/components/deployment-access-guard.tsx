@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
   AlertCircle,
@@ -27,10 +26,12 @@ import {
   Settings,
   WifiOff,
 } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 type LoadingPhase = 'idle' | 'settings' | 'connection' | 'done'
 type StepStatus = 'pending' | 'loading' | 'done'

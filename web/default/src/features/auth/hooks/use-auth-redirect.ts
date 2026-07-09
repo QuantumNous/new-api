@@ -18,10 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate } from '@tanstack/react-router'
 import i18n from 'i18next'
-import { useAuthStore } from '@/stores/auth-store'
-import { getSelf } from '@/lib/api'
-import { requestAutoOpenNotifications } from '@/lib/notification-auto-open'
+
 import type { User } from '@/features/users/types'
+import { getSelf } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { saveUserId } from '../lib/storage'
 
 function getSavedLanguage(user: User): string | undefined {
@@ -86,9 +87,9 @@ export function useAuthRedirect() {
       console.error('Failed to fetch user data:', error)
     }
 
+    // Navigate to target page
     const targetPath = redirectTo || '/dashboard'
-    await navigate({ to: targetPath, replace: true })
-    requestAutoOpenNotifications()
+    navigate({ to: targetPath, replace: true })
   }
 
   /**

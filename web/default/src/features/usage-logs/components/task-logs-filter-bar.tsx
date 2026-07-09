@@ -16,18 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import { useIsAdmin } from '@/hooks/use-admin'
-import { Input } from '@/components/ui/input'
-import { DataTableToolbar } from '@/components/data-table'
+
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
 import type { DrawingLogFilters, LogCategory, TaskLogFilters } from '../types'
 import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
+import {
+  LogsFilterField,
+  LogsFilterInput,
+  LogsFilterToolbar,
+} from './logs-filter-toolbar'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
@@ -158,47 +163,62 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
   const filterValue = getFilterValue(filters, props.logCategory)
   const placeholder =
     props.logCategory === 'drawing'
-      ? t('Filter by Midjourney task ID')
+      ? t('Filter by MjProxy task ID')
       : t('Filter by task ID')
-  const inputClass = 'w-full sm:w-[180px] lg:w-[200px]'
   const hasAdditionalFilters = !!filterValue || !!filters.channel
+  const dateRangeFilter = (
+    <LogsFilterField wide>
+      <CompactDateTimeRangePicker
+        start={filters.startTime}
+        end={filters.endTime}
+        onChange={({ start, end }) => {
+          handleChange('startTime', start)
+          handleChange('endTime', end)
+        }}
+      />
+    </LogsFilterField>
+  )
+  const taskIdFilter = (
+    <LogsFilterField>
+      <LogsFilterInput
+        aria-label={t('Task ID')}
+        placeholder={placeholder}
+        value={filterValue}
+        onChange={(e) => handleFilterChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+      />
+    </LogsFilterField>
+  )
+  const channelFilter = isAdmin ? (
+    <LogsFilterField>
+      <LogsFilterInput
+        placeholder={t('Channel ID')}
+        value={filters.channel || ''}
+        onChange={(e) => handleChange('channel', e.target.value)}
+        onKeyDown={handleKeyDown}
+      />
+    </LogsFilterField>
+  ) : null
 
   return (
-    <DataTableToolbar
+    <LogsFilterToolbar
       table={props.table}
-      customSearch={
-        <CompactDateTimeRangePicker
-          start={filters.startTime}
-          end={filters.endTime}
-          onChange={({ start, end }) => {
-            handleChange('startTime', start)
-            handleChange('endTime', end)
-          }}
-          className='w-full sm:w-[340px]'
-        />
-      }
-      additionalSearch={
+      primaryFilters={
         <>
-          <Input
-            aria-label={t('Task ID')}
-            placeholder={placeholder}
-            value={filterValue}
-            onChange={(e) => handleFilterChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className={inputClass}
-          />
-          {isAdmin && (
-            <Input
-              placeholder={t('Channel ID')}
-              value={filters.channel || ''}
-              onChange={(e) => handleChange('channel', e.target.value)}
-              onKeyDown={handleKeyDown}
-              className={inputClass}
-            />
-          )}
+          {dateRangeFilter}
+          {taskIdFilter}
+          {channelFilter}
         </>
       }
-      hasAdditionalFilters={hasAdditionalFilters}
+      mobilePinnedFilters={dateRangeFilter}
+      mobileFilters={
+        <>
+          {taskIdFilter}
+          {channelFilter}
+        </>
+      }
+      mobileFilterCount={[filterValue, filters.channel].filter(Boolean).length}
+      hasActiveFilters={hasAdditionalFilters}
       onSearch={handleApply}
       searchLoading={fetchingLogs > 0}
       onReset={handleReset}

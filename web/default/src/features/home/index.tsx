@@ -46,11 +46,7 @@ import { getPricing } from '@/features/pricing/api'
 import { QUOTA_TYPE_VALUES } from '@/features/pricing/constants'
 import type { PricingModel } from '@/features/pricing/types'
 import { getPublicPlans } from '@/features/subscriptions/api'
-import {
-  formatDuration,
-  formatResetPeriod,
-  formatSubscriptionPrice,
-} from '@/features/subscriptions/lib'
+import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
 import {
   imageModelPricingConfig,
   imagePricingHeaderConfig,
@@ -79,6 +75,13 @@ interface HomePricingResponse {
   data?: PricingModel[]
   group_ratio?: Record<string, number>
   usable_group?: Record<string, { desc: string; ratio: number }>
+}
+
+interface HomeStatusResponse {
+  data?: {
+    server_address?: string
+    serverAddress?: string
+  }
 }
 
 function hasNumber(value: number | null | undefined): value is number {
@@ -132,6 +135,13 @@ function formatPrice(value: number | null | undefined): string {
     )
   }
   return formatTruncatedCurrency(value, '$', 'USD')
+}
+
+function formatSubscriptionPrice(amount: number | string): string {
+  const numeric =
+    typeof amount === 'number' ? amount : Number.parseFloat(String(amount))
+  if (!Number.isFinite(numeric)) return '-'
+  return `¥${numeric.toFixed(2)}`
 }
 
 function getModelUsableGroupRatios(
@@ -302,8 +312,17 @@ export function Home() {
   const [homePageContentLoaded, setHomePageContentLoaded] = useState(false)
   const isChinese = i18n.language.startsWith('zh')
   const isDemoSiteMode = config.demoSiteEnabled || false
+  const { data: statusData } = useQuery<HomeStatusResponse>({
+    queryKey: ['home-status'],
+    queryFn: async () => {
+      const response = await api.get('/api/status')
+      return response.data
+    },
+    staleTime: 5 * 60 * 1000,
+  })
   const serverAddress =
-    config.serverAddress ||
+    statusData?.data?.server_address ||
+    statusData?.data?.serverAddress ||
     (typeof window !== 'undefined' ? window.location.origin : '')
   const { data: pricingData } = useQuery<HomePricingResponse>({
     queryKey: ['home-pricing'],
@@ -497,7 +516,7 @@ export function Home() {
                 </div>
 
                 <div className='flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row sm:gap-4'>
-                  <Link to='/console' className='w-full sm:w-auto'>
+                  <Link to='/keys' className='w-full sm:w-auto'>
                     <Button size='lg' className='w-full rounded-full px-8'>
                       <Play data-icon='inline-start' />
                       {t('获取密钥')}

@@ -16,29 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import {
-  type SortingState,
-  type VisibilityState,
-  getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
-import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useTableUrlState } from '@/hooks/use-table-url-state'
+
 import {
   DISABLED_ROW_DESKTOP,
   DISABLED_ROW_MOBILE,
   DataTablePage,
+  useDataTable,
 } from '@/components/data-table'
+import { useMediaQuery } from '@/hooks'
+import { useTableUrlState } from '@/hooks/use-table-url-state'
+
 import { getUsers, searchUsers } from '../api'
 import {
   USER_STATUS,
@@ -62,9 +53,6 @@ export function UsersTable() {
   const columns = useUsersColumns()
   const { refreshTrigger } = useUsers()
   const isMobile = useMediaQuery('(max-width: 640px)')
-  const [rowSelection, setRowSelection] = useState({})
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
 
   const {
     globalFilter,
@@ -85,6 +73,17 @@ export function UsersTable() {
       { columnId: 'group', searchKey: 'group', type: 'string' },
     ],
   })
+  const statusFilter =
+    (columnFilters.find((filter) => filter.id === 'status')?.value as
+      | string[]
+      | undefined) ?? []
+  const roleFilter =
+    (columnFilters.find((filter) => filter.id === 'role')?.value as
+      | string[]
+      | undefined) ?? []
+  const groupFilter =
+    (columnFilters.find((filter) => filter.id === 'group')?.value as string) ??
+    ''
 
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({
@@ -93,18 +92,30 @@ export function UsersTable() {
       pagination.pageIndex + 1,
       pagination.pageSize,
       globalFilter,
+      statusFilter,
+      roleFilter,
+      groupFilter,
       refreshTrigger,
     ],
     queryFn: async () => {
       const hasFilter = globalFilter?.trim()
+      const hasColumnFilter =
+        statusFilter.length > 0 || roleFilter.length > 0 || Boolean(groupFilter)
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
       }
 
-      const result = hasFilter
-        ? await searchUsers({ ...params, keyword: globalFilter })
-        : await getUsers(params)
+      const result =
+        hasFilter || hasColumnFilter
+          ? await searchUsers({
+              ...params,
+              keyword: globalFilter,
+              status: statusFilter[0] ?? '',
+              role: roleFilter[0] ?? '',
+              group: groupFilter,
+            })
+          : await getUsers(params)
 
       if (!result.success) {
         toast.error(
@@ -123,21 +134,13 @@ export function UsersTable() {
 
   const users = data?.items || []
 
-  const table = useReactTable({
+  const { table } = useDataTable({
     data: users,
     columns,
-    state: {
-      sorting,
-      columnVisibility,
-      rowSelection,
-      columnFilters,
-      globalFilter,
-      pagination,
-    },
     enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
-    onSortingChange: setSorting,
-    onColumnVisibilityChange: setColumnVisibility,
+    columnFilters,
+    globalFilter,
+    pagination,
     globalFilterFn: (row, _columnId, filterValue) => {
       const searchValue = String(filterValue).toLowerCase()
       const fields = [
@@ -151,23 +154,14 @@ export function UsersTable() {
           .includes(searchValue)
       )
     },
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
     onPaginationChange,
     onGlobalFilterChange,
     onColumnFiltersChange,
-    manualPagination: !globalFilter,
-    pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
+    manualPagination: true,
+    manualFiltering: true,
+    totalCount: data?.total || 0,
+    ensurePageInRange,
   })
-
-  const pageCount = table.getPageCount()
-  useEffect(() => {
-    ensurePageInRange(pageCount)
-  }, [pageCount, ensurePageInRange])
 
   return (
     <DataTablePage
@@ -180,6 +174,7 @@ export function UsersTable() {
         'No users available. Try adjusting your search or filters.'
       )}
       skeletonKeyPrefix='users-skeleton'
+      applyHeaderSize
       toolbarProps={{
         searchPlaceholder: t('Filter by username, name or email...'),
         filters: [
@@ -187,11 +182,13 @@ export function UsersTable() {
             columnId: 'status',
             title: t('Status'),
             options: getUserStatusOptions(t),
+            singleSelect: true,
           },
           {
             columnId: 'role',
             title: t('Role'),
             options: getUserRoleOptions(t),
+            singleSelect: true,
           },
         ],
       }}

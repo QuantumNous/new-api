@@ -16,14 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useMemo } from 'react'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSidebarConfig } from '@/hooks/use-sidebar-config'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
 import { SectionPageLayout } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
+import { useSidebarConfig } from '@/hooks/use-sidebar-config'
+
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import {
   UsageLogsProvider,
@@ -39,21 +41,15 @@ import {
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 const TASK_LOG_SECTIONS = ['drawing', 'task'] as const
 
-const SECTION_META: Record<
-  UsageLogsSectionId,
-  { titleKey: string; descriptionKey: string }
-> = {
+const SECTION_META: Record<UsageLogsSectionId, { titleKey: string }> = {
   common: {
     titleKey: 'Common Logs',
-    descriptionKey: 'View and manage your API usage logs',
   },
   drawing: {
     titleKey: 'Drawing Logs',
-    descriptionKey: 'View and manage your drawing logs',
   },
   task: {
     titleKey: 'Task Logs',
-    descriptionKey: 'View and manage your task logs',
   },
 }
 
@@ -116,18 +112,15 @@ function UsageLogsContent() {
 
   return (
     <>
-      <SectionPageLayout>
+      <SectionPageLayout fixedContent>
         <SectionPageLayout.Title>
           {t(pageMeta.titleKey)}
         </SectionPageLayout.Title>
-        <SectionPageLayout.Description>
-          {t(pageMeta.descriptionKey)}
-        </SectionPageLayout.Description>
         <SectionPageLayout.Content>
-          <div className='space-y-4'>
+          <div className='flex h-full min-h-0 flex-col gap-4'>
             {showTaskSwitcher && (
               <Tabs value={activeCategory} onValueChange={handleSectionChange}>
-                <TabsList className='h-auto max-w-full flex-wrap justify-start'>
+                <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
                   {visibleSections.map((section) => (
                     <TabsTrigger key={section} value={section}>
                       {t(SECTION_META[section].titleKey)}
@@ -136,7 +129,9 @@ function UsageLogsContent() {
                 </TabsList>
               </Tabs>
             )}
-            <UsageLogsTable logCategory={activeCategory} />
+            <div className='min-h-0 flex-1'>
+              <UsageLogsTable logCategory={activeCategory} />
+            </div>
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>

@@ -32,7 +32,7 @@ export const API_KEY_STATUS = {
 
 export const API_KEY_STATUSES: Record<
   number,
-  Pick<StatusBadgeProps, 'variant' | 'showDot'> & {
+  Pick<StatusBadgeProps, 'variant'> & {
     label: string
     value: number
   }
@@ -41,25 +41,21 @@ export const API_KEY_STATUSES: Record<
     label: 'Enabled',
     variant: 'success',
     value: API_KEY_STATUS.ENABLED,
-    showDot: true,
   },
   [API_KEY_STATUS.DISABLED]: {
     label: 'Disabled',
     variant: 'neutral',
     value: API_KEY_STATUS.DISABLED,
-    showDot: true,
   },
   [API_KEY_STATUS.EXPIRED]: {
     label: 'Expired',
     variant: 'warning',
     value: API_KEY_STATUS.EXPIRED,
-    showDot: true,
   },
   [API_KEY_STATUS.EXHAUSTED]: {
     label: 'Exhausted',
     variant: 'danger',
     value: API_KEY_STATUS.EXHAUSTED,
-    showDot: true,
   },
 } as const
 

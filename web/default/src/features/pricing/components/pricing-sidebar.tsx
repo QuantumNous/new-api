@@ -16,11 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ReactNode } from 'react'
 import { ChevronDown, RotateCcw } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getLobeIcon } from '@/lib/lobe-icon'
-import { cn } from '@/lib/utils'
+
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -28,9 +27,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { getLobeIcon } from '@/lib/lobe-icon'
+import { cn } from '@/lib/utils'
+
 import {
+  ENDPOINT_TYPES,
   FILTER_ALL,
+  QUOTA_TYPES,
+  getEndpointTypeLabels,
+  getQuotaTypeLabels,
 } from '../constants'
+import { parseTags } from '../lib/filters'
 import type { PricingModel, PricingVendor } from '../types'
 
 type FilterOption = {
@@ -151,6 +158,8 @@ function FilterSection(props: FilterSectionProps) {
 
 export function PricingSidebar(props: PricingSidebarProps) {
   const { t } = useTranslation()
+  const quotaTypeLabels = getQuotaTypeLabels(t)
+  const endpointTypeLabels = getEndpointTypeLabels(t)
 
   const vendorOptions: FilterOption[] = [
     {
@@ -183,6 +192,59 @@ export function PricingSidebar(props: PricingSidebarProps) {
     })),
   ]
 
+  const quotaOptions: FilterOption[] = [
+    {
+      value: QUOTA_TYPES.ALL,
+      label: quotaTypeLabels[QUOTA_TYPES.ALL],
+      count: props.models.length,
+    },
+    {
+      value: QUOTA_TYPES.TOKEN,
+      label: quotaTypeLabels[QUOTA_TYPES.TOKEN],
+      count: countBy(props.models, (model) => model.quota_type === 0),
+    },
+    {
+      value: QUOTA_TYPES.REQUEST,
+      label: quotaTypeLabels[QUOTA_TYPES.REQUEST],
+      count: countBy(props.models, (model) => model.quota_type === 1),
+    },
+  ]
+
+  const tagOptions: FilterOption[] = [
+    {
+      value: FILTER_ALL,
+      label: t('All Tags'),
+      count: props.models.length,
+    },
+    ...props.tags.map((tag) => ({
+      value: tag,
+      label: tag,
+      count: countBy(props.models, (model) =>
+        parseTags(model.tags)
+          .map((item) => item.toLowerCase())
+          .includes(tag.toLowerCase())
+      ),
+    })),
+  ]
+
+  const endpointOptions: FilterOption[] = [
+    {
+      value: ENDPOINT_TYPES.ALL,
+      label: endpointTypeLabels[ENDPOINT_TYPES.ALL],
+      count: props.models.length,
+    },
+    ...Object.entries(endpointTypeLabels)
+      .filter(([value]) => value !== ENDPOINT_TYPES.ALL)
+      .map(([value, label]) => ({
+        value,
+        label,
+        count: countBy(
+          props.models,
+          (model) => model.supported_endpoint_types?.includes(value) ?? false
+        ),
+      })),
+  ]
+
   return (
     <aside className={cn('rounded-xl border p-3', props.className)}>
       <div className='mb-2.5 flex items-center justify-between gap-2'>
@@ -213,41 +275,35 @@ export function PricingSidebar(props: PricingSidebarProps) {
 
       <div className='space-y-1'>
         <FilterSection
+          title={t('Groups')}
+          value={props.groupFilter}
+          options={groupOptions}
+          onChange={props.onGroupChange}
+        />
+        <FilterSection
           title={t('All Vendors')}
           value={props.vendorFilter}
           options={vendorOptions}
           onChange={props.onVendorChange}
         />
         <FilterSection
-          title={t('Groups')}
-          value={props.groupFilter}
-          options={groupOptions}
-          onChange={props.onGroupChange}
-        />
-        {/* 隐藏模型标签筛选
-        <FilterSection
           title={t('Model Tags')}
           value={props.tagFilter}
           options={tagOptions}
           onChange={props.onTagChange}
         />
-        */}
-        {/* 隐藏定价类型筛选
         <FilterSection
           title={t('Pricing Type')}
           value={props.quotaTypeFilter}
           options={quotaOptions}
           onChange={props.onQuotaTypeChange}
         />
-        */}
-        {/* 隐藏端点类型筛选
         <FilterSection
           title={t('Endpoint Type')}
           value={props.endpointTypeFilter}
           options={endpointOptions}
           onChange={props.onEndpointTypeChange}
         />
-        */}
       </div>
     </aside>
   )

@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 'use client'
 
-import * as React from 'react'
 import { Select as SelectPrimitive } from '@base-ui/react/select'
 import {
   UnfoldMoreIcon,
@@ -27,6 +26,9 @@ import {
   ArrowDown01Icon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import * as React from 'react'
+
+import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
 
 const Select = SelectPrimitive.Root
@@ -97,32 +99,38 @@ function SelectContent({
     SelectPrimitive.Positioner.Props,
     'align' | 'alignOffset' | 'side' | 'sideOffset' | 'alignItemWithTrigger'
   >) {
-  return (
-    <SelectPrimitive.Portal>
-      <SelectPrimitive.Positioner
-        side={side}
-        sideOffset={sideOffset}
-        align={align}
-        alignOffset={alignOffset}
-        alignItemWithTrigger={alignItemWithTrigger}
-        className='isolate z-50'
+  const isMobile = useMediaQuery('(max-width: 640px)')
+
+  const content = (
+    <SelectPrimitive.Positioner
+      side={side}
+      sideOffset={sideOffset}
+      align={align}
+      alignOffset={alignOffset}
+      alignItemWithTrigger={alignItemWithTrigger}
+      className='isolate z-50'
+    >
+      <SelectPrimitive.Popup
+        data-slot='select-content'
+        data-align-trigger={alignItemWithTrigger}
+        className={cn(
+          'bg-popover text-popover-foreground ring-foreground/10 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg shadow-md ring-1 duration-100 data-[align-trigger=true]:animate-none',
+          className
+        )}
+        {...props}
       >
-        <SelectPrimitive.Popup
-          data-slot='select-content'
-          data-align-trigger={alignItemWithTrigger}
-          className={cn(
-            'bg-popover text-popover-foreground ring-foreground/10 data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg shadow-md ring-1 duration-100 data-[align-trigger=true]:animate-none',
-            className
-          )}
-          {...props}
-        >
-          <SelectScrollUpButton />
-          <SelectPrimitive.List>{children}</SelectPrimitive.List>
-          <SelectScrollDownButton />
-        </SelectPrimitive.Popup>
-      </SelectPrimitive.Positioner>
-    </SelectPrimitive.Portal>
+        <SelectScrollUpButton />
+        <SelectPrimitive.List>{children}</SelectPrimitive.List>
+        <SelectScrollDownButton />
+      </SelectPrimitive.Popup>
+    </SelectPrimitive.Positioner>
   )
+
+  if (isMobile) {
+    return content
+  }
+
+  return <SelectPrimitive.Portal>{content}</SelectPrimitive.Portal>
 }
 
 function SelectLabel({
@@ -152,7 +160,10 @@ function SelectItem({
       )}
       {...props}
     >
-      <SelectPrimitive.ItemText className='flex flex-1 shrink-0 gap-2 whitespace-nowrap'>
+      <SelectPrimitive.ItemText
+        data-slot='select-item-text'
+        className='flex flex-1 shrink-0 gap-2 whitespace-nowrap'
+      >
         {children}
       </SelectPrimitive.ItemText>
       <SelectPrimitive.ItemIndicator

@@ -39,10 +39,71 @@ export type UpdateOptionResponse = {
   message: string
 }
 
-export type DeleteLogsResponse = {
+export type ConfirmPaymentComplianceResponse = {
   success: boolean
   message: string
-  data?: number
+  data?: {
+    confirmed: boolean
+    terms_version: string
+    confirmed_at: number
+    confirmed_by: number
+  }
+}
+
+export type SystemTaskStatus = 'pending' | 'running' | 'succeeded' | 'failed'
+
+export type SystemTask<
+  TPayload = Record<string, unknown>,
+  TState = Record<string, unknown>,
+  TResult = Record<string, unknown>,
+> = {
+  id: number
+  task_id: string
+  type: string
+  status: SystemTaskStatus
+  active_key?: string
+  payload?: TPayload
+  state?: TState
+  result?: TResult
+  error?: string
+  locked_by?: string
+  locked_until?: number
+  created_at: number
+  updated_at: number
+}
+
+export type LogCleanupTaskPayload = {
+  target_timestamp: number
+  batch_size: number
+}
+
+export type LogCleanupTaskState = {
+  total: number
+  processed: number
+  progress: number
+  remaining: number
+}
+
+export type LogCleanupTaskResult = {
+  deleted_count: number
+}
+
+export type LogCleanupTask = SystemTask<
+  LogCleanupTaskPayload,
+  LogCleanupTaskState,
+  LogCleanupTaskResult
+>
+
+export type SystemTaskResponse<TTask = SystemTask | null> = {
+  success: boolean
+  message: string
+  data?: TTask
+}
+
+export type SystemTaskListResponse = {
+  success: boolean
+  message: string
+  data?: SystemTask[]
 }
 
 export type SiteSettings = {
@@ -68,6 +129,7 @@ export type AuthSettings = {
   EmailDomainRestrictionEnabled: boolean
   EmailAliasRestrictionEnabled: boolean
   EmailDomainWhitelist: string
+  ServerAddress: string
   GitHubOAuthEnabled: boolean
   GitHubClientId: string
   GitHubClientSecret: string
@@ -163,8 +225,19 @@ export type ModelSettings = {
   AutoGroups: string
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
+  RetryTimes: number
+  ChannelDisableThreshold: string
+  AutomaticDisableChannelEnabled: boolean
+  AutomaticEnableChannelEnabled: boolean
+  AutomaticDisableKeywords: string
+  AutomaticDisableStatusCodes: string
+  AutomaticRetryStatusCodes: string
+  'monitor_setting.auto_test_channel_enabled': boolean
+  'monitor_setting.auto_test_channel_minutes': number
+  'monitor_setting.channel_test_mode': 'scheduled_all' | 'passive_recovery'
   'channel_affinity_setting.enabled': boolean
   'channel_affinity_setting.switch_on_success': boolean
+  'channel_affinity_setting.keep_on_channel_disabled': boolean
   'channel_affinity_setting.max_entries': number
   'channel_affinity_setting.default_ttl_seconds': number
   'channel_affinity_setting.rules': string
@@ -215,6 +288,11 @@ export type BillingSettings = {
   PayMethods: string
   'payment_setting.amount_options': string
   'payment_setting.amount_discount': string
+  'payment_setting.compliance_confirmed': boolean
+  'payment_setting.compliance_terms_version': string
+  'payment_setting.compliance_confirmed_at': number
+  'payment_setting.compliance_confirmed_by': number
+  'payment_setting.compliance_confirmed_ip': string
   StripeApiSecret: string
   StripeWebhookSecret: string
   StripePriceId: string
@@ -240,43 +318,31 @@ export type BillingSettings = {
   WaffoNotifyUrl: string
   WaffoReturnUrl: string
   WaffoPayMethods: string
-  WaffoPancakeEnabled: boolean
-  WaffoPancakeSandbox: boolean
   WaffoPancakeMerchantID: string
   WaffoPancakePrivateKey: string
-  WaffoPancakeWebhookPublicKey: string
-  WaffoPancakeWebhookTestKey: string
+  WaffoPancakeReturnURL: string
+  // Bound by the operator through the catalog flow in the admin Pancake
+  // section (saved via /api/option/waffo-pancake/save).
   WaffoPancakeStoreID: string
   WaffoPancakeProductID: string
-  WaffoPancakeReturnURL: string
-  WaffoPancakeCurrency: string
-  WaffoPancakeUnitPrice: number
-  WaffoPancakeMinTopUp: number
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
 }
 
 export type OperationsSettings = {
-  RetryTimes: number
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
-  ChannelDisableThreshold: string
   QuotaRemindThreshold: string
-  AutomaticDisableChannelEnabled: boolean
-  AutomaticEnableChannelEnabled: boolean
-  AutomaticDisableKeywords: string
-  AutomaticDisableStatusCodes: string
-  AutomaticRetryStatusCodes: string
-  'monitor_setting.auto_test_channel_enabled': boolean
-  'monitor_setting.auto_test_channel_minutes': number
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string
   SMTPFrom: string
   SMTPToken: string
   SMTPSSLEnabled: boolean
+  SMTPStartTLSEnabled: boolean
+  SMTPInsecureSkipVerify: boolean
   SMTPForceAuthLogin: boolean
   WorkerUrl: string
   WorkerValidKey: string
@@ -313,6 +379,7 @@ export type SecuritySettings = {
   'fetch_setting.ip_list': string[]
   'fetch_setting.allowed_ports': number[]
   'fetch_setting.apply_ip_filter_for_domain': boolean
+  'token_setting.max_user_tokens': number
 }
 
 export type UpstreamChannel = {

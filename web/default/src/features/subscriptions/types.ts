@@ -35,11 +35,15 @@ export const subscriptionPlanSchema = z.object({
   quota_reset_custom_seconds: z.number().optional(),
   enabled: z.boolean(),
   sort_order: z.number(),
+  allow_balance_pay: z.boolean().optional().default(true),
+  allow_wallet_overflow: z.boolean().optional().default(true),
   max_purchase_per_user: z.number(),
   total_amount: z.number(),
   upgrade_group: z.string().optional(),
+  downgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),
   creem_product_id: z.string().optional(),
+  waffo_pancake_product_id: z.string().optional(),
 })
 
 export type SubscriptionPlan = z.infer<typeof subscriptionPlanSchema>
@@ -94,14 +98,40 @@ export interface SubscriptionPayResponse {
   success: boolean
   message?: string
   data?: {
+    // Stripe-style hosted checkout link.
     pay_link?: string
+    // Waffo Pancake / Creem hosted checkout URL.
     checkout_url?: string
+    // Pancake-only: order metadata + self-service buyer session token,
+    // surfaced for future flows (refund / cancel from new-api's own UI).
+    session_id?: string
+    expires_at?: number | string
+    order_id?: string
+    token?: string
+    token_expires_at?: number | string
   }
   url?: string
 }
 
 export interface CreateUserSubscriptionRequest {
   plan_id: number
+}
+
+export interface ResetUserSubscriptionsRequest {
+  plan_id: number
+  advance_reset_time: boolean
+}
+
+export interface ResetPlanSubscriptionsRequest {
+  advance_reset_time: boolean
+}
+
+export interface SubscriptionResetResult {
+  plan_id: number
+  matched_count: number
+  reset_count: number
+  user_count: number
+  advance_reset_time: boolean
 }
 
 // ============================================================================
@@ -118,4 +148,8 @@ export interface SelfSubscriptionData {
 // Dialog Types
 // ============================================================================
 
-export type SubscriptionsDialogType = 'create' | 'update' | 'toggle-status'
+export type SubscriptionsDialogType =
+  | 'create'
+  | 'update'
+  | 'toggle-status'
+  | 'reset-subscriptions'

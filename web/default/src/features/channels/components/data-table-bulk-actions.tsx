@@ -16,20 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Table } from '@tanstack/react-table'
 import { Power, PowerOff, Tag, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -37,7 +32,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
+import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
+
 import {
   handleBatchDelete,
   handleBatchDisable,
@@ -58,6 +60,12 @@ export function DataTableBulkActions<TData>({
   const [showTagDialog, setShowTagDialog] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [tagValue, setTagValue] = useState('')
+  const currentUser = useAuthStore((s) => s.auth.user)
+  const canEditSensitive = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
+  )
 
   const selectedRows = table.getFilteredSelectedRowModel().rows
   const selectedIds = selectedRows.reduce<number[]>((ids, row) => {
@@ -83,6 +91,7 @@ export function DataTableBulkActions<TData>({
   }
 
   const handleDeleteAll = () => {
+    if (!canEditSensitive) return
     handleBatchDelete(selectedIds, queryClient, () => {
       setShowDeleteConfirm(false)
       handleClearSelection()
@@ -171,10 +180,21 @@ export function DataTableBulkActions<TData>({
               <Button
                 variant='destructive'
                 size='icon'
-                onClick={() => setShowDeleteConfirm(true)}
-                className='size-8'
+                onClick={() => {
+                  if (!canEditSensitive) return
+                  setShowDeleteConfirm(true)
+                }}
+                aria-disabled={!canEditSensitive}
+                className={cn(
+                  'size-8',
+                  !canEditSensitive && 'cursor-not-allowed opacity-50'
+                )}
                 aria-label={t('Delete selected channels')}
-                title={t('Delete selected channels')}
+                title={
+                  canEditSensitive
+                    ? t('Delete selected channels')
+                    : t('No permission to perform this action')
+                }
               />
             }
           >
@@ -182,35 +202,31 @@ export function DataTableBulkActions<TData>({
             <span className='sr-only'>{t('Delete selected channels')}</span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('Delete selected channels')}</p>
+            <p>
+              {canEditSensitive
+                ? t('Delete selected channels')
+                : t('No permission to perform this action')}
+            </p>
           </TooltipContent>
         </Tooltip>
       </BulkActionsToolbar>
 
       {/* Set Tag Dialog */}
-      <Dialog open={showTagDialog} onOpenChange={setShowTagDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('Set Tag')}</DialogTitle>
-            <DialogDescription>
-              {t('Set a tag for')} {selectedIds.length}{' '}
-              {t('selected channel(s). Leave empty to remove tag.')}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className='grid gap-4 py-4'>
-            <div className='grid gap-2'>
-              <Label htmlFor='tag'>{t('Tag')}</Label>
-              <Input
-                id='tag'
-                placeholder={t('Enter tag name (optional)')}
-                value={tagValue}
-                onChange={(e) => setTagValue(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
+      <Dialog
+        open={showTagDialog}
+        onOpenChange={setShowTagDialog}
+        title={t('Set Tag')}
+        description={
+          <>
+            {t('Set a tag for')}
+            {selectedIds.length}{' '}
+            {t('selected channel(s). Leave empty to remove tag.')}
+          </>
+        }
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
             <Button
               variant='outline'
               onClick={() => {
@@ -221,33 +237,54 @@ export function DataTableBulkActions<TData>({
               {t('Cancel')}
             </Button>
             <Button onClick={handleSetTag}>{t('Set Tag')}</Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        <div className='grid gap-4 py-4'>
+          <div className='grid gap-2'>
+            <Label htmlFor='tag'>{t('Tag')}</Label>
+            <Input
+              id='tag'
+              placeholder={t('Enter tag name (optional)')}
+              value={tagValue}
+              onChange={(e) => setTagValue(e.target.value)}
+            />
+          </div>
+        </div>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('Delete Channels?')}</DialogTitle>
-            <DialogDescription>
-              {t('Are you sure you want to delete')} {selectedIds.length}{' '}
-              {t('channel(s)? This action cannot be undone.')}
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogFooter>
+      <Dialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title={t('Delete Channels?')}
+        description={
+          <>
+            {t('Are you sure you want to delete')}
+            {selectedIds.length}{' '}
+            {t('channel(s)? This action cannot be undone.')}
+          </>
+        }
+        contentHeight='auto'
+        footer={
+          <>
             <Button
               variant='outline'
               onClick={() => setShowDeleteConfirm(false)}
             >
               {t('Cancel')}
             </Button>
-            <Button variant='destructive' onClick={handleDeleteAll}>
+            <Button
+              variant='destructive'
+              onClick={handleDeleteAll}
+              disabled={!canEditSensitive}
+            >
               {t('Delete')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        {' '}
       </Dialog>
     </>
   )

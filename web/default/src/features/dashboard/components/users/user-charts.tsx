@@ -16,16 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
 import { Users, Loader2 } from 'lucide-react'
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
-import { VCHART_OPTION } from '@/lib/vchart'
-import { useThemeCustomization } from '@/context/theme-customization-provider'
-import { useTheme } from '@/context/theme-provider'
+
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useTheme } from '@/context/theme-provider'
 import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
 import {
   TIME_GRANULARITY_OPTIONS,
@@ -33,11 +32,15 @@ import {
 } from '@/features/dashboard/constants'
 import {
   getDefaultDays,
-  getSavedGranularity,
   saveGranularity,
   processUserChartData,
 } from '@/features/dashboard/lib'
-import type { ProcessedUserChartData } from '@/features/dashboard/types'
+import type {
+  ProcessedUserChartData,
+  UserChartsFilters,
+} from '@/features/dashboard/types'
+import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
+import { VCHART_OPTION } from '@/lib/vchart'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
@@ -62,50 +65,58 @@ const USER_CHARTS: {
 
 const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
 
-export function UserCharts() {
+interface UserChartsProps {
+  filters: UserChartsFilters
+  onFiltersChange: (filters: UserChartsFilters) => void
+}
+
+export function UserCharts(props: UserChartsProps) {
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()
-  const { customization } = useThemeCustomization()
   const [themeReady, setThemeReady] = useState(false)
   const themeManagerRef = useRef<
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
   >(null)
 
-  const [timeGranularity, setTimeGranularity] = useState<TimeGranularity>(() =>
-    getSavedGranularity()
-  )
-  const [selectedRange, setSelectedRange] = useState<number>(() =>
-    getDefaultDays(timeGranularity)
-  )
-  const [topUserLimit, setTopUserLimit] = useState(10)
-  const [timeRange, setTimeRange] = useState(() => {
-    const days = getDefaultDays(timeGranularity)
-    const { start, end } = getRollingDateRange(days)
+  // The selection is owned by the dashboard parent so it persists across
+  // sub-section switches; the rolling window is derived from the chosen range.
+  const timeGranularity = props.filters.timeGranularity
+  const selectedRange = props.filters.selectedRange
+  const topUserLimit = props.filters.topUserLimit
+  const onFiltersChange = props.onFiltersChange
+
+  const timeRange = useMemo(() => {
+    const { start, end } = getRollingDateRange(selectedRange)
     return {
       start_timestamp: Math.floor(start.getTime() / 1000),
       end_timestamp: Math.floor(end.getTime() / 1000),
     }
-  })
+  }, [selectedRange])
 
-  const handleRangeChange = useCallback((days: number) => {
-    setSelectedRange(days)
-    const { start, end } = getRollingDateRange(days)
-    setTimeRange({
-      start_timestamp: Math.floor(start.getTime() / 1000),
-      end_timestamp: Math.floor(end.getTime() / 1000),
-    })
-  }, [])
+  const handleRangeChange = useCallback(
+    (days: number) => {
+      onFiltersChange({ ...props.filters, selectedRange: days })
+    },
+    [onFiltersChange, props.filters]
+  )
 
   const handleGranularityChange = useCallback(
     (g: TimeGranularity) => {
-      setTimeGranularity(g)
       saveGranularity(g)
-      const days = getDefaultDays(g)
-      if (days !== selectedRange) {
-        handleRangeChange(days)
-      }
+      onFiltersChange({
+        ...props.filters,
+        timeGranularity: g,
+        selectedRange: getDefaultDays(g),
+      })
     },
-    [selectedRange, handleRangeChange]
+    [onFiltersChange, props.filters]
+  )
+
+  const handleTopUserLimitChange = useCallback(
+    (limit: number) => {
+      onFiltersChange({ ...props.filters, topUserLimit: limit })
+    },
+    [onFiltersChange, props.filters]
   )
 
   useEffect(() => {
@@ -137,78 +148,72 @@ export function UserCharts() {
         isLoading ? [] : (userData ?? []),
         timeGranularity,
         t,
-        topUserLimit,
-        customization.preset
+        topUserLimit
       ),
-    [
-      userData,
-      isLoading,
-      timeGranularity,
-      t,
-      topUserLimit,
-      customization.preset,
-      customization.radius,
-    ]
+    [userData, isLoading, timeGranularity, t, topUserLimit]
   )
 
   return (
     <div className='space-y-3'>
       <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
-        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
-          {TIME_RANGE_PRESETS.map((preset) => (
-            <button
-              key={preset.days}
-              type='button'
-              onClick={() => handleRangeChange(preset.days)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                selectedRange === preset.days
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              {t(preset.label)}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          value={String(selectedRange)}
+          onValueChange={(value) => handleRangeChange(Number(value))}
+          className='shrink-0'
+        >
+          <TabsList>
+            {TIME_RANGE_PRESETS.map((preset) => (
+              <TabsTrigger
+                key={preset.days}
+                value={String(preset.days)}
+                className='px-2.5 text-xs'
+              >
+                {t(preset.label)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
 
-        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
-          {TIME_GRANULARITY_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type='button'
-              onClick={() =>
-                handleGranularityChange(opt.value as TimeGranularity)
-              }
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                timeGranularity === opt.value
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              {t(opt.label)}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          value={timeGranularity}
+          onValueChange={(value) =>
+            handleGranularityChange(value as TimeGranularity)
+          }
+          className='shrink-0'
+        >
+          <TabsList>
+            {TIME_GRANULARITY_OPTIONS.map((opt) => (
+              <TabsTrigger
+                key={opt.value}
+                value={opt.value}
+                className='px-2.5 text-xs'
+              >
+                {t(opt.label)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
 
-        <div className='flex shrink-0 items-center gap-1.5 rounded-lg border p-0.5'>
-          <span className='text-muted-foreground px-2 text-xs font-medium'>
-            {t('Top Users')}
-          </span>
-          {TOP_USER_LIMIT_OPTIONS.map((limit) => (
-            <button
-              key={limit}
-              type='button'
-              onClick={() => setTopUserLimit(limit)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                topUserLimit === limit
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              {t('Top {{count}}', { count: limit })}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          value={String(topUserLimit)}
+          onValueChange={(value) => handleTopUserLimitChange(Number(value))}
+          className='shrink-0'
+        >
+          <TabsList>
+            <span className='text-muted-foreground px-2 text-xs font-medium whitespace-nowrap'>
+              {t('Top Users')}
+            </span>
+            {TOP_USER_LIMIT_OPTIONS.map((limit) => (
+              <TabsTrigger
+                key={limit}
+                value={String(limit)}
+                className='px-2.5 text-xs'
+              >
+                {t('Top {{count}}', { count: limit })}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
 
         {isLoading && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />
@@ -236,7 +241,7 @@ export function UserCharts() {
                   themeReady &&
                   spec && (
                     <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}-${customization.preset}`}
+                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}`}
                       spec={{
                         ...spec,
                         theme: resolvedTheme === 'dark' ? 'dark' : 'light',

@@ -16,28 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type Table } from '@tanstack/react-table'
 import { Power, PowerOff, Trash2, Copy } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { copyToClipboard } from '@/lib/copy-to-clipboard'
+
+import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { DataTableBulkActions as BulkActionsToolbar } from '@/components/data-table'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
+
 import {
   handleBatchEnableModels,
   handleBatchDisableModels,
@@ -187,17 +182,17 @@ export function DataTableBulkActions<TData>({
       </BulkActionsToolbar>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('Delete Models?')}</DialogTitle>
-            <DialogDescription>
-              {t('Are you sure you want to delete')} {selectedIds.length}{' '}
-              {t('model(s)? This action cannot be undone.')}
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogFooter>
+      <Dialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title={t('Delete Models?')}
+        description={t(
+          'Are you sure you want to delete {{count}} model(s)? This action cannot be undone.',
+          { count: selectedIds.length }
+        )}
+        contentHeight='auto'
+        footer={
+          <>
             <Button
               variant='outline'
               onClick={() => setShowDeleteConfirm(false)}
@@ -207,8 +202,10 @@ export function DataTableBulkActions<TData>({
             <Button variant='destructive' onClick={handleDeleteAll}>
               {t('Delete')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </>
+        }
+      >
+        {' '}
       </Dialog>
     </>
   )

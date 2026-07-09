@@ -16,12 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Crown, RefreshCw, Sparkles, Check } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatQuota } from '@/lib/format'
-import { cn } from '@/lib/utils'
+
+import {
+  StatusBadge,
+  dotColorMap,
+  textColorMap,
+} from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
@@ -42,30 +46,26 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  StatusBadge,
-  dotColorMap,
-  textColorMap,
-} from '@/components/status-badge'
-import {
   getPublicPlans,
   getSelfSubscriptionFull,
   updateBillingPreference,
 } from '@/features/subscriptions/api'
 import { SubscriptionPurchaseDialog } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
-import {
-  formatDuration,
-  formatResetPeriod,
-  formatSubscriptionPrice,
-} from '@/features/subscriptions/lib'
+import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
 import type {
   PlanRecord,
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
+import { formatQuota } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
 import type { PaymentMethod, TopupInfo } from '../types'
 
 interface SubscriptionPlansCardProps {
   topupInfo: TopupInfo | null
   onAvailabilityChange?: (available: boolean) => void
+  userQuota?: number
+  onPurchaseSuccess?: () => void | Promise<void>
 }
 
 function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
@@ -95,6 +95,8 @@ function getBillingPreferenceLabel(
 export function SubscriptionPlansCard({
   topupInfo,
   onAvailabilityChange,
+  userQuota,
+  onPurchaseSuccess,
 }: SubscriptionPlansCardProps) {
   const { t } = useTranslation()
 
@@ -115,6 +117,7 @@ export function SubscriptionPlansCard({
 
   const enableStripe = !!topupInfo?.enable_stripe_topup
   const enableCreem = !!topupInfo?.enable_creem_topup
+  const enableWaffoPancake = !!topupInfo?.enable_waffo_pancake_topup
   const enableOnlineTopUp = !!topupInfo?.enable_online_topup
   const epayMethods = useMemo(
     () => getEpayMethods(topupInfo?.pay_methods),
@@ -234,7 +237,7 @@ export function SubscriptionPlansCard({
 
   if (loading) {
     return (
-      <Card className='gap-0 overflow-hidden py-0'>
+      <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
         <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>
           <Skeleton className='h-6 w-32' />
         </CardHeader>
@@ -258,8 +261,9 @@ export function SubscriptionPlansCard({
     <>
       <TitledCard
         title={t('Subscription Plans')}
-        description={t('Purchase a plan to enjoy model benefits')}
+        description={t('Subscribe to a plan for model access')}
         icon={<Crown className='h-4 w-4' />}
+        disableHoverEffect
         contentClassName='space-y-4 sm:space-y-5'
       >
         {/* My subscriptions & billing preference */}
@@ -503,7 +507,7 @@ export function SubscriptionPlansCard({
 
           {!hasAny && (
             <p className='text-muted-foreground mt-2 text-xs'>
-              {t('Purchase a plan to enjoy model benefits')}
+              {t('Subscribe to a plan for model access')}
             </p>
           )}
         </div>
@@ -515,7 +519,7 @@ export function SubscriptionPlansCard({
               const plan = p?.plan
               if (!plan) return null
               const totalAmount = Number(plan.total_amount || 0)
-              const price = formatSubscriptionPrice(plan.price_amount || 0)
+              const price = Number(plan.price_amount || 0).toFixed(2)
               const isPopular = index === 0 && plans.length > 1
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
@@ -538,10 +542,8 @@ export function SubscriptionPlansCard({
               return (
                 <Card
                   key={plan.id}
-                  className={cn(
-                    'transition-shadow hover:shadow-md',
-                    isPopular && 'border-primary/70 shadow-sm'
-                  )}
+                  data-card-hover='false'
+                  className={cn(isPopular && 'border-primary/70 shadow-sm')}
                 >
                   <CardContent className='flex h-full flex-col p-3.5 sm:p-4'>
                     <div className='mb-2 flex items-start justify-between gap-3'>
@@ -569,7 +571,7 @@ export function SubscriptionPlansCard({
 
                     <div className='py-2'>
                       <span className='text-primary text-2xl font-bold'>
-                        {price}
+                        ${price}
                       </span>
                     </div>
 
@@ -633,8 +635,11 @@ export function SubscriptionPlansCard({
         plan={selectedPlan}
         enableStripe={enableStripe}
         enableCreem={enableCreem}
+        enableWaffoPancake={enableWaffoPancake}
         enableOnlineTopUp={enableOnlineTopUp}
         epayMethods={epayMethods}
+        userQuota={userQuota}
+        onPurchaseSuccess={onPurchaseSuccess}
         purchaseLimit={
           selectedPlan?.plan?.max_purchase_per_user
             ? Number(selectedPlan.plan.max_purchase_per_user)

@@ -18,18 +18,21 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Share2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatQuota } from '@/lib/format'
+
+import { CopyButton } from '@/components/copy-button'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CopyButton } from '@/components/copy-button'
+import { formatQuota } from '@/lib/format'
+
 import type { UserWalletData } from '../types'
 
 interface AffiliateRewardsCardProps {
   user: UserWalletData | null
   affiliateLink: string
   onTransfer: () => void
+  complianceConfirmed?: boolean
   loading?: boolean
 }
 
@@ -37,12 +40,13 @@ export function AffiliateRewardsCard({
   user,
   affiliateLink,
   onTransfer,
+  complianceConfirmed = true,
   loading,
 }: AffiliateRewardsCardProps) {
   const { t } = useTranslation()
   if (loading) {
     return (
-      <Card className='bg-muted/20 py-0'>
+      <Card data-card-hover='false' className='bg-muted/20 py-0'>
         <CardContent className='grid gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(220px,1fr)_minmax(220px,0.72fr)_minmax(320px,1.15fr)] lg:items-center'>
           <div>
             <Skeleton className='h-5 w-32' />
@@ -58,7 +62,7 @@ export function AffiliateRewardsCard({
   const hasRewards = (user?.aff_quota ?? 0) > 0
 
   return (
-    <Card className='bg-muted/20 py-0'>
+    <Card data-card-hover='false' className='bg-muted/20 py-0'>
       <CardContent className='grid gap-3 p-3 sm:gap-4 sm:p-4 lg:grid-cols-[minmax(200px,1fr)_minmax(180px,0.65fr)_minmax(280px,1fr)] lg:items-center'>
         <div className='flex min-w-0 items-center gap-2.5'>
           <div className='bg-background flex size-8 shrink-0 items-center justify-center rounded-lg border'>
@@ -110,6 +114,7 @@ export function AffiliateRewardsCard({
           {hasRewards && (
             <Button
               onClick={onTransfer}
+              disabled={!complianceConfirmed}
               className='h-9 shrink-0 px-3'
               size='sm'
             >
@@ -117,6 +122,13 @@ export function AffiliateRewardsCard({
             </Button>
           )}
         </div>
+        {!complianceConfirmed ? (
+          <p className='text-muted-foreground text-xs lg:col-span-3'>
+            {t(
+              'Referral reward transfer is disabled until the administrator confirms compliance terms.'
+            )}
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   )

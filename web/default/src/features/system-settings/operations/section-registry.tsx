@@ -30,11 +30,9 @@ const OPERATIONS_SECTIONS = [
   {
     id: 'behavior',
     titleKey: 'System Behavior',
-    descriptionKey: 'Configure system-wide behavior and defaults',
     build: (settings: OperationsSettings) => (
       <SystemBehaviorSection
         defaultValues={{
-          RetryTimes: settings.RetryTimes,
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
@@ -43,24 +41,20 @@ const OPERATIONS_SECTIONS = [
     ),
   },
   {
-    id: 'monitoring',
+    id: 'alerts',
     titleKey: 'Monitoring & Alerts',
-    descriptionKey: 'Configure channel monitoring and automation',
     build: (settings: OperationsSettings) => (
       <MonitoringSettingsSection
         defaultValues={{
-          ChannelDisableThreshold: settings.ChannelDisableThreshold,
           QuotaRemindThreshold: settings.QuotaRemindThreshold,
-          AutomaticDisableChannelEnabled:
-            settings.AutomaticDisableChannelEnabled,
-          AutomaticEnableChannelEnabled: settings.AutomaticEnableChannelEnabled,
-          AutomaticDisableKeywords: settings.AutomaticDisableKeywords,
-          AutomaticDisableStatusCodes: settings.AutomaticDisableStatusCodes,
-          AutomaticRetryStatusCodes: settings.AutomaticRetryStatusCodes,
-          'monitor_setting.auto_test_channel_enabled':
-            settings['monitor_setting.auto_test_channel_enabled'],
-          'monitor_setting.auto_test_channel_minutes':
-            settings['monitor_setting.auto_test_channel_minutes'],
+          'perf_metrics_setting.enabled':
+            settings['perf_metrics_setting.enabled'] ?? true,
+          'perf_metrics_setting.flush_interval':
+            settings['perf_metrics_setting.flush_interval'] ?? 5,
+          'perf_metrics_setting.bucket_time':
+            settings['perf_metrics_setting.bucket_time'] ?? 'hour',
+          'perf_metrics_setting.retention_days':
+            settings['perf_metrics_setting.retention_days'] ?? 0,
         }}
       />
     ),
@@ -68,7 +62,6 @@ const OPERATIONS_SECTIONS = [
   {
     id: 'email',
     titleKey: 'SMTP Email',
-    descriptionKey: 'Configure SMTP email settings',
     build: (settings: OperationsSettings) => (
       <EmailSettingsSection
         defaultValues={{
@@ -78,6 +71,8 @@ const OPERATIONS_SECTIONS = [
           SMTPFrom: settings.SMTPFrom,
           SMTPToken: settings.SMTPToken,
           SMTPSSLEnabled: settings.SMTPSSLEnabled,
+          SMTPStartTLSEnabled: settings.SMTPStartTLSEnabled,
+          SMTPInsecureSkipVerify: settings.SMTPInsecureSkipVerify,
           SMTPForceAuthLogin: settings.SMTPForceAuthLogin,
         }}
       />
@@ -86,7 +81,6 @@ const OPERATIONS_SECTIONS = [
   {
     id: 'worker',
     titleKey: 'Worker Proxy',
-    descriptionKey: 'Configure worker service settings',
     build: (settings: OperationsSettings) => (
       <WorkerSettingsSection
         defaultValues={{
@@ -101,7 +95,6 @@ const OPERATIONS_SECTIONS = [
   {
     id: 'logs',
     titleKey: 'Log Maintenance',
-    descriptionKey: 'Configure log consumption settings',
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
         defaultEnabled={Boolean(settings.LogConsumeEnabled)}
@@ -111,7 +104,6 @@ const OPERATIONS_SECTIONS = [
   {
     id: 'performance',
     titleKey: 'Performance',
-    descriptionKey: 'Disk cache, system monitoring and performance stats',
     build: (settings: OperationsSettings) => (
       <PerformanceSection
         defaultValues={{
@@ -131,14 +123,6 @@ const OPERATIONS_SECTIONS = [
             settings['performance_setting.monitor_memory_threshold'] ?? 90,
           'performance_setting.monitor_disk_threshold':
             settings['performance_setting.monitor_disk_threshold'] ?? 95,
-          'perf_metrics_setting.enabled':
-            settings['perf_metrics_setting.enabled'] ?? true,
-          'perf_metrics_setting.flush_interval':
-            settings['perf_metrics_setting.flush_interval'] ?? 5,
-          'perf_metrics_setting.bucket_time':
-            settings['perf_metrics_setting.bucket_time'] ?? 'hour',
-          'perf_metrics_setting.retention_days':
-            settings['perf_metrics_setting.retention_days'] ?? 0,
         }}
       />
     ),
@@ -146,7 +130,6 @@ const OPERATIONS_SECTIONS = [
   {
     id: 'update-checker',
     titleKey: 'System maintenance',
-    descriptionKey: 'Check for system updates',
     build: (
       _settings: OperationsSettings,
       currentVersion?: string | null,
@@ -178,3 +161,4 @@ export const OPERATIONS_DEFAULT_SECTION = operationsRegistry.defaultSection
 export const getOperationsSectionNavItems =
   operationsRegistry.getSectionNavItems
 export const getOperationsSectionContent = operationsRegistry.getSectionContent
+export const getOperationsSectionMeta = operationsRegistry.getSectionMeta

@@ -16,10 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { memo, useEffect, useState } from 'react'
 import { Activity, RotateCw } from 'lucide-react'
+import { memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { getUptimeStatus } from '@/features/dashboard/api'
@@ -27,13 +27,15 @@ import type {
   UptimeGroupResult,
   UptimeMonitor,
 } from '@/features/dashboard/types'
+import { cn } from '@/lib/utils'
+
 import { PanelWrapper } from '../ui/panel-wrapper'
 
 const STATUS_COLOR_MAP: Record<number, string> = {
-  1: 'bg-success',
-  0: 'bg-destructive',
-  2: 'bg-warning',
-  3: 'bg-info',
+  1: 'bg-emerald-500',
+  0: 'bg-red-500',
+  2: 'bg-amber-500',
+  3: 'bg-blue-500',
 }
 const DEFAULT_STATUS_COLOR = 'bg-muted-foreground/40'
 

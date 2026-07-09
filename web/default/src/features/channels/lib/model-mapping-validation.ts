@@ -179,6 +179,12 @@ export function validateModelMappingJson(modelMapping: string): {
         error: 'Model mapping must be a valid JSON object',
       }
     }
+    if (Object.values(parsed).some((value) => typeof value !== 'string')) {
+      return {
+        valid: false,
+        error: 'Model mapping values must be strings',
+      }
+    }
     return { valid: true }
   } catch {
     return {

@@ -18,8 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
+
 import {
   LoadingSkeleton,
   EmptyState,
@@ -70,7 +72,9 @@ export function Pricing() {
     setQuotaTypeFilter,
     setEndpointTypeFilter,
     setTagFilter,
+    setTokenUnit,
     setViewMode,
+    setShowRechargePrice,
     filteredModels,
     hasActiveFilters,
     activeFilterCount,
@@ -126,6 +130,7 @@ export function Pricing() {
           usdExchangeRate={usdExchangeRate}
           tokenUnit={tokenUnit}
           showRechargePrice={showRechargePrice}
+          selectedGroup={groupFilter}
         />
       )
     }
@@ -137,6 +142,7 @@ export function Pricing() {
         usdExchangeRate={usdExchangeRate}
         tokenUnit={tokenUnit}
         showRechargePrice={showRechargePrice}
+        selectedGroup={groupFilter}
         onModelClick={handleModelClick}
       />
     )
@@ -172,9 +178,6 @@ export function Pricing() {
         />
         <PageTransition className='relative mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
           <header className='mx-auto mb-5 max-w-3xl pt-5 text-center sm:mb-10 sm:pt-10'>
-            <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
-              {t('Models Directory')}
-            </p>
             <h1 className='text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'>
               {t('Model Square')}
             </h1>
@@ -227,6 +230,10 @@ export function Pricing() {
                 totalCount={models?.length}
                 sortBy={sortBy}
                 onSortChange={setSortBy}
+                tokenUnit={tokenUnit}
+                onTokenUnitChange={setTokenUnit}
+                showRechargePrice={showRechargePrice}
+                onRechargePriceChange={setShowRechargePrice}
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
                 quotaTypeFilter={quotaTypeFilter}
