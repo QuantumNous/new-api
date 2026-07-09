@@ -36,6 +36,13 @@ export interface BillingDailyRow {
   revenue_usd: number
 }
 
+// Frontend-only row shape: a synthetic "Total" row is prepended to the table
+// data (not sent by the backend) so the summed totals render as a real,
+// always-first table row rather than a separate UI element.
+export interface BillingTableRow extends BillingDailyRow {
+  isTotal?: boolean
+}
+
 export interface ApiResponse<T = unknown> {
   success: boolean
   message?: string

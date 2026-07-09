@@ -19,28 +19,33 @@ For commercial licensing, please contact support@quantumnous.com
 import { type ColumnDef } from '@tanstack/react-table'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { formatDay, formatUSD } from '../constants'
-import type { BillingDailyRow } from '../types'
+import type { BillingTableRow } from '../types'
 
 // Profit and margin are derived here from cost/revenue — not sent by the
 // backend, so they never go stale relative to the source numbers.
 // 毛利 (margin) is intentionally profit/cost, not profit/revenue.
 export function buildBillingSummaryColumns(
   t: (key: string) => string
-): ColumnDef<BillingDailyRow, unknown>[] {
+): ColumnDef<BillingTableRow, unknown>[] {
   return [
     {
       accessorKey: 'day',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Date')} />
       ),
-      cell: ({ row }) => (
-        <span className='font-mono text-sm'>{formatDay(row.original.day)}</span>
-      ),
+      cell: ({ row }) =>
+        row.original.isTotal ? (
+          <span className='text-sm font-semibold'>{t('Total')}</span>
+        ) : (
+          <span className='font-mono text-sm'>
+            {formatDay(row.original.day)}
+          </span>
+        ),
     },
     {
       accessorKey: 'cost_usd',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Cost')} />
+        <DataTableColumnHeader column={column} title={t('Platform Cost')} />
       ),
       cell: ({ row }) => (
         <span className='font-mono text-sm'>
@@ -78,7 +83,8 @@ export function buildBillingSummaryColumns(
       header: () => <span>{t('Margin')}</span>,
       cell: ({ row }) => {
         const { cost_usd: cost, revenue_usd: revenue } = row.original
-        if (cost <= 0) return <span className='text-muted-foreground text-sm'>—</span>
+        if (cost <= 0)
+          return <span className='text-muted-foreground text-sm'>—</span>
         const margin = ((revenue - cost) / cost) * 100
         return (
           <span

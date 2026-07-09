@@ -59,7 +59,7 @@ func GetBillingDailyFromSummary(startTimestamp, endTimestamp int64, modelName st
 		tx = tx.Where("channel_id = ?", channel)
 	}
 	var rows []BillingDailyRow
-	err := tx.Group("(hour_bucket / 86400 * 86400)").Order("day asc").Scan(&rows).Error
+	err := tx.Group("(hour_bucket / 86400 * 86400)").Order("day desc").Scan(&rows).Error
 	return rows, err
 }
 
@@ -108,6 +108,6 @@ func GetBillingDailyFromRawLogs(startTimestamp, endTimestamp int64, modelName st
 	}
 
 	var rows []BillingDailyRow
-	err := tx.Group("(created_at / 86400 * 86400)").Order("day asc").Scan(&rows).Error
+	err := tx.Group("(created_at / 86400 * 86400)").Order("day desc").Scan(&rows).Error
 	return rows, err
 }
