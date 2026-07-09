@@ -86,14 +86,21 @@ func fetchOpenRouterChannelPricing(ctx context.Context, channel *model.Channel) 
 			logger.LogInfo(ctx, fmt.Sprintf("channel-pricing [%d]: OpenRouter no price for local model %q", channel.Id, localModel))
 			continue
 		}
+		cachePrice, cacheCreationPrice := fillMissingCachePricesFromOfficial(
+			localModel,
+			matched.InputPrice,
+			matched.OutputPrice,
+			matched.CachePrice,
+			matched.CacheCreationPrice,
+		)
 
 		rows = append(rows, model.ChannelModelPricing{
 			ChannelId:          channel.Id,
 			ModelName:          localModel,
 			InputPrice:         matched.InputPrice,
 			OutputPrice:        matched.OutputPrice,
-			CachePrice:         matched.CachePrice,
-			CacheCreationPrice: matched.CacheCreationPrice,
+			CachePrice:         cachePrice,
+			CacheCreationPrice: cacheCreationPrice,
 			GroupRatio:         1,
 			Currency:           "USD",
 			PricingSource:      "api",

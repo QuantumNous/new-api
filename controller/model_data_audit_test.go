@@ -29,7 +29,7 @@ func TestBuildChannelDataAuditDetectsMissingCacheWrite(t *testing.T) {
 	require.Len(t, groups["pricing_missing_cache_write"], 1)
 }
 
-func TestBuildChannelDataAuditTreatsManualMediaMissingFieldsAsAnomaly(t *testing.T) {
+func TestBuildChannelDataAuditTreatsMediaOutputAndCacheAsNotApplicable(t *testing.T) {
 	items, summary, groups := buildChannelDataAudit("sora-2", []ModelDataItem{
 		{
 			ChannelID:     88,
@@ -41,15 +41,15 @@ func TestBuildChannelDataAuditTreatsManualMediaMissingFieldsAsAnomaly(t *testing
 
 	require.Len(t, items, 1)
 	require.Equal(t, "manual", items[0].FinalSource)
-	require.Equal(t, "partial", items[0].Completeness)
-	require.True(t, items[0].IsAnomaly)
-	require.Equal(t, []string{"output", "cache_read", "cache_write"}, items[0].MissingFields)
+	require.Equal(t, "complete", items[0].Completeness)
+	require.False(t, items[0].IsAnomaly)
+	require.Empty(t, items[0].MissingFields)
 	require.Equal(t, 1, summary.ManualSources)
-	require.Equal(t, 1, summary.PartialCount)
-	require.Equal(t, 1, summary.AnomalyCount)
-	require.Len(t, groups["manual_missing_output"], 1)
-	require.Len(t, groups["manual_missing_cache_read"], 1)
-	require.Len(t, groups["manual_missing_cache_write"], 1)
+	require.Equal(t, 1, summary.CompleteCount)
+	require.Equal(t, 0, summary.AnomalyCount)
+	require.Empty(t, groups["manual_missing_output"])
+	require.Empty(t, groups["manual_missing_cache_read"])
+	require.Empty(t, groups["manual_missing_cache_write"])
 }
 
 func TestBuildChannelDataAuditTreatsGlobalFallbackAsAnomaly(t *testing.T) {

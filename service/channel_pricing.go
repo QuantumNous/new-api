@@ -75,13 +75,13 @@ func FetchChannelPricing(channel *model.Channel) {
 	}
 
 	type pricingItem struct {
-		ModelName         string  `json:"model_name"`
-		QuotaType         int     `json:"quota_type"`          // 0=ratio-based 1=price-based
-		ModelRatio        float64 `json:"model_ratio"`         // 1 ratio = $2/1M input tokens
-		ModelPrice        float64 `json:"model_price"`         // direct USD/request (quota_type=1)
-		CompletionRatio   float64 `json:"completion_ratio"`    // output/input multiplier
-		CacheRatio        float64 `json:"cache_ratio"`         // cache-read / input multiplier
-		CreateCacheRatio  float64 `json:"create_cache_ratio"`  // cache-write / input multiplier
+		ModelName        string  `json:"model_name"`
+		QuotaType        int     `json:"quota_type"`         // 0=ratio-based 1=price-based
+		ModelRatio       float64 `json:"model_ratio"`        // 1 ratio = $2/1M input tokens
+		ModelPrice       float64 `json:"model_price"`        // direct USD/request (quota_type=1)
+		CompletionRatio  float64 `json:"completion_ratio"`   // output/input multiplier
+		CacheRatio       float64 `json:"cache_ratio"`        // cache-read / input multiplier
+		CreateCacheRatio float64 `json:"create_cache_ratio"` // cache-write / input multiplier
 	}
 	type pricingResp struct {
 		Success    *bool              `json:"success"`
@@ -142,6 +142,13 @@ func FetchChannelPricing(channel *model.Channel) {
 			if item.CreateCacheRatio > 0 {
 				cacheCreationPrice = item.ModelRatio * item.CreateCacheRatio * groupMul * 2
 			}
+			cachePrice, cacheCreationPrice = fillMissingCachePricesFromOfficial(
+				item.ModelName,
+				inputPrice,
+				outputPrice,
+				cachePrice,
+				cacheCreationPrice,
+			)
 		}
 		rows = append(rows, model.ChannelModelPricing{
 			ChannelId:          channel.Id,
@@ -170,6 +177,31 @@ func FetchChannelPricing(channel *model.Channel) {
 	}
 	logger.LogInfo(ctx, fmt.Sprintf("channel-pricing [%d] group=%q mul=%.3f: stored %d model prices",
 		channel.Id, keyGroup, groupMul, len(rows)))
+}
+
+func fillMissingCachePricesFromOfficial(
+	modelName string,
+	inputPrice float64,
+	outputPrice float64,
+	cachePrice float64,
+	cacheCreationPrice float64,
+) (float64, float64) {
+	if inputPrice <= 0 || outputPrice <= 0 || (cachePrice > 0 && cacheCreationPrice > 0) {
+		return cachePrice, cacheCreationPrice
+	}
+
+	official, ok := lookupOfficialModelPrice(modelName)
+	if !ok || official.InputPrice <= 0 || official.OutputPrice <= 0 {
+		return cachePrice, cacheCreationPrice
+	}
+
+	if cachePrice <= 0 && official.CachePrice > 0 {
+		cachePrice = inputPrice * official.CachePrice / official.InputPrice
+	}
+	if cacheCreationPrice <= 0 && official.CacheCreationPrice > 0 {
+		cacheCreationPrice = inputPrice * official.CacheCreationPrice / official.InputPrice
+	}
+	return cachePrice, cacheCreationPrice
 }
 
 // fetchModelPriceRatioFallback handles channels priced via the operator-set
@@ -243,7 +275,6 @@ func normalizeGroupName(s string) string {
 	)
 	return strings.ToLower(replacer.Replace(s))
 }
-
 
 // hub pricing is cached in-memory — the aggregator only refreshes every few
 // minutes, and model-data should not pay a hub round-trip on every page load.

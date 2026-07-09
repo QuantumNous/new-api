@@ -39,6 +39,12 @@ type ChannelDataAuditGroupMember struct {
 	ChannelName string `json:"channel_name"`
 }
 
+type ChannelDataAuditBatchSummary struct {
+	TotalModels   int `json:"total_models"`
+	TotalChannels int `json:"total_channels"`
+	MissingCount  int `json:"missing_count"`
+}
+
 // GetChannelDataAudit returns a read-only audit of the Channel Data page's
 // final procurement prices for a single model.
 func GetChannelDataAudit(c *gin.Context) {
@@ -54,10 +60,55 @@ func GetChannelDataAudit(c *gin.Context) {
 	})
 }
 
+// GetChannelDataAuditBatch returns incomplete procurement-price rows across
+// multiple channel-data model tabs. The caller controls the model list so the
+// backend does not need to mirror frontend tab ordering.
+func GetChannelDataAuditBatch(c *gin.Context) {
+	rawModels := strings.TrimSpace(c.Query("models"))
+	if rawModels == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "models is required"})
+		return
+	}
+
+	modelNames := make([]string, 0)
+	seen := map[string]bool{}
+	for _, part := range strings.Split(rawModels, ",") {
+		modelName := strings.TrimSpace(part)
+		if modelName == "" || seen[modelName] || isHiddenChannelDataModel(modelName) {
+			continue
+		}
+		seen[modelName] = true
+		modelNames = append(modelNames, modelName)
+	}
+
+	missingItems := make([]ChannelDataAuditItem, 0)
+	summary := ChannelDataAuditBatchSummary{TotalModels: len(modelNames)}
+	for _, modelName := range modelNames {
+		items, _, _, _ := getModelDataItems(c.Request.Context(), modelName)
+		summary.TotalChannels += len(items)
+		auditItems, _, _ := buildChannelDataAudit(modelName, items)
+		for _, item := range auditItems {
+			if !channelDataAuditShouldAlert(item) {
+				continue
+			}
+			missingItems = append(missingItems, item)
+		}
+	}
+	summary.MissingCount = len(missingItems)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"models":  modelNames,
+		"data":    missingItems,
+		"summary": summary,
+	})
+}
+
 func buildChannelDataAudit(modelName string, items []ModelDataItem) ([]ChannelDataAuditItem, ChannelDataAuditSummary, map[string][]ChannelDataAuditGroupMember) {
 	auditItems := make([]ChannelDataAuditItem, 0, len(items))
 	summary := ChannelDataAuditSummary{TotalChannels: len(items)}
 	groups := make(map[string][]ChannelDataAuditGroupMember)
+	requiresFourPiece := channelDataAuditRequiresFourPiece(modelName)
 
 	addGroup := func(key string, item ModelDataItem) {
 		groups[key] = append(groups[key], ChannelDataAuditGroupMember{
@@ -83,14 +134,16 @@ func buildChannelDataAudit(modelName string, items []ModelDataItem) ([]ChannelDa
 		if channelDataAuditPriceMissing(item.ActualPrice) {
 			missingFields = append(missingFields, "input")
 		}
-		if channelDataAuditPriceMissing(item.ActualOutputPrice) {
-			missingFields = append(missingFields, "output")
-		}
-		if channelDataAuditPriceMissing(item.ActualCachePrice) {
-			missingFields = append(missingFields, "cache_read")
-		}
-		if channelDataAuditPriceMissing(item.ActualCacheCreationPrice) {
-			missingFields = append(missingFields, "cache_write")
+		if requiresFourPiece {
+			if channelDataAuditPriceMissing(item.ActualOutputPrice) {
+				missingFields = append(missingFields, "output")
+			}
+			if channelDataAuditPriceMissing(item.ActualCachePrice) {
+				missingFields = append(missingFields, "cache_read")
+			}
+			if channelDataAuditPriceMissing(item.ActualCacheCreationPrice) {
+				missingFields = append(missingFields, "cache_write")
+			}
 		}
 
 		completeness := "complete"
@@ -161,9 +214,25 @@ func normalizedChannelDataAuditSource(source string) string {
 	if source == "" {
 		return "none"
 	}
+	if source == "api" {
+		return "pricing"
+	}
 	return source
 }
 
 func channelDataAuditPriceMissing(price *float64) bool {
 	return price == nil || *price <= 0
+}
+
+func channelDataAuditShouldAlert(item ChannelDataAuditItem) bool {
+	return len(item.MissingFields) > 0
+}
+
+func channelDataAuditRequiresFourPiece(modelName string) bool {
+	switch strings.TrimSpace(modelName) {
+	case "gemini-3.1-flash-image-preview", "gpt-image-2", "sora-2", "sora-2-pro", "kling-v3-motion-control":
+		return false
+	default:
+		return true
+	}
 }

@@ -255,6 +255,7 @@ func SetApiRouter(router *gin.Engine) {
 			adminRoute.GET("/exchange-rate", controller.GetExchangeRate)
 			adminRoute.GET("/channel-data", controller.GetModelData)
 			adminRoute.GET("/channel-data/audit", controller.GetChannelDataAudit)
+			adminRoute.GET("/channel-data/audit-batch", controller.GetChannelDataAuditBatch)
 			adminRoute.POST("/channel-data/toggle", controller.ToggleChannelStatus)
 			adminRoute.POST("/channel-data/refresh-pricing", controller.RefreshModelPricing)
 			adminRoute.POST("/channel-data/refresh-hub-price", controller.RefreshHubPrice)

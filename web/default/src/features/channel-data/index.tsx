@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Settings2, RefreshCw, AlertTriangle } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -82,6 +82,13 @@ interface ModelDataItem {
   status_reason?: string  // why auto-disabled; empty when status !== 3
   status_time?: number    // unix ts of disable event; 0 if unknown
   base_url?: string
+}
+
+interface ProcurementAuditItem {
+  channel_id: number
+  channel_name: string
+  model_name: string
+  missing_fields: string[]
 }
 
 interface AnalysisState {
@@ -172,6 +179,49 @@ const STATUS_LABEL: Record<string, string> = {
   pass: '通过',
   suspicious: '可疑',
   notcomplete: '未完成',
+}
+
+const NON_LLM_MODEL_IDS = new Set([
+  'gemini-3.1-flash-image-preview',
+  'gpt-image-2',
+  'sora-2',
+  'sora-2-pro',
+  'kling-v3-motion-control',
+])
+
+const PROCUREMENT_FIELD_LABELS: Record<string, string> = {
+  input: '输入',
+  output: '输出',
+  cache_read: '缓存读',
+  cache_write: '缓存写',
+}
+
+function hasPositivePrice(price: number | null | undefined): boolean {
+  return price != null && price > 0
+}
+
+function isLLMModel(modelId: string): boolean {
+  return !NON_LLM_MODEL_IDS.has(modelId)
+}
+
+const CHANNEL_DATA_MODEL_IDS = MODEL_TABS.map((tab) => tab.modelId)
+
+function getModelLabel(modelId: string): string {
+  return MODEL_TABS.find((tab) => tab.modelId === modelId)?.label ?? modelId
+}
+
+function getMissingProcurementFields(
+  item: ModelDataItem,
+  modelId: string,
+): string[] {
+  const missing: string[] = []
+  if (!hasPositivePrice(item.actual_price)) missing.push('input')
+  if (!isLLMModel(modelId)) return missing
+
+  if (!hasPositivePrice(item.actual_output_price)) missing.push('output')
+  if (!hasPositivePrice(item.actual_cache_price)) missing.push('cache_read')
+  if (!hasPositivePrice(item.actual_cache_creation_price)) missing.push('cache_write')
+  return missing
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -415,6 +465,9 @@ export function ChannelDataPage() {
   const [activeModel, setActiveModel] = useState(MODEL_TABS[0].modelId)
   const [data, setData] = useState<ModelDataItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [allProcurementAlerts, setAllProcurementAlerts] = useState<ProcurementAuditItem[]>([])
+  const [allProcurementAuditLoaded, setAllProcurementAuditLoaded] = useState(false)
+  const [allProcurementAuditFailed, setAllProcurementAuditFailed] = useState(false)
   // Unified 官方原价 for the active model tab (系统设置 → 模型定价).
   const [official, setOfficial] = useState<{ input_price: number; output_price: number; ok: boolean } | null>(null)
   const [fixingRatio, setFixingRatio] = useState<Record<number, boolean>>({})
@@ -471,6 +524,30 @@ export function ChannelDataPage() {
   const [detectingChannels, setDetectingChannels] = useState<Record<string, boolean>>({})
   const [pingingChannels, setPingingChannels] = useState<Record<string, boolean>>({})
   const [analysis, setAnalysis] = useState<AnalysisState | null>(null)
+
+  const loadAllProcurementAudit = useCallback(() => {
+    setAllProcurementAuditLoaded(false)
+    setAllProcurementAuditFailed(false)
+    api
+      .get('/api/admin/channel-data/audit-batch', {
+        params: { models: CHANNEL_DATA_MODEL_IDS.join(',') },
+        skipErrorHandler: true,
+      } as Parameters<typeof api.get>[1])
+      .then((res) => {
+        if (res.data?.success) {
+          setAllProcurementAlerts(res.data.data ?? [])
+        }
+      })
+      .catch(() => {
+        setAllProcurementAlerts([])
+        setAllProcurementAuditFailed(true)
+      })
+      .finally(() => setAllProcurementAuditLoaded(true))
+  }, [])
+
+  useEffect(() => {
+    loadAllProcurementAudit()
+  }, [loadAllProcurementAudit])
 
   // Fetch table data
   useEffect(() => {
@@ -562,12 +639,13 @@ export function ChannelDataPage() {
             .get('/api/admin/channel-data', { params: { model: activeModel } })
             .then((res) => { if (res.data?.success) setData(res.data.data ?? []) })
             .finally(() => {
+              loadAllProcurementAudit()
               setPricingRefreshing(false)
               setPricingRefreshMsg('')
             })
         }, 6000)
       })
-  }, [activeModel, pricingRefreshing])
+  }, [activeModel, loadAllProcurementAudit, pricingRefreshing])
 
   // Re-fetch hub.romaapi.com aggregator pricing (clears the backend TTL cache),
   // then reload the table so the HUB 价格 column shows fresh values.
@@ -713,6 +791,41 @@ export function ChannelDataPage() {
     const label = UNIT_OPTIONS.find((o) => o.value === unit)?.label ?? ''
     return `每 ${value} ${label}`
   }
+
+  const procurementAlertSummary = useMemo(() => {
+    if (!allProcurementAuditLoaded) return null
+    if (allProcurementAuditFailed) {
+      return {
+        tone: 'danger' as const,
+        text: '价格完整性检查失败',
+      }
+    }
+    if (allProcurementAlerts.length === 0) {
+      return {
+        tone: 'success' as const,
+        text: '全部渠道价格齐全',
+      }
+    }
+
+    const uniqueAlerts = Array.from(
+      new Map(
+        allProcurementAlerts.map((item) => [
+          `${item.model_name}:${item.channel_id}`,
+          item,
+        ]),
+      ).values(),
+    )
+    const preview = uniqueAlerts
+      .slice(0, 3)
+      .map((item) => `${getModelLabel(item.model_name)}，${item.channel_name}`)
+      .join('；')
+    const suffix =
+      uniqueAlerts.length > 3 ? ` 等 ${uniqueAlerts.length} 项缺价格数据` : ' 缺价格数据'
+    return {
+      tone: 'danger' as const,
+      text: `${preview}${suffix}`,
+    }
+  }, [allProcurementAlerts, allProcurementAuditFailed, allProcurementAuditLoaded])
 
   // Manual enable/disable from the row button. Mutates server state then
   // refetches the table so the new status (1 / 2) shows up. We don't update
@@ -878,10 +991,29 @@ export function ChannelDataPage() {
             (it) => it.model_enabled !== false && it.status === 1,
           ).length
           return (
-            <div className='mb-3 text-sm text-gray-500'>
-              <span className='font-medium text-gray-800'>{enabledCount}</span> 个启用
-              <span className='text-gray-300 mx-1.5'>/</span>
-              {data.length} 个渠道
+            <div className='mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-500'>
+              <div>
+                <span className='font-medium text-gray-800'>{enabledCount}</span> 个启用
+                <span className='text-gray-300 mx-1.5'>/</span>
+                {data.length} 个渠道
+              </div>
+              {procurementAlertSummary && (
+                <div
+                  className={[
+                    'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+                    procurementAlertSummary.tone === 'danger'
+                      ? 'bg-red-50 text-red-700'
+                      : 'bg-emerald-50 text-emerald-700',
+                  ].join(' ')}
+                >
+                  {procurementAlertSummary.tone === 'danger' ? (
+                    <AlertTriangle className='size-3.5 shrink-0' />
+                  ) : (
+                    <span className='size-2 shrink-0 rounded-full bg-emerald-500' />
+                  )}
+                  {procurementAlertSummary.text}
+                </div>
+              )}
             </div>
           )
         })()}
@@ -944,6 +1076,8 @@ export function ChannelDataPage() {
                 </tr>
               )}
               {data.map((item) => {
+                const missingProcurementFields = getMissingProcurementFields(item, activeModel)
+                const hasProcurementAlert = missingProcurementFields.length > 0
                 const isAutoDisabled = item.status === 3
                 const isModelEnabled = item.model_enabled !== false  // default true if field missing
                 const isModelAutoDisabled =
@@ -1059,7 +1193,7 @@ export function ChannelDataPage() {
                       </TooltipProvider>
                     </td>
                     <td className={`px-2 py-2.5 text-right text-gray-500 tabular-nums ${dim}`}>{fmtPrice(item.official_input_price)}</td>
-                    <td className={`px-2 py-2.5 text-right font-semibold tabular-nums ${priceDivergent ? 'text-red-600' : 'text-gray-800'} ${dim}`}>
+                    <td className={`px-2 py-2.5 text-right font-semibold tabular-nums ${priceDivergent || hasProcurementAlert ? 'text-red-600' : 'text-gray-800'} ${dim}`}>
                       <TooltipProvider delay={0}>
                       <Tooltip>
                         <TooltipTrigger render={
@@ -1075,12 +1209,27 @@ export function ChannelDataPage() {
                                 !{Math.round(priceDivergePct)}%
                               </span>
                             )}
+                            {hasProcurementAlert && (
+                              <span className='inline-flex items-center gap-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold leading-none text-red-600'>
+                                <AlertTriangle size={10} />
+                                缺价
+                              </span>
+                            )}
                             {fmtPrice(item.actual_price)}
                           </div>
                         } />
                         <TooltipContent>
                           {item.actual_price != null && item.actual_price > 0 ? (
                             <div className='flex flex-col gap-1 text-[12px] min-w-[160px]'>
+                              {hasProcurementAlert && (
+                                <div className='mb-1 border-b border-white/10 pb-1 text-red-300'>
+                                  采购价不完整：缺少
+                                  {' '}
+                                  {missingProcurementFields
+                                    .map((field) => PROCUREMENT_FIELD_LABELS[field] ?? field)
+                                    .join(' / ')}
+                                </div>
+                              )}
                               <div className='flex justify-between gap-4'>
                                 <span className='opacity-70'>输入</span>
                                 <span className='font-mono'>{fmtPrice(item.actual_price)}</span>
@@ -1104,7 +1253,18 @@ export function ChannelDataPage() {
                               )}
                             </div>
                           ) : (
-                            <span className='opacity-70'>暂无价格数据</span>
+                            <div className='flex flex-col gap-1 text-[12px] min-w-[160px]'>
+                              {hasProcurementAlert && (
+                                <div className='text-red-300'>
+                                  采购价不完整：缺少
+                                  {' '}
+                                  {missingProcurementFields
+                                    .map((field) => PROCUREMENT_FIELD_LABELS[field] ?? field)
+                                    .join(' / ')}
+                                </div>
+                              )}
+                              <span className='opacity-70'>暂无价格数据</span>
+                            </div>
                           )}
                         </TooltipContent>
                       </Tooltip>
