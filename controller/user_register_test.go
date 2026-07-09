@@ -140,6 +140,53 @@ func TestRegisterWithEmailVerificationAutoLogsInNewUser(t *testing.T) {
 	require.True(t, payload.Data.IsNewUser)
 }
 
+func TestRegisterRejectsEmailOutsideDomainWhitelist(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+
+	originalRegisterEnabled := common.RegisterEnabled
+	originalPasswordRegisterEnabled := common.PasswordRegisterEnabled
+	originalEmailVerificationEnabled := common.EmailVerificationEnabled
+	originalEmailDomainRestrictionEnabled := common.EmailDomainRestrictionEnabled
+	originalEmailDomainWhitelist := append([]string(nil), common.EmailDomainWhitelist...)
+	originalGenerateDefaultToken := constant.GenerateDefaultToken
+	t.Cleanup(func() {
+		common.RegisterEnabled = originalRegisterEnabled
+		common.PasswordRegisterEnabled = originalPasswordRegisterEnabled
+		common.EmailVerificationEnabled = originalEmailVerificationEnabled
+		common.EmailDomainRestrictionEnabled = originalEmailDomainRestrictionEnabled
+		common.EmailDomainWhitelist = originalEmailDomainWhitelist
+		constant.GenerateDefaultToken = originalGenerateDefaultToken
+	})
+	common.RegisterEnabled = true
+	common.PasswordRegisterEnabled = true
+	common.EmailVerificationEnabled = false
+	common.EmailDomainRestrictionEnabled = true
+	common.EmailDomainWhitelist = []string{"allowed.example"}
+	constant.GenerateDefaultToken = false
+
+	body, err := common.Marshal(map[string]any{
+		"username": "blocked-domain-user",
+		"password": "password123",
+		"email":    "blocked@outside.example",
+	})
+	require.NoError(t, err)
+
+	recorder := performRegisterRequest(t, body)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.False(t, payload.Success)
+	require.NotEmpty(t, payload.Message)
+
+	var users int64
+	require.NoError(t, db.Model(&model.User{}).Where("username = ?", "blocked-domain-user").Count(&users).Error)
+	require.Zero(t, users)
+}
+
 func TestRegisterDefaultTokenLimitDoesNotBlockRegistration(t *testing.T) {
 	require.NoError(t, backendI18n.Init())
 	db := setupModelListControllerTestDB(t)

@@ -210,6 +210,7 @@ func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp
 
 	var quotaToAdd int
 	var credited bool
+	var rewardResult inviteRewardGrantResult
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -275,6 +276,12 @@ func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp
 			return err
 		}
 
+		var rewardErr error
+		rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+		if rewardErr != nil {
+			return rewardErr
+		}
+
 		credited = true
 		return nil
 	})
@@ -290,6 +297,7 @@ func RechargeWithPaymentSnapshot(referenceId string, customerId string, callerIp
 		}
 		logMsg := fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%.2f", logger.FormatQuota(quotaToAdd), topUp.Money)
 		RecordTopupLog(topUp.UserId, logMsg, callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+		runInviteRewardPostCommitHooks(rewardResult)
 	}
 
 	return credited, nil
@@ -467,6 +475,8 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	var quotaToAdd int
 	var payMoney float64
 	var paymentMethod string
+	var completed bool
+	var rewardResult inviteRewardGrantResult
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		topUp := &TopUp{}
@@ -474,6 +484,10 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
 			return errors.New("充值订单不存在")
 		}
+
+		userId = topUp.UserId
+		payMoney = topUp.Money
+		paymentMethod = topUp.PaymentMethod
 
 		// 幂等处理：已成功直接返回
 		if topUp.Status == common.TopUpStatusSuccess {
@@ -510,9 +524,13 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return err
 		}
 
-		userId = topUp.UserId
-		payMoney = topUp.Money
-		paymentMethod = topUp.PaymentMethod
+		var rewardErr error
+		rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+		if rewardErr != nil {
+			return rewardErr
+		}
+
+		completed = true
 		return nil
 	})
 
@@ -521,7 +539,10 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	}
 
 	// 事务外记录日志，避免阻塞
-	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+	if completed {
+		RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+		runInviteRewardPostCommitHooks(rewardResult)
+	}
 	return nil
 }
 func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
@@ -530,6 +551,8 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	var quota int64
+	var credited bool
+	var rewardResult inviteRewardGrantResult
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -586,6 +609,12 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			return err
 		}
 
+		rewardResult, err = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+		if err != nil {
+			return err
+		}
+
+		credited = true
 		return nil
 	})
 
@@ -594,7 +623,10 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		return errors.New("充值失败，请稍后重试")
 	}
 
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+	if credited {
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+		runInviteRewardPostCommitHooks(rewardResult)
+	}
 
 	return nil
 }
@@ -606,6 +638,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (bool, error) {
 
 	var quotaToAdd int
 	var credited bool
+	var rewardResult inviteRewardGrantResult
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -654,6 +687,11 @@ func RechargeWaffo(tradeNo string, callerIp string) (bool, error) {
 			return err
 		}
 
+		rewardResult, err = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+		if err != nil {
+			return err
+		}
+
 		credited = true
 		return nil
 	})
@@ -665,6 +703,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (bool, error) {
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
+		runInviteRewardPostCommitHooks(rewardResult)
 	}
 
 	return credited, nil
@@ -677,6 +716,7 @@ func RechargeWaffoPancake(tradeNo string) (bool, error) {
 
 	var quotaToAdd int
 	var credited bool
+	var rewardResult inviteRewardGrantResult
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -723,6 +763,11 @@ func RechargeWaffoPancake(tradeNo string) (bool, error) {
 			return err
 		}
 
+		rewardResult, err = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+		if err != nil {
+			return err
+		}
+
 		credited = true
 		return nil
 	})
@@ -734,6 +779,7 @@ func RechargeWaffoPancake(tradeNo string) (bool, error) {
 
 	if quotaToAdd > 0 {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
+		runInviteRewardPostCommitHooks(rewardResult)
 	}
 
 	return credited, nil
@@ -747,6 +793,7 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 
 	var quotaToAdd int
 	var credited bool
+	var rewardResult inviteRewardGrantResult
 	topUp := &TopUp{}
 	completeTime := common.GetTimestamp()
 
@@ -833,6 +880,12 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 			return err
 		}
 
+		var rewardErr error
+		rewardResult, rewardErr = tryGrantInviteRewardForTopUpInTx(tx, topUp.UserId, topUp.Id)
+		if rewardErr != nil {
+			return rewardErr
+		}
+
 		credited = true
 		topUp.CompleteTime = completeTime
 		topUp.Status = common.TopUpStatusSuccess
@@ -853,6 +906,7 @@ func RechargePaddle(tradeNo string, expectedUserId int, expectedGatewayTradeNo s
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Paddle充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodPaddle)
+		runInviteRewardPostCommitHooks(rewardResult)
 	}
 
 	return credited, nil

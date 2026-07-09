@@ -121,3 +121,45 @@ func TestFindOrCreateOAuthUserPersistsExplicitCookieLanguage(t *testing.T) {
 
 	require.Equal(t, "ja", user.GetSetting().Language)
 }
+
+func TestFindOrCreateOAuthUserRejectsEmailOutsideDomainWhitelist(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+
+	originalRegisterEnabled := common.RegisterEnabled
+	originalEmailDomainRestrictionEnabled := common.EmailDomainRestrictionEnabled
+	originalEmailDomainWhitelist := append([]string(nil), common.EmailDomainWhitelist...)
+	t.Cleanup(func() {
+		common.RegisterEnabled = originalRegisterEnabled
+		common.EmailDomainRestrictionEnabled = originalEmailDomainRestrictionEnabled
+		common.EmailDomainWhitelist = originalEmailDomainWhitelist
+	})
+	common.RegisterEnabled = true
+	common.EmailDomainRestrictionEnabled = true
+	common.EmailDomainWhitelist = []string{"allowed.example"}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(sessions.Sessions("session", cookie.NewStore([]byte("oauth-domain-test"))))
+	router.GET("/oauth-domain-test", func(c *gin.Context) {
+		session := sessions.Default(c)
+		_, isNewUser, err := findOrCreateOAuthUser(c, oauthLanguageTestProvider{}, &oauth.OAuthUser{
+			ProviderUserID: "oauth-domain-blocked",
+			Username:       "oauth-domain-blocked",
+			DisplayName:    "OAuth Domain User",
+			Email:          "blocked@outside.example",
+			Extra:          map[string]any{},
+		}, session)
+		require.Error(t, err)
+		require.False(t, isNewUser)
+		c.Status(http.StatusNoContent)
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/oauth-domain-test", nil)
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusNoContent, recorder.Code)
+	var users int64
+	require.NoError(t, db.Model(&model.User{}).Where("email = ?", "blocked@outside.example").Count(&users).Error)
+	require.Zero(t, users)
+}

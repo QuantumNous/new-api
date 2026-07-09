@@ -280,6 +280,9 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	if !common.RegisterEnabled {
 		return nil, false, &OAuthRegistrationDisabledError{}
 	}
+	if err := validateEmailDomainRestriction(oauthUser.Email); err != nil {
+		return nil, false, err
+	}
 
 	// Set up new user
 	user.Username = provider.GetProviderPrefix() + strconv.Itoa(model.GetMaxUserId()+1)
@@ -324,7 +327,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		// Custom provider: create user and binding in a transaction
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
 			// Create user
-			if err := user.InsertWithTx(tx, inviterId); err != nil {
+			if err := user.InsertWithTxAndRegistrationIP(tx, inviterId, c.ClientIP()); err != nil {
 				return err
 			}
 
@@ -350,7 +353,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		// Built-in provider: create user and update provider ID in a transaction
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
 			// Create user
-			if err := user.InsertWithTx(tx, inviterId); err != nil {
+			if err := user.InsertWithTxAndRegistrationIP(tx, inviterId, c.ClientIP()); err != nil {
 				return err
 			}
 

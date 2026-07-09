@@ -674,7 +674,7 @@ func TestEnsureInitialTokenCreatesAndRevealsOnlyWhenUserHasNoTokens(t *testing.T
 	}
 }
 
-func TestEnsureInitialTokenCreatedTriggersInviteReward(t *testing.T) {
+func TestEnsureInitialTokenCreatedDoesNotTriggerInviteReward(t *testing.T) {
 	db := setupInviteRewardTokenControllerTestDB(t)
 	inviter, invitee := seedInvitedTokenUser(t, db, 101, 102)
 
@@ -711,14 +711,21 @@ func TestEnsureInitialTokenCreatedTriggersInviteReward(t *testing.T) {
 	if err := db.First(&refreshedInviter, inviter.Id).Error; err != nil {
 		t.Fatalf("failed to load inviter: %v", err)
 	}
-	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusGranted {
-		t.Fatalf("expected invite reward granted, got %q", refreshedInvitee.InviteRewardStatus)
+	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusPending {
+		t.Fatalf("expected invite reward pending, got %q", refreshedInvitee.InviteRewardStatus)
 	}
-	if refreshedInvitee.Quota != 50 {
-		t.Fatalf("expected invitee quota 50, got %d", refreshedInvitee.Quota)
+	if refreshedInvitee.Quota != 0 {
+		t.Fatalf("expected invitee quota 0, got %d", refreshedInvitee.Quota)
 	}
-	if refreshedInviter.AffQuota != 100 || refreshedInviter.AffHistoryQuota != 100 || refreshedInviter.AffCount != 1 {
-		t.Fatalf("expected inviter reward counters to be 100/100/1, got %d/%d/%d", refreshedInviter.AffQuota, refreshedInviter.AffHistoryQuota, refreshedInviter.AffCount)
+	if refreshedInviter.AffQuota != 0 || refreshedInviter.AffHistoryQuota != 0 || refreshedInviter.AffCount != 0 {
+		t.Fatalf("expected inviter reward counters to be 0/0/0, got %d/%d/%d", refreshedInviter.AffQuota, refreshedInviter.AffHistoryQuota, refreshedInviter.AffCount)
+	}
+	var events int64
+	if err := db.Model(&model.InviteRewardEvent{}).Where("invitee_id = ?", invitee.Id).Count(&events).Error; err != nil {
+		t.Fatalf("failed to count invite reward events: %v", err)
+	}
+	if events != 0 {
+		t.Fatalf("expected no invite reward events, got %d", events)
 	}
 }
 
@@ -776,7 +783,7 @@ func TestAddTokenAllowsNonPlgUserToChooseGroupWithoutEnterpriseFlag(t *testing.T
 	}
 }
 
-func TestAddTokenTriggersInviteReward(t *testing.T) {
+func TestAddTokenDoesNotTriggerInviteReward(t *testing.T) {
 	db := setupInviteRewardTokenControllerTestDB(t)
 	inviter, invitee := seedInvitedTokenUser(t, db, 201, 202)
 
@@ -806,14 +813,21 @@ func TestAddTokenTriggersInviteReward(t *testing.T) {
 	if err := db.First(&refreshedInviter, inviter.Id).Error; err != nil {
 		t.Fatalf("failed to load inviter: %v", err)
 	}
-	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusGranted {
-		t.Fatalf("expected invite reward granted, got %q", refreshedInvitee.InviteRewardStatus)
+	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusPending {
+		t.Fatalf("expected invite reward pending, got %q", refreshedInvitee.InviteRewardStatus)
 	}
-	if refreshedInvitee.Quota != 50 {
-		t.Fatalf("expected invitee quota 50, got %d", refreshedInvitee.Quota)
+	if refreshedInvitee.Quota != 0 {
+		t.Fatalf("expected invitee quota 0, got %d", refreshedInvitee.Quota)
 	}
-	if refreshedInviter.AffQuota != 100 || refreshedInviter.AffHistoryQuota != 100 || refreshedInviter.AffCount != 1 {
-		t.Fatalf("expected inviter reward counters to be 100/100/1, got %d/%d/%d", refreshedInviter.AffQuota, refreshedInviter.AffHistoryQuota, refreshedInviter.AffCount)
+	if refreshedInviter.AffQuota != 0 || refreshedInviter.AffHistoryQuota != 0 || refreshedInviter.AffCount != 0 {
+		t.Fatalf("expected inviter reward counters to be 0/0/0, got %d/%d/%d", refreshedInviter.AffQuota, refreshedInviter.AffHistoryQuota, refreshedInviter.AffCount)
+	}
+	var events int64
+	if err := db.Model(&model.InviteRewardEvent{}).Where("invitee_id = ?", invitee.Id).Count(&events).Error; err != nil {
+		t.Fatalf("failed to count invite reward events: %v", err)
+	}
+	if events != 0 {
+		t.Fatalf("expected no invite reward events, got %d", events)
 	}
 }
 
@@ -1012,7 +1026,7 @@ func TestEnsureInitialTokenExistingDoesNotTriggerInviteReward(t *testing.T) {
 	}
 }
 
-func TestAddTokenWithPaymentComplianceUnconfirmedStillGrantsReward(t *testing.T) {
+func TestAddTokenWithPaymentComplianceUnconfirmedStillDoesNotGrantReward(t *testing.T) {
 	db := setupInviteRewardTokenControllerTestDB(t)
 	operation_setting.GetPaymentSetting().ComplianceConfirmed = false
 	inviter, invitee := seedInvitedTokenUser(t, db, 401, 402)
@@ -1050,11 +1064,11 @@ func TestAddTokenWithPaymentComplianceUnconfirmedStillGrantsReward(t *testing.T)
 	if err := db.First(&refreshedInviter, inviter.Id).Error; err != nil {
 		t.Fatalf("failed to load inviter: %v", err)
 	}
-	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusGranted {
-		t.Fatalf("expected invite reward granted, got %q", refreshedInvitee.InviteRewardStatus)
+	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusPending {
+		t.Fatalf("expected invite reward pending, got %q", refreshedInvitee.InviteRewardStatus)
 	}
-	if refreshedInvitee.Quota != 50 || refreshedInviter.AffQuota != 100 || refreshedInviter.AffCount != 1 {
-		t.Fatalf("expected reward grant, got invitee quota %d, inviter quota %d count %d", refreshedInvitee.Quota, refreshedInviter.AffQuota, refreshedInviter.AffCount)
+	if refreshedInvitee.Quota != 0 || refreshedInviter.AffQuota != 0 || refreshedInviter.AffCount != 0 {
+		t.Fatalf("expected no reward grant, got invitee quota %d, inviter quota %d count %d", refreshedInvitee.Quota, refreshedInviter.AffQuota, refreshedInviter.AffCount)
 	}
 }
 

@@ -218,6 +218,10 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
+	if err := validateEmailDomainRestriction(user.Email); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if common.EmailVerificationEnabled {
 		if user.Email == "" || user.VerificationCode == "" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
@@ -251,10 +255,10 @@ func Register(c *gin.Context) {
 	if language, ok := dto.NormalizeUserLanguagePreference(i18n.GetLangFromContext(c)); ok {
 		cleanUser.SetSetting(dto.UserSetting{Language: language})
 	}
-	if common.EmailVerificationEnabled {
+	if common.EmailVerificationEnabled || common.EmailDomainRestrictionEnabled {
 		cleanUser.Email = user.Email
 	}
-	if err := cleanUser.Insert(inviterId); err != nil {
+	if err := cleanUser.InsertWithRegistrationIP(inviterId, c.ClientIP()); err != nil {
 		common.ApiError(c, err)
 		return
 	}

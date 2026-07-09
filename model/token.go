@@ -310,20 +310,13 @@ func CreateUserTokenWithInviteReward(userId int, token *Token, maxTokens int, tr
 		return errors.New("token 为空！")
 	}
 
-	var rewardResult inviteRewardGrantResult
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		if err := createUserTokenInTx(tx, userId, token, maxTokens); err != nil {
 			return err
 		}
-		var err error
-		rewardResult, err = tryGrantInviteRewardInTx(tx, userId, token.Id, triggerType)
-		return err
+		return validateInviteRewardTrigger(triggerType)
 	})
-	if err != nil {
-		return err
-	}
-	runInviteRewardPostCommitHooks(rewardResult)
-	return nil
+	return err
 }
 
 func createUserTokenInTx(tx *gorm.DB, userId int, token *Token, maxTokens int) error {
@@ -373,15 +366,13 @@ func EnsureInitialUserTokenWithInviteReward(userId int, token Token, maxTokens i
 	}
 
 	var created bool
-	var rewardResult inviteRewardGrantResult
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var err error
 		created, err = ensureInitialUserTokenInTx(tx, userId, &token, maxTokens)
 		if err != nil || !created {
 			return err
 		}
-		rewardResult, err = tryGrantInviteRewardInTx(tx, userId, token.Id, triggerType)
-		return err
+		return validateInviteRewardTrigger(triggerType)
 	})
 	if err != nil {
 		return nil, false, err
@@ -389,7 +380,6 @@ func EnsureInitialUserTokenWithInviteReward(userId int, token Token, maxTokens i
 	if !created {
 		return nil, false, nil
 	}
-	runInviteRewardPostCommitHooks(rewardResult)
 	return &token, true, nil
 }
 
