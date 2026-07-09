@@ -63,6 +63,30 @@ func TestImageRequestBuiltInUnitPrice(t *testing.T) {
 	}
 }
 
+func TestImageRequestImageGroupUnitPrice(t *testing.T) {
+	tests := []struct {
+		name string
+		size string
+		want float64
+	}{
+		{name: "empty defaults to 1k", want: 0.10},
+		{name: "1k", size: "1024x1024", want: 0.10},
+		{name: "2k", size: "2048x2048", want: 0.14},
+		{name: "4k", size: "4096x4096", want: 0.20},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			req := ImageRequest{
+				Model: "any-image-model",
+				Size:  test.size,
+			}
+			meta := req.GetTokenCountMeta()
+			require.InDelta(t, test.want, meta.ImageGroupUnitPrice, 0.000001)
+		})
+	}
+}
+
 func TestImageRequestUnknownBuiltInPriceKeepsLegacyImageRatio(t *testing.T) {
 	req := ImageRequest{
 		Model:   "dall-e-3",

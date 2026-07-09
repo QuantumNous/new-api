@@ -172,6 +172,22 @@ func imageSizeTier(size string) (string, bool) {
 	}
 }
 
+func imageGroupUnitPrice(size string) (float64, bool) {
+	tier, ok := imageSizeTier(size)
+	if !ok {
+		return 0, false
+	}
+	switch tier {
+	case "1k":
+		return 0.10, true
+	case "2k":
+		return 0.14, true
+	case "4k":
+		return 0.20, true
+	}
+	return 0, false
+}
+
 func gptImage2UnitPrice(size string, quality string) (float64, bool) {
 	width, height, ok := parseImageSize(size)
 	if !ok {
@@ -254,6 +270,7 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var sizeRatio = 1.0
 	var qualityRatio = 1.0
 	imageUnitPrice, _ := builtInImageUnitPrice(i.Model, i.Size, i.Quality)
+	imageGroupUnitPrice, _ := imageGroupUnitPrice(i.Size)
 
 	if strings.HasPrefix(i.Model, "dall-e") {
 		// Size
@@ -280,10 +297,11 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	// Including n here caused double-counting for channels that also
 	// set OtherRatio("n") (e.g. Ali/Bailian).
 	return &types.TokenCountMeta{
-		CombineText:     i.Prompt,
-		MaxTokens:       1584,
-		ImagePriceRatio: sizeRatio * qualityRatio,
-		ImageUnitPrice:  imageUnitPrice,
+		CombineText:         i.Prompt,
+		MaxTokens:           1584,
+		ImagePriceRatio:     sizeRatio * qualityRatio,
+		ImageUnitPrice:      imageUnitPrice,
+		ImageGroupUnitPrice: imageGroupUnitPrice,
 	}
 }
 

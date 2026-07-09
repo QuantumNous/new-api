@@ -52,3 +52,40 @@ func TestModelPriceHelperBuiltInImageUnitPriceSkipsImageRatio(t *testing.T) {
 	require.Equal(t, 0.10704, priceData.ModelPrice)
 	require.Equal(t, int(0.10704*common.QuotaPerUnit), priceData.QuotaToPreConsume)
 }
+
+func TestModelPriceHelperImageGroupUsesResolutionUnitPriceForAnyModel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "unknown-image-model",
+		UsingGroup:      "image",
+	}
+
+	priceData, err := ModelPriceHelper(ctx, info, 1, &types.TokenCountMeta{
+		ImageGroupUnitPrice: 0.14,
+	})
+
+	require.NoError(t, err)
+	require.True(t, priceData.UsePrice)
+	require.Equal(t, 0.14, priceData.ModelPrice)
+	require.Equal(t, int(0.14*common.QuotaPerUnit), priceData.QuotaToPreConsume)
+}
+
+func TestModelPriceHelperNonImageGroupIgnoresResolutionUnitPrice(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "unknown-image-model",
+		UsingGroup:      "default",
+	}
+
+	_, err := ModelPriceHelper(ctx, info, 1, &types.TokenCountMeta{
+		ImageGroupUnitPrice: 0.14,
+	})
+
+	require.Error(t, err)
+}

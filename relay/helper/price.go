@@ -2,6 +2,7 @@ package helper
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -13,6 +14,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func isImagePricingGroup(group string) bool {
+	return strings.EqualFold(strings.TrimSpace(group), "image")
+}
 
 func modelPriceNotConfiguredError(modelName string, userId int) error {
 	if model.IsAdmin(userId) {
@@ -66,12 +71,19 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		meta = &types.TokenCountMeta{}
 	}
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
-	if meta.ImageUnitPrice > 0 {
-		modelPrice = meta.ImageUnitPrice
-		usePrice = true
-	}
 
 	groupRatioInfo := HandleGroupRatio(c, info)
+
+	imageUnitPriceOverride := false
+	if isImagePricingGroup(info.UsingGroup) && meta.ImageGroupUnitPrice > 0 {
+		modelPrice = meta.ImageGroupUnitPrice
+		usePrice = true
+		imageUnitPriceOverride = true
+	} else if meta.ImageUnitPrice > 0 {
+		modelPrice = meta.ImageUnitPrice
+		usePrice = true
+		imageUnitPriceOverride = true
+	}
 
 	var preConsumedQuota int
 	var modelRatio float64
@@ -113,7 +125,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		ratio := modelRatio * groupRatioInfo.GroupRatio
 		preConsumedQuota = int(float64(preConsumedTokens) * ratio)
 	} else {
-		if meta.ImageUnitPrice > 0 {
+		if imageUnitPriceOverride {
 			// Built-in image prices already represent the final single-image price
 			// for the requested model/size/quality.
 		} else if meta.ImagePriceRatio != 0 {
