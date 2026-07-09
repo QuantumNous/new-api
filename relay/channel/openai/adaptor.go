@@ -564,6 +564,12 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		return &requestBody, nil
 
 	default:
+		// OpenRouter's /v1/images endpoint accepts params outside the OpenAI
+		// image schema, so merge the unknown fields captured in Extra back
+		// into the outbound body for this channel only.
+		if info.ChannelType == constant.ChannelTypeOpenRouter && info.RelayMode == relayconstant.RelayModeImagesGenerations {
+			return mergeImageRequestExtra(request)
+		}
 		return request, nil
 	}
 }
