@@ -37,12 +37,31 @@ type catalogExportChannel struct {
 	ModelMapping               *string  `json:"model_mapping"`
 	Setting                    *string  `json:"setting"`  // 原始 JSON 字符串 verbatim，含前端管理的 key_group/client_exclusive 等键
 	OtherSettings              string   `json:"settings"` // 原始 JSON 字符串 verbatim，含 gpt_image2_tier 等键
+	Key                        string   `json:"key"`      // 上游渠道明文密钥，仅当 CATALOG_EXPORT_INCLUDE_KEYS=true 时导出，否则为空
 	KeySHA256                  string   `json:"key_sha256"`
 	RechargeRate               *float64 `json:"recharge_rate"`
 	ApimasterPriceRatio        *float64 `json:"apimaster_price_ratio"`
 	LastDetectedAt             *int64   `json:"last_detected_at"`
 	LastDetectResult           string   `json:"last_detect_result"`
 	ConsecutiveFingerprintPass int      `json:"consecutive_fingerprint_pass"`
+	// 运营/运行字段（副本完整展示需要）
+	OpenAIOrganization *string           `json:"openai_organization"`
+	TestModel          *string           `json:"test_model"`
+	Weight             *uint             `json:"weight"`
+	CreatedTime        int64             `json:"created_time"`
+	TestTime           int64             `json:"test_time"`
+	ResponseTime       int               `json:"response_time"`
+	Other              string            `json:"other"`
+	Balance            float64           `json:"balance"`
+	BalanceUpdatedTime int64             `json:"balance_updated_time"`
+	UsedQuota          int64             `json:"used_quota"`
+	StatusCodeMapping  *string           `json:"status_code_mapping"`
+	Priority           *int64            `json:"priority"`
+	AutoBan            *int              `json:"auto_ban"`
+	OtherInfo          string            `json:"other_info"`
+	ParamOverride      *string           `json:"param_override"`
+	HeaderOverride     *string           `json:"header_override"`
+	ChannelInfo        model.ChannelInfo `json:"channel_info"`
 }
 
 type catalogExportVendor struct {
@@ -96,6 +115,10 @@ func CatalogExport(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return
 	}
+	// 是否导出明文 key（默认否）：下游需要建"可转发"的完整副本时才显式开启。
+	// 开启后 catalog-export 的 secret 即保护全部上游密钥，务必确保 secret 强度与访问来源可信。
+	includeKeys := strings.EqualFold(
+		strings.TrimSpace(common.GetEnvOrDefaultString("CATALOG_EXPORT_INCLUDE_KEYS", "")), "true")
 	exportChannels := make([]catalogExportChannel, 0, len(channels))
 	for i := range channels {
 		ch := &channels[i]
@@ -103,6 +126,10 @@ func CatalogExport(c *gin.Context) {
 		if trimmed := strings.TrimSpace(ch.Key); trimmed != "" {
 			sum := sha256.Sum256([]byte(trimmed))
 			keyHash = hex.EncodeToString(sum[:])
+		}
+		keyPlain := ""
+		if includeKeys {
+			keyPlain = ch.Key
 		}
 		exportChannels = append(exportChannels, catalogExportChannel{
 			Id:                         ch.Id,
@@ -117,12 +144,30 @@ func CatalogExport(c *gin.Context) {
 			ModelMapping:               ch.ModelMapping,
 			Setting:                    ch.Setting,       // verbatim，不经 dto.ChannelSettings 反序列化
 			OtherSettings:              ch.OtherSettings, // verbatim，不经 dto.ChannelOtherSettings 反序列化
+			Key:                        keyPlain,
 			KeySHA256:                  keyHash,
 			RechargeRate:               ch.RechargeRate,
 			ApimasterPriceRatio:        ch.ApimasterPriceRatio,
 			LastDetectedAt:             ch.LastDetectedAt,
 			LastDetectResult:           ch.LastDetectResult,
 			ConsecutiveFingerprintPass: ch.ConsecutiveFingerprintPass,
+			OpenAIOrganization:         ch.OpenAIOrganization,
+			TestModel:                  ch.TestModel,
+			Weight:                     ch.Weight,
+			CreatedTime:                ch.CreatedTime,
+			TestTime:                   ch.TestTime,
+			ResponseTime:               ch.ResponseTime,
+			Other:                      ch.Other,
+			Balance:                    ch.Balance,
+			BalanceUpdatedTime:         ch.BalanceUpdatedTime,
+			UsedQuota:                  ch.UsedQuota,
+			StatusCodeMapping:          ch.StatusCodeMapping,
+			Priority:                   ch.Priority,
+			AutoBan:                    ch.AutoBan,
+			OtherInfo:                  ch.OtherInfo,
+			ParamOverride:              ch.ParamOverride,
+			HeaderOverride:             ch.HeaderOverride,
+			ChannelInfo:                ch.ChannelInfo,
 		})
 	}
 
