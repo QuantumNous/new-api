@@ -21,8 +21,8 @@ type DetectPoint struct {
 	Note                    string     `json:"note,omitempty"`
 	GroupName               string     `json:"group_name,omitempty"`                // channel group at time of detection
 	FingerprintModelVersion string     `json:"fingerprint_model_version,omitempty"` // e.g. apimaster_fingerprint_cccli_v0.1
-	Top5                    []TopKItem `json:"top5,omitempty"`         // fingerprint top-5 predictions (only on fingerprint history points)
-	Top1ScoreRaw            float64    `json:"top1_score_raw,omitempty"` // raw top1 score before boost; non-zero only when boost was applied (admin only)
+	Top5                    []TopKItem `json:"top5,omitempty"`                      // fingerprint top-5 predictions (only on fingerprint history points)
+	Top1ScoreRaw            float64    `json:"top1_score_raw,omitempty"`            // raw top1 score before boost; non-zero only when boost was applied (admin only)
 }
 
 // TopKItem is one prediction in the fingerprint top-5 list. Mirrors apimaster's
@@ -38,9 +38,9 @@ func includeDetectHistoryStatus(status string) bool {
 }
 
 type ModelDataItem struct {
-	ChannelID   int    `json:"channel_id"`
-	ChannelName string `json:"channel_name"`
-	KeyGroup    string `json:"key_group"`
+	ChannelID       int    `json:"channel_id"`
+	ChannelName     string `json:"channel_name"`
+	KeyGroup        string `json:"key_group"`
 	ClientExclusive string `json:"client_exclusive"` // "" | codex | claude_code
 	// Pricing fields: nil = no pricing row (upstream 401/404 / cookie-only auth / no endpoint).
 	// Frontend renders nil as "—".
@@ -82,10 +82,18 @@ const (
 	modelDataLatencyMax  = 50 // use last N pass probes (regardless of time) for latency stats
 )
 
+func isHiddenChannelDataModel(modelName string) bool {
+	return strings.EqualFold(strings.TrimSpace(modelName), "gemini-3.1-flash-lite")
+}
+
 // GetModelData returns channel pricing and detection stats for a given model.
 // GET /api/admin/model-data?model=<model_name>
 func GetModelData(c *gin.Context) {
 	modelName := c.DefaultQuery("model", "claude-sonnet-4-6")
+	if isHiddenChannelDataModel(modelName) {
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": []any{}})
+		return
+	}
 
 	type row struct {
 		ChannelID                  int
@@ -623,6 +631,10 @@ type publicMarketplaceCacheEntry struct {
 // GET /api/public/marketplace?model=<model_name>
 func GetPublicMarketplace(c *gin.Context) {
 	modelName := c.DefaultQuery("model", "claude-sonnet-4-6")
+	if isHiddenChannelDataModel(modelName) {
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": []any{}})
+		return
+	}
 
 	// Serve from cache if fresh.
 	publicMarketplaceCache.Lock()

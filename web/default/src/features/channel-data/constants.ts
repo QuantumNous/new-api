@@ -44,11 +44,6 @@ export const MODEL_TABS: ModelTab[] = [
     accent: '#4285f4',
   },
   {
-    label: 'Gemini 3.1 Flash Lite',
-    modelId: 'gemini-3.1-flash-lite',
-    accent: '#4285f4',
-  },
-  {
     label: 'Nano Banana 2',
     modelId: 'gemini-3.1-flash-image-preview',
     accent: '#4285f4',
