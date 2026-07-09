@@ -20,25 +20,12 @@ For commercial licensing, please contact support@quantumnous.com
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/public-sans';
-/* Editorial serif (Lora) backing the `serif` font axis and the Anthropic
- * preset's default typography. See `--font-serif` in theme.css for the
- * full Latin + CJK fallback stack and `theme-presets.css` for the cascade
- * that activates it. Loaded globally so font-switching is instantaneous
- * with no FOUT once the variable is fetched. */
-@import '@fontsource-variable/lora';
 
 @import './theme.css';
 @import './theme-presets.css';
 
 /* Shiki dual themes: token colors follow dark theme (pre background stays `bg-background` on the block) */
 @layer components {
-  .shiki span {
-    color: var(--shiki-light) !important;
-    font-style: var(--shiki-light-font-style) !important;
-    font-weight: var(--shiki-light-font-weight) !important;
-    text-decoration: var(--shiki-light-text-decoration) !important;
-  }
-
   .dark .shiki span {
     color: var(--shiki-dark) !important;
     font-style: var(--shiki-dark-font-style) !important;
@@ -57,11 +44,11 @@ For commercial licensing, please contact support@quantumnous.com
     @apply overflow-x-hidden font-sans;
   }
   body {
-    @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full;
-    /* Font is driven by the theme's font axis via `--font-body`
-     * (defined in theme.css, swapped by `[data-theme-font='...']` blocks
-     * in theme-presets.css). Defaults to the project's humanist sans. */
-    font-family: var(--font-body);
+    @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full font-sans;
+    background-image:
+      radial-gradient(circle at 14% 8%, oklch(0.96 0.025 68 / 65%), transparent 38%),
+      radial-gradient(circle at 86% 0%, oklch(0.93 0.04 48 / 35%), transparent 42%);
+    background-attachment: fixed;
   }
 
   /* Keep sticky headers stable while primitives lock body scrolling. */
@@ -82,6 +69,23 @@ For commercial licensing, please contact support@quantumnous.com
     textarea {
       font-size: 16px !important;
     }
+  }
+}
+
+@layer components {
+  [data-slot='sidebar-inset'] {
+    background: linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--card) 90%, var(--background) 10%) 0%,
+      color-mix(in oklch, var(--card) 82%, var(--background) 18%) 100%
+    );
+    box-shadow: 0 18px 46px -28px color-mix(in oklch, var(--foreground) 18%, transparent);
+  }
+
+  [data-slot='header'] {
+    backdrop-filter: blur(10px);
+    background-color: color-mix(in oklch, var(--background) 82%, transparent);
+    border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
   }
 }
 
@@ -151,18 +155,6 @@ For commercial licensing, please contact support@quantumnous.com
   /* Hide scrollbar for IE, Edge and Firefox */
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
-}
-
-/* Tooltip content can still scroll, but should not show a distracting axis. */
-[data-slot='tooltip-content'],
-[data-slot='tooltip-content'] * {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-[data-slot='tooltip-content']::-webkit-scrollbar,
-[data-slot='tooltip-content'] *::-webkit-scrollbar {
-  display: none;
 }
 
 @utility hover-scrollbar {
@@ -484,19 +476,19 @@ For commercial licensing, please contact support@quantumnous.com
 
 /* Micro-interactions — Vercel-style subtle hover/active feedback */
 @media (prefers-reduced-motion: no-preference) {
-  [data-slot='card']:not([data-card-hover='false']) {
+  [data-slot='card'] {
     transition:
       transform 150ms ease,
       box-shadow 150ms ease;
   }
 
   @media (min-width: 641px) {
-    [data-slot='card']:not([data-card-hover='false']):hover {
+    [data-slot='card']:hover {
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgb(0 0 0 / 0.06);
     }
 
-    .dark [data-slot='card']:not([data-card-hover='false']):hover {
+    .dark [data-slot='card']:hover {
       box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
     }
   }
@@ -611,4 +603,84 @@ For commercial licensing, please contact support@quantumnous.com
   .terminal-demo-pulse {
     animation: none !important;
   }
+}
+
+/* ==================== Home page classic styles ==================== */
+.home-claude {
+  background:
+    radial-gradient(circle at 8% 12%, rgba(246, 236, 221, 0.95), transparent 36%),
+    radial-gradient(circle at 92% 10%, rgba(238, 224, 204, 0.78), transparent 40%),
+    linear-gradient(180deg, #fbf6ef 0%, #f7efe2 55%, #f3e9db 100%);
+}
+
+.dark .home-claude {
+  background:
+    radial-gradient(circle at 8% 12%, rgba(60, 50, 35, 0.6), transparent 36%),
+    radial-gradient(circle at 92% 10%, rgba(55, 45, 30, 0.5), transparent 40%),
+    linear-gradient(180deg, #1a1712 0%, #161410 55%, #12100c 100%);
+}
+
+.home-claude .blur-ball-indigo {
+  background: radial-gradient(circle, rgba(221, 193, 162, 0.42) 0%, rgba(221, 193, 162, 0) 72%);
+}
+
+.dark .home-claude .blur-ball-indigo {
+  background: radial-gradient(circle, rgba(180, 150, 110, 0.3) 0%, rgba(180, 150, 110, 0) 72%);
+}
+
+.home-claude .blur-ball-teal {
+  background: radial-gradient(circle, rgba(204, 176, 142, 0.38) 0%, rgba(204, 176, 142, 0) 70%);
+}
+
+.dark .home-claude .blur-ball-teal {
+  background: radial-gradient(circle, rgba(160, 140, 100, 0.28) 0%, rgba(160, 140, 100, 0) 70%);
+}
+
+.home-claude .shine-text {
+  background: linear-gradient(96deg, #7e4a2f 0%, #9d5f3a 45%, #6d3f28 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+
+.dark .home-claude .shine-text {
+  background: linear-gradient(96deg, #c49a6c 0%, #d4a87a 45%, #b08a5e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Banner background blur balls */
+.blur-ball {
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.blur-ball-indigo {
+  background: #6366f1;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0.5;
+}
+
+.blur-ball-teal {
+  background: #14b8a6;
+  top: 200px;
+  left: 30%;
+  opacity: 0.4;
+}
+
+html:not(.dark) .blur-ball-indigo {
+  opacity: 0.25;
+}
+
+html:not(.dark) .blur-ball-teal {
+  opacity: 0.2;
 }
