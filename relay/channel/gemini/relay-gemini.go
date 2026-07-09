@@ -1582,6 +1582,62 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	return usage, nil
 }
 
+func GeminiNativeImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	responseBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, types.NewOpenAIError(readErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	service.CloseResponseBodyGracefully(resp)
+
+	var geminiResponse dto.GeminiChatResponse
+	if jsonErr := common.Unmarshal(responseBody, &geminiResponse); jsonErr != nil {
+		return nil, types.NewOpenAIError(jsonErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	openAIResponse := dto.ImageResponse{
+		Created: common.GetTimestamp(),
+	}
+	var revisedPrompts []string
+	for _, candidate := range geminiResponse.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if strings.TrimSpace(part.Text) != "" {
+				revisedPrompts = append(revisedPrompts, strings.TrimSpace(part.Text))
+			}
+			if part.InlineData == nil ||
+				part.InlineData.Data == "" ||
+				!strings.HasPrefix(strings.ToLower(part.InlineData.MimeType), "image/") {
+				continue
+			}
+			openAIResponse.Data = append(openAIResponse.Data, dto.ImageData{
+				B64Json: part.InlineData.Data,
+			})
+		}
+	}
+
+	if len(openAIResponse.Data) == 0 {
+		return nil, types.NewOpenAIError(errors.New("no images generated"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	if len(revisedPrompts) > 0 {
+		revisedPrompt := strings.Join(revisedPrompts, "\n")
+		for i := range openAIResponse.Data {
+			openAIResponse.Data[i].RevisedPrompt = revisedPrompt
+		}
+	}
+	info.PriceData.AddOtherRatio("n", float64(len(openAIResponse.Data)))
+
+	jsonResponse, jsonErr := common.Marshal(openAIResponse)
+	if jsonErr != nil {
+		return nil, types.NewError(jsonErr, types.ErrorCodeBadResponseBody)
+	}
+
+	c.Writer.Header().Set("Content-Type", "application/json")
+	c.Writer.WriteHeader(resp.StatusCode)
+	_, _ = c.Writer.Write(jsonResponse)
+
+	usage := buildUsageFromGeminiMetadata(geminiResponse.UsageMetadata, info.GetEstimatePromptTokens())
+	return &usage, nil
+}
+
 type GeminiModelsResponse struct {
 	Models        []dto.GeminiModel `json:"models"`
 	NextPageToken string            `json:"nextPageToken"`
