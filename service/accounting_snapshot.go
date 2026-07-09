@@ -16,6 +16,9 @@ type ConsumeAccountingInput struct {
 	OutputTokens            int
 	CacheReadTokens         int
 	CacheWriteTokens        int
+	BillingMode             string
+	ImageCount              int
+	DurationSeconds         int
 	GroupRatio              float64
 	Quota                   int
 }
@@ -40,19 +43,27 @@ type consumeAccountingSnapshot struct {
 	ResellerDiscountRatio   float64            `json:"reseller_discount_ratio,omitempty"`
 	GroupRatio              float64            `json:"group_ratio"`
 	Quota                   int                `json:"quota"`
+	BillingMode             string             `json:"billing_mode,omitempty"`
 	InputTokensIncludeCache bool               `json:"input_tokens_include_cache"`
 	Tokens                  map[string]int     `json:"tokens"`
+	Units                   map[string]int     `json:"units,omitempty"`
 	Prices                  map[string]any     `json:"prices"`
 	AmountsUSD              map[string]float64 `json:"amounts_usd"`
 	AccountingAmountVersion string             `json:"accounting_amount_version"`
 }
+
+const (
+	accountingBillingModeToken           = "token"
+	accountingBillingModeImageCount      = "image_count"
+	accountingBillingModeDurationSeconds = "duration_seconds"
+)
 
 func BuildConsumeAccountingFields(input ConsumeAccountingInput) (fields model.AccountingLogFields) {
 	defer func() {
 		if r := recover(); r != nil {
 			fields.Status = "error"
 			fields.Snapshot = common.MapToJsonStr(map[string]interface{}{
-				"version":  1,
+				"version":  2,
 				"currency": "USD",
 				"status":   "error",
 				"error":    fmt.Sprintf("panic: %v", r),
@@ -64,7 +75,7 @@ func BuildConsumeAccountingFields(input ConsumeAccountingInput) (fields model.Ac
 		input.GroupRatio = 1
 	}
 	snap := consumeAccountingSnapshot{
-		Version:                 1,
+		Version:                 2,
 		Currency:                "USD",
 		Status:                  "ok",
 		UserId:                  input.UserId,
@@ -72,8 +83,9 @@ func BuildConsumeAccountingFields(input ConsumeAccountingInput) (fields model.Ac
 		ModelName:               input.ModelName,
 		GroupRatio:              input.GroupRatio,
 		Quota:                   input.Quota,
+		BillingMode:             normalizedAccountingBillingMode(input),
 		InputTokensIncludeCache: input.InputTokensIncludeCache,
-		AccountingAmountVersion: "usd_per_1m_tokens_v2",
+		AccountingAmountVersion: "mixed_billing_v1",
 		Tokens: map[string]int{
 			"input":       input.InputTokens,
 			"output":      input.OutputTokens,
@@ -82,6 +94,9 @@ func BuildConsumeAccountingFields(input ConsumeAccountingInput) (fields model.Ac
 		},
 		Prices:     map[string]any{},
 		AmountsUSD: map[string]float64{},
+	}
+	if units := accountingUnits(input); len(units) > 0 {
+		snap.Units = units
 	}
 
 	status := "ok"
@@ -111,8 +126,7 @@ func BuildConsumeAccountingFields(input ConsumeAccountingInput) (fields model.Ac
 	} else {
 		tuple := tupleFromChannelPrices(userPrice)
 		snap.Prices["user_price"] = tuple
-		fields.UserPriceAmountUSD = amountUSD(tuple, input)
-		fields.UserFinalAmountUSD = fields.UserPriceAmountUSD * input.GroupRatio
+		fields.UserPriceAmountUSD, fields.UserFinalAmountUSD = userAmountsUSD(tuple, input)
 		snap.Prices["user_final_price"] = accountingPriceTuple{
 			InputPrice:         tuple.InputPrice * input.GroupRatio,
 			OutputPrice:        tuple.OutputPrice * input.GroupRatio,
@@ -196,6 +210,17 @@ func tupleFromChannelPrices(p *model.ChannelActualPrices) accountingPriceTuple {
 }
 
 func amountUSD(prices accountingPriceTuple, input ConsumeAccountingInput) float64 {
+	switch normalizedAccountingBillingMode(input) {
+	case accountingBillingModeImageCount:
+		if input.ImageCount > 0 {
+			return prices.InputPrice * float64(input.ImageCount)
+		}
+	case accountingBillingModeDurationSeconds:
+		if input.DurationSeconds > 0 {
+			return prices.InputPrice * float64(input.DurationSeconds)
+		}
+	}
+
 	inputTokens := input.InputTokens
 	if input.InputTokensIncludeCache {
 		inputTokens -= input.CacheReadTokens + input.CacheWriteTokens
@@ -207,6 +232,55 @@ func amountUSD(prices accountingPriceTuple, input ConsumeAccountingInput) float6
 		prices.OutputPrice*float64(input.OutputTokens) +
 		prices.CachePrice*float64(input.CacheReadTokens) +
 		prices.CacheCreationPrice*float64(input.CacheWriteTokens)) / 1000000.0
+}
+
+func userAmountsUSD(prices accountingPriceTuple, input ConsumeAccountingInput) (userPriceAmountUSD float64, userFinalAmountUSD float64) {
+	switch normalizedAccountingBillingMode(input) {
+	case accountingBillingModeImageCount, accountingBillingModeDurationSeconds:
+		userFinalAmountUSD = quotaAmountUSD(input.Quota)
+		if input.GroupRatio <= 0 {
+			return userFinalAmountUSD, userFinalAmountUSD
+		}
+		return userFinalAmountUSD / input.GroupRatio, userFinalAmountUSD
+	default:
+		userPriceAmountUSD = amountUSD(prices, input)
+		return userPriceAmountUSD, userPriceAmountUSD * input.GroupRatio
+	}
+}
+
+func quotaAmountUSD(quota int) float64 {
+	return float64(quota) / common.QuotaPerUnit
+}
+
+func normalizedAccountingBillingMode(input ConsumeAccountingInput) string {
+	switch input.BillingMode {
+	case accountingBillingModeImageCount:
+		if input.ImageCount > 0 {
+			return accountingBillingModeImageCount
+		}
+	case accountingBillingModeDurationSeconds:
+		if input.DurationSeconds > 0 {
+			return accountingBillingModeDurationSeconds
+		}
+	}
+	if input.ImageCount > 0 {
+		return accountingBillingModeImageCount
+	}
+	if input.DurationSeconds > 0 {
+		return accountingBillingModeDurationSeconds
+	}
+	return accountingBillingModeToken
+}
+
+func accountingUnits(input ConsumeAccountingInput) map[string]int {
+	switch normalizedAccountingBillingMode(input) {
+	case accountingBillingModeImageCount:
+		return map[string]int{"image_count": input.ImageCount}
+	case accountingBillingModeDurationSeconds:
+		return map[string]int{"duration_seconds": input.DurationSeconds}
+	default:
+		return nil
+	}
 }
 
 func appendAccountingError(existing string, msg string) string {

@@ -82,13 +82,26 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 			other["request_data"] = rd
 		}
 	}
-	accounting := BuildConsumeAccountingFields(ConsumeAccountingInput{
+	accountingInput := ConsumeAccountingInput{
 		UserId:     info.UserId,
 		ChannelId:  info.ChannelId,
 		ModelName:  info.OriginModelName,
 		GroupRatio: info.PriceData.GroupRatioInfo.GroupRatio,
 		Quota:      info.PriceData.Quota,
-	})
+	}
+	if requestData, ok := other["request_data"].(map[string]interface{}); ok && len(requestData) > 0 {
+		if duration := coerceRequestInt(requestData["duration"]); duration > 0 {
+			accountingInput.BillingMode = accountingBillingModeDurationSeconds
+			accountingInput.DurationSeconds = duration
+		}
+	}
+	if accountingInput.DurationSeconds <= 0 && TaskUsesDurationBasedBilling(info.PriceData) {
+		if seconds, ok := info.PriceData.OtherRatios["seconds"]; ok && seconds > 0 {
+			accountingInput.BillingMode = accountingBillingModeDurationSeconds
+			accountingInput.DurationSeconds = int(math.Ceil(seconds))
+		}
+	}
+	accounting := BuildConsumeAccountingFields(accountingInput)
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ChannelId:  info.ChannelId,
 		ModelName:  info.OriginModelName,

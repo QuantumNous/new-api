@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"math"
 	"net/http"
 	"sort"
@@ -21,8 +22,8 @@ type DetectPoint struct {
 	Note                    string     `json:"note,omitempty"`
 	GroupName               string     `json:"group_name,omitempty"`                // channel group at time of detection
 	FingerprintModelVersion string     `json:"fingerprint_model_version,omitempty"` // e.g. apimaster_fingerprint_cccli_v0.1
-	Top5                    []TopKItem `json:"top5,omitempty"`         // fingerprint top-5 predictions (only on fingerprint history points)
-	Top1ScoreRaw            float64    `json:"top1_score_raw,omitempty"` // raw top1 score before boost; non-zero only when boost was applied (admin only)
+	Top5                    []TopKItem `json:"top5,omitempty"`                      // fingerprint top-5 predictions (only on fingerprint history points)
+	Top1ScoreRaw            float64    `json:"top1_score_raw,omitempty"`            // raw top1 score before boost; non-zero only when boost was applied (admin only)
 }
 
 // TopKItem is one prediction in the fingerprint top-5 list. Mirrors apimaster's
@@ -38,9 +39,9 @@ func includeDetectHistoryStatus(status string) bool {
 }
 
 type ModelDataItem struct {
-	ChannelID   int    `json:"channel_id"`
-	ChannelName string `json:"channel_name"`
-	KeyGroup    string `json:"key_group"`
+	ChannelID       int    `json:"channel_id"`
+	ChannelName     string `json:"channel_name"`
+	KeyGroup        string `json:"key_group"`
 	ClientExclusive string `json:"client_exclusive"` // "" | codex | claude_code
 	// Pricing fields: nil = no pricing row (upstream 401/404 / cookie-only auth / no endpoint).
 	// Frontend renders nil as "—".
@@ -86,7 +87,19 @@ const (
 // GET /api/admin/model-data?model=<model_name>
 func GetModelData(c *gin.Context) {
 	modelName := c.DefaultQuery("model", "claude-sonnet-4-6")
+	items, officialOK, officialIn, officialOut := getModelDataItems(c.Request.Context(), modelName)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    items,
+		"official": gin.H{
+			"input_price":  officialIn,
+			"output_price": officialOut,
+			"ok":           officialOK,
+		},
+	})
+}
 
+func getModelDataItems(ctx context.Context, modelName string) ([]ModelDataItem, bool, float64, float64) {
 	type row struct {
 		ChannelID                  int
 		ChannelName                string
@@ -174,8 +187,7 @@ func GetModelData(c *gin.Context) {
 	}
 
 	if len(rows) == 0 {
-		c.JSON(http.StatusOK, gin.H{"success": true, "data": []any{}})
-		return
+		return []ModelDataItem{}, false, 0, 0
 	}
 
 	// Batch fetch recent detect logs for these channels, filtered to this model.
@@ -249,7 +261,7 @@ func GetModelData(c *gin.Context) {
 
 	// hub.romaapi.com aggregator pricing for the side-by-side compare column.
 	// Best-effort: if the hub is unreachable, hub_price stays nil for every row.
-	hubPricing, _ := service.GetHubPricing(c.Request.Context())
+	hubPricing, _ := service.GetHubPricing(ctx)
 
 	// 官方原价 (unified official list price, 系统设置→模型定价). Feeds the 官方原价
 	// column and the tampered-base-price alert only — never 采购价/计费.
@@ -450,15 +462,7 @@ func GetModelData(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    items,
-		"official": gin.H{
-			"input_price":  officialIn,
-			"output_price": officialOut,
-			"ok":           officialOK,
-		},
-	})
+	return items, officialOK, officialIn, officialOut
 }
 
 func modelDataExtractKeyGroup(setting *string) string {

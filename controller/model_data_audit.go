@@ -1,0 +1,169 @@
+package controller
+
+import (
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+)
+
+type ChannelDataAuditItem struct {
+	ChannelID                  int      `json:"channel_id"`
+	ChannelName                string   `json:"channel_name"`
+	ModelName                  string   `json:"model_name"`
+	FinalSource                string   `json:"final_source"`
+	InputProcurementPrice      *float64 `json:"input_procurement_price"`
+	OutputProcurementPrice     *float64 `json:"output_procurement_price"`
+	CacheReadProcurementPrice  *float64 `json:"cache_read_procurement_price"`
+	CacheWriteProcurementPrice *float64 `json:"cache_write_procurement_price"`
+	Completeness               string   `json:"completeness"`
+	MissingFields              []string `json:"missing_fields"`
+	IsAnomaly                  bool     `json:"is_anomaly"`
+	Note                       string   `json:"note,omitempty"`
+}
+
+type ChannelDataAuditSummary struct {
+	TotalChannels  int `json:"total_channels"`
+	PricingSources int `json:"pricing_sources"`
+	ManualSources  int `json:"manual_sources"`
+	GlobalSources  int `json:"global_sources"`
+	NoneSources    int `json:"none_sources"`
+	CompleteCount  int `json:"complete_count"`
+	PartialCount   int `json:"partial_count"`
+	MissingCount   int `json:"missing_count"`
+	AnomalyCount   int `json:"anomaly_count"`
+}
+
+type ChannelDataAuditGroupMember struct {
+	ChannelID   int    `json:"channel_id"`
+	ChannelName string `json:"channel_name"`
+}
+
+// GetChannelDataAudit returns a read-only audit of the Channel Data page's
+// final procurement prices for a single model.
+func GetChannelDataAudit(c *gin.Context) {
+	modelName := c.DefaultQuery("model", "claude-sonnet-4-6")
+	items, _, _, _ := getModelDataItems(c.Request.Context(), modelName)
+	auditItems, summary, groups := buildChannelDataAudit(modelName, items)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"model":   modelName,
+		"data":    auditItems,
+		"summary": summary,
+		"groups":  groups,
+	})
+}
+
+func buildChannelDataAudit(modelName string, items []ModelDataItem) ([]ChannelDataAuditItem, ChannelDataAuditSummary, map[string][]ChannelDataAuditGroupMember) {
+	auditItems := make([]ChannelDataAuditItem, 0, len(items))
+	summary := ChannelDataAuditSummary{TotalChannels: len(items)}
+	groups := make(map[string][]ChannelDataAuditGroupMember)
+
+	addGroup := func(key string, item ModelDataItem) {
+		groups[key] = append(groups[key], ChannelDataAuditGroupMember{
+			ChannelID:   item.ChannelID,
+			ChannelName: item.ChannelName,
+		})
+	}
+
+	for _, item := range items {
+		source := normalizedChannelDataAuditSource(item.PricingSource)
+		switch source {
+		case "pricing":
+			summary.PricingSources++
+		case "manual":
+			summary.ManualSources++
+		case "global":
+			summary.GlobalSources++
+		default:
+			summary.NoneSources++
+		}
+
+		missingFields := make([]string, 0, 4)
+		if channelDataAuditPriceMissing(item.ActualPrice) {
+			missingFields = append(missingFields, "input")
+		}
+		if channelDataAuditPriceMissing(item.ActualOutputPrice) {
+			missingFields = append(missingFields, "output")
+		}
+		if channelDataAuditPriceMissing(item.ActualCachePrice) {
+			missingFields = append(missingFields, "cache_read")
+		}
+		if channelDataAuditPriceMissing(item.ActualCacheCreationPrice) {
+			missingFields = append(missingFields, "cache_write")
+		}
+
+		completeness := "complete"
+		if len(missingFields) > 0 {
+			if channelDataAuditPriceMissing(item.ActualPrice) {
+				completeness = "missing"
+			} else {
+				completeness = "partial"
+			}
+		}
+
+		switch completeness {
+		case "complete":
+			summary.CompleteCount++
+		case "partial":
+			summary.PartialCount++
+		case "missing":
+			summary.MissingCount++
+		}
+
+		isAnomaly := len(missingFields) > 0 || source == "global" || source == "none"
+		if isAnomaly {
+			summary.AnomalyCount++
+		}
+
+		noteParts := make([]string, 0, 2)
+		if source == "global" {
+			noteParts = append(noteParts, "页面依赖 global 兜底，按审计口径判错")
+			addGroup("global_fallback", item)
+		}
+		if source == "none" || channelDataAuditPriceMissing(item.ActualPrice) {
+			addGroup("missing_procurement_price", item)
+		}
+		if source == "pricing" || source == "manual" {
+			for _, field := range missingFields {
+				switch field {
+				case "output":
+					addGroup(source+"_missing_output", item)
+				case "cache_read":
+					addGroup(source+"_missing_cache_read", item)
+				case "cache_write":
+					addGroup(source+"_missing_cache_write", item)
+				}
+			}
+		}
+
+		auditItems = append(auditItems, ChannelDataAuditItem{
+			ChannelID:                  item.ChannelID,
+			ChannelName:                item.ChannelName,
+			ModelName:                  modelName,
+			FinalSource:                source,
+			InputProcurementPrice:      item.ActualPrice,
+			OutputProcurementPrice:     item.ActualOutputPrice,
+			CacheReadProcurementPrice:  item.ActualCachePrice,
+			CacheWriteProcurementPrice: item.ActualCacheCreationPrice,
+			Completeness:               completeness,
+			MissingFields:              missingFields,
+			IsAnomaly:                  isAnomaly,
+			Note:                       strings.Join(noteParts, "; "),
+		})
+	}
+
+	return auditItems, summary, groups
+}
+
+func normalizedChannelDataAuditSource(source string) string {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return "none"
+	}
+	return source
+}
+
+func channelDataAuditPriceMissing(price *float64) bool {
+	return price == nil || *price <= 0
+}

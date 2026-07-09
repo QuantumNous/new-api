@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,4 +41,45 @@ func TestAmountUSDKeepsCacheExclusiveInput(t *testing.T) {
 	}
 
 	require.InDelta(t, 0.00285, amountUSD(prices, input), 0.0000000000001)
+}
+
+func TestAmountUSDUsesImageCountBilling(t *testing.T) {
+	prices := accountingPriceTuple{
+		InputPrice: 0.057,
+	}
+	input := ConsumeAccountingInput{
+		BillingMode: accountingBillingModeImageCount,
+		ImageCount:  2,
+	}
+
+	require.InDelta(t, 0.114, amountUSD(prices, input), 0.0000000000001)
+}
+
+func TestAmountUSDUsesDurationBilling(t *testing.T) {
+	prices := accountingPriceTuple{
+		InputPrice: 0.035,
+	}
+	input := ConsumeAccountingInput{
+		BillingMode:     accountingBillingModeDurationSeconds,
+		DurationSeconds: 8,
+	}
+
+	require.InDelta(t, 0.28, amountUSD(prices, input), 0.0000000000001)
+}
+
+func TestUserAmountsUSDDerivesMediaFinalAmountFromQuota(t *testing.T) {
+	prices := accountingPriceTuple{
+		InputPrice: 0.057,
+	}
+	input := ConsumeAccountingInput{
+		BillingMode: accountingBillingModeImageCount,
+		ImageCount:  1,
+		GroupRatio:  1.05,
+		Quota:       27794,
+	}
+
+	userPriceAmountUSD, userFinalAmountUSD := userAmountsUSD(prices, input)
+
+	require.InDelta(t, float64(27794)/common.QuotaPerUnit, userFinalAmountUSD, 0.0000000000001)
+	require.InDelta(t, userFinalAmountUSD/1.05, userPriceAmountUSD, 0.0000000000001)
 }

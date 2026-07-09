@@ -484,8 +484,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if requestData := ImageRequestDataFromContext(ctx); len(requestData) > 0 {
 		other["request_data"] = requestData
 	}
-
-	accounting := BuildConsumeAccountingFields(ConsumeAccountingInput{
+	accountingInput := ConsumeAccountingInput{
 		UserId:                  relayInfo.UserId,
 		ChannelId:               relayInfo.ChannelId,
 		ModelName:               summary.ModelName,
@@ -496,7 +495,15 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		CacheWriteTokens:        cacheWriteTokens,
 		GroupRatio:              summary.GroupRatio,
 		Quota:                   summary.Quota,
-	})
+	}
+	if requestData := ImageRequestDataFromContext(ctx); len(requestData) > 0 {
+		if imageCount := coerceRequestInt(requestData["actual_image_count"]); imageCount > 0 {
+			accountingInput.BillingMode = accountingBillingModeImageCount
+			accountingInput.ImageCount = imageCount
+		}
+	}
+
+	accounting := BuildConsumeAccountingFields(accountingInput)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     summary.PromptTokens,
