@@ -4678,7 +4678,6 @@
     "展示名称": "Tên hiển thị",
     "确认删除 {{name}}？": "Xóa {{name}}?",
     "批量添加": "Thêm hàng loạt",
-    "全选": "Chọn tất cả",
     "批量添加对话模型": "Thêm hàng loạt mô hình chat",
     "添加为禁用": "Thêm ở trạng thái tắt",
     "选中的对话模型会以禁用状态添加。": "Các mô hình chat đã chọn sẽ được thêm ở trạng thái tắt.",
@@ -4687,8 +4686,16 @@
     "清空过滤结果": "Bỏ chọn kết quả lọc",
     "所有可用对话模型都已配置。": "Tất cả mô hình chat khả dụng đã được cấu hình.",
     "已选择 {{count}} 个模型": "Đã chọn {{count}} mô hình",
-    "请至少选择一个模型": "Vui lòng chọn ít nhất một mô hình",
     "批量添加对话模型失败": "Không thể thêm hàng loạt mô hình chat",
-    "批量添加 {{created}} 个对话模型，跳过 {{skipped}} 个": "Đã thêm hàng loạt {{created}} mô hình chat, bỏ qua {{skipped}}"
+    "批量添加 {{created}} 个对话模型，跳过 {{skipped}} 个": "Đã thêm hàng loạt {{created}} mô hình chat, bỏ qua {{skipped}}",
+    "Resolution {{tier}}": "Độ phân giải {{tier}}",
+    "Audio {{mode}}": "Âm thanh {{mode}}",
+    "Duration {{seconds}}s": "Thời lượng {{seconds}} giây",
+    "Unit Price {{price}} / second": "Đơn giá {{price}} / giây",
+    "Video Rate {{price}} / second": "Giá video {{price}} / giây",
+    "Group ratio": "Tỷ lệ nhóm",
+    "enabled": "có âm thanh",
+    "silent": "im lặng",
+    "audio": "có âm thanh"
   }
 }

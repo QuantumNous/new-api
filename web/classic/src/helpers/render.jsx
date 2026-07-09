@@ -1658,8 +1658,9 @@ export function renderTaskBillingProcess(other, content) {
         ...other,
         group_ratio: effectiveGroupRatio,
       },
+      t: (value, vars) => i18next.t(value, vars),
       formatPrice: (value) => formatBillingDisplayPrice(value, 1),
-      ratioLabel,
+      ratioLabel: i18next.t(ratioLabel),
     });
 
     if (lines.length > 0) {

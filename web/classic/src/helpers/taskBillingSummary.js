@@ -72,24 +72,40 @@ export function buildTaskBillingSummaryLines({
   const conditionalInputPrice = Number(other?.conditional_input_price);
 
   if (Number.isFinite(conditionalInputPrice) && conditionalInputPrice > 0) {
-    lines.push(`Input Price ${formatPrice(conditionalInputPrice)} / 1M tokens`);
+    lines.push(
+      t('Input Price {{price}} / 1M tokens', {
+        price: formatPrice(conditionalInputPrice),
+      }),
+    );
   }
 
   if (other?.billing_mode === 'video_seconds') {
     if (other?.video_seconds_tier) {
-      lines.push(`Resolution ${other.video_seconds_tier}`);
+      lines.push(
+        t('Resolution {{tier}}', {
+          tier: other.video_seconds_tier,
+        }),
+      );
     }
     if (other?.video_audio_enabled !== undefined) {
       lines.push(
-        `Audio ${other.video_audio_enabled === true ? 'enabled' : 'silent'}`,
+        t('Audio {{mode}}', {
+          mode: other.video_audio_enabled === true ? t('enabled') : t('silent'),
+        }),
       );
     }
     if (Number.isFinite(Number(other?.video_duration_seconds))) {
-      lines.push(`Duration ${Number(other.video_duration_seconds)}s`);
+      lines.push(
+        t('Duration {{seconds}}s', {
+          seconds: Number(other.video_duration_seconds),
+        }),
+      );
     }
     if (Number.isFinite(Number(other?.video_seconds_unit_price))) {
       lines.push(
-        `Unit Price ${formatPrice(Number(other.video_seconds_unit_price))} / second`,
+        t('Unit Price {{price}} / second', {
+          price: formatPrice(Number(other.video_seconds_unit_price)),
+        }),
       );
     }
   }
@@ -110,7 +126,8 @@ export function buildTaskBillingSummaryLines({
 export function buildVideoSecondsBillingProcessLines({
   other,
   formatPrice,
-  ratioLabel = 'Group ratio',
+  t,
+  ratioLabel,
 }) {
   if (other?.billing_mode !== 'video_seconds') {
     return [];
@@ -120,7 +137,7 @@ export function buildVideoSecondsBillingProcessLines({
   const durationSeconds = Number(other?.video_duration_seconds);
   const groupRatio = Number(other?.group_ratio ?? 1);
   const tier = String(other?.video_seconds_tier ?? '').toUpperCase();
-  const audioLabel = other?.video_audio_enabled === true ? 'audio' : 'silent';
+  const audioLabel = other?.video_audio_enabled === true ? t('audio') : t('silent');
 
   if (!Number.isFinite(unitPrice) || !Number.isFinite(durationSeconds)) {
     return [];
@@ -134,7 +151,14 @@ export function buildVideoSecondsBillingProcessLines({
   details.push(`${durationSeconds}s`);
 
   return [
-    `Video Rate ${formatPrice(unitPrice)} / second`,
-    `${details.join(' / ')} * ${ratioLabel} ${groupRatio} = ${formatPrice(unitPrice * durationSeconds * groupRatio)}`,
+    t('Video Rate {{price}} / second', {
+      price: formatPrice(unitPrice),
+    }),
+    t('{{details}} * {{ratioLabel}} {{ratio}} = {{total}}', {
+      details: details.join(' / '),
+      ratioLabel,
+      ratio: groupRatio,
+      total: formatPrice(unitPrice * durationSeconds * groupRatio),
+    }),
   ];
 }

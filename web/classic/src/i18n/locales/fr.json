@@ -4158,7 +4158,6 @@
     "展示名称": "Nom d'affichage",
     "确认删除 {{name}}？": "Supprimer {{name}} ?",
     "批量添加": "Ajout groupé",
-    "全选": "Tout sélectionner",
     "批量添加对话模型": "Ajouter des modèles de discussion par lot",
     "添加为禁用": "Ajouter désactivé",
     "选中的对话模型会以禁用状态添加。": "Les modèles de discussion sélectionnés seront ajoutés désactivés.",
@@ -4167,8 +4166,16 @@
     "清空过滤结果": "Effacer les éléments filtrés",
     "所有可用对话模型都已配置。": "Tous les modèles de discussion disponibles sont déjà configurés.",
     "已选择 {{count}} 个模型": "{{count}} modèle(s) sélectionné(s)",
-    "请至少选择一个模型": "Veuillez sélectionner au moins un modèle",
     "批量添加对话模型失败": "Échec de l'ajout groupé des modèles de discussion",
-    "批量添加 {{created}} 个对话模型，跳过 {{skipped}} 个": "{{created}} modèle(s) de discussion ajouté(s), {{skipped}} ignoré(s)"
+    "批量添加 {{created}} 个对话模型，跳过 {{skipped}} 个": "{{created}} modèle(s) de discussion ajouté(s), {{skipped}} ignoré(s)",
+    "Resolution {{tier}}": "Résolution {{tier}}",
+    "Audio {{mode}}": "Audio {{mode}}",
+    "Duration {{seconds}}s": "Durée {{seconds}}s",
+    "Unit Price {{price}} / second": "Prix unitaire {{price}} / seconde",
+    "Video Rate {{price}} / second": "Tarif vidéo {{price}} / seconde",
+    "Group ratio": "Ratio du groupe",
+    "enabled": "activé",
+    "silent": "muet",
+    "audio": "audio"
   }
 }
