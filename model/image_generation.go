@@ -1,7 +1,12 @@
 package model
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
+	"time"
+
+	"github.com/QuantumNous/new-api/common"
 
 	"gorm.io/gorm"
 )
@@ -28,6 +33,7 @@ type ImageGeneration struct {
 	Status     string `json:"status" gorm:"type:varchar(20);index"`
 	Group      string `json:"group" gorm:"index"`
 	CreatedAt  int64  `json:"created_at" gorm:"bigint;index"`
+	UseTime    int64  `json:"use_time" gorm:"bigint"`
 	ExpireAt   int64  `json:"expire_at" gorm:"bigint;index"`
 }
 
@@ -113,7 +119,7 @@ func imageGenerationToMidjourney(record *ImageGeneration) *Midjourney {
 		status = ImageGenerationStatusSuccess
 	}
 	if status == ImageGenerationStatusSuccess && record.FilePath != "" {
-		imageURL = "/api/image-generations/" + strconv.Itoa(record.Id) + "/content"
+		imageURL = imageGenerationContentURL(record)
 	}
 	if status == ImageGenerationStatusExpired {
 		failReason = "图片已过期"
@@ -123,6 +129,11 @@ func imageGenerationToMidjourney(record *ImageGeneration) *Midjourney {
 	if record.ImageIndex > 0 {
 		mjID = mjID + "#" + strconv.Itoa(record.ImageIndex+1)
 	}
+	useTime := imageGenerationUseTimeSeconds(record)
+	submitTime := record.CreatedAt * 1000
+	if useTime > 0 {
+		submitTime = (record.CreatedAt - useTime) * 1000
+	}
 
 	return &Midjourney{
 		Id:         -record.Id,
@@ -130,10 +141,10 @@ func imageGenerationToMidjourney(record *ImageGeneration) *Midjourney {
 		UserId:     record.UserId,
 		Action:     "IMAGE_GENERATION",
 		MjId:       mjID,
-		Prompt:     record.Prompt,
+		Prompt:     imageGenerationPrompt(record),
 		PromptEn:   record.ModelName,
-		SubmitTime: record.CreatedAt * 1000,
-		StartTime:  record.CreatedAt * 1000,
+		SubmitTime: submitTime,
+		StartTime:  submitTime,
 		FinishTime: record.CreatedAt * 1000,
 		ImageUrl:   imageURL,
 		Status:     status,
@@ -142,4 +153,85 @@ func imageGenerationToMidjourney(record *ImageGeneration) *Midjourney {
 		ChannelId:  record.ChannelId,
 		Quota:      record.Quota,
 	}
+}
+
+func imageGenerationPrompt(record *ImageGeneration) string {
+	parts := make([]string, 0, 4)
+	if record.Size != "" {
+		parts = append(parts, "大小 "+record.Size)
+	}
+	if record.Quality != "" {
+		parts = append(parts, "品质 "+record.Quality)
+	}
+	parts = append(parts, "生成数量 1")
+	if record.Prompt != "" {
+		parts = append(parts, "提示词 "+record.Prompt)
+	}
+	return strings.Join(parts, ", ")
+}
+
+func imageGenerationUseTimeSeconds(record *ImageGeneration) int64 {
+	if record.UseTime > 0 {
+		return record.UseTime
+	}
+	if record.RequestId == "" {
+		return 0
+	}
+	var log Log
+	result := LOG_DB.Model(&Log{}).
+		Select("use_time").
+		Where("request_id = ? AND type = ? AND use_time > 0", record.RequestId, LogTypeConsume).
+		Order("id desc").
+		Limit(1).
+		Find(&log)
+	if result.Error != nil || result.RowsAffected == 0 {
+		return 0
+	}
+	if log.UseTime < 0 {
+		return 0
+	}
+	return int64(log.UseTime)
+}
+
+func imageGenerationContentURL(record *ImageGeneration) string {
+	if record == nil {
+		return ""
+	}
+	expires := record.ExpireAt
+	if expires <= 0 {
+		expires = record.CreatedAt + 7*24*60*60
+	}
+	return fmt.Sprintf(
+		"/api/image-generations/%d/content?expires=%d&signature=%s",
+		record.Id,
+		expires,
+		GenerateImageGenerationContentSignature(record, expires),
+	)
+}
+
+func GenerateImageGenerationContentSignature(record *ImageGeneration, expires int64) string {
+	if record == nil {
+		return ""
+	}
+	payload := fmt.Sprintf(
+		"image-generation-content:%d:%d:%d:%s:%s:%d",
+		record.Id,
+		record.UserId,
+		expires,
+		record.FilePath,
+		record.Status,
+		record.ExpireAt,
+	)
+	return common.GenerateHMAC(payload)
+}
+
+func ValidateImageGenerationContentSignature(record *ImageGeneration, expires int64, signature string) bool {
+	if record == nil || signature == "" || expires <= time.Now().Unix() {
+		return false
+	}
+	if record.ExpireAt > 0 && expires > record.ExpireAt {
+		return false
+	}
+	expected := GenerateImageGenerationContentSignature(record, expires)
+	return expected != "" && expected == signature
 }

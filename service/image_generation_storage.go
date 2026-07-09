@@ -54,6 +54,13 @@ func SaveImageGenerationResponse(c *gin.Context, info *relaycommon.RelayInfo, re
 	}
 
 	now := time.Now()
+	useTimeSeconds := int64(0)
+	if !info.StartTime.IsZero() {
+		useTimeSeconds = int64(now.Sub(info.StartTime).Seconds())
+		if useTimeSeconds < 0 {
+			useTimeSeconds = 0
+		}
+	}
 	requestID := c.GetString(common.RequestIdKey)
 	if requestID == "" {
 		requestID = common.GetUUID()
@@ -106,6 +113,7 @@ func SaveImageGenerationResponse(c *gin.Context, info *relaycommon.RelayInfo, re
 			Status:     model.ImageGenerationStatusSuccess,
 			Group:      info.UsingGroup,
 			CreatedAt:  now.Unix(),
+			UseTime:    useTimeSeconds,
 			ExpireAt:   now.Add(imageGenerationRetention).Unix(),
 		}
 		if err := model.InsertImageGeneration(record); err != nil {

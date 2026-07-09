@@ -325,7 +325,7 @@ func SetApiRouter(router *gin.Engine) {
 		mjRoute.GET("/", middleware.AdminAuth(), controller.GetAllMidjourney)
 
 		imageGenerationRoute := apiRouter.Group("/image-generations")
-		imageGenerationRoute.GET("/:id/content", middleware.UserAuth(), controller.GetImageGenerationContent)
+		imageGenerationRoute.GET("/:id/content", controller.GetImageGenerationContent)
 
 		taskRoute := apiRouter.Group("/task")
 		{

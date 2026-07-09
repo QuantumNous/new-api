@@ -5,7 +5,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 
@@ -25,10 +24,9 @@ func GetImageGenerationContent(c *gin.Context) {
 		return
 	}
 
-	role := c.GetInt("role")
-	userID := c.GetInt("id")
-	if role < common.RoleAdminUser && record.UserId != userID {
-		c.Status(http.StatusForbidden)
+	expires, err := strconv.ParseInt(c.Query("expires"), 10, 64)
+	if err != nil || !model.ValidateImageGenerationContentSignature(record, expires, c.Query("signature")) {
+		c.Status(http.StatusUnauthorized)
 		return
 	}
 	if record.Status != model.ImageGenerationStatusSuccess || record.FilePath == "" {

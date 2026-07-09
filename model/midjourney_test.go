@@ -26,9 +26,13 @@ func TestGetAllUserDrawingLogsIncludesImageGenerationLogs(t *testing.T) {
 	require.NoError(t, DB.Create(&ImageGeneration{
 		Id:        10,
 		UserId:    1,
-		CreatedAt: 2,
+		CreatedAt: 100,
+		UseTime:   3,
+		ExpireAt:  4_102_444_800,
 		Status:    ImageGenerationStatusSuccess,
 		Prompt:    "a red cube",
+		Size:      "1024x1024",
+		Quality:   "standard",
 		ModelName: "gemini-3.1-flash-image",
 		Quota:     50000,
 		ChannelId: 23,
@@ -54,10 +58,13 @@ func TestGetAllUserDrawingLogsIncludesImageGenerationLogs(t *testing.T) {
 	require.Equal(t, "IMAGE_GENERATION", items[0].Action)
 	require.Equal(t, "SUCCESS", items[0].Status)
 	require.Equal(t, "100%", items[0].Progress)
-	require.Equal(t, int64(2000), items[0].SubmitTime)
-	require.Equal(t, int64(2000), items[0].FinishTime)
-	require.Equal(t, "/api/image-generations/10/content", items[0].ImageUrl)
-	require.Equal(t, "a red cube", items[0].Prompt)
+	require.Equal(t, int64(97000), items[0].SubmitTime)
+	require.Equal(t, int64(100000), items[0].FinishTime)
+	require.Contains(t, items[0].ImageUrl, "/api/image-generations/10/content?expires=")
+	require.Contains(t, items[0].ImageUrl, "signature=")
+	require.Contains(t, items[0].Prompt, "大小 1024x1024")
+	require.Contains(t, items[0].Prompt, "品质 standard")
+	require.Contains(t, items[0].Prompt, "提示词 a red cube")
 	require.Equal(t, "gemini-3.1-flash-image", items[0].PromptEn)
 	require.Equal(t, 50000, items[0].Quota)
 	require.Equal(t, "mj_old", items[1].MjId)
