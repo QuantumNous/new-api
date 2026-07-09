@@ -143,6 +143,13 @@ func gptImage2ClientAsyncPath(c *gin.Context) bool {
 	return strings.HasSuffix(c.Request.URL.Path, "/images/generations/async")
 }
 
+func gptImage2EditsPath(c *gin.Context) bool {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	return strings.HasSuffix(c.Request.URL.Path, "/images/edits")
+}
+
 // SetGptImage2RoutingRetry stores relay retry index for channel-pick filters.
 func SetGptImage2RoutingRetry(c *gin.Context, retry int) {
 	if c != nil && retry >= 0 {
@@ -479,6 +486,9 @@ func GptImage2ChannelPickFilter(c *gin.Context, modelName string) model.ChannelP
 			return false
 		}
 		tier := ChannelGptImage2Tier(ch)
+		if profile == GptImage2ProfilePacky && gptImage2EditsPath(c) {
+			return tier == GptImage2TierPacky
+		}
 		if tier == GptImage2TierPacky && gptImage2ClientAsyncPath(c) {
 			return false
 		}
