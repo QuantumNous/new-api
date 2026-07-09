@@ -81,6 +81,14 @@ func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *d
 	return usage.ClaudeCacheCreation5mTokens > 0 || usage.ClaudeCacheCreation1hTokens > 0
 }
 
+func usageLooksLikeSeparatedInputCache(usage *dto.Usage) bool {
+	if usage == nil {
+		return false
+	}
+	return usage.PromptTokensDetails.CachedTokens > usage.PromptTokens ||
+		usage.PromptTokensDetails.CachedCreationTokens > usage.PromptTokens
+}
+
 func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, summary *textQuotaSummary) decimal.Decimal {
 	dGroupRatio := decimal.NewFromFloat(summary.GroupRatio)
 	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
@@ -323,11 +331,20 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	return summary
 }
 
+// CalculateTextQuotaForUsage returns the same text quota used by normal relay settlement.
+// It is intended for callers that need the quota value without writing consume logs.
+func CalculateTextQuotaForUsage(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage) int {
+	return calculateTextQuotaSummary(ctx, relayInfo, usage).Quota
+}
+
 func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) string {
 	if usage != nil && usage.UsageSemantic != "" {
 		return usage.UsageSemantic
 	}
 	if relayInfo != nil && relayInfo.GetFinalRequestRelayFormat() == types.RelayFormatClaude {
+		return "anthropic"
+	}
+	if usageLooksLikeSeparatedInputCache(usage) {
 		return "anthropic"
 	}
 	return "openai"
