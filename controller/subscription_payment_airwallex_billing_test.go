@@ -313,14 +313,10 @@ func TestBillingCheckoutCompletedResolvesViaCheckoutSubscriptionData(t *testing.
 	require.Equal(t, common.TopUpStatusSuccess, o.Status, "order must be succeeded via checkout.subscription_data.metadata")
 }
 
-// TestInvoicePaidRenewsAfterFirstCycle verifies that handleAirwallexInvoicePaid
-// resolves trade_no via the getBillingSubscription seam (because the invoice.paid
-// fixture carries no metadata), skips first-cycle activation (already done by
-// billing_checkout.completed), and creates+completes a renewal order.
-func TestInvoicePaidRenewsAfterFirstCycle(t *testing.T) {
-	setupAirwallexWebhookDB(t)
-
-	// Seed a succeeded original order (first cycle already activated).
+// seedAirwallexOrigOrder inserts the original (first-cycle) subscription order
+// with the given status and create time.
+func seedAirwallexOrigOrder(t *testing.T, status string, createTime int64) *model.SubscriptionOrder {
+	t.Helper()
 	orig := &model.SubscriptionOrder{
 		UserId:          7,
 		PlanId:          1,
@@ -328,13 +324,17 @@ func TestInvoicePaidRenewsAfterFirstCycle(t *testing.T) {
 		TradeNo:         "sub_capture_0708",
 		PaymentMethod:   model.PaymentMethodCard,
 		PaymentProvider: model.PaymentProviderAirwallex,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusSuccess,
+		CreateTime:      createTime,
+		Status:          status,
 	}
 	require.NoError(t, orig.Insert())
+	return orig
+}
 
-	// Override the seam so the handler resolves the subscription without a live
-	// Airwallex API call.
+// stubBillingSubscriptionSeam makes the handler resolve trade_no without a live
+// Airwallex API call.
+func stubBillingSubscriptionSeam(t *testing.T) {
+	t.Helper()
 	savedSeam := getBillingSubscription
 	getBillingSubscription = func(id string) (*airwallex.BillingSubscription, error) {
 		return &airwallex.BillingSubscription{
@@ -343,12 +343,117 @@ func TestInvoicePaidRenewsAfterFirstCycle(t *testing.T) {
 		}, nil
 	}
 	t.Cleanup(func() { getBillingSubscription = savedSeam })
+}
 
+// makeInvoiceEvent builds an invoice.payment.paid event with the data-direct
+// Billing envelope shape (resource fields directly under data).
+func makeInvoiceEvent(invoiceId, number string, createdAt time.Time) airwallexEvent {
+	obj := map[string]any{
+		"subscription_id": "sub_hkdmwssjlhk6pph640l",
+		"payment_status":  "PAID",
+		"created_at":      createdAt.UTC().Format("2006-01-02T15:04:05-0700"),
+	}
+	if invoiceId != "" {
+		obj["id"] = invoiceId
+	}
+	if number != "" {
+		obj["number"] = number
+	}
+	return airwallexEvent{
+		Id:   "evt_test_" + invoiceId,
+		Name: "invoice.payment.paid",
+		Data: airwallexEventData{Object: obj},
+	}
+}
+
+// countRenewalOrders returns how many orders exist whose trade_no marks them as
+// renewals of the seeded original order.
+func countRenewalOrders(t *testing.T) int64 {
+	t.Helper()
+	var n int64
+	require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).
+		Where("trade_no LIKE ?", "sub_capture_0708-r%").Count(&n).Error)
+	return int64(n)
+}
+
+// TestInvoicePaidSkipsFirstCycleAfterCheckoutCompleted reproduces the
+// double-activation bug: billing_checkout.completed was processed FIRST (order
+// already success), then the first-cycle invoice.payment.paid arrives (delivery
+// order is not guaranteed; a 500'd delivery is retried hours later). The
+// handler must recognize the invoice as first-cycle from the invoice itself
+// (sequence number / created_at) and NOT mint a renewal order.
+func TestInvoicePaidSkipsFirstCycleAfterCheckoutCompleted(t *testing.T) {
+	setupAirwallexWebhookDB(t)
+	seedAirwallexOrigOrder(t, common.TopUpStatusSuccess, time.Now().Unix())
+	stubBillingSubscriptionSeam(t)
+
+	// Real first-cycle payload: number INV-…-0001, created moments after checkout.
 	ev := loadEvent(t, "testdata/awx_invoice_paid.json")
 	require.NoError(t, handleAirwallexInvoicePaid(testCtx(), ev))
 
-	renewTradeNo := "sub_capture_0708-r" + time.Now().UTC().Format("200601")
-	renew := model.GetSubscriptionOrderByTradeNo(renewTradeNo)
-	require.NotNil(t, renew, "renewal order %s must exist", renewTradeNo)
+	require.EqualValues(t, 0, countRenewalOrders(t),
+		"first-cycle invoice after checkout completion must not create a renewal order")
+}
+
+// TestInvoicePaidRenewalKeyedOnInvoiceId verifies a genuine renewal invoice
+// (sequence > 1, created ~1 month after the original order) creates a completed
+// renewal order whose trade_no embeds the Airwallex invoice id — not the
+// processing month, which double-charges across a month-boundary retry.
+func TestInvoicePaidRenewalKeyedOnInvoiceId(t *testing.T) {
+	setupAirwallexWebhookDB(t)
+	seedAirwallexOrigOrder(t, common.TopUpStatusSuccess, time.Now().Add(-32*24*time.Hour).Unix())
+	stubBillingSubscriptionSeam(t)
+
+	ev := makeInvoiceEvent("inv_renewal_aug", "INV-PR2OS7ZL-0002", time.Now())
+	require.NoError(t, handleAirwallexInvoicePaid(testCtx(), ev))
+
+	renew := model.GetSubscriptionOrderByTradeNo("sub_capture_0708-r-inv_renewal_aug")
+	require.NotNil(t, renew, "renewal order must be keyed on the invoice id")
 	require.Equal(t, common.TopUpStatusSuccess, renew.Status, "renewal order must be succeeded")
+}
+
+// TestInvoicePaidRenewalReplayIdempotent verifies redelivery of the same
+// renewal invoice event (Airwallex retries) completes exactly one order.
+func TestInvoicePaidRenewalReplayIdempotent(t *testing.T) {
+	setupAirwallexWebhookDB(t)
+	seedAirwallexOrigOrder(t, common.TopUpStatusSuccess, time.Now().Add(-32*24*time.Hour).Unix())
+	stubBillingSubscriptionSeam(t)
+
+	ev := makeInvoiceEvent("inv_renewal_aug", "INV-PR2OS7ZL-0002", time.Now())
+	require.NoError(t, handleAirwallexInvoicePaid(testCtx(), ev))
+	require.NoError(t, handleAirwallexInvoicePaid(testCtx(), ev))
+
+	require.EqualValues(t, 1, countRenewalOrders(t), "replayed invoice event must not mint a second renewal")
+	renew := model.GetSubscriptionOrderByTradeNo("sub_capture_0708-r-inv_renewal_aug")
+	require.NotNil(t, renew)
+	require.Equal(t, common.TopUpStatusSuccess, renew.Status)
+}
+
+// TestInvoicePaidDistinctInvoicesCreateDistinctRenewals verifies two different
+// renewal invoices each get their own order even when processed in the same
+// calendar month (the month-key scheme silently collapsed them).
+func TestInvoicePaidDistinctInvoicesCreateDistinctRenewals(t *testing.T) {
+	setupAirwallexWebhookDB(t)
+	seedAirwallexOrigOrder(t, common.TopUpStatusSuccess, time.Now().Add(-70*24*time.Hour).Unix())
+	stubBillingSubscriptionSeam(t)
+
+	require.NoError(t, handleAirwallexInvoicePaid(testCtx(),
+		makeInvoiceEvent("inv_renewal_a", "INV-PR2OS7ZL-0002", time.Now().Add(-35*24*time.Hour))))
+	require.NoError(t, handleAirwallexInvoicePaid(testCtx(),
+		makeInvoiceEvent("inv_renewal_b", "INV-PR2OS7ZL-0003", time.Now())))
+
+	require.EqualValues(t, 2, countRenewalOrders(t), "distinct invoices must create distinct renewal orders")
+}
+
+// TestInvoicePaidMissingInvoiceIdIgnored verifies an invoice event without an
+// id is logged and ignored — no idempotency key means no safe order creation.
+func TestInvoicePaidMissingInvoiceIdIgnored(t *testing.T) {
+	setupAirwallexWebhookDB(t)
+	seedAirwallexOrigOrder(t, common.TopUpStatusSuccess, time.Now().Add(-32*24*time.Hour).Unix())
+	stubBillingSubscriptionSeam(t)
+
+	ev := makeInvoiceEvent("", "INV-PR2OS7ZL-0002", time.Now())
+	require.NoError(t, handleAirwallexInvoicePaid(testCtx(), ev))
+
+	require.EqualValues(t, 0, countRenewalOrders(t), "invoice without id must not create any order")
 }

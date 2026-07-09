@@ -455,16 +455,59 @@ func handleAirwallexBillingCheckoutCompleted(c *gin.Context, event airwallexEven
 	return nil
 }
 
+// airwallexFirstCycleWindow bounds how long after the original order's creation
+// an invoice can still be the first-cycle one. The shortest plan period is a
+// month, so a renewal invoice is always created ≥ ~30 days after the order;
+// the first invoice is created within minutes of checkout.
+const airwallexFirstCycleWindow = 7 * 24 * time.Hour
+
+// parseAirwallexTime parses Billing timestamps ("2026-07-07T23:40:06+0000",
+// also tolerating strict RFC3339).
+func parseAirwallexTime(s string) (time.Time, bool) {
+	for _, layout := range []string{"2006-01-02T15:04:05-0700", time.RFC3339} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
+// isAirwallexFirstCycleInvoice reports whether the invoice object is the
+// subscription's first-cycle invoice, judged from the invoice itself rather
+// than local order state: the per-subscription sequence in `number`
+// (INV-XXXXXXXX-0001), or `created_at` falling inside the first-cycle window
+// of the original order. Both signals are intrinsic to the invoice, so delayed
+// or re-ordered webhook deliveries cannot change the answer.
+func isAirwallexFirstCycleInvoice(obj map[string]any, orig *model.SubscriptionOrder) bool {
+	if strings.HasSuffix(airwallexObjectString(obj, "number"), "-0001") {
+		return true
+	}
+	if created, ok := parseAirwallexTime(airwallexObjectString(obj, "created_at")); ok {
+		return created.Unix() < orig.CreateTime+int64(airwallexFirstCycleWindow/time.Second)
+	}
+	return false
+}
+
 // handleAirwallexInvoicePaid handles the invoice.paid event. The invoice object
 // carries no metadata, so trade_no is resolved via the managed subscription
 // (getBillingSubscription seam allows override in tests). First-cycle invoices
-// are skipped (already activated by billing_checkout.completed); subsequent
-// cycles trigger renewal order creation and completion.
+// are skipped (billing_checkout.completed owns activation) — detected from the
+// invoice's own sequence/created_at, NOT from the local order status: the two
+// first-cycle events race, and a retried delivery can arrive after the checkout
+// event completed the order. Subsequent cycles create+complete a renewal order
+// keyed on the invoice id.
 func handleAirwallexInvoicePaid(c *gin.Context, event airwallexEvent) error {
 	ctx := c.Request.Context()
 	subId := airwallexObjectString(event.Data.Object, "subscription_id")
 	if subId == "" {
 		logger.LogInfo(ctx, "Airwallex invoice.paid: 无 subscription_id，忽略")
+		return nil
+	}
+	invoiceId := airwallexObjectString(event.Data.Object, "id")
+	if invoiceId == "" {
+		// No invoice id means no idempotency key — creating an order would risk
+		// duplicates on redelivery. Real Billing events always carry one.
+		logger.LogError(ctx, "Airwallex invoice.paid: 无 invoice id，忽略 sub="+subId)
 		return nil
 	}
 	sub, err := getBillingSubscription(subId)
@@ -485,22 +528,26 @@ func handleAirwallexInvoicePaid(c *gin.Context, event airwallexEvent) error {
 		return nil
 	}
 	if orig.Status != common.TopUpStatusSuccess {
-		// First cycle — billing_checkout.completed already handles activation.
-		logger.LogInfo(ctx, "Airwallex invoice.paid: 首次周期，跳过（由 billing_checkout.completed 激活）trade_no="+tradeNo)
+		// First cycle not yet activated — billing_checkout.completed owns it.
+		logger.LogInfo(ctx, "Airwallex invoice.paid: 原订单未完成，跳过（由 billing_checkout.completed 激活）trade_no="+tradeNo)
+		return nil
+	}
+	if isAirwallexFirstCycleInvoice(event.Data.Object, orig) {
+		logger.LogInfo(ctx, "Airwallex invoice.paid: 首次周期发票，跳过 invoice="+invoiceId+" trade_no="+tradeNo)
 		return nil
 	}
 	// Subsequent cycle — create and complete the renewal order.
 	payload := common.GetJsonString(event.Data.Object)
-	return renewAirwallexSubscriptionBilling(c, orig, payload)
+	return renewAirwallexSubscriptionBilling(c, orig, payload, invoiceId)
 }
 
 // renewAirwallexSubscriptionBilling inserts + completes the next cycle's paid
-// order. Trade no is derived from the original + billing month, so webhook
-// retries stay idempotent. Returns error so callers receive 500 on DB failure.
-func renewAirwallexSubscriptionBilling(c *gin.Context, orig *model.SubscriptionOrder, payload string) error {
+// order. Trade no embeds the Airwallex invoice id, so webhook redeliveries stay
+// idempotent regardless of when they are processed, and distinct invoices never
+// collapse. Returns error so callers receive 500 on DB failure.
+func renewAirwallexSubscriptionBilling(c *gin.Context, orig *model.SubscriptionOrder, payload string, invoiceId string) error {
 	ctx := c.Request.Context()
-	period := time.Now().UTC().Format("200601")
-	renewTradeNo := fmt.Sprintf("%s-r%s", orig.TradeNo, period)
+	renewTradeNo := fmt.Sprintf("%s-r-%s", orig.TradeNo, invoiceId)
 	if model.GetSubscriptionOrderByTradeNo(renewTradeNo) == nil {
 		order := &model.SubscriptionOrder{
 			UserId:          orig.UserId,
