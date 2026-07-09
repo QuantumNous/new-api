@@ -100,6 +100,9 @@ func ClassifyChannelError(err *types.NewAPIError) ChannelErrorCategory {
 			return CategoryDisableImmediate
 		}
 	}
+	if isModelAccessForbiddenError(err) {
+		return CategoryDisableImmediate
+	}
 
 	if isUpstreamRechargeError(err) {
 		return CategoryUpstreamRecharge
@@ -155,6 +158,29 @@ func isPlatformUserQuotaError(err *types.NewAPIError) bool {
 	msg := strings.ToLower(err.Error())
 	for _, kw := range platformUserQuotaMarkers {
 		if strings.Contains(msg, strings.ToLower(kw)) {
+			return true
+		}
+	}
+	return false
+}
+
+func isModelAccessForbiddenError(err *types.NewAPIError) bool {
+	if err == nil || err.StatusCode != 403 {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	markers := []string{
+		"无权访问模型",
+		"no access to model",
+		"not authorized to access model",
+		"not authorised to access model",
+		"does not have access to model",
+		"don't have access to model",
+		"do not have access to model",
+		"model access denied",
+	}
+	for _, marker := range markers {
+		if strings.Contains(msg, marker) {
 			return true
 		}
 	}

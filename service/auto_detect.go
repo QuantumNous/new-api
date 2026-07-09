@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/bytedance/gopkg/util/gopool"
 )
 
@@ -335,10 +336,11 @@ func disableModelForFingerprint(ch *model.Channel, targetModel string, now int64
 		return
 	}
 
-	if err := model.DB.Table("abilities").
+	result := model.DB.Table("abilities").
 		Where("channel_id = ? AND model = ? AND enabled = ?", ch.Id, targetModel, true).
-		Update("enabled", false).Error; err != nil {
-		logger.LogWarn(context.Background(), fmt.Sprintf("auto-detect: failed to disable ability channel=%d model=%s: %v", ch.Id, targetModel, err))
+		Update("enabled", false)
+	if result.Error != nil {
+		logger.LogWarn(context.Background(), fmt.Sprintf("auto-detect: failed to disable ability channel=%d model=%s: %v", ch.Id, targetModel, result.Error))
 		return
 	}
 
@@ -347,6 +349,13 @@ func disableModelForFingerprint(ch *model.Channel, targetModel string, now int64
 	ch.SetOtherInfo(info)
 	updates["other_info"] = ch.OtherInfo
 	model.InitChannelCache()
+	if result.RowsAffected > 0 {
+		notifyFeishuChannelDisabled(types.ChannelError{
+			ChannelId:   ch.Id,
+			ChannelName: ch.Name,
+			AutoBan:     ch.GetAutoBan(),
+		}, targetModel, "fingerprint suspicious")
+	}
 }
 
 func newAutoDisabledModelEntry(now int64, reason string) map[string]interface{} {
@@ -387,10 +396,11 @@ func recoverModelForFingerprint(ch *model.Channel, targetModel string, updates m
 		return
 	}
 
-	if err := model.DB.Table("abilities").
+	result := model.DB.Table("abilities").
 		Where("channel_id = ? AND model = ?", ch.Id, targetModel).
-		Update("enabled", true).Error; err != nil {
-		logger.LogWarn(context.Background(), fmt.Sprintf("auto-detect: failed to re-enable ability channel=%d model=%s: %v", ch.Id, targetModel, err))
+		Update("enabled", true)
+	if result.Error != nil {
+		logger.LogWarn(context.Background(), fmt.Sprintf("auto-detect: failed to re-enable ability channel=%d model=%s: %v", ch.Id, targetModel, result.Error))
 		return
 	}
 
@@ -403,6 +413,9 @@ func recoverModelForFingerprint(ch *model.Channel, targetModel string, updates m
 	ch.SetOtherInfo(info)
 	updates["other_info"] = ch.OtherInfo
 	model.InitChannelCache()
+	if result.RowsAffected > 0 {
+		notifyFeishuChannelEnabled(ch.Id, ch.Name, targetModel)
+	}
 }
 
 func autoDisabledModelInfo(info map[string]interface{}) map[string]interface{} {

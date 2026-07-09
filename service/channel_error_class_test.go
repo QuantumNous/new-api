@@ -41,6 +41,17 @@ func TestClassifyChannelError_distributorSkip(t *testing.T) {
 	require.Equal(t, CategorySkip, ClassifyChannelError(err))
 }
 
+func TestClassifyChannelError_modelAccessForbidden(t *testing.T) {
+	t.Parallel()
+	err := types.NewErrorWithStatusCode(
+		types.NewError(nil, types.ErrorCodeBadResponseStatusCode),
+		types.ErrorCodeBadResponseStatusCode,
+		403,
+	)
+	err.SetMessage("status_code=403, 该令牌无权访问模型 claude-opus-4-7")
+	require.Equal(t, CategoryDisableImmediate, ClassifyChannelError(err))
+}
+
 func TestClassifyChannelError_imageGenerationTimeout(t *testing.T) {
 	t.Parallel()
 	err := types.WithOpenAIError(types.OpenAIError{
