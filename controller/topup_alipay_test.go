@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
@@ -26,7 +27,8 @@ import (
 func setupAlipayNotifyDB(t *testing.T) {
 	t.Helper()
 
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:test_topup_alipay_%s?mode=memory&cache=shared", t.Name())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.TopUp{}))
 
@@ -442,7 +444,8 @@ func TestAlipayNotifyRejectsMissingProviderTradeNoOnSuccess(t *testing.T) {
 }
 
 func TestLoadEncryptedAlipayOptionsPopulatesRuntimePlaintext(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:test_topup_alipay_options_%s?mode=memory&cache=shared", t.Name())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.Option{}))
 	sqlDB, err := db.DB()
