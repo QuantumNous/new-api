@@ -288,6 +288,7 @@ const SENSITIVE_FORM_FIELDS = [
   'system_prompt_override',
   'allow_service_tier',
   'disable_store',
+  'auto_reset_usage_enabled',
   'allow_safety_identifier',
   'allow_include_obfuscation',
   'allow_inference_geo',
@@ -338,6 +339,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
+    (values.type === 57 && values.auto_reset_usage_enabled) ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
@@ -748,6 +750,7 @@ export function ChannelMutateDrawer({
   const currentSystemPromptOverride = form.watch('system_prompt_override')
   const currentAllowServiceTier = form.watch('allow_service_tier')
   const currentDisableStore = form.watch('disable_store')
+  const currentAutoResetUsageEnabled = form.watch('auto_reset_usage_enabled')
   const currentAllowSafetyIdentifier = form.watch('allow_safety_identifier')
   const currentAllowIncludeObfuscation = form.watch('allow_include_obfuscation')
   const currentAllowInferenceGeo = form.watch('allow_inference_geo')
@@ -1011,6 +1014,7 @@ export function ChannelMutateDrawer({
     currentThinkingToContent ||
     currentPassThroughBodyEnabled ||
     currentDisableTaskPollingSleep ||
+    (currentType === 57 && currentAutoResetUsageEnabled) ||
     currentProxy?.trim() ||
     currentSystemPrompt?.trim() ||
     currentSystemPromptOverride
@@ -4174,6 +4178,33 @@ export function ChannelMutateDrawer({
                                   </FormItem>
                                 )}
                               />
+
+                              {currentType === 57 && (
+                                <FormField
+                                  control={form.control}
+                                  name='auto_reset_usage_enabled'
+                                  render={({ field }) => (
+                                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                      <div className='space-y-0.5'>
+                                        <FormLabel>
+                                          {t('Auto reset usage')}
+                                        </FormLabel>
+                                        <FormDescription>
+                                          {t(
+                                            'Use one available reset credit and retry once when a supported channel returns a rate limit. Only supported channels are affected.'
+                                          )}
+                                        </FormDescription>
+                                      </div>
+                                      <FormControl>
+                                        <Switch
+                                          checked={field.value}
+                                          onCheckedChange={field.onChange}
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                              )}
                             </div>
 
                             <FormField
