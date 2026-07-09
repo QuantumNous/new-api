@@ -24,6 +24,11 @@ func SetApiRouter(router *gin.Engine) {
 		// 渠道定价只读导出（下游 Roma 部署定时拉取；X-Pricing-Export-Secret 认证，
 		// 未配置 PRICING_EXPORT_SECRET 时返回 404）
 		apiRouter.GET("/internal/pricing-export", controller.PricingExport)
+		// 渠道/模型目录全量只读导出（下游 Roma 部署定时拉取做全量镜像；X-Catalog-Export-Secret
+		// 认证，未配置 CATALOG_EXPORT_SECRET 时返回 404）
+		apiRouter.GET("/internal/catalog-export", controller.CatalogExport)
+		// 渠道数据页聚合视图 secret 认证只读别名（Roma 只读渠道数据页按需代理拉取）
+		apiRouter.GET("/internal/channel-data-export", controller.ChannelDataExport)
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
