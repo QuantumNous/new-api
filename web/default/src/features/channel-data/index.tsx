@@ -946,6 +946,10 @@ export function ChannelDataPage() {
               {data.map((item) => {
                 const isAutoDisabled = item.status === 3
                 const isModelEnabled = item.model_enabled !== false  // default true if field missing
+                const isModelAutoDisabled =
+                  !isModelEnabled && !isAutoDisabled &&
+                  Boolean((item.status_reason && item.status_reason.trim()) || (item.status_time && item.status_time > 0))
+                const showAutoDisabledBadge = isAutoDisabled || isModelAutoDisabled
                 // Effectively enabled = model ability on AND channel not disabled/auto-disabled
                 const isEffectivelyEnabled = isModelEnabled && item.status === 1
                 // dim when this specific model is disabled on this channel
@@ -968,7 +972,7 @@ export function ChannelDataPage() {
                       <div className='flex flex-col gap-0.5'>
                         <span className='truncate'>{item.channel_name}</span>
                         <div className='flex flex-wrap gap-1'>
-                          {isAutoDisabled && (
+                          {showAutoDisabledBadge && (
                             <TooltipProvider delay={0}>
                               <Tooltip>
                                 <TooltipTrigger render={<span />}>
@@ -979,7 +983,9 @@ export function ChannelDataPage() {
                                 </TooltipTrigger>
                                 <TooltipContent className='max-w-xs'>
                                   <div className='space-y-1 text-xs'>
-                                    <div className='font-medium text-red-400'>渠道已自动禁用</div>
+                                    <div className='font-medium text-red-400'>
+                                      {isModelAutoDisabled ? '模型已自动禁用' : '渠道已自动禁用'}
+                                    </div>
                                     {item.status_reason && <div>原因：{item.status_reason}</div>}
                                     {item.status_time && item.status_time > 0 && (
                                       <div>时间：{fmtTime(item.status_time)}</div>
@@ -989,7 +995,7 @@ export function ChannelDataPage() {
                               </Tooltip>
                             </TooltipProvider>
                           )}
-                          {!isModelEnabled && (
+                          {!isModelEnabled && !isModelAutoDisabled && (
                             <span className='text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded'>已禁用</span>
                           )}
                         </div>
