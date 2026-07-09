@@ -1,4 +1,4 @@
-package openaicompat
+package relayconvert
 
 import (
 	"regexp"

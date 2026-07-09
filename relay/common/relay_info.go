@@ -163,6 +163,11 @@ type RelayInfo struct {
 
 	PriceData types.PriceData
 
+	// QuotaClamp is set (non-nil) when a quota conversion saturated at the
+	// int32 bound (or NaN fallback) while computing this request's charge.
+	// It is surfaced onto the consume/task log's admin_info for auditing.
+	QuotaClamp *common.QuotaClamp
+
 	// TieredBillingSnapshot is a frozen snapshot of tiered billing rules
 	// captured at pre-consume time. Non-nil only when billing mode is "tiered_expr".
 	TieredBillingSnapshot *billingexpr.BillingSnapshot
@@ -459,7 +464,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 
 	reqId := common.GetContextKeyString(c, common.RequestIdKey)
 	if reqId == "" {
-		reqId = common.GetTimeString() + common.GetRandomString(8)
+		reqId = common.NewRequestId()
 	}
 	info := &RelayInfo{
 		Request: request,

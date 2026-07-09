@@ -14,8 +14,11 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -26,15 +29,18 @@ type listModelsResponse struct {
 	Object  string             `json:"object"`
 }
 
+type userModelsResponse struct {
+	Success bool     `json:"success"`
+	Data    []string `json:"data"`
+}
+
 func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	initModelListColumnNames(t)
 
 	gin.SetMode(gin.TestMode)
-	common.UsingSQLite = true
-	common.UsingMySQL = false
-	common.UsingPostgreSQL = false
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
@@ -60,16 +66,13 @@ func initModelListColumnNames(t *testing.T) {
 
 	originalIsMasterNode := common.IsMasterNode
 	originalSQLitePath := common.SQLitePath
-	originalUsingSQLite := common.UsingSQLite
-	originalUsingMySQL := common.UsingMySQL
-	originalUsingPostgreSQL := common.UsingPostgreSQL
+	originalMainDatabaseType := common.MainDatabaseType()
+	originalLogDatabaseType := common.LogDatabaseType()
 	originalSQLDSN, hadSQLDSN := os.LookupEnv("SQL_DSN")
 	defer func() {
 		common.IsMasterNode = originalIsMasterNode
 		common.SQLitePath = originalSQLitePath
-		common.UsingSQLite = originalUsingSQLite
-		common.UsingMySQL = originalUsingMySQL
-		common.UsingPostgreSQL = originalUsingPostgreSQL
+		common.SetDatabaseTypes(originalMainDatabaseType, originalLogDatabaseType)
 		if hadSQLDSN {
 			require.NoError(t, os.Setenv("SQL_DSN", originalSQLDSN))
 		} else {
@@ -79,9 +82,7 @@ func initModelListColumnNames(t *testing.T) {
 
 	common.IsMasterNode = false
 	common.SQLitePath = fmt.Sprintf("file:%s_init?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
-	common.UsingSQLite = false
-	common.UsingMySQL = false
-	common.UsingPostgreSQL = false
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	require.NoError(t, os.Setenv("SQL_DSN", "local"))
 
 	require.NoError(t, model.InitDB())
@@ -152,6 +153,50 @@ func pricingByModelName(pricings []model.Pricing) map[string]model.Pricing {
 		byName[pricing.ModelName] = pricing
 	}
 	return byName
+}
+
+func decodeUserModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) []string {
+	t.Helper()
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload userModelsResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+	return payload.Data
+}
+
+func TestGetUserModelsFiltersByRequestedGroup(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1002,
+		Username: "playground-model-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "zz-default-only-model", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "zz-disabled-model", ChannelId: 1, Enabled: false},
+	}).Error)
+
+	defaultRecorder := httptest.NewRecorder()
+	defaultContext, _ := gin.CreateTestContext(defaultRecorder)
+	defaultContext.Request = httptest.NewRequest(http.MethodGet, "/api/user/models?group=default", nil)
+	defaultContext.Set("id", 1002)
+
+	GetUserModels(defaultContext)
+
+	defaultModels := decodeUserModelsResponse(t, defaultRecorder)
+	require.ElementsMatch(t, []string{"zz-default-only-model"}, defaultModels)
+
+	vipRecorder := httptest.NewRecorder()
+	vipContext, _ := gin.CreateTestContext(vipRecorder)
+	vipContext.Request = httptest.NewRequest(http.MethodGet, "/api/user/models?group=vip", nil)
+	vipContext.Set("id", 1002)
+
+	GetUserModels(vipContext)
+
+	require.Empty(t, decodeUserModelsResponse(t, vipRecorder))
 }
 
 func TestListModelsIncludesTieredBillingModel(t *testing.T) {
@@ -241,4 +286,82 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	require.NotContains(t, ids, "zz-token-tiered-empty-expr-model")
 	require.NotContains(t, ids, "zz-token-tiered-missing-expr-model")
 	require.NotContains(t, ids, "zz-token-unpriced-model")
+}
+
+func TestCheckUpdatePasswordRequiresCurrentPassword(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	hashedPassword, err := common.Password2Hash("CurrentPassword123")
+	require.NoError(t, err)
+	user := &model.User{
+		Username: "password-user",
+		Password: hashedPassword,
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	updatePassword, err := checkUpdatePassword("", "", user.Id)
+	require.NoError(t, err)
+	assert.False(t, updatePassword)
+
+	updatePassword, err = checkUpdatePassword("", "NewPassword123", user.Id)
+	require.Error(t, err)
+	assert.False(t, updatePassword)
+	assert.ErrorIs(t, err, errOriginalPasswordFail)
+
+	updatePassword, err = checkUpdatePassword("CurrentPassword123", "NewPassword123", user.Id)
+	require.NoError(t, err)
+	assert.True(t, updatePassword)
+}
+
+func TestCheckUpdatePasswordRejectsHistoricalEmptyPassword(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	user := &model.User{
+		Username: "legacy-passwordless-user",
+		Password: "",
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	updatePassword, err := checkUpdatePassword("", "NewPassword123", user.Id)
+	require.Error(t, err)
+	assert.False(t, updatePassword)
+	assert.ErrorIs(t, err, errUserPasswordUnset)
+}
+
+func TestSetupLoginDoesNotTouchPasswordWhenPasswordFieldOmitted(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.Log{}))
+
+	hashedPassword, err := common.Password2Hash("CurrentPassword123")
+	require.NoError(t, err)
+	user := &model.User{
+		Username: "twofa-user",
+		Password: hashedPassword,
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	router := gin.New()
+	store := cookie.NewStore([]byte("test-session-secret"))
+	router.Use(sessions.Sessions("session", store))
+	router.GET("/", func(c *gin.Context) {
+		setupLogin(&model.User{
+			Id:       user.Id,
+			Username: user.Username,
+			Role:     user.Role,
+			Status:   user.Status,
+			Group:    user.Group,
+		}, c)
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var stored model.User
+	require.NoError(t, db.First(&stored, user.Id).Error)
+	assert.Equal(t, hashedPassword, stored.Password)
 }
