@@ -316,3 +316,33 @@ func TestCalculateTextQuotaSummaryKeepsPrePRClaudeOpenRouterBilling(t *testing.T
 	require.Equal(t, 172, summary.PromptTokens)
 	require.Equal(t, 798, summary.Quota)
 }
+
+func TestCalculateTextQuotaSummaryAppliesImageUnitPriceWithCountAndGroupRatio(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "gemini-3.1-flash-image",
+		PriceData: types.PriceData{
+			UsePrice:   true,
+			ModelPrice: 0.101,
+			OtherRatios: map[string]float64{
+				"n": 3,
+			},
+			GroupRatioInfo: types.GroupRatioInfo{
+				GroupRatio: 1.5,
+			},
+		},
+		StartTime: time.Now(),
+	}
+
+	usage := &dto.Usage{
+		PromptTokens: 1,
+		TotalTokens:  1,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+	require.Equal(t, 227250, summary.Quota)
+}

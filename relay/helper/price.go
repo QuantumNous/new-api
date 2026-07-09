@@ -62,7 +62,14 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 }
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
+	if meta == nil {
+		meta = &types.TokenCountMeta{}
+	}
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
+	if meta.ImageUnitPrice > 0 {
+		modelPrice = meta.ImageUnitPrice
+		usePrice = true
+	}
 
 	groupRatioInfo := HandleGroupRatio(c, info)
 
@@ -106,7 +113,10 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		ratio := modelRatio * groupRatioInfo.GroupRatio
 		preConsumedQuota = int(float64(preConsumedTokens) * ratio)
 	} else {
-		if meta.ImagePriceRatio != 0 {
+		if meta.ImageUnitPrice > 0 {
+			// Built-in image prices already represent the final single-image price
+			// for the requested model/size/quality.
+		} else if meta.ImagePriceRatio != 0 {
 			modelPrice = modelPrice * meta.ImagePriceRatio
 		}
 		preConsumedQuota = int(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)

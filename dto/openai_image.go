@@ -2,6 +2,7 @@ package dto
 
 import (
 	"encoding/json"
+	"math"
 	"reflect"
 	"strings"
 
@@ -124,9 +125,135 @@ func indexComma(s string) int {
 	return -1
 }
 
+func normalizeImageQuality(quality string) string {
+	switch strings.ToLower(strings.TrimSpace(quality)) {
+	case "low", "medium", "high":
+		return strings.ToLower(strings.TrimSpace(quality))
+	default:
+		return "medium"
+	}
+}
+
+func parseImageSize(size string) (int, int, bool) {
+	size = strings.ToLower(strings.TrimSpace(size))
+	if size == "" || size == "auto" {
+		size = "1024x1024"
+	}
+	parts := strings.Split(strings.ToLower(strings.TrimSpace(size)), "x")
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	width := common.String2Int(strings.TrimSpace(parts[0]))
+	height := common.String2Int(strings.TrimSpace(parts[1]))
+	if width <= 0 || height <= 0 {
+		return 0, 0, false
+	}
+	return width, height, true
+}
+
+func imageSizeTier(size string) (string, bool) {
+	width, height, ok := parseImageSize(size)
+	if !ok {
+		return "", false
+	}
+	longEdge := width
+	if height > longEdge {
+		longEdge = height
+	}
+	switch {
+	case longEdge <= 1024:
+		return "1k", true
+	case longEdge <= 2048:
+		return "2k", true
+	case longEdge <= 4096:
+		return "4k", true
+	default:
+		return "", false
+	}
+}
+
+func gptImage2UnitPrice(size string, quality string) (float64, bool) {
+	width, height, ok := parseImageSize(size)
+	if !ok {
+		return 0, false
+	}
+	if width%16 != 0 || height%16 != 0 {
+		return 0, false
+	}
+	pixels := width * height
+	if pixels < 655360 || pixels > 8294400 {
+		return 0, false
+	}
+	longEdge := width
+	shortEdge := height
+	if height > width {
+		longEdge = height
+		shortEdge = width
+	}
+	if longEdge > 3840 || float64(longEdge)/float64(shortEdge) > 3 {
+		return 0, false
+	}
+
+	qualityGrid := map[string]int{
+		"low":    16,
+		"medium": 48,
+		"high":   96,
+	}[normalizeImageQuality(quality)]
+	shortGrid := int(math.Round(float64(qualityGrid) * float64(shortEdge) / float64(longEdge)))
+	widthGrid := shortGrid
+	heightGrid := qualityGrid
+	if width >= height {
+		widthGrid = qualityGrid
+		heightGrid = shortGrid
+	}
+	outputTokens := math.Ceil(float64(widthGrid*heightGrid) * float64(2000000+pixels) / 4000000)
+	return outputTokens * 30 / 1000000, true
+}
+
+func builtInImageUnitPrice(model string, size string, quality string) (float64, bool) {
+	model = strings.ToLower(strings.TrimSpace(model))
+	if model == "gpt-image-2" {
+		return gptImage2UnitPrice(size, quality)
+	}
+
+	tier, ok := imageSizeTier(size)
+	if !ok {
+		return 0, false
+	}
+
+	switch model {
+	case "gemini-3.1-flash-image", "nano-banana-2":
+		switch tier {
+		case "1k":
+			return 0.067, true
+		case "2k":
+			return 0.101, true
+		case "4k":
+			return 0.151, true
+		}
+	case "gemini-3-pro-image", "nano-banana-pro":
+		switch tier {
+		case "1k", "2k":
+			return 0.134, true
+		case "4k":
+			return 0.240, true
+		}
+	case "gemini-2.5-flash-image", "nano-banana":
+		if tier == "1k" {
+			return 0.039, true
+		}
+	case "gemini-3.1-flash-lite-image":
+		if tier == "1k" {
+			return 0.0336, true
+		}
+	}
+	return 0, false
+}
+
 func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var sizeRatio = 1.0
 	var qualityRatio = 1.0
+	imageUnitPrice, _ := builtInImageUnitPrice(i.Model, i.Size, i.Quality)
 
 	if strings.HasPrefix(i.Model, "dall-e") {
 		// Size
@@ -156,6 +283,7 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		CombineText:     i.Prompt,
 		MaxTokens:       1584,
 		ImagePriceRatio: sizeRatio * qualityRatio,
+		ImageUnitPrice:  imageUnitPrice,
 	}
 }
 
