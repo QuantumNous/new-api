@@ -242,7 +242,7 @@ curl http://localhost:18080/healthz
 给 `new-api` 里的阿里渠道配置本地 mock 时，把渠道 `base_url` 改成：
 
 ```text
-http://ali-video-mock:8080
+http://host.docker.internal:18080
 ```
 
 如果你在宿主机直接调 mock，也可以使用：
